@@ -2,6 +2,36 @@
 
 *Full commit-level history, day by day, lives in [`CHANGELOG.md`](CHANGELOG.md).*
 
+## 2026.08.26
+
+A day of testing feedback, fixed the same day. Daniel drove the app all
+morning; everything he hit is in this build.
+
+- New Library, the Mac way: the save dialog remembers your last folder;
+  creating in a synced location (iCloud Drive, Dropbox, Google Drive, Box)
+  warns first — a live database and a sync engine are a bad pairing.
+- Open Recent actually works: closed libraries stay in the menu, ghost
+  "Untitled" entries and duplicate rows are gone, and a brand-new library
+  can run workflows immediately — no relaunch.
+- Run Workflow runs on what you selected: the long-standing bug where a
+  run landed on the parent folder instead of the selected page is fixed —
+  the toolbar picker now resolves its scope at the moment it opens.
+- Multi-select reading: select several pages and the reader shows exactly
+  those pages in the real WebKit transcript — with the pane's header,
+  lens switcher and breadcrumbs intact. Mixed selections get a clean
+  archival-order list.
+- Split on a page works: parts are attached as child nodes with regions
+  (they used to be cut, written, and silently lost).
+- Transcriptions stay clean: the "[Script: …]" classification line the
+  paleography prompts request is stored as metadata, never in your text.
+- Honest boxes (bbox step 4): a maintenance pass marks renditions whose
+  pixels can't be matched to a recorded frame, and overlays render
+  unanchored on them — blank beats boxes on the wrong pixels.
+- Under the hood: the engine no longer opens duplicate connections for
+  one library reached by two path spellings; library context menus gain
+  New Folder / Import Files; a 12-second launch stall moved off the main
+  thread; live model catalogs stay per-provider live.
+
 ## 2026.08.25
 
 The overnight reliability build. Word bounding boxes on cursive

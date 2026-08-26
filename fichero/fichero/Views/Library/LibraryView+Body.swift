@@ -68,7 +68,30 @@ extension LibraryView {
             // @Observable seam (§6b): the toolbar bumps the token, this pane
             // reacts to the change.
             .onChange(of: windowState.workflowPickerRequestToken) {
+                // Refresh the batch scope at OPEN time (2026-08-25): without
+                // this the sheet ran on a STALE earlier selection — a folder
+                // picked minutes ago — while the sidebar-picked page never
+                // entered the scope at all.
+                selectedDocumentIdsForBatch = toolbarRunScope
                 showWorkflowPicker = true
+            }
+            // A contextual suggestion button (2026-08-25): resolve the
+            // canonical name in THIS library's workflows and run it over the
+            // selection through the same batch seam every other run surface
+            // uses. An unresolvable name opens the picker instead of doing
+            // nothing — the nudge degrades to the chooser, never to silence.
+            .onChange(of: windowState.suggestedWorkflowRequest) { _, request in
+                guard let request else { return }
+                if let workflow = libraryWorkflows.first(where: { $0.name == request.workflowName }) {
+                    // Same open-time scope rule as the picker token above —
+                    // `Array(selection)` alone dropped the sidebar-picked
+                    // document (pane selection empty after a sidebar click).
+                    selectedDocumentIdsForBatch = toolbarRunScope
+                    Task { await runBatchWorkflow(workflowId: workflow.id) }
+                } else {
+                    selectedDocumentIdsForBatch = toolbarRunScope
+                    showWorkflowPicker = true
+                }
             }
             // Warm the run-menu provider cache from the PANE's lifecycle, not
             // the Menu's .onAppear: AppKit snapshots a context menu at open,

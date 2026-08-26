@@ -60,11 +60,16 @@ extension DocumentInspector {
             ForEach(facets) { facet in
                 if iconOnly {
                     Image(systemName: facet.icon)
-                        .help(facet.rawValue)
+                        // The RICH copy, not just the name (Daniel,
+                        // 2026-08-25: "the tabs there need tooltips") —
+                        // helpText says what the tab is FOR.
+                        .help(facet.helpText)
                         .accessibilityLabel(facet.rawValue)
                         .tag(facet)
                 } else {
-                    Text(facet.rawValue).tag(facet)
+                    Text(facet.rawValue)
+                        .help(facet.helpText)
+                        .tag(facet)
                 }
             }
         }

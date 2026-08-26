@@ -64,9 +64,18 @@ enum OCRGeometrySelection {
         var ranked: [(rank: Int, artifact: Artifact)] = []
         for artifact in candidates {
             if isKnownEmpty(artifact) { continue }
-            guard let rank: Int = geometryBearingTypes.firstIndex(of: artifact.artifactType) else {
+            guard let typeRank: Int = geometryBearingTypes.firstIndex(of: artifact.artifactType) else {
                 continue
             }
+            // `text_geometry` keeps absolute authority — it is the file's OWN
+            // text layer, exact coordinates, not an estimate. But between
+            // `transcription` and `regions` the type no longer decides
+            // (2026-08-25, Daniel's re-run): both are MEASURED passes over the
+            // same pixels, and ranking transcription above regions let a stale
+            // 8/23 transcription's sparse boxes permanently mask every fresh
+            // Detect Regions run — re-running "did nothing" on screen while
+            // the engine wrote 52 good boxes. Estimates tier: newest wins.
+            let rank = typeRank == 0 ? 0 : 1
             ranked.append((rank: rank, artifact: artifact))
         }
         ranked.sort { lhs, rhs in

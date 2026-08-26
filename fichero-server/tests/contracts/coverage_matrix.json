@@ -238,7 +238,7 @@
       "swiftui_coverage": 1.0,
       "cli_wired": 3,
       "cli_untested": 0,
-      "cli_allowlisted": 1,
+      "cli_allowlisted": 0,
       "cli_coverage": 1.0
     },
     {
@@ -255,14 +255,14 @@
     },
     {
       "domain": "documents",
-      "total": 40,
-      "swiftui_wired": 30,
+      "total": 41,
+      "swiftui_wired": 31,
       "swiftui_unwired": 10,
-      "swiftui_allowlisted": 11,
-      "swiftui_coverage": 0.75,
-      "cli_wired": 40,
+      "swiftui_allowlisted": 10,
+      "swiftui_coverage": 0.7561,
+      "cli_wired": 41,
       "cli_untested": 0,
-      "cli_allowlisted": 2,
+      "cli_allowlisted": 0,
       "cli_coverage": 1.0
     },
     {
@@ -286,7 +286,7 @@
       "swiftui_coverage": 0.1429,
       "cli_wired": 7,
       "cli_untested": 0,
-      "cli_allowlisted": 1,
+      "cli_allowlisted": 0,
       "cli_coverage": 1.0
     },
     {
@@ -723,15 +723,15 @@
     },
     {
       "domain": "tasks",
-      "total": 13,
+      "total": 14,
       "swiftui_wired": 0,
-      "swiftui_unwired": 13,
-      "swiftui_allowlisted": 13,
+      "swiftui_unwired": 14,
+      "swiftui_allowlisted": 14,
       "swiftui_coverage": 0.0,
-      "cli_wired": 12,
+      "cli_wired": 13,
       "cli_untested": 1,
       "cli_allowlisted": 1,
-      "cli_coverage": 0.9231
+      "cli_coverage": 0.9286
     },
     {
       "domain": "triggers",
@@ -778,7 +778,7 @@
       "swiftui_coverage": 0.7,
       "cli_wired": 20,
       "cli_untested": 0,
-      "cli_allowlisted": 1,
+      "cli_allowlisted": 0,
       "cli_coverage": 1.0
     },
     {

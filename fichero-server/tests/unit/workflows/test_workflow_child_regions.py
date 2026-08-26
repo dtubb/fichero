@@ -255,3 +255,50 @@ def test_fresh_run_with_no_children_still_warns():
     )
     assert message is not None
     assert "no rendition was attached" in message
+
+
+class TestSourcePathResolution:
+    """The part→document match must survive the two path shapes real runs
+    hand it (Daniel, 2026-08-25: split on a PDF page 'completed' and attached
+    nothing): a PAGE document with no file of its own, whose split source is
+    its PARENT's file; and a copy-imported document whose stored path is
+    library-RELATIVE while the files tool resolves ABSOLUTE."""
+
+    def test_page_with_no_path_matches_through_its_parent(
+        self, db, tmp_path, test_package
+    ):
+        parent, source = _parent(db, tmp_path)
+        page = Document(name="page 1", parent_id=parent.id, path=None)
+        db.save(page)
+
+        report = persist_workflow_child_regions(
+            {"documents": [{"id": page.id}], "library_path": str(test_package)},
+            {},
+            results=[{"source": str(source), "parts": _halves(tmp_path)}],
+            part_key="parts", role="split_part", method="workflow-split", name="part",
+        )
+
+        assert report["unmatched_sources"] == []
+        assert len(report["children"]) == 2
+        assert all(
+            c["parent_id"] == page.id for c in report["children"]
+        ), "parts must land under the SELECTED page, not its file parent"
+
+    def test_relative_stored_path_matches_absolute_source(
+        self, db, tmp_path, test_package
+    ):
+        absolute = Path(test_package) / "files" / "aa" / "copyimport.jpg"
+        absolute.parent.mkdir(parents=True, exist_ok=True)
+        absolute.write_bytes(b"\xff\xd8copy")
+        doc = Document(name="copyimport.jpg", path="files/aa/copyimport.jpg")
+        db.save(doc)
+
+        report = persist_workflow_child_regions(
+            {"documents": [{"id": doc.id}], "library_path": str(test_package)},
+            {},
+            results=[{"source": str(absolute), "parts": _halves(tmp_path)}],
+            part_key="parts", role="split_part", method="workflow-split", name="part",
+        )
+
+        assert report["unmatched_sources"] == []
+        assert len(report["children"]) == 2

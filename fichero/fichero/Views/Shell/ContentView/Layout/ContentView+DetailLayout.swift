@@ -160,21 +160,20 @@ extension ContentView {
         // survives; erasure at the case boundary caps it, same as the root
         // layout and window root.
         adaptiveSplittablePane(storageKey: readingSplitKey) {
-            if readerStack.count > 1 {
-                // All N selected transcripts, archival order + headers
-                // (Daniel's ruling, 2026-08-23) — replaces the honest-but-empty
-                // "N Items Selected" state. AnyView stays load-bearing (#4331).
-                AnyView(MultiSelectionReaderView(documents: readerStack))
-            } else {
-                AnyView(ReadingPaneView(
-                    liveDocument: detailDocument,
-                    liveActivePageNumber: detailPDFDocumentId == nil ? nil : selectedPageIndex + 1,
-                    livePageCount: pageCount == 0 ? nil : pageCount,
-                    scrollSync: documentScrollSync,
-                    onPageSelected: { index in syncGridSelectionToPDFPage(index: index) },
-                    onClose: { setPaneVisible(.reading, false) }
-                ))
-            }
+            // ONE pane for both selection widths (2026-08-25): the multi view
+            // used to replace ReadingPaneView wholesale, so a 3-item
+            // selection erased the head, lens selector and crumbs. Now the
+            // Page lens renders the multi list INSIDE the pane's chrome.
+            // AnyView stays load-bearing (#4331).
+            AnyView(ReadingPaneView(
+                liveDocument: detailDocument,
+                liveActivePageNumber: detailPDFDocumentId == nil ? nil : selectedPageIndex + 1,
+                livePageCount: pageCount == 0 ? nil : pageCount,
+                scrollSync: documentScrollSync,
+                onPageSelected: { index in syncGridSelectionToPDFPage(index: index) },
+                onClose: { setPaneVisible(.reading, false) },
+                multiDocuments: readerStack
+            ))
         }
         // Native focus rings OFF in this pane (Daniel's screenshot, 3:56pm:
         // a persistent blue edge above the reader toolbar — macOS 14+ makes

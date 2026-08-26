@@ -381,8 +381,10 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         XCTAssertTrue(toolbarSource.contains("placement: .principal"))
         // The library-name crumb LEFT the toolbar (Daniel, 2026-08-23):
         // panes carry their own crumbs; the island answers the selection.
-        XCTAssertTrue(menuSource.contains("Show Library Browser"))
-        XCTAssertTrue(menuSource.contains("Hide Library Browser"))
+        // "no Pane / no Browser in the labels" (Daniel, 2026-08-25): the
+        // menu says what the toolbar toggle says — just "Library".
+        XCTAssertTrue(menuSource.contains("Show Library"))
+        XCTAssertTrue(menuSource.contains("Hide Library"))
         XCTAssertTrue(menuSource.contains("icon: \"books.vertical\""))
     }
 

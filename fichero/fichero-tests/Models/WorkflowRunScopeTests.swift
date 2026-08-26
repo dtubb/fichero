@@ -258,3 +258,49 @@ struct WorkflowRunScopeTests {
         #expect(actions.contains("effectiveWorkflowRunSelection"))
     }
 }
+
+/// The TOOLBAR picker's open-time scope (2026-08-25: "runs on the parent
+/// folder"). The token handler opened the sheet without refreshing
+/// `selectedDocumentIdsForBatch`, so the run fired on whatever an earlier
+/// gesture left there, and the sidebar-picked page — pane selection empty —
+/// never entered the scope. `toolbarRunScope` is the one precedence rule.
+struct ToolbarRunScopeTests {
+
+    @Test("visible pane selection wins")
+    func paneSelectionWins() {
+        let scope = LibraryView.toolbarRunScope(
+            paneSelection: ["p1", "p2"],
+            liveSelection: ["stale"],
+            preservedSelection: ["older"]
+        )
+        #expect(Set(scope) == ["p1", "p2"])
+    }
+
+    @Test("empty pane falls through to the live window selection")
+    func liveSelectionSecond() {
+        let scope = LibraryView.toolbarRunScope(
+            paneSelection: [],
+            liveSelection: ["live1"],
+            preservedSelection: ["older"]
+        )
+        #expect(scope == ["live1"])
+    }
+
+    @Test("a sidebar-picked page survives via the preserved snapshot")
+    func preservedSnapshotLast() {
+        let scope = LibraryView.toolbarRunScope(
+            paneSelection: [],
+            liveSelection: [],
+            preservedSelection: ["page1"]
+        )
+        #expect(scope == ["page1"])
+    }
+
+    @Test("nothing selected anywhere resolves to an empty scope, never a container")
+    func emptyEverywhereIsEmpty() {
+        let scope = LibraryView.toolbarRunScope(
+            paneSelection: [], liveSelection: [], preservedSelection: []
+        )
+        #expect(scope.isEmpty)
+    }
+}

@@ -159,6 +159,17 @@ struct ArtifactPanel: View {
                         contentBody
                             .padding(.bottom, 6)
                             .padding(.top, 2)
+                        // B2 (Daniel, 2026-08-25): a geometry-bearing
+                        // artifact lists its regions; clicking one highlights
+                        // that region's word boxes in the Preview via the
+                        // reader-linking seam.
+                        if case .artifact(let artifact) = kind {
+                            ArtifactRegionsSection(
+                                artifactId: artifact.id,
+                                documentId: artifact.documentId
+                            )
+                            .padding(.bottom, 6)
+                        }
                     } label: {
                         header
                     }

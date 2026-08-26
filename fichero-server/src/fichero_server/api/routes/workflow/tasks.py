@@ -544,6 +544,44 @@ class TaskSystemHealthResponse(BaseModel):
 
 
 @router.post(
+    "/reanchor",
+    response_model=TaskResponse,
+    summary="Create frame re-anchor job",
+    description=(
+        "Bbox step 4: classify every rendition's pixel frame against its "
+        "node's, and mark frame-divergent renditions that recorded no "
+        "transform as frame_status=unknown so overlays render unanchored on "
+        "them. Pass options={\"dry_run\": true} to report without writing."
+    ),
+)
+async def create_reanchor_task(
+    request: CreateTaskRequest = None,
+    x_fichero_library_path: str = Depends(require_library_path),
+) -> TaskResponse:
+    """Create a frame re-anchor task."""
+    queue = get_task_queue()
+    if not queue:
+        raise HTTPException(
+            status_code=503,
+            detail="Task queue not initialized",
+        )
+
+    name = request.name if request and request.name else "Re-anchor Rendition Frames"
+    options = dict(request.options) if request else {}
+    options[_TASK_LIBRARY_PATH_OPTION] = x_fichero_library_path
+    priority = request.priority if request else 0
+
+    task = await queue.create_task(
+        task_type=TaskType.REANCHOR,
+        name=name,
+        options=options,
+        priority=priority,
+    )
+
+    return _task_to_response(task)
+
+
+@router.post(
     "/vector-repair",
     response_model=TaskResponse,
     summary="Create vector repair job",

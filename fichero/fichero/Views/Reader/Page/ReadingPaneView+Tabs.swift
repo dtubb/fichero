@@ -35,7 +35,23 @@ extension ReadingPaneView {
     /// TWO PANES — Reader + Preview — not an embedded source view.
     @ViewBuilder
     private var pageTabContent: some View {
-        surfaceView(tab: .transcript)
+        if multiDocuments.count > 1 {
+            // N pages of ONE parent ride the SAME WebKit transcript the
+            // single-document reader uses — the surface's `?pages=` filter
+            // tells the renderer which pages to assemble (2026-08-25). The
+            // guard against `effectiveDocument`'s own mapping keeps the
+            // filter honest: the ids must be children of the document the
+            // surface is about to render. Mixed selections (across parents,
+            // or non-pages) keep the native archival-order list.
+            if let parentId = multiReaderCommonPageParent(multiDocuments),
+               effectiveKGDocumentId == parentId {
+                surfaceView(tab: .transcript, pageIds: multiDocuments.map(\.id))
+            } else {
+                MultiSelectionReaderView(documents: multiDocuments)
+            }
+        } else {
+            surfaceView(tab: .transcript)
+        }
     }
 
     /// Notes tab — the human reading layer. A sub-mode toggle (#3513) switches
@@ -211,8 +227,17 @@ extension ReadingPaneView {
     /// The shared WebKit surface, driven by an explicit tab. The Page tab passes
     /// `.transcript` (the assembled multi-page transcript) and the Knowledge tab
     /// passes its viz sub-mode — one WKWebView, two readings of the same document.
+    /// The document id the surface would render for the current
+    /// `effectiveDocument` — a page maps to its parent, everything else to
+    /// itself. Exposed so `pageTabContent` can verify a multi-page filter
+    /// belongs to the document about to be rendered.
+    var effectiveKGDocumentId: String? {
+        guard let doc = effectiveDocument else { return nil }
+        return (doc.docType == .page && doc.parentId != nil) ? doc.parentId! : doc.id
+    }
+
     @ViewBuilder
-    func surfaceView(tab: KGSurfaceTab) -> some View {
+    func surfaceView(tab: KGSurfaceTab, pageIds: [String] = []) -> some View {
         if let doc = effectiveDocument,
            let libraryPath = apiClient.currentLibraryPath, !libraryPath.isEmpty {
             let kgDocId = (doc.docType == .page && doc.parentId != nil) ? doc.parentId! : doc.id
@@ -220,6 +245,7 @@ extension ReadingPaneView {
                 documentId: kgDocId,
                 documentScope: doc.docType == .page ? .page : .folder,
                 libraryPath: libraryPath,
+                pageIds: pageIds,
                 selectedEntityId: kgFocusState.focusedEntityId,
                 selectedClaimId: highlightedClaimId,
                 activePageNumber: effectivePageNumber,

@@ -15,6 +15,20 @@ func multiReaderMissingTextIds(_ documents: [Document]) -> [String] {
     documents.filter { ($0.pageContent ?? "").isEmpty }.map(\.id)
 }
 
+/// The one parent when EVERY selected document is a page of the same parent —
+/// the case the shared WebKit transcript can render directly via its
+/// `?pages=` filter (2026-08-25: "we already have the WebKit renderer; it's
+/// just telling it what to render"). Mixed selections (across parents, or
+/// containing non-pages) return nil and fall back to the native list.
+func multiReaderCommonPageParent(_ documents: [Document]) -> String? {
+    guard let first = documents.first, first.docType == .page,
+          let parentId = first.parentId else { return nil }
+    let allSameParentPages = documents.allSatisfy {
+        $0.docType == .page && $0.parentId == parentId
+    }
+    return allSameParentPages ? parentId : nil
+}
+
 struct MultiSelectionReaderView: View {
     /// Archival (document) order — `previewStackDocuments` already resolves
     /// selection→documents in listing order; this view never re-sorts.

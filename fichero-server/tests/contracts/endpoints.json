@@ -8742,6 +8742,16 @@
       },
       {
         "method": "POST",
+        "path": "/tasks/reanchor",
+        "operation_id": "create_reanchor_task_api_tasks_reanchor_post",
+        "summary": "Create frame re-anchor job",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "CreateTaskRequest",
+        "response_model": "TaskResponse"
+      },
+      {
+        "method": "POST",
         "path": "/tasks/reindex",
         "operation_id": "create_reindex_task_api_tasks_reindex_post",
         "summary": "Create reindex job",
@@ -9009,7 +9019,13 @@
         "path_params": [
           "doc_id"
         ],
-        "query_params": [],
+        "query_params": [
+          {
+            "name": "pages",
+            "required": false,
+            "type": "string"
+          }
+        ],
         "request_model": null,
         "response_model": null
       },

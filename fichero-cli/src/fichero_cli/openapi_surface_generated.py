@@ -4413,6 +4413,8 @@ def register_generated_openapi_commands(
         attachments: Optional[bool] = typer.Option(None, "--attachments/--no-attachments", help="Query parameter: attachments."),
         children: Optional[bool] = typer.Option(None, "--children/--no-children", help="Query parameter: children."),
         level: Optional[str] = typer.Option(None, "--level", help="Query parameter: level."),
+        sort_by: Optional[str] = typer.Option(None, "--sort-by", help="Query parameter: sort_by."),
+        sort_direction: Optional[str] = typer.Option(None, "--sort-direction", help="Query parameter: sort_direction."),
     ) -> None:
         """Get Document View (GET /api/documents/{doc_id}/view)."""
         def op_call(client: FicheroClient) -> Any:
@@ -4421,6 +4423,8 @@ def register_generated_openapi_commands(
                 "attachments": attachments,
                 "children": children,
                 "level": level,
+                "sort_by": sort_by,
+                "sort_direction": sort_direction,
             }
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
@@ -12767,6 +12771,29 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("create-frame-re-anchor-job")
+    def tasks_create_frame_re_anchor_job_post(
+        ctx: typer.Context,
+        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
+        options: Optional[str] = typer.Option(None, "--options", help="Request field: options."),
+        priority: Optional[int] = typer.Option(None, "--priority", help="Request field: priority."),
+    ) -> None:
+        """Create frame re-anchor job (POST /api/tasks/reanchor)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/tasks/reanchor"
+            params = None
+            payload = _build_json_payload({
+                "name": name,
+                "options": options,
+                "priority": priority,
+            }, {
+                "name": {'type': 'string', 'nullable': True, 'title': 'Name', 'description': 'Optional display name for the task', 'x-cli-required': False},
+                "options": {'additionalProperties': True, 'type': 'object', 'title': 'Options', 'description': 'Task-specific options', 'x-cli-required': False},
+                "priority": {'type': 'integer', 'maximum': 100.0, 'minimum': 0.0, 'title': 'Priority', 'description': 'Priority (lower = higher priority)', 'default': 0, 'x-cli-required': False},
+            }, required=False)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("create-reindex-job")
     def tasks_create_reindex_job_post(
         ctx: typer.Context,
@@ -13140,11 +13167,14 @@ def register_generated_openapi_commands(
     def view_document_get(
         ctx: typer.Context,
         doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+        pages: Optional[str] = typer.Option(None, "--pages", help="Query parameter: pages."),
     ) -> None:
         """Document View (GET /view/document/{doc_id})."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = f"/view/document/{doc_id}"
-            params = None
+            params = {
+                "pages": pages,
+            }
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 

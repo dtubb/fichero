@@ -27,7 +27,7 @@ struct LibraryPaneToggleModel: Equatable {
 
     /// Menu/toolbar title. Matches the "… Pane" wording of the neighbouring
     /// preview/reading toggles.
-    var title: String { "Library Pane" }
+    var title: String { "Library" }
 
     /// ONE constant, position-encoded glyph (#4360). Visibility state is the
     /// native `Toggle` on-state on the toolbar's glass, not a glyph swap: the

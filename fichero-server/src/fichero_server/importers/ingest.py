@@ -463,6 +463,28 @@ def ingest_file(
             created_pages = _create_pdf_page_children(
                 doc, content_path, db, auto_embed=auto_embed
             )
+            # The PDF's own annotation layer survives import (bbox step 3,
+            # 2026-08-25): highlights/notes made in Preview/Acrobat land as
+            # Annotation rows on their page children, with node-frame
+            # anchors. Best-effort — a torn /Annots never fails the ingest
+            # that carries the pages.
+            try:
+                from fichero_server.importers.pdf_annotations import (
+                    import_pdf_annotations,
+                )
+                pages_by_index = {
+                    index: page for index, page in enumerate(created_pages or [])
+                    if not isinstance(page, dict)
+                }
+                import_pdf_annotations(
+                    db, doc, str(content_path),
+                    page_children_by_index=pages_by_index,
+                )
+            except Exception as annot_exc:
+                logger.warning(
+                    "PDF annotation-layer import failed for %s: %s",
+                    content_path, annot_exc,
+                )
             def _page_text(page: object) -> str:
                 if isinstance(page, dict):
                     return (page.get("content") or "").strip()

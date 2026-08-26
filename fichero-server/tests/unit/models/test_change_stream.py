@@ -1792,3 +1792,32 @@ class TestTerminalNodeEmits:
             assert "document.updated" in types_seen
         finally:
             change_stream._change_hub.unsubscribe(library_path, queue)
+
+
+class TestSymlinkSpellingCanonicalization:
+    """#2518 follow-up, proof arrived 2026-08-25: the create flow subscribed
+    under a `/var/…` spelling while emits carried `/private/var/…` — same
+    package, zero subscribers. `_canonical_key` resolves symlinks now."""
+
+    def test_symlinked_subscriber_receives_realpath_emit(self, tmp_path):
+        real = tmp_path / "real" / "Lib.fichero"
+        real.mkdir(parents=True)
+        alias_parent = tmp_path / "alias"
+        alias_parent.symlink_to(tmp_path / "real")
+        alias = alias_parent / "Lib.fichero"
+
+        hub = _ChangeHub()
+        queue = hub.subscribe(str(alias))
+
+        event = ChangeEvent(type="document.updated", document_ids=["d1"])
+        assert hub.emit(str(real), event) == 1
+        assert queue.get_nowait() is event
+
+    def test_darwin_var_spelling_maps_to_private_var(self):
+        """On macOS `/var` is a symlink to `/private/var`; the two spellings
+        of one path must share a hub key."""
+        import os
+        if not os.path.islink("/var"):  # non-darwin CI
+            return
+        assert _ChangeHub._canonical_key("/var/folders/x/Lib.fichero") == \
+            _ChangeHub._canonical_key("/private/var/folders/x/Lib.fichero")

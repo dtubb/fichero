@@ -27,6 +27,7 @@ import asyncio
 import dataclasses
 import json
 import logging
+import re
 from dataclasses import dataclass
 from fichero_server.core.timeutil import utc_now
 from pathlib import Path
@@ -531,6 +532,32 @@ async def save_artifact(
     )
 
 
+# The HTR/paleography prompts ask the model for one bracketed classification
+# line — "[Script: itálica; century: 19th; language: Spanish]" — before (or,
+# with some models, after) the transcription. It is metadata, not text the
+# document contains, so it must never be promoted into page_content
+# (Daniel, 2026-08-25). Matched at either end of the text only; a bracketed
+# line mid-document is treated as document text.
+_SCRIPT_NOTE_RE = re.compile(
+    r"(?:\A\s*\[Script\s*:[^\]]*\]\s*\n|\n\s*\[Script\s*:[^\]]*\]\s*\Z)",
+    re.IGNORECASE,
+)
+
+
+def split_script_classification(content: str) -> tuple[str, str | None]:
+    """Split a transcription into (clean text, script-classification note).
+
+    The note keeps its bracketed form so it round-trips recognizably; None
+    when the text carries no classification line at its edges.
+    """
+    match = _SCRIPT_NOTE_RE.search(content)
+    if match is None:
+        return content, None
+    note = match.group(0).strip()
+    cleaned = content[: match.start()] + content[match.end() :]
+    return cleaned.strip("\n"), note
+
+
 def _save_artifact_sync(
     doc: object | None,
     document_id: str | None,
@@ -662,7 +689,13 @@ def _save_artifact_sync(
                 doc.metadata = {}
             user_edited = page_content_is_user_edited(doc)
             if tool_config.update_page_content and not user_edited:
-                doc.page_content = content
+                # A script-classification line the prompt requested is
+                # metadata: keep it on the document, never in its text
+                # (2026-08-25). The artifact saved above keeps the raw output.
+                cleaned, script_note = split_script_classification(content)
+                if script_note is not None:
+                    doc.metadata["script_classification"] = script_note
+                doc.page_content = cleaned
                 # In-progress, NOT completed: a content-producing node may be
                 # one of several pipeline steps. The workflow boundary owns the
                 # flip to completed once the whole run finishes, so the green

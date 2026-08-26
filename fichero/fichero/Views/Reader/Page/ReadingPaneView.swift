@@ -15,6 +15,12 @@ struct ReadingPaneView: View {
     let onPageSelected: (Int) -> Void
     /// Called when the user taps the × button. Omit to hide the button.
     var onClose: (() -> Void)?
+    /// The full multi-selection, when more than one document is selected
+    /// (2026-08-25: the multi view used to REPLACE this pane wholesale, so
+    /// selecting three pages erased the head, the lens selector and the
+    /// crumbs). With 2+ entries the Page lens renders all of them in archival
+    /// order; the pane chrome is untouched.
+    var multiDocuments: [Document] = []
 
     @Environment(APIClient.self) var apiClient
     /// The existing busy-state source for per-page run progress (#4357): the

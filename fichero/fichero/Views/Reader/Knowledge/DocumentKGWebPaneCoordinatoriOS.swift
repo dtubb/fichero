@@ -21,6 +21,7 @@ final class DocumentKGWebPaneCoordinatoriOS: NSObject, WKNavigationDelegate, WKS
 
     var lastLoadedDocumentId: String?
     var lastLoadedLibraryPath: String?
+    var lastLoadedPageIds: [String]?
     var lastSelectedEntityId: String?
     var lastSelectedClaimId: String?
     var lastSelectedClaimCharStart: Int?
@@ -46,10 +47,12 @@ final class DocumentKGWebPaneCoordinatoriOS: NSObject, WKNavigationDelegate, WKS
     // lives in DocumentKGWebPaneCoordinator+Recovery.swift, shared with macOS.
 
     func loadIfNeeded(_ webView: WKWebView) {
-        guard lastLoadedDocumentId != parent?.documentId || lastLoadedLibraryPath != parent?.libraryPath else { return }
+        guard lastLoadedDocumentId != parent?.documentId || lastLoadedLibraryPath != parent?.libraryPath
+            || lastLoadedPageIds != parent?.pageIds else { return }
 
         lastLoadedDocumentId = parent?.documentId
         lastLoadedLibraryPath = parent?.libraryPath
+        lastLoadedPageIds = parent?.pageIds
         lastAppliedZoom = 0  // Force viewport injection on next load even when zoom == 1.0
         lastActiveTab = nil
         lastSelectedEntityId = nil
@@ -61,7 +64,8 @@ final class DocumentKGWebPaneCoordinatoriOS: NSObject, WKNavigationDelegate, WKS
         progressSync.reset()
         guard let parent, let request = DocumentKGPaneRoute.request(
             documentId: parent.documentId,
-            libraryPath: parent.libraryPath
+            libraryPath: parent.libraryPath,
+            pageIds: parent.pageIds
         ) else {
             // Only reachable when the document id can't form a URL — the
             // remote-host availability gate is retired (loads route through

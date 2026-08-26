@@ -30,6 +30,9 @@ final class GuardedWKWebView: WKWebView {
 struct DocumentKGWebPane: NSViewRepresentable {
     let documentId: String
     let libraryPath: String
+    /// Non-empty = render ONLY these child pages (the multi-page selection
+    /// view, 2026-08-25). Rides `?pages=` on the same document route.
+    var pageIds: [String] = []
     var selectedEntityId: String?
     var selectedClaimId: String?
     /// The tab the native toolbar (DocumentKGSurface) currently shows. Driving
@@ -167,6 +170,8 @@ final class GuardedWKWebView: WKWebView {
 struct DocumentKGWebPane: UIViewRepresentable {
     let documentId: String
     let libraryPath: String
+    /// Non-empty = render ONLY these child pages (see the macOS twin above).
+    var pageIds: [String] = []
     var selectedEntityId: String?
     var selectedClaimId: String?
     var activeTab: String = KGSurfaceTab.transcript.rawValue

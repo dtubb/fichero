@@ -544,3 +544,57 @@ class TestTranscriptIsNotSentTwice:
         assert '.filter((page) => page.has_content)' in template, "empty pages must stay excluded"
         assert '`Page ${page.number}\\n${page.content}`' in template, "the join shape must match transcript_text"
         assert '.join("\\n\\n")' in template, "pages are separated by a blank line, as on the server"
+
+
+class TestPagesFilter:
+    """`?pages=` narrows the assembled transcript to a SELECTION of child
+    pages (2026-08-25: the multi-select reader rides the same renderer)."""
+
+    def _bundle(self, db):
+        doc = _make_document(
+            doc_id="pf-doc", name="Bundle.pdf", doc_type=DocType.file,
+            file_type=FileType.pdf,
+        )
+        pages = [
+            _make_document(
+                doc_id=f"pf-page-{n}", name=f"Page {n}", doc_type=DocType.page,
+                page_content=f"Transcript {n}", parent_id=doc.id, sequence=n,
+            )
+            for n in (1, 2, 3)
+        ]
+        db.save(doc)
+        for page in pages:
+            db.save(page)
+        return doc
+
+    def test_filter_renders_only_the_selected_pages(self, client, db):
+        doc = self._bundle(db)
+        response = client.get(f"/view/document/{doc.id}?pages=pf-page-1,pf-page-3")
+        assert response.status_code == 200
+        assert "Transcript 1" in response.text
+        assert "Transcript 3" in response.text
+        assert "Transcript 2" not in response.text
+
+    def test_filter_ignores_the_parents_own_page_content(self, client, db):
+        """A parent with its own page_content must NOT widen a filtered view
+        back to the whole document."""
+        doc = self._bundle(db)
+        doc.page_content = "WHOLE DOCUMENT TEXT"
+        db.save(doc)
+        response = client.get(f"/view/document/{doc.id}?pages=pf-page-2")
+        assert response.status_code == 200
+        assert "Transcript 2" in response.text
+        assert "WHOLE DOCUMENT TEXT" not in response.text
+
+    def test_unknown_ids_are_ignored_not_404(self, client, db):
+        doc = self._bundle(db)
+        response = client.get(f"/view/document/{doc.id}?pages=pf-page-2,gone")
+        assert response.status_code == 200
+        assert "Transcript 2" in response.text
+
+    def test_no_filter_is_unchanged(self, client, db):
+        doc = self._bundle(db)
+        response = client.get(f"/view/document/{doc.id}")
+        assert response.status_code == 200
+        for n in (1, 2, 3):
+            assert f"Transcript {n}" in response.text

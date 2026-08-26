@@ -133,17 +133,17 @@ extension ContentView {
                     get: { showDocumentCanvas },
                     set: { setCanvasPaneVisible($0) }
                 )) {
-                    Label("Preview Pane", systemImage: ToolbarSymbols.previewPane)
+                    Label("Preview", systemImage: ToolbarSymbols.previewPane)
                 }
-                .help(showDocumentCanvas ? "Hide preview pane" : "Show preview pane")
+                .help(showDocumentCanvas ? "Hide the Preview" : "Show the Preview")
 
                 Toggle(isOn: Binding(
                     get: { showReadingPane },
                     set: { setReadingPaneVisible($0) }
                 )) {
-                    Label("Reading Pane", systemImage: ToolbarSymbols.readingPane)
+                    Label("Reader", systemImage: ToolbarSymbols.readingPane)
                 }
-                .help(showReadingPane ? "Hide reading pane" : "Show reading pane")
+                .help(showReadingPane ? "Hide the Reader" : "Show the Reader — transcripts, translations, and the knowledge graph")
 
                 // Chat is a ROW pane (Daniel 2026-08-12: "there is no button
                 // to turn it on and off") — fourth member of the pane group,
@@ -152,9 +152,9 @@ extension ContentView {
                     get: { showChatPane },
                     set: { setChatPaneVisible($0) }
                 )) {
-                    Label("Chat Pane", systemImage: ToolbarSymbols.chatPane)
+                    Label("Chat", systemImage: ToolbarSymbols.chatPane)
                 }
-                .help(showChatPane ? "Hide chat pane" : "Show chat pane")
+                .help(showChatPane ? "Hide the Chat" : "Show the Chat")
             }
 
             // The resident search field MOVED to the inspector-section
@@ -307,17 +307,40 @@ extension ContentView {
     /// arrives as an outline-endpoint consumer.
     @ViewBuilder
     var workflowSuggestButton: some View {
-        Button {
-            windowState.workflowPickerRequestToken += 1
-        } label: {
-            Label("Run Workflow", systemImage: "bolt")
-                .labelStyle(.iconOnly)
+        // ONE toolbar item, growing contextual members (Daniel, 2026-08-25:
+        // "toolbar buttons that appear as things are selected") — the ⚡
+        // picker always, plus up to two suggested next steps for what the
+        // selection IS. Same principal item, so the zone pin holds.
+        let selectedDocs = documentStore.currentDocuments.filter {
+            browserSelection.contains($0.id)
         }
-        .disabled(browserSelection.isEmpty)
-        .help(browserSelection.isEmpty
-              ? "Select items to run a workflow on"
-              : "Run a workflow on the \(browserSelection.count) selected item(s)")
-        .accessibilityLabel("Run a workflow on the selection")
+        HStack(spacing: 2) {
+            Button {
+                windowState.workflowPickerRequestToken += 1
+            } label: {
+                Label("Run Workflow", systemImage: "bolt")
+                    .labelStyle(.iconOnly)
+            }
+            .disabled(browserSelection.isEmpty)
+            .help(browserSelection.isEmpty
+                  ? "Select items to run a workflow on"
+                  : "Run a workflow on the \(browserSelection.count) selected item(s)")
+            .accessibilityLabel("Run a workflow on the selection")
+
+            ForEach(WorkflowSuggestionPolicy.suggestions(for: selectedDocs)) { suggestion in
+                Button {
+                    windowState.suggestedWorkflowRequest = .init(
+                        workflowName: suggestion.workflowName,
+                        token: (windowState.suggestedWorkflowRequest?.token ?? 0) + 1
+                    )
+                } label: {
+                    Label(suggestion.workflowName, systemImage: suggestion.systemImage)
+                        .labelStyle(.iconOnly)
+                }
+                .help("Run \(suggestion.workflowName) on the selection")
+                .accessibilityLabel("Run \(suggestion.workflowName) on the selection")
+            }
+        }
     }
 
     func syncFocusedDocumentSelection(_ document: Document?) {

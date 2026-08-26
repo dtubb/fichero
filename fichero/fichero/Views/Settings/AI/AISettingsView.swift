@@ -80,6 +80,15 @@ struct AISettingsView: View {
                 .pickerStyle(.segmented)
                 .padding(.horizontal)
                 .padding(.top, 8)
+                // Returning to Defaults refreshes the provider/model lists
+                // (Daniel, 2026-08-25: "I added a model, then it should be
+                // here, so we can see it instantly — it's not always").
+                // The store loaded ONCE in .task; a model added on the
+                // Models & Providers tab was invisible here until Settings
+                // reopened.
+                .onChange(of: selectedTab) { _, tab in
+                    if tab == .defaults { Task { await store.load() } }
+                }
 
                 switch effectiveSelectedTab {
                 case .defaults:

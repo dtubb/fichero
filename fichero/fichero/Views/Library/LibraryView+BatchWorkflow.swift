@@ -33,6 +33,36 @@ extension LibraryView {
         workflows.contains { $0.id == workflowId && $0.canRunDirectly }
     }
 
+    /// The scope a TOOLBAR-launched run acts on (#4523 LAW; Daniel,
+    /// 2026-08-25: "runs on the parent folder" — the picker token opened the
+    /// sheet WITHOUT refreshing `selectedDocumentIdsForBatch`, so the run
+    /// fired on whatever an earlier gesture left there, and a sidebar-picked
+    /// page — pane selection empty — never entered at all). Pure so the
+    /// precedence is testable; `nonisolated` per #4201.
+    ///
+    /// Precedence: the pane's VISIBLE selection first (2026-08-23 ruling:
+    /// verbs act on the selection you can see), else the window's live
+    /// selection, else the preserved snapshot — the sidebar-picked document
+    /// that navigation's clear would otherwise erase (#712 carve-out).
+    nonisolated static func toolbarRunScope(
+        paneSelection: Set<String>,
+        liveSelection: [String],
+        preservedSelection: [String]
+    ) -> [String] {
+        if !paneSelection.isEmpty { return Array(paneSelection) }
+        if !liveSelection.isEmpty { return liveSelection }
+        return preservedSelection
+    }
+
+    /// The instance form every picker-opening path calls at OPEN time.
+    var toolbarRunScope: [String] {
+        Self.toolbarRunScope(
+            paneSelection: selection,
+            liveSelection: windowState.liveDocumentSelection,
+            preservedSelection: windowState.preservedDocumentSelection
+        )
+    }
+
     // MARK: - Workflow Execution (replaces batch path)
     /// Execute a workflow via SSE, mirroring the toolbar path in ContentView+Actions.
     /// Passes ALL selected document IDs at once so aggregation workflows (Catalogue)
@@ -43,7 +73,12 @@ extension LibraryView {
         providerOverride: String? = nil,
         modelOverride: String? = nil
     ) async {
-        guard !selectedDocumentIdsForBatch.isEmpty else { return }
+        guard !selectedDocumentIdsForBatch.isEmpty else {
+            // Absence-read-as-success: a silent return here is a Run click
+            // that did nothing. Name it so the console answers the report.
+            logger.warning("runBatchWorkflow: empty scope — no run started")
+            return
+        }
 
         let docIds = selectedDocumentIdsForBatch
         // #3820 — run through the SAME library reference that sourced the

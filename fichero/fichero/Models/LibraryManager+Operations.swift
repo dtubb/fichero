@@ -71,6 +71,8 @@ extension LibraryManager {
         // Save open libraries for restoration on next launch
         saveOpenLibraryPaths()
 
+        LibraryRecents.shared.note(url: url, displayName: displayName)
+
         promptForAccessIfUnavailable(url: url, needsSecurityAccess: needsSecurityAccess)
 
         loadAndRegister(library, at: url, displayName: displayName, needsSecurityAccess: needsSecurityAccess)
@@ -444,6 +446,13 @@ extension LibraryManager {
                     engineWork: {
                         loadedLibraryIds.remove(library.id)
                         scheduleLoadWhenBackendReady(for: library)
+                        // Defect C of the new-library cluster (2026-08-25):
+                        // workflows on a fresh library didn't run until
+                        // relaunch — the store's only load could ride the
+                        // TEMP path / pre-seed window and nothing retried.
+                        // One explicit reload against the FINAL path, after
+                        // the grant, is idempotent and closes that window.
+                        await library.workflowStore.loadWorkflows()
                     }
                 )
                 await KnownLibraryRegistryStore.shared.noteOpenedLibrary(
@@ -451,6 +460,7 @@ extension LibraryManager {
                     displayName: displayName
                 )
             }
+            LibraryRecents.shared.note(url: url, displayName: displayName)
 
         } catch {
             libraryManagerLogger.error("Failed to save library: \(error.localizedDescription)")

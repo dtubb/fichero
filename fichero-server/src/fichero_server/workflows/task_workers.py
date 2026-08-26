@@ -551,3 +551,57 @@ class TaskWorkersMixin:
         task.result = result
         task.status = TaskStatus.COMPLETED if result.success else TaskStatus.FAILED
         return result
+
+    async def _do_reanchor(self, task: BackgroundTask) -> TaskResult:
+        """Bbox step 4 (rulings 2026-08-20): mark renditions whose pixels
+        disagree with the node's frame while claiming identity, so overlays
+        render UNANCHORED on them instead of drawing boxes on unproven pixels.
+
+        `options={"dry_run": true}` reports what WOULD be marked and writes
+        nothing — the required first run against a real archive.
+        """
+        if not self.database:
+            result = TaskResult(
+                success=False,
+                message="Database not available",
+                error="Database not initialized",
+            )
+            task.result = result
+            task.status = TaskStatus.FAILED
+            return result
+
+        from fichero_server.maintenance.reanchor import apply_reanchor, plan_reanchor
+
+        dry_run = bool((task.config.options or {}).get("dry_run", False))
+
+        task.progress.total = 2
+        task.progress.current = 1
+        task.progress.message = "Classifying rendition frames..."
+        task.progress.percent = 50.0
+        await self._save_task_progress(task)
+
+        plan = await asyncio.to_thread(plan_reanchor, self.database)
+
+        written = 0
+        if not dry_run and plan.to_mark:
+            task.progress.current = 2
+            task.progress.message = f"Marking {len(plan.to_mark)} rendition(s)..."
+            task.progress.percent = 90.0
+            await self._save_task_progress(task)
+            written = await asyncio.to_thread(apply_reanchor, self.database, plan)
+
+        details = dict(plan.counts)
+        details["written"] = written
+        details["dry_run"] = dry_run
+        details["reasons"] = [reason for _, reason in plan.to_mark[:20]]
+        result = TaskResult(
+            success=True,
+            message=(
+                f"{'Would mark' if dry_run else 'Marked'} "
+                f"{len(plan.to_mark)} rendition(s) frame-unknown"
+            ),
+            details=details,
+        )
+        task.result = result
+        task.status = TaskStatus.COMPLETED
+        return result

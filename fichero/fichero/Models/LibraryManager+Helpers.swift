@@ -124,6 +124,14 @@ extension LibraryManager {
             _ = openLibrary(at: url, makeCurrent: false)
         }
         for id in plan.idsToDrop {
+            // NEVER drop a temporary (unsaved) library (2026-08-25): the
+            // engine no longer registers TMPDIR staging packages (the
+            // ghost-library fix), so a create-in-flight library is always
+            // absent from the registry — dropping it here would yank the
+            // library out from under the save panel.
+            if let library = getLibrary(id: id), isTemporaryLibrary(library.url) {
+                continue
+            }
             // Local drop only — the backend already closed it (it's absent from
             // the registry), so no backend DELETE, unlike closeAndUnregisterLibrary.
             closeLibrary(id)

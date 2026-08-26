@@ -42,12 +42,18 @@ extension LibraryView {
             // engine is STARTING there is nothing to be signed in to; show
             // the calm truth, and the phase change re-evaluates this branch
             // the moment the engine is up.
+            // "Starting engine…" alone read as a stall (Daniel, 2026-08-25:
+            // "it's a server, and maybe say it might take a few moments") —
+            // name what is actually happening and set the time expectation.
             VStack(spacing: 10) {
                 ProgressView()
                     .controlSize(.small)
-                Text("Starting engine…")
+                Text("Starting the Fichero server…")
                     .font(.callout)
                     .foregroundStyle(.secondary)
+                Text("Your libraries run on a local server. This can take a few moments.")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if !isShowingEntitiesCollection, let denial = documentStore.error as? AccessError {

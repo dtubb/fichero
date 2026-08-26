@@ -261,7 +261,12 @@ struct EngineReadinessProbe {
     /// the instance-identity fields off the typed body; any other case or a thrown
     /// transport error is fail-closed — `status: nil` (or the undocumented code),
     /// never a synthesized 200.
-    @MainActor
+    ///
+    /// Deliberately NOT `@MainActor` (stalls.log 2026-08-24: a 12s launch
+    /// stall inside the generated op's request-building, sampled on the main
+    /// thread). The leg is pure transport over immutable lets; a nonisolated
+    /// async func hops off the caller's actor, so `probe()` stays MainActor
+    /// while the network work does not.
     private func fetchHealth() async -> HealthObservation {
         do {
             let response = try await client.api.healthCheckApiHealthGet(.init())
@@ -289,8 +294,8 @@ struct EngineReadinessProbe {
     /// `AuthTokenMiddleware` attaches the token, so there's no manual auth header.
     /// `.ok` → 200; a 401/403 (or any other non-2xx) arrives as `.undocumented`,
     /// whose status + collected body feed `classifyAuthFailure`. A thrown transport
-    /// error is fail-closed (`status: nil`).
-    @MainActor
+    /// error is fail-closed (`status: nil`). Off-main (not `@MainActor`) for
+    /// the same reason as `fetchHealth` above.
     private func fetchRegistryObservation() async -> RegistryObservation {
         do {
             let response = try await client.api.listKnownLibrariesApiRegistryGet(.init())

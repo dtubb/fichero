@@ -117,6 +117,7 @@ KNOWN_GAPS: dict[str, str] = {
     'POST /api/export/markdown-folder': "#1920 baseline - cli-only",
     'POST /api/export/parquet': "CLI/backend-only: request destination is an engine-local filesystem path, so no SwiftUI client may issue it",
     'POST /api/export/word': "#1920 baseline - cli-only",
+    'POST /api/tasks/reanchor': "2026-08-25 bbox step 4 maintenance pass - cli-only; SwiftUI maintenance-menu trigger queued",
     'GET /api/iiif/iiif/image/{document_id}': "#1920 baseline - cli-only",
     'GET /api/iiif/iiif/manifest/{document_id}': "#1920 baseline - cli-only",
     'GET /api/iiif/iiif/{identifier}/info.json': "#1920 baseline - cli-only",
