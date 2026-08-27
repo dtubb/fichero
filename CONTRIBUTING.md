@@ -4,60 +4,46 @@
 
 Fichero is released under the
 [GNU Affero General Public License, version 3.0 (AGPL-3.0)](https://www.gnu.org/licenses/agpl-3.0.html).
-Contributors agree to a Contributor License Agreement (CLA), which lets the
-project also release Fichero under other terms when a channel requires it —
+Contributors agree to a [Contributor License Agreement](CLA.md) (CLA), which lets the
+project also release Fichero under other terms (e.g. commerically) or when a channel requires it —
 for example, distribution on the Mac App Store, whose rules the AGPL does not
 fit. Your contribution always remains available under the AGPL. The Fichero
 name may not be used to sell the app as-is.
 
 Fichero is written by AI coding agents, which receive creative direction from Daniel Tubb.
 
-There is a Manager (Claude Opus), that manages Workers who write code. The Manager keeps track of open issues and milestones, which it writes and keeps track of. The Manager takes commits, reviews them, merges them, runs a battery of tests against them and builds the app.
-
-- The **Manager** agent uses a (`session-start-manager`) skill to control the app. It triages GitHub issues, picks the next batch, and dispatches it to a worker agent. The manager does not write source code.
-- Each **worker** agent runs in its own git worktree under
-  `~/code/fichero-worktrees/<name>`, in a separate tmux window (an interactive
-  `claude` or `codex` or `ollama launch codex` session). A worker grinds one milestone's GitHub issues and commits as itself. Generally, Codex writes backend code, and Claude writes the SwiftUI code. Some code has been written or edited by various open source models.
-- The manager **reviews** each worker's output, **build-gates** it, runs
-  `verify_all`, then **merges via PR**, closes the issues, and dispatches the next
-  batch.
-  - Users reviews the result by using the app and filing bugs (‘/bug’ skill) and making feature request (‘/feature’ skill)
-
-GitHub Issues plus Milestones is the source of truth for the backlog. Work lands on
-the milestone branch; there are no per-task branches.
+The backlog lives in GitHub Issues and the project's working ledgers. Work
+lands on lane branches (one worktree per lane); there are no per-task
+branches.
 
 ## The worktree and worker workflow
 
-The repository uses a manager-with-workers workflow. The manager chooses ready
-issues from the roadmap, dispatches a worker for a milestone, reviews the
-result, and owns the merge and full gate. Workers make the focused code or
-documentation change in their own worktree, commit it, and notify the manager;
-they do not push or run the manager's full build gate.
+The repository uses a manager-with-workers workflow.
+
+- The **manager** agent coordinates. It picks the next batch of work,
+  dispatches workers, reviews their output, runs the build and test
+  gates, fixes what the merge surfaces, merges lanes into `integration`,
+  and merges `integration` to `main` at release time.
+- Each **worker** agent runs in its own git worktree under
+  `~/code/fichero-worktrees/<name>`, works one focused lane (a feature, a
+  fix batch, a research task), and commits as itself to its lane branch.
+  Workers do not push and do not run the full merge gate — merged lane
+  code is build-gated and fixed by the manager before it lands.
+- **People** direct the work and review the result by using the app,
+  then filing bug reports and feature requests.
 
 Use `scripts/spawn-worker.sh` to create a worker. It fetches `origin`, creates a
-worktree under `$FICHERO_WORKTREES` (by default a sibling `fichero-worktrees/`)
-from `origin/main`, opens a detached tmux session, activates the shared virtual
-environment, and starts the selected agent. Supported worker commands are
-`claude`, `opus`, `sonnet`, `haiku`, and `codex`.
+worktree under `$FICHERO_WORKTREES` (by default a sibling `fichero-worktrees/`),
+opens a detached tmux session, activates the shared virtual environment, and
+starts the selected agent. The script branches from `origin/main` by default;
+in practice, lane worktrees are usually branched off `integration`. Supported
+worker commands are `claude`, `opus`, `sonnet`, `haiku`, and `codex`.
 
-Before editing, a worker claims the issue with `gh issue edit N --add-assignee
-@me --add-label status:in-progress`. It skips issues already assigned or marked
-in progress, and reports design or ownership blockers with:
-
-```bash
-bash scripts/notify_manager.sh --blocked "why this issue is blocked"
-```
-
-After a commit, notify the manager with its issue number and SHA:
-
-```bash
-bash scripts/notify_manager.sh "done #123 (<sha>); next #456"
-```
-
-The notifier appends to the manager inbox and sends a best-effort tmux status
-message. Workers commit directly to their milestone branch and never push it.
-The manager runs the merge gate (`scripts/verify_all.sh`) and merges through a
-pull request after review.
+Workers report progress and blockers to the manager with
+`scripts/notify_manager.sh`. Workers commit directly to their lane branch
+and never push it. The manager runs the merge gate (build, test suites,
+and every `scripts/check_*.py` guardrail) and merges the lane into
+`integration`; `integration` merges to `main` at release time.
 
 ## More detail
 
@@ -73,7 +59,11 @@ The [Contributor Guide](docs/contributor/README.md) is the entry point for the w
 contributor manual: architecture, the OpenAPI contract, the action registry, the
 security model, and the release lane.
 
-If you would like to contribute to Fichero, please make a pull request. Outstanding Milestones and Issues that the Fichero Manager is working on are on GitHub. Milestones and Issues are coded by AI. The Forum is for people.
+If you would like to contribute, open a pull request against
+`integration` — the [CLA](CLA.md) applies, and the same merge gates run
+on your change that run on every lane. Bug reports and feature requests
+are welcome as
+[GitHub issues](https://github.com/dtubb/fichero/issues).
 
 ## Building from source (for developers)
 

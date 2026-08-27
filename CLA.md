@@ -1,20 +1,17 @@
 # Fichero Individual Contributor License Agreement
 
-*(Compatible with cla-assistant: contributors accept by PR comment or the
-bot's web flow; acceptances are recorded per GitHub account.)*
-
 Thank you for your interest in contributing to Fichero ("the Project"),
 owned by Daniel Tubb ("the Owner"). This Contributor License Agreement
 ("Agreement") clarifies the intellectual-property rights granted with
 Contributions from any person ("You").
 
-**In plain language:** Fichero stays open source under the AGPL-3.0 —
-your contribution is always available to everyone under that license.
-What this Agreement adds is that the Owner may ALSO release Fichero,
-including your contribution, as a commercial app under other terms — for
-example a paid build on the Mac App Store. The open-source version never
-goes away; the Agreement is what makes the commercial channel possible
-alongside it.
+**In plain language:** Fichero will stay open source under the
+[AGPL-3.0](LICENSE), and your contribution will always be available to
+everyone under that license. What this Agreement adds is that the Owner
+may ALSO release Fichero, including your contribution, as a commercial
+app under other terms, e.g. a paid build on the Mac App Store. The
+open-source version will not go away; but this Agreement makes a
+commercial release possible alongside it.
 
 By submitting a Contribution to the Project (including via pull request)
 and indicating acceptance of this Agreement, You accept these terms for
@@ -22,9 +19,9 @@ Your present and future Contributions.
 
 ## 1. Definitions
 
-"Contribution" means any original work of authorship — code,
-documentation, translations, or other material — intentionally submitted
-by You for inclusion in the Project.
+"Contribution" means any original work of authorship (code,
+documentation, translations, workflows, or other material)
+intentionally submitted by You for inclusion in the Project.
 
 ## 2. Copyright license
 
@@ -37,14 +34,12 @@ thereof.
 
 ## 3. Patent license
 
-You grant the Owner and recipients of software distributed by the
-Project a perpetual, worldwide, non-exclusive, irrevocable (except as
-stated below), royalty-free patent license to make, have made, use,
-offer to sell, sell, import, and otherwise transfer Your Contribution
-alone or combined with the Project. If any entity institutes patent
-litigation alleging that Your Contribution or the Project infringes a
-patent, any patent licenses granted to that entity under this Agreement
-terminate as of the date such litigation is filed.
+If Your Contribution is covered by patents You can license, You grant
+the Owner and everyone who receives the Project a perpetual, worldwide,
+royalty-free license under those patents to use, sell, and distribute
+Your Contribution as part of the Project. This license ends for anyone
+who starts patent litigation claiming the Project infringes their
+patent.
 
 ## 4. Your representations
 
@@ -59,19 +54,20 @@ terminate as of the date such litigation is filed.
 
 ## 5. What You keep
 
-You retain copyright in Your Contributions. This Agreement is a license,
-not an assignment: You remain free to use Your own Contributions for any
-other purpose. The Project remains available to everyone under the
-AGPL-3.0; the relicensing grant in §2 is what additionally allows the
-Owner to offer the combined work under other terms (see LICENSING.md).
+You retain copyright in Your Contributions. This Agreement is a
+license: You remain free to use Your own Contributions for any other
+purpose. The Project will remain available to everyone under the
+[AGPL-3.0](LICENSE); the relicensing grant in §2 allows the Owner to
+offer the combined work under other terms (see
+[LICENSING.md](LICENSING.md)).
 
 ## 6. Trademark
 
 This Agreement licenses Your Contributions; it grants You no rights to
 the Fichero name, icon, or branding. "Fichero" is claimed as a trademark
-of the Owner. **No trademark registration has been filed yet** — the
-claim is an unregistered (™) claim, and registration may follow; the
-scope of §2 and §5 is unaffected either way.
+of the Owner. **No trademark registration has been filed yet**. The
+claim is an unregistered (™) claim; the scope of §2 and §5 is
+unaffected either way.
 
 ## 7. Notification
 
