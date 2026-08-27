@@ -43,6 +43,13 @@ struct RunWorkflowSubmenuItems: View {
             // tri-state fallback and the UI filter is an affordance, not a gate.
             Menu(workflow.name) {
                 Button("Default") { action(workflow.id, nil, nil) }
+                if providerCache.providers.isEmpty && providerCache.lastLoadFailed {
+                    // The provider list failed to load (engine down, auth) —
+                    // say so instead of a menu that silently offers only
+                    // Default (2026-08-25). The cache retries on next mount.
+                    Button("Models unavailable — check the engine connection") {}
+                        .disabled(true)
+                }
                 ForEach(providerCache.providers) { provider in
                     if provider.available {
                         switch provider.runMenuEntry(requiresVision: workflow.requiresVision) {

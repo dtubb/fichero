@@ -200,9 +200,11 @@ enum ConnectionPresentation {
             // engine is importing libraries or opening its database, so it says
             // neither (#4380).
             return Display(
-                title: ownership == .appManaged ? "Starting engine…" : "Connecting…",
-                shortTitle: ownership == .appManaged ? "Starting engine…" : "Connecting…",
-                detail: "",
+                title: ownership == .appManaged ? "Starting the Fichero server…" : "Connecting…",
+                shortTitle: ownership == .appManaged ? "Starting server…" : "Connecting…",
+                detail: ownership == .appManaged
+                    ? "Your libraries run on a local server. This can take a few moments."
+                    : "",
                 symbol: "ellipsis.circle",
                 isError: false,
                 isRecovering: true,
@@ -475,7 +477,7 @@ enum LibraryLoadPhase: Equatable {
     var message: String? {
         switch self {
         case .connecting: return "Connecting…"
-        case .startingEngine: return "Starting engine…"
+        case .startingEngine: return "Starting server…"
         case .loadingDocuments: return "Loading documents…"
         case .empty, .loaded, .failed: return nil
         }

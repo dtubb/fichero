@@ -41,6 +41,10 @@ struct ArtifactListView: View {
     /// context-menu "Delete" remove the whole selection. Kept in sync with the
     /// shared `focused` id below so detail-follow and multi-window selection
     /// still work — we don't fight `List(selection:)` with custom gestures.
+    /// Optional: "Set as Document Content" needs the write seam; the list
+    /// renders fine without it (detached windows may not inject it).
+    @Environment(DocumentStore.self) private var documentStore: DocumentStore?
+
     @State private var selectedIDs: Set<String> = []
     @State private var artifactsToDelete: [Artifact] = []
     @State private var showingDeleteConfirmation = false
@@ -187,11 +191,38 @@ struct ArtifactListView: View {
                 focused.select(artifact.id, in: store.items)
                 onOpenInWindow()
             })
+            // Plain-click fallback ON THE LABEL (Daniel, 2026-08-25: "you
+            // can't just click on the name, you have to click to the left") —
+            // the sidebar's cure for the same disease: over the label the
+            // drag machinery claims the press and List selection never
+            // commits; the margin worked because nothing contested it there.
+            // Plain clicks only — modifier clicks stay with the List so
+            // ⌘/⇧ multi-select keeps working.
+            .simultaneousGesture(TapGesture(count: 1).modifiers([]).onEnded {
+                selectedIDs = [artifact.id]
+            })
             .contextMenu {
                 if let onOpenInWindow {
                     Button("Open in Window") {
                         focused.select(artifact.id, in: store.items)
                         onOpenInWindow()
+                    }
+                }
+                // "Replace content for that item" (Daniel, 2026-08-25): the
+                // reviewed transcription an artifact holds becomes the
+                // document's page_content — the same seam the content editor
+                // uses, so the user-edit marker stamps and later workflow
+                // runs never clobber the choice.
+                if artifact.content?.isEmpty == false {
+                    Button("Set as Document Content") {
+                        let content = artifact.content ?? ""
+                        let targetId = artifact.documentId
+                        Task { @MainActor in
+                            try? await documentStore?.documentService.updateDocument(
+                                targetId, pageContent: content
+                            )
+                            await documentStore?.refresh()
+                        }
                     }
                 }
                 Button("Delete", role: .destructive) {

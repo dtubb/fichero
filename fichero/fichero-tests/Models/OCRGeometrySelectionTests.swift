@@ -92,6 +92,34 @@ struct OCRGeometrySelectionTests {
         #expect(ranked.map(\.id) == ["new", "old"])
     }
 
+    // MARK: - The estimates tier (2026-08-25)
+
+    /// The exact regression Daniel hit live: a stale 8/23 transcription's
+    /// sparse boxes permanently masked every fresh Detect Regions run — the
+    /// engine wrote 52 good boxes and the overlay showed "nothing changed".
+    /// transcription and regions are BOTH measured estimates over the same
+    /// pixels; between them the newest wins. text_geometry keeps absolute
+    /// authority — it is the file's own layer, not an estimate.
+    @Test("a fresh regions run displaces a stale transcription's boxes")
+    func freshRegionsDisplacesStaleTranscription() {
+        let stale = artifact(id: "ocr-old", type: "transcription", ageInHours: 48, boxCount: 12)
+        let fresh = artifact(id: "regions-new", type: "regions", ageInHours: 0, boxCount: 52)
+
+        let ranked = OCRGeometrySelection.ranked([stale, fresh])
+
+        #expect(ranked.map(\.id) == ["regions-new", "ocr-old"])
+    }
+
+    @Test("the file's own text layer still beats a fresh regions run")
+    func textLayerStillBeatsFreshRegions() {
+        let layer = artifact(id: "geo", type: "text_geometry", ageInHours: 100, boxCount: 120)
+        let fresh = artifact(id: "regions-new", type: "regions", ageInHours: 0, boxCount: 52)
+
+        let ranked = OCRGeometrySelection.ranked([fresh, layer])
+
+        #expect(ranked.first?.id == "geo")
+    }
+
     // MARK: - The trap the obvious fix would have opened
 
     /// A scanned page: the importer wrote an EMPTY `text_geometry` artifact by
