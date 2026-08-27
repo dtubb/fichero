@@ -15,6 +15,7 @@ from fichero_server.actions.registry import ActionContext, ChangeSpec, action, r
 from fichero_server.api.auth import action_context
 from fichero_server.api.main import get_library_database, get_library_database_for_write
 from fichero_server.db import Database
+from fichero_server.core.naturalsort import natural_key
 from fichero_server.models.knowledge import Milestone
 from fichero_server.models import DocType, Document, DocumentListResponse
 from fichero_server.models.node_aliases import (
@@ -102,7 +103,7 @@ def list_bookmarks_impl(
     if parent_id is not None:
         filters["parent_id"] = parent_id
     bookmarks = db.query(Document, **filters)
-    return sorted(bookmarks, key=lambda doc: (doc.sort_order, (doc.name or "").lower()))
+    return sorted(bookmarks, key=lambda doc: (doc.sort_order, natural_key(doc.name)))
 
 
 def resolve_bookmark_impl(db: Database, bookmark_id: str) -> Document:

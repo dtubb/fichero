@@ -10,6 +10,7 @@ import tempfile
 from enum import Enum
 
 from fichero_server.core.timeutil import utc_now
+from fichero_server.core.naturalsort import natural_key
 from pathlib import Path
 from typing import Any, Optional
 
@@ -493,7 +494,7 @@ def _ordered_by_sort_order(docs: list[Document]) -> list[Document]:
     position survives a refresh. Reorder-unaware siblings tie at 0 and fall
     through to case-insensitive name order, preserving the old default.
     """
-    return sorted(docs, key=lambda d: (d.sort_order, (d.name or "").lower()))
+    return sorted(docs, key=lambda d: (d.sort_order, natural_key(d.name)))
 
 
 def _normalize_curated_items(items: list[Any] | None) -> list[dict[str, Any]]:
