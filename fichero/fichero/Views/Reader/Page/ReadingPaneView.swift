@@ -59,6 +59,11 @@ struct ReadingPaneView: View {
     /// the shared filter bar (top on Mac, bottom on touch — #4362) and
     /// executed inside the shared WebKit surface.
     @State var searchState = ReaderSearchState()
+    /// The reader's ARTIFACT lens (artifact-compare P1): non-nil pins this
+    /// pane to one artifact's text instead of the live transcript. Per-pane
+    /// state, so split readers compare two artifacts side by side.
+    @State var artifactLens: ReaderArtifactLens?
+    @State var artifactLensChoices: [ReaderArtifactLens] = []
     @State var isPinned = false
     @State private var pinnedDocument: Document?
     @State private var pinnedActivePageNumber: Int?
@@ -188,6 +193,7 @@ struct ReadingPaneView: View {
             if let id = effectiveDocument?.id {
                 await documentStore.loadOutline(for: id)
             }
+            await loadArtifactLensChoices()
         }
     }
 
@@ -241,7 +247,7 @@ struct ReadingPaneView: View {
         // The head collapses splits itself; onClose is only the whole-pane
         // hide. (closePane stays for the toolbar/menu paths.)
         let closeAction = onClose
-        let head = PaneHead<PaneKindSelector<ReaderLens>, EmptyView, EmptyView>(
+        let head = PaneHead(
             crumbs: readerCrumbs,
             onClose: closeAction,
             isPinned: readerPinBinding,
@@ -266,7 +272,7 @@ struct ReadingPaneView: View {
                 }
             },
             selector: { self.readerSelector },
-            controls: { EmptyView() },
+            controls: { self.artifactLensControl },
             tools: { EmptyView() }
         )
         // The menu bar shows the SAME lens list, reading this publication —

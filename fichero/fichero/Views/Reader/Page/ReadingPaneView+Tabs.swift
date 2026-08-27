@@ -35,7 +35,12 @@ extension ReadingPaneView {
     /// TWO PANES — Reader + Preview — not an embedded source view.
     @ViewBuilder
     private var pageTabContent: some View {
-        if multiDocuments.count > 1 {
+        if let artifactLens {
+            // The ARTIFACT lens wins over every other Page rendering: the
+            // user explicitly pinned this pane to one artifact's text
+            // (artifact-compare P1). Split panes each hold their own.
+            ArtifactLensContentView(lens: artifactLens)
+        } else if multiDocuments.count > 1 {
             // N pages of ONE parent ride the SAME WebKit transcript the
             // single-document reader uses — the surface's `?pages=` filter
             // tells the renderer which pages to assemble (2026-08-25). The

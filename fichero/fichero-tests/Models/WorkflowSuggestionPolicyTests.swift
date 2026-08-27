@@ -25,7 +25,7 @@ struct WorkflowSuggestionPolicyTests {
             for: [doc("i1", fileType: .image)]
         )
         #expect(suggestions.map(\.workflowName)
-            == ["Transcribe (Auto-Detect)", "Detect Regions"])
+            == ["Transcribe (Auto-Detect)", "Detect Regions (Apple Vision)"])
     }
 
     @Test("entries offer entities then claims")
