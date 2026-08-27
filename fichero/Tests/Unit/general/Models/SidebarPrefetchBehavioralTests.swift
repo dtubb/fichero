@@ -96,6 +96,15 @@ final class SidebarPrefetchBehavioralTests: XCTestCase {
         #"{"items":[\#(docs.joined(separator: ","))],"count":\#(docs.count)}"#
     }
 
+    /// The outline endpoint's answer (Mandate 1): sidebar children now ride
+    /// `GET /documents/{id}/view?level=stored` as a DocumentViewResponse —
+    /// ancestors + the document itself + children. The old `/children` stubs
+    /// answered a route the store no longer calls, so every prefetch decoded
+    /// the default empty body and cached nothing (keyNotFound "ancestors").
+    private func viewJSON(_ selfDoc: String, children: [String]) -> String {
+        #"{"ancestors":[],"document":\#(selfDoc),"children":[\#(children.joined(separator: ","))]}"#
+    }
+
     private func makeStore(stubs: [Stub]) -> DocumentStore {
         PrefetchStubURLProtocol.reset(stubs)
         let configuration = URLSessionConfiguration.ephemeral
@@ -125,10 +134,19 @@ final class SidebarPrefetchBehavioralTests: XCTestCase {
                 docJSON("rootB", parent: nil, docType: "folder"),
                 docJSON("rootFile", parent: nil, docType: "file")
             ])),
+            Stub(pathSuffix: "/documents/rootA/view", body: viewJSON(
+                docJSON("rootA", parent: nil, docType: "folder"),
+                children: [docJSON("subA1", parent: "rootA", docType: "folder")]
+            )),
+            Stub(pathSuffix: "/documents/rootB/view", body: viewJSON(
+                docJSON("rootB", parent: nil, docType: "folder"), children: []
+            )),
+            // loadCollections auto-selects the first root, and selection's
+            // grid listing still rides /children — unstubbed, its DEFAULT
+            // empty answer would overwrite the prefetched cache.
             Stub(pathSuffix: "/documents/rootA/children", body: listJSON([
                 docJSON("subA1", parent: "rootA", docType: "folder")
-            ])),
-            Stub(pathSuffix: "/documents/rootB/children", body: listJSON([]))
+            ]))
         ])
 
         await store.loadCollections()
@@ -147,7 +165,7 @@ final class SidebarPrefetchBehavioralTests: XCTestCase {
         // Leaf roots are never fetched.
         let paths = PrefetchStubURLProtocol.recordedPaths()
         XCTAssertFalse(
-            paths.contains { $0.hasSuffix("/documents/rootFile/children") },
+            paths.contains { $0.hasSuffix("/documents/rootFile/view") },
             "files have nothing to disclose — no round-trip"
         )
     }
@@ -160,6 +178,10 @@ final class SidebarPrefetchBehavioralTests: XCTestCase {
             Stub(pathSuffix: "/api/documents/roots", body: listJSON([
                 docJSON("rootA", parent: nil, docType: "folder")
             ])),
+            Stub(pathSuffix: "/documents/rootA/view", body: viewJSON(
+                docJSON("rootA", parent: nil, docType: "folder"),
+                children: [docJSON("subA1", parent: "rootA", docType: "folder")]
+            )),
             Stub(pathSuffix: "/documents/rootA/children", body: listJSON([
                 docJSON("subA1", parent: "rootA", docType: "folder")
             ]))
@@ -178,13 +200,17 @@ final class SidebarPrefetchBehavioralTests: XCTestCase {
     func testExpansionCachesChildrenAndPrefetchesOneLevelDeeper() async throws {
         let folder = Document(id: "top", parentId: nil, docType: .folder, name: "top")
         let store = makeStore(stubs: [
-            Stub(pathSuffix: "/documents/top/children", body: listJSON([
+            Stub(pathSuffix: "/documents/top/view", body: viewJSON(
+                docJSON("top", parent: nil, docType: "folder"),
+                children: [
+                    docJSON("mid", parent: "top", docType: "folder"),
+                    docJSON("midFile", parent: "top", docType: "file")
+                ]
+            )),
+            Stub(pathSuffix: "/documents/mid/view", body: viewJSON(
                 docJSON("mid", parent: "top", docType: "folder"),
-                docJSON("midFile", parent: "top", docType: "file")
-            ])),
-            Stub(pathSuffix: "/documents/mid/children", body: listJSON([
-                docJSON("leaf", parent: "mid", docType: "file")
-            ]))
+                children: [docJSON("leaf", parent: "mid", docType: "file")]
+            ))
         ])
 
         await store.loadSidebarChildren(of: folder)
@@ -201,7 +227,7 @@ final class SidebarPrefetchBehavioralTests: XCTestCase {
         // `mid` was asked for beyond its own children.
         let paths = PrefetchStubURLProtocol.recordedPaths()
         XCTAssertFalse(
-            paths.contains { $0.hasSuffix("/documents/leaf/children") },
+            paths.contains { $0.hasSuffix("/documents/leaf/view") },
             "prefetch is bounded to one level below the expansion"
         )
     }
@@ -209,10 +235,13 @@ final class SidebarPrefetchBehavioralTests: XCTestCase {
     func testExpansionDoesNotRefetchCachedChildren() async throws {
         let folder = Document(id: "top", parentId: nil, docType: .folder, name: "top")
         let store = makeStore(stubs: [
-            Stub(pathSuffix: "/documents/top/children", body: listJSON([
-                docJSON("mid", parent: "top", docType: "folder")
-            ])),
-            Stub(pathSuffix: "/documents/mid/children", body: listJSON([]))
+            Stub(pathSuffix: "/documents/top/view", body: viewJSON(
+                docJSON("top", parent: nil, docType: "folder"),
+                children: [docJSON("mid", parent: "top", docType: "folder")]
+            )),
+            Stub(pathSuffix: "/documents/mid/view", body: viewJSON(
+                docJSON("mid", parent: "top", docType: "folder"), children: []
+            ))
         ])
 
         await store.loadSidebarChildren(of: folder)
@@ -231,7 +260,7 @@ final class SidebarPrefetchBehavioralTests: XCTestCase {
             "a second expansion refreshes the expanded folder, and nothing else"
         )
         XCTAssertTrue(
-            secondExpansion.last?.hasSuffix("/documents/top/children") == true,
+            secondExpansion.last?.hasSuffix("/documents/top/view") == true,
             "the one extra request is the expanded folder's own listing"
         )
     }
