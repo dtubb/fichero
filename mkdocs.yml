@@ -41,12 +41,15 @@ site_dir: _site_build
 # conflicting (which fails --strict).
 exclude_docs: |
   /README.md
+  /_latest.md
+  /_releases.md
 
 theme:
   name: material
   logo: assets/icon.png
   favicon: assets/icon.png
   features:
+    - navigation.tabs
     - navigation.sections
     - navigation.top
     - navigation.indexes
@@ -55,35 +58,34 @@ theme:
     - search.highlight
     - content.code.copy
     - toc.follow
+# Single light scheme, like tubb.ca — no dark-mode toggle. Primary "white"
+# keeps Material from painting header/tab/menu surfaces indigo; the download
+# buttons get their indigo explicitly in extra.css.
   palette:
-    - media: "(prefers-color-scheme: light)"
-      scheme: default
-      primary: indigo
-      accent: indigo
-      toggle:
-        icon: material/weather-night
-        name: Switch to dark mode
-    - media: "(prefers-color-scheme: dark)"
-      scheme: slate
-      primary: indigo
-      accent: indigo
-      toggle:
-        icon: material/weather-sunny
-        name: Switch to light mode
+    scheme: default
+    primary: white
+    accent: indigo
 
 markdown_extensions:
+  # SmartyPants: straight quotes -> curly, -- -> en dash, --- -> em dash, ... -> ellipsis.
+  - smarty
   - admonition
   - attr_list
   - md_in_html
-  - toc:
-      permalink: true
+  - toc: {}
   - pymdownx.superfences
   - pymdownx.details
+  # Pulls the generated release snippets (docs/_releases.md, docs/_latest.md)
+  # into index.md; scripts/gen_site_releases.py writes them from RELEASE_NOTES.md.
+  - pymdownx.snippets
   # Resolves Material's `:material-download:` icon shortcodes. Without this the
   # shortcodes render as literal text (they did, on the home page, until now).
   - pymdownx.emoji:
       emoji_index: !!python/name:material.extensions.emoji.twemoji
       emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+# Footer line — the way back to the parent site.
+copyright: 'Fichero is an app by <a href="https://tubb.ca">Daniel Tubb — tubb.ca</a>'
 
 extra_css:
   - assets/extra.css
@@ -162,3 +164,5 @@ nav:
           - Bundled Backend Setup: contributor/setup-bundled-backend.md
       - UI Map: contributor/ui-map.md
       - API Reference: contributor/api-reference/index.md
+  - Contributors: contributors.md
+  - tubb.ca ↗: https://tubb.ca

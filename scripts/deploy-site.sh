@@ -21,8 +21,12 @@ if [ ! -d "$TUBB_SITE" ]; then
   exit 1
 fi
 
-echo "[1/3] Building MkDocs site → $BUILD_DIR"
+echo "[0/3] Generating release snippets + publication guard"
 cd "$ROOT_DIR"
+python3 scripts/gen_site_releases.py
+python3 scripts/check_docs_publication.py
+
+echo "[1/3] Building MkDocs site → $BUILD_DIR"
 mkdocs build --strict
 
 echo "[2/3] Syncing built site to $DEST"

@@ -771,6 +771,16 @@ if [ "$RUN_GITHUB" = true ]; then
   echo
   echo "── GitHub/Sparkle release ──"
   "$ROOT_DIR/scripts/create-github-release.sh" "${GITHUB_ARGS[@]+"${GITHUB_ARGS[@]}"}"
+
+  # Site AFTER the GitHub step: create-github-release.sh writes appcast.xml
+  # into the same tubb.ca/apps/fichero/ directory; deploy-site.sh rsyncs with
+  # --delete but excludes appcast.xml, so this order refreshes the site
+  # without touching the just-written feed. FICHERO_SKIP_SITE=1 to opt out.
+  if [ "${FICHERO_SKIP_SITE:-0}" != "1" ]; then
+    echo
+    echo "── Website (docs site → tubb.ca) ──"
+    "$ROOT_DIR/scripts/deploy-site.sh"
+  fi
 fi
 
 echo
