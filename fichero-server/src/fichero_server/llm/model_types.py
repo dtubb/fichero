@@ -1,30 +1,45 @@
 """
 LLM model info and cost utilities.
 
-Uses LiteLLM's model registry for pricing and capability data.
+Pricing and capability data come from a VENDORED snapshot of LiteLLM's
+model registry (resources/model_prices.json) — the 84 MB litellm package
+existed in this codebase solely for that one JSON file (Daniel, 2026-08-27:
+"can we get rid of litellm completely?"). Refresh the snapshot from
+https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json
 Included by llm.py via re-exports in __all__.
 """
 
 from __future__ import annotations
 
+import json
 import logging
+from importlib import resources as importlib_resources
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
-# Lazy import litellm to avoid import overhead
-_litellm = None
+_PRICE_TABLE: dict[str, dict[str, Any]] | None = None
 
 
-def _get_litellm():
-    """Lazy-load litellm module."""
-    global _litellm
-    if _litellm is None:
-        import litellm
+def _price_table() -> dict[str, dict[str, Any]]:
+    """Lazy-load the vendored model registry (2,700+ entries, ~1.4 MB)."""
+    global _PRICE_TABLE
+    if _PRICE_TABLE is None:
+        ref = importlib_resources.files("fichero_server.resources") / "model_prices.json"
+        table = json.loads(ref.read_text(encoding="utf-8"))
+        # LiteLLM ships a schema-documentation entry alongside the real rows.
+        table.pop("sample_spec", None)
+        _PRICE_TABLE = table
+    return _PRICE_TABLE
 
-        _litellm = litellm
-        litellm.suppress_debug_info = True
-    return _litellm
+
+def _resolve_entry(model: str) -> dict[str, Any] | None:
+    """Exact key first, then the un-prefixed form ("openai/gpt-4o" → "gpt-4o")."""
+    table = _price_table()
+    entry = table.get(model)
+    if entry is None and "/" in model:
+        entry = table.get(model.split("/", 1)[1])
+    return entry
 
 
 # =============================================================================
@@ -33,20 +48,23 @@ def _get_litellm():
 
 
 def get_model_info(model: str) -> dict[str, Any] | None:
-    """Get information about a model from LiteLLM's registry.
+    """Get information about a model from the vendored registry.
 
     Args:
         model: Model name (e.g., "gpt-4o", "openai/gpt-4o")
 
     Returns:
-        Dict with model info (max_tokens, costs, etc.) or None
+        Dict with model info (max_tokens, costs, etc.)
+
+    Raises:
+        RuntimeError: when the model has no registry entry — same loud
+        contract the litellm-backed version had.
     """
-    litellm = _get_litellm()
-    try:
-        return litellm.get_model_info(model)
-    except Exception as exc:
-        logger.exception("LiteLLM model info lookup failed for %s", model)
-        raise RuntimeError(f"Could not load model info for {model}") from exc
+    entry = _resolve_entry(model)
+    if entry is None:
+        logger.error("Model info lookup failed for %s (not in vendored registry)", model)
+        raise RuntimeError(f"Could not load model info for {model}")
+    return entry
 
 
 def get_model_cost(model: str) -> dict[str, float] | None:
@@ -58,16 +76,13 @@ def get_model_cost(model: str) -> dict[str, float] | None:
     Returns:
         Dict with 'input_cost_per_token' and 'output_cost_per_token'
     """
-    litellm = _get_litellm()
-
-    # Check LiteLLM's cost map
-    cost_info = litellm.model_cost.get(model)
+    cost_info = _resolve_entry(model)
     if cost_info:
         input_cost = cost_info.get("input_cost_per_token")
         output_cost = cost_info.get("output_cost_per_token")
         if input_cost is None or output_cost is None:
             logger.warning(
-                "LiteLLM pricing incomplete for %s: input=%r output=%r",
+                "Registry pricing incomplete for %s: input=%r output=%r",
                 model,
                 input_cost,
                 output_cost,
@@ -95,17 +110,14 @@ def estimate_cost(
     Returns:
         Estimated cost in USD, or None when pricing is unavailable.
     """
-    litellm = _get_litellm()
-    try:
-        input_cost, output_cost = litellm.cost_per_token(
-            model=model,
-            prompt_tokens=input_tokens,
-            completion_tokens=output_tokens,
-        )
-        return input_cost + output_cost
-    except Exception:
-        logger.exception("LiteLLM cost estimate failed for %s", model)
+    costs = get_model_cost(model)
+    if costs is None:
+        logger.warning("Cost estimate unavailable for %s (no registry pricing)", model)
         return None
+    return (
+        input_tokens * costs["input_cost_per_token"]
+        + output_tokens * costs["output_cost_per_token"]
+    )
 
 
 def list_models_for_provider(provider: str) -> list[dict[str, Any]]:
@@ -117,8 +129,6 @@ def list_models_for_provider(provider: str) -> list[dict[str, Any]]:
     Returns:
         List of dicts with model info
     """
-    litellm = _get_litellm()
-
     models = []
 
     def per_million(value: Any) -> float | None:
@@ -198,7 +208,7 @@ def list_models_for_provider(provider: str) -> list[dict[str, Any]]:
 
         return False
 
-    for model_name, info in litellm.model_cost.items():
+    for model_name, info in _price_table().items():
         # Filter by provider
         if is_provider_model(model_name, provider):
             # Clean up model name

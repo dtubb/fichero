@@ -243,22 +243,6 @@ def _record_usage(
     )
 
 
-# Lazy import litellm to avoid import overhead
-_litellm = None
-
-
-def _get_litellm():
-    """Lazy-load litellm module."""
-    global _litellm
-    if _litellm is None:
-        import litellm
-
-        _litellm = litellm
-        # Reduce litellm logging noise
-        litellm.suppress_debug_info = True
-    return _litellm
-
-
 # Match a markdown code fence at the start (optional language hint) and end
 # of an LLM response. Some providers (notably Qwen via OpenRouter) wrap
 # their entire output in ``` even when the prompt asks for raw text. (#776)

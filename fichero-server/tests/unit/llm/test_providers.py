@@ -207,8 +207,9 @@ class TestModelInfo:
         """Test listing models for a provider."""
         from fichero_server.llm import list_models_for_provider
 
-        with patch("fichero_server.llm.model_types._get_litellm") as mock_litellm:
-            mock_litellm.return_value.model_cost = {
+        import fichero_server.llm.model_types as model_types
+
+        with patch.object(model_types, "_PRICE_TABLE", {
                 "openai/gpt-4o": {
                     "input_cost_per_token": 0.000005,
                     "output_cost_per_token": 0.000015,
@@ -226,8 +227,7 @@ class TestModelInfo:
                     "input_cost_per_token": 0.000003,
                     "output_cost_per_token": 0.000015,
                 },
-            }
-
+        }):
             models = list_models_for_provider("openai")
 
             assert len(models) == 2
@@ -239,14 +239,14 @@ class TestModelInfo:
         """Test getting model cost info."""
         from fichero_server.llm import get_model_cost
 
-        with patch("fichero_server.llm.model_types._get_litellm") as mock_litellm:
-            mock_litellm.return_value.model_cost = {
+        import fichero_server.llm.model_types as model_types
+
+        with patch.object(model_types, "_PRICE_TABLE", {
                 "gpt-4o": {
                     "input_cost_per_token": 0.000005,
                     "output_cost_per_token": 0.000015,
                 }
-            }
-
+        }):
             cost = get_model_cost("gpt-4o")
 
             assert cost is not None
@@ -257,12 +257,17 @@ class TestModelInfo:
         """Test cost estimation."""
         from fichero_server.llm import estimate_cost
 
-        with patch("fichero_server.llm.model_types._get_litellm") as mock_litellm:
-            mock_litellm.return_value.cost_per_token.return_value = (0.05, 0.15)
+        import fichero_server.llm.model_types as model_types
 
+        with patch.object(model_types, "_PRICE_TABLE", {
+                "gpt-4o": {
+                    "input_cost_per_token": 0.00005,
+                    "output_cost_per_token": 0.0003,
+                }
+        }):
             cost = estimate_cost("gpt-4o", input_tokens=1000, output_tokens=500)
 
-            assert cost == 0.20
+            assert cost == pytest.approx(0.05 + 0.15)
 
 
 # =============================================================================
