@@ -87,6 +87,7 @@ struct DocumentCanvas: View {
                 onContainmentStep: onContainmentStep
             )
         case .imageRendered(let nsImage, let docId, let renditionId):
+            #if os(macOS)
             ZoomableImagePreview(
                 documentId: docId,
                 renderedImage: nsImage,
@@ -97,6 +98,21 @@ struct DocumentCanvas: View {
                 focusRegion: focusRegion,
                 onContainmentStep: onContainmentStep
             )
+            #else
+            // The iOS preview has no rendition-flip state (macOS-only today),
+            // so it takes the rendered image without the rendition id.
+            // swiftlint:disable:next redundant_discardable_let
+            let _ = renditionId
+            ZoomableImagePreview(
+                documentId: docId,
+                renderedImage: nsImage,
+                onNavigateToDocument: onNavigateToDocument,
+                isEditing: isEditing,
+                highlightBoxes: highlightBoxes,
+                focusRegion: focusRegion,
+                onContainmentStep: onContainmentStep
+            )
+            #endif
         case .pdf(let documentId, let pageIndex):
             PDFPageWithToolbar(
                 documentId: documentId,
@@ -283,10 +299,16 @@ private struct StorageDisplayImageCanvas: View {
             if let renditionService {
                 _ = await renditionService.load(documentId: documentId)
                 let displayable = renditionService.displayable(documentId: documentId)
+                #if os(macOS)
                 let sticky = UserDefaults.standard.string(
                     forKey: ZoomableImagePreview.stickyRenditionRoleKey
                 )
                 let preferred = preferredRenditionIndex(in: displayable, stickyRole: sticky)
+                #else
+                // Rendition flip (sticky preference) is macOS-only today; iOS
+                // always takes the engine's primary via the base display path.
+                let preferred = 0
+                #endif
                 // Index 0 is the engine's primary — the base display image
                 // serves that (cheaper, cached). Only a preferred FLIP
                 // target is worth the rendition fetch here.

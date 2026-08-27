@@ -151,6 +151,16 @@ struct ArtifactListView: View {
         return "Workflow Run"
     }
 
+    /// Plain-click select. `.modifiers([])` keeps ⌘/⇧ clicks with the List's
+    /// own multi-select on macOS; iOS has no click modifiers (or the API).
+    private func plainSelectTap(_ artifactID: String) -> some Gesture {
+        #if os(macOS)
+        return TapGesture(count: 1).modifiers([]).onEnded { selectedIDs = [artifactID] }
+        #else
+        return TapGesture(count: 1).onEnded { selectedIDs = [artifactID] }
+        #endif
+    }
+
     /// One selectable row, tagged by artifact id, with an "Open in Window"
     /// context action. Extracted from the `ForEach` body so each expression
     /// stays cheap for the type-checker.
@@ -198,9 +208,7 @@ struct ArtifactListView: View {
             // commits; the margin worked because nothing contested it there.
             // Plain clicks only — modifier clicks stay with the List so
             // ⌘/⇧ multi-select keeps working.
-            .simultaneousGesture(TapGesture(count: 1).modifiers([]).onEnded {
-                selectedIDs = [artifact.id]
-            })
+            .simultaneousGesture(plainSelectTap(artifact.id))
             .contextMenu {
                 if let onOpenInWindow {
                     Button("Open in Window") {

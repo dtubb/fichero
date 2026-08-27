@@ -1,4 +1,3 @@
-#if os(macOS)
 import SwiftUI
 
 // MARK: - Selection-scoped stepping (split from +ActionsNavigation for
@@ -64,4 +63,3 @@ extension ContentView {
     }
 
 }
-#endif
