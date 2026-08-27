@@ -450,7 +450,11 @@ final class AdaptiveShellPolicyTests: XCTestCase {
             Self.appSource("Views/Shell/ContentView/Layout/PaneSpec.swift"),
         ].joined(separator: "\n"))
 
-        XCTAssertTrue(buildersSource.contains("adaptiveSplittablePane(storageKey: \"library\")"))
+        // The split key is per-slot now ("<slot>-<kind>", 2026-08-24), so the
+        // pin follows the PaneSpec table's library case rather than the old
+        // literal "library" storage key.
+        XCTAssertTrue(buildersSource.contains("case .library:"))
+        XCTAssertTrue(buildersSource.contains("adaptiveSplittablePane(storageKey: splitKey)"))
         XCTAssertTrue(buildersSource.contains(".clipped()"))
         XCTAssertTrue(buildersSource.contains("must never paint past its own split"))
     }
