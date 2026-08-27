@@ -1,6 +1,5 @@
 # Fichero Individual Contributor License Agreement
 
-**DRAFT — awaiting Daniel's sign-off. Do not commit until approved.**
 *(Compatible with cla-assistant: contributors accept by PR comment or the
 bot's web flow; acceptances are recorded per GitHub account.)*
 
@@ -58,7 +57,15 @@ other purpose. The Project remains available to everyone under the
 AGPL-3.0; the relicensing grant in §2 is what additionally allows the
 Owner to offer the combined work under other terms (see LICENSING.md).
 
-## 6. Notification
+## 6. Trademark
+
+This Agreement licenses Your Contributions; it grants You no rights to
+the Fichero name, icon, or branding. "Fichero" is claimed as a trademark
+of the Owner. **No trademark registration has been filed yet** — the
+claim is an unregistered (™) claim, and registration may follow; the
+scope of §2 and §5 is unaffected either way.
+
+## 7. Notification
 
 You agree to notify the Owner of any facts or circumstances of which You
 become aware that would make Your representations inaccurate.

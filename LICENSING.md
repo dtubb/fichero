@@ -35,7 +35,7 @@ check. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Trademark
 
-"Fichero" is a trademark of Daniel Tubb. The AGPL licenses the code, not
+"Fichero" is a trademark of Daniel Tubb (unregistered ™ claim; registration may follow). The AGPL licenses the code, not
 the name: forks must not present themselves as Fichero or use the
 Fichero name, icon, or site in a way that suggests they are the official
 product. See [NOTICE](NOTICE).
