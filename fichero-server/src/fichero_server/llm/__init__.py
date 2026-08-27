@@ -304,13 +304,24 @@ class LLMConfig:
     reasoning_effort: str | None = None
 
     def get_model_name(self) -> str:
-        """Get LiteLLM-format model name (provider/model)."""
+        """Get the provider-routed model name (provider/model).
+
+        Defensive: a saved model id that ALREADY carries the provider prefix
+        (rows added from the old litellm-era listing stored e.g.
+        "openrouter/google/gemini-…") must not double up — the provider API
+        rejects "openrouter/openrouter/…" and every vision node using that
+        alias fails (Daniel's $vision_small report, 2026-08-27).
+        """
+        model = self.model
+        prefix = f"{self.provider}/"
+        if model.startswith(prefix):
+            model = model.removeprefix(prefix)
         # Some providers need special handling
         if self.provider in ("ollama", "lmstudio"):
-            return f"ollama/{self.model}"
+            return f"ollama/{model.removeprefix('ollama/')}"
         if self.provider == "huggingface":
-            return f"huggingface/{self.model}"
-        return f"{self.provider}/{self.model}"
+            return f"huggingface/{model}"
+        return f"{self.provider}/{model}"
 
 
 # =============================================================================
@@ -4042,7 +4053,11 @@ def _build_langchain_model(config: LLMConfig) -> Any:
     exponential backoff + jitter.
     """
     provider = config.provider.lower()
-    model_name = config.model
+    # Defensive prefix strip: saved rows from the litellm-era model list
+    # carry the provider prefix ("openrouter/google/gemini-…"), and passing
+    # that through makes the provider API see "openrouter/openrouter/…" —
+    # every vision-alias call failed this way (Daniel, 2026-08-27).
+    model_name = config.model.removeprefix(f"{provider}/")
     api_key = _resolve_api_key(config)
 
     # Common parameters. max_retries=10 bumps LangChain's default 6 so
