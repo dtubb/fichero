@@ -10,7 +10,7 @@ hide:
 
 # Fichero: AI for archives & research
 
-What is Fichero? Its an an App to read archives and research material: to transcribes handwritten documents with AI models; to organizes sources; to generate structured data from research collections.
+What is Fichero? It's an app to read archives and research material: to transcribe handwritten documents with AI models; to organize sources; to generate structured data from research collections.
 
 **Fichero is a Public Alpha. It's not yet in Beta.**
 
@@ -87,16 +87,22 @@ video slot: short demo embed(s). Keep empty until there is one. -->
 
 Fichero is developed in the open at
 [github.com/dtubb/fichero](https://github.com/dtubb/fichero). It is coded
-(almost) entirely by AI, under the creative direction of myself Daniel Tubb and other [contributors](https://github.com/dtubb/fichero/graphs/contributors). See
+(almost) entirely by AI, under the creative direction of myself, Daniel Tubb, and other [contributors](https://github.com/dtubb/fichero/graphs/contributors). See
 [How It's Built](user/how-its-built.md).
 
 Fichero is free and open source, released under the
-[GNU Affero General Public License, version 3.0 (AGPL-3.0)](https://www.gnu.org/licenses/agpl-3.0.html). That means anyone can read the code, use the app, modify it, and share it. Whoever distributes it, or runs a modified version as a service, must
-share their source code under the same licence in turn. Why? With this licence, nobody can take
-Fichero closed-source, and the Fichero name is reserved. Basically, the app may not be
-sold under that name by anyone but the project.
-
-Because of this Licence, contributors must agree to a Contributor License Agreement (CLA). While contributions stay free under the AGPL, the CLA grants Daniel Tubb, Fichero's maintainer, the right to also release Fichero under other terms (e.g. *commercially* or when a distribution channel like Apple's Mac or iOS App Stores requires it, because the AGPL does not fit, *). 
+[GNU Affero General Public License, version 3.0 (AGPL-3.0)](https://www.gnu.org/licenses/agpl-3.0.html).
+That means anyone can read the code, use the app, modify it, and share it.
+Whoever distributes it, or runs a modified version as a service, must share
+their source code under the same license in turn — so nobody can take Fichero
+closed-source. Contributors agree to a
+[Contributor License Agreement](https://github.com/dtubb/fichero/blob/main/CLA.md),
+which lets Daniel Tubb, Fichero's maintainer, also release Fichero under other
+terms (commercially, or where a channel like Apple's Mac and iOS App Stores
+requires it, because their rules and the AGPL do not fit), while every
+contribution always remains available under the AGPL. The Fichero name is
+trademark-reserved (an unregistered ™ claim). The full explanation is in
+[LICENSING.md](https://github.com/dtubb/fichero/blob/main/LICENSING.md).
 
 ---
 

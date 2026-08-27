@@ -18,11 +18,13 @@ Copyright (c) 2025–2026, Daniel Tubb.
 
 This is not a license-sales program. Some distribution channels (e.g. the
 Mac and iOS App Store) have rules the AGPL does not fit (the VLC
-precedent), so the OFFICIAL (in the future possibly commercial) builds for those channels are released by Daniel Tubb under separate terms. That is the whole purpose of the dual
-license: the open-source Fichero and the store Fichero are the same app,
-published by the same author, through channels with different rules.
+precedent), so the official — in the future possibly commercial — builds
+for those channels are released by Daniel Tubb under separate terms. That
+is the whole purpose of the dual license: the open-source Fichero and the
+store Fichero are the same app, published by the same author, through
+channels with different rules.
 
-**All contributions are made under the [Contributor License Agreement](CLA.md)**, which grants Daniel Tubb the rights needed to release contributed code through other channels. The project itself will remain AGPL.
+**All contributions are made under the [Contributor License Agreement](CLA.md)**, which grants Daniel Tubb the rights needed to release contributed code through other channels. The project itself will remain AGPL, and every contribution always remains available under the AGPL.
 
 ## Contributing
 

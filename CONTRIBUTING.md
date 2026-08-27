@@ -3,12 +3,13 @@
 ## License and the CLA
 
 Fichero is released under the
-[GNU Affero General Public License, version 3.0 (AGPL-3.0)](https://www.gnu.org/licenses/agpl-3.0.html).
-Contributors agree to a [Contributor License Agreement](CLA.md) (CLA), which lets the
-project also release Fichero under other terms (e.g. commercially) or when a channel requires it
-(for example, distribution on the Mac App Store, whose rules the AGPL does not
-fit). Your contribution always remains available under the AGPL. The Fichero
-name may not be used to sell the app as-is.
+[GNU Affero General Public License, version 3.0 (AGPL-3.0)](LICENSE).
+Contributors agree to a [Contributor License Agreement](CLA.md) (CLA), which
+lets Daniel Tubb, Fichero's maintainer, also release Fichero under other terms
+(commercially, or where a channel like the Mac App Store requires it, because
+its rules and the AGPL do not fit). Your contribution always remains available
+under the AGPL. The Fichero name is trademark-reserved (an unregistered ™
+claim). The full explanation is in [LICENSING.md](LICENSING.md).
 
 Fichero is written by AI coding agents, which receive creative direction from Daniel Tubb.
 
