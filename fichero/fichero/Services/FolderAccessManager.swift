@@ -72,8 +72,22 @@ class FolderAccessManager {
     /// then isn't a grant problem (moved file, dataless Box placeholder) and
     /// a panel would be noise. `completion(true)` only on a fresh grant.
     func promptOnceForSource(path: String, completion: @escaping (Bool) -> Void) {
+        promptForSource(path: path, force: false, completion: completion)
+    }
+
+    /// `force` = an EXPLICIT user action (the banner's Retry — Daniel,
+    /// 2026-08-27: "if you need me to grant access to a folder, you have to
+    /// select it; when I click retry, it should show me that"). The
+    /// once-per-folder guard exists to stop prompt STORMS from background
+    /// loads; a deliberate click is exempt. Existing access still short-
+    /// circuits — force never re-asks for a folder that already works.
+    func promptForSource(path: String, force: Bool, completion: @escaping (Bool) -> Void) {
         let root = URL(fileURLWithPath: path).deletingLastPathComponent().path
-        guard !hasAccess(to: path), !promptedSourceRoots.contains(root) else {
+        guard !hasAccess(to: path) else {
+            completion(false)
+            return
+        }
+        guard force || !promptedSourceRoots.contains(root) else {
             completion(false)
             return
         }

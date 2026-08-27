@@ -240,7 +240,7 @@ private struct StorageDisplayImageCanvas: View {
                                 Image(systemName: "exclamationmark.triangle")
                                 Text("Showing thumbnail — original unavailable")
                                     .font(.caption)
-                                Button("Retry") { Task { await loadImage() } }
+                                Button("Retry") { retryOriginal() }
                                     .controlSize(.small)
                             }
                             .padding(.horizontal, 12)
@@ -257,7 +257,7 @@ private struct StorageDisplayImageCanvas: View {
                     } description: {
                         Text(loadError.localizedDescription)
                     } actions: {
-                        Button("Retry") { Task { await loadImage() } }
+                        Button("Retry") { retryOriginal() }
                     }
                 }
             } else if let thumbnail = storageService.cachedThumbnail(for: documentId) {
@@ -346,6 +346,18 @@ private struct StorageDisplayImageCanvas: View {
     /// one panel per folder per run; a fresh grant reaches the running
     /// engine, so the retry succeeds without a relaunch.
     private func promptForSourceAccessIfMissing() {
+        promptForSourceAccess(force: false)
+    }
+
+    /// The banner's Retry: an explicit click always offers the folder picker
+    /// when access is missing (bypassing the once-per-folder prompt guard),
+    /// then reloads — with access already in hand it just reloads.
+    func retryOriginal() {
+        promptForSourceAccess(force: true)
+        Task { await loadImage() }
+    }
+
+    private func promptForSourceAccess(force: Bool) {
         #if os(macOS)
         guard let store = documentStore else { return }
         let candidates = store.currentDocuments
@@ -353,7 +365,7 @@ private struct StorageDisplayImageCanvas: View {
             + [store.selectedDocument].compactMap { $0 }
         guard let sourcePath = candidates.first(where: { $0.id == documentId })?.path,
               !sourcePath.isEmpty else { return }
-        FolderAccessManager.shared.promptOnceForSource(path: sourcePath) { granted in
+        FolderAccessManager.shared.promptForSource(path: sourcePath, force: force) { granted in
             guard granted else { return }
             Task { await loadImage() }
         }

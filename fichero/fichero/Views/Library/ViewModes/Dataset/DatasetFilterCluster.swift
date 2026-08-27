@@ -2,135 +2,119 @@ import SwiftUI
 
 // MARK: - The dataset facets, in the ONE bottom bar (Daniel, 2026-08-24)
 //
-// The dataset renderers used to draw their own PaneFilterBar above the
-// library's action bar — two stacked bars, the exact defect the one-bottom-
-// toolbar ruling names. The three facet menus (lifted verbatim from the old
-// datasetFilterBar) now render as this cluster inside libraryMiniToolbar,
-// icon-only like sort/filter beside them, with the accent tint carrying the
-// "a facet is active" signal the text labels used to.
+// Consolidated 2026-08-27 (Daniel: "can't we consolidate some of these
+// library buttons… they are split apart and forced to become a lozenge when
+// too narrow"): SEVEN separate controls became TWO here plus the shared
+// metadata popover —
+//   · Show   = Spreads/Pages levels AND the document types, one menu ("pages
+//              and spreads is really the same as all types").
+//   · Filter = dated/undated plus the count + Clear ("dated and undated can
+//              be combined… maybe some can be in the filter menu").
+//   · The excerpt/full-text choice moved into the Metadata popover
+//              ("the full text excerpt is more logically part of the
+//              metadata") — see LibraryRowAttributesButton.
 
-/// Inline face: icon-only menus + the filtered count/Clear pair.
+/// Inline face: the Show + Filter menus.
 struct DatasetFilterCluster: View {
     let store: DatasetModeStore
+    let documentStore: DocumentStore
 
     var body: some View {
-        datasetDateMenu(store)
+        datasetShowMenu(store, documentStore)
+            .labelStyle(.iconOnly)
+            .foregroundStyle(store.prototypeFilter == nil ? AnyShapeStyle(.secondary) : AnyShapeStyle(Color.accentColor))
+        datasetFilterMenu(store)
             .labelStyle(.iconOnly)
             .foregroundStyle(store.dateFilter == .all ? AnyShapeStyle(.secondary) : AnyShapeStyle(Color.accentColor))
-        datasetTextMenu(store)
-            .labelStyle(.iconOnly)
-        if store.availablePrototypes.count > 1 {
-            datasetTypeMenu(store)
-                .labelStyle(.iconOnly)
-                .foregroundStyle(store.prototypeFilter == nil ? AnyShapeStyle(.secondary) : AnyShapeStyle(Color.accentColor))
-        }
-        if store.dateFilter != .all || store.prototypeFilter != nil {
-            Text("\(store.visibleRows.count) of \(store.page?.rows.count ?? 0)")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .monospacedDigit()
-            Button("Clear") {
-                store.dateFilter = .all
-                store.prototypeFilter = nil
-            }
-            .buttonStyle(.borderless)
-            .help("Clear dataset filters")
-        }
     }
 }
 
 /// Overflow face: the same facets as titled submenus, for narrow widths.
 struct DatasetFilterClusterMenu: View {
     let store: DatasetModeStore
+    let documentStore: DocumentStore
 
     var body: some View {
-        datasetDateMenu(store)
-        datasetTextMenu(store)
+        datasetShowMenu(store, documentStore)
+        datasetFilterMenu(store)
+    }
+}
+
+/// One "what am I looking at" menu: the reading level (spreads ↔ pages) and
+/// the document types are the same question at two grains, so they share it.
+@MainActor
+private func datasetShowMenu(_ store: DatasetModeStore, _ documentStore: DocumentStore) -> some View {
+    Menu {
+        Section("Level") {
+            ForEach(LibraryLevel.allCases) { level in
+                Button {
+                    Task { await documentStore.setLibraryLevel(level) }
+                } label: {
+                    Label(level.title, systemImage: level.systemImage)
+                    if documentStore.libraryLevel == level {
+                        Image(systemName: "checkmark")
+                    }
+                }
+            }
+        }
         if store.availablePrototypes.count > 1 {
-            datasetTypeMenu(store)
-        }
-        Button("Clear Dataset Filters") {
-            store.dateFilter = .all
-            store.prototypeFilter = nil
-        }
-        .disabled(store.dateFilter == .all && store.prototypeFilter == nil)
-    }
-}
-
-// The menu bodies, ONE definition for both faces (lifted verbatim from the
-// deleted datasetFilterBar — iterate, never replace).
-
-@MainActor
-private func datasetDateMenu(_ store: DatasetModeStore) -> some View {
-    Menu {
-        ForEach(DatasetDateFilter.allCases) { choice in
-            Button {
-                store.dateFilter = choice
-            } label: {
-                Text(choice.rawValue)
-                if store.dateFilter == choice {
-                    Image(systemName: "checkmark")
+            Section("Type") {
+                Button {
+                    store.prototypeFilter = nil
+                } label: {
+                    Text("All Types")
+                    if store.prototypeFilter == nil {
+                        Image(systemName: "checkmark")
+                    }
+                }
+                ForEach(store.availablePrototypes, id: \.self) { key in
+                    Button {
+                        store.prototypeFilter = key
+                    } label: {
+                        Text(key.replacingOccurrences(of: "_", with: " ").capitalized)
+                        if store.prototypeFilter == key {
+                            Image(systemName: "checkmark")
+                        }
+                    }
                 }
             }
         }
     } label: {
-        Label(
-            store.dateFilter == .all ? "Dates" : store.dateFilter.rawValue,
-            systemImage: "calendar.badge.checkmark"
-        )
+        Label("Show", systemImage: "square.grid.2x2")
     }
     .menuStyle(.borderlessButton)
     .fixedSize()
-    .help("Show all rows, only dated rows, or only undated rows")
+    .help("Choose the reading level (spreads or pages) and which document types to show")
 }
 
+/// Dates + the active-filter readout + Clear, one menu.
 @MainActor
-private func datasetTextMenu(_ store: DatasetModeStore) -> some View {
+private func datasetFilterMenu(_ store: DatasetModeStore) -> some View {
     Menu {
-        ForEach(DatasetModeStore.TextDetail.allCases) { choice in
-            Button {
-                store.textDetail = choice
-            } label: {
-                Text(choice.rawValue)
-                if store.textDetail == choice {
-                    Image(systemName: "checkmark")
+        Section("Dates") {
+            ForEach(DatasetDateFilter.allCases) { choice in
+                Button {
+                    store.dateFilter = choice
+                } label: {
+                    Text(choice.rawValue)
+                    if store.dateFilter == choice {
+                        Image(systemName: "checkmark")
+                    }
                 }
             }
         }
-    } label: {
-        Label("Text", systemImage: "text.alignleft")
-    }
-    .menuStyle(.borderlessButton)
-    .fixedSize()
-    .help("Show the excerpt or the full entry text on cards")
-}
-
-@MainActor
-private func datasetTypeMenu(_ store: DatasetModeStore) -> some View {
-    Menu {
-        Button {
-            store.prototypeFilter = nil
-        } label: {
-            Text("All Types")
-            if store.prototypeFilter == nil {
-                Image(systemName: "checkmark")
-            }
-        }
-        Divider()
-        ForEach(store.availablePrototypes, id: \.self) { key in
-            Button {
-                store.prototypeFilter = key
-            } label: {
-                Text(key.replacingOccurrences(of: "_", with: " ").capitalized)
-                if store.prototypeFilter == key {
-                    Image(systemName: "checkmark")
-                }
+        if store.dateFilter != .all || store.prototypeFilter != nil {
+            Divider()
+            Text("Showing \(store.visibleRows.count) of \(store.page?.rows.count ?? 0)")
+            Button("Clear Filters") {
+                store.dateFilter = .all
+                store.prototypeFilter = nil
             }
         }
     } label: {
-        Label("Type", systemImage: "tag")
+        Label("Filter", systemImage: "line.3.horizontal.decrease.circle")
     }
     .menuStyle(.borderlessButton)
     .fixedSize()
-    .help("Show only rows of one document type")
+    .help("Show all, dated, or undated rows; clear active dataset filters")
 }

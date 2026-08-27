@@ -70,7 +70,7 @@ extension LibraryView {
                     // canvas channels as titled submenus.
                     if displayMode.group == .dataset {
                         Divider()
-                        DatasetFilterClusterMenu(store: datasetStore)
+                        DatasetFilterClusterMenu(store: datasetStore, documentStore: documentStore)
                     }
                     if displayMode.group == .canvas {
                         Divider()

@@ -66,6 +66,10 @@ enum LibraryRowAttribute: String, CaseIterable, Identifiable {
 /// persisted binding.
 struct LibraryRowAttributesButton: View {
     @Binding var raw: String
+    /// Dataset mode only: excerpt-vs-full-text lives HERE, with the other
+    /// "what do rows display" choices (Daniel, 2026-08-27: "the full text
+    /// excerpt is more logically part of the metadata").
+    var datasetStore: DatasetModeStore?
     @State private var isPresented = false
 
     private func binding(for attribute: LibraryRowAttribute) -> Binding<Bool> {
@@ -99,6 +103,22 @@ struct LibraryRowAttributesButton: View {
                     #if os(macOS)
                     .toggleStyle(.checkbox)
                     #endif
+                }
+                if let datasetStore {
+                    Divider()
+                    Text("Text")
+                        .font(.headline)
+                    ForEach(DatasetModeStore.TextDetail.allCases) { choice in
+                        Toggle(isOn: Binding(
+                            get: { datasetStore.textDetail == choice },
+                            set: { if $0 { datasetStore.textDetail = choice } }
+                        )) {
+                            Text(choice.rawValue)
+                        }
+                        #if os(macOS)
+                        .toggleStyle(.checkbox)
+                        #endif
+                    }
                 }
             }
             .padding(12)
