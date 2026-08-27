@@ -42,6 +42,21 @@ def _listener_hosts(bind_host: str) -> list[str]:
     return [bind_host, lan_host]
 
 
+def _primary_lan_ip() -> str:
+    """The machine's outbound-interface IPv4, found without any DNS.
+
+    The sandboxed engine cannot getaddrinfo a Bonjour name (errno 8, live
+    2026-08-27), so binding to "macbook-pro-m1.local" failed. A connected
+    UDP socket names the primary interface without sending a packet.
+    """
+    probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        probe.connect(("192.0.2.1", 1))  # TEST-NET-1: never routed, never sent
+        return probe.getsockname()[0]
+    finally:
+        probe.close()
+
+
 def _bind_listener_socket(host: str, port: int) -> socket.socket:
     family = socket.AF_INET6 if ":" in host else socket.AF_INET
     sock = socket.socket(family, socket.SOCK_STREAM)
@@ -319,7 +334,21 @@ def main(argv: list[str] | None = None):
             # which cannot assume it is free on a developer machine.
             tcp_port = int(os.environ.get("FICHERO_TCP_PORT", "8765"))
             try:
-                tcp_sockets = [_bind_listener_socket(h, tcp_port) for h in tcp_hosts]
+                tcp_sockets = []
+                for h in tcp_hosts:
+                    try:
+                        tcp_sockets.append(_bind_listener_socket(h, tcp_port))
+                    except socket.gaierror:
+                        # A Bonjour .local name does not resolve inside the
+                        # sandbox — bind its interface by IP instead. The
+                        # cert still names the .local host for clients.
+                        lan_ip = _primary_lan_ip()
+                        logger.info(
+                            "Sharing listener: %s does not resolve here; binding %s instead",
+                            h,
+                            lan_ip,
+                        )
+                        tcp_sockets.append(_bind_listener_socket(lan_ip, tcp_port))
             except OSError as exc:
                 # The app must not lose its engine because a stale process
                 # holds 8765 — keep UDS, but say exactly what is broken.

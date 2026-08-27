@@ -26,3 +26,12 @@ def test_seed_skips_unreadable_known_files(tmp_path, monkeypatch):
     assert mimetypes.guess_type("x.nope")[0] is None, (
         "the denied file must not have been read"
     )
+
+
+def test_primary_lan_ip_is_an_ipv4_without_dns():
+    # No DNS involved: a connected UDP socket names the outbound interface.
+    import ipaddress
+
+    from fichero_server.__main__ import _primary_lan_ip
+
+    ipaddress.IPv4Address(_primary_lan_ip())  # raises if not a dotted quad
