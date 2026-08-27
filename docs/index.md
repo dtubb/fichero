@@ -14,15 +14,22 @@ hide:
 
 # Fichero
 
-<!-- copy: one-line tagline -->
-**A filing cabinet for research.**
+<!-- copy: one-line tagline (Daniel's worksheet, 2026-08-26) -->
+**Fichero: AI for archives & research.**
 
-<!-- copy: one short paragraph, max 3 sentences -->
+<!-- copy: one short paragraph, max 3 sentences (worksheet) -->
+Fichero is a powerful app for reading archives and research material.
+Transcribe with AI handwriting-recognition models, navigate your sources,
+and generate structured data from research material.
 
 [Download Fichero :material-apple:](https://github.com/dtubb/fichero/releases/latest/download/Fichero.dmg){ .md-button .md-button--primary }
 [TestFlight](https://github.com/dtubb/fichero#testflight){ .md-button }
 
 macOS 26+, Apple Silicon. Public alpha — dated builds, self-updating.
+
+<!-- copy: alpha note (worksheet) -->
+Fichero is in its early days. It's a public alpha: keep copies of your
+data, and send bug reports.
 
 <!-- screenshot slot: hero image of the main window -->
 <!-- <p align="center"><img src="assets/screenshot-library.png" alt="Fichero library" width="900"></p> -->
@@ -64,6 +71,14 @@ macOS 26+, Apple Silicon. Public alpha — dated builds, self-updating.
     <!-- copy --> Entities and claims, with provenance back to the page.
 
 </div>
+
+<!-- copy: open-source blurb (worksheet said "Apache 3.0"; drafted per the
+     standing AGPL-3.0 + CLA + trademark ruling — CONFIRM with Daniel) -->
+## Open source
+
+Fichero is released under the AGPL-3.0 licence. It is open source;
+contributors agree to a CLA, and the Fichero name may not be used to sell
+the app as-is.
 
 The [feature matrix](user/features.md) lists every capability with its real
 status, derived from the code.
