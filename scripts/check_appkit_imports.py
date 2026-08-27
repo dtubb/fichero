@@ -83,6 +83,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Views/Inspector/Knowledge/Entities/DocumentInspectorEntitiesTab+SupportTypes.swift": "#2101 — AppKit via #if canImport (drag support types); split from DocumentInspectorEntitiesTab",
     "Views/Reader/Knowledge/DocumentKGWebPane.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
     "Services/FolderAccessManager.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
+    "Services/FicheroUICapture.swift": "#4535/#4536 — macOS-only window capture (CGWindowList + NSApplication), gated by #if os(macOS); no SwiftUI equivalent",
     "Views/Reader/Page/AnnotatableTextView.swift": "#2458 — NSTextView bridge for selectable highlighted text spans; #2101",
     "Views/Preview/ImageEditor/ImageEditorModel.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
     "Views/Preview/ImageEditor/ImageEditorView.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",

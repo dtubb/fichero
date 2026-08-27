@@ -72,6 +72,11 @@ ALLOWLIST_REASONS: dict[str, str] = {
     "fichero-server/tests/integration/test_cli_generated_multiuser_auth_writes.py": (
         "multiuser auth-write coverage against a raw engine; unrelated surface"
     ),
+    "fichero-server/scripts/_engine_harness.py": (
+        "profiling harness (profile_transports.py): its TCP mode is plain HTTP "
+        "on 127.0.0.1 with an ephemeral port and temp token, for latency "
+        "comparison only — wrapping would measure the wrapper (#4437)"
+    ),
     "fichero-server/tests/unit/security/test_bind_host.py": (
         "NEGATIVE assertion — `cmd[-1] != \"fichero_server.api.main:app\"` checks the "
         "UDS launch does not serve the TCP app, so it must name the string it "

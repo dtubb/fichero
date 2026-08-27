@@ -523,7 +523,6 @@ class FolderAccessManager {
     }
 }
 
-
 #endif
 
 #if os(macOS)
