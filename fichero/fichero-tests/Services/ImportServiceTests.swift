@@ -91,3 +91,23 @@ struct ImportServiceTests {
         #expect(underlying.localizedDescription.contains("permission denied"))
     }
 }
+
+// The import-403 class (2026-08-27): LINK/MOVE imports are read by the
+// ENGINE server-side, so each file needs a security-scope grant exactly like
+// a folder does. 92 link imports 403'd with no grant ever attempted. Source
+// pins because the grant ride-along is wiring inside a private method.
+struct ImportGrantWiringTests {
+    @Test("link imports grant the file before the engine reads it")
+    func linkImportsGrantTheFile() throws {
+        let service = try String(contentsOf: AppSource.root()
+            .appendingPathComponent("Services/ImportService.swift"))
+        #expect(service.contains("grantAccessForImport(url)"),
+                "importFile must grant the linked file to the engine before ingest")
+        let manager = try String(contentsOf: AppSource.root()
+            .appendingPathComponent("Services/FolderAccessManager.swift"))
+        #expect(manager.contains("func grantAccessForImport(_ url: URL) async throws"),
+                "the file-or-directory grant seam must exist")
+        #expect(manager.contains("Could not mint a security-scoped bookmark"),
+                "a failed mint must be LOUD — the silent no-op was half the 403 mystery")
+    }
+}

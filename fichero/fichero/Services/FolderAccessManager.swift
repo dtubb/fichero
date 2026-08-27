@@ -352,7 +352,18 @@ class FolderAccessManager {
         // so the engine can read a `fichero-drop-UUID` folder for the one ingest
         // in flight (#4068). Returns nil when minting isn't possible — the
         // engine either inherits same-sandbox access or the grant is a no-op.
-        guard let bookmarkData = mintBookmark(for: url) else { return }
+        guard let bookmarkData = mintBookmark(for: url) else {
+            // LOUD, not silent (2026-08-26: 92 link-imports 403'd and a
+            // folder-of-folders was refused with "outside every allowed
+            // root" — a mint that quietly no-ops leaves the engine blind and
+            // the user with an unexplained 403).
+            logger.error("""
+                Could not mint a security-scoped bookmark for \(url.path) — \
+                the engine will refuse this path unless it falls under a \
+                static allowed root
+                """)
+            return
+        }
         try await grantEngineAccess(path: url.path, bookmark: bookmarkData)
     }
 
@@ -502,11 +513,45 @@ class FolderAccessManager {
         // iOS: importing through document picker already grants access.
     }
 
+    func grantAccessForImport(_ url: URL) async throws {
+        // iOS: importing through document picker already grants access.
+    }
+
     func clearAllAccess() {
         accessedFolders.removeAll()
         UserDefaults.standard.removeObject(forKey: bookmarksKey)
     }
 }
+
+#if os(macOS)
+extension FolderAccessManager {
+    /// Grant the engine access to ANY user-provided import URL — file or
+    /// directory (2026-08-27, the import-403 class). `saveBookmarkIfDirectory`
+    /// deliberately skips files, which was right for library packages and
+    /// wrong for LINK imports: the engine reads each linked FILE server-side,
+    /// so a file outside the static allowed roots 403'd with no grant ever
+    /// attempted. Directories keep the existing path; files mint + grant
+    /// their own URL (the engine treats a granted file path as its own root).
+    func grantAccessForImport(_ url: URL) async throws {
+        var isDirectory: ObjCBool = false
+        let exists = FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
+        guard exists else { return }
+        if isDirectory.boolValue {
+            try await saveBookmarkIfDirectory(url)
+            return
+        }
+        guard let bookmarkData = mintBookmark(for: url) else {
+            logger.error("""
+                Could not mint a security-scoped bookmark for file \(url.path) \
+                — a link import of it will 403 unless it falls under a static \
+                allowed root
+                """)
+            return
+        }
+        try await grantEngineAccess(path: url.path, bookmark: bookmarkData)
+    }
+}
+#endif
 
 #endif
 
