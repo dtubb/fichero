@@ -188,6 +188,14 @@ def main(argv: list[str] | None = None):
     # Disable tokenizers parallelism (avoids fork warnings)
     os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
+    # Seed the mimetypes registry from built-ins only. Its lazy init() reads
+    # /etc/apache2/mime.types, which the app sandbox DENIES — so the first
+    # FileResponse (a rendition download) 500'd with PermissionError instead
+    # of serving the file (found live 2026-08-27).
+    import mimetypes
+
+    mimetypes.init(files=[])
+
     # Faulthandler ON by default (2026-08-09): a native fault in fitz /
     # pdfium / ONNX / the ObjC bridge previously left NOTHING in engine.log —
     # a whole day of 'the backend crashed' with no traceback. A C-level stack
