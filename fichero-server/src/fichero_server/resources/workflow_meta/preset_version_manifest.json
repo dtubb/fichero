@@ -155,6 +155,10 @@
   "preset_version": 8,
   "sha256": "8b50b35334c21a7188c240533a3da58f62743d27a5f9fa4aabad0e99ff686bf4"
  },
+ "transcribe_paleography_economy.json": {
+  "preset_version": 1,
+  "sha256": "568570e6cd339a5da35deac0202082911560ce4494531db9a35bedf653bccdc2"
+ },
  "transcribe_paleography_en_secretary.json": {
   "preset_version": 1,
   "sha256": "393e0b0198f99e2fa624281087dd7455cd5aa0da5ffe63b11f222adbb853066f"
