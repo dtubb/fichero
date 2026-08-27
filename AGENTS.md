@@ -43,6 +43,13 @@ operational consequence worth stating plainly:
 > (`EmbeddedBackendService+Spawn.swift:221`) — the same socket a
 > `start_backend.sh` engine binds. Two engines, one socket path.
 
+> **The CLI and MCP server cannot reach a Dev Embedded engine.** The embedded
+> engine binds UDS-only (no TCP port, no TLS — `__main__.py`, Lane E), and the
+> CLI/MCP clients speak TCP only. To exercise the CLI or MCP, run a
+> `start_backend.sh` engine (HTTPS `:8765`) — with the app QUIT if they must
+> share the same library, or against a scratch/temp library while the app runs
+> (two engines must never open the same DuckDB). Verified live 2026-08-27.
+
 Contrast `Fichero (Dev Local)`, whose configuration IS `Debug` and therefore
 resolves to `.debugExternal`: it never spawns, and *requires* a developer-run
 engine to adopt (the engine is deliberately not bundled in Debug, #3042). Under
@@ -557,6 +564,30 @@ allowlist entry is a decision to publish an unlinked page — make it deliberate
 When unsure between `docs/` and `agent-work/`: point-in-time, dated, "what I found"
 material is agent-work; durable "how the system works" reference is `docs/`. Material
 that must never be public goes outside `docs/` entirely — not merely out of `nav`.
+
+### Manuscript model — ONE file per guide, split into site pages
+
+Daniel's ruling (2026-08-27): each guide is authored and reviewed as ONE
+consolidated manuscript, not page by page. The masters live in
+`~/My Drive/Tubb Lab/Apps/Fichero/` as `Fichero User Guide` and
+`Fichero Contributor Guide` (`.md` + `.docx`; the `.docx` is what Daniel and
+colleagues edit in Word/Google Docs).
+
+The flow, in this direction:
+
+1. Humans read and edit the single manuscript (`.docx`).
+2. An agent converts it back to markdown (`pandoc`), diffs against the
+   previous master, and **splits the manuscript into the per-page files**
+   under `docs/user/` / `docs/contributor/` (chapters map to pages; keep nav
+   in `mkdocs.yml` in sync).
+3. The site and any bundled PDF regenerate from those pages.
+
+Do not treat the per-page `docs/` files as the place for substantial prose
+rewrites of guide content — they are derived from the manuscript. Small
+factual fixes may land directly on pages, but they must also be applied to
+the manuscript so the next split does not revert them. Pages marked
+`> 🤖 *AI Drafted (Not reviewed)*` are unreviewed; Daniel deletes the badge
+when he has made a page his own.
 
 ---
 
