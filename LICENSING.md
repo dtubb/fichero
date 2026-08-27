@@ -16,27 +16,21 @@ Copyright (c) 2025–2026, Daniel Tubb.
 
 ## Commercial channels
 
-This is not a license-sales program. Some distribution channels — the
-Mac App Store in particular — have rules the AGPL does not fit (the VLC
-precedent), so the OFFICIAL builds for those channels are released by
-Daniel Tubb under separate terms. That is the whole purpose of the dual
+This is not a license-sales program. Some distribution channels (e.g. the
+Mac and iOS App Store) have rules the AGPL does not fit (the VLC
+precedent), so the OFFICIAL (in the future possibly commercial) builds for those channels are released by Daniel Tubb under separate terms. That is the whole purpose of the dual
 license: the open-source Fichero and the store Fichero are the same app,
 published by the same author, through channels with different rules.
 
-This is possible because **all contributions are made under the
-[Contributor License Agreement](CLA.md)**, which grants Daniel the
-rights needed to release contributed code through those channels. The
-project itself stays AGPL, always.
+**All contributions are made under the [Contributor License Agreement](CLA.md)**, which grants Daniel Tubb the rights needed to release contributed code through other channels. The project itself will remain AGPL.
 
 ## Contributing
 
-Every contribution — code, docs, assets — requires agreeing to the
-[CLA](CLA.md) before it can be merged. Pull requests are gated by a CLA
-check. See [CONTRIBUTING.md](CONTRIBUTING.md).
+Every contribution (code, docs, assets) requires agreeing to the
+[CLA](CLA.md) before it can be merged. See
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Trademark
 
-"Fichero" is a trademark of Daniel Tubb (unregistered ™ claim; registration may follow). The AGPL licenses the code, not
-the name: forks must not present themselves as Fichero or use the
-Fichero name, icon, or site in a way that suggests they are the official
+"Fichero" is a trademark of Daniel Tubb (unregistered ™ claim; registration may follow). The AGPL licenses the code, not the name: forks must not present themselves as Fichero or use the Fichero name, icon, or site in a way that suggests they are the official
 product. See [NOTICE](NOTICE).

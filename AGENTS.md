@@ -143,7 +143,7 @@ issue.
 branch, not `git stash` — a stash doesn't survive a worktree teardown and is
 invisible outside the shell that made it. Baseline-diffing (comparing two
 tree states) happens in a **separate worktree**, never via
-stash-and-checkout in the same one (see `docs/design/git-practices-fabel-review.md`
+stash-and-checkout in the same one (see `agent-work/design/git-practices-fabel-review.md`
 Rule "stash-pop hazard").
 
 **Bring an agent up to speed with data, not a long-lived branch:**
@@ -166,7 +166,7 @@ subset skips the architecture guardrails" in Common Pitfalls below; the
 guardrail's own test files are part of the gate, not optional.
 
 Full rationale and the incidents behind each rule:
-`docs/design/git-practices-fabel-review.md`.
+`agent-work/design/git-practices-fabel-review.md`.
 
 ### Manager loop — use the scripts, don't improvise
 
@@ -343,7 +343,7 @@ naive values read back out through `ensure_utc()` — a naive stored value **is*
 
 Before completing a backend route change: does OpenAPI need updating? Do the Swift generated files need regenerating? Do frontend callers need updating? Plan first for architectural, OpenAPI-schema, feature-flag-tier, or database-schema changes; proceed directly on clear-root-cause fixes, tests, and lint/build fixes.
 
-**Engine bug or rendering bug?** The typed `fichero` CLI (`python -m fichero_cli`) mirrors every endpoint reachable from SwiftUI. Reproduce against the CLI first; if it fails the same way, the engine owns it.
+**Engine bug or rendering bug?** The typed `fichero` CLI mirrors every endpoint reachable from SwiftUI. Reproduce against the CLI first; if it fails the same way, the engine owns it.
 
 ---
 
@@ -352,6 +352,7 @@ Before completing a backend route change: does OpenAPI need updating? Do the Swi
 ```
 SwiftUI app · fichero CLI · fichero-mcp
               |
+   Unix domain socket (local) or
    HTTPS on 127.0.0.1:8765 (TLS, pinned fail-closed)
               |
         FastAPI engine  ──→ DuckDB (metadata) + LanceDB (vectors)

@@ -9,8 +9,8 @@ images, notes, audio, and video.
 
 The codebase has these core capabilities:
 
-1. **Document ingest.** The engine imports 37 file extensions across images,
-   documents, word-processing files, ebooks, audio, and video.
+1. **Document ingest.** The engine imports files across images, documents,
+   word-processing files, ebooks, audio, and video (60+ extensions).
 2. **Reader and library UI.** The app browses a document library and renders
    PDFs, page images, extracted text, artifacts, and inspector panes.
 3. **Semantic search.** The engine stores embeddings in LanceDB and exposes
@@ -22,7 +22,7 @@ The codebase has these core capabilities:
 6. **Chat and model tools.** The backend exposes chat and provider routes, and
    the app includes chat and model-management surfaces.
 7. **Multiple clients.** The same engine is consumed by the macOS app, the
-   `python -m fichero_cli` CLI, and `fichero-mcp`.
+   `fichero` CLI, and `fichero-mcp`.
 
 ## How It Works
 
@@ -32,8 +32,9 @@ One engine, many clients:
 SwiftUI app    fichero CLI    MCP server
        \           |            /
         \          |           /
-         HTTPS on 127.0.0.1:8765
-                 (TLS, pinned)
+      Unix domain socket (local)
+    or HTTPS on 127.0.0.1:8765
+            (TLS, pinned)
                    |
                    v
             FastAPI engine
@@ -48,7 +49,7 @@ SwiftUI app    fichero CLI    MCP server
   graph, and model/provider orchestration.
 - **`fichero/`** is the native Apple client. On macOS it prefers the embedded
   local engine; non-macOS targets currently connect to an external backend.
-- **`python -m fichero_cli`** is a typed CLI over the same HTTP surface.
+- **`fichero-cli/`** provides the typed `fichero` CLI over the same HTTP surface.
 - **`fichero-mcp`** exposes that same surface to MCP-aware tools and agents.
 - **OpenAPI** is the contract between engine and clients. Generated client code
   is derived from the backend schema, not edited by hand.

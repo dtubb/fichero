@@ -1,8 +1,6 @@
 # Fichero
 
-*Fichero*, which is Spanish for a filing cabinet or a card index, is a Mac, iPhone, and iPad app that helps you manage, read, organize, annotate, and process research materials with AI tools. 
-
-Fichero's audience is researchers with collections of images from primary sources, historical documents, handwritten field notes, and other hard to read materials, as well as PDFs of books and articles, audio interviews, video recordings, photographs, maps, academic articles, books, and websites. Fichero is both a home for research materials, and a collection of tools to work with them.
+*Fichero*, which is Spanish for a filing cabinet or a card index, is a Mac, iPhone, and iPad app that helps you organize, read, transcribe, annotate, and extract data from research materials with AI tools.  Fichero's audience is researchers with collections of images from primary sources, historical documents, handwritten field notes, and other hard to read materials, as well as PDFs of books and articles, audio interviews, video recordings, photographs, maps, academic articles, books, and websites. Fichero is both a home for research materials, and a collection of tools to work with them.
 
 Fichero lets you use AI tools to transcribe, extract metadata, make catalogue entries, and chat with and ask questions of your materials, while always being able to easily find the relevant source document or page. You can use and build the processing steps yourself, visually, and then run them across a whole collection of material. Fichero lets you use these workflows in a methodical, step-by-step way over tens or hundreds of thousands of documents.
 
@@ -49,8 +47,8 @@ Fichero has been coded over the last two years almost entirely by AI coding agen
 
 ## License
 
-Fichero is open source under the [GNU AGPL-3.0](LICENSE) — free to use,
-study, modify, and share; anyone who distributes it (or serves a
+Fichero is open source under the [GNU AGPL-3.0](LICENSE). It is free to
+use, study, modify, and share; anyone who distributes it (or serves a
 modified version over a network) must share their source the same way.
-Commercial licenses, including the Mac App Store build, are available
-from Daniel Tubb — see [LICENSING.md](LICENSING.md).
+Official builds for channels whose rules the AGPL does not fit (such as
+the Mac App Store) are released by Daniel Tubb under separate terms. See [LICENSING.md](LICENSING.md).
