@@ -5,7 +5,7 @@
 Fichero is released under the
 [GNU Affero General Public License, version 3.0 (AGPL-3.0)](https://www.gnu.org/licenses/agpl-3.0.html).
 Contributors agree to a [Contributor License Agreement](CLA.md) (CLA), which lets the
-project also release Fichero under other terms (e.g. commerically) or when a channel requires it —
+project also release Fichero under other terms (e.g. commercially) or when a channel requires it —
 for example, distribution on the Mac App Store, whose rules the AGPL does not
 fit. Your contribution always remains available under the AGPL. The Fichero
 name may not be used to sell the app as-is.
@@ -36,8 +36,10 @@ Use `scripts/spawn-worker.sh` to create a worker. It fetches `origin`, creates a
 worktree under `$FICHERO_WORKTREES` (by default a sibling `fichero-worktrees/`),
 opens a detached tmux session, activates the shared virtual environment, and
 starts the selected agent. The script branches from `origin/main` by default;
-in practice, lane worktrees are usually branched off `integration`. Supported
-worker commands are `claude`, `opus`, `sonnet`, `haiku`, and `codex`.
+in practice, lane worktrees are usually branched off `integration`. Run
+`scripts/spawn-worker.sh --help` for the supported agent commands — which
+agents and models do the work is an implementation detail that changes over
+time.
 
 Workers report progress and blockers to the manager with
 `scripts/notify_manager.sh`. Workers commit directly to their lane branch

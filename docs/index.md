@@ -4,41 +4,46 @@ hide:
   - toc
 ---
 
-<!-- Landing page structure per Daniel's 2026-08-25 ruling: less is more, the
-     app is alpha. STRUCTURE lives here; Daniel writes the copy. Every
-     "copy:" comment marks a slot for his words. -->
-
 <p align="center">
-  <img src="assets/icon.png" alt="Fichero icon" width="128">
+  <img src="assets/icon.png" alt="Fichero icon" width="256">
 </p>
 
-# Fichero
+# Fichero: AI for archives & research
 
-<!-- copy: one-line tagline (Daniel's worksheet, 2026-08-26) -->
-**Fichero: AI for archives & research.**
+What is Fichero? Its an an App to read archives and research material: to transcribes handwritten documents with AI models; to organizes sources; to generate structured data from research collections.
 
-<!-- copy: one short paragraph, max 3 sentences (worksheet) -->
-Fichero is a powerful app for reading archives and research material.
-Transcribe with AI handwriting-recognition models, navigate your sources,
-and generate structured data from research material.
+**Fichero is a Public Alpha. It's not yet in Beta.**
+
+To learn more about how Fichero works, please read the [FAQ](user/faq.md).
+
+<div style="text-align: center" markdown>
 
 [Download Fichero :material-apple:](https://github.com/dtubb/fichero/releases/latest/download/Fichero.dmg){ .md-button .md-button--primary }
 [TestFlight](https://github.com/dtubb/fichero#testflight){ .md-button }
 
-macOS 26+, Apple Silicon. Public alpha — dated builds, self-updating.
+macOS 26+, Apple Silicon.
 
-<!-- copy: alpha note (worksheet) -->
-Fichero is in its early days. It's a public alpha: keep copies of your
-data, and send bug reports.
+--8<-- "docs/_latest.md"
+
+</div>
+
+## Releases
+
+--8<-- "docs/_releases.md"
+
+[Changelog](https://github.com/dtubb/fichero/blob/main/CHANGELOG.md) — the full
+commit-level history.
 
 <!-- screenshot slot: hero image of the main window -->
 <!-- <p align="center"><img src="assets/screenshot-library.png" alt="Fichero library" width="900"></p> -->
 
 ---
 
+<!-- 
+
 ## Watch
 
-<!-- video slot: short demo embed(s). Keep empty until there is one. -->
+video slot: short demo embed(s). Keep empty until there is one. -->
 
 ---
 
@@ -72,43 +77,26 @@ data, and send bug reports.
 
 </div>
 
-<!-- copy: open-source blurb (worksheet said "Apache 3.0"; drafted per the
-     standing AGPL-3.0 + CLA + trademark ruling — CONFIRM with Daniel) -->
-## Open source
-
-Fichero is released under the AGPL-3.0 licence. It is open source;
-contributors agree to a CLA, and the Fichero name may not be used to sell
-the app as-is.
-
-The [feature matrix](user/features.md) lists every capability with its real
-status, derived from the code.
-
----
-
-## What's New
-
-[Release notes](https://github.com/dtubb/fichero/blob/main/RELEASE_NOTES.md) —
-what changed in each build. [Changelog](https://github.com/dtubb/fichero/blob/main/CHANGELOG.md) —
-the full history.
-
----
-
 ## Documentation
 
+- **[FAQ](user/faq.md)** — common questions, answered.
 - **[User Guide](user/README.md)** — install, import, read, search, run workflows.
 - **[Contributor Guide](contributor/README.md)** — architecture, API, release lane.
 
----
+## Open source
 
-## Open Source
-
-<!-- copy: licensing line lands after the AGPL text is signed off (drafts in
-     review); until then, point at the repo without naming terms. -->
 Fichero is developed in the open at
-[github.com/dtubb/fichero](https://github.com/dtubb/fichero), coded almost
-entirely by frontier AI models under Daniel's direction — see
+[github.com/dtubb/fichero](https://github.com/dtubb/fichero). It is coded
+(almost) entirely by AI, under the creative direction of myself Daniel Tubb and other [contributors](https://github.com/dtubb/fichero/graphs/contributors). See
 [How It's Built](user/how-its-built.md).
 
+Fichero is free and open source, released under the
+[GNU Affero General Public License, version 3.0 (AGPL-3.0)](https://www.gnu.org/licenses/agpl-3.0.html). That means anyone can read the code, use the app, modify it, and share it. Whoever distributes it, or runs a modified version as a service, must
+share their source code under the same licence in turn. Why? With this licence, nobody can take
+Fichero closed-source, and the Fichero name is reserved. Basically, the app may not be
+sold under that name by anyone but the project.
+
+Because of this Licence, contributors must agree to a Contributor License Agreement (CLA). While contributions stay free under the AGPL, the CLA grants Daniel Tubb, Fichero's maintainer, the right to also release Fichero under other terms (e.g. *commercially* or when a distribution channel like Apple's Mac or iOS App Stores requires it, because the AGPL does not fit, *). 
+
 ---
 
-Made by [Daniel Tubb](https://tubb.ca).

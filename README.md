@@ -45,7 +45,7 @@ you import, and treat the app as an experiment.
 
 ## How it is Built?
 
-Fichero has been coded over the last two years almost entirely by Claude, Codex, Glm 5.2, and other Frontier AI models. It is a work in progress, and it is open source. If you would like to contribute, start with the [Contributor Guide](docs/contributor/README.md) and [CONTRIBUTING.md](CONTRIBUTING.md); [How It's Built](docs/user/how-its-built.md) explains the process.
+Fichero has been coded over the last two years almost entirely by AI coding agents, under the creative direction of its contributors. It is a work in progress, and it is open source. If you would like to contribute, start with the [Contributor Guide](docs/contributor/README.md) and [CONTRIBUTING.md](CONTRIBUTING.md); [How It's Built](docs/user/how-its-built.md) explains the process.
 
 ## License
 
