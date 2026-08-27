@@ -13,7 +13,9 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from importlib import resources as importlib_resources
+from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -21,12 +23,74 @@ logger = logging.getLogger(__name__)
 _PRICE_TABLE: dict[str, dict[str, Any]] | None = None
 
 
+_REGISTRY_URL = (
+    "https://raw.githubusercontent.com/BerriAI/litellm/main/"
+    "model_prices_and_context_window.json"
+)
+_REGISTRY_MAX_AGE_SECONDS = 7 * 24 * 3600
+
+
+def _cached_registry_path() -> Path:
+    base = os.environ.get("FICHERO_BASE_PATH", "").strip()
+    root = Path(base) if base else Path.home() / "Library" / "Application Support" / "Fichero"
+    return root / "model_prices.json"
+
+
+def _refresh_registry_cache(cache: Path) -> bool:
+    """Fetch the upstream registry into the cache. True on success.
+
+    Best-effort by design: pricing must never take the engine down or hang a
+    call — short timeout, atomic write, and every failure just means the
+    previous cache or the vendored snapshot serves instead.
+    """
+    try:
+        import httpx
+
+        response = httpx.get(_REGISTRY_URL, timeout=5.0, follow_redirects=True)
+        response.raise_for_status()
+        table = response.json()
+        if not isinstance(table, dict) or len(table) < 500:
+            raise ValueError(f"implausible registry: {type(table).__name__}, {len(table) if isinstance(table, dict) else 0} rows")
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        tmp = cache.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(table), encoding="utf-8")
+        tmp.replace(cache)
+        logger.info("Model registry refreshed from upstream (%d models)", len(table))
+        return True
+    except Exception as exc:
+        logger.warning("Model registry refresh failed (%s) — serving cached/vendored data", exc)
+        return False
+
+
 def _price_table() -> dict[str, dict[str, Any]]:
-    """Lazy-load the vendored model registry (2,700+ entries, ~1.4 MB)."""
+    """The model registry, LIVE-preferring (Daniel, 2026-08-27: "we want to
+    make sure we're checking live, not a cached thing from months ago").
+
+    Layers, first hit wins:
+      1. A downloaded cache under Application Support, refreshed from the
+         upstream registry when older than a week (or absent).
+      2. The vendored snapshot shipped in the package — the offline floor.
+    """
     global _PRICE_TABLE
     if _PRICE_TABLE is None:
-        ref = importlib_resources.files("fichero_server.resources") / "model_prices.json"
-        table = json.loads(ref.read_text(encoding="utf-8"))
+        import time
+
+        table: dict[str, dict[str, Any]] | None = None
+        cache = _cached_registry_path()
+        try:
+            age = time.time() - cache.stat().st_mtime if cache.exists() else None
+        except OSError:
+            age = None
+        if age is None or age > _REGISTRY_MAX_AGE_SECONDS:
+            _refresh_registry_cache(cache)
+        try:
+            if cache.exists():
+                table = json.loads(cache.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            logger.warning("Cached model registry unreadable (%s) — vendored fallback", exc)
+        if table is None:
+            ref = importlib_resources.files("fichero_server.resources") / "model_prices.json"
+            table = json.loads(ref.read_text(encoding="utf-8"))
         # LiteLLM ships a schema-documentation entry alongside the real rows.
         table.pop("sample_spec", None)
         _PRICE_TABLE = table

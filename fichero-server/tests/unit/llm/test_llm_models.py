@@ -127,3 +127,41 @@ def test_list_models_for_provider_preserves_unknown_pricing() -> None:
     assert len(models) == 1
     assert models[0]["input_cost_per_million"] is None
     assert models[0]["output_cost_per_million"] == pytest.approx(10.0)
+
+
+def test_registry_prefers_fresh_cache_over_vendored(tmp_path, monkeypatch):
+    # Live-preferring registry (2026-08-27): a fresh downloaded cache wins.
+    cache = tmp_path / "model_prices.json"
+    cache.write_text('{"cached-model": {"input_cost_per_token": 1e-06, "output_cost_per_token": 2e-06}}')
+    monkeypatch.setattr(llm_models, "_cached_registry_path", lambda: cache)
+    monkeypatch.setattr(llm_models, "_refresh_registry_cache", lambda c: (_ for _ in ()).throw(AssertionError("fresh cache must not refetch")))
+    llm_models._PRICE_TABLE = None
+    try:
+        assert "cached-model" in llm_models._price_table()
+    finally:
+        llm_models._PRICE_TABLE = None
+
+
+def test_registry_falls_back_to_vendored_when_fetch_fails(tmp_path, monkeypatch):
+    cache = tmp_path / "absent" / "model_prices.json"
+    monkeypatch.setattr(llm_models, "_cached_registry_path", lambda: cache)
+    monkeypatch.setattr(llm_models, "_refresh_registry_cache", lambda c: False)
+    llm_models._PRICE_TABLE = None
+    try:
+        table = llm_models._price_table()
+        assert len(table) > 2000, "vendored snapshot must serve when offline"
+    finally:
+        llm_models._PRICE_TABLE = None
+
+
+def test_registry_refresh_rejects_implausible_payloads(tmp_path, monkeypatch):
+    # A truncated/error payload must never replace good data.
+    class _Resp:
+        def raise_for_status(self): pass
+        def json(self): return {"only": "one row"}
+
+    import httpx
+    monkeypatch.setattr(httpx, "get", lambda *a, **k: _Resp())
+    cache = tmp_path / "model_prices.json"
+    assert llm_models._refresh_registry_cache(cache) is False
+    assert not cache.exists()
