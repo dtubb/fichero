@@ -268,6 +268,75 @@ def main(argv: list[str] | None = None):
         )
         logger.info("Starting Fichero Backend (UDS transport)")
         logger.info("Server will listen on unix:%s (no TCP port, no TLS)", uds_path)
+
+        # Sharing / CLI / MCP (Daniel, 2026-08-27): when the app's Sharing
+        # toggle is ON it sets FICHERO_TCP_TLS_ALSO=1, and the engine binds
+        # the TCP+TLS listener IN ADDITION to the UDS socket — the same
+        # tcp_transport app, host, and TLS material a start_backend.sh engine
+        # serves. UDS stays the app's private path; HTTPS serves the CLI, the
+        # MCP server, and paired devices. Toggle OFF (no flag) = UDS-only,
+        # app-private, exactly as before.
+        if os.environ.get("FICHERO_TCP_TLS_ALSO") == "1":
+            ssl_kwargs = uvicorn_ssl_kwargs_from_env()
+            if "ssl_certfile" not in ssl_kwargs:
+                # Fail loud: the flag is an explicit request for a network
+                # listener; serving it plaintext or silently skipping it are
+                # both worse than refusing to start.
+                raise SystemExit(
+                    "FICHERO_TCP_TLS_ALSO=1 requires FICHERO_TLS_CERTFILE/"
+                    "FICHERO_TLS_KEYFILE — refusing a plaintext TCP listener."
+                )
+            tcp_bind_host = resolve_bind_host()
+            tcp_hosts = _listener_hosts(tcp_bind_host)
+            # 8765 is the product port; the env override exists for tests,
+            # which cannot assume it is free on a developer machine.
+            tcp_port = int(os.environ.get("FICHERO_TCP_PORT", "8765"))
+            try:
+                tcp_sockets = [_bind_listener_socket(h, tcp_port) for h in tcp_hosts]
+            except OSError as exc:
+                # The app must not lose its engine because a stale process
+                # holds 8765 — keep UDS, but say exactly what is broken.
+                logger.error(
+                    "Sharing listener could NOT bind %s:8765 (%s) — running "
+                    "UDS-only; Sharing, CLI and MCP are UNAVAILABLE until the "
+                    "port is free and the engine restarts.",
+                    tcp_bind_host,
+                    exc,
+                )
+            else:
+                import threading
+
+                tcp_kwargs = dict(
+                    app="fichero_server.api.tcp_transport:app",
+                    workers=1,
+                    log_level="info",
+                    loop="asyncio",
+                    ws="websockets-sansio",
+                    timeout_graceful_shutdown=1,
+                    # The UDS server owns the app lifespan; running it twice on
+                    # the SAME app instance would double-start schedulers and
+                    # background tasks.
+                    lifespan="off",
+                    **ssl_kwargs,
+                )
+                tcp_server = uvicorn.Server(uvicorn.Config(**tcp_kwargs))
+                # uvicorn skips signal-handler install off the main thread; the
+                # daemon thread dies with the process (the 1s UDS drain is the
+                # graceful path). ponytail: no cross-server shutdown choreography
+                # until something needs it.
+                threading.Thread(
+                    target=tcp_server.run,
+                    kwargs={"sockets": tcp_sockets},
+                    name="fichero-tcp-tls",
+                    daemon=True,
+                ).start()
+                logger.info(
+                    "Sharing listener up: https on %s:%d (alongside unix:%s)",
+                    ", ".join(tcp_hosts),
+                    tcp_port,
+                    uds_path,
+                )
+
         uds_sock = _bind_uds_socket(uds_path)
         server = uvicorn.Server(uvicorn.Config(**uds_kwargs))
         try:

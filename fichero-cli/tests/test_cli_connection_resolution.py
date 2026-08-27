@@ -134,7 +134,17 @@ def test_remote_base_url_never_sends_the_loopback_bootstrap_key(
     assert "Authorization" not in captured_requests[0].headers
 
 
-def test_no_credential_anywhere_sends_no_authorization_header(captured_requests):
+def test_no_credential_anywhere_sends_no_authorization_header(
+    monkeypatch, captured_requests, tmp_path
+):
+    from fichero_cli import client as client_module
+
+    # Hermetic: this machine may have a real key file at either search
+    # location (the plain path or the sandboxed app's container).
+    monkeypatch.setattr(client_module, "_TOKEN_PATH", tmp_path / "absent-key")
+    monkeypatch.setattr(
+        client_module, "_CONTAINER_TOKEN_PATH", tmp_path / "absent-container-key"
+    )
     result = runner.invoke(cli_main.app, ["health"])
 
     assert result.exit_code == 0, result.output
@@ -178,6 +188,9 @@ class TestLoopbackTrustFailsClosed:
 
         monkeypatch.delenv("SSL_CERT_FILE", raising=False)
         monkeypatch.setattr(tls, "DEFAULT_STORAGE_ROOT", tmp_path / "Remote Access")
+        # Hermetic: the second search root (the app container) may hold real
+        # certs on a developer machine.
+        monkeypatch.setattr(client_module, "_CONTAINER_SUPPORT", tmp_path / "Container")
         with pytest.raises(FicheroError) as caught:
             client_module._loopback_trust("https://127.0.0.1:8765")
         message = str(caught.value)

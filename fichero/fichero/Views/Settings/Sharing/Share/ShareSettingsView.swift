@@ -68,7 +68,7 @@ struct ShareSettingsView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(hostingEnabled ? "On" : "Off")
                             .font(.headline)
-                        Text("Share Fichero on this Mac with other devices.")
+                        Text("Share Fichero on this Mac with other devices, the fichero command-line tool, and MCP clients.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }

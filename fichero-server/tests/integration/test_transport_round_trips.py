@@ -230,3 +230,64 @@ async def test_in_memory_asgi_round_trip():
     # A real routed response, not a 404/500 that happens to be non-empty.
     assert registry.status_code == 200, registry.text
     assert isinstance(registry.json().get("items"), list), registry.text[:200]
+
+
+@pytest.fixture(scope="module")
+def dual_engine():
+    """The EMBEDDED engine with Sharing ON: `python -m fichero_server` with
+    FICHERO_UDS_PATH (the app's private socket) AND FICHERO_TCP_TLS_ALSO=1 —
+    the Sharing/CLI/MCP path (Daniel, 2026-08-27). One process, two live
+    listeners."""
+    from fichero_server.security.remote_access_tls import prepare_remote_access_tls
+
+    token = secrets.token_urlsafe(24)
+    base = Path(tempfile.mkdtemp(prefix="fichero-dual-"))
+    sock = Path(tempfile.mkdtemp(dir="/tmp", prefix="fsk-")) / "e.sock"
+    port = _free_port()
+    material = prepare_remote_access_tls(
+        f"https://127.0.0.1:{port}", storage_root=base, allow_loopback=True
+    )
+    env = _child_env(base, token)
+    env.update(
+        FICHERO_UDS_PATH=str(sock),
+        FICHERO_TCP_TLS_ALSO="1",
+        FICHERO_TCP_PORT=str(port),
+        FICHERO_TLS_CERTFILE=str(material.certificate_path),
+        FICHERO_TLS_KEYFILE=str(material.key_path),
+    )
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "fichero_server"],
+        env=env,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    engine = _Engine(
+        proc,
+        token,
+        {"transport": httpx.HTTPTransport(uds=str(sock)), "base_url": "http://localhost"},
+    )
+    try:
+        engine.wait_ready()
+    except Exception:
+        engine.stop()
+        raise
+    yield engine, port
+    engine.stop()
+    shutil.rmtree(base, ignore_errors=True)
+    shutil.rmtree(sock.parent, ignore_errors=True)
+
+
+def test_sharing_dual_bind_serves_uds_and_https(dual_engine):
+    """Both transports answer from ONE engine process, and auth still holds on
+    the network listener: health open, registry 401 bare / 200 with token."""
+    engine, port = dual_engine
+
+    with httpx.Client(timeout=10, **engine.client_kwargs) as client:
+        assert client.get(HEALTH).status_code == 200
+
+    https_kwargs = {"verify": False, "base_url": f"https://127.0.0.1:{port}"}
+    with httpx.Client(timeout=10, **https_kwargs) as client:
+        assert client.get(HEALTH).status_code == 200
+        assert client.get(AUTH_ENDPOINT).status_code == 401
+        ok = client.get(AUTH_ENDPOINT, headers=engine.auth_header)
+        assert ok.status_code == 200, f"got {ok.status_code}: {ok.text[:200]}"

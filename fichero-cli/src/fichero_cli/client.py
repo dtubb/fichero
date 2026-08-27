@@ -87,6 +87,20 @@ TRANSLATE_WORKFLOW_NAME = "Translate"
 # Matches fichero/api/auth.py::_token_file_path — the engine owns the writer,
 # this is the reader.
 _TOKEN_PATH = Path.home() / "Library" / "Application Support" / "Fichero" / ".api-key"
+# The SANDBOXED app writes the same layout inside its container (#4222 class:
+# two engines, two prefixes). The CLI must find the embedded engine's key and
+# certs there too, or "Sharing on" still reads as "CLI broken".
+_CONTAINER_SUPPORT = (
+    Path.home()
+    / "Library"
+    / "Containers"
+    / "app.fichero.fichero"
+    / "Data"
+    / "Library"
+    / "Application Support"
+    / "Fichero"
+)
+_CONTAINER_TOKEN_PATH = _CONTAINER_SUPPORT / ".api-key"
 _CLI_SESSION_PATH = _TOKEN_PATH.with_name("cli-session.json")
 
 
@@ -175,10 +189,14 @@ def _read_token(base_url: str | None = None, as_user: str | None = None) -> str 
     if env:
         return env.strip()
 
-    try:
-        return _TOKEN_PATH.read_text(encoding="utf-8").strip() or None
-    except OSError:
-        return None
+    for path in (_TOKEN_PATH, _CONTAINER_TOKEN_PATH):
+        try:
+            token = path.read_text(encoding="utf-8").strip()
+        except OSError:
+            continue
+        if token:
+            return token
+    return None
 
 
 
@@ -252,7 +270,13 @@ def _loopback_trust(base_url: str) -> ssl.SSLContext:
     port = parsed.port or 8765
     safe_host = re.sub(r"[^A-Za-z0-9._-]+", "_", host).strip("._-") or "host"
     pattern = f"{safe_host}-{port}-*"
-    certs = sorted(DEFAULT_STORAGE_ROOT.glob(f"{pattern}/server.crt"))
+    # Anchor certs from BOTH the plain user path (start_backend.sh engines)
+    # and the app container (the sandboxed app's embedded engine) — trust
+    # anchors only, so anchoring both is safe.
+    roots = (DEFAULT_STORAGE_ROOT, _CONTAINER_SUPPORT / "Remote Access")
+    certs = sorted(
+        cert for root in roots for cert in root.glob(f"{pattern}/server.crt")
+    )
     if not certs:
         raise FicheroError(
             f"No engine TLS material found for {host}:{port} — looked for "
