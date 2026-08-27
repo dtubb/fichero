@@ -26,7 +26,6 @@ What is it? It is a [Mac shoebox app](https://www.devontechnologies.com/blog/myd
 
 I hope Fichero will make working with many kinds of documents easier — large archival collections, but also interviews and audio recordings — with a document preview with tools that make reading old documents easier (a magnification bar at the bottom). At the same time, because it is built on open-source software, it is fast (I hope), has semantic search, can run AI workflows that do useful things like extract text, and keeps track of all of the data produced by such AI workflows.
 
-
 If you're a prospective graduate student interested in studying with me, I invite you to read my [letter to students](https://www.tubb.ca/2020/12/letter-to-prospective-students/) and send a brief inquiry to dtubb@unb.ca. If you're interested in learning more about my research and publications, feel free to explore [my website](https://tubb.ca) and the [Human Environments Workshop](https://www.hewlab.ca/), which I co-direct.
 
 ## Contact
