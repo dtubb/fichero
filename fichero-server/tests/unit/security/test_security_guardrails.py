@@ -38,7 +38,12 @@ PERSISTENCE_PATH_ALLOWLIST = frozenset(
     }
 )
 
-DANGEROUS_CALL_ALLOWLIST: dict[str, str] = {}
+DANGEROUS_CALL_ALLOWLIST: dict[str, str] = {
+    "workflows/tools/economy_htr.py:_load_trocr": (
+        "torch nn.Module.eval() — the inference-mode switch on a loaded "
+        "model, not expression evaluation; no string ever reaches it."
+    ),
+}
 SQL_INTERPOLATION_ALLOWLIST: dict[str, str] = {}
 XML_ETREE_ALLOWLIST: dict[str, str] = {}
 SECRET_LOG_ALLOWLIST: dict[str, str] = {}

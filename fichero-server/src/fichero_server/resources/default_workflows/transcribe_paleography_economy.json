@@ -6,9 +6,17 @@
   "is_template": true,
   "is_system": true,
   "folder_path": "/Transcribe",
-  "tags": ["preset", "transcribe", "paleography", "economy", "line-htr"],
+  "tags": [
+    "preset",
+    "transcribe",
+    "paleography",
+    "economy",
+    "line-htr"
+  ],
   "version": 1,
-  "config": {"preset_version": 1, "variant_group": "transcribe-two-pass", "variant": "economy"},
+  "config": {
+    "preset_version": 2
+  },
   "nodes": [
     {
       "id": "files-source",
@@ -51,10 +59,40 @@
     }
   ],
   "edges": [
-    {"id": "files-htr", "source": "files-source", "target": "economy-htr", "source_port": "files", "target_port": "files"},
-    {"id": "docs-htr", "source": "files-source", "target": "economy-htr", "source_port": "documents", "target_port": "documents"},
-    {"id": "htr-cleanup-context", "source": "economy-htr", "target": "cleanup", "source_port": "records", "target_port": "context"},
-    {"id": "files-cleanup", "source": "economy-htr", "target": "cleanup", "source_port": "files", "target_port": "files"},
-    {"id": "docs-cleanup", "source": "economy-htr", "target": "cleanup", "source_port": "documents", "target_port": "documents"}
+    {
+      "id": "files-htr",
+      "source": "files-source",
+      "target": "economy-htr",
+      "source_port": "files",
+      "target_port": "files"
+    },
+    {
+      "id": "docs-htr",
+      "source": "files-source",
+      "target": "economy-htr",
+      "source_port": "documents",
+      "target_port": "documents"
+    },
+    {
+      "id": "htr-cleanup-context",
+      "source": "economy-htr",
+      "target": "cleanup",
+      "source_port": "records",
+      "target_port": "context"
+    },
+    {
+      "id": "files-cleanup",
+      "source": "economy-htr",
+      "target": "cleanup",
+      "source_port": "files",
+      "target_port": "files"
+    },
+    {
+      "id": "docs-cleanup",
+      "source": "economy-htr",
+      "target": "cleanup",
+      "source_port": "documents",
+      "target_port": "documents"
+    }
   ]
 }

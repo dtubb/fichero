@@ -135,6 +135,8 @@ def test_both_transports_bound_graceful_shutdown():
     from pathlib import Path
 
     main_py = (Path(__file__).resolve().parents[2] / "src/fichero_server/__main__.py").read_text()
-    assert main_py.count("timeout_graceful_shutdown=1") == 2, (
-        "both the UDS and TCP uvicorn configs must bound graceful shutdown"
+    # Three configs since the Sharing dual-bind (2026-08-27): UDS, the main
+    # TCP path, and the Sharing TCP listener that rides beside UDS.
+    assert main_py.count("timeout_graceful_shutdown=1") == 3, (
+        "every uvicorn config in __main__ must bound graceful shutdown"
     )

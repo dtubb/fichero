@@ -118,7 +118,8 @@ class TestMCPAuthorization:
         from fichero_cli import client as client_module
 
         with patch.dict(os.environ, {}, clear=True):
-            with patch.object(client_module, "_TOKEN_PATH", tmp_path / "absent"):
+            with patch.object(client_module, "_TOKEN_PATH", tmp_path / "absent"), \
+                 patch.object(client_module, "_CONTAINER_TOKEN_PATH", tmp_path / "absent-container"):
                 with patch.object(mcp_server, "logger") as mock_logger:
                     with patch.object(mcp_server.mcp, "run"):
                         with patch("sys.argv", ["fichero-mcp"]):
@@ -146,12 +147,12 @@ class TestFeatureTierSecurity:
             ("release", "get", "/api/research/projects", True),
             ("release", "get", "/api/activity", True),
             ("beta", "get", "/api/iiif/iiif/test/info.json", True),
-            ("beta", "post", "/api/chat", False),
-            ("beta", "get", "/api/research/projects", False),
+            ("beta", "post", "/api/chat", True),
+            ("beta", "get", "/api/research/projects", True),
             ("beta", "get", "/api/activity", False),
             ("alpha", "get", "/api/iiif/iiif/test/info.json", True),
-            ("alpha", "post", "/api/chat", False),
-            ("alpha", "get", "/api/research/projects", False),
+            ("alpha", "post", "/api/chat", True),
+            ("alpha", "get", "/api/research/projects", True),
             ("alpha", "get", "/api/activity", False),
             ("dev", "get", "/api/iiif/iiif/test/info.json", False),
             ("dev", "post", "/api/chat", False),

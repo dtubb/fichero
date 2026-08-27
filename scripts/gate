@@ -123,7 +123,25 @@ preflight_free_space() {
   local min_gb="${GATE_MIN_FREE_GB:-20}"
   local target free_kb free_gb rc=0
   for target in "$REPO_ROOT" "${TMPDIR:-/tmp}"; do
-    free_kb=$(df -k "$target" 2>/dev/null | awk 'NR==2 {print $4}')
+    # APFS: df excludes PURGEABLE space, so a Mac Finder calls "91 GB free"
+    # can read as 14 GB here and the gate cries wolf (live 2026-08-27).
+    # Measure like the OS does — importantUsage capacity counts what macOS
+    # will purge on demand; fall back to df when pyobjc is unavailable.
+    # pyobjc lives in the repo venv (an engine dependency), not system python.
+    local py="$REPO_ROOT/.venv/bin/python"
+    [ -x "$py" ] || py=/usr/bin/python3
+    free_kb=$("$py" - "$target" 2>/dev/null <<'PYEOF'
+import sys
+from Foundation import NSURL
+url = NSURL.fileURLWithPath_(sys.argv[1])
+ok, values, err = url.getResourceValue_forKey_error_(
+    None, "NSURLVolumeAvailableCapacityForImportantUsageKey", None)
+print(int(values) // 1024 if ok and values else "")
+PYEOF
+)
+    if ! [[ "$free_kb" =~ ^[0-9]+$ ]]; then
+      free_kb=$(df -k "$target" 2>/dev/null | awk 'NR==2 {print $4}')
+    fi
     [[ "$free_kb" =~ ^[0-9]+$ ]] || continue
     free_gb=$((free_kb / 1024 / 1024))
     if (( free_gb < min_gb )); then

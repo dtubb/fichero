@@ -237,6 +237,10 @@ retitle_release_notes "$APP_VERSION" "$DRY_RUN"
 # The stamp now refuses to proceed unless the changelog has a section for
 # this version (retitling '## Unreleased' counts: rename it and start a
 # fresh Unreleased above it).
+if [ ! -f "$ROOT/CHANGELOG.md" ]; then
+  echo "error: CHANGELOG.md is missing — the stamp gate cannot judge (blind, not green)." >&2
+  exit 2
+fi
 if ! grep -qE "^## (Unreleased|$APP_VERSION)\b" "$ROOT/CHANGELOG.md"; then
   echo "error: CHANGELOG.md has neither '## Unreleased' nor '## $APP_VERSION'." >&2
   echo "       Backfill the day-by-day entries before stamping (2026-08-27 rule:" >&2

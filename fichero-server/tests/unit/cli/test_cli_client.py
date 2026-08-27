@@ -481,6 +481,7 @@ def test_token_missing_file_returns_none(monkeypatch, tmp_path):
     monkeypatch.delenv("FICHERO_SESSION_TOKEN", raising=False)
     monkeypatch.delenv("FICHERO_API_KEY", raising=False)
     monkeypatch.setattr(client_module, "_TOKEN_PATH", tmp_path / "absent")
+    monkeypatch.setattr(client_module, "_CONTAINER_TOKEN_PATH", tmp_path / "absent-container")
     monkeypatch.setattr(client_module, "_CLI_SESSION_PATH", tmp_path / "cli-session.json")
     assert client_module._read_token() is None
 
@@ -590,6 +591,7 @@ def test_token_ignores_cli_session_file_without_0600(monkeypatch, tmp_path):
     session_path.chmod(0o644)
     monkeypatch.setattr(client_module, "_CLI_SESSION_PATH", session_path)
     monkeypatch.setattr(client_module, "_TOKEN_PATH", tmp_path / ".api-key")
+    monkeypatch.setattr(client_module, "_CONTAINER_TOKEN_PATH", tmp_path / "absent-container")
     assert client_module._read_token() is None
 
 

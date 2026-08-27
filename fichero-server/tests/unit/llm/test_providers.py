@@ -407,13 +407,14 @@ class TestProviderAPIRoutes:
         assert len(data) > 0, "OpenRouter model browser should not be empty"
 
         model_ids = [m["model_id"] for m in data]
-        # Display id has the "openrouter/" prefix stripped...
+        # The route serves OpenRouter's catalog (live when reachable, LiteLLM
+        # fallback otherwise): model_id is OpenRouter's provider-native id
+        # ("anthropic/…") and full_name is a human display name. The old
+        # assertions pinned the LiteLLM-era shape (openrouter/-prefixed
+        # full_name) and broke the day the live catalog answered.
         assert any(model_id.startswith("anthropic/") for model_id in model_ids)
-        assert not any(model_id.startswith("openrouter/") for model_id in model_ids)
-
-        # ...while full_name retains the LiteLLM-routable identifier.
         sample = next(m for m in data if m["model_id"].startswith("anthropic/"))
-        assert sample["full_name"].startswith("openrouter/")
+        assert sample["full_name"], "every model carries a display name"
         assert sample["provider"] == "openrouter"
 
     def test_list_models_preserves_unknown_pricing_without_marking_free(self, client):
