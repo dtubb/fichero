@@ -231,6 +231,29 @@ echo "engine : version=$ENGINE_VERSION"
 
 retitle_release_notes "$APP_VERSION" "$DRY_RUN"
 
+# ── changelog section (the fourth thing that must agree, 2026-08-27) ─────────
+# CHANGELOG.md promises "full commit-level history, day by day" — and then
+# went six releases stale because NOTHING in the release flow touched it.
+# The stamp now refuses to proceed unless the changelog has a section for
+# this version (retitling '## Unreleased' counts: rename it and start a
+# fresh Unreleased above it).
+if ! grep -qE "^## (Unreleased|$APP_VERSION)\b" "$ROOT/CHANGELOG.md"; then
+  echo "error: CHANGELOG.md has neither '## Unreleased' nor '## $APP_VERSION'." >&2
+  echo "       Backfill the day-by-day entries before stamping (2026-08-27 rule:" >&2
+  echo "       the changelog rots the moment the release flow stops checking it)." >&2
+  exit 1
+fi
+if grep -qE "^## Unreleased\b" "$ROOT/CHANGELOG.md" && [ "$DRY_RUN" != true ]; then
+  CL_V="$APP_VERSION" python3 - <<'PY'
+import os, pathlib
+p = pathlib.Path("CHANGELOG.md")
+s = p.read_text()
+s = s.replace("## Unreleased\n", "## Unreleased\n\n## " + os.environ["CL_V"] + "\n", 1)
+p.write_text(s)
+print("changelog: '## Unreleased' content now titled '## " + os.environ["CL_V"] + "'; fresh Unreleased opened")
+PY
+fi
+
 if [ "$DRY_RUN" = true ]; then
   echo
   echo "dry-run: no files modified."
