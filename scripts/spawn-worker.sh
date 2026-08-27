@@ -37,7 +37,7 @@ BRANCH="ms/${MSLUG}"
 # Worktrees live ONLY under ~/code/fichero-worktrees/<name> — NEVER a bare
 # ~/code/fichero-<name> sibling (constitution rule #11: a glob-rm of bare
 # siblings destroyed the fichero-search project on 2026-06-09).
-# Derived from this checkout, overridable with FICHERO_WORKTREES (as setup-workers.sh
+# Derived from this checkout, overridable with FICHERO_WORKTREES (as other tooling
 # already does). Never hardcode a home path — a clone at ~/dev/fichero must work too.
 WT_ROOT="${FICHERO_WORKTREES:-$(dirname "$ROOT")/fichero-worktrees}"
 WORKTREE="${WT_ROOT}/${MSLUG}"
