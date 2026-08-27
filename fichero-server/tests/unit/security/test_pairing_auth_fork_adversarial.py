@@ -75,13 +75,41 @@ def _owner_request(
     host: str = "127.0.0.1",
     scheme: str = "https",
     headers: dict[str, str] | None = None,
+    scope: dict | None = None,
 ):
     return SimpleNamespace(
         state=SimpleNamespace(user=user, bootstrap_auth=bootstrap_auth),
         client=SimpleNamespace(host=host),
         url=SimpleNamespace(scheme=scheme),
         headers=headers or {},
+        scope=scope or {},
     )
+
+
+def test_uds_transport_marker_satisfies_secure_pairing_transport():
+    """The app's own Unix socket: no client IP, plain scheme, but stamped by
+    uds_transport — pairing must accept it, or Sharing ON breaks the moment
+    the app mints its QR over UDS (live 2026-08-27)."""
+    from fichero_server.api.routes.auth.pairing import _require_secure_pairing_transport
+
+    request = _owner_request(
+        None,
+        host="",
+        scheme="http",
+        scope={"fichero.transport": "uds"},
+    )
+    _require_secure_pairing_transport(request)  # must not raise
+
+
+def test_plain_http_without_uds_marker_is_still_rejected():
+    from fastapi import HTTPException
+
+    from fichero_server.api.routes.auth.pairing import _require_secure_pairing_transport
+
+    request = _owner_request(None, host="198.51.100.30", scheme="http", scope={})
+    with pytest.raises(HTTPException) as caught:
+        _require_secure_pairing_transport(request)
+    assert caught.value.status_code == 400
 
 
 def _owner_session_token(client: TestClient, app_db) -> str:

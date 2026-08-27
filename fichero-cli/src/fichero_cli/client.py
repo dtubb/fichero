@@ -272,10 +272,22 @@ def _loopback_trust(base_url: str) -> ssl.SSLContext:
     pattern = f"{safe_host}-{port}-*"
     # Anchor certs from BOTH the plain user path (start_backend.sh engines)
     # and the app container (the sandboxed app's embedded engine) — trust
-    # anchors only, so anchoring both is safe.
+    # anchors only, so anchoring both is safe. A Sharing identity is filed
+    # under the PUBLIC hostname (macbook-pro-m1.local-8765-…) but carries
+    # loopback SANs and is served on 127.0.0.1 — so for a loopback dial,
+    # anchor every identity this machine minted for the port; hostname
+    # verification still decides which one actually matches.
     roots = (DEFAULT_STORAGE_ROOT, _CONTAINER_SUPPORT / "Remote Access")
+    patterns = [pattern]
+    if _is_loopback_base_url(base_url):
+        patterns.append(f"*-{port}-*")
     certs = sorted(
-        cert for root in roots for cert in root.glob(f"{pattern}/server.crt")
+        {
+            cert
+            for root in roots
+            for pat in patterns
+            for cert in root.glob(f"{pat}/server.crt")
+        }
     )
     if not certs:
         raise FicheroError(

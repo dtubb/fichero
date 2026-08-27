@@ -175,6 +175,11 @@ def main(argv: list[str] | None = None):
         material = prepare_remote_access_tls(
             args.public_base_url,
             storage_root=args.remote_access_dir,
+            # The same identity is served on loopback (the spawn persists a
+            # loopback pin for it, #2611), so the cert must NAME loopback or
+            # every standard-verifying local client — the CLI, the MCP
+            # server — fails hostname verification (found live 2026-08-27).
+            subject_alt_hosts=["127.0.0.1", "localhost"],
         )
         sys.stdout.write(material_manifest_json(material))
         sys.stdout.write("\n")
