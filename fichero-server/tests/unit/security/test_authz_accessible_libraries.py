@@ -44,8 +44,37 @@ def global_db(tmp_path):
     return Database(tmp_path / "global.fichero" / "fichero.duckdb")
 
 
-def _request(user=None, *, bootstrap=False):
-    return SimpleNamespace(state=SimpleNamespace(user=user, bootstrap_auth=bootstrap))
+def _request(user=None, *, bootstrap=False, device=None):
+    return SimpleNamespace(
+        state=SimpleNamespace(user=user, bootstrap_auth=bootstrap, device=device)
+    )
+
+
+def test_single_user_paired_device_sees_all_libraries_as_owner(global_db, monkeypatch):
+    """A paired device with NO user row (single-user mode has no accounts) is
+    the owner's own device — post-pairing onboarding calls this route first,
+    and a 401 here made the iPhone read a SUCCESSFUL pair as failure (live
+    2026-08-27)."""
+    import fichero_server.api.routes.auth.authz as authz_route
+
+    monkeypatch.setattr(authz_route, "multiuser_enabled", lambda: False)
+    request = _request(device=SimpleNamespace(id="dev-1"))
+    response = list_accessible_libraries(request, global_db)
+    assert response.count == len(response.items)
+    assert all(item.role == "owner" for item in response.items)
+
+
+def test_multiuser_device_without_user_still_requires_session(global_db, monkeypatch):
+    import pytest as _pytest
+    from fastapi import HTTPException
+
+    import fichero_server.api.routes.auth.authz as authz_route
+
+    monkeypatch.setattr(authz_route, "multiuser_enabled", lambda: True)
+    request = _request(device=SimpleNamespace(id="dev-1"))
+    with _pytest.raises(HTTPException) as caught:
+        list_accessible_libraries(request, global_db)
+    assert caught.value.status_code == 401
 
 
 def _known_library(registry_db, path: str, name: str) -> KnownLibrary:

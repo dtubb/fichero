@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from fichero_server.security.multiuser import multiuser_enabled
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ValidationError
 
@@ -57,8 +58,25 @@ def list_accessible_libraries(
         ]
         return AccessibleLibraryListResponse(items=items, count=len(items))
 
-    resolved_user = authz.resolve_user(getattr(getattr(request, "state", None), "user", None))
+    state = getattr(request, "state", None)
+    resolved_user = authz.resolve_user(getattr(state, "user", None))
     if resolved_user is None:
+        # A paired DEVICE in single-user mode carries no user row — there are
+        # no accounts to row against — but it IS the owner's own device.
+        # Rejecting it here made the iPhone's post-pairing onboarding read a
+        # successful pair as a failure ("session required" 401, live
+        # 2026-08-27: POST /api/pair 200 → GET /authz/libraries 401 → the
+        # phone retried the consumed one-time code and surfaced the 401).
+        if getattr(state, "device", None) is not None and not multiuser_enabled():
+            items = [
+                AccessibleLibrary(
+                    library_path=authz.normalize_library_path(library.path) or library.path,
+                    library_name=library.name or library.path.rstrip("/").split("/")[-1],
+                    role=authz.ROLE_OWNER,
+                )
+                for library in known_libraries
+            ]
+            return AccessibleLibraryListResponse(items=items, count=len(items))
         raise HTTPException(status_code=401, detail="session required")
 
     known_by_path = {
