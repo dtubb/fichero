@@ -333,25 +333,53 @@ def main(argv: list[str] | None = None):
             # 8765 is the product port; the env override exists for tests,
             # which cannot assume it is free on a developer machine.
             tcp_port = int(os.environ.get("FICHERO_TCP_PORT", "8765"))
+            tcp_sockets = []
             try:
-                tcp_sockets = []
                 for h in tcp_hosts:
                     try:
                         tcp_sockets.append(_bind_listener_socket(h, tcp_port))
+                        continue
                     except socket.gaierror:
                         # A Bonjour .local name does not resolve inside the
                         # sandbox — bind its interface by IP instead. The
                         # cert still names the .local host for clients.
+                        pass
+                    try:
                         lan_ip = _primary_lan_ip()
+                    except OSError as exc:
+                        logger.error(
+                            "Sharing LAN listener skipped: %s does not resolve "
+                            "and the LAN IP could not be determined (%s).",
+                            h,
+                            exc,
+                        )
+                        continue
+                    bound = {s.getsockname()[0] for s in tcp_sockets}
+                    if lan_ip in bound:
+                        # A collision here is EADDRINUSE against OUR OWN
+                        # loopback socket (lived once, 2026-08-27: the abort
+                        # then LEAKED that listening socket, and every dial
+                        # hit a listener nothing served — handshake timeouts).
                         logger.info(
-                            "Sharing listener: %s does not resolve here; binding %s instead",
+                            "Sharing listener: %s resolves to %s, already bound; skipping.",
                             h,
                             lan_ip,
                         )
-                        tcp_sockets.append(_bind_listener_socket(lan_ip, tcp_port))
+                        continue
+                    logger.info(
+                        "Sharing listener: %s does not resolve here; binding %s instead",
+                        h,
+                        lan_ip,
+                    )
+                    tcp_sockets.append(_bind_listener_socket(lan_ip, tcp_port))
             except OSError as exc:
                 # The app must not lose its engine because a stale process
-                # holds 8765 — keep UDS, but say exactly what is broken.
+                # holds 8765 — keep UDS, but say exactly what is broken. And
+                # CLOSE anything already bound: a leaked listening socket
+                # accepts connections no server will ever answer.
+                for sock in tcp_sockets:
+                    sock.close()
+                tcp_sockets = []
                 logger.error(
                     "Sharing listener could NOT bind %s:8765 (%s) — running "
                     "UDS-only; Sharing, CLI and MCP are UNAVAILABLE until the "
@@ -359,7 +387,7 @@ def main(argv: list[str] | None = None):
                     tcp_bind_host,
                     exc,
                 )
-            else:
+            if tcp_sockets:
                 import threading
 
                 tcp_kwargs = dict(
