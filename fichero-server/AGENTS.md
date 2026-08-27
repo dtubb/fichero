@@ -1,16 +1,16 @@
 # fichero-server — Python / FastAPI backend
 
-This subtree owns the engine. The SwiftUI app, `python -m fichero_cli`, and MCP server are
-clients over its HTTP surface.
+This subtree owns the engine. The SwiftUI app, the `fichero` CLI, and the MCP server are
+clients over its HTTP surface (the CLI and MCP server are the peer packages
+`fichero-cli/` and `fichero-mcp/`).
 
 ## What lives here
 
 - `src/fichero_server/api/` — FastAPI app and route modules
-- `src/fichero_server/cli/` — typed CLI over the engine HTTP surface
 - `src/fichero_server/actions/` — audited action layer
-- `src/fichero_server/db.py`, `src/fichero_server/models.py` — storage and Pydantic models
+- `src/fichero_server/db/`, `src/fichero_server/models/` — storage and Pydantic models
 - `scripts/` — supported backend entry points, schema sync, guardrails
-- `tests/` — `unit/`, `integration/`, `contracts/`
+- `tests/` — `unit/`, `integration/`, `contracts/` (and `perf/`, gated separately)
 
 ## Hard rules for this subtree
 
@@ -24,7 +24,7 @@ clients over its HTTP surface.
 - Pydantic fields, DB shape, and OpenAPI must move together. A declared API field written via `additionalProperties` or omitted from the model is how data disappears.
 - New mutation routes should follow the shipped `registry.invoke(...)` pattern so audit and change emission happen on the same path.
 - **The engine is macOS-only when embedded.** It is bundled with Briefcase, and
-  `pyproject.toml` declares one platform (`[tool.briefcase.app.engine.macOS]`).
+  `pyproject.toml` declares one platform (`[tool.briefcase.app.fichero_server.macOS]`).
   iOS/iPadOS **cannot** embed it — LanceDB and the Apple Vision PyObjC bindings ship
   no iOS wheels — so those targets always talk to an external/remote engine over
   HTTPS. Never assume the engine is in-process; never gate a capability on it being

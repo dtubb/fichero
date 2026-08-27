@@ -16,7 +16,7 @@ This file keeps only what is specific to the engine: its layout and how it works
 | Path | What |
 |---|---|
 | `src/fichero_server/` | The package: API, workflows, KG, ingest, storage, providers, CLI |
-| `src/fichero_server/api/` | FastAPI app (`api/main.py` → `app`) and ~90 route modules under `api/routes/` |
+| `src/fichero_server/api/` | FastAPI app (`api/main.py` → `app`) and the route modules under `api/routes/` |
 | `src/fichero_server/workflows/` | LangGraph workflow engine, tool registry, graph builder |
 | `src/fichero_server/kg/` | Knowledge graph: entities, claims, aggregation, curation |
 | `src/fichero_server/loaders/` | Text extraction (PDF, DOCX, images, …) |
@@ -48,8 +48,8 @@ pip install pytest ruff
 `pytest` and `ruff` are not in the `[dev]` extra, but the lint/test commands assume
 them.
 
-There is no `requirements.txt`. `pyproject.toml` here is the dependency manifest (37
-runtime dependencies, plus the `[dev]`, `[kg]` and `[image]` extras). Briefcase is a
+There is no `requirements.txt`. `pyproject.toml` here is the dependency manifest
+(the runtime dependencies, plus the `[dev]`, `[kg]` and `[image]` extras). Briefcase is a
 build tool, installed by `scripts/build_backend_bundle.sh` when packaging — not a
 runtime dependency.
 
@@ -160,8 +160,8 @@ So the engine ships two ways:
 
 | Target | How it reaches the engine |
 |---|---|
-| **macOS (Release)** | Embedded. The app bundles `Fichero Server.app` and spawns it. |
-| **macOS (Debug)** | External. Run `fichero-server/scripts/start_backend.sh` on `:8765`. |
+| **macOS, Embedded schemes** (the default) | Embedded. The app bundles `Fichero Server.app` and spawns it. |
+| **macOS, Local schemes** (engine development) | External. Run `fichero-server/scripts/start_backend.sh`. |
 | **iOS / iPadOS** | **Remote only.** No local engine, ever. The app connects to an engine on another machine (paired host, or `tailscale serve`). |
 
 `EngineConfig.swift` encodes this: on macOS it probes the local engine first and
