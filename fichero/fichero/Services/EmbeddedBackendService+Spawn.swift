@@ -219,11 +219,9 @@ extension EmbeddedBackendService {
         // keep TCP+TLS. The engine's Lane E honors FICHERO_UDS_PATH and binds
         // UDS-only (no TCP port, no TLS) when it is present.
         environment["FICHERO_UDS_PATH"] = EngineConfig.udsSocketPath
-        // Sharing ON = the engine ALSO binds HTTPS on :8765 (same TLS material
-        // as above), so the CLI, the MCP server, and paired devices can reach
-        // it while the app keeps its private UDS path. Sharing OFF = UDS-only.
-        // The Sharing toggle restarts the engine (applySharing), so this is
-        // re-evaluated on every flip (Daniel, 2026-08-27).
+        // Sharing ON = also bind HTTPS :8765 (same TLS material) for the CLI,
+        // MCP, and paired devices; OFF = UDS-only. The toggle restarts the
+        // engine, so this re-evaluates on every flip (Daniel, 2026-08-27).
         if RemoteAccessConfig.hostingEnabled {
             environment["FICHERO_TCP_TLS_ALSO"] = "1"
         }
