@@ -23,6 +23,7 @@ from __future__ import annotations
 import json
 import ipaddress
 import os
+import socket
 import re
 import ssl
 from pathlib import Path
@@ -155,7 +156,11 @@ def _read_cli_session_payload(as_user: str | None = None) -> dict[str, Any]:
     return first_session if isinstance(first_session, dict) else {}
 
 
-def _read_token(base_url: str | None = None, as_user: str | None = None) -> str | None:
+def _read_token(
+    base_url: str | None = None,
+    as_user: str | None = None,
+    prefer_container: bool = False,
+) -> str | None:
     """Read the selected auth token, scoped to the actual backend host."""
     # An explicitly selected account must never fall back to the loopback
     # bootstrap credential: that would attribute an agent MCP action to owner.
@@ -189,7 +194,15 @@ def _read_token(base_url: str | None = None, as_user: str | None = None) -> str 
     if env:
         return env.strip()
 
-    for path in (_TOKEN_PATH, _CONTAINER_TOKEN_PATH):
+    # When dialing the APP's own socket, the container key is authoritative —
+    # the plain path may hold a stale start_backend secret that shadows it
+    # (401s against a healthy engine, live 2026-08-27).
+    paths = (
+        (_CONTAINER_TOKEN_PATH, _TOKEN_PATH)
+        if prefer_container
+        else (_TOKEN_PATH, _CONTAINER_TOKEN_PATH)
+    )
+    for path in paths:
         try:
             token = path.read_text(encoding="utf-8").strip()
         except OSError:
@@ -306,6 +319,42 @@ def _loopback_trust(base_url: str) -> ssl.SSLContext:
     return context
 
 
+def _app_socket_to_dial(base_url: str, *, base_url_was_explicit: bool) -> str | None:
+    """The app engine's Unix socket, when dialing it is the right default.
+
+    Explicit choices always win: a caller-passed base URL, FICHERO_API_URL,
+    or FICHERO_UDS=0 mean "never touch the socket"; FICHERO_UDS=<path> means
+    "always this socket". Otherwise: default base URL + nothing accepting on
+    8765 + the sandboxed app's socket file present → dial the socket.
+    """
+    forced = (os.environ.get("FICHERO_UDS") or "").strip()
+    if forced == "0":
+        return None
+    if forced:
+        return forced
+    if base_url_was_explicit or os.environ.get("FICHERO_API_URL"):
+        return None
+    candidate = (
+        Path.home()
+        / "Library"
+        / "Containers"
+        / "app.fichero.fichero"
+        / "Data"
+        / "tmp"
+        / "fichero.sock"
+    )
+    if not candidate.is_socket():
+        return None
+    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    probe.settimeout(0.3)
+    try:
+        if probe.connect_ex(("127.0.0.1", 8765)) == 0:
+            return None  # a TCP engine answers; keep the normal path
+    finally:
+        probe.close()
+    return str(candidate)
+
+
 class FicheroClient:
     """Synchronous HTTP client for the Fichero backend.
 
@@ -326,13 +375,21 @@ class FicheroClient:
         self.base_url = (
             base_url or os.environ.get("FICHERO_API_URL") or DEFAULT_BASE_URL
         ).rstrip("/")
+        # The app's Unix socket IS the loopback-owner path: resolve it before
+        # token discovery so the key-file credential applies to it.
+        self._uds_path: str | None = None
+        if transport is None:
+            self._uds_path = _app_socket_to_dial(
+                self.base_url, base_url_was_explicit=base_url is not None
+            )
         # token="" is honoured (explicit "no token"); token=None means discover
         # from disk on demand so the client can survive startup ordering races.
         self._discover_token = token is None
         self._as_user = as_user.strip() if isinstance(as_user, str) and as_user.strip() else None
         self.token = token if token is not None else _read_token(
-            base_url=self.base_url,
+            base_url=DEFAULT_BASE_URL if self._uds_path else self.base_url,
             as_user=self._as_user,
+            prefer_container=self._uds_path is not None,
         )
         # library_path="" is honoured (explicit "no library"); library_path=None
         # means discover from the environment on demand so a late-bound window
@@ -356,6 +413,16 @@ class FicheroClient:
                 self.base_url
             ):
                 verify = _loopback_trust(self.base_url)
+        # The running APP's engine serves a private Unix socket (UDS-only
+        # unless Sharing is on). When the caller uses the DEFAULT base URL,
+        # nothing answers 8765, and the app's socket exists, dial the socket —
+        # the engine trusts it as loopback-owner via the transport marker, so
+        # `fichero health` works against the running app with zero setup
+        # (Daniel, 2026-08-27: "the point is the CLI and MCP working").
+        # FICHERO_UDS=path forces the socket; FICHERO_UDS=0 disables the probe.
+        if transport is None and self._uds_path:
+            transport = httpx.HTTPTransport(uds=self._uds_path)
+            self.base_url = "http://fichero-app"
         self._client = httpx.Client(
             base_url=self.base_url, timeout=timeout, transport=transport,
             verify=verify,
