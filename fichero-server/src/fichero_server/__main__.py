@@ -167,8 +167,29 @@ class _QuietSteadyStateAccessLog(logging.Filter):
         return not any(str(path).startswith(p) for p in self.NOISY_PREFIXES)
 
 
+_RUN_MODULE_WHITELIST = {"fichero_cli", "fichero_mcp.server", "fichero_mcp.simple"}
+
+
 def main(argv: list[str] | None = None):
     """Start the Fichero API backend server."""
+
+    # The installed command-line tools (Fichero ▸ Install Command-Line
+    # Tools…, 2026-08-27) exec THIS binary with FICHERO_RUN_MODULE set:
+    # one signed, sandbox-inherited launcher serves the engine (default),
+    # the fichero CLI, and the MCP server. Whitelisted — fail loud on
+    # anything else rather than becoming an arbitrary-module runner.
+    run_module = (os.environ.get("FICHERO_RUN_MODULE") or "").strip()
+    if run_module:
+        if run_module not in _RUN_MODULE_WHITELIST:
+            raise SystemExit(
+                f"FICHERO_RUN_MODULE={run_module!r} is not a Fichero surface "
+                f"(allowed: {sorted(_RUN_MODULE_WHITELIST)})."
+            )
+        import runpy
+
+        sys.argv[0] = run_module
+        runpy.run_module(run_module, run_name="__main__")
+        return
 
     # Survive a client that hangs up mid-write (readiness probe cancel, a
     # connection closed right after a 401) instead of dying with SIGPIPE. Set
@@ -336,50 +357,43 @@ def main(argv: list[str] | None = None):
             tcp_sockets = []
             try:
                 for h in tcp_hosts:
+                    # Resolve to an ADDRESS first: inside the sandbox the
+                    # machine's own Bonjour name resolves to LOOPBACK, so a
+                    # bind-by-name collided with our own first socket
+                    # (EADDRINUSE, named-host log 2026-08-27 18:55). A LAN
+                    # slot that resolves to nothing or to loopback gets the
+                    # real interface IP instead.
                     try:
-                        tcp_sockets.append(_bind_listener_socket(h, tcp_port))
-                        continue
-                    except OSError as exc:
-                        if not isinstance(exc, socket.gaierror):
+                        addr = socket.getaddrinfo(
+                            h, tcp_port, socket.AF_INET, socket.SOCK_STREAM
+                        )[0][4][0]
+                    except socket.gaierror:
+                        addr = None
+                    is_lan_slot = h != tcp_bind_host
+                    if is_lan_slot and (addr is None or addr.startswith("127.")):
+                        try:
+                            addr = _primary_lan_ip()
+                        except OSError as exc:
                             logger.error(
-                                "Sharing listener bind failed for %s:%d: %r",
+                                "Sharing LAN listener skipped: %s unusable and "
+                                "the LAN IP could not be determined (%s).",
                                 h,
-                                tcp_port,
                                 exc,
                             )
-                            raise
-                        # A Bonjour .local name does not resolve inside the
-                        # sandbox — bind its interface by IP instead. The
-                        # cert still names the .local host for clients.
-                        pass
-                    try:
-                        lan_ip = _primary_lan_ip()
-                    except OSError as exc:
-                        logger.error(
-                            "Sharing LAN listener skipped: %s does not resolve "
-                            "and the LAN IP could not be determined (%s).",
-                            h,
-                            exc,
-                        )
+                            continue
+                    if addr is None:
+                        logger.error("Sharing listener skipped: %s does not resolve.", h)
                         continue
                     bound = {s.getsockname()[0] for s in tcp_sockets}
-                    if lan_ip in bound:
-                        # A collision here is EADDRINUSE against OUR OWN
-                        # loopback socket (lived once, 2026-08-27: the abort
-                        # then LEAKED that listening socket, and every dial
-                        # hit a listener nothing served — handshake timeouts).
+                    if addr in bound:
                         logger.info(
                             "Sharing listener: %s resolves to %s, already bound; skipping.",
                             h,
-                            lan_ip,
+                            addr,
                         )
                         continue
-                    logger.info(
-                        "Sharing listener: %s does not resolve here; binding %s instead",
-                        h,
-                        lan_ip,
-                    )
-                    tcp_sockets.append(_bind_listener_socket(lan_ip, tcp_port))
+                    logger.info("Sharing listener: binding %s (%s):%d", addr, h, tcp_port)
+                    tcp_sockets.append(_bind_listener_socket(addr, tcp_port))
             except OSError as exc:
                 # The app must not lose its engine because a stale process
                 # holds 8765 — keep UDS, but say exactly what is broken. And
