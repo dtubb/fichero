@@ -8,6 +8,14 @@ owned by Daniel Tubb ("the Owner"). This Contributor License Agreement
 ("Agreement") clarifies the intellectual-property rights granted with
 Contributions from any person ("You").
 
+**In plain language:** Fichero stays open source under the AGPL-3.0 —
+your contribution is always available to everyone under that license.
+What this Agreement adds is that the Owner may ALSO release Fichero,
+including your contribution, as a commercial app under other terms — for
+example a paid build on the Mac App Store. The open-source version never
+goes away; the Agreement is what makes the commercial channel possible
+alongside it.
+
 By submitting a Contribution to the Project (including via pull request)
 and indicating acceptance of this Agreement, You accept these terms for
 Your present and future Contributions.
