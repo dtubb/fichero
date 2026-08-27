@@ -137,7 +137,7 @@
   notes: Local and cloud model providers plus model catalog.
 - key: modelComparison
   name: Model comparison
-  tier: beta
+  tier: dev
   swift_flag: null
   routes:
     - /api/model-comparison
@@ -145,14 +145,14 @@
   notes: Compare model behavior and metadata in-app.
 - key: cli
   name: CLI
-  tier: beta
+  tier: dev
   swift_flag: null
   routes: []
   ux_group: Clients
   notes: Typed CLI over the same HTTP API surface.
 - key: mcpServer
   name: MCP server
-  tier: beta
+  tier: dev
   swift_flag: null
   routes:
     - /api/mcp
@@ -168,7 +168,7 @@
   notes: Execution history and live progress over SSE.
 - key: research
   name: Research
-  tier: beta
+  tier: dev
   swift_flag: fichero.features.research
   routes:
     - /api/research
@@ -211,7 +211,7 @@
   notes: Capture and intake settings panel.
 - key: chat
   name: Chat
-  tier: beta
+  tier: dev
   swift_flag: fichero.features.chat
   routes:
     - /api/chat

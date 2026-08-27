@@ -1,0 +1,70 @@
+/* Harmonize the Fichero site with tubb.ca (Verdana, #404040 on white,
+   uppercase site title) while keeping Material's docs machinery.
+   tubb.ca tokens: body Verdana 10pt/1.4 #404040; headings bold Verdana;
+   site title 16pt uppercase; max column ~1088px. */
+
+:root,
+[data-md-color-scheme="default"] {
+  --md-text-font: Verdana, sans-serif;
+  --md-default-fg-color: #404040;
+  --md-default-bg-color: #ffffff;
+  --md-primary-fg-color: #ffffff;
+  --md-primary-bg-color: #404040;        /* header text on white header */
+  --md-accent-fg-color: #404040;
+  --md-typeset-a-color: #1a0dab;
+}
+
+/* Header: white, flat, FICHERO uppercase like the tubb.ca masthead */
+.md-header {
+  background: #fff;
+  color: #404040;
+  box-shadow: none;
+  border-bottom: 1px solid #e5e5e5;
+}
+.md-header__topic,
+.md-header__title .md-ellipsis {
+  font-family: Verdana, sans-serif;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.md-search__input {
+  background: #f2f2f2;
+  color: #404040;
+}
+.md-search__input::placeholder,
+.md-search__icon {
+  color: #8a8a8a;
+}
+
+/* Body typography */
+.md-typeset {
+  font-size: 0.72rem;   /* ~10pt feel */
+  line-height: 1.5;
+  color: #404040;
+}
+.md-typeset h1,
+.md-typeset h2,
+.md-typeset h3 {
+  font-family: Verdana, sans-serif;
+  font-weight: bold;
+  color: #404040;
+}
+
+/* Buttons: quiet, tubb.ca-flat */
+.md-typeset .md-button--primary {
+  background-color: #404040;
+  border-color: #404040;
+  color: #fff;
+}
+.md-typeset .md-button {
+  border-radius: 3px;
+}
+
+/* Feature cards: hairline borders, no shadow */
+.md-typeset .grid.cards > ul > li,
+.md-typeset .grid > .card {
+  border: 1px solid #e5e5e5;
+  box-shadow: none;
+  border-radius: 3px;
+}

@@ -26,8 +26,8 @@
 site_name: Fichero
 site_description: A document library to organize, search, and process research materials using workflows, entirely on your Mac.
 site_author: Daniel Tubb
-# TODO: real domain undecided — placeholder only. Swap before publishing.
-site_url: https://fichero.example/
+# Daniel's 2026-08-25 ruling: tubb.ca/apps/fichero is the permanent home.
+site_url: https://tubb.ca/apps/fichero/
 
 repo_url: https://github.com/dtubb/fichero
 repo_name: dtubb/fichero
@@ -84,6 +84,9 @@ markdown_extensions:
   - pymdownx.emoji:
       emoji_index: !!python/name:material.extensions.emoji.twemoji
       emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+extra_css:
+  - assets/extra.css
 
 plugins:
   - search

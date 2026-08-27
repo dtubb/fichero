@@ -187,7 +187,7 @@ xcrun stapler validate build/releases/Fichero.dmg
 The current appcast URL is:
 
 ```text
-https://raw.githubusercontent.com/dtubb/fichero/main/fichero/appcast.xml
+https://tubb.ca/apps/fichero/appcast.xml
 ```
 
 Do not change `SPARKLE_FEED_URL` without a rebuild; it is baked into the app

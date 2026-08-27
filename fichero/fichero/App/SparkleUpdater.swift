@@ -5,19 +5,36 @@ import AppKit
 import Sparkle
 #endif
 
+#if canImport(Sparkle)
+/// Opts dev builds into the `dev` Sparkle channel (one feed, two channels —
+/// Daniel's 2026-08-25 ruling). Beta/release builds see only channel-less
+/// items (Fichero.dmg); dev builds also see `<sparkle:channel>dev</sparkle:channel>`
+/// items (Fichero-dev.dmg). The tier is baked per build, so it is captured
+/// once at init — Sparkle may call this off the main actor.
+private final class SparkleChannelDelegate: NSObject, SPUUpdaterDelegate {
+    private let channels: Set<String>
+    init(channels: Set<String>) { self.channels = channels }
+    func allowedChannels(for updater: SPUUpdater) -> Set<String> { channels }
+}
+#endif
+
 @MainActor
 final class SparkleUpdater {
     static let shared = SparkleUpdater()
 
     #if canImport(Sparkle)
     private let updaterController: SPUStandardUpdaterController
+    private let channelDelegate: SparkleChannelDelegate
     #endif
 
     private init() {
         #if canImport(Sparkle)
+        channelDelegate = SparkleChannelDelegate(
+            channels: FeatureManager.shared.activeBuildTier == .dev ? ["dev"] : []
+        )
         updaterController = SPUStandardUpdaterController(
             startingUpdater: true,
-            updaterDelegate: nil,
+            updaterDelegate: channelDelegate,
             userDriverDelegate: nil
         )
         #endif

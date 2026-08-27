@@ -15,7 +15,8 @@ contract. This file narrows it to the release lane.
 - `docs/release-notes-*.md`
 
 You do **not** own `scripts/release-all.sh`, `scripts/create-github-release.sh`, or
-`fichero/appcast.xml`. Read them; don't edit them without an issue that says so.
+the appcast (now in the tubb.ca site repo at `apps/fichero/appcast.xml`).
+Read them; don't edit them without an issue that says so.
 
 ## Who does what
 

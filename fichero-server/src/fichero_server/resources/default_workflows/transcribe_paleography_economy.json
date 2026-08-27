@@ -1,0 +1,60 @@
+{
+  "id": "transcribe-paleography-economy",
+  "name": "Transcribe Paleography (Economy)",
+  "description": "Use this when you want a near-free paleography draft: Apple Vision line geometry (free, on-device) feeds a cheap local HTR backend, then ONE small-model cleanup pass corrects it against the image. Total paid calls per page: at most 1, vs the ensemble's 15+.",
+  "format": "nodes",
+  "is_template": true,
+  "is_system": true,
+  "folder_path": "/Transcribe",
+  "tags": ["preset", "transcribe", "paleography", "economy", "line-htr"],
+  "version": 1,
+  "config": {"preset_version": 1, "variant_group": "transcribe-two-pass", "variant": "economy"},
+  "nodes": [
+    {
+      "id": "files-source",
+      "tool": "files",
+      "label": "Files",
+      "position_x": 80,
+      "position_y": 200,
+      "inputs": {},
+      "config": {}
+    },
+    {
+      "id": "economy-htr",
+      "tool": "economy_htr",
+      "label": "Line HTR — Apple Vision boxes + local model",
+      "position_x": 320,
+      "position_y": 200,
+      "inputs": {},
+      "config": {
+        "backend": "apple",
+        "language": "es",
+        "pad_y": 0.35,
+        "scale": 2.0
+      }
+    },
+    {
+      "id": "cleanup",
+      "tool": "transcribe_review",
+      "label": "Cleanup — single small-model pass",
+      "position_x": 560,
+      "position_y": 200,
+      "inputs": {},
+      "config": {
+        "provider_name": "$vision_small",
+        "vision_mode": "llm",
+        "language": "auto",
+        "update_page_content": true,
+        "thinking_mode": "medium",
+        "prompt": "You are a paleographer correcting a MACHINE line-by-line HTR draft of a historical manuscript against its image. The draft (in Context) came from a line-level recognizer: its line order and line breaks are trustworthy, but individual characters and word boundaries are not, and it never marks uncertainty.\n\nCompare each draft line against the image and correct it. Preserve original spelling, capitalisation, punctuation, and line breaks; never modernise. Expand abbreviations only when unambiguous, expanded letters in [brackets]. Use [UNCERTAIN] for plausible readings and [ILLEGIBLE] only when truly unreadable. Mark crossed-out text [deleted: ...], marginalia [M.N.], rubrics [Rúbrica], seals [Sello]. Common procesal/cortesana confusions to check: rn/m, c/e, u/n, long-s/f, t/l.\n\nOutput ONLY the corrected transcription — no commentary, no diff. If a draft line is already correct, keep it verbatim. Do not invent text not visible in the image. If the page has no legible text output [sin texto]."
+      }
+    }
+  ],
+  "edges": [
+    {"id": "files-htr", "source": "files-source", "target": "economy-htr", "source_port": "files", "target_port": "files"},
+    {"id": "docs-htr", "source": "files-source", "target": "economy-htr", "source_port": "documents", "target_port": "documents"},
+    {"id": "htr-cleanup-context", "source": "economy-htr", "target": "cleanup", "source_port": "records", "target_port": "context"},
+    {"id": "files-cleanup", "source": "economy-htr", "target": "cleanup", "source_port": "files", "target_port": "files"},
+    {"id": "docs-cleanup", "source": "economy-htr", "target": "cleanup", "source_port": "documents", "target_port": "documents"}
+  ]
+}
