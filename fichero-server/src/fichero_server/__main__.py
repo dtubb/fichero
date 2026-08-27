@@ -92,6 +92,19 @@ def _ignore_sigpipe() -> None:
         signal.signal(signal.SIGPIPE, signal.SIG_IGN)
 
 
+def _seed_mimetypes_from_builtins() -> None:
+    """Load the mimetypes registry WITHOUT touching the filesystem.
+
+    The sandbox denies /etc/apache2/mime.types; emptying ``knownfiles``
+    before ``init()`` is the only public way to skip every file read —
+    ``init(files=[])`` appends to the list and still reads them.
+    """
+    import mimetypes
+
+    mimetypes.knownfiles = []
+    mimetypes.init()
+
+
 def _env_flag(name: str, default: bool = False) -> bool:
     """Parse a boolean env var with common truthy values."""
     value = os.environ.get(name)
@@ -191,10 +204,11 @@ def main(argv: list[str] | None = None):
     # Seed the mimetypes registry from built-ins only. Its lazy init() reads
     # /etc/apache2/mime.types, which the app sandbox DENIES — so the first
     # FileResponse (a rendition download) 500'd with PermissionError instead
-    # of serving the file (found live 2026-08-27).
-    import mimetypes
-
-    mimetypes.init(files=[])
+    # of serving the file (found live 2026-08-27). NOTE: init(files=[]) does
+    # NOT do this — CPython APPENDS the argument to knownfiles, so that form
+    # still read /etc and CRASHED the engine at boot (also found live,
+    # 2026-08-27, the hard way). The list itself must be emptied.
+    _seed_mimetypes_from_builtins()
 
     # Faulthandler ON by default (2026-08-09): a native fault in fitz /
     # pdfium / ONNX / the ObjC bridge previously left NOTHING in engine.log —
