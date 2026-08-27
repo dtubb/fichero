@@ -7,12 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		20437A99F7896B3A6E0698BD /* FicheroUICapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18E20C2646AD0D1174376756 /* FicheroUICapture.swift */; };
-		74FBA6E380A2BAEA7F80D161 /* FicheroUICapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18E20C2646AD0D1174376756 /* FicheroUICapture.swift */; };
-		8C6BB6E82F83463D571B4953 /* AppleScriptRunCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5076236A8758ED35278E3B62 /* AppleScriptRunCommands.swift */; };
 		A18ED3AB2F13E313007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3AA2F13E313007C2C6E /* FicheroAPIClient */; };
 		A18ED3F22F141DFE007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3F12F141DFE007C2C6E /* FicheroAPIClient */; };
-		A56661860969DBB6B261693F /* AppleScriptRunCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5076236A8758ED35278E3B62 /* AppleScriptRunCommands.swift */; };
 		C10000020000000000000001 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; platformFilters = (macos, ); productRef = C10000310000000000000001 /* Sparkle */; };
 		FEED0000000000000000024E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3AA2F13E313007C2C6E /* FicheroAPIClient */; };
 		FEED0000000000000000024F /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3F12F141DFE007C2C6E /* FicheroAPIClient */; };
@@ -1159,9 +1155,7 @@
 		510 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			files = (
-				20437A99F7896B3A6E0698BD /* FicheroUICapture.swift in Sources */,
-				A56661860969DBB6B261693F /* AppleScriptRunCommands.swift in Sources */,
-			);
+							);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -1186,9 +1180,7 @@
 		FEED0000000000000000024D /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			files = (
-				74FBA6E380A2BAEA7F80D161 /* FicheroUICapture.swift in Sources */,
-				8C6BB6E82F83463D571B4953 /* AppleScriptRunCommands.swift in Sources */,
-			);
+							);
 		};
 /* End PBXSourcesBuildPhase section */
 
