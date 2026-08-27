@@ -20,5 +20,6 @@ _module = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_module)
 
 seed = _module.seed  # (path: Path) -> dict with {path, expected, keys, ids}
+seeder_module = _module  # full module: _structural_dump, _self_test, _sid, ...
 
-__all__ = ["seed"]
+__all__ = ["seed", "seeder_module"]

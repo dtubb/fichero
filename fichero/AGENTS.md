@@ -6,7 +6,7 @@ This subtree is the SwiftUI mac, iPad, and iOS app. The app renders UI, owns win
 
 - `fichero/` — app source (`App/`, `Views/`, `Models/`, `Services/`, `Intents/`)
 - `fichero-api-client/` — generated Swift OpenAPI client package
-- `fichero-tests/`, `fichero-ui-tests/` — test targets
+- `Tests/Unit/*`, `Tests/UI/*` — test target folders (general/mac/ios/ipad); plans in `Tests/plans/`
 - `fichero.xcodeproj` — Xcode project
 
 ## Hard rules for this subtree
