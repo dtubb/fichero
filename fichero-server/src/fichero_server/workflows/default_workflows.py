@@ -59,6 +59,16 @@ _DEPRECATED_PRESET_NAMES: set[str] = {
     "Transcribe Spanish Script v2 (19th-20th C., Sub-Workflow)",
     # Merged into "Transcribe Paleography" (language=auto) (#2251)
     "Spanish Paleography (18th–19th C.)",
+    # 2026-08-26 redesign (Daniel: single model per run, review as a
+    # standalone act on an already-transcribed document): the cross-model
+    # ensemble is replaced by "Paleographer Review", and the Spanish Script
+    # v2 pair by "Paleografía Española (s. XVIII–XIX)".
+    "Transcribe Paleography (Ensemble + Deep Review)",
+    "Spanish Script v2 Child Passes (19th-20th C.)",
+    "Transcribe Spanish Script (19th-20th C.)",
+    # Renamed into the "/Detect Regions" folder group (2026-08-26):
+    # reseeded as "Detect Regions (Apple Vision)" beside the new VLM sibling.
+    "Detect Regions",
 }
 
 

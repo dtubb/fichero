@@ -72,16 +72,28 @@ def test_shipped_preset_population_is_not_empty():
 # =============================================================================
 
 
-def test_internal_components_exist_and_are_refused():
-    """At least one shipped component is internal, and it is refused."""
-    internal = [p for p in PRESETS if not workflow_is_direct_runnable(p.get("config"))]
-    assert internal, "no internal preset in the shipped set — this test proves nothing"
+def test_internal_components_are_refused():
+    """The refusal machinery, proven on a SYNTHETIC internal component.
 
-    for preset in internal:
-        errors = _eligibility(preset)
-        assert errors, f"{preset['name']} is internal but was accepted for a top-level run"
-        assert "internal component" in errors[0]
-        assert "sub_workflow" in errors[0]
+    The Spanish Script v2 child — the last shipped internal preset — retired
+    with the 2026-08-26 redesign (every shipped preset is now user-facing;
+    delegation is done by the Pipeline preset composing two public ones), so
+    the machinery is exercised on a constructed fixture instead of relying on
+    the catalog to keep one around."""
+    assert not [
+        p for p in PRESETS if not workflow_is_direct_runnable(p.get("config"))
+    ], "an internal component preset shipped — either intend it or make it public"
+
+    synthetic = {
+        "name": "Synthetic Internal Component",
+        "config": {"internal": True},
+        "nodes": [],
+        "edges": [],
+    }
+    errors = _eligibility(synthetic)
+    assert errors, "an internal component was accepted for a top-level run"
+    assert "internal component" in errors[0]
+    assert "sub_workflow" in errors[0]
 
 
 def test_direct_runnable_presets_are_not_refused():

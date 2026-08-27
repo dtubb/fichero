@@ -1,0 +1,63 @@
+{
+ "name": "Paleografía Española (s. XVI–XVII)",
+ "description": "Use this when: you have early-modern Spanish script — procesal, cortesana, itálica — from Spain or colonial America (notarial records, audiencia files, cartas de poder, confesiones, probanzas). One careful whole-page pass with deep period advice; run Paleographer Review afterwards to refine.",
+ "format": "nodes",
+ "is_template": true,
+ "is_system": true,
+ "folder_path": "/Transcribe",
+ "tags": [
+  "preset",
+  "transcribe",
+  "paleography",
+  "spanish",
+  "colonial",
+  "single-pass"
+ ],
+ "config": {
+  "preset_version": 1,
+  "variant_group": "transcribe-single-pass",
+  "variant": "paleography-es-colonial"
+ },
+ "nodes": [
+  {
+   "id": "files-source",
+   "tool": "files",
+   "label": "Files",
+   "position_x": 80,
+   "position_y": 200,
+   "inputs": {},
+   "config": {}
+  },
+  {
+   "id": "transcribe",
+   "tool": "transcribe",
+   "label": "Transcribe",
+   "position_x": 320,
+   "position_y": 200,
+   "inputs": {},
+   "config": {
+    "vision_mode": "llm",
+    "language": "auto",
+    "update_page_content": true,
+    "thinking_mode": "long",
+    "prompt": "You are a paleographer of early-modern Spanish transcribing a manuscript image in a single careful pass.\n\nTake your time and think through hard lines before committing to a reading.\n\n**Before transcribing, note in a single bracketed line:**\n[Script: <family>; hand: <size, slant>; language: <language>]\n\nThen output ONLY the transcription — no headings, preamble, or commentary after that line.\n\n**Transcription discipline (non-negotiable):**\n- Transcribe the WHOLE page in reading order. Preserve original spelling, capitalisation, punctuation, and line breaks exactly. Never modernise.\n- Square brackets ONLY around letters you supply by expanding an abbreviation or contraction — mer[ce]d, ma[gesta]d, v[ecin]o. Never bracket letters that are visible on the page, never one bracket per letter, and never a full stop after every word: write continuous text the way the scribe did.\n- [UNCERTAIN: word] when you have a plausible reading; [ILLEGIBLE] only when the strokes are truly unreadable. An honest [UNCERTAIN] is worth more than a fluent guess.\n- You know the period's formulas. Use them to READ, not to write: where damage hides a standard formula, propose it as [UNCERTAIN: ...], never as clean text.\n- Keep names, dates, and places consistent with what the document itself establishes (docket/cover, headings, other pages of the batch). If two readings conflict, flag the conflict — do not silently choose.\n- [M.N.] marginalia at position · [deleted: ...] struck text · interlinear insertions inline at the insertion point · [Rúbrica] / [Sello] for flourishes and stamps · [sin texto] for a page with no legible text.\n\n**Spanish, s. XVI–XVII (procesal, cortesana, itálica):**\n- Common abbreviations: q̃/q[ue] · dho/dha = d[ic]ho/-a · Vmd = v[uestra] m[erce]d · xpo = Chr[ist]o (xpoval = Christóval) · nro/nra = n[uest]ro/-a · ss.no / scriv.o = escrivano · ma.d / mag.t = magestad · mrs = maravedís · off.o = officio · just.a = justicia · p.te = parte · t.os = testigos · ex.on = execución · v.o = vezino · fho = fecho · S.ta = Sancta.\n- A tilde or macron over letters marks a suppressed nasal or contraction; superscript letters close an abbreviation (S.r, V.S., dho).\n- Letter shapes that trap readers: rn↔m, c↔e, u↔n, long-s↔f, t↔l; baseline-stretched letters and knotted ligatures at line ends in procesal.\n- Orthography of the period: u/v and i/j/y interchange; ç before a/o/u; b/v unstable; initial f- where modern Spanish has h- (fazer, fijo); rr- and ss- doubled; words run together (dela, quel, desta, ques) — transcribe as written.\n- Genres and their skeletons — use them to orient, never to invent: carta de poder (\"Sepan quantos esta carta de poder vieren como yo...\"), confesión/declaración (\"En la ciudad de ... a tantos días ... fue rescebido juramento ... siendo preguntado dixo ...\"), probanza, real provisión, auto, obligación.\n- Numbers appear as roman numerals or spelled out; maravedís and pesos de oro in accounts."
+   }
+  }
+ ],
+ "edges": [
+  {
+   "id": "files-source-transcribe-files",
+   "source": "files-source",
+   "target": "transcribe",
+   "source_port": "files",
+   "target_port": "files"
+  },
+  {
+   "id": "files-source-transcribe-documents",
+   "source": "files-source",
+   "target": "transcribe",
+   "source_port": "documents",
+   "target_port": "documents"
+  }
+ ]
+}

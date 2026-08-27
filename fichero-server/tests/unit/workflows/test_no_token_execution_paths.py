@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -99,13 +100,25 @@ def _workflow_from_preset(name: str, *, provider_name: str | None = None) -> Wor
     )
 
 
+def _fresh_library_path() -> str:
+    # Per-CALL temp package (2026-08-27): the old fixed "/tmp/test.fichero"
+    # persisted its fichero.duckdb — and therefore the NODE CACHE — across
+    # pytest sessions, so a redesigned preset could hit a cached result
+    # recorded by a long-gone version of the test and "pass"/"fail" on
+    # another session's data. Cross-session state in a unit test is the
+    # absence-read-as-success disease in fixture form.
+    import tempfile
+
+    return str(Path(tempfile.mkdtemp(prefix="fichero-nokentest-")) / "test.fichero")
+
+
 def _run_workflow_for_selection(
     *,
     workflow: WorkflowDef,
     selected_doc_ids: list[str],
     docs_by_id: dict[str, Document],
     children_by_parent: dict[str, list[Document]] | None = None,
-    library_path: str = "/tmp/test.fichero",
+    library_path: str | None = None,
 ):
     mock_db = MagicMock()
     mock_db.get.side_effect = lambda _model, doc_id: docs_by_id.get(doc_id)
@@ -120,6 +133,8 @@ def _run_workflow_for_selection(
         ),
     ):
         mock_mgr.get_database.return_value = mock_db
+        if library_path is None:
+            library_path = _fresh_library_path()
         final_state = asyncio.run(
             build_graph(workflow, enable_parallel=False).ainvoke(
                 build_initial_state(
@@ -481,7 +496,9 @@ def test_transcribe_htr_runs_without_tokens_and_keeps_page_scope(
     assert not final_state.get("error")
     assert len(captured["calls"]) >= 1
     assert [item["id"] for item in captured["calls"][0]["documents"]] == [page_1.id, page_2.id]
-    assert [record["doc_id"] for record in final_state["outputs"][node_ids["transcribe_review"]]["records"]] == [
+    # 2026-08-26 redesign: HTR is single-pass; the transcribe node is the
+    # terminal and must keep per-page scope.
+    assert [record["doc_id"] for record in final_state["outputs"][node_ids["transcribe"]]["records"]] == [
         page_1.id,
         page_2.id,
     ]

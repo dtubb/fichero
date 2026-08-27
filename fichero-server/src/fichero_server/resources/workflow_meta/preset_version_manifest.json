@@ -52,8 +52,12 @@
   "sha256": "b2e52b5b8655ab11aeef89b179c4efd6b29792aca88fe98fec5ec974a2452a99"
  },
  "detect_regions.json": {
+  "preset_version": 2,
+  "sha256": "dfa7bcfb167bcfc354ba57c092449ed8c35f463d35d83b752ab4a62dfc8a24cd"
+ },
+ "detect_regions_vlm.json": {
   "preset_version": 1,
-  "sha256": "a9ea3e63262e6bcd234af33e3025f22216b3ecbc8b470061fbe7677632b2f8c0"
+  "sha256": "10a3b0b9d87db244a8e6655b02d37f4b5c22f6e3428ec41c6be790329e2bf185"
  },
  "diary_entries.json": {
   "preset_version": 1,
@@ -66,6 +70,10 @@
  "export_to_desktop.json": {
   "preset_version": 2,
   "sha256": "22a9fae5952301b4d84d949c900a8ff91ffdbeefab0b3e4074c9800a82ab9c9f"
+ },
+ "extract_accounts_csv.json": {
+  "preset_version": 1,
+  "sha256": "ec0139a56a84005dae461bb7dc68241d6cebffa59b273c0a702bd2c2f9446685"
  },
  "extract_geo.json": {
   "preset_version": 1,
@@ -86,6 +94,18 @@
  "ner_per_page_local.json": {
   "preset_version": 3,
   "sha256": "552c1cf86f77976bd55774826cbd18c86ac4bf2f1b2aa323a176c56dccb54933"
+ },
+ "paleo_modernizacion.json": {
+  "preset_version": 1,
+  "sha256": "cb253a45e515a26f90727fcd13e15c4d3bccbcfb47a380293a2eac5e65ec5506"
+ },
+ "paleo_regesto.json": {
+  "preset_version": 1,
+  "sha256": "2a2c2537e668c8b68fc2fdf495a5abdc24d5dd8e81484d878eac897d6dd17840"
+ },
+ "paleo_translate_english.json": {
+  "preset_version": 1,
+  "sha256": "be2210eea0d07cc749be3e5c860e426b0b68ccff877f75d936a163918daee942"
  },
  "prepare_images_for_ocr.json": {
   "preset_version": 1,
@@ -116,36 +136,48 @@
   "sha256": "916b1693c75a995e8fff0dad444d16c21fdeb6c52a0a6d4af195d1cba383c518"
  },
  "transcribe_auto_detect.json": {
-  "preset_version": 5,
-  "sha256": "00f3159cd4aa9efa817ff6abf61f56b7f2d7d1adb51da684d7a0d92f8ab48916"
+  "preset_version": 6,
+  "sha256": "31b591acf658a7b61989b00a19aa76ef5db17fc5bb00f82371dd4abfb5e5a678"
  },
  "transcribe_cloud.json": {
   "preset_version": 4,
   "sha256": "0bd7b32f89c2d44f40e5529605ffba181ff311d7af46708e68f19ebc1eb5ec22"
  },
  "transcribe_htr.json": {
-  "preset_version": 7,
-  "sha256": "75e9fad51e552198bd793015da2661e1273aa8fcde62cabd21030ff25fff6e08"
+  "preset_version": 8,
+  "sha256": "65c3b798a9be178fae8b2e3e652ef173a2f5269d17450dc06ec31f5819a9fb53"
  },
  "transcribe_manuscript.json": {
   "preset_version": 4,
   "sha256": "0588c8d2b62720c6badd3f495ce9bb4a7de23651f1374537fec64ec4f3603c52"
  },
  "transcribe_paleography.json": {
-  "preset_version": 7,
-  "sha256": "d86910583518820a252d6215fde00e3e90862f53423c1edfac043c958cfbebc8"
+  "preset_version": 8,
+  "sha256": "8b50b35334c21a7188c240533a3da58f62743d27a5f9fa4aabad0e99ff686bf4"
  },
- "transcribe_paleography_ensemble.json": {
-  "preset_version": 4,
-  "sha256": "5bb5cfdb609c46b52c235c4d2721e620439ecdb683ea6a4603d1b39518c4cefc"
+ "transcribe_paleography_en_secretary.json": {
+  "preset_version": 1,
+  "sha256": "393e0b0198f99e2fa624281087dd7455cd5aa0da5ffe63b11f222adbb853066f"
  },
- "transcribe_spanish_script_v2_child.json": {
-  "preset_version": 3,
-  "sha256": "39872451b925c9c95f1dc549ba7899a487366b2efad480be86cad96c04418de9"
+ "transcribe_paleography_es_colonial.json": {
+  "preset_version": 1,
+  "sha256": "194dc9d7c21582f3909b1d910e1f7ab4ae4f9d80359e8135f8854d2b44c7c11c"
  },
- "transcribe_spanish_script_v2_subworkflow.json": {
-  "preset_version": 2,
-  "sha256": "293cc27d7757e14c16ed936ec1e2fe6a3f5a4a22cf2f5c3f995279dd1794af4c"
+ "transcribe_paleography_es_moderna.json": {
+  "preset_version": 1,
+  "sha256": "ed3bf6b1205e128fd7f42e8061d712667d937a88cbbbadbca135e9581ee1b9f5"
+ },
+ "transcribe_paleography_latin.json": {
+  "preset_version": 1,
+  "sha256": "15b8d361b04170a63190e2055cde7634db9e0c8d039472fba87d32e8c33cf34e"
+ },
+ "transcribe_paleography_review.json": {
+  "preset_version": 1,
+  "sha256": "470870fd1cf9352a2565ddc3b05762fa1dddbf3912270a84d8070af71bf98ad1"
+ },
+ "transcribe_review_pipeline.json": {
+  "preset_version": 1,
+  "sha256": "a0e9d7924801710c7994865cccf2a70ce8c6145ecaecf4ef012bbba62b101399"
  },
  "transcribe_typescript.json": {
   "preset_version": 4,

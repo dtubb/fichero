@@ -310,22 +310,19 @@ def test_no_shipped_preset_requests_a_thinking_mode_outside_the_enum():
     )
 
 
-def test_paleography_ensemble_asks_no_node_for_an_apparatus():
-    """t3 asked for "a diplomatic transcription followed by a concise apparatus
-    of unresolved readings" — commentary, appended, stored in the artifact and
-    fed to t4 as its prior transcription.
-
-    The output validator is anchored to the START of the text and would NOT
-    catch a trailing apparatus. This is the half that has to be fixed in the
-    preset, and this test is what keeps it fixed.
-    """
-    preset = PRESET_DIR / "transcribe_paleography_ensemble.json"
-    for _, node_id, config in _node_configs(preset):
-        prompt = (config.get("prompt") or "").lower()
-        assert "apparatus" not in prompt, (
-            f"node {node_id} asks for an apparatus appended to the "
-            f"transcription; that text is stored as the transcription"
-        )
+def test_no_transcription_preset_asks_any_node_for_an_apparatus():
+    """The retired ensemble's t3 asked for "a concise apparatus of unresolved
+    readings" — commentary, appended, stored, and fed forward as prior text.
+    The output validator anchors to the START of the text and would not catch
+    a trailing apparatus, so the ban lives in the prompts. Widened from the
+    (retired) ensemble file to EVERY shipped transcription preset."""
+    for preset in sorted(PRESET_DIR.glob("transcribe*.json")):
+        for _, node_id, config in _node_configs(preset):
+            prompt = (config.get("prompt") or "").lower()
+            assert "apparatus" not in prompt, (
+                f"{preset.name} node {node_id} asks for an apparatus appended "
+                "to the transcription; that text is stored as the transcription"
+            )
 
 
 # ---------------------------------------------------------------------------

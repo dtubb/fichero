@@ -76,14 +76,18 @@ class TestShippedPresets:
         violations = check_preset_manifest(load_shipped_presets(), load_manifest())
         assert violations == [], "\n".join(violations)
 
-    def test_ensemble_preset_was_bumped_past_the_stale_stored_copies(self):
-        """The #4298 repro class: libraries seeded before #4146 hold an
-        ensemble graph whose zoom node has no documents wiring at
-        preset_version 1. The shipped preset must stay ABOVE 1 so seeding
-        force-replaces those stored copies."""
+    def test_ensemble_preset_is_retired_not_shipped(self):
+        """The #4298 lineage ends in retirement (2026-08-26 redesign): the
+        ensemble is no longer shipped, and its NAME must sit in the
+        deprecation list so stored copies in old libraries get pruned
+        instead of surviving forever."""
         presets = load_shipped_presets()
-        _, version = presets["transcribe_paleography_ensemble.json"]
-        assert version >= 2
+        assert "transcribe_paleography_ensemble.json" not in presets
+        from fichero_server.workflows.default_workflows import (
+            _DEPRECATED_PRESET_NAMES,
+        )
+        assert "Transcribe Paleography (Ensemble + Deep Review)" in _DEPRECATED_PRESET_NAMES
+        assert "Transcribe Spanish Script (19th-20th C.)" in _DEPRECATED_PRESET_NAMES
 
 
 # =============================================================================

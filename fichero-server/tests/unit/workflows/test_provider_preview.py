@@ -350,7 +350,7 @@ class TestTheOneLegacyTestedPresetIsConfigurationDependent:
 class TestDelegationIsNotSilentlyFree:
     """A preset whose cost lives in a child (#4503).
 
-    "Transcribe Spanish Script (19th-20th C.)" runs `sub_workflow` and nothing
+    "Transcribe + Review (Pipeline)" runs `sub_workflow` and nothing
     else that resolves a provider. Read naively it has zero model nodes, so the
     first version of this preview called it free under any configuration — a
     confident wrong answer about a preset that delegates its entire cost.
@@ -366,7 +366,7 @@ class TestDelegationIsNotSilentlyFree:
 
         preset = next(
             p for p in _load_preset_files()
-            if p["name"] == "Transcribe Spanish Script (19th-20th C.)"
+            if p["name"] == "Transcribe + Review (Pipeline)"
         )
         preview = preview_preset_providers(preset)
         assert not preview.is_free, (

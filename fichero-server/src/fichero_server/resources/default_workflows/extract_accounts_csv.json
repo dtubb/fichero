@@ -1,0 +1,60 @@
+{
+ "name": "Accounts → Spreadsheet (CSV)",
+ "description": "Use this when: a page (or each page of a document) holds historical accounts — cuentas, tithe books, tribute rolls, expense lists — and you want spreadsheet rows out. Reads amounts as a paleographer (roman numerals, the U thousands mark, maravedís/pesos/reales), keeps the original text, and normalizes amounts to numbers where certain. One CSV artifact per page; open or export from the artifact.",
+ "format": "nodes",
+ "is_template": true,
+ "is_system": true,
+ "folder_path": "/Extract Data",
+ "tags": [
+  "preset",
+  "extract",
+  "table",
+  "accounts",
+  "csv",
+  "paleography"
+ ],
+ "config": {
+  "preset_version": 1
+ },
+ "nodes": [
+  {
+   "id": "files-source",
+   "tool": "files",
+   "label": "Files",
+   "position_x": 80,
+   "position_y": 200,
+   "inputs": {},
+   "config": {}
+  },
+  {
+   "id": "accounts",
+   "tool": "table_extract",
+   "label": "Accounts → CSV",
+   "position_x": 320,
+   "position_y": 200,
+   "inputs": {},
+   "config": {
+    "output_style": "csv",
+    "include_headers": true,
+    "prompt": "Extract the account entries on this page into CSV.\n\nThis is a HISTORICAL page of accounts (cuentas). Read it as a paleographer:\n- One CSV row per account entry, in page order. Columns: entry_text, date, concept, amount_original, amount_normalized, unit, running_total, notes.\n- entry_text: the entry as written, original spelling preserved (expand abbreviations with [brackets] only).\n- amount_original: exactly as written — roman numerals, the U/cuento thousands mark (e.g. iiiUdcccxx), or spelled-out amounts.\n- amount_normalized: the same amount as a plain arabic number; leave empty if the reading is uncertain rather than guessing.\n- unit: maravedís, pesos, reales, ducados, tomines... as the page gives it.\n- running_total/notes: totals (\"suma\", \"monta\"), carried amounts, marginal checks; note [UNCERTAIN] readings here.\n- First line = the header row. Quote any field containing a comma. Output ONLY the CSV.",
+    "thinking_mode": "long"
+   }
+  }
+ ],
+ "edges": [
+  {
+   "id": "files-accounts",
+   "source": "files-source",
+   "target": "accounts",
+   "source_port": "files",
+   "target_port": "files"
+  },
+  {
+   "id": "docs-accounts",
+   "source": "files-source",
+   "target": "accounts",
+   "source_port": "documents",
+   "target_port": "documents"
+  }
+ ]
+}

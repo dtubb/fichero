@@ -1,6 +1,6 @@
 {
- "name": "Detect Regions (Apple Vision)",
- "description": "Use this when: you want text bounding boxes on pages before (or without) transcription. On-device Apple Vision detects line and word regions and saves them per page — fast, local, free. For hard hands Apple can miss regions; try Detect Regions (VLM) with a vision model of your choice.",
+ "name": "Detect Regions (VLM)",
+ "description": "Use this when: Apple Vision misses regions on hard material (archaic hands, damaged pages) and you want a vision LLM to find the text regions instead. Uses whatever model you pick at run time — compare providers by running this next to the Apple Vision preset.",
  "format": "nodes",
  "is_template": true,
  "is_system": true,
@@ -9,11 +9,11 @@
   "preset",
   "regions",
   "bboxes",
-  "ocr",
-  "layout"
+  "layout",
+  "vlm"
  ],
  "config": {
-  "preset_version": 2
+  "preset_version": 1
  },
  "nodes": [
   {
@@ -28,12 +28,14 @@
   {
    "id": "detect-regions",
    "tool": "detect_regions",
-   "label": "Detect Regions",
+   "label": "Detect Regions (VLM)",
    "position_x": 280,
    "position_y": 200,
    "inputs": {},
    "config": {
-    "language": "en"
+    "language": "auto",
+    "provider": "vlm",
+    "thinking_mode": "medium"
    }
   }
  ],

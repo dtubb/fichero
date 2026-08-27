@@ -1,0 +1,56 @@
+{
+ "name": "Modernización (Spanish)",
+ "description": "Use this when: you want the document's text in modern Spanish orthography — same words, modern spelling, expanded abbreviations — beside the diplomatic transcription. Writes an analysis artifact; the original transcription is untouched.",
+ "format": "nodes",
+ "is_template": true,
+ "is_system": true,
+ "folder_path": "/Extract Data",
+ "tags": [
+  "preset",
+  "paleography",
+  "spanish",
+  "modernization"
+ ],
+ "config": {
+  "preset_version": 1
+ },
+ "nodes": [
+  {
+   "id": "files-source",
+   "tool": "files",
+   "label": "Files",
+   "position_x": 80,
+   "position_y": 200,
+   "inputs": {},
+   "config": {}
+  },
+  {
+   "id": "modern",
+   "tool": "analyze",
+   "label": "Modernización",
+   "position_x": 320,
+   "position_y": 200,
+   "inputs": {},
+   "config": {
+    "prompt": "Produce a MODERNIZED Spanish reading of this historical document, for a reader who cannot handle the period orthography. Use the existing transcription as context if provided; read the image where it is silent.\n\nRules: modern spelling and accents (hacer, hijo, dijo, ciudad), expand every abbreviation silently, normalize u/v i/j, separate run-together words, add light modern punctuation — but change NO wording: this is the same text in modern clothes, not a paraphrase. Keep line breaks loosely by paragraph rather than by manuscript line. Mark unresolved readings [UNCERTAIN: ...]. Output only the modernized text.",
+    "thinking_mode": "medium"
+   }
+  }
+ ],
+ "edges": [
+  {
+   "id": "files-modern",
+   "source": "files-source",
+   "target": "modern",
+   "source_port": "files",
+   "target_port": "files"
+  },
+  {
+   "id": "docs-modern",
+   "source": "files-source",
+   "target": "modern",
+   "source_port": "documents",
+   "target_port": "documents"
+  }
+ ]
+}

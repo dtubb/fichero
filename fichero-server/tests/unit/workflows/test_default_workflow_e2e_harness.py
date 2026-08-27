@@ -49,9 +49,8 @@ _TRANSCRIBE_TERMINALS = {
     "Transcribe": ("transcribe",),
     "Transcribe Manuscript": ("transcribe",),
     "Transcribe Typescript": ("transcribe",),
-    "Transcribe HTR": ("transcribe_review",),
+    "Transcribe HTR": ("transcribe",),
     "Transcribe (Auto-Detect)": ("transcribe-ts",),
-    "Transcribe Spanish Script (19th-20th C.)": ("spanish-script-v2",),
 }
 
 _TRANSLATE_TERMINALS = {
