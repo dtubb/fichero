@@ -9,12 +9,9 @@ struct SidebarSelectionTests {
     /// click now; this pin keeps the second write path from returning.
     @Test("the per-row tap fallback stays deleted — one selection write path")
     func tapFallbackStaysDeleted() throws {
-        let repoRoot = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()  // Shell/
-            .deletingLastPathComponent()  // Views/
-            .deletingLastPathComponent()  // fichero-tests/
-            .deletingLastPathComponent()  // fichero/ (product dir)
-            .deletingLastPathComponent()  // repo root
+        let repoRoot = try AppSource.root()
+            .deletingLastPathComponent()   // fichero/ (product dir)
+            .deletingLastPathComponent()   // repo root
         let body = try String(
             contentsOf: repoRoot.appendingPathComponent(
                 "fichero/fichero/Views/Sidebar/ItemRow/SidebarItemRow+Presentation+Body.swift"),

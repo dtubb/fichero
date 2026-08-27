@@ -9,6 +9,9 @@
 #if os(macOS)
 import AppKit
 import Foundation
+import OSLog
+
+private let logger = Logger(subsystem: "app.fichero.fichero", category: "AppleScript")
 
 /// Capture the app's own rendered UI to a PNG file (#4535, #4536).
 ///

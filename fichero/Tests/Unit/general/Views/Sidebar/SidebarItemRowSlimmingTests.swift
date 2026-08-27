@@ -17,12 +17,9 @@ import Testing
 struct SidebarItemRowSlimmingTests {
 
     private func rowSource() throws -> String {
-        let repoRoot = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()  // drop the file → Sidebar/
-            .deletingLastPathComponent()  // Views/
-            .deletingLastPathComponent()  // fichero-tests/
-            .deletingLastPathComponent()  // fichero/ (the product dir)
-            .deletingLastPathComponent()  // repo root
+        let repoRoot = try AppSource.root()
+            .deletingLastPathComponent()   // fichero/ (product dir)
+            .deletingLastPathComponent()   // repo root
         let source = repoRoot.appendingPathComponent(
             "fichero/fichero/Views/Sidebar/ItemRow/SidebarItemRow.swift"
         )

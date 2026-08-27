@@ -18,11 +18,9 @@ import Testing
 struct PreviewHostGuardTests {
 
     private func appSource() throws -> String {
-        let repoRoot = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()  // Services/
-            .deletingLastPathComponent()  // fichero-tests/
-            .deletingLastPathComponent()  // fichero/ (product dir)
-            .deletingLastPathComponent()  // repo root
+        let repoRoot = try AppSource.root()
+            .deletingLastPathComponent()   // fichero/ (product dir)
+            .deletingLastPathComponent()   // repo root
         let source = repoRoot.appendingPathComponent("fichero/fichero/FicheroApp.swift")
         let text = try String(contentsOf: source, encoding: .utf8)
         #expect(!text.isEmpty, "FicheroApp.swift is empty — this guard measures nothing")

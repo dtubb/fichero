@@ -18,13 +18,9 @@ struct SidebarContextMenuDeferralTests {
     private func presentationBodySource() throws -> String {
         // Repo-root-relative resolution, same pattern as the other
         // source-pin tests (ReaderPageActivationTests).
-        let thisFile = URL(fileURLWithPath: #filePath)
-        let repoRoot = thisFile
-            .deletingLastPathComponent()  // drop the file → Sidebar/
-            .deletingLastPathComponent()  // Views/
-            .deletingLastPathComponent()  // fichero-tests/
-            .deletingLastPathComponent()  // fichero/ (the product dir)
-            .deletingLastPathComponent()  // repo root
+        let repoRoot = try AppSource.root()
+            .deletingLastPathComponent()   // fichero/ (product dir)
+            .deletingLastPathComponent()   // repo root
         let source = repoRoot.appendingPathComponent(
             "fichero/fichero/Views/Sidebar/ItemRow/SidebarItemRow+Presentation+Body.swift"
         )

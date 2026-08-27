@@ -24,7 +24,8 @@ struct SparkleLinkageTests {
             }
         }
 
-        let fileURL = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        let fileURL = try AppSource.root()
+            .deletingLastPathComponent()   // fichero/ (product dir)
         let repoRoot = findRepoRoot(startingAt: fileURL.deletingLastPathComponent())
 
         // The app target lives at <repoRoot>/fichero/fichero/ (sources) beside

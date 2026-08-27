@@ -20,11 +20,9 @@ import Testing
 struct FolderAccessManagerSandboxGateTests {
 
     private func managerSource() throws -> String {
-        let repoRoot = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()  // drop the file → Services/
-            .deletingLastPathComponent()  // fichero-tests/
-            .deletingLastPathComponent()  // fichero/ (the product dir)
-            .deletingLastPathComponent()  // repo root
+        let repoRoot = try AppSource.root()
+            .deletingLastPathComponent()   // fichero/ (product dir)
+            .deletingLastPathComponent()   // repo root
         let source = repoRoot.appendingPathComponent(
             "fichero/fichero/Services/FolderAccessManager.swift"
         )
@@ -67,11 +65,9 @@ struct FolderAccessManagerSandboxGateTests {
 struct PostReadyGrantSweepTests {
 
     private func source(_ repoRelative: String) throws -> String {
-        let repoRoot = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()  // Services/
-            .deletingLastPathComponent()  // fichero-tests/
-            .deletingLastPathComponent()  // fichero/ (product dir)
-            .deletingLastPathComponent()  // repo root
+        let repoRoot = try AppSource.root()
+            .deletingLastPathComponent()   // fichero/ (product dir)
+            .deletingLastPathComponent()   // repo root
         return try String(
             contentsOf: repoRoot.appendingPathComponent(repoRelative), encoding: .utf8
         )

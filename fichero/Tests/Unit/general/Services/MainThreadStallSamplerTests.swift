@@ -34,11 +34,9 @@ struct MainThreadStallSamplerTests {
 
     @Test("The sampler is armed at app launch, gated on the env flag")
     func startupHookExists() throws {
-        let repoRoot = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()  // drop the file → Services/
-            .deletingLastPathComponent()  // fichero-tests/
-            .deletingLastPathComponent()  // fichero/ (product dir)
-            .deletingLastPathComponent()  // repo root
+        let repoRoot = try AppSource.root()
+            .deletingLastPathComponent()   // fichero/ (product dir)
+            .deletingLastPathComponent()   // repo root
         let app = try String(
             contentsOf: repoRoot.appendingPathComponent("fichero/fichero/FicheroApp.swift"),
             encoding: .utf8

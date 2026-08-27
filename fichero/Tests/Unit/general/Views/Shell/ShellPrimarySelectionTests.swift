@@ -60,11 +60,8 @@ struct ShellPrimarySelectionTests {
 struct ReportedSymptomRegressionPins {
 
     private func source(_ repoRelative: String) throws -> String {
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()  // Shell/
-            .deletingLastPathComponent()  // Views/
-            .deletingLastPathComponent()  // fichero-tests/
-            .deletingLastPathComponent()  // fichero/ (product dir)
+        let root = try AppSource.root()
+            .deletingLastPathComponent()   // fichero/ (product dir)
         return try String(contentsOf: root.appendingPathComponent(repoRelative), encoding: .utf8)
     }
 
