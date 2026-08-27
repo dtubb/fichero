@@ -667,7 +667,7 @@ struct ClaimFocusStateInjectionContractTests {
         // (now in Models/FeatureManager.swift) in tools and would become a
         // duplicate-symbol build break if registered. Lock the count at one.
         var definitionCount = 0
-        let root = Self.appSourceRoot()
+        let root = try AppSource.root()
         let enumerator = FileManager.default.enumerator(
             at: root,
             includingPropertiesForKeys: nil
