@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 2026.07.31
+
+## 2026.07.31-beta
+
+## 2026.08.27
+
 ### 2026-08-27
 
 - feat(sharing): the Sharing toggle now serves the CLI, MCP clients, and paired devices from the embedded engine (UDS + HTTPS dual-bind; verified live)
