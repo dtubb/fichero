@@ -213,17 +213,17 @@ extension EmbeddedBackendService {
         environment["FICHERO_TLS_KEYFILE"] = accessMaterial.keyPath
         environment["FICHERO_TLS_SPKI_HASH"] = accessMaterial.spkiPin
         environment["FICHERO_BIND_HOST"] = accessMaterial.bindHost
-        // Bind the embedded engine on the same AF_UNIX socket the app client
-        // dials over UDS (EngineConfig.transportMode → .uds). Only this spawn
-        // path (releaseEmbedded) sets it; Debug/remote/inert never spawn and
-        // keep TCP+TLS. The engine's Lane E honors FICHERO_UDS_PATH and binds
-        // UDS-only (no TCP port, no TLS) when it is present.
+        // The AF_UNIX socket the app dials (transportMode → .uds); only this
+        // releaseEmbedded spawn sets it. Sharing ON adds HTTPS :8765 for CLI/
+        // MCP/devices (Daniel 2026-08-27); a Bonjour .local host also listens
+        // on the LAN (the QR got ECONNREFUSED); tailscale stays loopback-only.
         environment["FICHERO_UDS_PATH"] = EngineConfig.udsSocketPath
-        // Sharing ON = also bind HTTPS :8765 (same TLS material) for the CLI,
-        // MCP, and paired devices; OFF = UDS-only. The toggle restarts the
-        // engine, so this re-evaluates on every flip (Daniel, 2026-08-27).
         if RemoteAccessConfig.hostingEnabled {
             environment["FICHERO_TCP_TLS_ALSO"] = "1"
+            if let host = RemoteAccessConfig.publicBaseURL?.host,
+               host.hasSuffix(".local") {
+                environment["FICHERO_LAN_HOST"] = host
+            }
         }
         if let publicBaseURL {
             // Reuse the same env contract as RemoteAccessConfig so the
