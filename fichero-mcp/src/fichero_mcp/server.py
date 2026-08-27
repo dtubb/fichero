@@ -102,6 +102,35 @@ def fichero_health() -> Any:
         return client.health()
 
 
+# -- libraries -------------------------------------------------------------
+@mcp.tool()
+def fichero_list_libraries() -> Any:
+    """List the libraries this engine knows (its registry).
+
+    Each entry carries id, path, and name. Pass a path to
+    ``fichero_use_library`` to scope the other tools to that library.
+    """
+    with _client() as client:
+        return client.request("GET", "/api/registry")
+
+
+@mcp.tool()
+def fichero_use_library(path: str) -> Any:
+    """Scope this MCP session to one library by its .fichero path.
+
+    Every subsequent library-scoped tool (docs, search, workflows, KG, …)
+    uses it. Without this, tools answer 400 asking for a library — the
+    server binds NO library by default (Daniel, 2026-08-27: one server,
+    all libraries).
+    """
+    _CONFIG["library_path"] = path
+    with _client() as client:
+        # Prove the choice immediately instead of deferring the failure to
+        # the next tool call.
+        client.request("GET", "/api/documents", params={"limit": 1})
+    return {"library_path": path, "status": "selected"}
+
+
 # -- documents -------------------------------------------------------------
 @mcp.tool()
 def fichero_import(path: str, parent_id: Optional[str] = None) -> Any:
