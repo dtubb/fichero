@@ -98,7 +98,8 @@ def test_uds_transport_marker_satisfies_secure_pairing_transport():
         scheme="http",
         scope={"fichero.transport": "uds"},
     )
-    _require_secure_pairing_transport(request)  # must not raise
+    # Returns None on acceptance; anything else raises HTTPException.
+    assert _require_secure_pairing_transport(request) is None
 
 
 def test_plain_http_without_uds_marker_is_still_rejected():

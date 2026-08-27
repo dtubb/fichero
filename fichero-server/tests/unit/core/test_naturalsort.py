@@ -37,8 +37,10 @@ def test_none_and_empty_sort_first_and_never_raise():
 
 
 def test_mixed_numeric_and_alpha_chunks_never_type_error():
-    # int/str at the same position raised TypeError before chunk tagging.
-    sorted(["2fast", "afast", "fast2", "fast"], key=natural_key)
+    # int/str at the same position raised TypeError before chunk tagging;
+    # numeric-led names sort before alphabetic ones at the same position.
+    ordered = sorted(["2fast", "afast", "fast2", "fast"], key=natural_key)
+    assert ordered == ["2fast", "afast", "fast", "fast2"]
 
 
 def test_pathological_digit_run_is_bounded():

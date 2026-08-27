@@ -213,10 +213,10 @@ extension EmbeddedBackendService {
         environment["FICHERO_TLS_KEYFILE"] = accessMaterial.keyPath
         environment["FICHERO_TLS_SPKI_HASH"] = accessMaterial.spkiPin
         environment["FICHERO_BIND_HOST"] = accessMaterial.bindHost
-        // The AF_UNIX socket the app dials (transportMode → .uds); only this
-        // releaseEmbedded spawn sets it. Sharing ON adds HTTPS :8765 for CLI/
-        // MCP/devices (Daniel 2026-08-27); a Bonjour .local host also listens
-        // on the LAN (the QR got ECONNREFUSED); tailscale stays loopback-only.
+        // The engine binds the same private socket the app dials; only the
+        // embedded spawn sets it. Sharing adds a TLS listener on the standard
+        // port for the command-line tool, MCP clients, and paired devices; a
+        // Bonjour address must also listen on the network interface.
         environment["FICHERO_UDS_PATH"] = EngineConfig.udsSocketPath
         if RemoteAccessConfig.hostingEnabled {
             environment["FICHERO_TCP_TLS_ALSO"] = "1"
