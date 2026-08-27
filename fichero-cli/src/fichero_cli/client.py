@@ -194,14 +194,22 @@ def _read_token(
     if env:
         return env.strip()
 
-    # When dialing the APP's own socket, the container key is authoritative —
-    # the plain path may hold a stale start_backend secret that shadows it
-    # (401s against a healthy engine, live 2026-08-27).
-    paths = (
-        (_CONTAINER_TOKEN_PATH, _TOKEN_PATH)
-        if prefer_container
-        else (_TOKEN_PATH, _CONTAINER_TOKEN_PATH)
-    )
+    # Two key files can exist: the plain path (start_backend engines) and the
+    # app container (the sandboxed embedded engine — its Path.home() maps
+    # there). Whichever engine is alive wrote ITS file last, so on loopback
+    # the NEWEST file is the live credential; a stale sibling shadowing the
+    # fresh one produced 401s against a healthy engine, twice, live
+    # (2026-08-27). The socket path pins the container outright.
+    if prefer_container:
+        paths = (_CONTAINER_TOKEN_PATH, _TOKEN_PATH)
+    else:
+        paths = tuple(
+            sorted(
+                (_TOKEN_PATH, _CONTAINER_TOKEN_PATH),
+                key=lambda p: p.stat().st_mtime if p.exists() else 0.0,
+                reverse=True,
+            )
+        )
     for path in paths:
         try:
             token = path.read_text(encoding="utf-8").strip()
@@ -310,13 +318,31 @@ def _loopback_trust(base_url: str) -> ssl.SSLContext:
             "app, or `fichero engine start`); start it once on this machine. "
             "Refusing to connect unverified."
         )
-    context = ssl.create_default_context()
+    # ONE anchor, chosen by what the engine actually serves. Loading every
+    # candidate into a single store broke live (2026-08-27): the identities
+    # share a SUBJECT name, OpenSSL's subject-hash lookup picked the wrong
+    # same-subject anchor, and verification failed against material that WAS
+    # trusted. So: read the served leaf without trusting anything, match it
+    # byte-for-byte to a candidate file, and build a context that trusts
+    # exactly that file. No match = fail closed, as always.
+    try:
+        served = ssl.get_server_certificate((host, port), timeout=5)
+    except OSError as exc:
+        raise FicheroError(
+            f"Could not read the engine's certificate from {host}:{port}: {exc}"
+        ) from exc
+    served_der = ssl.PEM_cert_to_DER_cert(served)
     for cert in certs:
         try:
-            context.load_verify_locations(cafile=str(cert))
-        except ssl.SSLError:
-            continue  # a corrupt cert must not block the valid ones
-    return context
+            if ssl.PEM_cert_to_DER_cert(cert.read_text(encoding="utf-8")) == served_der:
+                return ssl.create_default_context(cafile=str(cert))
+        except (OSError, ssl.SSLError, ValueError):
+            continue  # a corrupt candidate must not block the valid ones
+    raise FicheroError(
+        f"The engine at {host}:{port} serves a certificate that matches none "
+        f"of this machine's generated identities ({len(certs)} candidate(s) "
+        "under Remote Access). Refusing to connect unverified."
+    )
 
 
 def _app_socket_to_dial(base_url: str, *, base_url_was_explicit: bool) -> str | None:
