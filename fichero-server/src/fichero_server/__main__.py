@@ -339,7 +339,15 @@ def main(argv: list[str] | None = None):
                     try:
                         tcp_sockets.append(_bind_listener_socket(h, tcp_port))
                         continue
-                    except socket.gaierror:
+                    except OSError as exc:
+                        if not isinstance(exc, socket.gaierror):
+                            logger.error(
+                                "Sharing listener bind failed for %s:%d: %r",
+                                h,
+                                tcp_port,
+                                exc,
+                            )
+                            raise
                         # A Bonjour .local name does not resolve inside the
                         # sandbox — bind its interface by IP instead. The
                         # cert still names the .local host for clients.
