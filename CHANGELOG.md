@@ -4,6 +4,13 @@
 
 ### 2026-08-27
 
+- feat(sharing): the Sharing toggle now serves the CLI, MCP clients, and paired devices from the embedded engine (UDS + HTTPS dual-bind; verified live)
+- fix(sharing): pairing trusts the app's own socket; the certificate names loopback; .local sharing listens on the LAN
+- fix(cli): token and TLS-trust discovery reach the sandboxed app's container
+- fix(app): stall-sampler signal handler no longer aborts on first use; rendition downloads no longer 500 in the sandbox
+- fix(ios): the three compile blockers (artifact tap gesture, rendition preferences, selection stepping) gated or shared for iOS
+- chore(scripts): thirteen dead scripts removed; guardrail sweep green, engine-signing build phase restored
+- docs: governance set accuracy pass (schemes, transports, licensing story unified); CODE_OF_CONDUCT added
 - docs(license): trademark honesty, CLA §6, and the two-LICENSE receipt
 - docs(license): Fichero relicenses to AGPL-3.0 — Daniel's sign-off, 2026-08-27
 - docs(contributing): Daniel's license + CLA note, verbatim
