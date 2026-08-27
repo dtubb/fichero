@@ -49,4 +49,8 @@ Fichero has been coded over the last two years almost entirely by Claude, Codex,
 
 ## License
 
-MIT. See [`LICENSE`](LICENSE). Copyright (c) 2025 Daniel Tubb.
+Fichero is open source under the [GNU AGPL-3.0](LICENSE) — free to use,
+study, modify, and share; anyone who distributes it (or serves a
+modified version over a network) must share their source the same way.
+Commercial licenses, including the Mac App Store build, are available
+from Daniel Tubb — see [LICENSING.md](LICENSING.md).
