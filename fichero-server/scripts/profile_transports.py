@@ -25,7 +25,7 @@ Usage
 Run from the repo root, with the shared venv activated (`source .venv/bin/activate`):
 
     PYTHONPATH=fichero-server/src \
-        python transport-tests/profile_transports.py --n 200 --out results.json
+        python fichero-server/scripts/profile_transports.py --n 200 --out results.json
 
 `engine_src()` (see `_engine_harness.py`) defaults to `fichero-server/src`
 relative to this file's own location, so PYTHONPATH above is belt-and-braces

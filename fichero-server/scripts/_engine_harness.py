@@ -37,9 +37,9 @@ import tempfile
 import time
 from pathlib import Path
 
-# transport-tests/ sits at the repo root beside fichero-server/ in every
-# worktree — worktree-relative, not one machine's checkout path.
-DEFAULT_ENGINE_SRC = str(Path(__file__).resolve().parent.parent / "fichero-server" / "src")
+# This file lives in fichero-server/scripts/, so src/ is a sibling of its
+# parent — worktree-relative, not one machine's checkout path.
+DEFAULT_ENGINE_SRC = str(Path(__file__).resolve().parent.parent / "src")
 
 
 def engine_src() -> str:

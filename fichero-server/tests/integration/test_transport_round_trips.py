@@ -22,6 +22,8 @@ than a 400 that has to be argued about.
 
 Recovered from the stranded `transport-tests/` harness (3a638470f), which was
 written as standalone assets for a manager to integrate later and never was.
+That directory is gone; its profiling half lives on as
+`fichero-server/scripts/profile_transports.py`.
 """
 
 from __future__ import annotations
