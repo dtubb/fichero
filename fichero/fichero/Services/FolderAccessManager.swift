@@ -523,6 +523,9 @@ class FolderAccessManager {
     }
 }
 
+
+#endif
+
 #if os(macOS)
 extension FolderAccessManager {
     /// Grant the engine access to ANY user-provided import URL — file or
@@ -551,8 +554,6 @@ extension FolderAccessManager {
         try await grantEngineAccess(path: url.path, bookmark: bookmarkData)
     }
 }
-#endif
-
 #endif
 
 // The grant-before-engine-read ordering seam (#3773), shared across platforms.
