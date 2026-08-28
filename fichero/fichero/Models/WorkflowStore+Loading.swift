@@ -36,13 +36,17 @@ extension WorkflowStore {
                 toolRegistry = registry
             }
 
-            let response = try await workflowService.listWorkflows()
+            // Summary payload: the sidebar draws labels and a node count, and
+            // never touches the graphs. Pulling all 50 presets' nodes and
+            // edges through AnyCodable to do that is the spin when a workflow
+            // folder opens (2026-08-28).
+            let response = try await workflowService.listWorkflows(summary: true)
             workflows = response.map { workflow in
                 WorkflowSidebarItem(
                     id: workflow.id,
                     name: workflow.name,
                     description: workflow.description,
-                    nodeCount: workflow.nodes.count,
+                    nodeCount: workflow.effectiveNodeCount,
                     isEnabled: true,
                     folderPath: workflow.folderPath,
                     sortOrder: workflow.sortOrder,

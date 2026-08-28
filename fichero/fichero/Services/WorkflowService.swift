@@ -162,11 +162,20 @@ class WorkflowService {
     }
 
     /// List all saved workflows. Pass `folderPath` to filter; omit for all.
-    func listWorkflows(folderPath: String? = nil) async throws -> [WorkflowResponse] {
+    ///
+    /// `summary` omits every workflow's node and edge graph, leaving
+    /// `node_count` in their place — 263 KB becomes ~20 KB for 50 workflows,
+    /// which is the difference between a sidebar folder opening instantly and
+    /// visibly spinning. Callers that need a graph fetch it by id. Defaults
+    /// to the full payload so no existing caller changes behaviour.
+    func listWorkflows(
+        folderPath: String? = nil,
+        summary: Bool = false
+    ) async throws -> [WorkflowResponse] {
         let libraryPath = client.currentLibraryPath ?? ""
         logger.info("listWorkflows called with libraryPath: \(libraryPath)")
         let response = try await client.api.listWorkflowsApiWorkflowsGet(.init(
-            query: .init(folderPath: folderPath),
+            query: .init(folderPath: folderPath, summary: summary),
         ))
         switch response {
         case .ok(let okResponse):
@@ -562,6 +571,11 @@ extension WorkflowService {
         // Not permissive-by-default in the same sense: `false` here means "do
         // not filter the model menu", which is the permissive outcome.
         var requiresVision = false
+        // Counted server-side so a summary list can omit the graphs entirely
+        // (#Phase 0). `nil` means the server did not say — the caller then
+        // falls back to measuring whatever nodes it did receive, which is
+        // exactly right for an older engine that still sends them.
+        var nodeCount: Int?
     }
 
     private static func derivedFlags(
@@ -576,7 +590,8 @@ extension WorkflowService {
             isUntested: (dict["untested"] as? Bool) ?? false,
             directRunnable: (dict["direct_runnable"] as? Bool) ?? true,
             acceptsModelOverride: (dict["accepts_model_override"] as? Bool) ?? true,
-            requiresVision: (dict["requires_vision"] as? Bool) ?? false
+            requiresVision: (dict["requires_vision"] as? Bool) ?? false,
+            nodeCount: dict["node_count"] as? Int
         )
     }
 

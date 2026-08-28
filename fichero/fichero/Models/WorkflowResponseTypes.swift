@@ -65,6 +65,10 @@ struct WorkflowResponse: Codable {
     /// which callers must read as `true`: a workflow whose capability we
     /// cannot determine keeps its override controls rather than losing them.
     let acceptsModelOverride: Bool?
+    /// Node count as the SERVER counted it, so a summary list can omit the
+    /// graphs entirely. Falls back to `nodes.count` when absent, which is
+    /// what an older engine still sending full graphs produces.
+    let nodeCount: Int?
     /// Server-computed answer to "does running this need a vision model?",
     /// from the same `workflow_requires_vision` rule the engine's preflight
     /// enforces — which descends into `sub_workflow` children (cycle-guarded).
@@ -82,6 +86,7 @@ struct WorkflowResponse: Codable {
         case directRunnable = "direct_runnable"
         case acceptsModelOverride = "accepts_model_override"
         case requiresVision = "requires_vision"
+        case nodeCount = "node_count"
     }
 
     /// Hand-written because the synthesized decoder IGNORES the property
@@ -107,6 +112,7 @@ struct WorkflowResponse: Codable {
         directRunnable = try container.decodeIfPresent(Bool.self, forKey: .directRunnable)
         acceptsModelOverride = try container.decodeIfPresent(Bool.self, forKey: .acceptsModelOverride)
         requiresVision = try container.decodeIfPresent(Bool.self, forKey: .requiresVision) ?? false
+        nodeCount = try container.decodeIfPresent(Int.self, forKey: .nodeCount)
     }
 
     /// The memberwise init the compiler stops synthesizing once `init(from:)`
@@ -125,7 +131,8 @@ struct WorkflowResponse: Codable {
         isUntested: Bool = false,
         directRunnable: Bool?,
         acceptsModelOverride: Bool?,
-        requiresVision: Bool = false
+        requiresVision: Bool = false,
+        nodeCount: Int? = nil
     ) {
         self.id = id
         self.name = name
@@ -141,7 +148,14 @@ struct WorkflowResponse: Codable {
         self.directRunnable = directRunnable
         self.acceptsModelOverride = acceptsModelOverride
         self.requiresVision = requiresVision
+        self.nodeCount = nodeCount
     }
+
+    /// How many nodes this workflow has, whichever payload delivered it.
+    /// A summary list omits `nodes` and sends `node_count`; the full list
+    /// sends both. Every display site reads THIS, so no call site has to
+    /// know which shape it received.
+    var effectiveNodeCount: Int { nodeCount ?? nodes.count }
 }
 
 // MARK: - Workflow Execution State

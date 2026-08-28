@@ -23,7 +23,7 @@ extension WorkflowStore {
             id: id,  // Use original ID to ensure consistency
             name: response.name,
             description: response.description,
-            nodeCount: response.nodes.count,
+            nodeCount: response.effectiveNodeCount,
             isEnabled: true,
             folderPath: response.folderPath,
             sortOrder: response.sortOrder,
@@ -56,7 +56,7 @@ extension WorkflowStore {
             id: response.id,
             name: response.name,
             description: response.description,
-            nodeCount: response.nodes.count,
+            nodeCount: response.effectiveNodeCount,
             isEnabled: true,
             folderPath: response.folderPath,
             sortOrder: response.sortOrder,
