@@ -99,6 +99,8 @@ struct ViewMenuCommands: View {
         // a persistent preference, not per-window view state.
         // NavigateToParentButton moved to the Go menu (#4121) — navigation,
         // not view state.
+        ShowWorkflowBarButton()
+
         ShowFindBarButton()
         // ShowRulerButton moved to the Format menu (#4121 View-menu diet):
         // the ruler is text-formatting chrome (TextEdit/Pages precedent),

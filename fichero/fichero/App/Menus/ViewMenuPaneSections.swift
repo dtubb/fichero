@@ -219,3 +219,31 @@ struct ShowFindBarButton: View {
         #endif
     }
 }
+
+
+// MARK: - Capability bar
+
+/// View ▸ Show/Hide Workflow Bar (2026-08-28) — the Preview convention, where
+/// a bar of verbs is opt-in chrome you switch on per window.
+///
+/// Reads the focused window's binding so it toggles only that window, the same
+/// mechanism as Show/Hide Inspector. Disabled when no window publishes one,
+/// rather than silently doing nothing.
+struct ShowWorkflowBarButton: View {
+    @FocusedValue(\.showWorkflowBar) private var showWorkflowBar
+
+    var body: some View {
+        Button {
+            showWorkflowBar?.wrappedValue.toggle()
+        } label: {
+            Label(
+                showWorkflowBar?.wrappedValue == true
+                    ? "Hide Workflow Bar"
+                    : "Show Workflow Bar",
+                systemImage: "square.grid.2x2"
+            )
+        }
+        .keyboardShortcut("w", modifiers: [.command, .option, .shift])
+        .disabled(showWorkflowBar == nil)
+    }
+}

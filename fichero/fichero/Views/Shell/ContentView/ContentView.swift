@@ -178,6 +178,10 @@ struct ContentView: View {
     @SceneStorage("browserSelectionData") var browserSelectionData: Data = Data()
     @SceneStorage("viewModeType") var storedViewModeType: String = "library"
     @SceneStorage("viewModeItemId") var storedViewModeItemId: String?
+    /// Whether the capability bar is showing. Per WINDOW, following the
+    /// Preview convention that a markup bar is a property of the window you
+    /// turned it on in, and off by default so the chrome is opt-in.
+    @SceneStorage("showWorkflowBar") var showWorkflowBar: Bool = false
 
     // Workflow state
     @State var editingWorkflow: Workflow = Workflow(name: "New Workflow", description: "")
