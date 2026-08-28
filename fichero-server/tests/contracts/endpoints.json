@@ -2426,6 +2426,18 @@
         "response_model": "ClassificationValue"
       }
     ],
+    "clients": [
+      {
+        "method": "GET",
+        "path": "/clients",
+        "operation_id": "connected_clients_api_clients_get",
+        "summary": "Connected Clients",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ConnectedClientsResponse"
+      }
+    ],
     "content-representations": [
       {
         "method": "GET",

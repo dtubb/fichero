@@ -6,6 +6,25 @@
     "version": "2026.7.29"
   },
   "paths": {
+    "/api/clients": {
+      "get": {
+        "summary": "Connected Clients",
+        "description": "Which client surfaces have talked to this engine this session.\n\nApp-wide (no library header): feeds the Sharing pane's \"Connected\nclients\" list (Daniel, 2026-08-27). Presence, not authorization \u2014\nnames and timestamps only.",
+        "operationId": "connected_clients_api_clients_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectedClientsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/health": {
       "get": {
         "summary": "Health Check",
@@ -40945,6 +40964,39 @@
         ],
         "title": "CleanupResponse"
       },
+      "ClientPresenceEntry": {
+        "properties": {
+          "client": {
+            "type": "string",
+            "title": "Client"
+          },
+          "first_seen": {
+            "type": "string",
+            "title": "First Seen"
+          },
+          "last_seen": {
+            "type": "string",
+            "title": "Last Seen"
+          },
+          "requests": {
+            "type": "integer",
+            "title": "Requests"
+          },
+          "transport": {
+            "type": "string",
+            "title": "Transport"
+          }
+        },
+        "type": "object",
+        "required": [
+          "client",
+          "first_seen",
+          "last_seen",
+          "requests",
+          "transport"
+        ],
+        "title": "ClientPresenceEntry"
+      },
       "ColumnAnnotation": {
         "properties": {
           "id": {
@@ -41353,6 +41405,22 @@
         ],
         "title": "CompiledQuery",
         "description": "What the LLM compiled a natural-language request into."
+      },
+      "ConnectedClientsResponse": {
+        "properties": {
+          "clients": {
+            "items": {
+              "$ref": "#/components/schemas/ClientPresenceEntry"
+            },
+            "type": "array",
+            "title": "Clients"
+          }
+        },
+        "type": "object",
+        "required": [
+          "clients"
+        ],
+        "title": "ConnectedClientsResponse"
       },
       "ConnectionTestResponse": {
         "properties": {

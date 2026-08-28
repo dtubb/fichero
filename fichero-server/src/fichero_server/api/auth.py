@@ -35,6 +35,7 @@ from fastapi import Depends, FastAPI, Header, Request
 from fastapi.responses import JSONResponse
 
 from fichero_server.security import accounts
+from fichero_server.api import client_presence
 from fichero_server.api.library_header import require_library_path
 from fichero_server.actions import ActionContext
 from fichero_server.db.app import get_app_db
@@ -690,6 +691,11 @@ def attach_auth_middleware(
         # 401ing genuinely public endpoints like ``/api/health``. ``scope["path"]``
         # is always the clean routed path, making this check Host-independent.
         routed_path = request.scope.get("path") or request.url.path
+        # Presence, not authz: note which surface is talking (Sharing UI).
+        client_presence.record(
+            request.headers.get("X-Fichero-Client"),
+            transport=request.scope.get("fichero.transport"),
+        )
         if routed_path in _UNAUTHENTICATED_PATHS or any(
             routed_path.startswith(prefix) for prefix in _UNAUTHENTICATED_PREFIXES
         ):

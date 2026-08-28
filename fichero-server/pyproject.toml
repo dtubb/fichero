@@ -169,6 +169,10 @@ python_version = "3.12"  # Pin to 3.12 — many ML packages lack 3.14 wheels
 # Python bindings and every Apple Vision workflow run died with
 # "Apple Vision OCR requires macOS with Vision framework" (#790).
 requires = [
+    # The bundle also ships the fichero CLI (Install Command-Line Tools…,
+    # 2026-08-27): typer/rich are CLI-only deps the engine itself never uses.
+    "typer",
+    "rich",
     "pyobjc-framework-Vision",
     "pyobjc-framework-Quartz",
     "pyobjc-framework-Cocoa",

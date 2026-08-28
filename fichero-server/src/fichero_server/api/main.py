@@ -42,6 +42,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
+from fichero_server.api import client_presence
 from fichero_server.api.library_header import optional_library_path, require_library_path
 from fichero_server.api.feature_tiers_generated import CUMULATIVE_ROUTE_PREFIXES, ROUTE_PREFIX_TIERS
 from fichero_server.api.routes.ai.local_inference import shutdown_managed_local_inference_services
@@ -1239,6 +1240,22 @@ def assert_library_write_authorized(
 
 
 # Health check endpoint
+@app.get("/api/clients", response_model=client_presence.ConnectedClientsResponse)
+async def connected_clients():
+    """Which client surfaces have talked to this engine this session.
+
+    App-wide (no library header): feeds the Sharing pane's "Connected
+    clients" list (Daniel, 2026-08-27). Presence, not authorization —
+    names and timestamps only.
+    """
+    return client_presence.ConnectedClientsResponse(
+        clients=[
+            client_presence.ClientPresenceEntry.model_validate(row)
+            for row in client_presence.snapshot()
+        ]
+    )
+
+
 @app.get("/api/health", response_model=HealthResponse)
 async def health_check(
     request: Request,

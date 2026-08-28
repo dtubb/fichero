@@ -419,6 +419,15 @@ struct FicheroApp: App {
                         openWindow(id: "feature-tier-legend")
                     }
                 }
+
+                #if os(macOS)
+                // The BBEdit pattern (Daniel, 2026-08-27): install the
+                // fichero CLI and MCP launchers from the app itself.
+                Divider()
+                Button("Install Command-Line & MCP Tools…") {
+                    openWindow(id: "install-tools")
+                }
+                #endif
             }
 
             // File menu - Database/Library management
@@ -577,6 +586,15 @@ struct FicheroApp: App {
         .defaultSize(width: 420, height: 520)
         // Opened from the App menu's tier button only — suppress the
         // automatic Windows-menu entry, as with About above (#4524).
+        .commandsRemoved()
+        .defaultPosition(.center)
+
+        Window("Install Command-Line & MCP Tools", id: "install-tools") {
+            InstallToolsWindow()
+        }
+        .defaultSize(width: 560, height: 560)
+        // App-menu button only — same Windows-menu suppression as the
+        // legend and About windows (#4524).
         .commandsRemoved()
         .defaultPosition(.center)
         #endif

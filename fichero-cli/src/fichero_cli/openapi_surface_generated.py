@@ -3647,6 +3647,23 @@ def register_generated_openapi_commands(
             return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    target_app = existing_apps.get('clients')
+    if target_app is None:
+        target_app = typer.Typer(help='Generated OpenAPI commands for clients endpoints.', no_args_is_help=True)
+        root_app.add_typer(target_app, name='clients')
+        existing_apps['clients'] = target_app
+
+    @target_app.command("connected")
+    def clients_connected_get(
+        ctx: typer.Context,
+    ) -> None:
+        """Connected Clients (GET /api/clients)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/clients"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('content-representations')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for content-representations endpoints.', no_args_is_help=True)
