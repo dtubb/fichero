@@ -12,11 +12,12 @@ struct InstallToolsWindow: View {
     @State private var mcpStatus: String?
     @State private var mcpInstalledPath = Self.realHomeBin + "/fichero-mcp"
 
-    /// The user's REAL home ± sandbox: NSHomeDirectory() is the container.
+    /// ~/.local/bin — the per-user tool convention (pipx, uv) — under the
+    /// user's REAL home: NSHomeDirectory() is the sandbox container.
     static var realHomeBin: String {
         let home = getpwuid(getuid()).flatMap { String(cString: $0.pointee.pw_dir) }
             ?? NSHomeDirectory()
-        return home + "/bin"
+        return home + "/.local/bin"
     }
     @State private var copied: String?
 
@@ -32,7 +33,7 @@ struct InstallToolsWindow: View {
                 LabeledContent("fichero") {
                     Button("Install…") { install(name: "fichero", module: "fichero_cli") { cliStatus = $0 } }
                 }
-                Text("Try `fichero health` or `fichero workflow list` in Terminal. If the command isn't found, add `export PATH=\"$HOME/bin:$PATH\"` to ~/.zshrc.")
+                Text("Try `fichero health` or `fichero workflow list` in Terminal. If the command isn't found, add `export PATH=\"$HOME/.local/bin:$PATH\"` to ~/.zshrc.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 if let cliStatus { statusText(cliStatus) }
