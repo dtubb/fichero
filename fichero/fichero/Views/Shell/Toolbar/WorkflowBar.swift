@@ -46,6 +46,9 @@ struct WorkflowBar: View {
     /// Opens what a step produced — its run trace, or the document it
     /// wrote. nil disables the gesture rather than pretending.
     var onOpenStep: ((StagedWorkflowStep) -> Void)?
+    /// Upper bound on what running this chain would cost. nil = unpriced,
+    /// which is shown as such rather than as free.
+    var costCeiling: Double?
 
     /// One item's footprint. Fixed so the verbs sit on an even rhythm the way
     /// toolbar items do, rather than jittering with label length.
@@ -121,10 +124,21 @@ struct WorkflowBar: View {
                 chainRail.padding(.horizontal, 10)
             }
             Spacer(minLength: 0)
-            Text(staged.count == 1 ? "1 step" : "\(staged.count) steps")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .padding(.trailing, 10)
+            HStack(spacing: 6) {
+                if let costCeiling {
+                    // A CEILING, said as one: "≤" is the difference between a
+                    // promise that can be kept and a guess.
+                    Text("≤ \(costCeiling, format: .currency(code: "USD"))")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                        .help("Upper bound for this chain over \(staged.count) step(s), priced from the live model registry")
+                }
+                Text(staged.count == 1 ? "1 step" : "\(staged.count) steps")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.trailing, 10)
         }
         .frame(height: 34)
     }

@@ -193,6 +193,9 @@ struct ContentView: View {
     @State var isRunningStagedChain = false
     /// Which chain step is executing, for the rail's progress.
     @State var runningStagedStepIndex: Int?
+    /// Upper-bound cost of the staged chain, or nil when nothing can be
+    /// priced — never 0, which would read as free.
+    @State var stagedChainCostCeiling: Double?
     /// AI defaults, cached for the bar's per-step model menu. Nothing holds
     /// these in a shared observable, so the window keeps its own copy and
     /// refreshes it when the bar appears.

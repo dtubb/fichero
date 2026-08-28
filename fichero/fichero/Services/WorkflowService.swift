@@ -185,6 +185,37 @@ class WorkflowService {
         }
     }
 
+    /// A run's cost CEILING for the given file count, priced by the engine's
+    /// live model registry.
+    ///
+    /// A ceiling, never a point estimate (2026-08-28): the model is known, the
+    /// item count is known and max_tokens is an explicit bound, so an upper
+    /// limit is defensible where "about \$0.30" would be guesswork. Takes the
+    /// provider/model override so a chain step priced with Opus is not quoted
+    /// at the workflow's default.
+    func estimateCost(
+        workflowId: String,
+        fileCount: Int,
+        provider: String?,
+        model: String?
+    ) async throws -> Double {
+        let response = try await client.api
+            .estimateWorkflowCostApiWorkflowsWorkflowIdEstimateCostPost(.init(
+                path: .init(workflowId: workflowId),
+                body: .json(.init(
+                    fileCount: fileCount,
+                    provider: provider,
+                    model: model
+                ))
+            ))
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.estimatedCostUsd
+        default:
+            throw WorkflowServiceError.unexpectedResponse
+        }
+    }
+
     /// List all saved workflows. Pass `folderPath` to filter; omit for all.
     ///
     /// `summary` omits every workflow's node and edge graph, leaving

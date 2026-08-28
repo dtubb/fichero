@@ -23,8 +23,10 @@ extension ContentView {
                 onRunChain: { Task { await runStagedChain() } },
                 isRunning: isRunningStagedChain,
                 runningStepIndex: runningStagedStepIndex,
-                onOpenStep: { openStagedStepResult($0) }
+                onOpenStep: { openStagedStepResult($0) },
+                costCeiling: stagedChainCostCeiling
             )
+            .task(id: chainCostKey) { await refreshChainCostCeiling() }
             .task {
                 // Refresh when the bar appears rather than at launch: the menu
                 // is only consulted here, and a stale tier would offer a model
@@ -89,6 +91,50 @@ extension ContentView {
                 stagedWorkflowChain[index].state = .succeeded
             }
         }
+    }
+
+    /// Identity of the current cost question: re-price when the chain, its
+    /// models, or the number of targets changes — and not on every render.
+    var chainCostKey: String {
+        let steps = stagedWorkflowChain
+            .map { "\($0.workflow.id):\($0.modelOverride ?? "")" }
+            .joined(separator: "|")
+        return "\(steps)#\(workflowBarTargetCount)"
+    }
+
+    var workflowBarTargetCount: Int {
+        let effective = effectiveWorkflowRunSelection
+        if !effective.isEmpty { return effective.count }
+        return detailDocument == nil ? 0 : 1
+    }
+
+    /// Price the staged chain as a CEILING, summed across steps.
+    ///
+    /// A ceiling rather than a point estimate: the models are known, the item
+    /// count is known and max_tokens is an explicit bound, so an upper limit
+    /// is a promise that can be kept where "about \$0.30" is guesswork. Steps
+    /// the engine cannot price (no registry entry) are skipped rather than
+    /// counted as zero, and the total is marked approximate.
+    @MainActor
+    func refreshChainCostCeiling() async {
+        guard !stagedWorkflowChain.isEmpty, workflowBarTargetCount > 0 else {
+            stagedChainCostCeiling = nil
+            return
+        }
+        var total = 0.0
+        var priced = false
+        for step in stagedWorkflowChain {
+            if let cost = try? await workflowStore.workflowService.estimateCost(
+                workflowId: step.workflow.id,
+                fileCount: workflowBarTargetCount,
+                provider: step.providerOverride,
+                model: step.modelOverride
+            ) {
+                total += cost
+                priced = true
+            }
+        }
+        stagedChainCostCeiling = priced ? total : nil
     }
 
     /// Show what a step produced: the document it wrote, in whichever surface
