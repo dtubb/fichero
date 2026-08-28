@@ -200,6 +200,31 @@ def collect_usage() -> Iterator[list[dict[str, Any]]]:
         _usage_collector.reset(token)
 
 
+def begin_usage_collection() -> tuple[list[dict[str, Any]], Any]:
+    """Start collecting model-call usage; returns ``(bucket, token)``.
+
+    The explicit form of :func:`collect_usage`, for callers whose scope is not
+    a ``with`` block. The workflow runner is one: its streaming loop lives
+    inside a long function and wrapping it would mean restructuring the
+    function rather than adding a feature (2026-08-28).
+
+    Pair every call with :func:`end_usage_collection` — the bucket keeps
+    filling until you do.
+    """
+    bucket: list[dict[str, Any]] = []
+    return bucket, _usage_collector.set(bucket)
+
+
+def end_usage_collection(token: Any) -> None:
+    """Stop collecting; safe to call twice or after an error."""
+    try:
+        _usage_collector.reset(token)
+    except (ValueError, RuntimeError):
+        # Reset from a different context than the set — nothing to undo, and
+        # failing a run over accounting bookkeeping would be absurd.
+        pass
+
+
 def _record_usage(
     provider: str,
     model: str,
