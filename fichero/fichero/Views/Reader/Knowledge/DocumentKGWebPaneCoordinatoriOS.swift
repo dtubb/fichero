@@ -233,6 +233,17 @@ final class DocumentKGWebPaneCoordinatoriOS: NSObject, WKNavigationDelegate, WKS
         if error.isCancellationError { return }
         let failingURL = (error as NSError).userInfo[NSURLErrorFailingURLStringErrorKey] as? String
         guard failingURL == nil || failingURL?.hasPrefix(EngineWebViewURL.scheme) == true else { return }
+        // Un-poison the cache key. `loadIfNeeded` stamps
+        // `lastLoadedDocumentId` BEFORE it knows the load succeeded, so a
+        // failure (engine still starting, engine quit) left the coordinator
+        // believing this document was loaded — and every later attempt for the
+        // SAME document was skipped as redundant. The pane then sat on its
+        // failure page until the document changed, which is why selecting a
+        // different item "fixed" it and why the page had to tell the user to
+        // reopen the pane (Daniel, 2026-08-28).
+        lastLoadedDocumentId = nil
+        lastLoadedLibraryPath = nil
+        lastLoadedPageIds = nil
         webView.loadHTMLString(
             DocumentKGPaneRoute.loadFailureHTML(detail: error.localizedDescription),
             baseURL: nil
