@@ -45,6 +45,24 @@ struct WorkflowBar: View {
     }
 
     var body: some View {
+        VStack(spacing: 0) {
+            verbRow
+            // The chain gets its OWN full-width row rather than a slot on the
+            // right (Daniel, 2026-08-28: "to right seems a bit small"). An
+            // eight-step chain — regions, transcribe, review, entities, SVO,
+            // merge, persist, catalogue — has no chance in a corner, and the
+            // split is honest besides: the top row is what you CAN do, this one
+            // is what you are ABOUT to do.
+            if !staged.isEmpty {
+                Divider()
+                chainRow
+            }
+        }
+        .background(.bar)
+        .overlay(alignment: .bottom) { Divider() }
+    }
+
+    private var verbRow: some View {
         HStack(spacing: 0) {
             if let reason = WorkflowBarPolicy.emptyReason(from: workflows, target: target) {
                 // An empty bar with no explanation reads as a broken app rather
@@ -68,11 +86,6 @@ struct WorkflowBar: View {
                 }
             }
 
-            if !staged.isEmpty {
-                Divider().frame(height: 28).padding(.horizontal, 6)
-                chainRail
-            }
-
             if let label = WorkflowBarPolicy.targetLabel(target) {
                 Divider().frame(height: 28).padding(.horizontal, 6)
                 // What the run will act on, stated BEFORE it starts — a paid
@@ -87,8 +100,22 @@ struct WorkflowBar: View {
             }
         }
         .frame(height: 52)
-        .background(.bar)
-        .overlay(alignment: .bottom) { Divider() }
+    }
+
+    /// The chain: full width, left-aligned so it reads as a sequence, with the
+    /// run control and the step count anchored right.
+    private var chainRow: some View {
+        HStack(spacing: 8) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                chainRail.padding(.horizontal, 10)
+            }
+            Spacer(minLength: 0)
+            Text(staged.count == 1 ? "1 step" : "\(staged.count) steps")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .padding(.trailing, 10)
+        }
+        .frame(height: 34)
     }
 
     /// The chain being assembled: one chip per step, in order, each removable.
@@ -107,23 +134,36 @@ struct WorkflowBar: View {
                         .font(.system(size: 7))
                         .foregroundStyle(.tertiary)
                 }
-                Button {
-                    staged.remove(at: index)
-                } label: {
-                    HStack(spacing: 3) {
+                HStack(spacing: 3) {
+                    Image(systemName: WorkflowBarPolicy.symbol(
+                        forFamily: WorkflowBarPolicy.folderKey(workflow.folderPath)
+                    ))
+                    .font(.system(size: 11))
+                    // The name is redundant beside a glyph whose tooltip
+                    // already says it, and eight labelled chips do not fit
+                    // (Daniel, 2026-08-28). It follows the bar's own label
+                    // preference so both readings are one toggle apart.
+                    if showsLabels {
                         Text(workflow.name)
                             .font(.system(size: 10))
                             .lineLimit(1)
+                    }
+                    Button {
+                        staged.remove(at: index)
+                    } label: {
                         Image(systemName: "xmark")
                             .font(.system(size: 7))
                             .foregroundStyle(.secondary)
                     }
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
-                    .background(Color.accentColor.opacity(0.12), in: Capsule())
+                    .buttonStyle(.plain)
+                    .help("Remove \(workflow.name) from the chain")
                 }
-                .buttonStyle(.plain)
-                .help("Remove \(workflow.name) from the chain")
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(Color.accentColor.opacity(0.12), in: Capsule())
+                // The whole chip names its step, so an icon-only rail stays
+                // readable on hover rather than becoming a rebus.
+                .help("Step \(index + 1): \(workflow.displayName)")
             }
 
             Button(action: onRunChain) {
