@@ -7,9 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		1DE109C463735B22B635F3E2 /* InstallToolsWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEB68505AB23DDCB630B6A17 /* InstallToolsWindow.swift */; };
 		A18ED3AB2F13E313007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3AA2F13E313007C2C6E /* FicheroAPIClient */; };
 		A18ED3F22F141DFE007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3F12F141DFE007C2C6E /* FicheroAPIClient */; };
 		C10000020000000000000001 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; platformFilters = (macos, ); productRef = C10000310000000000000001 /* Sparkle */; };
+		DAE9D6BFEB95776575841571 /* InstallToolsWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEB68505AB23DDCB630B6A17 /* InstallToolsWindow.swift */; };
 		FEED0000000000000000024E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3AA2F13E313007C2C6E /* FicheroAPIClient */; };
 		FEED0000000000000000024F /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3F12F141DFE007C2C6E /* FicheroAPIClient */; };
 /* End PBXBuildFile section */
@@ -80,6 +82,7 @@
 		A16FDD642EFDCD17003296C0 /* fichero.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; name = fichero.xctestplan; path = Tests/plans/fichero.xctestplan; sourceTree = "<group>"; };
 		A16FDD652EFDCD17003296C1 /* fichero-embedded.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; name = "fichero-embedded.xctestplan"; path = "Tests/plans/fichero-embedded.xctestplan"; sourceTree = "<group>"; };
 		A16FDD662EFDCD17003296C2 /* fichero-ipad.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; name = "fichero-ipad.xctestplan"; path = "Tests/plans/fichero-ipad.xctestplan"; sourceTree = "<group>"; };
+		DEB68505AB23DDCB630B6A17 /* InstallToolsWindow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InstallToolsWindow.swift; sourceTree = "<group>"; };
 		F105C0DE0000000000000001 /* FicheroIOSUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroIOSUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		FE1DAD000000000000000010 /* FicheroIPadTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroIPadTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		FEED00000000000000000260 /* Fichero.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Fichero.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -219,7 +222,6 @@
 			isa = PBXGroup;
 			children = (
 			);
-			name = Shell;
 			path = Shell;
 			sourceTree = "<group>";
 		};
@@ -263,9 +265,18 @@
 			isa = PBXGroup;
 			children = (
 				22EFCE1C87FC1487EC1CBF7F /* Shell */,
+				D029168A07286554665EAA00 /* Settings */,
 			);
-			name = Views;
 			path = Views;
+			sourceTree = "<group>";
+		};
+		9C7FB06C67B514BBD67E0CC9 /* Tools */ = {
+			isa = PBXGroup;
+			children = (
+				DEB68505AB23DDCB630B6A17 /* InstallToolsWindow.swift */,
+			);
+			name = Tools;
+			path = Tools;
 			sourceTree = "<group>";
 		};
 		A16BE41BD7948F71F5031439 /* Services */ = {
@@ -274,8 +285,16 @@
 				18E20C2646AD0D1174376756 /* FicheroUICapture.swift */,
 				5076236A8758ED35278E3B62 /* AppleScriptRunCommands.swift */,
 			);
-			name = Services;
 			path = Services;
+			sourceTree = "<group>";
+		};
+		D029168A07286554665EAA00 /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				9C7FB06C67B514BBD67E0CC9 /* Tools */,
+			);
+			name = Settings;
+			path = Settings;
 			sourceTree = "<group>";
 		};
 		D0C0989BFAD8F78903736127 /* fichero */ = {
@@ -284,7 +303,6 @@
 				51E2488023D4166B8E8218D5 /* Views */,
 				A16BE41BD7948F71F5031439 /* Services */,
 			);
-			name = fichero;
 			path = fichero;
 			sourceTree = "<group>";
 		};
@@ -354,8 +372,8 @@
 				A10521AE2EFDC92400B28C3E /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				A10521AA2EFDC92400B28C3E /* Tests/Unit/general */,
 				7E57AB000000000000000001 /* Tests/Unit/mac */,
+				A10521AA2EFDC92400B28C3E /* Tests/Unit/general */,
 			);
 			name = FicheroTests;
 			productName = FicheroTests;
@@ -376,8 +394,8 @@
 				A10521C62EFDC94100B28C3E /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				A10521C22EFDC94100B28C3E /* Tests/UI/general */,
 				7E57AB000000000000000002 /* Tests/UI/mac */,
+				A10521C22EFDC94100B28C3E /* Tests/UI/general */,
 			);
 			name = FicheroUITests;
 			productName = FicheroUITests;
@@ -589,6 +607,9 @@
 		};
 		CC0011223344556677889903 /* Embed Fichero Server */ = {
 			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			files = (
+			);
 			inputFileListPaths = (
 				"$(SRCROOT)/fichero.xcodeproj/xcshareddata/FicheroEngineEmbedInputs.xcfilelist",
 			);
@@ -627,7 +648,7 @@
 				"",
 				"  exit 0",
 				"",
-				"fi",
+				fi,
 				"",
 				"",
 				"",
@@ -637,7 +658,7 @@
 				"",
 				"  exit 0",
 				"",
-				"fi",
+				fi,
 				"",
 				"",
 				"",
@@ -654,13 +675,21 @@
 				"",
 				"  exit 1",
 				"",
-				"fi",
+				fi,
 				"",
 				"",
 				"",
+				"# Skip when the staged engine hasn't changed since the last embed —",
+				"# the phase always runs (the input filelist snapshot rots), so the",
+				"# stamp is what keeps unchanged builds fast.",
+				"STAMP=\"$ENGINE_DST.embed-stamp\"",
+				"if [ -f \"$STAMP\" ] && [ -d \"$ENGINE_DST\" ] && [ -z \"$(find \"$ENGINE_SRC\" -newer \"$STAMP\" -print -quit)\" ]; then",
+				"  echo \"Embedded engine current (stamp); skipping embed + sign\"",
+				"  exit 0",
+				fi,
 				"echo \"Embedding engine: $ENGINE_SRC -> $ENGINE_DST\"",
 				"",
-				"rm -rf \"$ENGINE_DST\"",
+				"rm -rf \"$ENGINE_DST\" \"$STAMP\"",
 				"",
 				"mkdir -p \"$(dirname \"$ENGINE_DST\")\"",
 				"",
@@ -689,29 +718,30 @@
 				"if [ ! -f \"$ENGINE_ENTITLEMENTS\" ]; then",
 				"  echo \"error: engine entitlements not found at $ENGINE_ENTITLEMENTS\" >&2",
 				"  exit 1",
-				"fi",
+				fi,
 				"IDENTITY=\"${EXPANDED_CODE_SIGN_IDENTITY:--}\"",
 				"[ -n \"$IDENTITY\" ] || IDENTITY=\"-\"",
 				"FM_BRIDGE=\"$ENGINE_DST/Contents/Resources/app/fichero_server/resources/bin/fm-bridge\"",
 				"if [ -f \"$FM_BRIDGE\" ]; then",
 				"  codesign --force --sign \"$IDENTITY\" --entitlements \"$ENGINE_ENTITLEMENTS\" \"$FM_BRIDGE\" || {",
 				"    echo \"error: failed to sign fm-bridge with the sandbox pair\" >&2; exit 1; }",
-				"fi",
+				fi,
 				"codesign --force --sign \"$IDENTITY\" --entitlements \"$ENGINE_ENTITLEMENTS\" \"$ENGINE_DST\" || {",
 				"  echo \"error: failed to sign the embedded engine with the sandbox pair\" >&2; exit 1; }",
 				"if ! codesign --verify --strict \"$ENGINE_DST\" >/dev/null 2>&1; then",
 				"  echo \"error: embedded engine signature is invalid after signing\" >&2",
 				"  exit 1",
-				"fi",
+				fi,
 				"if ! codesign --display --entitlements - \"$ENGINE_DST\" 2>&1 | grep -q \"com.apple.security.inherit\"; then",
 				"  echo \"error: embedded engine is missing com.apple.security.inherit\" >&2",
 				"  exit 1",
-				"fi",
+				fi,
 				"if codesign --display --entitlements - \"$ENGINE_DST\" 2>&1 | grep -q \"com.apple.security.get-task-allow\"; then",
 				"  echo \"error: embedded engine carries get-task-allow — incompatible with inherit; the child would abort (#3952)\" >&2",
 				"  exit 1",
-				"fi",
+				fi,
 				"echo \"  embedded engine signed with {app-sandbox, inherit} as $IDENTITY\"",
+				"touch \"$STAMP\"",
 				"",
 			);
 		};
@@ -748,6 +778,7 @@
 		};
 		FEED00000000000000000256 /* Embed Fichero Server */ = {
 			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
 			files = (
 			);
 			inputFileListPaths = (
@@ -1155,7 +1186,8 @@
 		510 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			files = (
-							);
+				1DE109C463735B22B635F3E2 /* InstallToolsWindow.swift in Sources */,
+			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -1180,7 +1212,8 @@
 		FEED0000000000000000024D /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			files = (
-							);
+				DAE9D6BFEB95776575841571 /* InstallToolsWindow.swift in Sources */,
+			);
 		};
 /* End PBXSourcesBuildPhase section */
 

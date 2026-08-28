@@ -515,3 +515,33 @@ def test_pixel_boxes_normalize_against_the_replys_own_claimed_frame():
     }
     geometry = parse_vlm_geometry(payload, provider="openrouter")
     assert geometry.boxes[0].bbox == pytest.approx([0.1, 0.1, 0.4, 0.05])
+
+
+def test_corner_form_boxes_are_reinterpreted_not_rejected():
+    """gemini-3.1-flash-lite answers the xywh prompt with [x1, y1, x2, y2]
+    corners; read as xywh they overflow the page and one bad box used to
+    reject the page's whole geometry. Corners that fit are reinterpreted."""
+    from fichero_server.media.ocr_geometry import parse_vlm_geometry
+
+    payload = {
+        "text": "Coronado",
+        "boxes": [
+            {"text": "Coronado", "bbox": [0.74, 0.06, 0.976, 0.51], "level": "line"}
+        ],
+    }
+    geometry = parse_vlm_geometry(payload, provider="openrouter")
+    assert geometry.boxes[0].bbox == pytest.approx([0.74, 0.06, 0.236, 0.45])
+
+
+def test_two_percent_overflow_is_clipped_not_rejected():
+    from fichero_server.media.ocr_geometry import parse_vlm_geometry
+
+    payload = {
+        "text": "margen",
+        "boxes": [
+            {"text": "margen", "bbox": [0.60, 0.90, 0.30, 0.11], "level": "line"}
+        ],
+    }
+    geometry = parse_vlm_geometry(payload, provider="openrouter")
+    x, y, w, h = geometry.boxes[0].bbox
+    assert y + h == pytest.approx(1.0)
