@@ -23,6 +23,10 @@ final class WorkflowStore: ChangeEventConsumer {
     /// one source of truth (#725). Empty until first successful load; views
     /// fall back to a hardcoded dictionary for unknown tools.
     var toolRegistry: [String: ToolInfo] = [:]
+    /// Folder presentation as the engine describes it — the order verbs
+    /// appear in and their glyphs. Empty until loaded; the bar falls back
+    /// to its built-in route so it is never scrambled in that window.
+    var folderPresentation: [String: WorkflowBarPolicy.FolderPresentation] = [:]
 
     /// Bumped when a `workflow.*` change event arrives so interested views can
     /// invalidate their cached workflow-dependent UI.

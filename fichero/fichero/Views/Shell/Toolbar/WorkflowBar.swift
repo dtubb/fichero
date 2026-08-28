@@ -23,6 +23,9 @@ import SwiftUI
 struct WorkflowBar: View {
     let workflows: [WorkflowSidebarItem]
     let target: WorkflowBarPolicy.Target
+    /// Folder order and glyphs as the engine describes them; empty falls
+    /// back to the built-in route.
+    var folders: [String: WorkflowBarPolicy.FolderPresentation] = [:]
     /// Labels under the glyphs. Off gives a dense icon rail; on names every
     /// verb for someone still learning the vocabulary (Daniel, 2026-08-28).
     var showsLabels: Bool = true
@@ -41,7 +44,7 @@ struct WorkflowBar: View {
     private var itemWidth: CGFloat { showsLabels ? 68 : 34 }
 
     private var families: [WorkflowBarPolicy.VerbFamily] {
-        WorkflowBarPolicy.families(from: workflows, target: target)
+        WorkflowBarPolicy.families(from: workflows, target: target, folders: folders)
     }
 
     var body: some View {

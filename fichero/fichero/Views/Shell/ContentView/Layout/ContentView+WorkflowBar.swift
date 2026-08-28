@@ -16,6 +16,7 @@ extension ContentView {
             WorkflowBar(
                 workflows: workflowStore.workflows,
                 target: workflowBarTarget,
+                folders: workflowStore.folderPresentation,
                 showsLabels: showWorkflowBarLabels,
                 staged: $stagedWorkflowChain,
                 onRunChain: { Task { await runStagedChain() } },

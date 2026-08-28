@@ -242,3 +242,22 @@ struct PortInfo: Codable, Identifiable, Hashable {
     /// Whether this is an output port
     var isOutput: Bool { portType == "output" }
 }
+
+
+/// How a workflow folder presents in the capability bar, as the engine
+/// describes it (`GET /api/workflows/folders`). Order and glyph are DATA —
+/// a folder the engine has not described still appears, after the known
+/// route and with a fallback glyph.
+struct WorkflowFolderInfo: Codable, Identifiable, Hashable {
+    var id: String { path }
+    let path: String
+    let displayName: String
+    let sortOrder: Int
+    let icon: String
+
+    /// The bar groups by top-level folder name, so that is the key.
+    var familyKey: String {
+        let trimmed = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        return trimmed.split(separator: "/").first.map(String.init) ?? trimmed
+    }
+}

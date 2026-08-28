@@ -161,6 +161,30 @@ class WorkflowService {
         }
     }
 
+    /// Presentation metadata for workflow folders — the order verbs appear in
+    /// and the glyph each carries, as the ENGINE describes them.
+    ///
+    /// Read rather than hard-coded (2026-08-28): the bar's route order was a
+    /// literal list in Swift because preset `sort_order` is 0 for every
+    /// shipped preset. Serving it makes the order editable without a client
+    /// build, and makes a user's own folder describable.
+    func listWorkflowFolders() async throws -> [WorkflowFolderInfo] {
+        let response = try await client.api.listWorkflowFoldersApiWorkflowsFoldersGet(.init())
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.items.map {
+                WorkflowFolderInfo(
+                    path: $0.path,
+                    displayName: $0.displayName,
+                    sortOrder: $0.sortOrder,
+                    icon: $0.icon
+                )
+            }
+        default:
+            throw WorkflowServiceError.unexpectedResponse
+        }
+    }
+
     /// List all saved workflows. Pass `folderPath` to filter; omit for all.
     ///
     /// `summary` omits every workflow's node and edge graph, leaving

@@ -55,9 +55,20 @@ enum WorkflowBarPolicy {
     ///   2. it must accept this kind of target;
     ///   3. an empty target offers nothing, because a verb with nothing to act
     ///      on is a button that lies.
+    /// Presentation metadata for one folder, as the ENGINE serves it
+    /// (`GET /api/workflows/folders`). Order and glyph are data, not rules —
+    /// a folder the engine has not described still appears, after the known
+    /// route and with a fallback glyph, so a user's own folder is never
+    /// hidden by the client's ignorance of it.
+    struct FolderPresentation: Equatable {
+        let sortOrder: Int
+        let icon: String
+    }
+
     static func families(
         from workflows: [WorkflowSidebarItem],
-        target: Target
+        target: Target,
+        folders: [String: FolderPresentation] = [:]
     ) -> [VerbFamily] {
         guard let kind = target.inputKind else { return [] }
         if case .documents(let count) = target, count == 0 { return [] }
@@ -74,7 +85,7 @@ enum WorkflowBarPolicy {
                 return VerbFamily(
                     id: key,
                     title: familyTitle(key),
-                    symbol: symbol(forFamily: key),
+                    symbol: folders[key]?.icon ?? symbol(forFamily: key),
                     workflows: items.sorted { $0.sortOrder < $1.sortOrder }
                 )
             }
@@ -83,17 +94,16 @@ enum WorkflowBarPolicy {
             // translation). Alphabetical put Books first and Detect Regions
             // sixth, which is the reverse of how anyone processes a document.
             .sorted { lhs, rhs in
-                let lhsRank = pipelineRank(lhs.id)
-                let rhsRank = pipelineRank(rhs.id)
+                let lhsRank = folders[lhs.id]?.sortOrder ?? pipelineRank(lhs.id)
+                let rhsRank = folders[rhs.id]?.sortOrder ?? pipelineRank(rhs.id)
                 return lhsRank == rhsRank ? lhs.title < rhs.title : lhsRank < rhsRank
             }
     }
 
-    /// Where a family sits in the order work actually happens: prepare the
-    /// image, find the regions, read them, clean the reading, translate it,
-    /// describe and extract from it, then catalogue, organise and export.
-    /// Families nobody anticipated sort after the known route rather than
-    /// interleaving into it at random.
+    /// FALLBACK order, used only until `GET /api/workflows/folders` answers
+    /// (first paint, or an engine too old to serve it). The engine owns this
+    /// now; keeping a copy here means the bar is never scrambled during the
+    /// beat before the fetch lands. Unknown families sort after the route.
     static let pipelineOrder = [
         "Image Editing",
         "Detect Regions",
@@ -110,9 +120,13 @@ enum WorkflowBarPolicy {
         "Export"
     ]
 
+    /// Scaled to match the served orders (10, 20, 30 …) so a mixed list —
+    /// some folders described by the engine, some not — still sorts sensibly.
     static func pipelineRank(_ key: String) -> Int {
-        pipelineOrder.firstIndex(where: { $0.caseInsensitiveCompare(key) == .orderedSame })
-            ?? pipelineOrder.count
+        let index = pipelineOrder.firstIndex {
+            $0.caseInsensitiveCompare(key) == .orderedSame
+        }
+        return ((index ?? pipelineOrder.count) + 1) * 10
     }
 
     /// A workflow's family key: its top-level folder. `/Detect Regions/VLM`

@@ -45,6 +45,20 @@ extension WorkflowStore {
                 toolRegistry = registry
             }
 
+            // Folder order + glyphs, served (2026-08-28). Same once-per-store
+            // rule as the registry: it is presentation metadata, not per-run
+            // state. A failure leaves the map empty and the bar uses its
+            // built-in route, so an older engine still draws a sane toolbar.
+            if folderPresentation.isEmpty,
+               let folders = try? await workflowService.listWorkflowFolders() {
+                folderPresentation = Dictionary(
+                    folders.map { ($0.familyKey, WorkflowBarPolicy.FolderPresentation(
+                        sortOrder: $0.sortOrder, icon: $0.icon
+                    )) },
+                    uniquingKeysWith: { first, _ in first }
+                )
+            }
+
             // Summary payload: the sidebar draws labels and a node count, and
             // never touches the graphs. Pulling all 50 presets' nodes and
             // edges through AnyCodable to do that is the spin when a workflow
