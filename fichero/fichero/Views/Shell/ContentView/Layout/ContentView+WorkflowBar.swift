@@ -96,7 +96,14 @@ extension ContentView {
                 workflowName: step.name,
                 docIds: targets,
                 providerOverride: step.providerOverride,
-                modelOverride: step.modelOverride
+                modelOverride: step.modelOverride,
+                onThreadId: { threadId in
+                    // Stamped the moment the server accepts, not when the run
+                    // ends — the point is to watch a step WHILE it works.
+                    if stagedWorkflowChain.indices.contains(index) {
+                        stagedWorkflowChain[index].threadId = threadId
+                    }
+                }
             )
             // awaitWorkflowExecution settles the run before returning, so
             // reaching here means this step is done. Failures surface through
@@ -195,6 +202,27 @@ extension ContentView {
     /// suits — Preview for a page, the Reader for its text.
     @MainActor
     func openStagedStepResult(_ step: StagedWorkflowStep) {
+        // A RUNNING step opens its live trace instead of its output, because
+        // it has not produced one yet (Daniel, 2026-08-28: "we should be able
+        // to click when its running to see the output"). The Activity detail
+        // window streams the step trace as it happens.
+        if step.state == .running, let threadId = step.threadId {
+            ActivityWindowSelectionState.shared.select(SelectedActivityRun(
+                id: threadId,
+                name: step.name,
+                workflowId: step.workflow?.id,
+                threadId: threadId,
+                timestamp: Date(),
+                status: .running,
+                isLive: true,
+                libraryId: windowState.libraryId,
+                libraryName: windowState.library?.displayName,
+                childType: nil
+            ))
+            openWindow(id: ActivityWindowSelectionState.detailWindowID)
+            return
+        }
+
         // The run acted on the frozen targets, so the first of them is what
         // this step wrote to. Opening the SELECTION rather than a run record
         // is what the user means by "see it in preview or reader".

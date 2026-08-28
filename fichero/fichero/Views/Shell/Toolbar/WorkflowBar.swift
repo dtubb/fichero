@@ -174,97 +174,7 @@ struct WorkflowBar: View {
                         .font(.system(size: 7))
                         .foregroundStyle(.tertiary)
                 }
-                HStack(spacing: 3) {
-                    Image(systemName: step.toolIcon ?? folders[
-                        WorkflowBarPolicy.folderKey(step.folderPath)
-                    ]?.icon ?? WorkflowBarPolicy.symbol(
-                        forFamily: WorkflowBarPolicy.folderKey(step.folderPath)
-                    ))
-                    .font(.system(size: 11))
-                    // The name is redundant beside a glyph whose tooltip
-                    // already says it, and eight labelled chips do not fit
-                    // (Daniel, 2026-08-28). It follows the bar's own label
-                    // preference so both readings are one toggle apart.
-                    if showsLabels {
-                        Text(step.name)
-                            .font(.system(size: 10))
-                            .lineLimit(1)
-                    }
-                    // A pinned model is stated ON the chip: a chain whose steps
-                    // run on different models must show which, or the cheap
-                    // step and the expensive one look identical.
-                    if let symbol = chipSymbol(for: step) {
-                        Image(systemName: symbol)
-                            .font(.system(size: 8))
-                    }
-                    if step.hasModelOverride {
-                        Text(step.modelDescription)
-                            .font(.system(size: 8))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-                    Button {
-                        staged.remove(at: index)
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 7))
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                    .help("Remove \(step.name) from the chain")
-                }
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
-                .background(chipBackground(for: step), in: Capsule())
-                .foregroundStyle(chipForeground(for: step))
-                // A chain over 92 pages should say which step it is on, and
-                // which are done, without opening Activity.
-                .overlay(alignment: .leading) {
-                    if step.state == .running {
-                        ProgressView()
-                            .controlSize(.mini)
-                            .scaleEffect(0.55)
-                            .offset(x: -3)
-                    }
-                }
-                // The whole chip names its step, so an icon-only rail stays
-                // readable on hover rather than becoming a rebus.
-                .help("Step \(index + 1): \(step.displayName) — \(step.modelDescription)")
-                // Drag to reorder. Order is the whole point of a chain —
-                // transcribe before you clean up, clean up before you
-                // catalogue — and until now the only way to fix a wrong order
-                // was to clear the rail and rebuild it (Daniel, 2026-08-28:
-                // "order matters"). No modifier: dragging a chip can mean
-                // nothing else.
-                .draggable(step.id.uuidString) {
-                    Text(step.name).font(.caption).padding(4)
-                }
-                .dropDestination(for: String.self) { items, _ in
-                    guard let raw = items.first,
-                          let from = staged.firstIndex(where: { $0.id.uuidString == raw }),
-                          from != index
-                    else { return false }
-                    let moved = staged.remove(at: from)
-                    staged.insert(moved, at: min(index, staged.count))
-                    return true
-                } isTargeted: { targeted in
-                    dropTargetIndex = targeted ? index : (dropTargetIndex == index ? nil : dropTargetIndex)
-                }
-                .overlay(alignment: .leading) {
-                    // Where the dragged step would land, stated before the
-                    // drop rather than discovered after it.
-                    if dropTargetIndex == index {
-                        Rectangle()
-                            .fill(Color.accentColor)
-                            .frame(width: 2)
-                            .offset(x: -3)
-                    }
-                }
-                .contextMenu { modelMenu(forStepAt: index) }
-                // Double-click a step to see what it produced. A finished step
-                // that cannot show its own output makes the user go hunting in
-                // Activity for the run they just watched (Daniel, 2026-08-28).
-                .onTapGesture(count: 2) { onOpenStep?(step) }
+                chainChip(step, at: index)
             }
 
             Button(action: onRunChain) {
@@ -291,9 +201,115 @@ struct WorkflowBar: View {
         .fixedSize()
     }
 
-    /// Colour states the step's OUTCOME, not merely its position: a chain that
-    /// half finished must not read as uniformly blue. Green succeeded, red
-    /// failed, emphasised accent running, quiet accent still to come.
+    /// One step. Extracted from `chainRail` because the inline expression grew
+    /// past the Swift type-checker's budget — the documented hazard in this
+    /// codebase's view layer, and the reason the shell's layout is already
+    /// split across several properties.
+    @ViewBuilder
+    private func chainChip(_ step: StagedWorkflowStep, at index: Int) -> some View {
+        chipBody(step, at: index)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(chipBackground(for: step), in: Capsule())
+            .foregroundStyle(chipForeground(for: step))
+            .overlay(alignment: .leading) { chipLeadingAccessory(step, at: index) }
+            .help(chipHelp(for: step, index: index))
+            .contextMenu { modelMenu(forStepAt: index) }
+            // A RUNNING step opens on a single click — you are watching it, and
+            // asking for a double-click to see live output is a toll on the one
+            // moment it matters. A finished step keeps the double-click, so a
+            // stray click while assembling cannot fling a window open.
+            .onTapGesture(count: 2) { onOpenStep?(step) }
+            .onTapGesture { if step.state == .running { onOpenStep?(step) } }
+            .draggable(step.id.uuidString) {
+                Text(step.name).font(.caption).padding(4)
+            }
+            .dropDestination(for: String.self) { items, _ in
+                handleChipDrop(items, at: index)
+            } isTargeted: { targeted in
+                dropTargetIndex = targeted ? index : (dropTargetIndex == index ? nil : dropTargetIndex)
+            }
+    }
+
+    @ViewBuilder
+    private func chipBody(_ step: StagedWorkflowStep, at index: Int) -> some View {
+        HStack(spacing: 3) {
+            Image(systemName: step.toolIcon ?? folders[
+                WorkflowBarPolicy.folderKey(step.folderPath)
+            ]?.icon ?? WorkflowBarPolicy.symbol(
+                forFamily: WorkflowBarPolicy.folderKey(step.folderPath)
+            ))
+            .font(.system(size: 11))
+
+            if showsLabels {
+                Text(step.name)
+                    .font(.system(size: 10))
+                    .lineLimit(1)
+            }
+            if let symbol = chipSymbol(for: step) {
+                Image(systemName: symbol)
+                    .font(.system(size: 8))
+            }
+            // A pinned model is stated ON the chip: a chain whose steps run on
+            // different models must show which, or the cheap step and the
+            // expensive one look identical.
+            if step.hasModelOverride {
+                Text(step.modelDescription)
+                    .font(.system(size: 8))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Button { staged.remove(at: index) } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 7))
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("Remove \(step.name) from the chain")
+        }
+    }
+
+    /// The running spinner, or the caret marking where a dragged step lands.
+    @ViewBuilder
+    private func chipLeadingAccessory(_ step: StagedWorkflowStep, at index: Int) -> some View {
+        if step.state == .running {
+            ProgressView()
+                .controlSize(.mini)
+                .scaleEffect(0.55)
+                .offset(x: -3)
+        } else if dropTargetIndex == index {
+            Rectangle()
+                .fill(Color.accentColor)
+                .frame(width: 2)
+                .offset(x: -3)
+        }
+    }
+
+    private func handleChipDrop(_ items: [String], at index: Int) -> Bool {
+        guard let raw = items.first,
+              let from = staged.firstIndex(where: { $0.id.uuidString == raw }),
+              from != index
+        else { return false }
+        let moved = staged.remove(at: from)
+        staged.insert(moved, at: min(index, staged.count))
+        return true
+    }
+
+    /// What the chip promises on hover — including HOW to open it, which
+    /// differs by state and would otherwise be undiscoverable.
+    private func chipHelp(for step: StagedWorkflowStep, index: Int) -> String {
+        let base = "Step \(index + 1): \(step.displayName) — \(step.modelDescription)"
+        switch step.state {
+        case .running:   return "\(base). Click to watch it run."
+        case .succeeded: return "\(base). Double-click to see what it produced."
+        case .failed:    return "\(base). This step failed."
+        case .pending:   return "\(base). Drag to reorder; right-click to pin a model."
+        }
+    }
+
+    /// Colour states the step's OUTCOME, not merely its position: a chain
+    /// that half finished must not read as uniformly blue. Green succeeded,
+    /// red failed, emphasised accent running, quiet accent still to come.
     private func chipBackground(for step: StagedWorkflowStep) -> Color {
         switch step.state {
         case .pending:   return Color.accentColor.opacity(0.12)

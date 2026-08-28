@@ -136,13 +136,18 @@ extension ContentView {
     /// a chain must not start until step one has written what it reads
     /// (transcribe, then clean up, then catalogue) — 2026-08-28.
     @MainActor
+    @discardableResult
     func awaitWorkflowExecution(
         workflowId: String,
         workflowName: String,
         docIds: [String],
         providerOverride: String? = nil,
-        modelOverride: String? = nil
-    ) async {
+        modelOverride: String? = nil,
+        /// Called with the SERVER's thread id as soon as the run is accepted,
+        /// so a caller can watch a run it is still awaiting — the chain rail
+        /// uses it to make a running step clickable (2026-08-28).
+        onThreadId: ((String) -> Void)? = nil
+    ) async -> String {
         var executionThreadId = "pending:\(UUID().uuidString)"
         // Optimistic insert (#944): show the Activity row immediately, then replace
         // the placeholder thread ID once the POST returns.
@@ -167,6 +172,7 @@ extension ContentView {
                     selection: WorkflowRunScope.documents(docIds),
                     onAccepted: { acceptedResponse in
                         promoteAcceptedRun(acceptedResponse, executionThreadId: &executionThreadId)
+                        onThreadId?(executionThreadId)
                     },
                     onEvent: { [weak documentStore] event in
                         if handleWorkflowStreamEvent(
@@ -191,6 +197,7 @@ extension ContentView {
         } catch {
             failWorkflowStart(threadId: executionThreadId, error: error)
         }
+        return executionThreadId
     }
 
     /// Swap the optimistic placeholder thread id for the server-assigned one
