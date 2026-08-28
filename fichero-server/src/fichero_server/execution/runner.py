@@ -318,6 +318,15 @@ def _classify_provider_error(error_text: str) -> dict[str, str]:
     """Classify provider-facing failures into stable UI categories (#732)."""
     text = (error_text or "").lower()
 
+    # Before any provider category: failures that are about the FILES, not
+    # the provider ("Provider quota reached" for iCloud-evicted pages sent
+    # a user to top up an account that was never called, 2026-08-27).
+    if any(token in text for token in ("stored in icloud", "not downloaded locally", "no such file")):
+        return {
+            "category": "file_unavailable",
+            "message": "Source files are not available locally.",
+            "action": "Download the files (e.g. from iCloud) and re-run.",
+        }
     if any(token in text for token in ("402", "429", "insufficient_quota", "quota", "rate limit", "rate_limit")):
         return {
             "category": "quota",

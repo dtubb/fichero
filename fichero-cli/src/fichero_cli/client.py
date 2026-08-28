@@ -844,18 +844,23 @@ class FicheroClient:
         *,
         force_new: bool = False,
         skip_cache: bool = False,
+        provider_override: str | None = None,
+        model_override: str | None = None,
     ) -> ExecuteAcceptedResponse:
+        body: dict[str, Any] = {
+            "workflow_id": workflow_id,
+            "inputs": inputs or {},
+            "force_new": force_new,
+            "skip_cache": skip_cache,
+        }
+        # Run-level model choice (#797) — the same override the app's Run
+        # Workflow menu sends; applied by the runner to LLM-using nodes only.
+        if provider_override:
+            body["provider_override"] = provider_override
+        if model_override:
+            body["model_override"] = model_override
         return ExecuteAcceptedResponse.model_validate(
-            self.request(
-                "POST",
-                "/api/workflow-execution/execute",
-                json={
-                    "workflow_id": workflow_id,
-                    "inputs": inputs or {},
-                    "force_new": force_new,
-                    "skip_cache": skip_cache,
-                },
-            )
+            self.request("POST", "/api/workflow-execution/execute", json=body)
         )
 
     def split_chapters(self, doc_id: str) -> ExecuteAcceptedResponse:

@@ -2220,9 +2220,13 @@ def _make_aggregation_function(node_id: str):
         # Check for systemic errors - these indicate fundamental issues that won't resolve
         # by continuing (e.g., invalid API key, network down, rate limiting)
         if max_consecutive_errors >= MAX_CONSECUTIVE_ERRORS:
+            # Neutral wording on purpose: the wrapper used to say "…or rate
+            # limiting", and _classify_provider_error keyword-matched the
+            # WRAPPER, reporting "Provider quota reached" for 92 iCloud-evicted
+            # files run through free on-device Apple Vision (2026-08-27).
+            # The first underlying error is the classifiable content.
             error_msg = (
                 f"Systemic error detected: {max_consecutive_errors} consecutive failures. "
-                f"This typically indicates an API key issue, network problem, or rate limiting. "
                 f"First error: {errors[0]['error'] if errors else 'unknown'}"
             )
             logger.error(error_msg)

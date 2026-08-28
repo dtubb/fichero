@@ -153,9 +153,15 @@ def fichero_docs_list(
     limit: Optional[int] = None,
     offset: int = 0,
 ) -> Any:
-    """List documents in the library, optionally filtered."""
+    """List documents in the library, optionally filtered.
+
+    Returns lean summaries (id, name, kind, type, status, child_count) — a
+    full document dump made a 92-file folder listing 186KB, which forced
+    silly limits (Daniel, 2026-08-27: "why is 50 limit?"). Use
+    ``fichero_docs_get`` for one document's full record.
+    """
     with _client() as client:
-        return client.list_documents(
+        result = client.list_documents(
             parent_id=parent_id,
             doc_type=doc_type,
             file_type=file_type,
@@ -163,6 +169,17 @@ def fichero_docs_list(
             limit=limit,
             offset=offset,
         )
+    docs = result.get("documents") if isinstance(result, dict) else result
+    keep = (
+        "id", "parent_id", "name", "node_kind", "doc_type", "file_type",
+        "status", "sequence", "child_count", "date_original",
+    )
+
+    def slim(doc: Any) -> dict:
+        record = doc if isinstance(doc, dict) else doc.model_dump()
+        return {k: record.get(k) for k in keep if record.get(k) is not None}
+
+    return [slim(d) for d in (docs or [])]
 
 
 @mcp.tool()
@@ -240,9 +257,66 @@ def fichero_workflow_list() -> Any:
     inside a parent workflow — ``fichero_workflow_run`` will refuse it — and
     ``requires_vision`` true means the run needs a vision-capable model.
     Read these; do not infer them from the node list.
+
+    Returns lean summaries (id, name, description, eligibility) — the full
+    node/edge dump made the listing 450KB.
     """
     with _client() as client:
-        return client.list_workflows()
+        result = client.list_workflows()
+    items = result.get("workflows") if isinstance(result, dict) else result
+    keep = (
+        "id", "name", "description", "folder_path", "tags",
+        "direct_runnable", "requires_vision", "is_system",
+    )
+
+    def slim(wf: Any) -> dict:
+        record = wf if isinstance(wf, dict) else wf.model_dump()
+        return {k: record.get(k) for k in keep if record.get(k) is not None}
+
+    return [slim(w) for w in (items or [])]
+
+
+@mcp.tool()
+def fichero_workflow_create(definition: dict) -> Any:
+    """Create a workflow from a full WorkflowDef (nodes, edges, config).
+
+    The same shape the visual editor saves; pass a dict with at least
+    ``name`` and ``nodes``/``edges``. Mutations ride the audited action
+    layer under the agent account when one exists (#4469).
+    """
+    with _mutating_client() as client:
+        return client.request("POST", "/api/workflows", json=definition)
+
+
+@mcp.tool()
+def fichero_document_move(
+    doc_id: str,
+    x: Optional[float] = None,
+    y: Optional[float] = None,
+    z: Optional[float] = None,
+    rotation: Optional[float] = None,
+    scale: Optional[float] = None,
+) -> Any:
+    """Move/transform a document on the 2D/3D canvas (world-space, #4192).
+
+    Only the passed fields change (the update excludes unset fields and
+    rides the audited document.update action).
+    """
+    body: dict = {}
+    if x is not None:
+        body["position_x"] = x
+    if y is not None:
+        body["position_y"] = y
+    if z is not None:
+        body["position_z"] = z
+    if rotation is not None:
+        body["rotation_z"] = rotation
+    if scale is not None:
+        body["scale"] = scale
+    if not body:
+        raise ValueError("pass at least one of x/y/z/rotation/scale")
+    with _mutating_client() as client:
+        return client.request("PUT", f"/api/documents/{doc_id}", json=body)
 
 
 @mcp.tool()
@@ -251,14 +325,23 @@ def fichero_workflow_run(
     doc_id: str,
     force_new: bool = False,
     skip_cache: bool = False,
+    doc_ids: Optional[list[str]] = None,
+    provider: Optional[str] = None,
+    model: Optional[str] = None,
 ) -> Any:
-    """Run a workflow on a document.
+    """Run a workflow on one or more documents.
 
     Args:
         workflow_id: The workflow's ID (use ``fichero_workflow_list`` to find it).
-        doc_id: The document ID to run the workflow on.
+        doc_id: The document ID to run the workflow on (a folder id fans out
+            over its children).
+        doc_ids: Explicit list of document IDs — one run over all of them
+            (supersedes ``doc_id`` when given).
         force_new: Start a fresh run even if one already exists.
         skip_cache: Bypass the tool-result cache for this run.
+        provider: Run-level provider override (e.g. "openrouter") — applied to
+            the run's LLM-using nodes, same as the app's Run Workflow menu.
+        model: Run-level model override (e.g. "anthropic/claude-sonnet-5").
 
     Returns the execution handle, including the ``thread_id`` to poll with
     ``fichero_workflow_status``.
@@ -270,9 +353,11 @@ def fichero_workflow_run(
         # green on zero documents (#4467). The engine now rejects that shape.
         return client.run_workflow(
             workflow_id,
-            {"selected_doc_ids": [doc_id]},
+            {"selected_doc_ids": doc_ids or [doc_id]},
             force_new=force_new,
             skip_cache=skip_cache,
+            provider_override=provider,
+            model_override=model,
         )
 
 
