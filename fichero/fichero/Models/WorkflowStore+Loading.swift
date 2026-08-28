@@ -32,7 +32,16 @@ extension WorkflowStore {
             // Hydrate the tool registry alongside workflows so the canvas
             // can render correct icons for non-hardcoded tools (#725).
             // Failures are non-fatal — fall back to hardcoded icon dict.
-            if let registry = try? await loadToolRegistry() {
+            //
+            // ONCE per store, not per load (2026-08-28). The registry is 389 KB
+            // for 124 tools — every tool's ports, config schema and default
+            // prompt — and it is STATIC for an engine build: nothing a user
+            // does changes it. Re-fetching it on every loadWorkflows() was the
+            // larger half of the sidebar spin, and it survived the summary-
+            // payload fix precisely because it is a different call. Re-running
+            // this on a cache miss also self-heals a first load that raced the
+            // engine coming up.
+            if toolRegistry.isEmpty, let registry = try? await loadToolRegistry() {
                 toolRegistry = registry
             }
 
@@ -54,6 +63,7 @@ extension WorkflowStore {
                     isUntested: workflow.isUntested,
                     isDirectlyRunnable: workflow.directRunnable ?? true,
                     acceptsModelOverride: workflow.acceptsModelOverride ?? true,
+                    acceptedInputs: workflow.acceptedInputs ?? ["documents"],
                     createdAt: Date(),  // Backend doesn't return these yet
                     updatedAt: Date(),
                     requiresVision: workflow.requiresVision

@@ -555,7 +555,9 @@ extension WorkflowService {
             isUntested: derived.isUntested,
             directRunnable: derived.directRunnable,
             acceptsModelOverride: derived.acceptsModelOverride,
-            requiresVision: derived.requiresVision
+            requiresVision: derived.requiresVision,
+            nodeCount: derived.nodeCount,
+            acceptedInputs: derived.acceptedInputs
         )
     }
 
@@ -576,6 +578,7 @@ extension WorkflowService {
         // falls back to measuring whatever nodes it did receive, which is
         // exactly right for an older engine that still sends them.
         var nodeCount: Int?
+        var acceptedInputs: [String]?
     }
 
     private static func derivedFlags(
@@ -591,7 +594,8 @@ extension WorkflowService {
             directRunnable: (dict["direct_runnable"] as? Bool) ?? true,
             acceptsModelOverride: (dict["accepts_model_override"] as? Bool) ?? true,
             requiresVision: (dict["requires_vision"] as? Bool) ?? false,
-            nodeCount: dict["node_count"] as? Int
+            nodeCount: dict["node_count"] as? Int,
+            acceptedInputs: dict["accepted_inputs"] as? [String]
         )
     }
 
