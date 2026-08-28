@@ -339,7 +339,10 @@ struct ZoomableImagePreview: View {
         }
         .task(id: url) { await handleImageURLChanged() }
         .task(
-            id: "\(documentId ?? "")|\(ocrBoxesEnabled)|\(executionObserver?.activeExecutions.count ?? 0)"
+            // FocusedArtifact.shared.id is part of the task identity so
+            // selecting an artifact in the inspector re-runs the geometry
+            // load — the selection now drives which artifact's boxes render.
+            id: "\(documentId ?? "")|\(ocrBoxesEnabled)|\(executionObserver?.activeExecutions.count ?? 0)|\(FocusedArtifact.shared.id ?? "")"
         ) { await loadOCRGeometry() }
         .task(id: documentId) { await loadRenditions() }
         .onAppear { handleViewAppeared() }

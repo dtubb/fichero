@@ -602,6 +602,34 @@ def _node_tool(node: object) -> str:
     return str(getattr(node, "tool", "") or "")
 
 
+def _node_config(node: object) -> dict:
+    if isinstance(node, dict):
+        config = node.get("config")
+    else:
+        config = getattr(node, "config", None)
+    return config if isinstance(config, dict) else {}
+
+
+def node_uses_llm(node: object, tool_def: object | None = None) -> bool:
+    """Whether THIS node calls a model — config-aware, unlike ToolDef.uses_llm.
+
+    detect_regions registers uses_llm=False (its default is free on-device
+    Apple Vision) but its VLM mode (config provider=="vlm") is a vision-LLM
+    call. Every consumer of the static flag got that mode wrong at once: the
+    run menu hid the model picker, the runner refused to apply an override,
+    and requires_vision said no (Daniel, 2026-08-27: "workflow detect regions
+    vlm should allow us to select which one, no?"). One predicate, shared by
+    all three.
+    """
+    tool = _node_tool(node)
+    td = tool_def if tool_def is not None else TOOL_DEFS.get(tool)
+    if td is None:
+        return False
+    if getattr(td, "uses_llm", False):
+        return True
+    return tool == "detect_regions" and _node_config(node).get("provider") == "vlm"
+
+
 def workflow_override_target_tools(nodes: list | None) -> list[str]:
     """Tools a run-level provider/model override would actually change.
 
@@ -615,7 +643,7 @@ def workflow_override_target_tools(nodes: list | None) -> list[str]:
     return [
         tool
         for node in (nodes or [])
-        if (tool := _node_tool(node)) and (td := TOOL_DEFS.get(tool)) and td.uses_llm
+        if (tool := _node_tool(node)) and node_uses_llm(node)
     ]
 
 
@@ -671,7 +699,7 @@ def workflow_requires_vision(
             tool_def = TOOL_DEFS.get(_node_tool(node))
             if (
                 tool_def
-                and tool_def.uses_llm
+                and node_uses_llm(node, tool_def)
                 and _required_llm_capability(tool_def) == "vision"
             ):
                 return True

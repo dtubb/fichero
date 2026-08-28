@@ -123,6 +123,23 @@ enum OCRGeometrySelection {
         documentId: String,
         using artifactService: ArtifactService
     ) async throws -> OCRGeometry? {
+        // The inspector's selection outranks the ladder (Daniel, 2026-08-27:
+        // "when I click on different regions in artifacts, should bounding
+        // boxes update?"). Selecting a geometry-bearing artifact for THIS
+        // document shows that artifact's boxes; anything else — no selection,
+        // another document's artifact, a boxless artifact — falls back to the
+        // authority ladder below. The check lives here so the image and PDF
+        // surfaces cannot choose differently (#4418).
+        let focus = FocusedArtifact.shared
+        if let focusedId = focus.id,
+           focus.documentId == documentId,
+           let focused = focus.artifact,
+           geometryBearingTypes.contains(focused.artifactType),
+           !isKnownEmpty(focused),
+           let full = try? await artifactService.getArtifact(id: focusedId),
+           carriesGeometry(full.ocrGeometry) {
+            return full.ocrGeometry
+        }
         var candidates: [Artifact] = []
         for type in geometryBearingTypes {
             candidates += try await artifactService.getArtifacts(

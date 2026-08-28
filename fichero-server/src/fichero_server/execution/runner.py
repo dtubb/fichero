@@ -1075,11 +1075,12 @@ async def _run_workflow_in_background(
         if request.provider_override or request.model_override:
             provider_override = (request.provider_override or "").strip()
             model_override = (request.model_override or "").strip()
+            from fichero_server.workflows.validation import node_uses_llm
+
             for node in workflow.nodes:
-                tool_name = node.get("tool", "")
-                tool_def = get_tool_def(tool_name) if tool_name else None
-                uses_llm = bool(tool_def and tool_def.uses_llm)
-                if not uses_llm:
+                # Config-aware: detect_regions in VLM mode takes the override
+                # even though its ToolDef registers uses_llm=False.
+                if not node_uses_llm(node):
                     continue
                 if provider_override:
                     node["provider_name"] = provider_override
