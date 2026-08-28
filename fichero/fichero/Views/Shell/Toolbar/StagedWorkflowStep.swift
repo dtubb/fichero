@@ -23,9 +23,21 @@ enum StagedStepState: Equatable {
     case failed
 }
 
+/// What a chain step runs: a saved workflow, or a single tool.
+///
+/// Tools are the third level of Daniel's taxonomy (tools, workflows, chains)
+/// and the one the bar could not reach. The engine executes STORED workflows
+/// only, so a tool step is realised as a one-step workflow — created when the
+/// chain is RUN, never while merely browsing, because writing into the user's
+/// library as a side effect of opening a popover is not browsing.
+enum StagedStepKind: Equatable {
+    case workflow(WorkflowSidebarItem)
+    case tool(name: String, displayName: String, icon: String, usesLLM: Bool)
+}
+
 struct StagedWorkflowStep: Identifiable, Equatable {
     let id = UUID()
-    let workflow: WorkflowSidebarItem
+    let kind: StagedStepKind
     var providerOverride: String?
     var modelOverride: String?
     var state: StagedStepState = .pending
@@ -33,8 +45,53 @@ struct StagedWorkflowStep: Identifiable, Equatable {
     /// finished chip can open what it made.
     var threadId: String?
 
-    var name: String { workflow.name }
-    var folderPath: String { workflow.folderPath }
+    /// The saved workflow this step runs, when it has one. A tool step has
+    /// none until the run materialises it.
+    var workflow: WorkflowSidebarItem? {
+        if case .workflow(let value) = kind { return value }
+        return nil
+    }
+
+    var name: String {
+        switch kind {
+        case .workflow(let value): return value.name
+        case .tool(_, let displayName, _, _): return displayName
+        }
+    }
+
+    var displayName: String {
+        switch kind {
+        case .workflow(let value): return value.displayName
+        case .tool(_, let displayName, _, _): return displayName
+        }
+    }
+
+    var folderPath: String {
+        switch kind {
+        case .workflow(let value): return value.folderPath
+        case .tool: return "/Tools"
+        }
+    }
+
+    /// A tool step's glyph comes from the engine's registry entry rather than
+    /// the folder map, since it belongs to no workflow folder.
+    var toolIcon: String? {
+        if case .tool(_, _, let icon, _) = kind { return icon }
+        return nil
+    }
+
+    /// Stable identity of WHAT this step runs, for cache keys.
+    var stepKey: String {
+        switch kind {
+        case .workflow(let value): return value.id
+        case .tool(let name, _, _, _): return "tool:\(name)"
+        }
+    }
+
+    var isTool: Bool {
+        if case .tool = kind { return true }
+        return false
+    }
 
     /// What this step will actually run on, for the chip's tooltip. States the
     /// default explicitly rather than leaving a blank that could mean either

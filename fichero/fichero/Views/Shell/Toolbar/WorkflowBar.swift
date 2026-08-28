@@ -49,10 +49,16 @@ struct WorkflowBar: View {
     /// Upper bound on what running this chain would cost. nil = unpriced,
     /// which is shown as such rather than as free.
     var costCeiling: Double?
+    /// Every registered tool, for the Tools browser.
+    var tools: [ToolInfo] = []
 
     /// One item's footprint. Fixed so the verbs sit on an even rhythm the way
     /// toolbar items do, rather than jittering with label length.
     private var itemWidth: CGFloat { showsLabels ? 68 : 34 }
+
+    /// Which family's variant popover is open, if any.
+    @State private var openFamily: String?
+    @State private var showingTools = false
 
     private var families: [WorkflowBarPolicy.VerbFamily] {
         WorkflowBarPolicy.families(from: workflows, target: target, folders: folders)
@@ -94,6 +100,13 @@ struct WorkflowBar: View {
                     HStack(spacing: 2) {
                         ForEach(families) { family in
                             familyItem(family)
+                        }
+                        // The ~110 individual tools, behind ONE entry: as
+                        // top-level items they would drown the dozen workflow
+                        // families, and most runs want a workflow anyway.
+                        if !tools.isEmpty {
+                            Divider().frame(height: 26).padding(.horizontal, 4)
+                            toolsItem
                         }
                     }
                     .padding(.horizontal, 8)
@@ -160,7 +173,7 @@ struct WorkflowBar: View {
                         .foregroundStyle(.tertiary)
                 }
                 HStack(spacing: 3) {
-                    Image(systemName: folders[
+                    Image(systemName: step.toolIcon ?? folders[
                         WorkflowBarPolicy.folderKey(step.folderPath)
                     ]?.icon ?? WorkflowBarPolicy.symbol(
                         forFamily: WorkflowBarPolicy.folderKey(step.folderPath)
@@ -214,7 +227,7 @@ struct WorkflowBar: View {
                 }
                 // The whole chip names its step, so an icon-only rail stays
                 // readable on hover rather than becoming a rebus.
-                .help("Step \(index + 1): \(step.workflow.displayName) — \(step.modelDescription)")
+                .help("Step \(index + 1): \(step.displayName) — \(step.modelDescription)")
                 .contextMenu { modelMenu(forStepAt: index) }
                 // Double-click a step to see what it produced. A finished step
                 // that cannot show its own output makes the user go hunting in
@@ -296,6 +309,34 @@ struct WorkflowBar: View {
         }
     }
 
+    /// The Tools entry — the node editor's palette, reachable without opening
+    /// the node editor, which was the whole complaint that started this bar.
+    @ViewBuilder
+    private var toolsItem: some View {
+        Button { showingTools.toggle() } label: {
+            VStack(spacing: 1) {
+                Image(systemName: "wrench.and.screwdriver")
+                    .font(.body)
+                    .frame(height: 17)
+                if showsLabels {
+                    Text("Tools")
+                        .font(.system(size: 9))
+                        .lineLimit(1)
+                }
+            }
+            .frame(width: itemWidth)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help("Browse all \(tools.count) tools and add one to the chain")
+        .popover(isPresented: $showingTools, arrowEdge: .bottom) {
+            WorkflowToolsPopover(tools: tools) { tool in
+                stage(tool: tool)
+                showingTools = false
+            }
+        }
+    }
+
     /// One verb, drawn as a toolbar item: glyph above, small label below.
     ///
     /// A plain `Button` owns the layout deliberately. A `Menu` re-flows its own
@@ -327,25 +368,47 @@ struct WorkflowBar: View {
             .accessibilityLabel(helpText(for: family))
 
             if family.workflows.count > 1 {
-                Menu {
-                    ForEach(family.workflows) { workflow in
-                        Button(workflow.displayName) { stage(workflow) }
-                    }
+                Button {
+                    openFamily = openFamily == family.id ? nil : family.id
                 } label: {
                     Image(systemName: "chevron.down")
                         .font(.system(size: 8))
                         .foregroundStyle(.secondary)
                 }
-                .menuStyle(.borderlessButton)
-                .menuIndicator(.hidden)
-                .fixedSize()
+                .buttonStyle(.plain)
                 .help("Choose a \(family.title) variant — \(family.workflows.count) available")
+                // A POPOVER, not a menu (2026-08-28): a menu row cannot hold
+                // the description each preset already carries, nor the
+                // engine's answers about vision and validation, which are
+                // exactly what tells "Paleografía Española (s. XVI–XVII)"
+                // apart from "Transcribe Paleography (Economy)".
+                .popover(
+                    isPresented: Binding(
+                        get: { openFamily == family.id },
+                        set: { if !$0 { openFamily = nil } }
+                    ),
+                    arrowEdge: .bottom
+                ) {
+                    WorkflowVerbPopover(family: family) { workflow in
+                        stage(workflow)
+                        openFamily = nil
+                    }
+                }
             }
         }
     }
 
     private func stage(_ workflow: WorkflowSidebarItem) {
-        staged.append(StagedWorkflowStep(workflow: workflow))
+        staged.append(StagedWorkflowStep(kind: .workflow(workflow)))
+    }
+
+    private func stage(tool: ToolInfo) {
+        staged.append(StagedWorkflowStep(kind: .tool(
+            name: tool.name,
+            displayName: tool.displayName,
+            icon: tool.icon,
+            usesLLM: tool.usesLLM
+        )))
     }
 
     private func helpText(for family: WorkflowBarPolicy.VerbFamily) -> String {

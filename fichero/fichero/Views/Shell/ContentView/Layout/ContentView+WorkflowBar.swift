@@ -1,4 +1,10 @@
+import OSLog
 import SwiftUI
+
+private let barLogger = Logger(
+    subsystem: "app.fichero.fichero",
+    category: "WorkflowBar"
+)
 
 // Hosting for the capability bar (2026-08-28). Kept in its own file, and as
 // ONE small property, because the layout files it attaches to already carry
@@ -24,7 +30,8 @@ extension ContentView {
                 isRunning: isRunningStagedChain,
                 runningStepIndex: runningStagedStepIndex,
                 onOpenStep: { openStagedStepResult($0) },
-                costCeiling: stagedChainCostCeiling
+                costCeiling: stagedChainCostCeiling,
+                tools: Array(workflowStore.toolRegistry.values)
             )
             .task(id: chainCostKey) { await refreshChainCostCeiling() }
             .task {
@@ -76,8 +83,16 @@ extension ContentView {
             // Each step carries its own model, so a chain can read a hard hand
             // with the best available and then count entities with something
             // cheap. nil means the workflow resolves its own alias.
+            guard let workflowId = await resolveWorkflowId(for: step) else {
+                // Could not realise this step — say so on the chip rather than
+                // skipping silently and letting the chain look successful.
+                if stagedWorkflowChain.indices.contains(index) {
+                    stagedWorkflowChain[index].state = .failed
+                }
+                continue
+            }
             await awaitWorkflowExecution(
-                workflowId: step.workflow.id,
+                workflowId: workflowId,
                 workflowName: step.name,
                 docIds: targets,
                 providerOverride: step.providerOverride,
@@ -93,11 +108,46 @@ extension ContentView {
         }
     }
 
+    /// The workflow a step runs.
+    ///
+    /// A workflow step already has one. A TOOL step does not: the engine
+    /// executes stored workflows only, so the tool is realised as a one-step
+    /// workflow in a `/Tools` folder — created HERE, at run time, because the
+    /// user pressed play, and never while merely browsing the tools popover.
+    /// It is reused on later runs and is a real workflow the node editor can
+    /// open, which is what makes "run a tool" honest rather than a hidden
+    /// special case.
+    @MainActor
+    func resolveWorkflowId(for step: StagedWorkflowStep) async -> String? {
+        if let workflow = step.workflow { return workflow.id }
+        guard case .tool(let toolName, let displayName, _, _) = step.kind else { return nil }
+
+        // Reuse the one we made last time rather than accumulating duplicates.
+        if let existing = workflowStore.workflows.first(where: {
+            $0.folderPath == "/Tools" && $0.name == displayName
+        }) {
+            return existing.id
+        }
+        do {
+            let created = try await workflowStore.workflowService.createToolWorkflow(
+                toolName: toolName,
+                displayName: displayName
+            )
+            await workflowStore.loadWorkflows()
+            return created
+        } catch {
+            barLogger.error(
+                "Could not realise tool \(toolName) as a workflow: \(String(describing: error))"
+            )
+            return nil
+        }
+    }
+
     /// Identity of the current cost question: re-price when the chain, its
     /// models, or the number of targets changes — and not on every render.
     var chainCostKey: String {
         let steps = stagedWorkflowChain
-            .map { "\($0.workflow.id):\($0.modelOverride ?? "")" }
+            .map { "\($0.stepKey):\($0.modelOverride ?? "")" }
             .joined(separator: "|")
         return "\(steps)#\(workflowBarTargetCount)"
     }
@@ -124,8 +174,12 @@ extension ContentView {
         var total = 0.0
         var priced = false
         for step in stagedWorkflowChain {
+            // Only stored workflows can be priced; a tool step has no
+            // workflow until the run makes one, so it is left unpriced rather
+            // than guessed at.
+            guard let workflowId = step.workflow?.id else { continue }
             if let cost = try? await workflowStore.workflowService.estimateCost(
-                workflowId: step.workflow.id,
+                workflowId: workflowId,
                 fileCount: workflowBarTargetCount,
                 provider: step.providerOverride,
                 model: step.modelOverride

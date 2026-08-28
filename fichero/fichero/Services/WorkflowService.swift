@@ -185,6 +185,55 @@ class WorkflowService {
         }
     }
 
+    /// Realise a single TOOL as a one-step workflow so the engine can run it.
+    ///
+    /// The engine executes stored workflows only, so "run a tool" has to become
+    /// one. Rather than a hidden special case, this creates a real workflow in
+    /// a `/Tools` folder: reusable on later runs, openable in the node editor,
+    /// and editable like any other — which is what makes the third level of the
+    /// taxonomy (tools, workflows, chains) honest rather than a facade.
+    ///
+    /// Returns the new workflow's id.
+    func createToolWorkflow(toolName: String, displayName: String) async throws -> String {
+        guard let tool = getToolInfo(named: toolName) else {
+            throw WorkflowServiceError.validationError("Unknown tool: \(toolName)")
+        }
+        let filesTool = getToolInfo(named: "files")
+        var nodes: [WorkflowNode] = []
+        if let filesTool {
+            nodes.append(WorkflowNode(from: filesTool, positionX: 80, positionY: 200))
+        }
+        let toolNode = WorkflowNode(from: tool, positionX: 320, positionY: 200)
+        nodes.append(toolNode)
+
+        // Wire the source into the tool on matching port names, the same
+        // pairing the shipped presets use (files -> files, documents ->
+        // documents). Without edges the tool receives nothing and the run
+        // completes green over zero documents.
+        var edges: [WorkflowEdge] = []
+        if let source = nodes.first, source.id != toolNode.id {
+            for port in ["files", "documents"] where
+                source.outputPorts.contains(where: { $0.id == port })
+                && toolNode.inputPorts.contains(where: { $0.id == port }) {
+                edges.append(WorkflowEdge(
+                    sourceNodeId: source.id,
+                    targetNodeId: toolNode.id,
+                    sourcePortId: port,
+                    targetPortId: port
+                ))
+            }
+        }
+
+        let definition = WorkflowDefinition(
+            name: displayName,
+            description: tool.description,
+            nodes: nodes,
+            edges: edges,
+            folderPath: "/Tools"
+        )
+        return try await createWorkflow(definition).id
+    }
+
     /// A run's cost CEILING for the given file count, priced by the engine's
     /// live model registry.
     ///
