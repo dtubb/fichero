@@ -56,6 +56,22 @@ extension ContentView {
         }
     }
 
+    /// Whether a run on the current selection would go to a VISION model.
+    ///
+    /// Images and pages are read by a vision model; everything else by a text
+    /// one. The chip states the tier the run would really use rather than one
+    /// fixed "default", because the two differ and only one of them is true
+    /// for what is selected.
+    var selectionPrefersVisionModel: Bool {
+        let ids = Set(effectiveWorkflowRunSelection)
+        let docs = documentStore.currentDocuments.filter { ids.contains($0.id) }
+        if docs.isEmpty {
+            guard let detail = detailDocument else { return false }
+            return detail.fileType == .image || detail.docType == .page
+        }
+        return docs.contains { $0.fileType == .image || $0.docType == .page }
+    }
+
     /// What the bar is pointed at.
     ///
     /// Reads the same accessor every other launch surface reads (#4523), so

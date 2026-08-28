@@ -11,6 +11,7 @@ enum ContentToolbarID {
     static let activityStatus = "fichero.activityStatus"
     static let viewDisplayMode = "fichero.viewDisplayMode"
     static let breadcrumb = "fichero.breadcrumb"
+    static let modelChip = "fichero.modelChip"
     static let workflowSuggest = "fichero.workflowSuggest"
     static let searchToggle = "fichero.searchToggle"
 }
@@ -237,6 +238,14 @@ extension ContentView {
             // duplicate-identifier crash class, per #4378), and the island
             // stays unconditionally declared — only its CONTENT varies (#3163).
             // Its message-length contract (#4366) is unchanged by the move.
+            // The model a run would use, LEFT of the island (Daniel,
+            // 2026-08-28: the island says what is selected, so the model
+            // belongs beside it). Its own item + spacer so it gets its own
+            // Liquid Glass section rather than fusing into the island capsule.
+            ToolbarItem(id: ContentToolbarID.modelChip, placement: .principal) {
+                ModelChipToolbarItem(prefersVision: selectionPrefersVisionModel)
+            }
+            ToolbarSpacer(.fixed, placement: .principal)
             ToolbarItem(id: ContentToolbarID.breadcrumb, placement: .principal) {
                 // NO location breadcrumb here any more (Daniel, 2026-08-23):
                 // every pane carries its own crumb, so the island answers only
