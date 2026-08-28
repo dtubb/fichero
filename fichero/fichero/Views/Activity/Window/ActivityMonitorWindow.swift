@@ -15,6 +15,7 @@ import SwiftUI
 /// without the reader scanning five lists to find out.
 struct ActivityMonitorWindow: View {
     @Environment(LibraryManager.self) private var libraryManager
+    @Environment(\.openWindow) private var openWindow
     @State private var selectionState = ActivityWindowSelectionState.shared
 
     /// EVERY open library, global included (Daniel #19: "show ALL
@@ -54,7 +55,7 @@ struct ActivityMonitorWindow: View {
                 // inbox names the account.
                 List(selection: selectionBinding) {
                     ForEach(mergedRuns) { run in
-                        UnifiedActivityRow(run: run)
+                        UnifiedActivityRow(run: run) { openDetails(for: run) }
                             .tag(run.id)
                     }
                 }
@@ -79,6 +80,14 @@ struct ActivityMonitorWindow: View {
         libraries
             .map { "\($0.id):\($0.workflowExecutionStore.executions.count)" }
             .joined(separator: "|")
+    }
+
+    /// Select the run and open its step trace. Selection is set FIRST because
+    /// the detail window resolves what to show from the shared selection state
+    /// (and the `libraryId` it carries), not from a parameter.
+    private func openDetails(for run: ActivityRun) {
+        selectionState.select(run.toSelectedRun())
+        openWindow(id: ActivityWindowSelectionState.detailWindowID)
     }
 
     /// Rebuild every open library's run list. Each store owns its own merge of

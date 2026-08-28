@@ -15,6 +15,12 @@ import SwiftUI
 /// five polls and five error pills over mostly empty space.
 struct UnifiedActivityRow: View {
     let run: ActivityRun
+    /// Opens this run's detail window. Restored after the first cut of this
+    /// row dropped the info button the per-library row had, leaving no way to
+    /// reach the step trace at all (Daniel, 2026-08-28).
+    var onOpenDetails: (() -> Void)?
+
+    @State private var isHovering = false
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -35,9 +41,27 @@ struct UnifiedActivityRow: View {
             }
 
             Spacer(minLength: 0)
+
+            if let onOpenDetails {
+                Button(action: onOpenDetails) {
+                    Image(systemName: "info.circle")
+                        .font(.body)
+                }
+                .buttonStyle(.borderless)
+                // Always present for keyboard and VoiceOver users; only drawn
+                // at full strength on hover so a long list stays quiet.
+                .opacity(isHovering ? 1 : 0.35)
+                .accessibilityLabel("Open run details")
+                .help("Open this run's step trace in a separate window")
+            }
         }
         .padding(.vertical, 5)
         .contentShape(Rectangle())
+        .onHover { isHovering = $0 }
+        // Double-click opens the trace, the way double-clicking a Mail row
+        // opens the message in its own window. The single click stays
+        // selection, which is what the detail pane follows.
+        .onTapGesture(count: 2) { onOpenDetails?() }
         .accessibilityElement(children: .combine)
     }
 
