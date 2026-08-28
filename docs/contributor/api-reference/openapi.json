@@ -64924,6 +64924,16 @@
             "type": "integer",
             "title": "Edge Count",
             "default": 0
+          },
+          "accepted_inputs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Accepted Inputs",
+            "default": [
+              "documents"
+            ]
           }
         },
         "type": "object",

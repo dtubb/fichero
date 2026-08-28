@@ -184,6 +184,13 @@ class WorkflowResponse(BaseModel):
     # `GET /api/workflows/{id}` away, which is what the canvas already does.
     node_count: int = 0
     edge_count: int = 0
+    # What this workflow can be pointed at — ["documents"], or
+    # ["documents", "text"] when an entry tool consumes text directly and a
+    # passage selected in the Reader can be handed straight to it. Computed
+    # here for the same reason as requires_vision: a client re-deriving it
+    # gets delegating workflows wrong, and the summary payload has no nodes
+    # to derive it from at all.
+    accepted_inputs: list[str] = ["documents"]
 
 
 def _workflow_untested(wf) -> bool:
@@ -219,6 +226,17 @@ def _workflow_accepts_model_override(wf) -> bool:
     from fichero_server.workflows.validation import workflow_accepts_model_override
 
     return workflow_accepts_model_override(getattr(wf, "nodes", None))
+
+
+def _workflow_input_kinds(wf, workflow_resolver) -> list[str]:
+    """What this workflow can be run on — see workflow_input_kinds."""
+    from fichero_server.workflows.validation import workflow_input_kinds
+
+    return workflow_input_kinds(
+        getattr(wf, "nodes", None),
+        getattr(wf, "edges", None),
+        workflow_resolver=workflow_resolver,
+    )
 
 
 def _workflow_requires_vision(wf, workflow_resolver) -> bool:
@@ -646,6 +664,7 @@ def _workflow_to_response(
         direct_runnable=_workflow_direct_runnable(workflow),
         accepts_model_override=_workflow_accepts_model_override(workflow),
         requires_vision=_workflow_requires_vision(workflow, workflow_resolver),
+        accepted_inputs=_workflow_input_kinds(workflow, workflow_resolver),
         is_system=bool(getattr(workflow, "is_system", False)),
     )
 
