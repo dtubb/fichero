@@ -86,6 +86,7 @@ from fichero_server.workflows.tools.llm_base import (
     build_context_section,
     build_reference_section,
     build_thinking_preamble,
+    token_budget_for_thinking,
     apply_reference_matching,
     ArtifactLookupError,
     find_existing_artifact,
@@ -233,7 +234,7 @@ VISION_CONFIG_SCHEMA = merge_config_schema(
         },
         "max_image_dimension": {
             "type": "integer",
-            "default": 2048,
+            "default": 8192,
             "description": "Max image size",
             "x-group": "primary",
         },
@@ -943,6 +944,12 @@ def _render_pdf_page_to_cgimage(pdf_path: str, page_index: int = 0, dpi: int = 3
 # images consume disproportionate memory + time without improving OCR
 # accuracy beyond this resolution. (#796)
 _VISION_MAX_DIMENSION = 4096
+
+# Floor for a return_boxes reply: the transcription, again as one box per
+# line, plus JSON scaffolding — and any thinking the node asked for shares
+# the same budget. Kept as an explicit floor rather than relying on the
+# LLMConfig default so a hand-set node max_tokens cannot re-truncate boxes.
+_BOXES_MIN_MAX_TOKENS = 8192
 
 
 def _normalize_for_vision(
@@ -1987,6 +1994,20 @@ def _parse_return_boxes_payload(
     return attach_char_spans(geometry.model_copy(update={"boxes": boxes}))
 
 
+def _looks_truncated(payload: str) -> bool:
+    """Whether a boxes reply stopped mid-JSON rather than being malformed.
+
+    A reply that hit the output-token ceiling ends wherever the budget ran
+    out — unbalanced braces, no closing bracket. A model that simply ignored
+    the JSON request answers in prose and balances nothing either, so require
+    that it STARTED as JSON before blaming the ceiling.
+    """
+    text = (payload or "").strip()
+    if not text.startswith("{"):
+        return False
+    return text.count("{") > text.count("}") or not text.endswith("}")
+
+
 def _return_boxes_text_and_geometry(
     payload: str,
     *,
@@ -2025,6 +2046,16 @@ def _return_boxes_text_and_geometry(
     except Exception as exc:
         provider = getattr(llm_config, "provider", None) or "unknown"
         model = getattr(llm_config, "model", None) or "unknown"
+        # Name TRUNCATION when that is what happened. A reply cut off at the
+        # token ceiling is unparseable for a reason the operator can act on
+        # (raise max_tokens), and "could not be used" sent one investigation
+        # chasing the model's box format instead (2026-08-28).
+        if _looks_truncated(payload):
+            exc = ValueError(
+                f"reply was cut off at the model's output-token ceiling "
+                f"({len(payload)} chars, JSON never closed) — raise max_tokens "
+                f"for this node; underlying parse error: {exc}"
+            )
         logger.warning(
             "return_boxes: %s/%s returned geometry that could not be used (%s) "
             "— keeping the transcription, recording geometry as malformed",
@@ -2762,6 +2793,33 @@ async def process_vision(
             if temperature is not None
             else llm_config.temperature,
             max_tokens=max_tokens if max_tokens is not None else llm_config.max_tokens,
+        )
+
+    # A return_boxes reply carries the page's text TWICE — once as `text`,
+    # again across one box per line — wrapped in JSON scaffolding. On any
+    # dense page that overruns LLMConfig's 2048 default and the reply is cut
+    # off mid-object. A truncated reply is not EMPTY, so the empty-response
+    # retry below never fired: json.loads failed and the page's entire
+    # geometry was thrown away while the transcription was salvaged, which
+    # reads as "the model didn't give us boxes" when it gave us most of them
+    # (Daniel's Caciques detect-regions reply, cut off mid-box, 2026-08-28;
+    # five vision calls logged output=2048 exactly — the cap's signature).
+    if return_boxes and effective_config.max_tokens < _BOXES_MIN_MAX_TOKENS:
+        effective_config = dataclasses.replace(
+            effective_config, max_tokens=_BOXES_MIN_MAX_TOKENS
+        )
+
+    # Thinking is emitted into the SAME output stream as the answer, so the
+    # ceiling has to cover both. Every paleography preset declares
+    # thinking_mode "long" and inherited the answer-sized ceiling, which is
+    # why asking the model to think harder produced a WORSE transcription:
+    # Opus 5 spent the budget reasoning and its answer stopped mid-word.
+    if thinking_mode and thinking_mode != "off":
+        effective_config = dataclasses.replace(
+            effective_config,
+            max_tokens=token_budget_for_thinking(
+                thinking_mode, effective_config.max_tokens
+            ),
         )
 
     # Build path -> document_id mapping

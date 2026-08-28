@@ -285,7 +285,15 @@ class LLMConfig:
     provider: str
     model: str
     temperature: float = 0.7
-    max_tokens: int = 2048
+    # 8192, not the 2048 this carried until 2026-08-28. Output tokens bill as
+    # GENERATED, not as reserved, so a higher ceiling costs nothing on replies
+    # that stay short — while 2048 silently truncated the ones that matter:
+    # a paleography transcription plus its per-line boxes, and any thinking
+    # the node requested, all share this one budget (Daniel: "for doing a call
+    # on paleography, aren't we letting them think?"). The failure was mute —
+    # a cut-off reply is not an empty reply, so the empty-response retry never
+    # fired and the page's geometry was discarded as malformed.
+    max_tokens: int = 8192
     api_key: str | None = None
     api_base: str | None = None
     timeout: int = 60

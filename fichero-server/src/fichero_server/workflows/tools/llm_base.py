@@ -45,6 +45,7 @@ from fichero_server.workflows.tools.llm_prompting import (  # noqa: F401 (re-exp
     build_output_constraint,
     build_reference_section,
     build_thinking_preamble,
+    token_budget_for_thinking,
     match_to_reference,
     parse_output,
 )
@@ -194,7 +195,7 @@ BASE_CONFIG_SCHEMA = {
     },
     "max_tokens": {
         "type": "integer",
-        "default": 2048,
+        "default": 8192,
         "description": "Max response",
         "x-group": "advanced",
     },
@@ -1119,6 +1120,18 @@ async def process_text(
             if temperature is not None
             else llm_config.temperature,
             max_tokens=max_tokens if max_tokens is not None else llm_config.max_tokens,
+        )
+
+    # The `<think>` block shares the output stream with the answer, so a node
+    # that asks for reasoning needs headroom for it — otherwise deeper
+    # thinking silently truncates the result it was meant to improve
+    # (2026-08-28). Mirrors process_vision.
+    if thinking_mode and thinking_mode != "off":
+        effective_config = dataclasses.replace(
+            effective_config,
+            max_tokens=token_budget_for_thinking(
+                thinking_mode, effective_config.max_tokens
+            ),
         )
 
     # Build context section
