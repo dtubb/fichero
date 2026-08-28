@@ -63,6 +63,34 @@ struct ActivityMonitorWindow: View {
         }
         .navigationTitle("Activity")
         .frame(minWidth: 420, minHeight: 520)
+        // The per-library sections this replaced each hosted an
+        // ActivityBrowserView, and THAT view was what populated its store —
+        // so merging the list without taking over the load left every store
+        // empty and the window said "No Runs Yet" over a library full of runs
+        // (Daniel, 2026-08-28). The window owns the refresh now.
+        .task(id: refreshKey) { await refreshAll() }
+    }
+
+    /// Changes whenever the set of open libraries changes, or any library's
+    /// live executions do — reading those counts here is also what subscribes
+    /// this view to the @Observable stores, so a run starting or finishing
+    /// re-runs the task above.
+    private var refreshKey: String {
+        libraries
+            .map { "\($0.id):\($0.workflowExecutionStore.executions.count)" }
+            .joined(separator: "|")
+    }
+
+    /// Rebuild every open library's run list. Each store owns its own merge of
+    /// live executions and history; this only feeds each one the dependencies
+    /// it cannot reach from inside itself.
+    private func refreshAll() async {
+        for library in libraries {
+            await library.activityStore.rebuildRuns(
+                activeExecutions: Array(library.workflowExecutionStore.executions.values),
+                library: library
+            )
+        }
     }
 
     /// Every open library's runs in one sequence: live runs first (the thing

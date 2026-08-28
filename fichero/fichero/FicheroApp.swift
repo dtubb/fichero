@@ -623,8 +623,10 @@ struct FicheroApp: App {
         // command (#4524); the shortcut rides it — documented: "A scene's
         // keyboard shortcut is bound to the command it adds for … bringing a
         // singleton window forward (in the case of Window)"
-        // (Scene.keyboardShortcut docs). ⌥⌘A is unclaimed (⌘A is Select All).
-        .keyboardShortcut("a", modifiers: [.option, .command])
+        // (Scene.keyboardShortcut docs). ⌥⌘0, matching the Xcode navigator
+        // grammar Daniel asked for (2026-08-28); it replaced ⌥⌘A, which sat
+        // one modifier away from Select All on a window that lists runs.
+        .keyboardShortcut("0", modifiers: [.option, .command])
         // #4331: keep the automatic Window-menu item (#4524 needs it — so no
         // blanket commandsRemoved here), but replace the default new-item
         // group so this scene never builds NewItemCommands' keypath demangle.
