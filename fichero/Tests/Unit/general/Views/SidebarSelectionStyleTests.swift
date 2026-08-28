@@ -89,6 +89,20 @@ struct SidebarSelectionStyleTests {
         #expect(LibrarySelectionStyle.rowContent(selected: true, focused: true) == .white)
     }
 
+    @Test("An UNFOCUSED library selection stays visible: tinted accent, not neutral grey")
+    func unfocusedLibrarySelectionIsTinted() {
+        // AppKit's unemphasized grey reads as "row under the pointer" as much
+        // as "row that is selected", so a selection left behind in an
+        // unfocused pane was easy to miss (Daniel, 2026-08-28: "that way you
+        // can tell if hidden"). The tint still differs from the focused bar,
+        // keeping the HIG's focused/unfocused distinction.
+        let unfocused = LibrarySelectionStyle.rowFill(selected: true, focused: false)
+        #expect(unfocused != Color.clear)
+        #expect(unfocused != LibrarySelectionStyle.rowFill(selected: true, focused: true))
+        // Content must not be accent-on-accent over that tint.
+        #expect(LibrarySelectionStyle.rowContent(selected: true, focused: false) == .primary)
+    }
+
     @Test("SIDEBAR selection is GREEN text on a light grey platter — never the accent fill")
     func sidebarSelectionIsGreenOnGrey() {
         #expect(LibrarySelectionStyle.sidebarLabel(isSelected: true).color == .accentColor)

@@ -44,19 +44,34 @@ enum LibrarySelectionStyle {
     // focused, grey when it isn't; the native Table already does this and is
     // the reference. Supersedes the #4191 constant-grey decision above.)
 
-    /// Row/tile fill: accent when focused+selected (Mail's emphasized bar),
-    /// the system grey when selected but unfocused, clear otherwise.
+    /// Row/tile fill: accent when focused+selected (Mail's emphasized bar), a
+    /// TINTED accent when selected but unfocused, clear otherwise.
+    ///
+    /// The unfocused state used to be AppKit's neutral
+    /// `unemphasizedSelectedContentBackgroundColor` — a grey that reads as
+    /// "row under the pointer" as much as "row that is selected", so a
+    /// selection you had scrolled past or left behind in an unfocused pane was
+    /// easy to miss entirely (Daniel, 2026-08-28: "the light grey background
+    /// when something is selected ought to be light system colour, e.g. blue —
+    /// that way you can tell if hidden"). A low-opacity accent keeps the
+    /// focused/unfocused distinction the HIG asks for while still saying
+    /// SELECTED in the app's own colour, and it follows the user's accent, so
+    /// it is no more hard-coded than the grey it replaces.
     static func rowFill(selected: Bool, focused: Bool) -> Color {
         guard selected else { return .clear }
-        return focused ? .accentColor : fill
+        return focused ? .accentColor : Color.accentColor.opacity(0.22)
     }
 
     /// Content over the row fill: white over the focused accent bar,
-    /// accent over the unfocused grey, primary when unselected — the same
+    /// primary over the unfocused tint, primary when unselected — the same
     /// three states the native emphasized Table renders.
+    ///
+    /// Accent-on-accent went with the grey fill: over the tinted fill it is
+    /// accent on a wash of itself, which loses the contrast the label needs.
+    /// Primary reads cleanly on the tint in both appearances.
     static func rowContent(selected: Bool, focused: Bool) -> Color {
         guard selected else { return .primary }
-        return focused ? .white : .accentColor
+        return focused ? .white : .primary
     }
 
     // MARK: - Sidebar rows (#4371)
