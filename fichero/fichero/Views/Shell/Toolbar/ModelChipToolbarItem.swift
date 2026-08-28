@@ -1,4 +1,10 @@
+import OSLog
 import SwiftUI
+
+private let logger = Logger(
+    subsystem: "app.fichero.fichero",
+    category: "ModelChip"
+)
 
 /// The model a run would actually use, in the toolbar beside the selection
 /// (Daniel, 2026-08-28: the island says what is selected, so the default model
@@ -24,6 +30,9 @@ struct ModelChipToolbarItem: View {
     /// observable today, so the chip loads its own copy and refreshes when the
     /// menu opens — which is the moment its accuracy matters.
     @State private var defaults = AIDefaults()
+    /// True when the last fetch FAILED, as distinct from a genuinely unset
+    /// tier — the chip must not report an engine problem as a user one.
+    @State private var loadFailed = false
 
     var body: some View {
         Menu {
@@ -55,10 +64,25 @@ struct ModelChipToolbarItem: View {
     }
 
     private func reload() async {
-        // A failed load leaves the previous values rather than blanking the
-        // chip: "No model set" must mean the tier is unset, not that a fetch
-        // lost a race with the engine coming up.
-        if let loaded = try? await appState.fetchAIDefaults() { defaults = loaded }
+        // Retry until it lands. The first attempt fires at window open, which
+        // routinely LOSES a race with the engine coming up — and a single
+        // silent `try?` then left the chip reading "No model set" forever over
+        // a perfectly configured install (Daniel, 2026-08-28). That is the same
+        // shape as the Reader's poisoned cache key: a failure that cannot
+        // retry itself is indistinguishable from a real absence.
+        //
+        // Bounded, because "not set" IS a legitimate answer and must not spin.
+        for attempt in 0..<6 {
+            do {
+                defaults = try await appState.fetchAIDefaults()
+                loadFailed = false
+                return
+            } catch {
+                loadFailed = true
+                logger.warning("AI defaults load attempt \(attempt + 1) failed: \(String(describing: error))")
+                try? await Task.sleep(for: .seconds(Double(attempt + 1)))
+            }
+        }
     }
 
     @ViewBuilder
@@ -71,7 +95,11 @@ struct ModelChipToolbarItem: View {
     /// The model the run resolves to, or an honest admission that no tier is set.
     private var displayModel: String {
         let model = prefersVision ? defaults.visionMediumModel : defaults.mediumModel
-        return model.isEmpty ? "No model set" : model
+        if !model.isEmpty { return model }
+        // Distinguish "the engine did not answer" from "you have not chosen".
+        // Reporting the first as the second sent a user to Settings to fix
+        // something that was already configured.
+        return loadFailed ? "Model unavailable" : "No model set"
     }
 
     private var shortModel: String { Self.shorten(displayModel) }
