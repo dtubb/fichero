@@ -43,6 +43,9 @@ struct WorkflowBar: View {
     /// Index of the step currently executing, so the rail shows WHERE the
     /// chain is rather than only that it is busy.
     var runningStepIndex: Int?
+    /// Opens what a step produced — its run trace, or the document it
+    /// wrote. nil disables the gesture rather than pretending.
+    var onOpenStep: ((StagedWorkflowStep) -> Void)?
 
     /// One item's footprint. Fixed so the verbs sit on an even rhythm the way
     /// toolbar items do, rather than jittering with label length.
@@ -161,6 +164,10 @@ struct WorkflowBar: View {
                     // A pinned model is stated ON the chip: a chain whose steps
                     // run on different models must show which, or the cheap
                     // step and the expensive one look identical.
+                    if let symbol = chipSymbol(for: step) {
+                        Image(systemName: symbol)
+                            .font(.system(size: 8))
+                    }
                     if step.hasModelOverride {
                         Text(step.modelDescription)
                             .font(.system(size: 8))
@@ -179,13 +186,12 @@ struct WorkflowBar: View {
                 }
                 .padding(.horizontal, 6)
                 .padding(.vertical, 3)
-                .background(chipBackground(at: index), in: Capsule())
-                // Steps already finished recede, the live one is emphasised,
-                // and the rest wait their turn — a chain running over 92 pages
-                // should say WHICH step it is on without opening Activity.
-                .opacity(chipOpacity(at: index))
+                .background(chipBackground(for: step), in: Capsule())
+                .foregroundStyle(chipForeground(for: step))
+                // A chain over 92 pages should say which step it is on, and
+                // which are done, without opening Activity.
                 .overlay(alignment: .leading) {
-                    if runningStepIndex == index {
+                    if step.state == .running {
                         ProgressView()
                             .controlSize(.mini)
                             .scaleEffect(0.55)
@@ -196,6 +202,10 @@ struct WorkflowBar: View {
                 // readable on hover rather than becoming a rebus.
                 .help("Step \(index + 1): \(step.workflow.displayName) — \(step.modelDescription)")
                 .contextMenu { modelMenu(forStepAt: index) }
+                // Double-click a step to see what it produced. A finished step
+                // that cannot show its own output makes the user go hunting in
+                // Activity for the run they just watched (Daniel, 2026-08-28).
+                .onTapGesture(count: 2) { onOpenStep?(step) }
             }
 
             Button(action: onRunChain) {
@@ -222,19 +232,32 @@ struct WorkflowBar: View {
         .fixedSize()
     }
 
-    /// Finished steps recede; the running one is emphasised.
-    private func chipOpacity(at index: Int) -> Double {
-        guard let running = runningStepIndex else { return 1 }
-        if index < running { return 0.45 }
-        return index == running ? 1 : 0.75
+    /// Colour states the step's OUTCOME, not merely its position: a chain that
+    /// half finished must not read as uniformly blue. Green succeeded, red
+    /// failed, emphasised accent running, quiet accent still to come.
+    private func chipBackground(for step: StagedWorkflowStep) -> Color {
+        switch step.state {
+        case .pending:   return Color.accentColor.opacity(0.12)
+        case .running:   return Color.accentColor.opacity(0.30)
+        case .succeeded: return Color.green.opacity(0.20)
+        case .failed:    return Color.red.opacity(0.20)
+        }
     }
 
-    private func chipBackground(at index: Int) -> Color {
-        guard let running = runningStepIndex else {
-            return Color.accentColor.opacity(0.12)
+    private func chipForeground(for step: StagedWorkflowStep) -> Color {
+        switch step.state {
+        case .succeeded: return .green
+        case .failed:    return .red
+        default:         return .primary
         }
-        if index == running { return Color.accentColor.opacity(0.28) }
-        return Color.accentColor.opacity(index < running ? 0.06 : 0.12)
+    }
+
+    private func chipSymbol(for step: StagedWorkflowStep) -> String? {
+        switch step.state {
+        case .succeeded: return "checkmark"
+        case .failed:    return "exclamationmark.triangle"
+        default:         return nil
+        }
     }
 
     /// Pin a model to ONE step. Offered per chip because a chain's steps do

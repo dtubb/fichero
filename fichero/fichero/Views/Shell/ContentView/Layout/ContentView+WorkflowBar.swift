@@ -22,7 +22,8 @@ extension ContentView {
                 staged: $stagedWorkflowChain,
                 onRunChain: { Task { await runStagedChain() } },
                 isRunning: isRunningStagedChain,
-                runningStepIndex: runningStagedStepIndex
+                runningStepIndex: runningStagedStepIndex,
+                onOpenStep: { openStagedStepResult($0) }
             )
             .task {
                 // Refresh when the bar appears rather than at launch: the menu
@@ -61,8 +62,15 @@ extension ContentView {
             : effectiveWorkflowRunSelection
         guard !targets.isEmpty else { return }
 
+        // Every step starts pending again, so a re-run does not show last
+        // time's greens while this time's work is still ahead.
+        for index in stagedWorkflowChain.indices {
+            stagedWorkflowChain[index].state = .pending
+        }
+
         for (index, step) in stagedWorkflowChain.enumerated() {
             runningStagedStepIndex = index
+            stagedWorkflowChain[index].state = .running
             // Each step carries its own model, so a chain can read a hard hand
             // with the best available and then count entities with something
             // cheap. nil means the workflow resolves its own alias.
@@ -73,7 +81,29 @@ extension ContentView {
                 providerOverride: step.providerOverride,
                 modelOverride: step.modelOverride
             )
+            // awaitWorkflowExecution settles the run before returning, so
+            // reaching here means this step is done. Failures surface through
+            // the execution observer; the chip states completion either way
+            // rather than staying blue forever.
+            if stagedWorkflowChain.indices.contains(index) {
+                stagedWorkflowChain[index].state = .succeeded
+            }
         }
+    }
+
+    /// Show what a step produced: the document it wrote, in whichever surface
+    /// suits — Preview for a page, the Reader for its text.
+    @MainActor
+    func openStagedStepResult(_ step: StagedWorkflowStep) {
+        // The run acted on the frozen targets, so the first of them is what
+        // this step wrote to. Opening the SELECTION rather than a run record
+        // is what the user means by "see it in preview or reader".
+        let targets = effectiveWorkflowRunSelection
+        guard let first = targets.first ?? detailDocument?.id,
+              let doc = documentStore.currentDocuments.first(where: { $0.id == first })
+        else { return }
+        detailDocument = doc
+        setPaneVisible(.reading, true)
     }
 
     /// Models a chain step can be pinned to. Read from the configured tiers

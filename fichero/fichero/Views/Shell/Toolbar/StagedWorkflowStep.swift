@@ -13,11 +13,25 @@ import Foundation
 /// UUID, not by the workflow id, because the same verb can appear twice in a
 /// chain with different models — transcribe with Opus, then transcribe again
 /// with a cheaper model to compare.
+/// Where a step is in its lifecycle. Colour follows this, so a chain that has
+/// half finished reads as half finished rather than uniformly blue (Daniel,
+/// 2026-08-28: "when it runs and the steps work, they should change colour").
+enum StagedStepState: Equatable {
+    case pending
+    case running
+    case succeeded
+    case failed
+}
+
 struct StagedWorkflowStep: Identifiable, Equatable {
     let id = UUID()
     let workflow: WorkflowSidebarItem
     var providerOverride: String?
     var modelOverride: String?
+    var state: StagedStepState = .pending
+    /// Thread id of the run this step produced, so double-clicking a
+    /// finished chip can open what it made.
+    var threadId: String?
 
     var name: String { workflow.name }
     var folderPath: String { workflow.folderPath }
