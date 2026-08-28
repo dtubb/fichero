@@ -13,8 +13,13 @@ import SwiftUI
 ///
 /// Deliberately NOT a second window-spanning toolbar row: it acts on the
 /// CONTENT selection, and a full-width row would sit above the sidebar and
-/// inspector too, claiming a scope it does not have. Sitting on the content
-/// pane also means it survives either side pane being resized.
+/// inspector too, claiming a scope it does not have.
+///
+/// Items follow the NATIVE toolbar grammar (Daniel, 2026-08-28): a larger
+/// centred glyph with a small label beneath it, not a glyph with the label
+/// beside it. Vertical stacking is what lets a dozen verbs read as a toolbar
+/// rather than as a sentence, and it is the shape of both Fichero's own
+/// Library/Preview/Reader/Chat items and Preview's markup bar.
 struct WorkflowBar: View {
     let workflows: [WorkflowSidebarItem]
     let target: WorkflowBarPolicy.Target
@@ -22,63 +27,89 @@ struct WorkflowBar: View {
     /// run, and carry the pick when one is made from a variant's submenu.
     let onRun: (String, String?, String?) -> Void
 
+    /// One item's footprint. Fixed so the verbs sit on an even rhythm the way
+    /// toolbar items do, rather than jittering with label length.
+    private let itemWidth: CGFloat = 68
+
     private var families: [WorkflowBarPolicy.VerbFamily] {
         WorkflowBarPolicy.families(from: workflows, target: target)
     }
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 0) {
             if let reason = WorkflowBarPolicy.emptyReason(from: workflows, target: target) {
                 // An empty bar with no explanation reads as a broken app rather
                 // than as "nothing applies to this".
                 Text(reason)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .padding(.leading, 12)
+                Spacer(minLength: 0)
             } else {
-                ForEach(families) { family in
-                    familyMenu(family)
+                // Horizontal scroll rather than clipping: a library with many
+                // preset folders overflows any toolbar width, and a verb the
+                // user cannot reach is the same as a verb that does not exist.
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 2) {
+                        ForEach(families) { family in
+                            familyItem(family)
+                        }
+                    }
+                    .padding(.horizontal, 8)
                 }
             }
 
-            Spacer(minLength: 0)
-
             if let label = WorkflowBarPolicy.targetLabel(target) {
+                Divider().frame(height: 28).padding(.horizontal, 6)
                 // What the run will act on, stated BEFORE it starts — a paid
                 // multi-step run over a folder should never be ambiguous about
                 // its scope.
                 Label(label, systemImage: "scope")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .labelStyle(.titleAndIcon)
+                    .fixedSize()
+                    .padding(.trailing, 12)
                     .accessibilityLabel("Will run on \(label)")
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
+        .frame(height: 52)
         .background(.bar)
         .overlay(alignment: .bottom) { Divider() }
     }
 
-    /// One verb: the family's variants in a menu, with the first entry running
-    /// the family's default so the common case is two clicks, not three.
+    /// One verb, drawn as a toolbar item: glyph above, small label below.
     @ViewBuilder
-    private func familyMenu(_ family: WorkflowBarPolicy.VerbFamily) -> some View {
+    private func familyItem(_ family: WorkflowBarPolicy.VerbFamily) -> some View {
         Menu {
             ForEach(family.workflows) { workflow in
                 Button(workflow.displayName) { onRun(workflow.id, nil, nil) }
             }
         } label: {
-            Label(family.title, systemImage: family.symbol)
+            VStack(spacing: 2) {
+                Image(systemName: family.symbol)
+                    // Semantic size, not a hard-coded point size, so the item
+                    // tracks the user's text size like the native toolbar does.
+                    .font(.title3)
+                    .frame(height: 20)
+                Text(family.title)
+                    .font(.caption2)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+            }
+            .frame(width: itemWidth)
+            .contentShape(Rectangle())
         } primaryAction: {
-            // Clicking the verb itself runs its first variant — the menu is
-            // for choosing a different one, not a toll on every run.
+            // Clicking the verb runs its first variant — the menu is for
+            // choosing a different one, not a toll on every run.
             if let first = family.workflows.first {
                 onRun(first.id, nil, nil)
             }
         }
         .menuStyle(.borderlessButton)
-        .fixedSize()
+        .menuIndicator(.hidden)
+        .buttonStyle(.plain)
         .help(helpText(for: family))
+        .accessibilityLabel(helpText(for: family))
     }
 
     private func helpText(for family: WorkflowBarPolicy.VerbFamily) -> String {
