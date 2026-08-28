@@ -185,12 +185,16 @@ extension ContentView {
             // workflow until the run makes one, so it is left unpriced rather
             // than guessed at.
             guard let workflowId = step.workflow?.id else { continue }
-            if let cost = try? await workflowStore.workflowService.estimateCost(
+            // `try?` collapses a thrown error and a nil (unpriced) result
+            // into the same Optional<Optional>; flatten so both mean "no
+            // figure" without one masquerading as the other.
+            let estimated = try? await workflowStore.workflowService.estimateCost(
                 workflowId: workflowId,
                 fileCount: workflowBarTargetCount,
                 provider: step.providerOverride,
                 model: step.modelOverride
-            ) {
+            )
+            if let cost = estimated ?? nil {
                 total += cost
                 priced = true
             }

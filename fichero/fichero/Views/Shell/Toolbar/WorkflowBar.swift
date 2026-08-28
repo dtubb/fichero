@@ -143,11 +143,11 @@ struct WorkflowBar: View {
                 if let costCeiling {
                     // A CEILING, said as one: "≤" is the difference between a
                     // promise that can be kept and a guess.
-                    Text("≤ \(costCeiling, format: .currency(code: "USD"))")
+                    Text("est. ≤ \(costCeiling, format: .currency(code: "USD"))")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                         .monospacedDigit()
-                        .help("Upper bound for this chain over \(staged.count) step(s), priced from the live model registry")
+                        .help("Estimated upper bound for this chain over \(staged.count) step(s), priced from the live model registry. Steps whose model cannot be priced are not counted.")
                 }
                 Text(staged.count == 1 ? "1 step" : "\(staged.count) steps")
                     .font(.caption2)

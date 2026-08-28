@@ -247,7 +247,7 @@ class WorkflowService {
         fileCount: Int,
         provider: String?,
         model: String?
-    ) async throws -> Double {
+    ) async throws -> Double? {
         let response = try await client.api
             .estimateWorkflowCostApiWorkflowsWorkflowIdEstimateCostPost(.init(
                 path: .init(workflowId: workflowId),
@@ -259,7 +259,12 @@ class WorkflowService {
             ))
         switch response {
         case .ok(let okResponse):
-            return try okResponse.body.json.estimatedCostUsd
+            let body = try okResponse.body.json
+            // UNPRICED is not free. The engine used to return 0.0 for a model
+            // it could not price, and the bar showed "≤ US$0.00" for a
+            // five-image run (Daniel, 2026-08-28). nil travels as "no figure".
+            guard body.pricingAvailable == true else { return nil }
+            return body.estimatedCostUsd
         default:
             throw WorkflowServiceError.unexpectedResponse
         }
