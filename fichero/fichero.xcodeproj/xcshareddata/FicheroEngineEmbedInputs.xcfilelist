@@ -343,11 +343,13 @@ $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/tran
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/translate.json
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/translate_deepl.json
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/translate_review.json
+$(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/translate_reviewed_transcription.json
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/model_prices.json
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/prompts/catalogue/narrative_v1.md
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/prompts/catalogue/narrative_v2.md
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/resources/server.icns
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/resources/server.png
+$(SRCROOT)/../fichero-server/src/fichero_server/resources/workflow_folders.json
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/workflow_meta/preset_version_manifest.json
 $(SRCROOT)/../fichero-server/src/fichero_server/retrieval/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/retrieval/graph_rag.py
@@ -418,6 +420,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/agent.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/aggregate.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/analyze.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/annotations_source.py
+$(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/artifacts_source.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/audio_base.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/audio_transcribe.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/auto_crop_border_images.py

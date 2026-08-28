@@ -20,6 +20,8 @@ Categories:
 # Source tools
 from fichero_server.workflows.tools import sources
 from fichero_server.workflows.tools import annotations_source  # noqa: F401  (#914)
+# Run a step on what an earlier step WROTE, not on the page (2026-08-28).
+from fichero_server.workflows.tools import artifacts_source  # noqa: F401
 
 # Vision tools (use shared vision_base)
 from fichero_server.workflows.tools import transcribe

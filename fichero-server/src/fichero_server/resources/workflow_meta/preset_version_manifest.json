@@ -198,5 +198,9 @@
  "translate_review.json": {
   "preset_version": 1,
   "sha256": "790d485cacbdd0b236eb646263575fb01d324dd153c1b78cb31badb4ef255233"
+ },
+ "translate_reviewed_transcription.json": {
+  "preset_version": 1,
+  "sha256": "ccb964ca78273d7f20c03436e5af3143658b01911fc0ee09b96f8c24602fad05"
  }
 }
