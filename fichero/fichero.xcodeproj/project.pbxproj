@@ -607,7 +607,6 @@
 		};
 		CC0011223344556677889903 /* Embed Fichero Server */ = {
 			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
 			files = (
 			);
 			inputFileListPaths = (
@@ -778,7 +777,6 @@
 		};
 		FEED00000000000000000256 /* Embed Fichero Server */ = {
 			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
 			files = (
 			);
 			inputFileListPaths = (
@@ -1070,7 +1068,6 @@
 		};
 		SBX00042F27F36000EC9EE1 /* Strip Sparkle Info.plist Keys */ = {
 			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
 			files = (
 			);
 			name = "Strip Sparkle Info.plist Keys";
@@ -1122,7 +1119,6 @@
 		};
 		SBX00052F27F36000EC9EE1 /* Validate App Store Bundle */ = {
 			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
 			files = (
 			);
 			name = "Validate App Store Bundle";
