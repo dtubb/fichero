@@ -40,6 +40,9 @@ struct WorkflowBar: View {
     let onRunChain: () -> Void
     /// True while the chain is running — ▶ becomes a progress affordance.
     var isRunning: Bool = false
+    /// Index of the step currently executing, so the rail shows WHERE the
+    /// chain is rather than only that it is busy.
+    var runningStepIndex: Int?
 
     /// One item's footprint. Fixed so the verbs sit on an even rhythm the way
     /// toolbar items do, rather than jittering with label length.
@@ -176,7 +179,19 @@ struct WorkflowBar: View {
                 }
                 .padding(.horizontal, 6)
                 .padding(.vertical, 3)
-                .background(Color.accentColor.opacity(0.12), in: Capsule())
+                .background(chipBackground(at: index), in: Capsule())
+                // Steps already finished recede, the live one is emphasised,
+                // and the rest wait their turn — a chain running over 92 pages
+                // should say WHICH step it is on without opening Activity.
+                .opacity(chipOpacity(at: index))
+                .overlay(alignment: .leading) {
+                    if runningStepIndex == index {
+                        ProgressView()
+                            .controlSize(.mini)
+                            .scaleEffect(0.55)
+                            .offset(x: -3)
+                    }
+                }
                 // The whole chip names its step, so an icon-only rail stays
                 // readable on hover rather than becoming a rebus.
                 .help("Step \(index + 1): \(step.workflow.displayName) — \(step.modelDescription)")
@@ -205,6 +220,21 @@ struct WorkflowBar: View {
             .help("Clear the chain")
         }
         .fixedSize()
+    }
+
+    /// Finished steps recede; the running one is emphasised.
+    private func chipOpacity(at index: Int) -> Double {
+        guard let running = runningStepIndex else { return 1 }
+        if index < running { return 0.45 }
+        return index == running ? 1 : 0.75
+    }
+
+    private func chipBackground(at index: Int) -> Color {
+        guard let running = runningStepIndex else {
+            return Color.accentColor.opacity(0.12)
+        }
+        if index == running { return Color.accentColor.opacity(0.28) }
+        return Color.accentColor.opacity(index < running ? 0.06 : 0.12)
     }
 
     /// Pin a model to ONE step. Offered per chip because a chain's steps do

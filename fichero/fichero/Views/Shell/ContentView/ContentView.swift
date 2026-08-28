@@ -191,6 +191,8 @@ struct ContentView: View {
     /// staging.
     @State var stagedWorkflowChain: [StagedWorkflowStep] = []
     @State var isRunningStagedChain = false
+    /// Which chain step is executing, for the rail's progress.
+    @State var runningStagedStepIndex: Int?
     /// AI defaults, cached for the bar's per-step model menu. Nothing holds
     /// these in a shared observable, so the window keeps its own copy and
     /// refreshes it when the bar appears.

@@ -21,7 +21,8 @@ extension ContentView {
                 showsLabels: showWorkflowBarLabels,
                 staged: $stagedWorkflowChain,
                 onRunChain: { Task { await runStagedChain() } },
-                isRunning: isRunningStagedChain
+                isRunning: isRunningStagedChain,
+                runningStepIndex: runningStagedStepIndex
             )
             .task {
                 // Refresh when the bar appears rather than at launch: the menu
@@ -47,7 +48,10 @@ extension ContentView {
     func runStagedChain() async {
         guard !stagedWorkflowChain.isEmpty, !isRunningStagedChain else { return }
         isRunningStagedChain = true
-        defer { isRunningStagedChain = false }
+        defer {
+            isRunningStagedChain = false
+            runningStagedStepIndex = nil
+        }
 
         // Freeze the targets ONCE. Selection can move while a long chain runs,
         // and step four landing on documents the user picked mid-run is the
@@ -57,7 +61,8 @@ extension ContentView {
             : effectiveWorkflowRunSelection
         guard !targets.isEmpty else { return }
 
-        for step in stagedWorkflowChain {
+        for (index, step) in stagedWorkflowChain.enumerated() {
+            runningStagedStepIndex = index
             // Each step carries its own model, so a chain can read a hard hand
             // with the best available and then count entities with something
             // cheap. nil means the workflow resolves its own alias.
