@@ -47,3 +47,32 @@ async def test_vlm_provider_uses_the_runs_model_and_forces_boxes():
     # a provider allow-list.
     assert kwargs["force_return_boxes"] is True
     assert "box" in kwargs["prompt"].lower()
+
+
+@pytest.mark.asyncio
+async def test_vlm_with_no_run_provider_resolves_the_settings_vision_tier():
+    # The tool registers uses_llm=False, so a preset run arrives with an
+    # EMPTY llm_config — the VLM branch must resolve the Settings vision
+    # tier itself instead of dying with "provider not configured"
+    # (Caciques Hoja 531, 2026-08-27).
+    with (
+        patch(
+            "fichero_server.workflows.tools.detect_regions.process_vision",
+            new=AsyncMock(return_value={"results": []}),
+        ) as pv,
+        patch(
+            "fichero_server.llm.resolve_model_alias_for_capability",
+            return_value=("openrouter", "google/gemini-3.1-flash-lite"),
+        ) as resolve,
+    ):
+        await detect_regions(
+            {"files": ["a.jpg"], "provider": "vlm"},
+            _state(),
+            LLMConfig(provider="", model=""),
+        )
+    resolve.assert_called_once_with(
+        "$vision_medium", "", required_capability="vision"
+    )
+    cfg = pv.call_args.kwargs["llm_config"]
+    assert cfg.provider == "openrouter"
+    assert cfg.model == "google/gemini-3.1-flash-lite"

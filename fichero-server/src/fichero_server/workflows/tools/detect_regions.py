@@ -106,6 +106,17 @@ async def detect_regions(
         )
         prompt = _build_prompt(inputs.get("language", "auto"), return_boxes=True)
         effective_llm = llm_config
+        if not effective_llm.provider:
+            # The tool registers uses_llm=False (true for the Apple default),
+            # so the builder never resolves a vision default for VLM mode —
+            # resolve the Settings vision tier here instead.
+            from fichero_server.llm import (  # noqa: PLC0415
+                resolve_model_alias_for_capability,
+            )
+            prov, mod = resolve_model_alias_for_capability(
+                "$vision_medium", "", required_capability="vision"
+            )
+            effective_llm = LLMConfig(provider=prov, model=mod)
     else:
         # The Apple branch never sends a prompt to a model; kept explicit so
         # the local path cannot silently inherit a transcription prompt.
