@@ -68,15 +68,51 @@ enum WorkflowBarPolicy {
 
         let grouped = Dictionary(grouping: applicable) { folderKey($0.folderPath) }
         return grouped
-            .map { key, items in
-                VerbFamily(
+            .compactMap { key, items -> VerbFamily? in
+                // A family with nothing runnable in it is a button that lies.
+                guard !items.isEmpty else { return nil }
+                return VerbFamily(
                     id: key,
                     title: familyTitle(key),
                     symbol: symbol(forFamily: key),
                     workflows: items.sorted { $0.sortOrder < $1.sortOrder }
                 )
             }
-            .sorted { $0.title < $1.title }
+            // Pipeline order, not alphabetical (Daniel, 2026-08-28: "the route
+            // that we would work" — regions, then transcription, then
+            // translation). Alphabetical put Books first and Detect Regions
+            // sixth, which is the reverse of how anyone processes a document.
+            .sorted { lhs, rhs in
+                let lhsRank = pipelineRank(lhs.id)
+                let rhsRank = pipelineRank(rhs.id)
+                return lhsRank == rhsRank ? lhs.title < rhs.title : lhsRank < rhsRank
+            }
+    }
+
+    /// Where a family sits in the order work actually happens: prepare the
+    /// image, find the regions, read them, clean the reading, translate it,
+    /// describe and extract from it, then catalogue, organise and export.
+    /// Families nobody anticipated sort after the known route rather than
+    /// interleaving into it at random.
+    static let pipelineOrder = [
+        "Image Editing",
+        "Detect Regions",
+        "Transcribe",
+        "Clean Up",
+        "Translate",
+        "Describe",
+        "Extract",
+        "Extract Data",
+        "Catalogue",
+        "Organize",
+        "Books",
+        "Convert",
+        "Export"
+    ]
+
+    static func pipelineRank(_ key: String) -> Int {
+        pipelineOrder.firstIndex(where: { $0.caseInsensitiveCompare(key) == .orderedSame })
+            ?? pipelineOrder.count
     }
 
     /// A workflow's family key: its top-level folder. `/Detect Regions/VLM`

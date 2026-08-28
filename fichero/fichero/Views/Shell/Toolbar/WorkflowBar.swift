@@ -26,9 +26,15 @@ struct WorkflowBar: View {
     /// Labels under the glyphs. Off gives a dense icon rail; on names every
     /// verb for someone still learning the vocabulary (Daniel, 2026-08-28).
     var showsLabels: Bool = true
-    /// `(workflowId, provider, model)` — provider/model are nil for a default
-    /// run, and carry the pick when one is made from a variant's submenu.
-    let onRun: (String, String?, String?) -> Void
+    /// The chain being assembled. Clicking a verb APPENDS to this rather
+    /// than running (Daniel, 2026-08-28: "it shouldn't run right away, it
+    /// should construct the chain") — the run is one deliberate press of ▶,
+    /// which is what makes a paid multi-step job over a folder safe to build.
+    @Binding var staged: [WorkflowSidebarItem]
+    /// Runs the staged chain, in order.
+    let onRunChain: () -> Void
+    /// True while the chain is running — ▶ becomes a progress affordance.
+    var isRunning: Bool = false
 
     /// One item's footprint. Fixed so the verbs sit on an even rhythm the way
     /// toolbar items do, rather than jittering with label length.
@@ -62,6 +68,11 @@ struct WorkflowBar: View {
                 }
             }
 
+            if !staged.isEmpty {
+                Divider().frame(height: 28).padding(.horizontal, 6)
+                chainRail
+            }
+
             if let label = WorkflowBarPolicy.targetLabel(target) {
                 Divider().frame(height: 28).padding(.horizontal, 6)
                 // What the run will act on, stated BEFORE it starts — a paid
@@ -80,6 +91,65 @@ struct WorkflowBar: View {
         .overlay(alignment: .bottom) { Divider() }
     }
 
+    /// The chain being assembled: one chip per step, in order, each removable.
+    ///
+    /// Horizontal and icon-led because a chain is a SEQUENCE and sequences read
+    /// left to right — the same reading as the node canvas, which is what makes
+    /// the rail a miniature of the graph rather than a second idiom. Eight
+    /// steps is a real chain here (regions, transcribe, review, entities, SVO,
+    /// merge, persist, catalogue), so chips stay compact enough to all fit.
+    @ViewBuilder
+    private var chainRail: some View {
+        HStack(spacing: 3) {
+            ForEach(Array(staged.enumerated()), id: \.offset) { index, workflow in
+                if index > 0 {
+                    Image(systemName: "arrow.right")
+                        .font(.system(size: 7))
+                        .foregroundStyle(.tertiary)
+                }
+                Button {
+                    staged.remove(at: index)
+                } label: {
+                    HStack(spacing: 3) {
+                        Text(workflow.name)
+                            .font(.system(size: 10))
+                            .lineLimit(1)
+                        Image(systemName: "xmark")
+                            .font(.system(size: 7))
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(Color.accentColor.opacity(0.12), in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .help("Remove \(workflow.name) from the chain")
+            }
+
+            Button(action: onRunChain) {
+                Image(systemName: isRunning ? "stop.circle.fill" : "play.circle.fill")
+                    .font(.title3)
+                    .foregroundStyle(isRunning ? Color.secondary : Color.accentColor)
+            }
+            .buttonStyle(.plain)
+            .disabled(isRunning)
+            .help(isRunning
+                  ? "Chain is running"
+                  : "Run \(staged.count) step(s) in order on the selection")
+            .accessibilityLabel("Run the chain")
+
+            Button { staged.removeAll() } label: {
+                Image(systemName: "trash")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .disabled(isRunning)
+            .help("Clear the chain")
+        }
+        .fixedSize()
+    }
+
     /// One verb, drawn as a toolbar item: glyph above, small label below.
     ///
     /// A plain `Button` owns the layout deliberately. A `Menu` re-flows its own
@@ -90,9 +160,7 @@ struct WorkflowBar: View {
     private func familyItem(_ family: WorkflowBarPolicy.VerbFamily) -> some View {
         HStack(spacing: 0) {
             Button {
-                if let first = family.workflows.first {
-                    onRun(first.id, nil, nil)
-                }
+                if let first = family.workflows.first { stage(first) }
             } label: {
                 VStack(spacing: 1) {
                     Image(systemName: family.symbol)
@@ -115,7 +183,7 @@ struct WorkflowBar: View {
             if family.workflows.count > 1 {
                 Menu {
                     ForEach(family.workflows) { workflow in
-                        Button(workflow.displayName) { onRun(workflow.id, nil, nil) }
+                        Button(workflow.displayName) { stage(workflow) }
                     }
                 } label: {
                     Image(systemName: "chevron.down")
@@ -130,11 +198,15 @@ struct WorkflowBar: View {
         }
     }
 
+    private func stage(_ workflow: WorkflowSidebarItem) {
+        staged.append(workflow)
+    }
+
     private func helpText(for family: WorkflowBarPolicy.VerbFamily) -> String {
         let count = family.workflows.count
         guard let first = family.workflows.first else { return family.title }
         return count == 1
-            ? "Run \(first.displayName)"
-            : "Run \(first.displayName) — \(count) variants available"
+            ? "Add \(first.displayName) to the chain"
+            : "Add \(first.displayName) to the chain — \(count) variants available"
     }
 }

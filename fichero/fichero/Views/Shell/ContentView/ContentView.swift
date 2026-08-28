@@ -185,6 +185,12 @@ struct ContentView: View {
     /// Labels beneath the workflow bar's glyphs. On by default while the
     /// vocabulary is unfamiliar; off gives a dense icon rail.
     @SceneStorage("workflowBarLabels") var showWorkflowBarLabels: Bool = true
+    /// The chain assembled in the workflow bar, in order. Not persisted:
+    /// it is a scratch composition for the selection in front of you, and
+    /// restoring one at launch would invite a paid run nobody remembers
+    /// staging.
+    @State var stagedWorkflowChain: [WorkflowSidebarItem] = []
+    @State var isRunningStagedChain = false
 
     // Workflow state
     @State var editingWorkflow: Workflow = Workflow(name: "New Workflow", description: "")

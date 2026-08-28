@@ -120,6 +120,29 @@ extension ContentView {
         providerOverride: String? = nil,
         modelOverride: String? = nil
     ) {
+        Task { @MainActor in
+            await awaitWorkflowExecution(
+                workflowId: workflowId,
+                workflowName: workflowName,
+                docIds: docIds,
+                providerOverride: providerOverride,
+                modelOverride: modelOverride
+            )
+        }
+    }
+
+    /// The awaitable form. The fire-and-forget entry point above wraps this in
+    /// a Task; the workflow bar's chain awaits it directly, because step two of
+    /// a chain must not start until step one has written what it reads
+    /// (transcribe, then clean up, then catalogue) — 2026-08-28.
+    @MainActor
+    func awaitWorkflowExecution(
+        workflowId: String,
+        workflowName: String,
+        docIds: [String],
+        providerOverride: String? = nil,
+        modelOverride: String? = nil
+    ) async {
         var executionThreadId = "pending:\(UUID().uuidString)"
         // Optimistic insert (#944): show the Activity row immediately, then replace
         // the placeholder thread ID once the POST returns.
@@ -130,9 +153,8 @@ extension ContentView {
             threadId: executionThreadId
         )
 
-        Task { @MainActor in
-            var streamCompleted = false
-            do {
+        var streamCompleted = false
+        do {
                 let response = try await workflowStreamService.execute(
                     workflowId: workflowId,
                     surface: "content-selection",
@@ -166,9 +188,8 @@ extension ContentView {
                     docIds: docIds,
                     streamCompleted: { streamCompleted }
                 )
-            } catch {
-                failWorkflowStart(threadId: executionThreadId, error: error)
-            }
+        } catch {
+            failWorkflowStart(threadId: executionThreadId, error: error)
         }
     }
 

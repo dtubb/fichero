@@ -17,13 +17,41 @@ extension ContentView {
                 workflows: workflowStore.workflows,
                 target: workflowBarTarget,
                 showsLabels: showWorkflowBarLabels,
-                onRun: { workflowId, provider, model in
-                    runWorkflowOnSelection(
-                        workflowId: workflowId,
-                        providerOverride: provider,
-                        modelOverride: model
-                    )
-                }
+                staged: $stagedWorkflowChain,
+                onRunChain: { Task { await runStagedChain() } },
+                isRunning: isRunningStagedChain
+            )
+        }
+    }
+
+    /// Run the staged chain, one step after another on the same selection.
+    ///
+    /// Sequential, not fire-and-forget: step two should read what step one
+    /// wrote (transcribe then clean up then catalogue), so each awaits the
+    /// one before it. The engine stores chains but does not execute them, so
+    /// the ordering lives here.
+    ///
+    /// The chain is NOT cleared on completion — a run you can repeat on the
+    /// next folder is the point of having assembled it.
+    @MainActor
+    func runStagedChain() async {
+        guard !stagedWorkflowChain.isEmpty, !isRunningStagedChain else { return }
+        isRunningStagedChain = true
+        defer { isRunningStagedChain = false }
+
+        // Freeze the targets ONCE. Selection can move while a long chain runs,
+        // and step four landing on documents the user picked mid-run is the
+        // kind of surprise a paid job must never spring.
+        let targets = effectiveWorkflowRunSelection.isEmpty
+            ? (detailDocument.map { [$0.id] } ?? [])
+            : effectiveWorkflowRunSelection
+        guard !targets.isEmpty else { return }
+
+        for workflow in stagedWorkflowChain {
+            await awaitWorkflowExecution(
+                workflowId: workflow.id,
+                workflowName: workflow.name,
+                docIds: targets
             )
         }
     }
