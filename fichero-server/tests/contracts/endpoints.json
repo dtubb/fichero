@@ -9352,6 +9352,16 @@
         "response_model": "WorkflowResponse"
       },
       {
+        "method": "GET",
+        "path": "/workflows/folders",
+        "operation_id": "list_workflow_folders_api_workflows_folders_get",
+        "summary": "List Workflow Folders",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "WorkflowFolderListResponse"
+      },
+      {
         "method": "POST",
         "path": "/workflows/import",
         "operation_id": "import_workflow_api_workflows_import_post",

@@ -1,0 +1,18 @@
+{
+  "_doc": "Presentation metadata for workflow folders — the ORDER verbs appear in and the glyph each carries. Served so the client stops hard-coding either (Daniel, 2026-08-28: 'make it served, and therefore editable later'). Order is the route work actually takes: prepare the image, find the regions, read them, clean the reading, translate it, describe and extract, then catalogue, organise, export. A folder absent from this list sorts after the known route and takes the fallback glyph, so a user's own folder still appears rather than vanishing.",
+  "folders": [
+    {"path": "/Image Editing",  "sort_order": 10, "icon": "photo"},
+    {"path": "/Detect Regions", "sort_order": 20, "icon": "rectangle.dashed"},
+    {"path": "/Transcribe",     "sort_order": 30, "icon": "text.viewfinder"},
+    {"path": "/Clean Up",       "sort_order": 40, "icon": "wand.and.sparkles"},
+    {"path": "/Translate",      "sort_order": 50, "icon": "character.bubble"},
+    {"path": "/Describe",       "sort_order": 60, "icon": "text.bubble"},
+    {"path": "/Extract",        "sort_order": 70, "icon": "square.on.square.badge.person.crop"},
+    {"path": "/Extract Data",   "sort_order": 80, "icon": "tablecells"},
+    {"path": "/Catalogue",      "sort_order": 90, "icon": "books.vertical"},
+    {"path": "/Organize",       "sort_order": 100, "icon": "folder.badge.gearshape"},
+    {"path": "/Books",          "sort_order": 110, "icon": "book"},
+    {"path": "/Convert",        "sort_order": 120, "icon": "arrow.triangle.2.circlepath"},
+    {"path": "/Export",         "sort_order": 130, "icon": "square.and.arrow.up"}
+  ]
+}

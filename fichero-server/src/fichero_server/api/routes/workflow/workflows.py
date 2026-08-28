@@ -897,6 +897,53 @@ async def reinstall_default_workflows(
         raise HTTPException(status_code=500, detail=str(exc))
 
 
+class WorkflowFolderResponse(BaseModel):
+    """How a workflow folder should PRESENT: its place in the route and its glyph."""
+
+    path: str
+    display_name: str
+    sort_order: int
+    icon: str
+
+
+class WorkflowFolderListResponse(BaseModel):
+    items: list[WorkflowFolderResponse]
+    count: int
+
+
+@router.get("/folders", response_model=WorkflowFolderListResponse)
+async def list_workflow_folders() -> WorkflowFolderListResponse:
+    """Presentation metadata for workflow folders — order and glyph.
+
+    Served rather than hard-coded in the client (Daniel, 2026-08-28: "make it
+    served, and therefore editable later"). The capability bar draws its verbs
+    in the order work actually happens — prepare the image, find the regions,
+    read them, clean, translate, extract, catalogue — which is data, not a
+    rule, and until now lived as a literal list in Swift. Preset `sort_order`
+    could not supply it: every shipped preset carries 0.
+
+    A folder absent from this list is NOT hidden; the client sorts it after
+    the known route with a fallback glyph, so a user's own folder appears the
+    moment they make one. Backing this with a table later changes only this
+    function.
+    """
+    import json
+    from importlib import resources as importlib_resources
+
+    ref = importlib_resources.files("fichero_server.resources") / "workflow_folders.json"
+    payload = json.loads(ref.read_text(encoding="utf-8"))
+    items = [
+        WorkflowFolderResponse(
+            path=entry["path"],
+            display_name=entry.get("display_name") or entry["path"].strip("/").split("/")[-1],
+            sort_order=int(entry.get("sort_order", 0)),
+            icon=entry.get("icon", "play.circle"),
+        )
+        for entry in payload.get("folders", [])
+    ]
+    return WorkflowFolderListResponse(items=items, count=len(items))
+
+
 @router.get("", response_model=WorkflowListResponse)
 async def list_workflows(
     folder_path: str | None = None,

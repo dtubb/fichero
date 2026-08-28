@@ -21917,6 +21917,28 @@
         }
       }
     },
+    "/api/workflows/folders": {
+      "get": {
+        "tags": [
+          "workflows"
+        ],
+        "summary": "List Workflow Folders",
+        "description": "Presentation metadata for workflow folders \u2014 order and glyph.\n\nServed rather than hard-coded in the client (Daniel, 2026-08-28: \"make it\nserved, and therefore editable later\"). The capability bar draws its verbs\nin the order work actually happens \u2014 prepare the image, find the regions,\nread them, clean, translate, extract, catalogue \u2014 which is data, not a\nrule, and until now lived as a literal list in Swift. Preset `sort_order`\ncould not supply it: every shipped preset carries 0.\n\nA folder absent from this list is NOT hidden; the client sorts it after\nthe known route with a fallback glyph, so a user's own folder appears the\nmoment they make one. Backing this with a table later changes only this\nfunction.",
+        "operationId": "list_workflow_folders_api_workflows_folders_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowFolderListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/workflows/{workflow_id}": {
       "get": {
         "tags": [
@@ -64730,6 +64752,56 @@
           "exported_at"
         ],
         "title": "WorkflowExportResponse"
+      },
+      "WorkflowFolderListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/WorkflowFolderResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "WorkflowFolderListResponse"
+      },
+      "WorkflowFolderResponse": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "sort_order": {
+            "type": "integer",
+            "title": "Sort Order"
+          },
+          "icon": {
+            "type": "string",
+            "title": "Icon"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path",
+          "display_name",
+          "sort_order",
+          "icon"
+        ],
+        "title": "WorkflowFolderResponse",
+        "description": "How a workflow folder should PRESENT: its place in the route and its glyph."
       },
       "WorkflowListResponse": {
         "properties": {

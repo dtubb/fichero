@@ -13590,6 +13590,17 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("list-folders")
+    def workflows_list_folders_get(
+        ctx: typer.Context,
+    ) -> None:
+        """List Workflow Folders (GET /api/workflows/folders)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/workflows/folders"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("import")
     def workflows_import_post(
         ctx: typer.Context,
