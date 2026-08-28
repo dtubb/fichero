@@ -43,6 +43,9 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
     let progressSync = WebPaneProgressSync()
     /// Bounded reload budget for a dying WebContent process.
     var processRecovery = WebContentProcessRecovery.State()
+    /// Separate budget from `processRecovery`: a renderer crash and an
+    /// engine load failure are different faults and must not share a count.
+    var loadFailureRecovery = WebContentProcessRecovery.State()
 
     init(parent: DocumentKGWebPane) {
         self.parent = parent
@@ -224,17 +227,25 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
         // Limit fallback to engine-origin loads so the standalone failure page cannot loop.
         let failingURL = (error as NSError).userInfo[NSURLErrorFailingURLErrorKey] as? URL
         guard failingURL == nil || failingURL?.scheme == EngineWebViewURL.scheme else { return }
-        // Un-poison the cache key. `loadIfNeeded` stamps
+        // Un-poison the cache key, ON A BUDGET. `loadIfNeeded` stamps
         // `lastLoadedDocumentId` BEFORE it knows the load succeeded, so a
         // failure (engine still starting, engine quit) left the coordinator
-        // believing this document was loaded — and every later attempt for the
-        // SAME document was skipped as redundant. The pane then sat on its
-        // failure page until the document changed, which is why selecting a
-        // different item "fixed" it and why the page had to tell the user to
-        // reopen the pane (Daniel, 2026-08-28).
-        lastLoadedDocumentId = nil
-        lastLoadedLibraryPath = nil
-        lastLoadedPageIds = nil
+        // believing this document was loaded and every later attempt for the
+        // SAME document was skipped — the pane sat on its failure page until
+        // the document changed, which is why selecting a different item
+        // "fixed" it (Daniel, 2026-08-28).
+        //
+        // Clearing the keys unconditionally is worse: a URL the engine answers
+        // 500 for every time (a workflow pseudo-document) then retries
+        // forever, and each attempt costs a main-thread stall — a reload storm
+        // in the logs within seconds. The same budget the renderer-crash path
+        // uses gates it: retry a few times, then stay on the honest failure
+        // page. A transient engine restart recovers; a genuine 500 stops.
+        if WebContentProcessRecovery.shouldReload(&loadFailureRecovery) {
+            lastLoadedDocumentId = nil
+            lastLoadedLibraryPath = nil
+            lastLoadedPageIds = nil
+        }
         webView.loadHTMLString(
             DocumentKGPaneRoute.loadFailureHTML(detail: error.localizedDescription),
             baseURL: nil

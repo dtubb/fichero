@@ -23,13 +23,16 @@ import SwiftUI
 struct WorkflowBar: View {
     let workflows: [WorkflowSidebarItem]
     let target: WorkflowBarPolicy.Target
+    /// Labels under the glyphs. Off gives a dense icon rail; on names every
+    /// verb for someone still learning the vocabulary (Daniel, 2026-08-28).
+    var showsLabels: Bool = true
     /// `(workflowId, provider, model)` — provider/model are nil for a default
     /// run, and carry the pick when one is made from a variant's submenu.
     let onRun: (String, String?, String?) -> Void
 
     /// One item's footprint. Fixed so the verbs sit on an even rhythm the way
     /// toolbar items do, rather than jittering with label length.
-    private let itemWidth: CGFloat = 68
+    private var itemWidth: CGFloat { showsLabels ? 68 : 34 }
 
     private var families: [WorkflowBarPolicy.VerbFamily] {
         WorkflowBarPolicy.families(from: workflows, target: target)
@@ -78,38 +81,53 @@ struct WorkflowBar: View {
     }
 
     /// One verb, drawn as a toolbar item: glyph above, small label below.
+    ///
+    /// A plain `Button` owns the layout deliberately. A `Menu` re-flows its own
+    /// label on macOS, which is why the first attempt at this kept rendering
+    /// the name BESIDE the glyph however the label was composed. The variants
+    /// live behind a separate chevron, shown only when there is more than one.
     @ViewBuilder
     private func familyItem(_ family: WorkflowBarPolicy.VerbFamily) -> some View {
-        Menu {
-            ForEach(family.workflows) { workflow in
-                Button(workflow.displayName) { onRun(workflow.id, nil, nil) }
+        HStack(spacing: 0) {
+            Button {
+                if let first = family.workflows.first {
+                    onRun(first.id, nil, nil)
+                }
+            } label: {
+                VStack(spacing: 1) {
+                    Image(systemName: family.symbol)
+                        .font(.body)
+                        .frame(height: 17)
+                    if showsLabels {
+                        Text(family.title)
+                            .font(.system(size: 9))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                    }
+                }
+                .frame(width: itemWidth)
+                .contentShape(Rectangle())
             }
-        } label: {
-            VStack(spacing: 2) {
-                Image(systemName: family.symbol)
-                    // Semantic size, not a hard-coded point size, so the item
-                    // tracks the user's text size like the native toolbar does.
-                    .font(.title3)
-                    .frame(height: 20)
-                Text(family.title)
-                    .font(.caption2)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.85)
-            }
-            .frame(width: itemWidth)
-            .contentShape(Rectangle())
-        } primaryAction: {
-            // Clicking the verb runs its first variant — the menu is for
-            // choosing a different one, not a toll on every run.
-            if let first = family.workflows.first {
-                onRun(first.id, nil, nil)
+            .buttonStyle(.plain)
+            .help(helpText(for: family))
+            .accessibilityLabel(helpText(for: family))
+
+            if family.workflows.count > 1 {
+                Menu {
+                    ForEach(family.workflows) { workflow in
+                        Button(workflow.displayName) { onRun(workflow.id, nil, nil) }
+                    }
+                } label: {
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 8))
+                        .foregroundStyle(.secondary)
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .help("Choose a \(family.title) variant — \(family.workflows.count) available")
             }
         }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .buttonStyle(.plain)
-        .help(helpText(for: family))
-        .accessibilityLabel(helpText(for: family))
     }
 
     private func helpText(for family: WorkflowBarPolicy.VerbFamily) -> String {

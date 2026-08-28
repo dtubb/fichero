@@ -376,6 +376,9 @@ extension FocusedValues {
     /// turned it on in (2026-08-28).
     @Entry var showWorkflowBar: Binding<Bool>?
 
+    /// Labels under the workflow bar's glyphs, per window.
+    @Entry var showWorkflowBarLabels: Binding<Bool>?
+
     /// Per-window visibility of the major reading-surface panes, published by
     /// the focused ContentView so the View menu mirrors the toolbar toggles
     /// for each pane (#1215). Same per-window rationale as `showInspector`:

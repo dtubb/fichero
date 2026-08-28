@@ -247,3 +247,28 @@ struct ShowWorkflowBarButton: View {
         .disabled(showWorkflowBar == nil)
     }
 }
+
+
+/// View ▸ Workflow Bar Labels — the names under the glyphs are optional
+/// (Daniel, 2026-08-28): on while the vocabulary is unfamiliar, off for a
+/// dense icon rail once it is not.
+struct ShowWorkflowBarLabelsButton: View {
+    @FocusedValue(\.showWorkflowBarLabels) private var showLabels
+    @FocusedValue(\.showWorkflowBar) private var showBar
+
+    var body: some View {
+        Button {
+            showLabels?.wrappedValue.toggle()
+        } label: {
+            Label(
+                showLabels?.wrappedValue == true
+                    ? "Hide Workflow Bar Labels"
+                    : "Show Workflow Bar Labels",
+                systemImage: "textformat.size.smaller"
+            )
+        }
+        // Meaningless while the bar is hidden — disabled rather than silently
+        // toggling something the user cannot see.
+        .disabled(showLabels == nil || showBar?.wrappedValue != true)
+    }
+}

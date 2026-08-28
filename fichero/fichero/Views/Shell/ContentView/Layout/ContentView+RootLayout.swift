@@ -201,6 +201,7 @@ extension ContentView {
             // the hierarchy when collapsed and made ⌘⌥I no-op (#1513/#1451).
             .focusedSceneValue(\.showInspector, $showInspectorSidebar)
             .focusedSceneValue(\.showWorkflowBar, $showWorkflowBar)
+            .focusedSceneValue(\.showWorkflowBarLabels, $showWorkflowBarLabels)
             // WHICH pane has focus, for commands that must act on the surface
             // the user is looking at rather than on whichever surface happens
             // to publish an action (⌘A, #4376 widened 2026-08-23). The hint is

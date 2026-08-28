@@ -101,6 +101,8 @@ struct ViewMenuCommands: View {
         // not view state.
         ShowWorkflowBarButton()
 
+        ShowWorkflowBarLabelsButton()
+
         ShowFindBarButton()
         // ShowRulerButton moved to the Format menu (#4121 View-menu diet):
         // the ruler is text-formatting chrome (TextEdit/Pages precedent),

@@ -182,6 +182,9 @@ struct ContentView: View {
     /// Preview convention that a markup bar is a property of the window you
     /// turned it on in, and off by default so the chrome is opt-in.
     @SceneStorage("showWorkflowBar") var showWorkflowBar: Bool = false
+    /// Labels beneath the workflow bar's glyphs. On by default while the
+    /// vocabulary is unfamiliar; off gives a dense icon rail.
+    @SceneStorage("workflowBarLabels") var showWorkflowBarLabels: Bool = true
 
     // Workflow state
     @State var editingWorkflow: Workflow = Workflow(name: "New Workflow", description: "")

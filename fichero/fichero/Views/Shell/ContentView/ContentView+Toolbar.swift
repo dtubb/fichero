@@ -315,6 +315,24 @@ extension ContentView {
             browserSelection.contains($0.id)
         }
         HStack(spacing: 2) {
+            // Show/hide the capability bar from the toolbar, not only from the
+            // View menu (Daniel, 2026-08-28) — chrome you toggle often should
+            // be one click away, and it sits beside Run Workflow because they
+            // are the same job at two grains: the bar is the picker, always on.
+            Button {
+                showWorkflowBar.toggle()
+            } label: {
+                Label(
+                    showWorkflowBar ? "Hide Workflow Bar" : "Show Workflow Bar",
+                    systemImage: "square.grid.2x2"
+                )
+                .labelStyle(.iconOnly)
+            }
+            .help(showWorkflowBar
+                  ? "Hide the workflow bar"
+                  : "Show the workflow bar above the content")
+            .accessibilityLabel(showWorkflowBar ? "Hide workflow bar" : "Show workflow bar")
+
             Button {
                 windowState.workflowPickerRequestToken += 1
             } label: {

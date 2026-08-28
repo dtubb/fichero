@@ -16,6 +16,7 @@ extension ContentView {
             WorkflowBar(
                 workflows: workflowStore.workflows,
                 target: workflowBarTarget,
+                showsLabels: showWorkflowBarLabels,
                 onRun: { workflowId, provider, model in
                     runWorkflowOnSelection(
                         workflowId: workflowId,
