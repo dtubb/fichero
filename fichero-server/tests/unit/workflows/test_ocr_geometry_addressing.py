@@ -496,3 +496,22 @@ def test_the_old_pixel_shape_is_the_thing_that_used_to_break():
     }
     with pytest.raises(ValueError, match="require page_width and page_height"):
         parse_vlm_geometry(payload, provider="google")
+
+
+def test_pixel_boxes_normalize_against_the_replys_own_claimed_frame():
+    """A reply that ignores the fractions rule but names its pixel frame
+    (image_width/image_height, required by the prompt since 2026-08-27 —
+    gemini-3.1-flash-lite on Caciques Hoja 531 sent pixels) is normalized
+    against that frame instead of rejected."""
+    from fichero_server.media.ocr_geometry import parse_vlm_geometry
+
+    payload = {
+        "image_width": 1000,
+        "image_height": 500,
+        "text": "En la ciudad",
+        "boxes": [
+            {"text": "En la ciudad", "bbox": [100, 50, 400, 25], "level": "line"}
+        ],
+    }
+    geometry = parse_vlm_geometry(payload, provider="openrouter")
+    assert geometry.boxes[0].bbox == pytest.approx([0.1, 0.1, 0.4, 0.05])
