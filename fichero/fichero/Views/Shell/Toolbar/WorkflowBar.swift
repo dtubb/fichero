@@ -26,6 +26,8 @@ struct WorkflowBar: View {
     /// Folder order and glyphs as the engine describes them; empty falls
     /// back to the built-in route.
     var folders: [String: WorkflowBarPolicy.FolderPresentation] = [:]
+    /// Models a step can be pinned to, as configured in Settings.
+    var modelChoices: [WorkflowBarModelChoice] = []
     /// Labels under the glyphs. Off gives a dense icon rail; on names every
     /// verb for someone still learning the vocabulary (Daniel, 2026-08-28).
     var showsLabels: Bool = true
@@ -33,7 +35,7 @@ struct WorkflowBar: View {
     /// than running (Daniel, 2026-08-28: "it shouldn't run right away, it
     /// should construct the chain") — the run is one deliberate press of ▶,
     /// which is what makes a paid multi-step job over a folder safe to build.
-    @Binding var staged: [WorkflowSidebarItem]
+    @Binding var staged: [StagedWorkflowStep]
     /// Runs the staged chain, in order.
     let onRunChain: () -> Void
     /// True while the chain is running — ▶ becomes a progress affordance.
@@ -131,15 +133,17 @@ struct WorkflowBar: View {
     @ViewBuilder
     private var chainRail: some View {
         HStack(spacing: 3) {
-            ForEach(Array(staged.enumerated()), id: \.offset) { index, workflow in
+            ForEach(Array(staged.enumerated()), id: \.element.id) { index, step in
                 if index > 0 {
                     Image(systemName: "arrow.right")
                         .font(.system(size: 7))
                         .foregroundStyle(.tertiary)
                 }
                 HStack(spacing: 3) {
-                    Image(systemName: WorkflowBarPolicy.symbol(
-                        forFamily: WorkflowBarPolicy.folderKey(workflow.folderPath)
+                    Image(systemName: folders[
+                        WorkflowBarPolicy.folderKey(step.folderPath)
+                    ]?.icon ?? WorkflowBarPolicy.symbol(
+                        forFamily: WorkflowBarPolicy.folderKey(step.folderPath)
                     ))
                     .font(.system(size: 11))
                     // The name is redundant beside a glyph whose tooltip
@@ -147,8 +151,17 @@ struct WorkflowBar: View {
                     // (Daniel, 2026-08-28). It follows the bar's own label
                     // preference so both readings are one toggle apart.
                     if showsLabels {
-                        Text(workflow.name)
+                        Text(step.name)
                             .font(.system(size: 10))
+                            .lineLimit(1)
+                    }
+                    // A pinned model is stated ON the chip: a chain whose steps
+                    // run on different models must show which, or the cheap
+                    // step and the expensive one look identical.
+                    if step.hasModelOverride {
+                        Text(step.modelDescription)
+                            .font(.system(size: 8))
+                            .foregroundStyle(.secondary)
                             .lineLimit(1)
                     }
                     Button {
@@ -159,14 +172,15 @@ struct WorkflowBar: View {
                             .foregroundStyle(.secondary)
                     }
                     .buttonStyle(.plain)
-                    .help("Remove \(workflow.name) from the chain")
+                    .help("Remove \(step.name) from the chain")
                 }
                 .padding(.horizontal, 6)
                 .padding(.vertical, 3)
                 .background(Color.accentColor.opacity(0.12), in: Capsule())
                 // The whole chip names its step, so an icon-only rail stays
                 // readable on hover rather than becoming a rebus.
-                .help("Step \(index + 1): \(workflow.displayName)")
+                .help("Step \(index + 1): \(step.workflow.displayName) — \(step.modelDescription)")
+                .contextMenu { modelMenu(forStepAt: index) }
             }
 
             Button(action: onRunChain) {
@@ -191,6 +205,28 @@ struct WorkflowBar: View {
             .help("Clear the chain")
         }
         .fixedSize()
+    }
+
+    /// Pin a model to ONE step. Offered per chip because a chain's steps do
+    /// not deserve the same model: read a hard hand with the best available,
+    /// then count entities in its output with something cheap.
+    @ViewBuilder
+    private func modelMenu(forStepAt index: Int) -> some View {
+        Button("Use the workflow's default") {
+            guard staged.indices.contains(index) else { return }
+            staged[index].providerOverride = nil
+            staged[index].modelOverride = nil
+        }
+        if !modelChoices.isEmpty {
+            Divider()
+            ForEach(modelChoices, id: \.model) { choice in
+                Button(choice.label) {
+                    guard staged.indices.contains(index) else { return }
+                    staged[index].providerOverride = choice.provider
+                    staged[index].modelOverride = choice.model
+                }
+            }
+        }
     }
 
     /// One verb, drawn as a toolbar item: glyph above, small label below.
@@ -242,7 +278,7 @@ struct WorkflowBar: View {
     }
 
     private func stage(_ workflow: WorkflowSidebarItem) {
-        staged.append(workflow)
+        staged.append(StagedWorkflowStep(workflow: workflow))
     }
 
     private func helpText(for family: WorkflowBarPolicy.VerbFamily) -> String {

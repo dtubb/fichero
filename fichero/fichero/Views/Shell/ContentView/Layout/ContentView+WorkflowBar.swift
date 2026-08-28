@@ -17,11 +17,20 @@ extension ContentView {
                 workflows: workflowStore.workflows,
                 target: workflowBarTarget,
                 folders: workflowStore.folderPresentation,
+                modelChoices: workflowBarModelChoices,
                 showsLabels: showWorkflowBarLabels,
                 staged: $stagedWorkflowChain,
                 onRunChain: { Task { await runStagedChain() } },
                 isRunning: isRunningStagedChain
             )
+            .task {
+                // Refresh when the bar appears rather than at launch: the menu
+                // is only consulted here, and a stale tier would offer a model
+                // the user has since changed.
+                if let loaded = try? await appState.fetchAIDefaults() {
+                    cachedAIDefaults = loaded
+                }
+            }
         }
     }
 
@@ -48,11 +57,40 @@ extension ContentView {
             : effectiveWorkflowRunSelection
         guard !targets.isEmpty else { return }
 
-        for workflow in stagedWorkflowChain {
+        for step in stagedWorkflowChain {
+            // Each step carries its own model, so a chain can read a hard hand
+            // with the best available and then count entities with something
+            // cheap. nil means the workflow resolves its own alias.
             await awaitWorkflowExecution(
-                workflowId: workflow.id,
-                workflowName: workflow.name,
-                docIds: targets
+                workflowId: step.workflow.id,
+                workflowName: step.name,
+                docIds: targets,
+                providerOverride: step.providerOverride,
+                modelOverride: step.modelOverride
+            )
+        }
+    }
+
+    /// Models a chain step can be pinned to. Read from the configured tiers
+    /// rather than the full provider catalogue: these are the models the user
+    /// has actually set up, which is the useful shortlist beside a chip.
+    var workflowBarModelChoices: [WorkflowBarModelChoice] {
+        let defaults = cachedAIDefaults
+        let candidates: [(String, String, String)] = [
+            ("Vision", defaults.visionMediumProvider, defaults.visionMediumModel),
+            ("Text", defaults.mediumProvider, defaults.mediumModel),
+            ("Large", defaults.largeProvider, defaults.largeModel),
+            ("Small", defaults.smallProvider, defaults.smallModel)
+        ]
+        var seen = Set<String>()
+        return candidates.compactMap { tier, provider, model in
+            guard !model.isEmpty, !seen.contains(model) else { return nil }
+            seen.insert(model)
+            let short = model.split(separator: "/").last.map(String.init) ?? model
+            return WorkflowBarModelChoice(
+                label: "\(short)  ·  \(tier)",
+                provider: provider,
+                model: model
             )
         }
     }

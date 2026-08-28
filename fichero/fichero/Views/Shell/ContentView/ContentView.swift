@@ -189,8 +189,12 @@ struct ContentView: View {
     /// it is a scratch composition for the selection in front of you, and
     /// restoring one at launch would invite a paid run nobody remembers
     /// staging.
-    @State var stagedWorkflowChain: [WorkflowSidebarItem] = []
+    @State var stagedWorkflowChain: [StagedWorkflowStep] = []
     @State var isRunningStagedChain = false
+    /// AI defaults, cached for the bar's per-step model menu. Nothing holds
+    /// these in a shared observable, so the window keeps its own copy and
+    /// refreshes it when the bar appears.
+    @State var cachedAIDefaults = AIDefaults()
 
     // Workflow state
     @State var editingWorkflow: Workflow = Workflow(name: "New Workflow", description: "")
