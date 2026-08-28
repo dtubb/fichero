@@ -21707,7 +21707,7 @@
           "workflows"
         ],
         "summary": "List Workflows",
-        "description": "List saved workflows, optionally filtered by folder.\n\nWhen ``folder_path`` is omitted, all workflows are returned regardless\nof folder. Pass an explicit value (e.g. \"/Catalogue\") to filter.\n\n#4450: a non-global library's list additionally includes the shipped\nDEFAULT workflows resolved from the global library (#4102) \u2014 defaults\nare app-level and must be offered in every library, while user-authored\nworkflows stay scoped to the library that created them.",
+        "description": "List saved workflows, optionally filtered by folder.\n\nWhen ``folder_path`` is omitted, all workflows are returned regardless\nof folder. Pass an explicit value (e.g. \"/Catalogue\") to filter.\n\n``summary=true`` omits every workflow's ``nodes`` and ``edges``, leaving\n``node_count``/``edge_count`` in their place. The full list is 263 KB to\nname 50 workflows because it carries every preset's whole graph; a\ncaller that only draws labels \u2014 the sidebar, the run menu, a verb\ntoolbar \u2014 needs about 20 KB of it. Defaults to False so existing\ncallers are unaffected; the graph stays one GET /api/workflows/{id}\naway.\n\n#4450: a non-global library's list additionally includes the shipped\nDEFAULT workflows resolved from the global library (#4102) \u2014 defaults\nare app-level and must be offered in every library, while user-authored\nworkflows stay scoped to the library that created them.",
         "operationId": "list_workflows_api_workflows_get",
         "parameters": [
           {
@@ -21718,6 +21718,16 @@
               "type": "string",
               "nullable": true,
               "title": "Folder Path"
+            }
+          },
+          {
+            "name": "summary",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Summary"
             }
           }
         ],
@@ -64904,6 +64914,16 @@
             "type": "boolean",
             "title": "Is System",
             "default": false
+          },
+          "node_count": {
+            "type": "integer",
+            "title": "Node Count",
+            "default": 0
+          },
+          "edge_count": {
+            "type": "integer",
+            "title": "Edge Count",
+            "default": 0
           }
         },
         "type": "object",

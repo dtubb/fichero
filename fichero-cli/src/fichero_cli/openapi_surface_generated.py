@@ -13519,12 +13519,14 @@ def register_generated_openapi_commands(
     def workflows_list_get(
         ctx: typer.Context,
         folder_path: Optional[str] = typer.Option(None, "--folder-path", help="Query parameter: folder_path."),
+        summary: Optional[bool] = typer.Option(None, "--summary/--no-summary", help="Query parameter: summary."),
     ) -> None:
         """List Workflows (GET /api/workflows)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = "/api/workflows"
             params = {
                 "folder_path": folder_path,
+                "summary": summary,
             }
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)

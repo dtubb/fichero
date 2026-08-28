@@ -9331,6 +9331,11 @@
             "name": "folder_path",
             "required": false,
             "type": "string"
+          },
+          {
+            "name": "summary",
+            "required": false,
+            "type": "boolean"
           }
         ],
         "request_model": null,

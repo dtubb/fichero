@@ -22,6 +22,19 @@ families for documents, search, workflows, workflow execution, annotations,
 providers, knowledge-graph endpoints, canvas endpoints (the former
 mind-palace routes, renamed to `/api/canvas`), and more.
 
+## Connected clients
+
+`GET /api/clients`
+
+- Purpose: which surfaces are currently talking to this engine — the app,
+  the `fichero` CLI, an MCP client — each with its transport (`uds`, `tcp`),
+  request count, and first/last seen times. Sharing settings renders this so
+  a user can see that the command-line tool and MCP server really are
+  connected, rather than inferring it from a successful command.
+- Presence, not authorization: entries come from the `X-Fichero-Client`
+  header recorded during auth enforcement, so an unnamed caller is attributed
+  by transport rather than rejected.
+
 ## W3C annotation export
 
 `GET /api/documents/{doc_id}/annotations.jsonld`

@@ -175,6 +175,15 @@ class WorkflowResponse(BaseModel):
     # "Reinstalled N workflows" always said 0, and the System badge never drew
     # (#4495). The client read was correct all along; the wire was silent.
     is_system: bool = False
+    # Node/edge counts, so a LIST caller never has to receive the graphs just
+    # to count them. `GET /api/workflows?summary=true` omits `nodes`/`edges`
+    # (they serialise as empty) and this is what the sidebar reads instead:
+    # the full list was 263 KB to name 50 workflows, decoded through
+    # AnyCodable on the way to drawing a folder of labels, which is the spin
+    # when a workflow folder opens (2026-08-28). The full graph is one
+    # `GET /api/workflows/{id}` away, which is what the canvas already does.
+    node_count: int = 0
+    edge_count: int = 0
 
 
 def _workflow_untested(wf) -> bool:
@@ -607,6 +616,7 @@ def _workflow_to_response(
     db: Database | None = None,
     *,
     workflow_resolver=None,
+    summary: bool = False,
 ) -> WorkflowResponse:
     """Serialize a stored workflow, including the engine's run-eligibility answers.
 
@@ -626,8 +636,10 @@ def _workflow_to_response(
         provider=workflow.provider,
         model=workflow.model,
         format=workflow.format,
-        nodes=[_dict_to_node_def(n) for n in workflow.nodes],
-        edges=[_dict_to_edge_def(e) for e in workflow.edges],
+        nodes=[] if summary else [_dict_to_node_def(n) for n in workflow.nodes],
+        edges=[] if summary else [_dict_to_edge_def(e) for e in workflow.edges],
+        node_count=len(workflow.nodes or []),
+        edge_count=len(workflow.edges or []),
         folder_path=workflow.folder_path,
         sort_order=workflow.sort_order,
         untested=_workflow_untested(workflow),
@@ -869,6 +881,7 @@ async def reinstall_default_workflows(
 @router.get("", response_model=WorkflowListResponse)
 async def list_workflows(
     folder_path: str | None = None,
+    summary: bool = False,
     db: Database = Depends(get_library_database),
     x_fichero_library_path: str = Depends(require_library_path),
 ) -> WorkflowListResponse:
@@ -876,6 +889,14 @@ async def list_workflows(
 
     When ``folder_path`` is omitted, all workflows are returned regardless
     of folder. Pass an explicit value (e.g. "/Catalogue") to filter.
+
+    ``summary=true`` omits every workflow's ``nodes`` and ``edges``, leaving
+    ``node_count``/``edge_count`` in their place. The full list is 263 KB to
+    name 50 workflows because it carries every preset's whole graph; a
+    caller that only draws labels — the sidebar, the run menu, a verb
+    toolbar — needs about 20 KB of it. Defaults to False so existing
+    callers are unaffected; the graph stays one GET /api/workflows/{id}
+    away.
 
     #4450: a non-global library's list additionally includes the shipped
     DEFAULT workflows resolved from the global library (#4102) — defaults
@@ -903,7 +924,9 @@ async def list_workflows(
 
         resolver = sub_workflow_resolver_for_db(db)
         items = [
-            _workflow_to_response(workflow, db, workflow_resolver=resolver)
+            _workflow_to_response(
+                workflow, db, workflow_resolver=resolver, summary=summary
+            )
             for workflow in sorted(workflows, key=lambda w: w.sort_order)
         ]
         return WorkflowListResponse(items=items, count=len(items))
