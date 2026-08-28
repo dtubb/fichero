@@ -59,6 +59,8 @@ struct WorkflowBar: View {
     /// Which family's variant popover is open, if any.
     @State private var openFamily: String?
     @State private var showingTools = false
+    /// Where a dragged chip would land.
+    @State private var dropTargetIndex: Int?
 
     private var families: [WorkflowBarPolicy.VerbFamily] {
         WorkflowBarPolicy.families(from: workflows, target: target, folders: folders)
@@ -228,6 +230,36 @@ struct WorkflowBar: View {
                 // The whole chip names its step, so an icon-only rail stays
                 // readable on hover rather than becoming a rebus.
                 .help("Step \(index + 1): \(step.displayName) — \(step.modelDescription)")
+                // Drag to reorder. Order is the whole point of a chain —
+                // transcribe before you clean up, clean up before you
+                // catalogue — and until now the only way to fix a wrong order
+                // was to clear the rail and rebuild it (Daniel, 2026-08-28:
+                // "order matters"). No modifier: dragging a chip can mean
+                // nothing else.
+                .draggable(step.id.uuidString) {
+                    Text(step.name).font(.caption).padding(4)
+                }
+                .dropDestination(for: String.self) { items, _ in
+                    guard let raw = items.first,
+                          let from = staged.firstIndex(where: { $0.id.uuidString == raw }),
+                          from != index
+                    else { return false }
+                    let moved = staged.remove(at: from)
+                    staged.insert(moved, at: min(index, staged.count))
+                    return true
+                } isTargeted: { targeted in
+                    dropTargetIndex = targeted ? index : (dropTargetIndex == index ? nil : dropTargetIndex)
+                }
+                .overlay(alignment: .leading) {
+                    // Where the dragged step would land, stated before the
+                    // drop rather than discovered after it.
+                    if dropTargetIndex == index {
+                        Rectangle()
+                            .fill(Color.accentColor)
+                            .frame(width: 2)
+                            .offset(x: -3)
+                    }
+                }
                 .contextMenu { modelMenu(forStepAt: index) }
                 // Double-click a step to see what it produced. A finished step
                 // that cannot show its own output makes the user go hunting in
