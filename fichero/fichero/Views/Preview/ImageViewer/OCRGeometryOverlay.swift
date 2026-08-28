@@ -24,18 +24,36 @@ struct OCRGeometryOverlay: View {
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .topLeading) {
-                ForEach(boxes) { box in
-                    if let rect = BoundingBoxGeometry.viewRect(
-                        normalized: box.bbox, in: geo.size, visible: visible
-                    ) {
-                        RoundedRectangle(cornerRadius: 1.5)
-                            .stroke(Color.accentColor.opacity(0.8), lineWidth: 1)
-                            .background(Color.accentColor.opacity(0.08))
-                            .frame(width: rect.width, height: rect.height)
-                            .offset(x: rect.minX, y: rect.minY)
-                            .accessibilityLabel("Recognized text: \(box.text)")
+                // ONE Canvas, not one view per box (2026-08-28). This was a
+                // `ForEach` building a RoundedRectangle with stroke,
+                // background, frame, offset and an accessibility node PER BOX
+                // — hundreds of views on a dense page, all re-laid-out every
+                // frame because `geo.size` changes as you scroll or zoom.
+                // Daniel: "when there are a lot of bounding boxes on words in
+                // preview, scrolling is really slow if two fingers are used to
+                // drag." A Canvas draws the same rectangles in a single pass
+                // with no layout and no accessibility tree.
+                //
+                // Per-box VoiceOver labels go with it, deliberately: arrowing
+                // through 400 unlabelled rectangles was never usable. The
+                // hover readout still speaks individual words, and the layer
+                // carries a summary instead.
+                Canvas { context, size in
+                    let stroke = Color.accentColor.opacity(0.8)
+                    let wash = Color.accentColor.opacity(0.08)
+                    for box in boxes {
+                        guard let rect = BoundingBoxGeometry.viewRect(
+                            normalized: box.bbox, in: size, visible: visible
+                        ) else { continue }
+                        let path = Path(roundedRect: rect, cornerRadius: 1.5)
+                        context.fill(path, with: .color(wash))
+                        context.stroke(path, with: .color(stroke), lineWidth: 1)
                     }
                 }
+                .frame(width: geo.size.width, height: geo.size.height)
+                .allowsHitTesting(false)
+                .accessibilityHidden(boxes.isEmpty)
+                .accessibilityLabel("^[\(boxes.count) recognized text region](inflect: true)")
 
                 // Hover-only tracking (2026-08-12: "no way to see what the
                 // text is in each bbox"). AppKit tracking areas deliver
