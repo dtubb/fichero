@@ -247,8 +247,16 @@ async def main() -> int:
     ap.add_argument("--library", required=True)
     ap.add_argument("--document", help="document id (prefix ok)")
     ap.add_argument("--file", help="image path, when there is no document row")
-    ap.add_argument("--model", default="openrouter:google/gemini-3.1-flash-lite",
-                    help="provider:model")
+    ap.add_argument("--model", default="apple:apple-vision",
+                    help="provider:model tried FIRST")
+    ap.add_argument("--fallback-model",
+                    default="openrouter:google/gemini-3.1-flash-lite",
+                    help="provider:model tried when the first cannot do the job. "
+                         "Apple's on-device stack is free and private but only "
+                         "does OCR and text, so most vision tools land here — "
+                         "which is the point of trying Apple first.")
+    ap.add_argument("--all-tools", action="store_true",
+                    help="include tools that call no model")
     ap.add_argument("--tools", help="comma-separated; default = every LLM tool "
                                     "that can take this input")
     ap.add_argument("--input", choices=("page", "content", "both"), default="page")
@@ -275,6 +283,10 @@ async def main() -> int:
 
     provider, _, model = args.model.partition(":")
     llm_config = LLMConfig(provider=provider, model=model)
+    fallback_config = None
+    if args.fallback_model and args.fallback_model != args.model:
+        fb_provider, _, fb_model = args.fallback_model.partition(":")
+        fallback_config = LLMConfig(provider=fb_provider, model=fb_model)
 
     document: dict[str, Any] = {}
     file_path = args.file or ""
@@ -299,7 +311,7 @@ async def main() -> int:
         t for t in list_tools()
         if (wanted is None or t.name in wanted)
         and (args.category is None or t.category == args.category)
-        and getattr(t, "uses_llm", False)
+        and (args.all_tools or getattr(t, "uses_llm", False))
     ]
     tools.sort(key=lambda t: (t.category, t.name))
 
@@ -325,9 +337,29 @@ async def main() -> int:
                 skipped.append(tool_def.name)
                 continue
             print(f"  → {tool_def.name} …", flush=True)
-            rows.append(await run_one(tool_def.name, tool_def, inputs, state,
-                                      llm_config, recorder,
-                                      document.get("page_content") or ""))
+            row = await run_one(tool_def.name, tool_def, inputs, state,
+                                llm_config, recorder,
+                                document.get("page_content") or "")
+            row["model_used"] = args.model
+            # Apple first, then the fallback. A tool that Apple's on-device
+            # stack cannot do (describe, classify, table) fails or answers
+            # without calling anything, and that is not a verdict on the tool —
+            # it is a verdict on the model. Ask the other one before judging.
+            if fallback_config is not None and (
+                not row["ok"] or not row["called_model"]
+            ):
+                retry = await run_one(tool_def.name, tool_def, inputs, state,
+                                      fallback_config, recorder,
+                                      document.get("page_content") or "")
+                retry["model_used"] = args.fallback_model
+                retry["first_model_verdict"] = (
+                    row.get("error") or row.get("why_no_call") or "no answer"
+                )
+                if retry["ok"] and retry["called_model"]:
+                    row = retry
+                elif not row["ok"] and retry["ok"]:
+                    row = retry
+            rows.append(row)
             if args.limit and len(rows) >= args.limit:
                 break
     finally:
@@ -339,6 +371,7 @@ async def main() -> int:
         "document_name": document.get("name"),
         "file": file_path,
         "model": args.model,
+        "fallback_model": args.fallback_model,
         "input_mode": args.input,
         "page_content_chars": len(document.get("page_content") or ""),
         "skipped_wrong_input_kind": skipped,
@@ -346,13 +379,15 @@ async def main() -> int:
     }
 
     print()
-    print(f"{'tool':28} {'ok':>3} {'model':>6} {'secs':>6}  first line of output")
-    print("-" * 100)
+    print(f"{'tool':28} {'ok':>3} {'called':>6} {'secs':>6}  "
+          f"{'model':18}  first line of output")
+    print("-" * 118)
     for r in rows:
         head = (r["output"] or r.get("error") or "").strip().splitlines()
+        model_tag = (r.get("model_used") or "").split(":")[-1][:18]
         print(f"{r['tool']:28} {'yes' if r['ok'] else 'NO':>3} "
               f"{'yes' if r['called_model'] else 'NO':>6} {r['seconds']:>6.1f}  "
-              f"{(head[0] if head else '')[:52]}")
+              f"{model_tag:18}  {(head[0] if head else '')[:40]}")
     silent = [r for r in rows if r["ok"] and not r["called_model"]]
     if silent:
         print("\nAnswered WITHOUT calling the model:")

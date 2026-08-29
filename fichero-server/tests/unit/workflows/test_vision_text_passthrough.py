@@ -129,6 +129,62 @@ async def test_pdf_with_existing_page_content_skips_vision(tmp_path: Path) -> No
 
 
 @pytest.mark.asyncio
+async def test_apple_vision_is_refused_for_a_tool_that_asks_a_question(
+    tmp_path: Path,
+) -> None:
+    """Apple Vision ignores the prompt and returns the page's text.
+
+    For Transcribe that is the right answer. For Describe or Table it is the
+    OCR handed back as though it answered the question — success reported for
+    a wrong answer, invisible to everything downstream. A tool that has not
+    declared `supports_apple_vision` must be told, not quietly given OCR.
+    """
+    image = tmp_path / "page.png"
+    image.write_bytes(b"image")
+    describe_config = VisionToolConfig(artifact_type="description")
+    assert describe_config.supports_apple_vision is False
+
+    with pytest.raises(ValueError, match="ignores the prompt"):
+        await process_vision(
+            files=[str(image)],
+            documents=[],
+            prompt="Describe this image.",
+            llm_config=LLMConfig(provider="apple", model="apple-vision"),
+            library_path="",
+            task_id=None,
+            tool_config=describe_config,
+            vision_mode="llm",
+            save_to_db=False,
+        )
+
+
+@pytest.mark.asyncio
+async def test_apple_vision_stays_available_to_transcribe(tmp_path: Path) -> None:
+    """The guard must not cost Transcribe its free, private, on-device route."""
+    image = tmp_path / "page.png"
+    image.write_bytes(b"image")
+
+    with patch(
+        "fichero_server.llm.vision",
+        new=AsyncMock(return_value="THURSDAY, FEBRUARY 9, 1933"),
+    ) as vision:
+        result = await process_vision(
+            files=[str(image)],
+            documents=[],
+            prompt="Transcribe.",
+            llm_config=LLMConfig(provider="apple", model="apple-vision"),
+            library_path="",
+            task_id=None,
+            tool_config=_tool_config(),
+            vision_mode="llm",
+            save_to_db=False,
+        )
+
+    vision.assert_awaited_once()
+    assert "FEBRUARY" in result["text"]
+
+
+@pytest.mark.asyncio
 async def test_transform_tool_ignores_existing_page_content(tmp_path: Path) -> None:
     """A tool that TRANSFORMS the page must call the model, not echo its text.
 

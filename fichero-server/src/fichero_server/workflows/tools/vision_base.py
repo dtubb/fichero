@@ -2784,6 +2784,30 @@ async def process_vision(
         provider = (getattr(llm_config, "provider", "") or "").lower()
         vision_mode = "apple" if provider == "apple" else "llm"
 
+    # Apple Vision is a RECOGNITION pass, not a generative model: it ignores
+    # the prompt entirely and returns the page's text. For Transcribe that is
+    # the right answer. For Describe, Caption, Classify or Table it is the
+    # page's OCR handed back as though it answered the question — a wrong
+    # answer that reports success, which is the same failure class as the
+    # pre-extracted-text passthrough and just as invisible downstream.
+    #
+    # A tool that has not declared `supports_apple_vision` must not be run on
+    # it. Raise, naming the swap, rather than silently produce OCR: the caller
+    # can pick a generative vision model and get a real answer.
+    _resolved_provider = (getattr(llm_config, "provider", "") or "").lower()
+    _resolved_model = (getattr(llm_config, "model", "") or "").lower().strip()
+    if (
+        not tool_config.supports_apple_vision
+        and _resolved_provider == "apple"
+        and _resolved_model in ("", "default", "apple-vision")
+    ):
+        raise ValueError(
+            f"Apple Vision performs OCR and ignores the prompt, so it cannot "
+            f"answer what '{tool_config.artifact_type}' asks. Choose a "
+            f"generative vision model for this step, or use Transcribe if the "
+            f"page's text is what you want."
+        )
+
     # Override LLMConfig with user values if provided
     effective_config = llm_config
     if temperature is not None or max_tokens is not None:
