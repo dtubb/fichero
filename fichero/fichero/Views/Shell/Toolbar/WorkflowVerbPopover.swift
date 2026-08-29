@@ -34,13 +34,14 @@ struct WorkflowVerbPopover: View {
                     }
                 }
             }
-            .frame(maxHeight: 320)
+            .frame(maxHeight: 460)
         }
-        .frame(width: 340)
+        .frame(width: 380)
     }
 
     @ViewBuilder
     private func variantRow(_ workflow: WorkflowSidebarItem) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
         Button {
             onAdd(workflow)
         } label: {
@@ -77,11 +78,19 @@ struct WorkflowVerbPopover: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 14)
-            .padding(.vertical, 10)
+            .padding(.top, 10)
+            .padding(.bottom, 6)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .help("Add \(workflow.displayName) to the chain")
+
+        // OUTSIDE the add button: expanding to read a prompt must not stage
+        // the workflow. Two different intentions, two different targets.
+        WorkflowStepsDisclosure(workflowId: workflow.id)
+            .padding(.horizontal, 14)
+            .padding(.bottom, 10)
+        }
     }
 
     private func badge(_ title: String, systemImage: String, tint: Color) -> some View {

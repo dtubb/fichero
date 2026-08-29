@@ -118,10 +118,58 @@ struct WorkflowToolsPopover: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 14)
-            .padding(.vertical, 7)
+            .padding(.top, 7)
+            .padding(.bottom, expandedPrompt == tool.name ? 2 : 7)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .help(tool.description.isEmpty ? tool.displayName : tool.description)
+
+        // The tool's own prompt, from the registry the store already caches —
+        // no fetch, no second code path. A tool that calls a model IS its
+        // prompt; a description says what it is for, the prompt says what it
+        // will actually ask (Daniel, 2026-08-28).
+        if tool.usesLLM {
+            promptDisclosure(tool)
+        }
+    }
+
+    @State private var expandedPrompt: String?
+
+    @ViewBuilder
+    private func promptDisclosure(_ tool: ToolInfo) -> some View {
+        let isOpen = expandedPrompt == tool.name
+        VStack(alignment: .leading, spacing: 4) {
+            Button {
+                expandedPrompt = isOpen ? nil : tool.name
+            } label: {
+                Label(isOpen ? "Hide prompt" : "Show prompt",
+                      systemImage: isOpen ? "chevron.down" : "chevron.right")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tint)
+            }
+            .buttonStyle(.plain)
+
+            if isOpen {
+                // The registered prompt is the one with no config applied.
+                // Say so — a Table node set to CSV sends a different one, and
+                // the step's own prompt in the chain is where you see that.
+                Text(tool.defaultPrompt ?? "This tool registers no prompt.")
+                    .font(.system(size: 9, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(6)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(.quaternary.opacity(0.35),
+                                in: RoundedRectangle(cornerRadius: 5))
+                Text("Default prompt — a step's own settings can change it.")
+                    .font(.system(size: 9))
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.leading, 24)
+        .padding(.bottom, 7)
     }
 }

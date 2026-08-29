@@ -28,6 +28,14 @@ final class WorkflowStore: ChangeEventConsumer {
     /// to its built-in route so it is never scrambled in that window.
     var folderPresentation: [String: WorkflowBarPolicy.FolderPresentation] = [:]
 
+    /// Steps + resolved prompts per workflow id, filled on demand by
+    /// `loadSteps(for:)`. Observable so a popover redraws when its fetch
+    /// lands; see WorkflowStore+Steps.
+    var workflowStepCache: [String: [WorkflowStepPreview]] = [:]
+    /// In-flight step fetches, so reopening a popover mid-fetch does not
+    /// start a second one.
+    var workflowStepsLoading: Set<String> = []
+
     /// Bumped when a `workflow.*` change event arrives so interested views can
     /// invalidate their cached workflow-dependent UI.
     var changeToken: Int = 0
@@ -81,6 +89,9 @@ final class WorkflowStore: ChangeEventConsumer {
             WorkflowRunProviderCache.shared.invalidate()
             return
         }
+        // A workflow edit changes what its steps are and what they prompt, so
+        // the popover must not keep showing the graph from before the edit.
+        workflowStepCache.removeAll()
         changeToken &+= 1
     }
 

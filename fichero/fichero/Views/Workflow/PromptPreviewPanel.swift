@@ -149,22 +149,6 @@ struct PromptPreviewPanel: View {
 
     /// Convert node config to [String: any Sendable] for the API call
     private func buildConfigDict() -> [String: any Sendable] {
-        guard let config = node.config else { return [:] }
-        var result: [String: any Sendable] = [:]
-        for (key, value) in config {
-            switch value {
-            case .string(let str):
-                result[key] = str
-            case .int(let num):
-                result[key] = num
-            case .double(let num):
-                result[key] = num
-            case .bool(let flag):
-                result[key] = flag
-            default:
-                break
-            }
-        }
-        return result
+        node.promptConfigDict
     }
 }
