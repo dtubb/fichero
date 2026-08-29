@@ -96,6 +96,10 @@ extension WorkflowBar {
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
+            // The run's plan froze at ▶ — removing a chip mid-run would not
+            // stop its step, just hide a billed run from the rail (review,
+            // 2026-08-29). Same rule as Run/Clear.
+            .disabled(isRunning)
             .help("Remove \(step.name) from the chain")
             .accessibilityLabel("Remove \(step.name) from the chain")
         }

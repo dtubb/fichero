@@ -137,6 +137,49 @@ extension WorkflowStore {
         }
     }
 
+    /// Realise a bar TOOL step as the one-step workflow the engine can run,
+    /// reusing the one made last time. Here and not in the view: the store is
+    /// the only endpoint accessor (observable-data-layer rule; the review
+    /// caught `ContentView` calling `workflowService` directly, 2026-08-29).
+    func realizeToolWorkflow(toolName: String, displayName: String) async -> String? {
+        if let existing = workflows.first(where: {
+            $0.folderPath == "/Tools" && $0.name == displayName
+        }) {
+            return existing.id
+        }
+        do {
+            let created = try await workflowService.createToolWorkflow(
+                toolName: toolName,
+                displayName: displayName
+            )
+            await loadWorkflows()
+            return created
+        } catch {
+            logger.error(
+                "Could not realise tool \(toolName) as a workflow: \(String(describing: error))"
+            )
+            return nil
+        }
+    }
+
+    /// Upper-bound cost for one chain step, or nil when it cannot be priced.
+    /// Same rule as above: the view asks the store, never the service.
+    func estimateStepCost(
+        workflowId: String,
+        fileCount: Int,
+        provider: String?,
+        model: String?
+    ) async -> Double? {
+        // `try?` collapses a thrown error and a nil (unpriced) result into the
+        // same Optional<Optional>; flatten so both mean "no figure".
+        (try? await workflowService.estimateCost(
+            workflowId: workflowId,
+            fileCount: fileCount,
+            provider: provider,
+            model: model
+        )) ?? nil
+    }
+
     /// Which ports actually feed this node. "documents, files" for a step that
     /// reads the page, "text" for one that reads what the step before it
     /// wrote — the distinction someone is trying to see when they ask what a

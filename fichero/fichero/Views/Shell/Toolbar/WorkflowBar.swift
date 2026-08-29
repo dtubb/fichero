@@ -85,8 +85,14 @@ struct WorkflowBar: View {
     }
 
     private var verbRow: some View {
-        HStack(spacing: 0) {
-            if let reason = WorkflowBarPolicy.emptyReason(from: workflows, target: target) {
+        // Computed ONCE per render: `emptyReason` and the ForEach both need
+        // the grouping, and calling the property twice ran the full
+        // filter+group+sort of ~50 workflows twice per body evaluation —
+        // at its worst exactly while the rail animates (review, 2026-08-29).
+        let families = self.families
+        return HStack(spacing: 0) {
+            if families.isEmpty,
+               let reason = WorkflowBarPolicy.emptyReason(from: workflows, target: target) {
                 // An empty bar with no explanation reads as a broken app rather
                 // than as "nothing applies to this".
                 Text(reason)

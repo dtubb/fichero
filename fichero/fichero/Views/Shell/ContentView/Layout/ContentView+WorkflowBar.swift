@@ -154,26 +154,9 @@ extension ContentView {
     func resolveWorkflowId(for step: StagedWorkflowStep) async -> String? {
         if let workflow = step.workflow { return workflow.id }
         guard case .tool(let toolName, let displayName, _, _) = step.kind else { return nil }
-
-        // Reuse the one we made last time rather than accumulating duplicates.
-        if let existing = workflowStore.workflows.first(where: {
-            $0.folderPath == "/Tools" && $0.name == displayName
-        }) {
-            return existing.id
-        }
-        do {
-            let created = try await workflowStore.workflowService.createToolWorkflow(
-                toolName: toolName,
-                displayName: displayName
-            )
-            await workflowStore.loadWorkflows()
-            return created
-        } catch {
-            barLogger.error(
-                "Could not realise tool \(toolName) as a workflow: \(String(describing: error))"
-            )
-            return nil
-        }
+        return await workflowStore.realizeToolWorkflow(
+            toolName: toolName, displayName: displayName
+        )
     }
 
     /// Identity of the current cost question: re-price when the chain, its
@@ -211,16 +194,12 @@ extension ContentView {
             // workflow until the run makes one, so it is left unpriced rather
             // than guessed at.
             guard let workflowId = step.workflow?.id else { continue }
-            // `try?` collapses a thrown error and a nil (unpriced) result
-            // into the same Optional<Optional>; flatten so both mean "no
-            // figure" without one masquerading as the other.
-            let estimated = try? await workflowStore.workflowService.estimateCost(
+            if let cost = await workflowStore.estimateStepCost(
                 workflowId: workflowId,
                 fileCount: workflowBarTargetCount,
                 provider: step.providerOverride,
                 model: step.modelOverride
-            )
-            if let cost = estimated ?? nil {
+            ) {
                 total += cost
                 priced = true
             }
@@ -298,7 +277,7 @@ extension ContentView {
             let model = candidate.model
             guard !model.isEmpty, !seen.contains(model) else { return nil }
             seen.insert(model)
-            let short = model.split(separator: "/").last.map(String.init) ?? model
+            let short = ModelChipToolbarItem.shorten(model)
             return WorkflowBarModelChoice(
                 label: "\(short)  ·  \(candidate.tier)",
                 provider: candidate.provider,

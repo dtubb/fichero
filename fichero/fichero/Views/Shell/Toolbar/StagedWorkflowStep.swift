@@ -100,7 +100,10 @@ struct StagedWorkflowStep: Identifiable, Equatable {
         guard let model = modelOverride, !model.isEmpty else {
             return "default model for this workflow"
         }
-        return model.split(separator: "/").last.map(String.init) ?? model
+        // One shortening rule for the whole feature — the chip, this label
+        // and the pin menu must agree on how a model reads (review,
+        // 2026-08-29).
+        return ModelChipToolbarItem.shorten(model)
     }
 
     /// True when the user pinned a model to this step rather than inheriting.
