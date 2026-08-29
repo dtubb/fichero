@@ -24,7 +24,7 @@ public struct InMemoryASGIClientTransport: ClientTransport {
     private let appHandle: ASGIApp
     /// Test-only hook fired when a body-drain thread exits (any reason). Lets
     /// tests observe cancellation without exposing internals publicly.
-    private let onDrainEnd: (() -> Void)?
+    private let onDrainEnd: (@Sendable () -> Void)?
 
     /// - Parameter app: an ASGI application handle from `ASGIAppLoader`.
     public init(app: ASGIApp) {
@@ -33,7 +33,7 @@ public struct InMemoryASGIClientTransport: ClientTransport {
     }
 
     /// Internal initializer with a drain-exit observer, for tests.
-    init(app: ASGIApp, onDrainEnd: (() -> Void)?) {
+    init(app: ASGIApp, onDrainEnd: (@Sendable () -> Void)?) {
         self.appHandle = app
         self.onDrainEnd = onDrainEnd
     }
@@ -160,7 +160,10 @@ public struct InMemoryASGIClientTransport: ClientTransport {
 
 /// Coordinates cancellation of a body-drain thread. Holds the queue handle so it
 /// outlives the drain, and can wake a blocked `get()` by pushing a sentinel.
-private final class DrainControl {
+///
+/// `@unchecked Sendable`: `cancelled` is guarded by `lock`, `queueRef` is only
+/// touched under the GIL, and `thread` is assigned once before `start()`.
+private final class DrainControl: @unchecked Sendable {
     let queueRef: PyRef
     private let lock = NSLock()
     private var cancelled = false
