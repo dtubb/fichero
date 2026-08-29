@@ -33,7 +33,11 @@ struct InstallToolsWindow: View {
                 LabeledContent("fichero") {
                     Button("Install…") { install(name: "fichero", module: "fichero_cli") { cliStatus = $0 } }
                 }
-                Text("Try `fichero health` or `fichero workflow list` in Terminal. If the command isn't found, add `export PATH=\"$HOME/.local/bin:$PATH\"` to ~/.zshrc.")
+                Text(
+                    "Try `fichero health` or `fichero workflow list` in "
+                    + "Terminal. If the command isn't found, add "
+                    + "`export PATH=\"$HOME/.local/bin:$PATH\"` to ~/.zshrc."
+                )
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 if let cliStatus { statusText(cliStatus) }

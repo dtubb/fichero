@@ -220,7 +220,6 @@ struct ShowFindBarButton: View {
     }
 }
 
-
 // MARK: - Capability bar
 
 /// View ▸ Show/Hide Workflow Bar (2026-08-28) — the Preview convention, where
@@ -247,7 +246,6 @@ struct ShowWorkflowBarButton: View {
         .disabled(showWorkflowBar == nil)
     }
 }
-
 
 /// View ▸ Workflow Bar Labels — the names under the glyphs are optional
 /// (Daniel, 2026-08-28): on while the vocabulary is unfamiliar, off for a

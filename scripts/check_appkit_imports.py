@@ -43,6 +43,11 @@ RULE_DOC = "docs/contributor/architecture/fichero/reform_masterplan_2026-06.md"
 # Keys are paths relative to SWIFT_DIR (posix). Value documents why it is a
 # sanctioned bridge OR that it is baseline debt to migrate.
 KNOWN_VIOLATIONS: dict[str, str] = {
+    # 2026-08-28: Install Tools writes the `fichero` CLI and the MCP shim into
+    # ~/.local/bin and must tell the user where they went — the reveal-in-Finder
+    # and the "add this to PATH" affordance are NSWorkspace calls with no
+    # SwiftUI equivalent. Installing a command-line tool is a macOS-only act.
+    "Views/Settings/Tools/InstallToolsWindow.swift": "2026-08-28 — NSWorkspace reveal for the installed CLI/MCP binaries (macOS-only by nature)",
     # #4354: undo routing must inspect the AppKit responder chain — deciding
     # whether a text view owns the undo IS an NSTextView/first-responder
     # question, and SwiftUI exposes no equivalent. AppKit here is the feature,

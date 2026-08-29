@@ -243,7 +243,6 @@ struct PortInfo: Codable, Identifiable, Hashable {
     var isOutput: Bool { portType == "output" }
 }
 
-
 /// How a workflow folder presents in the capability bar, as the engine
 /// describes it (`GET /api/workflows/folders`). Order and glyph are DATA —
 /// a folder the engine has not described still appears, after the known

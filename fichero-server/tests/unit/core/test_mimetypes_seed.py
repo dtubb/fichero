@@ -34,4 +34,9 @@ def test_primary_lan_ip_is_an_ipv4_without_dns():
 
     from fichero_server.__main__ import _primary_lan_ip
 
-    ipaddress.IPv4Address(_primary_lan_ip())  # raises if not a dotted quad
+    address = ipaddress.IPv4Address(_primary_lan_ip())  # raises if not a quad
+    # Assert the two properties the caller actually depends on: the pairing QR
+    # must carry an address another device can dial, so loopback and the
+    # unspecified address are both failures, not merely unusual.
+    assert not address.is_loopback
+    assert not address.is_unspecified

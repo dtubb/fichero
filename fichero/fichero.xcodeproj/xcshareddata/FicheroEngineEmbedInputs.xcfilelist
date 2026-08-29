@@ -273,6 +273,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/mcp/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/mcp/manager.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/geo.py
+$(SRCROOT)/../fichero-server/src/fichero_server/media/geometry_merge.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/image_ops.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/ocr_geometry.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/region_crops.py
@@ -475,6 +476,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/llm_base.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/llm_prompting.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/mcp.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/merge_dedup_only.py
+$(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/merge_geometry.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/multi_agent.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/ner.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/objects.py

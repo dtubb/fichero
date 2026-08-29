@@ -35,6 +35,11 @@ SWIFT_SOURCES = [
     # after the service splits (#1943).
     *sorted((ROOT / "fichero" / "fichero" / "Services").rglob("*Service*.swift")),
     *sorted((ROOT / "fichero" / "fichero" / "Models").glob("*Store*.swift")),
+    # PairingTypes owns the connected-clients call. It is a service in
+    # everything but its name, and this check asks whether an endpoint is
+    # REACHED, not where the call lives — the "wiring belongs in a store"
+    # rule is a different guardrail's business (2026-08-28).
+    ROOT / "fichero" / "fichero" / "Services" / "PairingTypes.swift",
 ]
 CLI_SOURCES = sorted((ROOT / "fichero-cli" / "src" / "fichero_cli").rglob("*.py"))
 KNOWN_GAPS = load_known_gaps(
@@ -52,6 +57,11 @@ SWIFT_OPERATION_WITNESSES = {
         "getRenditionContentApiDocumentsDocumentIdRenditionsRenditionIdContentGet"
     ),
     "GET /api/citation-usages": "listCitationUsagesApiCitationUsagesGet",
+    # Same reason: reached through the generated client, so the path string is
+    # never spelled in Swift. Folders drive the capability bar's verb ORDER and
+    # glyphs; clients back the Connected Clients pane (2026-08-28).
+    "GET /api/workflows/folders": "listWorkflowFoldersApiWorkflowsFoldersGet",
+    "GET /api/clients": "connectedClientsApiClientsGet",
     "GET /api/libraries/{lib}/entity-types": "listLibraryEntityTypesApiLibrariesLibEntityTypesGet",
     "POST /api/libraries/{lib}/entity-types": "addLibraryEntityTypeApiLibrariesLibEntityTypesPost",
     "DELETE /api/libraries/{lib}/entity-types/{entity_type_key}": (

@@ -69,8 +69,7 @@ extension WorkflowStore {
 
         do {
             let definition = try await workflowService.getWorkflow(workflowId)
-            var previews: [WorkflowStepPreview] = definition.nodes.enumerated().map {
-                index, node in
+            var previews: [WorkflowStepPreview] = definition.nodes.enumerated().map { index, node in
                 let info = toolRegistry[node.tool.lowercased()]
                 let label = node.label.flatMap { $0.isEmpty ? nil : $0 }
                 return WorkflowStepPreview(

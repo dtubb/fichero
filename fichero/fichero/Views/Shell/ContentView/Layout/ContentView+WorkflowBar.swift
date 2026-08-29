@@ -243,20 +243,32 @@ extension ContentView {
     /// has actually set up, which is the useful shortlist beside a chip.
     var workflowBarModelChoices: [WorkflowBarModelChoice] {
         let defaults = cachedAIDefaults
-        let candidates: [(String, String, String)] = [
-            ("Vision", defaults.visionMediumProvider, defaults.visionMediumModel),
-            ("Text", defaults.mediumProvider, defaults.mediumModel),
-            ("Large", defaults.largeProvider, defaults.largeModel),
-            ("Small", defaults.smallProvider, defaults.smallModel)
+        // A named triple, not a bare tuple: three positional Strings that all
+        // mean different things is exactly the shape a reader misreads.
+        struct TierCandidate {
+            let tier: String
+            let provider: String
+            let model: String
+        }
+        let candidates: [TierCandidate] = [
+            TierCandidate(tier: "Vision", provider: defaults.visionMediumProvider,
+                          model: defaults.visionMediumModel),
+            TierCandidate(tier: "Text", provider: defaults.mediumProvider,
+                          model: defaults.mediumModel),
+            TierCandidate(tier: "Large", provider: defaults.largeProvider,
+                          model: defaults.largeModel),
+            TierCandidate(tier: "Small", provider: defaults.smallProvider,
+                          model: defaults.smallModel)
         ]
         var seen = Set<String>()
-        return candidates.compactMap { tier, provider, model in
+        return candidates.compactMap { candidate in
+            let model = candidate.model
             guard !model.isEmpty, !seen.contains(model) else { return nil }
             seen.insert(model)
             let short = model.split(separator: "/").last.map(String.init) ?? model
             return WorkflowBarModelChoice(
-                label: "\(short)  ·  \(tier)",
-                provider: provider,
+                label: "\(short)  ·  \(candidate.tier)",
+                provider: candidate.provider,
                 model: model
             )
         }

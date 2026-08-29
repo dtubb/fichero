@@ -144,21 +144,26 @@ enum WorkflowBarPolicy {
 
     /// Family icons. Unknown families get a neutral symbol rather than being
     /// hidden: a preset in a folder nobody anticipated must still be runnable.
+    /// A table, not a switch: this is data — the mapping a served folder
+    /// record overrides anyway — and expressing it as control flow only made
+    /// the function complex enough to trip the complexity rule.
+    private static let familySymbols: [String: String] = [
+        "transcribe": "text.viewfinder",
+        "detect regions": "rectangle.dashed",
+        "extract": "square.on.square.badge.person.crop",
+        "extract data": "square.on.square.badge.person.crop",
+        "catalogue": "books.vertical",
+        "clean up": "wand.and.sparkles",
+        "describe": "text.bubble",
+        "organize": "folder.badge.gearshape",
+        "convert": "arrow.triangle.2.circlepath",
+        "export": "square.and.arrow.up",
+        "image editing": "photo",
+        "books": "book",
+    ]
+
     static func symbol(forFamily key: String) -> String {
-        switch key.lowercased() {
-        case "transcribe":     return "text.viewfinder"
-        case "detect regions": return "rectangle.dashed"
-        case "extract", "extract data": return "square.on.square.badge.person.crop"
-        case "catalogue":      return "books.vertical"
-        case "clean up":       return "wand.and.sparkles"
-        case "describe":       return "text.bubble"
-        case "organize":       return "folder.badge.gearshape"
-        case "convert":        return "arrow.triangle.2.circlepath"
-        case "export":         return "square.and.arrow.up"
-        case "image editing":  return "photo"
-        case "books":          return "book"
-        default:               return "play.circle"
-        }
+        familySymbols[key.lowercased()] ?? "play.circle"
     }
 
     /// What the run will act on, stated before it starts — the target chip.
