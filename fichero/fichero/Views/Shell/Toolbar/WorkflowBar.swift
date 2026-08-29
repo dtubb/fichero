@@ -153,10 +153,18 @@ struct WorkflowBar: View {
                     Button(action: onRunChain) {
                         Image(systemName: "play.circle.fill")
                             .font(.title3)
-                            .foregroundStyle(Color.accentColor)
+                            .foregroundStyle(target == .nothing
+                                             ? Color.secondary : Color.accentColor)
                     }
                     .buttonStyle(.plain)
-                    .help("Run \(staged.count) step(s) in order on the selection")
+                    // Pressing play with nothing selected used to silently do
+                    // nothing — the guard in runStagedChain returned without a
+                    // word (review, 2026-08-29). Disabled WITH the reason on
+                    // hover is the honest version.
+                    .disabled(target == .nothing)
+                    .help(target == .nothing
+                          ? "Select a document or folder to run this chain on"
+                          : "Run \(staged.count) step(s) in order on the selection")
                     .accessibilityLabel("Run the chain")
 
                     Button { staged.removeAll() } label: {

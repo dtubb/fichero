@@ -80,6 +80,9 @@ extension ContentView {
             ? (detailDocument.map { [$0.id] } ?? [])
             : effectiveWorkflowRunSelection
         guard !targets.isEmpty else { return }
+        // What "see what it produced" opens later, however the live selection
+        // wanders during the run.
+        lastChainRunTargets = targets
 
         // Every step starts pending again, so a re-run does not show last
         // time's greens while this time's work is still ahead.
@@ -87,19 +90,29 @@ extension ContentView {
             stagedWorkflowChain[index].state = .pending
         }
 
-        for (index, step) in stagedWorkflowChain.enumerated() {
-            runningStagedStepIndex = index
-            stagedWorkflowChain[index].state = .running
+        // All chip-state writes go through the step's ID, not its index
+        // (review, 2026-08-29): chips stay removable and draggable while a
+        // chain runs, so a captured index can drift onto a DIFFERENT step —
+        // painting the wrong chip green, or writing past the end.
+        func update(_ stepId: UUID, _ mutate: (inout StagedWorkflowStep) -> Void) {
+            if let liveIndex = stagedWorkflowChain.firstIndex(where: { $0.id == stepId }) {
+                mutate(&stagedWorkflowChain[liveIndex])
+            }
+        }
+
+        for step in stagedWorkflowChain {
+            runningStagedStepIndex = stagedWorkflowChain.firstIndex { $0.id == step.id }
+            update(step.id) { $0.state = .running }
             // Each step carries its own model, so a chain can read a hard hand
             // with the best available and then count entities with something
             // cheap. nil means the workflow resolves its own alias.
             guard let workflowId = await resolveWorkflowId(for: step) else {
-                // Could not realise this step — say so on the chip rather than
-                // skipping silently and letting the chain look successful.
-                if stagedWorkflowChain.indices.contains(index) {
-                    stagedWorkflowChain[index].state = .failed
-                }
-                continue
+                // Could not realise this step. STOP, exactly as an engine
+                // failure stops the chain — the earlier `continue` ran step
+                // N+1 against an input step N never produced (review,
+                // 2026-08-29).
+                update(step.id) { $0.state = .failed }
+                break
             }
             let threadId = await awaitWorkflowExecution(
                 workflowId: workflowId,
@@ -110,9 +123,7 @@ extension ContentView {
                 onThreadId: { threadId in
                     // Stamped the moment the server accepts, not when the run
                     // ends — the point is to watch a step WHILE it works.
-                    if stagedWorkflowChain.indices.contains(index) {
-                        stagedWorkflowChain[index].threadId = threadId
-                    }
+                    update(step.id) { $0.threadId = threadId }
                 }
             )
             // The chip states the run's OUTCOME, not merely that it returned.
@@ -121,9 +132,7 @@ extension ContentView {
             // settled status, so ask it (review fix, 2026-08-29).
             let settled = executionObserver.getExecution(threadId: threadId)?.status
             let stepSucceeded = settled == .completed
-            if stagedWorkflowChain.indices.contains(index) {
-                stagedWorkflowChain[index].state = stepSucceeded ? .succeeded : .failed
-            }
+            update(step.id) { $0.state = stepSucceeded ? .succeeded : .failed }
             // A chain is sequential BECAUSE step N+1 reads what step N wrote.
             // Running the review pass after the transcription failed spends
             // money on an input that does not exist; stop and leave the later
@@ -248,10 +257,13 @@ extension ContentView {
             return
         }
 
-        // The run acted on the frozen targets, so the first of them is what
-        // this step wrote to. Opening the SELECTION rather than a run record
-        // is what the user means by "see it in preview or reader".
-        let targets = effectiveWorkflowRunSelection
+        // The run acted on the targets FROZEN at press time — opening the
+        // live selection instead showed whatever the user had wandered to
+        // since (review, 2026-08-29). Falls back to the live selection for a
+        // step opened before any chain has run.
+        let targets = lastChainRunTargets.isEmpty
+            ? effectiveWorkflowRunSelection
+            : lastChainRunTargets
         guard let first = targets.first ?? detailDocument?.id,
               let doc = documentStore.currentDocuments.first(where: { $0.id == first })
         else { return }

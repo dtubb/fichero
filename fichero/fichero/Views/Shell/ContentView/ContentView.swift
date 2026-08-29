@@ -191,6 +191,10 @@ struct ContentView: View {
     /// staging.
     @State var stagedWorkflowChain: [StagedWorkflowStep] = []
     @State var isRunningStagedChain = false
+    /// The documents the LAST chain run acted on, frozen at press time.
+    /// Opening a finished step's result must show what the run wrote to —
+    /// not whatever the selection has wandered to since (review, 2026-08-29).
+    @State var lastChainRunTargets: [String] = []
     /// Which chain step is executing, for the rail's progress.
     @State var runningStagedStepIndex: Int?
     /// Upper-bound cost of the staged chain, or nil when nothing can be

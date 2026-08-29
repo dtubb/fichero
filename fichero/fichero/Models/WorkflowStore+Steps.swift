@@ -110,16 +110,23 @@ extension WorkflowStore {
             // Resolve each prompting step's ACTUAL prompt through the engine's
             // builder — the same call the node editor's prompt preview makes,
             // so the bar and the editor can never show different prompts for
-            // the same node. A step the engine will not resolve is left nil
-            // and shown as unresolved rather than filled in with a default
-            // nobody is going to send.
+            // the same node. A step the engine will not resolve falls back to
+            // the registered default, labelled by the UI as such.
             for (offset, step) in previews.enumerated() where step.usesModel {
                 guard let node = definition.nodes.first(where: { $0.id == step.id })
                 else { continue }
-                previews[offset].prompt = (try? await workflowService.getToolPrompt(
+                let resolved = try? await workflowService.getToolPrompt(
                     toolName: step.toolName,
                     config: node.promptConfigDict
-                )) ?? toolRegistry[step.toolName.lowercased()]?.defaultPrompt
+                )
+                // `try?` swallows CancellationError too — closing the popover
+                // mid-fetch used to fall through to the DEFAULT prompt and
+                // CACHE it as this node's answer, permanently wrong until the
+                // next workflow edit (review, 2026-08-29). A cancelled load
+                // caches nothing.
+                if Task.isCancelled { return }
+                previews[offset].prompt = resolved
+                    ?? toolRegistry[step.toolName.lowercased()]?.defaultPrompt
             }
             workflowStepCache[workflowId] = previews
         } catch {

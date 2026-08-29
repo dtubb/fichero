@@ -89,9 +89,14 @@ final class WorkflowStore: ChangeEventConsumer {
             WorkflowRunProviderCache.shared.invalidate()
             return
         }
-        // A workflow edit changes what its steps are and what they prompt, so
+        // A workflow EDIT changes what its steps are and what they prompt, so
         // the popover must not keep showing the graph from before the edit.
-        workflowStepCache.removeAll()
+        // Run-lifecycle events (workflow.run from Shortcuts/CLI) change no
+        // graph — wiping on them refetched every open popover per run for
+        // nothing (review, 2026-08-29).
+        if event.verb != "run" {
+            workflowStepCache.removeAll()
+        }
         changeToken &+= 1
     }
 
