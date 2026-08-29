@@ -34,18 +34,33 @@ struct ModelChipToolbarItem: View {
     /// tier — the chip must not report an engine problem as a user one.
     @State private var loadFailed = false
 
+    /// Configured models the picker offers — vision-capable ones for a page
+    /// selection, everything for text. From the same provider cache the Run
+    /// Workflow menu uses, so the two lists can never disagree.
+    @State private var isPresented = false
+    @Environment(ChatService.self) private var chatService: ChatService?
+
+    private var pickableModels: [(provider: String, model: String)] {
+        WorkflowRunProviderCache.shared.providers.flatMap { provider in
+            provider.models.compactMap { model -> (String, String)? in
+                if prefersVision {
+                    let visionCapable = provider.modelDetails
+                        .first { $0.modelId == model }?.supportsVision
+                        ?? provider.supportsVision
+                    guard visionCapable else { return nil }
+                }
+                return (provider.id, model)
+            }
+        }
+    }
+
+    private var currentModel: String {
+        prefersVision ? defaults.visionMediumModel : defaults.mediumModel
+    }
+
     var body: some View {
-        Menu {
-            Section("This selection would use") {
-                Label(displayModel, systemImage: prefersVision ? "eye" : "text.alignleft")
-            }
-            Divider()
-            Section("Tiers") {
-                tierRow("Vision", defaults.visionMediumModel, defaults.visionMediumProvider)
-                tierRow("Text", defaults.mediumModel, defaults.mediumProvider)
-            }
-            Divider()
-            Button("AI Settings…") { openSettings() }
+        Button {
+            isPresented.toggle()
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: "cpu")
@@ -55,12 +70,100 @@ struct ModelChipToolbarItem: View {
                     .lineLimit(1)
             }
         }
-        .menuStyle(.borderlessButton)
+        .buttonStyle(.plain)
         .fixedSize()
+        // A POPOVER that PICKS, not a menu that recites (Daniel, 2026-08-29:
+        // "too much info, too much garbage — less is more, and to be able to
+        // change the model there"). One list of configured models, the active
+        // one ticked; choosing writes the tier this selection resolves —
+        // vision for a page, text otherwise — through the same defaults the
+        // run reads.
+        .popover(isPresented: $isPresented, arrowEdge: .bottom) {
+            modelPicker
+        }
         .task { await reload() }
-        .onTapGesture { Task { await reload() } }
         .help("\(prefersVision ? "Vision" : "Text") model for this selection: \(displayModel)")
         .accessibilityLabel("Model: \(displayModel)")
+    }
+
+    @ViewBuilder
+    private var modelPicker: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    if pickableModels.isEmpty {
+                        Text(loadFailed
+                             ? "The engine did not answer."
+                             : "No models configured.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .padding(12)
+                    }
+                    ForEach(pickableModels, id: \.model) { choice in
+                        Button {
+                            select(choice)
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 9, weight: .semibold))
+                                    .opacity(choice.model == currentModel ? 1 : 0)
+                                Text(Self.shorten(choice.model))
+                                    .font(.callout)
+                                Spacer(minLength: 12)
+                                Text(choice.provider)
+                                    .font(.caption2)
+                                    .foregroundStyle(.tertiary)
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 5)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.vertical, 6)
+            }
+            .frame(maxHeight: 320)
+            Divider()
+            Button("AI Settings…") {
+                isPresented = false
+                openSettings()
+            }
+            .buttonStyle(.plain)
+            .font(.caption)
+            .foregroundStyle(.tint)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+        }
+        .frame(minWidth: 230)
+        .task {
+            await WorkflowRunProviderCache.shared.ensureLoaded(chatService: chatService)
+            await reload()
+        }
+    }
+
+    /// Write the picked model onto the tier THIS chip resolves, so the change
+    /// takes effect for exactly the runs the chip describes.
+    private func select(_ choice: (provider: String, model: String)) {
+        isPresented = false
+        var updated = defaults
+        if prefersVision {
+            updated.visionMediumProvider = choice.provider
+            updated.visionMediumModel = choice.model
+        } else {
+            updated.mediumProvider = choice.provider
+            updated.mediumModel = choice.model
+        }
+        defaults = updated
+        Task {
+            do {
+                try await appState.saveAIDefaults(updated)
+            } catch {
+                logger.error("Saving model choice failed: \(String(describing: error))")
+                loadFailed = true
+                await reload()
+            }
+        }
     }
 
     private func reload() async {
@@ -85,12 +188,6 @@ struct ModelChipToolbarItem: View {
         }
     }
 
-    @ViewBuilder
-    private func tierRow(_ name: String, _ model: String, _ provider: String) -> some View {
-        // Stated, never silently blank: an unconfigured tier is exactly the
-        // condition that produced a broken run with no visible cause.
-        Text(model.isEmpty ? "\(name): not set" : "\(name): \(Self.shorten(model))")
-    }
 
     /// The model the run resolves to, or an honest admission that no tier is set.
     private var displayModel: String {

@@ -187,17 +187,19 @@ enum WorkflowBarPolicy {
         from workflows: [WorkflowSidebarItem],
         target: Target
     ) -> String? {
+        // Two words, not a sentence (Daniel, 2026-08-29: "I don't like that
+        // text — maybe just Nothing selected"). The bar's presence already
+        // says what it is for; the empty state only needs to say why it is
+        // empty.
         switch target {
-        case .nothing:
-            return "Select something to see what you can run on it."
-        case .documents(let count) where count == 0:
-            return "Select something to see what you can run on it."
+        case .nothing, .documents(0):
+            return "Nothing selected"
         case .text:
             guard families(from: workflows, target: target).isEmpty else { return nil }
-            return "No workflow accepts a text selection yet."
+            return "Nothing runs on a text selection yet"
         default:
             guard families(from: workflows, target: target).isEmpty else { return nil }
-            return "No workflow accepts this selection."
+            return "Nothing runs on this selection"
         }
     }
 }

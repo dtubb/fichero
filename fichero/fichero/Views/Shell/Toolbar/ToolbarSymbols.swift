@@ -40,20 +40,22 @@ enum ToolbarSymbols {
     /// (triangle = warning, circled exclamation = error) to the healthy
     /// states it never covered:
     ///
-    /// - Local (app-managed or an external engine on this Mac): a VERTICAL
-    ///   bolt. The old horizontal bolt, filled or not, decayed to a tilde in
-    ///   a ring at toolbar size — the symbol for "approximately", read live
-    ///   as "not connected". The vertical bolt keeps its identity at 13 pt.
-    /// - Remote (another machine): radio waves — the data is leaving this Mac,
-    ///   and whether work survives a network drop is a different answer.
+    /// - Local (app-managed or an external engine on this Mac): a server
+    ///   rack. The previous glyph was a green BOLT — and the bolt is the
+    ///   Workflows icon in the sidebar and on the toolbar toggle, so the
+    ///   connection light read as a workflows control (Daniel, 2026-08-29:
+    ///   "our activity and connection button are unclear... I don't like
+    ///   that green"). One glyph, one meaning: bolt = workflows, rack =
+    ///   the engine.
+    /// - Remote (another machine): radio waves — the data is leaving this
+    ///   Mac, and whether work survives a network drop is a different answer.
     ///
-    /// Both are `.fill` (an outline glyph reads as inactive on macOS and
-    /// ready is the ACTIVE state — the problem glyph is `.fill` for the same
-    /// reason) and `EngineStatusToolbarItem` paints them `.green` so colour
-    /// carries the meaning too. A glyph only hints; the popover NAMES the
+    /// `EngineStatusToolbarItem` paints the healthy states `.secondary`, not
+    /// `.green`: chrome should whisper when all is well and shout only for
+    /// the orange problem state. A glyph only hints; the popover NAMES the
     /// transport in text (`ConnectionPresentation`, #4380's single source).
-    static let engineReadyLocal = "bolt.circle.fill"
-    static let engineReadyRemote = "antenna.radiowaves.left.and.right.circle.fill"
+    static let engineReadyLocal = "server.rack"
+    static let engineReadyRemote = "antenna.radiowaves.left.and.right"
     static let engineProblem = "exclamationmark.triangle.fill"
     /// Matches `ItemCategory.activity` — the sidebar's Activity glyph — and is
     /// nothing like the filter's three-lines-in-a-circle (#4360).

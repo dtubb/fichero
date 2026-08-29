@@ -309,65 +309,29 @@ extension ContentView {
         }
     }
 
-    /// V1 of the smart workflow chip (Daniel, 2026-08-24: "give us some
-    /// buttons of logical workflows to run"): a bolt beside the island opens
-    /// the SAME picker the bottom bar's bolt does, scoped to the selection.
-    /// The suggestion INTELLIGENCE (what the selection HAS → which workflow)
-    /// arrives as an outline-endpoint consumer.
+    /// ONE button where four crowded (Daniel, 2026-08-29: "we don't need the
+    /// select workflow button or the other two beside it"). It toggles the
+    /// capability bar and wears the SAME bolt as the sidebar's Workflows
+    /// section, so the icon means one thing everywhere. The old Run Workflow
+    /// picker duplicated what the bar is for, and the per-selection
+    /// suggestion buttons were unlabelled mystery glyphs — if suggestions
+    /// return, they belong INSIDE the bar as a recommended row, not as
+    /// toolbar chrome.
     @ViewBuilder
     var workflowSuggestButton: some View {
-        // ONE toolbar item, growing contextual members (Daniel, 2026-08-25:
-        // "toolbar buttons that appear as things are selected") — the ⚡
-        // picker always, plus up to two suggested next steps for what the
-        // selection IS. Same principal item, so the zone pin holds.
-        let selectedDocs = documentStore.currentDocuments.filter {
-            browserSelection.contains($0.id)
+        Button {
+            showWorkflowBar.toggle()
+        } label: {
+            Label(
+                showWorkflowBar ? "Hide Workflows" : "Show Workflows",
+                systemImage: "bolt"
+            )
+            .labelStyle(.iconOnly)
         }
-        HStack(spacing: 2) {
-            // Show/hide the capability bar from the toolbar, not only from the
-            // View menu (Daniel, 2026-08-28) — chrome you toggle often should
-            // be one click away, and it sits beside Run Workflow because they
-            // are the same job at two grains: the bar is the picker, always on.
-            Button {
-                showWorkflowBar.toggle()
-            } label: {
-                Label(
-                    showWorkflowBar ? "Hide Workflow Bar" : "Show Workflow Bar",
-                    systemImage: "square.grid.2x2"
-                )
-                .labelStyle(.iconOnly)
-            }
-            .help(showWorkflowBar
-                  ? "Hide the workflow bar"
-                  : "Show the workflow bar above the content")
-            .accessibilityLabel(showWorkflowBar ? "Hide workflow bar" : "Show workflow bar")
-
-            Button {
-                windowState.workflowPickerRequestToken += 1
-            } label: {
-                Label("Run Workflow", systemImage: "bolt")
-                    .labelStyle(.iconOnly)
-            }
-            .disabled(browserSelection.isEmpty)
-            .help(browserSelection.isEmpty
-                  ? "Select items to run a workflow on"
-                  : "Run a workflow on the \(browserSelection.count) selected item(s)")
-            .accessibilityLabel("Run a workflow on the selection")
-
-            ForEach(WorkflowSuggestionPolicy.suggestions(for: selectedDocs)) { suggestion in
-                Button {
-                    windowState.suggestedWorkflowRequest = .init(
-                        workflowName: suggestion.workflowName,
-                        token: (windowState.suggestedWorkflowRequest?.token ?? 0) + 1
-                    )
-                } label: {
-                    Label(suggestion.workflowName, systemImage: suggestion.systemImage)
-                        .labelStyle(.iconOnly)
-                }
-                .help("Run \(suggestion.workflowName) on the selection")
-                .accessibilityLabel("Run \(suggestion.workflowName) on the selection")
-            }
-        }
+        .help(showWorkflowBar
+              ? "Hide the workflow bar"
+              : "Show the workflow bar — run workflows and tools on the selection")
+        .accessibilityLabel(showWorkflowBar ? "Hide workflow bar" : "Show workflow bar")
     }
 
     func syncFocusedDocumentSelection(_ document: Document?) {

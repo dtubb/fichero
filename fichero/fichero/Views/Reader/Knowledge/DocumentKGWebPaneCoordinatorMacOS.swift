@@ -46,6 +46,9 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
     /// Separate budget from `processRecovery`: a renderer crash and an
     /// engine load failure are different faults and must not share a count.
     var loadFailureRecovery = WebContentProcessRecovery.State()
+    /// The pending automatic reload after a failed engine load; cancelled by
+    /// the next explicit load so a stale retry cannot race a fresh document.
+    var failureRetryTask: Task<Void, Never>?
 
     init(parent: DocumentKGWebPane) {
         self.parent = parent
@@ -54,6 +57,9 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
     func loadIfNeeded(_ webView: WKWebView) {
         guard lastLoadedDocumentId != parent?.documentId || lastLoadedLibraryPath != parent?.libraryPath
             || lastLoadedPageIds != parent?.pageIds else { return }
+        // An explicit load supersedes any scheduled failure retry.
+        failureRetryTask?.cancel()
+        failureRetryTask = nil
 
         lastLoadedDocumentId = parent?.documentId
         lastLoadedLibraryPath = parent?.libraryPath
@@ -245,6 +251,19 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
             lastLoadedDocumentId = nil
             lastLoadedLibraryPath = nil
             lastLoadedPageIds = nil
+            // ACTIVE retry, not a passive un-poison (2026-08-29). Un-poisoning
+            // alone waits for something to call loadIfNeeded again — at window
+            // restore nothing does, so the pane sat on its failure page while
+            // the engine finished opening the library seconds later (33
+            // straight 404s for one folder in the launch log, then 200s once
+            // POST /api/library landed). The budget above still caps this at
+            // 3 tries per minute, so a genuine 500 stops instead of storming.
+            failureRetryTask?.cancel()
+            failureRetryTask = Task { @MainActor [weak self, weak webView] in
+                try? await Task.sleep(for: .seconds(2))
+                guard !Task.isCancelled, let self, let webView else { return }
+                self.loadIfNeeded(webView)
+            }
         }
         webView.loadHTMLString(
             DocumentKGPaneRoute.loadFailureHTML(detail: error.localizedDescription),

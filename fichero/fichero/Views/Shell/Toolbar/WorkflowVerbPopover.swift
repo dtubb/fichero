@@ -14,6 +14,14 @@ struct WorkflowVerbPopover: View {
     /// Adds a variant as the next step of the chain.
     let onAdd: (WorkflowSidebarItem) -> Void
 
+    /// Cards in a grid, not one long column (Daniel, 2026-08-29: "I was
+    /// actually imagining two or three columns, so shorter descriptions").
+    /// Two columns up to six variants, three beyond — a nine-variant
+    /// Transcribe family scans as a page, not a scroll.
+    private var columnCount: Int {
+        family.workflows.count <= 2 ? 1 : family.workflows.count <= 6 ? 2 : 3
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(family.title)
@@ -25,18 +33,23 @@ struct WorkflowVerbPopover: View {
             Divider()
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
+                LazyVGrid(
+                    columns: Array(
+                        repeating: GridItem(.flexible(), spacing: 10, alignment: .top),
+                        count: columnCount
+                    ),
+                    alignment: .leading,
+                    spacing: 10
+                ) {
                     ForEach(family.workflows) { workflow in
                         variantRow(workflow)
-                        if workflow.id != family.workflows.last?.id {
-                            Divider().padding(.leading, 14)
-                        }
                     }
                 }
+                .padding(12)
             }
-            .frame(maxHeight: 460)
+            .frame(maxHeight: 440)
         }
-        .frame(width: 380)
+        .frame(width: CGFloat(columnCount) * 250 + 30)
     }
 
     @ViewBuilder
@@ -68,7 +81,7 @@ struct WorkflowVerbPopover: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.leading)
-                        .lineLimit(4)
+                        .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
@@ -77,9 +90,7 @@ struct WorkflowVerbPopover: View {
                     .foregroundStyle(.tertiary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 14)
-            .padding(.top, 10)
-            .padding(.bottom, 6)
+            .padding(10)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -88,9 +99,10 @@ struct WorkflowVerbPopover: View {
         // OUTSIDE the add button: expanding to read a prompt must not stage
         // the workflow. Two different intentions, two different targets.
         WorkflowStepsDisclosure(workflowId: workflow.id)
-            .padding(.horizontal, 14)
-            .padding(.bottom, 10)
+            .padding(.horizontal, 10)
+            .padding(.bottom, 8)
         }
+        .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 8))
     }
 
     private func badge(_ title: String, systemImage: String, tint: Color) -> some View {

@@ -116,6 +116,10 @@ struct StatusIslandToolbarItem: View {
             // count. `truncationMode` stays as a backstop for a pathological
             // glyph run — it is not the length policy.
             .frame(minWidth: 40, maxWidth: StatusIslandMessage.declaredMaxWidth)
+            // Breathing room inside the glass capsule (Daniel, 2026-08-29:
+            // "the left and right margin ... is too narrow") — the selection
+            // name was touching the capsule on both sides.
+            .padding(.horizontal, 8)
     }
 
     private static func label(for work: BackendWorkStatus) -> String {

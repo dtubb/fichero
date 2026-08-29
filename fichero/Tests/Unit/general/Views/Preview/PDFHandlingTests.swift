@@ -19,6 +19,10 @@ import PDFKit
 import SwiftUI
 import Testing
 
+/// Xcode 27's SDK ships another `Document` in this file's import set, making
+/// the bare name ambiguous. Ours is the one under test.
+private typealias Document = Fichero.Document
+
 // MARK: - Document.isNavigableContainer
 
 struct DocumentNavigationTests {

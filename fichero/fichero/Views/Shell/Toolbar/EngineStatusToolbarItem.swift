@@ -60,6 +60,7 @@ struct EngineStatusToolbarItem: View {
                 } label: {
                     Image(systemName: ToolbarSymbols.engineProblem)
                         .foregroundStyle(.orange)
+                        .frame(minWidth: 24)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Server status")
@@ -83,7 +84,11 @@ struct EngineStatusToolbarItem: View {
                     Image(systemName: isRemote
                         ? ToolbarSymbols.engineReadyRemote
                         : ToolbarSymbols.engineReadyLocal)
-                        .foregroundStyle(.green)
+                        .foregroundStyle(.secondary)
+                        // A lone glyph made the narrowest glass capsule in
+                        // the toolbar (Daniel, 2026-08-29: "too narrow") —
+                        // give it the same breathing room as its neighbours.
+                        .frame(minWidth: 24)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Server status")

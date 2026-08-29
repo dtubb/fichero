@@ -93,13 +93,13 @@ struct WorkflowBar: View {
         return HStack(spacing: 0) {
             if families.isEmpty,
                let reason = WorkflowBarPolicy.emptyReason(from: workflows, target: target) {
-                // An empty bar with no explanation reads as a broken app rather
-                // than as "nothing applies to this".
+                // Centred and quiet (Daniel, 2026-08-29): an empty bar states
+                // why in two words, in the middle, rather than muttering a
+                // sentence into the left margin.
                 Text(reason)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.leading, 12)
-                Spacer(minLength: 0)
+                    .foregroundStyle(.tertiary)
+                    .frame(maxWidth: .infinity, alignment: .center)
             } else {
                 // Horizontal scroll rather than clipping: a library with many
                 // preset folders overflows any toolbar width, and a verb the
@@ -257,65 +257,48 @@ struct WorkflowBar: View {
 
     /// One verb, drawn as a toolbar item: glyph above, small label below.
     ///
-    /// A plain `Button` owns the layout deliberately. A `Menu` re-flows its own
-    /// label on macOS, which is why the first attempt at this kept rendering
-    /// the name BESIDE the glyph however the label was composed. The variants
-    /// live behind a separate chevron, shown only when there is more than one.
+    /// Clicking ALWAYS opens the popover (Daniel, 2026-08-29: "when you click
+    /// the popover should always come up") — even a single-variant family gets
+    /// its context card, because the popover is where the description, the
+    /// badges, and the steps & prompts live. Staging happens by choosing a
+    /// variant IN the popover; nothing is added blind. The separate chevron
+    /// is gone with the two-target confusion it carried.
+    ///
+    /// A plain `Button` owns the layout deliberately: a `Menu` re-flows its
+    /// own label on macOS, which is why the first attempt kept rendering the
+    /// name BESIDE the glyph.
     @ViewBuilder
     private func familyItem(_ family: WorkflowBarPolicy.VerbFamily) -> some View {
-        HStack(spacing: 0) {
-            Button {
-                if let first = family.workflows.first { stage(first) }
-            } label: {
-                VStack(spacing: 1) {
-                    Image(systemName: family.symbol)
-                        .font(.body)
-                        .frame(height: 17)
-                    if showsLabels {
-                        Text(family.title)
-                            .font(.system(size: 9))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.8)
-                    }
+        Button {
+            openFamily = openFamily == family.id ? nil : family.id
+        } label: {
+            VStack(spacing: 1) {
+                Image(systemName: family.symbol)
+                    .font(.body)
+                    .frame(height: 17)
+                if showsLabels {
+                    Text(family.title)
+                        .font(.system(size: 9))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                 }
-                .frame(width: itemWidth)
-                .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
-            .help(helpText(for: family))
-            .accessibilityLabel(helpText(for: family))
-
-            if family.workflows.count > 1 {
-                Button {
-                    openFamily = openFamily == family.id ? nil : family.id
-                } label: {
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 8))
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .help("Choose a \(family.title) variant — \(family.workflows.count) available")
-                .accessibilityLabel(
-                    "Choose a \(family.title) variant, "
-                    + "\(family.workflows.count) available"
-                )
-                // A POPOVER, not a menu (2026-08-28): a menu row cannot hold
-                // the description each preset already carries, nor the
-                // engine's answers about vision and validation, which are
-                // exactly what tells "Paleografía Española (s. XVI–XVII)"
-                // apart from "Transcribe Paleography (Economy)".
-                .popover(
-                    isPresented: Binding(
-                        get: { openFamily == family.id },
-                        set: { if !$0 { openFamily = nil } }
-                    ),
-                    arrowEdge: .bottom
-                ) {
-                    WorkflowVerbPopover(family: family) { workflow in
-                        stage(workflow)
-                        openFamily = nil
-                    }
-                }
+            .frame(width: itemWidth)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(helpText(for: family))
+        .accessibilityLabel(helpText(for: family))
+        .popover(
+            isPresented: Binding(
+                get: { openFamily == family.id },
+                set: { if !$0 { openFamily = nil } }
+            ),
+            arrowEdge: .bottom
+        ) {
+            WorkflowVerbPopover(family: family) { workflow in
+                stage(workflow)
+                openFamily = nil
             }
         }
     }
@@ -335,9 +318,8 @@ struct WorkflowBar: View {
 
     private func helpText(for family: WorkflowBarPolicy.VerbFamily) -> String {
         let count = family.workflows.count
-        guard let first = family.workflows.first else { return family.title }
         return count == 1
-            ? "Add \(first.displayName) to the chain"
-            : "Add \(first.displayName) to the chain — \(count) variants available"
+            ? "\(family.title) — see what it does and add it to the chain"
+            : "\(family.title) — \(count) variants"
     }
 }

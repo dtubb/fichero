@@ -84,6 +84,7 @@ struct ActivityStatusToolbarItem: View {
                 } label: {
                     Image(systemName: ToolbarSymbols.activityIdle)
                         .foregroundStyle(.secondary)
+                        .frame(minWidth: 24)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Activity")
