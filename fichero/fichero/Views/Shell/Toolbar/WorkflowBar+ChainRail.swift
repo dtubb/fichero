@@ -123,7 +123,12 @@ extension WorkflowBar {
               from != index
         else { return false }
         let moved = staged.remove(at: from)
-        staged.insert(moved, at: min(index, staged.count))
+        // Land where the caret POINTS — the leading edge of the target chip.
+        // Removing first shifts a rightward target left by one, so without
+        // this the drop landed one slot past the indicator (review,
+        // 2026-08-29: the caret and the drop disagreed in that direction).
+        let destination = from < index ? index - 1 : index
+        staged.insert(moved, at: min(destination, staged.count))
         return true
     }
 
