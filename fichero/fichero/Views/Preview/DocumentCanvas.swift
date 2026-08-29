@@ -299,16 +299,16 @@ private struct StorageDisplayImageCanvas: View {
             if let renditionService {
                 _ = await renditionService.load(documentId: documentId)
                 let displayable = renditionService.displayable(documentId: documentId)
+                // Rendition flip (sticky preference) is macOS-only today; iOS
+                // always takes the engine's primary via the base display path,
+                // so the whole preferred-fetch branch compiles out there — the
+                // iOS build's `preferred = 0` constant made it provably dead
+                // and Xcode 27 said so ("will never be executed").
                 #if os(macOS)
                 let sticky = UserDefaults.standard.string(
                     forKey: ZoomableImagePreview.stickyRenditionRoleKey
                 )
                 let preferred = preferredRenditionIndex(in: displayable, stickyRole: sticky)
-                #else
-                // Rendition flip (sticky preference) is macOS-only today; iOS
-                // always takes the engine's primary via the base display path.
-                let preferred = 0
-                #endif
                 // Index 0 is the engine's primary — the base display image
                 // serves that (cheaper, cached). Only a preferred FLIP
                 // target is worth the rendition fetch here.
@@ -324,6 +324,9 @@ private struct StorageDisplayImageCanvas: View {
                         return
                     }
                 }
+                #else
+                _ = displayable
+                #endif
             }
             let loaded = try await storageService.getDisplayPlatformImage(documentId)
             guard claimed == loadGeneration else { return }  // a newer flip won
