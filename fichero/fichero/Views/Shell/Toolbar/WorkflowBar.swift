@@ -140,6 +140,34 @@ struct WorkflowBar: View {
             }
             Spacer(minLength: 0)
             HStack(spacing: 6) {
+                // Run and Clear live HERE, outside the scrolling rail (review
+                // fix, 2026-08-29): inside it, an eight-step chain pushed the
+                // play button off-screen — the one control that must never
+                // scroll away is the one that starts the run.
+                if isRunning {
+                    ProgressView()
+                        .controlSize(.small)
+                        .help("Chain is running")
+                        .accessibilityLabel("Chain is running")
+                } else {
+                    Button(action: onRunChain) {
+                        Image(systemName: "play.circle.fill")
+                            .font(.title3)
+                            .foregroundStyle(Color.accentColor)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Run \(staged.count) step(s) in order on the selection")
+                    .accessibilityLabel("Run the chain")
+
+                    Button { staged.removeAll() } label: {
+                        Image(systemName: "trash")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Clear the chain")
+                    .accessibilityLabel("Clear the chain")
+                }
                 if let costCeiling {
                     // A CEILING, said as one: "≤" is the difference between a
                     // promise that can be kept and a guess.

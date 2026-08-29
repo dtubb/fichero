@@ -196,7 +196,15 @@ enum ArtifactProvenance {
     static func display(
         for artifact: Artifact,
         inspectedDocument: Document,
-        documentsById: [String: Document]
+        documentsById: [String: Document],
+        /// Resolves the artifact's `step_name` — a node IDENTIFIER like `r1`,
+        /// load-bearing in queries and grouping, so never rewritten — to that
+        /// node's human label ("Review 1 — Abbreviations & Formulary") for
+        /// display only. nil, or a resolver that comes back empty, leaves the
+        /// identifier showing, which is still true. (Daniel, 2026-08-28:
+        /// "could they not have different names so we know the final review
+        /// more easily?")
+        stepLabelResolver: ((_ workflowId: String, _ stepName: String) -> String?)? = nil
     ) -> ArtifactProvenanceDisplay {
         let sourceDocument = documentsById[artifact.documentId]
         let pageLabel = sourceDocument?.pageThumbnailLabel
@@ -223,7 +231,10 @@ enum ArtifactProvenance {
             sourceLabel = "Linked document"
         }
 
-        let workflowLabel = normalized(artifact.stepName)
+        let resolvedStepLabel = artifact.workflowId.flatMap { workflowId in
+            artifact.stepName.flatMap { stepLabelResolver?(workflowId, $0) }
+        }
+        let workflowLabel = normalized(resolvedStepLabel) ?? normalized(artifact.stepName)
         let providerLabel = [normalized(artifact.provider), normalized(artifact.model)]
             .compactMap { $0 }
             .joined(separator: " · ")

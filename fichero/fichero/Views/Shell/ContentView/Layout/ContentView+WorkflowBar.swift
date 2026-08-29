@@ -91,7 +91,7 @@ extension ContentView {
                 }
                 continue
             }
-            await awaitWorkflowExecution(
+            let threadId = await awaitWorkflowExecution(
                 workflowId: workflowId,
                 workflowName: step.name,
                 docIds: targets,
@@ -105,13 +105,20 @@ extension ContentView {
                     }
                 }
             )
-            // awaitWorkflowExecution settles the run before returning, so
-            // reaching here means this step is done. Failures surface through
-            // the execution observer; the chip states completion either way
-            // rather than staying blue forever.
+            // The chip states the run's OUTCOME, not merely that it returned.
+            // The first version set .succeeded unconditionally, so an engine
+            // failure wore a green check — the observer already knows the
+            // settled status, so ask it (review fix, 2026-08-29).
+            let settled = executionObserver.getExecution(threadId: threadId)?.status
+            let stepSucceeded = settled == .completed
             if stagedWorkflowChain.indices.contains(index) {
-                stagedWorkflowChain[index].state = .succeeded
+                stagedWorkflowChain[index].state = stepSucceeded ? .succeeded : .failed
             }
+            // A chain is sequential BECAUSE step N+1 reads what step N wrote.
+            // Running the review pass after the transcription failed spends
+            // money on an input that does not exist; stop and leave the later
+            // chips pending so the rail shows exactly where it stopped.
+            if !stepSucceeded { break }
         }
     }
 
@@ -210,15 +217,19 @@ extension ContentView {
         // it has not produced one yet (Daniel, 2026-08-28: "we should be able
         // to click when its running to see the output"). The Activity detail
         // window streams the step trace as it happens.
-        if step.state == .running, let threadId = step.threadId {
+        // A FAILED step also opens its trace: the question a red chip raises
+        // is "why", and the answer is in the run, not in the document
+        // (review fix, 2026-08-29).
+        if step.state == .running || step.state == .failed,
+           let threadId = step.threadId {
             ActivityWindowSelectionState.shared.select(SelectedActivityRun(
                 id: threadId,
                 name: step.name,
                 workflowId: step.workflow?.id,
                 threadId: threadId,
                 timestamp: Date(),
-                status: .running,
-                isLive: true,
+                status: step.state == .failed ? .failed : .running,
+                isLive: step.state == .running,
                 libraryId: windowState.libraryId,
                 libraryName: windowState.library?.displayName,
                 childType: nil

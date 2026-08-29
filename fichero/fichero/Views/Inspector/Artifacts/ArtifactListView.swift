@@ -44,6 +44,11 @@ struct ArtifactListView: View {
     /// Optional: "Set as Document Content" needs the write seam; the list
     /// renders fine without it (detached windows may not inject it).
     @Environment(DocumentStore.self) private var documentStore: DocumentStore?
+    /// Optional deliberately: artifact lists also render in detached windows
+    /// whose scenes may not inject the workflow store — there the step
+    /// identifier (r1) shows instead of its label, which is degraded, not
+    /// wrong.
+    @Environment(WorkflowStore.self) private var workflowStore: WorkflowStore?
 
     @State private var selectedIDs: Set<String> = []
     @State private var artifactsToDelete: [Artifact] = []
@@ -119,6 +124,22 @@ struct ArtifactListView: View {
         .onChange(of: store.items) { _, items in
             focused.resolve(in: items)
         }
+        // Warm the step-label cache for every workflow these artifacts came
+        // from, so subtitles can say "Review 3 — Final Layer" instead of "r3".
+        // Keyed on the id set: reloading the same artifacts refetches nothing,
+        // and the store's own cache makes repeats free.
+        .task(id: artifactWorkflowIds) {
+            guard let workflowStore else { return }
+            for workflowId in artifactWorkflowIds {
+                await workflowStore.loadSteps(for: workflowId)
+            }
+        }
+    }
+
+    /// The distinct workflows the listed artifacts were produced by, sorted so
+    /// the `.task(id:)` key is stable across re-renders.
+    private var artifactWorkflowIds: [String] {
+        Array(Set(store.items.compactMap(\.workflowId))).sorted()
     }
 
     /// Run-group header: workflow name (where known) + relative run time, or
@@ -171,7 +192,13 @@ struct ArtifactListView: View {
             provenance: ArtifactProvenance.display(
                 for: artifact,
                 inspectedDocument: inspectedDocument,
-                documentsById: documentsById
+                documentsById: documentsById,
+                // "Review 3 — Final Layer" instead of "r3": the node label
+                // from the workflow's graph, via the store's step cache.
+                stepLabelResolver: { workflowId, stepName in
+                    workflowStore?.steps(for: workflowId)?
+                        .first { $0.id == stepName }?.label
+                }
             )
         )
             .tag(artifact.id)

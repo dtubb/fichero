@@ -16,6 +16,10 @@ struct WorkflowStepsDisclosure: View {
     let workflowId: String
     @Environment(WorkflowStore.self) private var workflowStore
     @State private var isExpanded = false
+    /// The load came back empty-handed. Without this the disclosure showed
+    /// "Loading steps…" forever on a fetch failure (review fix, 2026-08-29);
+    /// collapsing and reopening retries.
+    @State private var loadFailed = false
 
     private var steps: [WorkflowStepPreview]? { workflowStore.steps(for: workflowId) }
 
@@ -45,6 +49,10 @@ struct WorkflowStepsDisclosure: View {
                             stepRow(step)
                         }
                     }
+                } else if loadFailed {
+                    Text("Couldn't load this workflow's steps. Close and reopen to retry.")
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
                 } else {
                     HStack(spacing: 6) {
                         ProgressView().controlSize(.mini)
@@ -57,7 +65,9 @@ struct WorkflowStepsDisclosure: View {
         }
         .task(id: isExpanded) {
             guard isExpanded else { return }
+            loadFailed = false
             await workflowStore.loadSteps(for: workflowId)
+            loadFailed = workflowStore.steps(for: workflowId) == nil
         }
     }
 

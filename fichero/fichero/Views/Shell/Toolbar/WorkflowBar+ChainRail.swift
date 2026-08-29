@@ -28,27 +28,6 @@ extension WorkflowBar {
                 chainChip(step, at: index)
             }
 
-            Button(action: onRunChain) {
-                Image(systemName: isRunning ? "stop.circle.fill" : "play.circle.fill")
-                    .font(.title3)
-                    .foregroundStyle(isRunning ? Color.secondary : Color.accentColor)
-            }
-            .buttonStyle(.plain)
-            .disabled(isRunning)
-            .help(isRunning
-                  ? "Chain is running"
-                  : "Run \(staged.count) step(s) in order on the selection")
-            .accessibilityLabel("Run the chain")
-
-            Button { staged.removeAll() } label: {
-                Image(systemName: "trash")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            .buttonStyle(.plain)
-            .disabled(isRunning)
-            .help("Clear the chain")
-            .accessibilityLabel("Clear the chain")
         }
         .fixedSize()
     }
@@ -155,7 +134,7 @@ extension WorkflowBar {
         switch step.state {
         case .running:   return "\(base). Click to watch it run."
         case .succeeded: return "\(base). Double-click to see what it produced."
-        case .failed:    return "\(base). This step failed."
+        case .failed:    return "\(base). This step failed — double-click to see why."
         case .pending:   return "\(base). Drag to reorder; right-click to pin a model."
         }
     }
