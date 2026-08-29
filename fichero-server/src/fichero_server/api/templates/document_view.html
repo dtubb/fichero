@@ -179,11 +179,42 @@
         }
 
         .page-marker {
+            align-items: center;
             color: var(--muted);
+            display: flex;
             font: 600 0.72em/1 var(--font-system);
+            gap: 0.6em;
             letter-spacing: 0.08em;
             margin-bottom: 1em;
             text-transform: uppercase;
+        }
+
+        /* The per-page proxy icon (macOS titlebar-proxy idiom, 2026-08-29):
+           identifies the page node; click reveals it in the library. */
+        .page-proxy {
+            background: none;
+            border: 0;
+            color: var(--muted);
+            cursor: pointer;
+            line-height: 0;
+            padding: 0.1em;
+        }
+
+        .page-proxy svg {
+            fill: currentColor;
+            height: 1.2em;
+            width: auto;
+        }
+
+        .page-proxy:hover {
+            color: var(--accent);
+        }
+
+        /* A region section's own name (a diary entry's date, a segment's
+           label) — normal case beside the uppercase running number. */
+        .page-label {
+            letter-spacing: 0;
+            text-transform: none;
         }
 
         .transcript-page-body {
@@ -768,6 +799,8 @@ function transcriptPages() {
         return pages.map((page, index) => {
             const content = page.content || "";
             return {
+                id: page.id || null,
+                label: page.label || null,
                 number: page.number == null ? index + 1 : page.number,
                 content: content,
                 hasContent: page.has_content == null
@@ -806,9 +839,26 @@ function transcriptPageMarkup(page) {
     const placeholder = page.hasContent
         ? ""
         : `<div class="page-placeholder">No transcription yet</div>`;
+    // The macOS proxy-icon idiom, per page (Daniel, 2026-08-29): every page
+    // header carries a small document icon that identifies the page node —
+    // click it to reveal that page in the app. Only pages that NAME a node
+    // (payloads carry ids) get one; the transcript-parse fallback does not.
+    const proxy = page.id
+        ? `<button class="page-proxy" data-page-id="${escapeHtml(page.id)}"
+                title="Reveal this page in the library"
+                aria-label="Reveal this page in the library">
+                <svg viewBox="0 0 12 14" aria-hidden="true"><path d="M2 0h5.5L11 3.5V13a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V1a1 1 0 0 1 1-1zm5 1v3h3z"/></svg>
+           </button>`
+        : "";
+    // Region sections (diary entries, segments) are NAMED, not numbered like
+    // sheets — show the node's own label beside the running number so the
+    // header says what the section IS.
+    const label = page.label && page.label !== `Page ${page.number}`
+        ? `<span class="page-label">${escapeHtml(page.label)}</span>`
+        : "";
     return `
         <article class="transcript-page${page.hasContent ? "" : " empty-page"}" data-page="${page.number}">
-            <div class="page-marker">Page ${page.number}</div>
+            <div class="page-marker">${proxy}Page ${page.number}${label}</div>
             <div class="transcript-page-body">${escapeHtml(page.content)}</div>
             ${placeholder}
         </article>
@@ -825,6 +875,16 @@ function renderTranscript() {
     panel.innerHTML = `
         <div class="transcript">${pages.map(transcriptPageMarkup).join("")}</div>
     `;
+    // Proxy-icon clicks reveal the page node natively; stopPropagation so the
+    // click never doubles as a page activation (#4373's bus stays scroll/click
+    // semantics only).
+    panel.querySelectorAll(".page-proxy").forEach((el) => {
+        el.addEventListener("click", (event) => {
+            event.stopPropagation();
+            const pageId = el.dataset.pageId;
+            if (pageId) { notify("pageRevealRequested", { pageId }); }
+        });
+    });
     applyActivePageHighlight();
     applyBusyPages();
 }
