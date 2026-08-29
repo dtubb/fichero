@@ -85,4 +85,24 @@ struct MultiReaderCommonParentTests {
         let docs = [Document(id: "p1", docType: .page, name: "Page 1")]
         #expect(multiReaderCommonPageParent(docs) == nil)
     }
+
+    @Test("regions of one parent resolve to that parent (2026-08-29)")
+    func sameParentRegionsResolve() {
+        let region = DocumentRegion(rect: [0, 0, 1, 0.5], space: "normalized")
+        let docs = [
+            Document(id: "e1", parentId: "sheet", docType: .file, name: "1933-01-10", regionInParent: region),
+            Document(id: "e2", parentId: "sheet", docType: .file, name: "1933-01-11", regionInParent: region)
+        ]
+        #expect(multiReaderCommonPageParent(docs) == "sheet")
+    }
+
+    @Test("a region-less file among regions falls back to the native list")
+    func regionlessFileFallsBack() {
+        let region = DocumentRegion(rect: [0, 0, 1, 0.5], space: "normalized")
+        let docs = [
+            Document(id: "e1", parentId: "sheet", docType: .file, name: "Entry", regionInParent: region),
+            Document(id: "f1", parentId: "sheet", docType: .file, name: "Other.jpg")
+        ]
+        #expect(multiReaderCommonPageParent(docs) == nil)
+    }
 }

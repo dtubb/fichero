@@ -33,6 +33,13 @@ extension ContentView {
             )
             crumbs = ancestry.isEmpty ? [PaneCrumb(doc)] : ancestry.map(PaneCrumb.init)
         }
+        // Breadcrumb honesty (Daniel, 2026-08-29): with N>1 items selected
+        // the head must SAY so — the ancestry for context, then "N items" —
+        // never present one document as if it were the whole selection.
+        if browserSelection.count > 1 {
+            if !crumbs.isEmpty { crumbs.removeLast() }
+            crumbs.append(.multiSelection(count: browserSelection.count))
+        }
         return PaneHead<PaneKindSelector<PreviewLens>, EmptyView, EmptyView>(
             crumbs: crumbs,
             onClose: { setPaneVisible(.canvas, false) },

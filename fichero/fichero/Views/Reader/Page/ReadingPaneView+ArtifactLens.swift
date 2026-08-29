@@ -15,7 +15,82 @@ struct ReaderArtifactLens: Equatable {
     let label: String
 }
 
+/// The artifact types the reader can read a document THROUGH — the text
+/// representations (Daniel, 2026-08-29: Content / Transcript / Translate…).
+/// A closed display list over the types that actually exist; structural
+/// artifact types (segmentation, grouping, entities, text_geometry) are not
+/// readings of the text and never appear in the switcher.
+enum ReaderRepresentation {
+    /// Artifact types that ARE text representations, in display order.
+    static let textTypes = [
+        "transcription", "normalized_text", "translation",
+        "transliteration", "markdown", "html", "summary", "conversion"
+    ]
+
+    static func title(for type: String) -> String {
+        switch type {
+        case "transcription": return "Transcript"
+        case "translation": return "Translation"
+        case "normalized_text": return "Normalized"
+        case "transliteration": return "Transliteration"
+        case "markdown": return "Markdown"
+        case "html": return "HTML"
+        case "summary": return "Summary"
+        case "conversion": return "Conversion"
+        default: return type.capitalized
+        }
+    }
+
+    /// The distinct representation types present in a scope's artifacts, in
+    /// the fixed display order — file-scope so tests can call it directly.
+    static func availableTypes(in artifactTypes: [String]) -> [String] {
+        let present = Set(artifactTypes)
+        return textTypes.filter { present.contains($0) }
+    }
+}
+
 extension ReadingPaneView {
+
+    /// The head's representation switcher (Daniel, 2026-08-29): Content plus
+    /// each representation type this document's scope actually has. Picking
+    /// one re-requests the SAME WebKit page with `?representation=` — one
+    /// renderer, several readings. Hidden when there is nothing to switch to.
+    @ViewBuilder
+    var readerRepresentationControl: some View {
+        if !readerRepresentationChoices.isEmpty {
+            Menu {
+                Button {
+                    readerRepresentation = nil
+                } label: {
+                    if readerRepresentation == nil {
+                        Label("Content", systemImage: "checkmark")
+                    } else {
+                        Text("Content")
+                    }
+                }
+                Divider()
+                ForEach(readerRepresentationChoices, id: \.self) { type in
+                    Button {
+                        readerRepresentation = type
+                    } label: {
+                        if readerRepresentation == type {
+                            Label(ReaderRepresentation.title(for: type), systemImage: "checkmark")
+                        } else {
+                            Text(ReaderRepresentation.title(for: type))
+                        }
+                    }
+                }
+            } label: {
+                Text(readerRepresentation.map { ReaderRepresentation.title(for: $0) } ?? "Content")
+                    .font(.caption)
+                    .foregroundStyle(readerRepresentation == nil ? Color.secondary : Color.accentColor)
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .help("Read this document as its content or one of its representations")
+            .accessibilityIdentifier("readerRepresentationSwitcher")
+        }
+    }
 
     /// The head's artifact-lens control: a menu of this document's artifacts
     /// plus "Live Transcript" to return. Hidden entirely for documents with
@@ -61,16 +136,25 @@ extension ReadingPaneView {
     func loadArtifactLensChoices() async {
         artifactLens = nil
         artifactLensChoices = []
+        readerRepresentation = nil
+        readerRepresentationChoices = []
         guard let doc = effectiveDocument,
               let service = LibraryManager.shared
                   .getLibrary(id: LibraryManager.shared.currentLibraryId ?? LibraryManager.globalLibraryId)?
                   .artifactService
         else { return }
+        // ONE fetch answers both head controls: the whole scope's artifacts
+        // (pages included) drive the representation switcher; the document's
+        // OWN artifacts drive the per-artifact lens, as before.
         guard let artifacts = try? await service.getArtifacts(
-            forDocumentId: doc.id, includeDescendants: false
+            forDocumentId: doc.id, includeDescendants: true
         ) else { return }
+        readerRepresentationChoices = ReaderRepresentation.availableTypes(
+            in: artifacts.map(\.artifactType)
+        )
         let formatter = RelativeDateTimeFormatter()
         artifactLensChoices = artifacts
+            .filter { $0.documentId == doc.id }
             .sorted { $0.createdAt > $1.createdAt }
             .prefix(12)
             .map { artifact in
