@@ -22356,6 +22356,16 @@
               "nullable": true,
               "title": "Pages"
             }
+          },
+          {
+            "name": "representation",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Representation"
+            }
           }
         ],
         "responses": {

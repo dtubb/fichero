@@ -13185,12 +13185,14 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
         pages: Optional[str] = typer.Option(None, "--pages", help="Query parameter: pages."),
+        representation: Optional[str] = typer.Option(None, "--representation", help="Query parameter: representation."),
     ) -> None:
         """Document View (GET /view/document/{doc_id})."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = f"/view/document/{doc_id}"
             params = {
                 "pages": pages,
+                "representation": representation,
             }
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
