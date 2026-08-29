@@ -10,15 +10,37 @@ extension WorkflowNode {
         guard let config else { return [:] }
         var result: [String: any Sendable] = [:]
         for (key, value) in config {
-            switch value {
-            case .string(let str): result[key] = str
-            case .int(let num): result[key] = num
-            case .double(let num): result[key] = num
-            case .bool(let flag): result[key] = flag
-            default: break
+            if let converted = value.sendableValue {
+                result[key] = converted
             }
         }
         return result
+    }
+}
+
+extension AnyCodableValue {
+    /// The value as the plain Sendable the prompt endpoint's JSON body wants.
+    ///
+    /// Recursive on purpose: the old conversion handled only the four scalar
+    /// cases, so a classify node whose `categories` array a user had edited
+    /// PREVIEWED the default-categories prompt while the run used the edited
+    /// ones — the preview's one job, failed silently (review, 2026-08-29).
+    /// `.null` maps to nil and is omitted, which JSON-wise means the same.
+    var sendableValue: (any Sendable)? {
+        switch self {
+        case .string(let value): return value
+        case .int(let value): return value
+        case .double(let value): return value
+        case .bool(let value): return value
+        case .array(let values): return values.compactMap(\.sendableValue)
+        case .dictionary(let entries):
+            var result: [String: any Sendable] = [:]
+            for (key, entry) in entries {
+                if let converted = entry.sendableValue { result[key] = converted }
+            }
+            return result
+        case .null: return nil
+        }
     }
 }
 

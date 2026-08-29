@@ -63,7 +63,11 @@ struct WorkflowStepsDisclosure: View {
                 }
             }
         }
-        .task(id: isExpanded) {
+        // Keyed on the store's change token as well as the expansion: a
+        // workflow edit wipes the step cache, and a disclosure that was open
+        // at that moment would otherwise show "Loading steps…" forever with
+        // nothing left to re-trigger the fetch (review, 2026-08-29).
+        .task(id: "\(isExpanded):\(workflowStore.changeToken)") {
             guard isExpanded else { return }
             loadFailed = false
             await workflowStore.loadSteps(for: workflowId)

@@ -38,8 +38,18 @@ extension ContentView {
                 // Refresh when the bar appears rather than at launch: the menu
                 // is only consulted here, and a stale tier would offer a model
                 // the user has since changed.
-                if let loaded = try? await appState.fetchAIDefaults() {
-                    cachedAIDefaults = loaded
+                //
+                // Bounded retry, not one `try?` (review, 2026-08-29): the
+                // first attempt fires when a scene restores with the bar
+                // already on, which loses a race with the engine coming up —
+                // the model chip already learned this the hard way, and one
+                // lost race here left the per-step pin menu EMPTY forever.
+                for attempt in 0..<6 {
+                    if let loaded = try? await appState.fetchAIDefaults() {
+                        cachedAIDefaults = loaded
+                        return
+                    }
+                    try? await Task.sleep(for: .seconds(Double(attempt + 1)))
                 }
             }
         }

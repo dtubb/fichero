@@ -16,6 +16,11 @@ struct WorkflowToolsPopover: View {
     let onAdd: (ToolInfo) -> Void
 
     @State private var query = ""
+    /// The node editor's palette hides `agent` and `mcp_*` tools behind
+    /// feature flags; this popover is the same palette in a different coat,
+    /// so it honours the same gate (review, 2026-08-29 — flag-off tools were
+    /// stageable from here).
+    @Environment(FeatureManager.self) private var featureManager
 
     /// Categories that describe WHERE input comes from or where it goes,
     /// rather than an operation on what is selected. Offering `files` as a
@@ -26,7 +31,10 @@ struct WorkflowToolsPopover: View {
 
     private var matches: [(category: String, tools: [ToolInfo])] {
         let trimmed = query.trimmingCharacters(in: .whitespaces).lowercased()
-        let usable = tools.filter { !Self.excludedCategories.contains($0.category) }
+        let usable = tools.filter {
+            !Self.excludedCategories.contains($0.category)
+                && WorkflowPaletteGate.isBuiltinToolEnabled($0, featureManager: featureManager)
+        }
         let filtered = trimmed.isEmpty ? usable : usable.filter {
             $0.displayName.lowercased().contains(trimmed)
                 || $0.description.lowercased().contains(trimmed)
@@ -35,6 +43,21 @@ struct WorkflowToolsPopover: View {
         return Dictionary(grouping: filtered, by: \.category)
             .map { (category: $0.key, tools: $0.value.sorted { $0.displayName < $1.displayName }) }
             .sorted { $0.category < $1.category }
+    }
+
+    /// Section headers use the palette's names, not `capitalized` on the raw
+    /// key — which rendered `mcp_time` as "Mcp_time" (review, 2026-08-29).
+    private static func categoryTitle(_ category: String) -> String {
+        let names: [String: String] = [
+            "source": "Sources", "vision": "Vision", "transform": "Transform",
+            "llm": "LLM", "convert": "Convert", "logic": "Logic",
+            "sink": "Outputs", "utility": "Utility", "ai": "AI",
+        ]
+        if let known = names[category.lowercased()] { return known }
+        if category.lowercased().hasPrefix("mcp_") {
+            return "MCP · " + category.dropFirst(4).capitalized
+        }
+        return category.capitalized
     }
 
     var body: some View {
@@ -67,7 +90,7 @@ struct WorkflowToolsPopover: View {
                                     toolRow(tool)
                                 }
                             } header: {
-                                Text(group.category.capitalized)
+                                Text(Self.categoryTitle(group.category))
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
                                     .frame(maxWidth: .infinity, alignment: .leading)
