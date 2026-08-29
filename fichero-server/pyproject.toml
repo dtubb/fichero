@@ -173,6 +173,16 @@ requires = [
     # 2026-08-27): typer/rich are CLI-only deps the engine itself never uses.
     "typer",
     "rich",
+    # The Reader's WebKit transcript renders document_view.html through
+    # Jinja2Templates. #3985 moved that import off the boot path — correctly —
+    # but the package was never in the bundle, so GET /view/document/{id}
+    # raised ModuleNotFoundError and returned 500 on EVERY single-document
+    # read. Multi-selection renders natively and worked, which is why the
+    # Reader looked broken only for one item (Daniel, 2026-08-28: "when three
+    # are selected it works, but when one or none are selected it doesn't").
+    # The lazy import still keeps jinja2 off the startup graph; shipping it
+    # only means the deferred import can succeed.
+    "jinja2",
     "pyobjc-framework-Vision",
     "pyobjc-framework-Quartz",
     "pyobjc-framework-Cocoa",

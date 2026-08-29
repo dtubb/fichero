@@ -23,7 +23,9 @@ def _cfg(**over):
 def test_cache_key_varies_with_sampling_params():
     prompt, images = "transcribe", ["https://x/img.jpg"]
     base = _vision_cache_key(_cfg(), prompt, images)
-    assert _vision_cache_key(_cfg(max_tokens=8192), prompt, images) != base
+    # Must differ from LLMConfig's own default (8192 since the thinking-budget
+    # raise) or this asserts nothing.
+    assert _vision_cache_key(_cfg(max_tokens=16384), prompt, images) != base
     assert _vision_cache_key(_cfg(temperature=0.9), prompt, images) != base
     assert _vision_cache_key(_cfg(), prompt, images) == base
 

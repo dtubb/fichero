@@ -80,8 +80,8 @@
   "sha256": "5d411e0b356b3f6d0a0ef981cd5e487febda7f2c1d8be32329cd5cc7d186f460"
  },
  "extract_table.json": {
-  "preset_version": 1,
-  "sha256": "4d5ddc40bb7d7f59086092d4bd05f2852de0543c23e4c2a1850f2dd2a5a8cbf9"
+  "preset_version": 2,
+  "sha256": "bdb664f9d36029fb4f73ce438543664333fad2faacbdcc9a0bf639a7deda61e7"
  },
  "fuzzy_clean_images.json": {
   "preset_version": 1,

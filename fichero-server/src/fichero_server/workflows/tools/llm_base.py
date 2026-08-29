@@ -371,6 +371,18 @@ class LLMToolConfig:
     # Default metadata field to update (None = don't update metadata)
     metadata_field: str | None = None
 
+    # Whether this tool may answer with the page's ALREADY-EXTRACTED text
+    # instead of calling the model. `process_vision` has a passthrough that
+    # hands back `page_content` / the stored transcription when the document
+    # already has one — right for Transcribe (re-OCRing a digital PDF buys
+    # nothing), and wrong for every tool that TRANSFORMS the page. Table,
+    # Describe and Extract were silently returning the page's transcription
+    # verbatim, stamped with a provider/model that was never called: Daniel
+    # ran Extract Table on a ruled ledger and got the transcription back
+    # ("the before and after are the same", 2026-08-28). Opt in, never
+    # default in.
+    accepts_extracted_text: bool = False
+
     # If True (default), skip the LLM call when an artifact of the same
     # artifact_type already exists for the input document. Makes workflows
     # idempotent: re-running Catalogue on a folder with half the files

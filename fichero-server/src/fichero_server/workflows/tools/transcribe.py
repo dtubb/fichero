@@ -43,6 +43,9 @@ TOOL_CONFIG = VisionToolConfig(
     trigger_embedding=True,
     supports_apple_vision=True,
     metadata_field="transcription",
+    # The one tool whose answer IS the page's text: a digital PDF extracted at
+    # ingest needs no second OCR pass.
+    accepts_extracted_text=True,
 )
 
 # Transcribe-specific config (added to VISION_CONFIG_SCHEMA)

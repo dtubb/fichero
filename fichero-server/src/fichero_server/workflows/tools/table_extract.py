@@ -39,8 +39,11 @@ TOOL_CONFIG = VisionToolConfig(
 TABLE_CONFIG = {
     "output_style": {
         "type": "string",
-        "enum": ["json_rows", "json_columns", "csv", "markdown"],
-        "default": "json_rows",
+        "enum": ["csv", "json_rows", "json_columns", "markdown"],
+        # CSV by default: a ledger page extracted as a table is something you
+        # paste into a spreadsheet. json_rows keeps the structure for a future
+        # grid renderer and stays one config change away.
+        "default": "csv",
         "description": "Table output format",
     },
     "include_headers": {
@@ -102,8 +105,14 @@ Return ONLY valid JSON.""",
 
 Rules:
 - Use comma as separator
-- Quote fields containing commas or newlines
-- First row should be headers if visible
+- Wrap EVERY field in double quotes, without exception. A ledger column full
+  of dates and comma'd lists produces ragged rows the moment quoting is
+  optional, and the model is the only place that can get it right — nothing
+  downstream can recover the column boundaries afterwards.
+- Escape a literal double quote inside a field by doubling it ("")
+- Every row must have exactly the same number of fields as the header row;
+  emit "" for an empty cell rather than dropping it
+- First row is the header row if one is visible
 - One row per line
 
 Return ONLY the CSV content, no code fences or explanations.""",
@@ -124,7 +133,7 @@ Return ONLY the Markdown table, no explanations.""",
 
 def build_table_prompt(config: dict) -> str:
     """Build prompt from config (exposed to UI)."""
-    output_style = config.get("output_style", "json_rows")
+    output_style = config.get("output_style", "csv")
     include_headers = config.get("include_headers", True)
     return _build_prompt(output_style, include_headers)
 
@@ -147,7 +156,7 @@ def build_table_prompt(config: dict) -> str:
     input_ports=VISION_INPUT_PORTS,
     output_ports=BASE_OUTPUT_PORTS,
     config_schema=merge_config_schema(VISION_CONFIG_SCHEMA, TABLE_CONFIG),
-    default_prompt=_build_prompt("json_rows", True),
+    default_prompt=_build_prompt("csv", True),
     prompt_builder=build_table_prompt,
     sort_order=26,
 )
@@ -163,7 +172,7 @@ async def table_extract(
     context = inputs.get("context")
     input_metadata = inputs.get("metadata")
 
-    output_style = inputs.get("output_style", "json_rows")
+    output_style = inputs.get("output_style", "csv")
     include_headers = inputs.get("include_headers", True)
 
     prompt = inputs.get("prompt") or _build_prompt(output_style, include_headers)

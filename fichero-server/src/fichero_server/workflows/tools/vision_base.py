@@ -3154,7 +3154,11 @@ async def process_vision(
                 if file_index < len(page_doc_dict_by_index)
                 else None
             )
-            if existing_text and not force_ocr:
+            # `accepts_extracted_text` gates this passthrough: only a tool
+            # whose ANSWER is the page's text may skip the model. Without the
+            # gate, Table/Describe/Extract on an already-transcribed page
+            # returned that transcription verbatim (#see LLMToolConfig).
+            if existing_text and not force_ocr and tool_config.accepts_extracted_text:
                 logger.info(
                     f"Pre-extracted text passthrough: {Path(file_path).name} "
                     f"({len(existing_text)} chars, doc_id={doc_id_for_file})"
