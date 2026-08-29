@@ -73,7 +73,7 @@ the Mac explicitly:
 
 ```bash
 scripts/create_tailscale_pairing_link.sh \
-  "$HOME/Library/CloudStorage/Box-Box/Fichero Libraries/INCANH Ann New.fichero"
+  "$HOME/Documents/My Library.fichero"
 ```
 
 Paste the emitted `fichero://pair?...` link into **Connect → Manual link** before

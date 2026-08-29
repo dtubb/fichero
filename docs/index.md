@@ -14,7 +14,7 @@ What is Fichero? It's an app to read archives and research material: to transcri
 
 **Fichero is a Public Alpha. It's not yet in Beta.**
 
-To learn more about how Fichero works, please read the [FAQ](user/faq.md).
+To learn more about how Fichero works, please read the [FAQ](user/guide/10-frequently-asked-questions.md).
 
 <div style="text-align: center" markdown>
 
@@ -79,7 +79,7 @@ video slot: short demo embed(s). Keep empty until there is one. -->
 
 ## Documentation
 
-- **[FAQ](user/faq.md)** — common questions, answered.
+- **[FAQ](user/guide/10-frequently-asked-questions.md)** — common questions, answered.
 - **[User Guide](user/README.md)** — install, import, read, search, run workflows.
 - **[Contributor Guide](contributor/README.md)** — architecture, API, release lane.
 
@@ -88,7 +88,7 @@ video slot: short demo embed(s). Keep empty until there is one. -->
 Fichero is developed in the open at
 [github.com/dtubb/fichero](https://github.com/dtubb/fichero). It is coded
 (almost) entirely by AI, under the creative direction of myself, Daniel Tubb, and other [contributors](https://github.com/dtubb/fichero/graphs/contributors). See
-[How It's Built](user/how-its-built.md).
+[How It's Built](user/guide/12-appendix-b-how-fichero-is-built.md).
 
 Fichero is free and open source, released under the
 [GNU Affero General Public License, version 3.0 (AGPL-3.0)](https://www.gnu.org/licenses/agpl-3.0.html).

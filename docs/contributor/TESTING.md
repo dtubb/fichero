@@ -77,9 +77,9 @@ scripts/verify_perf.sh          # perf, deliberately, on its own
 for s in scripts/check_*.py; do python3 "$s" || break; done
 ```
 
-`gate unit --area sidebar` style area-running **(planned)** — until the gate
-harness lands, scope pytest by file/folder and Swift tests by test-plan
-selection.
+Area-scoped runs are live: `scripts/gate part <area>` runs one area's leg
+(see `scripts/gate --help`); scope pytest by file/folder and Swift tests by
+test-plan selection when you need something finer.
 
 ## Fixtures
 

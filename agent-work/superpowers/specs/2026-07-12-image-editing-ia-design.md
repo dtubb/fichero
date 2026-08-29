@@ -62,7 +62,7 @@ The image-editing surface is **already built and working**, not greenfield:
   `DocumentCanvas` inside the **Preview pane** (`EditorView.swift`) behind an
   `isEditing` toggle, gated `macOS`-only
   (`supportsImageEditingPreview`). The reader IA doc
-  (`docs/superpowers/specs/2026-07-11-reader-ia-design.md`, referenced from
+  (`agent-work/superpowers/specs/2026-07-11-reader-ia-design.md`, referenced from
   `ReaderTab.swift`) already documents "image edits" as absorbed into the
   Reader's **Page** tab in the long run, and the Inspector IA doc explicitly
   retires "Inspector View - Image Edits" as a milestone, confirming: **edit UI

@@ -143,7 +143,7 @@ In the Reader it is now unreachable:
 **Verdict: half-intentional, half-accreted — and the intentional half was
 approved against a doc that contradicts itself.**
 
-What the approved 2026-07-11 design (`docs/superpowers/specs/2026-07-11-reader-ia-design.md`,
+What the approved 2026-07-11 design (`agent-work/superpowers/specs/2026-07-11-reader-ia-design.md`,
 "REVIEWED + APPROVED, Daniel 2026-07-11") actually specified:
 
 - 3 top tabs Page / Knowledge / Notes — **intentional** (doc lines 46-57).

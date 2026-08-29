@@ -4,7 +4,7 @@
 **Status:** DRAFT for Daniel — research + design only; no source was modified
 **Trees cited:** engine/Swift code from `~/code/fichero-worktrees/integrate` at `3b8d49b85` (content-identical to `origin/main` at `074f0cf15` — the extra merge is the same commit). Issues read live via `gh issue view`.
 **Milestone:** #263 "Sharing & Pairing — Dead-Simple UX" — #3769, #3772, #3774, #3775, #3776, #3777, #3778, #3779.
-**Prior art built on (not re-derived):** `docs/superpowers/specs/2026-07-14-ux-critique-toggles-and-pairing.md` (the toggle audit and pairing-flow redesign; its Swift citations were spot-checked and hold).
+**Prior art built on (not re-derived):** `agent-work/superpowers/specs/2026-07-14-ux-critique-toggles-and-pairing.md` (the toggle audit and pairing-flow redesign; its Swift citations were spot-checked and hold).
 
 ## The target model (Daniel, authoritative — this is the destination, not a proposal)
 

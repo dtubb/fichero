@@ -18,10 +18,10 @@ Fichero is a two-part system:
 - `fichero-server/src/fichero_server/`: the Python FastAPI engine
 
 The Swift app is not the source of truth for data or AI behavior. It is a UI
-layer that talks to the engine over pinned HTTPS. On macOS, the embedded-engine
-path defaults to `https://127.0.0.1:8765`; `EngineConfig` also supports an
-explicit configured host, and iOS/iPadOS use that remote-host path rather than
-starting a local engine.
+layer that talks to the engine over a Unix domain socket locally, or pinned
+HTTPS (`https://127.0.0.1:8765`) over the network. `EngineConfig` also supports
+an explicit configured host, and iOS/iPadOS use that remote-host path rather
+than starting a local engine.
 
 ## Frontend Responsibilities
 
@@ -65,11 +65,11 @@ Two practical tiers matter:
 - `release`: the default route set used by the app and normal builds
 - `dev`: `release` plus the currently dev-tier extras
 
-As of the current `api/main.py`, most knowledge-graph, research, action,
-chains, model-comparison, and automation-related surfaces are already in the
-core route list. The remaining dev-tier surface is small; contributors should
-check `get_route_specs_for_tier` in `fichero_server.api.main` rather than assuming KG
-or research routes are dev-only.
+The release tier carries a deliberately small route set; most knowledge-graph,
+research, chains, and automation surfaces sit at beta or dev tier. The
+generated `feature_tiers_generated.py` (from `features.yaml`) is the source of
+truth — check `CUMULATIVE_ROUTE_PREFIXES` and `get_route_specs_for_tier`
+rather than assuming what any tier includes.
 
 ## One Engine, Many Surfaces
 

@@ -4,14 +4,14 @@
 **Status:** DESIGN + AUDIT — grounded against code and issues; no engine source modified (the
 `feature/research-and-hygiene` branch is actively reorganizing `fichero-server/src/fichero_server/*`
 security modules into `fichero-server/src/fichero_server/security/`, per
-`docs/design/engine-package-reorg.md` — that work is out of scope here).
+`agent-work/design/engine-package-reorg.md` — that work is out of scope here).
 **Verified against:** worktree checkout of `main`, jCodemunch index `local/fichero-29aa4eed`
 (48,532 symbols, 2,107 files), plus `git log --all` for the reorg branch state, and `gh issue
 list --milestone ... --state all` for all seven milestones below.
 
 ## How this doc relates to prior design docs
 
-Two design docs already exist in `docs/superpowers/specs/` from 2026-07-14 (one week before this
+Two design docs already exist in `agent-work/superpowers/specs/` from 2026-07-14 (one week before this
 audit):
 
 - `2026-07-14-sharing-always-on-design.md` — a deep, code-cited design proposing that both

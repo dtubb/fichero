@@ -80,18 +80,19 @@ Use these BEFORE implementing custom solutions!
 - **Snapshot Testing**: Consider snapshot testing for complex views
 
 ### Test Organization
+
+Tests live under `fichero/Tests/`, split by kind and platform:
+
 ```
-Fichero/FicheroTests/
-├── ModelTests/          # Data model tests
-│   ├── DocumentStoreTests.swift
-│   └── WorkflowTests.swift
-├── ServiceTests/        # Service layer tests
-│   ├── APIClientTests.swift
-│   └── DocumentServiceTests.swift
-└── ViewTests/           # View component tests
-    ├── DocumentListViewTests.swift
-    └── WorkflowEditorTests.swift
+fichero/Tests/
+├── Unit/general/        # store, service, view-model tests (all platforms)
+├── Unit/{mac,ios,ipad}/ # platform-specific unit tests
+├── UI/general/          # XCUITest flows (all platforms)
+└── UI/{mac,ios,ipad}/   # platform-specific UI tests
 ```
+
+See [TESTING.md](TESTING.md) for the full pyramid and how to run each layer.
+
 
 ### Running Tests
 ```bash
@@ -305,8 +306,7 @@ final class AtomicCounter: @unchecked Sendable {
 Run SwiftLint before every commit:
 
 ```bash
-cd Fichero
-swiftlint
+swiftlint lint fichero/fichero/
 ```
 
 ### Common Violations to Avoid

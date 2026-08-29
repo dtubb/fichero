@@ -10,7 +10,7 @@ Do NOT push (manager gates). Do NOT touch `fichero-server/` or the sidebar tree.
   Daniel decisions). Cross-checked against the retired `research_agent_search_audit_2571.md`
   (recovered via `git show 7d714eab3:...`), `2026-07-12-surface-consistency-design.md`,
   `agent_chat_as_user.md`, and the #4001 fold (`1beb91a5f`). Written to
-  `docs/design/agentic-surface-consolidation-fabel-review.md` (code-grounded:
+  `agent-work/design/agentic-surface-consolidation-fabel-review.md` (code-grounded:
   current state, gaps, migration steps 1–3 engine / 4–6 Swift, deferrals).
 
 ## Done (Swift-parallel-safe subset)

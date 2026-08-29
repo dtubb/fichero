@@ -244,7 +244,7 @@ issue.
 branch, not `git stash` — a stash doesn't survive a worktree teardown and is
 invisible outside the shell that made it. Baseline-diffing (comparing two
 tree states) happens in a **separate worktree**, never via
-stash-and-checkout in the same one (see `docs/design/git-practices-fabel-review.md`
+stash-and-checkout in the same one (see `agent-work/design/git-practices-fabel-review.md`
 Rule "stash-pop hazard").
 
 **Bring an agent up to speed with data, not a long-lived branch:**
@@ -267,7 +267,7 @@ subset skips the architecture guardrails" in Common Pitfalls below; the
 guardrail's own test files are part of the gate, not optional.
 
 Full rationale and the incidents behind each rule:
-`docs/design/git-practices-fabel-review.md`.
+`agent-work/design/git-practices-fabel-review.md`.
 ```
 
 **2. Amend rule 11 (Worktrees) to cross-reference the new integration-branch

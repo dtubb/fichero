@@ -31,9 +31,10 @@ In this repo, the important files are:
 There are two layers on the Swift side:
 
 - generated code in `fichero/fichero-api-client/`
-- hand-written wrappers in `fichero/fichero/Services/*Generated.swift`
+- hand-written wrappers in `fichero/fichero/Services/*Service.swift`
 
-The `*Generated.swift` suffix on the app side is misleading. Those wrapper files are hand-written and editable. The truly generated code lives in the local Swift package built from `openapi.json`.
+The wrapper files are hand-written and editable. The truly generated code
+lives in the local Swift package built from `openapi.json`.
 
 That separation matters because most real frontend API work happens in the wrappers, not in the generated package.
 

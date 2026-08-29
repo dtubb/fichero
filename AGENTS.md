@@ -575,12 +575,18 @@ colleagues edit in Word/Google Docs).
 
 The flow, in this direction:
 
-1. Humans read and edit the single manuscript (`.docx`).
-2. An agent converts it back to markdown (`pandoc`), diffs against the
-   previous master, and **splits the manuscript into the per-page files**
-   under `docs/user/` / `docs/contributor/` (chapters map to pages; keep nav
-   in `mkdocs.yml` in sync).
-3. The site and any bundled PDF regenerate from those pages.
+1. Humans read and edit the single manuscript (`.docx`). Chapters are
+   Heading 1 in Word (`##` in markdown) — the heading structure is the split
+   map, so it must survive editing.
+2. **`python3 scripts/sync_manuscript.py <user|contributor>`** does the
+   derived half — never hand-do the split. It pandocs the `.docx` back to
+   markdown, refreshes the `.md` master beside it, writes one page per
+   chapter under `docs/<guide>/guide/NN-<slug>.md`, and prints the mkdocs
+   `nav:` block. (`--dry-run` previews the split.)
+3. The agent running it then pastes the nav into `mkdocs.yml`, retires any
+   superseded hand-written pages deliberately, and gates with
+   `scripts/check_docs_publication.py` + `mkdocs build --strict`. The site
+   and any bundled PDF regenerate from those pages.
 
 Do not treat the per-page `docs/` files as the place for substantial prose
 rewrites of guide content — they are derived from the manuscript. Small

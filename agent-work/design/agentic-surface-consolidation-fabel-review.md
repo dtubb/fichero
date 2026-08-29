@@ -10,7 +10,7 @@ front-end lane; only the Swift-parallel-safe steps are actionable now.
 Companions (all grounded, all still valid): the surface audit
 `research_agent_search_audit_2571.md` (#2571, retired from the tree but recoverable
 at `git show 7d714eab3:docs/architecture/swiftui/research_agent_search_audit_2571.md`),
-the shared-chrome plan `docs/superpowers/specs/2026-07-12-surface-consistency-design.md`,
+the shared-chrome plan `agent-work/superpowers/specs/2026-07-12-surface-consistency-design.md`,
 and the model-as-user design `docs/contributor/architecture/agent_chat_as_user.md`.
 
 ---

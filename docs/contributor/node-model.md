@@ -118,17 +118,10 @@ and the now-removed mind-palace room routes:
 - On reopen, `_backfill_spatial_room_documents` mirrors legacy `SpatialRoom`
   rows into room documents if the old table still exists.
 
-F5 slice 1 did not replace the mind-palace room API surface. The existing room
-routes still operate on `SpatialRoom` view models:
-
-- `POST /api/mind-palace/rooms`
-- `GET /api/mind-palace/rooms`
-- `GET /api/mind-palace/rooms/{room_id}`
-- `PATCH /api/mind-palace/rooms/{room_id}`
-- `DELETE /api/mind-palace/rooms/{room_id}`
-
-Those routes now read and write through the node-backed room bridge rather than
-through a room-only storage path.
+The `/api/mind-palace/rooms*` route surface has been REMOVED —
+`fichero-server/tests/unit/api/test_mind_palace_route_guard.py` asserts it
+stays removed. Room behavior survives through the node-backed room bridge:
+rooms are workspace nodes, not a separate storage path or API namespace.
 
 ## Research workspaces as workspace nodes
 
@@ -294,6 +287,6 @@ Still in progress or pending:
   `chat_scope="container"` prototype attribute on `research_workspace`; broader
   chat-scope folding should still be described as in progress until more code
   lands.
-- F5 retirement of the `/api/mind-palace/rooms*` endpoints is still pending.
-  Those routes have been REMOVED; `fichero-server/tests/unit/api/test_mind_palace_route_guard.py` asserts they stay removed
-  and currently depend on the room <-> room-node bridge for behavior parity.
+- The `/api/mind-palace/rooms*` endpoints are retired (REMOVED);
+  `fichero-server/tests/unit/api/test_mind_palace_route_guard.py` asserts they
+  stay removed. Room behavior parity rests on the room <-> room-node bridge.

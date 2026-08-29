@@ -119,7 +119,7 @@ the engine on iOS) does exist — in-process, not subprocess. Q3 is where it die
 
 **Embedding a Python interpreter that runs bundled scripts does not violate 2.5.2 on iOS**, for the
 same textual reason as the macOS finding in the sibling report
-(`docs/superpowers/specs/2026-07-13-mac-app-store-sandbox-research.md`, read today): 2.5.2 prohibits
+(`agent-work/superpowers/specs/2026-07-13-mac-app-store-sandbox-research.md`, read today): 2.5.2 prohibits
 code that is **downloaded/installed after review** or that changes the app from what was reviewed —
 not a bundled, signed interpreter executing bundled, signed scripts. The iOS reasoning is the same
 guideline text (one guidelines document covers all Apple platforms), and is actually **stronger**
@@ -309,6 +309,6 @@ subprocess architecture impossible, in-process architecture legal-but-uninstalla
 **Repo files read (2026-07-13):**
 - `fichero-server/pyproject.toml` (full dependency manifest)
 - `docs/contributor/design/ios-ipad-embedding-plan.md` (2026-07-06 survey; feasibility matrix)
-- `docs/superpowers/specs/2026-07-13-mac-app-store-sandbox-research.md` (sibling macOS report)
+- `agent-work/superpowers/specs/2026-07-13-mac-app-store-sandbox-research.md` (sibling macOS report)
 - `fichero/fichero/Services/EngineConfig.swift`, `EmbeddedBackendService.swift`,
   `fichero-tests/EngineProvisioningStrategyTests.swift` (iosCompanion posture, via grep)
