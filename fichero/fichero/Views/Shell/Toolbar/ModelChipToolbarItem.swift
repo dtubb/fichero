@@ -24,8 +24,13 @@ struct ModelChipToolbarItem: View {
     let prefersVision: Bool
     @Environment(AppState.self) private var appState
     /// SwiftUI's own settings action — no AppKit bridge, so this file stays
-    /// inside the cross-platform rule (check_appkit_imports).
+    /// inside the cross-platform rule (check_appkit_imports). macOS only:
+    /// iOS marks `openSettings` explicitly unavailable (it broke the Dev
+    /// Local iOS build, 2026-08-29), and the iOS chip simply omits the
+    /// settings shortcut — Settings is a tab away there anyway.
+    #if os(macOS)
     @Environment(\.openSettings) private var openSettings
+    #endif
     /// Fetched rather than injected: nothing holds AI defaults in a shared
     /// observable today, so the chip loads its own copy and refreshes when the
     /// menu opens — which is the moment its accuracy matters.
@@ -129,6 +134,7 @@ struct ModelChipToolbarItem: View {
                 .padding(.vertical, 6)
             }
             .frame(maxHeight: 320)
+            #if os(macOS)
             Divider()
             Button("AI Settings…") {
                 isPresented = false
@@ -139,6 +145,7 @@ struct ModelChipToolbarItem: View {
             .foregroundStyle(.tint)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
+            #endif
         }
         .frame(minWidth: 230)
         .task {
