@@ -88,7 +88,6 @@ final class CanvasSelectionDecorator {
     ) {
         let scale = max(chromeScale, 0.001)
         let frameThickness = self.frameThickness * scale
-        let setFrameThickness = self.setFrameThickness * scale
         root.children.forEach { $0.removeFromParent() }
         // Sorted to match `plan`'s own ordering, so `itemBoxes[i]` and
         // `ordered[i]` are the same placeable and each frame gets ITS card's

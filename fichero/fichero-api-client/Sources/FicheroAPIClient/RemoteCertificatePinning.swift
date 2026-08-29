@@ -220,7 +220,7 @@ public enum RemoteCertificatePinning {
         // still preserved for all unpinned traffic paths elsewhere.
         var trustError: CFError?
         _ = SecTrustEvaluateWithError(trust, &trustError)
-        guard let certificate = SecTrustGetCertificateAtIndex(trust, 0) else {
+        guard let certificate = leafCertificate(of: trust) else {
             throw RemoteCertificatePinningError.serverCertificateUnavailable
         }
         try validateLeafCertificate(certificate, expectedSPKIPin: normalizedSPKIPin)
@@ -267,8 +267,17 @@ public enum RemoteCertificatePinning {
         return "sha256/\(Data(SHA256.hash(data: spkiData)).base64EncodedString())"
     }
 
+    /// The leaf (index 0) certificate of an evaluated trust, via the
+    /// non-deprecated `SecTrustCopyCertificateChain` API.
+    private static func leafCertificate(of trust: SecTrust) -> SecCertificate? {
+        guard let chain = SecTrustCopyCertificateChain(trust) as? [SecCertificate] else {
+            return nil
+        }
+        return chain.first
+    }
+
     private static func bootstrapLoopbackSPKIPin(from trust: SecTrust, hostString: String) -> Bool {
-        guard let certificate = SecTrustGetCertificateAtIndex(trust, 0),
+        guard let certificate = leafCertificate(of: trust),
               let publicKey = SecCertificateCopyKey(certificate),
               let pin = try? spkiPin(for: publicKey) else {
             return false

@@ -14,7 +14,10 @@ import PythonKit
 ///
 /// Construct a `PyRef` only while holding the GIL (e.g. inside `PythonWorker.sync`
 /// or a `PyGIL.ensure()` scope).
-final class PyRef {
+/// `@unchecked Sendable`: the whole point of this box is cross-thread hand-off.
+/// `object` is written only in `init` and `deinit`, and every touch of the
+/// wrapped `PythonObject` happens under the GIL, which is the real lock here.
+final class PyRef: @unchecked Sendable {
     private var object: PythonObject?
 
     /// Wrap `object`. MUST be called with the GIL held (this copies/retains it).

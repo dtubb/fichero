@@ -8,7 +8,7 @@ import PythonKit
 /// underlying `PythonObject` directly — the transport dereferences it on the
 /// worker thread while holding the GIL. This keeps Python refcounting off any
 /// thread that doesn't own the GIL (WARN-2).
-public final class ASGIApp {
+public final class ASGIApp: Sendable {
     let ref: PyRef
     init(ref: PyRef) { self.ref = ref }
 }

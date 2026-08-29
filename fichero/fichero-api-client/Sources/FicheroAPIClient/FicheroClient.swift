@@ -288,7 +288,9 @@ public final class FicheroClient: ObservableObject {
     /// sense for a local AF_UNIX socket to our own single-tenant engine. See
     /// ``LocalTransportPool`` for the sizing rationale and the measured
     /// server-side ceiling.
-    static let udsHTTPClient = HTTPClient(
+    /// `nonisolated`: process-wide immutable Sendable client, read from the
+    /// nonisolated transport builders — no `@MainActor` state involved.
+    nonisolated static let udsHTTPClient = HTTPClient(
         eventLoopGroupProvider: .shared(MultiThreadedEventLoopGroup.singleton),
         configuration: LocalTransportPool.configuration(
             softLimit: LocalTransportPool.requestConnectionCeiling
@@ -300,7 +302,7 @@ public final class FicheroClient: ObservableObject {
     /// ``udsHTTPClient``), but its OWN connection pool — which is the whole
     /// point: a stream parked on a connection for the lifetime of an open
     /// library can no longer consume request capacity.
-    static let udsStreamHTTPClient = HTTPClient(
+    nonisolated static let udsStreamHTTPClient = HTTPClient(
         eventLoopGroupProvider: .shared(MultiThreadedEventLoopGroup.singleton),
         configuration: LocalTransportPool.configuration(
             softLimit: LocalTransportPool.streamConnectionCeiling
@@ -320,7 +322,7 @@ public final class FicheroClient: ObservableObject {
     /// session so a long-lived SSE body cannot consume URLSession's per-host
     /// connection budget either (`httpMaximumConnectionsPerHost` defaults to 6
     /// on macOS — the same shape of bug as the AsyncHTTPClient pool).
-    private static let httpsStreamSession: URLSession = RemoteCertificatePinning.configuredSession(
+    nonisolated private static let httpsStreamSession: URLSession = RemoteCertificatePinning.configuredSession(
         configuration: LocalTransportPool.urlSessionConfiguration(
             maximumConnectionsPerHost: LocalTransportPool.streamConnectionCeiling
         )

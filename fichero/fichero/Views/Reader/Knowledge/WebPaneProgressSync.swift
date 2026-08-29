@@ -28,7 +28,12 @@ final class WebPaneProgressSync {
     ) {
         if lastBusyPages != busyPages {
             lastBusyPages = busyPages
-            webView.evaluateJavaScript(DocumentKGPaneRoute.busyPagesScript(busyPages))
+            // WKWebView is main-actor; this class is called on the main
+            // thread (see the class doc) but is not actor-annotated, so
+            // assert the isolation rather than restating it on every owner.
+            MainActor.assumeIsolated {
+                webView.evaluateJavaScript(DocumentKGPaneRoute.busyPagesScript(busyPages))
+            }
         }
         let changed = ReaderPageProgress.changedPatches(
             latest: pageContent,
@@ -37,9 +42,11 @@ final class WebPaneProgressSync {
         guard !changed.isEmpty else { return }
         for (number, text) in changed.sorted(by: { $0.key < $1.key }) {
             lastSentContent[number] = text
-            webView.evaluateJavaScript(
-                DocumentKGPaneRoute.pageContentScript(page: number, content: text)
-            )
+            MainActor.assumeIsolated {
+                webView.evaluateJavaScript(
+                    DocumentKGPaneRoute.pageContentScript(page: number, content: text)
+                )
+            }
         }
     }
 }

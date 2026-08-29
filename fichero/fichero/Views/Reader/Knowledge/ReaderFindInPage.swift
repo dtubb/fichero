@@ -196,16 +196,23 @@ final class WebPaneFindSync {
         if lastQuery != query {
             lastQuery = query
             lastIndex = -1
-            webView.evaluateJavaScript(DocumentKGPaneRoute.findScript(query: query)) { result, _ in
-                let count = (result as? NSNumber)?.intValue ?? 0
-                // WebKit calls this completion on the main thread; hop
-                // explicitly so the isolation is checked, not assumed.
-                Task { @MainActor in onMatchCount?(count) }
+            // WKWebView is main-actor; this class is called on the main
+            // thread (see the class doc) but is not actor-annotated, so
+            // assert the isolation rather than restating it on every owner.
+            MainActor.assumeIsolated {
+                webView.evaluateJavaScript(DocumentKGPaneRoute.findScript(query: query)) { result, _ in
+                    let count = (result as? NSNumber)?.intValue ?? 0
+                    // WebKit calls this completion on the main thread; hop
+                    // explicitly so the isolation is checked, not assumed.
+                    Task { @MainActor in onMatchCount?(count) }
+                }
             }
         }
         if !query.isEmpty, selectionIndex >= 0, lastIndex != selectionIndex {
             lastIndex = selectionIndex
-            webView.evaluateJavaScript(DocumentKGPaneRoute.findSelectScript(index: selectionIndex))
+            MainActor.assumeIsolated {
+                webView.evaluateJavaScript(DocumentKGPaneRoute.findSelectScript(index: selectionIndex))
+            }
         }
     }
 }

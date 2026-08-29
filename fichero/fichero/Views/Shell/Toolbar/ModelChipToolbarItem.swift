@@ -208,7 +208,9 @@ struct ModelChipToolbarItem: View {
 
     /// `openrouter/anthropic/claude-sonnet-5` reads as `claude-sonnet-5` — the
     /// provider path is noise in a toolbar and the tooltip carries it in full.
-    static func shorten(_ model: String) -> String {
+    /// `nonisolated`: pure string manipulation, also called from nonisolated
+    /// model code (`StagedWorkflowStep.modelDescription`).
+    nonisolated static func shorten(_ model: String) -> String {
         model.split(separator: "/").last.map(String.init) ?? model
     }
 }
