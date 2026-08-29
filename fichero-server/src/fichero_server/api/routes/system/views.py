@@ -154,6 +154,7 @@ def transcript_pages(document: Document, child_pages: list[Document]) -> list[di
                 "label": document.name,
                 "content": content,
                 "has_content": True,
+                "is_region": document.region_in_parent is not None,
             }
         ]
 
@@ -167,6 +168,9 @@ def transcript_pages(document: Document, child_pages: list[Document]) -> list[di
                 "label": page.name,
                 "content": content,
                 "has_content": bool(content.strip()),
+                # A region section (a diary entry, a segment) is NAMED — the
+                # reader shows its label; an ordinary sheet is numbered.
+                "is_region": page.region_in_parent is not None,
             }
         )
     return pages

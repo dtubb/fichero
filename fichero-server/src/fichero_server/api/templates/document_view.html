@@ -801,6 +801,7 @@ function transcriptPages() {
             return {
                 id: page.id || null,
                 label: page.label || null,
+                isRegion: Boolean(page.is_region),
                 number: page.number == null ? index + 1 : page.number,
                 content: content,
                 hasContent: page.has_content == null
@@ -852,8 +853,9 @@ function transcriptPageMarkup(page) {
         : "";
     // Region sections (diary entries, segments) are NAMED, not numbered like
     // sheets — show the node's own label beside the running number so the
-    // header says what the section IS.
-    const label = page.label && page.label !== `Page ${page.number}`
+    // header says what the section IS. Ordinary pages stay numbers only:
+    // their labels are storage names, which would clutter every header.
+    const label = page.isRegion && page.label
         ? `<span class="page-label">${escapeHtml(page.label)}</span>`
         : "";
     return `

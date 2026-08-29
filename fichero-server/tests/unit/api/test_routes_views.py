@@ -632,6 +632,9 @@ class TestRegionScopedView:
             assert f"Entry text {n}" in response.text
         # The parent's own flat text must not double the region list.
         assert "THE WHOLE SHEET TEXT" not in response.text
+        # Region sections are marked so the reader shows their NAMES —
+        # ordinary sheets stay numbers only.
+        assert '"is_region": true' in response.text
 
     def test_requesting_one_region_shows_the_whole_cohort(self, client, db):
         page, regions = self._page_with_regions(db)
