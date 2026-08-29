@@ -54,6 +54,8 @@ def _tool_config() -> VisionToolConfig:
         update_page_content=True,
         trigger_embedding=False,
         supports_apple_vision=True,
+        # Transcribe is the tool the pre-extracted-text passthrough exists for.
+        accepts_extracted_text=True,
     )
 
 
