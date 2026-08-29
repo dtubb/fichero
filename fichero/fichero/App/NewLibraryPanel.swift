@@ -32,6 +32,7 @@ enum NewLibraryPanel {
     /// abstract `.package`. `.package` would also accept `.app`, `.rtfd` and
     /// every other bundle on disk, and carries no preferred extension for the
     /// panel to offer.
+    @MainActor
     static func makeSavePanel() -> NSSavePanel {
         let savePanel = NSSavePanel()
         if let libraryType = UTType.ficheroLibrary {
@@ -113,6 +114,7 @@ enum NewLibraryPanel {
     /// Warn-and-confirm before creating a library in a synced location.
     /// Returns true when creation should proceed. Not a ban — an informed
     /// "Create Anyway" is allowed; the default button is Choose Elsewhere.
+    @MainActor
     static func confirmSyncedLocationIfNeeded(at url: URL) -> Bool {
         // The panel returns the library URL; sync status is a property of the
         // PARENT folder the package will live in.
@@ -147,6 +149,7 @@ enum NewLibraryPanel {
     /// Tell the user the create failed, and where it was trying to write.
     /// Both create paths call this: a silent log line for a button the user
     /// just pressed is indistinguishable from the app ignoring them.
+    @MainActor
     static func presentCreateFailure(_ error: Error, at url: URL) {
         let alert = NSAlert()
         alert.messageText = "Couldn’t Create Library"

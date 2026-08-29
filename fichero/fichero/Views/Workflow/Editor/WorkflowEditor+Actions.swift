@@ -136,6 +136,11 @@ extension WorkflowEditor {
 
             let completion = WorkflowRunCompletion()
 
+            // Local binding so `onCancel` below can capture it weakly without
+            // shadowing the strong capture the enclosing closure already holds
+            // (the stored cancel handler must not retain the service).
+            let streamService = workflowStreamService
+
             let response = try await workflowStreamService.execute(
                 workflowId: workflowId,
                 surface: "workflow-editor",
@@ -150,9 +155,9 @@ extension WorkflowEditor {
                     executionObserver.promoteExecution(
                         from: executionThreadId,
                         to: threadId,
-                        onCancel: { [weak workflowStreamService] in
+                        onCancel: { [weak streamService] in
                             Task { @MainActor in
-                                try? await workflowStreamService?.stopWorkflow(threadId: threadId)
+                                try? await streamService?.stopWorkflow(threadId: threadId)
                             }
                         }
                     )

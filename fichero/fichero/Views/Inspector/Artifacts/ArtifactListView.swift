@@ -253,7 +253,7 @@ struct ArtifactListView: View {
                         let content = artifact.content ?? ""
                         let targetId = artifact.documentId
                         Task { @MainActor in
-                            try? await documentStore?.documentService.updateDocument(
+                            _ = try? await documentStore?.documentService.updateDocument(
                                 targetId, pageContent: content
                             )
                             await documentStore?.refresh()

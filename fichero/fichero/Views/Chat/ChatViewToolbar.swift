@@ -158,9 +158,14 @@ struct ChatModelPicker: View, Equatable {
     @Binding var selectedModel: String
 
     nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.selectedProvider == rhs.selectedProvider
-            && lhs.selectedModel == rhs.selectedModel
-            && lhs.providers == rhs.providers
+        // Equatable's requirement is nonisolated, but the compared properties
+        // are main-actor (View members). SwiftUI diffs on the main actor, so
+        // assume it rather than weakening the properties' isolation.
+        MainActor.assumeIsolated {
+            lhs.selectedProvider == rhs.selectedProvider
+                && lhs.selectedModel == rhs.selectedModel
+                && lhs.providers == rhs.providers
+        }
     }
 
     var body: some View {
