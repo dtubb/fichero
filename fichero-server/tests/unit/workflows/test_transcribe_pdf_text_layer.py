@@ -381,7 +381,7 @@ async def test_llm_vision_multipage_pdf_processes_all_pages(tmp_path: Path) -> N
     # swallows as a page failure — so this test failed with "got 0 LLM calls"
     # while looking like a fan-out regression. The mock had drifted from the
     # signature it stands in for.
-    async def _mock_vision(images, prompt, config, language=None):
+    async def _mock_vision(images, prompt, config, language=None, **_kw):
         nonlocal llm_call_count
         text = page_transcripts[llm_call_count % len(page_transcripts)]
         llm_call_count += 1

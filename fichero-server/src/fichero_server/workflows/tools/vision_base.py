@@ -3578,6 +3578,9 @@ async def process_vision(
                                         prompt=final_prompt,
                                         config=effective_config,
                                         language=language,
+                                        recognition_only_ok=(
+                                            tool_config.supports_apple_vision
+                                        ),
                                     )
                                 )
                                 _payload = _pt if isinstance(_pt, str) else ""
@@ -3706,6 +3709,9 @@ async def process_vision(
                                 prompt=final_prompt,
                                 config=effective_config,
                                 language=language,
+                                recognition_only_ok=(
+                                    tool_config.supports_apple_vision
+                                ),
                             )
                         )
                         # Parse output according to format
@@ -3769,6 +3775,9 @@ async def process_vision(
                             prompt=final_prompt,
                             config=retry_config,
                             language=language,
+                            recognition_only_ok=(
+                                tool_config.supports_apple_vision
+                            ),
                         )
                     )
                     parsed = parse_output(text, output_format, output_options)
@@ -3816,6 +3825,9 @@ async def process_vision(
                             prompt=bare_prompt,
                             config=effective_config,
                             language=language,
+                            recognition_only_ok=(
+                                tool_config.supports_apple_vision
+                            ),
                         )
                     )
                     text = postprocess_text(text)

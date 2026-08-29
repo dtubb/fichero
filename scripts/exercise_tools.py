@@ -52,8 +52,11 @@ class Recorder:
     def __init__(self) -> None:
         self.calls: list[dict[str, Any]] = []
         self._orig: dict[str, Any] = {}
+        self._patched_modules: list[tuple[Any, str]] = []
 
     def install(self) -> None:
+        import sys
+
         from fichero_server import llm
 
         for name in ("vision", "chat"):
@@ -73,10 +76,23 @@ class Recorder:
 
         llm.vision = vision
         llm.chat = chat
+        # Several tools do `from fichero_server.llm import vision` at import
+        # time and hold their own reference, so patching the module attribute
+        # alone misses them — and a missed call reads as "answered without
+        # calling a model", which is exactly the finding this script exists to
+        # make trustworthy. Rebind every module that captured the original.
+        self._patched_modules = []
+        for module in list(sys.modules.values()):
+            for name, replacement in (("vision", vision), ("chat", chat)):
+                if getattr(module, name, None) is self._orig[name]:
+                    setattr(module, name, replacement)
+                    self._patched_modules.append((module, name))
 
     def restore(self) -> None:
         from fichero_server import llm
 
+        for module, name in getattr(self, "_patched_modules", []):
+            setattr(module, name, self._orig[name])
         for name, fn in self._orig.items():
             setattr(llm, name, fn)
 
@@ -235,6 +251,9 @@ async def run_one(name, tool_def, inputs, state, llm_config, recorder,
         row["why_no_call"] = (
             "returned the page's content VERBATIM — correct only for Transcribe"
         )
+    elif not getattr(tool_def, "uses_llm", False):
+        # An image op, a source, a save. Calling nothing is its whole design.
+        row["why_no_call"] = "calls no model by design"
     elif row["ok"]:
         row["why_no_call"] = "UNEXPLAINED — the tool answered without a model"
     else:
@@ -279,7 +298,10 @@ async def main() -> int:
     from fichero_server.db import db_manager
     from fichero_server.llm import LLMConfig
     from fichero_server.models import Document
-    from fichero_server.workflows.registry import list_tools
+    from fichero_server.workflows.registry import (
+        is_tool_executable,
+        list_tools,
+    )
 
     provider, _, model = args.model.partition(":")
     llm_config = LLMConfig(provider=provider, model=model)
@@ -307,8 +329,14 @@ async def main() -> int:
         return 2
 
     wanted = {t.strip() for t in args.tools.split(",")} if args.tools else None
+    # Palette placeholders — built-in defs with no implementation behind them —
+    # are already filtered out of the editor by `is_tool_executable` (#4322).
+    # Sweeping them produces a page of "'NoneType' object is not callable" that
+    # looks like a defect and is not one.
+    placeholders = [t.name for t in list_tools() if not is_tool_executable(t.name)]
     tools = [
         t for t in list_tools()
+        if is_tool_executable(t.name)
         if (wanted is None or t.name in wanted)
         and (args.category is None or t.category == args.category)
         and (args.all_tools or getattr(t, "uses_llm", False))
@@ -375,6 +403,7 @@ async def main() -> int:
         "input_mode": args.input,
         "page_content_chars": len(document.get("page_content") or ""),
         "skipped_wrong_input_kind": skipped,
+        "palette_placeholders": placeholders,
         "results": rows,
     }
 
@@ -388,7 +417,12 @@ async def main() -> int:
         print(f"{r['tool']:28} {'yes' if r['ok'] else 'NO':>3} "
               f"{'yes' if r['called_model'] else 'NO':>6} {r['seconds']:>6.1f}  "
               f"{model_tag:18}  {(head[0] if head else '')[:40]}")
-    silent = [r for r in rows if r["ok"] and not r["called_model"]]
+    if placeholders:
+        print(f"\nPalette placeholders, not run ({len(placeholders)}): "
+              f"{', '.join(placeholders)}")
+    silent = [r for r in rows
+              if r["ok"] and not r["called_model"]
+              and "by design" not in (r["why_no_call"] or "")]
     if silent:
         print("\nAnswered WITHOUT calling the model:")
         for r in silent:

@@ -139,7 +139,9 @@ class TestLLMConfig:
         assert config.provider == "openai"
         assert config.model == "gpt-4o"
         assert config.temperature == 0.7
-        assert config.max_tokens == 2048
+        # 8192, not 2048: a paleography pass has to be able to think and still
+        # emit the transcription, and 2048 was truncating both.
+        assert config.max_tokens == 8192
         assert config.api_key is None
 
     def test_get_model_name(self):

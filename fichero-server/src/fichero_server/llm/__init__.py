@@ -2452,6 +2452,7 @@ async def vision(
     config: LLMConfig,
     *,
     language: str | None = None,
+    recognition_only_ok: bool = False,
 ) -> str:
     """Analyze images with a vision model using LangChain.
 
@@ -2462,6 +2463,12 @@ async def vision(
         language: Document language already resolved by the caller's language
             policy (#2092). Only the Apple/on-device OCR route reads it —
             generative providers take their language cue from the prompt.
+        recognition_only_ok: The caller wants the page's TEXT and will accept a
+            recognition pass that ignores the prompt. Apple Vision is such a
+            pass; asking it to describe, classify or tabulate returns the OCR
+            as though it had answered, which is a wrong answer reporting
+            success. Only a caller whose question IS "what does this say" may
+            pass True.
 
     Returns:
         Analysis text
@@ -2469,6 +2476,22 @@ async def vision(
     from langchain_core.messages import HumanMessage
 
     _enforce_local_only_provider(config, kind="vision")
+
+    # Apple Vision recognizes; it does not answer. `_apple_vision_dispatch`
+    # ignores the prompt by design, so a caller that asked a QUESTION gets the
+    # page's text back and no way to tell it apart from a real answer. Refuse
+    # unless the caller has said that is what it wanted. Guarding here rather
+    # than only in `process_vision` covers the tools that call this directly
+    # (extract, compare, similarity, the video path).
+    if not recognition_only_ok:
+        _provider = (getattr(config, "provider", "") or "").lower()
+        _model = (getattr(config, "model", "") or "").lower().strip()
+        if _provider == "apple" and _model in ("", "default", "apple-vision"):
+            raise ValueError(
+                "Apple Vision performs OCR and ignores the prompt, so it cannot "
+                "answer this request. Choose a generative vision model, or use "
+                "a transcription step if the page's text is what you want."
+            )
 
     # Apple provider unified dispatch — Apple has no LangChain integration,
     # so we route by model BEFORE falling through to LangChain. Three Apple
