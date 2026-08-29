@@ -141,6 +141,33 @@ final class DocumentKGPaneRouteTests: XCTestCase {
         XCTAssertTrue(url.absoluteString.hasSuffix("/view/document/doc-123"), url.absoluteString)
     }
 
+    /// The representation switcher re-requests the SAME page with a
+    /// `representation` parameter (Daniel, 2026-08-29) — one renderer,
+    /// several readings — composing with the `pages` selection filter.
+    func testDocumentURLCarriesRepresentationAndPagesFilters() throws {
+        let plain = try XCTUnwrap(
+            DocumentKGPaneRoute.documentURL(documentId: "doc-1", representation: "translation")
+        )
+        XCTAssertTrue(
+            plain.absoluteString.hasSuffix("/view/document/doc-1?representation=translation"),
+            plain.absoluteString
+        )
+        let combined = try XCTUnwrap(
+            DocumentKGPaneRoute.documentURL(
+                documentId: "doc-1", pageIds: ["p1", "p2"], representation: "transcription"
+            )
+        )
+        XCTAssertTrue(
+            combined.absoluteString.hasSuffix(
+                "/view/document/doc-1?pages=p1,p2&representation=transcription"
+            ),
+            combined.absoluteString
+        )
+        // nil representation is the live content — no parameter at all.
+        let live = try XCTUnwrap(DocumentKGPaneRoute.documentURL(documentId: "doc-1"))
+        XCTAssertFalse(live.absoluteString.contains("representation"), live.absoluteString)
+    }
+
     func testBootstrapScriptRefreshesOnlyWhenNeeded() {
         XCTAssertTrue(
             DocumentKGPaneRoute.shouldRefreshBootstrapScript(
