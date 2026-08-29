@@ -58,17 +58,22 @@ struct ModelChipToolbarItem: View {
         prefersVision ? defaults.visionMediumModel : defaults.mediumModel
     }
 
+    private var currentProvider: String {
+        prefersVision ? defaults.visionMediumProvider : defaults.mediumProvider
+    }
+
     var body: some View {
         Button {
             isPresented.toggle()
         } label: {
-            HStack(spacing: 4) {
-                Image(systemName: "cpu")
-                    .font(.caption)
-                Text(shortModel)
-                    .font(.caption)
-                    .lineLimit(1)
-            }
+            // A LOGO, not the model's full name (Daniel, 2026-08-29: "can't we
+            // do it with a logo, rather than having all that width?"). Apple
+            // has a real glyph; every other family gets a monogram in its own
+            // colour — which is what makes the idea survive providers that
+            // ship no logo. The full name lives one hover (help) or one click
+            // (popover) away.
+            ModelFamilyMark(model: currentModel, provider: currentProvider)
+                .padding(.horizontal, 6)
         }
         .buttonStyle(.plain)
         .fixedSize()
@@ -205,5 +210,61 @@ struct ModelChipToolbarItem: View {
     /// provider path is noise in a toolbar and the tooltip carries it in full.
     static func shorten(_ model: String) -> String {
         model.split(separator: "/").last.map(String.init) ?? model
+    }
+}
+
+
+/// A model family as a compact mark: Apple's own glyph where one exists, a
+/// coloured monogram everywhere else. The COLOUR carries the family (Claude
+/// rust, Gemini blue, OpenAI green...), so the mark stays legible even when
+/// two families share an initial.
+struct ModelFamilyMark: View {
+    let model: String
+    let provider: String
+
+    /// The bundled provider logos Settings already ships
+    /// (Resources/Assets.xcassets/Providers/*) — matched on the MODEL first,
+    /// because through OpenRouter the model's family is what the user thinks
+    /// of as "the model", and the router is plumbing.
+    private var logoAsset: String? {
+        let haystack = "\(provider)/\(model)".lowercased()
+        let table: [(needle: String, asset: String)] = [
+            ("claude", "Providers/Anthropic"), ("anthropic", "Providers/Anthropic"),
+            ("gemini", "Providers/GoogleAI"), ("google", "Providers/GoogleAI"),
+            ("gpt", "Providers/OpenAI"), ("openai", "Providers/OpenAI"),
+            ("mistral", "Providers/MistralAI"),
+            ("qwen", "Providers/DashScope"),
+            ("deepseek", "Providers/DeepSeek"),
+            ("grok", "Providers/xAI"),
+            ("groq", "Providers/Groq"),
+            ("ollama", "Providers/Ollama"),
+            ("lmstudio", "Providers/LMStudio"), ("lm-studio", "Providers/LMStudio"),
+            ("openrouter", "Providers/OpenRouter"),
+        ]
+        return table.first { haystack.contains($0.needle) }?.asset
+    }
+
+    var body: some View {
+        let haystack = "\(provider)/\(model)".lowercased()
+        if haystack.contains("apple") {
+            Image(systemName: "apple.logo")
+                .font(.system(size: 12))
+                .frame(width: 20, height: 20)
+        } else if let logoAsset {
+            Image(logoAsset)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 18, height: 18)
+                .frame(width: 20, height: 20)
+        } else {
+            // A family with no bundled logo still gets a mark: its initial in
+            // a quiet circle. This is what lets logo-first survive providers
+            // that ship no logo.
+            Text(model.isEmpty ? "?" : String(model.prefix(1)).uppercased())
+                .font(.system(size: 11, weight: .bold, design: .rounded))
+                .foregroundStyle(.secondary)
+                .frame(width: 20, height: 20)
+                .background(.quaternary.opacity(0.5), in: Circle())
+        }
     }
 }

@@ -231,6 +231,19 @@ extension LibraryView {
         // arrows resume from what you just opened rather than from wherever
         // the previous anchor was (#4377).
         apply(SelectionGrammar.select(doc.id))
+        if doc.isWorkflowNode {
+            // A workflow mirror opens its EDITOR (Daniel, 2026-08-29: "if you
+            // go to select a workflow from library it should take you to the
+            // workflow editor, rather than ... it just shows nothing"). The
+            // sidebar already routes exactly this through its reveal seam —
+            // ride it rather than duplicating the workflow-store lookup here.
+            NotificationCenter.default.post(
+                name: .sidebarRevealDocument,
+                object: nil,
+                userInfo: ["documentId": doc.id]
+            )
+            return
+        }
         if canNavigateInto(doc) {
             onNavigateInto(doc)
         } else {

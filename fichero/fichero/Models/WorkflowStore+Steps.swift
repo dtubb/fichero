@@ -103,7 +103,15 @@ extension WorkflowStore {
                     model: node.modelName ?? "",
                     inputSummary: Self.inputSummary(for: node, in: definition),
                     prompt: nil,
+                    // Not `node.usesLLM` alone: detect_regions registers
+                    // uses_llm=false (Apple mode is free) but its VLM mode
+                    // sends a real prompt — the registry's default_prompt is
+                    // the honest signal that a step has one to show
+                    // (Daniel, 2026-08-29: "what are the prompts actually?
+                    // why can't we see better").
                     usesModel: node.usesLLM
+                        || info?.usesLLM == true
+                        || info?.defaultPrompt?.isEmpty == false
                 )
             }
 

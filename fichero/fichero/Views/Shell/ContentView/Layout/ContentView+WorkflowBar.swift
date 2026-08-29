@@ -31,7 +31,10 @@ extension ContentView {
                 runningStepIndex: runningStagedStepIndex,
                 onOpenStep: { openStagedStepResult($0) },
                 costCeiling: stagedChainCostCeiling,
-                tools: Array(workflowStore.toolRegistry.values)
+                tools: Array(workflowStore.toolRegistry.values),
+                // ⓘ goes to the node editor — the existing .workflow content
+                // mode, not a new surface: graph, steps, prompt preview.
+                onInspectWorkflow: { viewMode = .workflow($0) }
             )
             .task(id: chainCostKey) { await refreshChainCostCeiling() }
             .task {

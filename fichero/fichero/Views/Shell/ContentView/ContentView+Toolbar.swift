@@ -324,7 +324,11 @@ extension ContentView {
         } label: {
             Label(
                 showWorkflowBar ? "Hide Workflows" : "Show Workflows",
-                systemImage: "bolt"
+                // The SAME glyph the sidebar's workflow rows wear
+                // (SidebarItem: arrow.triangle.branch) — the bolt collided
+                // with quick-run's old meaning (Daniel, 2026-08-29: "should
+                // be the same as the workflows in the sidebar").
+                systemImage: "arrow.triangle.branch"
             )
             .labelStyle(.iconOnly)
         }

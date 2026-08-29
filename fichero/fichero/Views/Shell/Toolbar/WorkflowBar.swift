@@ -51,6 +51,8 @@ struct WorkflowBar: View {
     var costCeiling: Double?
     /// Every registered tool, for the Tools browser.
     var tools: [ToolInfo] = []
+    /// Opens a workflow in the node editor (the popovers' ⓘ). nil hides it.
+    var onInspectWorkflow: ((WorkflowSidebarItem) -> Void)?
 
     /// One item's footprint. Fixed so the verbs sit on an even rhythm the way
     /// toolbar items do, rather than jittering with label length.
@@ -104,6 +106,10 @@ struct WorkflowBar: View {
                 // Horizontal scroll rather than clipping: a library with many
                 // preset folders overflows any toolbar width, and a verb the
                 // user cannot reach is the same as a verb that does not exist.
+                // Centred (Daniel, 2026-08-29): the verbs sit in the middle
+                // of the bar like a toolbar's principal group, not flushed
+                // left. The frame trick centres the content while it fits and
+                // degrades to a plain leading scroll once it overflows.
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 2) {
                         ForEach(families) { family in
@@ -118,6 +124,7 @@ struct WorkflowBar: View {
                         }
                     }
                     .padding(.horizontal, 8)
+                    .frame(maxWidth: .infinity, alignment: .center)
                 }
             }
 
@@ -140,11 +147,17 @@ struct WorkflowBar: View {
     /// The chain: full width, left-aligned so it reads as a sequence, with the
     /// run control and the step count anchored right.
     private var chainRow: some View {
+        // One CENTRED cluster (Daniel, 2026-08-29: "what you are building
+        // below in a line that is also centred — right now it's on the far
+        // right"): the rail, the run controls and the cost read as one
+        // sentence under the verbs rather than being split to the edges.
         HStack(spacing: 8) {
+            Spacer(minLength: 0)
             ScrollView(.horizontal, showsIndicators: false) {
                 chainRail.padding(.horizontal, 10)
             }
-            Spacer(minLength: 0)
+            .fixedSize(horizontal: true, vertical: false)
+            .frame(maxWidth: 600)
             HStack(spacing: 6) {
                 // Run and Clear live HERE, outside the scrolling rail (review
                 // fix, 2026-08-29): inside it, an eight-step chain pushed the
@@ -200,7 +213,7 @@ struct WorkflowBar: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
-            .padding(.trailing, 10)
+            Spacer(minLength: 0)
         }
         .frame(height: 34)
     }
@@ -296,10 +309,19 @@ struct WorkflowBar: View {
             ),
             arrowEdge: .bottom
         ) {
-            WorkflowVerbPopover(family: family) { workflow in
-                stage(workflow)
-                openFamily = nil
-            }
+            WorkflowVerbPopover(
+                family: family,
+                onAdd: { workflow in
+                    stage(workflow)
+                    openFamily = nil
+                },
+                onInspect: onInspectWorkflow.map { inspect in
+                    { workflow in
+                        openFamily = nil
+                        inspect(workflow)
+                    }
+                }
+            )
         }
     }
 

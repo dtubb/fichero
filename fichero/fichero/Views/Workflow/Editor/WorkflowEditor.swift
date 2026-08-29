@@ -85,8 +85,61 @@ struct WorkflowEditor: View {
         self.selectedDocumentIds = selectedDocumentIds
     }
 
+    /// Library › Workflows › folder › name, in the shared lozenge grammar.
+    /// Non-navigable rows: the editor is a full-column surface, so a crumb
+    /// click has nowhere narrower to go — the chain is orientation, exactly
+    /// what the other panes' heads are.
+    private var editorHeadCrumbs: [PaneCrumb] {
+        var crumbs: [PaneCrumb] = []
+        if let libraryId = LibraryManager.shared.currentLibraryId,
+           let library = LibraryManager.shared.getLibrary(id: libraryId) {
+            crumbs.append(PaneCrumb(
+                id: "library-root",
+                title: library.displayName,
+                icon: "books.vertical.fill",
+                isNavigable: false,
+                tint: .accentColor
+            ))
+        }
+        crumbs.append(PaneCrumb(
+            id: "workflows-section",
+            title: "Workflows",
+            icon: "arrow.triangle.branch",
+            isNavigable: false,
+            tint: .purple
+        ))
+        let folder = editingWorkflow.folderPath
+            .split(separator: "/").last.map(String.init) ?? ""
+        if !folder.isEmpty {
+            crumbs.append(PaneCrumb(
+                id: "workflow-folder",
+                title: folder,
+                icon: "folder",
+                isNavigable: false
+            ))
+        }
+        crumbs.append(PaneCrumb(
+            id: editingWorkflow.id,
+            title: editingWorkflow.name,
+            icon: "arrow.triangle.branch",
+            isNavigable: false
+        ))
+        return crumbs
+    }
+
     var body: some View {
         VStack(spacing: 0) {
+            // The same pane-head grammar as Library/Preview/Reader (Daniel,
+            // 2026-08-29: "the workflow editor also needs the same
+            // breadcrumbs, lozenges as the other things") — library, the
+            // Workflows section, the preset's folder, then the workflow.
+            PaneHead<EmptyView, EmptyView, EmptyView>(
+                crumbs: editorHeadCrumbs,
+                selector: { EmptyView() },
+                controls: { EmptyView() },
+                tools: { EmptyView() }
+            )
+            Divider()
             // Canvas — run output surfaces in the Activity view (#2439)
             Group {
                 switch displayMode {
