@@ -15,18 +15,23 @@ func multiReaderMissingTextIds(_ documents: [Document]) -> [String] {
     documents.filter { ($0.pageContent ?? "").isEmpty }.map(\.id)
 }
 
-/// The one parent when EVERY selected document is a page of the same parent —
-/// the case the shared WebKit transcript can render directly via its
+/// The one parent when EVERY selected document is a SECTION of the same
+/// parent — a page child, or a region node carrying `regionInParent` (a
+/// diary entry, a segment; Daniel 2026-08-29: regions ride the same WebKit
+/// renderer) — the case the shared transcript can render directly via its
 /// `?pages=` filter (2026-08-25: "we already have the WebKit renderer; it's
 /// just telling it what to render"). Mixed selections (across parents, or
-/// containing non-pages) return nil and fall back to the native list.
+/// containing non-sections) return nil and fall back to the native list.
 func multiReaderCommonPageParent(_ documents: [Document]) -> String? {
-    guard let first = documents.first, first.docType == .page,
-          let parentId = first.parentId else { return nil }
-    let allSameParentPages = documents.allSatisfy {
-        $0.docType == .page && $0.parentId == parentId
+    func isSection(_ doc: Document) -> Bool {
+        doc.docType == .page || doc.regionInParent != nil
     }
-    return allSameParentPages ? parentId : nil
+    guard let first = documents.first, isSection(first),
+          let parentId = first.parentId else { return nil }
+    let allSameParentSections = documents.allSatisfy {
+        isSection($0) && $0.parentId == parentId
+    }
+    return allSameParentSections ? parentId : nil
 }
 
 struct MultiSelectionReaderView: View {

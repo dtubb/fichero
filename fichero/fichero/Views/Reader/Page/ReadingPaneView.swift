@@ -64,6 +64,15 @@ struct ReadingPaneView: View {
     /// state, so split readers compare two artifacts side by side.
     @State var artifactLens: ReaderArtifactLens?
     @State var artifactLensChoices: [ReaderArtifactLens] = []
+    /// The representation the Page lens reads (Daniel, 2026-08-29): nil = the
+    /// live content; a value = re-request the SAME WebKit page with
+    /// `?representation=` (transcription, translation, …). Per-pane, so split
+    /// readers can compare Content beside Translation.
+    @State var readerRepresentation: String?
+    /// Which representation types this document's scope actually HAS —
+    /// artifact types present on the document or its pages. The switcher
+    /// renders only these: a lens that goes nowhere is the menu lying.
+    @State var readerRepresentationChoices: [String] = []
     @State var isPinned = false
     @State private var pinnedDocument: Document?
     @State private var pinnedActivePageNumber: Int?
@@ -272,7 +281,10 @@ struct ReadingPaneView: View {
                 }
             },
             selector: { self.readerSelector },
-            controls: { self.artifactLensControl },
+            controls: {
+                self.readerRepresentationControl
+                self.artifactLensControl
+            },
             tools: { EmptyView() }
         )
         // The menu bar shows the SAME lens list, reading this publication —
@@ -336,11 +348,6 @@ struct ReadingPaneView: View {
     /// truncates from the leading edge until then, so a deep path still shows
     /// the part that identifies it.
     private var readerCrumbs: [PaneCrumb] {
-        guard let document = effectiveDocument else { return [] }
-        let ancestry = libraryPathCrumbs(
-            anchorId: document.id,
-            resolve: { documentStore.resolveDocument($0) }
-        )
         // The library is the root crumb: a path that starts at a folder does
         // not say WHICH library's Inbox you are in, and several are open at
         // once in the normal case. Not navigable from a reader (yet).
@@ -351,6 +358,24 @@ struct ReadingPaneView: View {
                 icon: "books.vertical.fill", isNavigable: false, tint: .accentColor
             ))
         }
+        // Breadcrumb honesty (Daniel, 2026-08-29): N>1 selected means the
+        // pane shows N items, and the crumb must say so — the shared parent's
+        // ancestry for context, then "N items", never one document's name.
+        if multiDocuments.count > 1 {
+            if let parentId = multiReaderCommonPageParent(multiDocuments) {
+                crumbs += libraryPathCrumbs(
+                    anchorId: parentId,
+                    resolve: { documentStore.resolveDocument($0) }
+                ).map(PaneCrumb.init)
+            }
+            crumbs.append(.multiSelection(count: multiDocuments.count))
+            return crumbs
+        }
+        guard let document = effectiveDocument else { return [] }
+        let ancestry = libraryPathCrumbs(
+            anchorId: document.id,
+            resolve: { documentStore.resolveDocument($0) }
+        )
         crumbs += ancestry.isEmpty ? [PaneCrumb(document)] : ancestry.map(PaneCrumb.init)
         return crumbs
     }
