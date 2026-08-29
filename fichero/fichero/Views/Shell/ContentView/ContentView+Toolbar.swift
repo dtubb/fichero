@@ -130,30 +130,35 @@ extension ContentView {
             ToolbarItemGroup(placement: .automatic) {
                 libraryPaneToggleButton
 
-                Toggle(isOn: Binding(
-                    get: { showDocumentCanvas },
-                    set: { setCanvasPaneVisible($0) }
-                )) {
-                    Label("Preview", systemImage: ToolbarSymbols.previewPane)
+                // Buttons, not Toggles (Daniel, 2026-08-29: the accent-filled
+                // on-state "changing colors — that's a bad UX"). The WORDS
+                // carry the state — Show X / Hide X — which is also what the
+                // label says beneath the icon in the toolbar's Icon-and-Text
+                // mode, so state reads without colour.
+                Button {
+                    setCanvasPaneVisible(!showDocumentCanvas)
+                } label: {
+                    Label(showDocumentCanvas ? "Hide Preview" : "Show Preview",
+                          systemImage: ToolbarSymbols.previewPane)
                 }
                 .help(showDocumentCanvas ? "Hide the Preview" : "Show the Preview")
 
-                Toggle(isOn: Binding(
-                    get: { showReadingPane },
-                    set: { setReadingPaneVisible($0) }
-                )) {
-                    Label("Reader", systemImage: ToolbarSymbols.readingPane)
+                Button {
+                    setReadingPaneVisible(!showReadingPane)
+                } label: {
+                    Label(showReadingPane ? "Hide Reader" : "Show Reader",
+                          systemImage: ToolbarSymbols.readingPane)
                 }
                 .help(showReadingPane ? "Hide the Reader" : "Show the Reader — transcripts, translations, and the knowledge graph")
 
                 // Chat is a ROW pane (Daniel 2026-08-12: "there is no button
                 // to turn it on and off") — fourth member of the pane group,
                 // same grammar as preview/reading.
-                Toggle(isOn: Binding(
-                    get: { showChatPane },
-                    set: { setChatPaneVisible($0) }
-                )) {
-                    Label("Chat", systemImage: ToolbarSymbols.chatPane)
+                Button {
+                    setChatPaneVisible(!showChatPane)
+                } label: {
+                    Label(showChatPane ? "Hide Chat" : "Show Chat",
+                          systemImage: ToolbarSymbols.chatPane)
                 }
                 .help(showChatPane ? "Hide the Chat" : "Show the Chat")
             }
@@ -176,15 +181,13 @@ extension ContentView {
 
     private var libraryPaneToggleButton: some View {
         let model = LibraryPaneToggleModel(paneVisibility: paneVisibility)
-        return Toggle(isOn: Binding(
-            get: { model.isVisible },
-            set: { newValue in
-                withAnimation(FrameAnimation.snappy) {
-                    setLibraryPaneVisible(newValue)
-                }
+        return Button {
+            withAnimation(FrameAnimation.snappy) {
+                setLibraryPaneVisible(!model.isVisible)
             }
-        )) {
-            Label(model.title, systemImage: model.systemImage)
+        } label: {
+            Label(model.isVisible ? "Hide Library" : "Show Library",
+                  systemImage: model.systemImage)
         }
         .disabled(!model.isEnabled)
         .help(model.help)
@@ -201,15 +204,14 @@ extension ContentView {
     /// primary-tint fill), which was a custom approximation of exactly this
     /// treatment (#4360).
     var inspectorToggleButton: some View {
-        Toggle(isOn: Binding(
-            get: { showInspectorSidebar },
-            set: { newValue in
-                withAnimation(FrameAnimation.snappy) {
-                    showInspectorSidebar = newValue
-                }
+        // Same no-colour rule as the pane group: the words flip, not the fill.
+        Button {
+            withAnimation(FrameAnimation.snappy) {
+                showInspectorSidebar.toggle()
             }
-        )) {
-            Label("Inspector", systemImage: ToolbarSymbols.inspector)
+        } label: {
+            Label(showInspectorSidebar ? "Hide Inspector" : "Show Inspector",
+                  systemImage: ToolbarSymbols.inspector)
         }
         .help(showInspectorSidebar ? "Hide Inspector (⌘⌥I)" : "Show Inspector (⌘⌥I)")
     }

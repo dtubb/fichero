@@ -93,12 +93,18 @@ struct ContentView: View {
     /// resizable neighbours are already clamped by their ResizableDividers;
     /// this guards the one `.frame(maxWidth: .infinity)` pane that otherwise
     /// has no floor. (#1454)
-    nonisolated static let pdfCanvasMinWidth: Double = 360
+    /// 330, down from 360 (Daniel, 2026-08-29: with library, sidebar,
+    /// preview, reader, chat AND inspector on, the full stack needed a
+    /// 1460pt window and the sidebar silently collapsed on a 14" display).
+    /// The zoom cluster still fits at 330; below that it clips.
+    nonisolated static let pdfCanvasMinWidth: Double = 330
     nonisolated static let readingPaneMinWidth: Double = 220
     /// Chat is the NARROW always-available pane right of the reader
     /// (pane rulings 2026-08-11) — wide enough for a composer, never
     /// the takeover it used to be.
-    nonisolated static let chatPaneMinWidth: Double = 280
+    /// 250, down from 280 — the same six-pane arithmetic; a composer still
+    /// wraps fine at 250.
+    nonisolated static let chatPaneMinWidth: Double = 250
 
     // MARK: - Environment
 

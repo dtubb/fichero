@@ -82,9 +82,9 @@ struct ActivityStatusToolbarItem: View {
                 Button {
                     showPopover = true
                 } label: {
-                    Image(systemName: ToolbarSymbols.activityIdle)
+                    Label("Activity", systemImage: ToolbarSymbols.activityIdle)
                         .foregroundStyle(.secondary)
-                        .frame(minWidth: 24)
+                        .frame(minWidth: 28)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Activity")
