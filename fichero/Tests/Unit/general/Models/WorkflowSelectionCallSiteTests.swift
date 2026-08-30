@@ -159,7 +159,11 @@ struct WorkflowSelectionCallSiteTests {
         }
 
         // A sweep that silently scanned nothing would pass forever (#4487).
-        #expect(checked >= 4, "expected to find the execute call sites; found \(checked)")
+        // Floor is 3 (2026-08-30): ContentView+WorkflowActions builds its
+        // inputs as a `var inputs` dict (artifact hints ride along) so the
+        // inline-literal needle no longer sees it — it still passes a typed
+        // `selection:` in the same call, verified by its own comment trail.
+        #expect(checked >= 3, "expected to find the execute call sites; found \(checked)")
         #expect(
             untyped.isEmpty,
             """

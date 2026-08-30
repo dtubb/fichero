@@ -83,18 +83,21 @@ struct ToolbarGroupingTests {
         // THIS builder", not "later in the file". The search toggle (#4521)
         // is deliberately its own item, never a fourth member.
         let group = parts[1].components(separatedBy: "ToolbarItem(").first ?? parts[1]
-        // …and the three members are inside it, in column order.
+        // …and the members are inside it, in column order. The labels flip
+        // Show/Hide (Daniel, 2026-08-29: Buttons, not accent-filled Toggles —
+        // "changing colors — that's a bad UX"; the WORDS carry the state).
         let library = group.range(of: "libraryPaneToggleButton")
-        // "no Pane in the labels" (Daniel, 2026-08-25) — match the Labels'
-        // actual strings.
-        let preview = group.range(of: "Label(\"Preview\"")
-        let reading = group.range(of: "Label(\"Reader\"")
+        let preview = group.range(of: "\"Hide Preview\" : \"Show Preview\"")
+        let reading = group.range(of: "\"Hide Reader\" : \"Show Reader\"")
+        let chat = group.range(of: "\"Hide Chat\" : \"Show Chat\"")
         #expect(library != nil)
         #expect(preview != nil)
         #expect(reading != nil)
-        if let library, let preview, let reading {
+        #expect(chat != nil)
+        if let library, let preview, let reading, let chat {
             #expect(library.lowerBound < preview.lowerBound)
             #expect(preview.lowerBound < reading.lowerBound)
+            #expect(reading.lowerBound < chat.lowerBound)
         }
     }
 
@@ -141,6 +144,7 @@ struct ToolbarGroupingTests {
             .replacingOccurrences(of: "StatusIslandToolbarItem(", with: "")
             .replacingOccurrences(of: "EngineStatusToolbarItem(", with: "")
             .replacingOccurrences(of: "ActivityStatusToolbarItem(", with: "")
+            .replacingOccurrences(of: "ModelChipToolbarItem(", with: "")
         let itemDeclarations = source.components(separatedBy: "ToolbarItem(").count - 1
         let identifiedItems = source.components(separatedBy: "ToolbarItem(id: ").count - 1
         #expect(itemDeclarations > 0, "no ToolbarItem declarations found — wrong file?")
@@ -173,18 +177,21 @@ struct ToolbarGroupingTests {
     /// fourth claimant still fails here instead of at runtime. Each carries
     /// a DISTINCT id (the #3163 crash class is duplicate identifiers, not
     /// multiple placements).
-    @Test("exactly four toolbar ITEMS claim .principal, each with its own id, separated by spacers")
-    func exactlyFourPrincipalItems() throws {
-        // C10 (2026-08-24): the ⚡ workflow chip joined the principal zone,
-        // and ToolbarSpacer(.fixed) sits between every pair — the spacers are
+    @Test("exactly five toolbar ITEMS claim .principal, each with its own id, separated by spacers")
+    func exactlyFivePrincipalItems() throws {
+        // C10 (2026-08-24): the ⚡ workflow chip joined the principal zone;
+        // 2026-08-29 the MODEL CHIP joined it too (provider logo, Daniel's
+        // ruling) while the suggestion trio collapsed into one bar toggle.
+        // ToolbarSpacer(.fixed) sits between every pair — the spacers are
         // what actually break the Liquid Glass capsule groups, so they claim
         // .principal too and are counted separately from the ITEMS.
         let source = try Self.appSource("Views/Shell/ContentView/ContentView+Toolbar.swift")
         let principalItems = source.components(separatedBy: "placement: .principal").count - 1
         let spacers = source.components(separatedBy: "ToolbarSpacer(.fixed, placement: .principal)").count - 1
-        #expect(principalItems - spacers == 4, Comment(rawValue: "\(principalItems - spacers) items claim .principal (\(spacers) spacers)"))
-        #expect(spacers == 3, Comment(rawValue: "\(spacers) fixed spacers — one between each adjacent pair"))
+        #expect(principalItems - spacers == 5, Comment(rawValue: "\(principalItems - spacers) items claim .principal (\(spacers) spacers)"))
+        #expect(spacers == 4, Comment(rawValue: "\(spacers) fixed spacers — one between each adjacent pair"))
         for id in [
+            "ContentToolbarID.modelChip",
             "ContentToolbarID.breadcrumb", "ContentToolbarID.workflowSuggest",
             "ContentToolbarID.engineStatus", "ContentToolbarID.activityStatus"
         ] {

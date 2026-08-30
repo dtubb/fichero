@@ -139,7 +139,8 @@ struct WidescreenPanePlanTests {
         #expect(plan.showsLibraryPane)
         #expect(plan.showsCanvasPane)
         #expect(plan.showsReadingPane)
-        #expect(plan.minimumWidth == 800)
+        // canvas 360→330, six-pane 14" fit (Daniel 2026-08-29)
+        #expect(plan.minimumWidth == 770)
     }
 
     @Test("Narrow windows collapse reading and canvas before the library pane")
@@ -153,13 +154,17 @@ struct WidescreenPanePlanTests {
         #expect(readingCollapsed.showsLibraryPane)
         #expect(readingCollapsed.showsCanvasPane)
         #expect(!readingCollapsed.showsReadingPane)
-        #expect(readingCollapsed.minimumWidth == 580)
+        // canvas 360→330, six-pane 14" fit (Daniel 2026-08-29)
+        #expect(readingCollapsed.minimumWidth == 550)
 
+        // 560 used to shed the canvas; with the 2026-08-29 minimums
+        // (library 220 + canvas 330 = 550) it now FITS — 500 exercises
+        // the canvas-shedding rung.
         let canvasCollapsed = WidescreenPanePlan.make(
             showDocumentGrid: true,
             showDocumentCanvas: true,
             showReadingPane: true,
-            availableWidth: 560
+            availableWidth: 500
         )
         #expect(canvasCollapsed.showsLibraryPane)
         #expect(!canvasCollapsed.showsCanvasPane)
@@ -178,7 +183,8 @@ struct WidescreenPanePlanTests {
         #expect(!canvasPreferred.showsLibraryPane)
         #expect(canvasPreferred.showsCanvasPane)
         #expect(!canvasPreferred.showsReadingPane)
-        #expect(canvasPreferred.minimumWidth == 360)
+        // canvas 360→330, six-pane 14" fit (Daniel 2026-08-29)
+        #expect(canvasPreferred.minimumWidth == 330)
 
         let readingOnly = WidescreenPanePlan.make(
             showDocumentGrid: false,

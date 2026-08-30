@@ -144,8 +144,10 @@ final class LibraryImportAffordancesTests: XCTestCase {
         let libraryView = // LibraryView.swift was split 2026-08-13; scan all four parts.
             ((try Self.appSource("Views/Library/LibraryView.swift")) + (try Self.appSource("Views/Library/LibraryView+Body.swift")) + (try Self.appSource("Views/Library/LibraryView+ContentBranches.swift")) + (try Self.appSource("Views/Library/LibraryView+Insets.swift")))
 
-        // (a) Data menu → Import, via the narrow focused value (#4452).
-        XCTAssertTrue(libraryView.contains(".focusedValue(\\.libraryImportAction)"))
+        // (a) Data menu → Import, via the narrow focused value (#4452) —
+        // wrapped Equatable since 2026-08-30: the raw closure republished on
+        // every body pass and livelocked iOS nav pops.
+        XCTAssertTrue(libraryView.contains(".focusedValue(\\.libraryImportAction, FocusedLibraryImportAction"))
         XCTAssertTrue(libraryView.contains("showingFileImporter = true"))
         // (b) folder contextual menu, (c) empty-area menu, (d) bottom bar.
         XCTAssertTrue(contextMenu.contains("importIntoFolderMenuItem(for: document)"))

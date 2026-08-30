@@ -171,7 +171,10 @@ final class AnnotationServiceTests: XCTestCase {
         let pdfToolbar = try Self.appSource("Views/Preview/PDFViewer/PDFPageWithToolbar.swift")
         let imageViewer = try [
             Self.appSource("Views/Preview/ImageViewer/ImageViewerComponents.swift"),
-            Self.appSource("Views/Preview/ImageViewer/ZoomableImagePreviewMac.swift")
+            Self.appSource("Views/Preview/ImageViewer/ZoomableImagePreviewMac.swift"),
+            // loadAnnotations moved with the annotation verbs (2026-08-29
+            // file-length split).
+            Self.appSource("Views/Preview/ImageViewer/Regions/ZoomableImagePreviewMac+Annotations.swift")
         ].joined(separator: "\n")
 
         XCTAssertTrue(documentReader.contains("await annotationStore.loadAnnotations(for: .document(document.id), force: true)"))

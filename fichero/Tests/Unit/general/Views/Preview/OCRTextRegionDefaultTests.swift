@@ -90,13 +90,17 @@ struct OCRTextRegionDefaultTests {
         #expect(!source.contains(".onHover"))
     }
 
-    /// VoiceOver still reads a box's recognised text even though the hover
-    /// tooltip went with the hit-testing. Losing the tooltip was a considered
-    /// cost; losing the screen-reader path would not have been (#4416's lesson).
-    @Test("each box still names its recognised text to VoiceOver")
+    /// VoiceOver's contract changed WITH the one-Canvas rewrite (2026-08-28,
+    /// scroll perf): arrowing through 400 unlabelled rectangles was never
+    /// usable, so the canvas speaks a SUMMARY ("N recognized text regions")
+    /// and the hover readout speaks individual words. What must never
+    /// regress: the layer says something when boxes exist, and nothing when
+    /// none do (#4416's lesson, restated for the summary contract).
+    @Test("the overlay names its boxes to VoiceOver as a summary")
     func boxesKeepTheirAccessibilityLabel() throws {
         let source = try AppSource.text("Views/Preview/ImageViewer/OCRGeometryOverlay.swift")
-        #expect(source.contains("accessibilityLabel(\"Recognized text: \\(box.text)\")"))
+        #expect(source.contains("accessibilityLabel(\"^[\\(boxes.count) recognized text region](inflect: true)\")"))
+        #expect(source.contains(".accessibilityHidden(boxes.isEmpty)"))
     }
 
     // MARK: - Absent, not broken

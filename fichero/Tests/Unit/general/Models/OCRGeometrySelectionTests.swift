@@ -233,7 +233,9 @@ struct OCRGeometrySelectionTests {
         // overlay now makes ONE call and the ranking/probe internals live on
         // the selection type. Pin the overlay's deferral to that single entry
         // point, and pin the internals where they moved to.
-        #expect(source.contains("OCRGeometrySelection.load("))
+        // 2026-08-29: the curation verbs need the artifact id whose boxes are
+        // on screen, so the overlay calls loadSelected (load + artifact id).
+        #expect(source.contains("OCRGeometrySelection.loadSelected("))
 
         let selection = try Self.codeOnly(Self.appSource("Models/OCRGeometrySelection.swift"))
         #expect(selection.contains("geometryBearingTypes"))

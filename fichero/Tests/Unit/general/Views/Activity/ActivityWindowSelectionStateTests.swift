@@ -64,8 +64,10 @@ final class ActivityWindowSelectionStateTests: XCTestCase {
         // The shortcut rides the scene; the detail scene suppresses its item.
         XCTAssertFalse(appSource.contains("ActivityWindowMenuButton()"))
         XCTAssertFalse(monitorSource.contains("struct ActivityWindowMenuButton"))
+        // ⌥⌘0 since 2026-08-28 (Xcode-navigator grammar; ⌥⌘A sat one
+        // modifier from Select All on a window that lists runs).
         XCTAssertTrue(appSource.contains(
-            ".keyboardShortcut(\"a\", modifiers: [.option, .command])"
+            ".keyboardShortcut(\"0\", modifiers: [.option, .command])"
         ))
         // Windows-menu + command hygiene, tightened by #4331: EVERY scene
         // except the main WindowGroup, the SEED WindowGroup and the Activity
@@ -112,8 +114,13 @@ final class ActivityWindowSelectionStateTests: XCTestCase {
         XCTAssertTrue(appSource.contains(
             "Window(\"Activity Detail\", id: ActivityWindowSelectionState.detailWindowID)"
         ))
-        XCTAssertTrue(monitorSource.contains("opensDetailWindow: true"))
-        XCTAssertTrue(monitorSource.contains("Label(library.displayName"))
+        // The 2026-08-28 unified list replaced the per-library sections: the
+        // route into a run's step trace is UnifiedActivityRow's open action
+        // (info button + double-click, the Mail grammar) → the detail Window.
+        XCTAssertTrue(monitorSource.contains("UnifiedActivityRow(run: run) { openDetails(for: run) }"))
+        XCTAssertTrue(monitorSource.contains(
+            "openWindow(id: ActivityWindowSelectionState.detailWindowID)"
+        ))
         XCTAssertTrue(detailSource.contains(".environment(library.documentStore)"))
         XCTAssertTrue(detailSource.contains("selectionState.selectedRun?.libraryId"))
         XCTAssertTrue(helpersSource.contains("@Environment(WorkflowExecutionStore.self)"))

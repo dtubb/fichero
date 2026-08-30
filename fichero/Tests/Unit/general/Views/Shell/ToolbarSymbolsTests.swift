@@ -82,11 +82,15 @@ struct ToolbarSymbolsTests {
 
     /// Pane/filter/inspector state is the native `Toggle` on-state, not a
     /// glyph swap — so no toolbar control may fall back to a bare `rectangle`.
-    @Test("toolbar toggles are native and keep constant glyphs")
+    /// Re-ruled 2026-08-29: pane toggles are BUTTONS whose words flip
+    /// Show X/Hide X — the accent-filled Toggle on-state read as "changing
+    /// colors — that's a bad UX". Glyphs stay constant either way.
+    @Test("pane toggles are word-flipping Buttons with constant glyphs")
     func toolbarTogglesAreNative() throws {
         let source = try Self.appSource("Views/Shell/ContentView/ContentView+Toolbar.swift")
         #expect(!source.contains("\"rectangle\""))
-        #expect(source.contains("Toggle(isOn:"))
+        #expect(source.contains("\"Hide Preview\" : \"Show Preview\""))
+        #expect(!source.contains("Toggle(isOn: $showDocumentCanvas"))
     }
 
     /// The shared lozenge is the platform's `.accessoryBar` control, not a
@@ -102,29 +106,32 @@ struct ToolbarSymbolsTests {
 
     // MARK: - #4391 ready reads as ready, and names its transport
 
-    /// The reported defect, both halves: (1) an outline glyph with no colour
-    /// read as "disconnected" — and the first fix's filled HORIZONTAL bolt
-    /// still decayed to a tilde-in-a-ring at 13 pt; (2) a local UDS engine and
-    /// an engine on another machine shared one symbol. Ready is now two
-    /// filled, legible glyphs chosen by ownership.
+    /// Re-ruled 2026-08-29 (Daniel): the green bolt collided with the accent
+    /// UX, so ready is a QUIET grey glyph that still names the transport —
+    /// a server rack for the engine on this Mac, an antenna for a remote one.
+    /// The tilde-reading horizontal bolt must never come back in any fill.
     @Test("engine ready is split by transport, both filled and legible")
     func engineReadyIsSplitByTransport() {
-        #expect(ToolbarSymbols.engineReadyLocal == "bolt.circle.fill")
-        #expect(ToolbarSymbols.engineReadyRemote == "antenna.radiowaves.left.and.right.circle.fill")
-        // The tilde-reading horizontal bolt must not come back in any fill.
+        #expect(ToolbarSymbols.engineReadyLocal == "server.rack")
+        #expect(ToolbarSymbols.engineReadyRemote == "antenna.radiowaves.left.and.right")
         #expect(!ToolbarSymbols.allByMeaning.contains { $0.symbol.hasPrefix("bolt.horizontal") })
     }
 
-    @Test("the ready state paints its own colour and picks the glyph by ownership")
+    /// Re-ruled 2026-08-29: ready is deliberately `.secondary` — healthy
+    /// should be quiet; only the PROBLEM states take colour (orange). What
+    /// still must hold: the glyph is chosen by ownership (local vs remote),
+    /// and it is a Label ("Server") so Icon-and-Text mode names it.
+    @Test("the ready state stays quiet and picks the glyph by ownership")
     func engineReadyHasItsOwnColor() throws {
         let source = try Self.appSource("Views/Shell/Toolbar/EngineStatusToolbarItem.swift")
         let readySection = source
             .components(separatedBy: "case .setupNeeded, .ready:")[1]
             .components(separatedBy: "\n        }")[0]
-        #expect(readySection.contains(".foregroundStyle(.green)"))
-        #expect(!readySection.contains(".foregroundStyle(.secondary)"))
+        #expect(readySection.contains(".foregroundStyle(.secondary)"))
+        #expect(!readySection.contains(".foregroundStyle(.green)"))
         #expect(readySection.contains("ToolbarSymbols.engineReadyRemote"))
         #expect(readySection.contains("ToolbarSymbols.engineReadyLocal"))
+        #expect(readySection.contains("Label(\"Server\""))
     }
 
     /// A symbol can only hint; the popover NAMES the transport in text, from
@@ -164,11 +171,12 @@ struct ToolbarSymbolsTests {
             !layout.contains(".searchable("),
             "window-level search came back — it belongs to the library mini toolbar (#4407)"
         )
-        // #4604: the field is resident in the window toolbar now; its
-        // placeholder names the scope ("Search your library"), and the old
-        // "Ask your library" phrasing stays retired.
+        // 2026-08-29 (Daniel: "use the default one"): the hand-rolled
+        // magnifier+TextField lozenge is gone — the SYSTEM `.searchable`
+        // carries the field, same placeholder, old phrasing stays retired.
         let field = try Self.appSource("Views/Shell/ContentView/ContentView+ToolbarSearch.swift")
-        #expect(field.contains("TextField(\"Search your library\", text:"))
+        #expect(field.contains("prompt: \"Search your library\""))
+        #expect(field.contains(".searchable("))
         #expect(!field.contains("Ask your library"))
     }
 

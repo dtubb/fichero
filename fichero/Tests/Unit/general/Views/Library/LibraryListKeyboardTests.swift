@@ -112,12 +112,15 @@ struct LibraryListModeGuardTests {
         // the reference. rowFill/rowContent are the two tokens; labelTint is
         // no longer the row-title path (it painted accent-on-accent in the
         // Columns preview, 2026-08-09).
+        // Re-ruled 2026-08-28 (Daniel): the unfocused grey read as "row under
+        // the pointer", so unfocused selection is a low-opacity ACCENT wash
+        // (selection stays visible when the pane loses focus) with primary
+        // content over it. Focused stays accent bar + white.
         let components = try appSource("Views/Library/LibraryViewComponents.swift")
         #expect(components.contains("enum LibrarySelectionStyle"))
-        #expect(components.contains("unemphasizedSelectedContentBackgroundColor"))
         #expect(components.contains("LibrarySelectionStyle.rowContent(selected: isSelected, focused: isPaneFocused)"))
-        #expect(components.contains("return focused ? .accentColor : fill"))
-        #expect(components.contains("return focused ? .white : .accentColor"))
+        #expect(components.contains("return focused ? .accentColor : Color.accentColor.opacity(0.22)"))
+        #expect(components.contains("return focused ? .white : .primary"))
 
         // Tint stays in the == comparison so focus flips still re-render
         // selected rows.
