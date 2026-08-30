@@ -246,7 +246,9 @@ final class DocumentKGWebPaneCoordinatoriOS: NSObject, WKNavigationDelegate, WKS
         withError error: any Error
     ) {
         if error.isCancellationError { return }
-        let failingURL = (error as NSError).userInfo[NSURLErrorFailingURLStringErrorKey] as? String
+        // NSURLErrorFailingURLErrorKey (a URL), not the String key deprecated in
+        // iOS 18.4 — mirrors the macOS twin coordinator, which already reads it.
+        let failingURL = ((error as NSError).userInfo[NSURLErrorFailingURLErrorKey] as? URL)?.absoluteString
         guard failingURL == nil || failingURL?.hasPrefix(EngineWebViewURL.scheme) == true else { return }
         // Un-poison the cache key, ON A BUDGET. `loadIfNeeded` stamps
         // `lastLoadedDocumentId` BEFORE it knows the load succeeded, so a

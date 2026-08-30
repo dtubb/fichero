@@ -196,33 +196,35 @@ struct SidebarItemRow: View {
                     // cause. Load whenever they aren't cached yet: the count
                     // is now honest, and re-adding the guard would still be
                     // wrong for a folder whose count arrived after expansion.
+                    // Option-expand is AppKit-only (no ⌥-click on touch), so the
+                    // whole branch is compiled out on iOS rather than testing a
+                    // constant-false — the iOS build warned "will never be
+                    // executed" on the subtree arm (iOS warnings sweep,
+                    // 2026-08-29).
                     #if canImport(AppKit)
-                    let optionHeld = NSApp.currentEvent?.modifierFlags.contains(.option) ?? false
-                    #else
-                    let optionHeld = false
-                    #endif
-                    if optionHeld {
+                    if NSApp.currentEvent?.modifierFlags.contains(.option) ?? false {
                         // Option-click: expand the WHOLE subtree, Finder-style.
                         Task {
                             await sidebarExpandSubtree(
                                 document, store: store, expandedItems: $expandedItems
                             )
                         }
-                    } else {
-                        // #4293: ALWAYS run the one-level load+prefetch on
-                        // expand. The old guard skipped it when this row's
-                        // children were already cached (e.g. by the root-level
-                        // prefetch in loadCollections) — but loadSidebarChildren
-                        // is ALSO what prefetches the grandchildren, so a
-                        // prefetched folder's SUBfolders (workflow folders
-                        // under "Default Workflows", a folder of folders two
-                        // levels down) never got children cached, rendered
-                        // chevron-less, and could not be expanded at all.
-                        // Idempotent + cheap when everything is cached:
-                        // cacheSidebarChildren returns the cache hit and
-                        // containersNeedingChildren comes back empty.
-                        Task { await store.loadSidebarChildren(of: document) }
+                        return
                     }
+                    #endif
+                    // #4293: ALWAYS run the one-level load+prefetch on
+                    // expand. The old guard skipped it when this row's
+                    // children were already cached (e.g. by the root-level
+                    // prefetch in loadCollections) — but loadSidebarChildren
+                    // is ALSO what prefetches the grandchildren, so a
+                    // prefetched folder's SUBfolders (workflow folders
+                    // under "Default Workflows", a folder of folders two
+                    // levels down) never got children cached, rendered
+                    // chevron-less, and could not be expanded at all.
+                    // Idempotent + cheap when everything is cached:
+                    // cacheSidebarChildren returns the cache hit and
+                    // containersNeedingChildren comes back empty.
+                    Task { await store.loadSidebarChildren(of: document) }
                 } else {
                     expandedItems.remove(item.id)
                     // Option-click on an open chevron also collapses every

@@ -150,12 +150,17 @@ extension LibraryView {
             // `selectedDocumentIdsForBatch` is the user's multi-selection, so
             // the ids are the scope (#4414).
             selection: WorkflowRunScope.documents(request.docIds),
-            onAccepted: { acceptedResponse in
+            // `[weak stream]` on the OUTER closure too: the inner onCancel's
+            // weak capture alone made the enclosing closure implicitly retain
+            // `stream` strongly — the ImplicitStrongCapture warning the iOS
+            // build surfaced (same defect class as WorkflowEditor+Actions,
+            // fixed in the Swift-6 sweep).
+            onAccepted: { [weak stream] acceptedResponse in
                 let acceptedThreadId = acceptedResponse.threadId
                 executionObserver.promoteExecution(
                     from: threadId.value,
                     to: acceptedThreadId,
-                    onCancel: { [weak stream] in
+                    onCancel: {
                         Task { @MainActor in
                             try? await stream?.stopWorkflow(threadId: acceptedThreadId)
                         }

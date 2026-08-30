@@ -24,7 +24,10 @@ struct DocumentThumbnailView: View {
     /// thumbnail is centred in the square and a bit smaller, like in
     /// Finder'). Every branch pins to this size so no image's intrinsic
     /// dimensions can distort the grid; the content INSETS inside the well.
-    static let wellWidth: CGFloat = 108
+    /// `nonisolated`: a pure geometry constant (View statics otherwise inherit
+    /// MainActor), read by the nonisolated grid-bounds math in
+    /// `LibraryView.iconGridItemBounds` — the iOS build warned on that read.
+    nonisolated static let wellWidth: CGFloat = 108
     static let wellHeight: CGFloat = wellWidth
     /// The inset that makes the thumbnail 'a bit smaller' inside the well.
     static let wellContentInset: CGFloat = 10
