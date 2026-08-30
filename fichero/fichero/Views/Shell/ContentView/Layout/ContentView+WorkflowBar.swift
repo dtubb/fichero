@@ -34,7 +34,8 @@ extension ContentView {
                 tools: Array(workflowStore.toolRegistry.values),
                 // ⓘ goes to the node editor — the existing .workflow content
                 // mode, not a new surface: graph, steps, prompt preview.
-                onInspectWorkflow: { viewMode = .workflow($0) }
+                onInspectWorkflow: { viewMode = .workflow($0) },
+                targetDetail: workflowBarTargetDetail
             )
             .task(id: chainCostKey) { await refreshChainCostCeiling() }
             .task {
@@ -169,6 +170,29 @@ extension ContentView {
             .map { "\($0.stepKey):\($0.modelOverride ?? "")" }
             .joined(separator: "|")
         return "\(steps)#\(workflowBarTargetCount)"
+    }
+
+    /// The scope, NAMED: one item shows its display name, several show the
+    /// same typed noun the status island uses ("3 images", "5 pages").
+    var workflowBarTargetDetail: String? {
+        let effective = effectiveWorkflowRunSelection
+        let ids = effective.isEmpty
+            ? (detailDocument.map { [$0.id] } ?? [])
+            : effective
+        guard !ids.isEmpty else { return nil }
+        let docs = documentStore.currentDocuments.filter { Set(ids).contains($0.id) }
+        if ids.count == 1 {
+            if let doc = docs.first ?? detailDocument {
+                return DocumentTitle.displayName(for: doc)
+            }
+            return nil
+        }
+        let noun: String
+        if !docs.isEmpty, docs.allSatisfy({ $0.fileType == .image }) { noun = "images" }
+        else if !docs.isEmpty, docs.allSatisfy({ $0.docType == .page }) { noun = "pages" }
+        else if !docs.isEmpty, docs.allSatisfy({ $0.docType == .folder }) { noun = "folders" }
+        else { noun = "items" }
+        return "\(ids.count) \(noun)"
     }
 
     var workflowBarTargetCount: Int {

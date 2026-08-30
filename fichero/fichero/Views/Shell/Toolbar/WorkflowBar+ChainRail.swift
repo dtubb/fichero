@@ -28,7 +28,7 @@ extension WorkflowBar {
             Text("With")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
-            if let label = WorkflowBarPolicy.targetLabel(target) {
+            if let label = targetDetail ?? WorkflowBarPolicy.targetLabel(target) {
                 Text(label)
                     .font(.system(size: 10, weight: .medium))
                     .padding(.horizontal, 6)

@@ -53,6 +53,10 @@ struct WorkflowBar: View {
     var tools: [ToolInfo] = []
     /// Opens a workflow in the node editor (the popovers' ⓘ). nil hides it.
     var onInspectWorkflow: ((WorkflowSidebarItem) -> Void)?
+    /// WHAT the run acts on, named (Daniel, 2026-08-29: "should actually say
+    /// what it will run on"): the document's display name for one item,
+    /// "3 images" for many. nil falls back to the count-only label.
+    var targetDetail: String?
 
     /// One item's footprint. Fixed so the verbs sit on an even rhythm the way
     /// toolbar items do, rather than jittering with label length.
@@ -128,7 +132,7 @@ struct WorkflowBar: View {
                 }
             }
 
-            if let label = WorkflowBarPolicy.targetLabel(target) {
+            if let label = targetDetail ?? WorkflowBarPolicy.targetLabel(target) {
                 Divider().frame(height: 28).padding(.horizontal, 6)
                 // What the run will act on, stated BEFORE it starts — a paid
                 // multi-step run over a folder should never be ambiguous about
