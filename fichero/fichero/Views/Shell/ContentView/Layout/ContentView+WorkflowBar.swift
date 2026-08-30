@@ -21,7 +21,7 @@ extension ContentView {
     @ViewBuilder
     var annotationBarInset: some View {
         if showAnnotationBar {
-            AnnotationBar()
+            AnnotationBar(showsLabels: showWorkflowBarLabels)
         }
     }
 

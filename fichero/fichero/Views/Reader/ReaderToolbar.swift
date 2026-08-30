@@ -125,6 +125,8 @@ struct ReaderToolbar: View {
     /// Toggles the word/line bounding boxes captured by the transcription pass
     /// as an overlay on the page image.
     var textBoxesEnabled: Binding<Bool>?
+    /// Annotation overlays show/hide (what-to-show menu, 2026-08-30).
+    var annotationsEnabled: Binding<Bool>?
 
     // ─── Loupe (image + PDF; nil ⇒ greyed) ───
     var loupeEnabled: Binding<Bool>?
@@ -183,34 +185,44 @@ struct ReaderToolbar: View {
         MiniToolbar(content: {
             chromeSection
             Spacer(minLength: 0)
+            // ⓘ retired as a bar button (Daniel, 2026-08-30) — metadata is
+            // an entry inside the what-to-show menu instead.
             whatToShowMenu
             pageLayoutSection
-            infoButton
             Spacer()
         }, trailing: {
             pinButton
         })
     }
 
-    /// Regions show/hide, as a DIRECT button (Daniel, 2026-08-30: the toggle
-    /// was hidden — and its one-entry eye menu was exactly the buried-"…"
-    /// pattern the quiet bar exists to kill). Same glyph grammar as the
-    /// pane head's lens.
+    /// What-to-show, grown into a real menu (Daniel, 2026-08-30: word
+    /// bounding boxes are good, "but I think we want the other stuff we
+    /// might want to show, as well as metadata… more filter options, show
+    /// and hide annotations"). The library-bottom eye grammar, several
+    /// entries deep now.
     @ViewBuilder
     private var whatToShowMenu: some View {
-        if let textBoxesEnabled {
-            Button {
-                textBoxesEnabled.wrappedValue.toggle()
+        if textBoxesEnabled != nil || annotationsEnabled != nil {
+            Menu {
+                if let textBoxesEnabled {
+                    Toggle("Words & Bounding Boxes", isOn: textBoxesEnabled)
+                }
+                if let annotationsEnabled {
+                    Toggle("Annotations", isOn: annotationsEnabled)
+                }
+                if let onShowInfo {
+                    Divider()
+                    Button("Metadata in Inspector", action: onShowInfo)
+                }
             } label: {
-                Image(systemName: textBoxesEnabled.wrappedValue
-                    ? "square.dashed.inset.filled" : "square.dashed")
-                    .foregroundStyle(textBoxesEnabled.wrappedValue
-                        ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.secondary))
+                Image(systemName: "eye")
+                    .foregroundStyle(.secondary)
                     .readerIconTarget()
             }
-            .buttonStyle(.plain)
-            .help(textBoxesEnabled.wrappedValue ? "Hide regions" : "Show regions")
-            .accessibilityLabel(textBoxesEnabled.wrappedValue ? "Hide regions" : "Show regions")
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help("What to show over the page")
+            .accessibilityLabel("What to show")
             .accessibilityIdentifier("previewWhatToShow")
         }
     }

@@ -164,14 +164,20 @@ struct PreviewMarkupToolsRow: View {
         PreviewHighlightStyle(rawValue: highlightStyleRaw) ?? .yellow
     }
 
+    /// Icon-and-Text (Daniel, 2026-08-30): labels render beneath the glyphs
+    /// when the window's label mode is on — same switch as the workflow bar.
+    var showsLabels = false
+
+    // Order ruled 2026-08-30: text selection FIRST (Preview.app's A|), then
+    // marquee, then the rest.
     var body: some View {
         toolButton(
-            icon: PreviewMarkupTool.select.icon,
-            label: PreviewMarkupTool.select.label,
-            identifier: "previewMarkupSelect"
+            icon: PreviewMarkupTool.textSelect.icon,
+            label: PreviewMarkupTool.textSelect.label,
+            identifier: "previewMarkupTextSelect"
         ) {
             NotificationCenter.default.post(
-                name: .previewRegionVerb, object: PreviewRegionVerb.select.rawValue
+                name: .previewAnnotateTool, object: PreviewMarkupTool.textSelect.rawValue
             )
         }
 
@@ -186,6 +192,16 @@ struct PreviewMarkupToolsRow: View {
         }
 
         toolButton(
+            icon: PreviewMarkupTool.select.icon,
+            label: PreviewMarkupTool.select.label,
+            identifier: "previewMarkupSelect"
+        ) {
+            NotificationCenter.default.post(
+                name: .previewRegionVerb, object: PreviewRegionVerb.select.rawValue
+            )
+        }
+
+        toolButton(
             icon: PreviewMarkupTool.line.icon,
             label: PreviewMarkupTool.line.label,
             identifier: "previewMarkupLine"
@@ -195,7 +211,7 @@ struct PreviewMarkupToolsRow: View {
             )
         }
 
-        highlightSplitButton
+        labeled(PreviewMarkupTool.highlight.label) { highlightSplitButton }
 
         toolButton(
             icon: PreviewMarkupTool.note.icon,
@@ -204,6 +220,16 @@ struct PreviewMarkupToolsRow: View {
         ) {
             NotificationCenter.default.post(
                 name: .previewAnnotateTool, object: PreviewMarkupTool.note.rawValue
+            )
+        }
+
+        toolButton(
+            icon: PreviewMarkupTool.star.icon,
+            label: PreviewMarkupTool.star.label,
+            identifier: "previewMarkupStar"
+        ) {
+            NotificationCenter.default.post(
+                name: .previewAnnotateTool, object: PreviewMarkupTool.star.rawValue
             )
         }
 
@@ -219,6 +245,19 @@ struct PreviewMarkupToolsRow: View {
             NotificationCenter.default.post(
                 name: .previewRegionVerb, object: PreviewRegionVerb.combine.rawValue
             )
+        }
+    }
+
+    /// Caption under any control when labels are on (the workflow-bar idiom).
+    @ViewBuilder
+    private func labeled(_ text: String, @ViewBuilder content: () -> some View) -> some View {
+        if showsLabels {
+            VStack(spacing: 2) {
+                content()
+                Text(text).font(.caption2).foregroundStyle(.secondary)
+            }
+        } else {
+            content()
         }
     }
 
@@ -272,14 +311,16 @@ struct PreviewMarkupToolsRow: View {
     private func toolButton(
         icon: String, label: String, identifier: String, action: @escaping () -> Void
     ) -> some View {
-        Button(action: action) {
-            Image(systemName: icon)
+        labeled(label) {
+            Button(action: action) {
+                Image(systemName: icon)
+            }
+            .buttonStyle(.borderless)
+            .foregroundStyle(.secondary)
+            .help(label)
+            .accessibilityLabel(label)
+            .accessibilityIdentifier(identifier)
         }
-        .buttonStyle(.borderless)
-        .foregroundStyle(.secondary)
-        .help(label)
-        .accessibilityLabel(label)
-        .accessibilityIdentifier(identifier)
     }
 }
 

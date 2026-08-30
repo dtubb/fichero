@@ -55,7 +55,7 @@ extension ZoomableImagePreview {
                 }
                 // Saved bounding boxes + the region-draw layer (#2458).
                 // Shown whenever there are boxes or the tool is armed.
-                if !regionBoxes.isEmpty || isDrawingRegion {
+                if (annotationsEnabled && !regionBoxes.isEmpty) || isDrawingRegion {
                     BoundingBoxOverlay(
                         boxes: regionBoxes,
                         visible: geometry.visible,
@@ -105,12 +105,16 @@ extension ZoomableImagePreview {
     var readerToolbar: some View {
         ReaderToolbar(
             style: .quiet,
+            onShowInfo: {
+                NotificationCenter.default.post(name: .previewShowInfo, object: nil)
+            },
             scalePercent: Int(scale * 100),
             zoomIn: zoomIn,
             zoomOut: zoomOut,
             fitToWindow: fitToWindow,
             actualSize: actualSize,
-            textBoxesEnabled: $ocrBoxesEnabled
+            textBoxesEnabled: $ocrBoxesEnabled,
+            annotationsEnabled: $annotationsEnabled
         )
     }
 }
