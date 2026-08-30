@@ -59,9 +59,21 @@
    region-overlay and renditions toggles as compact icons, the way the
    reader's head carries its lenses — instead of the bottom bar's menus.
 
-## Open questions for Daniel
-1. Renditions flip + page arrows: top or bottom? (Sketch says bottom.)
-2. Is "Annotate" a lens in the existing header selector, or a toggle in the
-   top cluster?
-3. Combine-regions semantics: union bbox + concatenated text, or keep
-   originals and add a grouping parent?
+## RESOLVED (Daniel, 2026-08-29 ~22:20, Preview.app as the model)
+1. **Annotate + Edit arrive at the TOP**: a toggle in the pane head slides a
+   tool row out UNDER the head, over the image — exactly Preview.app's
+   markup bar. Annotation overlays Preview; it is not a separate mode lens.
+   The slide-out row holds: select ⬚, draw-region ▭, line, highlight, text
+   note, delete, combine.
+2. **Head lenses, reader-style**: region show/hide toggle and the renditions
+   menu sit top-right by the breadcrumb (renditions as a menu like the
+   reader's transcript/translation menu). Pages ‹ › sit LEFT of the
+   breadcrumb.
+3. **Bottom bar goes quiet**: filter / find-in-image / metadata /
+   what-to-show — the library-bottom grammar. No zoom, no annotation entry,
+   no "…" menus.
+4. **Zoom lives BESIDE the mini-map** as one floating cluster (where + how
+   close are one concern); hiding the map collapses zoom to a small pill.
+5. **Combine = merge destructively**: one region remains (union bbox, texts
+   joined in reading order), originals soft-deleted and recoverable through
+   curation history.
