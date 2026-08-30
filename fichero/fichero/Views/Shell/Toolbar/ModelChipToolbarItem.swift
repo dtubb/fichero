@@ -77,8 +77,10 @@ struct ModelChipToolbarItem: View {
             // colour — which is what makes the idea survive providers that
             // ship no logo. The full name lives one hover (help) or one click
             // (popover) away.
+            // No horizontal padding (Daniel, 2026-08-29: "same with the
+            // google one") — the mark alone keeps the capsule as circular as
+            // its toolbar neighbours.
             ModelFamilyMark(model: currentModel, provider: currentProvider)
-                .padding(.horizontal, 6)
         }
         .buttonStyle(.plain)
         .fixedSize()
