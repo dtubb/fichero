@@ -107,12 +107,19 @@ struct ModelChipToolbarItem: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     if pickableModels.isEmpty {
-                        Text(loadFailed
-                             ? "The engine did not answer."
-                             : "No models configured.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .padding(12)
+                        // A real frame even while empty: the popover sizes
+                        // itself on FIRST layout, and an empty list gave a
+                        // stub popover that never grew when the models
+                        // arrived (Daniel, 2026-08-29: "not full height").
+                        VStack(spacing: 8) {
+                            if !loadFailed { ProgressView().controlSize(.small) }
+                            Text(loadFailed
+                                 ? "The engine did not answer."
+                                 : "Loading models…")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 180)
                     }
                     ForEach(pickableModels, id: \.model) { choice in
                         ModelPickerRow(
@@ -286,6 +293,11 @@ private struct ModelPickerRow: View {
                 Image(systemName: "checkmark")
                     .font(.system(size: 9, weight: .semibold))
                     .opacity(isCurrent ? 1 : 0)
+                // The same family mark the chip wears — the row's logo is
+                // what lets the eye find "the Claude one" without reading
+                // (Daniel, 2026-08-29: "the popover should have icons as
+                // well").
+                ModelFamilyMark(model: model, provider: provider)
                 Text(ModelChipToolbarItem.shorten(model))
                     .font(.callout)
                 Spacer(minLength: 12)
