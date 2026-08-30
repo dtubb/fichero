@@ -24,7 +24,7 @@ extension WorkflowBar {
         // subject, each step's model and the step itself are live tokens; the
         // connective tissue is plain words, which is what makes an eight-step
         // paid run readable as a plan rather than a rebus.
-        HStack(spacing: 5) {
+        ChainFlowLayout(spacing: 5) {
             Text("With")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
@@ -54,7 +54,6 @@ extension WorkflowBar {
                 chainChip(step, at: index)
             }
         }
-        .fixedSize()
     }
 
     /// The step's model as a clickable token in the sentence. The same menu
@@ -64,12 +63,16 @@ extension WorkflowBar {
         Menu {
             modelMenu(forStepAt: index)
         } label: {
+            // A real LOZENGE, not a whisper of one (Daniel, 2026-08-29:
+            // "model needs lozenges") — same weight as the subject chip so
+            // the sentence's three token kinds read as one family.
             Text(step.hasModelOverride ? step.modelDescription : "default model")
-                .font(.system(size: 10))
+                .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(step.hasModelOverride ? Color.primary : Color.secondary)
-                .padding(.horizontal, 6)
+                .padding(.horizontal, 7)
                 .padding(.vertical, 3)
-                .background(.quaternary.opacity(0.5), in: Capsule())
+                .background(Color.accentColor.opacity(0.10), in: Capsule())
+                .overlay(Capsule().strokeBorder(.quaternary, lineWidth: 1))
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
@@ -215,3 +218,53 @@ extension WorkflowBar {
         default:         return nil
         }
     }}
+
+
+/// A minimal flow layout: rows wrap, the container grows (Daniel,
+/// 2026-08-29: "if it's multiple rows, make the rows expand so we can
+/// see"). Just enough Layout for the sentence — leading-aligned, fixed
+/// spacing, no fancy distribution.
+struct ChainFlowLayout: Layout {
+    var spacing: CGFloat = 5
+    var rowSpacing: CGFloat = 6
+
+    func sizeThatFits(
+        proposal: ProposedViewSize, subviews: Subviews, cache: inout ()
+    ) -> CGSize {
+        let width = proposal.width ?? .infinity
+        var x: CGFloat = 0, y: CGFloat = 0, rowHeight: CGFloat = 0
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x > 0, x + size.width > width {
+                x = 0
+                y += rowHeight + rowSpacing
+                rowHeight = 0
+            }
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+        }
+        return CGSize(width: proposal.width ?? x, height: y + rowHeight)
+    }
+
+    func placeSubviews(
+        in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews,
+        cache: inout ()
+    ) {
+        var x = bounds.minX, y = bounds.minY, rowHeight: CGFloat = 0
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x > bounds.minX, x + size.width > bounds.maxX {
+                x = bounds.minX
+                y += rowHeight + rowSpacing
+                rowHeight = 0
+            }
+            subview.place(
+                at: CGPoint(x: x, y: y + rowHeight == 0 ? y : y),
+                anchor: .topLeading,
+                proposal: .unspecified
+            )
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+        }
+    }
+}

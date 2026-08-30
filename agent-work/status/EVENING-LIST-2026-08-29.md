@@ -50,6 +50,8 @@ Legend: ✅ done+committed tonight · 🔨 worker dispatched · 📋 queued (min
 - ✅ Bottom bar's metadata control vanished at narrow widths — submenu coat added
 - 📋 Icon view: no filter option to hide items WITHOUT images (text-only tiles); the fuller filter cluster missing in icon view
 - 📋 PERF P1: 9.6s stall — Observation tracking-list growth in one body eval (near share sheet); 2.2s NSButtonCell; sidebar unifiedRows 835ms; IconCellIdentity copy 903ms; AttributedString iteration 1.8s. Needs an Instruments lane on a Release-ish build.
+- 📋 Image-editor save clue: CFPasteboard "Failed to get a sandbox extension" on a container tmp path right at share/copy time — the editor's copy/export path may be sandbox-denied (pairs with the exit/save bug)
+- 📋 Embed-phase mystery: Daniel's 22:07 build shipped a 20:13 template despite the xcfilelist tracking it and the staged copy being current — the phase's up-to-date check skipped a changed input; verify after next clean build and fix the phase's input/output declaration if it recurs
 - 📋 CoreSpotlight donations failing continuously (CSIndex -1000 / service invalidated) — indexing may be dead app-wide
 
 ## Selection-as-scope
