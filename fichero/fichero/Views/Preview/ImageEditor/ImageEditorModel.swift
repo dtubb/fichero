@@ -127,6 +127,10 @@ final class ImageEditorModel {
         do {
             chain = try await service.getChain(documentId: documentId)
         } catch {
+            // Superseded load (isCancellationError idiom): keep whatever chain
+            // we have — replacing it with an empty one would erase real state
+            // because the user merely navigated away mid-fetch.
+            if error.isCancellationError { return }
             logger.error("getChain failed: \(error.localizedDescription)")
             // A missing chain is not an error worth surfacing — treat as empty.
             chain = ImageEditChain(documentId: documentId, operations: [], updatedAt: nil)
@@ -162,6 +166,12 @@ final class ImageEditorModel {
             }
             preview = showEdited ? editedPreview : originalPreview
         } catch {
+            // A cancelled load is a SUPERSEDED load (the selection or page moved
+            // on), not a failure — the codebase-wide isCancellationError idiom.
+            // Logging it as an error spammed the iOS launch console
+            // (Daniel, 2026-08-29), and surfacing it as `errorMessage` showed a
+            // scary banner for a load nobody wanted anymore.
+            if error.isCancellationError { return }
             logger.error("loadPreview failed: \(error.localizedDescription)")
             errorMessage = error.localizedDescription
         }
