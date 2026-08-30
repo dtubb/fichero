@@ -958,3 +958,315 @@ class TestArtifactView:
         assert response.status_code == 200
         assert "AV translated text" in response.text
         assert "Live content" not in response.text
+
+
+class TestAnnotationsRepresentation:
+    """?representation=annotations renders the scope's markup grouped by page,
+    each entry CITED to its page (Daniel, 2026-08-30 ruling 5 — the Marked
+    idea: a review surface over the markup, not just marks on pages)."""
+
+    def _pages(self):
+        return [
+            {"id": "p1", "number": 1, "label": "Page 1",
+             "content": "Alice signed the deed in Andagoya.", "has_content": True},
+            {"id": "p2", "number": 2, "label": "Page 2",
+             "content": "Witness: Bob.", "has_content": True},
+        ]
+
+    def test_entries_group_by_page_and_cite_it(self):
+        from fichero_server.api.routes.system.views import annotation_groups
+        from fichero_server.models.knowledge import Annotation, AnnotationKind
+
+        anns = [
+            Annotation(document_id="p2", kind=AnnotationKind.note, text="check the witness"),
+            Annotation(
+                document_id="p1", kind=AnnotationKind.highlight,
+                char_start=0, char_end=5, color="#FFFF00",
+            ),
+        ]
+        groups = annotation_groups(anns, self._pages())
+        # Groups come back in PAGE order, not creation order.
+        assert [g["page_number"] for g in groups] == [1, 2]
+        assert [g["citation"] for g in groups] == ["p. 1", "p. 2"]
+        assert groups[0]["entries"][0]["kind"] == "highlight"
+        assert groups[1]["entries"][0]["text"] == "check the witness"
+
+    def test_char_span_slices_the_pages_transcript(self):
+        from fichero_server.api.routes.system.views import annotation_groups
+        from fichero_server.models.knowledge import Annotation, AnnotationKind
+
+        ann = Annotation(
+            document_id="p1", kind=AnnotationKind.highlight,
+            char_start=6, char_end=21, color="#FFFF00",
+        )
+        groups = annotation_groups([ann], self._pages())
+        assert groups[0]["entries"][0]["anchored_text"] == "signed the deed"
+
+    def test_checks_render_their_glyphs(self):
+        from fichero_server.api.routes.system.views import annotation_groups
+        from fichero_server.models.knowledge import Annotation, AnnotationKind
+
+        ann = Annotation(document_id="p1", kind=AnnotationKind.rating, rating=3)
+        groups = annotation_groups([ann], self._pages())
+        entry = groups[0]["entries"][0]
+        assert entry["checks"] == "✓✓✓"
+        assert entry["kind_label"] == "Check"
+        # A rating-1 check is one glyph, not a bare number.
+        one = annotation_groups(
+            [Annotation(document_id="p1", kind=AnnotationKind.rating, rating=1)],
+            self._pages(),
+        )
+        assert one[0]["entries"][0]["checks"] == "✓"
+
+    def test_bbox_anchored_entry_shows_kind_and_captured_text(self):
+        from fichero_server.api.routes.system.views import annotation_groups
+        from fichero_server.models.knowledge import Annotation, AnnotationKind
+
+        # No char span — an image-region mark. Its captured OCR text stands in.
+        ann = Annotation(
+            document_id="p1", kind=AnnotationKind.underline,
+            anchor_kind="bbox", ocr_text="the deed",
+        )
+        groups = annotation_groups([ann], self._pages())
+        entry = groups[0]["entries"][0]
+        assert entry["kind_label"] == "Underline"
+        assert entry["anchored_text"] == "the deed"
+
+    def test_unplaced_annotation_groups_under_the_document(self):
+        from fichero_server.api.routes.system.views import annotation_groups
+        from fichero_server.models.knowledge import Annotation, AnnotationKind
+
+        anns = [
+            Annotation(document_id="elsewhere", kind=AnnotationKind.bookmark, text="flag"),
+            Annotation(document_id="p1", kind=AnnotationKind.note, text="on the page"),
+        ]
+        groups = annotation_groups(anns, self._pages())
+        # The document-level group comes LAST and says what it is.
+        assert groups[-1]["page_number"] is None
+        assert groups[-1]["citation"] == "Document"
+        assert groups[-1]["entries"][0]["text"] == "flag"
+
+    def test_entries_within_a_page_read_in_span_order(self):
+        from fichero_server.api.routes.system.views import annotation_groups
+        from fichero_server.models.knowledge import Annotation, AnnotationKind
+
+        anns = [
+            Annotation(document_id="p1", kind=AnnotationKind.highlight,
+                       char_start=22, char_end=30, color="#FF0000"),
+            Annotation(document_id="p1", kind=AnnotationKind.highlight,
+                       char_start=0, char_end=5, color="#00FF00"),
+            Annotation(document_id="p1", kind=AnnotationKind.rating, rating=1),
+        ]
+        groups = annotation_groups(anns, self._pages())
+        starts = [e["anchored_text"] for e in groups[0]["entries"]]
+        # Spanned entries in reading order; the spanless check after them.
+        assert starts[0] == "Alice"
+        assert groups[0]["entries"][-1]["kind"] == "rating"
+
+    def test_route_ships_the_grouped_annotations(self, client, db):
+        from fichero_server.models.knowledge import Annotation, AnnotationKind
+
+        doc = _make_document(
+            doc_id="an-doc", name="Deed.pdf", doc_type=DocType.file,
+            file_type=FileType.pdf,
+        )
+        db.save(doc)
+        db.save(_make_document(
+            doc_id="an-page-1", name="Page 1", doc_type=DocType.page,
+            page_content="Alice signed the deed.", parent_id=doc.id, sequence=1,
+        ))
+        # Anchored to the PAGE child — the subtree scope must find it.
+        db.save(Annotation(
+            document_id="an-page-1", page_id="an-page-1",
+            kind=AnnotationKind.highlight, char_start=6, char_end=12,
+            color="#FFFF00", tags=["labor"],
+        ))
+        response = client.get(f"/view/document/{doc.id}?representation=annotations")
+        assert response.status_code == 200
+        assert '"citation": "p. 1"' in response.text
+        assert '"anchored_text": "signed"' in response.text
+        assert '"representation": "annotations"' in response.text
+        # The content view never grows the review payload.
+        plain = client.get(f"/view/document/{doc.id}")
+        assert '"annotations": null' in plain.text
+
+    def test_template_renders_the_review_escaped(self):
+        template = (
+            Path(__file__).resolve().parents[3]
+            / "src" / "fichero_server" / "api" / "templates" / "document_view.html"
+        ).read_text()
+        assert "function annotationReviewMarkup(groups)" in template
+        assert "function annotationEntryMarkup(entry)" in template
+        # Every user string goes through escapeHtml — markup is user data.
+        assert "${escapeHtml(entry.anchored_text)}" in template
+        assert "${escapeHtml(entry.text)}" in template
+        # Only a well-formed hex color may reach an inline style.
+        assert '/^#[0-9a-fA-F]{6}$/' in template
+
+
+class TestCompareRepresentation:
+    """?representation=compare&compare_types=<type> lays the scope's recent
+    artifacts of that type side by side, labeled with their REAL provenance
+    and word-diffed against the left neighbor (Daniel, 2026-08-30 ruling 6)."""
+
+    def test_diff_marks_insertions_deletions_and_replacements(self):
+        from fichero_server.api.routes.system.views import diff_word_tokens
+
+        tokens = diff_word_tokens("the quick brown fox", "the slow brown fox jumps")
+        assert ["the", "same"] in tokens
+        assert ["quick", "del"] in tokens
+        assert ["slow", "ins"] in tokens
+        assert ["jumps", "ins"] in tokens
+        # Order: the replaced word's old form precedes its new form.
+        assert tokens.index(["quick", "del"]) < tokens.index(["slow", "ins"])
+
+    def test_identical_texts_diff_to_all_same(self):
+        from fichero_server.api.routes.system.views import diff_word_tokens
+
+        tokens = diff_word_tokens("word for word", "word for word")
+        assert all(op == "same" for _, op in tokens)
+
+    def test_columns_are_labeled_with_real_provenance(self):
+        from fichero_server.api.routes.system.views import compare_columns
+        from fichero_server.models import Artifact
+
+        artifacts = [
+            Artifact(document_id="p1", artifact_type="translation",
+                     content="hola mundo", model="gpt-4o", step_name="translate"),
+            Artifact(document_id="p1", artifact_type="translation",
+                     content="hola mundo entero", provider="qwen"),
+            Artifact(document_id="p1", artifact_type="translation", content="hola"),
+        ]
+        result = compare_columns(artifacts, ["translation"])
+        labels = [c["label"] for c in result["columns"]]
+        assert "gpt-4o · translate" in labels
+        assert "qwen" in labels
+        # No provenance at all → the type names the column, never a fabrication.
+        assert "translation" in labels
+
+    def test_first_column_is_plain_then_neighbors_diff(self):
+        from datetime import timedelta
+
+        from fichero_server.api.routes.system.views import compare_columns
+        from fichero_server.core.timeutil import utc_now
+        from fichero_server.models import Artifact
+
+        base = utc_now()
+        artifacts = [
+            Artifact(document_id="p1", artifact_type="translation",
+                     content="the deed was signed", created_at=base),
+            Artifact(document_id="p1", artifact_type="translation",
+                     content="the deed was sealed", created_at=base + timedelta(minutes=1)),
+        ]
+        result = compare_columns(artifacts, ["translation"])
+        first, second = result["columns"]
+        # Oldest reads on the left, all-same; the newer column carries the diff.
+        assert all(op == "same" for _, op in first["tokens"])
+        assert ["signed", "del"] in second["tokens"]
+        assert ["sealed", "ins"] in second["tokens"]
+
+    def test_recent_artifacts_cap_at_the_column_limit(self):
+        from datetime import timedelta
+
+        from fichero_server.api.routes.system.views import (
+            COMPARE_COLUMN_LIMIT,
+            compare_columns,
+        )
+        from fichero_server.core.timeutil import utc_now
+        from fichero_server.models import Artifact
+
+        base = utc_now()
+        artifacts = [
+            Artifact(document_id="p1", artifact_type="translation",
+                     content=f"text {n}", created_at=base + timedelta(minutes=n))
+            for n in range(COMPARE_COLUMN_LIMIT + 3)
+        ]
+        result = compare_columns(artifacts, ["translation"])
+        assert len(result["columns"]) == COMPARE_COLUMN_LIMIT
+        # The LATEST artifacts survive the cap, oldest of them first.
+        assert result["columns"][-1]["tokens"][-1][0] == str(COMPARE_COLUMN_LIMIT + 2)
+
+    def test_compare_group_stamp_selects_the_newest_run(self):
+        from datetime import timedelta
+
+        from fichero_server.api.routes.system.views import compare_columns
+        from fichero_server.core.timeutil import utc_now
+        from fichero_server.models import Artifact
+
+        base = utc_now()
+        artifacts = [
+            Artifact(document_id="p1", artifact_type="translation",
+                     content="old run a", data={"compare_group": "run-1"},
+                     created_at=base),
+            Artifact(document_id="p1", artifact_type="translation",
+                     content="new run a", data={"compare_group": "run-2"},
+                     created_at=base + timedelta(minutes=2)),
+            Artifact(document_id="p1", artifact_type="translation",
+                     content="new run b", data={"compare_group": "run-2"},
+                     created_at=base + timedelta(minutes=3)),
+            # Unstamped stragglers stay out once a group is chosen.
+            Artifact(document_id="p1", artifact_type="translation",
+                     content="loose", created_at=base + timedelta(minutes=4)),
+        ]
+        result = compare_columns(artifacts, ["translation"])
+        assert result["grouped"] is True
+        assert [c["compare_group"] for c in result["columns"]] == ["run-2", "run-2"]
+
+    def test_empty_or_missing_type_yields_no_columns(self):
+        from fichero_server.api.routes.system.views import compare_columns
+        from fichero_server.models import Artifact
+
+        artifacts = [
+            Artifact(document_id="p1", artifact_type="translation", content="hola"),
+            Artifact(document_id="p1", artifact_type="translation", content="   "),
+        ]
+        assert compare_columns(artifacts, [])["columns"] == []
+        assert compare_columns([], ["translation"])["columns"] == []
+        # Whitespace-only content is not a comparable output.
+        assert len(compare_columns(artifacts, ["translation"])["columns"]) == 1
+
+    def test_route_ships_labeled_columns_over_the_scope(self, client, db):
+        from fichero_server.models import Artifact
+
+        doc = _make_document(
+            doc_id="cm-doc", name="Diary.pdf", doc_type=DocType.file,
+            file_type=FileType.pdf,
+        )
+        db.save(doc)
+        db.save(_make_document(
+            doc_id="cm-page-1", name="Page 1", doc_type=DocType.page,
+            page_content="live text", parent_id=doc.id, sequence=1,
+        ))
+        db.save(Artifact(
+            id="cm-a1", document_id="cm-page-1", artifact_type="translation",
+            content="the deed was signed", model="gpt-4o",
+        ))
+        db.save(Artifact(
+            id="cm-a2", document_id="cm-page-1", artifact_type="translation",
+            content="the deed was sealed", model="qwen-vl-max",
+        ))
+        response = client.get(
+            f"/view/document/{doc.id}?representation=compare&compare_types=translation"
+        )
+        assert response.status_code == 200
+        assert '"representation": "compare"' in response.text
+        assert '"label": "gpt-4o"' in response.text
+        assert '"label": "qwen-vl-max"' in response.text
+        assert '["sealed", "ins"]' in response.text
+        # The content view never grows the compare payload.
+        plain = client.get(f"/view/document/{doc.id}")
+        assert '"compare": null' in plain.text
+
+    def test_template_renders_columns_with_marked_diff(self):
+        template = (
+            Path(__file__).resolve().parents[3]
+            / "src" / "fichero_server" / "api" / "templates" / "document_view.html"
+        ).read_text()
+        assert "function compareMarkup(compare)" in template
+        assert "function compareTokensMarkup(tokens)" in template
+        # Wide comparisons scroll inside their own scroller (#4385's rule).
+        assert '<div class="compare-scroll">' in template
+        # Diff words are escaped, then marked.
+        assert 'mark class="diff-ins"' in template
+        assert 'mark class="diff-del"' in template
+        assert "const text = escapeHtml(word);" in template

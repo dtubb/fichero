@@ -1,4 +1,5 @@
 import CoreTransferable
+import FicheroAPIClient
 import OSLog
 import SwiftUI
 import UniformTypeIdentifiers
@@ -47,6 +48,12 @@ enum ReaderRepresentation {
     /// the engine view renders these as a real HTML table.
     static let tableTypes = ["table"]
 
+    /// The markup-review reading (Daniel, 2026-08-30 ruling 5: "see
+    /// annotations somewhere" — the Marked idea). NOT an artifact type: it is
+    /// a reading over the scope's user annotations, offered only when the
+    /// scope actually has some — never a toggle to nowhere.
+    static let annotationsType = "annotations"
+
     static func title(for type: String) -> String {
         switch type {
         case "transcription": return "Transcript"
@@ -54,6 +61,7 @@ enum ReaderRepresentation {
         case "summary": return "Summary"
         case "conversion": return "Conversion"
         case "table": return "Table"
+        case annotationsType: return "Annotations"
         default: return type.capitalized
         }
     }
@@ -268,10 +276,10 @@ extension ReadingPaneView {
         readerRepresentation = nil
         readerRepresentationChoices = []
         guard let doc = effectiveDocument,
-              let service = LibraryManager.shared
-                  .getLibrary(id: LibraryManager.shared.currentLibraryId ?? LibraryManager.globalLibraryId)?
-                  .artifactService
+              let library = LibraryManager.shared
+                  .getLibrary(id: LibraryManager.shared.currentLibraryId ?? LibraryManager.globalLibraryId)
         else { return }
+        let service = library.artifactService
         // ONE fetch answers both head controls: the whole scope's artifacts
         // (pages included) drive the representation switcher; the document's
         // OWN artifacts drive the per-artifact lens, as before.
@@ -281,6 +289,18 @@ extension ReadingPaneView {
         readerRepresentationChoices = ReaderRepresentation.availableTypes(
             in: artifacts.map(\.artifactType)
         )
+        // "Annotations" joins the switcher whenever the SCOPE has any markup
+        // (Daniel, 2026-08-30 ruling 5). The annotations list route matches a
+        // node exactly (a page annotation stores the page's id), so the scope
+        // check asks about the shown node AND the descendant nodes the
+        // artifact fetch just named — capped, first hit wins.
+        if await Self.scopeHasAnnotations(
+            documentId: doc.id,
+            descendantIds: artifacts.map(\.documentId),
+            annotationService: library.annotationService
+        ) {
+            readerRepresentationChoices.append(ReaderRepresentation.annotationsType)
+        }
         let formatter = RelativeDateTimeFormatter()
         artifactLensChoices = artifacts
             .filter { $0.documentId == doc.id }
@@ -293,6 +313,36 @@ extension ReadingPaneView {
                     label: "\(artifact.artifactType) · \(when)"
                 )
             }
+    }
+
+    /// Whether the reader scope carries ANY annotation (ruling 5's gate for
+    /// the "Annotations" switcher entry). Asks the list endpoint directly —
+    /// `AnnotationService.load` would overwrite the shared `annotations`
+    /// state the inspector observes, and this check must not. The list route
+    /// matches one node exactly, so the shown document is asked first, then
+    /// the descendant nodes the artifact fetch named — capped, first hit
+    /// wins, and failures read as "none" (the menu just stays smaller).
+    @MainActor
+    static func scopeHasAnnotations(
+        documentId: String,
+        descendantIds: [String],
+        annotationService: AnnotationService
+    ) async -> Bool {
+        annotationService.syncLibraryPath()
+        var candidates: [String] = [documentId]
+        for id in descendantIds where id != documentId && !candidates.contains(id) {
+            candidates.append(id)
+            if candidates.count >= 9 { break }
+        }
+        for id in candidates {
+            guard let response = try? await annotationService.client.api
+                .listAnnotationsApiAnnotationsGet(.init(query: .init(documentId: id))),
+                case .ok(let ok) = response,
+                let body = try? ok.body.json
+            else { continue }
+            if body.count > 0 { return true }
+        }
+        return false
     }
 }
 

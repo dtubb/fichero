@@ -48,6 +48,19 @@ extension DocumentKGPaneRoute {
                     return nil
                 }
                 query.append("artifact_id=\(encodedArtifact)")
+            } else if representation.hasPrefix("compare:") {
+                // The COMPARE view rides the same channel as
+                // "compare:<artifact_type>" (Daniel, 2026-08-30 ruling 6:
+                // outputs side by side with a labeled diff) — decoded ONLY
+                // here into ?representation=compare&compare_types=<type>.
+                let typeRef = String(representation.dropFirst("compare:".count))
+                guard !typeRef.isEmpty,
+                      let encodedTypes = typeRef
+                        .addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else {
+                    return nil
+                }
+                query.append("representation=compare")
+                query.append("compare_types=\(encodedTypes)")
             } else {
                 // Same fail-closed rule: a representation that cannot encode
                 // must not silently fall back to the live content.
