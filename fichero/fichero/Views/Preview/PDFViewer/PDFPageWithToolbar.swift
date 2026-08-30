@@ -346,7 +346,8 @@ struct PDFPageWithToolbar: View {
         }
         // The magnification family, bottom-right (Daniel, 2026-08-29): the
         // zoom pill + loupe toggle — see +HeadChrome.swift.
-        .overlay(alignment: .bottomTrailing) { zoomClusterOverlay }
+        // Top-right (Daniel, 2026-08-30 — moved up from the bottom corner).
+        .overlay(alignment: .topTrailing) { zoomClusterOverlay }
     }
 
     /// × close handler — only present when there is something to close (an
@@ -365,15 +366,13 @@ struct PDFPageWithToolbar: View {
     // section. `loupeLocked` state remains for effectiveLoupePosition.
 
     // QUIET bottom bar (Daniel, 2026-08-29): page-nav moved to the pane head,
-    // zoom + loupe to the floating bottom-right cluster, annotation to the
-    // head's slide-out markup row. The bar keeps chrome (close/title), the
-    // page-layout menu, what-to-show, the metadata ⓘ, and the pin.
+    // zoom + loupe to the floating cluster, annotation to the head's
+    // slide-out markup row. The bar keeps chrome (close/title), the
+    // page-layout menu, the regions toggle, and the pin — the ⓘ went
+    // (2026-08-30: it only toggled the inspector).
     private var readerToolbar: some View {
         ReaderToolbar(
             style: .quiet,
-            onShowInfo: {
-                NotificationCenter.default.post(name: .previewShowInfo, object: nil)
-            },
             title: documentTitle,
             onClose: closeHandler,
             isInSplit: isInSplit,

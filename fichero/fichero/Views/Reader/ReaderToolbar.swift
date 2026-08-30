@@ -192,22 +192,25 @@ struct ReaderToolbar: View {
         })
     }
 
-    /// What-to-show (the library grammar's eye menu): the overlays the canvas
-    /// can draw. Today that is the recognized text boxes; the preview-regions
-    /// lane's lenses join here.
+    /// Regions show/hide, as a DIRECT button (Daniel, 2026-08-30: the toggle
+    /// was hidden — and its one-entry eye menu was exactly the buried-"…"
+    /// pattern the quiet bar exists to kill). Same glyph grammar as the
+    /// pane head's lens.
     @ViewBuilder
     private var whatToShowMenu: some View {
-        if textBoxesEnabled != nil {
-            Menu {
-                Toggle("Text Boxes", isOn: textBoxesEnabled ?? .constant(false))
+        if let textBoxesEnabled {
+            Button {
+                textBoxesEnabled.wrappedValue.toggle()
             } label: {
-                Image(systemName: "eye")
-                    .foregroundStyle(.secondary)
+                Image(systemName: textBoxesEnabled.wrappedValue
+                    ? "square.dashed.inset.filled" : "square.dashed")
+                    .foregroundStyle(textBoxesEnabled.wrappedValue
+                        ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.secondary))
+                    .readerIconTarget()
             }
-            .menuIndicator(.hidden)
-            .fixedSize()
-            .help("What to show over the page")
-            .accessibilityLabel("What to show")
+            .buttonStyle(.plain)
+            .help(textBoxesEnabled.wrappedValue ? "Hide regions" : "Show regions")
+            .accessibilityLabel(textBoxesEnabled.wrappedValue ? "Hide regions" : "Show regions")
             .accessibilityIdentifier("previewWhatToShow")
         }
     }

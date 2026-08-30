@@ -7,11 +7,8 @@ import SwiftUI
 /// Which renderer the Data mode shows. Internal to the mode (ONE top-level
 /// view mode, dead-simple UX) — cards / timeline / calendar / map.
 enum DatasetRenderer: String, CaseIterable, Identifiable {
-    case grid = "Sheet"
-    case cards = "Cards"
-    case timeline = "Timeline"
-    case calendar = "Calendar"
-    case map = "Map"
+    case grid = "Sheet", cards = "Cards", timeline = "Timeline"
+    case calendar = "Calendar", map = "Map"
 
     var id: String { rawValue }
 
@@ -30,9 +27,7 @@ enum DatasetRenderer: String, CaseIterable, Identifiable {
 /// filter undated"). Client-side over the page in memory — the engine's
 /// typed-filter shape stays available when paging outgrows this.
 enum DatasetDateFilter: String, CaseIterable, Identifiable {
-    case all = "All"
-    case dated = "Dated"
-    case undated = "Undated"
+    case all = "All", dated = "Dated", undated = "Undated"
 
     var id: String { rawValue }
 }
@@ -43,9 +38,7 @@ enum DatasetDateFilter: String, CaseIterable, Identifiable {
 @MainActor
 @Observable
 final class DatasetModeStore {
-    var page: DatasetPage? {
-        didSet { displayRevision &+= 1 }
-    }
+    var page: DatasetPage? { didSet { displayRevision &+= 1 } }
     /// Bumped on every page (re)assignment — DatasetPage is a struct, so any
     /// nested row mutation reassigns it too. Keys `orderedVisibleRows`' memo.
     @ObservationIgnored var displayRevision = 0

@@ -262,38 +262,38 @@ struct ChainFlowLayout: Layout {
         proposal: ProposedViewSize, subviews: Subviews, cache: inout ()
     ) -> CGSize {
         let width = proposal.width ?? .infinity
-        var x: CGFloat = 0, y: CGFloat = 0, rowHeight: CGFloat = 0
+        var cursorX: CGFloat = 0, cursorY: CGFloat = 0, rowHeight: CGFloat = 0
         for subview in subviews {
             let size = subview.sizeThatFits(.unspecified)
-            if x > 0, x + size.width > width {
-                x = 0
-                y += rowHeight + rowSpacing
+            if cursorX > 0, cursorX + size.width > width {
+                cursorX = 0
+                cursorY += rowHeight + rowSpacing
                 rowHeight = 0
             }
-            x += size.width + spacing
+            cursorX += size.width + spacing
             rowHeight = max(rowHeight, size.height)
         }
-        return CGSize(width: proposal.width ?? x, height: y + rowHeight)
+        return CGSize(width: proposal.width ?? cursorX, height: cursorY + rowHeight)
     }
 
     func placeSubviews(
         in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews,
         cache: inout ()
     ) {
-        var x = bounds.minX, y = bounds.minY, rowHeight: CGFloat = 0
+        var cursorX = bounds.minX, cursorY = bounds.minY, rowHeight: CGFloat = 0
         for subview in subviews {
             let size = subview.sizeThatFits(.unspecified)
-            if x > bounds.minX, x + size.width > bounds.maxX {
-                x = bounds.minX
-                y += rowHeight + rowSpacing
+            if cursorX > bounds.minX, cursorX + size.width > bounds.maxX {
+                cursorX = bounds.minX
+                cursorY += rowHeight + rowSpacing
                 rowHeight = 0
             }
             subview.place(
-                at: CGPoint(x: x, y: y + rowHeight == 0 ? y : y),
+                at: CGPoint(x: cursorX, y: cursorY),
                 anchor: .topLeading,
                 proposal: .unspecified
             )
-            x += size.width + spacing
+            cursorX += size.width + spacing
             rowHeight = max(rowHeight, size.height)
         }
     }
