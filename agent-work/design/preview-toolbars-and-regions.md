@@ -74,7 +74,10 @@
    tool row out UNDER the head, over the image — exactly Preview.app's
    markup bar. Annotation overlays Preview; it is not a separate mode lens.
    The slide-out row holds: select ⬚, draw-region ▭, line, highlight, text
-   note, delete, combine.
+   note, delete, combine. The HIGHLIGHT is a Preview.app-style split button
+   (ruling ~22:30): pencil toggles with the current colour; its chevron menu
+   offers Yellow/Green/Blue/Pink/Purple dots, then Underline and
+   Strikethrough as checkable modes; the choice persists on the button.
 2. **Head lenses, reader-style**: region show/hide toggle and the renditions
    menu sit top-right by the breadcrumb (renditions as a menu like the
    reader's transcript/translation menu). Pages ‹ › sit LEFT of the
