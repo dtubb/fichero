@@ -99,14 +99,12 @@ extension ZoomableImagePreview {
     // Moved from the main file 2026-08-23 (file/type length): same member.
     // QUIET since 2026-08-29 (Daniel): paging/renditions live in the pane
     // head, markup in the head's slide-out row, and the magnification family
-    // in the floating cluster beside the mini-map. This bar keeps only
-    // what-to-show and the metadata ⓘ.
+    // in the floating cluster beside the mini-map. This bar keeps only the
+    // regions toggle — the ⓘ went too (2026-08-30: it only toggled the
+    // inspector, which has its own affordances).
     var readerToolbar: some View {
         ReaderToolbar(
             style: .quiet,
-            onShowInfo: {
-                NotificationCenter.default.post(name: .previewShowInfo, object: nil)
-            },
             scalePercent: Int(scale * 100),
             zoomIn: zoomIn,
             zoomOut: zoomOut,
@@ -205,11 +203,11 @@ extension ZoomableImagePreview {
             }
             .background(Color(nsColor: .windowBackgroundColor))
 
-            // The magnification family, bottom-right (Daniel, 2026-08-29):
-            // mini-map on top, zoom pill under it, loupe + magnifier-bar
-            // toggles below. The map keeps its #771 guard — it appears
-            // only when zoomed in (or the loupe is up); without it the
-            // cluster collapses to the pill + toggles.
+            // The magnification family, TOP-right (Daniel, 2026-08-30 —
+            // moved up from the bottom corner): mini-map on top, zoom pill
+            // under it, loupe + magnifier-bar toggles below. The map keeps
+            // its #771 guard — it appears only when zoomed in (or the loupe
+            // is up); without it the cluster collapses to the pill + toggles.
             let isActuallyZoomed = geometry.isMeasured
                 && (geometry.visible.width < 0.99 || geometry.visible.height < 0.99)
             PreviewZoomMapCluster(
@@ -232,9 +230,11 @@ extension ZoomableImagePreview {
                     .frame(width: 150, height: 100)
                 }
             })
-            // Stay over the IMAGE, not the magnifier strip that slides up
-            // from the bottom edge when its toggle is on.
-            .padding(.bottom, magnifierEnabled && image != nil ? CGFloat(panelHeight) : 0)
+            // Pin to the TOP-right corner regardless of the ZStack's
+            // bottom-anchored alignment (the magnifier strip still slides
+            // from the bottom edge, so the cluster no longer needs to
+            // dodge it).
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
         }
     }
 }
