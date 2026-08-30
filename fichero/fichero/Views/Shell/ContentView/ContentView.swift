@@ -206,6 +206,11 @@ struct ContentView: View {
     /// Preview convention that a markup bar is a property of the window you
     /// turned it on in, and off by default so the chrome is opt-in.
     @SceneStorage("showWorkflowBar") var showWorkflowBar: Bool = false
+    /// The window-level ANNOTATION bar (Daniel, 2026-08-30, Preview.app's
+    /// grammar): below the toolbar, above the workflow bar, toggled by the
+    /// toolbar pencil. Annotation verbs are window-scoped — image, PDF,
+    /// reader, entity, artifact, row — not a preview-pane feature.
+    @SceneStorage("showAnnotationBar") var showAnnotationBar: Bool = false
     /// Labels beneath the workflow bar's glyphs. On by default while the
     /// vocabulary is unfamiliar; off gives a dense icon rail.
     @SceneStorage("workflowBarLabels") var showWorkflowBarLabels: Bool = true

@@ -16,6 +16,7 @@ enum ContentToolbarID {
     // fichero.searchToggle retired (Daniel, 2026-08-29): the hand-rolled
     // search lozenge is replaced by the system toolbar search item, which
     // carries its own NSToolbar identity (com.apple.SwiftUI.search).
+    static let annotationBar = "fichero.annotationBar"
     static let splitMenu = "fichero.splitMenu"
     static let workspacesMenu = "fichero.workspacesMenu"
     static let layoutChooser = "fichero.layoutChooser"
@@ -176,6 +177,12 @@ extension ContentView {
             // Workspaces, and the Views chooser — three identified items
             // after the pane group, one control each, bodies in
             // ContentView+LayoutChooser.swift.
+            // The annotation pencil (Daniel, 2026-08-30, Preview.app's
+            // grammar): toggles the window-level annotation bar; the chevron
+            // picks the highlight style. One item, split-button shaped.
+            ToolbarItem(id: ContentToolbarID.annotationBar, placement: .automatic) {
+                annotationBarToggle
+            }
             ToolbarItem(id: ContentToolbarID.splitMenu, placement: .automatic) {
                 splitAndTabMenu
             }
@@ -337,6 +344,29 @@ extension ContentView {
     /// suggestion buttons were unlabelled mystery glyphs — if suggestions
     /// return, they belong INSIDE the bar as a recommended row, not as
     /// toolbar chrome.
+    /// Preview.app's pencil split-button: the pencil toggles the annotation
+    /// bar; the chevron menu picks the highlight style (colors, underline,
+    /// strikethrough) that rides every saved highlight.
+    @ViewBuilder
+    var annotationBarToggle: some View {
+        HStack(spacing: 0) {
+            Button {
+                showAnnotationBar.toggle()
+            } label: {
+                Label(
+                    showAnnotationBar ? "Hide Markup" : "Show Markup",
+                    systemImage: "pencil.tip.crop.circle"
+                )
+                .labelStyle(.iconOnly)
+                .foregroundStyle(showAnnotationBar
+                    ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.primary))
+            }
+            .help(showAnnotationBar ? "Hide the markup bar" : "Show the markup bar")
+            .accessibilityLabel(showAnnotationBar ? "Hide markup bar" : "Show markup bar")
+            PreviewHighlightStyleMenu()
+        }
+    }
+
     @ViewBuilder
     var workflowSuggestButton: some View {
         Button {

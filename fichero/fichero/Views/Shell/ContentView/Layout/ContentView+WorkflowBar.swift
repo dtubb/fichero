@@ -16,6 +16,15 @@ extension ContentView {
     /// inset on the detail column so it spans the content and NOT the sidebar
     /// or inspector: it acts on the content selection, and a window-wide row
     /// would claim a scope it does not have.
+    /// The window-level annotation bar (Daniel, 2026-08-30): same detail-
+    /// column scope as the workflow bar, directly under the toolbar.
+    @ViewBuilder
+    var annotationBarInset: some View {
+        if showAnnotationBar {
+            AnnotationBar()
+        }
+    }
+
     @ViewBuilder
     var workflowBarInset: some View {
         if showWorkflowBar {
