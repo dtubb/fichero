@@ -5,6 +5,7 @@ API endpoints for accessing processing artifacts (transcriptions, summaries, ent
 """
 
 import logging
+from enum import StrEnum
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
@@ -20,12 +21,15 @@ from fichero_server.db import Database
 # is plain artifact CRUD and paid that cost for nothing.
 from fichero_server.media.ocr_geometry import (
     GEOMETRY_REASON_KEY,
+    OCRGeometryBox,
+    OCRGeometryLevel,
     OCRGeometryResult,
     OCRGeometryStatus,
     SpanRegion,
     geometry_status,
     region_for_line,
     region_for_span,
+    union_bbox,
 )
 from fichero_server.models import Artifact, ArtifactTypeListResponse, Document
 
@@ -993,3 +997,260 @@ def _action_translate(
         document_ids=[params.document_id],
     )
     return _artifact_response(artifact).model_dump(mode="json"), spec
+
+
+# =============================================================================
+# Region curation — regions as first-class objects (Daniel, 2026-08-29)
+# =============================================================================
+#
+# A region is a box inside an artifact's `ocr_geometry.boxes`, addressed by its
+# POSITION in that list (boxes carry no ids of their own; inventing ids here
+# would fork the geometry contract for one caller). All four verbs run through
+# ONE audited, undoable action — the full before-snapshot makes every edit
+# reversible (never lossy), and each edit also appends to the geometry's own
+# `metadata["curation_log"]` so an exported artifact still carries its history.
+
+
+class RegionEditOp(StrEnum):
+    """A closed vocabulary — an enum in the schema, never a bare str (rule 4)."""
+
+    MOVE = "move"
+    DELETE = "delete"
+    ADD = "add"
+    COMBINE = "combine"
+
+
+class ArtifactRegionsEditRequest(BaseModel):
+    """One curation edit against an artifact's `ocr_geometry.boxes`.
+
+    - ``move``: exactly one index + ``bbox`` — reposition that box.
+    - ``delete``: one or more indices — remove those boxes.
+    - ``add``: ``bbox`` (+ optional ``text``/``level``) — append a new box;
+      bootstraps an empty user geometry when the artifact has none yet
+      (the rubber-band draw on a page whose regions artifact is bare).
+    - ``combine``: two or more indices — replace them with one box whose bbox
+      is the union and whose text is the members' texts concatenated in
+      reading order.
+    """
+
+    op: RegionEditOp
+    indices: list[int] = Field(
+        default_factory=list,
+        description="Positions into ocr_geometry.boxes (order irrelevant)",
+    )
+    bbox: Optional[list[float]] = Field(
+        default=None,
+        description="Normalized [x, y, w, h] for move/add",
+    )
+    text: str = ""
+    level: OCRGeometryLevel = OCRGeometryLevel.REGION
+
+
+class ArtifactRegionsEditActionParams(BaseModel):
+    artifact_id: str
+    edit: ArtifactRegionsEditRequest
+
+
+def _reading_order(
+    pairs: list[tuple[int, OCRGeometryBox]],
+) -> list[tuple[int, OCRGeometryBox]]:
+    """Reading order: char spans when every member has one (the transcript IS
+    the reading order), else top-then-left by bbox."""
+    if all(b.char_start is not None for _, b in pairs):
+        return sorted(pairs, key=lambda p: (p[1].char_start or 0, p[1].char_end or 0))
+    return sorted(pairs, key=lambda p: (p[1].bbox[1], p[1].bbox[0]))
+
+
+def _validated_box(base: OCRGeometryBox | None, **updates: Any) -> OCRGeometryBox:
+    """Build a box through full model validation — `model_copy` skips the bbox
+    validator, and an unvalidated bbox is exactly what this route must refuse."""
+    payload = (
+        base.model_dump(mode="json")
+        if base is not None
+        else {"text": "", "bbox": [0, 0, 0, 0]}
+    )
+    payload.update(updates)
+    try:
+        return OCRGeometryBox.model_validate(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=f"invalid region box: {exc}") from exc
+
+
+def _edit_regions_impl(
+    db: Database, artifact_id: str, edit: ArtifactRegionsEditRequest, actor: str
+) -> tuple[Artifact, dict[str, Any]]:
+    from fichero_server.core.timeutil import utc_now
+
+    artifact = db.get(Artifact, artifact_id)
+    if not artifact:
+        raise HTTPException(status_code=404, detail=f"Artifact not found: {artifact_id}")
+    before = artifact.model_dump(mode="json")
+
+    geometry = artifact.ocr_geometry
+    if geometry is None:
+        if edit.op is not RegionEditOp.ADD:
+            raise HTTPException(
+                status_code=422,
+                detail=f"artifact {artifact_id} carries no ocr_geometry to edit",
+            )
+        # Bootstrap: the first hand-drawn region on an artifact that never had
+        # geometry. Provider is honest provenance — a person, not a model.
+        geometry = OCRGeometryResult(provider="user", boxes=[])
+
+    boxes = list(geometry.boxes)
+    indices = list(dict.fromkeys(edit.indices))  # dedupe, keep given order
+    for idx in indices:
+        if idx < 0 or idx >= len(boxes):
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"region index {idx} out of range "
+                    f"(artifact has {len(boxes)} boxes)"
+                ),
+            )
+
+    log_entry: dict[str, Any] = {
+        "op": str(edit.op),
+        "at": utc_now().isoformat(),
+        "actor": actor,
+        "indices": indices,
+    }
+
+    if edit.op is RegionEditOp.MOVE:
+        if len(indices) != 1 or edit.bbox is None:
+            raise HTTPException(
+                status_code=422, detail="move needs exactly one index and a bbox"
+            )
+        idx = indices[0]
+        log_entry["from_bbox"] = boxes[idx].bbox
+        boxes[idx] = _validated_box(boxes[idx], bbox=edit.bbox)
+
+    elif edit.op is RegionEditOp.DELETE:
+        if not indices:
+            raise HTTPException(status_code=422, detail="delete needs at least one index")
+        # Audit-friendly, not merely undoable: the removed boxes ride in the
+        # geometry's own log so an exported artifact still explains itself.
+        log_entry["removed"] = [
+            boxes[i].model_dump(mode="json") for i in sorted(indices)
+        ]
+        boxes = [b for i, b in enumerate(boxes) if i not in set(indices)]
+
+    elif edit.op is RegionEditOp.ADD:
+        if edit.bbox is None:
+            raise HTTPException(status_code=422, detail="add needs a bbox")
+        boxes.append(
+            _validated_box(
+                None,
+                text=edit.text,
+                bbox=edit.bbox,
+                level=str(edit.level),
+                provider="user",
+                source="manual",
+            )
+        )
+        log_entry["added_bbox"] = edit.bbox
+
+    elif edit.op is RegionEditOp.COMBINE:
+        if len(indices) < 2:
+            raise HTTPException(
+                status_code=422, detail="combine needs at least two indices"
+            )
+        ordered = _reading_order([(i, boxes[i]) for i in indices])
+        members = [b for _, b in ordered]
+        merged_bbox = union_bbox(members)
+        texts = [b.text for b in members if b.text]
+        levels = {b.level for b in members}
+        starts = [b.char_start for b in members]
+        ends = [b.char_end for b in members]
+        log_entry["combined"] = [b.model_dump(mode="json") for b in members]
+        merged = _validated_box(
+            None,
+            # Reading order, newline-joined: regions read as passages, and a
+            # newline keeps two lines' worth of text from running together.
+            text="\n".join(texts),
+            bbox=merged_bbox,
+            level=(
+                str(next(iter(levels)))
+                if len(levels) == 1
+                else str(OCRGeometryLevel.REGION)
+            ),
+            char_start=min(starts) if all(s is not None for s in starts) else None,
+            char_end=max(ends) if all(e is not None for e in ends) else None,
+            provider="user",
+            source="combine",
+        )
+        keep_at = min(indices)
+        removed_before_keep = sum(1 for i in indices if i < keep_at)
+        boxes = [b for i, b in enumerate(boxes) if i not in set(indices)]
+        boxes.insert(keep_at - removed_before_keep, merged)
+
+    metadata = dict(geometry.metadata)
+    curation_log = list(metadata.get("curation_log") or [])
+    curation_log.append(log_entry)
+    metadata["curation_log"] = curation_log
+    artifact.ocr_geometry = geometry.model_copy(
+        update={"boxes": boxes, "metadata": metadata}
+    )
+    db.save(artifact)
+    return artifact, before
+
+
+@action(
+    "artifact.regions_edit",
+    ArtifactRegionsEditActionParams,
+    domains=["artifact", "document"],
+    undoable=True,
+    invert=_invert_artifact_to_restore,
+)
+def _action_edit_artifact_regions(
+    db: Database, params: ArtifactRegionsEditActionParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    artifact, before = _edit_regions_impl(db, params.artifact_id, params.edit, ctx.actor)
+    spec = ChangeSpec(
+        domains=["artifact", "document"],
+        target_ids=[artifact.id],
+        before=before,
+        after=artifact.model_dump(mode="json"),
+        emit_type="artifact.updated",
+        artifact_ids=[artifact.id],
+        document_ids=[artifact.document_id],
+    )
+    # Geometry INCLUDED: the caller just edited boxes and re-renders from this
+    # response — making it re-fetch would invite a stale-overlay class of bug.
+    return (
+        _artifact_response(artifact, include_geometry=True).model_dump(mode="json"),
+        spec,
+    )
+
+
+@router.put("/{artifact_id}/regions", response_model=ArtifactResponse)
+async def edit_artifact_regions(
+    artifact_id: str,
+    edit: ArtifactRegionsEditRequest,
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
+    x_fichero_origin_window: str | None = Header(
+        default=None,
+        alias="X-Fichero-Origin-Window",
+    ),
+    actor: str = Depends(request_actor),
+) -> ArtifactResponse:
+    """Curate an artifact's regions: move, delete, add, or combine boxes.
+
+    Curation-grade: one audited, undoable action per edit (full before
+    snapshot — nothing is ever lost), plus a `curation_log` entry inside the
+    geometry itself so the history travels with the artifact.
+    """
+    ctx = _resolve_action_ctx(
+        actor=actor,
+        library_path=x_fichero_library_path,
+        origin_window=x_fichero_origin_window,
+        db=db,
+    )
+    result = registry.invoke(
+        db,
+        "artifact.regions_edit",
+        {"artifact_id": artifact_id, "edit": edit.model_dump(mode="json")},
+        ctx,
+    )
+    return ArtifactResponse.model_validate(result.result)
