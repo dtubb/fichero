@@ -53,6 +53,14 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
     /// The disclosed second row. An empty `Tools` hides the `⋯` toggle, so a
     /// pane with nothing extra shows no affordance for it.
     @ViewBuilder var tools: () -> Tools
+    /// The disclosure toggle's glyph. Defaults to the `⋯` every pane has used;
+    /// Preview passes a pencil (Daniel, 2026-08-29: the head's pencil slides
+    /// the markup row out under the head — Preview.app's markup bar). Same
+    /// slide-out mechanism either way, only the affordance renames.
+    var toolsIcon: String = "ellipsis"
+    /// Help/accessibility wording for the disclosure toggle when it is more
+    /// specific than "tools" (e.g. "markup").
+    var toolsHelp: String = "tools row"
 
     @State private var showsTools = false
     /// Split actions arrive from the pane's own environment, so EVERY
@@ -329,11 +337,14 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
                     Button {
                         withAnimation(.snappy(duration: 0.16)) { showsTools.toggle() }
                     } label: {
-                        Image(systemName: "ellipsis")
+                        Image(systemName: toolsIcon)
                     }
                     .buttonStyle(.borderless)
-                    .accessibilityLabel(showsTools ? "Hide tools" : "Show tools")
-                    .help(showsTools ? "Hide the tools row" : "Show the tools row")
+                    // Reads as toggled while its row is out (the pencil case
+                    // must show it is armed — Daniel, 2026-08-29).
+                    .foregroundStyle(showsTools ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.primary))
+                    .accessibilityLabel(showsTools ? "Hide \(toolsHelp)" : "Show \(toolsHelp)")
+                    .help(showsTools ? "Hide the \(toolsHelp)" : "Show the \(toolsHelp)")
                 }
             }
         }

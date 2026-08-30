@@ -49,6 +49,14 @@ struct ContentView: View {
     /// The preview pane's lens (Daniel, 2026-08-23: "preview and edit").
     /// Never changes WHICH document shows, only how.
     @State var previewLens: PreviewLens = .preview
+    /// The SAME per-window key EditorView reads for its edit canvas — shared
+    /// so the head's Edit lens actually enters/leaves edit mode instead of
+    /// being a label beside a second state (Daniel, 2026-08-29 restructure).
+    @SceneStorage("inspectorSelectedTab") var previewEditorTab: InspectorTab = .content
+    /// The preview head ↔ canvas chrome seam (Daniel, 2026-08-29): the
+    /// mounted canvas publishes paging + renditions here; the head renders
+    /// them (pages ‹ › left of the breadcrumb, renditions as a head menu).
+    @State var previewChrome = PreviewPaneChrome()
     /// Preview pin (Daniel: every pane pins to its current view): non-nil
     /// freezes the preview on this document while selection moves on.
     @State var pinnedPreviewDocument: Document?

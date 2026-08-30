@@ -105,12 +105,21 @@ struct ZoomableImagePreview: View {
             }
         }()
         isDrawingRegion = false
+        // The highlight split-button's color rides the saved highlight
+        // (Daniel, 2026-08-29). Underline/strikethrough save uncolored until
+        // a backing kind exists (see the design report).
+        let color: String? = kind == .highlight
+            ? PreviewHighlightStyle(
+                rawValue: UserDefaults.standard.string(forKey: PreviewHighlightStyle.storageKey) ?? ""
+            )?.persistedColor
+            : nil
         Task {
             _ = await annotationStore.addNote(
                 scope: .document(documentId),
                 text: "",
                 bbox: box,
-                kind: kind
+                kind: kind,
+                color: color
             )
         }
     }
@@ -173,6 +182,18 @@ struct ZoomableImagePreview: View {
     @State var isDrawingRegion = false
     @State var pendingAnnotationTool: ReaderAnnotationTool = .highlight
 
+    /// The pane head's chrome seam (Daniel, 2026-08-29): paging + renditions
+    /// publish here so the head renders them. Optional — headless hosts skip.
+    @Environment(PreviewPaneChrome.self) var paneChrome: PreviewPaneChrome?
+
+    /// ⌥ summons the loupe temporarily while it is toggled off (Daniel,
+    /// 2026-08-29); releasing ⌥ lets it go.
+    @State var loupeTransient = false
+    @State private var optionMonitor: Any?
+
+    /// The loupe the tracking view actually shows: the toggle, or ⌥ held.
+    var loupeIsOn: Bool { loupeEnabled || loupeTransient }
+
     // OCR text-box overlay (#4309): the transcription pass's word/line boxes
     // rendered over the page image, fetched from the artifact API on demand.
     // The loader lives in OCRGeometryOverlay.swift to keep this body lean.
@@ -225,113 +246,14 @@ struct ZoomableImagePreview: View {
     /// transient, cleared when the selection clears or the item changes.
     @State var linkedSelectionBoxes: [[Double]] = []
 
-    // Zoom actions live in ZoomableImagePreviewMac+ZoomActions.swift and the
-    // opening-zoom rule in PreviewInitialZoomPolicy.swift (moved/extracted to
-    // keep this body under the type-body-length budget).
+    // Zoom actions: +ZoomActions.swift; opening-zoom rule:
+    // PreviewInitialZoomPolicy.swift (extracted for the type-body budget).
 
     var body: some View {
         VStack(spacing: 0) {
-            // Main content area. The reader toolbar (zoom / magnifier / loupe /
-            // edit / annotation) now lives at the BOTTOM of the canvas via the
-            // shared ReaderToolbar (#2423), so the image and PDF readers present
-            // one identical, persistent bar.
-            ZStack(alignment: .topTrailing) {
-                VStack(spacing: 0) {
-                    if renderedImage != nil || url != nil {
-                        ImageWithCursorTracking(
-                            url: url,
-                            // A backend-rendered rendition WINS over the
-                            // high-res source (2026-08-20 bbox review, D2).
-                            // The old `highResImage ?? renderedImage` let the
-                            // zoom-triggered source fetch replace the very
-                            // rendition the user chose to look at — different
-                            // pixels, and for a crop/rotate/deskew/split
-                            // rendition a different FRAME, which moves every
-                            // box on the page.
-                            overrideImage: renditionOverrideImage ?? renderedImage ?? highResImage,
-                            // Rendition index in the key: a flip counts as
-                            // an ITEM change so the view refits — renditions
-                            // have different pixel sizes, and preserving
-                            // apparent width left one at 70% and the next at
-                            // 26% (Daniel, 2026-08-22).
-                            itemKey: "\(documentId ?? "")#r\(renditionIndex)",
-                            focusRegion: focusRegion,
-                            scale: $scale,
-                            cursorPosition: $cursorPosition,
-                            imageSize: $imageSize,
-                            geometry: $geometry,
-                            minScale: minScale,
-                            maxScale: maxScale,
-                            loupeEnabled: loupeEnabled,
-                            loupeLocked: loupeLocked,
-                            loupeMagnification: Binding(
-                                get: { CGFloat(loupeMagnification) },
-                                set: { loupeMagnification = Double($0) }
-                            ),
-                            loupeSize: Binding(
-                                get: { CGFloat(loupeSize) },
-                                set: { loupeSize = Double($0) }
-                            ),
-                            coordinator: $imageCoordinator
-                        )
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-                        .overlay(alignment: .topLeading) {
-                            boxOverlays
-                        }
-                    } else {
-                        ProgressView()
-                            .controlSize(.small)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    }
-
-                    // Bottom magnifier panel
-                    if magnifierEnabled, let img = image {
-                        Divider()
-                        MagnifierPanelView(
-                            image: img,
-                            cursorPosition: magnifierPosition,
-                            imageSize: imageSize,
-                            magnification: Binding(
-                                get: { CGFloat(panelMagnification) },
-                                set: { panelMagnification = Double($0) }
-                            ),
-                            panelHeight: Binding(
-                                get: { CGFloat(panelHeight) },
-                                set: { panelHeight = Double($0) }
-                            ),
-                            isLocked: $magnifierLocked,
-                            onLockToggle: {
-                                if !magnifierLocked {
-                                    // Locking - save the current magnifier position
-                                    lockedPosition = cursorPosition
-                                }
-                                magnifierLocked.toggle()
-                            }
-                        )
-                        .frame(height: CGFloat(panelHeight))
-                    }
-                }
-                .background(Color(nsColor: .windowBackgroundColor))
-
-                // Mini-map navigator (top right) - show when zoomed in (visible rect < full) or loupe active.
-                // The visible window starts at (0,0,0,0) before layout completes,
-                // which would pass the "< 0.99" zoom check and flash the minimap on
-                // every image load (#771). `isMeasured` is that same guard, now
-                // expressed once on the geometry value instead of re-derived here.
-                let isActuallyZoomed = geometry.isMeasured
-                    && (geometry.visible.width < 0.99 || geometry.visible.height < 0.99)
-                if let img = image, isActuallyZoomed || loupeEnabled {
-                    NavigatorMiniMap(
-                        image: img,
-                        visibleRect: geometry.visible,
-                        onRectangleDragged: { normalizedOrigin in
-                            imageCoordinator?.scrollToNormalizedPosition(normalizedOrigin)
-                        }
-                    )
-                    .frame(width: 150, height: 100)
-                    .padding(8)
-                }
-            }
+            // Canvas (image + overlays + magnification cluster + magnifier
+            // strip) — extracted to +Overlays.swift 2026-08-29 (length budget).
+            canvasArea
 
             Divider()
 
@@ -344,8 +266,35 @@ struct ZoomableImagePreview: View {
             // load — the selection now drives which artifact's boxes render.
             id: "\(documentId ?? "")|\(ocrBoxesEnabled)|\(executionObserver?.activeExecutions.count ?? 0)|\(FocusedArtifact.shared.id ?? "")"
         ) { await loadOCRGeometry() }
-        .task(id: documentId) { await loadRenditions() }
-        .onAppear { handleViewAppeared() }
+        .task(id: documentId) {
+            await loadRenditions()
+            publishHeadChrome()
+        }
+        .onAppear {
+            handleViewAppeared()
+            publishHeadChrome()
+            installOptionLoupeMonitor()
+        }
+        .onDisappear { removeOptionLoupeMonitor() }
+        .onChange(of: renditionIndex) { _, _ in publishHeadChrome() }
+        // The head's markup row (Daniel, 2026-08-29): highlight and note arm
+        // the same region-draw path the bottom bar's buttons used to.
+        .onReceive(NotificationCenter.default.publisher(for: .previewAnnotateTool)) { note in
+            guard let raw = note.object as? String,
+                  let tool = PreviewMarkupTool(rawValue: raw) else { return }
+            switch tool {
+            case .highlight: requestAnnotation(.highlight)
+            case .note: requestAnnotation(.note)
+            case .select, .drawRegion, .line:
+                break  // preview-regions lane / future drawing kinds
+            }
+        }
+        // Esc dismisses the loupe (Daniel, 2026-08-29).
+        .onKeyPress(.escape, phases: .down) { _ in
+            guard loupeEnabled || loupeTransient else { return .ignored }
+            loupeEnabled = false; loupeTransient = false
+            return .handled
+        }
         .onChange(of: documentId) { _, _ in handleDocumentIDChanged() }
         .onReceive(NotificationCenter.default.publisher(for: .readerTextSelection)) { note in
             handleReaderTextSelection(note)
@@ -406,6 +355,45 @@ struct ZoomableImagePreview: View {
             canZoomIn: scale < maxScale,
             canZoomOut: scale > minScale
         ))
+    }
+}
+
+// MARK: - Head chrome + ⌥-loupe (Daniel, 2026-08-29). Same-file extension:
+// `private` stays visible; the struct body stays under its length budget.
+
+extension ZoomableImagePreview {
+    /// Publish paging + renditions to the head's chrome seam (mount and
+    /// document/rendition change) — last-writer-wins across splits, same as
+    /// the focused zoom actions.
+    func publishHeadChrome() {
+        guard let paneChrome else { return }
+        paneChrome.pageNav = imagePageNav
+        paneChrome.renditionNames = renditions.map(\.displayName)
+        paneChrome.renditionIndex = renditionIndex
+        paneChrome.selectRendition = { index in self.flipRendition(to: index) }
+    }
+
+    /// ⌥ held while the loupe is OFF summons it temporarily; release lets it
+    /// go. A toggled-on loupe is untouched.
+    private func installOptionLoupeMonitor() {
+        guard optionMonitor == nil else { return }
+        optionMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { event in
+            MainActor.assumeIsolated {  // local monitors fire on main
+                let optionHeld = event.modifierFlags.contains(.option)
+                if loupeTransient != (optionHeld && !loupeEnabled) {
+                    loupeTransient = optionHeld && !loupeEnabled
+                }
+            }
+            return event
+        }
+    }
+
+    private func removeOptionLoupeMonitor() {
+        if let optionMonitor {
+            NSEvent.removeMonitor(optionMonitor)
+        }
+        optionMonitor = nil
+        loupeTransient = false
     }
 }
 

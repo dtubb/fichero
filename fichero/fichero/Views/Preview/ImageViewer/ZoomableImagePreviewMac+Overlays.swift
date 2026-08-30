@@ -91,23 +91,145 @@ extension ZoomableImagePreview {
 
 extension ZoomableImagePreview {
     // Moved from the main file 2026-08-23 (file/type length): same member.
+    // QUIET since 2026-08-29 (Daniel): paging/renditions live in the pane
+    // head, markup in the head's slide-out row, and the magnification family
+    // in the floating cluster beside the mini-map. This bar keeps only
+    // what-to-show and the metadata ⓘ.
     var readerToolbar: some View {
         ReaderToolbar(
-            pageNav: imagePageNav,
-            renditionNav: renditionNav,
+            style: .quiet,
+            onShowInfo: {
+                NotificationCenter.default.post(name: .previewShowInfo, object: nil)
+            },
             scalePercent: Int(scale * 100),
             zoomIn: zoomIn,
             zoomOut: zoomOut,
             fitToWindow: fitToWindow,
             actualSize: actualSize,
-            magnifierEnabled: $magnifierEnabled,
-            textBoxesEnabled: $ocrBoxesEnabled,
-            loupeEnabled: $loupeEnabled,
-            loupeLocked: $loupeLocked,
-            loupeMagnification: $loupeMagnification,
-            isEditing: isEditing,
-            onAnnotate: requestAnnotation
+            textBoxesEnabled: $ocrBoxesEnabled
         )
+    }
+}
+
+extension ZoomableImagePreview {
+    /// The main canvas: tracking image + box overlays + the magnification
+    /// family cluster (mini-map / zoom pill / loupe + magnifier toggles,
+    /// bottom-right — Daniel, 2026-08-29) + the magnifier strip. Extracted
+    /// from `body` (2026-08-29) for the type-length budget.
+    var canvasArea: some View {
+        // Main content area. The reader toolbar (zoom / magnifier / loupe /
+        // edit / annotation) now lives at the BOTTOM of the canvas via the
+        // shared ReaderToolbar (#2423), so the image and PDF readers present
+        // one identical, persistent bar.
+        ZStack(alignment: .bottomTrailing) {
+            VStack(spacing: 0) {
+                if renderedImage != nil || url != nil {
+                    ImageWithCursorTracking(
+                        url: url,
+                        // A backend-rendered rendition WINS over the
+                        // high-res source (2026-08-20 bbox review, D2).
+                        // The old `highResImage ?? renderedImage` let the
+                        // zoom-triggered source fetch replace the very
+                        // rendition the user chose to look at — different
+                        // pixels, and for a crop/rotate/deskew/split
+                        // rendition a different FRAME, which moves every
+                        // box on the page.
+                        overrideImage: renditionOverrideImage ?? renderedImage ?? highResImage,
+                        // Rendition index in the key: a flip counts as
+                        // an ITEM change so the view refits — renditions
+                        // have different pixel sizes, and preserving
+                        // apparent width left one at 70% and the next at
+                        // 26% (Daniel, 2026-08-22).
+                        itemKey: "\(documentId ?? "")#r\(renditionIndex)",
+                        focusRegion: focusRegion,
+                        scale: $scale,
+                        cursorPosition: $cursorPosition,
+                        imageSize: $imageSize,
+                        geometry: $geometry,
+                        minScale: minScale,
+                        maxScale: maxScale,
+                        loupeEnabled: loupeIsOn,
+                        loupeLocked: loupeLocked,
+                        loupeMagnification: Binding(
+                            get: { CGFloat(loupeMagnification) },
+                            set: { loupeMagnification = Double($0) }
+                        ),
+                        loupeSize: Binding(
+                            get: { CGFloat(loupeSize) },
+                            set: { loupeSize = Double($0) }
+                        ),
+                        coordinator: $imageCoordinator
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                    .overlay(alignment: .topLeading) {
+                        boxOverlays
+                    }
+                } else {
+                    ProgressView()
+                        .controlSize(.small)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+
+                // Bottom magnifier panel
+                if magnifierEnabled, let img = image {
+                    Divider()
+                    MagnifierPanelView(
+                        image: img,
+                        cursorPosition: magnifierPosition,
+                        imageSize: imageSize,
+                        magnification: Binding(
+                            get: { CGFloat(panelMagnification) },
+                            set: { panelMagnification = Double($0) }
+                        ),
+                        panelHeight: Binding(
+                            get: { CGFloat(panelHeight) },
+                            set: { panelHeight = Double($0) }
+                        ),
+                        isLocked: $magnifierLocked,
+                        onLockToggle: {
+                            if !magnifierLocked {
+                                // Locking - save the current magnifier position
+                                lockedPosition = cursorPosition
+                            }
+                            magnifierLocked.toggle()
+                        }
+                    )
+                    .frame(height: CGFloat(panelHeight))
+                }
+            }
+            .background(Color(nsColor: .windowBackgroundColor))
+
+            // The magnification family, bottom-right (Daniel, 2026-08-29):
+            // mini-map on top, zoom pill under it, loupe + magnifier-bar
+            // toggles below. The map keeps its #771 guard — it appears
+            // only when zoomed in (or the loupe is up); without it the
+            // cluster collapses to the pill + toggles.
+            let isActuallyZoomed = geometry.isMeasured
+                && (geometry.visible.width < 0.99 || geometry.visible.height < 0.99)
+            PreviewZoomMapCluster(
+                scalePercent: Int(scale * 100),
+                zoomIn: zoomIn,
+                zoomOut: zoomOut,
+                fitToWindow: fitToWindow,
+                actualSize: actualSize,
+                loupeEnabled: $loupeEnabled,
+                magnifierEnabled: $magnifierEnabled,
+                map: {
+                if let img = image, isActuallyZoomed || loupeIsOn {
+                    NavigatorMiniMap(
+                        image: img,
+                        visibleRect: geometry.visible,
+                        onRectangleDragged: { normalizedOrigin in
+                            imageCoordinator?.scrollToNormalizedPosition(normalizedOrigin)
+                        }
+                    )
+                    .frame(width: 150, height: 100)
+                }
+            })
+            // Stay over the IMAGE, not the magnifier strip that slides up
+            // from the bottom edge when its toggle is on.
+            .padding(.bottom, magnifierEnabled && image != nil ? CGFloat(panelHeight) : 0)
+        }
     }
 }
 

@@ -47,17 +47,9 @@ extension ContentView {
         // SLOT-scoped (2026-08-24): two slots hosting previews shared the
         // per-window "canvas" @SceneStorage, so splitting one split both.
         adaptiveSplittablePane(storageKey: splitKey) {
-            widescreenCanvasPaneContent
-                // The preview's floating head (Daniel, 2026-08-23): same
-                // grammar and components as reader/library/chat.
-                .safeAreaInset(edge: .top, spacing: 0) { previewPaneHead }
-                // Mandate 1, consumer 1: the shown item's outline feeds the
-                // head's crumb chain (entry → page → spread parents included).
-                .task(id: detailDocument?.id) {
-                    if let id = detailDocument?.id {
-                        await documentStore.loadOutline(for: id)
-                    }
-                }
+            // The head, the chrome seam, and their sync live in
+            // ContentView+PreviewPaneHead.swift (2026-08-29 restructure).
+            previewHeadPlumbing(around: widescreenCanvasPaneContent)
         }
     }
 
