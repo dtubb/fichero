@@ -255,6 +255,16 @@ struct ModelFamilyMark: View {
         return table.first { haystack.contains($0.needle) }?.asset
     }
 
+    /// True when the call is ROUTED: the provider is a router (OpenRouter)
+    /// while the model belongs to another family — the case Daniel wants
+    /// visible at a glance ("we're showing google — could we indicate
+    /// OpenRouter + Google", 2026-08-29). Shown as a small router badge on
+    /// the family logo's corner.
+    private var isRouted: Bool {
+        provider.lowercased().contains("openrouter")
+            && !model.lowercased().contains("openrouter")
+    }
+
     var body: some View {
         let haystack = "\(provider)/\(model)".lowercased()
         if haystack.contains("apple") {
@@ -267,6 +277,17 @@ struct ModelFamilyMark: View {
                 .aspectRatio(contentMode: .fit)
                 .frame(width: 18, height: 18)
                 .frame(width: 20, height: 20)
+                .overlay(alignment: .bottomTrailing) {
+                    if isRouted {
+                        Image("Providers/OpenRouter")
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 9, height: 9)
+                            .padding(1)
+                            .background(.background, in: Circle())
+                            .offset(x: 3, y: 3)
+                    }
+                }
         } else {
             // A family with no bundled logo still gets a mark: its initial in
             // a quiet circle. This is what lets logo-first survive providers
