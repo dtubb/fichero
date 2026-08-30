@@ -197,9 +197,9 @@ struct ZoomableImagePreview: View {
     // Zoom actions: +ZoomActions.swift; opening-zoom rule:
     // PreviewInitialZoomPolicy.swift (extracted for the type-body budget).
 
-    // The body is split into bounded layer properties — two lanes' merged
-    // modifier chain blew the type-checker budget (the LibraryWindow.body
-    // pathology; each layer keeps its chain small and checkable).
+    /// Split into bounded layer properties: two lanes' merged modifier chain
+    /// blew the type-checker budget — the same pathology the library window
+    /// hit — and each layer keeps its chain small enough to check.
     var body: some View {
         keyboardLayer
             .focusedSceneValue(\.imageZoomActions, ImageZoomActions(
@@ -298,10 +298,10 @@ struct ZoomableImagePreview: View {
             // persisted regions; Esc clears every ephemeral region state.
             .onDeleteCommand { handleRegionDeleteKey() }
             .onExitCommand { clearEphemeralRegionState() }
-            // Daniel's ruling (2026-08-10, audit 3c): left/right = PREVIOUS/
-            // NEXT item, up/down = pan the current image. Pan on ←/→ only
-            // while the zoomed image can actually travel horizontally;
-            // otherwise step siblings via the trackpad-swipe seam.
+            // Daniel's ruling (2026-08-10, audit 3c): left/right mean
+            // PREVIOUS/NEXT item, up/down pan the current image. ←/→ pan
+            // only when the zoomed image can actually travel horizontally;
+            // otherwise they step siblings via the trackpad-swipe seam.
             .onKeyPress(.leftArrow, phases: .down) { _ in
                 if canPanHorizontally { panLeft() } else {
                     NotificationCenter.default.post(name: .previewSiblingSwipe, object: -1)
