@@ -78,19 +78,37 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
                 controlsCapsule
             }
             if showsTools {
-                capsule { tools() }
+                // A second ROW below the header (Daniel, 2026-08-30: the
+                // markup bar comes in under the head, never replacing it —
+                // the old constant-height clamp squeezed both rows into one
+                // bar's worth of space). Fixed row height so the head still
+                // has exactly two possible sizes, toggled rarely — not the
+                // per-click moving inset the 2026-08-23 stall came from.
+                // Explicit HStack: the row's builder emits bare buttons, and
+                // a TupleView without a stack renders VERTICALLY — the other
+                // half of Daniel's 2026-08-30 report.
+                capsule { HStack(spacing: 6) { tools() } }
+                    .frame(height: PaneHeadMetrics.toolsRowHeight, alignment: .leading)
             }
         }
         .padding(.leading, PaneHeadMetrics.inset)
         // Extra trailing room (Daniel, 2026-08-23): the "+" must not sit
         // over a scroll bar when the pane has one.
         .padding(.trailing, PaneHeadMetrics.trailingInset)
-        // CONSTANT height (2026-08-23 live, the 15s stall): the head mounts
-        // as a top safe-area inset, and a height that moves with crumb
-        // content re-lays out EVERY row of the lazy list beneath it on each
-        // selection click. The tools row keeps the base height and floats.
-        .frame(maxWidth: .infinity, minHeight: PaneHeadMetrics.barHeight,
-               maxHeight: PaneHeadMetrics.barHeight, alignment: .leading)
+        // TWO-STATE height (2026-08-23 stall rule, amended 2026-08-30): the
+        // head mounts as a top safe-area inset, so its height must never
+        // move with CONTENT — but the tools toggle is a deliberate, rare
+        // state change, and its row needs real space below the header.
+        .frame(maxWidth: .infinity,
+               minHeight: headHeight, maxHeight: headHeight,
+               alignment: .topLeading)
+    }
+
+    private var headHeight: CGFloat {
+        showsTools
+            ? PaneHeadMetrics.barHeight + PaneHeadMetrics.rowSpacing
+                + PaneHeadMetrics.toolsRowHeight
+            : PaneHeadMetrics.barHeight
     }
 
     /// True while this pane sits inside an active split — X then collapses
@@ -371,6 +389,9 @@ enum PaneHeadMetrics {
     /// The head's ONE height — constant so the safe-area inset never moves
     /// (a moving inset re-lays out the whole lazy list beneath it).
     static let barHeight: CGFloat = 40
+    /// The slide-out tools row's own height (markup bar, region verbs) —
+    /// fixed, so the head has exactly two possible sizes.
+    static let toolsRowHeight: CGFloat = 34
     static let rowSpacing: CGFloat = 6
     static let capsuleSpacing: CGFloat = 8
     static let capsulePadding: CGFloat = 8
