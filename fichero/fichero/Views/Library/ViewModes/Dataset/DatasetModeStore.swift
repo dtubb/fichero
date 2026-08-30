@@ -38,9 +38,7 @@ enum DatasetDateFilter: String, CaseIterable, Identifiable {
 @MainActor
 @Observable
 final class DatasetModeStore {
-    var page: DatasetPage? {
-        didSet { displayRevision &+= 1 }
-    }
+    var page: DatasetPage? { didSet { displayRevision &+= 1 } }
     /// Bumped on every page (re)assignment — DatasetPage is a struct, so any
     /// nested row mutation reassigns it too. Keys `orderedVisibleRows`' memo.
     @ObservationIgnored var displayRevision = 0
@@ -61,7 +59,8 @@ final class DatasetModeStore {
     ) ?? .excerpt {
         didSet { UserDefaults.standard.set(textDetail.rawValue, forKey: "dataset.textDetail") }
     }
-    var isLoading = false, errorText: String?
+    var isLoading = false
+    var errorText: String?
     /// A failed EDIT, shown transiently in the header — never the full-pane
     /// error state, which would blank rows that are still perfectly valid.
     var editErrorText: String?
