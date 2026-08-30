@@ -138,7 +138,9 @@ final class ImageEditingService {
     private static let maxPreviewBytes = 50 * 1024 * 1024
 
     private let libraryPath: String
-    private let client: FicheroClient
+    /// Internal (not private): the region-children extension file calls the
+    /// same generated client.
+    let client: FicheroClient
 
     /// Engine root without `/api`, read live off the wrapped client so a pairing /
     /// Settings host change (#2349) rebinds the raw-bytes `previewURL` path too —

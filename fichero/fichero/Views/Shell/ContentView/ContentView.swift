@@ -205,6 +205,10 @@ struct ContentView: View {
     @State var lastChainRunTargets: [String] = []
     /// Which chain step is executing, for the rail's progress.
     @State var runningStagedStepIndex: Int?
+    /// Explicit run-scope chosen from the subject chip's menu (Daniel,
+    /// 2026-08-29). Outranks the automatic ladder while what it names is
+    /// still visible; nil (the menu's "Automatic") follows the ladder.
+    @State var workflowScopeOverride: WorkflowBarPolicy.RunScope?
     /// Upper-bound cost of the staged chain, or nil when nothing can be
     /// priced — never 0, which would read as free.
     @State var stagedChainCostCeiling: Double?

@@ -159,7 +159,7 @@ enum WorkflowBarPolicy {
         "convert": "arrow.triangle.2.circlepath",
         "export": "square.and.arrow.up",
         "image editing": "photo",
-        "books": "book",
+        "books": "book"
     ]
 
     static func symbol(forFamily key: String) -> String {
@@ -178,6 +178,169 @@ enum WorkflowBarPolicy {
         case .text(let text):
             let words = text.split(whereSeparator: \.isWhitespace).count
             return words == 1 ? "1 word" : "\(words) words"
+        }
+    }
+
+    // MARK: - Run-scope resolution (Daniel, 2026-08-29: the bar follows the
+    // selection the user can SEE, wherever it is — inspector region rows,
+    // a focused artifact, the browser list, or the previewed document).
+
+    /// Everything the ladder needs, snapshotted as plain values so the
+    /// decision is a pure function with no SwiftUI or stores in it.
+    struct SelectionSnapshot: Equatable {
+        /// An ephemeral marquee drawn in Preview — a crop that is not a
+        /// persisted node. The topmost rung when present.
+        var marqueeDocumentId: String?
+        var marqueeRect: CGRect?
+        var marqueeDocumentName: String?
+
+        /// Region NODE ids selected in the inspector's regions list.
+        var regionIds: [String] = []
+        /// The page those regions belong to.
+        var regionParentDocumentId: String?
+        var regionParentName: String?
+
+        /// The focused artifact (inspector list or a table's artifact row).
+        var artifactId: String?
+        var artifactDocumentId: String?
+        /// e.g. "Transcription Review" — what the chip should NAME.
+        var artifactDisplayName: String?
+        var artifactType: String?
+        var artifactStepName: String?
+        var artifactDocumentName: String?
+
+        /// The library browser's effective selection (live or preserved).
+        var browserSelection: [String] = []
+
+        /// The previewed document — the last rung.
+        var detailDocumentId: String?
+        var detailDocumentName: String?
+    }
+
+    /// What a run would act on, resolved. Distinct from `Target` (which
+    /// drives verb FILTERING): the scope carries the ids and hints a run
+    /// needs, plus enough names for the chip to state it honestly.
+    enum RunScope: Equatable {
+        /// An ephemeral marquee drawn on one document in Preview. Not yet a
+        /// node: ▶ materializes it as a region child (`image.crop_child`)
+        /// and runs on that — the engine takes crops as node config, never
+        /// as run inputs, so an unpersisted rect cannot run directly.
+        case marqueeSelection(documentId: String, rect: CGRect, documentName: String?)
+        /// N region nodes of one page — region nodes are documents, so their
+        /// ids run as ordinary `selected_doc_ids`.
+        case regions(ids: [String], parentName: String?)
+        /// One artifact of one document: the run targets the document and
+        /// carries the artifact's type/step so an `artifacts_source` step
+        /// reads THAT artifact rather than its default. `artifactId` is nil
+        /// when the scope was chosen by TYPE from the subject menu rather
+        /// than by focusing one concrete artifact.
+        case artifact(
+            documentId: String,
+            artifactId: String?,
+            displayName: String,
+            documentName: String?,
+            artifactType: String?,
+            stepName: String?
+        )
+        case documents(ids: [String])
+        case detailDocument(id: String, name: String?)
+        case nothing
+
+        /// The ids a run is dispatched with. For a marquee this is the SOURCE
+        /// document — the run swaps in the materialized region child at
+        /// ▶-press; consumers that only count or fall back (chip count, cost
+        /// ceiling, "open result") are honest with the source id.
+        var documentIds: [String] {
+            switch self {
+            case .marqueeSelection(let documentId, _, _): return [documentId]
+            case .regions(let ids, _): return ids
+            case .artifact(let documentId, _, _, _, _, _): return [documentId]
+            case .documents(let ids): return ids
+            case .detailDocument(let id, _): return [id]
+            case .nothing: return []
+            }
+        }
+
+        /// The bar's filtering target for this scope. Regions and artifacts
+        /// are still documents to the engine's `accepted_inputs` vocabulary.
+        var target: Target {
+            switch self {
+            case .marqueeSelection: return .documents(count: 1)
+            case .regions(let ids, _): return .documents(count: ids.count)
+            case .artifact: return .documents(count: 1)
+            case .documents(let ids): return .documents(count: ids.count)
+            case .detailDocument: return .documents(count: 1)
+            case .nothing: return .nothing
+            }
+        }
+    }
+
+    /// The ladder (Daniel, 2026-08-29): Preview marquee > inspector region
+    /// selection > inspector artifact selection > browser selection > detail
+    /// document.
+    ///
+    /// Each upper rung is honored only while it is VISIBLE: region and
+    /// artifact selections belong to the inspected document, so a selection
+    /// whose document the user has since left drops out rather than silently
+    /// scoping a run to something off-screen. A deliberate multi-select in
+    /// the browser likewise outranks a lingering single-artifact focus —
+    /// selecting five documents is unmistakably the selection you can see.
+    static func resolveRunScope(_ snapshot: SelectionSnapshot) -> RunScope {
+        if let marqueeDocumentId = snapshot.marqueeDocumentId,
+           let rect = snapshot.marqueeRect,
+           rect.width > 0, rect.height > 0,
+           marqueeDocumentId == snapshot.detailDocumentId {
+            return .marqueeSelection(
+                documentId: marqueeDocumentId,
+                rect: rect,
+                documentName: snapshot.marqueeDocumentName ?? snapshot.detailDocumentName
+            )
+        }
+        if !snapshot.regionIds.isEmpty,
+           snapshot.regionParentDocumentId == nil
+            || snapshot.regionParentDocumentId == snapshot.detailDocumentId {
+            return .regions(ids: snapshot.regionIds, parentName: snapshot.regionParentName)
+        }
+        if let artifactId = snapshot.artifactId,
+           let documentId = snapshot.artifactDocumentId,
+           documentId == snapshot.detailDocumentId,
+           snapshot.browserSelection.count <= 1 {
+            return .artifact(
+                documentId: documentId,
+                artifactId: artifactId,
+                displayName: snapshot.artifactDisplayName ?? "Artifact",
+                documentName: snapshot.artifactDocumentName,
+                artifactType: snapshot.artifactType,
+                stepName: snapshot.artifactStepName
+            )
+        }
+        if !snapshot.browserSelection.isEmpty {
+            return .documents(ids: snapshot.browserSelection)
+        }
+        if let detailId = snapshot.detailDocumentId {
+            return .detailDocument(id: detailId, name: snapshot.detailDocumentName)
+        }
+        return .nothing
+    }
+
+    /// The chip text for scopes the ladder resolves ABOVE the browser — the
+    /// chip must NAME what it resolved to, not merely count it. Returns nil
+    /// for document scopes, whose label needs store knowledge (typed nouns)
+    /// the caller already owns.
+    static func scopeDetail(_ scope: RunScope) -> String? {
+        switch scope {
+        case .marqueeSelection(_, _, let documentName):
+            guard let documentName, !documentName.isEmpty else { return "a selection" }
+            return "a selection of \(documentName)"
+        case .regions(let ids, let parentName):
+            let counted = ids.count == 1 ? "1 region" : "\(ids.count) regions"
+            guard let parentName, !parentName.isEmpty else { return counted }
+            return "\(counted) of \(parentName)"
+        case .artifact(_, _, let displayName, let documentName, _, _):
+            guard let documentName, !documentName.isEmpty else { return displayName }
+            return "\(displayName) of \(documentName)"
+        case .documents, .detailDocument, .nothing:
+            return nil
         }
     }
 
