@@ -1,42 +1,39 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  DMG / Developer ID entitlements for the embedded Briefcase Python engine
+  ("Fichero Server.app"), the nested helper the sandboxed app spawns.
+
+  EXACTLY TWO KEYS — the same hard rule as FicheroEngineAppStore.entitlements:
+  per Apple's Entitlement Key Reference, com.apple.security.inherit is
+  incompatible with other keys, and the system ABORTS the child at spawn if
+  one is present. The 2026.08.30 DMG proved it live: this file carried four
+  com.apple.security.cs.* hardened-runtime exceptions alongside the pair, and
+  the helper died in _libsecinit_appsandbox (SIGTRAP, before main) on every
+  app-side spawn. Those keys dated from the era when the DMG app itself was
+  UNSANDBOXED (inherit was inert then); FicheroRelease gained app-sandbox on
+  2026-08-27 (Daniel: one sandbox everywhere) and the first DMG built after
+  that was the launch this file broke.
+
+  Why the cs.* exceptions are not needed here after all:
+  - Library validation: build-release-dmg.sh signs EVERY Mach-O in the bundle
+    inside-out with our Developer ID, so the 800+ native wheels all carry the
+    Team ID and validation passes unaided.
+  - ffi/JIT/DYLD: the MAS sandbox spike (#3746) loaded the full engine —
+    2,889 native libs — with no cs.* keys; and the re-signed 2026.08.30 DMG
+    helper reached ready (health+registry 200, providers seeded) signed with
+    hardened runtime and only this pair.
+
+  The helper's executables still get the hardened-runtime FLAG (a codesign
+  option, not an entitlement) — notarization requires it. Do not add keys to
+  this file; if a clean-Mac launch ever dies in dyld/ffi, the fix is the MAS
+  shape (no hardened runtime on inner binaries), not a third key here.
+-->
 <plist version="1.0">
 <dict>
-	<!--
-	  Entitlements for the embedded Briefcase Python engine, applied when the
-	  release DMG re-signs "Fichero Server.app" with Developer ID + hardened
-	  runtime. Notarization REQUIRES hardened runtime, but hardened runtime
-	  blocks several things embedded CPython needs — without these, the engine
-	  launches fine on the build machine (already-trusted) but is KILLED on a
-	  clean Mac. Each key maps to a real failure mode:
-	-->
-
-	<!-- The DMG app is sandboxed (FicheroRelease.entitlements, 2026-08-27),
-	     and a sandboxed app's child must carry {app-sandbox, inherit} or the
-	     kernel kills it at spawn — the same live-proven pair the Dev-Embedded
-	     engine uses (#4555). -->
 	<key>com.apple.security.app-sandbox</key>
 	<true/>
 	<key>com.apple.security.inherit</key>
-	<true/>
-
-	<!-- Load the 800+ third-party native wheels (duckdb, numpy, PyMuPDF, …)
-	     even though they aren't all signed with our Team ID. -->
-	<key>com.apple.security.cs.disable-library-validation</key>
-	<true/>
-
-	<!-- CPython + cffi/ctypes create writable-executable memory (trampolines);
-	     hardened runtime kills that without this entitlement. -->
-	<key>com.apple.security.cs.allow-unsigned-executable-memory</key>
-	<true/>
-
-	<!-- Briefcase's launcher sets DYLD_* so the bundled interpreter finds its
-	     libs; hardened runtime ignores DYLD vars unless this is granted. -->
-	<key>com.apple.security.cs.allow-dyld-environment-variables</key>
-	<true/>
-
-	<!-- Some native deps JIT (allowed defensively; harmless if unused). -->
-	<key>com.apple.security.cs.allow-jit</key>
 	<true/>
 </dict>
 </plist>
