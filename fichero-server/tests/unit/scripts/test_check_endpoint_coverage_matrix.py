@@ -47,4 +47,9 @@ def test_witnesses_are_limited_to_the_repaired_store_methods():
         "GET /api/documents/{document_id}/renditions/{rendition_id}/content": (
             "getRenditionContentApiDocumentsDocumentIdRenditionsRenditionIdContentGet"
         ),
+        # Region curation (ArtifactService.editRegions, 2026-08-29) — same
+        # generated-client story: only the operation name appears in Swift.
+        "PUT /api/artifacts/{artifact_id}/regions": (
+            "editArtifactRegionsApiArtifactsArtifactIdRegionsPut"
+        ),
     }
