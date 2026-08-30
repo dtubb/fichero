@@ -223,15 +223,27 @@ struct PDFPageWithToolbar: View {
                     forKey: PreviewHighlightStyle.storageKey) ?? ""
             )?.persistedColor
             : nil
-        Task {
-            _ = await annotationStore.addNote(
-                scope: .document(documentId),
-                text: "",
-                bbox: box,
-                pageIndex: pageIndex,
-                kind: kind,
-                color: color
+        // Word-boundary snap — same rule as the image canvas (2026-08-30).
+        let snapKinds: Set<AnnotationKind> = [.highlight, .underline, .strikethrough]
+        let rects: [[Double]?]
+        if let box, snapKinds.contains(kind), let geometry = ocrGeometry {
+            rects = AnnotationWordSnap.snappedRects(
+                drag: box, words: geometry.wordBoxes, lines: geometry.lineBoxes
             )
+        } else {
+            rects = [box]
+        }
+        Task {
+            for rect in rects {
+                _ = await annotationStore.addNote(
+                    scope: .document(documentId),
+                    text: "",
+                    bbox: rect,
+                    pageIndex: pageIndex,
+                    kind: kind,
+                    color: color
+                )
+            }
         }
     }
 

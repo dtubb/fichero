@@ -29,5 +29,63 @@ struct AnnotationBar: View {
         .background(.bar)
         .overlay(alignment: .bottom) { Divider() }
         .accessibilityIdentifier("annotationBar")
+        // ONE applier per window — mounted here so split reader panes can
+        // never double-save the same span.
+        .background { ReaderMarkupApplier() }
+    }
+}
+
+/// Applies the bar's highlight/underline/strikethrough to the READER's live
+/// text selection as a char-span annotation (Daniel, 2026-08-30: "we can
+/// highlight in reader… even in an artifact or a content"). The selection
+/// arrives on the same seam the native readers and the WebKit bridge post.
+private struct ReaderMarkupApplier: View {
+    @Environment(AnnotationStore.self) private var annotationStore: AnnotationStore?
+
+    @State private var selectionDocumentId: String?
+    @State private var selectionRange: Range<Int>?
+
+    var body: some View {
+        Color.clear
+            .frame(width: 0, height: 0)
+            .onReceive(NotificationCenter.default.publisher(for: .readerTextSelection)) { note in
+                let info = note.userInfo ?? [:]
+                guard let docId = info["documentId"] as? String, !docId.isEmpty,
+                      let start = info["charStart"] as? Int,
+                      let end = info["charEnd"] as? Int, end > start else {
+                    selectionRange = nil
+                    return
+                }
+                selectionDocumentId = docId
+                selectionRange = start..<end
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .previewAnnotateTool)) { note in
+                guard let raw = note.object as? String,
+                      let tool = PreviewMarkupTool(rawValue: raw),
+                      tool == .highlight,
+                      let docId = selectionDocumentId,
+                      let range = selectionRange,
+                      let annotationStore else { return }
+                let style = PreviewHighlightStyle(
+                    rawValue: UserDefaults.standard.string(
+                        forKey: PreviewHighlightStyle.storageKey) ?? ""
+                )
+                let kind: AnnotationKind = switch style {
+                case .underline: .underline
+                case .strikethrough: .strikethrough
+                default: .highlight
+                }
+                let color = kind == .highlight ? style?.persistedColor : nil
+                Task {
+                    _ = await annotationStore.addNote(
+                        scope: .document(docId),
+                        text: "",
+                        charStart: range.lowerBound,
+                        charEnd: range.upperBound,
+                        kind: kind,
+                        color: color
+                    )
+                }
+            }
     }
 }
