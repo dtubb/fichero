@@ -88,7 +88,11 @@ class TestMCPAuthorization:
         """HIGH-2: MCP client should authenticate with a Bearer token."""
         from fichero_mcp import server as mcp_server
 
-        with patch.dict(os.environ, {"FICHERO_API_KEY": "test-api-key-12345"}):
+        # Client construction pins the engine's live TLS cert (fail-closed,
+        # 2026-08-27); these tests are about token headers, not transport
+        # trust, and run with no engine — stub the pinning step.
+        with patch.dict(os.environ, {"FICHERO_API_KEY": "test-api-key-12345"}), \
+             patch("fichero_cli.client._loopback_trust", return_value=False):
             client = mcp_server._client()
             try:
                 headers = client._headers()
@@ -102,7 +106,8 @@ class TestMCPAuthorization:
         """HIGH-2: MCP client should read the token from the environment."""
         from fichero_mcp import server as mcp_server
 
-        with patch.dict(os.environ, {"FICHERO_API_KEY": "env-api-key"}):
+        with patch.dict(os.environ, {"FICHERO_API_KEY": "env-api-key"}), \
+             patch("fichero_cli.client._loopback_trust", return_value=False):
             client = mcp_server._client()
             try:
                 assert client.token == "env-api-key", \
@@ -119,7 +124,8 @@ class TestMCPAuthorization:
 
         with patch.dict(os.environ, {}, clear=True):
             with patch.object(client_module, "_TOKEN_PATH", tmp_path / "absent"), \
-                 patch.object(client_module, "_CONTAINER_TOKEN_PATH", tmp_path / "absent-container"):
+                 patch.object(client_module, "_CONTAINER_TOKEN_PATH", tmp_path / "absent-container"), \
+                 patch.object(client_module, "_loopback_trust", return_value=False):
                 with patch.object(mcp_server, "logger") as mock_logger:
                     with patch.object(mcp_server.mcp, "run"):
                         with patch("sys.argv", ["fichero-mcp"]):

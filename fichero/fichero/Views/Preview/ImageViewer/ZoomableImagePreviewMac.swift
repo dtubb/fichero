@@ -197,7 +197,23 @@ struct ZoomableImagePreview: View {
     // Zoom actions: +ZoomActions.swift; opening-zoom rule:
     // PreviewInitialZoomPolicy.swift (extracted for the type-body budget).
 
+    // The body is split into bounded layer properties — two lanes' merged
+    // modifier chain blew the type-checker budget (the LibraryWindow.body
+    // pathology; each layer keeps its chain small and checkable).
     var body: some View {
+        keyboardLayer
+            .focusedSceneValue(\.imageZoomActions, ImageZoomActions(
+                zoomIn: zoomIn,
+                zoomOut: zoomOut,
+                actualSize: actualSize,
+                zoomToFit: fitToWindow,
+                canZoomIn: scale < maxScale,
+                canZoomOut: scale > minScale
+            ))
+    }
+
+    /// Layer 1: content + lifecycle (tasks, appear/disappear, chrome publish).
+    private var lifecycleLayer: some View {
         VStack(spacing: 0) {
             // Canvas (image + overlays + magnification cluster + magnifier
             // strip) — extracted to +Overlays.swift 2026-08-29 (length budget).
@@ -227,89 +243,89 @@ struct ZoomableImagePreview: View {
         }
         .onDisappear { removeOptionLoupeMonitor() }
         .onChange(of: renditionIndex) { _, _ in publishHeadChrome() }
-        // The head's markup row (Daniel, 2026-08-29): highlight and note arm
-        // the same region-draw path the bottom bar's buttons used to.
-        .onReceive(NotificationCenter.default.publisher(for: .previewAnnotateTool)) { note in
-            guard let raw = note.object as? String,
-                  let tool = PreviewMarkupTool(rawValue: raw) else { return }
-            switch tool {
-            case .highlight: requestAnnotation(.highlight)
-            case .note: requestAnnotation(.note)
-            case .select, .drawRegion, .line:
-                break  // preview-regions lane / future drawing kinds
+    }
+
+    /// Layer 2: notification + change observation.
+    private var observationLayer: some View {
+        lifecycleLayer
+            // The head's markup row (Daniel, 2026-08-29): highlight and note
+            // arm the same region-draw path the bottom bar's buttons used to.
+            .onReceive(NotificationCenter.default.publisher(for: .previewAnnotateTool)) { note in
+                guard let raw = note.object as? String,
+                      let tool = PreviewMarkupTool(rawValue: raw) else { return }
+                switch tool {
+                case .highlight: requestAnnotation(.highlight)
+                case .note: requestAnnotation(.note)
+                case .select, .drawRegion, .line:
+                    break  // preview-regions lane / future drawing kinds
+                }
             }
-        }
-        // Esc dismisses the loupe (Daniel, 2026-08-29).
-        .onKeyPress(.escape, phases: .down) { _ in
-            guard loupeEnabled || loupeTransient else { return .ignored }
-            loupeEnabled = false; loupeTransient = false
-            return .handled
-        }
-        .onChange(of: documentId) { _, _ in handleDocumentIDChanged() }
-        .onReceive(NotificationCenter.default.publisher(for: .readerTextSelection)) { note in
-            handleReaderTextSelection(note)
-        }
-        .onChange(of: annotationStore.changeToken) { _, _ in loadAnnotations() }
-        .onChange(of: renderedImage) { _, newImg in handleRenderedImageChanged(newImg) }
-        .onChange(of: scale) { _, newScale in handleScaleChanged(newScale) }
-        .onChange(of: documentId) { _, _ in handleDocumentIDChangedForHighRes() }
-        .onKeyPress(.init("+"), phases: .down) { _ in zoomIn(); return .handled }
-        .onKeyPress(.init("="), phases: .down) { _ in zoomIn(); return .handled }
-        .onKeyPress(.init("-"), phases: .down) { _ in zoomOut(); return .handled }
-        .onKeyPress(.init("0"), phases: .down) { _ in actualSize(); return .handled }
-        .onChange(of: magnifierLocked) { wasLocked, isLocked in handleMagnifierLockChanged(wasLocked, isLocked) }
-        .onKeyPress(.init("9"), phases: .down) { _ in fitToWindow(); return .handled }
-        // Regions as first-class (2026-08-29): Delete removes the picked
-        // marquee first (most recent, most ephemeral), else the selected
-        // persisted regions; Esc clears every ephemeral region state.
-        .onDeleteCommand { handleRegionDeleteKey() }
-        .onExitCommand { clearEphemeralRegionState() }
-        // Daniel's ruling (2026-08-10, audit 3c): left/right = PREVIOUS/NEXT
-        // item, up/down = pan the current image. The old unconditional pan
-        // claim inverted that — with the preview focused, ←/→ panned and the
-        // sibling step never fired. Pan on ←/→ only while the zoomed image
-        // can actually travel horizontally; otherwise step siblings via the
-        // same seam the trackpad swipe uses.
-        .onKeyPress(.leftArrow, phases: .down) { _ in
-            if canPanHorizontally { panLeft() } else {
-                NotificationCenter.default.post(name: .previewSiblingSwipe, object: -1)
+            .onChange(of: documentId) { _, _ in handleDocumentIDChanged() }
+            .onReceive(NotificationCenter.default.publisher(for: .readerTextSelection)) { note in
+                handleReaderTextSelection(note)
             }
-            return .handled
-        }
-        .onKeyPress(.rightArrow, phases: .down) { _ in
-            if canPanHorizontally { panRight() } else {
-                NotificationCenter.default.post(name: .previewSiblingSwipe, object: 1)
+            .onChange(of: annotationStore.changeToken) { _, _ in loadAnnotations() }
+            .onChange(of: renderedImage) { _, newImg in handleRenderedImageChanged(newImg) }
+            .onChange(of: scale) { _, newScale in handleScaleChanged(newScale) }
+            .onChange(of: documentId) { _, _ in handleDocumentIDChangedForHighRes() }
+            .onChange(of: magnifierLocked) { wasLocked, isLocked in
+                handleMagnifierLockChanged(wasLocked, isLocked)
             }
-            return .handled
-        }
-        // ↑/↓ = the RENDITION axis when this page has more than one (Daniel's
-        // ruling: up/down flips renditions, ←/→ walks pages) — same
-        // pan-first grammar as ←/→: a zoomed image that can travel
-        // vertically still pans; otherwise the keys flip.
-        .onReceive(NotificationCenter.default.publisher(for: .previewRenditionSwipe)) { note in
-            guard let step = note.object as? Int else { return }
-            verticalStep(step)
-        }
-        .onKeyPress(.upArrow, phases: .down) { _ in
-            if canPanVertically { panUp() } else {
-                verticalStep(-1)
+            // ↑/↓ = the RENDITION axis when this page has more than one
+            // (Daniel's ruling: up/down flips renditions, ←/→ walks pages).
+            .onReceive(NotificationCenter.default.publisher(for: .previewRenditionSwipe)) { note in
+                guard let step = note.object as? Int else { return }
+                verticalStep(step)
             }
-            return .handled
-        }
-        .onKeyPress(.downArrow, phases: .down) { _ in
-            if canPanVertically { panDown() } else {
-                verticalStep(1)
+    }
+
+    /// Layer 3: keyboard grammar (zoom keys, region verbs, arrow navigation).
+    private var keyboardLayer: some View {
+        observationLayer
+            // Esc dismisses the loupe (Daniel, 2026-08-29).
+            .onKeyPress(.escape, phases: .down) { _ in
+                guard loupeEnabled || loupeTransient else { return .ignored }
+                loupeEnabled = false; loupeTransient = false
+                return .handled
             }
-            return .handled
-        }
-        .focusedSceneValue(\.imageZoomActions, ImageZoomActions(
-            zoomIn: zoomIn,
-            zoomOut: zoomOut,
-            actualSize: actualSize,
-            zoomToFit: fitToWindow,
-            canZoomIn: scale < maxScale,
-            canZoomOut: scale > minScale
-        ))
+            .onKeyPress(.init("+"), phases: .down) { _ in zoomIn(); return .handled }
+            .onKeyPress(.init("="), phases: .down) { _ in zoomIn(); return .handled }
+            .onKeyPress(.init("-"), phases: .down) { _ in zoomOut(); return .handled }
+            .onKeyPress(.init("0"), phases: .down) { _ in actualSize(); return .handled }
+            .onKeyPress(.init("9"), phases: .down) { _ in fitToWindow(); return .handled }
+            // Regions as first-class (2026-08-29): Delete removes the picked
+            // marquee first (most recent, most ephemeral), else the selected
+            // persisted regions; Esc clears every ephemeral region state.
+            .onDeleteCommand { handleRegionDeleteKey() }
+            .onExitCommand { clearEphemeralRegionState() }
+            // Daniel's ruling (2026-08-10, audit 3c): left/right = PREVIOUS/
+            // NEXT item, up/down = pan the current image. Pan on ←/→ only
+            // while the zoomed image can actually travel horizontally;
+            // otherwise step siblings via the trackpad-swipe seam.
+            .onKeyPress(.leftArrow, phases: .down) { _ in
+                if canPanHorizontally { panLeft() } else {
+                    NotificationCenter.default.post(name: .previewSiblingSwipe, object: -1)
+                }
+                return .handled
+            }
+            .onKeyPress(.rightArrow, phases: .down) { _ in
+                if canPanHorizontally { panRight() } else {
+                    NotificationCenter.default.post(name: .previewSiblingSwipe, object: 1)
+                }
+                return .handled
+            }
+            .onKeyPress(.upArrow, phases: .down) { _ in
+                if canPanVertically { panUp() } else {
+                    verticalStep(-1)
+                }
+                return .handled
+            }
+            .onKeyPress(.downArrow, phases: .down) { _ in
+                if canPanVertically { panDown() } else {
+                    verticalStep(1)
+                }
+                return .handled
+            }
     }
 }
 

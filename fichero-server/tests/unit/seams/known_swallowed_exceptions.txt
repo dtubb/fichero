@@ -46,6 +46,7 @@ api/routes/search/core.py::_run_claim_semantic_queries 1
 api/routes/search/core.py::_run_entity_semantic_queries 1
 api/routes/search/core.py::enhanced_search 3
 api/routes/search/core.py::reindex_all.do_reindex 1
+api/routes/workflow/workflows.py::_resolved_run_model 1
 api/routes/workflow_execution/threads.py::_cancel_settled_run 1
 api/routes/workflow_execution/threads.py::cancel_workflow 1
 api/routes/workflow_execution/threads.py::pause_workflow 1
@@ -95,10 +96,10 @@ importers/ingest.py::_save_pdf_text_layer_geometry 1
 importers/ingest.py::_save_pending_artifacts 1
 importers/ingest.py::ingest_file 2
 importers/ingest.py::ingest_file.delete_original 1
-importers/pdf_annotations.py::import_pdf_annotations 1
 importers/ingest.py::ingest_folder 2
 importers/ingest.py::ingest_folder.notify_document 1
 importers/manifest_import.py::import_manifest 2
+importers/pdf_annotations.py::import_pdf_annotations 1
 integrations/base.py::AppIntegration._get_app_version 1
 integrations/bookends.py::BookendsIntegration._parse_applescript_records 1
 integrations/bookends.py::BookendsIntegration.get_item 1
@@ -199,5 +200,6 @@ workflows/tools/vision_base.py::process_vision 1
 workflows/tools/vision_base.py::process_vision._process_file 4
 workflows/types.py::ToolDef.get_prompt 1
 workflows/validation.py::validate_workflow_llm_preflight.visit 1
+workflows/validation.py::workflow_input_kinds.visit 1
 workflows/validation.py::workflow_requires_vision.visit 1
 workflows/workflow_store.py::WorkflowStore.import_all 1
