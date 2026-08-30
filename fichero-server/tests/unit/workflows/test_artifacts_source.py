@@ -40,14 +40,12 @@ def _db(artifacts):
     return db
 
 
-async def _run(db, config, doc_ids=("doc-1",)):
+async def _run(db, config, doc_ids=("doc-1",), run_inputs=None):
+    state = {"library_path": "/tmp/lib", "selected_doc_ids": list(doc_ids)}
+    if run_inputs is not None:
+        state["inputs"] = run_inputs
     with patch("fichero_server.db.db_manager.get_database", return_value=db):
-        return await artifacts_source_tool(
-            {},
-            {"library_path": "/tmp/lib", "selected_doc_ids": list(doc_ids)},
-            None,
-            config,
-        )
+        return await artifacts_source_tool({}, state, None, config)
 
 
 class TestArtifactsSource:
@@ -104,6 +102,47 @@ class TestArtifactsSource:
         db = _db([_artifact("   ", created_at=1)])
         result = await _run(db, {"artifact_type": "transcription_review"})
         assert result["count"] == 0
+
+    # Run-input hints (Daniel, 2026-08-29): selecting a specific artifact in
+    # the app scopes the run to it — the hint rides in the run's inputs and
+    # fills in only what the node's config left unspecified.
+
+    @pytest.mark.asyncio
+    async def test_run_input_hint_picks_the_artifact_when_config_is_silent(self):
+        db = _db([_artifact("the review", created_at=1)])
+        result = await _run(
+            db,
+            {},
+            run_inputs={"artifact_type": "transcription_review"},
+        )
+        assert result["count"] == 1
+        assert db.query.call_args.kwargs["artifact_type"] == "transcription_review"
+
+    @pytest.mark.asyncio
+    async def test_authored_config_outranks_the_run_input_hint(self):
+        # The workflow author pinned a type; a lingering UI hint must not
+        # silently rewire their step.
+        db = _db([_artifact("the translation", created_at=1)])
+        await _run(
+            db,
+            {"artifact_type": "translation"},
+            run_inputs={"artifact_type": "transcription_review"},
+        )
+        assert db.query.call_args.kwargs["artifact_type"] == "translation"
+
+    @pytest.mark.asyncio
+    async def test_step_name_hint_filters_when_config_leaves_it_open(self):
+        db = _db([
+            _artifact("abbreviations", created_at=1, step_name="r1"),
+            _artifact("final", created_at=2, step_name="r3"),
+        ])
+        result = await _run(
+            db,
+            {"artifact_type": "transcription_review", "which": "all"},
+            run_inputs={"step_name": "r3"},
+        )
+        assert result["count"] == 1
+        assert result["records"][0]["text"] == "final"
 
 
 class TestTranslateReviewedPreset:

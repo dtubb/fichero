@@ -143,6 +143,13 @@ extension ContentView {
         docIds: [String],
         providerOverride: String? = nil,
         modelOverride: String? = nil,
+        /// Set when the run was scoped to ONE artifact (Daniel, 2026-08-29):
+        /// rides in the run inputs so an `artifacts_source` step whose config
+        /// doesn't pin a type reads THAT artifact instead of its default.
+        /// The engine ignores the hint everywhere else, so passing it is
+        /// honest — it changes only the step built to consume it.
+        artifactTypeHint: String? = nil,
+        artifactStepNameHint: String? = nil,
         /// Called with the SERVER's thread id as soon as the run is accepted,
         /// so a caller can watch a run it is still awaiting — the chain rail
         /// uses it to make a running step clickable (2026-08-28).
@@ -159,11 +166,18 @@ extension ContentView {
         )
 
         var streamCompleted = false
+        var inputs: [String: Any] = ["selected_doc_ids": docIds]
+        if let artifactTypeHint, !artifactTypeHint.isEmpty {
+            inputs["artifact_type"] = artifactTypeHint
+        }
+        if let artifactStepNameHint, !artifactStepNameHint.isEmpty {
+            inputs["step_name"] = artifactStepNameHint
+        }
         do {
                 let response = try await workflowStreamService.execute(
                     workflowId: workflowId,
                     surface: "content-selection",
-                    inputs: ["selected_doc_ids": docIds],
+                    inputs: inputs,
                     providerOverride: providerOverride,
                     modelOverride: modelOverride,
                     // These ids came from the user's explicit selection, so

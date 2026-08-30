@@ -150,4 +150,5 @@ final class WorkflowBarPolicyTests: XCTestCase {
             )
         )
     }
+
 }

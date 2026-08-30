@@ -29,11 +29,7 @@ extension WorkflowBar {
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
             if let label = targetDetail ?? WorkflowBarPolicy.targetLabel(target) {
-                Text(label)
-                    .font(.system(size: 10, weight: .medium))
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
-                    .background(Color.accentColor.opacity(0.12), in: Capsule())
+                subjectToken(label)
             } else {
                 Text("nothing selected")
                     .font(.system(size: 11))
@@ -54,6 +50,41 @@ extension WorkflowBar {
                 chainChip(step, at: index)
             }
         }
+    }
+
+    /// The sentence's SUBJECT as a clickable token (Daniel, 2026-08-29): the
+    /// chip that names the scope is also where you CHANGE it — aim the run
+    /// at the browser selection, the focused artifact, or an artifact by
+    /// type. "Automatic" (always first) restores the ladder. Falls back to a
+    /// plain label when the host provides no menu.
+    @ViewBuilder
+    private func subjectToken(_ label: String) -> some View {
+        if let onSelectScope, !scopeOptions.isEmpty {
+            Menu {
+                ForEach(scopeOptions) { option in
+                    Button(option.label) { onSelectScope(option.scope) }
+                }
+            } label: {
+                subjectLabel(label)
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help("Choose what the chain runs on")
+            .accessibilityLabel("Run scope: \(label)")
+        } else {
+            subjectLabel(label)
+        }
+    }
+
+    /// The chip itself — shared by the menu label and the plain fallback so
+    /// a clickable subject looks exactly like a static one.
+    private func subjectLabel(_ label: String) -> some View {
+        Text(label)
+            .font(.system(size: 10, weight: .medium))
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(Color.accentColor.opacity(0.12), in: Capsule())
     }
 
     /// The step's model as a clickable token in the sentence. The same menu

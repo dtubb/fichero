@@ -57,6 +57,13 @@ struct WorkflowBar: View {
     /// what it will run on"): the document's display name for one item,
     /// "3 images" for many. nil falls back to the count-only label.
     var targetDetail: String?
+    /// The subject chip's menu (Daniel, 2026-08-29): the scopes the run
+    /// COULD be aimed at — Automatic, each resolvable rung, the document's
+    /// artifacts by type. Empty leaves the chip a plain label.
+    var scopeOptions: [WorkflowBarPolicy.ScopeOption] = []
+    /// Writes the chosen scope override (nil = Automatic). nil disables the
+    /// menu rather than offering choices that go nowhere.
+    var onSelectScope: ((WorkflowBarPolicy.RunScope?) -> Void)?
 
     /// One item's footprint. Fixed so the verbs sit on an even rhythm the way
     /// toolbar items do, rather than jittering with label length.

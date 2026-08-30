@@ -35,7 +35,9 @@ extension ContentView {
                 // ⓘ goes to the node editor — the existing .workflow content
                 // mode, not a new surface: graph, steps, prompt preview.
                 onInspectWorkflow: { viewMode = .workflow($0) },
-                targetDetail: workflowBarTargetDetail
+                targetDetail: workflowBarTargetDetail,
+                scopeOptions: workflowBarScopeOptions,
+                onSelectScope: { selectWorkflowScope($0) }
             )
             .task(id: chainCostKey) { await refreshChainCostCeiling() }
             .task {
@@ -77,13 +79,19 @@ extension ContentView {
             runningStagedStepIndex = nil
         }
 
-        // Freeze the targets ONCE. Selection can move while a long chain runs,
+        // Freeze the SCOPE once. Selection can move while a long chain runs,
         // and step four landing on documents the user picked mid-run is the
-        // kind of surprise a paid job must never spring.
-        let targets = effectiveWorkflowRunSelection.isEmpty
-            ? (detailDocument.map { [$0.id] } ?? [])
-            : effectiveWorkflowRunSelection
-        guard !targets.isEmpty else { return }
+        // kind of surprise a paid job must never spring. The scope, not just
+        // ids: an artifact scope also carries the type/step hint every step
+        // of this run must keep honoring.
+        let scope = workflowBarRunScope
+        guard let targets = await frozenChainTargets(for: scope) else { return }
+        var artifactTypeHint: String?
+        var artifactStepNameHint: String?
+        if case .artifact(_, _, _, _, let artifactType, let stepName) = scope {
+            artifactTypeHint = artifactType
+            artifactStepNameHint = stepName
+        }
         // What "see what it produced" opens later, however the live selection
         // wanders during the run.
         lastChainRunTargets = targets
@@ -124,6 +132,8 @@ extension ContentView {
                 docIds: targets,
                 providerOverride: step.providerOverride,
                 modelOverride: step.modelOverride,
+                artifactTypeHint: artifactTypeHint,
+                artifactStepNameHint: artifactStepNameHint,
                 onThreadId: { threadId in
                     // Stamped the moment the server accepts, not when the run
                     // ends — the point is to watch a step WHILE it works.
@@ -172,13 +182,16 @@ extension ContentView {
         return "\(steps)#\(workflowBarTargetCount)"
     }
 
-    /// The scope, NAMED: one item shows its display name, several show the
-    /// same typed noun the status island uses ("3 images", "5 pages").
+    /// The scope, NAMED: an inspector selection names what it resolved to
+    /// ("5 regions of 4_Hoja_531_Verso", "Transcription Review of …"); one
+    /// document shows its display name, several show the same typed noun the
+    /// status island uses ("3 images", "5 pages").
     var workflowBarTargetDetail: String? {
-        let effective = effectiveWorkflowRunSelection
-        let ids = effective.isEmpty
-            ? (detailDocument.map { [$0.id] } ?? [])
-            : effective
+        let scope = workflowBarRunScope
+        if let named = WorkflowBarPolicy.scopeDetail(scope) {
+            return named
+        }
+        let ids = scope.documentIds
         guard !ids.isEmpty else { return nil }
         let docs = documentStore.currentDocuments.filter { Set(ids).contains($0.id) }
         if ids.count == 1 {
@@ -188,17 +201,20 @@ extension ContentView {
             return nil
         }
         let noun: String
-        if !docs.isEmpty, docs.allSatisfy({ $0.fileType == .image }) { noun = "images" }
-        else if !docs.isEmpty, docs.allSatisfy({ $0.docType == .page }) { noun = "pages" }
-        else if !docs.isEmpty, docs.allSatisfy({ $0.docType == .folder }) { noun = "folders" }
-        else { noun = "items" }
+        if !docs.isEmpty, docs.allSatisfy({ $0.fileType == .image }) {
+            noun = "images"
+        } else if !docs.isEmpty, docs.allSatisfy({ $0.docType == .page }) {
+            noun = "pages"
+        } else if !docs.isEmpty, docs.allSatisfy({ $0.docType == .folder }) {
+            noun = "folders"
+        } else {
+            noun = "items"
+        }
         return "\(ids.count) \(noun)"
     }
 
     var workflowBarTargetCount: Int {
-        let effective = effectiveWorkflowRunSelection
-        if !effective.isEmpty { return effective.count }
-        return detailDocument == nil ? 0 : 1
+        workflowBarRunScope.documentIds.count
     }
 
     /// Price the staged chain as a CEILING, summed across steps.
@@ -268,7 +284,7 @@ extension ContentView {
         // since (review, 2026-08-29). Falls back to the live selection for a
         // step opened before any chain has run.
         let targets = lastChainRunTargets.isEmpty
-            ? effectiveWorkflowRunSelection
+            ? workflowBarRunScope.documentIds
             : lastChainRunTargets
         guard let first = targets.first ?? detailDocument?.id,
               let doc = documentStore.currentDocuments.first(where: { $0.id == first })
@@ -320,29 +336,33 @@ extension ContentView {
     /// fixed "default", because the two differ and only one of them is true
     /// for what is selected.
     var selectionPrefersVisionModel: Bool {
-        let ids = Set(effectiveWorkflowRunSelection)
-        let docs = documentStore.currentDocuments.filter { ids.contains($0.id) }
-        if docs.isEmpty {
-            guard let detail = detailDocument else { return false }
-            return detail.fileType == .image || detail.docType == .page
+        let scope = workflowBarRunScope
+        switch scope {
+        case .artifact:
+            // An artifact is text an earlier step wrote — the whole point of
+            // scoping to it is NOT re-reading the pixels.
+            return false
+        case .regions, .marqueeSelection:
+            // Region nodes and marquee crops are cut from a page image; they
+            // may not be in the browser's currentDocuments, so answer from
+            // what a crop IS.
+            return true
+        case .documents, .detailDocument, .nothing:
+            let ids = Set(scope.documentIds)
+            let docs = documentStore.currentDocuments.filter { ids.contains($0.id) }
+            if docs.isEmpty {
+                guard let detail = detailDocument else { return false }
+                return detail.fileType == .image || detail.docType == .page
+            }
+            return docs.contains { $0.fileType == .image || $0.docType == .page }
         }
-        return docs.contains { $0.fileType == .image || $0.docType == .page }
     }
 
     /// What the bar is pointed at.
     ///
-    /// Reads the same accessor every other launch surface reads (#4523), so
-    /// the bar cannot disagree with the Run menu about what "the selection"
-    /// means — and falls back to the previewed document, which is what makes
-    /// the bar useful while reading a single page with nothing list-selected.
+    /// Projected from the resolved run scope, so the verb filtering and the
+    /// run itself can never disagree about what "the selection" means.
     var workflowBarTarget: WorkflowBarPolicy.Target {
-        let effective = effectiveWorkflowRunSelection
-        if !effective.isEmpty {
-            return .documents(count: effective.count)
-        }
-        if detailDocument != nil {
-            return .documents(count: 1)
-        }
-        return .nothing
+        workflowBarRunScope.target
     }
 }
