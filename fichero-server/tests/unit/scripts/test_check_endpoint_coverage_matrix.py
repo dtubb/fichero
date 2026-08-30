@@ -47,6 +47,11 @@ def test_witnesses_are_limited_to_the_repaired_store_methods():
         "GET /api/documents/{document_id}/renditions/{rendition_id}/content": (
             "getRenditionContentApiDocumentsDocumentIdRenditionsRenditionIdContentGet"
         ),
+        # Folders drive the capability bar's verb order; clients back the
+        # Connected Clients pane (both wired 2026-08-28 through the generated
+        # client — the pin had not yet learned them).
+        "GET /api/workflows/folders": "listWorkflowFoldersApiWorkflowsFoldersGet",
+        "GET /api/clients": "connectedClientsApiClientsGet",
         # Region curation (ArtifactService.editRegions, 2026-08-29) — same
         # generated-client story: only the operation name appears in Swift.
         "PUT /api/artifacts/{artifact_id}/regions": (
