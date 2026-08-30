@@ -4347,6 +4347,69 @@
         }
       }
     },
+    "/api/artifacts/{artifact_id}/regions": {
+      "put": {
+        "tags": [
+          "artifacts"
+        ],
+        "summary": "Edit Artifact Regions",
+        "description": "Curate an artifact's regions: move, delete, add, or combine boxes.\n\nCuration-grade: one audited, undoable action per edit (full before\nsnapshot \u2014 nothing is ever lost), plus a `curation_log` entry inside the\ngeometry itself so the history travels with the artifact.",
+        "operationId": "edit_artifact_regions_api_artifacts__artifact_id__regions_put",
+        "parameters": [
+          {
+            "name": "artifact_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Artifact Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArtifactRegionsEditRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArtifactResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/bookmarks": {
       "post": {
         "tags": [
@@ -36744,6 +36807,45 @@
         "title": "ArtifactRegionResponse",
         "description": "Where a span of an artifact's text sits on the page (#4309/#4418)."
       },
+      "ArtifactRegionsEditRequest": {
+        "properties": {
+          "op": {
+            "$ref": "#/components/schemas/RegionEditOp"
+          },
+          "indices": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Indices",
+            "description": "Positions into ocr_geometry.boxes (order irrelevant)"
+          },
+          "bbox": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Bbox",
+            "description": "Normalized [x, y, w, h] for move/add"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "default": ""
+          },
+          "level": {
+            "$ref": "#/components/schemas/OCRGeometryLevel",
+            "default": "region"
+          }
+        },
+        "type": "object",
+        "required": [
+          "op"
+        ],
+        "title": "ArtifactRegionsEditRequest",
+        "description": "One curation edit against an artifact's `ocr_geometry.boxes`.\n\n- ``move``: exactly one index + ``bbox`` \u2014 reposition that box.\n- ``delete``: one or more indices \u2014 remove those boxes.\n- ``add``: ``bbox`` (+ optional ``text``/``level``) \u2014 append a new box;\n  bootstraps an empty user geometry when the artifact has none yet\n  (the rubber-band draw on a page whose regions artifact is bare).\n- ``combine``: two or more indices \u2014 replace them with one box whose bbox\n  is the union and whose text is the members' texts concatenated in\n  reading order."
+      },
       "ArtifactResponse": {
         "properties": {
           "id": {
@@ -57526,6 +57628,17 @@
         ],
         "title": "RegionConfidence",
         "description": "How much a region's rect is actually worth.\n\nThe Marshall sidecars carry ``\"method\": \"nominal-even-split\"`` with the\nnote that \"the fold was not measured\" \u2014 a 50/50 guess at where an opening\ndivides. That is a different fact from a measured fold, and collapsing them\nwould make a guess indistinguishable from a measurement. Same three-way\nhonesty ``date_meta`` and ``language_meta`` already use."
+      },
+      "RegionEditOp": {
+        "type": "string",
+        "enum": [
+          "move",
+          "delete",
+          "add",
+          "combine"
+        ],
+        "title": "RegionEditOp",
+        "description": "A closed vocabulary \u2014 an enum in the schema, never a bare str (rule 4)."
       },
       "RegisteredActionInfo": {
         "properties": {
