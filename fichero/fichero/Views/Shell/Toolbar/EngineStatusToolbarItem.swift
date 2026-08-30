@@ -60,7 +60,6 @@ struct EngineStatusToolbarItem: View {
                 } label: {
                     Label("Server", systemImage: ToolbarSymbols.engineProblem)
                         .foregroundStyle(.orange)
-                        .frame(minWidth: 28)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Server status")
@@ -85,11 +84,14 @@ struct EngineStatusToolbarItem: View {
                     // should say the text below it"): in the toolbar's
                     // Icon-and-Text mode the title renders beneath the glyph,
                     // exactly like the pane buttons.
+                    // No minWidth (Daniel, 2026-08-29: "can they all be more
+                    // circular") — the extra floor was what stretched this
+                    // capsule into an oval beside the circular workflow
+                    // button. The Label alone sizes like its neighbours.
                     Label("Server", systemImage: isRemote
                         ? ToolbarSymbols.engineReadyRemote
                         : ToolbarSymbols.engineReadyLocal)
                         .foregroundStyle(.secondary)
-                        .frame(minWidth: 28)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Server status")
