@@ -18,18 +18,64 @@ extension WorkflowBar {
     /// merge, persist, catalogue), so chips stay compact enough to all fit.
     @ViewBuilder
     var chainRail: some View {
-        HStack(spacing: 3) {
+        // A SENTENCE, not a symbol chain (Daniel, 2026-08-29: "could this not
+        // have verbs and subjects — With [3 selected items] use [model] to
+        // detect regions, then use [model] to extract transcript"). The
+        // subject, each step's model and the step itself are live tokens; the
+        // connective tissue is plain words, which is what makes an eight-step
+        // paid run readable as a plan rather than a rebus.
+        HStack(spacing: 5) {
+            Text("With")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+            if let label = WorkflowBarPolicy.targetLabel(target) {
+                Text(label)
+                    .font(.system(size: 10, weight: .medium))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(Color.accentColor.opacity(0.12), in: Capsule())
+            } else {
+                Text("nothing selected")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.tertiary)
+            }
+            Text(",")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .padding(.leading, -5)
             ForEach(Array(staged.enumerated()), id: \.element.id) { index, step in
-                if index > 0 {
-                    Image(systemName: "arrow.right")
-                        .font(.system(size: 7))
-                        .foregroundStyle(.tertiary)
-                }
+                Text(index == 0 ? "use" : "then use")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                modelToken(for: step, at: index)
+                Text("to")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
                 chainChip(step, at: index)
             }
-
         }
         .fixedSize()
+    }
+
+    /// The step's model as a clickable token in the sentence. The same menu
+    /// the chip's right-click offers — one wiring, two doors.
+    @ViewBuilder
+    private func modelToken(for step: StagedWorkflowStep, at index: Int) -> some View {
+        Menu {
+            modelMenu(forStepAt: index)
+        } label: {
+            Text(step.hasModelOverride ? step.modelDescription : "default model")
+                .font(.system(size: 10))
+                .foregroundStyle(step.hasModelOverride ? Color.primary : Color.secondary)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(.quaternary.opacity(0.5), in: Capsule())
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .disabled(isRunning)
+        .help("The model this step runs on — click to pin a different one")
     }
 
     /// One step. Extracted from `chainRail` because the inline expression grew
@@ -81,15 +127,9 @@ extension WorkflowBar {
                 Image(systemName: symbol)
                     .font(.system(size: 8))
             }
-            // A pinned model is stated ON the chip: a chain whose steps run on
-            // different models must show which, or the cheap step and the
-            // expensive one look identical.
-            if step.hasModelOverride {
-                Text(step.modelDescription)
-                    .font(.system(size: 8))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
+            // The model moved OUT of the chip into the sentence's own
+            // "use [model] to" token (2026-08-29) — stating it twice made
+            // every chip wider for nothing.
             Button { staged.remove(at: index) } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 7))

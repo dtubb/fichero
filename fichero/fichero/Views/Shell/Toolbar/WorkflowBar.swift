@@ -227,6 +227,7 @@ struct WorkflowBar: View {
             guard staged.indices.contains(index) else { return }
             staged[index].providerOverride = nil
             staged[index].modelOverride = nil
+            resetOutcome(at: index)
         }
         if !modelChoices.isEmpty {
             Divider()
@@ -235,6 +236,7 @@ struct WorkflowBar: View {
                     guard staged.indices.contains(index) else { return }
                     staged[index].providerOverride = choice.provider
                     staged[index].modelOverride = choice.model
+                    resetOutcome(at: index)
                 }
             }
         }
@@ -322,6 +324,18 @@ struct WorkflowBar: View {
                     }
                 }
             )
+        }
+    }
+
+    /// Changing a step's model is declaring "try it differently" — the old
+    /// verdict no longer applies (Daniel, 2026-08-29: "if I change model on a
+    /// bar that has failed, it can reset colors"). The changed step and
+    /// everything AFTER it go back to pending; steps before it keep their
+    /// greens, since their runs are untouched.
+    private func resetOutcome(at index: Int) {
+        for laterIndex in staged.indices where laterIndex >= index {
+            staged[laterIndex].state = .pending
+            staged[laterIndex].threadId = nil
         }
     }
 

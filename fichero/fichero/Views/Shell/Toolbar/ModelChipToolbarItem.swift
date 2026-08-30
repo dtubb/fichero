@@ -45,16 +45,33 @@ struct ModelChipToolbarItem: View {
     @State private var isPresented = false
     @Environment(ChatService.self) private var chatService: ChatService?
 
-    private var pickableModels: [(provider: String, model: String)] {
+    private var pickableModels: [(provider: String, model: String, vision: Bool)] {
         WorkflowRunProviderCache.shared.providers.flatMap { provider in
-            provider.models.compactMap { model -> (String, String)? in
-                if prefersVision {
-                    let visionCapable = provider.modelDetails
-                        .first { $0.modelId == model }?.supportsVision
-                        ?? provider.supportsVision
-                    guard visionCapable else { return nil }
-                }
-                return (provider.id, model)
+            provider.models.compactMap { model -> (String, String, Bool)? in
+                let visionCapable = provider.modelDetails
+                    .first { $0.modelId == model }?.supportsVision
+                    ?? provider.supportsVision
+                if prefersVision && !visionCapable { return nil }
+                return (provider.id, model, visionCapable)
+            }
+        }
+    }
+
+    /// Catalog pricing per model id, fetched once per provider when the
+    /// popover opens (Daniel, 2026-08-29: "a bit more details — logo, and
+    /// cost... maybe vision or not"). Missing rows just show no price —
+    /// absent beats invented.
+    @State private var modelPricing: [String: (input: Double, output: Double)] = [:]
+
+    private func loadPricing() async {
+        let providers = Set(pickableModels.map(\.provider))
+        for providerType in providers {
+            guard let catalog = try? await appState.providerService
+                .listAvailableModels(providerType: providerType) else { continue }
+            for entry in catalog where entry.inputCostPerMillion > 0
+                || entry.outputCostPerMillion > 0 {
+                modelPricing[entry.modelId] =
+                    (entry.inputCostPerMillion, entry.outputCostPerMillion)
             }
         }
     }
@@ -127,9 +144,11 @@ struct ModelChipToolbarItem: View {
                         ModelPickerRow(
                             model: choice.model,
                             provider: choice.provider,
-                            isCurrent: choice.model == currentModel
+                            isCurrent: choice.model == currentModel,
+                            supportsVision: choice.vision,
+                            pricing: modelPricing[choice.model]
                         ) {
-                            select(choice)
+                            select((choice.provider, choice.model))
                         }
                     }
                 }
@@ -153,6 +172,7 @@ struct ModelChipToolbarItem: View {
         .task {
             await WorkflowRunProviderCache.shared.ensureLoaded(chatService: chatService)
             await reload()
+            await loadPricing()
         }
     }
 
@@ -308,6 +328,8 @@ private struct ModelPickerRow: View {
     let model: String
     let provider: String
     let isCurrent: Bool
+    var supportsVision: Bool = false
+    var pricing: (input: Double, output: Double)?
     let action: () -> Void
 
     var body: some View {
@@ -321,9 +343,26 @@ private struct ModelPickerRow: View {
                 // (Daniel, 2026-08-29: "the popover should have icons as
                 // well").
                 ModelFamilyMark(model: model, provider: provider)
-                Text(ModelChipToolbarItem.shorten(model))
-                    .font(.callout)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(ModelChipToolbarItem.shorten(model))
+                        .font(.callout)
+                    if let pricing {
+                        // The catalog's per-million figures, in/out — enough
+                        // to tell the cheap step from the expensive one.
+                        Text(String(format: "$%.2f in · $%.2f out / M",
+                                    pricing.input, pricing.output))
+                            .font(.system(size: 9))
+                            .foregroundStyle(.tertiary)
+                            .monospacedDigit()
+                    }
+                }
                 Spacer(minLength: 12)
+                if supportsVision {
+                    Image(systemName: "eye")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary)
+                        .help("Can read images")
+                }
                 Text(provider)
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
