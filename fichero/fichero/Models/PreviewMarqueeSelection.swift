@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 import Observation
 
@@ -26,6 +27,15 @@ final class PreviewMarqueeSelection {
     /// it — the user's draw order stays inspectable.
     private(set) var rects: [[Double]] = []
 
+    /// Human label for the document, so the workflow bar's subject chip can
+    /// name the scope without a store lookup (nil falls back to the detail
+    /// document's name in the policy).
+    private(set) var documentName: String?
+
+    /// The source image's pixel dimensions the rects were measured against —
+    /// what lets ▶ denormalize into `image.crop_child`'s pixel coordinates.
+    private(set) var imagePixelSize: CGSize?
+
     /// Marquee picked for individual deletion (click one, press Delete).
     var selectedIndex: Int?
 
@@ -36,12 +46,17 @@ final class PreviewMarqueeSelection {
 
     /// Append a marquee. Drawing on a different document abandons the old
     /// set — stale rects over a new page would be plausible and wrong.
-    func add(_ rect: [Double], documentId: String) {
+    func add(
+        _ rect: [Double], documentId: String,
+        documentName: String? = nil, imagePixelSize: CGSize? = nil
+    ) {
         if self.documentId != documentId {
             rects = []
             selectedIndex = nil
             self.documentId = documentId
         }
+        if let documentName { self.documentName = documentName }
+        if let imagePixelSize { self.imagePixelSize = imagePixelSize }
         rects.append(rect)
     }
 
@@ -49,11 +64,13 @@ final class PreviewMarqueeSelection {
         guard let index = selectedIndex, rects.indices.contains(index) else { return }
         rects.remove(at: index)
         selectedIndex = nil
-        if rects.isEmpty { documentId = nil }
+        if rects.isEmpty { documentId = nil; documentName = nil; imagePixelSize = nil }
     }
 
     func clear() {
         documentId = nil
+        documentName = nil
+        imagePixelSize = nil
         rects = []
         selectedIndex = nil
     }
@@ -70,4 +87,16 @@ final class PreviewMarqueeSelection {
             $0[1] != $1[1] ? $0[1] < $1[1] : $0[0] < $1[0]
         }
     }
+
+    /// Reading-order rects as CGRects — what the workflow bar's scope ladder
+    /// and ▶-press materialization consume (each rect its own crop child).
+    var readingOrderCGRects: [CGRect] {
+        readingOrderRects.map {
+            CGRect(x: $0[0], y: $0[1], width: $0[2], height: $0[3])
+        }
+    }
+
+    /// The scope's identity rect for the policy snapshot: the first marquee
+    /// in reading order. The RUN acts on the whole set; this only labels it.
+    var firstReadingOrderRect: CGRect? { readingOrderCGRects.first }
 }

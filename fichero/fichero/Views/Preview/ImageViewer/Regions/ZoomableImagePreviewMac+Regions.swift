@@ -34,6 +34,7 @@ extension ZoomableImagePreview {
                 artifactId: ocrGeometryArtifactId,
                 documentId: documentId,
                 marquees: windowState?.previewMarquees,
+                imagePixelSize: imageSize == .zero ? nil : imageSize,
                 isAddingRegion: isAddingRegion,
                 onMoveCommit: { index, bbox in commitRegionMove(index: index, bbox: bbox) }
             )

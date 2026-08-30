@@ -19,12 +19,12 @@ extension ContentView {
     /// Everything the scope ladder reads, snapshotted. The browser rung still
     /// reads the same accessor every other launch surface reads (#4523).
     var workflowBarSelectionSnapshot: WorkflowBarPolicy.SelectionSnapshot {
-        let marquee = PreviewMarqueeSelection.shared
+        let marquee = windowState.previewMarquees
         let regions = FocusedRegionSelection.shared
         let artifactFocus = FocusedArtifact.shared
         return WorkflowBarPolicy.SelectionSnapshot(
             marqueeDocumentId: marquee.documentId,
-            marqueeRect: marquee.normalizedRect,
+            marqueeRect: marquee.firstReadingOrderRect,
             marqueeDocumentName: marquee.documentName,
             regionIds: regions.regionDocumentIds,
             regionParentDocumentId: regions.parentDocumentId,
@@ -70,24 +70,37 @@ extension ContentView {
     func frozenChainTargets(for scope: WorkflowBarPolicy.RunScope) async -> [String]? {
         var targets = scope.documentIds
         guard !targets.isEmpty else { return nil }
-        if case .marqueeSelection(let parentId, let rect, _) = scope {
+        if case .marqueeSelection(let parentId, _, _) = scope {
             // The engine takes crops as node CONFIG, never run inputs, so an
-            // unpersisted rect cannot run directly — ▶ materializes it as a
-            // real region child (`image.crop_child`, reversible) and runs on
-            // that. Honest, not hidden: the child appears under its page
-            // like any other region node.
-            guard let childId = await materializeMarqueeRegion(
-                parentId: parentId, normalizedRect: rect
-            ) else {
+            // unpersisted rect cannot run directly — ▶ materializes EVERY
+            // drawn marquee as its own region child (`image.crop_child`,
+            // reversible), in reading order — the diary-entry ruling: several
+            // marquees, several nodes. Honest, not hidden: the children
+            // appear under their page like any other region node.
+            let rects = windowState.previewMarquees.readingOrderCGRects
+            var childIds: [String] = []
+            for rect in rects {
+                guard let childId = await materializeMarqueeRegion(
+                    parentId: parentId, normalizedRect: rect
+                ) else {
+                    importError = "Could not create a region node for the selection."
+                    return nil
+                }
+                childIds.append(childId)
+            }
+            guard !childIds.isEmpty else {
                 importError = "Could not create a region node for the selection."
                 return nil
             }
-            targets = [childId]
+            // The selections became nodes; keeping them armed would scope
+            // the NEXT run to rects that now exist twice.
+            windowState.previewMarquees.clear()
+            targets = childIds
         }
         return targets
     }
 
-    /// Turn the ephemeral marquee into a persisted region child and return
+    /// Turn one ephemeral marquee into a persisted region child and return
     /// its id, or nil when it cannot be done honestly (no pixel size to
     /// denormalize against, or the engine refused).
     ///
@@ -95,7 +108,7 @@ extension ContentView {
     /// the marquee seam carries the source's pixel size for exactly this.
     @MainActor
     func materializeMarqueeRegion(parentId: String, normalizedRect: CGRect) async -> String? {
-        let marquee = PreviewMarqueeSelection.shared
+        let marquee = windowState.previewMarquees
         guard let pixelSize = marquee.imagePixelSize,
               pixelSize.width > 0, pixelSize.height > 0 else {
             scopeLogger.error("marquee run: no pixel size to denormalize \(parentId)")
@@ -112,9 +125,8 @@ extension ContentView {
                 left: left, top: top, width: width, height: height
             )
             scopeLogger.info("marquee run: materialized region \(childId) of \(parentId)")
-            // The selection became a node; keeping the marquee armed would
-            // scope the NEXT run to a rect that now exists twice.
-            marquee.clear()
+            // Clearing the seam is the CALLER's job, after the whole set is
+            // materialized — clear() here would nil the pixel size mid-loop.
             return childId
         } catch {
             scopeLogger.error("marquee run: crop_child failed: \(error.localizedDescription)")

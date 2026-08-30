@@ -41,6 +41,9 @@ struct RegionInteractionLayer: View {
     let documentId: String
     /// Per-window ephemeral marquee seam (nil in hosts without WindowState).
     let marquees: PreviewMarqueeSelection?
+    /// The source image's pixel size — recorded with each marquee so ▶ can
+    /// denormalize into `image.crop_child`'s pixel coordinates.
+    let imagePixelSize: CGSize?
     /// True while rubber-band add mode is armed.
     let isAddingRegion: Bool
     /// Commit a moved region: (full-list index, new normalized bbox).
@@ -190,7 +193,9 @@ struct RegionInteractionLayer: View {
                 if let box = BoundingBoxGeometry.normalizedBox(
                     from: start, to: value.location, in: size, visible: visible
                 ) {
-                    marquees?.add(box, documentId: documentId)
+                    marquees?.add(
+                        box, documentId: documentId, imagePixelSize: imagePixelSize
+                    )
                 }
             }
     }
