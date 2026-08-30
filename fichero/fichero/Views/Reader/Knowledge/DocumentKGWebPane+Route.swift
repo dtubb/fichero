@@ -37,13 +37,26 @@ extension DocumentKGPaneRoute {
             query.append("pages=\(encodedPages)")
         }
         if let representation, !representation.isEmpty {
-            // Same fail-closed rule: a representation that cannot encode must
-            // not silently fall back to the live content.
-            guard let encodedRepresentation = representation
-                .addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else {
-                return nil
+            // The ARTIFACT view rides the representation channel as
+            // "artifact:<id>" (Daniel, 2026-08-30) — one string threads the
+            // existing plumbing and load-identity keys, decoded ONLY here.
+            if representation.hasPrefix("artifact:") {
+                let artifactRef = String(representation.dropFirst("artifact:".count))
+                guard !artifactRef.isEmpty,
+                      let encodedArtifact = artifactRef
+                        .addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else {
+                    return nil
+                }
+                query.append("artifact_id=\(encodedArtifact)")
+            } else {
+                // Same fail-closed rule: a representation that cannot encode
+                // must not silently fall back to the live content.
+                guard let encodedRepresentation = representation
+                    .addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else {
+                    return nil
+                }
+                query.append("representation=\(encodedRepresentation)")
             }
-            query.append("representation=\(encodedRepresentation)")
         }
         let suffix = query.isEmpty ? "" : "?\(query.joined(separator: "&"))"
         return URL(string: "\(baseURL)/view/document/\(encoded)\(suffix)")

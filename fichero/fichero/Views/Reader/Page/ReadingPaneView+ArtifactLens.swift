@@ -296,46 +296,6 @@ extension ReadingPaneView {
     }
 }
 
-/// The pinned artifact's text, full height, reader typography. Fetches the
-/// FULL artifact (list rows carry truncated content).
-struct ArtifactLensContentView: View {
-    let lens: ReaderArtifactLens
-
-    @Environment(ArtifactService.self) private var artifactService: ArtifactService?
-    @State private var text: String?
-    @State private var failed = false
-
-    var body: some View {
-        ScrollView {
-            if let text {
-                Text(text)
-                    .font(.body)
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(16)
-            } else if failed {
-                ContentUnavailableView(
-                    "Couldn’t Load Artifact",
-                    systemImage: "exclamationmark.triangle",
-                    description: Text(lens.label)
-                )
-                .padding(.top, 40)
-            } else {
-                ProgressView().padding(.top, 40)
-            }
-        }
-        .background(Color(.textBackgroundColor))
-        .task(id: lens.artifactId) {
-            failed = false
-            text = nil
-            guard let artifactService,
-                  let full = try? await artifactService.getArtifact(id: lens.artifactId),
-                  let content = full.content, !content.isEmpty
-            else {
-                failed = true
-                return
-            }
-            text = content
-        }
-    }
-}
+// ArtifactLensContentView retired 2026-08-30: the artifact lens rides the ONE
+// WebKit renderer now (`?artifact_id=`, via the "artifact:<id>" representation
+// channel) — tables parse, prose reads with the document's own typography.

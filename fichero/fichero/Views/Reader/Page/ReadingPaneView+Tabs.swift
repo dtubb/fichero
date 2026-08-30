@@ -42,11 +42,6 @@ extension ReadingPaneView {
             // natively, before any WebKit load, and offer the surface that
             // does show the node — the workflow editor.
             workflowNodeEmptyState(doc)
-        } else if let artifactLens {
-            // The ARTIFACT lens wins over every other Page rendering: the
-            // user explicitly pinned this pane to one artifact's text
-            // (artifact-compare P1). Split panes each hold their own.
-            ArtifactLensContentView(lens: artifactLens)
         } else if multiDocuments.count > 1 {
             // N pages of ONE parent ride the SAME WebKit transcript the
             // single-document reader uses — the surface's `?pages=` filter
@@ -299,7 +294,14 @@ extension ReadingPaneView {
                 pageIds: pageIds,
                 // The representation switcher applies to the PAGE reading of
                 // the document; the knowledge sub-modes read the live graph.
-                representation: tab == .transcript ? readerRepresentation : nil,
+                // The artifact lens outranks the representation switcher
+                // (Daniel, 2026-08-30): the SAME WebKit renderer reads one
+                // named artifact via the "artifact:<id>" channel — tables
+                // parse, translations read as prose, split panes each hold
+                // their own.
+                representation: tab == .transcript
+                    ? (artifactLens.map { "artifact:\($0.artifactId)" } ?? readerRepresentation)
+                    : nil,
                 selectedEntityId: kgFocusState.focusedEntityId,
                 selectedClaimId: highlightedClaimId,
                 activePageNumber: effectivePageNumber,

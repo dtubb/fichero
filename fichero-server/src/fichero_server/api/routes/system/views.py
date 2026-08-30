@@ -262,6 +262,47 @@ def represented_pages(
     return result
 
 
+def artifact_pages(
+    pages: list[dict[str, object]], artifact: Artifact
+) -> list[dict[str, object]]:
+    """ONE artifact read over the page list (Daniel, 2026-08-30: the reader
+    needs an ARTIFACT view - "the extract csv, rendered. or a translation").
+
+    The page owning the artifact carries its content (table-parsed when the
+    artifact is table-family); every other page is an empty section, so the
+    sequence still matches the preview (#4356). An artifact anchored to the
+    PARENT document (not any listed page) renders as a single section named
+    for it - a document-level CSV is one table, not a page walk. Pure for
+    unit tests.
+    """
+    table = table_payload(artifact) if artifact.artifact_type in TABLE_ARTIFACT_TYPES else None
+    content = artifact.content or ""
+    has_content = bool(content.strip()) or table is not None
+    owner = str(artifact.document_id)
+    if not any(str(page["id"]) == owner for page in pages):
+        entry: dict[str, object] = {
+            "id": owner,
+            "name": artifact.step_name or artifact.artifact_type or "Artifact",
+            "page_label": None,
+            "page_number": None,
+            "content": content,
+            "has_content": has_content,
+        }
+        if table is not None:
+            entry["table"] = table
+        return [entry]
+    result: list[dict[str, object]] = []
+    for page in pages:
+        if str(page["id"]) == owner:
+            entry = {**page, "content": content, "has_content": has_content}
+            if table is not None:
+                entry["table"] = table
+        else:
+            entry = {**page, "content": "", "has_content": False}
+        result.append(entry)
+    return result
+
+
 def transcript_pages(document: Document, child_pages: list[Document]) -> list[dict[str, object]]:
     """Every page of the document, in order — including pages with NO content.
 
@@ -428,6 +469,7 @@ async def document_view(
     doc_id: str,
     pages_filter: str | None = Query(default=None, alias="pages"),
     representation: str | None = Query(default=None),
+    artifact_id: str | None = Query(default=None),
     db: Database = Depends(get_library_database),
 ) -> HTMLResponse:
     requested = db.get(Document, doc_id)
@@ -478,7 +520,17 @@ async def document_view(
         child_pages = [p for p in child_pages if p.id in selected_page_ids]
     region_scoped = any(p.region_in_parent is not None for p in child_pages)
     pages = transcript_pages(document, child_pages)
-    if representation and representation != "content":
+    if artifact_id:
+        # The ARTIFACT view (Daniel, 2026-08-30): render exactly this
+        # artifact - it outranks the representation switcher, and the
+        # payload's representation names the artifact's own type so the
+        # template styles it like its family.
+        view_artifact = db.get(Artifact, artifact_id)
+        if view_artifact is None:
+            raise HTTPException(404, f"Artifact not found: {artifact_id}")
+        representation = view_artifact.artifact_type or "artifact"
+        pages = artifact_pages(pages, view_artifact)
+    elif representation and representation != "content":
         # The representation switcher re-requests THIS page with a
         # `representation` parameter — same scope, same renderer, different
         # reading. Latest artifact of that type per section (2026-08-29).
