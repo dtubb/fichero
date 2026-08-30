@@ -24,14 +24,33 @@ final class LibraryImportFocusedValueTests: XCTestCase {
     func testLibraryImportActionKeyIsNarrowNotSidebarActions() throws {
         let source = try Self.appSource("App/Menus/FocusedCommandButtons+FocusedValues.swift")
         XCTAssertTrue(source.contains("struct LibraryImportActionKey: FocusedValueKey"))
-        XCTAssertTrue(source.contains("typealias Value = (IngestMode) -> Void"))
+        // The Value is the Equatable wrapper, NEVER a raw closure (Daniel,
+        // 2026-08-29): a raw `(IngestMode) -> Void` re-published every body
+        // pass and the invalidation storm hung the iPhone's navigation pop.
+        XCTAssertTrue(source.contains("typealias Value = FocusedLibraryImportAction"))
+        XCTAssertFalse(source.contains("typealias Value = (IngestMode) -> Void"))
         XCTAssertTrue(source.contains("var libraryImportAction: LibraryImportActionKey.Value?"))
     }
 
+    func testLibraryImportActionIsEquatableAndStableAcrossInstances() {
+        // The whole point of the wrapper: two instances built on different
+        // body passes must compare EQUAL so the focus system short-circuits
+        // the republish (the SidebarActions pattern). If this ever fails,
+        // the per-frame republish storm — and the iPhone back-stall — is back.
+        let first = FocusedLibraryImportAction { _ in }
+        let second = FocusedLibraryImportAction { _ in }
+        XCTAssertEqual(first, second)
+    }
+
     func testLibraryViewPublishesItsOwnImportActionWhenFocused() throws {
-        let source = // LibraryView.swift was split 2026-08-13; scan all four parts.
-            ((try Self.appSource("Views/Library/LibraryView.swift")) + (try Self.appSource("Views/Library/LibraryView+Body.swift")) + (try Self.appSource("Views/Library/LibraryView+ContentBranches.swift")) + (try Self.appSource("Views/Library/LibraryView+Insets.swift")))
-        XCTAssertTrue(source.contains(".focusedValue(\\.libraryImportAction)"))
+        // LibraryView.swift was split 2026-08-13; scan all four parts.
+        let source = try [
+            "Views/Library/LibraryView.swift",
+            "Views/Library/LibraryView+Body.swift",
+            "Views/Library/LibraryView+ContentBranches.swift",
+            "Views/Library/LibraryView+Insets.swift"
+        ].map(Self.appSource).joined()
+        XCTAssertTrue(source.contains(".focusedValue(\\.libraryImportAction, FocusedLibraryImportAction {"))
         // States mode + target before presenting — same discipline as the
         // other three surfaces (#4449).
         XCTAssertTrue(source.contains("fileImportMode = mode"))

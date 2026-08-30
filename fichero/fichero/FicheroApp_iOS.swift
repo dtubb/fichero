@@ -153,6 +153,14 @@ private struct FicheroSharedPlatformRoot: View {
         .onChange(of: appState.isBackendRunning) { _, isRunning in
             guard isRunning else { return }
             Task {
+                // Daniel 2026-08-29: this edge is now the ONE owner of the
+                // post-ready block. Every path that flips the backend ready —
+                // launch probe, Retry, pairing, the 5s heartbeat recovering an
+                // unreachable-at-launch host, endpoint failover (#3098) — lands
+                // here, so library adoption/refresh (#3113) can never be skipped
+                // by a recovery that bypassed `reconnectToConfiguredHost`, and
+                // never runs twice for one flip.
+                await libraryManager.refreshAfterBackendBecameReady()
                 _ = await captureQueue.resumePendingUploads(
                     using: MobileCaptureBackendUploadClient(libraryManager: libraryManager)
                 )
@@ -186,24 +194,66 @@ private struct FicheroSharedPlatformRoot: View {
         // checkBackendHealth resolves the phase to ready / unreachable /
         // authRejected. A configured-but-down host lands on `unreachable` and
         // the gate shows the diagnosis — NEVER the pairing prompt (#2807/#2864).
+        //
+        // Daniel 2026-08-29 (device log: launch story resolved @ ~70.5s behind
+        // serial ~60s NSURLError -1001 health timeouts): the paired Mac being
+        // unreachable must not hold the launch narrative for the transport's
+        // whole-request deadline. The workspace is already on screen with its
+        // restored local state (BackendRootGate renders content in `.starting`),
+        // so the probe runs to completion in the background while the STATUS
+        // stops waiting after a short grace and says honestly that the host
+        // hasn't answered yet. The probe's eventual verdict still lands — a
+        // slow-but-alive host self-corrects to ready, a dead one refines the
+        // diagnosis.
+        let watchdog = Task {
+            try? await Task.sleep(for: LaunchProbePolicy.firstProbeGrace)
+            guard !Task.isCancelled else { return }
+            // Both this task and the probe resolve phase on the main actor, so
+            // the check-and-flip is serialized: a probe that already resolved
+            // wins (`keepResolvedPhase`), and a probe that resolves later
+            // simply overwrites this honest interim status.
+            guard LaunchProbePolicy.actionOnGraceExpiry(phase: appState.engine.phase)
+                == .markStillConnecting else { return }
+            // Observable in the LaunchProfile timeline: this is the moment the
+            // launch story stopped waiting for the transport deadline.
+            LaunchProfile.milestone("launch probe grace expired — honest still-connecting status")
+            appState.engine.markUnreachable(
+                LaunchProbePolicy.stillConnectingDiagnosis(
+                    host: EngineConfig.host.host ?? EngineConfig.host.absoluteString
+                )
+            )
+        }
         await appState.checkBackendHealth()
+        watchdog.cancel()
+
+        // The heartbeat is BOTH halves of the connection watchdog (Daniel,
+        // 2026-08-29): with the host up it watches for a mid-session drop; with
+        // the host down it IS the background launch retry — the same 5s
+        // readiness poll recovers through `warmContextThenMarkReady` (#4359)
+        // and the ready flip below then runs the post-ready block. Started
+        // unconditionally so a launch against a sleeping Mac keeps quietly
+        // retrying instead of parking forever on the first probe's verdict.
+        appState.startBackendHeartbeat()
         guard appState.isBackendRunning else {
             logger.error(
-                "External backend is not reachable at \(EngineConfig.host.absoluteString, privacy: .public)"
+                """
+                External backend is not reachable at \
+                \(EngineConfig.host.absoluteString, privacy: .public) — retrying in the background
+                """
             )
             return
         }
-        appState.startBackendHeartbeat()
         // Proactively renew the device token if it is near expiry (#3096), before
         // it can lapse into a 401. No-op for local hosts / unknown expiry; a failed
         // renew keeps the old token (the expired → re-pair path is the safety net).
         await DeviceTokenRenewal.renewIfNeeded(host: EngineConfig.host)
-        // The SAME shared post-ready block as macOS (#3113), then the iOS-only
-        // capture-queue resume — which is a mobile concern, not a library one.
-        await libraryManager.refreshAfterBackendBecameReady()
-        _ = await captureQueue.resumePendingUploads(
-            using: MobileCaptureBackendUploadClient(libraryManager: libraryManager)
-        )
+        // The shared post-ready block (#3113) — refresh + capture resume — runs
+        // off the `isBackendRunning` false→true edge (`onChange` above), which
+        // this ready flip has just fired. Keeping ONE owner for that block means
+        // launch, Retry, pairing, heartbeat recovery, and endpoint failover all
+        // run the same side effects exactly once per recovery (Daniel,
+        // 2026-08-29: a launch that failed and later recovered via the
+        // heartbeat used to skip library adoption entirely).
     }
 }
 
