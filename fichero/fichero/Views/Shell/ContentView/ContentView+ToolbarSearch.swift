@@ -1,95 +1,64 @@
 import SwiftUI
 
-// MARK: - Resident toolbar search field (#4604)
+// MARK: - Native toolbar search (Daniel, 2026-08-29)
 //
-// Split from ContentView+Toolbar.swift for file_length; cohesion: everything
-// here is the top-right search field and its merged mode menu.
+// The hand-rolled magnifier+TextField lozenge (#4604) is gone: "not proper
+// macOS search… use the default one". The SYSTEM toolbar search item carries
+// the field now — `.searchable` + `.searchToolbarBehavior(.minimize)` gives
+// the Mail-style field that collapses to a magnifier and expands on click,
+// and `DefaultToolbarItem(kind: .search)` in
+// ContentView+InspectorContainer.swift sites it as its OWN trailing toolbar
+// item, fused to nothing.
+//
+// Behaviour is otherwise the old field's, unchanged:
+// - Submit fires the SAME engine-search action (`runToolbarSearch`).
+// - Ask/Keyword scoping survives as native search scopes, shown only while
+//   the field is presented (`.onSearchPresentation`) — never the #4407
+//   window-spanning scope bar, because the registration lives on the
+//   detail/inspector content, not the whole NavigationSplitView.
+// - The Hybrid/Semantic/Full-Text method stays where #4112 put it: the
+//   results bar's Options menu.
+// - Emptying the field still exits transient-search presentation via the
+//   existing `toolbarSearchText` onChange in ContentView+RootLayout.swift.
+//
+// This is the single `.searchable` registration in the window (#3163
+// duplicate-identifier crash class) — ToolbarDuplicateRegistrationGuardTests
+// allowlists exactly this file.
 
 extension ContentView {
-    // MARK: Resident search field (#4604)
-
-    /// The always-there window search: magnifier-as-menu + field + clear.
-    /// internal: ContentView+Toolbar.swift mounts this; `private` is FILE-scoped.
-    var toolbarSearchField: some View {
-        HStack(spacing: 4) {
-            searchModeMenu
-
-            TextField("Search your library", text: $toolbarSearchText)
-                .textFieldStyle(.plain)
-                .font(.callout)
-                .frame(width: 180)
-                .focused($toolbarSearchFieldFocused)
-                .onSubmit { runToolbarSearch(toolbarSearchText) }
-
-            if !toolbarSearchText.isEmpty {
-                Button {
-                    // Same dismissal semantics the toggle had: emptying the
-                    // field exits transient-search presentation so the
-                    // library can't silently show results for an invisible
-                    // query (#4521 rule, field just never hides now).
-                    setSearchFieldVisible(false)
-                } label: {
-                    Image(systemName: ToolbarSymbols.clearField)
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Clear search")
-                .help("Clear search")
-            }
-        }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 3)
-        // No grey pill (Daniel, 2026-08-23: "weird grey background … look at
-        // Finder"): a hairline-stroked field like Finder's, not a filled chip.
-        .background(
-            RoundedRectangle(cornerRadius: 6)
-                .strokeBorder(.quaternary, lineWidth: 1)
+    /// Ask/Keyword (#4117) as a typed binding over the persisted raw mode.
+    var searchFieldModeBinding: Binding<SearchFieldMode> {
+        Binding(
+            get: { SearchFieldMode(rawValue: searchFieldModeRaw) ?? .ask },
+            set: { searchFieldModeRaw = $0.rawValue }
         )
-        .help("Search the library — the magnifier picks the mode")
     }
 
-    /// ONE mode control on the magnifier (#4604 §4.2): what the words mean
-    /// (Ask vs Keyword) and how matching runs (Hybrid / Semantic / Full
-    /// Text) — previously two controls in two different bars.
-    private var searchModeMenu: some View {
-        Menu {
-            Section("Mode") {
-                ForEach(SearchFieldMode.allCases, id: \.self) { mode in
-                    Button {
-                        searchFieldModeRaw = mode.rawValue
-                    } label: {
-                        if searchFieldModeRaw == mode.rawValue {
-                            Label(mode == .ask ? "Ask" : "Keyword", systemImage: "checkmark")
-                        } else {
-                            Text(mode == .ask ? "Ask" : "Keyword")
-                        }
-                    }
-                }
+    /// The native search registration, applied to the detail/inspector
+    /// content by ContentView+InspectorContainer.swift (internal — `private`
+    /// is file-scoped).
+    func nativeToolbarSearch<Content: View>(_ content: Content) -> some View {
+        let searchable = content
+            .searchable(
+                text: $toolbarSearchText,
+                placement: .toolbar,
+                prompt: "Search your library"
+            )
+            .searchScopes(searchFieldModeBinding, activation: .onSearchPresentation) {
+                Text("Ask").tag(SearchFieldMode.ask)
+                Text("Keyword").tag(SearchFieldMode.keyword)
             }
-            Section("Method") {
-                ForEach(
-                    [("hybrid", "Hybrid"), ("semantic", "Semantic"), ("fulltext", "Full Text")],
-                    id: \.0
-                ) { value, label in
-                    Button {
-                        transientSearchType = value
-                    } label: {
-                        if transientSearchType == value {
-                            Label(label, systemImage: "checkmark")
-                        } else {
-                            Text(label)
-                        }
-                    }
-                }
+            .onSubmit(of: .search) {
+                runToolbarSearch(toolbarSearchText)
             }
-        } label: {
-            Image(systemName: searchFieldModeRaw == SearchFieldMode.ask.rawValue
-                ? "sparkle.magnifyingglass" : ToolbarSymbols.findField)
-                .foregroundStyle(.secondary)
-        }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .fixedSize()
-        .help("Search mode: Ask or Keyword; Hybrid, Semantic, or Full Text")
+        #if os(iOS)
+        // Mail-style: a magnifier until tapped, then the field expands.
+        return searchable.searchToolbarBehavior(.minimize)
+        #else
+        // `.minimize` is explicitly unavailable on macOS (build-verified):
+        // there the system NSSearchToolbarItem already carries the Mail
+        // idiom — a field that collapses to the magnifier as space demands.
+        return searchable
+        #endif
     }
 }

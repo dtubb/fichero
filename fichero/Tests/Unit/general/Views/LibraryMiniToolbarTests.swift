@@ -159,34 +159,40 @@ struct LibraryMiniToolbarTests {
         // bottom row is the action bar, unconditionally at the bottom.
     }
 
-    // MARK: - Resident search (#4604, superseding the #4521 summon)
+    // MARK: - Native toolbar search (Daniel, 2026-08-29, superseding #4604)
 
-    /// #4521 made the field summoned by a toolbar toggle. #4604 (2026-08-19)
-    /// reversed that: the search field is RESIDENT, top-right in the window
-    /// toolbar, with the mode menu on the magnifier — no toggle, no
-    /// conditional chrome, and still deliberately NOT `.searchable` (which
-    /// attaches to a navigation container: the #4407 three-pane span and the
-    /// duplicate-.searchable crash class).
-    @Test("the search field is resident in the window toolbar, not summoned")
-    func searchFieldIsSummonedNotResident() throws {
+    /// #4604's resident hand-rolled lozenge is gone in turn: "not proper
+    /// macOS search… use the default one". The SYSTEM search item carries the
+    /// field (`.searchable` + `.searchToolbarBehavior(.minimize)`, the
+    /// Mail-style magnifier collapse), sited as its OWN trailing item by
+    /// `DefaultToolbarItem(kind: .search)` in the inspector-section toolbar.
+    /// Still resident (no summon toggle), and still exactly ONE registration
+    /// per window — the #3163 duplicate-identifier crash class.
+    @Test("search is the native toolbar search item, its own trailing item")
+    func searchIsTheNativeToolbarItem() throws {
         let toolbarSearch = try Self.appSource("Views/Shell/ContentView/ContentView+ToolbarSearch.swift")
-        #expect(toolbarSearch.contains("var toolbarSearchField"))
-        #expect(toolbarSearch.contains("TextField(\"Search your library\""))
+        #expect(toolbarSearch.contains(".searchable("))
+        #expect(toolbarSearch.contains("prompt: \"Search your library\""))
+        #expect(toolbarSearch.contains(".searchToolbarBehavior(.minimize)"))
+        // Submit fires the SAME engine-search action the old field fired.
+        #expect(toolbarSearch.contains("runToolbarSearch(toolbarSearchText)"))
+        // The hand-rolled lozenge would be a SECOND search UI now.
+        #expect(!toolbarSearch.contains("var toolbarSearchField"))
+        #expect(!toolbarSearch.contains("TextField("))
 
-        // The field MOUNTS in the inspector-section toolbar since 2026-08-23
-        // (Daniel: right of the inspector toggle; the content section always
-        // renders left of the inspector section). The honest pin is still on
-        // the summon STATE being gone, now checked in both homes.
+        // Sited in the inspector-section toolbar since 2026-08-23 (right of
+        // the inspector toggle); the summon state stays gone in both homes.
         let inspector = try Self.appSource(
             "Views/Shell/ContentView/Layout/ContentView+InspectorContainer.swift"
         )
-        #expect(inspector.contains("toolbarSearchField"))
+        #expect(inspector.contains("DefaultToolbarItem(kind: .search"))
+        #expect(inspector.contains("nativeToolbarSearch(detailView)"))
         let toolbar = try Self.appSource("Views/Shell/ContentView/ContentView+Toolbar.swift")
         #expect(!toolbar.contains(".searchable("))
         for source in [toolbar, inspector] {
             #expect(
                 !source.contains("setSearchFieldVisible"),
-                "the #4521 summon state is back — #4604 made the field resident"
+                "the #4521 summon state is back — the field stays resident"
             )
         }
     }

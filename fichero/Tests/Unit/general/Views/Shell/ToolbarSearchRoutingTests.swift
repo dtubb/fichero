@@ -202,21 +202,24 @@ final class ToolbarSearchRoutingTests: XCTestCase {
         let layoutSource = try Self.appSource("Views/Shell/ContentView/Layout/ContentView+RootLayout.swift")
 
         // #4117 asked for the mode to be a native `.searchScopes` scope.
-        // #4407 REVERSED that: applied to the whole NavigationSplitView it drew
-        // an Ask/Keyword bar across the library, the preview AND the reader.
-        // The field now lives in the library's own mini toolbar, and the mode is
-        // a menu on it.
+        // #4407 reversed that because, applied to the whole
+        // NavigationSplitView, it drew an Ask/Keyword bar across the library,
+        // the preview AND the reader. Daniel's 2026-08-29 ruling brings the
+        // NATIVE search back — but registered on the detail/inspector
+        // content, never the split view, so RootLayout stays scope-free.
         XCTAssertTrue(layoutSource.contains("enum SearchFieldMode"))
         XCTAssertTrue(layoutSource.contains("case ask"))
         XCTAssertFalse(
             layoutSource.contains(".searchScopes("),
             "#4407: .searchScopes on the split view is what drew the full-width bar."
         )
-        // The field's mode menu moved to ContentView+ToolbarSearch.swift and
-        // binds through the raw value (1b6bb8e85's guardrail-clean splits).
+        // The mode is a native search scope on the system field, shown only
+        // while the field is presented, bound through the persisted raw value.
         let toolbarSearch = try Self.appSource("Views/Shell/ContentView/ContentView+ToolbarSearch.swift")
-        XCTAssertTrue(toolbarSearch.contains("searchModeMenu"))
-        XCTAssertTrue(toolbarSearch.contains("searchFieldModeRaw = mode.rawValue"))
+        XCTAssertTrue(toolbarSearch.contains(
+            ".searchScopes(searchFieldModeBinding, activation: .onSearchPresentation)"
+        ))
+        XCTAssertTrue(toolbarSearch.contains("searchFieldModeRaw = $0.rawValue"))
         // Chat-the-search: the result set becomes the conversation's scope,
         // through the SAME router the sidebar chat entry uses.
         XCTAssertTrue(resultsSource.contains("func openChatWithSearchResults"))

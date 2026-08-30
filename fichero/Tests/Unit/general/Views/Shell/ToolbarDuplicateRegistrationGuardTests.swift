@@ -90,14 +90,16 @@ final class ToolbarDuplicateRegistrationGuardTests: XCTestCase {
         // its file changed. The old key is NOT kept alongside this one: two
         // allowlisted homes would permit two live registrations, which is the
         // exact crash this guards (#3163).
-        // #4407 took the count in RootLayout from 1 to 0: the window-level
-        // `.searchable` moved into the library's mini toolbar as a plain field.
-        // The entry stays as a CEILING (the assertion is `<=`), because the
-        // rule it encodes — at most one live `.searchable` per window — is what
-        // prevents the #3163 duplicate-registration crash, and that rule
-        // outlives the particular control.
+        // #4407 took the count in RootLayout to 0; Daniel's 2026-08-29 native
+        // search ruling moved the ONE live registration to
+        // ContentView+ToolbarSearch.swift (`nativeToolbarSearch`, applied to
+        // the detail/inspector content — never the split view). The rule the
+        // allowlist encodes is unchanged: at most one live `.searchable` per
+        // window, which is what prevents the #3163 duplicate-registration
+        // crash. RootLayout is NOT kept alongside it — two allowlisted homes
+        // would permit two live registrations, the exact crash this guards.
         let allowlist: [String: Int] = [
-            "Views/Shell/ContentView/Layout/ContentView+RootLayout.swift": 1,  // now 0 (#4407)
+            "Views/Shell/ContentView/ContentView+ToolbarSearch.swift": 1,  // the native search (2026-08-29)
             "Views/Components/MiniToolbar.swift": 1  // conditionalSearchable's definition
         ]
 

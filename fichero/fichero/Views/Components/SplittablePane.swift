@@ -1,5 +1,71 @@
 import SwiftUI
 
+// MARK: - Window-level split commands (Daniel, 2026-08-29)
+//
+// The toolbar's Split/Tab button (Xcode's ⊞+ idiom) must split WHICHEVER pane
+// has focus — chat included — through this same machinery, and the workspace
+// feature must capture/restore split counts. Each SplittablePane stays the
+// single owner of its live @SceneStorage state; the coordinator is a
+// per-window mailbox: commands are posted THROUGH it (its identity scopes a
+// notification to one window) and counts are MIRRORED into it so a workspace
+// save can read them. Extends, never forks, the existing split state.
+
+extension Notification.Name {
+    /// Toggle one axis of one pane: userInfo `storageKey` + `axis` (raw
+    /// `SplitPaneAxis`), object = the posting window's `PaneSplitCoordinator`.
+    static let paneSplitCommand = Notification.Name("fichero.paneSplitCommand")
+    /// Restore counts from a workspace: userInfo `splits` =
+    /// `[String: PaneSplitCounts]`; a mounted pane missing from the map
+    /// collapses to 1×1 (a workspace states the WHOLE arrangement).
+    static let paneSplitApply = Notification.Name("fichero.paneSplitApply")
+}
+
+enum SplitPaneAxis: String, Sendable {
+    case vertical
+    case horizontal
+}
+
+/// Per-window split mailbox + mirror. `recorded` is only ever READ from
+/// action closures (workspace capture), never from a view body, so mirroring
+/// on every count change cannot invalidate render trees.
+@MainActor
+@Observable
+final class PaneSplitCoordinator {
+    var recorded: [String: PaneSplitCounts] = [:]
+
+    /// Split counts worth persisting — panes actually split.
+    var splitCounts: [String: PaneSplitCounts] {
+        recorded.filter { $0.value.isSplit }
+    }
+
+    func requestSplit(storageKey: String, axis: SplitPaneAxis) {
+        NotificationCenter.default.post(
+            name: .paneSplitCommand,
+            object: self,
+            userInfo: ["storageKey": storageKey, "axis": axis.rawValue]
+        )
+    }
+
+    func applySplits(_ splits: [String: PaneSplitCounts]) {
+        NotificationCenter.default.post(
+            name: .paneSplitApply,
+            object: self,
+            userInfo: ["splits": splits]
+        )
+    }
+}
+
+private struct PaneSplitCoordinatorKey: EnvironmentKey {
+    static let defaultValue: PaneSplitCoordinator? = nil
+}
+
+extension EnvironmentValues {
+    var paneSplitCoordinator: PaneSplitCoordinator? {
+        get { self[PaneSplitCoordinatorKey.self] }
+        set { self[PaneSplitCoordinatorKey.self] = newValue }
+    }
+}
+
 // MARK: - Environment: split controls (consumed by MiniToolbar)
 
 /// Injected by SplittablePane so MiniToolbar can render the split buttons
@@ -143,6 +209,10 @@ struct SplittablePane<Content: View>: View {
     private let storageKey: String
     private let content: () -> Content
 
+    /// Window-level split commands + workspace capture (Daniel, 2026-08-29).
+    /// nil (e.g. previews, panes outside the centre row) simply opts out.
+    @Environment(\.paneSplitCoordinator) private var splitCoordinator
+
     /// Number of panes in the active left/right layout.
     @SceneStorage private var verticalPaneCount: Int
     /// Number of panes in the active top/bottom layout.
@@ -169,6 +239,20 @@ struct SplittablePane<Content: View>: View {
 
     var body: some View {
         splitContainer
+            // Mirror counts into the window coordinator so a workspace save
+            // can read them; apply/act on window-level commands addressed to
+            // this pane's storage key (Daniel, 2026-08-29). NotificationCenter
+            // posts happen on the main actor (the coordinator is @MainActor),
+            // so onReceive delivers synchronously on main.
+            .onAppear { recordSplitCounts() }
+            .onChange(of: verticalPaneCount) { _, _ in recordSplitCounts() }
+            .onChange(of: horizontalPaneCount) { _, _ in recordSplitCounts() }
+            .onReceive(NotificationCenter.default.publisher(for: .paneSplitCommand)) { note in
+                handleSplitCommand(note)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .paneSplitApply)) { note in
+                handleSplitApply(note)
+            }
     }
 
     private var splitState: SplitPaneState {
@@ -438,5 +522,40 @@ struct SplittablePane<Content: View>: View {
 
     private func clamp(_ value: Double, lower: Double, upper: Double) -> Double {
         min(max(value, lower), upper)
+    }
+}
+
+// MARK: - Window-level command handling (Daniel, 2026-08-29)
+//
+// An extension (not more struct body) per the type_body_length budget.
+
+extension SplittablePane {
+    private func recordSplitCounts() {
+        splitCoordinator?.recorded[storageKey] = PaneSplitCounts(
+            vertical: verticalPaneCount,
+            horizontal: horizontalPaneCount
+        )
+    }
+
+    /// The coordinator IDENTITY scopes commands to one window: two windows'
+    /// panes share storage-key names ("library-library" etc.), and an
+    /// unscoped notification would split every window at once.
+    private func handleSplitCommand(_ note: Notification) {
+        guard let splitCoordinator, (note.object as? PaneSplitCoordinator) === splitCoordinator,
+              note.userInfo?["storageKey"] as? String == storageKey,
+              let axisRaw = note.userInfo?["axis"] as? String,
+              let axis = SplitPaneAxis(rawValue: axisRaw) else { return }
+        switch axis {
+        case .vertical: toggleVertical()
+        case .horizontal: toggleHorizontal()
+        }
+    }
+
+    private func handleSplitApply(_ note: Notification) {
+        guard let splitCoordinator, (note.object as? PaneSplitCoordinator) === splitCoordinator,
+              let splits = note.userInfo?["splits"] as? [String: PaneSplitCounts] else { return }
+        let counts = (splits[storageKey] ?? PaneSplitCounts()).sanitized
+        verticalPaneCount = counts.vertical
+        horizontalPaneCount = counts.horizontal
     }
 }

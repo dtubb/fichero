@@ -243,6 +243,14 @@ struct NavigateForwardActionKey: FocusedValueKey {
     typealias Value = FocusedLibraryAction
 }
 
+/// FocusedValue key for the focused window's workspace/layout verbs (Daniel,
+/// 2026-08-29): Save Workspace…, apply a saved workspace, apply a layout
+/// preset. The View menu's workspace section reads it so the commands act on
+/// the focused window, same mechanism as InspectorButton.
+struct WindowLayoutCommandsKey: FocusedValueKey {
+    typealias Value = WindowLayoutCommands
+}
+
 /// The READER's zoom, on its own key (2026-08-24): sharing imageZoomActions
 /// with the preview meant two publishers whenever both panes were mounted —
 /// the "FocusedValue update tried to update multiple times per frame" fault.
@@ -340,6 +348,11 @@ extension FocusedValues {
     var focusedPaneKind: FocusedPaneKindKey.Value? {
         get { self[FocusedPaneKindKey.self] }
         set { self[FocusedPaneKindKey.self] = newValue }
+    }
+
+    var windowLayoutCommands: WindowLayoutCommandsKey.Value? {
+        get { self[WindowLayoutCommandsKey.self] }
+        set { self[WindowLayoutCommandsKey.self] = newValue }
     }
 
     var inspectorSelectAll: InspectorSelectAllKey.Value? {
