@@ -44,7 +44,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 APP_DIR = ROOT / "fichero" / "fichero"
-TESTS_DIR = ROOT / "fichero" / "fichero-tests"
+TESTS_DIR = ROOT / "fichero" / "Tests" / "Unit"
 RULE_DOC = "#4201"
 
 # Legitimate cases, keyed "Type.member". Each entry states WHY it is safe.
@@ -218,7 +218,7 @@ def main() -> int:
         sum(1 for _ in (ROOT / "fichero" / "fichero").rglob("*.swift")), 400,
         "app Swift files (884 on 2026-08-02)",
     )
-    print("MainActor View-statics guardrail: scanned fichero/fichero + fichero/fichero-tests")
+    print("MainActor View-statics guardrail: scanned fichero/fichero + fichero/Tests/Unit")
     print(f"  {len(found)} exposed static(s); {len(known)} known.")
 
     if stale:

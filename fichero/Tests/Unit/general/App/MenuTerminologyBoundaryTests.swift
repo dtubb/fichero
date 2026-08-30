@@ -1,0 +1,45 @@
+import XCTest
+
+final class MenuTerminologyBoundaryTests: XCTestCase {
+    func testFileAndImportMenusUseLibraryAndMoveTerminology() throws {
+        // Export handlers split to FileMenuCommands+Export.swift (2026-08-21,
+        // file_length) — the service call moved there; the labels stayed.
+        let fileMenuSource = try Self.appSource("App/Menus/FileMenuCommands.swift")
+            + Self.appSource("App/Menus/FileMenuCommands+Export.swift")
+        XCTAssertTrue(fileMenuSource.contains("Button(\"Close Library\")"))
+        XCTAssertTrue(fileMenuSource.contains("Button(\"Save Library As...\")"))
+        XCTAssertTrue(fileMenuSource.contains("Label(\"Markdown Static Site...\", systemImage: \"globe\")"))
+        XCTAssertTrue(fileMenuSource.contains("library.documentService.exportEleventySite("))
+        XCTAssertTrue(fileMenuSource.contains("Text(\"Couldn’t load recent libraries\")"))
+        // Open Recent's empty/error states are explicit menu ROWS now, not a
+        // .disabled modifier (the lane's refactor): pin the branch chain.
+        XCTAssertTrue(fileMenuSource.contains("Text(\"No Recent Libraries\")"))
+        XCTAssertFalse(fileMenuSource.contains(".disabled(registry.libraries.isEmpty"))
+        XCTAssertFalse(fileMenuSource.contains("Close Database"))
+        XCTAssertFalse(fileMenuSource.contains("Save Database As..."))
+        XCTAssertFalse(fileMenuSource.contains("Label(\"Static Site (11ty)...\", systemImage: \"globe\")"))
+
+        // The "Move Files..." button moved into the +SidebarActions.swift sibling.
+        let focusedCommandsSource = try [
+            Self.appSource("App/Menus/FocusedCommandButtons.swift"),
+            Self.appSource("App/Menus/FocusedCommandButtons+SidebarActions.swift")
+        ].joined(separator: "\n")
+        XCTAssertTrue(focusedCommandsSource.contains("Button(\"Move Files...\")"))
+        XCTAssertFalse(focusedCommandsSource.contains("Button(\"Add Files...\")"))
+
+        let addItemMenuSource = try Self.appSource("App/Menus/AddItemMenu.swift")
+        XCTAssertTrue(addItemMenuSource.contains("Button(\"Move Files...\")"))
+        XCTAssertFalse(addItemMenuSource.contains("Button(\"Add Files...\")"))
+    }
+
+    func testRenameShortcutIsDeclaredOnlyOnTheFocusedButton() throws {
+        let appSource = try Self.appSource("FicheroApp.swift")
+        XCTAssertTrue(appSource.contains("FocusedRenameButton()"))
+        XCTAssertFalse(appSource.contains("FocusedRenameButton()\n                    .keyboardShortcut(.return, modifiers: [])"))
+    }
+
+    private static func appSource(_ relativePath: String) throws -> String {
+        let baseURL = try AppSource.root()
+        return try String(contentsOf: baseURL.appendingPathComponent(relativePath), encoding: .utf8)
+    }
+}

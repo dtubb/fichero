@@ -1,31 +1,9 @@
 {
   "_doc": "Repo paths named in docs that do not exist, on purpose (build artifacts, or things described as deleted). Every other absent path is a bug. See AGENTS.md.",
   "known_absent_paths": [
-    ".git/logs/HEAD",
-    ".git/logs/refs/heads/inspector-ia-20260711",
-    ".git/logs/refs/heads/main",
-    "build/releases",
     "build/verify_all_needs_fixing.json",
-    "build/verify_all_report.json",
-    "fichero-server/.../actions/chat_tools.py",
     "fichero-server/build/fichero-backend/macos/app/FicheroBackend.app",
-    "fichero-server/tests/live/test_pairing_live_server.py",
-    "fichero/api/main.py",
     "fichero/build/xcode/Products/Release",
-    "fichero/build/xcode/Products/Release/Fichero.app",
-    "fichero/build/xcode/Products/Release/Fichero.app/Contents/Info.plist",
-    "fichero/db.py",
-    "fichero/fichero-api-client/.build",
-    "fichero/fichero-tests/PairingRoundTripContractTests.swift",
-    "fichero/importers",
-    "fichero/models",
-    "fichero/paths.py",
-    "fichero/workflows",
-    "fichero/workflows/scheduler.py",
-    "fichero/workflows/tasks.py",
-    "scripts/baseline_move_check.sh",
-    "scripts/check_dead_python.py",
-    "scripts/check_product_plist_keys.py",
-    "scripts/check_transcript_anchor_contract.py"
+    "fichero/build/xcode/Products/Release/Fichero.app"
   ]
 }

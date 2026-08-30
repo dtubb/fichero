@@ -2,6 +2,7 @@
 
 import json
 import re
+from pathlib import Path
 
 from fichero_server.models.knowledge import EntityType, KnowledgeClaim, KnowledgeEntity
 from fichero_server.db import Database
@@ -598,3 +599,285 @@ class TestPagesFilter:
         assert response.status_code == 200
         for n in (1, 2, 3):
             assert f"Transcript {n}" in response.text
+
+
+class TestRegionScopedView:
+    """A region-scoped reader shows ALL regions of that view (Daniel,
+    2026-08-29) — same page, same output type — through the ONE renderer."""
+
+    def _page_with_regions(self, db):
+        from fichero_server.models import NodeRegion
+
+        page = _make_document(
+            doc_id="rg-page", name="Sheet 4", doc_type=DocType.file,
+            file_type=FileType.image, page_content="THE WHOLE SHEET TEXT",
+        )
+        db.save(page)
+        regions = []
+        for n in (1, 2, 3):
+            region = Document(
+                id=f"rg-entry-{n}", name=f"1933-01-0{n}", parent_id=page.id,
+                doc_type=DocType.file, node_kind="entry", sequence=n,
+                page_content=f"Entry text {n}", status=Status.completed,
+                region_in_parent=NodeRegion(rect=[0.0, 0.1 * n, 1.0, 0.1]),
+            )
+            db.save(region)
+            regions.append(region)
+        return page, regions
+
+    def test_region_children_fold_into_the_transcript(self, client, db):
+        page, _ = self._page_with_regions(db)
+        response = client.get(f"/view/document/{page.id}")
+        assert response.status_code == 200
+        for n in (1, 2, 3):
+            assert f"Entry text {n}" in response.text
+        # The parent's own flat text must not double the region list.
+        assert "THE WHOLE SHEET TEXT" not in response.text
+        # Region sections are marked so the reader shows their NAMES —
+        # ordinary sheets stay numbers only.
+        assert '"is_region": true' in response.text
+
+    def test_requesting_one_region_shows_the_whole_cohort(self, client, db):
+        page, regions = self._page_with_regions(db)
+        response = client.get(f"/view/document/{regions[1].id}")
+        assert response.status_code == 200
+        for n in (1, 2, 3):
+            assert f"Entry text {n}" in response.text
+
+    def test_cohort_excludes_other_producers_and_deleted_regions(self, client, db):
+        from fichero_server.core.timeutil import utc_now
+        from fichero_server.models import NodeRegion
+
+        page, regions = self._page_with_regions(db)
+        other = Document(
+            id="rg-segment", name="Segment", parent_id=page.id,
+            doc_type=DocType.file, node_kind="segment", sequence=9,
+            page_content="A segment from a different tool",
+            status=Status.completed,
+            region_in_parent=NodeRegion(rect=[0.0, 0.5, 1.0, 0.1]),
+        )
+        db.save(other)
+        regions[2].deleted_at = utc_now()
+        db.save(regions[2])
+        response = client.get(f"/view/document/{regions[0].id}")
+        assert response.status_code == 200
+        assert "Entry text 1" in response.text
+        assert "Entry text 2" in response.text
+        # Removed by a re-run: soft-deleted regions stay out.
+        assert "Entry text 3" not in response.text
+        # A different producer's output is a different view, not this cohort.
+        assert "A segment from a different tool" not in response.text
+
+    def test_pages_filter_applies_to_regions_too(self, client, db):
+        page, _ = self._page_with_regions(db)
+        response = client.get(f"/view/document/{page.id}?pages=rg-entry-2")
+        assert response.status_code == 200
+        assert "Entry text 2" in response.text
+        assert "Entry text 1" not in response.text
+
+    def test_region_cohort_is_pure(self):
+        from fichero_server.api.routes.system.views import region_cohort
+        from fichero_server.models import NodeRegion
+
+        region = NodeRegion(rect=[0.0, 0.0, 1.0, 0.5])
+        anchor = Document(
+            id="a", name="a", doc_type=DocType.file, node_kind="entry",
+            status=Status.completed, region_in_parent=region,
+        )
+        sibling = Document(
+            id="b", name="b", doc_type=DocType.file, node_kind="entry",
+            status=Status.completed, region_in_parent=region,
+        )
+        stranger = Document(
+            id="c", name="c", doc_type=DocType.file, node_kind="segment",
+            status=Status.completed, region_in_parent=region,
+        )
+        cohort = region_cohort([anchor, sibling, stranger], anchor)
+        assert [doc.id for doc in cohort] == ["a", "b"]
+
+
+class TestRepresentationParameter:
+    """`?representation=` flips the SAME page to another reading of the same
+    scope (Daniel, 2026-08-29): each page's content becomes its latest
+    artifact of that type; pages without one stay in sequence, empty."""
+
+    def _bundle_with_artifacts(self, db):
+        from fichero_server.models import Artifact
+
+        doc = _make_document(
+            doc_id="rp-doc", name="Letters.pdf", doc_type=DocType.file,
+            file_type=FileType.pdf,
+        )
+        db.save(doc)
+        for n in (1, 2):
+            db.save(_make_document(
+                doc_id=f"rp-page-{n}", name=f"Page {n}", doc_type=DocType.page,
+                page_content=f"Live content {n}", parent_id=doc.id, sequence=n,
+            ))
+        db.save(Artifact(
+            id="rp-art-old", document_id="rp-page-1",
+            artifact_type="translation", content="OLD translation 1", version=1,
+        ))
+        db.save(Artifact(
+            id="rp-art-new", document_id="rp-page-1",
+            artifact_type="translation", content="NEW translation 1", version=2,
+        ))
+        return doc
+
+    def test_representation_substitutes_latest_artifact_content(self, client, db):
+        doc = self._bundle_with_artifacts(db)
+        response = client.get(f"/view/document/{doc.id}?representation=translation")
+        assert response.status_code == 200
+        assert "NEW translation 1" in response.text
+        assert "OLD translation 1" not in response.text
+        # The live text does not leak into a representation view.
+        assert "Live content 1" not in response.text
+
+    def test_page_without_that_representation_stays_in_sequence_empty(self, client, db):
+        doc = self._bundle_with_artifacts(db)
+        response = client.get(f"/view/document/{doc.id}?representation=translation")
+        match = re.search(r'"pages": (\[.*?\])[,}]', response.text, re.S)
+        assert match is not None
+        pages = json.loads(match.group(1))
+        assert [p["number"] for p in pages] == [1, 2]
+        assert pages[1]["has_content"] is False
+        assert '"representation": "translation"' in response.text
+
+    def test_content_representation_is_the_default_reading(self, client, db):
+        doc = self._bundle_with_artifacts(db)
+        response = client.get(f"/view/document/{doc.id}?representation=content")
+        assert response.status_code == 200
+        assert "Live content 1" in response.text
+        assert "NEW translation 1" not in response.text
+
+    def test_represented_pages_is_pure(self):
+        from fichero_server.api.routes.system.views import represented_pages
+        from fichero_server.models import Artifact
+
+        pages = [
+            {"id": "p1", "number": 1, "label": "Page 1", "content": "live", "has_content": True},
+            {"id": "p2", "number": 2, "label": "Page 2", "content": "live", "has_content": True},
+        ]
+        artifacts = [
+            Artifact(document_id="p1", artifact_type="translation", content="hola"),
+            Artifact(document_id="p1", artifact_type="summary", content="not this type"),
+            Artifact(document_id="p2", artifact_type="translation", content="   "),
+        ]
+        result = represented_pages(pages, artifacts, "translation")
+        assert result[0]["content"] == "hola"
+        assert result[0]["has_content"] is True
+        # Whitespace-only artifact content is not a reading.
+        assert result[1]["content"] == ""
+        assert result[1]["has_content"] is False
+
+
+class TestTableRepresentation:
+    """Table-family artifacts render as a REAL table (Daniel, 2026-08-29
+    bedtime): ?representation=table parses the artifact server-side — stdlib
+    csv, never a hand-rolled split — and ships headers + rows."""
+
+    def _page(self):
+        return {"id": "p1", "number": 1, "label": "Page 1", "content": "live", "has_content": True}
+
+    def test_quoted_comma_csv_keeps_its_columns(self):
+        from fichero_server.api.routes.system.views import represented_pages
+        from fichero_server.models import Artifact
+
+        csv_text = (
+            '"entry_text","amount_original","notes"\n'
+            '"Cash, on hand","iiiUdcccxx","carried, then checked"\n'
+            '"He said ""monta""","78.13",""\n'
+        )
+        artifact = Artifact(document_id="p1", artifact_type="table", content=csv_text)
+        result = represented_pages([self._page()], [artifact], "table")
+        table = result[0]["table"]
+        assert table["headers"] == ["entry_text", "amount_original", "notes"]
+        # The quoted comma stays INSIDE its field — the whole point.
+        assert table["rows"][0] == ["Cash, on hand", "iiiUdcccxx", "carried, then checked"]
+        # Doubled quotes decode to a literal quote.
+        assert table["rows"][1][0] == 'He said "monta"'
+
+    def test_ragged_rows_are_padded_never_dropped(self):
+        from fichero_server.api.routes.system.views import represented_pages
+        from fichero_server.models import Artifact
+
+        artifact = Artifact(
+            document_id="p1", artifact_type="table",
+            content="a,b,c\n1,2\n4,5,6,7\n",
+        )
+        result = represented_pages([self._page()], [artifact], "table")
+        table = result[0]["table"]
+        # Width follows the widest row; short rows pad with empty cells.
+        assert table["headers"] == ["a", "b", "c", ""]
+        assert table["rows"] == [["1", "2", "", ""], ["4", "5", "6", "7"]]
+
+    def test_json_rows_payload_renders_through_the_same_table(self):
+        from fichero_server.api.routes.system.views import represented_pages
+        from fichero_server.models import Artifact
+
+        artifact = Artifact(
+            document_id="p1", artifact_type="table", content=None,
+            data={"headers": ["date", "amount"], "rows": [["1933-01-01", 78.13]]},
+        )
+        result = represented_pages([self._page()], [artifact], "table")
+        table = result[0]["table"]
+        assert table["headers"] == ["date", "amount"]
+        # Cells stringify — the template escapes strings, not floats.
+        assert table["rows"] == [["1933-01-01", "78.13"]]
+        # A data-only table IS content.
+        assert result[0]["has_content"] is True
+
+    def test_untabular_table_artifact_falls_back_to_text(self):
+        from fichero_server.api.routes.system.views import represented_pages
+        from fichero_server.models import Artifact
+
+        artifact = Artifact(
+            document_id="p1", artifact_type="table",
+            content="MEMORANDA\nCash On Hand Jan. 1, 1933\n",
+        )
+        result = represented_pages([self._page()], [artifact], "table")
+        # Plain-text output (the Marshall v4 pre-CSV runs look like this)
+        # still parses: lines become rows, padded to one consistent width —
+        # never an exception, never a dropped line.
+        table = result[0]["table"]
+        assert table is not None
+        # First line heads (include_headers defaults on), the rest are rows,
+        # all padded to one consistent width.
+        assert table["headers"] is not None
+        assert len({len(row) for row in [table["headers"], *table["rows"]]}) == 1
+
+    def test_table_view_ships_the_parsed_table_over_the_route(self, client, db):
+        from fichero_server.models import Artifact
+
+        doc = _make_document(
+            doc_id="tb-doc", name="Ledger.pdf", doc_type=DocType.file,
+            file_type=FileType.pdf,
+        )
+        db.save(doc)
+        db.save(_make_document(
+            doc_id="tb-page-1", name="Page 1", doc_type=DocType.page,
+            page_content="live text", parent_id=doc.id, sequence=1,
+        ))
+        db.save(Artifact(
+            id="tb-art", document_id="tb-page-1", artifact_type="table",
+            content='"date","amount"\n"Jan 1, 1933","78.13"\n',
+        ))
+        response = client.get(f"/view/document/{doc.id}?representation=table")
+        assert response.status_code == 200
+        assert '"headers": ["date", "amount"]' in response.text
+        assert '"Jan 1, 1933"' in response.text
+        # A prose representation never grows a table key.
+        plain = client.get(f"/view/document/{doc.id}?representation=transcription")
+        assert '"table"' not in plain.text
+
+    def test_template_renders_a_real_table_with_scroll_wrap(self):
+        template = (
+            Path(__file__).resolve().parents[3]
+            / "src" / "fichero_server" / "api" / "templates" / "document_view.html"
+        ).read_text()
+        assert "function tableMarkup(table)" in template
+        assert '<div class="table-scroll">' in template
+        assert "overflow-x: auto" in template
+        # Every cell goes through escapeHtml — table data is model output.
+        assert "`<td>${escapeHtml(cell)}</td>`" in template
+        assert "`<th>${escapeHtml(cell)}</th>`" in template

@@ -125,17 +125,24 @@ struct PaneKindSelector<Lens: Hashable & Identifiable>: View {
                     }
                     .pickerStyle(.inline)
                 } else {
+                    // Plain checkmarked Buttons, not inline Pickers: each
+                    // inline Picker drew its OWN separator chrome inside the
+                    // section, so every group rendered with a stray line
+                    // under its header (Daniel, 2026-08-29: "a line between
+                    // each group — weird").
                     ForEach(Array(lensSections.enumerated()), id: \.offset) { _, section in
                         Section(section.0) {
-                            // Empty picker label: a named one renders as a
-                            // SECOND header under the section's (the
-                            // Browse/View doubling, 2026-08-23 live).
-                            Picker("", selection: $lens) {
-                                ForEach(section.1) { option in
-                                    Label(lensTitle(option), systemImage: lensIcon(option)).tag(option)
+                            ForEach(section.1) { option in
+                                Button {
+                                    lens = option
+                                } label: {
+                                    if lens == option {
+                                        Label(lensTitle(option), systemImage: "checkmark")
+                                    } else {
+                                        Label(lensTitle(option), systemImage: lensIcon(option))
+                                    }
                                 }
                             }
-                            .pickerStyle(.inline)
                         }
                     }
                 }

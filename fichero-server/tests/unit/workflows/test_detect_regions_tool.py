@@ -138,7 +138,7 @@ class TestPreset:
             / "detect_regions.json"
         )
         data = json.loads(preset_path.read_text())
-        assert data["name"] == "Detect Regions"
+        assert data["name"] == "Detect Regions (Apple Vision)"
         for node in data["nodes"]:
             assert get_tool(node["tool"]) is not None, (
                 f"preset node tool {node['tool']!r} does not resolve"

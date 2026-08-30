@@ -15,7 +15,7 @@ keeps only what is specific to the app: its layout and key concepts.
 | `fichero.xcodeproj` | Xcode project (main target: `Fichero`) |
 | `fichero/` | App source — `App/`, `Views/`, `Models/`, `Services/`, `Intents/`, resources |
 | `fichero-api-client/` | Generated Swift OpenAPI client package (`Sources/FicheroAPIClient/` is generated — do not hand-edit) |
-| `fichero-tests/`, `fichero-ui-tests/` | Test target source folders |
+| `Tests/Unit/*`, `Tests/UI/*` | Test target source folders (general/mac/ios/ipad); plans in `Tests/plans/` |
 
 ### Source layout (`fichero/fichero/`)
 
@@ -46,22 +46,25 @@ Intents/        App Intents / Shortcuts
 - **Surfaces, not silos.** Library, Reader, Search, Chat, Workflows, and the
   Knowledge Graph are all views onto the same engine-owned data model. The KG is
   backend-owned; the app renders it.
-- **HTTPS-only transport.** The app never talks plain HTTP. The default engine
-  is `https://127.0.0.1:8765` (the local engine); paired remote hosts (own
-  devices / Tailscale) are reached over HTTPS with per-host SPKI certificate
-  pinning. In Debug you start the engine yourself (`start_backend.sh`); a Release
-  build embeds and spawns it.
+- **Two transports, both authenticated.** Locally the app talks to its engine
+  over a Unix domain socket; over the network it is HTTPS only —
+  `https://127.0.0.1:8765` for a local engine, and paired remote hosts (own
+  devices / Tailscale) with per-host SPKI certificate pinning. Plain HTTP over
+  TCP is never a valid setup.
 
 ## Build & run
 
 First-time setup (Python 3.12, the repo-root `.venv`, the engine) is documented once,
 in [CONTRIBUTING.md](../CONTRIBUTING.md). This section assumes it is done.
 
-Open `fichero/fichero.xcodeproj` in Xcode and run the `Fichero` scheme.
+Open `fichero/fichero.xcodeproj` in Xcode and pick a scheme. Schemes come in
+tiers (Dev, Alpha, Beta, Release) and two flavors:
 
-- **Debug (⌘R)** expects an engine you started yourself:
-  `bash fichero-server/scripts/start_backend.sh` (external, `:8765`).
-- **Release** embeds the engine (Briefcase) and spawns it on launch.
+- **Embedded** (e.g. "Fichero (Dev Embedded)") — the app spawns its own
+  bundled engine; nothing to start by hand. The default development path.
+- **Local** (e.g. "Fichero (Dev Local)") — for engine development; the app
+  connects to an engine you run yourself:
+  `bash fichero-server/scripts/start_backend.sh`.
 
 Command-line build (from repo root). `-skipPackagePluginValidation` is required — the
 OpenAPIGenerator SPM plugin fails without it:

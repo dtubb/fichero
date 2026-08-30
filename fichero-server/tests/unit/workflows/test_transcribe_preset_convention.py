@@ -158,12 +158,17 @@ def test_variant_group_presets_share_topology_and_differ_in_config():
         if group:
             groups.setdefault(group, []).append((name, preset))
 
-    assert "transcribe-two-pass" in groups, (
-        "expected the HTR/Paleography pair to declare "
-        "config.variant_group='transcribe-two-pass'"
+    assert "transcribe-single-pass" in groups, (
+        "expected the 2026-08-26 single-pass family (HTR + the paleography "
+        "language presets) to declare config.variant_group="
+        "'transcribe-single-pass'"
     )
 
     for group, members in groups.items():
+        if group == "paleographer-review":
+            # The standalone review is deliberately a one-member group: its
+            # variant axis is the LANGUAGE PRESET that fed it, not a sibling.
+            continue
         assert len(members) >= 2, f"variant_group {group!r} has a single member"
         variants = [(p.get("config") or {}).get("variant") for _, p in members]
         assert all(variants), f"{group}: every member must declare config.variant"

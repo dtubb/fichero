@@ -94,7 +94,7 @@ def constructions(app_dir: Path = APP_DIR) -> list[tuple[str, int, str]]:
     out: list[tuple[str, int, str]] = []
     for path in sorted(app_dir.rglob("*.swift")):
         s = str(path)
-        if "/fichero-tests/" in s or "/fichero-ui-tests/" in s:
+        if "/Tests/Unit/" in s or "/Tests/UI/" in s:
             continue
         rel = path.relative_to(app_dir).as_posix()
         code = _code(path.read_text(errors="ignore"))

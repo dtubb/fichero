@@ -43,6 +43,13 @@ operational consequence worth stating plainly:
 > (`EmbeddedBackendService+Spawn.swift:221`) — the same socket a
 > `start_backend.sh` engine binds. Two engines, one socket path.
 
+> **The CLI and MCP server cannot reach a Dev Embedded engine.** The embedded
+> engine binds UDS-only (no TCP port, no TLS — `__main__.py`, Lane E), and the
+> CLI/MCP clients speak TCP only. To exercise the CLI or MCP, run a
+> `start_backend.sh` engine (HTTPS `:8765`) — with the app QUIT if they must
+> share the same library, or against a scratch/temp library while the app runs
+> (two engines must never open the same DuckDB). Verified live 2026-08-27.
+
 Contrast `Fichero (Dev Local)`, whose configuration IS `Debug` and therefore
 resolves to `.debugExternal`: it never spawns, and *requires* a developer-run
 engine to adopt (the engine is deliberately not bundled in Debug, #3042). Under
@@ -84,7 +91,7 @@ path like `~/code/fichero/.venv` into a doc or a script; it is only true on one 
 - **Risky diff?** Anything touching auth, file I/O, network, secrets, or keychain → run `/security-review`.
 
 **Testing manual: `docs/contributor/TESTING.md`.** The short version:
-`fichero/fichero-tests/` mirrors `fichero/fichero/` — a new test goes in the
+`fichero/Tests/Unit/general/` mirrors `fichero/fichero/` — a new test goes in the
 folder matching the code under test (plus `Transport/` and `Contract/`
 buckets); shared specimen files live in `test-fixtures/files/`, resolved ONLY
 via `tests/fixture_paths.py` (Python) or `TestFixtures.swift` (Swift); seeded
@@ -143,7 +150,7 @@ issue.
 branch, not `git stash` — a stash doesn't survive a worktree teardown and is
 invisible outside the shell that made it. Baseline-diffing (comparing two
 tree states) happens in a **separate worktree**, never via
-stash-and-checkout in the same one (see `docs/design/git-practices-fabel-review.md`
+stash-and-checkout in the same one (see `agent-work/design/git-practices-fabel-review.md`
 Rule "stash-pop hazard").
 
 **Bring an agent up to speed with data, not a long-lived branch:**
@@ -166,7 +173,7 @@ subset skips the architecture guardrails" in Common Pitfalls below; the
 guardrail's own test files are part of the gate, not optional.
 
 Full rationale and the incidents behind each rule:
-`docs/design/git-practices-fabel-review.md`.
+`agent-work/design/git-practices-fabel-review.md`.
 
 ### Manager loop — use the scripts, don't improvise
 
@@ -343,7 +350,7 @@ naive values read back out through `ensure_utc()` — a naive stored value **is*
 
 Before completing a backend route change: does OpenAPI need updating? Do the Swift generated files need regenerating? Do frontend callers need updating? Plan first for architectural, OpenAPI-schema, feature-flag-tier, or database-schema changes; proceed directly on clear-root-cause fixes, tests, and lint/build fixes.
 
-**Engine bug or rendering bug?** The typed `fichero` CLI (`python -m fichero_cli`) mirrors every endpoint reachable from SwiftUI. Reproduce against the CLI first; if it fails the same way, the engine owns it.
+**Engine bug or rendering bug?** The typed `fichero` CLI mirrors every endpoint reachable from SwiftUI. Reproduce against the CLI first; if it fails the same way, the engine owns it.
 
 ---
 
@@ -352,6 +359,7 @@ Before completing a backend route change: does OpenAPI need updating? Do the Swi
 ```
 SwiftUI app · fichero CLI · fichero-mcp
               |
+   Unix domain socket (local) or
    HTTPS on 127.0.0.1:8765 (TLS, pinned fail-closed)
               |
         FastAPI engine  ──→ DuckDB (metadata) + LanceDB (vectors)
@@ -443,10 +451,10 @@ simplification). Both are enforced by review, not by a script.
 
 The ones that cost hours, and that no test catches for you:
 
-- **A new `.swift` file is invisible until registered.** The `Fichero` target uses
-  traditional PBX file references, not synchronized groups. Write the file, then
-  `ruby scripts/add-swift-file.rb <path>`. Never hand-edit `project.pbxproj`.
-  (Test-target files use sync'd groups and just work.)
+- **New `.swift` files just work — never run `add-swift-file.rb` on the app
+  target.** The `Fichero` target is a synchronized folder; explicit registration
+  now DUPLICATES the build file (warning storm). Never hand-edit
+  `project.pbxproj`. (Test targets are sync'd groups too.)
 - **`PYTHONPATH=fichero-server/src` on every Python command.** The shared `.venv` is
   editable-installed against your MAIN checkout, not this worktree; without it, a
   worktree gates the *stale* tree — a green run that means nothing.
@@ -557,6 +565,36 @@ When unsure between `docs/` and `agent-work/`: point-in-time, dated, "what I fou
 material is agent-work; durable "how the system works" reference is `docs/`. Material
 that must never be public goes outside `docs/` entirely — not merely out of `nav`.
 
+### Manuscript model — ONE file per guide, split into site pages
+
+Daniel's ruling (2026-08-27): each guide is authored and reviewed as ONE
+consolidated manuscript, not page by page. The masters live in
+`~/My Drive/Tubb Lab/Apps/Fichero/` as `Fichero User Guide` and
+`Fichero Contributor Guide` (`.md` + `.docx`; the `.docx` is what Daniel and
+colleagues edit in Word/Google Docs).
+
+The flow, in this direction:
+
+1. Humans read and edit the single manuscript (`.docx`). Chapters are
+   Heading 1 in Word (`##` in markdown) — the heading structure is the split
+   map, so it must survive editing.
+2. **`python3 scripts/sync_manuscript.py <user|contributor>`** does the
+   derived half — never hand-do the split. It pandocs the `.docx` back to
+   markdown, refreshes the `.md` master beside it, writes one page per
+   chapter under `docs/<guide>/guide/NN-<slug>.md`, and prints the mkdocs
+   `nav:` block. (`--dry-run` previews the split.)
+3. The agent running it then pastes the nav into `mkdocs.yml`, retires any
+   superseded hand-written pages deliberately, and gates with
+   `scripts/check_docs_publication.py` + `mkdocs build --strict`. The site
+   and any bundled PDF regenerate from those pages.
+
+Do not treat the per-page `docs/` files as the place for substantial prose
+rewrites of guide content — they are derived from the manuscript. Small
+factual fixes may land directly on pages, but they must also be applied to
+the manuscript so the next split does not revert them. Pages marked
+`> 🤖 *AI Drafted (Not reviewed)*` are unreviewed; Daniel deletes the badge
+when he has made a page his own.
+
 ---
 
 ## Where Things Live (file placement)
@@ -643,7 +681,7 @@ Pure crud or superseded material is `git rm`-ed, not parked at the root.
 7. Never create per-task branches — commit all work to the milestone branch directly.
 8. Never start a milestone more than one ahead of what Daniel is currently testing.
 9. **Schema changes are no-migration in 0.0.x for fresh DBs, but real data needs migrations.** A new column on a Pydantic model is picked up by `_ensure_table` on fresh databases — don't add an `ALTER TABLE ADD COLUMN` for a column already in the model. BUT once a persisted DB (`app.duckdb` or a real library) exists, a new column needs an idempotent `ALTER`+backfill, not `CREATE-IF-NOT-EXISTS`. Structural changes (table renames, data backfills) belong in `db_migrations.py`.
-10. **New .swift files must be registered with `scripts/add-swift-file.rb`**: The `Fichero` main target uses traditional PBX file references — a file written to disk is invisible to the compiler until registered. Always run `ruby scripts/add-swift-file.rb <path>` after creating any new `.swift` file. Test-target files are the exception (sync'd groups). Never edit `project.pbxproj` by hand. The build gate will catch unregistered files as "Cannot find type" errors.
+10. **New .swift files just work — do NOT register them** (updated 2026-08-30): The `Fichero` main target is a SYNCHRONIZED folder now; a file written under `fichero/fichero/` is picked up by the build automatically, and running `scripts/add-swift-file.rb` on it creates a duplicate build-file warning (proved and de-registered in 156973b98). Never edit `project.pbxproj` by hand; use `git mv` for moves.
 11. **Worktrees live ONLY under `~/code/fichero-worktrees/<name>`; never `rm` a `~/code/` sibling.** Create worktrees with `git worktree add ~/code/fichero-worktrees/<name> -b <branch> main` — never as bare siblings `~/code/fichero-<name>`. Remove them ONLY with `git worktree remove --force <path>` (operates only on registered worktrees). **NEVER `rm -rf` a `~/code/` path and NEVER glob-delete `~/code/fichero-*`** — bare siblings are SEPARATE projects with their own remotes and uncommitted work. Before any destructive fs op, confirm the path is under `~/code/fichero-worktrees/` AND in `git worktree list`; otherwise stop and surface it. A worktree that must build on un-pushed integration-branch state (not yet on `origin/main`) is created from that branch's HEAD sha explicitly — `git worktree add <path> <integration-branch-or-sha>` — not the Agent tool's default `isolation: "worktree"`, which branches from `origin/main` and won't see integration-only commits.
 
 ---

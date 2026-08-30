@@ -92,6 +92,44 @@ struct PaneToggleButton: View {
     }
 }
 
+// MARK: - Workspaces (Daniel, 2026-08-29)
+
+/// View ▸ Workspaces: the same commands as the toolbar's Workspaces and
+/// Views-chooser buttons — layout presets, the saved workspaces, and Save
+/// Workspace… — acting on the focused window via `windowLayoutCommands`
+/// (same mechanism as `InspectorButton`). Items disable when no window
+/// publishes the verbs rather than silently doing nothing.
+struct WorkspaceCommandsSection: View {
+    @FocusedValue(\.windowLayoutCommands) private var commands
+
+    var body: some View {
+        Section("Workspaces") {
+            ForEach(WindowLayoutPreset.allCases) { preset in
+                Button {
+                    commands?.applyPreset(preset)
+                } label: {
+                    Label(preset.title, systemImage: preset.systemImage)
+                }
+                .disabled(commands == nil)
+            }
+
+            Divider()
+
+            ForEach(WindowWorkspaceStore.shared.catalog.workspaces) { workspace in
+                Button(workspace.name) {
+                    commands?.applyWorkspace(workspace)
+                }
+                .disabled(commands == nil)
+            }
+
+            Button("Save Workspace…") {
+                commands?.saveWorkspace()
+            }
+            .disabled(commands == nil)
+        }
+    }
+}
+
 // MARK: - Selection-driven Layout
 
 // Opt-in toggle for selection-driven layout changes. OFF by default so the
@@ -217,5 +255,56 @@ struct ShowFindBarButton: View {
         .keyboardShortcut("f", modifiers: [.command, .option])
         .disabled(true)
         #endif
+    }
+}
+
+// MARK: - Capability bar
+
+/// View ▸ Show/Hide Workflow Bar (2026-08-28) — the Preview convention, where
+/// a bar of verbs is opt-in chrome you switch on per window.
+///
+/// Reads the focused window's binding so it toggles only that window, the same
+/// mechanism as Show/Hide Inspector. Disabled when no window publishes one,
+/// rather than silently doing nothing.
+struct ShowWorkflowBarButton: View {
+    @FocusedValue(\.showWorkflowBar) private var showWorkflowBar
+
+    var body: some View {
+        Button {
+            showWorkflowBar?.wrappedValue.toggle()
+        } label: {
+            Label(
+                showWorkflowBar?.wrappedValue == true
+                    ? "Hide Workflow Bar"
+                    : "Show Workflow Bar",
+                systemImage: "square.grid.2x2"
+            )
+        }
+        .keyboardShortcut("w", modifiers: [.command, .option, .shift])
+        .disabled(showWorkflowBar == nil)
+    }
+}
+
+/// View ▸ Workflow Bar Labels — the names under the glyphs are optional
+/// (Daniel, 2026-08-28): on while the vocabulary is unfamiliar, off for a
+/// dense icon rail once it is not.
+struct ShowWorkflowBarLabelsButton: View {
+    @FocusedValue(\.showWorkflowBarLabels) private var showLabels
+    @FocusedValue(\.showWorkflowBar) private var showBar
+
+    var body: some View {
+        Button {
+            showLabels?.wrappedValue.toggle()
+        } label: {
+            Label(
+                showLabels?.wrappedValue == true
+                    ? "Hide Workflow Bar Labels"
+                    : "Show Workflow Bar Labels",
+                systemImage: "textformat.size.smaller"
+            )
+        }
+        // Meaningless while the bar is hidden — disabled rather than silently
+        // toggling something the user cannot see.
+        .disabled(showLabels == nil || showBar?.wrappedValue != true)
     }
 }

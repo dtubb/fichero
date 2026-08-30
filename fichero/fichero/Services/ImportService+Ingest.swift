@@ -76,7 +76,7 @@ extension ImportService {
             // (2026-08-21): if no persistent bookmark covers the folder, ask
             // for one now — once per folder, after the import is under way.
             if mode == .link {
-                await FolderAccessManager.shared.ensurePersistedGrant(for: url)
+                FolderAccessManager.shared.ensurePersistedGrant(for: url)
             }
             #endif
             return task

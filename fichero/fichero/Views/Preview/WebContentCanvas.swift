@@ -37,6 +37,10 @@ struct WebContentCanvas {
         }
     }
 
+    // WKWebView and its configuration are main-actor types on the iOS 27 /
+    // macOS 27 SDKs; both representable callers are main-actor contexts, so
+    // the annotation states what was already true.
+    @MainActor
     static func makeWebView() -> WKWebView {
         let configuration = WKWebViewConfiguration()
         // Renditions are static documents — never execute scripts, even if

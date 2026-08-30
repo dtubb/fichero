@@ -179,11 +179,58 @@
         }
 
         .page-marker {
+            align-items: center;
             color: var(--muted);
+            display: flex;
             font: 600 0.72em/1 var(--font-system);
+            gap: 0.6em;
             letter-spacing: 0.08em;
             margin-bottom: 1em;
             text-transform: uppercase;
+        }
+
+        /* The per-page proxy icon (macOS titlebar-proxy idiom, 2026-08-29):
+           identifies the page node; click reveals it in the library. */
+        .page-proxy {
+            background: none;
+            border: 0;
+            color: var(--muted);
+            cursor: pointer;
+            line-height: 0;
+            padding: 0.1em;
+        }
+
+        .page-proxy svg {
+            fill: currentColor;
+            height: 1.2em;
+            width: auto;
+            min-height: 0;
+        }
+
+        /* The page's own thumbnail as the proxy (Daniel, 2026-08-29: "any
+           chance the proxy icon can actually be the page icon?"). The glyph
+           stays underneath as the load-failure fallback. */
+        .page-proxy img {
+            border: 1px solid color-mix(in srgb, var(--muted) 35%, transparent);
+            border-radius: 2px;
+            display: inline-block;
+            height: 1.35em;
+            object-fit: cover;
+            vertical-align: -0.25em;
+            width: auto;
+        }
+
+        .page-proxy img[hidden] { display: none; }
+
+        .page-proxy:hover {
+            color: var(--accent);
+        }
+
+        /* A region section's own name (a diary entry's date, a segment's
+           label) — normal case beside the uppercase running number. */
+        .page-label {
+            letter-spacing: 0;
+            text-transform: none;
         }
 
         .transcript-page-body {
@@ -200,6 +247,35 @@
                resolving wider than its page. The wrap rule governs the text,
                this governs the element. */
             max-width: 100%;
+        }
+
+        /* Table representations (2026-08-29): a real table in the page's own
+           idiom, inside its own horizontal scroller — a wide ledger scrolls
+           HERE, never the page body (#4385's rule applied to tables). */
+        .table-scroll {
+            max-width: 100%;
+            overflow-x: auto;
+        }
+
+        .artifact-table {
+            border-collapse: collapse;
+            font-size: 0.92em;
+        }
+
+        .artifact-table th,
+        .artifact-table td {
+            border: 1px solid var(--line);
+            padding: 0.35em 0.6em;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        .artifact-table th {
+            background: var(--bg);
+            color: var(--muted);
+            font: 600 0.85em/1.3 var(--font-system);
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
         }
 
         /* An untranscribed page is a PAGE, not a gap (#4356): it keeps its
@@ -352,7 +428,10 @@
             position: relative;
         }
 
-        svg {
+        /* Scoped to the graph pane — as a bare `svg` rule its min-height
+           leaked onto every inline icon in the document, most visibly the
+           page-proxy glyph, which blew up to viewport height. */
+        .graph-wrap svg {
             width: 100%;
             height: 100%;
             min-height: calc(100vh - 96px);
@@ -768,6 +847,10 @@ function transcriptPages() {
         return pages.map((page, index) => {
             const content = page.content || "";
             return {
+                id: page.id || null,
+                label: page.label || null,
+                isRegion: Boolean(page.is_region),
+                table: page.table || null,
                 number: page.number == null ? index + 1 : page.number,
                 content: content,
                 hasContent: page.has_content == null
@@ -806,13 +889,50 @@ function transcriptPageMarkup(page) {
     const placeholder = page.hasContent
         ? ""
         : `<div class="page-placeholder">No transcription yet</div>`;
+    // The macOS proxy-icon idiom, per page (Daniel, 2026-08-29): every page
+    // header carries a small document icon that identifies the page node —
+    // click it to reveal that page in the app. Only pages that NAME a node
+    // (payloads carry ids) get one; the transcript-parse fallback does not.
+    const proxy = page.id
+        ? `<button class="page-proxy" data-page-id="${escapeHtml(page.id)}"
+                title="Reveal this page in the library"
+                aria-label="Reveal this page in the library">
+                <img src="/api/storage/thumbnail/${escapeHtml(page.id)}" alt="" loading="lazy" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><svg viewBox="0 0 12 14" aria-hidden="true" hidden><path d="M2 0h5.5L11 3.5V13a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V1a1 1 0 0 1 1-1zm5 1v3h3z"/></svg>
+           </button>`
+        : "";
+    // Region sections (diary entries, segments) are NAMED, not numbered like
+    // sheets — show the node's own label beside the running number so the
+    // header says what the section IS. Ordinary pages stay numbers only:
+    // their labels are storage names, which would clutter every header.
+    const label = page.isRegion && page.label
+        ? `<span class="page-label">${escapeHtml(page.label)}</span>`
+        : "";
     return `
         <article class="transcript-page${page.hasContent ? "" : " empty-page"}" data-page="${page.number}">
-            <div class="page-marker">Page ${page.number}</div>
-            <div class="transcript-page-body">${escapeHtml(page.content)}</div>
+            <div class="page-marker">${proxy}Page ${page.number}${label}</div>
+            ${page.table ? tableMarkup(page.table) : `<div class="transcript-page-body">${escapeHtml(page.content)}</div>`}
             ${placeholder}
         </article>
     `;
+}
+
+// A table-family representation (Accounts → Spreadsheet, Table extract)
+// renders as a REAL table, not raw text (Daniel, 2026-08-29 bedtime). The
+// server parsed the artifact (csv module / json_rows) into headers + rows;
+// this only lays it out. Wrapped in its own horizontal scroller so a wide
+// ledger never widens the page — the reader body must not scroll sideways.
+function tableMarkup(table) {
+    const rows = Array.isArray(table.rows) ? table.rows : [];
+    if (!rows.length && !(table.headers || []).length) {
+        return `<div class="page-placeholder">The table came back empty</div>`;
+    }
+    const head = Array.isArray(table.headers) && table.headers.length
+        ? `<thead><tr>${table.headers.map((cell) => `<th>${escapeHtml(cell)}</th>`).join("")}</tr></thead>`
+        : "";
+    const body = rows
+        .map((row) => `<tr>${row.map((cell) => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`)
+        .join("");
+    return `<div class="table-scroll"><table class="artifact-table">${head}<tbody>${body}</tbody></table></div>`;
 }
 
 function renderTranscript() {
@@ -825,6 +945,16 @@ function renderTranscript() {
     panel.innerHTML = `
         <div class="transcript">${pages.map(transcriptPageMarkup).join("")}</div>
     `;
+    // Proxy-icon clicks reveal the page node natively; stopPropagation so the
+    // click never doubles as a page activation (#4373's bus stays scroll/click
+    // semantics only).
+    panel.querySelectorAll(".page-proxy").forEach((el) => {
+        el.addEventListener("click", (event) => {
+            event.stopPropagation();
+            const pageId = el.dataset.pageId;
+            if (pageId) { notify("pageRevealRequested", { pageId }); }
+        });
+    });
     applyActivePageHighlight();
     applyBusyPages();
 }

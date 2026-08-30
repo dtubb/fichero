@@ -135,6 +135,9 @@ def test_global_options_reach_the_client(recording_client, tmp_path):
         "base_url": "https://remote.example:8765",
         "token": "flag-token",
         "library_path": str(library),
+        # Every CLI-built client identifies its surface for the audit rows
+        # and the Sharing pane's Connected Clients list (2026-08-27).
+        "client_name": "fichero-cli",
     }
 
 

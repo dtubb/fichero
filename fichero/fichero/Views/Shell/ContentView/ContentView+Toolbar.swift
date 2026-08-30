@@ -11,8 +11,14 @@ enum ContentToolbarID {
     static let activityStatus = "fichero.activityStatus"
     static let viewDisplayMode = "fichero.viewDisplayMode"
     static let breadcrumb = "fichero.breadcrumb"
+    static let modelChip = "fichero.modelChip"
     static let workflowSuggest = "fichero.workflowSuggest"
-    static let searchToggle = "fichero.searchToggle"
+    // fichero.searchToggle retired (Daniel, 2026-08-29): the hand-rolled
+    // search lozenge is replaced by the system toolbar search item, which
+    // carries its own NSToolbar identity (com.apple.SwiftUI.search).
+    static let splitMenu = "fichero.splitMenu"
+    static let workspacesMenu = "fichero.workspacesMenu"
+    static let layoutChooser = "fichero.layoutChooser"
 }
 
 // MARK: - Toolbar Content
@@ -129,38 +135,56 @@ extension ContentView {
             ToolbarItemGroup(placement: .automatic) {
                 libraryPaneToggleButton
 
-                Toggle(isOn: Binding(
-                    get: { showDocumentCanvas },
-                    set: { setCanvasPaneVisible($0) }
-                )) {
-                    Label("Preview", systemImage: ToolbarSymbols.previewPane)
+                // Buttons, not Toggles (Daniel, 2026-08-29: the accent-filled
+                // on-state "changing colors — that's a bad UX"). The WORDS
+                // carry the state — Show X / Hide X — which is also what the
+                // label says beneath the icon in the toolbar's Icon-and-Text
+                // mode, so state reads without colour.
+                Button {
+                    setCanvasPaneVisible(!showDocumentCanvas)
+                } label: {
+                    Label(showDocumentCanvas ? "Hide Preview" : "Show Preview",
+                          systemImage: ToolbarSymbols.previewPane)
                 }
                 .help(showDocumentCanvas ? "Hide the Preview" : "Show the Preview")
 
-                Toggle(isOn: Binding(
-                    get: { showReadingPane },
-                    set: { setReadingPaneVisible($0) }
-                )) {
-                    Label("Reader", systemImage: ToolbarSymbols.readingPane)
+                Button {
+                    setReadingPaneVisible(!showReadingPane)
+                } label: {
+                    Label(showReadingPane ? "Hide Reader" : "Show Reader",
+                          systemImage: ToolbarSymbols.readingPane)
                 }
                 .help(showReadingPane ? "Hide the Reader" : "Show the Reader — transcripts, translations, and the knowledge graph")
 
                 // Chat is a ROW pane (Daniel 2026-08-12: "there is no button
                 // to turn it on and off") — fourth member of the pane group,
                 // same grammar as preview/reading.
-                Toggle(isOn: Binding(
-                    get: { showChatPane },
-                    set: { setChatPaneVisible($0) }
-                )) {
-                    Label("Chat", systemImage: ToolbarSymbols.chatPane)
+                Button {
+                    setChatPaneVisible(!showChatPane)
+                } label: {
+                    Label(showChatPane ? "Hide Chat" : "Show Chat",
+                          systemImage: ToolbarSymbols.chatPane)
                 }
                 .help(showChatPane ? "Hide the Chat" : "Show the Chat")
             }
 
-            // The resident search field MOVED to the inspector-section
-            // toolbar (ContentView+InspectorContainer, 2026-08-23): Daniel
-            // wants it RIGHT of the inspector toggle, and the content section
-            // always renders left of the inspector section.
+            // Search is the SYSTEM toolbar search item now (Daniel,
+            // 2026-08-29: "not proper macOS search… use the default one") —
+            // registered in ContentView+InspectorContainer/+ToolbarSearch.
+
+            // Xcode 27's window chrome (Daniel, 2026-08-29): Split/New Tab,
+            // Workspaces, and the Views chooser — three identified items
+            // after the pane group, one control each, bodies in
+            // ContentView+LayoutChooser.swift.
+            ToolbarItem(id: ContentToolbarID.splitMenu, placement: .automatic) {
+                splitAndTabMenu
+            }
+            ToolbarItem(id: ContentToolbarID.workspacesMenu, placement: .automatic) {
+                workspacesMenu
+            }
+            ToolbarItem(id: ContentToolbarID.layoutChooser, placement: .automatic) {
+                viewsChooserMenu
+            }
         }
 
         // Sort and filter used to sit here, outside the split-pane block, with
@@ -175,15 +199,13 @@ extension ContentView {
 
     private var libraryPaneToggleButton: some View {
         let model = LibraryPaneToggleModel(paneVisibility: paneVisibility)
-        return Toggle(isOn: Binding(
-            get: { model.isVisible },
-            set: { newValue in
-                withAnimation(FrameAnimation.snappy) {
-                    setLibraryPaneVisible(newValue)
-                }
+        return Button {
+            withAnimation(FrameAnimation.snappy) {
+                setLibraryPaneVisible(!model.isVisible)
             }
-        )) {
-            Label(model.title, systemImage: model.systemImage)
+        } label: {
+            Label(model.isVisible ? "Hide Library" : "Show Library",
+                  systemImage: model.systemImage)
         }
         .disabled(!model.isEnabled)
         .help(model.help)
@@ -200,15 +222,14 @@ extension ContentView {
     /// primary-tint fill), which was a custom approximation of exactly this
     /// treatment (#4360).
     var inspectorToggleButton: some View {
-        Toggle(isOn: Binding(
-            get: { showInspectorSidebar },
-            set: { newValue in
-                withAnimation(FrameAnimation.snappy) {
-                    showInspectorSidebar = newValue
-                }
+        // Same no-colour rule as the pane group: the words flip, not the fill.
+        Button {
+            withAnimation(FrameAnimation.snappy) {
+                showInspectorSidebar.toggle()
             }
-        )) {
-            Label("Inspector", systemImage: ToolbarSymbols.inspector)
+        } label: {
+            Label(showInspectorSidebar ? "Hide Inspector" : "Show Inspector",
+                  systemImage: ToolbarSymbols.inspector)
         }
         .help(showInspectorSidebar ? "Hide Inspector (⌘⌥I)" : "Show Inspector (⌘⌥I)")
     }
@@ -237,6 +258,14 @@ extension ContentView {
             // duplicate-identifier crash class, per #4378), and the island
             // stays unconditionally declared — only its CONTENT varies (#3163).
             // Its message-length contract (#4366) is unchanged by the move.
+            // The model a run would use, LEFT of the island (Daniel,
+            // 2026-08-28: the island says what is selected, so the model
+            // belongs beside it). Its own item + spacer so it gets its own
+            // Liquid Glass section rather than fusing into the island capsule.
+            ToolbarItem(id: ContentToolbarID.modelChip, placement: .principal) {
+                ModelChipToolbarItem(prefersVision: selectionPrefersVisionModel)
+            }
+            ToolbarSpacer(.fixed, placement: .principal)
             ToolbarItem(id: ContentToolbarID.breadcrumb, placement: .principal) {
                 // NO location breadcrumb here any more (Daniel, 2026-08-23):
                 // every pane carries its own crumb, so the island answers only
@@ -300,47 +329,33 @@ extension ContentView {
         }
     }
 
-    /// V1 of the smart workflow chip (Daniel, 2026-08-24: "give us some
-    /// buttons of logical workflows to run"): a bolt beside the island opens
-    /// the SAME picker the bottom bar's bolt does, scoped to the selection.
-    /// The suggestion INTELLIGENCE (what the selection HAS → which workflow)
-    /// arrives as an outline-endpoint consumer.
+    /// ONE button where four crowded (Daniel, 2026-08-29: "we don't need the
+    /// select workflow button or the other two beside it"). It toggles the
+    /// capability bar and wears the SAME bolt as the sidebar's Workflows
+    /// section, so the icon means one thing everywhere. The old Run Workflow
+    /// picker duplicated what the bar is for, and the per-selection
+    /// suggestion buttons were unlabelled mystery glyphs — if suggestions
+    /// return, they belong INSIDE the bar as a recommended row, not as
+    /// toolbar chrome.
     @ViewBuilder
     var workflowSuggestButton: some View {
-        // ONE toolbar item, growing contextual members (Daniel, 2026-08-25:
-        // "toolbar buttons that appear as things are selected") — the ⚡
-        // picker always, plus up to two suggested next steps for what the
-        // selection IS. Same principal item, so the zone pin holds.
-        let selectedDocs = documentStore.currentDocuments.filter {
-            browserSelection.contains($0.id)
+        Button {
+            showWorkflowBar.toggle()
+        } label: {
+            Label(
+                showWorkflowBar ? "Hide Workflows" : "Show Workflows",
+                // The SAME glyph the sidebar's workflow rows wear
+                // (SidebarItem: arrow.triangle.branch) — the bolt collided
+                // with quick-run's old meaning (Daniel, 2026-08-29: "should
+                // be the same as the workflows in the sidebar").
+                systemImage: "arrow.triangle.branch"
+            )
+            .labelStyle(.iconOnly)
         }
-        HStack(spacing: 2) {
-            Button {
-                windowState.workflowPickerRequestToken += 1
-            } label: {
-                Label("Run Workflow", systemImage: "bolt")
-                    .labelStyle(.iconOnly)
-            }
-            .disabled(browserSelection.isEmpty)
-            .help(browserSelection.isEmpty
-                  ? "Select items to run a workflow on"
-                  : "Run a workflow on the \(browserSelection.count) selected item(s)")
-            .accessibilityLabel("Run a workflow on the selection")
-
-            ForEach(WorkflowSuggestionPolicy.suggestions(for: selectedDocs)) { suggestion in
-                Button {
-                    windowState.suggestedWorkflowRequest = .init(
-                        workflowName: suggestion.workflowName,
-                        token: (windowState.suggestedWorkflowRequest?.token ?? 0) + 1
-                    )
-                } label: {
-                    Label(suggestion.workflowName, systemImage: suggestion.systemImage)
-                        .labelStyle(.iconOnly)
-                }
-                .help("Run \(suggestion.workflowName) on the selection")
-                .accessibilityLabel("Run \(suggestion.workflowName) on the selection")
-            }
-        }
+        .help(showWorkflowBar
+              ? "Hide the workflow bar"
+              : "Show the workflow bar — run workflows and tools on the selection")
+        .accessibilityLabel(showWorkflowBar ? "Hide workflow bar" : "Show workflow bar")
     }
 
     func syncFocusedDocumentSelection(_ document: Document?) {

@@ -51,15 +51,22 @@ extension LibraryView {
         // Dataset facets (Daniel, 2026-08-24: "I want it all in the one at
         // the bottom") — shown only while the dataset has rows.
         if displayMode.group == .dataset, datasetStore.page?.rows.isEmpty == false {
-            DatasetFilterCluster(store: datasetStore)
+            DatasetFilterCluster(store: datasetStore, documentStore: documentStore)
         }
 
         // Xcode-console-style metadata popover (#18): which optional
         // attributes list rows display. Sits with sort/filter because it,
         // too, acts on the library list.
-        LibraryRowAttributesButton(raw: $rowAttributesRaw)
+        LibraryRowAttributesButton(
+            raw: $rowAttributesRaw,
+            datasetStore: displayMode.group == .dataset ? datasetStore : nil
+        )
 
-        libraryLevelToggle
+        // In dataset mode the level choice lives inside the cluster's Show
+        // menu with the types (Daniel, 2026-08-27) — one menu, one question.
+        if displayMode.group != .dataset {
+            libraryLevelToggle
+        }
 
         librarySortMenu
 

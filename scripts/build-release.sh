@@ -18,7 +18,7 @@ SCHEME="$MAC_SCHEME"
 CONFIGURATION="$MAC_CONFIG"
 DERIVED_DATA="$SWIFTUI_ROOT/build/xcode"
 APP_PATH="$DERIVED_DATA/Products/$CONFIGURATION/Fichero.app"
-SPARKLE_FEED_URL="${SPARKLE_FEED_URL:-https://raw.githubusercontent.com/dtubb/fichero/main/fichero/appcast.xml}"
+SPARKLE_FEED_URL="${SPARKLE_FEED_URL:-https://tubb.ca/apps/fichero/appcast.xml}"
 
 SKIP_BACKEND=false
 DRY_RUN=false

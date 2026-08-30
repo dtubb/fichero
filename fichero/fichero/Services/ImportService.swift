@@ -213,6 +213,13 @@ class ImportService {
         if mode == .copy {
             return try convertToDocument(try await uploadFileContents(url, parentId: parentId))
         }
+
+        // LINK/MOVE: the ENGINE reads this path server-side, so it needs a
+        // grant exactly like a folder does (2026-08-27: 92 link imports
+        // 403'd "outside every allowed root" with no grant ever attempted —
+        // only directories were granted). try?: a failed grant already logs
+        // loudly, and the engine's own 403 is the honest surface for it.
+        try? await FolderAccessManager.shared.grantAccessForImport(url)
         return try await ingestFileInPlace(
             url,
             mode: mode,

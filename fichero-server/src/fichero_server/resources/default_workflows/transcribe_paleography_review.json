@@ -1,0 +1,161 @@
+{
+ "name": "Paleographer Review",
+ "description": "Use this when: a document ALREADY has a transcription (from any Transcribe preset, any model) and you want a paleographer's review of it against the image. Three staged passes with extended thinking — abbreviations & formulary, orthography & consistency, final layer — all on the ONE model you pick at run time (transcribe with one model, review with another if you like). Writes the reviewed text as the document's content. Replaces the Ensemble preset.",
+ "format": "nodes",
+ "is_template": true,
+ "is_system": true,
+ "folder_path": "/Transcribe",
+ "tags": [
+  "preset",
+  "transcribe",
+  "paleography",
+  "review",
+  "artifact"
+ ],
+ "config": {
+  "preset_version": 1,
+  "variant_group": "paleographer-review",
+  "variant": "review"
+ },
+ "nodes": [
+  {
+   "id": "files-source",
+   "tool": "files",
+   "label": "Files",
+   "position_x": 80,
+   "position_y": 200,
+   "inputs": {},
+   "config": {}
+  },
+  {
+   "id": "r1",
+   "tool": "transcribe_review",
+   "label": "Review 1 — Abbreviations & Formulary",
+   "position_x": 320,
+   "position_y": 200,
+   "inputs": {},
+   "config": {
+    "vision_mode": "llm",
+    "language": "auto",
+    "update_page_content": false,
+    "thinking_mode": "long",
+    "prompt": "You are a paleographer reviewing an EXISTING transcription of the manuscript image you are shown. The prior transcription is provided as context. Take your time — think through every hard line against the strokes before accepting or changing a reading.\n\n**This pass: abbreviations, contractions, and formulary.**\n- Verify every expansion. Brackets belong ONLY around letters supplied by expansion (mer[ce]d, v[ecin]o). Remove bracket noise around letters that are visible on the page, and remove any spurious full stops between words — restore continuous text.\n- Expand abbreviations the draft left unexpanded where the expansion is unambiguous; otherwise keep the abbreviated form exactly as written.\n- Identify the document's genre (carta de poder, confesión, probanza, auto, oficio...) and check the draft against its formula skeleton. Where the draft's text breaks the formula AND the image is damaged or ambiguous there, propose the formula reading as [UNCERTAIN: ...] — never insert formula text as if it were read.\n- Output the COMPLETE corrected transcription (same line breaks), nothing else."
+   }
+  },
+  {
+   "id": "reference-search",
+   "tool": "search",
+   "label": "Reference Corpus Search",
+   "position_x": 540,
+   "position_y": 80,
+   "inputs": {},
+   "config": {
+    "search_type": "hybrid",
+    "status_filter": "completed",
+    "limit": 5
+   }
+  },
+  {
+   "id": "r2",
+   "tool": "transcribe_review",
+   "label": "Review 2 — Orthography & Consistency",
+   "position_x": 560,
+   "position_y": 200,
+   "inputs": {},
+   "config": {
+    "vision_mode": "llm",
+    "language": "auto",
+    "update_page_content": false,
+    "thinking_mode": "long",
+    "prompt": "You are a paleographer continuing the review of a transcription against its manuscript image. The previous pass's text is provided as context. Think carefully; change only what the strokes justify.\n\n**This pass: orthography, phonology, and consistency.**\n- Letter-shape audit for the period: u/v, i/j/y, b/v, ç/c/z, f-/h-, rr/ss, long-s/f, rn/m, c/e, u/n, t/l. Where the draft's spelling implies a stroke the image does not show, correct it.\n- Diphthongs and vowel groups: verify ie/ue/ei readings against minim count and ligature shape (quien/quyen, dies/diez class).\n- Word segmentation: period writing runs words together (dela, quel, desta, ques) — transcribe as written, but verify the split the draft chose matches the pen lifts.\n- CONSISTENCY: collect every personal name, place name, and date in the text (and in any provided reference material). The same person must read the same way throughout; a date must agree with the document's own docket or heading. Where readings conflict, correct to the better-attested form and mark the loser [UNCERTAIN: ...] — flag any conflict you cannot resolve.\n- Output the COMPLETE corrected transcription (same line breaks), nothing else."
+   }
+  },
+  {
+   "id": "r3",
+   "tool": "transcribe_review",
+   "label": "Review 3 — Final Layer",
+   "position_x": 800,
+   "position_y": 200,
+   "inputs": {},
+   "config": {
+    "vision_mode": "llm",
+    "language": "auto",
+    "update_page_content": true,
+    "thinking_mode": "medium",
+    "prompt": "You are the final reviewing paleographer. The reviewed transcription is provided as context; the manuscript image is before you.\n\n**This pass: the final layer.**\n- Uncertainty audit: every [UNCERTAIN: ...] either resolves (the strokes decide) or stays with its best single reading inside the marker; every [ILLEGIBLE] is confirmed truly unreadable at this image's resolution.\n- Layout check: line breaks, marginalia positions [M.N.], insertions, [deleted: ...], [Rúbrica]/[Sello] placements match the page.\n- Bracket discipline final check: brackets only around expansion-supplied letters; no per-letter spray; no stop-after-every-word.\n- Output the FINAL complete transcription, nothing else. It becomes the document's text."
+   }
+  }
+ ],
+ "edges": [
+  {
+   "id": "files-source-r1-files",
+   "source": "files-source",
+   "target": "r1",
+   "source_port": "files",
+   "target_port": "files"
+  },
+  {
+   "id": "files-source-r1-documents",
+   "source": "files-source",
+   "target": "r1",
+   "source_port": "documents",
+   "target_port": "documents"
+  },
+  {
+   "id": "r1-reference-search-text",
+   "source": "r1",
+   "target": "reference-search",
+   "source_port": "text",
+   "target_port": "query"
+  },
+  {
+   "id": "r1-r2-records",
+   "source": "r1",
+   "target": "r2",
+   "source_port": "records",
+   "target_port": "context"
+  },
+  {
+   "id": "reference-search-r2-documents",
+   "source": "reference-search",
+   "target": "r2",
+   "source_port": "documents",
+   "target_port": "metadata"
+  },
+  {
+   "id": "files-source-r2-files",
+   "source": "files-source",
+   "target": "r2",
+   "source_port": "files",
+   "target_port": "files"
+  },
+  {
+   "id": "files-source-r2-documents",
+   "source": "files-source",
+   "target": "r2",
+   "source_port": "documents",
+   "target_port": "documents"
+  },
+  {
+   "id": "r2-r3-records",
+   "source": "r2",
+   "target": "r3",
+   "source_port": "records",
+   "target_port": "context"
+  },
+  {
+   "id": "files-source-r3-files",
+   "source": "files-source",
+   "target": "r3",
+   "source_port": "files",
+   "target_port": "files"
+  },
+  {
+   "id": "files-source-r3-documents",
+   "source": "files-source",
+   "target": "r3",
+   "source_port": "documents",
+   "target_port": "documents"
+  }
+ ]
+}

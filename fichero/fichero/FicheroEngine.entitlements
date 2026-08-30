@@ -11,6 +11,15 @@
 	  clean Mac. Each key maps to a real failure mode:
 	-->
 
+	<!-- The DMG app is sandboxed (FicheroRelease.entitlements, 2026-08-27),
+	     and a sandboxed app's child must carry {app-sandbox, inherit} or the
+	     kernel kills it at spawn — the same live-proven pair the Dev-Embedded
+	     engine uses (#4555). -->
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<key>com.apple.security.inherit</key>
+	<true/>
+
 	<!-- Load the 800+ third-party native wheels (duckdb, numpy, PyMuPDF, …)
 	     even though they aren't all signed with our Team ID. -->
 	<key>com.apple.security.cs.disable-library-validation</key>

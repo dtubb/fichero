@@ -17,7 +17,9 @@ from fichero_server.models import Workflow
 from fichero_server.workflows.subworkflow import resolve_sub_workflow_ref
 from fichero_server.workflows.types import WorkflowDef
 
-CHILD_NAME = "Spanish Script v2 Child Passes (19th-20th C.)"
+# 2026-08-26 redesign: the shipped delegation exemplar is the pipeline
+# preset composing Transcribe Paleography + Paleographer Review.
+CHILD_NAME = "Transcribe Paleography"
 
 
 def _library(tmp_path: Path) -> Path:
@@ -106,7 +108,7 @@ def test_falls_back_to_shipped_json_when_absent_from_db(tmp_path: Path):
         CHILD_NAME, {"library_path": str(library_path)}
     )
     assert resolved is not None, "shipped JSON fallback must still resolve"
-    assert {n.tool for n in resolved.nodes} >= {"transcribe", "transcribe_review"}
+    assert {n.tool for n in resolved.nodes} >= {"transcribe"}
 
 
 def test_no_state_still_resolves_shipped_presets():

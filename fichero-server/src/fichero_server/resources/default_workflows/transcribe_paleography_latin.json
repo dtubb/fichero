@@ -1,0 +1,62 @@
+{
+ "name": "Latin Paleography",
+ "description": "Use this when: you have Latin manuscript text — medieval through early-modern (charters, ecclesiastical records, notarial instruments). One careful whole-page pass with abbreviation-system advice; run Paleographer Review afterwards to refine.",
+ "format": "nodes",
+ "is_template": true,
+ "is_system": true,
+ "folder_path": "/Transcribe",
+ "tags": [
+  "preset",
+  "transcribe",
+  "paleography",
+  "latin",
+  "single-pass"
+ ],
+ "config": {
+  "preset_version": 1,
+  "variant_group": "transcribe-single-pass",
+  "variant": "paleography-latin"
+ },
+ "nodes": [
+  {
+   "id": "files-source",
+   "tool": "files",
+   "label": "Files",
+   "position_x": 80,
+   "position_y": 200,
+   "inputs": {},
+   "config": {}
+  },
+  {
+   "id": "transcribe",
+   "tool": "transcribe",
+   "label": "Transcribe",
+   "position_x": 320,
+   "position_y": 200,
+   "inputs": {},
+   "config": {
+    "vision_mode": "llm",
+    "language": "auto",
+    "update_page_content": true,
+    "thinking_mode": "long",
+    "prompt": "You are a Latin paleographer transcribing a manuscript image in a single careful pass.\n\nTake your time and think through hard lines before committing to a reading.\n\n**Before transcribing, note in a single bracketed line:**\n[Script: <family>; hand: <size, slant>; language: <language>]\n\nThen output ONLY the transcription — no headings, preamble, or commentary after that line.\n\n**Transcription discipline (non-negotiable):**\n- Transcribe the WHOLE page in reading order. Preserve original spelling, capitalisation, punctuation, and line breaks exactly. Never modernise.\n- Square brackets ONLY around letters you supply by expanding an abbreviation or contraction — mer[ce]d, ma[gesta]d, v[ecin]o. Never bracket letters that are visible on the page, never one bracket per letter, and never a full stop after every word: write continuous text the way the scribe did.\n- [UNCERTAIN: word] when you have a plausible reading; [ILLEGIBLE] only when the strokes are truly unreadable. An honest [UNCERTAIN] is worth more than a fluent guess.\n- You know the period's formulas. Use them to READ, not to write: where damage hides a standard formula, propose it as [UNCERTAIN: ...], never as clean text.\n- Keep names, dates, and places consistent with what the document itself establishes (docket/cover, headings, other pages of the batch). If two readings conflict, flag the conflict — do not silently choose.\n- [M.N.] marginalia at position · [deleted: ...] struck text · interlinear insertions inline at the insertion point · [Rúbrica] / [Sello] for flourishes and stamps · [sin texto] for a page with no legible text.\n\n**Latin (medieval and early-modern hands):**\n- Abbreviation by suspension and contraction is the norm, not the exception. A macron marks omitted nasals (dño = d[omi]no) or wider contraction.\n- Standard signs: the Tironian ⁊ = et · p with barred descender = per/par · p with loop = pro · q; / q̃ = que · the -rum sign at word end · -b; = -bus · 9 (superscript) = con-/com- or -us.\n- Nomina sacra: dns = d[omi]n[u]s · ds = d[eu]s · sps = sp[iritu]s · ihs/xps = Ihesus/Christus · scs = s[an]c[tu]s · eccla = eccl[esi]a.\n- Dating clauses use kalends/nones/ides and anno Domini formulas; expand cautiously with brackets.\n- Minim strokes (i, u, n, m) run together — count minims before committing; e-caudata (ę) stands for ae."
+   }
+  }
+ ],
+ "edges": [
+  {
+   "id": "files-source-transcribe-files",
+   "source": "files-source",
+   "target": "transcribe",
+   "source_port": "files",
+   "target_port": "files"
+  },
+  {
+   "id": "files-source-transcribe-documents",
+   "source": "files-source",
+   "target": "transcribe",
+   "source_port": "documents",
+   "target_port": "documents"
+  }
+ ]
+}

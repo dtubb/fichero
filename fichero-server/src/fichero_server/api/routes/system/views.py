@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import csv
+import io
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -12,7 +14,7 @@ from fastapi.responses import HTMLResponse
 from fichero_server.api.main import get_library_database
 from fichero_server.db import Database
 from fichero_server.models.knowledge import KnowledgeClaim, KnowledgeEntity
-from fichero_server.models import DocType, Document
+from fichero_server.models import Artifact, DocType, Document
 
 router = APIRouter(prefix="/view", tags=["views"])
 
@@ -57,6 +59,209 @@ def _page_children(db: Database, document: Document) -> list[Document]:
     return child_pages
 
 
+def _region_children(db: Database, document: Document) -> list[Document]:
+    """This document's REGION children — extracted zones carrying
+    ``region_in_parent`` (diary entries, segmentation splits) — in sequence.
+
+    Soft-deleted regions stay out: a removed entry is invisible clutter the
+    reader must not resurrect (diary re-extraction soft-deletes, 2026-08-23).
+    """
+    children = db.query(Document, parent_id=document.id)
+    regions = [
+        child
+        for child in children
+        if child.region_in_parent is not None and child.deleted_at is None
+    ]
+    regions.sort(key=lambda doc: (doc.sequence or 0, doc.name))
+    return regions
+
+
+def region_cohort(regions: list[Document], anchor: Document) -> list[Document]:
+    """ALL regions of the anchor's view — never just the one (2026-08-29).
+
+    Daniel's ruling: a region-scoped reader shows every sibling region of the
+    same extraction — same page, same output type — as one listed run. The
+    cohort key is what region nodes actually carry about their producer:
+    ``node_kind`` (the output type: "entry", segment, …) and ``prototype_key``.
+    Region nodes carry no run id today, so "same model run" is approximated by
+    "same producer shape on the same parent" — pure over loaded documents so
+    the rule is unit-testable without a database.
+    """
+    key = (anchor.node_kind, anchor.prototype_key)
+    return [
+        region
+        for region in regions
+        if (region.node_kind, region.prototype_key) == key
+    ]
+
+
+#: Artifact types whose content is a TABLE, not prose (Daniel, 2026-08-29
+#: bedtime): the reader renders these as a real HTML table. One member today —
+#: `table_extract` (and the Accounts → Spreadsheet preset built on it) writes
+#: artifact_type "table" in csv / json_rows / json_columns / markdown styles.
+TABLE_ARTIFACT_TYPES = frozenset({"table"})
+
+
+def table_payload(artifact: Artifact) -> dict[str, object] | None:
+    """Parse a table artifact into ``{"headers": [...]|None, "rows": [[...]]}``.
+
+    Server-side and via the stdlib `csv` module, never a hand-rolled split —
+    quoted fields carrying commas are exactly why the accounts preset quotes
+    every field. Shapes, in the order table_extract can produce them:
+    structured json_rows (in ``data`` or as JSON content), json_columns,
+    a markdown table, and CSV (the preset default). Ragged rows are padded to
+    the widest row — a short ledger line is short, not dropped. Returns None
+    when nothing tabular can be read, so the caller falls back to text.
+    """
+    structured = _structured_table(artifact)
+    if structured is not None:
+        return structured
+    content = (artifact.content or "").strip()
+    if not content:
+        return None
+    lines = [line for line in content.splitlines() if line.strip()]
+    if lines and all(line.lstrip().startswith("|") for line in lines):
+        return _markdown_table(lines)
+    return _csv_table(content)
+
+
+def _structured_table(artifact: Artifact) -> dict[str, object] | None:
+    """json_rows / json_columns payloads, from ``data`` or JSON content."""
+    candidates: list[dict] = []
+    if isinstance(artifact.data, dict):
+        candidates.append(artifact.data)
+    content = (artifact.content or "").strip()
+    if content.startswith("{"):
+        try:
+            parsed = json.loads(content)
+        except ValueError:
+            parsed = None
+        if isinstance(parsed, dict):
+            candidates.append(parsed)
+    for payload in candidates:
+        rows = payload.get("rows")
+        if isinstance(rows, list) and rows:
+            headers = payload.get("headers")
+            return _normalized_table(
+                headers if isinstance(headers, list) else None,
+                [row if isinstance(row, list) else [row] for row in rows],
+            )
+        columns = payload.get("columns")
+        if isinstance(columns, dict) and columns:
+            names = list(columns.keys())
+            depth = max((len(v) for v in columns.values() if isinstance(v, list)), default=0)
+            return _normalized_table(
+                names,
+                [
+                    [
+                        (columns[name][i] if isinstance(columns[name], list) and i < len(columns[name]) else "")
+                        for name in names
+                    ]
+                    for i in range(depth)
+                ],
+            )
+    return None
+
+
+def _markdown_table(lines: list[str]) -> dict[str, object] | None:
+    """A ``| a | b |`` table; the dashed separator row names the header."""
+    rows: list[list[str]] = []
+    has_header = False
+    for index, line in enumerate(lines):
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if index == 1 and cells and all(set(cell) <= set("-: ") for cell in cells):
+            has_header = True
+            continue
+        rows.append(cells)
+    if not rows:
+        return None
+    headers = rows.pop(0) if has_header and rows else None
+    return _normalized_table(headers, rows)
+
+
+def _csv_table(content: str) -> dict[str, object] | None:
+    """CSV via the stdlib reader. First row is the header when more rows
+    follow — table_extract's include_headers defaults on and the accounts
+    preset always emits one; a single-row table has nothing to head."""
+    rows = [row for row in csv.reader(io.StringIO(content)) if row]
+    if not rows:
+        return None
+    if len(rows) == 1:
+        # A single row has nothing to head — render it as data.
+        return _normalized_table(None, rows)
+    return _normalized_table(rows[0], rows[1:])
+
+
+def _normalized_table(
+    headers: list | None, rows: list[list]
+) -> dict[str, object] | None:
+    """Stringify cells and pad ragged rows to the widest row/header."""
+    width = max(
+        [len(headers) if headers else 0] + [len(row) for row in rows], default=0
+    )
+    if width == 0:
+        return None
+    def pad(row: list) -> list[str]:
+        cells = ["" if cell is None else str(cell) for cell in row]
+        return cells + [""] * (width - len(cells))
+    return {
+        "headers": pad(headers) if headers else None,
+        "rows": [pad(row) for row in rows],
+    }
+
+
+def represented_pages(
+    pages: list[dict[str, object]], artifacts: list[Artifact], representation: str
+) -> list[dict[str, object]]:
+    """The SAME page list, read through one representation type (2026-08-29).
+
+    Daniel's ruling: the reader flips between representations of the same
+    scope — Content / Transcript / Translation — by re-requesting the SAME
+    WebKit page with a ``representation`` parameter, never through a second
+    renderer. Each page's content becomes its LATEST artifact of that type;
+    a page with no such artifact is an empty page, not a gap — the sequence
+    must keep matching the preview (#4356). Pure for unit tests.
+    """
+    latest: dict[str, Artifact] = {}
+    for artifact in artifacts:
+        if artifact.artifact_type != representation:
+            continue
+        # A table artifact may carry ONLY structured data (json_rows lands in
+        # `data`); prose representations need text.
+        has_table_data = (
+            representation in TABLE_ARTIFACT_TYPES and bool(artifact.data)
+        )
+        if not (artifact.content and artifact.content.strip()) and not has_table_data:
+            continue
+        current = latest.get(artifact.document_id)
+        if current is None or (artifact.created_at, artifact.version) > (
+            current.created_at,
+            current.version,
+        ):
+            latest[artifact.document_id] = artifact
+    result: list[dict[str, object]] = []
+    for page in pages:
+        artifact = latest.get(str(page["id"]))
+        content = artifact.content if artifact and artifact.content else ""
+        entry: dict[str, object] = {
+            **page,
+            "content": content,
+            "has_content": bool(content.strip()),
+        }
+        # A table-family representation ships the PARSED table alongside the
+        # raw text (Daniel, 2026-08-29 bedtime): the template renders a real
+        # <table>, falling back to the text when nothing tabular parsed.
+        if artifact is not None and representation in TABLE_ARTIFACT_TYPES:
+            table = table_payload(artifact)
+            entry["table"] = table
+            if table is not None:
+                # A parsed table IS content, even when it arrived as
+                # structured data with no text alongside.
+                entry["has_content"] = True
+        result.append(entry)
+    return result
+
+
 def transcript_pages(document: Document, child_pages: list[Document]) -> list[dict[str, object]]:
     """Every page of the document, in order — including pages with NO content.
 
@@ -84,6 +289,7 @@ def transcript_pages(document: Document, child_pages: list[Document]) -> list[di
                 "label": document.name,
                 "content": content,
                 "has_content": True,
+                "is_region": document.region_in_parent is not None,
             }
         ]
 
@@ -97,6 +303,9 @@ def transcript_pages(document: Document, child_pages: list[Document]) -> list[di
                 "label": page.name,
                 "content": content,
                 "has_content": bool(content.strip()),
+                # A region section (a diary entry, a segment) is NAMED — the
+                # reader shows its label; an ordinary sheet is numbered.
+                "is_region": page.region_in_parent is not None,
             }
         )
     return pages
@@ -218,17 +427,28 @@ async def document_view(
     request: Request,
     doc_id: str,
     pages_filter: str | None = Query(default=None, alias="pages"),
+    representation: str | None = Query(default=None),
     db: Database = Depends(get_library_database),
 ) -> HTMLResponse:
-    document = db.get(Document, doc_id)
-    if document is None:
+    requested = db.get(Document, doc_id)
+    if requested is None:
         raise HTTPException(404, f"Document not found: {doc_id}")
+
+    # A REGION request re-anchors to its parent (Daniel, 2026-08-29): a
+    # region-scoped reader shows ALL regions of that view — same page, same
+    # output type — never just the one region. The parent is the document the
+    # view is OF; the requested region only names which cohort to list.
+    document = requested
+    if requested.region_in_parent is not None and requested.parent_id:
+        parent = db.get(Document, requested.parent_id)
+        if parent is not None:
+            document = parent
 
     # A multi-page SELECTION rides the same renderer (Daniel, 2026-08-25:
     # "we already have the WebKit renderer — it's just telling it what to
     # render"): `?pages=id1,id2` narrows the assembled transcript to those
-    # child pages, in their real sequence. Unknown ids are ignored rather
-    # than 404ing — a stale selection renders what still exists.
+    # child pages (or child regions), in their real sequence. Unknown ids are
+    # ignored rather than 404ing — a stale selection renders what still exists.
     selected_page_ids: set[str] | None = None
     if pages_filter:
         selected_page_ids = {p for p in pages_filter.split(",") if p}
@@ -237,27 +457,48 @@ async def document_view(
 
     # Per-page PDFs store claims on children, so scope the graph to the full
     # document subtree and let query_in filter before hydration (#3224).
-    doc_scope = _descendant_doc_ids(db, doc_id)
+    doc_scope = _descendant_doc_ids(db, document.id)
     if selected_page_ids is not None:
         # Selection view: the parent's own claims plus the selected pages'.
-        doc_scope = {doc_id} | (set(doc_scope) & selected_page_ids)
+        doc_scope = {document.id} | (set(doc_scope) & selected_page_ids)
     claims = db.query_in(KnowledgeClaim, "source_document_id", doc_scope)
 
     entities = _document_scoped_entities(db, doc_scope, claims)
     entities_by_id = {entity.id: entity for entity in entities}
 
+    # The reader's section list: page children when the document has them,
+    # else its region children — the ONE WebKit renderer carries both
+    # (2026-08-29). A region request narrows to the requested region's cohort.
     child_pages = _page_children(db, document)
+    if document is not requested:
+        child_pages = region_cohort(_region_children(db, document), requested)
+    elif not child_pages:
+        child_pages = _region_children(db, document)
     if selected_page_ids is not None:
         child_pages = [p for p in child_pages if p.id in selected_page_ids]
+    region_scoped = any(p.region_in_parent is not None for p in child_pages)
     pages = transcript_pages(document, child_pages)
+    if representation and representation != "content":
+        # The representation switcher re-requests THIS page with a
+        # `representation` parameter — same scope, same renderer, different
+        # reading. Latest artifact of that type per section (2026-08-29).
+        artifacts = db.query_in(Artifact, "document_id", [str(p["id"]) for p in pages])
+        pages = represented_pages(pages, artifacts, representation)
     # Two sources, and which one applied decides whether the transcript has to
     # travel at all. When it comes from the page children it is `transcript_text`
     # — a PURE function of `pages` — so the client can rebuild it byte-for-byte.
     #
     # A page-filtered view ALWAYS derives from the (filtered) pages: the
     # document's own `page_content` is the WHOLE document's text, which would
-    # silently widen a two-page selection back to everything.
-    if document.page_content and selected_page_ids is None:
+    # silently widen a two-page selection back to everything. The same rule
+    # covers a region-scoped view (the parent's text is not the region list)
+    # and a representation view (the artifacts' text is not the document's).
+    if (
+        document.page_content
+        and selected_page_ids is None
+        and not region_scoped
+        and not (representation and representation != "content")
+    ):
         transcript = _strip_document_rtf(document.page_content)
         transcript_source = TRANSCRIPT_FROM_DOCUMENT
     else:
@@ -281,6 +522,9 @@ async def document_view(
         # client must never have to guess whether an absent transcript means
         # "derive it" or "this document has none".
         "transcript_source": transcript_source,
+        # Which representation this view reads ("content" = the live text).
+        # Stated so the page never has to infer it from its own URL.
+        "representation": representation or "content",
         # Every page in sequence, empty ones included (#4356) — the reader
         # renders this list, so reader page N is preview page N.
         "pages": pages,

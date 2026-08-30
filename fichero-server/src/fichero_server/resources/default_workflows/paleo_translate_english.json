@@ -1,0 +1,56 @@
+{
+ "name": "Translate to English (Historical)",
+ "description": "Use this when: you want an English translation of a historical document (Spanish, Latin, or other), faithful to its legal and notarial register, with names preserved and uncertainties carried through. Writes an analysis artifact.",
+ "format": "nodes",
+ "is_template": true,
+ "is_system": true,
+ "folder_path": "/Extract Data",
+ "tags": [
+  "preset",
+  "paleography",
+  "translation",
+  "english"
+ ],
+ "config": {
+  "preset_version": 1
+ },
+ "nodes": [
+  {
+   "id": "files-source",
+   "tool": "files",
+   "label": "Files",
+   "position_x": 80,
+   "position_y": 200,
+   "inputs": {},
+   "config": {}
+  },
+  {
+   "id": "translate",
+   "tool": "analyze",
+   "label": "Translate to English",
+   "position_x": 320,
+   "position_y": 200,
+   "inputs": {},
+   "config": {
+    "prompt": "Translate this historical document into clear modern English, using the existing transcription as context if provided and the image where it is silent.\n\nRules: translate meaning faithfully, including legal/notarial formulas (render them in standard English legal register); keep personal and place names in their original form; keep [UNCERTAIN: ...] markers where the source reading is uncertain, translating the uncertain word inside the marker; do not summarise or omit. Output only the translation.",
+    "thinking_mode": "medium"
+   }
+  }
+ ],
+ "edges": [
+  {
+   "id": "files-translate",
+   "source": "files-source",
+   "target": "translate",
+   "source_port": "files",
+   "target_port": "files"
+  },
+  {
+   "id": "docs-translate",
+   "source": "files-source",
+   "target": "translate",
+   "source_port": "documents",
+   "target_port": "documents"
+  }
+ ]
+}

@@ -25,6 +25,12 @@ RULE_DOC = "agents/ROADMAP.md"
 
 # Rekeyed to stable content signatures so unrelated line shifts do not churn the backlog.
 KNOWN_VIOLATIONS: dict[str, str] = {
+    # 2026-08-28 capability bar: both popovers stack a heading, a description,
+    # engine-provided badges and an expandable prompt block per entry. A List
+    # would impose row selection and separators on content whose whole purpose
+    # is to be read before choosing — and the expand gesture must not select.
+    "Shell/Toolbar/WorkflowToolsPopover.swift#2d76b922c8": "2026-08-28 tools browser: searchable tool cards with expandable prompts, not selectable rows (re-pinned 2026-08-30 after card rework)",
+    "Shell/Toolbar/ModelChipToolbarItem.swift#7e9c52bd28": "2026-08-29 model picker popover: logo+pricing+vision rows in a fixed-height popover; List chrome misbehaves in popovers and the concrete-row perf fix (333ms stall) depends on this structure",
     "Reader/MultiSelectionReaderView.swift#59b0e99ae5": "2026-08-23 multi-selection reader: continuous transcript SECTIONS under pinned headers — prose, not a row collection; List would impose row selection and separators on reading text",
     "Activity/Overview/ActivityOverviewView+Cards.swift#d6f20143ab": "#1912 baseline (re-hashed by function_body extraction; same docStep grid)",
     "Library/ViewModes/Graph/Ontology/Entity/EntitySourceGroupsView.swift#c6a609c38d": "#1912 baseline",

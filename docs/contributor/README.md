@@ -26,7 +26,7 @@ Fichero is not a single-process desktop app. The default macOS path is a native 
 The shortest accurate picture is:
 
 ```text
-SwiftUI app -> pinned HTTPS transport -> FastAPI engine -> DuckDB + LanceDB
+SwiftUI app -> UDS (local) / pinned HTTPS -> FastAPI engine -> DuckDB + LanceDB
                                                      -> LangGraph workflows
                                                      -> LLM providers via LangChain integrations
 ```

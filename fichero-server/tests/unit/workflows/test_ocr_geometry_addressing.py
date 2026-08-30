@@ -496,3 +496,114 @@ def test_the_old_pixel_shape_is_the_thing_that_used_to_break():
     }
     with pytest.raises(ValueError, match="require page_width and page_height"):
         parse_vlm_geometry(payload, provider="google")
+
+
+def test_pixel_boxes_normalize_against_the_replys_own_claimed_frame():
+    """A reply that ignores the fractions rule but names its pixel frame
+    (image_width/image_height, required by the prompt since 2026-08-27 —
+    gemini-3.1-flash-lite on Caciques Hoja 531 sent pixels) is normalized
+    against that frame instead of rejected."""
+    from fichero_server.media.ocr_geometry import parse_vlm_geometry
+
+    payload = {
+        "image_width": 1000,
+        "image_height": 500,
+        "text": "En la ciudad",
+        "boxes": [
+            {"text": "En la ciudad", "bbox": [100, 50, 400, 25], "level": "line"}
+        ],
+    }
+    geometry = parse_vlm_geometry(payload, provider="openrouter")
+    assert geometry.boxes[0].bbox == pytest.approx([0.1, 0.1, 0.4, 0.05])
+
+
+def test_corner_form_boxes_are_reinterpreted_not_rejected():
+    """gemini-3.1-flash-lite answers the xywh prompt with [x1, y1, x2, y2]
+    corners; read as xywh they overflow the page and one bad box used to
+    reject the page's whole geometry. Corners that fit are reinterpreted."""
+    from fichero_server.media.ocr_geometry import parse_vlm_geometry
+
+    payload = {
+        "text": "Coronado",
+        "boxes": [
+            {"text": "Coronado", "bbox": [0.74, 0.06, 0.976, 0.51], "level": "line"}
+        ],
+    }
+    geometry = parse_vlm_geometry(payload, provider="openrouter")
+    assert geometry.boxes[0].bbox == pytest.approx([0.74, 0.06, 0.236, 0.45])
+
+
+def test_two_percent_overflow_is_clipped_not_rejected():
+    from fichero_server.media.ocr_geometry import parse_vlm_geometry
+
+    payload = {
+        "text": "margen",
+        "boxes": [
+            {"text": "margen", "bbox": [0.60, 0.90, 0.30, 0.11], "level": "line"}
+        ],
+    }
+    geometry = parse_vlm_geometry(payload, provider="openrouter")
+    x, y, w, h = geometry.boxes[0].bbox
+    assert y + h == pytest.approx(1.0)
+
+
+def test_truncated_boxes_reply_is_named_as_truncation_not_malformed():
+    """Daniel's Caciques reply ended mid-box: `{"text": "[ilegible] declara`.
+    The old message ("geometry that could not be used") sent an
+    investigation after the box FORMAT; the cause was the 2048-token
+    ceiling. The rejection must name the ceiling (2026-08-28)."""
+    from fichero_server.llm import LLMConfig
+    from fichero_server.workflows.tools.vision_base import (
+        _looks_truncated,
+        _return_boxes_text_and_geometry,
+    )
+
+    cut_off = (
+        '{"image_width": 948, "image_height": 1372, "text": "dize que llevaua",'
+        ' "boxes": [{"text": "dize que llevaua", "bbox": [0.23, 0.045, 0.66,'
+        ' 0.028], "level": "line"}, {"text": "[ilegible] declara'
+    )
+    assert _looks_truncated(cut_off)
+    # Prose (the model ignoring the JSON request) is NOT truncation.
+    assert not _looks_truncated("I cannot read this manuscript.")
+    assert not _looks_truncated('{"text": "ok", "boxes": []}')
+
+    _text, geometry = _return_boxes_text_and_geometry(
+        cut_off,
+        llm_config=LLMConfig(provider="openrouter", model="anthropic/claude-sonnet-5"),
+        page_index=None,
+    )
+    assert "cut off" in (geometry.metadata or {}).get("reason", "") or \
+        "cut off" in str(geometry.metadata)
+
+
+def test_boxes_mode_raises_the_token_ceiling():
+    """A boxes reply carries the page's text twice plus JSON; the 2048
+    default truncated dense pages. The floor applies even when a node
+    hand-sets something lower."""
+    from fichero_server.llm import LLMConfig
+    from fichero_server.workflows.tools.vision_base import _BOXES_MIN_MAX_TOKENS
+
+    assert _BOXES_MIN_MAX_TOKENS >= 8192
+    # The global default moved up with it — thinking shares this budget.
+    assert LLMConfig(provider="p", model="m").max_tokens >= 8192
+
+
+def test_thinking_mode_buys_its_own_token_headroom():
+    """Every paleography preset declares thinking_mode "long" and inherited
+    an answer-sized ceiling, so the reasoning ate the answer — Opus 5 on
+    Caciques Hoja 532 stopped mid-word at "[UNCERTAI" with output=2048
+    exactly. Deeper thinking must RAISE the ceiling, never squeeze the
+    answer (2026-08-28)."""
+    from fichero_server.workflows.tools.llm_prompting import (
+        THINKING_MODES,
+        token_budget_for_thinking,
+    )
+
+    base = 8192
+    assert token_budget_for_thinking("off", base) == base
+    budgets = [token_budget_for_thinking(m, base) for m in THINKING_MODES]
+    assert budgets == sorted(budgets), "deeper thinking must not shrink the budget"
+    assert token_budget_for_thinking("long", base) >= base + 8192
+    # An unknown mode must not silently shrink the caller's budget.
+    assert token_budget_for_thinking("bogus", base) == base

@@ -33,6 +33,11 @@ extension ZoomableImagePreview {
     func handleDocumentIDChanged() {
         isDrawingRegion = false
         linkedSelectionBoxes = []
+        // Regions (2026-08-29): a page step invalidates every ephemeral
+        // region state — selection indices point into the OLD page's
+        // geometry, marquees were drawn over the old pixels, and a still-
+        // armed add mode would draw onto the wrong page.
+        clearEphemeralRegionState()
         loadAnnotations()
         // S6: the NEXT image fits whole (zoom-to-fit, both axes) — stepping
         // siblings at the previous zoom left tall items overflowing.

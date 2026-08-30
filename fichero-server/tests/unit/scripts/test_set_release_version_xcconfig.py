@@ -48,6 +48,11 @@ def _make_fixture(tmp_path: Path, pbx_contents: str = "// no version literals\n"
     (root / "RELEASE_NOTES.md").write_text(
         "## 2026.07.01\n\n- previous entry\n", encoding="utf-8"
     )
+    # The stamp gate (2026-08-27) refuses a version with no CHANGELOG section;
+    # an Unreleased section is what it auto-promotes.
+    (root / "CHANGELOG.md").write_text(
+        "# Changelog\n\n## Unreleased\n\n- pending entry\n", encoding="utf-8"
+    )
     return root
 
 

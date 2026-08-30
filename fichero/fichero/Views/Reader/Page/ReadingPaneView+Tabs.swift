@@ -35,7 +35,19 @@ extension ReadingPaneView {
     /// TWO PANES — Reader + Preview — not an embedded source view.
     @ViewBuilder
     private var pageTabContent: some View {
-        if multiDocuments.count > 1 {
+        if let doc = effectiveDocument, doc.isWorkflowNode {
+            // A workflow node cannot HAVE a transcript (Daniel, 2026-08-29):
+            // the engine view's generic empty says one isn't available "yet",
+            // which promises what cannot arrive. State the impossibility
+            // natively, before any WebKit load, and offer the surface that
+            // does show the node — the workflow editor.
+            workflowNodeEmptyState(doc)
+        } else if let artifactLens {
+            // The ARTIFACT lens wins over every other Page rendering: the
+            // user explicitly pinned this pane to one artifact's text
+            // (artifact-compare P1). Split panes each hold their own.
+            ArtifactLensContentView(lens: artifactLens)
+        } else if multiDocuments.count > 1 {
             // N pages of ONE parent ride the SAME WebKit transcript the
             // single-document reader uses — the surface's `?pages=` filter
             // tells the renderer which pages to assemble (2026-08-25). The
@@ -104,6 +116,29 @@ extension ReadingPaneView {
         case .page: return .page(doc.id)
         default: return .document(doc.id)
         }
+    }
+
+    /// A workflow node's honest empty state (Daniel, 2026-08-29): "not
+    /// possible", never "not yet". The button routes through the same reveal
+    /// seam a sidebar click uses, which lands workflow mirrors in the editor
+    /// (`routeWorkflowMirrorSelection`).
+    private func workflowNodeEmptyState(_ doc: Document) -> some View {
+        ContentUnavailableView {
+            Label("Workflows Have No Transcript", systemImage: "arrow.triangle.branch")
+        } description: {
+            Text("\(DocumentTitle.displayName(for: doc)) is a workflow, not a document — there is no page text to read.")
+        } actions: {
+            Button("Open in Workflow Editor") {
+                NotificationCenter.default.post(
+                    name: .sidebarRevealDocument,
+                    object: nil,
+                    userInfo: ["documentId": doc.id]
+                )
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(.textBackgroundColor))
+        .accessibilityIdentifier("readerWorkflowNodeEmptyState")
     }
 
     private var readerEmptyState: some View {
@@ -233,19 +268,38 @@ extension ReadingPaneView {
     /// belongs to the document about to be rendered.
     var effectiveKGDocumentId: String? {
         guard let doc = effectiveDocument else { return nil }
-        return (doc.docType == .page && doc.parentId != nil) ? doc.parentId! : doc.id
+        return Self.kgDocumentId(for: doc)
+    }
+
+    /// A page maps to its parent; a REGION node (a zone carrying
+    /// `regionInParent` — a diary entry, a segment) maps to its parent too
+    /// (Daniel, 2026-08-29): a region-scoped reader shows ALL regions of that
+    /// view through the one WebKit renderer, so the view is OF the parent.
+    static func kgDocumentId(for doc: Document) -> String {
+        guard let parentId = doc.parentId else { return doc.id }
+        return (doc.docType == .page || doc.regionInParent != nil) ? parentId : doc.id
     }
 
     @ViewBuilder
     func surfaceView(tab: KGSurfaceTab, pageIds: [String] = []) -> some View {
         if let doc = effectiveDocument,
            let libraryPath = apiClient.currentLibraryPath, !libraryPath.isEmpty {
-            let kgDocId = (doc.docType == .page && doc.parentId != nil) ? doc.parentId! : doc.id
+            // A single selected REGION asks for the region's OWN id: the
+            // engine re-anchors the view to the parent and lists the whole
+            // cohort — same page, same output type — so one region selected
+            // reads as ALL its sibling regions (Daniel, 2026-08-29). A
+            // multi-selection (`pageIds`) anchors on the parent and filters.
+            let kgDocId = (pageIds.isEmpty && doc.regionInParent != nil)
+                ? doc.id
+                : Self.kgDocumentId(for: doc)
             DocumentKGSurface(
                 documentId: kgDocId,
                 documentScope: doc.docType == .page ? .page : .folder,
                 libraryPath: libraryPath,
                 pageIds: pageIds,
+                // The representation switcher applies to the PAGE reading of
+                // the document; the knowledge sub-modes read the live graph.
+                representation: tab == .transcript ? readerRepresentation : nil,
                 selectedEntityId: kgFocusState.focusedEntityId,
                 selectedClaimId: highlightedClaimId,
                 activePageNumber: effectivePageNumber,

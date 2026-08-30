@@ -25,7 +25,7 @@ struct FocusedImportFilesButton: View {
     @FocusedValue(\.libraryImportAction) private var libraryImportAction
 
     private var importAction: ((IngestMode) -> Void)? {
-        sidebarActions?.importFiles ?? libraryImportAction
+        sidebarActions?.importFiles ?? libraryImportAction?.run
     }
 
     var body: some View {

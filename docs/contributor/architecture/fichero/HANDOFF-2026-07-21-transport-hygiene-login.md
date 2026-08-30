@@ -50,7 +50,7 @@ if the Dev Local build actually fails.
   builds ship (highest blast radius; needs idempotent ALTER+backfill migration). Do NOT do now.
 
 ## Engine hygiene reorg — plan + method
-Plan: `docs/design/engine-package-reorg.md`. Method = the proven identity-preserving shim
+Plan: `agent-work/design/engine-package-reorg.md`. Method = the proven identity-preserving shim
 (`from fichero_server.X import *; import sys; sys.modules[__name__] = sys.modules["fichero.X"]`; see
 `fichero-server/src/fichero_server/importers/iiif_import.py:1`). Ordered sequence: mcp → media → core → security →
 llm → db → models. God-nodes (models.py 505 sites, db.py 337, llm.py 311, knowledge_models 291) STAGED
@@ -102,7 +102,7 @@ Batch = `3dea23f03` (origin/main + mcp + security reorg + main-green's 3 red fix
 **THEN:** reconcile models.py collision → ONE full-suite engine gate on batch (expect 0 failed) → push green → ff-pull ~/code/fichero → Swift build gate (startup-ux test + envelope's regenerated Swift client — verify it compiles) → f_manager dev→GitHub+TestFlight off green main → continue.
 
 **Decisions Daniel approved 2026-07-21 (round 2):** share transport = BOTH as named routes (needs a doc home — put in sharing plan). per-library connect (#2573) = auto-detect + manual override. startup Stage-2 = SKIP tier churn, apscheduler quick win only (real lever = spawn/connect chain). agent accounts (#1847) = Xcode-style consent prompt: connect→prompt→approve auto-provisions, "don't ask again" remembers FOR THE SESSION, relaunch re-prompts. Recorded on #2573/#4038/#1847.
-**Sharing triage:** cluster mostly built; #2573 per-library host = key remaining; #231 Discovery + #205 Settings empty (recommend close); doc = docs/design/sharing-and-pairing-consolidated-plan.md.
+**Sharing triage:** cluster mostly built; #2573 per-library host = key remaining; #231 Discovery + #205 Settings empty (recommend close); doc = agent-work/design/sharing-and-pairing-consolidated-plan.md.
 **origin/main WAS red** (4 pre-existing reds) — main-green + envelope fix them; do NOT push until the combined batch gate is 0-failed.
 
 ## MILESTONE COMPLETE 2026-07-21 (engine hygiene reorg LANDED)

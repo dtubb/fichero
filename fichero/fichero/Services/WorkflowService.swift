@@ -161,12 +161,130 @@ class WorkflowService {
         }
     }
 
+    /// Presentation metadata for workflow folders — the order verbs appear in
+    /// and the glyph each carries, as the ENGINE describes them.
+    ///
+    /// Read rather than hard-coded (2026-08-28): the bar's route order was a
+    /// literal list in Swift because preset `sort_order` is 0 for every
+    /// shipped preset. Serving it makes the order editable without a client
+    /// build, and makes a user's own folder describable.
+    func listWorkflowFolders() async throws -> [WorkflowFolderInfo] {
+        let response = try await client.api.listWorkflowFoldersApiWorkflowsFoldersGet(.init())
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.items.map {
+                WorkflowFolderInfo(
+                    path: $0.path,
+                    displayName: $0.displayName,
+                    sortOrder: $0.sortOrder,
+                    icon: $0.icon
+                )
+            }
+        default:
+            throw WorkflowServiceError.unexpectedResponse
+        }
+    }
+
+    /// Realise a single TOOL as a one-step workflow so the engine can run it.
+    ///
+    /// The engine executes stored workflows only, so "run a tool" has to become
+    /// one. Rather than a hidden special case, this creates a real workflow in
+    /// a `/Tools` folder: reusable on later runs, openable in the node editor,
+    /// and editable like any other — which is what makes the third level of the
+    /// taxonomy (tools, workflows, chains) honest rather than a facade.
+    ///
+    /// Returns the new workflow's id.
+    func createToolWorkflow(toolName: String, displayName: String) async throws -> String {
+        guard let tool = getToolInfo(named: toolName) else {
+            throw WorkflowServiceError.validationError("Unknown tool: \(toolName)")
+        }
+        let filesTool = getToolInfo(named: "files")
+        var nodes: [WorkflowNode] = []
+        if let filesTool {
+            nodes.append(WorkflowNode(from: filesTool, positionX: 80, positionY: 200))
+        }
+        let toolNode = WorkflowNode(from: tool, positionX: 320, positionY: 200)
+        nodes.append(toolNode)
+
+        // Wire the source into the tool on matching port names, the same
+        // pairing the shipped presets use (files -> files, documents ->
+        // documents). Without edges the tool receives nothing and the run
+        // completes green over zero documents.
+        var edges: [WorkflowEdge] = []
+        if let source = nodes.first, source.id != toolNode.id {
+            for port in ["files", "documents"] where
+                source.outputPorts.contains(where: { $0.id == port })
+                && toolNode.inputPorts.contains(where: { $0.id == port }) {
+                edges.append(WorkflowEdge(
+                    sourceNodeId: source.id,
+                    targetNodeId: toolNode.id,
+                    sourcePortId: port,
+                    targetPortId: port
+                ))
+            }
+        }
+
+        let definition = WorkflowDefinition(
+            name: displayName,
+            description: tool.description,
+            nodes: nodes,
+            edges: edges,
+            folderPath: "/Tools"
+        )
+        return try await createWorkflow(definition).id
+    }
+
+    /// A run's cost CEILING for the given file count, priced by the engine's
+    /// live model registry.
+    ///
+    /// A ceiling, never a point estimate (2026-08-28): the model is known, the
+    /// item count is known and max_tokens is an explicit bound, so an upper
+    /// limit is defensible where "about \$0.30" would be guesswork. Takes the
+    /// provider/model override so a chain step priced with Opus is not quoted
+    /// at the workflow's default.
+    func estimateCost(
+        workflowId: String,
+        fileCount: Int,
+        provider: String?,
+        model: String?
+    ) async throws -> Double? {
+        let response = try await client.api
+            .estimateWorkflowCostApiWorkflowsWorkflowIdEstimateCostPost(.init(
+                path: .init(workflowId: workflowId),
+                body: .json(.init(
+                    fileCount: fileCount,
+                    provider: provider,
+                    model: model
+                ))
+            ))
+        switch response {
+        case .ok(let okResponse):
+            let body = try okResponse.body.json
+            // UNPRICED is not free. The engine used to return 0.0 for a model
+            // it could not price, and the bar showed "≤ US$0.00" for a
+            // five-image run (Daniel, 2026-08-28). nil travels as "no figure".
+            guard body.pricingAvailable == true else { return nil }
+            return body.estimatedCostUsd
+        default:
+            throw WorkflowServiceError.unexpectedResponse
+        }
+    }
+
     /// List all saved workflows. Pass `folderPath` to filter; omit for all.
-    func listWorkflows(folderPath: String? = nil) async throws -> [WorkflowResponse] {
+    ///
+    /// `summary` omits every workflow's node and edge graph, leaving
+    /// `node_count` in their place — 263 KB becomes ~20 KB for 50 workflows,
+    /// which is the difference between a sidebar folder opening instantly and
+    /// visibly spinning. Callers that need a graph fetch it by id. Defaults
+    /// to the full payload so no existing caller changes behaviour.
+    func listWorkflows(
+        folderPath: String? = nil,
+        summary: Bool = false
+    ) async throws -> [WorkflowResponse] {
         let libraryPath = client.currentLibraryPath ?? ""
         logger.info("listWorkflows called with libraryPath: \(libraryPath)")
         let response = try await client.api.listWorkflowsApiWorkflowsGet(.init(
-            query: .init(folderPath: folderPath),
+            query: .init(folderPath: folderPath, summary: summary),
         ))
         switch response {
         case .ok(let okResponse):
@@ -546,7 +664,9 @@ extension WorkflowService {
             isUntested: derived.isUntested,
             directRunnable: derived.directRunnable,
             acceptsModelOverride: derived.acceptsModelOverride,
-            requiresVision: derived.requiresVision
+            requiresVision: derived.requiresVision,
+            nodeCount: derived.nodeCount,
+            acceptedInputs: derived.acceptedInputs
         )
     }
 
@@ -562,6 +682,12 @@ extension WorkflowService {
         // Not permissive-by-default in the same sense: `false` here means "do
         // not filter the model menu", which is the permissive outcome.
         var requiresVision = false
+        // Counted server-side so a summary list can omit the graphs entirely
+        // (#Phase 0). `nil` means the server did not say — the caller then
+        // falls back to measuring whatever nodes it did receive, which is
+        // exactly right for an older engine that still sends them.
+        var nodeCount: Int?
+        var acceptedInputs: [String]?
     }
 
     private static func derivedFlags(
@@ -576,7 +702,9 @@ extension WorkflowService {
             isUntested: (dict["untested"] as? Bool) ?? false,
             directRunnable: (dict["direct_runnable"] as? Bool) ?? true,
             acceptsModelOverride: (dict["accepts_model_override"] as? Bool) ?? true,
-            requiresVision: (dict["requires_vision"] as? Bool) ?? false
+            requiresVision: (dict["requires_vision"] as? Bool) ?? false,
+            nodeCount: dict["node_count"] as? Int,
+            acceptedInputs: dict["accepted_inputs"] as? [String]
         )
     }
 

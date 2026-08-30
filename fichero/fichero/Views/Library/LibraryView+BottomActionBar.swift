@@ -58,19 +58,23 @@ extension LibraryView {
                 } overflowMenu: {
                     bottomBarOverflowMenu
                     // The sort/filter cluster survives narrow widths here
-                    // (Daniel, 2026-08-23: "we want them there") — the
-                    // metadata POPOVER stays inline-only, a popover row
-                    // inside a menu would be inert.
+                    // (Daniel, 2026-08-23: "we want them there"). The
+                    // metadata control used to VANISH at narrow widths —
+                    // its popover cannot live in a menu — so it now has a
+                    // submenu coat over the same binding (Daniel,
+                    // 2026-08-29: "loses some of the filter options when
+                    // it's too narrow").
                     Divider()
                     librarySortMenu
                     libraryLevelToggle
                     libraryFilterToggleButton
+                    LibraryRowAttributesMenu(raw: $rowAttributesRaw)
                     // Mode clusters reachable at narrow widths too (the gap
                     // the consolidation design named): dataset facets and the
                     // canvas channels as titled submenus.
                     if displayMode.group == .dataset {
                         Divider()
-                        DatasetFilterClusterMenu(store: datasetStore)
+                        DatasetFilterClusterMenu(store: datasetStore, documentStore: documentStore)
                     }
                     if displayMode.group == .canvas {
                         Divider()

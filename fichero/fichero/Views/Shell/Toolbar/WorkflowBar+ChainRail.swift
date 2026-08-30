@@ -1,0 +1,300 @@
+import SwiftUI
+
+/// The chain rail — the chips under the verb row, in run order.
+///
+/// Split out of `WorkflowBar` (2026-08-28) once the bar crossed SwiftLint's
+/// file- and type-length rules. The division is the one the UI already makes:
+/// the verb row is what you can ADD, the rail is what you have BUILT. Kept as
+/// an extension rather than a separate view so the chips keep reading `staged`
+/// as a binding and writing back into it directly, which is what makes
+/// drag-to-reorder and per-chip removal one-liners.
+extension WorkflowBar {
+    /// The chain being assembled: one chip per step, in order, each removable.
+    ///
+    /// Horizontal and icon-led because a chain is a SEQUENCE and sequences read
+    /// left to right — the same reading as the node canvas, which is what makes
+    /// the rail a miniature of the graph rather than a second idiom. Eight
+    /// steps is a real chain here (regions, transcribe, review, entities, SVO,
+    /// merge, persist, catalogue), so chips stay compact enough to all fit.
+    @ViewBuilder
+    var chainRail: some View {
+        // A SENTENCE, not a symbol chain (Daniel, 2026-08-29: "could this not
+        // have verbs and subjects — With [3 selected items] use [model] to
+        // detect regions, then use [model] to extract transcript"). The
+        // subject, each step's model and the step itself are live tokens; the
+        // connective tissue is plain words, which is what makes an eight-step
+        // paid run readable as a plan rather than a rebus.
+        ChainFlowLayout(spacing: 5) {
+            Text("With")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+            if let label = targetDetail ?? WorkflowBarPolicy.targetLabel(target) {
+                subjectToken(label)
+            } else {
+                Text("nothing selected")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.tertiary)
+            }
+            Text(",")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .padding(.leading, -5)
+            ForEach(Array(staged.enumerated()), id: \.element.id) { index, step in
+                Text(index == 0 ? "use" : "then use")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                modelToken(for: step, at: index)
+                Text("to")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                chainChip(step, at: index)
+            }
+        }
+    }
+
+    /// The sentence's SUBJECT as a clickable token (Daniel, 2026-08-29): the
+    /// chip that names the scope is also where you CHANGE it — aim the run
+    /// at the browser selection, the focused artifact, or an artifact by
+    /// type. "Automatic" (always first) restores the ladder. Falls back to a
+    /// plain label when the host provides no menu.
+    @ViewBuilder
+    private func subjectToken(_ label: String) -> some View {
+        if let onSelectScope, !scopeOptions.isEmpty {
+            Menu {
+                ForEach(scopeOptions) { option in
+                    Button(option.label) { onSelectScope(option.scope) }
+                }
+            } label: {
+                subjectLabel(label)
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help("Choose what the chain runs on")
+            .accessibilityLabel("Run scope: \(label)")
+        } else {
+            subjectLabel(label)
+        }
+    }
+
+    /// The chip itself — shared by the menu label and the plain fallback so
+    /// a clickable subject looks exactly like a static one.
+    private func subjectLabel(_ label: String) -> some View {
+        Text(label)
+            .font(.system(size: 10, weight: .medium))
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(Color.accentColor.opacity(0.12), in: Capsule())
+    }
+
+    /// The step's model as a clickable token in the sentence. The same menu
+    /// the chip's right-click offers — one wiring, two doors.
+    @ViewBuilder
+    private func modelToken(for step: StagedWorkflowStep, at index: Int) -> some View {
+        Menu {
+            modelMenu(forStepAt: index)
+        } label: {
+            // A real LOZENGE, not a whisper of one (Daniel, 2026-08-29:
+            // "model needs lozenges") — same weight as the subject chip so
+            // the sentence's three token kinds read as one family.
+            Text(step.hasModelOverride ? step.modelDescription : "default model")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(step.hasModelOverride ? Color.primary : Color.secondary)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 3)
+                .background(Color.accentColor.opacity(0.10), in: Capsule())
+                .overlay(Capsule().strokeBorder(.quaternary, lineWidth: 1))
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .disabled(isRunning)
+        .help("The model this step runs on — click to pin a different one")
+    }
+
+    /// One step. Extracted from `chainRail` because the inline expression grew
+    /// past the Swift type-checker's budget — the documented hazard in this
+    /// codebase's view layer, and the reason the shell's layout is already
+    /// split across several properties.
+    @ViewBuilder
+    private func chainChip(_ step: StagedWorkflowStep, at index: Int) -> some View {
+        chipBody(step, at: index)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(chipBackground(for: step), in: Capsule())
+            .foregroundStyle(chipForeground(for: step))
+            .overlay(alignment: .leading) { chipLeadingAccessory(step, at: index) }
+            .help(chipHelp(for: step, index: index))
+            .contextMenu { modelMenu(forStepAt: index) }
+            // A RUNNING step opens on a single click — you are watching it, and
+            // asking for a double-click to see live output is a toll on the one
+            // moment it matters. A finished step keeps the double-click, so a
+            // stray click while assembling cannot fling a window open.
+            .onTapGesture(count: 2) { onOpenStep?(step) }
+            .onTapGesture { if step.state == .running { onOpenStep?(step) } }
+            .draggable(step.id.uuidString) {
+                Text(step.name).font(.caption).padding(4)
+            }
+            .dropDestination(for: String.self) { items, _ in
+                handleChipDrop(items, at: index)
+            } isTargeted: { targeted in
+                dropTargetIndex = targeted ? index : (dropTargetIndex == index ? nil : dropTargetIndex)
+            }
+    }
+
+    @ViewBuilder
+    private func chipBody(_ step: StagedWorkflowStep, at index: Int) -> some View {
+        HStack(spacing: 3) {
+            Image(systemName: step.toolIcon ?? folders[
+                WorkflowBarPolicy.folderKey(step.folderPath)
+            ]?.icon ?? WorkflowBarPolicy.symbol(
+                forFamily: WorkflowBarPolicy.folderKey(step.folderPath)
+            ))
+            .font(.system(size: 11))
+
+            if showsLabels {
+                Text(step.name)
+                    .font(.system(size: 10))
+                    .lineLimit(1)
+            }
+            if let symbol = chipSymbol(for: step) {
+                Image(systemName: symbol)
+                    .font(.system(size: 8))
+            }
+            // The model moved OUT of the chip into the sentence's own
+            // "use [model] to" token (2026-08-29) — stating it twice made
+            // every chip wider for nothing.
+            Button { staged.remove(at: index) } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 7))
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            // The run's plan froze at ▶ — removing a chip mid-run would not
+            // stop its step, just hide a billed run from the rail (review,
+            // 2026-08-29). Same rule as Run/Clear.
+            .disabled(isRunning)
+            .help("Remove \(step.name) from the chain")
+            .accessibilityLabel("Remove \(step.name) from the chain")
+        }
+    }
+
+    /// The running spinner, or the caret marking where a dragged step lands.
+    @ViewBuilder
+    private func chipLeadingAccessory(_ step: StagedWorkflowStep, at index: Int) -> some View {
+        if step.state == .running {
+            ProgressView()
+                .controlSize(.mini)
+                .scaleEffect(0.55)
+                .offset(x: -3)
+        } else if dropTargetIndex == index {
+            Rectangle()
+                .fill(Color.accentColor)
+                .frame(width: 2)
+                .offset(x: -3)
+        }
+    }
+
+    private func handleChipDrop(_ items: [String], at index: Int) -> Bool {
+        guard let raw = items.first,
+              let from = staged.firstIndex(where: { $0.id.uuidString == raw }),
+              from != index
+        else { return false }
+        let moved = staged.remove(at: from)
+        // Land where the caret POINTS — the leading edge of the target chip.
+        // Removing first shifts a rightward target left by one, so without
+        // this the drop landed one slot past the indicator (review,
+        // 2026-08-29: the caret and the drop disagreed in that direction).
+        let destination = from < index ? index - 1 : index
+        staged.insert(moved, at: min(destination, staged.count))
+        return true
+    }
+
+    /// What the chip promises on hover — including HOW to open it, which
+    /// differs by state and would otherwise be undiscoverable.
+    private func chipHelp(for step: StagedWorkflowStep, index: Int) -> String {
+        let base = "Step \(index + 1): \(step.displayName) — \(step.modelDescription)"
+        switch step.state {
+        case .running:   return "\(base). Click to watch it run."
+        case .succeeded: return "\(base). Double-click to see what it produced."
+        case .failed:    return "\(base). This step failed — double-click to see why."
+        case .pending:   return "\(base). Drag to reorder; right-click to pin a model."
+        }
+    }
+
+    /// Colour states the step's OUTCOME, not merely its position: a chain
+    /// that half finished must not read as uniformly blue. Green succeeded,
+    /// red failed, emphasised accent running, quiet accent still to come.
+    private func chipBackground(for step: StagedWorkflowStep) -> Color {
+        switch step.state {
+        case .pending:   return Color.accentColor.opacity(0.12)
+        case .running:   return Color.accentColor.opacity(0.30)
+        case .succeeded: return Color.green.opacity(0.20)
+        case .failed:    return Color.red.opacity(0.20)
+        }
+    }
+
+    private func chipForeground(for step: StagedWorkflowStep) -> Color {
+        switch step.state {
+        case .succeeded: return .green
+        case .failed:    return .red
+        default:         return .primary
+        }
+    }
+
+    private func chipSymbol(for step: StagedWorkflowStep) -> String? {
+        switch step.state {
+        case .succeeded: return "checkmark"
+        case .failed:    return "exclamationmark.triangle"
+        default:         return nil
+        }
+    }}
+
+/// A minimal flow layout: rows wrap, the container grows (Daniel,
+/// 2026-08-29: "if it's multiple rows, make the rows expand so we can
+/// see"). Just enough Layout for the sentence — leading-aligned, fixed
+/// spacing, no fancy distribution.
+struct ChainFlowLayout: Layout {
+    var spacing: CGFloat = 5
+    var rowSpacing: CGFloat = 6
+
+    func sizeThatFits(
+        proposal: ProposedViewSize, subviews: Subviews, cache: inout ()
+    ) -> CGSize {
+        let width = proposal.width ?? .infinity
+        var x: CGFloat = 0, y: CGFloat = 0, rowHeight: CGFloat = 0
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x > 0, x + size.width > width {
+                x = 0
+                y += rowHeight + rowSpacing
+                rowHeight = 0
+            }
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+        }
+        return CGSize(width: proposal.width ?? x, height: y + rowHeight)
+    }
+
+    func placeSubviews(
+        in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews,
+        cache: inout ()
+    ) {
+        var x = bounds.minX, y = bounds.minY, rowHeight: CGFloat = 0
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x > bounds.minX, x + size.width > bounds.maxX {
+                x = bounds.minX
+                y += rowHeight + rowSpacing
+                rowHeight = 0
+            }
+            subview.place(
+                at: CGPoint(x: x, y: y + rowHeight == 0 ? y : y),
+                anchor: .topLeading,
+                proposal: .unspecified
+            )
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+        }
+    }
+}

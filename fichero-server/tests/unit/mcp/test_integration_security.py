@@ -88,7 +88,11 @@ class TestMCPAuthorization:
         """HIGH-2: MCP client should authenticate with a Bearer token."""
         from fichero_mcp import server as mcp_server
 
-        with patch.dict(os.environ, {"FICHERO_API_KEY": "test-api-key-12345"}):
+        # Client construction pins the engine's live TLS cert (fail-closed,
+        # 2026-08-27); these tests are about token headers, not transport
+        # trust, and run with no engine — stub the pinning step.
+        with patch.dict(os.environ, {"FICHERO_API_KEY": "test-api-key-12345"}), \
+             patch("fichero_cli.client._loopback_trust", return_value=False):
             client = mcp_server._client()
             try:
                 headers = client._headers()
@@ -102,7 +106,8 @@ class TestMCPAuthorization:
         """HIGH-2: MCP client should read the token from the environment."""
         from fichero_mcp import server as mcp_server
 
-        with patch.dict(os.environ, {"FICHERO_API_KEY": "env-api-key"}):
+        with patch.dict(os.environ, {"FICHERO_API_KEY": "env-api-key"}), \
+             patch("fichero_cli.client._loopback_trust", return_value=False):
             client = mcp_server._client()
             try:
                 assert client.token == "env-api-key", \
@@ -118,7 +123,9 @@ class TestMCPAuthorization:
         from fichero_cli import client as client_module
 
         with patch.dict(os.environ, {}, clear=True):
-            with patch.object(client_module, "_TOKEN_PATH", tmp_path / "absent"):
+            with patch.object(client_module, "_TOKEN_PATH", tmp_path / "absent"), \
+                 patch.object(client_module, "_CONTAINER_TOKEN_PATH", tmp_path / "absent-container"), \
+                 patch.object(client_module, "_loopback_trust", return_value=False):
                 with patch.object(mcp_server, "logger") as mock_logger:
                     with patch.object(mcp_server.mcp, "run"):
                         with patch("sys.argv", ["fichero-mcp"]):
@@ -146,12 +153,12 @@ class TestFeatureTierSecurity:
             ("release", "get", "/api/research/projects", True),
             ("release", "get", "/api/activity", True),
             ("beta", "get", "/api/iiif/iiif/test/info.json", True),
-            ("beta", "post", "/api/chat", False),
-            ("beta", "get", "/api/research/projects", False),
+            ("beta", "post", "/api/chat", True),
+            ("beta", "get", "/api/research/projects", True),
             ("beta", "get", "/api/activity", False),
             ("alpha", "get", "/api/iiif/iiif/test/info.json", True),
-            ("alpha", "post", "/api/chat", False),
-            ("alpha", "get", "/api/research/projects", False),
+            ("alpha", "post", "/api/chat", True),
+            ("alpha", "get", "/api/research/projects", True),
             ("alpha", "get", "/api/activity", False),
             ("dev", "get", "/api/iiif/iiif/test/info.json", False),
             ("dev", "post", "/api/chat", False),

@@ -55,6 +55,26 @@ struct OCRGeometry: Codable, Hashable {
     var lineBoxes: [OCRGeometryBox] { boxes.filter { $0.level == "line" } }
     var wordBoxes: [OCRGeometryBox] { boxes.filter { $0.level == "word" } }
 
+    /// The boxes the preview surfaces draw, WITH their positions in the full
+    /// `boxes` list (2026-08-29, regions as first-class). The index is how
+    /// the engine addresses a region for curation (move/delete/combine), so
+    /// the display set must carry it — filtering first and enumerating after
+    /// would renumber every box.
+    ///
+    /// Same ladder the overlay always had — words when the pass produced
+    /// them, lines otherwise — extended one honest rung: a geometry carrying
+    /// ONLY region-level boxes (hand-drawn or combined regions) used to
+    /// render nothing at all, which made curated regions invisible the
+    /// moment they were curated.
+    var displayIndexedBoxes: [(index: Int, box: OCRGeometryBox)] {
+        let indexed = boxes.enumerated().map { (index: $0.offset, box: $0.element) }
+        let words = indexed.filter { $0.box.level == "word" }
+        if !words.isEmpty { return words }
+        let lines = indexed.filter { $0.box.level == "line" }
+        if !lines.isEmpty { return lines }
+        return indexed
+    }
+
     enum CodingKeys: String, CodingKey {
         case text, provider, model, boxes
         case renditionId = "rendition_id"

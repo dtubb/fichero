@@ -175,6 +175,22 @@ class WorkflowResponse(BaseModel):
     # "Reinstalled N workflows" always said 0, and the System badge never drew
     # (#4495). The client read was correct all along; the wire was silent.
     is_system: bool = False
+    # Node/edge counts, so a LIST caller never has to receive the graphs just
+    # to count them. `GET /api/workflows?summary=true` omits `nodes`/`edges`
+    # (they serialise as empty) and this is what the sidebar reads instead:
+    # the full list was 263 KB to name 50 workflows, decoded through
+    # AnyCodable on the way to drawing a folder of labels, which is the spin
+    # when a workflow folder opens (2026-08-28). The full graph is one
+    # `GET /api/workflows/{id}` away, which is what the canvas already does.
+    node_count: int = 0
+    edge_count: int = 0
+    # What this workflow can be pointed at — ["documents"], or
+    # ["documents", "text"] when an entry tool consumes text directly and a
+    # passage selected in the Reader can be handed straight to it. Computed
+    # here for the same reason as requires_vision: a client re-deriving it
+    # gets delegating workflows wrong, and the summary payload has no nodes
+    # to derive it from at all.
+    accepted_inputs: list[str] = ["documents"]
 
 
 def _workflow_untested(wf) -> bool:
@@ -210,6 +226,17 @@ def _workflow_accepts_model_override(wf) -> bool:
     from fichero_server.workflows.validation import workflow_accepts_model_override
 
     return workflow_accepts_model_override(getattr(wf, "nodes", None))
+
+
+def _workflow_input_kinds(wf, workflow_resolver) -> list[str]:
+    """What this workflow can be run on — see workflow_input_kinds."""
+    from fichero_server.workflows.validation import workflow_input_kinds
+
+    return workflow_input_kinds(
+        getattr(wf, "nodes", None),
+        getattr(wf, "edges", None),
+        workflow_resolver=workflow_resolver,
+    )
 
 
 def _workflow_requires_vision(wf, workflow_resolver) -> bool:
@@ -395,10 +422,57 @@ def _category_display_name(category: str) -> str:
     return names.get(category, category.title())
 
 
-def _model_pricing_per_million(provider: str, model: str) -> tuple[float, float]:
-    """Resolve (input_cost, output_cost) per million tokens."""
+def _resolved_run_model(wf, provider: str, model: str) -> tuple[str, str]:
+    """What a run of this workflow would really call.
+
+    Walks the LLM-using nodes for a provider/model or a tier alias and
+    resolves it the way the runner does. Returns the first that resolves —
+    a mixed-model workflow cannot be priced by a single figure anyway, and
+    the first paid step is the honest anchor for an upper bound.
+    """
+    from fichero_server.llm import resolve_model_alias_for_capability
+    from fichero_server.workflows.validation import node_uses_llm
+
+    for node in getattr(wf, "nodes", None) or []:
+        if not node_uses_llm(node):
+            continue
+        config = node.get("config") if isinstance(node, dict) else getattr(node, "config", {})
+        config = config if isinstance(config, dict) else {}
+        candidate_provider = (
+            (node.get("provider_name") if isinstance(node, dict) else None)
+            or config.get("provider_name")
+            or provider
+        )
+        candidate_model = (
+            (node.get("model_name") if isinstance(node, dict) else None)
+            or config.get("model_name")
+            or model
+        )
+        try:
+            resolved_provider, resolved_model = resolve_model_alias_for_capability(
+                str(candidate_provider or ""),
+                str(candidate_model or ""),
+                required_capability=None,
+            )
+        except Exception:
+            # An unconfigured tier is a real answer: leave it unpriced rather
+            # than guessing a model the run would not use.
+            continue
+        if resolved_provider and resolved_model:
+            return resolved_provider, resolved_model
+    return provider, model
+
+
+def _model_pricing_per_million(provider: str, model: str) -> tuple[float, float] | None:
+    """Resolve (input_cost, output_cost) per million tokens, or None.
+
+    None means UNPRICED, and the caller must say so. This returned (0.0, 0.0)
+    for an unknown or absent model, which the UI then showed as "≤ US$0.00" —
+    a five-image run reported as free (Daniel, 2026-08-28). Zero is a claim
+    about price; not knowing is a different fact and has to travel as one.
+    """
     if not provider or not model:
-        return 0.0, 0.0
+        return None
 
     app_db = get_app_db()
     provider_id = None
@@ -419,7 +493,7 @@ def _model_pricing_per_million(provider: str, model: str) -> tuple[float, float]
             float(cost_info.get("input_cost_per_token") or 0.0) * 1_000_000,
             float(cost_info.get("output_cost_per_token") or 0.0) * 1_000_000,
         )
-    return 0.0, 0.0
+    return None
 
 
 # =============================================================================
@@ -607,6 +681,7 @@ def _workflow_to_response(
     db: Database | None = None,
     *,
     workflow_resolver=None,
+    summary: bool = False,
 ) -> WorkflowResponse:
     """Serialize a stored workflow, including the engine's run-eligibility answers.
 
@@ -626,14 +701,17 @@ def _workflow_to_response(
         provider=workflow.provider,
         model=workflow.model,
         format=workflow.format,
-        nodes=[_dict_to_node_def(n) for n in workflow.nodes],
-        edges=[_dict_to_edge_def(e) for e in workflow.edges],
+        nodes=[] if summary else [_dict_to_node_def(n) for n in workflow.nodes],
+        edges=[] if summary else [_dict_to_edge_def(e) for e in workflow.edges],
+        node_count=len(workflow.nodes or []),
+        edge_count=len(workflow.edges or []),
         folder_path=workflow.folder_path,
         sort_order=workflow.sort_order,
         untested=_workflow_untested(workflow),
         direct_runnable=_workflow_direct_runnable(workflow),
         accepts_model_override=_workflow_accepts_model_override(workflow),
         requires_vision=_workflow_requires_vision(workflow, workflow_resolver),
+        accepted_inputs=_workflow_input_kinds(workflow, workflow_resolver),
         is_system=bool(getattr(workflow, "is_system", False)),
     )
 
@@ -866,9 +944,57 @@ async def reinstall_default_workflows(
         raise HTTPException(status_code=500, detail=str(exc))
 
 
+class WorkflowFolderResponse(BaseModel):
+    """How a workflow folder should PRESENT: its place in the route and its glyph."""
+
+    path: str
+    display_name: str
+    sort_order: int
+    icon: str
+
+
+class WorkflowFolderListResponse(BaseModel):
+    items: list[WorkflowFolderResponse]
+    count: int
+
+
+@router.get("/folders", response_model=WorkflowFolderListResponse)
+async def list_workflow_folders() -> WorkflowFolderListResponse:
+    """Presentation metadata for workflow folders — order and glyph.
+
+    Served rather than hard-coded in the client (Daniel, 2026-08-28: "make it
+    served, and therefore editable later"). The capability bar draws its verbs
+    in the order work actually happens — prepare the image, find the regions,
+    read them, clean, translate, extract, catalogue — which is data, not a
+    rule, and until now lived as a literal list in Swift. Preset `sort_order`
+    could not supply it: every shipped preset carries 0.
+
+    A folder absent from this list is NOT hidden; the client sorts it after
+    the known route with a fallback glyph, so a user's own folder appears the
+    moment they make one. Backing this with a table later changes only this
+    function.
+    """
+    import json
+    from importlib import resources as importlib_resources
+
+    ref = importlib_resources.files("fichero_server.resources") / "workflow_folders.json"
+    payload = json.loads(ref.read_text(encoding="utf-8"))
+    items = [
+        WorkflowFolderResponse(
+            path=entry["path"],
+            display_name=entry.get("display_name") or entry["path"].strip("/").split("/")[-1],
+            sort_order=int(entry.get("sort_order", 0)),
+            icon=entry.get("icon", "play.circle"),
+        )
+        for entry in payload.get("folders", [])
+    ]
+    return WorkflowFolderListResponse(items=items, count=len(items))
+
+
 @router.get("", response_model=WorkflowListResponse)
 async def list_workflows(
     folder_path: str | None = None,
+    summary: bool = False,
     db: Database = Depends(get_library_database),
     x_fichero_library_path: str = Depends(require_library_path),
 ) -> WorkflowListResponse:
@@ -876,6 +1002,14 @@ async def list_workflows(
 
     When ``folder_path`` is omitted, all workflows are returned regardless
     of folder. Pass an explicit value (e.g. "/Catalogue") to filter.
+
+    ``summary=true`` omits every workflow's ``nodes`` and ``edges``, leaving
+    ``node_count``/``edge_count`` in their place. The full list is 263 KB to
+    name 50 workflows because it carries every preset's whole graph; a
+    caller that only draws labels — the sidebar, the run menu, a verb
+    toolbar — needs about 20 KB of it. Defaults to False so existing
+    callers are unaffected; the graph stays one GET /api/workflows/{id}
+    away.
 
     #4450: a non-global library's list additionally includes the shipped
     DEFAULT workflows resolved from the global library (#4102) — defaults
@@ -903,7 +1037,9 @@ async def list_workflows(
 
         resolver = sub_workflow_resolver_for_db(db)
         items = [
-            _workflow_to_response(workflow, db, workflow_resolver=resolver)
+            _workflow_to_response(
+                workflow, db, workflow_resolver=resolver, summary=summary
+            )
             for workflow in sorted(workflows, key=lambda w: w.sort_order)
         ]
         return WorkflowListResponse(items=items, count=len(items))
@@ -954,9 +1090,16 @@ async def estimate_workflow_cost(
 
     provider = (request.provider or workflow.provider or "").strip()
     model = (request.model or workflow.model or "").strip()
-    input_cost_per_million, output_cost_per_million = _model_pricing_per_million(
-        provider, model
-    )
+    if not provider or not model:
+        # Most shipped presets name no model at workflow level: they carry
+        # tier ALIASES on their nodes ($small, $vision_medium) which the runner
+        # resolves against AI Defaults. Pricing has to resolve the same thing,
+        # or every such preset prices as free.
+        provider, model = _resolved_run_model(workflow, provider, model)
+
+    pricing = _model_pricing_per_million(provider, model)
+    priced = pricing is not None
+    input_cost_per_million, output_cost_per_million = pricing or (0.0, 0.0)
 
     estimated_input_tokens = file_count * input_tokens_per_file
     estimated_output_tokens = file_count * output_tokens_per_file
@@ -975,7 +1118,10 @@ async def estimate_workflow_cost(
         estimated_cost_usd=estimated_cost_usd,
         input_cost_per_million=input_cost_per_million,
         output_cost_per_million=output_cost_per_million,
-        pricing_available=(input_cost_per_million > 0 or output_cost_per_million > 0),
+        # The RESOLVER's answer, not an inference from the number: a model
+        # genuinely priced at zero (a local one) is priced, and an unknown
+        # model is not — `> 0` conflated the two and reported both as free.
+        pricing_available=priced,
     )
 
 

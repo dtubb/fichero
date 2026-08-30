@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 // MARK: - ReadingPaneView
 
@@ -59,6 +60,25 @@ struct ReadingPaneView: View {
     /// the shared filter bar (top on Mac, bottom on touch — #4362) and
     /// executed inside the shared WebKit surface.
     @State var searchState = ReaderSearchState()
+    /// The reader's ARTIFACT lens (artifact-compare P1): non-nil pins this
+    /// pane to one artifact's text instead of the live transcript. Per-pane
+    /// state, so split readers compare two artifacts side by side.
+    @State var artifactLens: ReaderArtifactLens?
+    @State var artifactLensChoices: [ReaderArtifactLens] = []
+    /// The representation the Page lens reads (Daniel, 2026-08-29): nil = the
+    /// live content; a value = re-request the SAME WebKit page with
+    /// `?representation=` (transcription, translation, …). Per-pane, so split
+    /// readers can compare Content beside Translation.
+    @State var readerRepresentation: String?
+    /// Which representation types this document's scope actually HAS —
+    /// artifact types present on the document or its pages. The switcher
+    /// renders only these: a lens that goes nowhere is the menu lying.
+    @State var readerRepresentationChoices: [String] = []
+    /// The CSV behind the shown table representation, ready to drag out as a
+    /// real file or save via the exporter (Daniel, 2026-08-29 bedtime).
+    /// Non-nil only while a table representation is on screen and loaded.
+    @State var readerTableExport: ReaderTableCSVExport?
+    @State var isExportingTableCSV = false
     @State var isPinned = false
     @State private var pinnedDocument: Document?
     @State private var pinnedActivePageNumber: Int?
@@ -188,6 +208,26 @@ struct ReadingPaneView: View {
             if let id = effectiveDocument?.id {
                 await documentStore.loadOutline(for: id)
             }
+            await loadArtifactLensChoices()
+        }
+        // The CSV-out chip's payload follows the representation switcher: a
+        // table representation loads its newest full artifact; anything else
+        // clears the chip. Doc changes re-fire via the reset in
+        // loadArtifactLensChoices (readerRepresentation returns to nil).
+        .task(id: readerRepresentation) { await loadReaderTableExport() }
+        // Click rung for the CSV chip (sandbox-proof beside the drag): a
+        // plain SwiftUI file exporter writing the same Transferable.
+        .fileExporter(
+            isPresented: $isExportingTableCSV,
+            item: readerTableExport,
+            contentTypes: [.commaSeparatedText],
+            defaultFilename: readerTableExport?.filename
+        ) { result in
+            if case .failure(let error) = result {
+                readerTableExportLogger.error(
+                    "Saving the table CSV failed: \(error.localizedDescription, privacy: .public)"
+                )
+            }
         }
     }
 
@@ -241,7 +281,7 @@ struct ReadingPaneView: View {
         // The head collapses splits itself; onClose is only the whole-pane
         // hide. (closePane stays for the toolbar/menu paths.)
         let closeAction = onClose
-        let head = PaneHead<PaneKindSelector<ReaderLens>, EmptyView, EmptyView>(
+        let head = PaneHead(
             crumbs: readerCrumbs,
             onClose: closeAction,
             isPinned: readerPinBinding,
@@ -266,7 +306,11 @@ struct ReadingPaneView: View {
                 }
             },
             selector: { self.readerSelector },
-            controls: { EmptyView() },
+            controls: {
+                self.readerRepresentationControl
+                self.readerTableExportControl
+                self.artifactLensControl
+            },
             tools: { EmptyView() }
         )
         // The menu bar shows the SAME lens list, reading this publication —
@@ -316,48 +360,7 @@ struct ReadingPaneView: View {
         )
     }
 
-    /// The pane's title line IS its breadcrumb (R1), not "Reader" — and it is
-    /// the FULL ancestry (Daniel, 2026-08-23: "it's important"):
-    /// "Marshall Diaries v4 › Inbox › 1933".
-    ///
-    /// Through `libraryPathCrumbs`, the walk the library's path bar already
-    /// uses — root-first, cycle-guarded, depth-capped. A second ancestor walk
-    /// for the same question is how two surfaces come to disagree about where
-    /// you are.
-    ///
-    /// ponytail: names today. Daniel's proxy-icon crumbs (parents collapse to
-    /// icons with chevrons, expanding on hover) are a later slice; the capsule
-    /// truncates from the leading edge until then, so a deep path still shows
-    /// the part that identifies it.
-    private var readerCrumbs: [PaneCrumb] {
-        guard let document = effectiveDocument else { return [] }
-        let ancestry = libraryPathCrumbs(
-            anchorId: document.id,
-            resolve: { documentStore.resolveDocument($0) }
-        )
-        // The library is the root crumb: a path that starts at a folder does
-        // not say WHICH library's Inbox you are in, and several are open at
-        // once in the normal case. Not navigable from a reader (yet).
-        var crumbs: [PaneCrumb] = []
-        if let libraryName {
-            crumbs.append(PaneCrumb(
-                id: "library-root", title: libraryName,
-                icon: "books.vertical.fill", isNavigable: false, tint: .accentColor
-            ))
-        }
-        crumbs += ancestry.isEmpty ? [PaneCrumb(document)] : ancestry.map(PaneCrumb.init)
-        return crumbs
-    }
-
-    /// The library the read document belongs to, for the root crumb.
-    ///
-    /// `Document` carries no library id — the current library IS the reading
-    /// context, the same assumption the path bar and the sidebar reveal make.
-    private var libraryName: String? {
-        guard let libraryId = LibraryManager.shared.currentLibraryId,
-              let library = LibraryManager.shared.getLibrary(id: libraryId)
-        else { return nil }
-        return library.displayName
-    }
-
+    // readerCrumbs / libraryName live in ReadingPaneView+Crumbs.swift —
+    // split out when the multi-selection honesty rule pushed this file past
+    // the 400-line lint threshold (2026-08-29).
 }

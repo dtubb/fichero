@@ -32,17 +32,44 @@ extension WorkflowStore {
             // Hydrate the tool registry alongside workflows so the canvas
             // can render correct icons for non-hardcoded tools (#725).
             // Failures are non-fatal — fall back to hardcoded icon dict.
-            if let registry = try? await loadToolRegistry() {
+            //
+            // ONCE per store, not per load (2026-08-28). The registry is 389 KB
+            // for 124 tools — every tool's ports, config schema and default
+            // prompt — and it is STATIC for an engine build: nothing a user
+            // does changes it. Re-fetching it on every loadWorkflows() was the
+            // larger half of the sidebar spin, and it survived the summary-
+            // payload fix precisely because it is a different call. Re-running
+            // this on a cache miss also self-heals a first load that raced the
+            // engine coming up.
+            if toolRegistry.isEmpty, let registry = try? await loadToolRegistry() {
                 toolRegistry = registry
             }
 
-            let response = try await workflowService.listWorkflows()
+            // Folder order + glyphs, served (2026-08-28). Same once-per-store
+            // rule as the registry: it is presentation metadata, not per-run
+            // state. A failure leaves the map empty and the bar uses its
+            // built-in route, so an older engine still draws a sane toolbar.
+            if folderPresentation.isEmpty,
+               let folders = try? await workflowService.listWorkflowFolders() {
+                folderPresentation = Dictionary(
+                    folders.map { ($0.familyKey, WorkflowBarPolicy.FolderPresentation(
+                        sortOrder: $0.sortOrder, icon: $0.icon
+                    )) },
+                    uniquingKeysWith: { first, _ in first }
+                )
+            }
+
+            // Summary payload: the sidebar draws labels and a node count, and
+            // never touches the graphs. Pulling all 50 presets' nodes and
+            // edges through AnyCodable to do that is the spin when a workflow
+            // folder opens (2026-08-28).
+            let response = try await workflowService.listWorkflows(summary: true)
             workflows = response.map { workflow in
                 WorkflowSidebarItem(
                     id: workflow.id,
                     name: workflow.name,
                     description: workflow.description,
-                    nodeCount: workflow.nodes.count,
+                    nodeCount: workflow.effectiveNodeCount,
                     isEnabled: true,
                     folderPath: workflow.folderPath,
                     sortOrder: workflow.sortOrder,
@@ -50,6 +77,7 @@ extension WorkflowStore {
                     isUntested: workflow.isUntested,
                     isDirectlyRunnable: workflow.directRunnable ?? true,
                     acceptsModelOverride: workflow.acceptsModelOverride ?? true,
+                    acceptedInputs: workflow.acceptedInputs ?? ["documents"],
                     createdAt: Date(),  // Backend doesn't return these yet
                     updatedAt: Date(),
                     requiresVision: workflow.requiresVision

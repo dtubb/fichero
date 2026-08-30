@@ -64,7 +64,14 @@ HEAVY_MODULES = [
 # chain; 784 after #3985 dropped httpx/PIL/jinja2/markupsafe. The budget sits
 # just above the current value: it fails loudly if an eager edge into the
 # AI/HTTP/imaging stack is reintroduced — not to chase a number.
-MODULE_BUDGET = 850
+#
+# 851 from 2026-08-28: the `artifacts_source` tool is one new module, and the
+# tool package imports its members eagerly by design so the registry is
+# populated at import. A tool file is exactly the kind of growth this ceiling
+# should ALLOW; what it exists to catch is an eager edge back into
+# langchain/httpx/PIL, none of which this adds. Raised by one, deliberately,
+# rather than loosened.
+MODULE_BUDGET = 851
 
 
 def _run(code: str) -> str:

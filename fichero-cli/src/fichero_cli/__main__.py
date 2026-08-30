@@ -167,6 +167,7 @@ def _client(ctx: typer.Context) -> FicheroClient:
     }
     if opts.get("as_user"):
         kwargs["as_user"] = opts["as_user"]
+    kwargs.setdefault("client_name", "fichero-cli")
     return FicheroClient(
         **kwargs,
     )
@@ -788,6 +789,7 @@ def import_slipbox_command(
             base_url=ctx.obj["base_url"],
             library_path=str(library_path),
             token=ctx.obj["token"],
+            client_name="fichero-cli",
         ) as client:
             summary = import_slipbox_via_http(
                 client,
@@ -854,6 +856,7 @@ def import_sergio_corpus_command(
             base_url=ctx.obj["base_url"],
             library_path=str(library_path),
             token=ctx.obj["token"],
+            client_name="fichero-cli",
         ) as client:
             summary = import_sergio_corpus_via_http(
                 client,
@@ -913,6 +916,7 @@ def import_newton_marshall_diary_command(
             base_url=ctx.obj["base_url"],
             library_path=str(library_path),
             token=ctx.obj["token"],
+            client_name="fichero-cli",
         ) as client:
             summary = import_newton_marshall_diary_via_http(
                 client,
@@ -975,6 +979,7 @@ def import_istmina_mineria_command(
             base_url=ctx.obj["base_url"],
             library_path=str(library_path),
             token=ctx.obj["token"],
+            client_name="fichero-cli",
         ) as client:
             summary = import_istmina_mineria_via_http(
                 client,
@@ -1233,6 +1238,7 @@ def import_archivo_judicial_medellin_command(
             base_url=ctx.obj["base_url"],
             library_path=str(library_path),
             token=ctx.obj["token"],
+            client_name="fichero-cli",
         ) as client:
             summary = import_archivo_judicial_medellin_via_http(
                 client,
@@ -1290,6 +1296,7 @@ def import_ghc_catalogued_materials_command(
             base_url=ctx.obj["base_url"],
             library_path=str(library_path),
             token=ctx.obj["token"],
+            client_name="fichero-cli",
         ) as client:
             summary = import_ghc_catalogued_materials_via_http(
                 client,
@@ -1346,6 +1353,7 @@ def import_chota_colombian_pacific_maps_command(
             base_url=ctx.obj["base_url"],
             library_path=str(library_path),
             token=ctx.obj["token"],
+            client_name="fichero-cli",
         ) as client:
             summary = import_chota_colombian_pacific_maps_via_http(
                 client,
@@ -1402,6 +1410,7 @@ def import_dropbox_links_command(
             base_url=ctx.obj["base_url"],
             library_path=str(library_path),
             token=ctx.obj["token"],
+            client_name="fichero-cli",
         ) as client:
             summary = import_dropbox_links_via_http(
                 client,
@@ -1456,6 +1465,7 @@ def import_box_links_command(
             base_url=ctx.obj["base_url"],
             library_path=str(library_path),
             token=ctx.obj["token"],
+            client_name="fichero-cli",
         ) as client:
             summary = import_box_links_via_http(
                 client,
@@ -1510,6 +1520,7 @@ def import_tinderbox_links_command(
             base_url=ctx.obj["base_url"],
             library_path=str(library_path),
             token=ctx.obj["token"],
+            client_name="fichero-cli",
         ) as client:
             summary = import_tinderbox_links_via_http(
                 client,

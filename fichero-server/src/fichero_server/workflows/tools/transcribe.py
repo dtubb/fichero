@@ -43,6 +43,9 @@ TOOL_CONFIG = VisionToolConfig(
     trigger_embedding=True,
     supports_apple_vision=True,
     metadata_field="transcription",
+    # The one tool whose answer IS the page's text: a digital PDF extracted at
+    # ingest needs no second OCR pass.
+    accepts_extracted_text=True,
 )
 
 # Transcribe-specific config (added to VISION_CONFIG_SCHEMA)
@@ -202,6 +205,8 @@ Rules:
         prompt += """
 Additionally, return bounding box coordinates as JSON:
 {
+    "image_width": 2048,
+    "image_height": 1536,
     "text": "transcribed text here",
     "boxes": [
         {"text": "...", "bbox": [0.07, 0.13, 0.37, 0.06], "level": "line"}
@@ -209,6 +214,8 @@ Additionally, return bounding box coordinates as JSON:
 }
 
 Bounding box rules:
+- "image_width" and "image_height" are the pixel dimensions of the image
+  you analyzed. Always include them.
 - bbox is [x, y, width, height] as FRACTIONS OF THE IMAGE, each between 0
   and 1. Do NOT use pixels.
 - The origin is the TOP-LEFT corner: x grows right, y grows DOWN.

@@ -1,0 +1,180 @@
+/* Harmonize the Fichero site with tubb.ca (Verdana, #404040 on white,
+   uppercase site title) while keeping Material's docs machinery.
+   tubb.ca tokens: body Verdana 10pt/1.4 #404040; headings bold Verdana;
+   site title 16pt uppercase; max column ~1088px. */
+
+:root,
+[data-md-color-scheme="default"] {
+  --md-text-font: Verdana, sans-serif;
+  --md-default-fg-color: #404040;
+  --md-default-bg-color: #ffffff;
+  --md-primary-fg-color: #ffffff;
+  --md-primary-bg-color: #404040;        /* header text on white header */
+  --md-accent-fg-color: #404040;
+  --md-typeset-a-color: #404040;
+}
+
+/* Links: tubb.ca style — body-colored with underlines, hover thickens */
+.md-typeset a {
+  color: #404040;
+  text-decoration: underline;
+}
+.md-typeset a:hover,
+.md-typeset a:focus {
+  color: #404040;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 2px;
+}
+/* Buttons opt back out of the underline treatment */
+.md-typeset .md-button {
+  text-decoration: none;
+}
+
+/* Header: white, flat, FICHERO uppercase like the tubb.ca masthead */
+.md-header {
+  background: #fff;
+  color: #404040;
+  box-shadow: none;
+}
+.md-header__topic,
+.md-header__title .md-ellipsis {
+  font-family: Verdana, sans-serif;
+  font-weight: bold;
+  font-size: 1.067rem;  /* 16pt, tubb.ca site title */
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.md-search__input {
+  background: #f2f2f2;
+  color: #404040;
+}
+.md-search__input::placeholder,
+.md-search__icon {
+  color: #8a8a8a;
+}
+
+/* Body typography — tubb.ca tokens: body 10pt/1.4, h1 14pt, h2 12pt, h3+ 11pt
+   (Material root font is 20px, so 1pt = 1.3333px = 0.0667rem).
+   Material antialiases text, which renders thinner/lighter on macOS than
+   tubb.ca's default subpixel rendering — turn it off so the same #404040
+   reads equally dark on both sites. */
+body {
+  -webkit-font-smoothing: auto;
+  -moz-osx-font-smoothing: auto;
+}
+.md-typeset {
+  font-size: 0.667rem;  /* 10pt */
+  line-height: 1.4;
+  color: #404040;
+}
+.md-typeset p {
+  margin: 0 0 1.2em;
+}
+.md-typeset h1,
+.md-typeset h2,
+.md-typeset h3,
+.md-typeset h4 {
+  font-family: Verdana, sans-serif;
+  font-weight: bold;
+  color: #404040;
+  line-height: 1.2;
+  margin: 1.2em 0 0.5em;
+}
+.md-typeset h1 { font-size: 0.933rem; }  /* 14pt — page title, same scale as headings */
+.md-typeset h2 { font-size: 0.8rem; }    /* 12pt */
+.md-typeset h3,
+.md-typeset h4 { font-size: 0.733rem; }  /* 11pt */
+/* No underlines on headings or their anchor links (belt for the ¶ permalink,
+   which is also disabled in mkdocs.yml) */
+.md-typeset h1 a,
+.md-typeset h2 a,
+.md-typeset h3 a,
+.md-typeset h4 a,
+.md-typeset .headerlink {
+  text-decoration: none;
+}
+.md-typeset .headerlink { display: none; }
+
+/* Column width: tubb.ca caps at 1088px (54.4rem at Material's 20px root) */
+.md-grid {
+  max-width: 54.4rem;
+}
+
+/* Top menu tabs: white like the tubb.ca masthead nav, 10pt, no rules/bars */
+.md-tabs {
+  background: #fff;
+  color: #404040;
+}
+.md-tabs__link {
+  font-family: Verdana, sans-serif;
+  font-size: 0.667rem;
+  color: #404040;
+  opacity: 1;
+  text-decoration: underline;
+}
+.md-tabs__link--active,
+.md-tabs__link:hover,
+.md-tabs__link:focus {
+  color: #404040;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 2px;
+}
+
+/* Buttons: quiet, tubb.ca-flat. Explicit colors — the header hack above sets
+   --md-primary-fg-color to white, which would render outlined buttons
+   white-on-white. */
+.md-typeset .md-button {
+  border-radius: 3px;
+  color: #3f51b5;
+  border-color: #3f51b5;
+}
+/* Must come after .md-button: equal specificity, last rule wins the color. */
+.md-typeset .md-button--primary {
+  background-color: #3f51b5;
+  border-color: #3f51b5;
+  color: #fff;
+}
+
+/* Sidebar menu: plain black links, underline (not color/background) marks
+   hover and the active page */
+.md-nav__link,
+.md-nav__link--active,
+.md-nav__item--active > .md-nav__link {
+  color: #404040;
+  background: none;
+}
+.md-nav__link:hover,
+.md-nav__link:focus,
+.md-nav__link--active {
+  color: #404040;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* Details/expander ("Show more releases"): quiet gray, not Material's blue */
+.md-typeset details {
+  border: 1px solid #e5e5e5;
+  border-radius: 3px;
+  box-shadow: none;
+  background: #fff;
+}
+.md-typeset details > summary {
+  background: #f7f7f7;
+  color: #404040;
+  font-weight: bold;
+}
+.md-typeset details > summary::before,
+.md-typeset details > summary::after {
+  background-color: #404040;
+  color: #404040;
+}
+
+/* Feature cards: hairline borders, no shadow */
+.md-typeset .grid.cards > ul > li,
+.md-typeset .grid > .card {
+  border: 1px solid #e5e5e5;
+  box-shadow: none;
+  border-radius: 3px;
+}

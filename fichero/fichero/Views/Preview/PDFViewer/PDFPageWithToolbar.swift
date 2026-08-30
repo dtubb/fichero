@@ -19,13 +19,16 @@ struct PDFPageWithToolbar: View {
     /// `= nil` is load-bearing: 3 call sites omit this arg.
     var onClose: (() -> Void)? = nil // swiftlint:disable:this implicit_optional_initialization
 
-    @State private var zoom = PDFZoomController()
-    @State private var pageNav = PDFPageController()
+    // `zoom`/`pageNav` promoted private -> internal (2026-08-29): read from
+    // PDFPageWithToolbar+HeadChrome.swift, and `private` is FILE-scoped.
+    @State var zoom = PDFZoomController()
+    @State var pageNav = PDFPageController()
 
     // Each split-pane instance gets its own loupe state so toggling loupe
     // in one pane doesn't affect sibling panes. (@AppStorage would be shared
     // across all instances in the same window.)
-    @State private var loupeEnabled = false
+    // Internal (not private): the +HeadChrome zoom cluster binds it.
+    @State var loupeEnabled = false
     @State private var loupeMagnification: Double = 3.0
     @State private var loupeSize: Double = 150.0
     @State private var loupeLocked = false
@@ -85,6 +88,10 @@ struct PDFPageWithToolbar: View {
     // after the #4418 split, and `private` in Swift is FILE-scoped, not
     // type-scoped — an extension in another file cannot see it.
     @Environment(ArtifactService.self) var artifactService: ArtifactService?
+    /// The pane head's chrome seam (Daniel, 2026-08-29): this pane publishes
+    /// its page nav so the head's ‹ › cluster drives PDF pages. Optional —
+    /// hosts outside the preview pane publish nowhere.
+    @Environment(PreviewPaneChrome.self) var paneChrome: PreviewPaneChrome?
     /// ON by default (#4418) — same reasoning as the image surface: geometry
     /// that exists but is never drawn is geometry nobody can check a
     /// transcription against.
@@ -235,6 +242,23 @@ struct PDFPageWithToolbar: View {
         // (#3579). simultaneousGesture runs alongside PDFKit hit-testing so it
         // never steals the click — same pattern as focusedPane tracking.
         .simultaneousGesture(TapGesture().onEnded { activeSurfaceState?.activate(surfaceId) })
+        // Head chrome (Daniel, 2026-08-29): keep the head's ‹ › cluster fed
+        // with this pane's live page position.
+        .onAppear { publishHeadChrome() }
+        .onChange(of: pageNav.pageIndex) { _, _ in publishHeadChrome() }
+        .onChange(of: pageNav.pageCount) { _, _ in publishHeadChrome() }
+        // The head's markup row: highlight/note arm the same region-draw path
+        // the bottom bar's annotation buttons used to (Daniel, 2026-08-29).
+        .onReceive(NotificationCenter.default.publisher(for: .previewAnnotateTool)) { note in
+            guard let raw = note.object as? String,
+                  let tool = PreviewMarkupTool(rawValue: raw) else { return }
+            switch tool {
+            case .highlight: requestAnnotation(.highlight)
+            case .note: requestAnnotation(.note)
+            case .select, .drawRegion, .line:
+                break  // preview-regions lane / future drawing kinds
+            }
+        }
         // Join/leave the active-surface pool (#3580). Registering when it appears
         // makes a sole pane auto-active; toggling on isPinned clears active if it
         // pointed here (pinned panes never follow selection) and hands a lone
@@ -320,6 +344,9 @@ struct PDFPageWithToolbar: View {
                 .allowsHitTesting(false)
             }
         }
+        // The magnification family, bottom-right (Daniel, 2026-08-29): the
+        // zoom pill + loupe toggle — see +HeadChrome.swift.
+        .overlay(alignment: .bottomTrailing) { zoomClusterOverlay }
     }
 
     /// × close handler — only present when there is something to close (an
@@ -330,51 +357,33 @@ struct PDFPageWithToolbar: View {
         return closePane
     }
 
-    private var pdfPageNav: ReaderPageNav {
-        ReaderPageNav(
-            pageIndex: pageNav.pageIndex,
-            pageCount: pageNav.pageCount,
-            canGoPrevious: pageNav.canGoPrevious,
-            canGoNext: pageNav.canGoNext,
-            goPrevious: { pageNav.goToPrevious() },
-            goNext: { pageNav.goToNext() }
-        )
-    }
+    // pdfPageNav / publishHeadChrome / zoomClusterOverlay live in
+    // PDFPageWithToolbar+HeadChrome.swift (2026-08-29, file/type length).
 
-    private var loupeLockedBinding: Binding<Bool> {
-        Binding(
-            get: { loupeLocked },
-            set: { newValue in
-                if newValue, !loupeLocked { loupeLockedPosition = loupePosition }
-                loupeLocked = newValue
-            }
-        )
-    }
+    // loupeLockedBinding removed with the quiet bar (Daniel, 2026-08-29): the
+    // loupe follows the cursor; the lock affordance left with the old loupe
+    // section. `loupeLocked` state remains for effectiveLoupePosition.
 
-    // Unified, persistent reader toolbar (#2423 / #2421) — bottom-anchored.
-    // PDF capabilities: page-nav + zoom + loupe + annotation enabled; the
-    // magnifier-panel and image-edit tools render greyed because they don't
-    // apply to a PDF page. Pin lives in the trailing slot, after the split
-    // buttons MiniToolbar injects from the environment.
+    // QUIET bottom bar (Daniel, 2026-08-29): page-nav moved to the pane head,
+    // zoom + loupe to the floating bottom-right cluster, annotation to the
+    // head's slide-out markup row. The bar keeps chrome (close/title), the
+    // page-layout menu, what-to-show, the metadata ⓘ, and the pin.
     private var readerToolbar: some View {
         ReaderToolbar(
+            style: .quiet,
+            onShowInfo: {
+                NotificationCenter.default.post(name: .previewShowInfo, object: nil)
+            },
             title: documentTitle,
             onClose: closeHandler,
             isInSplit: isInSplit,
-            pageNav: pdfPageNav,
             pageLayout: pageLayoutBinding,
             scalePercent: Int(zoom.scale * 100),
             zoomIn: { zoom.zoomIn() },
             zoomOut: { zoom.zoomOut() },
             fitToWindow: { zoom.fitToWindow() },
             actualSize: { zoom.actualSize() },
-            magnifierEnabled: nil,
             textBoxesEnabled: $ocrBoxesEnabled,
-            loupeEnabled: $loupeEnabled,
-            loupeLocked: loupeLockedBinding,
-            loupeMagnification: $loupeMagnification,
-            isEditing: nil,
-            onAnnotate: requestAnnotation,
             isPinned: $isPinned,
             onTogglePin: togglePin
         )

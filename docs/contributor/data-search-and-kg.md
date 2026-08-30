@@ -50,7 +50,7 @@ The query parser in `fichero-server/src/fichero_server/search/query_parser.py` c
 - minus-prefixed exclusions
 - plain free-text
 
-It does not currently make `/api/search` a true "search everything" endpoint for claims and entities. Dedicated KG search routes exist separately under the dev-tier `/api/kg/*` namespace.
+It does not currently make `/api/search` a true "search everything" endpoint for claims and entities. Dedicated KG search routes exist separately under the beta-tier `/api/kg/*` namespace.
 
 ## Knowledge Graph Storage and Entity Writing
 

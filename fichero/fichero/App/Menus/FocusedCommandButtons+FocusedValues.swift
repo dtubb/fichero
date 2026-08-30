@@ -168,7 +168,29 @@ struct SidebarActionsKey: FocusedValueKey {
 /// class #4449 closed. `impossible > checked > documented`: a menu item
 /// this pane cannot honor stays disabled, never wired to a no-op.
 struct LibraryImportActionKey: FocusedValueKey {
-    typealias Value = (IngestMode) -> Void
+    typealias Value = FocusedLibraryImportAction
+}
+
+/// Equatable wrapper for the library pane's import action (#4452).
+///
+/// The key's Value used to be a RAW `(IngestMode) -> Void` closure — the one
+/// focused value in the app still published unwrapped. Closures are
+/// non-Equatable, so LibraryView re-published a "new" value on every body
+/// pass; on iPhone that invalidation storm livelocked the navigation-pop
+/// layout transition outright — the "no selection → back → stalls" hang, and
+/// the "FocusedValue update multiple times per frame" launch spam (Daniel,
+/// 2026-08-29; sampled: 100% of the hang inside ViewGraph re-render during
+/// `_UINavigationParallaxTransition`). Same cure as `SidebarActions` /
+/// `FocusedLibraryAction` above: `==` is unconditionally true because every
+/// instance LibraryView constructs captures the same parent @State bindings,
+/// so the focus system short-circuits the republish.
+struct FocusedLibraryImportAction: Equatable {
+    /// Present the file importer for the given ingest mode.
+    let run: (IngestMode) -> Void
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        true
+    }
 }
 
 /// FocusedValue key for sidebar selection info
@@ -241,6 +263,14 @@ struct NavigateBackActionKey: FocusedValueKey {
 
 struct NavigateForwardActionKey: FocusedValueKey {
     typealias Value = FocusedLibraryAction
+}
+
+/// FocusedValue key for the focused window's workspace/layout verbs (Daniel,
+/// 2026-08-29): Save Workspace…, apply a saved workspace, apply a layout
+/// preset. The View menu's workspace section reads it so the commands act on
+/// the focused window, same mechanism as InspectorButton.
+struct WindowLayoutCommandsKey: FocusedValueKey {
+    typealias Value = WindowLayoutCommands
 }
 
 /// The READER's zoom, on its own key (2026-08-24): sharing imageZoomActions
@@ -340,6 +370,11 @@ extension FocusedValues {
     var focusedPaneKind: FocusedPaneKindKey.Value? {
         get { self[FocusedPaneKindKey.self] }
         set { self[FocusedPaneKindKey.self] = newValue }
+    }
+
+    var windowLayoutCommands: WindowLayoutCommandsKey.Value? {
+        get { self[WindowLayoutCommandsKey.self] }
+        set { self[WindowLayoutCommandsKey.self] = newValue }
     }
 
     var inspectorSelectAll: InspectorSelectAllKey.Value? {

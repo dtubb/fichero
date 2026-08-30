@@ -1,23 +1,20 @@
 # Fichero Documentation
 
-Two guides, for two readers. This page is the landing for anyone browsing
-`docs/` on GitHub; the published site's home is [`index.md`](index.md).
+This folder contains documentation for the Fichero GitHub project, which is also
+published on the app website at
+[www.tubb.ca/apps/fichero](https://www.tubb.ca/apps/fichero).
 
-- **[User Guide](user/README.md)** — using Fichero. Install, import, read, search,
-  run workflows. Start with [What Fichero Is](user/what-fichero-is.md), or check the
-  [feature matrix](user/features.md) for what actually ships today.
-- **[Contributor Guide](contributor/README.md)** — building Fichero. Architecture,
-  the OpenAPI contract, the action registry, the security model, the release lane.
+The [`../README.md`](../README.md), [`../fichero/README.md`](../fichero/README.md),
+and [`../fichero-server/README.md`](../fichero-server/README.md) describe the
+application, the SwiftUI client, and the Python engine.
 
-Operational rules for agents live in [`AGENTS.md`](../AGENTS.md); the product north
-star in [`CONSTITUTION.md`](../CONSTITUTION.md).
+## Where to start?
 
-The repository-level `README.md`, `fichero/README.md`, and
-`fichero-server/README.md` describe the application, SwiftUI client, and Python
-engine. This directory contains the published user and contributor guides; the
-`scripts/` directory contains the development, verification, release, and
-worktree helpers described by those guides.
+- **[What Fichero Is](user/guide/01-introducing-fichero.md)**
+- **[FAQ](user/guide/10-frequently-asked-questions.md)** — common questions, answered.
+- **[User Guide](user/README.md)** — using Fichero. Install, import, read, search, run workflows.
+- **[Contributor Guide](contributor/README.md)** — contributing to the Fichero project and its architecture.
+- **[Contributors](contributors.md)** — who makes Fichero.
 
-> Every `.md` under this folder is published as a public page — `nav` in
-> `mkdocs.yml` controls navigation, not publication. Anything that must not be
-> public belongs outside `docs/`. `scripts/check_docs_publication.py` enforces this.
+Rules for agents live in [`CONSTITUTION.md`](../CONSTITUTION.md) and
+[`AGENTS.md`](../AGENTS.md).

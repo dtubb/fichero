@@ -213,12 +213,18 @@ extension EmbeddedBackendService {
         environment["FICHERO_TLS_KEYFILE"] = accessMaterial.keyPath
         environment["FICHERO_TLS_SPKI_HASH"] = accessMaterial.spkiPin
         environment["FICHERO_BIND_HOST"] = accessMaterial.bindHost
-        // Bind the embedded engine on the same AF_UNIX socket the app client
-        // dials over UDS (EngineConfig.transportMode → .uds). Only this spawn
-        // path (releaseEmbedded) sets it; Debug/remote/inert never spawn and
-        // keep TCP+TLS. The engine's Lane E honors FICHERO_UDS_PATH and binds
-        // UDS-only (no TCP port, no TLS) when it is present.
+        // The engine binds the same private socket the app dials; only the
+        // embedded spawn sets it. Sharing adds a TLS listener on the standard
+        // port for the command-line tool, MCP clients, and paired devices; a
+        // Bonjour address must also listen on the network interface.
         environment["FICHERO_UDS_PATH"] = EngineConfig.udsSocketPath
+        if RemoteAccessConfig.hostingEnabled {
+            environment["FICHERO_TCP_TLS_ALSO"] = "1"
+            if let host = RemoteAccessConfig.publicBaseURL?.host,
+               host.hasSuffix(".local") {
+                environment["FICHERO_LAN_HOST"] = host
+            }
+        }
         if let publicBaseURL {
             // Reuse the same env contract as RemoteAccessConfig so the
             // remote-access launch path cannot drift from the helper (#2611).

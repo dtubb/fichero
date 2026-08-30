@@ -21,13 +21,19 @@ if [ ! -d "$TUBB_SITE" ]; then
   exit 1
 fi
 
-echo "[1/3] Building MkDocs site → $BUILD_DIR"
+echo "[0/3] Generating release snippets + publication guard"
 cd "$ROOT_DIR"
+python3 scripts/gen_site_releases.py
+python3 scripts/check_docs_publication.py
+
+echo "[1/3] Building MkDocs site → $BUILD_DIR"
 mkdocs build --strict
 
 echo "[2/3] Syncing built site to $DEST"
 mkdir -p "$DEST"
-rsync -av --delete "$BUILD_DIR/" "$DEST/"
+# --exclude appcast.xml: the Sparkle feed is written into apps/fichero/ by
+# create-github-release.sh, NOT by this MkDocs build — --delete would nuke it.
+rsync -av --delete --exclude appcast.xml "$BUILD_DIR/" "$DEST/"
 
 echo "[3/3] Committing and pushing tubb.ca"
 cd "$TUBB_SITE"

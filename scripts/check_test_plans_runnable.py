@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """A test plan must be able to run, on the platform it claims, with tests in it (#4472).
 
-`fichero/fichero-ipad.xctestplan` existed for a month and never once ran. It was
+`fichero-ipad.xctestplan` (fichero/Tests/plans/) existed for a month and never once ran. It was
 created deliberately EMPTY — zero testTargets — as a build/install/launch smoke
 gate, which reports TEST SUCCEEDED having executed nothing. A later commit noticed
 "a plan with no targets can never fail" and put `FicheroTests` in it. That target
@@ -42,7 +42,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _check_floor import require_scan_floor  # noqa: E402
 
 REPO = Path(__file__).resolve().parent.parent
-PLAN_DIR = REPO / "fichero"
+PLAN_DIR = REPO / "fichero" / "Tests" / "plans"
 PROJ = REPO / "fichero/fichero.xcodeproj/project.pbxproj"
 
 # Which platforms each plan claims to run on. A plan that is not listed FAILS:
@@ -53,6 +53,11 @@ PLAN_PLATFORMS: dict[str, set[str]] = {
     "fichero-tests.xctestplan": {"macosx"},
     "fichero-embedded.xctestplan": {"macosx"},
     "fichero-ipad.xctestplan": {"iphonesimulator"},
+    "fichero-ios.xctestplan": {"iphonesimulator"},
+    "fichero-ui-general.xctestplan": {"macosx"},
+    "fichero-ui-mac.xctestplan": {"macosx"},
+    "fichero-ui-ios.xctestplan": {"iphonesimulator"},
+    "fichero-ui-ipad.xctestplan": {"iphonesimulator"},
 }
 
 # Plans known to be unrunnable, keyed to the issue that must land first.
@@ -307,7 +312,7 @@ def main() -> int:
     # #4487 scan floor on the PLAN population, not on the problems found: four
     # plans on 2026-08-03, and the goal state is zero problems, so a collapsed
     # glob must not look like success.
-    require_scan_floor(len(plans), 2, "xctestplan files under fichero/ (4 on 2026-08-03)")
+    require_scan_floor(len(plans), 2, "xctestplan files under fichero/Tests/plans/ (4 on 2026-08-03)")
     if not PROJ.is_file():
         print(f"BLIND: {PROJ} is missing — no targets to resolve against.", file=sys.stderr)
         return 2
@@ -357,6 +362,16 @@ INVOCATIONS = """
     Mac    xcodebuild test -project fichero/fichero.xcodeproj \\
              -scheme 'Fichero (Dev Local)' -testPlan fichero-tests \\
              -destination 'platform=macOS'
+
+  The full matrix, by scheme (plans live in fichero/Tests/plans/):
+    'Fichero (Dev Local)'      fichero (default) · fichero-tests ·
+                               fichero-ui-general · fichero-ui-mac    (macOS)
+    'Fichero (Dev Local iOS)'  fichero-ipad (default) · fichero-ios ·
+                               fichero-ui-ios · fichero-ui-ipad       (iOS sim;
+                               ios legs want an iPhone destination,
+                               ipad legs an iPad one — each plan carries an
+                               idiom canary that fails on the wrong family)
+    'Fichero (Dev Embedded)'   fichero-embedded                       (macOS)
 
   The simulator NAME is machine-specific and goes stale with every Xcode
   release — this one was verified against `xcrun simctl list devices available

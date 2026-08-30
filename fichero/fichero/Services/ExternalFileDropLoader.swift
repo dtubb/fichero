@@ -141,7 +141,9 @@ enum ExternalFileDropLoader {
     /// Shared by the flat-file and non-in-place directory rungs; callers
     /// remove the directory once the import using it has completed (see
     /// `externalDropTemporaryDirectories` for the matching filter).
-    private static func stabilizedCopy(of temporaryURL: URL) throws -> URL {
+    /// `nonisolated`: pure FileManager work, and the provider completion
+    /// callbacks that call it arrive on background threads.
+    nonisolated private static func stabilizedCopy(of temporaryURL: URL) throws -> URL {
         let destinationDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("fichero-drop-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: destinationDir, withIntermediateDirectories: true)

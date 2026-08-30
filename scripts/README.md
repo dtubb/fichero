@@ -17,7 +17,6 @@ shell, Python, or Ruby helpers; they are not part of the Python engine package.
 
 - `spawn-worker.sh` creates a milestone worker in a worktree under
   `$FICHERO_WORKTREES` and starts its tmux session.
-- `setup-workers.sh` prepares the worker environment.
 - `choose_next.py`, `dispatch_advisor.py`, and `file_issue.sh` support issue
   selection, sizing, and routing.
 - `notify_manager.sh` sends a worker completion or blocker to the manager inbox.
@@ -25,8 +24,8 @@ shell, Python, or Ruby helpers; they are not part of the Python engine package.
 
 ## Builds and releases
 
-Build, packaging, signing, release, migration, and smoke-test helpers are named
-`build-*`, `release*`, `notarize.sh`, `migrate.py`, `smoke-*`, and
+Build, packaging, signing, release, and smoke-test helpers are named
+`build-*`, `release*`, `notarize.sh`, `smoke-*`, and
 `validate_mas_bundle.sh`. Read the script's `--help` output and the relevant
 Contributor Guide page before running one; several operate on external services
 or release artifacts.

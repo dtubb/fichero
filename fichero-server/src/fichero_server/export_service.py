@@ -27,6 +27,7 @@ from fichero_server.models import (
     KnowledgeEntity,
 )
 from fichero_server.db.storage import resolve_edited_source
+from fichero_server.core.naturalsort import natural_key
 
 logger = logging.getLogger(__name__)
 
@@ -1405,7 +1406,7 @@ def _collect_documents(
 
     documents = [doc for doc in candidates if doc.doc_type != DocType.folder]
     documents.sort(
-        key=lambda doc: (doc.parent_id or "", doc.sequence or 0, doc.name.lower())
+        key=lambda doc: (doc.parent_id or "", doc.sequence or 0, natural_key(doc.name))
     )
     return root, documents
 
@@ -1477,7 +1478,7 @@ def _document_text(db: Database, doc: Document) -> str:
 
 def _page_child_text(db: Database, doc: Document) -> str:
     pages = db.query(Document, parent_id=doc.id, doc_type=DocType.page)
-    pages.sort(key=lambda page: (page.sequence or 0, page.name.lower()))
+    pages.sort(key=lambda page: (page.sequence or 0, natural_key(page.name)))
     return "\n\n".join(
         page.page_content.strip()
         for page in pages

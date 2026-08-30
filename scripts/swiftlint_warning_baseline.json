@@ -1,6 +1,6 @@
 {
   "swift.lint_warnings": {
-    "count": 73,
-    "note": "73: the 2026-08-24 batch pushed 67->75 without this ratchet running (targeted-gate miss); this session paid 2 back (dup import, todo) and the remaining 6 are file_length/type_body debt in yesterday's features, splits queued"
+    "count": 68,
+    "note": "tightened from 69"
   }
 }

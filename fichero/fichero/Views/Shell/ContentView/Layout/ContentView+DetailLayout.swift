@@ -31,6 +31,8 @@ extension ContentView {
         // column bounds. Without this outer clip, inner split panes can still
         // paint under the shell sidebar or past the left window edge (#3336).
         .clipped()
+        // Window split commands + workspace capture (Daniel, 2026-08-29).
+        .environment(\.paneSplitCoordinator, paneSplitCoordinator)
     }
 
     // detailStatusPathBar is RETIRED (Daniel #106-108) — see the comment at
@@ -47,17 +49,9 @@ extension ContentView {
         // SLOT-scoped (2026-08-24): two slots hosting previews shared the
         // per-window "canvas" @SceneStorage, so splitting one split both.
         adaptiveSplittablePane(storageKey: splitKey) {
-            widescreenCanvasPaneContent
-                // The preview's floating head (Daniel, 2026-08-23): same
-                // grammar and components as reader/library/chat.
-                .safeAreaInset(edge: .top, spacing: 0) { previewPaneHead }
-                // Mandate 1, consumer 1: the shown item's outline feeds the
-                // head's crumb chain (entry → page → spread parents included).
-                .task(id: detailDocument?.id) {
-                    if let id = detailDocument?.id {
-                        await documentStore.loadOutline(for: id)
-                    }
-                }
+            // The head, the chrome seam, and their sync live in
+            // ContentView+PreviewPaneHead.swift (2026-08-29 restructure).
+            previewHeadPlumbing(around: widescreenCanvasPaneContent)
         }
     }
 
@@ -134,6 +128,23 @@ extension ContentView {
         widescreenReadingPaneBody(readingSplitKey: splitKey)
     }
 
+    /// What the Reader shows: the selected document, or — when nothing is
+    /// selected — the FOLDER that is open.
+    ///
+    /// With no selection the Reader used to show nothing at all (Daniel,
+    /// 2026-08-28: "if only one item is selected it should show the entire
+    /// folder, or no items as well; right now it shows nothing"). The engine
+    /// already assembles every child page's content into one transcript for a
+    /// container, which is exactly what a folder-level read wants, so the
+    /// fallback costs no new backend work. It also makes the head's artifact
+    /// lens reachable for the folder — a folder-level translation is
+    /// selectable the same way a page's is.
+    var readerDocument: Document? {
+        if let detailDocument { return detailDocument }
+        if case .library(let folder) = viewMode { return folder }
+        return nil
+    }
+
     @ViewBuilder
     private func widescreenReadingPaneBody(readingSplitKey: String) -> some View {
         // Compute the page count ONCE (#3866): reading `pdfDocPages` twice here
@@ -166,7 +177,7 @@ extension ContentView {
             // Page lens renders the multi list INSIDE the pane's chrome.
             // AnyView stays load-bearing (#4331).
             AnyView(ReadingPaneView(
-                liveDocument: detailDocument,
+                liveDocument: readerDocument,
                 liveActivePageNumber: detailPDFDocumentId == nil ? nil : selectedPageIndex + 1,
                 livePageCount: pageCount == 0 ? nil : pageCount,
                 scrollSync: documentScrollSync,

@@ -16,8 +16,12 @@ extension LibraryView {
         return (min: minimum, max: minimum + 16)
     }
 
+    /// The scale the grid draws at RIGHT NOW: the in-flight pinch value when
+    /// a gesture is live, the persisted one otherwise.
+    private var effectiveIconScale: Double { liveIconScale ?? iconViewScale }
+
     var iconsView: some View {
-        let (itemMin, itemMax) = Self.iconGridItemBounds(scale: iconViewScale)
+        let (itemMin, itemMax) = Self.iconGridItemBounds(scale: effectiveIconScale)
         return GeometryReader { geometry in
             // Clamp pinch max so a single thumbnail never exceeds the visible
             // grid width. In the wide content grid this lets us zoom way in;
@@ -40,7 +44,7 @@ extension LibraryView {
                                     secondaryText: entityTileSecondaryText(for: entity),
                                     kindStyle: entityTileKindStyle(for: entity),
                                     selectedTint: selectionTint,
-                                    scale: CGFloat(iconViewScale)
+                                    scale: CGFloat(effectiveIconScale)
                                 )
                                 .id(entityId)
                                 .onTapGesture(count: 2) {
@@ -65,7 +69,7 @@ extension LibraryView {
                                 LibraryIconCell(
                                     identity: IconCellIdentity(
                                         document: doc,
-                                        scale: iconViewScale,
+                                        scale: effectiveIconScale,
                                         isRenaming: renamingDocumentId == doc.id,
                                         showsName: LibraryRowAttribute.set(from: rowAttributesRaw).contains(.name)
                                     ),
@@ -76,7 +80,7 @@ extension LibraryView {
                                         document: doc,
                                         isSelected: selection.contains(doc.id),
                                         selectedTint: selectionTint,
-                                        scale: CGFloat(iconViewScale),
+                                        scale: CGFloat(effectiveIconScale),
                                         isRenaming: renamingDocumentId == doc.id,
                                         editingName: $editingName,
                                         onCommitRename: commitRename,
@@ -249,12 +253,20 @@ extension LibraryView {
                         .onChanged { magnitude in
                             let candidate = pinchBaseScale * magnitude
                             let clamped = max(0.5, min(pinchMax, candidate))
-                            let stepped = (clamped * 20).rounded() / 20
-                            if stepped != iconViewScale {
-                                iconViewScale = stepped
+                            // 0.1 steps while LIVE (relayout is the cost), and
+                            // no UserDefaults write until the hands come off.
+                            let stepped = (clamped * 10).rounded() / 10
+                            if stepped != effectiveIconScale {
+                                liveIconScale = stepped
                             }
                         }
                         .onEnded { _ in
+                            if let landed = liveIconScale {
+                                // The ONE persisted write per gesture, at the
+                                // fine 0.05 grain the toolbar buttons use.
+                                iconViewScale = (landed * 20).rounded() / 20
+                                liveIconScale = nil
+                            }
                             pinchBaseScale = iconViewScale
                         }
                 )

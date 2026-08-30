@@ -41,6 +41,19 @@ extension PaneCrumb {
             tint: Self.tint(for: doc)
         )
     }
+
+    /// The leaf crumb for a multi-selection (Daniel, 2026-08-29): with N>1
+    /// items selected a pane head must SAY so — "3 items" — never name one
+    /// document as if it were alone. Not navigable: there is no single node
+    /// behind it to reveal.
+    static func multiSelection(count: Int) -> PaneCrumb {
+        PaneCrumb(
+            id: "multi-selection",
+            title: "\(count) items",
+            icon: "square.on.square",
+            isNavigable: false
+        )
+    }
 }
 
 #Preview("PaneHead crumb menus") {

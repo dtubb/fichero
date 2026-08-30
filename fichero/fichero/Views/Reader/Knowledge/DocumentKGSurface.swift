@@ -159,6 +159,9 @@ struct DocumentKGSurface: View {
     /// Non-empty = the multi-page selection view (2026-08-25): the WebKit
     /// transcript renders ONLY these child pages of `documentId`.
     var pageIds: [String] = []
+    /// Non-nil = the representation view (2026-08-29): the SAME WebKit page,
+    /// read through this artifact type (transcription, translation, …).
+    var representation: String?
     var selectedEntityId: String?
     var selectedClaimId: String?
     var activePageNumber: Int?
@@ -272,6 +275,7 @@ struct DocumentKGSurface: View {
                     documentId: documentId,
                     libraryPath: libraryPath,
                     pageIds: pageIds,
+                    representation: representation,
                     selectedEntityId: selectedEntityId,
                     selectedClaimId: selectedClaimId,
                     activeTab: activeTab.rawValue,

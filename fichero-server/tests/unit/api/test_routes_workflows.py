@@ -221,29 +221,6 @@ class TestListWorkflows:
         by_name = {item["name"]: item for item in response.json()["items"]}
         assert by_name["Flagged Component"]["direct_runnable"] is False
         assert by_name["Plain Preset"]["direct_runnable"] is True
-
-    def test_shipped_spanish_script_child_is_internal(self):
-        """The Spanish Script v2 child passes preset is a component (#4324)."""
-        import json as _json
-        from pathlib import Path
-
-        from fichero_server.workflows import default_workflows
-
-        path = (
-            Path(default_workflows.__file__).resolve().parent.parent
-            / "resources"
-            / "default_workflows"
-            / "transcribe_spanish_script_v2_child.json"
-        )
-        preset = _json.loads(path.read_text(encoding="utf-8"))
-        assert preset["config"]["internal"] is True
-
-
-# ---------------------------------------------------------------------------
-# POST /api/workflows — create
-# ---------------------------------------------------------------------------
-
-
 class TestCreateWorkflow:
     def test_create_workflow(self, client):
         r = client.post("/api/workflows", json=_workflow_payload("My Workflow"))

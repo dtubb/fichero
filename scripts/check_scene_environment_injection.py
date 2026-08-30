@@ -87,6 +87,11 @@ KNOWN_GAPS: dict[str, str] = {}
 # ActivityDetailWindow reader was reached through an `AnyView`/erased edge no
 # static walk sees, which is exactly why the tripwire exists.
 DETACHED_SCENES: dict[str, str] = {
+    "install-tools (Window)":
+        "InstallToolsWindow writes the fichero CLI and MCP shim into "
+        "~/.local/bin and reports where they landed. It reads no library "
+        "service — the paths come from FileManager and the bundle — so it "
+        "needs nothing across the scene boundary (2026-08-28).",
     "about (Window)":
         "AboutView is chrome only — version/credits from Bundle; injects appState for the build tier.",
     "feature-tier-legend (Window)":

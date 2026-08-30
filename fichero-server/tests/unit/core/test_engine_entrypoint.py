@@ -180,7 +180,9 @@ def test_prepare_remote_access_flag_prints_manifest_and_returns(monkeypatch, cap
     assert captured["public_base_url"] == "https://192.168.1.42:9443"
     assert captured["storage_root"] == str(tmp_path)
     assert captured["allow_loopback"] is False
-    assert captured["subject_alt_hosts"] == ()
+    # Loopback SANs since 2026-08-27: the same identity is served on
+    # loopback for the CLI/MCP, so the cert must NAME it.
+    assert tuple(captured["subject_alt_hosts"]) == ("127.0.0.1", "localhost")
     assert json.loads(capsys.readouterr().out) == {
         "bind_host": "127.0.0.1",
         "certificate_path": str(tmp_path / "server.crt"),

@@ -72,8 +72,22 @@ class FolderAccessManager {
     /// then isn't a grant problem (moved file, dataless Box placeholder) and
     /// a panel would be noise. `completion(true)` only on a fresh grant.
     func promptOnceForSource(path: String, completion: @escaping (Bool) -> Void) {
+        promptForSource(path: path, force: false, completion: completion)
+    }
+
+    /// `force` = an EXPLICIT user action (the banner's Retry — Daniel,
+    /// 2026-08-27: "if you need me to grant access to a folder, you have to
+    /// select it; when I click retry, it should show me that"). The
+    /// once-per-folder guard exists to stop prompt STORMS from background
+    /// loads; a deliberate click is exempt. Existing access still short-
+    /// circuits — force never re-asks for a folder that already works.
+    func promptForSource(path: String, force: Bool, completion: @escaping (Bool) -> Void) {
         let root = URL(fileURLWithPath: path).deletingLastPathComponent().path
-        guard !hasAccess(to: path), !promptedSourceRoots.contains(root) else {
+        guard !hasAccess(to: path) else {
+            completion(false)
+            return
+        }
+        guard force || !promptedSourceRoots.contains(root) else {
             completion(false)
             return
         }
@@ -352,7 +366,18 @@ class FolderAccessManager {
         // so the engine can read a `fichero-drop-UUID` folder for the one ingest
         // in flight (#4068). Returns nil when minting isn't possible — the
         // engine either inherits same-sandbox access or the grant is a no-op.
-        guard let bookmarkData = mintBookmark(for: url) else { return }
+        guard let bookmarkData = mintBookmark(for: url) else {
+            // LOUD, not silent (2026-08-26: 92 link-imports 403'd and a
+            // folder-of-folders was refused with "outside every allowed
+            // root" — a mint that quietly no-ops leaves the engine blind and
+            // the user with an unexplained 403).
+            logger.error("""
+                Could not mint a security-scoped bookmark for \(url.path) — \
+                the engine will refuse this path unless it falls under a \
+                static allowed root
+                """)
+            return
+        }
         try await grantEngineAccess(path: url.path, bookmark: bookmarkData)
     }
 
@@ -502,12 +527,46 @@ class FolderAccessManager {
         // iOS: importing through document picker already grants access.
     }
 
+    func grantAccessForImport(_ url: URL) async throws {
+        // iOS: importing through document picker already grants access.
+    }
+
     func clearAllAccess() {
         accessedFolders.removeAll()
         UserDefaults.standard.removeObject(forKey: bookmarksKey)
     }
 }
 
+#endif
+
+#if os(macOS)
+extension FolderAccessManager {
+    /// Grant the engine access to ANY user-provided import URL — file or
+    /// directory (2026-08-27, the import-403 class). `saveBookmarkIfDirectory`
+    /// deliberately skips files, which was right for library packages and
+    /// wrong for LINK imports: the engine reads each linked FILE server-side,
+    /// so a file outside the static allowed roots 403'd with no grant ever
+    /// attempted. Directories keep the existing path; files mint + grant
+    /// their own URL (the engine treats a granted file path as its own root).
+    func grantAccessForImport(_ url: URL) async throws {
+        var isDirectory: ObjCBool = false
+        let exists = FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
+        guard exists else { return }
+        if isDirectory.boolValue {
+            try await saveBookmarkIfDirectory(url)
+            return
+        }
+        guard let bookmarkData = mintBookmark(for: url) else {
+            logger.error("""
+                Could not mint a security-scoped bookmark for file \(url.path) \
+                — a link import of it will 403 unless it falls under a static \
+                allowed root
+                """)
+            return
+        }
+        try await grantEngineAccess(path: url.path, bookmark: bookmarkData)
+    }
+}
 #endif
 
 // The grant-before-engine-read ordering seam (#3773), shared across platforms.

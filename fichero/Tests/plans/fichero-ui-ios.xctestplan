@@ -1,0 +1,27 @@
+{
+  "configurations" : [
+    {
+      "id" : "6C1B8F25-3A9E-4D71-A0C6-9F2E5B8D1C43",
+      "name" : "UI iPhone",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+
+  },
+  "testTargets" : [
+    {
+      "selectedTests" : [
+        "IOSUITargetCanaryTests"
+      ],
+      "target" : {
+        "containerPath" : "container:fichero.xcodeproj",
+        "identifier" : "F105C0DE0000000000000000",
+        "name" : "FicheroIOSUITests"
+      }
+    }
+  ],
+  "version" : 1
+}

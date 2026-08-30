@@ -4,7 +4,7 @@
 **Date:** 2026-07-25
 **Reference:** `Ranchero-Software/NetNewsWire`, `Mac/MainWindow/Sidebar/` (MIT licence).
 **Subject:** `fichero/fichero/Views/Sidebar/` on `integration`.
-**Prior art:** `docs/design/sidebar-view-fabel-review.md` (Phase 1). This is Phase 2 and
+**Prior art:** `agent-work/design/sidebar-view-fabel-review.md` (Phase 1). This is Phase 2 and
 does not restate it — Phase 1 was an internal audit; this is a comparison against a
 mature AppKit sidebar.
 

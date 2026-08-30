@@ -25,7 +25,6 @@ from fichero_server.execution.cancellation import (
 )
 from fichero_server.models import Workflow
 from fichero_server.workflows.activity import get_activity_tracker
-from fichero_server.workflows.registry import get_tool_def
 from fichero_server.workflows.run_steps import close_open_steps
 
 from fichero_server.api.routes.workflow_execution.schemas import ExecuteWorkflowRequest, SSEEvent
@@ -318,6 +317,15 @@ def _classify_provider_error(error_text: str) -> dict[str, str]:
     """Classify provider-facing failures into stable UI categories (#732)."""
     text = (error_text or "").lower()
 
+    # Before any provider category: failures that are about the FILES, not
+    # the provider ("Provider quota reached" for iCloud-evicted pages sent
+    # a user to top up an account that was never called, 2026-08-27).
+    if any(token in text for token in ("stored in icloud", "not downloaded locally", "no such file")):
+        return {
+            "category": "file_unavailable",
+            "message": "Source files are not available locally.",
+            "action": "Download the files (e.g. from iCloud) and re-run.",
+        }
     if any(token in text for token in ("402", "429", "insufficient_quota", "quota", "rate limit", "rate_limit")):
         return {
             "category": "quota",
@@ -1075,11 +1083,12 @@ async def _run_workflow_in_background(
         if request.provider_override or request.model_override:
             provider_override = (request.provider_override or "").strip()
             model_override = (request.model_override or "").strip()
+            from fichero_server.workflows.validation import node_uses_llm
+
             for node in workflow.nodes:
-                tool_name = node.get("tool", "")
-                tool_def = get_tool_def(tool_name) if tool_name else None
-                uses_llm = bool(tool_def and tool_def.uses_llm)
-                if not uses_llm:
+                # Config-aware: detect_regions in VLM mode takes the override
+                # even though its ToolDef registers uses_llm=False.
+                if not node_uses_llm(node):
                     continue
                 if provider_override:
                     node["provider_name"] = provider_override
@@ -1447,6 +1456,51 @@ async def _run_workflow_in_background(
 
         stream_input = resume_input if is_resume else initial_state
 
+        # Live token accounting (2026-08-28, Daniel: "we should try to show the
+        # actual costs live and tokens live"). Every model call is already
+        # recorded — provider, model, in/out/total tokens — and nothing
+        # consumed it, so the numbers existed and never left the engine.
+        #
+        # One collector for the run, with a cursor per node: entries appended
+        # since the last node completion belong to that node. ContextVars flow
+        # into the graph's tasks, so parallel fan-out lands in the same bucket.
+        from fichero_server.llm import begin_usage_collection, end_usage_collection
+
+        usage_bucket, usage_token = begin_usage_collection()
+        usage_cursor = 0
+
+        def _usage_since_last_node() -> dict[str, Any]:
+            """Tokens and cost for the calls made since the previous node."""
+            nonlocal usage_cursor
+            entries = usage_bucket[usage_cursor:]
+            usage_cursor = len(usage_bucket)
+            if not entries:
+                return {}
+            from fichero_server.llm.model_types import estimate_cost
+
+            cost = 0.0
+            priced = False
+            for entry in entries:
+                value = estimate_cost(
+                    entry.get("model") or "",
+                    entry.get("input_tokens") or 0,
+                    entry.get("output_tokens") or 0,
+                )
+                if value is not None:
+                    cost += value
+                    priced = True
+            usage: dict[str, Any] = {
+                "input_tokens": sum(e.get("input_tokens") or 0 for e in entries),
+                "output_tokens": sum(e.get("output_tokens") or 0 for e in entries),
+                "total_tokens": sum(e.get("total_tokens") or 0 for e in entries),
+                "model_calls": len(entries),
+            }
+            # Absent, not zero, when nothing could be priced — free is a claim,
+            # and usually the wrong one.
+            if priced:
+                usage["cost_usd"] = round(cost, 6)
+            return usage
+
         # Stream execution events
         async for event in app.astream_events(
             stream_input,
@@ -1690,6 +1744,10 @@ async def _run_workflow_in_background(
                                 await log_execution(
                                     f"Node '{original_id}' completed in {node_duration_ms:.0f}ms"
                                 )
+
+                    # Live usage for THIS node, so a chain reports its cost as
+                    # it runs rather than only in hindsight.
+                    activity_metadata.update(_usage_since_last_node())
 
                     # Log activity: node completed/skipped
                     activity_tracker.node_completed(
@@ -2087,6 +2145,14 @@ async def _run_workflow_in_background(
         await _finalize_documents("failed", error=str(e)[:500])
 
     finally:
+        # Stop the usage collector with the run. Guarded because the collector
+        # only exists once streaming has begun — an early failure reaches this
+        # block without it, and accounting bookkeeping must never be the thing
+        # that fails a run.
+        try:
+            end_usage_collection(usage_token)
+        except (NameError, UnboundLocalError):
+            pass
         # Drop the shared cancellation event — but ONLY when the run actually
         # ended. A pause returns through here too, and a paused run must stay
         # cancellable via the same primitive (#4316/#4317).

@@ -42,6 +42,21 @@ def _listener_hosts(bind_host: str) -> list[str]:
     return [bind_host, lan_host]
 
 
+def _primary_lan_ip() -> str:
+    """The machine's outbound-interface IPv4, found without any DNS.
+
+    The sandboxed engine cannot getaddrinfo a Bonjour name (errno 8, live
+    2026-08-27), so binding to "macbook-pro-m1.local" failed. A connected
+    UDP socket names the primary interface without sending a packet.
+    """
+    probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        probe.connect(("192.0.2.1", 1))  # TEST-NET-1: never routed, never sent
+        return probe.getsockname()[0]
+    finally:
+        probe.close()
+
+
 def _bind_listener_socket(host: str, port: int) -> socket.socket:
     family = socket.AF_INET6 if ":" in host else socket.AF_INET
     sock = socket.socket(family, socket.SOCK_STREAM)
@@ -92,6 +107,19 @@ def _ignore_sigpipe() -> None:
         signal.signal(signal.SIGPIPE, signal.SIG_IGN)
 
 
+def _seed_mimetypes_from_builtins() -> None:
+    """Load the mimetypes registry WITHOUT touching the filesystem.
+
+    The sandbox denies /etc/apache2/mime.types; emptying ``knownfiles``
+    before ``init()`` is the only public way to skip every file read —
+    ``init(files=[])`` appends to the list and still reads them.
+    """
+    import mimetypes
+
+    mimetypes.knownfiles = []
+    mimetypes.init()
+
+
 def _env_flag(name: str, default: bool = False) -> bool:
     """Parse a boolean env var with common truthy values."""
     value = os.environ.get(name)
@@ -139,8 +167,29 @@ class _QuietSteadyStateAccessLog(logging.Filter):
         return not any(str(path).startswith(p) for p in self.NOISY_PREFIXES)
 
 
+_RUN_MODULE_WHITELIST = {"fichero_cli", "fichero_mcp.server", "fichero_mcp.simple"}
+
+
 def main(argv: list[str] | None = None):
     """Start the Fichero API backend server."""
+
+    # The installed command-line tools (Fichero ▸ Install Command-Line
+    # Tools…, 2026-08-27) exec THIS binary with FICHERO_RUN_MODULE set:
+    # one signed, sandbox-inherited launcher serves the engine (default),
+    # the fichero CLI, and the MCP server. Whitelisted — fail loud on
+    # anything else rather than becoming an arbitrary-module runner.
+    run_module = (os.environ.get("FICHERO_RUN_MODULE") or "").strip()
+    if run_module:
+        if run_module not in _RUN_MODULE_WHITELIST:
+            raise SystemExit(
+                f"FICHERO_RUN_MODULE={run_module!r} is not a Fichero surface "
+                f"(allowed: {sorted(_RUN_MODULE_WHITELIST)})."
+            )
+        import runpy
+
+        sys.argv[0] = run_module
+        runpy.run_module(run_module, run_name="__main__")
+        return
 
     # Survive a client that hangs up mid-write (readiness probe cancel, a
     # connection closed right after a 401) instead of dying with SIGPIPE. Set
@@ -175,6 +224,11 @@ def main(argv: list[str] | None = None):
         material = prepare_remote_access_tls(
             args.public_base_url,
             storage_root=args.remote_access_dir,
+            # The same identity is served on loopback (the spawn persists a
+            # loopback pin for it, #2611), so the cert must NAME loopback or
+            # every standard-verifying local client — the CLI, the MCP
+            # server — fails hostname verification (found live 2026-08-27).
+            subject_alt_hosts=["127.0.0.1", "localhost"],
         )
         sys.stdout.write(material_manifest_json(material))
         sys.stdout.write("\n")
@@ -182,6 +236,15 @@ def main(argv: list[str] | None = None):
 
     # Disable tokenizers parallelism (avoids fork warnings)
     os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+
+    # Seed the mimetypes registry from built-ins only. Its lazy init() reads
+    # /etc/apache2/mime.types, which the app sandbox DENIES — so the first
+    # FileResponse (a rendition download) 500'd with PermissionError instead
+    # of serving the file (found live 2026-08-27). NOTE: init(files=[]) does
+    # NOT do this — CPython APPENDS the argument to knownfiles, so that form
+    # still read /etc and CRASHED the engine at boot (also found live,
+    # 2026-08-27, the hard way). The list itself must be emptied.
+    _seed_mimetypes_from_builtins()
 
     # Faulthandler ON by default (2026-08-09): a native fault in fitz /
     # pdfium / ONNX / the ObjC bridge previously left NOTHING in engine.log —
@@ -268,6 +331,118 @@ def main(argv: list[str] | None = None):
         )
         logger.info("Starting Fichero Backend (UDS transport)")
         logger.info("Server will listen on unix:%s (no TCP port, no TLS)", uds_path)
+
+        # Sharing / CLI / MCP (Daniel, 2026-08-27): when the app's Sharing
+        # toggle is ON it sets FICHERO_TCP_TLS_ALSO=1, and the engine binds
+        # the TCP+TLS listener IN ADDITION to the UDS socket — the same
+        # tcp_transport app, host, and TLS material a start_backend.sh engine
+        # serves. UDS stays the app's private path; HTTPS serves the CLI, the
+        # MCP server, and paired devices. Toggle OFF (no flag) = UDS-only,
+        # app-private, exactly as before.
+        if os.environ.get("FICHERO_TCP_TLS_ALSO") == "1":
+            ssl_kwargs = uvicorn_ssl_kwargs_from_env()
+            if "ssl_certfile" not in ssl_kwargs:
+                # Fail loud: the flag is an explicit request for a network
+                # listener; serving it plaintext or silently skipping it are
+                # both worse than refusing to start.
+                raise SystemExit(
+                    "FICHERO_TCP_TLS_ALSO=1 requires FICHERO_TLS_CERTFILE/"
+                    "FICHERO_TLS_KEYFILE — refusing a plaintext TCP listener."
+                )
+            tcp_bind_host = resolve_bind_host()
+            tcp_hosts = _listener_hosts(tcp_bind_host)
+            # 8765 is the product port; the env override exists for tests,
+            # which cannot assume it is free on a developer machine.
+            tcp_port = int(os.environ.get("FICHERO_TCP_PORT", "8765"))
+            tcp_sockets = []
+            try:
+                for h in tcp_hosts:
+                    # Resolve to an ADDRESS first: inside the sandbox the
+                    # machine's own Bonjour name resolves to LOOPBACK, so a
+                    # bind-by-name collided with our own first socket
+                    # (EADDRINUSE, named-host log 2026-08-27 18:55). A LAN
+                    # slot that resolves to nothing or to loopback gets the
+                    # real interface IP instead.
+                    try:
+                        addr = socket.getaddrinfo(
+                            h, tcp_port, socket.AF_INET, socket.SOCK_STREAM
+                        )[0][4][0]
+                    except socket.gaierror:
+                        addr = None
+                    is_lan_slot = h != tcp_bind_host
+                    if is_lan_slot and (addr is None or addr.startswith("127.")):
+                        try:
+                            addr = _primary_lan_ip()
+                        except OSError as exc:
+                            logger.error(
+                                "Sharing LAN listener skipped: %s unusable and "
+                                "the LAN IP could not be determined (%s).",
+                                h,
+                                exc,
+                            )
+                            continue
+                    if addr is None:
+                        logger.error("Sharing listener skipped: %s does not resolve.", h)
+                        continue
+                    bound = {s.getsockname()[0] for s in tcp_sockets}
+                    if addr in bound:
+                        logger.info(
+                            "Sharing listener: %s resolves to %s, already bound; skipping.",
+                            h,
+                            addr,
+                        )
+                        continue
+                    logger.info("Sharing listener: binding %s (%s):%d", addr, h, tcp_port)
+                    tcp_sockets.append(_bind_listener_socket(addr, tcp_port))
+            except OSError as exc:
+                # The app must not lose its engine because a stale process
+                # holds 8765 — keep UDS, but say exactly what is broken. And
+                # CLOSE anything already bound: a leaked listening socket
+                # accepts connections no server will ever answer.
+                for sock in tcp_sockets:
+                    sock.close()
+                tcp_sockets = []
+                logger.error(
+                    "Sharing listener could NOT bind %s:8765 (%s) — running "
+                    "UDS-only; Sharing, CLI and MCP are UNAVAILABLE until the "
+                    "port is free and the engine restarts.",
+                    tcp_bind_host,
+                    exc,
+                )
+            if tcp_sockets:
+                import threading
+
+                tcp_kwargs = dict(
+                    app="fichero_server.api.tcp_transport:app",
+                    workers=1,
+                    log_level="info",
+                    loop="asyncio",
+                    ws="websockets-sansio",
+                    timeout_graceful_shutdown=1,
+                    # The UDS server owns the app lifespan; running it twice on
+                    # the SAME app instance would double-start schedulers and
+                    # background tasks.
+                    lifespan="off",
+                    **ssl_kwargs,
+                )
+                tcp_server = uvicorn.Server(uvicorn.Config(**tcp_kwargs))
+                # uvicorn skips signal-handler install off the main thread; the
+                # daemon thread dies with the process (the 1s UDS drain is the
+                # graceful path). ponytail: no cross-server shutdown choreography
+                # until something needs it.
+                threading.Thread(
+                    target=tcp_server.run,
+                    kwargs={"sockets": tcp_sockets},
+                    name="fichero-tcp-tls",
+                    daemon=True,
+                ).start()
+                logger.info(
+                    "Sharing listener up: https on %s:%d (alongside unix:%s)",
+                    ", ".join(tcp_hosts),
+                    tcp_port,
+                    uds_path,
+                )
+
         uds_sock = _bind_uds_socket(uds_path)
         server = uvicorn.Server(uvicorn.Config(**uds_kwargs))
         try:

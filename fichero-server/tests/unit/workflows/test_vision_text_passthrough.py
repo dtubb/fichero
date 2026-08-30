@@ -31,6 +31,8 @@ def _tool_config() -> VisionToolConfig:
         update_page_content=True,
         trigger_embedding=False,
         supports_apple_vision=True,
+        # Transcribe is the tool the passthrough exists FOR.
+        accepts_extracted_text=True,
     )
 
 
@@ -124,6 +126,109 @@ async def test_pdf_with_existing_page_content_skips_vision(tmp_path: Path) -> No
     assert result["texts"] == [result["text"]]
     # The artifact write fires once (text persists)
     assert mock_save.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_apple_vision_is_refused_for_a_tool_that_asks_a_question(
+    tmp_path: Path,
+) -> None:
+    """Apple Vision ignores the prompt and returns the page's text.
+
+    For Transcribe that is the right answer. For Describe or Table it is the
+    OCR handed back as though it answered the question — success reported for
+    a wrong answer, invisible to everything downstream. A tool that has not
+    declared `supports_apple_vision` must be told, not quietly given OCR.
+    """
+    image = tmp_path / "page.png"
+    image.write_bytes(b"image")
+    describe_config = VisionToolConfig(artifact_type="description")
+    assert describe_config.supports_apple_vision is False
+
+    with pytest.raises(ValueError, match="ignores the prompt"):
+        await process_vision(
+            files=[str(image)],
+            documents=[],
+            prompt="Describe this image.",
+            llm_config=LLMConfig(provider="apple", model="apple-vision"),
+            library_path="",
+            task_id=None,
+            tool_config=describe_config,
+            vision_mode="llm",
+            save_to_db=False,
+        )
+
+
+@pytest.mark.asyncio
+async def test_apple_vision_stays_available_to_transcribe(tmp_path: Path) -> None:
+    """The guard must not cost Transcribe its free, private, on-device route."""
+    image = tmp_path / "page.png"
+    image.write_bytes(b"image")
+
+    with patch(
+        "fichero_server.llm.vision",
+        new=AsyncMock(return_value="THURSDAY, FEBRUARY 9, 1933"),
+    ) as vision:
+        result = await process_vision(
+            files=[str(image)],
+            documents=[],
+            prompt="Transcribe.",
+            llm_config=LLMConfig(provider="apple", model="apple-vision"),
+            library_path="",
+            task_id=None,
+            tool_config=_tool_config(),
+            vision_mode="llm",
+            save_to_db=False,
+        )
+
+    vision.assert_awaited_once()
+    assert "FEBRUARY" in result["text"]
+
+
+@pytest.mark.asyncio
+async def test_transform_tool_ignores_existing_page_content(tmp_path: Path) -> None:
+    """A tool that TRANSFORMS the page must call the model, not echo its text.
+
+    Extract Table on an already-transcribed ledger page returned the page's
+    transcription verbatim — stamped with a provider/model that was never
+    called — because the pre-extracted-text passthrough fired for every vision
+    tool, not just Transcribe. `accepts_extracted_text` is the gate.
+    """
+    image = tmp_path / "ledger.png"
+    image.write_bytes(b"image")
+    documents = [{
+        "id": "doc-1",
+        "path": str(image),
+        "page_content": "LETTER REGISTER\n3/30/31 Law suit ...",
+    }]
+    table_config = VisionToolConfig(artifact_type="table")
+    assert table_config.accepts_extracted_text is False
+
+    with (
+        patch(
+            "fichero_server.workflows.tools.vision_base.file_to_data_uri",
+            return_value="data:image/png;base64,IMAGE",
+        ),
+        patch(
+            "fichero_server.llm.vision",
+            new=AsyncMock(return_value='{"headers": ["Date"], "rows": [["3/30/31"]]}'),
+        ) as vision,
+    ):
+        result = await process_vision(
+            files=[str(image)],
+            documents=documents,
+            prompt="Extract the table.",
+            llm_config=_make_llm_config(),
+            library_path="",
+            task_id=None,
+            tool_config=table_config,
+            vision_mode="llm",
+            output_format="json",
+            save_to_db=False,
+        )
+
+    vision.assert_awaited_once()
+    assert "LETTER REGISTER" not in result["text"]
+    assert result["value"] == {"headers": ["Date"], "rows": [["3/30/31"]]}
 
 
 @pytest.mark.asyncio
@@ -246,7 +351,7 @@ async def test_process_vision_uses_page_aligned_context(tmp_path: Path) -> None:
     for file in files:
         file.write_bytes(b"image")
 
-    async def review(images, prompt, config, *, language=None):
+    async def review(images, prompt, config, *, language=None, **_kw):
         del images, config
         assert not ({"draft page 1", "draft page 2"} <= set(prompt.splitlines()))
         return "review 1" if "draft page 1" in prompt else "review 2"

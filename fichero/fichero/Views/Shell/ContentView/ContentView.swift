@@ -49,6 +49,14 @@ struct ContentView: View {
     /// The preview pane's lens (Daniel, 2026-08-23: "preview and edit").
     /// Never changes WHICH document shows, only how.
     @State var previewLens: PreviewLens = .preview
+    /// The SAME per-window key EditorView reads for its edit canvas — shared
+    /// so the head's Edit lens actually enters/leaves edit mode instead of
+    /// being a label beside a second state (Daniel, 2026-08-29 restructure).
+    @SceneStorage("inspectorSelectedTab") var previewEditorTab: InspectorTab = .content
+    /// The preview head ↔ canvas chrome seam (Daniel, 2026-08-29): the
+    /// mounted canvas publishes paging + renditions here; the head renders
+    /// them (pages ‹ › left of the breadcrumb, renditions as a head menu).
+    @State var previewChrome = PreviewPaneChrome()
     /// Preview pin (Daniel: every pane pins to its current view): non-nil
     /// freezes the preview on this document while selection moves on.
     @State var pinnedPreviewDocument: Document?
@@ -57,6 +65,14 @@ struct ContentView: View {
     /// Per-slot pane-kind overrides (Daniel, 2026-08-23): a slot can host
     /// any pane kind; nil entry = the plan's own kind.
     @State var paneKindOverrides: [String: PaneSpec.Kind] = [:]
+    /// Per-window split mailbox/mirror (Daniel, 2026-08-29): routes the
+    /// toolbar's Split Right/Below to the FOCUSED pane's SplittablePane and
+    /// lets a workspace save read the live split counts. Injected into the
+    /// centre row via `\.paneSplitCoordinator`.
+    @State var paneSplitCoordinator = PaneSplitCoordinator()
+    /// The Save Workspace… name prompt (Daniel, 2026-08-29).
+    @State var showSaveWorkspacePrompt = false
+    @State var workspaceNameDraft = ""
     #if os(macOS)
     static let defaultColumnVisibility: NavigationSplitViewVisibility = .all
     static let defaultColumnVisibilityRaw: Int = 2 // .all
@@ -70,12 +86,14 @@ struct ContentView: View {
     /// the folder tree.
     static let defaultPreferredCompactColumn: NavigationSplitViewColumn = .detail
     static let sidebarMinWidth: Double = 160
-    static let inspectorMinWidth: Double = 220
+    /// `nonisolated` (with `inspectorMaxWidth`): pure bounds read by the
+    /// nonisolated `restoredInspectorWidth` clamp and its off-main tests.
+    nonisolated static let inspectorMinWidth: Double = 220
     /// Mac-native rule (#4287): the SPLITTER owns width within sane bounds and
     /// inner content fills what it's given. 420 was an artificial ceiling that
     /// forced text to wrap on wide windows; this cap exists only to stop a
     /// drag from swallowing the whole window.
-    static let inspectorMaxWidth: Double = 800
+    nonisolated static let inspectorMaxWidth: Double = 800
     static let contentMinWidth: Double = 520
     static let contentMaxWidth: Double = 2200
     /// Minimum width of the widescreen content-list pane. Clamped to the
@@ -91,12 +109,18 @@ struct ContentView: View {
     /// resizable neighbours are already clamped by their ResizableDividers;
     /// this guards the one `.frame(maxWidth: .infinity)` pane that otherwise
     /// has no floor. (#1454)
-    nonisolated static let pdfCanvasMinWidth: Double = 360
+    /// 330, down from 360 (Daniel, 2026-08-29: with library, sidebar,
+    /// preview, reader, chat AND inspector on, the full stack needed a
+    /// 1460pt window and the sidebar silently collapsed on a 14" display).
+    /// The zoom cluster still fits at 330; below that it clips.
+    nonisolated static let pdfCanvasMinWidth: Double = 330
     nonisolated static let readingPaneMinWidth: Double = 220
     /// Chat is the NARROW always-available pane right of the reader
     /// (pane rulings 2026-08-11) — wide enough for a composer, never
     /// the takeover it used to be.
-    nonisolated static let chatPaneMinWidth: Double = 280
+    /// 250, down from 280 — the same six-pane arithmetic; a composer still
+    /// wraps fine at 250.
+    nonisolated static let chatPaneMinWidth: Double = 250
 
     // MARK: - Environment
 
@@ -178,6 +202,36 @@ struct ContentView: View {
     @SceneStorage("browserSelectionData") var browserSelectionData: Data = Data()
     @SceneStorage("viewModeType") var storedViewModeType: String = "library"
     @SceneStorage("viewModeItemId") var storedViewModeItemId: String?
+    /// Whether the capability bar is showing. Per WINDOW, following the
+    /// Preview convention that a markup bar is a property of the window you
+    /// turned it on in, and off by default so the chrome is opt-in.
+    @SceneStorage("showWorkflowBar") var showWorkflowBar: Bool = false
+    /// Labels beneath the workflow bar's glyphs. On by default while the
+    /// vocabulary is unfamiliar; off gives a dense icon rail.
+    @SceneStorage("workflowBarLabels") var showWorkflowBarLabels: Bool = true
+    /// The chain assembled in the workflow bar, in order. Not persisted:
+    /// it is a scratch composition for the selection in front of you, and
+    /// restoring one at launch would invite a paid run nobody remembers
+    /// staging.
+    @State var stagedWorkflowChain: [StagedWorkflowStep] = []
+    @State var isRunningStagedChain = false
+    /// The documents the LAST chain run acted on, frozen at press time.
+    /// Opening a finished step's result must show what the run wrote to —
+    /// not whatever the selection has wandered to since (review, 2026-08-29).
+    @State var lastChainRunTargets: [String] = []
+    /// Which chain step is executing, for the rail's progress.
+    @State var runningStagedStepIndex: Int?
+    /// Explicit run-scope chosen from the subject chip's menu (Daniel,
+    /// 2026-08-29). Outranks the automatic ladder while what it names is
+    /// still visible; nil (the menu's "Automatic") follows the ladder.
+    @State var workflowScopeOverride: WorkflowBarPolicy.RunScope?
+    /// Upper-bound cost of the staged chain, or nil when nothing can be
+    /// priced — never 0, which would read as free.
+    @State var stagedChainCostCeiling: Double?
+    /// AI defaults, cached for the bar's per-step model menu. Nothing holds
+    /// these in a shared observable, so the window keeps its own copy and
+    /// refreshes it when the bar appears.
+    @State var cachedAIDefaults = AIDefaults()
 
     // Workflow state
     @State var editingWorkflow: Workflow = Workflow(name: "New Workflow", description: "")
@@ -264,9 +318,8 @@ struct ContentView: View {
     @State var performanceService = PerformanceService()
     @State var documentScrollSync = DocumentScrollSyncState()
     @State var toolbarSearchText: String = ""
-    /// Focus for the resident top-right toolbar search field (#4604 Q10):
-    /// the old show/hide toggle's "summon" gesture becomes "focus".
-    @FocusState var toolbarSearchFieldFocused: Bool
+    // toolbarSearchFieldFocused (#4604 Q10) removed with the hand-rolled
+    // field (Daniel, 2026-08-29): the system search item owns its own focus.
     /// AI-first search (#4117): "Ask" (default) lets the LLM compile a
     /// plain-language query into the structured search; "Keyword" searches
     /// the raw text. Surfaced as a native search scope on the field; the

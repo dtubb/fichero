@@ -20,15 +20,10 @@ Build-tier visibility uses a maturity floor:
 | Reader | `release` | - | - | Core | PDFs, page images, extracted text, artifacts, and inspector. |
 | Search | `release` | `fichero.features.search` | `/api/search` | Core | Keyword and semantic search across the library. |
 | Workflow run on selection | `release` | `fichero.features.workflow_run_on_selection` | - | Processing | Run the active workflow on the selected documents from the library contextual menu. |
-| CLI | `beta` | - | - | Clients | Typed CLI over the same HTTP API surface. |
-| MCP server | `beta` | - | `/api/mcp` | Clients | MCP server surface backed by the engine. |
 | Library advanced views | `beta` | `fichero.features.library_advanced_views` | - | Core | Grid, list, table, and map views in the library. |
 | Search advanced views | `beta` | `fichero.features.search_advanced_views` | - | Core | Search results in all supported presentation modes. |
-| Chat | `beta` | `fichero.features.chat` | `/api/chat` | Knowledge | RAG conversation over the active library. |
 | Curation | `beta` | - | `/api/claims` | Knowledge | Persist corrections as rules that future imports obey. |
 | Knowledge graph | `beta` | `fichero.features.knowledge_graph` | `/api/kg`, `/api/hermeneutics` | Knowledge | Entities, claims, provenance, and ontology surfaces. |
-| Research | `beta` | `fichero.features.research` | `/api/research` | Knowledge | KG-backed research workflows and answer surface. |
-| Model comparison | `beta` | - | `/api/model-comparison` | Models | Compare model behavior and metadata in-app. |
 | Providers | `beta` | - | `/api/providers`, `/api/models` | Models | Local and cloud model providers plus model catalog. |
 | Activity | `beta` | `fichero.features.activity` | `/api/activity` | Processing | Execution history and live progress over SSE. |
 | Batches | `beta` | `fichero.features.batches` | `/api/batches` | Processing | Queue workflow work across many documents. |
@@ -44,6 +39,8 @@ Build-tier visibility uses a maturity floor:
 | Settings models tab | `alpha` | `fichero.features.settings_models_tab` | - | Settings | Model configuration panel. |
 | Settings share tab | `alpha` | `fichero.features.settings_share_tab` | - | Settings | Sharing and collaboration settings panel. |
 | Settings users tab | `alpha` | `fichero.features.settings_users_tab` | - | Settings | Multi-user settings panel. |
+| CLI | `dev` | - | - | Clients | Typed CLI over the same HTTP API surface. |
+| MCP server | `dev` | - | `/api/mcp` | Clients | MCP server surface backed by the engine. |
 | Spatial mode | `dev` | `fichero.features.spatial_mode` | - | Clients | Spatial library presentation mode. |
 | Workspace mode | `dev` | `fichero.features.workspace_mode` | - | Clients | Alternate workspace-oriented shell mode. |
 | IIIF | `dev` | - | `/api/iiif` | Core | IIIF image and annotation server interoperability. |
@@ -52,8 +49,11 @@ Build-tier visibility uses a maturity floor:
 | Library icon zoom controls | `dev` | `fichero.features.library_icon_zoom_controls` | - | Core | Zoom controls for icon-based library layouts. |
 | PDF scroll grid sync | `dev` | `fichero.features.pdf_scroll_grid_sync` | - | Core | Live PDF scroll synchronization into other panes. |
 | Agents | `dev` | `fichero.features.agents` | - | Knowledge | In-app agent surface still in the rawest stage. |
+| Chat | `dev` | `fichero.features.chat` | `/api/chat` | Knowledge | RAG conversation over the active library. |
 | Claim highlight sync | `dev` | `fichero.features.claim_highlight_sync` | - | Knowledge | Bidirectional claim highlight sync across panes. |
+| Research | `dev` | `fichero.features.research` | `/api/research` | Knowledge | KG-backed research workflows and answer surface. |
 | Extended provider catalog | `dev` | `fichero.features.providers_extended` | - | Models | Expanded provider and model catalog beyond the shipped baseline. |
+| Model comparison | `dev` | - | `/api/model-comparison` | Models | Compare model behavior and metadata in-app. |
 | Automation | `dev` | `fichero.features.automation` | `/api/schedules`, `/api/triggers` | Processing | Schedules, triggers, and automated flows. |
 | Workflow editor advanced views | `dev` | `fichero.features.workflow_editor_advanced_views` | - | Processing | Extra presentation modes in the workflow editor. |
 | Workflow import and export | `dev` | `fichero.features.workflow_import_export` | - | Processing | Import and export workflow definitions. |

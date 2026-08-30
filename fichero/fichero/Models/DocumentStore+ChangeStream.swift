@@ -295,7 +295,6 @@ extension DocumentStore: ObservableDomainStore {
         context: SpliceContext,
         changes: inout SpliceChanges
     ) {
-        let selectedCollectionId = context.selectedCollectionId
         // ROOTS ONLY — `loadCollections()` assigns `getRoots()`
         // (`/api/documents/roots`), so a nested document does not belong here.
         // The append used to be unguarded, unlike the two blocks below, and an

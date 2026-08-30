@@ -36,6 +36,44 @@ from fichero_server.workflows.tools.vision_base import (
 )
 
 
+def _existing_transcription_context(
+    library_path: str, documents: list
+) -> list[str] | None:
+    """Each document's existing text, for a review run with no wired draft.
+
+    ``page_content`` first (it is what the user reads), else the newest
+    transcription-family artifact. A document with neither contributes an
+    empty string — the review prompt then works from the image alone for
+    that page, which is honest, not an error.
+    """
+    if not library_path or not documents:
+        return None
+    from fichero_server.db import db_manager
+    from fichero_server.models import Artifact
+
+    db = db_manager.get_database(library_path)
+    texts: list[str] = []
+    found_any = False
+    for doc in documents:
+        doc_id = doc.get("id") if isinstance(doc, dict) else getattr(doc, "id", None)
+        content = (
+            doc.get("page_content") if isinstance(doc, dict)
+            else getattr(doc, "page_content", None)
+        )
+        if not content and doc_id:
+            rows = db.query(Artifact, document_id=doc_id)
+            transcriptions = [
+                a for a in rows
+                if (a.artifact_type or "").startswith("transcription")
+                and (a.content or "").strip()
+            ]
+            transcriptions.sort(key=lambda a: a.created_at, reverse=True)
+            content = transcriptions[0].content if transcriptions else None
+        texts.append(content or "")
+        found_any = found_any or bool(content)
+    return texts if found_any else None
+
+
 # =============================================================================
 # Tool Configuration
 # =============================================================================
@@ -156,6 +194,16 @@ async def transcribe_review(
         prior_text = [str(record.get("text", "")) for record in prior_text]
     elif isinstance(prior_text, list) and len(prior_text) != len(files):
         prior_text = "\n\n---\n\n".join(str(text) for text in prior_text)
+    if not prior_text:
+        # STANDALONE review (2026-08-26, "run a paleographer update on an
+        # artifact"): with no upstream transcription wired in, review the
+        # document's EXISTING text — page_content first, else its latest
+        # transcription artifact. This is what lets "transcribe with one
+        # model today, review with another tomorrow" exist as two separate
+        # user acts instead of one welded pipeline.
+        prior_text = _existing_transcription_context(
+            state.get("library_path", ""), documents
+        )
     input_metadata = inputs.get("metadata")
 
     update_page_content = inputs.get("update_page_content", True)

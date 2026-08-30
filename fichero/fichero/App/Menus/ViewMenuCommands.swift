@@ -93,12 +93,20 @@ struct ViewMenuCommands: View {
 
         PaneVisibilitySection()
 
+        // Workspaces + layout presets (Daniel, 2026-08-29): the menu-bar
+        // twins of the toolbar's Workspaces and Views-chooser buttons.
+        WorkspaceCommandsSection()
+
         Divider()
 
         // SelectionDrivenLayoutToggle moved to Settings ▸ General (#4121):
         // a persistent preference, not per-window view state.
         // NavigateToParentButton moved to the Go menu (#4121) — navigation,
         // not view state.
+        ShowWorkflowBarButton()
+
+        ShowWorkflowBarLabelsButton()
+
         ShowFindBarButton()
         // ShowRulerButton moved to the Format menu (#4121 View-menu diet):
         // the ruler is text-formatting chrome (TextEdit/Pages precedent),

@@ -1,0 +1,145 @@
+{
+ "name": "Transcribe + Review (Pipeline)",
+ "description": "Use this when: you want the full paleography treatment in one run — the single-pass Transcribe Paleography workflow, then the Paleographer Review workflow over its result. This preset RUNS the two other workflows as sub-workflows (the chain pattern: any preset can compose others the same way). Model: whatever you pick at run time, used by both stages.",
+ "format": "nodes",
+ "is_template": true,
+ "is_system": true,
+ "folder_path": "/Transcribe",
+ "tags": [
+  "preset",
+  "transcribe",
+  "paleography",
+  "pipeline",
+  "sub-workflow",
+  "chain"
+ ],
+ "config": {
+  "preset_version": 1
+ },
+ "nodes": [
+  {
+   "id": "files-source",
+   "tool": "files",
+   "label": "Files",
+   "position_x": 80,
+   "position_y": 200,
+   "inputs": {},
+   "config": {}
+  },
+  {
+   "id": "stage-transcribe",
+   "tool": "sub_workflow",
+   "label": "Stage 1 — Transcribe Paleography",
+   "position_x": 340,
+   "position_y": 200,
+   "inputs": {},
+   "config": {
+    "workflow_ref": "Transcribe Paleography",
+    "input_contract": [
+     {
+      "id": "files",
+      "data_type": "files",
+      "required": true,
+      "description": "Selected page image paths to transcribe."
+     },
+     {
+      "id": "documents",
+      "data_type": "any",
+      "required": false,
+      "description": "Per-page document metadata (index-aligned with files)."
+     }
+    ],
+    "output_contract": [
+     {
+      "id": "text",
+      "data_type": "text",
+      "required": true,
+      "description": "The single-pass transcription text."
+     }
+    ],
+    "output_mapping": {
+     "text": "$.nodes.transcribe.text"
+    }
+   }
+  },
+  {
+   "id": "stage-review",
+   "tool": "sub_workflow",
+   "label": "Stage 2 — Paleographer Review",
+   "position_x": 640,
+   "position_y": 200,
+   "inputs": {},
+   "config": {
+    "workflow_ref": "Paleographer Review",
+    "input_contract": [
+     {
+      "id": "files",
+      "data_type": "files",
+      "required": true,
+      "description": "The same page images, for review against the strokes."
+     },
+     {
+      "id": "documents",
+      "data_type": "any",
+      "required": false,
+      "description": "Per-page document metadata (index-aligned with files)."
+     },
+     {
+      "id": "context",
+      "data_type": "text",
+      "required": false,
+      "description": "Stage 1's transcription — ordering edge; the review also reads the freshly written page content."
+     }
+    ],
+    "output_contract": [
+     {
+      "id": "text",
+      "data_type": "text",
+      "required": true,
+      "description": "The reviewed, final transcription."
+     }
+    ],
+    "output_mapping": {
+     "text": "$.nodes.r3.text"
+    }
+   }
+  }
+ ],
+ "edges": [
+  {
+   "id": "files-s1",
+   "source": "files-source",
+   "target": "stage-transcribe",
+   "source_port": "files",
+   "target_port": "files"
+  },
+  {
+   "id": "docs-s1",
+   "source": "files-source",
+   "target": "stage-transcribe",
+   "source_port": "documents",
+   "target_port": "documents"
+  },
+  {
+   "id": "files-s2",
+   "source": "files-source",
+   "target": "stage-review",
+   "source_port": "files",
+   "target_port": "files"
+  },
+  {
+   "id": "docs-s2",
+   "source": "files-source",
+   "target": "stage-review",
+   "source_port": "documents",
+   "target_port": "documents"
+  },
+  {
+   "id": "s1-s2",
+   "source": "stage-transcribe",
+   "target": "stage-review",
+   "source_port": "text",
+   "target_port": "context"
+  }
+ ]
+}

@@ -38,12 +38,14 @@ swiftlint lint fichero/fichero/
 
 The frontend depends on the engine being available. For the default macOS development path:
 
-1. start the backend on port `8765`
-   via `bash fichero-server/scripts/start_backend.sh`
-2. open `fichero/fichero.xcodeproj`
-3. build and run the macOS app against that engine
+1. open `fichero/fichero.xcodeproj`
+2. pick an **Embedded** scheme (e.g. "Fichero (Dev Embedded)")
+3. build and run — the app spawns its own engine; nothing to start by hand
 
-This is the default mental model for embedded-macOS development. iOS/iPadOS do not start a local engine; they connect to an explicit remote host configured through `EngineConfig`.
+The **Local** schemes are for engine development: they connect to an engine you start
+yourself with `bash fichero-server/scripts/start_backend.sh` on port `8765`.
+iOS/iPadOS do not start a local engine; they connect to an explicit remote host
+configured through `EngineConfig`.
 
 ## OpenAPI Sync Discipline
 

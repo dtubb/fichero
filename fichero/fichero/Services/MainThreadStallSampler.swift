@@ -25,8 +25,16 @@ private let stallBacktraceMax = 192
 // thread — and one reader, the watcher, which waits on the ready flag before
 // touching the buffer; plain word-sized stores are single-copy atomic on
 // arm64. Debug tooling only, enabled by the stall-log environment flag.
-private nonisolated(unsafe) var stallBacktraceBuffer =
-    [UnsafeMutableRawPointer?](repeating: nil, count: stallBacktraceMax)
+//
+// RAW memory, allocated eagerly in start() BEFORE the handler is installed —
+// never a Swift Array. A Swift global is lazily initialized on first touch,
+// and when that first touch happened inside the handler it ran
+// Array.init → generic-metadata instantiation → objc runtime lock, on a
+// thread interrupted while already holding it: _os_unfair_lock_recursive_abort
+// (crashed live 2026-08-27). The handler may only write into memory that
+// already exists.
+private nonisolated(unsafe) var stallBacktraceBase:
+    UnsafeMutablePointer<UnsafeMutableRawPointer?>?
 private nonisolated(unsafe) var stallBacktraceCount: Int32 = 0
 /// 0 = idle, 1 = handler finished writing the buffer.
 private nonisolated(unsafe) var stallBacktraceReady: Int32 = 0
@@ -42,10 +50,10 @@ private func ficheroBacktraceSymbols(
 ) -> UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 
 private func stallSignalHandler(_ signal: Int32) {
-    stallBacktraceCount = stallBacktraceBuffer.withUnsafeMutableBufferPointer { buf in
-        guard let base = buf.baseAddress else { return 0 }
-        return ficheroBacktrace(base, Int32(stallBacktraceMax))
-    }
+    // Async-signal context: a word load, a C backtrace() into preexisting
+    // memory, two word stores. No Swift Array, no allocation, no locks.
+    guard let base = stallBacktraceBase else { return }
+    stallBacktraceCount = ficheroBacktrace(base, Int32(stallBacktraceMax))
     stallBacktraceReady = 1
 }
 
@@ -106,6 +114,18 @@ final class MainThreadStallSampler: @unchecked Sendable {
         // so this pthread_self IS the main thread, the SIGPROF target.
         assert(Thread.isMainThread, "start() must run on main to capture its pthread")
         mainPthread = pthread_self()
+        // Allocate the handler's buffer BEFORE installing the handler — the
+        // handler must never be the first (allocating) toucher.
+        if stallBacktraceBase == nil {
+            let base = UnsafeMutablePointer<UnsafeMutableRawPointer?>
+                .allocate(capacity: stallBacktraceMax)
+            base.initialize(repeating: nil, count: stallBacktraceMax)
+            stallBacktraceBase = base
+        }
+        // Force the flag globals' one-time init on THIS thread, now, so the
+        // handler's stores never run a lazy addressor first.
+        stallBacktraceCount = 0
+        stallBacktraceReady = 0
         signal(SIGPROF, stallSignalHandler)
         openLog()
         let thread = Thread { [weak self] in self?.sampleLoop() }
@@ -184,10 +204,8 @@ final class MainThreadStallSampler: @unchecked Sendable {
         }
         guard stallBacktraceReady == 1, stallBacktraceCount > 0 else { return [] }
         let count = stallBacktraceCount
-        guard let symbols = stallBacktraceBuffer.withUnsafeBufferPointer({ buf -> UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>? in
-            guard let base = buf.baseAddress else { return nil }
-            return ficheroBacktraceSymbols(base, count)
-        }) else { return [] }
+        guard let base = stallBacktraceBase,
+              let symbols = ficheroBacktraceSymbols(base, count) else { return [] }
         defer { free(symbols) }
         var lines: [String] = []
         for index in 0..<Int(count) {

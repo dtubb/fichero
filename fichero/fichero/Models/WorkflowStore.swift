@@ -23,6 +23,18 @@ final class WorkflowStore: ChangeEventConsumer {
     /// one source of truth (#725). Empty until first successful load; views
     /// fall back to a hardcoded dictionary for unknown tools.
     var toolRegistry: [String: ToolInfo] = [:]
+    /// Folder presentation as the engine describes it — the order verbs
+    /// appear in and their glyphs. Empty until loaded; the bar falls back
+    /// to its built-in route so it is never scrambled in that window.
+    var folderPresentation: [String: WorkflowBarPolicy.FolderPresentation] = [:]
+
+    /// Steps + resolved prompts per workflow id, filled on demand by
+    /// `loadSteps(for:)`. Observable so a popover redraws when its fetch
+    /// lands; see WorkflowStore+Steps.
+    var workflowStepCache: [String: [WorkflowStepPreview]] = [:]
+    /// In-flight step fetches, so reopening a popover mid-fetch does not
+    /// start a second one.
+    var workflowStepsLoading: Set<String> = []
 
     /// Bumped when a `workflow.*` change event arrives so interested views can
     /// invalidate their cached workflow-dependent UI.
@@ -76,6 +88,14 @@ final class WorkflowStore: ChangeEventConsumer {
             // a freshly added provider appears without a restart (#4276).
             WorkflowRunProviderCache.shared.invalidate()
             return
+        }
+        // A workflow EDIT changes what its steps are and what they prompt, so
+        // the popover must not keep showing the graph from before the edit.
+        // Run-lifecycle events (workflow.run from Shortcuts/CLI) change no
+        // graph — wiping on them refetched every open popover per run for
+        // nothing (review, 2026-08-29).
+        if event.verb != "run" {
+            workflowStepCache.removeAll()
         }
         changeToken &+= 1
     }

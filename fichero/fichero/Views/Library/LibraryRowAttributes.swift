@@ -64,8 +64,43 @@ enum LibraryRowAttribute: String, CaseIterable, Identifiable {
 /// The mini-toolbar button + popover choosing row attributes — self-contained
 /// so the host (an extension, which cannot hold @State) only supplies the
 /// persisted binding.
+/// The SAME attribute toggles as a nestable MENU, for hosts where a popover
+/// cannot live — the bottom bar's narrow-width overflow menu dropped the
+/// metadata control entirely rather than embedding an inert popover row
+/// (Daniel, 2026-08-29: "the bottom toolbar loses some of the filter
+/// options when it's too narrow"). One binding, two coats.
+struct LibraryRowAttributesMenu: View {
+    @Binding var raw: String
+
+    var body: some View {
+        Menu("Metadata") {
+            ForEach(LibraryRowAttribute.allCases) { attribute in
+                Button {
+                    var set = LibraryRowAttribute.set(from: raw)
+                    if set.contains(attribute) {
+                        set.remove(attribute)
+                    } else {
+                        set.insert(attribute)
+                    }
+                    raw = LibraryRowAttribute.raw(from: set)
+                } label: {
+                    if LibraryRowAttribute.set(from: raw).contains(attribute) {
+                        Label(attribute.title, systemImage: "checkmark")
+                    } else {
+                        Text(attribute.title)
+                    }
+                }
+            }
+        }
+    }
+}
+
 struct LibraryRowAttributesButton: View {
     @Binding var raw: String
+    /// Dataset mode only: excerpt-vs-full-text lives HERE, with the other
+    /// "what do rows display" choices (Daniel, 2026-08-27: "the full text
+    /// excerpt is more logically part of the metadata").
+    var datasetStore: DatasetModeStore?
     @State private var isPresented = false
 
     private func binding(for attribute: LibraryRowAttribute) -> Binding<Bool> {
@@ -99,6 +134,22 @@ struct LibraryRowAttributesButton: View {
                     #if os(macOS)
                     .toggleStyle(.checkbox)
                     #endif
+                }
+                if let datasetStore {
+                    Divider()
+                    Text("Text")
+                        .font(.headline)
+                    ForEach(DatasetModeStore.TextDetail.allCases) { choice in
+                        Toggle(isOn: Binding(
+                            get: { datasetStore.textDetail == choice },
+                            set: { if $0 { datasetStore.textDetail = choice } }
+                        )) {
+                            Text(choice.rawValue)
+                        }
+                        #if os(macOS)
+                        .toggleStyle(.checkbox)
+                        #endif
+                    }
                 }
             }
             .padding(12)

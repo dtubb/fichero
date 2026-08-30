@@ -94,5 +94,5 @@ manager picks `type:bug` + `client:swiftui`/`backend` + area label + milestone.
 > **Expected:** bodies stay visible
 
 The manager turns that into: `type:bug` + `client:swiftui` + `area:inspector`,
-milestone **Library & Reading Surface**, and routes it to the claude (frontend)
-worker. Backend/data bugs → codex (backend). You don't pick the milestone.
+milestone **Library & Reading Surface**, and routes it to a frontend
+worker. Backend/data bugs go to a backend worker. You don't pick the milestone.

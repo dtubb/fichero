@@ -87,6 +87,16 @@ extension ShareSettingsView {
         }
     }
 
+    func refreshConnectedClients() async {
+        guard EngineConfig.engineIsLocal else { return }
+        do {
+            connectedClients = try await PairingService(apiRoot: EngineConfig.host).connectedClients()
+        } catch {
+            // Presence is a nicety — do not surface an error banner for it.
+            connectedClients = []
+        }
+    }
+
     func refreshDevices() async {
         isLoadingDevices = true
         defer { isLoadingDevices = false }

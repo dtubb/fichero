@@ -22,7 +22,7 @@ all build/device-in-the-loop. Cleanup follow-ups: dead `workflowItems` bucket, d
 `unifiedSectionExpansionStates` persistence.
 
 ## Done
-- **Phase 1 — fabel review** → `docs/design/sidebar-view-fabel-review.md` (committed).
+- **Phase 1 — fabel review** → `agent-work/design/sidebar-view-fabel-review.md` (committed).
   Current state, target (one unified node list per tab), gaps vs the 8 milestone-#116
   issues, multi-select design. Reviewed by a `critic` subagent; findings folded in (§6.4).
 - **Phase 2 — native multi-select** (committed `da12433e2`):

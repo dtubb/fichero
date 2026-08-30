@@ -214,11 +214,16 @@ extension ContentView {
             }
             return AnyView(reading.frame(maxWidth: .infinity))
         case .chat:
+            // Splittable like every other pane (Daniel, 2026-08-29: "some
+            // panes offer splits and chat does not") — the SAME machinery,
+            // so the toolbar's Split Right/Below reaches a focused chat too.
             return AnyView(
-                chatPaneContent
-                    .frame(width: spec.fixedWidth ?? CGFloat(ContentView.chatPaneMinWidth))
-                    .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .chat; paneFocusHint = .chat })
-                    .overlay { paneFocusIndicator(for: .chat) }
+                adaptiveSplittablePane(storageKey: splitKey) {
+                    chatPaneContent
+                }
+                .frame(width: spec.fixedWidth ?? CGFloat(ContentView.chatPaneMinWidth))
+                .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .chat; paneFocusHint = .chat })
+                .overlay { paneFocusIndicator(for: .chat) }
             )
         }
     }

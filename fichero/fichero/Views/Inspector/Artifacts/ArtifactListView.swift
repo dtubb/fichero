@@ -44,6 +44,11 @@ struct ArtifactListView: View {
     /// Optional: "Set as Document Content" needs the write seam; the list
     /// renders fine without it (detached windows may not inject it).
     @Environment(DocumentStore.self) private var documentStore: DocumentStore?
+    /// Optional deliberately: artifact lists also render in detached windows
+    /// whose scenes may not inject the workflow store — there the step
+    /// identifier (r1) shows instead of its label, which is degraded, not
+    /// wrong.
+    @Environment(WorkflowStore.self) private var workflowStore: WorkflowStore?
 
     @State private var selectedIDs: Set<String> = []
     @State private var artifactsToDelete: [Artifact] = []
@@ -119,6 +124,22 @@ struct ArtifactListView: View {
         .onChange(of: store.items) { _, items in
             focused.resolve(in: items)
         }
+        // Warm the step-label cache for every workflow these artifacts came
+        // from, so subtitles can say "Review 3 — Final Layer" instead of "r3".
+        // Keyed on the id set: reloading the same artifacts refetches nothing,
+        // and the store's own cache makes repeats free.
+        .task(id: artifactWorkflowIds) {
+            guard let workflowStore else { return }
+            for workflowId in artifactWorkflowIds {
+                await workflowStore.loadSteps(for: workflowId)
+            }
+        }
+    }
+
+    /// The distinct workflows the listed artifacts were produced by, sorted so
+    /// the `.task(id:)` key is stable across re-renders.
+    private var artifactWorkflowIds: [String] {
+        Array(Set(store.items.compactMap(\.workflowId))).sorted()
     }
 
     /// Run-group header: workflow name (where known) + relative run time, or
@@ -151,6 +172,16 @@ struct ArtifactListView: View {
         return "Workflow Run"
     }
 
+    /// Plain-click select. `.modifiers([])` keeps ⌘/⇧ clicks with the List's
+    /// own multi-select on macOS; iOS has no click modifiers (or the API).
+    private func plainSelectTap(_ artifactID: String) -> some Gesture {
+        #if os(macOS)
+        return TapGesture(count: 1).modifiers([]).onEnded { selectedIDs = [artifactID] }
+        #else
+        return TapGesture(count: 1).onEnded { selectedIDs = [artifactID] }
+        #endif
+    }
+
     /// One selectable row, tagged by artifact id, with an "Open in Window"
     /// context action. Extracted from the `ForEach` body so each expression
     /// stays cheap for the type-checker.
@@ -161,7 +192,13 @@ struct ArtifactListView: View {
             provenance: ArtifactProvenance.display(
                 for: artifact,
                 inspectedDocument: inspectedDocument,
-                documentsById: documentsById
+                documentsById: documentsById,
+                // "Review 3 — Final Layer" instead of "r3": the node label
+                // from the workflow's graph, via the store's step cache.
+                stepLabelResolver: { workflowId, stepName in
+                    workflowStore?.steps(for: workflowId)?
+                        .first { $0.id == stepName }?.label
+                }
             )
         )
             .tag(artifact.id)
@@ -198,9 +235,7 @@ struct ArtifactListView: View {
             // commits; the margin worked because nothing contested it there.
             // Plain clicks only — modifier clicks stay with the List so
             // ⌘/⇧ multi-select keeps working.
-            .simultaneousGesture(TapGesture(count: 1).modifiers([]).onEnded {
-                selectedIDs = [artifact.id]
-            })
+            .simultaneousGesture(plainSelectTap(artifact.id))
             .contextMenu {
                 if let onOpenInWindow {
                     Button("Open in Window") {
@@ -218,7 +253,7 @@ struct ArtifactListView: View {
                         let content = artifact.content ?? ""
                         let targetId = artifact.documentId
                         Task { @MainActor in
-                            try? await documentStore?.documentService.updateDocument(
+                            _ = try? await documentStore?.documentService.updateDocument(
                                 targetId, pageContent: content
                             )
                             await documentStore?.refresh()

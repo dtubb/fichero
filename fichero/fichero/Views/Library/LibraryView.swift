@@ -302,6 +302,12 @@ struct LibraryView: View {
     // multiplier multiplies against the gesture-start size, not the
     // continuously-updating scale (which would compound exponentially).
     @State var pinchBaseScale: Double = 1.0
+    /// The scale while a pinch is IN FLIGHT, nil otherwise. Live layout reads
+    /// this; `iconViewScale` (@AppStorage) is written ONCE when the gesture
+    /// ends. Writing UserDefaults on every magnification tick was half the
+    /// pinch jank (Daniel, 2026-08-29: "feels sluggish") — the other half is
+    /// the per-tick cell identity change, damped by the coarser live step.
+    @State var liveIconScale: Double?
 
     // Degraded fallback only: live activity/change-stream signals now trigger
     // the surgical pending-status refresh immediately (#3200). Keep the timer

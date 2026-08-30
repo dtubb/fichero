@@ -1,0 +1,57 @@
+{
+ "name": "Regesto (Archival Abstract)",
+ "description": "Use this when: you want the archivist's calendar entry for a historical document — date, place, document type, parties, action, and index terms — from the image plus any existing transcription. Writes an analysis artifact; never touches the document's text.",
+ "format": "nodes",
+ "is_template": true,
+ "is_system": true,
+ "folder_path": "/Extract Data",
+ "tags": [
+  "preset",
+  "paleography",
+  "regesto",
+  "abstract",
+  "calendar"
+ ],
+ "config": {
+  "preset_version": 1
+ },
+ "nodes": [
+  {
+   "id": "files-source",
+   "tool": "files",
+   "label": "Files",
+   "position_x": 80,
+   "position_y": 200,
+   "inputs": {},
+   "config": {}
+  },
+  {
+   "id": "regesto",
+   "tool": "analyze",
+   "label": "Regesto",
+   "position_x": 320,
+   "position_y": 200,
+   "inputs": {},
+   "config": {
+    "prompt": "Write the REGESTO (archival abstract) of this document image, the way a professional archivist calendars it. Use the existing transcription if provided as context; read the image where the context is silent.\n\nOutput exactly these labelled lines:\nFecha: <date as given + normalized ISO if resolvable, else [sin fecha]>\nLugar: <place of issue, else [sin lugar]>\nTipo documental: <carta de poder / confesión / real provisión / obligación / cuenta / carta / auto / ...>\nOtorgantes: <who acts, with offices>\nDestinatarios: <who receives/is affected>\nAsunto: <2-4 sentences: what the document DOES, in modern language>\nPersonas: <every personal name, semicolon-separated, spelling as written>\nLugares: <every place name>\nMaterias: <3-6 index terms>\nObservaciones: <seals, rúbricas, damage, prior foliation, anything a researcher should know>\nMark uncertain readings [UNCERTAIN: ...]. Do not invent — [sin datos] where the page gives nothing.",
+    "thinking_mode": "long"
+   }
+  }
+ ],
+ "edges": [
+  {
+   "id": "files-regesto",
+   "source": "files-source",
+   "target": "regesto",
+   "source_port": "files",
+   "target_port": "files"
+  },
+  {
+   "id": "docs-regesto",
+   "source": "files-source",
+   "target": "regesto",
+   "source_port": "documents",
+   "target_port": "documents"
+  }
+ ]
+}

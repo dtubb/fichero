@@ -35,11 +35,9 @@ The frontend uses the generated OpenAPI client plus hand-written Swift service
 wrappers:
 
 - `fichero/fichero/Services/APIClient.swift` is the shared client wrapper
-- many domain services are generated wrappers such as
-  `DocumentServiceGenerated.swift`, `SearchServiceGenerated.swift`,
-  `WorkflowServiceGenerated.swift`, and `ChatServiceGenerated.swift`
-- some richer surfaces use hand-written wrappers around the same client, such as
-  `AnnotationService.swift`, `NoteService.swift`, and stores under
+- domain services are hand-written wrappers over the generated client, such as
+  `DocumentService.swift`, `SearchService.swift`, `WorkflowService.swift`,
+  `AnnotationService.swift`, and `NoteService.swift`, with stores under
   `fichero/fichero/Models/`
 
 The important architectural rule is that the app does not invent a second

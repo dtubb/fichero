@@ -875,10 +875,31 @@ def _coerce_normalized_bbox(
         raise ValueError("bbox must be a four-item list")
     values = [float(value) for value in bbox]
     if all(0.0 <= value <= 1.0 for value in values):
-        return values
+        return _salvage_normalized_xywh(values)
     if page_width and page_height:
-        return _normalize_xywh(values, page_width=page_width, page_height=page_height)
+        return _salvage_normalized_xywh(
+            _normalize_xywh(values, page_width=page_width, page_height=page_height)
+        )
     raise ValueError("pixel bbox values require page_width and page_height")
+
+
+def _salvage_normalized_xywh(values: list[float]) -> list[float]:
+    """Repair the two mechanical VLM deviations without masking real noise.
+
+    Models answer the xywh prompt in corner form often enough that rejecting
+    it costs whole pages of geometry (gemini-3.1-flash-lite on Caciques Hoja
+    531: every box was [x1, y1, x2, y2]). Reinterpret as corners ONLY when
+    the xywh reading overflows the page and the corner reading is a valid
+    box — genuinely bad geometry still fails the model validator loudly.
+    Then clip sub-2% overflow (rounding, not fabrication)."""
+    x, y, w, h = values
+    if (x + w > 1.0 or y + h > 1.0) and w > x and h > y:
+        x, y, w, h = x, y, w - x, h - y
+    if x + w > 1.0 and x + w <= 1.02:
+        w = 1.0 - x
+    if y + h > 1.0 and y + h <= 1.02:
+        h = 1.0 - y
+    return [x, y, w, h]
 
 
 def _normalize_xywh(

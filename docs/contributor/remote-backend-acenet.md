@@ -57,9 +57,9 @@ ProxyJump:
 ssh -N -J <user>@<login-host> -L 8765:127.0.0.1:8765 <user>@<compute-node>
 ```
 
-Leave this SSH process running. The Mac app is hardcoded today to
-`http://127.0.0.1:8765`, so the app-compatible tunnel must normally use local
-port `8765`. If local port `8765` is occupied, use another local port for CLI
+Leave this SSH process running. The Mac app connects to
+`https://127.0.0.1:8765` (pinned TLS — a plain-HTTP engine cannot connect), so
+the app-compatible tunnel must normally use local port `8765`. If local port `8765` is occupied, use another local port for CLI
 or MCP work:
 
 ```bash

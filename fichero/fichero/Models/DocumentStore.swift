@@ -611,3 +611,9 @@ struct SidebarDocumentsMemoKey: Equatable {
     let parents: Int
     let children: Int
 }
+
+/// Swift 6 requires this (main-actor-isolated) Sendable conformance to live in
+/// the type's own file; the +ChangeStream extension's `ObservableDomainStore`
+/// conformance implies it. The class's `@MainActor` isolation is what makes it
+/// true — nothing is unchecked here.
+extension DocumentStore: Sendable {}

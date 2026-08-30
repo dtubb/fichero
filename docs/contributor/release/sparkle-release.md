@@ -18,7 +18,7 @@ This project uses Sparkle for app updates via the **Check for Updates...** menu 
 
 Default build settings in the app target:
 
-- `SPARKLE_FEED_URL=https://raw.githubusercontent.com/dtubb/fichero-releases/main/appcast.xml`
+- `SPARKLE_FEED_URL=https://tubb.ca/apps/fichero/appcast.xml`
 - `SPARKLE_PUBLIC_ED_KEY="z3UPbmGi74NGSqTQL25E2WFD1yulIzYRvtDitbIZvNY="`
 
 The matching EdDSA private key must be stored securely outside the repo.

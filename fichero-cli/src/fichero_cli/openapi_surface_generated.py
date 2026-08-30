@@ -1359,6 +1359,36 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("edit-regions")
+    def artifacts_edit_regions_put(
+        ctx: typer.Context,
+        artifact_id: str = typer.Argument(..., help="Path parameter: artifact_id."),
+        bbox: Optional[str] = typer.Option(None, "--bbox", help="Request field: bbox."),
+        indices: Optional[str] = typer.Option(None, "--indices", help="Request field: indices."),
+        level: Optional[str] = typer.Option(None, "--level", help="Request field: level."),
+        op: str = typer.Option(..., "--op", help="Request field: op."),
+        text: Optional[str] = typer.Option(None, "--text", help="Request field: text."),
+    ) -> None:
+        """Edit Artifact Regions (PUT /api/artifacts/{artifact_id}/regions)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/artifacts/{artifact_id}/regions"
+            params = None
+            payload = _build_json_payload({
+                "bbox": bbox,
+                "indices": indices,
+                "level": level,
+                "op": op,
+                "text": text,
+            }, {
+                "bbox": {'items': {'type': 'number'}, 'type': 'array', 'nullable': True, 'title': 'Bbox', 'description': 'Normalized [x, y, w, h] for move/add', 'x-cli-required': False},
+                "indices": {'items': {'type': 'integer'}, 'type': 'array', 'title': 'Indices', 'description': 'Positions into ocr_geometry.boxes (order irrelevant)', 'x-cli-required': False},
+                "level": {'type': 'string', 'enum': ['page', 'block', 'line', 'word', 'region'], 'title': 'OCRGeometryLevel', 'x-cli-required': False},
+                "op": {'type': 'string', 'enum': ['move', 'delete', 'add', 'combine'], 'title': 'RegionEditOp', 'description': 'A closed vocabulary — an enum in the schema, never a bare str (rule 4).', 'x-cli-required': True},
+                "text": {'type': 'string', 'title': 'Text', 'default': '', 'x-cli-required': False},
+            }, required=True)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('auth')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for auth endpoints.', no_args_is_help=True)
@@ -3645,6 +3675,23 @@ def register_generated_openapi_commands(
                 "sort_order": {'type': 'integer', 'nullable': True, 'title': 'Sort Order', 'x-cli-required': False},
             }, required=True)
             return client.request("PATCH", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    target_app = existing_apps.get('clients')
+    if target_app is None:
+        target_app = typer.Typer(help='Generated OpenAPI commands for clients endpoints.', no_args_is_help=True)
+        root_app.add_typer(target_app, name='clients')
+        existing_apps['clients'] = target_app
+
+    @target_app.command("connected")
+    def clients_connected_get(
+        ctx: typer.Context,
+    ) -> None:
+        """Connected Clients (GET /api/clients)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/clients"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('content-representations')
@@ -13168,12 +13215,14 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
         pages: Optional[str] = typer.Option(None, "--pages", help="Query parameter: pages."),
+        representation: Optional[str] = typer.Option(None, "--representation", help="Query parameter: representation."),
     ) -> None:
         """Document View (GET /view/document/{doc_id})."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = f"/view/document/{doc_id}"
             params = {
                 "pages": pages,
+                "representation": representation,
             }
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
@@ -13502,12 +13551,14 @@ def register_generated_openapi_commands(
     def workflows_list_get(
         ctx: typer.Context,
         folder_path: Optional[str] = typer.Option(None, "--folder-path", help="Query parameter: folder_path."),
+        summary: Optional[bool] = typer.Option(None, "--summary/--no-summary", help="Query parameter: summary."),
     ) -> None:
         """List Workflows (GET /api/workflows)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = "/api/workflows"
             params = {
                 "folder_path": folder_path,
+                "summary": summary,
             }
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
@@ -13569,6 +13620,17 @@ def register_generated_openapi_commands(
                 "version": {'type': 'string', 'title': 'Version', 'default': '1.0', 'x-cli-required': False},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("list-folders")
+    def workflows_list_folders_get(
+        ctx: typer.Context,
+    ) -> None:
+        """List Workflow Folders (GET /api/workflows/folders)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/workflows/folders"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("import")

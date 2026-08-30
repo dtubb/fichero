@@ -43,6 +43,11 @@ RULE_DOC = "docs/contributor/architecture/fichero/reform_masterplan_2026-06.md"
 # Keys are paths relative to SWIFT_DIR (posix). Value documents why it is a
 # sanctioned bridge OR that it is baseline debt to migrate.
 KNOWN_VIOLATIONS: dict[str, str] = {
+    # 2026-08-28: Install Tools writes the `fichero` CLI and the MCP shim into
+    # ~/.local/bin and must tell the user where they went — the reveal-in-Finder
+    # and the "add this to PATH" affordance are NSWorkspace calls with no
+    # SwiftUI equivalent. Installing a command-line tool is a macOS-only act.
+    "Views/Settings/Tools/InstallToolsWindow.swift": "2026-08-28 — NSWorkspace reveal for the installed CLI/MCP binaries (macOS-only by nature)",
     # #4354: undo routing must inspect the AppKit responder chain — deciding
     # whether a text view owns the undo IS an NSTextView/first-responder
     # question, and SwiftUI exposes no equivalent. AppKit here is the feature,
@@ -83,6 +88,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Views/Inspector/Knowledge/Entities/DocumentInspectorEntitiesTab+SupportTypes.swift": "#2101 — AppKit via #if canImport (drag support types); split from DocumentInspectorEntitiesTab",
     "Views/Reader/Knowledge/DocumentKGWebPane.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
     "Services/FolderAccessManager.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
+    "Services/FicheroUICapture.swift": "#4535/#4536 — macOS-only window capture (CGWindowList + NSApplication), gated by #if os(macOS); no SwiftUI equivalent",
     "Views/Reader/Page/AnnotatableTextView.swift": "#2458 — NSTextView bridge for selectable highlighted text spans; #2101",
     "Views/Preview/ImageEditor/ImageEditorModel.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
     "Views/Preview/ImageEditor/ImageEditorView.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",

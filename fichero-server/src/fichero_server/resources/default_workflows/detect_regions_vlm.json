@@ -1,0 +1,58 @@
+{
+ "name": "Detect Regions (VLM)",
+ "description": "Use this when: Apple Vision misses regions on hard material (archaic hands, damaged pages) and you want a vision LLM to find the text regions instead. Uses whatever model you pick at run time — compare providers by running this next to the Apple Vision preset.",
+ "format": "nodes",
+ "is_template": true,
+ "is_system": true,
+ "folder_path": "/Detect Regions",
+ "tags": [
+  "preset",
+  "regions",
+  "bboxes",
+  "layout",
+  "vlm"
+ ],
+ "config": {
+  "preset_version": 1
+ },
+ "nodes": [
+  {
+   "id": "files-source",
+   "tool": "files",
+   "label": "Files",
+   "position_x": 80,
+   "position_y": 200,
+   "inputs": {},
+   "config": {}
+  },
+  {
+   "id": "detect-regions",
+   "tool": "detect_regions",
+   "label": "Detect Regions (VLM)",
+   "position_x": 280,
+   "position_y": 200,
+   "inputs": {},
+   "config": {
+    "language": "auto",
+    "provider": "vlm",
+    "thinking_mode": "medium"
+   }
+  }
+ ],
+ "edges": [
+  {
+   "id": "edge-files-detect-regions",
+   "source": "files-source",
+   "target": "detect-regions",
+   "source_port": "files",
+   "target_port": "files"
+  },
+  {
+   "id": "edge-files-detect-regions-documents",
+   "source": "files-source",
+   "target": "detect-regions",
+   "source_port": "documents",
+   "target_port": "documents"
+  }
+ ]
+}

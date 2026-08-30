@@ -602,6 +602,34 @@ def _node_tool(node: object) -> str:
     return str(getattr(node, "tool", "") or "")
 
 
+def _node_config(node: object) -> dict:
+    if isinstance(node, dict):
+        config = node.get("config")
+    else:
+        config = getattr(node, "config", None)
+    return config if isinstance(config, dict) else {}
+
+
+def node_uses_llm(node: object, tool_def: object | None = None) -> bool:
+    """Whether THIS node calls a model — config-aware, unlike ToolDef.uses_llm.
+
+    detect_regions registers uses_llm=False (its default is free on-device
+    Apple Vision) but its VLM mode (config provider=="vlm") is a vision-LLM
+    call. Every consumer of the static flag got that mode wrong at once: the
+    run menu hid the model picker, the runner refused to apply an override,
+    and requires_vision said no (Daniel, 2026-08-27: "workflow detect regions
+    vlm should allow us to select which one, no?"). One predicate, shared by
+    all three.
+    """
+    tool = _node_tool(node)
+    td = tool_def if tool_def is not None else TOOL_DEFS.get(tool)
+    if td is None:
+        return False
+    if getattr(td, "uses_llm", False):
+        return True
+    return tool == "detect_regions" and _node_config(node).get("provider") == "vlm"
+
+
 def workflow_override_target_tools(nodes: list | None) -> list[str]:
     """Tools a run-level provider/model override would actually change.
 
@@ -615,7 +643,7 @@ def workflow_override_target_tools(nodes: list | None) -> list[str]:
     return [
         tool
         for node in (nodes or [])
-        if (tool := _node_tool(node)) and (td := TOOL_DEFS.get(tool)) and td.uses_llm
+        if (tool := _node_tool(node)) and node_uses_llm(node)
     ]
 
 
@@ -648,6 +676,107 @@ def workflow_sub_workflow_refs(nodes: list | None) -> list[str]:
     return [ref for _label, ref in _sub_workflow_node_refs(nodes)]
 
 
+#: What a workflow can be pointed AT. `documents` is the ordinary case — a
+#: page, a file, a folder of them. `text` additionally means its entry tool
+#: consumes text directly, so a passage selected in the Reader can be fed to
+#: it without going through a document.
+INPUT_KIND_DOCUMENTS = "documents"
+INPUT_KIND_TEXT = "text"
+
+
+def _node_id(node: object) -> str:
+    """Node id from either a stored node dict or a :class:`NodeDef`."""
+    if isinstance(node, dict):
+        return str(node.get("id") or "")
+    return str(getattr(node, "id", "") or "")
+
+
+def _edge_endpoints(edge: object) -> tuple[str, str]:
+    """``(source, target)`` from either a stored edge dict or an EdgeDef."""
+    if isinstance(edge, dict):
+        return str(edge.get("source") or ""), str(edge.get("target") or "")
+    return (
+        str(getattr(edge, "source", "") or ""),
+        str(getattr(edge, "target", "") or ""),
+    )
+
+
+def _entry_tool_nodes(nodes: list | None, edges: list | None) -> list:
+    """Nodes that begin the real work — the first non-source tools.
+
+    Source tools (files, collection, selection, …) describe WHERE the input
+    comes from, not what kind it is, so they answer nothing about what the
+    workflow can be run on. An entry node is a non-source node that no OTHER
+    non-source node feeds: in Transcribe → Clean Up Text, only Transcribe is
+    an entry, which is why that workflow wants pixels even though a later
+    tool consumes text.
+    """
+    real = [
+        node
+        for node in (nodes or [])
+        if (td := TOOL_DEFS.get(_node_tool(node))) and td.category != "source"
+    ]
+    real_ids = {_node_id(node) for node in real}
+    fed_by_real = {
+        target
+        for source, target in (_edge_endpoints(edge) for edge in (edges or []))
+        if source in real_ids
+    }
+    entries = [node for node in real if _node_id(node) not in fed_by_real]
+    # A cycle, or a graph we cannot read, must not silently report "no entry
+    # tools" — that would strip every verb from the bar. Fall back to all.
+    return entries or real
+
+
+def workflow_input_kinds(
+    nodes: list | None,
+    edges: list | None = None,
+    *,
+    workflow_resolver: Callable[[str], WorkflowDef | None] | None = None,
+) -> list[str]:
+    """What this workflow can be RUN ON, computed by the engine (#capability-bar).
+
+    Served alongside ``requires_vision`` and for the same reason: a client that
+    re-derives this from the node list gets the delegating case wrong, and
+    since the summary list payload omits nodes entirely there is no node list
+    to re-derive it from.
+
+    A workflow always accepts documents — every one of them has a source node
+    that resolves to files. It additionally accepts ``text`` when an entry tool
+    consumes a text port, which is what lets a passage selected in the Reader
+    be handed straight to Clean Up Text or Extract Entities while Transcribe,
+    which wants pixels, is correctly not offered.
+    """
+    resolver = workflow_resolver or (lambda ref: resolve_sub_workflow_ref(ref))
+    visited: set[str] = set()
+    kinds = {INPUT_KIND_DOCUMENTS}
+
+    def visit(current_nodes: list | None, current_edges: list | None) -> None:
+        for node in _entry_tool_nodes(current_nodes, current_edges):
+            tool_def = TOOL_DEFS.get(_node_tool(node))
+            if tool_def is None:
+                continue
+            for port in getattr(tool_def, "input_ports", []) or []:
+                if getattr(getattr(port, "data_type", None), "value", "") == "text":
+                    kinds.add(INPUT_KIND_TEXT)
+        for _label, ref in _sub_workflow_node_refs(current_nodes):
+            if ref in visited:
+                continue
+            visited.add(ref)
+            try:
+                child = resolver(ref)
+            except Exception as exc:
+                logger.debug("input_kinds could not resolve %r: %s", ref, exc)
+                continue
+            if child is None:
+                continue
+            visited.update(key for key in (child.id, child.name) if key)
+            visit(child.nodes, getattr(child, "edges", None))
+
+    visit(nodes, edges)
+    return sorted(kinds)
+
+
 def workflow_requires_vision(
     nodes: list | None,
     *,
@@ -671,7 +800,7 @@ def workflow_requires_vision(
             tool_def = TOOL_DEFS.get(_node_tool(node))
             if (
                 tool_def
-                and tool_def.uses_llm
+                and node_uses_llm(node, tool_def)
                 and _required_llm_capability(tool_def) == "vision"
             ):
                 return True

@@ -370,6 +370,15 @@ extension FocusedValues {
     /// window — not every open window (#1451).
     @Entry var showInspector: Binding<Bool>?
 
+    /// Per-window visibility of the capability bar, published by the focused
+    /// ContentView so View ▸ Show Workflow Bar toggles only that window —
+    /// the Preview convention, where a markup bar belongs to the window you
+    /// turned it on in (2026-08-28).
+    @Entry var showWorkflowBar: Binding<Bool>?
+
+    /// Labels under the workflow bar's glyphs, per window.
+    @Entry var showWorkflowBarLabels: Binding<Bool>?
+
     /// Per-window visibility of the major reading-surface panes, published by
     /// the focused ContentView so the View menu mirrors the toolbar toggles
     /// for each pane (#1215). Same per-window rationale as `showInspector`:

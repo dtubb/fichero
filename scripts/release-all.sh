@@ -11,24 +11,29 @@ set -euo pipefail
 #                          [--skip-testflight | --skip-mac-testflight | --skip-ios-testflight]
 #                          [--mac-only | --ios-only] [--github] [--draft]
 #                          [--dev | --tier <release|beta|alpha|dev>]
-# --dev / --tier build the requested feature tier (default: release). `--dev`
-# bakes ALL dev features into the archive (Dev Embedded mac config + dev
-# FICHERO_FEATURE_TIER on iOS) so internal TestFlight/DMG builds expose the
-# full alpha-grade surface, not just the stripped release features (#3365).
+# Default (no --dev/--tier): the DMG lane builds BOTH tiers per release —
+# Fichero.dmg (beta, the public download) and Fichero-dev.dmg (dev, ALL
+# features) — and TestFlight archives the dev surface (internal-only, #3365).
+# --dev / --tier narrow the run to that single tier: `--dev` bakes ALL dev
+# features (Dev Embedded mac config + dev FICHERO_FEATURE_TIER on iOS);
+# other tiers likewise build one DMG named Fichero.dmg.
 #
 # See docs/contributor/release/release-lane.md for required certificates/profiles and the
 # repeatable DMG, Sparkle/GitHub, and Mac TestFlight release cycle.
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RELEASE_DIR="$ROOT_DIR/build/releases"
+# Fichero.dmg = beta (the public download), Fichero-dev.dmg = dev (all
+# features). Daniel's 2026-08-25 ruling: every release ships BOTH.
 DMG_PATH="$RELEASE_DIR/Fichero.dmg"
+DEV_DMG_PATH="$RELEASE_DIR/Fichero-dev.dmg"
 MAC_ARCHIVE_PATH="$RELEASE_DIR/Fichero-macOS.xcarchive"
 MAC_EXPORT_DIR="$RELEASE_DIR/testflight-export-macos"
 MAC_EXPORT_OPTIONS="$RELEASE_DIR/ExportOptions-mac-testflight.plist"
 IOS_ARCHIVE_PATH="$RELEASE_DIR/Fichero-iOS.xcarchive"
 IOS_EXPORT_DIR="$RELEASE_DIR/testflight-export-ios"
 IOS_EXPORT_OPTIONS="$RELEASE_DIR/ExportOptions-ios-testflight.plist"
-SPARKLE_FEED_URL="${SPARKLE_FEED_URL:-https://raw.githubusercontent.com/dtubb/fichero/main/fichero/appcast.xml}"
+SPARKLE_FEED_URL="${SPARKLE_FEED_URL:-https://tubb.ca/apps/fichero/appcast.xml}"
 APP_STORE_CONNECT_KEY_PATH="${APP_STORE_CONNECT_KEY_PATH:-$HOME/Documents/Developer/Certificates/2026-07-5 App Store Connect/AuthKey_2MGYUR786H.p8}"
 APP_STORE_CONNECT_KEY_ID="${APP_STORE_CONNECT_KEY_ID:-2MGYUR786H}"
 APP_STORE_CONNECT_ISSUER_ID="${APP_STORE_CONNECT_ISSUER_ID:-6d2cfad9-6a3d-48a0-bdcc-9c75c308f812}"
@@ -212,8 +217,21 @@ while [ $# -gt 0 ]; do
   shift
 done
 
+# DMG tiers for this run. Default (no --dev/--tier): BOTH DMGs — dev first,
+# beta LAST so dmg-stage/ and Fichero.dmg hold the beta artifacts for the size
+# ratchet and the GitHub step's staged-app checks. An explicit --dev/--tier
+# builds only that tier (one-off runs keep their old meaning).
+if [ -n "${FICHERO_RELEASE_TIER:-}" ]; then
+  DMG_TIERS=("$FICHERO_RELEASE_TIER")
+else
+  DMG_TIERS=(dev beta)
+  # TestFlight is internal-only, so in dual mode it archives the dev surface.
+  FICHERO_RELEASE_TIER=dev
+fi
+
 # Resolve the (scheme, configuration) build map from the selected feature tier.
-# Done after arg parsing so --dev/--tier above take effect.
+# Done after arg parsing so --dev/--tier above take effect. (The DMG loop below
+# re-sources this per tier; TestFlight uses this resolution.)
 source "$ROOT_DIR/scripts/tier_build_map.sh"
 
 mkdir -p "$RELEASE_DIR"
@@ -390,31 +408,44 @@ fi
 
 
 if [ "$SKIP_DMG" = false ]; then
-  echo
-  echo "── DMG: build + Developer ID sign ──"
-  # #4491: the APP is notarized and stapled INSIDE this script, between signing
-  # and image creation, because steps 3-6 there seal the staged directory into a
-  # read-only image — a ticket added afterwards would not be inside it. Two
-  # notarization round trips per release, and both are needed: the DMG's ticket
-  # vouches for the download, the app's ticket vouches for the copy in
-  # /Applications after the DMG is thrown away.
+  # One loop, both DMGs (dev first, beta last — see DMG_TIERS above). Each
+  # iteration re-sources tier_build_map.sh so scheme/config follow the tier,
+  # and FICHERO_DMG_PATH names the artifact (Fichero.dmg vs Fichero-dev.dmg).
+  #
+  # #4491: the APP is notarized and stapled INSIDE build-release-dmg.sh,
+  # between signing and image creation, because steps 3-6 there seal the
+  # staged directory into a read-only image — a ticket added afterwards would
+  # not be inside it. Two notarization round trips per DMG, and both are
+  # needed: the DMG's ticket vouches for the download, the app's ticket
+  # vouches for the copy in /Applications after the DMG is thrown away.
   #
   # Threaded through --notarize-app rather than read from the environment so a
   # direct `build-release-dmg.sh` still just builds a DMG and never blocks on
   # Apple, and so --skip-notarize means the same thing at both stages.
-  DMG_ARGS=(--skip-backend)
-  # `if`, not `[ … ] && …`. This script is `set -euo pipefail`, so a bare
-  # test-and-append whose test fails IS a failing statement and would abort the
-  # release the moment somebody passed --skip-notarize. Written the short way
-  # first, here and in notarize.sh — the same mistake twice in ten minutes,
-  # which is why it is spelled out rather than quietly corrected.
-  if [ "$SKIP_NOTARIZE" = false ]; then
-    DMG_ARGS+=(--notarize-app)
-  fi
-  "$ROOT_DIR/scripts/build-release-dmg.sh" "${DMG_ARGS[@]}"
-fi
-
-if [ "$SKIP_NOTARIZE" = false ]; then
+  for DMG_TIER in "${DMG_TIERS[@]}"; do
+    export FICHERO_RELEASE_TIER="$DMG_TIER"
+    source "$ROOT_DIR/scripts/tier_build_map.sh"
+    case "$DMG_TIER" in
+      dev) TIER_DMG_PATH="$DEV_DMG_PATH" ;;
+      *)   TIER_DMG_PATH="$DMG_PATH" ;;
+    esac
+    echo
+    echo "── DMG [$DMG_TIER → $(basename "$TIER_DMG_PATH")]: build + Developer ID sign ──"
+    DMG_ARGS=(--skip-backend)
+    # `if`, not `[ … ] && …`. This script is `set -euo pipefail`, so a bare
+    # test-and-append whose test fails IS a failing statement and would abort
+    # the release the moment somebody passed --skip-notarize.
+    if [ "$SKIP_NOTARIZE" = false ]; then
+      DMG_ARGS+=(--notarize-app)
+    fi
+    FICHERO_DMG_PATH="$TIER_DMG_PATH" "$ROOT_DIR/scripts/build-release-dmg.sh" "${DMG_ARGS[@]}"
+    if [ "$SKIP_NOTARIZE" = false ]; then
+      echo
+      echo "── DMG [$DMG_TIER]: notarize + staple ──"
+      "$ROOT_DIR/scripts/notarize.sh" "$TIER_DMG_PATH"
+    fi
+  done
+elif [ "$SKIP_NOTARIZE" = false ]; then
   echo
   echo "── DMG: notarize + staple ──"
   "$ROOT_DIR/scripts/notarize.sh" "$DMG_PATH"
@@ -429,7 +460,15 @@ fi
 # load, so any growth is real (same reasoning as the query-count ratchet,
 # #4443). Runs only when this invocation actually built+stapled a fresh DMG
 # (skipped release legs have nothing new to measure).
-if [ "$SKIP_DMG" = false ] && [ "$SKIP_NOTARIZE" = false ]; then
+# ponytail: the ratchet holds the BETA DMG only — it is the public download
+# whose growth matters; the dev DMG's size is printed, not held. Add dev
+# baselines to release_size_baseline.json if the dev artifact starts mattering.
+BUILT_BETA_DMG=false
+case " ${DMG_TIERS[*]} " in *" beta "*|*" release "*) BUILT_BETA_DMG=true ;; esac
+if [ "$SKIP_DMG" = false ] && [ -f "$DEV_DMG_PATH" ]; then
+  echo "  dev DMG size (informational): $(du -h "$DEV_DMG_PATH" | cut -f1)"
+fi
+if [ "$SKIP_DMG" = false ] && [ "$SKIP_NOTARIZE" = false ] && [ "$BUILT_BETA_DMG" = true ]; then
   echo
   echo "── DMG: size ratchet ──"
   # build-release-dmg.sh's APP_NAME ("Fichero.app") is local to that script,
@@ -732,10 +771,21 @@ if [ "$RUN_GITHUB" = true ]; then
   echo
   echo "── GitHub/Sparkle release ──"
   "$ROOT_DIR/scripts/create-github-release.sh" "${GITHUB_ARGS[@]+"${GITHUB_ARGS[@]}"}"
+
+  # Site AFTER the GitHub step: create-github-release.sh writes appcast.xml
+  # into the same tubb.ca/apps/fichero/ directory; deploy-site.sh rsyncs with
+  # --delete but excludes appcast.xml, so this order refreshes the site
+  # without touching the just-written feed. FICHERO_SKIP_SITE=1 to opt out.
+  if [ "${FICHERO_SKIP_SITE:-0}" != "1" ]; then
+    echo
+    echo "── Website (docs site → tubb.ca) ──"
+    "$ROOT_DIR/scripts/deploy-site.sh"
+  fi
 fi
 
 echo
 echo "Done."
-echo "DMG:      $DMG_PATH"
+echo "DMG (beta): $DMG_PATH"
+if [ -f "$DEV_DMG_PATH" ]; then echo "DMG (dev):  $DEV_DMG_PATH"; fi
 echo "Mac archive: $MAC_ARCHIVE_PATH"
 echo "iOS archive: $IOS_ARCHIVE_PATH"

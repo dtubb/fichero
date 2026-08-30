@@ -1,0 +1,54 @@
+{
+  "name": "Translate the Reviewed Transcription",
+  "description": "Use this when: a page has already been transcribed and reviewed, and you want the TRANSLATION of that reviewed text — not a fresh reading of the image. Every other Translate preset re-transcribes first, which pays for the hard work twice and translates a reading you did not check. This one reads the newest transcription_review artifact and translates that.",
+  "format": "nodes",
+  "is_template": true,
+  "is_system": true,
+  "folder_path": "/Translate",
+  "tags": ["preset", "translate", "artifacts", "review"],
+  "config": { "preset_version": 1 },
+  "nodes": [
+    {
+      "id": "artifacts-source",
+      "tool": "artifacts_source",
+      "label": "Reviewed Transcription",
+      "position_x": 80,
+      "position_y": 200,
+      "inputs": {},
+      "config": {
+        "artifact_type": "transcription_review",
+        "which": "latest"
+      }
+    },
+    {
+      "id": "text_translate",
+      "tool": "text_translate",
+      "label": "Translate",
+      "position_x": 340,
+      "position_y": 200,
+      "inputs": {},
+      "config": {
+        "provider_name": "$small",
+        "target_language": "English",
+        "source_language": "auto",
+        "preserve_names": true
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-artifacts-translate-text",
+      "source": "artifacts-source",
+      "target": "text_translate",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
+      "id": "edge-artifacts-translate-documents",
+      "source": "artifacts-source",
+      "target": "text_translate",
+      "source_port": "documents",
+      "target_port": "documents"
+    }
+  ]
+}

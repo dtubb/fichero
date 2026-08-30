@@ -2,7 +2,10 @@
 set -euo pipefail
 
 # Create a GitHub release on dtubb/fichero and upload the DMG. Then update
-# fichero/appcast.xml in this repo so Sparkle can pick up the new version.
+# the appcast in the tubb.ca site repo (served at
+# https://tubb.ca/apps/fichero/appcast.xml) so Sparkle can pick up the new
+# version. The site's 11ty build passes **/*.xml straight through; deploying
+# the site publishes the feed.
 #
 # Sparkle EdDSA signs the DMG via sign_update from ~/code/sparkle-tools/.
 # The Ed25519 private key is read from the macOS Keychain (account "ed25519",
@@ -13,13 +16,20 @@ set -euo pipefail
 # Usage: scripts/create-github-release.sh [--draft] [--prerelease] [--dry-run|-n]
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Fichero.dmg = beta (default Sparkle channel, the public download);
+# Fichero-dev.dmg = dev (<sparkle:channel>dev</sparkle:channel> — only dev
+# builds see it, via SparkleChannelDelegate). Both ship per release.
 DMG_PATH="$ROOT_DIR/build/releases/Fichero.dmg"
+DEV_DMG_PATH="$ROOT_DIR/build/releases/Fichero-dev.dmg"
 APP_PATH="$ROOT_DIR/fichero/build/xcode/Products/Release/Fichero.app"
 STAGED_APP_PATH="$ROOT_DIR/build/releases/dmg-stage/Fichero.app"
 
 RELEASE_REPO="dtubb/fichero"
-APPCAST_PATH="$ROOT_DIR/fichero/appcast.xml"
-APPCAST_URL="https://raw.githubusercontent.com/$RELEASE_REPO/main/fichero/appcast.xml"
+# The appcast lives in the tubb.ca site repo, NOT in this repo (Daniel's
+# 2026-08-25 ruling: tubb.ca/apps/fichero is the permanent product home).
+SITE_DIR="${FICHERO_SITE_DIR:-$HOME/code/sites/tubb.ca}"
+APPCAST_PATH="$SITE_DIR/apps/fichero/appcast.xml"
+APPCAST_URL="https://tubb.ca/apps/fichero/appcast.xml"
 
 # Sparkle CLI tools (downloaded tarball at ~/code/sparkle-tools/, not brew cask)
 SPARKLE_BIN="${SPARKLE_BIN:-$HOME/code/sparkle-tools/bin}"
@@ -62,6 +72,14 @@ if [ "$DRY_RUN" = false ]; then
     exit 1
   fi
 
+  if [ -f "$DEV_DMG_PATH" ]; then
+    HAVE_DEV_DMG=true
+  else
+    HAVE_DEV_DMG=false
+    echo "warning: no dev DMG at $DEV_DMG_PATH — releasing the beta DMG only." >&2
+    echo "         (the dual-DMG default of release-all.sh builds both)" >&2
+  fi
+
   if [ ! -d "$APP_PATH" ] && [ ! -d "$STAGED_APP_PATH" ]; then
     echo "error: Release app not found at $APP_PATH or $STAGED_APP_PATH" >&2
     exit 1
@@ -96,6 +114,14 @@ if [ "$DRY_RUN" = false ]; then
     echo "  Generate with: $SPARKLE_BIN/generate_keys" >&2
     exit 1
   fi
+
+  # The appcast is written into the site repo — its absence means the feed
+  # update would silently go nowhere. Fail before the release, not after.
+  if [ ! -d "$SITE_DIR/apps/fichero" ]; then
+    echo "error: site repo not found at $SITE_DIR/apps/fichero" >&2
+    echo "  (set FICHERO_SITE_DIR if the tubb.ca checkout lives elsewhere)" >&2
+    exit 1
+  fi
 else
   echo "[DRY RUN] would check: DMG, app, gh CLI, sign_update, Sparkle keychain key"
 fi
@@ -108,6 +134,10 @@ if [ "$DRY_RUN" = false ]; then
   BUILD=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$VERSION_APP_PATH/Contents/Info.plist")
   DMG_SIZE=$(stat -f%z "$DMG_PATH")
   DMG_SIZE_HUMAN=$(du -h "$DMG_PATH" | cut -f1)
+  if [ "$HAVE_DEV_DMG" = true ]; then
+    DEV_DMG_SIZE=$(stat -f%z "$DEV_DMG_PATH")
+    DEV_DMG_SIZE_HUMAN=$(du -h "$DEV_DMG_PATH" | cut -f1)
+  fi
 else
   # Rehearse with the version actually stamped in the project, not a placeholder,
   # so the release-notes lookup below is genuinely exercised by --dry-run.
@@ -117,6 +147,10 @@ else
   BUILD="0"
   DMG_SIZE="0"
   DMG_SIZE_HUMAN="0B"
+  # Rehearse the dual-DMG path when the dev artifact is on disk.
+  if [ -f "$DEV_DMG_PATH" ]; then HAVE_DEV_DMG=true; else HAVE_DEV_DMG=false; fi
+  DEV_DMG_SIZE="0"
+  DEV_DMG_SIZE_HUMAN="0B"
 fi
 TAG="v${VERSION}"
 
@@ -194,18 +228,31 @@ else
 fi
 export NOTES_HTML
 
-echo "[1/5] Sparkle-sign DMG (Ed25519 key from Keychain)"
-if [ "$DRY_RUN" = false ]; then
+echo "[1/5] Sparkle-sign DMG(s) (Ed25519 key from Keychain)"
+sparkle_sign() {
   # No -f: sign_update reads the private key from the Keychain by default.
-  ED_SIGNATURE=$("$SPARKLE_BIN/sign_update" "$DMG_PATH" | grep -oE 'sparkle:edSignature="[^"]+"' | sed -E 's/sparkle:edSignature="([^"]+)"/\1/')
+  "$SPARKLE_BIN/sign_update" "$1" | grep -oE 'sparkle:edSignature="[^"]+"' | sed -E 's/sparkle:edSignature="([^"]+)"/\1/'
+}
+if [ "$DRY_RUN" = false ]; then
+  ED_SIGNATURE=$(sparkle_sign "$DMG_PATH")
   if [ -z "$ED_SIGNATURE" ]; then
     echo "error: sign_update did not produce a signature" >&2
     exit 1
   fi
-  echo "  Signature: ${ED_SIGNATURE:0:20}…"
+  echo "  beta signature: ${ED_SIGNATURE:0:20}…"
+  DEV_ED_SIGNATURE=""
+  if [ "$HAVE_DEV_DMG" = true ]; then
+    DEV_ED_SIGNATURE=$(sparkle_sign "$DEV_DMG_PATH")
+    if [ -z "$DEV_ED_SIGNATURE" ]; then
+      echo "error: sign_update did not produce a signature for the dev DMG" >&2
+      exit 1
+    fi
+    echo "  dev signature:  ${DEV_ED_SIGNATURE:0:20}…"
+  fi
 else
-  echo "[DRY RUN] would run: $SPARKLE_BIN/sign_update $DMG_PATH  (key from Keychain)"
+  echo "[DRY RUN] would run: $SPARKLE_BIN/sign_update on each DMG (key from Keychain)"
   ED_SIGNATURE="dry-run-placeholder-signature"
+  DEV_ED_SIGNATURE="dry-run-placeholder-signature"
 fi
 
 # ── Create release on GitHub ────────────────────────────────────────────────
@@ -214,7 +261,7 @@ RELEASE_TARGET="${RELEASE_TARGET:-$(git -C "$ROOT_DIR" rev-parse HEAD)}"
 
 RELEASE_BODY="## Installation
 
-1. Download \`Fichero.dmg\` below
+1. Download \`Fichero.dmg\` below (\`Fichero-dev.dmg\` is the internal build with ALL features on — expect rough edges)
 2. Open the DMG and drag Fichero to Applications
 3. Launch Fichero
 
@@ -247,67 +294,62 @@ if [ "$DRY_RUN" = false ]; then
       $DRAFT_FLAG \
       $PRERELEASE_FLAG
   fi
-  if ! gh release view "$TAG" --repo "$RELEASE_REPO" --json assets \
-      --jq '.assets[].name' 2>/dev/null | grep -qx "Fichero.dmg"; then
-    uploaded=false
+  upload_asset() {
+    # Idempotent + retried per asset (see comment above).
+    local path="$1" name
+    name="$(basename "$path")"
+    if gh release view "$TAG" --repo "$RELEASE_REPO" --json assets \
+        --jq '.assets[].name' 2>/dev/null | grep -qx "$name"; then
+      echo "  $name asset already present"
+      return 0
+    fi
+    local upload_attempt
     for upload_attempt in 1 2 3 4 5; do
-      if gh release upload "$TAG" "$DMG_PATH" --repo "$RELEASE_REPO" --clobber; then
-        uploaded=true; break
+      if gh release upload "$TAG" "$path" --repo "$RELEASE_REPO" --clobber; then
+        return 0
       fi
-      echo "  DMG upload attempt $upload_attempt failed; retrying in $((upload_attempt * 60))s" >&2
+      echo "  $name upload attempt $upload_attempt failed; retrying in $((upload_attempt * 60))s" >&2
       sleep $((upload_attempt * 60))
     done
-    if [ "$uploaded" != true ]; then
-      echo "error: DMG asset upload failed after 5 attempts" >&2
-      exit 1
-    fi
-  else
-    echo "  Fichero.dmg asset already present"
+    echo "error: $name asset upload failed after 5 attempts" >&2
+    exit 1
+  }
+  upload_asset "$DMG_PATH"
+  if [ "$HAVE_DEV_DMG" = true ]; then
+    upload_asset "$DEV_DMG_PATH"
   fi
 else
   echo "[DRY RUN] would run: gh release create $TAG --repo $RELEASE_REPO --target $RELEASE_TARGET --title \"Fichero $VERSION\" $DRAFT_FLAG $PRERELEASE_FLAG"
 fi
 
 RELEASE_URL="https://github.com/$RELEASE_REPO/releases/download/${TAG}/Fichero.dmg"
+DEV_RELEASE_URL="https://github.com/$RELEASE_REPO/releases/download/${TAG}/Fichero-dev.dmg"
 PUB_DATE=$(date -R)
 
-# ── Update local appcast.xml ────────────────────────────────────────────────
+# ── Update appcast.xml (in the tubb.ca site repo) ───────────────────────────
 echo "[3/5] Update appcast.xml"
 
 if [ "$DRY_RUN" = false ]; then
-  # Append a new <item> before </channel>. If appcast.xml is the placeholder
-  # skeleton (no items yet), seed it from scratch. Otherwise insert in place.
-  if ! grep -q "<item>" "$APPCAST_PATH" 2>/dev/null; then
+  # Ensure the channel skeleton exists, then insert this release's <item>(s)
+  # as the first children — one insert path for seed and update alike. The
+  # beta item is channel-less (every install sees it); the dev item carries
+  # <sparkle:channel>dev</sparkle:channel>, which only dev builds accept
+  # (SparkleChannelDelegate).
+  if ! grep -q "<channel>" "$APPCAST_PATH" 2>/dev/null; then
     cat > "$APPCAST_PATH" <<APPCAST
 <?xml version="1.0" encoding="utf-8"?>
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
     <channel>
         <title>Fichero Updates</title>
-        <link>https://github.com/$RELEASE_REPO/releases</link>
+        <link>https://tubb.ca/apps/fichero/</link>
         <description>Appcast feed for Fichero Sparkle updates.</description>
         <language>en</language>
-        <item>
-            <title>Fichero $VERSION</title>
-            <pubDate>$PUB_DATE</pubDate>
-            <sparkle:version>$BUILD</sparkle:version>
-            <sparkle:shortVersionString>$VERSION</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-            <description><![CDATA[
-$NOTES_HTML
-]]></description>
-            <enclosure
-                url="$RELEASE_URL"
-                length="$DMG_SIZE"
-                type="application/octet-stream"
-                sparkle:edSignature="$ED_SIGNATURE"
-            />
-        </item>
     </channel>
 </rss>
 APPCAST
-  else
-    # Insert new <item> as the first child of <channel>
-    python3 - <<PY
+  fi
+
+  python3 - <<PY
 import os, re
 from pathlib import Path
 
@@ -318,39 +360,61 @@ xml = p.read_text()
 # multi-line HTML and would otherwise have to survive a triple-quoted literal.
 notes_html = os.environ["NOTES_HTML"]
 
-new_item = """        <item>
-            <title>Fichero $VERSION</title>
+
+def item(title_suffix, channel_line, url, length, signature):
+    return ("""        <item>
+            <title>Fichero $VERSION""" + title_suffix + """</title>
             <pubDate>$PUB_DATE</pubDate>
-            <sparkle:version>$BUILD</sparkle:version>
+""" + channel_line + """            <sparkle:version>$BUILD</sparkle:version>
             <sparkle:shortVersionString>$VERSION</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
             <description><![CDATA[
 """ + notes_html + """
 ]]></description>
             <enclosure
-                url="$RELEASE_URL"
-                length="$DMG_SIZE"
+                url=\"""" + url + """\"
+                length=\"""" + length + """\"
                 type="application/octet-stream"
-                sparkle:edSignature="$ED_SIGNATURE"
+                sparkle:edSignature=\"""" + signature + """\"
             />
         </item>
-"""
+""")
+
+
+new_items = item("", "", "$RELEASE_URL", "$DMG_SIZE", "$ED_SIGNATURE")
+if "$HAVE_DEV_DMG" == "true":
+    new_items += item(
+        " (dev)",
+        "            <sparkle:channel>dev</sparkle:channel>\n",
+        "$DEV_RELEASE_URL", "$DEV_DMG_SIZE", "$DEV_ED_SIGNATURE",
+    )
 
 # Insert immediately after the first occurrence of <language>...</language>,
 # or failing that, immediately after <channel>.
 m = re.search(r"(<language>[^<]*</language>\s*\n)", xml)
 if m:
-    xml = xml[:m.end()] + new_item + xml[m.end():]
+    xml = xml[:m.end()] + new_items + xml[m.end():]
 else:
-    xml = re.sub(r"(<channel>\s*\n)", r"\\1" + new_item, xml, count=1)
+    xml = re.sub(r"(<channel>\s*\n)", r"\\1" + new_items, xml, count=1)
 
 p.write_text(xml)
 PY
-  fi
 
   echo "  Updated: $APPCAST_PATH"
+
+  # Commit the feed in the site repo (COMMIT-ONLY — deploying/pushing the site
+  # is Daniel's step; the feed is not live until the site deploys).
+  if git -C "$SITE_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    git -C "$SITE_DIR" add "apps/fichero/appcast.xml"
+    if ! git -C "$SITE_DIR" diff --cached --quiet; then
+      git -C "$SITE_DIR" commit -m "appcast: Fichero $VERSION (build $BUILD)"
+      echo "  Committed in site repo — DEPLOY tubb.ca to publish the feed."
+    fi
+  else
+    echo "  warning: $SITE_DIR is not a git repo — appcast written but not committed" >&2
+  fi
 else
-  echo "[DRY RUN] would: update $APPCAST_PATH"
+  echo "[DRY RUN] would: update $APPCAST_PATH and commit it in $SITE_DIR"
 fi
 
 cd "$ROOT_DIR"
@@ -373,4 +437,7 @@ echo "[5/5] Done"
 echo
 echo "Release:  https://github.com/$RELEASE_REPO/releases/tag/$TAG"
 echo "Appcast:  $APPCAST_URL"
-echo "DMG:      $DMG_PATH ($DMG_SIZE_HUMAN)"
+echo "DMG (beta): $DMG_PATH ($DMG_SIZE_HUMAN)"
+if [ "$HAVE_DEV_DMG" = true ]; then
+  echo "DMG (dev):  $DEV_DMG_PATH ($DEV_DMG_SIZE_HUMAN)"
+fi

@@ -135,6 +135,26 @@ final class PairingService {
         }
     }
 
+    /// Which client surfaces (app, CLI, MCP) have talked to the engine this
+    /// session — the Sharing pane's "Connected Clients" list (2026-08-27).
+    func connectedClients() async throws -> [ConnectedClientRecord] {
+        let response = try await client.api.connectedClientsApiClientsGet(.init())
+        switch response {
+        case .ok(let okResponse):
+            let body = try okResponse.body.json
+            return body.clients.map {
+                ConnectedClientRecord(
+                    client: $0.client,
+                    lastSeen: $0.lastSeen,
+                    requests: Int($0.requests),
+                    transport: $0.transport
+                )
+            }
+        case .undocumented(let statusCode, _):
+            throw APIError.httpError(statusCode: statusCode, message: "Unexpected response")
+        }
+    }
+
     func listDevices() async throws -> [PairedDeviceRecord] {
         let response = try await client.api.listDevicesApiPairDevicesGet(.init())
         switch response {
@@ -245,4 +265,13 @@ final class PairingService {
     static func persistAuthToken(_ token: String, for apiRoot: URL) throws {
         try AuthTokenMiddleware.persistRemoteToken(token, hostString: apiRoot.absoluteString)
     }
+}
+
+/// One connected client surface, as the Sharing pane shows it (2026-08-27).
+struct ConnectedClientRecord: Identifiable, Equatable {
+    var id: String { client }
+    let client: String
+    let lastSeen: String
+    let requests: Int
+    let transport: String
 }

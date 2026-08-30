@@ -108,6 +108,12 @@ struct WorkflowSidebarItem: Identifiable, Codable, Hashable {
     /// not offer overrides that the engine would ignore. Absent = unknown, and
     /// unknown keeps the submenu (see `canOverrideModel`).
     var acceptsModelOverride: Bool?
+    /// What this workflow can be RUN ON, as the engine computed it —
+    /// `["documents"]`, or `["documents", "text"]` when an entry tool takes
+    /// a text port directly. The capability bar filters verbs by the current
+    /// selection with this; never re-derive it from nodes (the summary
+    /// payload has none, and the delegating case reads wrong).
+    var acceptedInputs: [String] = ["documents"]
     var createdAt: Date
     var updatedAt: Date
     /// The SERVER's answer to "does running this need a vision model?", read
@@ -135,6 +141,7 @@ struct WorkflowSidebarItem: Identifiable, Codable, Hashable {
         case isUntested = "untested"
         case isDirectlyRunnable = "direct_runnable"
         case acceptsModelOverride = "accepts_model_override"
+        case acceptedInputs = "accepted_inputs"
         case requiresVision = "requires_vision"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
@@ -161,6 +168,7 @@ struct WorkflowSidebarItem: Identifiable, Codable, Hashable {
         isDirectlyRunnable = try container.decodeIfPresent(Bool.self, forKey: .isDirectlyRunnable)
         acceptsModelOverride = try container.decodeIfPresent(Bool.self, forKey: .acceptsModelOverride)
         requiresVision = try container.decodeIfPresent(Bool.self, forKey: .requiresVision) ?? false
+        acceptedInputs = try container.decodeIfPresent([String].self, forKey: .acceptedInputs) ?? ["documents"]
         createdAt = try container.decode(Date.self, forKey: .createdAt)
         updatedAt = try container.decode(Date.self, forKey: .updatedAt)
     }
@@ -178,6 +186,7 @@ struct WorkflowSidebarItem: Identifiable, Codable, Hashable {
         isUntested: Bool = false,
         isDirectlyRunnable: Bool = true,
         acceptsModelOverride: Bool = true,
+        acceptedInputs: [String] = ["documents"],
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
         requiresVision: Bool = false
@@ -194,6 +203,7 @@ struct WorkflowSidebarItem: Identifiable, Codable, Hashable {
         self.isUntested = isUntested
         self.isDirectlyRunnable = isDirectlyRunnable
         self.acceptsModelOverride = acceptsModelOverride
+        self.acceptedInputs = acceptedInputs
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.requiresVision = requiresVision

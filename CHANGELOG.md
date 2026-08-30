@@ -2,6 +2,1143 @@
 
 ## Unreleased
 
+## 2026.07.31
+
+## 2026.07.31-beta
+
+## 2026.08.27
+
+## 2026.07.31
+
+## 2026.07.31-beta
+
+## 2026.08.27
+
+### 2026-08-27
+
+- feat(sharing): the Sharing toggle now serves the CLI, MCP clients, and paired devices from the embedded engine (UDS + HTTPS dual-bind; verified live)
+- fix(sharing): pairing trusts the app's own socket; the certificate names loopback; .local sharing listens on the LAN
+- fix(cli): token and TLS-trust discovery reach the sandboxed app's container
+- fix(app): stall-sampler signal handler no longer aborts on first use; rendition downloads no longer 500 in the sandbox
+- fix(ios): the three compile blockers (artifact tap gesture, rendition preferences, selection stepping) gated or shared for iOS
+- chore(scripts): thirteen dead scripts removed; guardrail sweep green, engine-signing build phase restored
+- docs: governance set accuracy pass (schemes, transports, licensing story unified); CODE_OF_CONDUCT added
+- docs(license): trademark honesty, CLA §6, and the two-LICENSE receipt
+- docs(license): Fichero relicenses to AGPL-3.0 — Daniel's sign-off, 2026-08-27
+- docs(contributing): Daniel's license + CLA note, verbatim
+- fix(tests): InspectorLayoutTests joins the AppSource resolver sweep
+- fix(tests): re-retire the two tests the reorg resurrected
+- chore(tests): the overnight Perf ratchet follows the reorg into Tests/Unit/general
+- chore(presets): manifest regen — the economy preset joins the 50
+- feat(site): Daniel's worksheet copy fills the landing slots (AGPL flag inline)
+- fix(import): the grant extension escapes the #else branch it was born in
+- fix(import): link imports grant their files — the 403 class dies
+- feat(reader): the artifact lens — a pane shows the artifact you choose
+- feat(workflows): the paleography redesign — single model, staged craft, user decides
+
+### 2026-08-25
+
+- fix(paleography): economy trocr default = TRIDIS v1 — v2's hub packaging is broken
+- feat(paleography): economy HTR tool — free Apple Vision line boxes, one cheap cleanup
+- feat(site): landing page becomes a copy-light structure skeleton, harmonized with tubb.ca
+- feat(release): every release ships two DMGs — beta (public) + dev (all features)
+- feat(release): the Sparkle feed moves home to tubb.ca/apps/fichero (Daniel's 2026-08-25 ruling)
+- feat(tiers): beta build sheds the untested surfaces (Daniel's 2026-08-25 ruling)
+
+### 2026-08-04
+
+- docs(testing): platform split, plan matrix, and the ONE spawn-per-run harness (#4250 #4535 #4541)
+- feat(applescript): agent verbs — stop run, declared-selection runs, one screenshot verb; scripted UX smoke (#4535, #4536, #4166)
+- fix(tests): sweep hop-count #filePath resolvers onto AppSource + the ONE spawn-per-run engine harness (#4493 class; #4250 #4241 #4400)
+- feat(tests): seed_test_library --full — the synthetic seeded library, deterministic and self-proving (#4248 follow-on, 2026-08-04 decisions)
+- feat(tests): plan matrix — 9 resolving plans with per-destination idiom canaries (#4250, #4472)
+- fix(project): FicheroIOSTests carried MARKETING_VERSION/CURRENT_PROJECT_VERSION literals (#3234)
+- refactor(tests): move all test targets under fichero/Tests/{Unit,UI}/{general,mac,ios,ipad} + plans/ (#4250)
+
+## 2026.08.26
+
+### 2026-08-25
+
+- test(perf): the stall-implicated view values get a size ratchet
+- chore(gates): the reanchor endpoint's remaining three baselines
+- docs(release): 2026.08.26 notes — the same-day-feedback build
+- chore(guardrails): the reanchor endpoint enters the three coverage baselines
+- feat(bbox): step 4 — the re-anchor pass marks frame-unproven renditions
+- feat(reader): a multi-page selection rides the real WebKit transcript
+- fix: run scope, reader chrome, the new-library cluster, and a main-thread probe
+- chore(guardrails): the full sweep runs green again
+- feat(library): the Mac-shaped create flow — remembered folder, sync warning, real recents
+- fix(workflows): split parts find their page; script note leaves content
+- feat(toolbar): contextual workflow buttons — the selection suggests its next step
+- feat(sidebar): the library menu learns Show in Finder and Delete Library…
+- feat(import): a PDF's own annotation layer survives import (bbox step 3)
+- feat(models): every cloud provider's catalog loads LIVE; LiteLLM is pricing-only
+- feat(inspector): a geometry artifact lists its regions; a click lights the words in Preview (B2)
+- fix(models): the defaults page refreshes on return; a failed provider list says so
+- fix(bbox+inspector): fresh geometry wins, and the artifact list obeys the click
+- feat(ux): the server says so, and the panes drop their surname
+
+## 2026.08.25
+
+### 2026-08-24
+
+- feat(engine): the outline endpoint learns the #3322 listing sort; its first route tests
+- test(llm+ingest): pins follow the new cache-key and retention contracts
+- fix(core): an explicit DuckDB memory cap that cannot apply RAISES
+- fix(tests): spawned test engines keep their tokens OUT of the user's (FICHERO_TOKEN_DIR)
+- fix(workflows): a draft that quotes our own instructions is commentary (prompt-echo)
+- feat(vision): cursive word boxes snap to their ink (C2)
+- feat(sidebar): reveal path and child fetch ride the outline endpoint (Mandate 1, consumers 2+3)
+- feat(vision): Apple Vision geometry prefers the frame-true background_removed rendition
+
+## 2026.08.24
+
+### 2026-08-24
+
+- chore(release): accept 2026.08.24 sizes (+3.2MB app, +1.3MB DMG — the pane-head program, outline client, dataset filter cluster; no new dependency)
+- fix(island+tests): backend work keeps precedence over the workflow count; principal-zone pin matches C10
+- fix(ingest+docs): retained docs keep ordinary page_content; /view endpoint documented
+- fix(llm): the empty-retry disables native reasoning — a default-thinker drowns any cap
+- fix(llm): vision cache never stores an empty answer; sampling params join the key
+- fix(workflows): the empty-response retry raises the token ceiling
+- feat(models): the row click IS the add — staged select-then-confirm dies
+- fix(sidebar+models): the tree wakes on splices and honest parent counts; model adds are never silently lost
+- fix(workflows+island): reasoning-only output retries bare; live work outranks the selection
+- fix(chrome): the workflow chip rides WindowState, not NotificationCenter; island selection is one value
+- fix(import): a zero-byte drop is a failed read, never a document (C9)
+- feat(toolbar): C10 — the island's capsules actually separate; v1 workflow chip
+- fix(panes): C1 — crumbs keep their colours and become draggable
+- feat(library): C8 — the dataset facets fold into the ONE bottom bar; one control size everywhere
+- fix(preview): C3 — a sibling step loads the PREFERRED rendition first, one fetch, one swap
+- perf(engine): the content tier answers in ONE query — the 2.4s sidebar-click tax falls
+- fix(panes): split state is slot-scoped — splitting one preview no longer splits its twin
+- fix(engine): the Air OOM's three mechanisms — bounded embed slices, DuckDB memory cap, retain-light ingest
+- feat(client): outline consumer 1 — crumbs read the one endpoint
+- feat(engine): Mandate 1 lands server-side — GET /documents/{id}/view, the ONE outline endpoint
+- refactor: LibraryPathStatusBar deleted (ruled); crumbs walk + DatasetSelectionStatus relocated; reader zoom on its own key
+- perf(panes): environment values compare by identity — the closure-churn re-walk ends
+- test: SplitPaneState grid rules pinned — coexisting axes, 2-cap in grid, thirds single-axis, collapse order
+- feat(panes): the 2x2 split grid — splitting one axis no longer deletes the other
+- test: the chat conversation-switch pin scans the chrome split file
+- test: the reskin-emphasis pin follows reskinCard to its +Thumbnails home
+- chore(lint): the ratchet holds at 64 — file splits for the night's growth
+
+### 2026-08-23
+
+- chore: comment-hygiene — the expansion note reads as prose, not commented-out code
+- test+refactor: the guardrail sweep follows tonight's rulings; PaneCrumb.name becomes title
+- fix(workflows): S7 — the completion line says what it is, not a result count
+- fix(workflows): S11 — an idempotent re-run says 'already split', never a false warning
+- test: pins follow the day's rulings — safe-area head, deleted tab strip, quiet island, no title counts
+- fix(preview): S6 — a sibling step resets to fit-all
+- fix(sidebar): S10 — a document click that misses the item index routes through the store, never to the parent
+- feat(library): the Metadata popover gains Name — icon view can hide labels
+- feat(panes): the kind icon switches what a slot hosts — any pane can become any other
+- fix(library): split library panes hold independent view modes
+- feat(chat): compose area grows, placeholder gone, grounding shows in the bar, model is an icon
+- fix(canvas): S12 — a reskinned card gets its texture back; every inspector sub-pane carries the shared bottom bar
+- feat(island): the selection speaks plainly — icon, body type, '2 images selected', quiet idle
+- feat(panes): pin everywhere — preview freezes its document, library freezes its browsed set; accent crumbs; merged narrow selector
+- feat(chat)+perf: chat head takes over — toolbar row gone, bottom bar hosts new-chat/model/save; deferred crumb menus; one split owner; dataset band gone
+- fix(panes): constant head height ends the click stall; island is selection-only; canvas channels join the bottom bar; Xcode-height mini toolbars
+- fix(panes): stall fixes — stable zoom publication, AnyView-bounded crumb rungs; lens menu header dedupe
+- fix(panes): one imageZoomActions publisher at a time; crumb ladder completes; island names the selection; preview crumb anchors on what it shows
+- feat(library): one bottom mini toolbar; solid coloured crumb glyphs; env-fault fix
+- feat(panes): heads become safe-area insets; X collapses the local split; + adds only; adaptive selector; Preview/Edit lenses
+- feat(panes): chat + preview adopt the head; auto chrome; colored crumb icons; icon ladder; sectioned library lens menu
+- feat(panes): library head gets its X (hide-pane seam); Page lens renamed Content; glass pin follows in guard test
+- feat(library): the library pane adopts the head — the view-mode picker leaves the window toolbar
+- feat(panes): jump-bar crumbs with icons; pin menu; independent split lenses; island separates from status
+- feat(panes): reader chrome moves to the head — glass capsules, icon kind, adaptive crumb, split menu; one lens switch, one bottom bar
+- fix(sidebar): the shown scope is a set — ⌘A's parent-and-child rows dedupe before they reach the canvas
+- fix(canvas): slotIndices is total — a duplicate id logs and keeps its first slot, never traps
+- chore(cli): regen surface — force_recompute rides the run request
+- fix(test): three pins follow their rulings — refresh-on-expand, one Select All home
+- fix(reader): the collapse was the unapplied method reference — an explicit closure ends it
+- fix(reader): bounded sub-expressions un-collapse the type checker at the PaneHead call site
+- fix(entries): refuse to pick a frame by date, and pin why the rest is safe
+- feat(runs): an explicit run redoes what the workflow is FOR
+- fix(nav): the seed's primary is document-order, never Set.first — the guardrail caught it
+- fix(linking): the selection carries its text — an entry's reader lights its page
+- chore(openapi): regen — region_count, geometry_rendition_id, force_recompute
+- refactor(nav): selection-stepping walks split out — ratchet stays at 64
+- fix(nav): a fan with nothing in hand still rotates — seed the walk from the selection's primary
+- feat(runs): a forced run ignores every cache, not just one of them
+- feat(entries): re-running matches entries instead of destroying them
+- feat(sidebar): relaunch reveals the restored folder — expand, load, select
+- feat(reader): the pane head's crumb is full ancestry, not the document name
+- feat(reader): the pane head, and every built surface as a lens (PaneHead step 1)
+- fix(sidebar): expansion refreshes — a sparse early fetch is not forever
+- fix(canvas): zooming in fetches the textures the glyph tier skipped
+- fix(entries): a region says whether its boxes were measured or claimed
+- fix(app): one Select All row, and ⌘A follows the pane you clicked
+- feat(artifacts): the list can say how many regions, and which picture
+- feat(runs): say what was reused, not just "completed in 0ms"
+- test(overlay): the frame matrix is a pinned pure function — match-or-skip, never transform
+- fix(test): two path-pinned guards follow their declarations — search mount, tint painter
+- feat(linking): select text in the reader, the words light on the page
+- fix(lint): the nonisolated note joins the doc comment — // after /// detaches it
+- fix(guardrails): pre-push battery green — sanction, rehash, regroup, and one real SIGTRAP fix
+- fix(chrome): search sits right of the inspector toggle, Finder-styled; durationMs honestly fractional
+- feat(client): the frame a box was measured on, paired end-to-end
+- fix(guardrails): follow the decoder and renderer mirrors to their split files
+- feat(app): ⌘A routes by focused surface — policy widened, inspector list publishes (M1 C+D)
+- fix(seams): the guardrails caught two real defects in my own work
+- fix(reader): multi-selection headers compose through DocumentTitle
+- feat(preview): rendition kind is sticky across siblings and defaults to background removed
+- fix(test): checkerboard fixture is a real RGBA bitmap rep
+- feat(reader): a multi-selection reads as one run of sources — all N transcripts, archival order, pinned headers
+- feat(preview): rotate within a multi-selection — ←/→ cycles the fan's front card
+- tweak(preview): ground is windowBackground, not underPage — lighter light, subtler dark
+- fix(preview): bottom toolbar present from the first loading frame
+- fix(gate): close the 5 red tests — symlink-proof sweeps, M1 pinned resolved, vowel-y plurals, folder swipe seeds past shown child
+- fix(preview): transparent images get a checkerboard ground, not a white lie
+- feat(geometry): a box set says which picture it was measured on
+- feat(vision): run a tool on an entry, not on the page around it
+- feat(regions): give a region node pixels of its own
+- fix(migrations): a library with no notes table is a no-op, not a failure
+- feat(ocr): Detect Regions gains a VLM provider — for the hands Apple cannot read
+- chore(lint): today's growth fixed down — ratchet back at 64
+- refactor(models): fold the duplicate Note into Annotation — the collision dies
+- fix(library): ⌘A selects what the focused surface is SHOWING (M1, slices A+B)
+- feat(geometry): a region names the rendition it was measured on
+- feat(import): pages are the one home for text; '425 entries', not 'entrys'
+- refactor(library): one dataset row menu, one selection, one deferral rule
+- feat(ocr): strip tiling as the base pass + line dedupe; Compare Runs unbroken
+- feat(ocr): transcript-anchored recovery — the transcript proves what Vision missed
+- feat(ocr): gap escalation — re-OCR the bands Vision returned nothing for
+- fix(library): the change stream respects the grid's tier — spreads stop reappearing
+- docs(geometry): file the audit's two judgment calls at the code they concern
+- fix(annotations): the typed anchor survives the read — overlays live again
+- fix(ocr): word boxes reach 100% — UTF-16 ranges + interpolated fallback
+- refactor(services): DocumentService conversion split — 1000-line ceiling
+- feat(entries): the containment ladder — region → page → spread on the vertical axis
+- fix(geometry): consumers now READ the space a rect declares
+- test(library): the menu parity matrix, as the surface actually is
+- fix(entries): anchor regions by the printed date heading — 73/201 → 198/201
+- fix(preview): every image swap re-measures the overlay geometry
+- fix(perf): the stall sampler names the culprit — 192 frames, both halves
+- fix(entries): the converters carry region_in_parent — the highlight renders
+
+### 2026-08-22
+
+- fix(tests): a guard must not read its own prose, or a prefix of its target
+- fix(tests): the reader wrap negative control forces layout — no content-visibility race
+- fix(canvas): items sort after nodes under Name too, and three guards that lost their target
+- fix(tests): AppSource.root resolves symlinks — snapshot gates stop lying
+- feat(canvas): zoom to fit and jump history — ⌘= / ⌘[ / ⌘] (§25.4 step 4)
+- fix(tests): the exhaustive op-walks have to keep up with new ops
+- fix(canvas): the +Ops splits need internal access, not private
+- feat(canvas): Colour by — hue as its own channel, beside strength (§20.3, §13.2)
+- feat(canvas): Arrange by — the one picker that moves cards, animated (§25.4 step 3)
+- chore(lint): ratchet auto-tightened by the sweep
+- fix(tests): last three pins — structural debounce routing, shared-column grid
+- fix(tests): one gutter from the widest card, and a case-slice that stays in its case
+- fix(tests): spell out CGFloat.nan / Double.nan in the new canvas tests
+- fix(tests): the swift-testing pass is honest again — 16 hidden failures reconciled
+- feat(client): the Swift half of bbox Step 3 — typed anchors on the wire
+- feat(canvas): emphasis — one channel for search heat and entity highlight (§25.4 step 2)
+- test(canvas): pin zero default card rotation (§18.1 defect 2)
+- fix(canvas): the 3D board is orthographic (§18.1 defect 1)
+- fix(canvas): the board takes the viewport's shape, from ONE shared derivation (§18.1 defect 3)
+- style(canvas): drop a stray double blank line in CanvasSceneView+Gestures
+- fix(canvas): gutter ≈0.15 of the board's ACTUAL card width (§18.1 defect 4)
+- fix(tests): the unit suite is green again — 25 inherited failures reconciled
+- fix(canvas+preview): night batch 2 — ghosts, flaky swipes, first-load thumbnails
+- feat(search): dataset views scope to the active search's hits
+- test(seams): the guardrail missed the READ side — close it, and fix the caller
+- test(seams): catch retired geometry field names at construction
+- test(geometry): migrate the last Annotation(bbox=) callers to the anchor
+- refactor(geometry): retire the last bare bboxes onto the shared anchor types
+- feat(engine): DatasetQuery.ids — data views can scope to search hits
+- feat(library): Spreads ↔ Pages — the grid gets a tier, the sidebar keeps the tree
+- feat(library): one definition of "the content level" — views and workflows share it
+- fix(canvas+preview): morning batch 1 — taps live again, flip refits, honest directions
+
+## 2026.08.22
+
+### 2026-08-22
+
+- fix(ios): the 3D camera extension is cross-platform — drop the macOS guard
+- chore(release): accept +0.11% size — the rendition machinery + four SPM minor bumps
+- chore(lint): projection vars earn names — x/y were identifier ERRORS
+- fix(guardrail): import-render checker reads table-shaped decoders
+- fix(workflows): a part that fails to store must reach the caller
+- chore(lint): pay tonight's speed tax — 80 warnings back to the 66 baseline
+
+### 2026-08-21
+
+- fix(preview): entry-source highlight is a soft wash BEHIND the word boxes
+- fix(preview): tall pages fit BOTH axes after a step; boxes survive page steps
+- feat(canvas): ⇧⌥ rubber-band selection in 3D
+- fix(preview)+feat(nav): boxes exact at first fit; page step commits with the image ready
+- feat(canvas): double-click zooms a card to full view, double-click returns
+- feat(workflows): split and segment create child NODES, not just files
+- feat(image-editing): split, crop and segment record ONE geometry
+- chore(openapi): Rendition.produced_from into the spec (all three copies)
+- feat(canvas): ⌘-scroll zooms into the cursor, both canvases
+- feat(workflows): image tools persist their pixels as renditions
+- fix(editor): picker labels stop rendering as one-character columns
+- feat(canvas+preview): round-3 ledger batch
+- refactor(embeddings): absorb the duplicate SourceAnchor into the shared one
+- fix(preview): flip shows the rendition it fetched; no bounce at fit; pinch snaps to fit
+- fix(engine): rendition flip 500 — the sandbox denies the mimetypes module
+- chore(preview): retire page curl — slide only
+- feat(preview): page arrows for images + un-curl peels from the curled corner
+- fix(preview): renditions reach the tab boundary — up/down flip actually loads
+- feat(preview): page-turn style option (Slide / Page Curl) + animate the page, not the pane
+- feat(preview): brief transitions — pages push sideways, renditions push vertically
+- chore(pbxproj): drop 4 legacy explicit entries shadowed by the synchronized folder
+- feat(artifacts): drop-to-promote + swipe-down rendition flip + pbxproj dedupe
+- fix(inspector): clicking a row NAME selects it — double-tap goes simultaneous
+- fix(workflows): force_ocr bypasses the skip-if-done artifact cache too
+- feat(preview): rendition flip is live — ↑/↓ keys, chevrons, bytes fetch
+- fix(preview): renditions actually reachable + boxes stay on the image at zoom-out
+- fix(access): grants that survive — unstick relaunch loads, persist link-import grants
+- feat(access): preview asks for the missing source-folder grant itself
+- feat(access): File > Grant Folder Access… — mint the missing source-root grant
+- fix(merge): green the combined tree — six merge-composition defects
+- chore(deps): SPM update to latest — four minor bumps (Xcode "Update to Latest Package Versions", Daniel)
+- fix(gate): allowlist the unwired rendition-bytes route for the swiftui surface
+- fix(gate): three guardrail failures, all introduced by this lane
+- feat(ingest): split parts get their opening, as a real parent node
+- feat(preview): name the rendition on screen, and serve rendition bytes
+- chore(openapi): regenerate spec + CLI surface for renditions
+- feat(db): backfill Rendition rows for pre-Rendition documents
+- chore(release): commit the 2026.8.20 version stamps left in the tree by the release run
+
+### 2026-08-20
+
+- feat(ingest): read .renditions.json instead of skipping it
+- feat(api): GET /documents/{id}/renditions, ordered engine-side
+- feat(media): region_math — map a rect between a node's frame and its parent's
+- feat(models): one anchor, one region — seven bbox fields become two types
+- fix(preview): boxes stop moving under zoom — atomic geometry, no rendition swap
+- fix(inspector)+feat(svo): stale-while-revalidate everywhere + narrator context for claims
+- feat(inspector): "Appears In" — the actual files an entity occurs in
+- feat(canvas): the input-grammar batch from live testing 2026-08-20
+- fix(live round 4): full menu parity + canvas context menus + workflow-leg load retry
+- fix(release): idempotent GitHub step — create/edit + retried asset upload, resumable after a half-done run
+- fix(live round 3): canvas input polish, workflow availability everywhere, exclusion is a promise
+
+## 2026.08.20
+
+### 2026-08-20
+
+- chore(release): accept +0.5% DMG size — the 2026-08-19 dependency refresh (first release since)
+- fix(release): retry notary submission — the multi-GB S3 upload aborts transiently
+- fix(release): retry hardened signing — the timestamp service flakes under 285 sequential requests
+- docs(release): 2026.08.20 release notes — the speed build
+- test(flake): self-diagnosing failure detail for the phantom-credentials polluter
+- chore(lint): restore honest 66 baseline (65 was an error-threshold artifact)
+- fix(gate): derivative stages never resurrect deleted rows; bounded inline thumbnails; stale read-cursor drop
+- perf(fetch): ONE batched document fetch everywhere + guardrail-clean splits
+
+### 2026-08-19
+
+- fix+perf(overnight round 1): 3D thumbnails, Trash-bookmark guard, reader-search sync, stall killers
+- fix+perf(live round 2): search selection scope, canvas input, listing off the loop, defaults heal
+- fix(workflows): restore is_system on homed legacy presets - defaults reappear in every library
+- perf(reader): Safari-fast scrolling - lazy panels, cached page offsets, offscreen page skip, deduped JS injection
+- perf(engine): committed reads for listings, one snapshot, memoized hydration, narrower locks
+- perf(client): kill the change-event storm during imports
+- fix(live-testing): search hits as grid nodes, stacks keep their place, canvas thumbnails, embed-queue status
+- fix(toolbar): toolbarSearchField internal — cross-file extension access
+- fix(workflow): initialize ToolInfo.parallelism in the memberwise init
+- fix(tests): un-poison the suite — file-scoped Path.stat fake; ruff-clean the tree
+- chore(gate): pay the guardrail debts of today's new endpoints
+- fix(search): remove duplicate related-docs endpoint — #4120's already exists
+- fix(search): module-level StreamingResponse import (ruff F821)
+- feat(search): streaming endpoint v1 — provisional keyword batch, then fused ranking (#4604)
+- feat(search): batch text-region resolution for the heat map (#4604 Phase 2)
+- feat(search): Find Related Documents endpoint (#4606)
+- fix(inspector): entity rows take the full Mac click grammar on the whole row (#4607)
+- feat(workflow): Duplicate to Edit beside the lock badge (#4514)
+- fix(workflow): viewing a locked preset never alerts — lock badge instead (#4514)
+- feat(search): non-document hits render flat — no disclosure triangle, no cap (#4604)
+- feat(search): KG evidence is a real fusion leg in hybrid ranking (#1833)
+- feat(search): resident top-right search field with ONE mode menu on the magnifier (#4604)
+- fix(embed): migration sweeps stale-space rows a concurrent writer raced in
+- feat(embed): bge-m3 is the default embedding space (#4604)
+- feat(library): Exclude Everywhere shortcut sets both exclusion flags (#4580, #4604)
+- fix(search): script-aware fold — abugida vowel signs survive, accents still strip (#4604)
+- feat(search): singular scope prefixes alias to canonical plurals (#4604)
+- fix(search): keyword hits are exempt from the fused min_score floor (#4236)
+- feat(path-bar): right-click menu on crumbs; OpenAPI regen for bulk create + KG stats (#4591)
+- feat(import): bulk document create for the page phase; KG coverage denominators
+- fix(preview): show the cached thumbnail instantly while the full image loads (#4583)
+- feat(path-bar): crumbs drag like their library rows (#4591)
+- fix(timeline): full selection grammar and a working Full Text toggle (#4598)
+- feat(sheet): Date and Text column headers sort (#4595)
+- feat(icon-view): prefetch the whole folder's thumbnails on open, bounded (#4589)
+- fix(canvas): rubber band matches the app's marquee style (#4601)
+- fix(canvas): page-order grid default in 3D too; zoom-constant selection chrome (#4601, #4603)
+- feat(library): Exclude from Search in the contextual menu (#4580)
+- feat(search): exclude_from_search flag — filtered results, skipped embeds, migrated (#4580)
+- fix(canvas): Space quick-looks the selection instead of beeping (#4601)
+- fix(preview): zoom-out floor tracks fit-to-view, no more 1% speck (#4587)
+- fix(title): count selections in their own noun; index breadcrumb lookups (#4586, #4602)
+- fix(icon-view): shift-click toggles the clicked item, Finder-style (#4582)
+- perf(menus): build the workflow-target children index once per resolve (#4585)
+- perf(inspector): kill the entities-tab main-thread stall on large folders (#4602)
+- fix(import): manifest node dates land as date_original on arrival
+- feat(ingest): read .entities.json sidecars at import via one audited bulk upsert
+- fix(search): coverage counter uses the pinned lancedb select API
+- fix(embed): drop all-null unknown columns at vector-table creation
+- fix(embed): explicit arrow types at vector-table creation
+
+### 2026-08-18
+
+- fix(gates): re-arm the size ratchet; re-pin stale provider-key tests
+- feat(search): stats report embedding COVERAGE, not just a row count
+- fix(embed): type-aware heal for Null-typed Lance columns
+- fix(sidebar): a running patch flush is never cancelled by the next event
+- fix(embed): heal Null-typed legacy Lance columns; gate ledgers updated
+- fix(audit): typed guards on the chain head read
+- perf(audit): head-only chain append — every audited action was O(history)
+- perf(import): drop the futile pre-stamp preview warm in link mode
+- perf(import): drop the futile pre-stamp preview warm in link mode
+- perf(import): bulk entity/artifact actions; claims degrade; embed worker connection
+- perf(import): import first, embed separately (Daniel's ruling)
+- fix(import): manifest progress spans all four phases
+- perf(embed): background embed reuses the shared Database instance
+- fix(import): dedup pagination survives offset-ignoring routes
+- fix(ingest): the in-process import client says who it is, quietly
+- fix(ingest): the importer's dedup listings paginate — idempotency past 500 rows
+- fix(ingest): the drop grant is the stamp's authority — broken bookmarks can't decline it
+- fix(inspector): timestamp-only touches stop refreshing the panel
+- fix(ingest): a refused entity warns; it no longer kills the corpus import
+- feat(sheet): the Text column edits in place, protected by the user-edit stamp
+- chore(release): appcast entry for 2026.08.17 — the Sparkle channel sees the DMG
+
+## 2026.08.17
+
+### 2026-08-17
+
+- chore(release): accept the hardening build's size
+- chore(release): stamp 2026.08.17 with its own notes; 2026.08.15 notes restored
+- chore(release): stamp the overnight datasets-hardening build
+- feat(ingest): transcript sidecars land in page_content on plain folder ingest
+- feat(calendar): planner cells — the calendar IS the display
+- fix(diary): the prompt forbids the two live extraction defects
+- feat(dataset): the status line speaks the dataset's language
+- feat(sheet): the spreadsheet gets its name, its column defaults, and arrow keys
+- test(ingest): a manifest-imported corpus deletes cleanly through the sidebar's route
+- fix(ingest): a re-drop REPAIRS an earlier incomplete import
+- fix(inspector): an opened extracted entry is inspected AS ITSELF
+- fix(ingest): dropped corpora get thumbnails and real progress totals
+- fix(diary): entry spans survive line breaks — normalized search, raw offsets
+- fix(ingest): the drop-import's in-process client rides the sanctioned in-memory transport
+- feat(dataset): one selection model routes every renderer; "Data" group; per-view subfolders
+- feat(ingest): an .iffy.json original_date dates the document on arrival
+- feat(ingest): dropping a folder with manifest.jsonl imports the corpus — the UX path
+
+### 2026-08-16
+
+- feat(ingest): the Marshall staging sidecars are sidecars, not documents
+
+### 2026-08-15
+
+- fix(dataset): the heading dedup and chronological default reach every renderer
+- fix(dataset): textDetail storage moves into the class body
+- fix(dataset): card clicks route through SelectionGrammar; store display helpers split out
+- feat(dataset): chronological selectable cards — dedup'd headings, full text, date edits, run-on-selection
+- feat(sort): document-date ordering breaks ties by name (Daniel: "document date then name")
+- fix(ios): cross-platform names escape their AppKit guards; checkbox style is mac-only
+- chore(release): accept the datasets release's size; two lint identifiers
+- fix(release): preflight accepts the direct-key fallback notarize.sh already performs
+- chore(release): stamp 2026.08.15 across frontend and engine
+- docs(release): 2026.08.15 notes — the datasets release
+- test: anchors follow the run-selection extraction and the workflow-menu file split
+- feat(preview): an entry previews its SOURCE page with its bbox highlighted (preview-layers M1, #27)
+- feat(dataset): Dates/Type facet strip on the renderers; edited rows keep their source reference
+- fix(workflows): state a wider-than-clicked run scope in the menu, log provenance at fire
+- fix(dataset): sidebar "doc:" ids scope correctly; entry bodies stop repeating dates; leaf scope falls back to parent
+- fix(activity+transcribe): finished runs read as finished; user text outranks machine OCR
+- fix(dataset): a transcribed page IS a data row; the empty state says what to run
+- feat(dataset): every extracted row carries its clickable source reference
+- feat(dataset): Extract Dates lights up the data views — document dates are a date source
+- fix: three live morning bugs — created-library 403, sibling workflow blast, folder-delete consent
+- test(sidebar): scan tests follow the label core; fixture matches the live feed
+
+### 2026-08-14
+
+- perf(sidebar): measured selection-stall harness + equatable label core
+- fix(sandbox): test-run libraries stop polluting the app's saved bookmarks
+- feat(dataset): entries show their words; images leave the data views; thumbnail herd tamed
+- fix(dataset): SQL moves to the DB layer; stale-row guard on saveAttribute
+- feat(dataset): grid header sorting — numeric-aware, missing values last
+- feat(dataset): Grid — the spreadsheet view mode, cells editable in place
+- feat(dataset): Class row default-visible; real prototype unassign; calendar edits in place
+- feat(dataset): preview-driven renderer polish; List crash dodged; fixtures
+- chore(lint): ratchet tightens to 66 warnings
+- fix(dataset): two silent decode failures blanked the renderers and type editor
+- feat(library): the view-mode picker is three sections — Browse, Dataset, Canvas
+- feat(library): cards, timeline, calendar and map are each their own view mode
+- fix(library): the Data mode is actually reachable — the picker never learned it
+- feat(workflows): Diary Entries — pages become per-day nodes with dates and boxes
+- feat(library): the Data view mode — cards, timeline, calendar and map land
+- feat(datasets): DatasetService — the app speaks the renderer query
+- feat(datasets): the renderer query — Stage 2 engine slice lands
+
+### 2026-08-13
+
+- fix(app): File menu, round two — an empty .newItem replacement wins the merge
+- feat(prototypes): three morning rulings — editor everywhere, honest empty state, entity multi-drag
+- chore(lint): Daniel's five workflow-view violations cleared
+- fix(app): the File menu is back — and LibraryView fits its budgets again
+- feat(activity): the monitor shows every open library, and rows are deletable
+- feat(trace): click a node, read the model's actual exchange — episodes land in the app
+- perf(sidebar): box SidebarItem payloads — the value-witness copy storm ends
+- chore(datasets): Stage 2 scale measurement — JSON extraction holds at 100k
+- feat(prototypes): the type editor exists — datasets Stage 1, UI slice B
+- fix(tests): the unit suite is green again — ten pins reconciled with their rulings
+- feat(entities): rows select on plain click; entities drag onto workspaces
+
+### 2026-08-12
+
+- feat(inspector): prototype-declared attributes are visible and editable
+- chore(openapi): spec regen for the Stage 1 prototype surface
+- feat(prototypes): node attribute values + effective-attributes surface — Stage 1 slice 2
+- feat(prototypes): typed attribute declarations with roles — datasets Stage 1, engine slice 1
+- fix(preview): boxes land on the image, and hovering one shows its text
+- docs(plan): rulings — confirmation is cheap; generated nodes look different
+- docs(plan): rulings — generated summary with source links; global prototypes via parent_key
+- fix(app): last two scenes with default NewItemCommands stripped (#4331)
+- fix(chat): page flips no longer re-sync the toolbar menus — 738ms stall gone
+- docs(plan): stage 7 — generated things as nodes, and views side by side
+- fix(vision): EXIF-orient images before OCR — boxes land on the displayed page
+- fix(trace): timeline display names fold onto planned node ids — steps that ran say so
+- fix(app): first open pays engine init explicitly, failed loads retry, grant approval reloads
+- fix(engine): committed-read document lookups; Inbox is a system folder
+- docs(plan): structured data from historical materials — prototypes, attributes, views
+- fix(app): txt drops land, cancelled patches requeue, chat toggle is sparkles
+- feat(observability): artifacts carry their episode id — one-hop provenance
+- feat(observability): training export — the episode loop closes
+- fix(app): launch crash — aux scenes drop default commands; ONE focused-value writer
+- feat(hermeneutics): interpretations are retrievable — a search leg that folds to sources
+- feat(hermeneutics): the interpret tool — the layer's FIRST writer
+- feat(observability): per-node inspection — a run's episodes over the API
+- feat(workflows): elementwise stages STREAM — Send-chaining lands in the builder
+- test(workflows): Send-chaining semantics PROVEN against pinned LangGraph
+- feat(workflows): tools declare their parallelism — the pipelining lane's contract
+- feat(observability): vision calls record episodes — the ledger's first live wire
+- feat(panes): chat is a ROW pane — narrow, beside the reader, never a takeover
+- feat(observability): the episode ledger — schema design + v1 recording core
+- feat(search): artifact hits fold into the ONE result list
+- fix(workflows): the repo-root MagicMock junk-file polluter is closed (task #14)
+- feat(search): result rows show the MATCHED text and relevance, in relevance order
+
+### 2026-08-11
+
+- feat(library): Xcode-style metadata popover chooses what list rows display
+- feat(panes): step 1 — the widescreen row renders from a pane LIST
+- fix(views): cap the reading pane — copying its composed value corrupted a retain
+- test(contracts): full-suite gate remediation — ledgers state today's true debt
+- refactor(knowledge): fold the kg/ shim package into knowledge/ — one KG backend
+- refactor(llm): delete the second embedding space — one canonical vector path
+- feat(rag): injected KG claims are ranked by the query, not by UUID
+- fix(search): Ask mode compiles on a fresh library — on-device Apple Intelligence fallback
+- fix(app): cap the window root — the File menu's keypath walk overflowed the stack
+- fix(reader): a multi-selection is stated, not silently narrowed to one page
+- feat(library): the filter/search/sort bar moves to the BOTTOM of library and reader
+- fix(library): a clicked row selects like Mail; list rows drop the useless chrome
+- fix(views): the library boundary re-injects EVERY ContentView object, not one
+- fix(preview): swipes step in display order, one page per gesture, zoom survives the hi-res swap
+- fix(reader): a clean-editor page flip applies synchronously — the snap-back race
+- fix(library): typing reaches the search field — the row grammar yields to text entry
+- fix(ingest): the dedup skip-set is scoped to the destination, not the library
+- fix(views): cap the split-column generic — the root layout overflowed the stack
+- debug(nav): NAVTRACE prints — OS_ACTIVITY_MODE=disable was eating os_log
+- debug(nav): NAVTRACE covers the selection-promotion writers — the swipe race's real path
+- feat(workflows): a thinking model's reasoning is captured per page, not discarded
+- feat(workflows): bboxes first — detect_regions tool, standalone workflow, and inside transcribe
+- feat(workflows): a run over zero files fails loudly instead of completing green
+- fix(db): thumbnail reads answer during imports — gate-free committed-read path
+
+### 2026-08-10
+
+- fix(workflows): the vision fan-out cap is tunable; extract_entities actually fans out
+- fix(columns): the browser begins at the top level; the preview column takes the room
+- fix(ingest): re-importing an evicted cloud folder no longer downloads everything
+- fix(search): full-text works WITHOUT embeddings — the root of 'search doesn't seem to work'
+- fix(layout): a node-editor visit no longer forgets the library's open panes
+- feat(preview): arrows page left/right; NAVTRACE instruments the swipe race
+- fix(chat): sidebar drags land in the chat scope — accept the in-app flavor
+- fix(nodes): a new workflow is NOT locked — the lock means read_only, nothing else
+- fix(workflow+net): the editor survives the mode change; image bursts can't starve the pool
+- fix(workflow): sidebar owns the workflow list — the pane is the node editor (take 2, capped)
+- fix(launch): a booting engine shows 'Starting engine…', never 'No Access'
+- chore(test): retire the tests of deleted UI (SidebarModeBar, buildWorkflowHierarchy)
+- fix(import): stall watchdog instead of a wall clock; sibling-swipe display prefetch
+- fix(reader): a collapsed toolbar cluster can be re-expanded (audit #7)
+- perf(layout): divider drags stop fighting the window-width observers (audit B1/B3)
+- fix(library): the mini toolbar stops dictating the pane's width floor (audit #6)
+- chore(lint): ratchet back to 70 after the drag-preview/dead-view batch
+- fix(crash): every remaining .draggable gets an env-free preview; dead views deleted
+- fix(sidebar): conversations are nodes in the tree; both routing axes; preview click-focus everywhere
+- fix(toolbar): the island hugs its content — no more phantom gaps
+- fix(ux): mini toolbars can never widen their pane; native reader focus ring off
+- fix(focus+reader): pane cycle in window order incl. Reader; slimmer transcript margins
+- fix(focus): the ring hugs the VISIBLE pane cell — overlays move outside the frames
+- fix(focus): Tab yields to active text editing
+- fix(focus): Tab is THE pane mover — drop the ⌥-arrow cycling
+- feat(focus): Tab/⌥-arrows actually cycle panes; VoiceOver announces each move
+- fix(ux): calm workflow-folder preview; child-row name clicks; the ring actually rings
+- feat(focus): the fading focus ring follows clicks into every pane (#2)
+- fix(privacy): log lines carry identity, never archive content
+- revert(stability): back out the workflow-surface reshape and all three erasure caps
+- fix(crash): AnyView cap on the reshaped workflow case — the launch crash's real trigger
+- fix(crash): third depth cap — erase the whole sidebar column stack
+- fix(crash): second type-erasure cap on the sidebar List — launch stack overflow
+- fix(workflow): sidebar owns the workflow list — the pane is the node editor
+- revert(sidebar): restore allowsHitTesting(false) on the row name — clicks over drags
+- fix(sidebar): kill the selection flash at the TABLE level; chevron legible again
+- revert(sidebar): pull the AppKit row-chrome probe; slim the expand placeholder
+- fix(ux): quit no longer deadlocks on drag promises; dragging by the row NAME works
+- fix(ux): six live reports from Daniel's 11:00-11:30 testing round
+- fix(library): image thumbnails clip INTO the squircle jail (#23, #125/#128)
+- feat(sidebar): row drags carry the full-row preview (#26/#135)
+- fix(ux): chevron stays accent when selected; library menus defer; editor ceiling 20k
+- feat(library): table-mode drags carry the shared lozenge preview (#26, #133-136)
+- feat(toolbar): Photos-style selection count in the status island (#29, Daniel #138)
+- feat(library): Finder's grey squircle jail behind image thumbnails (#23, Daniel #125-128)
+- fix(sidebar): first-click green-platter flash — route the selection one turn after the highlight paints (#20/#113)
+- feat(preview): a selected folder previews like a PDF — its items are its pages (#25)
+- fix(inspector): the rich editor never receives a nil size proposal — the beachball's real root
+- feat(ingest): a cloud placeholder is DOWNLOADED at import time, not refused (#45)
+- feat(sidebar): option-click on an open chevron collapses the whole subtree (#48)
+- chore(lint): hold the warning ratchet at 70 after the #46 swipe work
+- feat(preview): trackpad swipe left/right steps to the next/previous library item (#46)
+- fix(engine): the activity stream survives its keepalives; the log stops narrating heartbeats
+- fix(sidebar): a batch delete NAMES its folders — the Inbox incident
+- fix(ui): editor sizing is O(1), island keeps the name, first pinch keeps the zoom
+- fix(inspector): book-sized content never mounts the live editor — the beachball named
+- fix(toolbar): breadcrumb island capped + middle-ellipsized (#176); drop stray AppKit import
+- fix(engine): kreuzberg PDF extraction runs OUT OF PROCESS — the wedge class is closed
+
+### 2026-08-09
+
+- fix(engine): pre-import kreuzberg's lazy Python deps — the second wedge layer
+- fix(engine): the pdfium probe child runs real code, not a second engine
+- fix(engine): a broken pdfium can no longer freeze or kill the engine (#4555 root)
+- fix(engine): the mimetypes fix actually holds — knownfiles cleared, not files=[]
+- fix(engine): metadata extraction no longer dies per-file on the sandbox (mime.types)
+- fix(editor): edits are never lost to navigation — flush on page swipe, window switch, and teardown
+- chore(gate): a skipped Swift/iOS leg says so in the verify_all summary
+- test(swift): the whole Swift suite is green again — 4,427 tests, 0 failures
+- perf(store): sidebarDocuments is memoized — the 1747ms context-menu stall (#21)
+- fix(preview): page turns keep the last frame up and prefetch their neighbours (#18)
+- fix(vision): a transcription that never reached the page is a failed run
+- docs(trail): BEHAVIOUR CHANGES in 4cc12059f/1568885f0 — deferred embeddings
+- fix(engine): a fatal during workflow_runs recovery no longer bricks the library (#39 part 2)
+- fix(engine): the Import… button path defers embedding too
+- chore(lint): poll backoff extracted into IngestPollPacer; re-hash columns known-violation
+- feat(engine): embeddings happen AFTER import, on the derivative stage
+- perf(engine): folder-import pre-scan is one SELECT, not a full-library hydration
+- chore(xcode): drop leaked duplicate groups; Dev Embedded scheme sets FICHERO_STALL_LOG=1
+- fix(app): import polling backs off, stale selection recovers, 404s are recognizable
+- fix(engine): ingest stops freezing the engine — pre-warm runs, loop unblocked, wedges closed
+- fix(test): the packaging match caught the credentials preflight, not packaging
+- feat(dnd): drags carry the whole tile / row, not a filename lozenge (#134/#135)
+- style: trim the disclosure comment under the 400-line ceiling (ratchet 70)
+- feat(inspector): honest multi-selection state instead of silently inspecting the primary
+- fix(table): disclosure triangle only on rows with something to disclose
+- perf(sidebar): imports splice in place — no wholesale rebuild while the stream is live (#24)
+- chore(guardrail): engine-base allowlist follows the heartbeat edit's line drift
+- test(guardrail): scene-injection pytest twin learns the helper-credit fixture
+- perf(reader): swipe→sidebar highlight debounced — the white-flash budget
+- fix(dnd): drop flavor loads issue synchronously in the drop callback (drop#44)
+- style: fold the access-note into the doc comment it orphaned (ratchet back to 70)
+- fix(sidebar): folder-open spinner lives on the ROW ICON; icon-grid preference loop guarded
+- fix(reader): text documents survive a missing AnnotationStore (#22 hardening)
+- feat(sidebar): single leaf scopes the library; library header shows root set, never green (#156/#160/#161)
+- fix(engine): the watchdog stops killing a BUSY engine mid-import
+- fix(scenes): document-detail scenes inject the FULL service list on both platforms; page-shaped preview cards; ratchet splits
+- fix(inspector): facet tabs degrade to icons instead of clipping when narrow
+- fix(icon): rubber band may only BEGIN in the gutter — the intermittent cmd-click deselect
+- fix(sidebar): shift/command clicks on a row's NAME extend the selection (#145)
+- feat(sidebar): folders expand in the multi-selection scope like PDFs (#144)
+- test(selection): pin Daniel's canonical spec by NAME; retire the contradicting comment
+- fix(dnd): no-op and unreadable drops never alert — they log and snap back
+- perf(main-thread): three stall fixes from Daniel's log; opaque sidebar grey
+- fix(table): re-inject the service list per cell — Table cells are a hosting boundary
+- feat(reader): page swipes highlight the page in library AND sidebar
+- feat(library): Finder path bar + status line, scoped to the library pane
+- feat(library): PDF/folder stacks sized by count, mixed scope expansion, tile polish
+- fix(sidebar): header keeps the grammar's platter, label clicks select draggable rows, lighter grey
+- feat(previews): every view-mode file previews in place
+- chore(lint): ratchet back under baseline; observer baseline follows the lint-sweep move
+- feat(preview): Finder-style stacked preview for multi-selection
+- feat(reader): page turns swipe horizontally; vertical only in continuous modes
+- fix(library): grid page clicks move the page cursor, not the document root
+- fix(columns): preview canvas crash + invisible selected-row name
+- fix(library): text-doc tiles read as pages; folder rows stop doubling their icon
+- feat(sidebar): multi-selection scopes the library view
+- fix(library): no white icon card; the rubber band keeps up with the mouse
+- feat(library): rubber-band selection in icon mode — Finder's missing gesture (#4160)
+- feat(ui): contiguous sidebar selection reads as ONE platter; icon wells go square-squircle (Daniel's Finder screenshots)
+- style: trailing commas
+- feat(library): every view mode has a WORKING Xcode preview; mode files in per-mode folders; the reader pages through unimported PDFs
+- feat(library): hover deleted everywhere (not a mac idiom), Finder tile labels, mode preview catalog
+- perf(library): Observable hygiene across the modes — sort refire gated, revision-keyed columns, shared timer, stale scroll targets, arrow-preview seam
+- feat(library): ONE selection grammar across every view mode — the system Mail/Finder look (#4563)
+- fix: table-open crash (nil-library bare inspector mount), PDF page-click reload root, one view mode per window
+- chore(gate): forwarding self-test rewritten IN-MEMORY; folder backlog entries; warning best tightened to 71
+- fix(gate): the hang ratchet goes BLIND in a stripped tree; the ColumnsView baseline hash re-pointed
+- chore(gate): three of tonight's four owned failures green — allowlist, comment hygiene, warning ratchet
+- fix(selection): F3 COMPLETE — all remaining Set.first primary draws converted; grandfather list emptied
+- feat(guardrail): rule 2 — no primary-selection draw via Set.first, scanning the shell the old scope missed
+- docs(audit): the four fixes — three complete, one half-landed with a sharp edge
+- docs(review): rules that cannot fire — a cross-cutting pass
+- fix(security): the unsandboxed grant refusal names its cause and remedy (A1 follow-up)
+- docs(review): addendum — status island vs #4536, .searchable, sidebar coherence
+- docs(review): sidebar and toolbars — and the sibling of the rules-that-cannot-fire pattern
+- fix(security): the inherited-scope grant fallback runs ONLY in a sandboxed engine (audit A1)
+- fix(library): right-click outside the selection acts on the CLICKED row (#4571 sibling)
+- docs(audit): outside read of the lane — one real weakening in the sandbox chain
+- fix(reader): page focus survives a same-document refresh — the page-1 snapback root (#4558)
+- style: shellPrimarySelectionId to its own file (StateEvents back under the length cap)
+- fix(selection): the shell's primary selection is drawn ONCE, in document order — never Set.first (#4571 sibling, task #11)
+- docs(review): Preview, Reader, Inspector as three surfaces — and why they disagree
+- docs(review): library views — icon, list, table, columns against Finder
+- perf: two sampler-attributed stalls fixed — menu decode deferred to open, isDocumentBusy indexed (#4550)
+- fix(library): table clicks and arrow keys drive the preview DIRECTLY, like every other mode
+- fix(crash): sheets re-inject what their content reads (night review B2-B4)
+- docs(selection): five hash-order draws are one identity defect, not four bugs
+- fix(crash): the guardrail now looks at the boundaries that actually crashed (#4455)
+
+### 2026-08-08
+
+- fix(crash): AnyView at the sidebar ROW boundary — per-item copies overflowed too
+- fix(preview): ONE browserSelection handler — the stripped duplicate is deleted (#4572 #4574)
+- fix(crash): drags get an explicit environment-free preview — the default re-hosted the row and died
+- fix: InterpretationStore/changeStream join the boundary list; the stall mirror names the real culprit
+- feat(perf): the stall sampler names the CULPRIT — mid-stall main-thread backtrace (#4550)
+- fix(crash): the inspector boundary re-injects the window/app-level objects too
+- fix(crash): AnyView erasure at the sidebar column root — the view-type copy overflowed the stack
+- fix(sidebar): Finder's grey — the column shows its native sidebar material (#4563)
+- fix(crash): the docked inspector gets the FULL library environment — the launch crash loop's root
+- style: wrap the missing-service log lines under the length cap
+- feat(library): per-folder view memory only when explicit (#4575, Daniel's ruling)
+- fix(crash): a thumbnail surface that lost its StorageService degrades and names itself — never kills the app
+- feat(previews): library tile catalog — the Finder icon-view grammar, canvas-reviewable (#4563)
+- fix(sandbox): a grant survives an unresolvable bookmark when the engine can already read the library (#4576 root cause)
+- perf(pdf): page flips no longer refetch the whole document's OCR geometry (#4572 sibling)
+- fix(library): icon view selects like Finder — grey icon backdrop + accent name pill (#4563)
+- fix(preview): clicking a sidebar PAGE row shows THAT page, not page 1 (#4571)
+- fix(sidebar): the library header drop target is the same full-row platter as every other row (#4568)
+- fix(previews): the app delegate never starts an engine inside the Xcode Previews host
+- fix(sidebar): one full-row platter — grey Finder selection, solid accent drop target (#4563 #4568)
+- chore(perf): re-baseline to the post-fix session — 106 stalls / 32.6s / worst 1860ms (#4550)
+- perf(content): a new selection cancels the superseded load (#4574)
+- fix(images): logger is file-scope, not a member — build fix for 7a189c2b0
+- perf(images): single-flight image loads + platform decode off-main (#4572, #4574)
+- fix(sandbox): the grant refusal names the engine's reason — the swallowed body hid the refuser twice today
+- fix(engine): bound uvicorn's graceful shutdown at 1s — quits stop ending in SIGKILL (#4291)
+- style(tests): single blank line
+- fix(sandbox): grants re-send at first-authenticated-ready; 'terminal' stream denials revive when the answer changes
+- docs(perf): sampler doc matches the append-sessions design
+- fix(perf): stall log appends sessions — a relaunch blip destroyed the first real baseline
+- chore(perf): first self-measured stall baseline — 217 stalls / 53.5s / worst 1468ms (#4550)
+- fix(sidebar): drop highlight back to a bounded label background — listRowBackground painted whole subtrees (#4568)
+- fix(sidebar): delete the per-row tap fallback — modifier-clicks on the NAME reach the List (#4571)
+- fix(tests): the label-style pin follows rowContentColor — went stale when 93713bb54 landed
+- fix(sidebar): drop the selection tint — the native source-list platter IS Finder's grey (#4563)
+- feat(perf): the app measures its own main-thread stalls — Instruments made optional (#4550, #4547 workaround)
+- fix(engine): the parent watchdog escalates — a hung graceful shutdown can no longer leave an immortal orphan (#4291 sibling)
+- fix(sidebar): selected content follows backgroundProminence — white on the focused platter, accent on the grey one (#4563)
+- fix(sidebar): ours is identified by NAME — a Finder text file is not an internal drag (#4569)
+- fix(sandbox): the non-MAS embed phase signs the engine with {app-sandbox, inherit} — D rung 1
+- feat(guardrails): the MAS flag may gate code in exactly one file (check_mas_flag_containment)
+- docs(plan): D ladder updated — dual observables (grants + pdfium), MAS-phase codesign rules, serialization
+- chore(xcode): drop the three hand-registered files the synchronized folder already compiles
+- style(sidebar): expand-all walk moves to SidebarExpandAll.swift — row file back under the length budget
+- fix(staging): pdfium placement rides every engine staging, not just releases (#4555)
+- docs(sandbox): SandboxAccessService doc matches the runtime gate — the MAS-flag claim was stale
+- fix(api): the sandbox grant route is exempt from library-header validation — it EXPANDS the allowed set
+- feat(sidebar): Mail's grammar — every selected row styles alike; the drop target is the whole row (#4563)
+- fix(sandbox): scrub the MAS-flag literal from FolderAccessManager comments — the pin is strict on purpose
+- fix(sandbox): engine bookmark handoff gates on the RUNTIME sandbox check, not the MAS build flag
+- docs(plans): D executable ladder (prepared, gated) + isolation-checker shapes addendum
+- test(preflight): the staleness check is tied to the Briefcase app key; missing fm-bridge says missing
+- fix(sidebar): level fetches as MainActor-inheriting Tasks — the shape this file already compiles
+- fix(sidebar): expand-all walks level-order — the checker rejected task recursion too
+- fix(sidebar): re-apply the returning-ids expand-all walk lost in the concurrent-edit clobber
+- fix(sidebar): expand-all recursion returns ids — no Binding crosses a task boundary
+- fix(sandbox): the app can create a library in its own container tmp (#P0 plan option a)
+- fix(sandbox): the sandboxed dev/release app is entitled to mint the bookmarks it mints
+- style(sidebar): lint sweep — isolation warning fixed, oversized files split, long lines wrapped
+- fix(api): the library-path 403 names the branch that failed, and the path
+- feat(sidebar): Finder's selection and drag grammar — accent label on grey row, solid drop fill with white content
+- docs(plan): engine sandbox entitlements — signing matrix, proposal, empirical ladder (P0)
+- fix(sidebar): remove the hover wash and the name tooltip — the row is the only target
+- fix(preflight): the staleness diff pointed at a path briefcase never creates
+- fix(sidebar): expand-all descends PDFs concurrently; loading shows a spinner, not an empty line (#3355 follow-up)
+- feat(perf): main-thread hang ratchet off the potential-hangs table (#4550)
+- perf(sidebar): rows resolve by O(1) lookup, never carry the forest (#4545, #4522)
+- docs(review): sidebar+library review — measured hangs, selection defects, delete-parent mechanism
+- perf(sidebar): context menu is built when opened, not on every row render (#4544, #4556)
+- perf(model): hand-written Document ==/hash — stop diffing six blob fields (#4546)
+- docs(verify): sidebar-ux verify-and-close checklist (#4523 #4186 #4516 #4514 #4522 #4520 #4503)
+
+### 2026-08-06
+
+- fix(release-now): do not print DONE when nothing was built
+
+### 2026-08-05
+
+- chore(release): --force accepts a size increase and resumes
+- chore(release): one command for push, verify, and release
+- fix(authz): pausing a run is a write, so a viewer must not be able to do it
+- fix(engine): a live workflow stream blocked shutdown, so the engine got killed
+- fix(#4555): pages with no text are a failed split too, not a blank PDF
+- fix(#4552): never union the two selection domains a sidebar click can see
+- fix(vision): don't mistake a line wrap for a fabricated box
+- fix(vision): a geometry failure must not destroy the transcription
+- fix(#4553): the fan-out deadlocked on its own semaphore
+- fix(ratchet): hold release size to 0.1%, not to the byte
+- chore(release): accept 9.5KB of signature-timestamp variance
+- fix(release): demand the grant, don't report an absence
+- fix(release): check every credential up front, not 40 minutes in
+- fix(release): the pdfium step ran before ENGINE_APP existed
+- fix(release): drop the redundant engine builder I added beside the working one
+- fix(release): place pdfium BEFORE the DMG is staged, not after
+- perf(engine): warm the embedder off the bind path; one thumbnail per doc at a time
+- fix(release): build the server we ship, and place pdfium once
+- fix(release): place pdfium where EVERY lane reaches it
+- chore(release): accept +5.7MB DMG for bundled pdfium
+
+### 2026-08-04
+
+- fix(release): strip pbxproj version literals Xcode reinjected
+- docs(release): 2026.08.04 notes
+- docs(changelog): cut 2026.08.04
+- docs(profile): the aug4 trace, measured — 160 hangs, 106s of main-thread stall
+- fix(workflow): a tiled page keeps every strip, in order
+- fix(engine,workflow): stop deleting crash evidence; a run start is not a quick request
+- fix(import): show the reason that was already assembled, and stop claiming a phase
+- fix(pdf): ship pdfium in the bundle instead of fetching it at runtime
+- fix(import): a 61-second import is not a failed import
+- fix(readiness): the rollup claimed a durability .info does not have
+- fix(library): a library you create is one the engine can actually read
+- fix(engine-log): one owner for the path, and messages name it resolved
+- fix(readiness): a transition log logs transitions, not every poll (#4539)
+- perf(reader): stop sending the document transcript twice
+- fix(build): four compile errors in work that was never built
+- fix(library): a 403'd library says what is wrong and where (#4532)
+- fix(engine-launch): startup says WHICH failure it is, not "never served" (#3930)
+- fix(xcode): drop the duplicate EngineLifecycleController+ProviderKeys registration
+- feat(keys): the app owns provider keys and supplies them every connect (#4534)
+- fix(guardrails): allowlist the save-panel bridge; route my tests through AppSource
+- feat(keys): engine accepts app-supplied provider keys, in memory only (#4534)
+- docs(gate): link the engine-modes review in nav; drop two unresolvable paths
+- docs(architecture): should the developer-run local engine survive? (review)
+- fix(sidebar): every drop path that can swallow a drop now says why (#4533)
+- docs(spec): app owns provider keys; engine holds them in memory only (#4534)
+- fix(keychain): an unreadable key is not an absent key (#4534)
+- fix(sidebar): drop logging emitted at a level macOS discards (#4533)
+- fix(services): a 403 reports what the engine said, not a guess (#4532)
+- docs(spec): C1 library-location grants + D2 keychain tri-state design (#4531)
+- fix(settings): Models & Providers hid the provider list in a ScrollView (#4531)
+- fix(window,library): File-menu commands work with no window key (#4530)
+- fix(sidebar): thread drop modifiers through LibraryHeaderRow; drop the duplicate SidebarRunSelection registration
+- fix(engine-launch): never clobber a live .api-key from the spawn path
+- feat(sidebar): library header speaks the modifier grammar; alias rows go italic; dead beside-drop deleted
+- fix(dragdrop): folder drops onto the library header import; loader learns the documented folder rungs
+- fix(build): scope log unwraps the optional id list
+- fix(workflow): sidebar-selected file is the run selection; every dispatch names its surface (#4523)
+- fix(dragdrop): declare ficheroDragItem in Info.plist; refuse bare public.data as import
+- refactor(lint): restore-path validation and hierarchy partition extracted — ratchet holds at 72
+- refactor(shell): split navigation + save policy out of ContentView+WorkflowActions; SSE run settle/failure extracted — ratchet back to 72
+- fix(activity): the unstructured trace fetch stays on the main actor — WorkflowRunResponse cannot be Sendable
+- fix(workflows): locked system presets never auto-save; refusals are typed, not 'Unexpected response' (#4514)
+- chore(webkit): WebContentProcessRecovery lives with the WebKit plumbing, not loose in Components
+- fix(webkit): every web surface recovers from a dead WebContent process; the console storm is classified (#3381 #3383 follow-up)
+- fix(tests): drop-payload pins match the call prefix — the reader gained a surface: logging parameter
+- fix(activity): run-trace load survives SSE stream teardown, cancellation stays quiet
+- fix(vision): normalize provider-bound images at the file_to_data_uri seam
+- fix(reader): a page click resolves against the reader's OWN pages, wherever they live (#4373)
+- chore(xcode): drop PaneContentPlan's explicit registrations — synchronized folders already include it (duplicate build-file warning)
+- fix(shell): readiness logs transitions only; About leaves the Windows menu (#4539 #4524)
+- fix(dragdrop): the loader never materializes our own payload — the .tif.json stray, diagnosed (#4401)
+- fix(workflow): the run scope survives navigation — one preserved selection, every launch surface (#4523)
+- style(dragdrop): fold the dropTypes note into its doc comment (orphaned_doc_comment)
+- fix(dragdrop): one named in-app flavor, registration-based routing, folder cells import, nothing silent (#4401 #4520 #4473)
+- fix(tests): EntityStoreTests restores the REAL app token it was clobbering
+- chore(gate): sanction #4524 doc-citation comments; make two raise-style engine tests explicitly assertive
+- feat(shell): PaneContentPlan — one decided matrix for every pane, honest empties, layoutFollowsSelection deleted (#4525)
+- refactor(shell): extract routeAutomationFamilySelection to stay inside lint budgets (#4525)
+- fix(shell): every sidebar selection sets viewMode — chain/schedule/trigger/batch clicks route (#4525)
+- test(reader): the wrap self-check reads the level where the pre-fix overflow really lives (#4533)
+- test(reader): the "statically correct, fails at runtime" pin was a poisoned fixture (#4532)
+- fix(selection): reconcile reads the gesture, so a shrink holds the anchor and a deselect moves it (#4531)
+- fix(activity): one Window-menu Activity entry — the scene's own, with a shortcut (#4524)
+- docs(sidebar): cite the documented UTI contracts behind the drop-flavour fix (#4473 #4520)
+- fix(library): registry reconciliation uses canonicalLibraryKey, which now folds /private aliases (#4529)
+- fix(sidebar): the folder-path walker normalises paths and sorts like documents (#4528)
+- fix(sidebar): the Inbox special case matches like ensureInboxFolder and drops nothing (#4527)
+- test(transport): repin the UDS banner tests to the every-Mac-Local-scheme wording (#4437)
+- fix(sidebar): a pure Finder drop was refused as an unreadable internal drag (#4473 #4520)
+- fix(tests): the settings-tab pin follows #4503 — Local LLM is a provider, not a tab
+- fix(tests): the bucket-separation test stops contradicting itself
+- fix(tests): KG inspector pins follow claim delete/curation into ClaimStore
+- fix(tests): ClaimSummaryCard pins follow the Aug 2 file split into +Navigation
+- fix(tests): the overlay-deferral pin follows the probe into OCRGeometrySelection.load
+- fix(tests): the chooser's unconditional pin follows the Info tab's body split
+- fix(tests): the no-List ban fires on a List, not on the comment removing one
+- fix(tests): the shared-geometry pin follows the 2D renderer's file split
+- fix(tests): the never-bound socket fixture stays under sun_path's 104 bytes
+- fix(tests): list-mode pins follow the #4436 selection grammar to its new homes
+- fix(tests): the no-cancel-on-execute pin survives a rewrapped startStream call
+- fix(tests): the apiClient-gate pin is scoped to the environment chain it protects
+- fix(tests): a sidebar page is 'Page 1' — the pin follows DocumentTitle (#116)
+- fix(tests): the popover pin reads code, not the comment naming the banned shapes
+- fix(tests): the Search placeholder pin follows the field into the mini toolbar
+- test(sidebar,dragdrop): adversarial coverage of the drop grammar, the Inbox branch and library identity
+- fix(tests): columns deselect pins the shared SelectionGrammar, not removeAll
+- fix(tests): drop modifiers pin the drop-moment sample; drag-id order pins id-first
+- fix(tests): read-before-route is pinned where it now lives — the shared reader
+- fix(tests): the header-drop pin follows the classifier into the shared reader
+- fix(tests): the cell-drop refusal pin follows the shared read-only predicate (#4514)
+- fix(tests): the no-window-drop pin reads code, not the comment that explains it
+- fix(tests): the content-pane drag guard pins DroppedURLs.classify and the #4311 wording
+- fix(tests): the workflows contract pins the #4450 two-part list, not the pre-#4450 count
+- fix(workflows): honour the documented fail-open decode for requires_vision
+- chore(app): sync AppIcon.icon to the latest fichero-icon-composer.icon
+- fix(tests): EngineHarness declares its live-ness by injecting its session (#4511)
+- chore(xcode): destinations are Mac, iPhone, iPad — disable the Vision 'Designed for iPad' destination (16 configs)
+- fix(tests): ToolbarGroupingTests stops killing the host and repins the real toolbar
+- fix(xcode): strip FicheroIOSTests from the 9 Mac schemes — an iOS bundle cannot link for My Mac
+- chore(guardrails): re-baseline the Miller-columns sanction hash — #4514/#4516 edited rows inside the sanctioned block
+- fix(tests): ArtifactEntityStoreTests needs FicheroAPIClient for FicheroClient
+- fix(engine): stable preset ids — seeds are deterministic, upgrades reinsert with the held id (#4450)
+- fix(sidebar): two workflow groups, and a fallback that only offers runnables (#4450)
+- fix(sidebar): delete the two refresh+sleep+refresh blocks #4067 missed (#4522)
+- fix(library): one read-only predicate and one icon ladder, both panes (#4514, #4516)
+- fix(documents): read the typed fields the wire converters were dropping (#4515)
+- fix(engine): pause lands at the per-item boundary; dead running rows settle on cancel (#4402)
+- fix(guardrails): un-blind check_xcode_registration — the bug was indentation, not objectVersion 100 (#4512)
+- fix(drops): the cursor must say what the drop will do, not always "+" (#4401)
+- test(activity): pin the Activity scenes as Windows, not WindowGroups
+- test(guardrail): scene-granularity environment-injection check (#4513)
+- fix(activity): read the Stop/Pause response instead of discarding it (#4402, #4346)
+- fix(library): dedup libraries on a canonical URL key, and stop persisting Global (#4517)
+- fix(drops): delete the window-wide drop target; the detail column already had it (#4458, #4520, #4401)
+- fix(test): refuse engine dials at the transport chokepoint under test (#4511)
+- fix(toolbar): ready glyph legible at 13pt and split local vs remote (#4391)
+- fix(workflow): a widening run asks before it spends (#4523, #4396 ask 3)
+- fix(artifacts): a failed entity read is a third state, not an empty bundle (#4507)
+- fix(engine): selection resolved once for every source tool; folder_tool honors selected_doc_ids (#4523 #4396)
+- feat(toolbar): summoned search — toolbar toggle reveals the library search field (#4521)
+- fix(toolbar): host the status island inside the breadcrumb principal item (#4519)
+- fix(shell): tear down per-document pane state when the window's library changes (#4518)
+- fix(library): inject ArtifactService at the library column boundary (#4513)
+- fix(activity): one window each, and the detail window gets ArtifactService
+- feat(transport): every Mac Local scheme uses UDS; iOS/iPad stay HTTPS
+- fix(transport): the banner told Dev Local it could not reach the socket it dials
+- feat(test): add the FicheroIOSTests target (iPhone unit bundle)
+- chore(xcode): project format 26.3 (objectVersion 100); drop duplicate synchronized-folder refs
+- docs(week-plan): second account — the plan's premise was what broke
+- docs(transport): #4437's harness works, and duplicates what the gate already runs
+- docs(handover): verifying done work found half the night's defects
+- fix(providers): the free/paid safeguard reported a providerless node as free (#4503)
+
+### 2026-08-03
+
+- fix(tests): a unit-test host must not need a live engine to exist (#4511)
+- docs(handover): correct it — TEST EXECUTE FAILED, and I may never have run a Swift test
+- docs(handover): late Monday — seven closed, two refusals, one unproven
+- guardrail: an import test that mocks the importer proves nothing was delivered (#4473)
+- test(ingest): two success-path tests mocked away the thing they claimed to test (#4473)
+- test(changes): close the last unproven hop — a claim.updated must move the store's token
+- docs(claims): the doc comment claimed a rule stricter than the one enforced (#4486)
+- style(claims): reference #1689 without the TODO keyword (#4486)
+- refactor(claims): delete three ClaimStore actions no caller has ever taken (#4486)
+- docs(triage): #4160 step audit — five of seven built, and step 5 contradicts step 7
+- docs(status): #4486's premise does not survive reading the call sites
+- docs(triage): #3686 — the four missing focus bindings were removed for crashing on launch
+- refactor(import): the drop-temp sweep belongs to DroppedURLs, not the view
+- docs(triage): #3686 focus map — one pane of five is actually focusable
+- fix(tests): the sidecar was reaped in the test body, so only passing runs cleaned up (#4508)
+- fix(drops): stop telling a cross-library drag its item is "already in this library"
+- docs(triage): half of #4311 already ships; the other half is blocked in a signature
+- test(drops): pin the two temp prefixes apart before cross-library work touches them
+- docs(triage): #4388 already fixed, and the sweep it invites would break six icons
+- fix(db): BEGIN was the one entry point that could not reopen a dead connection
+- fix(entities): an authority link existed on the server and in a sheet, nowhere else
+- fix(entities): three writers had to remember three containers; now there is one
+- docs(clicklist): F1 — eleven shipped-but-open issues, ~4 minutes to clear
+- docs(triage): second sweep — 41 more issues, 11 fixed and shipped, 3 since 13 July
+- docs(clicklist): three fixes are not in v2026.08.02, and two items need Daniel
+- docs(triage): #3364 is a decision, not a bug — the fix cites the issue it inverts
+- docs(triage): the newest mention of an issue is the least likely to be its fix
+- docs(week-plan): Monday evening — plan vs reality, class vs instance
+- fix(import): restore the doc-comment boundaries the merge fused (#2386 #4459)
+- fix(import): content-pane drop sweeps its temp dirs — and repair a build break I introduced (#4459)
+- docs: open issues whose fix may already have landed — a VERIFY list, not closures
+- fix(tests): the classify helper returns DroppedURLs, not the tuple it replaced (#2386)
+- fix(batch): the execute door was still open — stored items ran unvalidated (#4500 #4467)
+- docs(clicklist): verify-then-close, not close-on-commit (#4408)
+- fix(tests): groups(from:) is on ArtifactRunGrouping, not ArtifactRunGroup (#4348)
+- fix(inspector): row hit target is set before the gestures, not after (#4386)
+- fix(import): a file-scoped private does not survive a file split (#2386)
+- test(artifacts): the grouping cannot swallow an artifact, as a property (#4348)
+- fix(documents): purge — the irreversible write — was the unaudited one (#4488)
+- docs(import): the five-surface drop table, so the fix can be reviewed (#2386)
+- fix(import): one extraction path for every drop surface; a link is not a file (#2386, #4458)
+- chore(seams): judge the five new swallows, regenerate the baseline (net +3)
+- feat(search): notice when the engine says it returned more than arrived (#4505)
+- docs(handover): Tuesday handover — the eight decisions, and where verification failed
+- fix(search): the header counted one leg of a four-leg search (#4403)
+- fix(docs): AGENTS.md's tier-gated route count was wrong again, now guarded (#4470)
+- chore(openapi): regen so rendered_total reaches the Swift client (#4403)
+- fix(search): the header and the body answered different questions (#4403)
+- fix(canvas): iPad could not pan at all, and the 3D view had no scroll handler (#4408)
+- fix(build): activity progress is Double?, so unwrap it
+- fix(vision): a wrong call signature became an empty page instead of an error (#4504)
+- fix(library): the same folder read as two different things in two panes (#4417)
+- docs(status): fourth 4-hour review — I shipped a regression, the full suite caught it
+- fix(mcp): run_workflow sent a key the engine now refuses — every call 422s (#4465 #4467 #4480)
+- test(sidebar): repair the alias-name callers I renamed out from under, and pin what the rename was for (#116)
+- fix(build): Document(parentId:) precedes docType:
+- fix(build): the alias test still called the old String signature
+- feat(cli): fichero workflow preview-cost — ask before you run (#4503 part 3)
+- fix(sidebar): four sites persisted a storage filename as data, not just on screen (#116)
+- fix(extractors): a translated pseudo-quote no longer enters the archive as evidence (#4494)
+- fix(sidebar): the last surface composing names by hand, and the unfixed half of #4454 (#116)
+- docs(sidebar): 42 files audited — two issues already fixed, and the last surface not using the title composer (#116)
+- fix(llm): a missing on-device runtime no longer becomes a paid cloud call (#4502)
+- fix(release): the app inside the DMG was never stapled, so an offline first launch was not vouched for (#4491)
+- fix(ipad): the tests were buildable but not runnable, and one of them could never have compiled (#4505)
+- feat(presets): costed estimate for all 39, and delegation is no longer read as free (#4501 #4503)
+- fix(ipad-tests): the type is InspectorPlacement, not InspectorPresenter
+- fix(ios): .buttonStyle(.link) is macOS-only and broke the first iPad build
+- feat(workflows): resolve what a workflow will REALLY call, before it calls it (#4503)
+- test(ipad): the reachability claims become tests; the rendering ones stay named as gaps (#4505)
+- fix(inspector): three actions that existed only for people with a mouse (#4505)
+- docs(status): third 4-hour review — gate cleared, ensemble loses, spend class filed
+- chore(contracts): register the span->region endpoint (#4418)
+- feat(workflows): serve is_system, so the client stops reading a constant (#4495)
+- docs(llm): where a node's provider actually comes from, and why a preset cannot say (#4503)
+- test(contract): a key read out of a re-encoded schema must be a field that schema has (#4495)
+- feat(presets): validate the 14 deterministic presets and drop their (Untested)
+- feat(presets): validate the 14 deterministic presets and drop their (Untested)
+- docs(presets): CORRECT the triage — it is unsafe to act on
+- docs(presets): triage all 39 for #4501 phase 1 — and no preset pins a provider
+- docs(presets): commit the #4501 triage before it is lost
+- feat(ipad): a test target that can actually run on iPad (#4472)
+- fix(settings): MLX is a provider, so its controls belong beside the providers (#4503)
+- fix(mlx): a runtime with no mlx-lm in it reported itself provisioned (#4504)
+- fix(build): the second String message also needs Comment
+- docs(paleography): lay out the ensemble measurement as a decision, not a verdict (#3905)
+- test(paleography): the paid ensemble loses to free on-device OCR (#3905)
+- docs(plan): overnight order of work, and what Daniel already decided
+- fix(inspector): a metadata list that rendered at zero height, and links that could not be followed (#4502)
+- docs(inspector): 84 list constructs, 11 real Lists, and the shared grammars reach almost none of them
+- fix(build): CaseIterable for the strategy enum, Comment for the message
+- fix(batch): batch runs reached neither scope validator (#4500)
+- fix(engine): a socket file with nothing behind it looked exactly like a live one (#4400)
+- docs(decisions): Daniel answered four — geometry, presets, spend, release
+- fix(connection): the popover offered to restart an engine the app may not stop (#4400)
+- fix(build): the port-preflight predicate must be nonisolated
+- fix(catalogue): a re-run deleted the corrections it was told to protect (#4415)
+- fix(engine): the app asked about a port it does not use, and the only safe answer could not work (#4400)
+- feat(preview): text regions ship on, and the layer stops being able to eat a drag (#4418)
+- fix(workflows): the client routed around the scope guarantee it was given (#4414)
+- fix(claims): a correction was stored alongside the thing it corrected (#4499)
+- docs(status): second 4-hour review — the gate is not met, and I misreported #4415
+- docs(gate): the Ann gate is not met — corrections still die on re-run, and read is unevidenced (#4421)
+- docs(decisions): geometry storage is 71x the text, and that is Daniel's call
+- fix(vision): every word's rect was computed by Vision and thrown away (#4309 #4418 #4405 #970 #1834 #2104)
+- fix(titles): the delete dialog and VoiceOver still spoke the storage name (#4416)
+- fix(claims): a name produced one frame above a Text is still a leaked name (#4393)
+- test(catalogue): run the REAL preset through the REAL runner (#4414 #4404 #4396)
+- fix(workflows): the typed selection reached nothing, so every run recorded an empty scope (#4414 #4397 #4427 #4384 #4396)
+- fix(inspector): an unrecorded confidence is not a confidence of 0.5, or of 0 (#4394)
+- test(reader): measure the wrap contract in a real browser, and on the second reader surface (#4385)
+- fix(drops): the two widest drop targets still re-imported an internal drag (#4401)
+- fix(vision): the recognition language was discarded twice, so a wrong one looked right (#4497)
+- docs(decisions): iPad has no runnable test target at all
+- test(gate): a test plan must be able to run, on the platform it names (#4472)
+- fix(paleography): a transcription node that returns commentary must fail, not store it (#4496)
+- fix(scope): a document surface must ask the library that owns the document (#4461)
+- docs(inventory): every document-scoped surface, and which library it asks (#4461)
+- fix(3d): the zoom ceiling was derived from a span nothing recomputed (#4411)
+- test(paleography): measure the cheap tier instead of wishing at it (#3905)
+- feat(activity): the run diff existed on the server and nothing could see it (#4341)
+- feat(paleography): a real CER against the gold, or a refusal (#3905)
+- feat(activity): a step that produced nothing looked exactly like one that never ran (#4284)
+- chore(contracts): register the comparison endpoint, drop 42 stale excuses
+- chore(openapi): regen so the run-step and comparison types reach Swift
+- docs(decisions): model-comparison is mis-named, not redundant; #3905 gap
+- fix(library): the grammar was right, the list it was given was wrong (#4377)
+- fix(lint): my own comment pushed the file one line over the length limit
+- feat(workflows): two runs of the same page, diffed where they disagree (#4341)
+- fix(canvas): sourceId must be internal, it is called from a sibling file
+- docs(status): Sunday night actuals — what landed, what I got wrong
+- fix(canvas): selection was REBUILDING cards, which is the blue flash (#4409)
+- test(language): pin the two detectors to one vocabulary (#2092)
+- feat(language): one language policy every AI surface honours (#2092)
+- test(language): pin the two detectors to one vocabulary (#2092)
+- feat(language): one language policy every AI surface honours (#2092)
+- chore(docs): drop the allowlist entry the nav link superseded
+- chore(docs): allowlist the selection inventory as an unlinked contributor page (#4436)
+- docs(nav): publish the library selection inventory
+- test(selection): a fifth view mode fails, by surface parity and by guardrail (#4436)
+- fix(selection): one grammar, six surfaces, and the anchor moves with the set (#4436)
+- feat(workflows): a run now reports what each step produced (#4284)
+- docs(selection): inventory every library mode's selection before unifying (#4436)
+- fix(workflows): read requires_vision from the server, not the node list
+- chore(openapi): regen so requires_vision reaches the Swift client
+- fix(guardrail): the app-root check must not police vendored code
+- test(guardrails): a cleanup that does not forbid the pattern gets repeated
+- refactor(tests): 114 files still hand-rolled the app source root (#4493)
+- feat(guardrail): committed conflict markers, because they silence a whole suite
+- fix(workflows): a rule enforced at the parent only is not enforced (#3804)
+- fix(tests): merge-conflict markers were COMMITTED, so the MCP suite never ran
+- fix(titles): nine more surfaces still showed the storage filename (#4416)
+- refactor(inspector): the Info body was at the ViewBuilder ceiling, with no room
+- fix(workflows): don't offer a model override the engine will ignore (#4494)
+- chore(openapi): regen so accepts_model_override reaches the Swift client
+- docs(decisions): two workflow calls that are Daniel's, not an agent's
+- fix(workflows): the engine, not the Run menu, decides what may be run (#3804)
+- fix: the empty-area Import menu was missing from an EMPTY library (#4449)
+- fix(tests): inspector choice-store tests wrote to the real preference domain
+- docs(workflows): audit the Run menu against what the engine actually runs (#3804)
+- fix(inspector): build the chooser #4422 promised, so attributes can be seen (#4481)
+- feat(catalogue): a re-run may not regenerate over the user's corrections (#4415)
+- fix(audit): merge audits name who merged, instead of always "human" (#4415)
+- docs(handover): DeviceSupport reclaim, and reclaim-is-deferred measured twice
+- test(dates): one test per precision rank, because the ranks are the point (#3322)
+- chore(lint): ratchet the swiftlint baseline 74 -> 73
+- docs(drag): inventory every library-item drag source, target and modifier
+- fix(drag): one payload and one modifier grammar for a library-item drag (#4474, #4475)
+- docs(handover): record why free disk will look wrong Tuesday
+- fix(ratchet): discard the whole tainted harvest, not just its obvious half
+- docs(status): the second gate — five legs red, Swift legs never ran
+- docs(handover): the Swift test suite cannot run — runner hangs before connecting
+
+### 2026-08-02
+
+- docs(handover): decision 9 — the archive can hold a translated pseudo-quote
+- fix(tests): SVO live smoke — first marker subscriber, flake root-caused
+- fix(ratchet): a bar may only exist for something actually measured
+- fix(build): AppSource takes String, not StaticString
+- test(support): one AppSource root that walks instead of counting (#4493)
+- fix(features): resolveFeatureTier must return nil for an unrecognised value (#4470)
+- docs(status): CORRECTION — the gate FAILED and I said it passed four times
+- fix(ratchet): remove 173 query bars that recorded an absence as a measurement
+- docs(status): the first clean full gate, and why #4434 was blocking it
+- fix(guardrails): NOT ARMED is a verified claim; child counts go typed
+- fix(tests): merge the shadowed pytest hooks; retire five stale pins
+- fix(tests): bound EVERY suite's live disk, not just perf's (#4434)
+- docs(handover): the DMG is stapled, the app inside is not
+- docs(status): the release, the killed gate, and #4434 still live
+- fix(lint): my access-level note orphaned a doc comment — 75 back to 74
+- fix(guardrails): the three verify-all reds — one design bug, two hash drifts
+- feat(ratchet): iOS app SIZE — after compile time was measured and rejected (#4466)
+
 ## 2026.08.04
 
 **Libraries & Access**

@@ -33,6 +33,7 @@ struct ShareSettingsView: View {
 
     @State var pairingCode: PairingCodeRecord?
     @State var pairedDevices: [PairedDeviceRecord] = []
+    @State var connectedClients: [ConnectedClientRecord] = []
     @State var authzSnapshot: Components.Schemas.LibraryAuthzSnapshot?
     @State var authzError: String?
     @State var isLoadingAuthz = false
@@ -68,7 +69,7 @@ struct ShareSettingsView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(hostingEnabled ? "On" : "Off")
                             .font(.headline)
-                        Text("Share Fichero on this Mac with other devices.")
+                        Text("Share Fichero on this Mac with other devices, the fichero command-line tool, and MCP clients.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -105,6 +106,24 @@ struct ShareSettingsView: View {
                 }
             }
 
+            // Which SURFACES are talking to the engine right now — the app,
+            // the fichero CLI, MCP clients (Daniel, 2026-08-27: "shouldn't
+            // we see that you're connected?"). Presence, not devices.
+            Section("Connected Clients") {
+                if connectedClients.isEmpty {
+                    Text("Nothing has connected this session.")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(connectedClients) { record in
+                        LabeledContent(record.client) {
+                            Text("\(record.requests) requests · \(record.transport)")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                Button("Refresh") { Task { await refreshConnectedClients() } }
+            }
+
             advancedSection
 
             #if canImport(AppKit)
@@ -130,6 +149,7 @@ struct ShareSettingsView: View {
             } else if hostingEnabled, appState.isBackendRunning {
                 await refreshDevices()
             }
+            await refreshConnectedClients()
             await loadAuthzSnapshot()
             didBootstrap = true
         }

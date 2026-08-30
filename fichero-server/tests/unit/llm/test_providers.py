@@ -139,7 +139,9 @@ class TestLLMConfig:
         assert config.provider == "openai"
         assert config.model == "gpt-4o"
         assert config.temperature == 0.7
-        assert config.max_tokens == 2048
+        # 8192, not 2048: a paleography pass has to be able to think and still
+        # emit the transcription, and 2048 was truncating both.
+        assert config.max_tokens == 8192
         assert config.api_key is None
 
     def test_get_model_name(self):
@@ -207,8 +209,9 @@ class TestModelInfo:
         """Test listing models for a provider."""
         from fichero_server.llm import list_models_for_provider
 
-        with patch("fichero_server.llm.model_types._get_litellm") as mock_litellm:
-            mock_litellm.return_value.model_cost = {
+        import fichero_server.llm.model_types as model_types
+
+        with patch.object(model_types, "_PRICE_TABLE", {
                 "openai/gpt-4o": {
                     "input_cost_per_token": 0.000005,
                     "output_cost_per_token": 0.000015,
@@ -226,8 +229,7 @@ class TestModelInfo:
                     "input_cost_per_token": 0.000003,
                     "output_cost_per_token": 0.000015,
                 },
-            }
-
+        }):
             models = list_models_for_provider("openai")
 
             assert len(models) == 2
@@ -239,14 +241,14 @@ class TestModelInfo:
         """Test getting model cost info."""
         from fichero_server.llm import get_model_cost
 
-        with patch("fichero_server.llm.model_types._get_litellm") as mock_litellm:
-            mock_litellm.return_value.model_cost = {
+        import fichero_server.llm.model_types as model_types
+
+        with patch.object(model_types, "_PRICE_TABLE", {
                 "gpt-4o": {
                     "input_cost_per_token": 0.000005,
                     "output_cost_per_token": 0.000015,
                 }
-            }
-
+        }):
             cost = get_model_cost("gpt-4o")
 
             assert cost is not None
@@ -257,12 +259,17 @@ class TestModelInfo:
         """Test cost estimation."""
         from fichero_server.llm import estimate_cost
 
-        with patch("fichero_server.llm.model_types._get_litellm") as mock_litellm:
-            mock_litellm.return_value.cost_per_token.return_value = (0.05, 0.15)
+        import fichero_server.llm.model_types as model_types
 
+        with patch.object(model_types, "_PRICE_TABLE", {
+                "gpt-4o": {
+                    "input_cost_per_token": 0.00005,
+                    "output_cost_per_token": 0.0003,
+                }
+        }):
             cost = estimate_cost("gpt-4o", input_tokens=1000, output_tokens=500)
 
-            assert cost == 0.20
+            assert cost == pytest.approx(0.05 + 0.15)
 
 
 # =============================================================================
@@ -407,13 +414,14 @@ class TestProviderAPIRoutes:
         assert len(data) > 0, "OpenRouter model browser should not be empty"
 
         model_ids = [m["model_id"] for m in data]
-        # Display id has the "openrouter/" prefix stripped...
+        # The route serves OpenRouter's catalog (live when reachable, LiteLLM
+        # fallback otherwise): model_id is OpenRouter's provider-native id
+        # ("anthropic/…") and full_name is a human display name. The old
+        # assertions pinned the LiteLLM-era shape (openrouter/-prefixed
+        # full_name) and broke the day the live catalog answered.
         assert any(model_id.startswith("anthropic/") for model_id in model_ids)
-        assert not any(model_id.startswith("openrouter/") for model_id in model_ids)
-
-        # ...while full_name retains the LiteLLM-routable identifier.
         sample = next(m for m in data if m["model_id"].startswith("anthropic/"))
-        assert sample["full_name"].startswith("openrouter/")
+        assert sample["full_name"], "every model carries a display name"
         assert sample["provider"] == "openrouter"
 
     def test_list_models_preserves_unknown_pricing_without_marking_free(self, client):

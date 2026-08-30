@@ -43,7 +43,10 @@ struct ImageEditOperation: Identifiable, Hashable {
         case "straighten": return "crop.rotate"
         case "enhance": return "wand.and.stars"
         case "fuzzy_clean": return "sparkles"
-        case "remove_background": return "person.crop.rectangle.badge.xmark"
+        // NOT person.crop.rectangle.badge.xmark — that symbol does not exist
+        // in the system set and AppKit logged it on every editor open
+        // (Daniel's log, 2026-08-29).
+        case "remove_background": return "scissors"
         case "segment": return "square.split.bottomrightquarter"
         case "flip_horizontal", "flip_vertical": return "arrow.left.and.right.righttriangle.left.righttriangle.right"
         case "grayscale": return "circle.lefthalf.filled"
@@ -135,7 +138,9 @@ final class ImageEditingService {
     private static let maxPreviewBytes = 50 * 1024 * 1024
 
     private let libraryPath: String
-    private let client: FicheroClient
+    /// Internal (not private): the region-children extension file calls the
+    /// same generated client.
+    let client: FicheroClient
 
     /// Engine root without `/api`, read live off the wrapped client so a pairing /
     /// Settings host change (#2349) rebinds the raw-bytes `previewURL` path too —

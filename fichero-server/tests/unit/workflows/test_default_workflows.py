@@ -347,14 +347,25 @@ class TestLoadPresetFiles:
             "handles any script language without the caller selecting one"
         )
 
-    def test_transcribe_paleography_is_two_pass_with_review(self):
-        """Transcribe Paleography must keep its two-pass (draft + review) wiring."""
+    def test_transcribe_paleography_is_single_pass_and_review_is_standalone(self):
+        """The 2026-08-26 redesign: Transcribe Paleography is ONE careful
+        whole-page pass; the review passes live in the standalone
+        "Paleographer Review" preset, run later on the artifact."""
         presets = {p["name"]: p for p in _load_preset_files()}
         paleography = presets["Transcribe Paleography"]
         node_tools = {n["tool"] for n in paleography["nodes"]}
-        assert "transcribe" in node_tools
-        assert "transcribe_review" in node_tools
-        assert "extract_all" not in node_tools
+        assert node_tools == {"files", "transcribe"}
+
+        review = presets["Paleographer Review"]
+        review_tools = {n["tool"] for n in review["nodes"]}
+        assert "transcribe_review" in review_tools
+        assert "transcribe" not in review_tools, (
+            "the review preset must operate on the EXISTING transcription"
+        )
+        # Three staged passes, final one writes content.
+        review_nodes = {n["id"]: n for n in review["nodes"]}
+        assert review_nodes["r3"]["config"]["update_page_content"] is True
+        assert review_nodes["r1"]["config"]["update_page_content"] is False
 
     def test_transcribe_presets_query_reference_corpus_on_pass_two(self):
         """The shipped transcription presets feed Pass 1 into corpus search.
@@ -364,19 +375,10 @@ class TestLoadPresetFiles:
         """
         presets = {p["name"]: p for p in _load_preset_files()}
         preset_specs = [
-            ("Transcribe HTR", "transcribe", "transcribe_review", "reference-search"),
-            (
-                "Transcribe Paleography",
-                "transcribe",
-                "transcribe_review",
-                "reference-search",
-            ),
-            (
-                "Spanish Script v2 Child Passes (19th-20th C.)",
-                "transcribe-draft",
-                "transcribe-review-medium",
-                "reference-search",
-            ),
+            # 2026-08-26 redesign: the single-pass presets have no welded
+            # review; corpus grounding lives in Paleographer Review and the
+            # Auto-Detect branches.
+            ("Paleographer Review", "r1", "r2", "reference-search"),
             ("Transcribe (Auto-Detect)", "transcribe-htr", "review-htr", "reference-search-htr"),
             (
                 "Transcribe (Auto-Detect)",
@@ -428,7 +430,7 @@ class TestLoadPresetFiles:
         )
         assert query_ports[0].data_type.value == "text"
 
-    def test_paleography_ensemble_passes_execution_gate(self):
+    def test_paleographer_review_passes_execution_gate(self):
         """The ensemble preset must pass the exact validation the /execute
         endpoint runs, so it never ships broken again (#3905 follow-up).
 
@@ -444,10 +446,10 @@ class TestLoadPresetFiles:
 
         preset = {
             p["name"]: p for p in _load_preset_files()
-        }["Transcribe Paleography (Ensemble + Deep Review)"]
+        }["Paleographer Review"]
         workflow_def = to_workflow_def(
             Workflow(
-                id="ensemble-gate-regression",
+                id="review-gate-regression",
                 name=preset["name"],
                 description=preset.get("description", ""),
                 nodes=preset["nodes"],
@@ -474,154 +476,6 @@ class TestLoadPresetFiles:
 
         # The connection graph must be fully clean (environment-independent).
         assert connection_errors == []
-
-    def test_paleography_ensemble_has_no_mandatory_optional_stages(self):
-        presets = {p["name"]: p for p in _load_preset_files()}
-        ensemble = presets["Transcribe Paleography (Ensemble + Deep Review)"]
-        tools = {node["tool"] for node in ensemble["nodes"]}
-        assert "translate" not in tools
-        assert "consistency-check" not in tools
-
-    def test_paleography_ensemble_final_review_bypasses_t2_artifact(self):
-        presets = {p["name"]: p for p in _load_preset_files()}
-        ensemble = presets["Transcribe Paleography (Ensemble + Deep Review)"]
-        nodes = {node["id"]: node for node in ensemble["nodes"]}
-
-        assert nodes["t2"]["config"]["provider_name"] == "$vision_medium"
-        assert nodes["t4"]["config"]["provider_name"] == "$vision_medium"
-        assert nodes["t4"]["config"]["skip_if_artifact_exists"] is False
-
-    def test_spanish_script_subworkflow_ships_in_transcribe_folder(self):
-        """After rationalization (#2251), the sole user-facing Spanish Script preset
-        is 'Transcribe Spanish Script (19th-20th C.)' (renamed from v2 sub-workflow).
-        It must ship alongside its child component."""
-        presets = {p["name"]: p for p in _load_preset_files()}
-
-        parent = presets["Transcribe Spanish Script (19th-20th C.)"]
-        child = presets["Spanish Script v2 Child Passes (19th-20th C.)"]
-
-        for preset in (child, parent):
-            assert preset.get("is_template") is True
-            assert preset.get("is_system") is True
-            assert preset.get("folder_path") == "/Transcribe"
-            assert "sub-workflow" in preset.get("tags", [])
-
-        # "v2" tag dropped from parent — only child keeps it via legacy
-        assert "v2" not in parent.get("tags", [])
-        # Preset version bumped on rename
-        assert parent.get("config", {}).get("preset_version") == 2
-
-    def test_spanish_script_v2_child_uses_distinct_vision_tiers(self):
-        presets = {p["name"]: p for p in _load_preset_files()}
-        child = presets["Spanish Script v2 Child Passes (19th-20th C.)"]
-        node_by_id = {node["id"]: node for node in child["nodes"]}
-
-        assert node_by_id["transcribe-draft"]["config"]["provider_name"] == "$vision_small"
-        assert (
-            node_by_id["transcribe-review-medium"]["config"]["provider_name"]
-            == "$vision_medium"
-        )
-        assert (
-            node_by_id["transcribe-final-large"]["config"]["provider_name"]
-            == "$vision_large"
-        )
-        # files + documents both forwarded from the sub-workflow inputs so each
-        # PAGE gets its own per-page transcription artifact (#2523), not the
-        # parent PDF. Mirrors the gold-standard HTR documents-port wiring.
-        assert node_by_id["transcribe-draft"]["inputs"] == {
-            "files": "$.inputs.files",
-            "documents": "$.inputs.documents",
-        }
-        assert node_by_id["transcribe-review-medium"]["inputs"] == {
-            "files": "$.inputs.files",
-            "documents": "$.inputs.documents",
-        }
-        assert node_by_id["transcribe-final-large"]["inputs"] == {
-            "files": "$.inputs.files",
-            "documents": "$.inputs.documents",
-        }
-
-        assert node_by_id["transcribe-final-large"]["config"]["update_page_content"] is True
-        assert node_by_id["transcribe-review-medium"]["config"]["update_page_content"] is False
-
-    def test_spanish_script_v2_parent_composes_child_with_typed_contract(self):
-        presets = {p["name"]: p for p in _load_preset_files()}
-        child = WorkflowDef(**presets["Spanish Script v2 Child Passes (19th-20th C.)"])
-        parent_data = presets["Transcribe Spanish Script (19th-20th C.)"]
-        parent = WorkflowDef(**parent_data)
-
-        node_by_id = {node["id"]: node for node in parent_data["nodes"]}
-        sub_node = node_by_id["spanish-script-v2"]
-        config = sub_node["config"]
-
-        assert sub_node["tool"] == "sub_workflow"
-        assert config["workflow_ref"] == child.name
-        assert config["input_contract"] == [
-            {
-                "id": "files",
-                "data_type": "files",
-                "required": True,
-                "description": "Selected page image paths to transcribe.",
-            },
-            {
-                "id": "documents",
-                "data_type": "any",
-                "required": False,
-                "description": (
-                    "Per-page document metadata (index-aligned with files) so "
-                    "each page gets its own transcription artifact instead of "
-                    "the parent PDF."
-                ),
-            },
-        ]
-        # The parent must forward the selected documents into the sub-workflow
-        # so the per-page fix (#2523) survives the sub-workflow boundary.
-        assert any(
-            edge["source"] == "files-source"
-            and edge["target"] == "spanish-script-v2"
-            and edge["source_port"] == "documents"
-            and edge["target_port"] == "documents"
-            for edge in parent_data["edges"]
-        )
-        assert config["output_contract"] == [
-            {
-                "id": "text",
-                "data_type": "text",
-                "required": True,
-                "description": "Final reconciled transcription text.",
-            }
-        ]
-        assert config["output_mapping"] == {
-            "text": "$.nodes.transcribe-final-large.text"
-        }
-        assert any(
-            edge["source"] == "files-source"
-            and edge["target"] == "spanish-script-v2"
-            and edge["source_port"] == "files"
-            and edge["target_port"] == "files"
-            for edge in parent_data["edges"]
-        )
-        # Preflight now descends into the child (#3804), so the parent's result
-        # depends on whether this HOST has the vision tiers the child resolves
-        # ($vision_small/$medium/$large) — which a bare test environment does
-        # not. Same treatment as the ensemble-gate test above: assert the
-        # structural failures are absent, and leave full resolution to
-        # test_vision_alias_preflight.py, where AI Defaults are mocked.
-        errors = validate_workflow_preflight(
-            parent,
-            workflow_resolver=lambda ref: child if ref == child.name else None,
-        )
-        assert not any("cycle" in err for err in errors), errors
-        assert not any("output_mapping" in err for err in errors), errors
-        assert not any("could not be resolved" in err for err in errors), errors
-        # Non-vacuous: the descent reached the child, so any error present must
-        # name it — a resolver that silently returned nothing would leave this
-        # list empty and prove nothing.
-        assert all(
-            "(sub_workflow) ->" in err or "no Default vision" in err
-            for err in errors
-        ), errors
-
     def test_catalogue_inputs_route_via_transcribe_not_user_aggregate(self):
         """Catalogue + extract_all + merge_extracts read directly from
         `transcribe`, NOT through a user-defined `aggregate` (Marshal
@@ -1553,13 +1407,13 @@ class TestTranscriptionPresetConvention:
         # Archaic scripts (cortesana, procesal, visigótica, etc.) use letterforms
         # that Apple Vision cannot decode. LLM vision is required for the draft pass.
         ("Transcribe Paleography", "transcribe"): "archaic scripts require LLM vision",
-        # Spanish Script child: vision tier aliases ($vision_small/$vision_medium/
-        # $vision_large) already select the model explicitly; language="es" narrows
-        # the model's orthography conventions to 19th-20th C. Spanish notarial script.
-        (
-            "Spanish Script v2 Child Passes (19th-20th C.)",
-            "transcribe-draft",
-        ): "language-specific ES preset with explicit tier aliases",
+        # The 2026-08-26 single-pass family reads with LLM vision throughout:
+        # these presets exist precisely for material Apple Vision cannot decode.
+        ("Transcribe HTR", "transcribe"): "historical hands read with LLM vision",
+        ("Paleografía Española (s. XVI–XVII)", "transcribe"): "archaic scripts require LLM vision",
+        ("Paleografía Española (s. XVIII–XIX)", "transcribe"): "period hands read with LLM vision",
+        ("Latin Paleography", "transcribe"): "abbreviation-heavy Latin requires LLM vision",
+        ("English Secretary Hand (16th–17th C.)", "transcribe"): "secretary hand requires LLM vision",
     }
 
     def _all_preset_dicts(self) -> list[dict]:
@@ -1689,48 +1543,6 @@ class TestTranscriptionPresetConvention:
             "into the documents port, or inputs['documents']):\n"
             + "\n".join(missing)
         )
-
-    def test_spanish_script_child_forwards_documents_contract(self):
-        """The Spanish Script sub-workflow must carry `documents` across the
-        sub-workflow boundary (#2523): the child declares a `documents` input
-        contract and forwards it to every pass, and the parent declares the
-        matching contract entry plus the files-source → sub_workflow documents
-        edge. Without all four, per-page documents never reach the child and
-        the sub-workflow transcribes the parent PDF."""
-        presets = {p["name"]: p for p in self._all_preset_dicts()}
-
-        child = presets["Spanish Script v2 Child Passes (19th-20th C.)"]
-        child_contract_ids = {
-            entry["id"] for entry in child["config"]["input_contract"]
-        }
-        assert "documents" in child_contract_ids, (
-            "child must declare a `documents` input contract"
-        )
-        for node in child["nodes"]:
-            if node.get("tool") in ("transcribe", "transcribe_review"):
-                assert (
-                    node.get("inputs", {}).get("documents")
-                    == "$.inputs.documents"
-                ), f"child node {node['id']} must forward documents"
-
-        parent = presets["Transcribe Spanish Script (19th-20th C.)"]
-        sub_node = next(
-            n for n in parent["nodes"] if n["tool"] == "sub_workflow"
-        )
-        parent_contract_ids = {
-            entry["id"] for entry in sub_node["config"]["input_contract"]
-        }
-        assert "documents" in parent_contract_ids, (
-            "parent sub_workflow node must declare a `documents` input contract"
-        )
-        assert any(
-            e["source"] == "files-source"
-            and e["target"] == sub_node["id"]
-            and e["source_port"] == "documents"
-            and e["target_port"] == "documents"
-            for e in parent["edges"]
-        ), "parent must feed files-source documents into the sub_workflow node"
-
     def test_transcribe_review_nodes_always_use_llm_vision_mode(self):
         """Review nodes (tool='transcribe_review') must always use
         vision_mode='llm' — structured review reasoning requires LLM."""

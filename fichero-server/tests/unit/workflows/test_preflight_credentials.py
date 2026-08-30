@@ -186,6 +186,14 @@ def test_keyless_fresh_install_passes_preflight_for_every_default_workflow(
     # now it refuses up front, naming the capability to configure.
     generative_vision_presets = {"Group Same Documents"}
 
+    # 2026-08-26 redesign: the Pipeline preset DELEGATES to the paleography
+    # and review workflows, whose staged review passes need a configured,
+    # generation-capable vision model — the keyless Apple-OCR default cannot
+    # review anything. Refusing up front with the model named is the honest
+    # keyless behaviour (same philosophy as the class above), and the
+    # refusal must SAY what to configure.
+    delegating_presets = {"Transcribe + Review (Pipeline)"}
+
     failures: dict[str, list[str]] = {}
     for preset in _load_preset_files():
         workflow = to_workflow_def(
@@ -208,6 +216,11 @@ def test_keyless_fresh_install_passes_preflight_for_every_default_workflow(
             assert any(
                 "generation-capable vision model" in e and "not configured" in e
                 for e in errors
+            ), errors
+        elif preset["name"] in delegating_presets:
+            assert errors, f"{preset['name']}: expected keyless preflight failure"
+            assert any(
+                "on-device model" in e or "not configured" in e for e in errors
             ), errors
         elif errors:
             failures[preset["name"]] = errors

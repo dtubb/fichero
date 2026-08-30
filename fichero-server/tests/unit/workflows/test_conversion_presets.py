@@ -15,7 +15,7 @@ PRESET_TARGET = {
     "Convert to Markdown": ("convert", {"target_format": "markdown"}),
     "Convert to HTML": ("convert", {"target_format": "html"}),
     "Convert to SVG": ("convert", {"target_format": "svg"}),
-    "Extract Table": ("table_extract", {"output_style": "json_rows"}),
+    "Extract Table": ("table_extract", {"output_style": "csv"}),
     "Extract Geo": ("extract_geo", {"online_geocoding": False}),
 }
 

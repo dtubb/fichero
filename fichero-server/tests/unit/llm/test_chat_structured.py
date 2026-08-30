@@ -99,7 +99,11 @@ class TestComputeTimeout:
         assert _compute_timeout(cfg, "apple_chat") == 180
 
     def test_apple_structured_scales_with_schema_size(self):
-        cfg = LLMConfig(provider="apple", model="x", timeout=60)
+        # max_tokens pinned rather than defaulted: the default rose to 8192
+        # for thinking budgets, which pushed BOTH budgets onto the 600s ceiling
+        # and made this assertion pass on a saturation rather than on the
+        # scaling it exists to test.
+        cfg = LLMConfig(provider="apple", model="x", timeout=60, max_tokens=1024)
         small_schema = _compute_timeout(cfg, "apple_structured", schema_chars=500)
         big_schema = _compute_timeout(cfg, "apple_structured", schema_chars=10000)
         # Bigger schema → more guided-decoding overhead → bigger budget.

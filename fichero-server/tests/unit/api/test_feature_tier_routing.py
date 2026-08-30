@@ -81,14 +81,16 @@ def test_iiif_server_mode_is_dev_tier_only():
 
 
 def test_alpha_and_beta_routes_are_cumulative():
+    # Chat and research moved to DEV tier (afbedec47, Daniel's 2026-08-25
+    # ruling: the beta build sheds the untested surfaces).
     assert not _spec_exists("release", "/api/chat", "chat")
-    assert _spec_exists("beta", "/api/chat", "chat")
-    assert _spec_exists("alpha", "/api/chat", "chat")
+    assert not _spec_exists("beta", "/api/chat", "chat")
+    assert not _spec_exists("alpha", "/api/chat", "chat")
     assert _spec_exists("dev", "/api/chat", "chat")
 
     assert not _spec_exists("release", "/api/research", "research")
-    assert _spec_exists("beta", "/api/research", "research")
-    assert _spec_exists("alpha", "/api/research", "research")
+    assert not _spec_exists("beta", "/api/research", "research")
+    assert not _spec_exists("alpha", "/api/research", "research")
     assert _spec_exists("dev", "/api/research", "research")
 
     assert not _spec_exists("release", "/api", "activity")
@@ -136,8 +138,8 @@ def test_beta_build_404s_dev_and_alpha_routes(monkeypatch):
     client = _tier_client(monkeypatch, "beta")
 
     assert client.get("/api/iiif/iiif/test/info.json").status_code == 404
-    assert client.post("/api/chat").status_code != 404
-    assert client.get("/api/research/projects").status_code != 404
+    assert client.post("/api/chat").status_code == 404
+    assert client.get("/api/research/projects").status_code == 404
     assert client.get("/api/activity").status_code != 404
 
 
@@ -145,8 +147,8 @@ def test_alpha_build_404s_dev_routes_only(monkeypatch):
     client = _tier_client(monkeypatch, "alpha")
 
     assert client.get("/api/iiif/iiif/test/info.json").status_code == 404
-    assert client.post("/api/chat").status_code != 404
-    assert client.get("/api/research/projects").status_code != 404
+    assert client.post("/api/chat").status_code == 404
+    assert client.get("/api/research/projects").status_code == 404
     assert client.get("/api/activity").status_code != 404
 
 

@@ -316,6 +316,27 @@ _THINKING_DEPTH = {
 }
 
 
+# Output-token headroom the `<think>` block itself needs, per mode. The
+# reasoning is emitted into the SAME output stream as the answer, so a node
+# that asks for deeper thinking and keeps the same ceiling is asking the model
+# to spend its answer on reasoning (2026-08-28).
+_THINKING_TOKEN_HEADROOM = {"off": 0, "short": 2048, "medium": 4096, "long": 8192}
+
+
+def token_budget_for_thinking(thinking_mode: str, base_max_tokens: int) -> int:
+    """The output ceiling a node needs once its thinking is accounted for.
+
+    The paleography presets declare ``thinking_mode: "long"`` and inherited a
+    2048-token ceiling, so the reasoning consumed the budget and the
+    transcription was cut off mid-word — Opus 5 on Caciques Hoja 532 ended at
+    "ce se[ñ]or y [UNCERTAI", with four calls logging output=2048 exactly.
+    Asking for deeper thought made the ANSWER worse, which is the opposite of
+    what the setting promises. Output tokens bill as generated, so raising the
+    ceiling costs nothing on replies that stay short.
+    """
+    return base_max_tokens + _THINKING_TOKEN_HEADROOM.get(thinking_mode, 0)
+
+
 def build_thinking_preamble(thinking_mode: str = "off") -> str:
     """Build a thinking-mode instruction to prepend to the prompt.
 

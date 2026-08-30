@@ -40,8 +40,9 @@ check back when it exits; no per-step polling:
   `codesign:` access those keys, the lane fails fast with the one-time
   `security set-key-partition-list …` command instead of hanging mid-build. On a
   machine set up once, the probe is instant.
-- **`notarize.sh` already uses `notarytool submit … --wait`**, so it blocks until
-  Apple returns Accepted/Rejected.
+- **`notarize.sh` submits WITHOUT `--wait`** and polls `notarytool info`
+  instead (the `--wait` mode hits deadline-exceeded failures), stapling once
+  Apple returns Accepted. Do not "simplify" it back to `--wait`.
 - **TestFlight processing-wait (opt-in)**: `xcodebuild -exportArchive` returns on
   *upload* completion, not when Apple finishes *processing* the build into
   TestFlight. **By default the lane stops at a successful upload** and lets Apple
@@ -187,7 +188,7 @@ xcrun stapler validate build/releases/Fichero.dmg
 The current appcast URL is:
 
 ```text
-https://raw.githubusercontent.com/dtubb/fichero/main/fichero/appcast.xml
+https://tubb.ca/apps/fichero/appcast.xml
 ```
 
 Do not change `SPARKLE_FEED_URL` without a rebuild; it is baked into the app

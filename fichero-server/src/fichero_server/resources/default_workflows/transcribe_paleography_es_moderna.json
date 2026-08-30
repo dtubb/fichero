@@ -1,0 +1,62 @@
+{
+ "name": "Paleografía Española (s. XVIII–XIX)",
+ "description": "Use this when: you have 18th–19th century Spanish administrative, notarial, or secretarial hands (humanística, bastarda, letra de oficio). Replaces the Spanish Script v2 presets. One careful whole-page pass; run Paleographer Review afterwards to refine.",
+ "format": "nodes",
+ "is_template": true,
+ "is_system": true,
+ "folder_path": "/Transcribe",
+ "tags": [
+  "preset",
+  "transcribe",
+  "paleography",
+  "spanish",
+  "single-pass"
+ ],
+ "config": {
+  "preset_version": 1,
+  "variant_group": "transcribe-single-pass",
+  "variant": "paleography-es-moderna"
+ },
+ "nodes": [
+  {
+   "id": "files-source",
+   "tool": "files",
+   "label": "Files",
+   "position_x": 80,
+   "position_y": 200,
+   "inputs": {},
+   "config": {}
+  },
+  {
+   "id": "transcribe",
+   "tool": "transcribe",
+   "label": "Transcribe",
+   "position_x": 320,
+   "position_y": 200,
+   "inputs": {},
+   "config": {
+    "vision_mode": "llm",
+    "language": "auto",
+    "update_page_content": true,
+    "thinking_mode": "long",
+    "prompt": "You are a paleographer of modern-era Spanish hands transcribing a manuscript image in a single careful pass.\n\nTake your time and think through hard lines before committing to a reading.\n\n**Before transcribing, note in a single bracketed line:**\n[Script: <family>; hand: <size, slant>; language: <language>]\n\nThen output ONLY the transcription — no headings, preamble, or commentary after that line.\n\n**Transcription discipline (non-negotiable):**\n- Transcribe the WHOLE page in reading order. Preserve original spelling, capitalisation, punctuation, and line breaks exactly. Never modernise.\n- Square brackets ONLY around letters you supply by expanding an abbreviation or contraction — mer[ce]d, ma[gesta]d, v[ecin]o. Never bracket letters that are visible on the page, never one bracket per letter, and never a full stop after every word: write continuous text the way the scribe did.\n- [UNCERTAIN: word] when you have a plausible reading; [ILLEGIBLE] only when the strokes are truly unreadable. An honest [UNCERTAIN] is worth more than a fluent guess.\n- You know the period's formulas. Use them to READ, not to write: where damage hides a standard formula, propose it as [UNCERTAIN: ...], never as clean text.\n- Keep names, dates, and places consistent with what the document itself establishes (docket/cover, headings, other pages of the batch). If two readings conflict, flag the conflict — do not silently choose.\n- [M.N.] marginalia at position · [deleted: ...] struck text · interlinear insertions inline at the insertion point · [Rúbrica] / [Sello] for flourishes and stamps · [sin texto] for a page with no legible text.\n\n**Spanish, s. XVIII–XIX (humanística, bastarda, letra de oficio):**\n- Lighter abbreviation than earlier centuries: D.n / D.a = Don/Doña · S.or / S.ra · Ex.mo · Yll.e / Ill.e · dro = derecho · q.e = que · p.a = para · p.r = por · am.o = amigo · fho = fecho · corr.te = corriente · S.n = San.\n- Long-s persists into the early 19th century — do not read it as f.\n- Period orthography stands: havia, oy, mui, exemplo, dixo, muger; accents rare — transcribe without adding them.\n- Administrative and notarial formulary (escrituras, oficios, expedientes): salutation and date lines follow fixed patterns; proposals for damaged formula text go in [UNCERTAIN: ...].\n- Rubricated signatures and papel sellado stamps are common — mark them, do not read them as text."
+   }
+  }
+ ],
+ "edges": [
+  {
+   "id": "files-source-transcribe-files",
+   "source": "files-source",
+   "target": "transcribe",
+   "source_port": "files",
+   "target_port": "files"
+  },
+  {
+   "id": "files-source-transcribe-documents",
+   "source": "files-source",
+   "target": "transcribe",
+   "source_port": "documents",
+   "target_port": "documents"
+  }
+ ]
+}

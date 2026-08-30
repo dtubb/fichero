@@ -29,7 +29,7 @@ enum WorkflowSuggestionPolicy {
         if documents.allSatisfy({ $0.docType == .folder }) {
             return [
                 WorkflowSuggestion(workflowName: "Catalogue", systemImage: "list.bullet.rectangle"),
-                WorkflowSuggestion(workflowName: "Transcribe (Auto-Detect)", systemImage: "text.viewfinder"),
+                WorkflowSuggestion(workflowName: "Transcribe (Auto-Detect)", systemImage: "text.viewfinder")
             ]
         }
 
@@ -37,7 +37,7 @@ enum WorkflowSuggestionPolicy {
         if documents.allSatisfy({ $0.nodeKind == "entry" }) {
             return [
                 WorkflowSuggestion(workflowName: "Extract Entities", systemImage: "person.text.rectangle"),
-                WorkflowSuggestion(workflowName: "Extract SVO → Claims", systemImage: "point.3.connected.trianglepath.dotted"),
+                WorkflowSuggestion(workflowName: "Extract SVO → Claims", systemImage: "point.3.connected.trianglepath.dotted")
             ]
         }
 
@@ -45,7 +45,9 @@ enum WorkflowSuggestionPolicy {
         if documents.allSatisfy({ $0.fileType == .image || $0.docType == .page }) {
             return [
                 WorkflowSuggestion(workflowName: "Transcribe (Auto-Detect)", systemImage: "text.viewfinder"),
-                WorkflowSuggestion(workflowName: "Detect Regions", systemImage: "rectangle.dashed"),
+                // Renamed 2026-08-26 when Detect Regions became its own
+                // folder group (Apple Vision + VLM siblings).
+                WorkflowSuggestion(workflowName: "Detect Regions (Apple Vision)", systemImage: "rectangle.dashed")
             ]
         }
 

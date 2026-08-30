@@ -8,9 +8,22 @@
   without it the app minted bookmarks it was not entitled to mint, and the
   engine failed to resolve every one of them (NSCocoaError 259, engine
   sandbox P0 plan, 2026-08-08).
+
+  app-sandbox is declared HERE too (2026-08-27): the DMG lane re-signs the
+  app with this raw file, and codesign REPLACES entitlements — so the
+  ENABLE_APP_SANDBOX merge from the Xcode build was silently stripped and
+  the shipped DMG ran UNSANDBOXED, keeping its data in a different
+  Application Support than every Xcode build (Daniel's different-folders
+  bug). One sandbox everywhere: same container, same bugs caught early.
 -->
 <plist version="1.0">
 <dict>
+	<key>com.apple.security.network.client</key>
+	<true/>
+	<key>com.apple.security.network.server</key>
+	<true/>
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
 	<key>com.apple.security.files.user-selected.read-write</key>
 	<true/>
 	<key>com.apple.security.files.bookmarks.app-scope</key>

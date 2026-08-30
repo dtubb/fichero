@@ -66,15 +66,15 @@ tests/
 
 ### Running Tests
 ```bash
-# Run all tests
-pytest tests/
+# Unit tests (from the repo root; NEVER whole-tree pytest — it pulls the
+# ~50-minute perf suite)
+PYTHONPATH=fichero-server/src pytest fichero-server/tests/unit/ --ignore=fichero-server/tests/unit/_archived
 
-# Run specific test type
-pytest tests/unit/
-pytest tests/integration/
+# One area
+PYTHONPATH=fichero-server/src pytest fichero-server/tests/unit/api/
 
-# Run with coverage
-pytest --cov=src/fichero_server tests/
+# With coverage
+PYTHONPATH=fichero-server/src pytest --cov=fichero_server fichero-server/tests/unit/
 ```
 
 ## Mutations
@@ -194,9 +194,9 @@ Do not leave two parallel write paths for the same mutation concern by accident.
 These follow-ups are still live on `main` and should be documented as open work,
 not treated as solved:
 
-- **Mind-palace room routes are REMOVED**, and `fichero-server/tests/unit/api/test_mind_palace_route_guard.py` asserts they stay removed
-  still carries strict `xfail` coverage showing create/update/delete bypass
-  `registry.invoke(...)` and `emit_change(...)` (`#2820`, in progress)
+- **Mind-palace room routes are REMOVED** —
+  `fichero-server/tests/unit/api/test_mind_palace_route_guard.py` asserts they
+  stay removed (`#2820`)
 - **Request-model tightening**: `fichero-server/tests/unit/models/test_fold_endpoints_validation.py`
   still carries strict `xfail` coverage for request models that accept extra
   fields or other lax input; many of the current request models have not yet
@@ -327,9 +327,9 @@ async def my_tool(inputs, state, llm_config):
 
 - `method="function_calling"` (default in `chat_structured`) routes
   through tool-calling on every provider that supports it. For
-  models that natively support strict `response_format=json_schema`
-  (e.g. OpenAI gpt-5+), upgrading is a future improvement (#844 item
-  7) once `model.profile` exposes the capability flag.
+  models that natively support strict `response_format=json_schema`,
+  upgrading is a future improvement (#844 item 7) once
+  `model.profile` exposes the capability flag.
 - `max_retries=10` (LangChain default is 6) is set in
   `get_langchain_model`'s common params. Exponential backoff with
   jitter handles transient OpenRouter / Anthropic rate-limit and
@@ -402,8 +402,8 @@ formula somewhere else.
 - **anthropic native**: `thinking={'type':'enabled','budget_tokens':N}` +
   forces `temperature=1` (Anthropic API constraint)
 - **openai (o-series)**: `reasoning_effort=<level>` kwarg
-- **openrouter**: `extra_body={'reasoning':{'effort':...}}` (works for
-  Claude AND gpt-5 via OpenRouter's normalized shape)
+- **openrouter**: `extra_body={'reasoning':{'effort':...}}` (OpenRouter's
+  normalized shape covers models from multiple providers)
 - **apple intelligence + others**: silently ignored
 
 Wired ON only for synthesis-style calls (catalogue narrative). Mechanical

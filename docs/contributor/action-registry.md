@@ -25,56 +25,65 @@ Actions are named `<domain>.<verb>`: `entity.merge`, `import.file`, `claim.delet
 
 ### 1. Define the action
 
-In the relevant domain module, decorate a function with `@action`:
+Params are a Pydantic model, and the function returns a `(result, ChangeSpec)`
+pair — the `ChangeSpec` is what lets `invoke` write the audit row and emit the
+observer change from one path:
 
 ```python
-from fichero_server.actions import action, ActionContext
+from pydantic import BaseModel
+from fichero_server.actions.registry import ActionContext, ChangeSpec, action
 
-@action("document.tag", params={"doc_id": str, "tag": str}, undoable=True)
-async def tag_document(db, params: dict, ctx: ActionContext):
-    doc_id = params["doc_id"]
-    tag = params["tag"]
-    await db.execute(
+class TagDocumentParams(BaseModel):
+    doc_id: str
+    tag: str
+
+def _untag_document(db, params: TagDocumentParams, ctx: ActionContext):
+    ...  # remove the tag; return (result, ChangeSpec) like the forward action
+
+@action(
+    "document.tag",
+    TagDocumentParams,
+    domains=["document"],
+    undoable=True,
+    invert=_untag_document,
+)
+def tag_document(db, params: TagDocumentParams, ctx: ActionContext):
+    before = ...  # JSON-able snapshot, becomes the undo payload
+    db.execute(
         "UPDATE documents SET tags = list_append(tags, ?) WHERE id = ?",
-        [tag, doc_id],
+        [params.tag, params.doc_id],
     )
-    return {"doc_id": doc_id, "tag": tag}
+    after = ...
+    spec = ChangeSpec(
+        domains=["document"],
+        target_ids=[params.doc_id],
+        before=before,
+        after=after,
+        emit_type="document.updated",
+    )
+    return {"doc_id": params.doc_id, "tag": params.tag}, spec
 ```
 
-`params` declares the expected keys and types. `undoable=True` means the registry will also call `invert` when an undo is requested.
+`undoable=True` with `invert=` registers the inverse function; the undo
+endpoint replays it against the audit row's `before`/`after` payloads.
 
-### 2. Implement invert (if undoable)
-
-```python
-@action("document.tag", params={"doc_id": str, "tag": str}, undoable=True)
-async def tag_document(db, params: dict, ctx: ActionContext):
-    ...
-
-@tag_document.invert
-async def _(db, before: dict, after: dict, ctx: ActionContext):
-    doc_id = before["id"]
-    tag = after["tag"]
-    await db.execute(
-        "UPDATE documents SET tags = list_filter(tags, t -> t != ?) WHERE id = ?",
-        [tag, doc_id],
-    )
-```
-
-`before` and `after` are the snapshots taken by the registry around the `execute` call.
-
-### 3. Call it from a route handler
+### 2. Call it from a route handler
 
 ```python
-from fichero_server.actions import registry
+from fichero_server.actions.registry import registry
 
 @router.post("/documents/{doc_id}/tags")
-async def add_tag(doc_id: str, tag: str, request: Request, db=Depends(get_db)):
+def add_tag(doc_id: str, tag: str, request: Request, db=Depends(get_db)):
     ctx = ActionContext(actor=request.state.user, origin_window=request.headers.get("X-Window-Id"))
-    result = await registry.invoke("document.tag", {"doc_id": doc_id, "tag": tag}, ctx)
+    result = registry.invoke(db, "document.tag", {"doc_id": doc_id, "tag": tag}, ctx)
     return result
 ```
 
-That is the entire route handler. No direct DB writes.
+That is the entire route handler: `invoke` runs validate -> execute -> audit ->
+emit. No direct DB writes in routes. When adding a real action, copy a shipped
+audited pair (e.g. `claim.create` in `api/routes/claim/claims.py` or
+`document.move` in `api/routes/document/documents.py`) rather than writing
+from scratch.
 
 ## The Audit Record
 
@@ -136,13 +145,13 @@ Every action must have at least one test that:
 ```python
 async def test_tag_document_writes_audit(db, test_document):
     ctx = ActionContext(actor="test-user", origin_window=None)
-    await registry.invoke("document.tag", {"doc_id": test_document.id, "tag": "important"}, ctx)
+    registry.invoke(db, "document.tag", {"doc_id": test_document.id, "tag": "important"}, ctx)
 
     row = await db.fetchone("SELECT * FROM documents WHERE id = ?", [test_document.id])
     assert "important" in row["tags"]
 
     audit = await db.fetchone(
-        "SELECT * FROM action_audit WHERE action_name = 'document.tag' ORDER BY ts DESC LIMIT 1"
+        "SELECT * FROM action_audit WHERE action_name = 'document.tag' ORDER BY created_at DESC LIMIT 1"
     )
     assert audit is not None
     assert audit["actor"] == "test-user"

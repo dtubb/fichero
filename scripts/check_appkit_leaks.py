@@ -167,7 +167,7 @@ def unguarded_hits(source: str) -> list[tuple[int, str]]:
 def scan() -> dict[str, list[tuple[int, str]]]:
     result: dict[str, list[tuple[int, str]]] = {}
     for path in sorted(SWIFT_DIR.rglob("*.swift")):
-        if "/fichero-tests/" in str(path) or "/fichero-ui-tests/" in str(path):
+        if "/Tests/Unit/" in str(path) or "/Tests/UI/" in str(path):
             continue
         rel = str(path.relative_to(SWIFT_DIR))
         hits = unguarded_hits(path.read_text(encoding="utf-8"))

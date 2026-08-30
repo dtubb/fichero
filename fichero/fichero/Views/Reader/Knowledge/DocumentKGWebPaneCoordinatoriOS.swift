@@ -22,6 +22,9 @@ final class DocumentKGWebPaneCoordinatoriOS: NSObject, WKNavigationDelegate, WKS
     var lastLoadedDocumentId: String?
     var lastLoadedLibraryPath: String?
     var lastLoadedPageIds: [String]?
+    /// The representation the loaded page reads (nil = live content) —
+    /// flipping the switcher re-requests the SAME page (2026-08-29).
+    var lastLoadedRepresentation: String??
     var lastSelectedEntityId: String?
     var lastSelectedClaimId: String?
     var lastSelectedClaimCharStart: Int?
@@ -38,6 +41,12 @@ final class DocumentKGWebPaneCoordinatoriOS: NSObject, WKNavigationDelegate, WKS
     let progressSync = WebPaneProgressSync()
     /// Bounded reload budget for a dying WebContent process.
     var processRecovery = WebContentProcessRecovery.State()
+    /// Separate budget from `processRecovery`: a renderer crash and an
+    /// engine load failure are different faults and must not share a count.
+    var loadFailureRecovery = WebContentProcessRecovery.State()
+    /// The pending automatic reload after a failed engine load; cancelled by
+    /// the next explicit load so a stale retry cannot race a fresh document.
+    var failureRetryTask: Task<Void, Never>?
 
     init(parent: DocumentKGWebPane) {
         self.parent = parent
@@ -48,11 +57,16 @@ final class DocumentKGWebPaneCoordinatoriOS: NSObject, WKNavigationDelegate, WKS
 
     func loadIfNeeded(_ webView: WKWebView) {
         guard lastLoadedDocumentId != parent?.documentId || lastLoadedLibraryPath != parent?.libraryPath
-            || lastLoadedPageIds != parent?.pageIds else { return }
+            || lastLoadedPageIds != parent?.pageIds
+            || lastLoadedRepresentation != parent?.representation else { return }
+        // An explicit load supersedes any scheduled failure retry.
+        failureRetryTask?.cancel()
+        failureRetryTask = nil
 
         lastLoadedDocumentId = parent?.documentId
         lastLoadedLibraryPath = parent?.libraryPath
         lastLoadedPageIds = parent?.pageIds
+        lastLoadedRepresentation = parent?.representation
         lastAppliedZoom = 0  // Force viewport injection on next load even when zoom == 1.0
         lastActiveTab = nil
         lastSelectedEntityId = nil
@@ -65,7 +79,8 @@ final class DocumentKGWebPaneCoordinatoriOS: NSObject, WKNavigationDelegate, WKS
         guard let parent, let request = DocumentKGPaneRoute.request(
             documentId: parent.documentId,
             libraryPath: parent.libraryPath,
-            pageIds: parent.pageIds
+            pageIds: parent.pageIds,
+            representation: parent.representation
         ) else {
             // Only reachable when the document id can't form a URL — the
             // remote-host availability gate is retired (loads route through
@@ -231,8 +246,42 @@ final class DocumentKGWebPaneCoordinatoriOS: NSObject, WKNavigationDelegate, WKS
         withError error: any Error
     ) {
         if error.isCancellationError { return }
-        let failingURL = (error as NSError).userInfo[NSURLErrorFailingURLStringErrorKey] as? String
+        // NSURLErrorFailingURLErrorKey (a URL), not the String key deprecated in
+        // iOS 18.4 — mirrors the macOS twin coordinator, which already reads it.
+        let failingURL = ((error as NSError).userInfo[NSURLErrorFailingURLErrorKey] as? URL)?.absoluteString
         guard failingURL == nil || failingURL?.hasPrefix(EngineWebViewURL.scheme) == true else { return }
+        // Un-poison the cache key, ON A BUDGET. `loadIfNeeded` stamps
+        // `lastLoadedDocumentId` BEFORE it knows the load succeeded, so a
+        // failure (engine still starting, engine quit) left the coordinator
+        // believing this document was loaded and every later attempt for the
+        // SAME document was skipped — the pane sat on its failure page until
+        // the document changed, which is why selecting a different item
+        // "fixed" it (Daniel, 2026-08-28).
+        //
+        // Clearing the keys unconditionally is worse: a URL the engine answers
+        // 500 for every time (a workflow pseudo-document) then retries
+        // forever, and each attempt costs a main-thread stall — a reload storm
+        // in the logs within seconds. The same budget the renderer-crash path
+        // uses gates it: retry a few times, then stay on the honest failure
+        // page. A transient engine restart recovers; a genuine 500 stops.
+        if WebContentProcessRecovery.shouldReload(&loadFailureRecovery) {
+            lastLoadedDocumentId = nil
+            lastLoadedLibraryPath = nil
+            lastLoadedPageIds = nil
+            // ACTIVE retry, not a passive un-poison (2026-08-29). Un-poisoning
+            // alone waits for something to call loadIfNeeded again — at window
+            // restore nothing does, so the pane sat on its failure page while
+            // the engine finished opening the library seconds later (33
+            // straight 404s for one folder in the launch log, then 200s once
+            // POST /api/library landed). The budget above still caps this at
+            // 3 tries per minute, so a genuine 500 stops instead of storming.
+            failureRetryTask?.cancel()
+            failureRetryTask = Task { @MainActor [weak self, weak webView] in
+                try? await Task.sleep(for: .seconds(2))
+                guard !Task.isCancelled, let self, let webView else { return }
+                self.loadIfNeeded(webView)
+            }
+        }
         webView.loadHTMLString(
             DocumentKGPaneRoute.loadFailureHTML(detail: error.localizedDescription),
             baseURL: nil
@@ -277,18 +326,15 @@ final class DocumentKGWebPaneCoordinatoriOS: NSObject, WKNavigationDelegate, WKS
                 body: body
             )
         case "pageSelected":
-            guard let pageNumber = pageNumber(from: body) else { return }
-            if parent?.activePageNumber != pageNumber {
-                suppressActivePageSyncUntil = Date().addingTimeInterval(0.25)
-            }
-            guard parent?.scrollSync.beginDriving(.web) ?? false else { return }
-            parent?.onPageSelected(max(0, pageNumber - 1))
+            handlePageSelected(body)
         case "pageActivated":
             // A CLICK, not a scroll (#4373). It is allowed to move the library
             // selection and the preview, which `pageSelected` deliberately is
             // not (#1463) — hence the separate kind and the separate bus. No
             // scroll-sync driving claim: the user is not scrolling.
             handlePageActivated(body)
+        case "pageRevealRequested":
+            handlePageRevealRequested(body)
         default:
             break
         }
@@ -308,6 +354,32 @@ extension DocumentKGWebPaneCoordinatoriOS {
     /// A malformed or out-of-range page is REPORTED, never clamped: silently
     /// selecting page 1 because the payload said 0 is precisely the kind of
     /// quiet wrong answer that makes a navigation bug unfindable.
+    /// A transcript SCROLL landing on a new page (#1463): moves the preview,
+    /// never the library selection. Extracted with the other bridge handlers
+    /// so the message switch stays a router.
+    func handlePageSelected(_ body: [String: Any]) {
+        guard let pageNumber = pageNumber(from: body) else { return }
+        if parent?.activePageNumber != pageNumber {
+            suppressActivePageSyncUntil = Date().addingTimeInterval(0.25)
+        }
+        guard parent?.scrollSync.beginDriving(.web) ?? false else { return }
+        parent?.onPageSelected(max(0, pageNumber - 1))
+    }
+
+    /// The per-page proxy icon (2026-08-29): reveal that page node in the
+    /// sidebar — the same seam a pane-head crumb click uses, so selection
+    /// follows through the one selection path.
+    func handlePageRevealRequested(_ body: [String: Any]) {
+        guard let pageId = body["pageId"] as? String, !pageId.isEmpty else { return }
+        Task { @MainActor in
+            NotificationCenter.default.post(
+                name: .sidebarRevealDocument,
+                object: nil,
+                userInfo: ["documentId": pageId]
+            )
+        }
+    }
+
     func handlePageActivated(_ body: [String: Any]) {
         guard let pageNumber = pageNumber(from: body) else {
             readerPageActivationLogger.error("Reader page click carried no usable page number")

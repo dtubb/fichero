@@ -2,31 +2,58 @@
 
 *Full commit-level history, day by day, lives in [`CHANGELOG.md`](CHANGELOG.md).*
 
+## 2026.08.27
+
+**Sharing, CLI, and MCP:**
+- New: The Sharing toggle now serves the `fichero` command-line tool and MCP
+  clients from the running app — no separate engine to start. The toggle's
+  description names all three.
+- Bug: Turning Sharing on no longer shows "HTTP 400: Unexpected response";
+  the pairing QR appears reliably.
+- Bug: Sharing to another device on your network (the QR's `.local` address)
+  now actually listens on the network — pairing from iPhone/iPad reaches the
+  Mac instead of "Could not connect to the server."
+
+**Stability:**
+- Bug: A crash in the stall diagnostics (debug tooling) at first stall is
+  fixed.
+- Bug: Rendition downloads no longer fail with a server error in the
+  sandboxed app.
+
+**Library:**
+- Bug: Names with numbers sort naturally — "page2" before "page10" — in the
+  library, bookmarks, and exports.
+
+**iPhone and iPad:**
+- This build restores iPhone/iPad TestFlight (three build errors fixed) and
+  adds left/right stepping within a multi-item selection.
+
 ## 2026.08.26
 
-A day of testing feedback, fixed the same day. Daniel drove the app all
-morning; everything he hit is in this build.
+**Library:**
+- Bug: For New Libraries the save dialog remembers your last folder.
+- Bug: Creating a library in a synced location (iCloud Drive, Dropbox, Google Drive, Box)
+  warns first — a live database that is being synced is a bad idea.
+- Bug: Open Recent in File Menu works: closed libraries stay in the menu.
+- Bug: Ghost  "Untitled" entries and duplicate rows in the sidebar are gone.
+- Bug: a brand-new library can run workflows immediately — no relaunch.
 
-- New Library, the Mac way: the save dialog remembers your last folder;
-  creating in a synced location (iCloud Drive, Dropbox, Google Drive, Box)
-  warns first — a live database and a sync engine are a bad pairing.
-- Open Recent actually works: closed libraries stay in the menu, ghost
-  "Untitled" entries and duplicate rows are gone, and a brand-new library
-  can run workflows immediately — no relaunch.
-- Run Workflow runs on what you selected: the long-standing bug where a
-  run landed on the parent folder instead of the selected page is fixed —
-  the toolbar picker now resolves its scope at the moment it opens.
-- Multi-select reading: select several pages and the reader shows exactly
+**Workflows:**
+- Bug: Run Workflow runs on what you selected: the long-standing bug where a
+  run landed on the parent folder instead of the selected page is fixed.
+- the toolbar picker now resolves its scope at the moment it opens.
+- Bug: Multi-select reading: select several pages and the reader shows exactly
   those pages in the real WebKit transcript — with the pane's header,
   lens switcher and breadcrumbs intact. Mixed selections get a clean
   archival-order list.
-- Split on a page works: parts are attached as child nodes with regions
+- Bug: Split on a page works: parts are attached as child nodes with regions
   (they used to be cut, written, and silently lost).
-- Transcriptions stay clean: the "[Script: …]" classification line the
-  paleography prompts request is stored as metadata, never in your text.
+- Bug: Transcriptions don't get the script classification at the beginning any more.
+  The "[Script: …]" classification line the paleography prompts request is stored as 
+  metadata, not in the content.
 - Honest boxes (bbox step 4): a maintenance pass marks renditions whose
   pixels can't be matched to a recorded frame, and overlays render
-  unanchored on them — blank beats boxes on the wrong pixels.
+  unanchored on them.
 - Under the hood: the engine no longer opens duplicate connections for
   one library reached by two path spellings; library context menus gain
   New Folder / Import Files; a 12-second launch stall moved off the main
@@ -78,7 +105,8 @@ instead of minting hollow documents.
 
 ## 2026.08.22
 
-The bounding-box build. A page's alternative pixels — archival original,
+**Bounding-boxes**
+- A page's alternative pixels — archival original,
 contrast-enhanced, background-removed — are now first-class renditions:
 imported from staging sidecars, produced by the image workflows
 themselves, listed and served by the engine, and flipped in the preview
@@ -87,12 +115,8 @@ app, by a workflow, or in staging all record one identical geometry, so
 "undo the split" is one mechanism and a box drawn on a part means the
 same thing everywhere.
 
-**Pending human acceptance:** the Marshall visual check — flip a spread
-between original / enhanced / split with word boxes showing, and the
-boxes stay on the words — has NOT yet been run. Everything below is
-verified in isolation; that flip is the acceptance test for this
-program and needs a live session.
-
+**Renditions:**
+- To Test: Flip a spread between original / enhanced / split with word boxes showing, and the boxes stay on the words — has NOT yet been run. Everything below is verified in isolation; that flip is the acceptance test for this program and needs a live session.
 - Renditions: engine list + content routes; preview flip via vertical
   swipe/↑↓/chevrons with a slide transition; indicator names the
   rendition and marks cropped/deskewed frames.
@@ -108,11 +132,15 @@ program and needs a live session.
   ready; entry highlight is a soft wash behind the words; page arrows
   on images match PDFs; fitted images no longer bounce under
   two-finger swipes; pinch snaps to fit.
+
+**Canvas**
 - Canvas: ⌘-scroll and pinch zoom into the cursor; double-click zooms
   a card to full view and back (context menu too); ⇧⌥ rubber-band in
   3D; drag stays in the board plane with z behind ⌥; render cap
   10,000; halved edge margins; empirical scroll-sign fixes.
-- Access: libraries survive relaunch (pre-auth grant race fixed);
+
+**Libraries**
+- Bug: Access: libraries survive relaunch (pre-auth grant race fixed);
   link-mode imports ask to persist folder access; a failed original
   prompts for its folder right in the preview; File ▸ Grant Folder
   Access… for manual grants.
@@ -126,11 +154,11 @@ program and needs a live session.
 
 ### Dev build
 
-The speed build: a night of profiling the live Marshall corpus (4,169
-documents) and removing every whole-collection cost the logs surfaced,
+- The speed build: a night of profiling the live library corpus (4,169
+documents) and removing whole-collection costs the logs surfaced,
 plus the day's live-testing fixes.
 
-**Browsing stays fast while the engine works.** Folder listings read the
+- **Browsing stays fast while the engine works.** Folder listings read the
 last-committed snapshot instead of queueing behind an import's embedding
 transactions (worst case measured: 12 seconds); each row hydrates once,
 without its full page text, through a memoized field plan; vector writes
@@ -138,7 +166,7 @@ no longer block database reads; and a new index backs every parent-folder
 lookup. Listing routes run off the event loop, so concurrent requests
 stop serializing.
 
-**Thumbnails land as they're made.** The derivative queue renders a
+- **Thumbnails land as they're made.** The derivative queue renders a
 folder's thumbnails before starting its slower text embeddings, announces
 each image the moment it exists, and reports its progress in the toolbar
 island ("Processing imported pages — 42%") instead of claiming Ready.
@@ -147,30 +175,30 @@ The thumbnail endpoint serves interactive requests instantly and sheds
 import-storm misses to the queue (previously: 15,565 calls averaging
 784ms, worst 60 seconds).
 
-**One request where there were a thousand.** The change-stream patch
+- **One request where there were a thousand.** The change-stream patch
 flush, workflow-completion refresh, and search resolution now fetch
 documents in one batched call each; a live session had issued 1,001
 sequential single-document requests.
 
-**Search results are nodes.** Every hit — document, person, place, claim,
+- **Search results are nodes.** Every hit — document, person, place, claim,
 artifact — resolves into the library grid as a clickable node that
 preview, reader, inspector, workflows, and Select All all agree on. The
 reader follows result clicks and scrolls to the page; clicking a page in
 the reader selects its result row.
 
-**Canvas input works like it should.** Two-finger scroll pans both
-canvases (the old overlay never actually received scroll events), arrow
+- **Canvas input works like it should.** Two-finger scroll pans both
+canvases (the old overlay never received scroll events), arrow
 keys nudge the camera, ⌘A selects every node, and page thumbnails load
 from the library you're in — a wrong-library lookup had silently failed
 all 1,500 texture loads in a session. The render cap rises to 1,500.
 
-**The reader scrolls like Safari.** Off-screen pages skip layout and
+- **The reader scrolls like Safari.** Off-screen pages skip layout and
 paint entirely, page positions are measured once instead of per scroll
 frame, and hidden panels (graph, timeline, map) render only when opened —
 crossing a page boundary used to re-run a force-directed graph layout for
 a panel that wasn't visible.
 
-**Corrections from live testing.** Default workflows appear in every
+- **Corrections from live testing.** Default workflows appear in every
 library again (a legacy flag heal); grouped items stack in place instead
 of vanishing to the library root; deleting a corpus can no longer be
 raced by its own background embeds resurrecting pages; a stale bookmark
@@ -180,11 +208,6 @@ follows dark mode; dataset views remember sort and text depth; dataset
 cards and sheet rows gain Run Workflow and exclusion menus.
 
 ## 2026.08.17
-
-### Dev build
-
-The hardening build: two days of live testing on the datasets release,
-folded back in — plus the Marshall corpus drop.
 
 **Drop a corpus, get a corpus.** Dragging a staged folder with a
 `manifest.jsonl` into a library imports everything it describes — pages,
@@ -217,10 +240,8 @@ writing under another day's heading.
 
 ## 2026.08.15
 
-### Dev build
-
-The datasets release. A folder of scanned diary pages now turns into data
-you can actually read: run Diary Entries on a page and each day becomes its
+A folder of scanned diary pages now turns into data
+you can  read: run Diary Entries on a page and each day becomes its
 own node, dated, carrying the text and the exact region of the scan it came
 from.
 
@@ -317,7 +338,7 @@ Python tests, 0 failures).
 step produced them; the artifact browser groups results by run in
 pipeline order with "Produced by → View Run" navigation; and a new
 Trace tab on every run shows the executed graph — each node colored by
-what happened, with the provider and model actually used, timings, and
+what happened, with the provider and model used, timings, and
 per-step outputs one click away.
 
 **Results land where you're looking.** Transcriptions appear in the
@@ -333,7 +354,7 @@ Cancelled; and Pause/Resume/Stop buttons visibly do what they say.
 finally visible with distinct parallel edges, fan-out badges reflect
 real behavior, execution order is numbered on the canvas, a Tidy
 command lays the graph out, drops land under the cursor, and the
-palette only offers tools that actually run. Zoom nodes show a live
+palette only offers tools that run. Zoom nodes show a live
 tile-grid preview.
 
 **Works out of the box.** A fresh install with no API keys runs every
@@ -488,7 +509,7 @@ pre-step. Not promoted to production.
 > **Note:** the `v2026.07.23` tag was cut from `main@d141bc139` (the
 > 2026.07.22-beta code) before the `integration` lane was merged, so its build
 > did **not** contain the workflow sidebar nodes or the chat-tools agent loop.
-> `2026.07.24` is the first release that actually ships that work.
+> `2026.07.24` is the first release that ships that work.
 
 ### New
 
@@ -748,7 +769,7 @@ The first notarized build, auto-updating via Sparkle.
 
 **Local models, managed for you.** Fichero can now download, store, and run
 local models itself — a supervised MLX sidecar with its own isolated runtime,
-gated on hardware that can actually run it. No terminal, no separate server.
+gated on hardware that can run it. No terminal, no separate server.
 Apple Intelligence and Apple Vision remain fully on-device options.
 
 **Knowledge Graph, grown up.** Claims and entities now carry attribution —

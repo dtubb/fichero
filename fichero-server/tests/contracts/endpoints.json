@@ -924,6 +924,18 @@
         ],
         "request_model": null,
         "response_model": "ArtifactRegionResponse"
+      },
+      {
+        "method": "PUT",
+        "path": "/artifacts/{artifact_id}/regions",
+        "operation_id": "edit_artifact_regions_api_artifacts__artifact_id__regions_put",
+        "summary": "Edit Artifact Regions",
+        "path_params": [
+          "artifact_id"
+        ],
+        "query_params": [],
+        "request_model": "ArtifactRegionsEditRequest",
+        "response_model": "ArtifactResponse"
       }
     ],
     "auth": [
@@ -2424,6 +2436,18 @@
         "query_params": [],
         "request_model": "ClassificationPatchRequest",
         "response_model": "ClassificationValue"
+      }
+    ],
+    "clients": [
+      {
+        "method": "GET",
+        "path": "/clients",
+        "operation_id": "connected_clients_api_clients_get",
+        "summary": "Connected Clients",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ConnectedClientsResponse"
       }
     ],
     "content-representations": [
@@ -9024,6 +9048,11 @@
             "name": "pages",
             "required": false,
             "type": "string"
+          },
+          {
+            "name": "representation",
+            "required": false,
+            "type": "string"
           }
         ],
         "request_model": null,
@@ -9319,6 +9348,11 @@
             "name": "folder_path",
             "required": false,
             "type": "string"
+          },
+          {
+            "name": "summary",
+            "required": false,
+            "type": "boolean"
           }
         ],
         "request_model": null,
@@ -9333,6 +9367,16 @@
         "query_params": [],
         "request_model": "WorkflowDef",
         "response_model": "WorkflowResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/workflows/folders",
+        "operation_id": "list_workflow_folders_api_workflows_folders_get",
+        "summary": "List Workflow Folders",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "WorkflowFolderListResponse"
       },
       {
         "method": "POST",

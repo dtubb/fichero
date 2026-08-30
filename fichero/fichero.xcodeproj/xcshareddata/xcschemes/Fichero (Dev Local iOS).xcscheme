@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Scheme
-   LastUpgradeVersion = "2660"
+   LastUpgradeVersion = "2700"
    version = "1.7">
    <BuildAction
       parallelizeBuildables = "YES"
@@ -30,8 +30,17 @@
       shouldUseLaunchSchemeArgsEnv = "YES">
       <TestPlans>
          <TestPlanReference
-            reference = "container:fichero-ipad.xctestplan"
+            reference = "container:Tests/plans/fichero-ipad.xctestplan"
             default = "YES">
+         </TestPlanReference>
+         <TestPlanReference
+            reference = "container:Tests/plans/fichero-ios.xctestplan">
+         </TestPlanReference>
+         <TestPlanReference
+            reference = "container:Tests/plans/fichero-ui-ios.xctestplan">
+         </TestPlanReference>
+         <TestPlanReference
+            reference = "container:Tests/plans/fichero-ui-ipad.xctestplan">
          </TestPlanReference>
       </TestPlans>
       <Testables>

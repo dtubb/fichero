@@ -87,6 +87,7 @@ struct DocumentCanvas: View {
                 onContainmentStep: onContainmentStep
             )
         case .imageRendered(let nsImage, let docId, let renditionId):
+            #if os(macOS)
             ZoomableImagePreview(
                 documentId: docId,
                 renderedImage: nsImage,
@@ -97,6 +98,21 @@ struct DocumentCanvas: View {
                 focusRegion: focusRegion,
                 onContainmentStep: onContainmentStep
             )
+            #else
+            // The iOS preview has no rendition-flip state (macOS-only today),
+            // so it takes the rendered image without the rendition id.
+            // swiftlint:disable:next redundant_discardable_let
+            let _ = renditionId
+            ZoomableImagePreview(
+                documentId: docId,
+                renderedImage: nsImage,
+                onNavigateToDocument: onNavigateToDocument,
+                isEditing: isEditing,
+                highlightBoxes: highlightBoxes,
+                focusRegion: focusRegion,
+                onContainmentStep: onContainmentStep
+            )
+            #endif
         case .pdf(let documentId, let pageIndex):
             PDFPageWithToolbar(
                 documentId: documentId,
@@ -174,7 +190,11 @@ private struct StorageDisplayImageCanvas: View {
             // one replaces it in place with no jump.
             if image == nil {
                 Divider()
+                // Quiet style, matching the real bar's geometry (Daniel,
+                // 2026-08-29 restructure) — the placeholder must hold the
+                // same bottom edge the live quiet bar occupies.
                 ReaderToolbar(
+                    style: .quiet,
                     pageNav: nil,
                     scalePercent: 100,
                     zoomIn: {}, zoomOut: {}, fitToWindow: {}, actualSize: {}
@@ -224,7 +244,7 @@ private struct StorageDisplayImageCanvas: View {
                                 Image(systemName: "exclamationmark.triangle")
                                 Text("Showing thumbnail — original unavailable")
                                     .font(.caption)
-                                Button("Retry") { Task { await loadImage() } }
+                                Button("Retry") { retryOriginal() }
                                     .controlSize(.small)
                             }
                             .padding(.horizontal, 12)
@@ -241,7 +261,7 @@ private struct StorageDisplayImageCanvas: View {
                     } description: {
                         Text(loadError.localizedDescription)
                     } actions: {
-                        Button("Retry") { Task { await loadImage() } }
+                        Button("Retry") { retryOriginal() }
                     }
                 }
             } else if let thumbnail = storageService.cachedThumbnail(for: documentId) {
@@ -283,6 +303,12 @@ private struct StorageDisplayImageCanvas: View {
             if let renditionService {
                 _ = await renditionService.load(documentId: documentId)
                 let displayable = renditionService.displayable(documentId: documentId)
+                // Rendition flip (sticky preference) is macOS-only today; iOS
+                // always takes the engine's primary via the base display path,
+                // so the whole preferred-fetch branch compiles out there — the
+                // iOS build's `preferred = 0` constant made it provably dead
+                // and Xcode 27 said so ("will never be executed").
+                #if os(macOS)
                 let sticky = UserDefaults.standard.string(
                     forKey: ZoomableImagePreview.stickyRenditionRoleKey
                 )
@@ -302,6 +328,9 @@ private struct StorageDisplayImageCanvas: View {
                         return
                     }
                 }
+                #else
+                _ = displayable
+                #endif
             }
             let loaded = try await storageService.getDisplayPlatformImage(documentId)
             guard claimed == loadGeneration else { return }  // a newer flip won
@@ -324,6 +353,18 @@ private struct StorageDisplayImageCanvas: View {
     /// one panel per folder per run; a fresh grant reaches the running
     /// engine, so the retry succeeds without a relaunch.
     private func promptForSourceAccessIfMissing() {
+        promptForSourceAccess(force: false)
+    }
+
+    /// The banner's Retry: an explicit click always offers the folder picker
+    /// when access is missing (bypassing the once-per-folder prompt guard),
+    /// then reloads — with access already in hand it just reloads.
+    func retryOriginal() {
+        promptForSourceAccess(force: true)
+        Task { await loadImage() }
+    }
+
+    private func promptForSourceAccess(force: Bool) {
         #if os(macOS)
         guard let store = documentStore else { return }
         let candidates = store.currentDocuments
@@ -331,7 +372,7 @@ private struct StorageDisplayImageCanvas: View {
             + [store.selectedDocument].compactMap { $0 }
         guard let sourcePath = candidates.first(where: { $0.id == documentId })?.path,
               !sourcePath.isEmpty else { return }
-        FolderAccessManager.shared.promptOnceForSource(path: sourcePath) { granted in
+        FolderAccessManager.shared.promptForSource(path: sourcePath, force: force) { granted in
             guard granted else { return }
             Task { await loadImage() }
         }

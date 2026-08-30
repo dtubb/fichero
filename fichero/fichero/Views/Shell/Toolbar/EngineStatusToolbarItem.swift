@@ -58,7 +58,7 @@ struct EngineStatusToolbarItem: View {
                 Button {
                     showPopover = true
                 } label: {
-                    Image(systemName: ToolbarSymbols.engineProblem)
+                    Label("Server", systemImage: ToolbarSymbols.engineProblem)
                         .foregroundStyle(.orange)
                 }
                 .buttonStyle(.plain)
@@ -80,10 +80,18 @@ struct EngineStatusToolbarItem: View {
                     // engine on this Mac and an engine on another machine
                     // differ in who can restart it and whether work survives
                     // a network drop, and one symbol hid that entirely.
-                    Image(systemName: isRemote
+                    // A Label, not a bare Image (Daniel, 2026-08-29: "it
+                    // should say the text below it"): in the toolbar's
+                    // Icon-and-Text mode the title renders beneath the glyph,
+                    // exactly like the pane buttons.
+                    // No minWidth (Daniel, 2026-08-29: "can they all be more
+                    // circular") — the extra floor was what stretched this
+                    // capsule into an oval beside the circular workflow
+                    // button. The Label alone sizes like its neighbours.
+                    Label("Server", systemImage: isRemote
                         ? ToolbarSymbols.engineReadyRemote
                         : ToolbarSymbols.engineReadyLocal)
-                        .foregroundStyle(.green)
+                        .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Server status")

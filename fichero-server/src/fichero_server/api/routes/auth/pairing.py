@@ -351,6 +351,12 @@ def _current_paired_device(request: Request) -> Device:
 
 
 def _require_secure_pairing_transport(request: Request) -> None:
+    # The app's own private Unix socket: stamped by uds_transport, no client
+    # IP, plaintext by design (no network listener exists on it). Without
+    # this, Sharing ON showed "HTTP 400: remote pairing requires https" the
+    # moment the app minted a QR over UDS (found live 2026-08-27).
+    if request.scope.get("fichero.transport") == "uds":
+        return
     host = ((request.client.host if request.client else "") or "").lower()
     if host in _LOCAL_PAIRING_CLIENT_HOSTS and not _has_proxy_origin_headers(request):
         return

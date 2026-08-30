@@ -128,7 +128,7 @@ Summary of what each layer does:
 
 Every mutation through the action registry writes an `action_audit` row that records the actor, the before/after snapshots, and the timestamp. See [action-registry.md](./action-registry.md) for the full schema.
 
-An HMAC-keyed tamper-evidence chain across `action_audit` rows is in progress (#2127). Once shipped, each row will include a chain sequence number and an HMAC over the previous row's hash, making undetected deletion or reordering of audit records infeasible.
+An HMAC-keyed tamper-evidence chain across `action_audit` rows is shipped (#2127, `actions/audit_chain.py`): each row carries a chain sequence number and an HMAC over the previous row's hash, making undetected deletion or reordering of audit records infeasible.
 
 ## Contributor Checklist
 
