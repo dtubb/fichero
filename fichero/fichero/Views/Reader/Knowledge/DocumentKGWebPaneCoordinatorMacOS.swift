@@ -341,6 +341,22 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
             handlePageActivated(body)
         case "pageRevealRequested":
             handlePageRevealRequested(body)
+        case "textSelected":
+            // The WebKit reader's selection joins the same seam the native
+            // readers post (Daniel, 2026-08-30): the annotation bar applies
+            // highlight/underline/strikethrough to it as a char span.
+            let documentId = parent?.documentId ?? ""
+            var info: [String: Any] = ["documentId": documentId]
+            if let start = body["charStart"] as? Int, let end = body["charEnd"] as? Int, end > start {
+                info["charStart"] = start
+                info["charEnd"] = end
+                if let text = body["text"] as? String { info["text"] = text }
+            }
+            Task { @MainActor in
+                NotificationCenter.default.post(
+                    name: .readerTextSelection, object: nil, userInfo: info
+                )
+            }
         default:
             break
         }

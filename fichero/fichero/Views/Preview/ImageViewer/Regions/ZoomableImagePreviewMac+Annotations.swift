@@ -61,14 +61,28 @@ extension ZoomableImagePreview {
                 rawValue: UserDefaults.standard.string(forKey: PreviewHighlightStyle.storageKey) ?? ""
             )?.persistedColor
             : nil
-        Task {
-            _ = await annotationStore.addNote(
-                scope: .document(documentId),
-                text: "",
-                bbox: box,
-                kind: kind,
-                color: color
+        // Word-boundary snap (Daniel, 2026-08-30): highlight/underline/
+        // strikethrough hug the recognised words the drag touched — one
+        // strip per line. Free-form kinds (note, line) keep the drawn rect.
+        let snapKinds: Set<AnnotationKind> = [.highlight, .underline, .strikethrough]
+        let rects: [[Double]?]
+        if let box, snapKinds.contains(kind), let geometry = ocrGeometry {
+            rects = AnnotationWordSnap.snappedRects(
+                drag: box, words: geometry.wordBoxes, lines: geometry.lineBoxes
             )
+        } else {
+            rects = [box]
+        }
+        Task {
+            for rect in rects {
+                _ = await annotationStore.addNote(
+                    scope: .document(documentId),
+                    text: "",
+                    bbox: rect,
+                    kind: kind,
+                    color: color
+                )
+            }
         }
     }
 

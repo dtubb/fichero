@@ -732,6 +732,50 @@ function notify(kind, payload) {
     }
 }
 
+// Report the reader's text selection to the app (Daniel, 2026-08-30: the
+// annotation bar highlights the SELECTED words — charStart/charEnd are
+// offsets into documentTranscript, the same space scrollToCharRange reads).
+function reportTextSelection() {
+    const panel = document.getElementById("transcript-panel");
+    const transcriptEl = panel ? panel.querySelector(".transcript") : null;
+    const selection = window.getSelection();
+    if (!transcriptEl || !selection || selection.rangeCount === 0 || selection.isCollapsed) {
+        notify("textSelected", {});
+        return;
+    }
+    const range = selection.getRangeAt(0);
+    if (!transcriptEl.contains(range.commonAncestorContainer)) {
+        notify("textSelected", {});
+        return;
+    }
+    // Walk the transcript's text nodes accumulating offsets — the reverse of
+    // scrollToCharRange's walk, so both agree on the coordinate space.
+    let charOffset = 0;
+    let startOffset = null;
+    let endOffset = null;
+    const walker = document.createTreeWalker(transcriptEl, NodeFilter.SHOW_TEXT);
+    let node;
+    while ((node = walker.nextNode())) {
+        const len = node.nodeValue.length;
+        if (node === range.startContainer) startOffset = charOffset + range.startOffset;
+        if (node === range.endContainer) endOffset = charOffset + range.endOffset;
+        charOffset += len;
+    }
+    if (startOffset == null || endOffset == null || endOffset <= startOffset) {
+        notify("textSelected", {});
+        return;
+    }
+    notify("textSelected", {
+        charStart: startOffset,
+        charEnd: endOffset,
+        text: String(selection.toString() || ""),
+    });
+}
+document.addEventListener("mouseup", () => setTimeout(reportTextSelection, 0));
+document.addEventListener("keyup", (event) => {
+    if (event.shiftKey || event.key === "Shift") setTimeout(reportTextSelection, 0);
+});
+
 function normalisePlaceKey(text) {
     return String(text || "")
         .normalize("NFD")
