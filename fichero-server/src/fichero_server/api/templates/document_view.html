@@ -204,7 +204,23 @@
             fill: currentColor;
             height: 1.2em;
             width: auto;
+            min-height: 0;
         }
+
+        /* The page's own thumbnail as the proxy (Daniel, 2026-08-29: "any
+           chance the proxy icon can actually be the page icon?"). The glyph
+           stays underneath as the load-failure fallback. */
+        .page-proxy img {
+            border: 1px solid color-mix(in srgb, var(--muted) 35%, transparent);
+            border-radius: 2px;
+            display: inline-block;
+            height: 1.35em;
+            object-fit: cover;
+            vertical-align: -0.25em;
+            width: auto;
+        }
+
+        .page-proxy img[hidden] { display: none; }
 
         .page-proxy:hover {
             color: var(--accent);
@@ -383,7 +399,10 @@
             position: relative;
         }
 
-        svg {
+        /* Scoped to the graph pane — as a bare `svg` rule its min-height
+           leaked onto every inline icon in the document, most visibly the
+           page-proxy glyph, which blew up to viewport height. */
+        .graph-wrap svg {
             width: 100%;
             height: 100%;
             min-height: calc(100vh - 96px);
@@ -848,7 +867,7 @@ function transcriptPageMarkup(page) {
         ? `<button class="page-proxy" data-page-id="${escapeHtml(page.id)}"
                 title="Reveal this page in the library"
                 aria-label="Reveal this page in the library">
-                <svg viewBox="0 0 12 14" aria-hidden="true"><path d="M2 0h5.5L11 3.5V13a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V1a1 1 0 0 1 1-1zm5 1v3h3z"/></svg>
+                <img src="/api/storage/thumbnail/${escapeHtml(page.id)}" alt="" loading="lazy" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><svg viewBox="0 0 12 14" aria-hidden="true" hidden><path d="M2 0h5.5L11 3.5V13a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V1a1 1 0 0 1 1-1zm5 1v3h3z"/></svg>
            </button>`
         : "";
     // Region sections (diary entries, segments) are NAMED, not numbered like
