@@ -13,6 +13,9 @@ enum ReaderAnnotationTool: String, CaseIterable, Identifiable {
     case highlight
     case note
     case bookmark
+    /// The annotation bar's line tool (Daniel, 2026-08-30) — drag a stroke,
+    /// saved as the `line` kind with the dragged rect as its extent.
+    case line
 
     var id: String { rawValue }
 
@@ -22,6 +25,7 @@ enum ReaderAnnotationTool: String, CaseIterable, Identifiable {
         case .highlight: return "highlighter"
         case .note: return "note.text"
         case .bookmark: return "bookmark"
+        case .line: return "line.diagonal"
         }
     }
 
@@ -30,6 +34,7 @@ enum ReaderAnnotationTool: String, CaseIterable, Identifiable {
         case .highlight: return "Highlight"
         case .note: return "Add Note"
         case .bookmark: return "Bookmark"
+        case .line: return "Line"
         }
     }
 }

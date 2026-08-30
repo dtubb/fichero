@@ -17,6 +17,11 @@ enum AnnotationKind: String, Codable, CaseIterable, Identifiable {
     case rating
     case bookmark
     case comment
+    // Markup kinds (Daniel, 2026-08-30): the bar's line tool, and the
+    // highlight split-button's underline/strikethrough modes.
+    case line
+    case underline
+    case strikethrough
     case unknown
 
     var id: String { rawValue }
@@ -34,6 +39,9 @@ enum AnnotationKind: String, Codable, CaseIterable, Identifiable {
         case .rating: return "star"
         case .bookmark: return "bookmark"
         case .comment: return "bubble.left"
+        case .line: return "line.diagonal"
+        case .underline: return "underline"
+        case .strikethrough: return "strikethrough"
         case .unknown: return "questionmark.circle"
         }
     }

@@ -50,3 +50,44 @@ def test_append_persists_new_and_existing_chains(monkeypatch):
 
 def test_append_without_library_path_is_noop():
     assert chains.append_image_edit_operations({}, {}, lambda _doc: {}) == []
+
+
+class TestQuarterTurnsAreLossless:
+    """Daniel, 2026-08-30: "edits seemed to make the quality worse". Every
+    rotate-left/right click was bicubic-resampling the page — a 90° turn must
+    be a pixel-exact transpose, never an interpolation."""
+
+    def _checker(self):
+        from PIL import Image
+        img = Image.new("RGB", (4, 2))
+        px = img.load()
+        for x in range(4):
+            for y in range(2):
+                px[x, y] = (255, 0, 0) if (x + y) % 2 == 0 else (0, 0, 255)
+        return img
+
+    def test_rotate_90_is_pixel_exact(self):
+        from PIL import Image
+        from fichero_server.media.image_ops import apply_operation
+
+        img = self._checker()
+        out = apply_operation(img, {"op": "rotate", "params": {"angle": 90}})
+        assert out.size == (2, 4)
+        # Pixel-exact against PIL's lossless transpose — no interpolation.
+        assert list(out.getdata()) == list(img.transpose(Image.Transpose.ROTATE_90).getdata())
+
+    def test_rotate_270_via_negative_90(self):
+        from PIL import Image
+        from fichero_server.media.image_ops import apply_operation
+
+        img = self._checker()
+        out = apply_operation(img, {"op": "rotate", "params": {"angle": -90}})
+        assert list(out.getdata()) == list(img.transpose(Image.Transpose.ROTATE_270).getdata())
+
+    def test_fractional_angle_still_interpolates(self):
+        from fichero_server.media.image_ops import apply_operation
+
+        img = self._checker()
+        out = apply_operation(img, {"op": "rotate", "params": {"angle": 3.5}})
+        # Expanded canvas: interpolation path taken, not the transpose.
+        assert out.size != img.size

@@ -104,6 +104,19 @@ def apply_operation(image: Image.Image, op: dict[str, Any]) -> Image.Image:
         raise HTTPException(400, f"Invalid params for operation: {name}")
     if name in {"rotate", "straighten", "auto_deskew"}:
         angle = detect_deskew_angle(image) if name == "auto_deskew" and "angle" not in params else float(params.get("angle", 0))
+        # Exact quarter turns are LOSSLESS transposes (Daniel, 2026-08-30:
+        # "edits seemed to make the quality worse" — every rotate-left click
+        # was bicubic-resampling the whole page). Only a fractional angle
+        # needs interpolation.
+        quarter = angle % 360
+        if quarter in (0.0, 90.0, 180.0, 270.0):
+            transposes = {
+                90.0: Image.Transpose.ROTATE_90,
+                180.0: Image.Transpose.ROTATE_180,
+                270.0: Image.Transpose.ROTATE_270,
+            }
+            method = transposes.get(quarter)
+            return image.transpose(method) if method is not None else image
         return image.rotate(
             angle,
             expand=bool(params.get("expand", True)),

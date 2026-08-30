@@ -261,8 +261,9 @@ struct ZoomableImagePreview: View {
                 case .highlight: requestAnnotation(.highlight)
                 case .note: requestAnnotation(.note)
                 case .star: requestAnnotation(.bookmark)
-                case .textSelect, .select, .drawRegion, .line:
-                    break  // preview-regions lane / future drawing kinds
+                case .line: requestAnnotation(.line)
+                case .textSelect, .select, .drawRegion:
+                    break  // preview-regions interactions / reader-only
                 }
             }
             .onChange(of: documentId) { _, _ in handleDocumentIDChanged() }
@@ -283,6 +284,7 @@ struct ZoomableImagePreview: View {
                 switch tool {
                 case .highlight: pendingAnnotationTool = .highlight; isDrawingRegion = true
                 case .note: pendingAnnotationTool = .note; isDrawingRegion = true
+                case .line: pendingAnnotationTool = .line; isDrawingRegion = true
                 default: isDrawingRegion = false
                 }
                 applyMarkupCursor()

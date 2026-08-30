@@ -159,7 +159,7 @@ struct PDFPageWithToolbar: View {
     /// drag on the PDF page; Bookmark is a whole-page marker.
     private func requestAnnotation(_ tool: ReaderAnnotationTool) {
         switch tool {
-        case .highlight, .note:
+        case .highlight, .note, .line:
             pendingTool = tool
             isDrawingRegion = true
         case .bookmark:
@@ -192,9 +192,21 @@ struct PDFPageWithToolbar: View {
     private func persistRegion(_ box: [Double]?, tool: ReaderAnnotationTool) {
         let kind: AnnotationKind = {
             switch tool {
-            case .highlight: return .highlight
+            case .highlight:
+                // Same split-button mode mapping as the image canvas
+                // (Daniel, 2026-08-30): underline/strikethrough persist as
+                // their own kinds.
+                switch PreviewHighlightStyle(
+                    rawValue: UserDefaults.standard.string(
+                        forKey: PreviewHighlightStyle.storageKey) ?? ""
+                ) {
+                case .underline: return .underline
+                case .strikethrough: return .strikethrough
+                default: return .highlight
+                }
             case .note: return .note
             case .bookmark: return .bookmark
+            case .line: return .line
             }
         }()
         let documentId = effectiveDocumentId
@@ -202,14 +214,23 @@ struct PDFPageWithToolbar: View {
         // Sticky tool (Daniel, 2026-08-30): while the bar keeps the tool
         // armed, the draw layer stays armed for the next box.
         let sticky = pdfWindowState?.activeMarkupTool
-        isDrawingRegion = sticky == .highlight || sticky == .note
+        isDrawingRegion = sticky == .highlight || sticky == .note || sticky == .line
+        // The chosen color rides a saved highlight (parity with the image
+        // canvas, 2026-08-30); other kinds stay uncolored.
+        let color: String? = kind == .highlight
+            ? PreviewHighlightStyle(
+                rawValue: UserDefaults.standard.string(
+                    forKey: PreviewHighlightStyle.storageKey) ?? ""
+            )?.persistedColor
+            : nil
         Task {
             _ = await annotationStore.addNote(
                 scope: .document(documentId),
                 text: "",
                 bbox: box,
                 pageIndex: pageIndex,
-                kind: kind
+                kind: kind,
+                color: color
             )
         }
     }
@@ -263,7 +284,8 @@ struct PDFPageWithToolbar: View {
             case .highlight: requestAnnotation(.highlight)
             case .note: requestAnnotation(.note)
             case .star: requestAnnotation(.bookmark)
-            case .textSelect, .select, .drawRegion, .line:
+            case .line: requestAnnotation(.line)
+            case .textSelect, .select, .drawRegion:
                 break  // preview-regions lane / future drawing kinds
             }
         }
@@ -344,6 +366,7 @@ struct PDFPageWithToolbar: View {
                 switch tool {
                 case .highlight: pendingTool = .highlight; isDrawingRegion = true
                 case .note: pendingTool = .note; isDrawingRegion = true
+                case .line: pendingTool = .line; isDrawingRegion = true
                 default: isDrawingRegion = false
                 }
             }
