@@ -41,6 +41,16 @@ struct ReaderRepresentationTests {
         ).contains("table"))
     }
 
+    @Test("the annotations reading is a markup review, never an artifact type")
+    func annotationsReading() {
+        // Daniel, 2026-08-30 ruling 5 ("see annotations somewhere" — the
+        // Marked idea): "Annotations" joins the switcher through the scope's
+        // ANNOTATIONS, gated by scopeHasAnnotations — an artifact type named
+        // "annotations" must never smuggle it in.
+        #expect(!ReaderRepresentation.availableTypes(in: ["annotations"]).contains("annotations"))
+        #expect(ReaderRepresentation.title(for: ReaderRepresentation.annotationsType) == "Annotations")
+    }
+
     @Test("the CSV export names itself after the document, filesystem-safe")
     func exportFilename() {
         #expect(ReaderTableCSVExport.filename(forDocumentNamed: "Ledger 1933") == "Ledger 1933.csv")

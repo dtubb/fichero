@@ -278,6 +278,113 @@
             text-transform: uppercase;
         }
 
+        /* The annotation review surface (Daniel, 2026-08-30 ruling 5): the
+           scope's markup grouped by page, every entry CITED to its page —
+           the Marked idea, a review over the marks. */
+        .annotation-group {
+            margin-bottom: 1.5em;
+        }
+
+        .annotation-cite {
+            color: var(--muted);
+            cursor: pointer;
+            font: 600 0.85em/1.3 var(--font-system);
+            letter-spacing: 0.04em;
+            margin-bottom: 0.5em;
+            text-transform: uppercase;
+        }
+
+        .annotation-entry {
+            border-left: 3px solid var(--line);
+            margin: 0 0 0.75em;
+            padding: 0.15em 0 0.15em 0.75em;
+        }
+
+        .annotation-kind {
+            color: var(--muted);
+            font: 600 0.8em/1.3 var(--font-system);
+            letter-spacing: 0.03em;
+        }
+
+        .annotation-checks {
+            color: var(--accent);
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            margin-left: 0.4em;
+        }
+
+        .annotation-anchor {
+            border-radius: 3px;
+            display: inline-block;
+            margin: 0.25em 0 0;
+            padding: 0.1em 0.3em;
+        }
+
+        .annotation-anchor.anchor-underline { text-decoration: underline; }
+        .annotation-anchor.anchor-strikethrough { text-decoration: line-through; }
+
+        .annotation-note {
+            font-style: italic;
+            margin-top: 0.25em;
+        }
+
+        .annotation-tags {
+            color: var(--muted);
+            font: 500 0.8em/1.4 var(--font-system);
+            margin-top: 0.25em;
+        }
+
+        /* The compare view (Daniel, 2026-08-30 ruling 6): one column per
+           artifact, labeled with its REAL provenance; wide comparisons scroll
+           in their own scroller, never the page body (#4385's rule again). */
+        .compare-scroll {
+            max-width: 100%;
+            overflow-x: auto;
+        }
+
+        .compare-grid {
+            align-items: flex-start;
+            display: flex;
+            gap: 1em;
+        }
+
+        .compare-column {
+            background: var(--panel, transparent);
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            flex: 1 0 18em;
+            max-width: 32em;
+            padding: 0.75em 0.9em;
+        }
+
+        .compare-label {
+            font: 600 0.9em/1.4 var(--font-system);
+        }
+
+        .compare-meta {
+            color: var(--muted);
+            font: 500 0.78em/1.4 var(--font-system);
+            margin-bottom: 0.6em;
+        }
+
+        .compare-body {
+            line-height: 1.6;
+        }
+
+        mark.diff-ins {
+            background: rgba(60, 165, 90, 0.25);
+            border-radius: 2px;
+            color: inherit;
+        }
+
+        mark.diff-del {
+            background: rgba(205, 70, 70, 0.18);
+            border-radius: 2px;
+            color: inherit;
+            opacity: 0.75;
+            text-decoration: line-through;
+        }
+
         /* An untranscribed page is a PAGE, not a gap (#4356): it keeps its
            number and says what is missing, so the sequence still matches the
            preview and the work still to do is visible. */
@@ -979,8 +1086,95 @@ function tableMarkup(table) {
     return `<div class="table-scroll"><table class="artifact-table">${head}<tbody>${body}</tbody></table></div>`;
 }
 
+// The annotation review surface (Daniel, 2026-08-30 ruling 5): the server
+// grouped the scope's markup by page, each entry cited ("p. 14") and carrying
+// its anchored text where derivable. This only lays it out — every string is
+// user/model data and goes through escapeHtml.
+function annotationEntryMarkup(entry) {
+    // Highlight tints use the annotation's OWN color at low alpha; only a
+    // well-formed 6-digit hex gets inlined (server-validated, still checked).
+    const hex = /^#[0-9a-fA-F]{6}$/.test(entry.color || "") ? entry.color : null;
+    const tint = hex && entry.kind === "highlight" ? ` style="background:${hex}40"` : "";
+    const kind = `<span class="annotation-kind"${hex ? ` style="color:${hex}"` : ""}>${escapeHtml(entry.kind_label || entry.kind || "")}</span>`;
+    const checks = entry.checks
+        ? `<span class="annotation-checks">${escapeHtml(entry.checks)}</span>`
+        : "";
+    const anchored = entry.anchored_text
+        ? `<div class="annotation-anchor anchor-${escapeHtml(entry.kind || "")}"${tint}>${escapeHtml(entry.anchored_text)}</div>`
+        : "";
+    const note = entry.text
+        ? `<div class="annotation-note">${escapeHtml(entry.text)}</div>`
+        : "";
+    const tags = (entry.tags || []).length
+        ? `<div class="annotation-tags">${entry.tags.map((tag) => `#${escapeHtml(tag)}`).join(" ")}</div>`
+        : "";
+    return `
+        <article class="annotation-entry">
+            <div>${kind}${checks}</div>
+            ${anchored}
+            ${note}
+            ${tags}
+        </article>
+    `;
+}
+
+function annotationReviewMarkup(groups) {
+    if (!groups.length) {
+        return `<div class="empty">No annotations in this scope yet.</div>`;
+    }
+    return groups.map((group) => `
+        <section class="annotation-group">
+            <div class="annotation-cite"${group.page_id ? ` data-page-id="${escapeHtml(group.page_id)}" title="Reveal this page in the library"` : ""}>${escapeHtml(group.citation || "")}${group.page_label ? ` · ${escapeHtml(group.page_label)}` : ""}</div>
+            ${group.entries.map(annotationEntryMarkup).join("")}
+        </section>
+    `).join("");
+}
+
+// The compare view (Daniel, 2026-08-30 ruling 6): one column per artifact,
+// headed by its real provenance; word tokens the server diffed against the
+// column to the left render as <mark>s. Deleted words show struck-through in
+// place so what the previous output HAD stays visible.
+function compareTokensMarkup(tokens) {
+    return tokens.map(([word, op]) => {
+        const text = escapeHtml(word);
+        if (op === "ins") { return `<mark class="diff-ins">${text}</mark>`; }
+        if (op === "del") { return `<mark class="diff-del">${text}</mark>`; }
+        return text;
+    }).join(" ");
+}
+
+function compareMarkup(compare) {
+    if (!compare || !(compare.columns || []).length) {
+        return `<div class="empty">No artifacts of that type to compare yet.</div>`;
+    }
+    const columns = compare.columns.map((column) => `
+        <section class="compare-column">
+            <div class="compare-label">${escapeHtml(column.label || "")}</div>
+            <div class="compare-meta">${escapeHtml((column.created_at || "").slice(0, 16).replace("T", " "))}${column.compare_group ? ` · ${escapeHtml(column.compare_group)}` : ""}</div>
+            <div class="compare-body">${compareTokensMarkup(column.tokens || [])}</div>
+        </section>
+    `).join("");
+    return `<div class="compare-scroll"><div class="compare-grid">${columns}</div></div>`;
+}
+
 function renderTranscript() {
     const panel = document.getElementById("transcript-panel");
+    // The markup-review and compare readings replace the page walk entirely
+    // (Daniel, 2026-08-30 rulings 5 + 6) — same panel, same renderer.
+    if (documentData.representation === "annotations") {
+        panel.innerHTML = annotationReviewMarkup(documentData.annotations || []);
+        panel.querySelectorAll(".annotation-cite[data-page-id]").forEach((el) => {
+            el.addEventListener("click", (event) => {
+                event.stopPropagation();
+                notify("pageRevealRequested", { pageId: el.dataset.pageId });
+            });
+        });
+        return;
+    }
+    if (documentData.representation === "compare") {
+        panel.innerHTML = compareMarkup(documentData.compare || null);
+        return;
+    }
     const pages = transcriptPages();
     if (!pages.length) {
         panel.innerHTML = `<div class="empty">No transcript is available for this selection yet.</div>`;
