@@ -56,6 +56,15 @@
    directly from the bar (the marquee outranks everything in the scope
    ladder; the chip names it "a selection of <page>"). Preview.app's
    selection rectangle is the model.
+   MULTIPLE marquees per page (refined ~22:35): draw several, each promotes
+   to its OWN region node in reading order — the diary-entry pattern (every
+   entry its own bbox, transcribable as its own node; the Marshall diaries
+   are the reference). Each marquee individually deletable pre-promotion;
+   Esc clears all; the run-directly exit takes the whole set as scope.
+10. **Back to the spread**: viewing a region or page-part gets a one-click
+   "up to parent" beside the pages ‹ › (shown only when a visual parent
+   exists) — the Marshall spread → part → entry ladder needs its return
+   rung; the crumb alone is orientation, not a button.
 9. **Top-right lens icons** (late addition): Preview's pane head gets
    region-overlay and renditions toggles as compact icons, the way the
    reader's head carries its lenses — instead of the bottom bar's menus.
