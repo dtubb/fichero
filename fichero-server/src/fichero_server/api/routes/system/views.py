@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import csv
+import io
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -93,6 +95,121 @@ def region_cohort(regions: list[Document], anchor: Document) -> list[Document]:
     ]
 
 
+#: Artifact types whose content is a TABLE, not prose (Daniel, 2026-08-29
+#: bedtime): the reader renders these as a real HTML table. One member today —
+#: `table_extract` (and the Accounts → Spreadsheet preset built on it) writes
+#: artifact_type "table" in csv / json_rows / json_columns / markdown styles.
+TABLE_ARTIFACT_TYPES = frozenset({"table"})
+
+
+def table_payload(artifact: Artifact) -> dict[str, object] | None:
+    """Parse a table artifact into ``{"headers": [...]|None, "rows": [[...]]}``.
+
+    Server-side and via the stdlib `csv` module, never a hand-rolled split —
+    quoted fields carrying commas are exactly why the accounts preset quotes
+    every field. Shapes, in the order table_extract can produce them:
+    structured json_rows (in ``data`` or as JSON content), json_columns,
+    a markdown table, and CSV (the preset default). Ragged rows are padded to
+    the widest row — a short ledger line is short, not dropped. Returns None
+    when nothing tabular can be read, so the caller falls back to text.
+    """
+    structured = _structured_table(artifact)
+    if structured is not None:
+        return structured
+    content = (artifact.content or "").strip()
+    if not content:
+        return None
+    lines = [line for line in content.splitlines() if line.strip()]
+    if lines and all(line.lstrip().startswith("|") for line in lines):
+        return _markdown_table(lines)
+    return _csv_table(content)
+
+
+def _structured_table(artifact: Artifact) -> dict[str, object] | None:
+    """json_rows / json_columns payloads, from ``data`` or JSON content."""
+    candidates: list[dict] = []
+    if isinstance(artifact.data, dict):
+        candidates.append(artifact.data)
+    content = (artifact.content or "").strip()
+    if content.startswith("{"):
+        try:
+            parsed = json.loads(content)
+        except ValueError:
+            parsed = None
+        if isinstance(parsed, dict):
+            candidates.append(parsed)
+    for payload in candidates:
+        rows = payload.get("rows")
+        if isinstance(rows, list) and rows:
+            headers = payload.get("headers")
+            return _normalized_table(
+                headers if isinstance(headers, list) else None,
+                [row if isinstance(row, list) else [row] for row in rows],
+            )
+        columns = payload.get("columns")
+        if isinstance(columns, dict) and columns:
+            names = list(columns.keys())
+            depth = max((len(v) for v in columns.values() if isinstance(v, list)), default=0)
+            return _normalized_table(
+                names,
+                [
+                    [
+                        (columns[name][i] if isinstance(columns[name], list) and i < len(columns[name]) else "")
+                        for name in names
+                    ]
+                    for i in range(depth)
+                ],
+            )
+    return None
+
+
+def _markdown_table(lines: list[str]) -> dict[str, object] | None:
+    """A ``| a | b |`` table; the dashed separator row names the header."""
+    rows: list[list[str]] = []
+    has_header = False
+    for index, line in enumerate(lines):
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if index == 1 and cells and all(set(cell) <= set("-: ") for cell in cells):
+            has_header = True
+            continue
+        rows.append(cells)
+    if not rows:
+        return None
+    headers = rows.pop(0) if has_header and rows else None
+    return _normalized_table(headers, rows)
+
+
+def _csv_table(content: str) -> dict[str, object] | None:
+    """CSV via the stdlib reader. First row is the header when more rows
+    follow — table_extract's include_headers defaults on and the accounts
+    preset always emits one; a single-row table has nothing to head."""
+    rows = [row for row in csv.reader(io.StringIO(content)) if row]
+    if not rows:
+        return None
+    if len(rows) == 1:
+        # A single row has nothing to head — render it as data.
+        return _normalized_table(None, rows)
+    return _normalized_table(rows[0], rows[1:])
+
+
+def _normalized_table(
+    headers: list | None, rows: list[list]
+) -> dict[str, object] | None:
+    """Stringify cells and pad ragged rows to the widest row/header."""
+    width = max(
+        [len(headers) if headers else 0] + [len(row) for row in rows], default=0
+    )
+    if width == 0:
+        return None
+    def pad(row: list) -> list[str]:
+        cells = ["" if cell is None else str(cell) for cell in row]
+        return cells + [""] * (width - len(cells))
+    return {
+        "headers": pad(headers) if headers else None,
+        "rows": [pad(row) for row in rows],
+    }
+
+
 def represented_pages(
     pages: list[dict[str, object]], artifacts: list[Artifact], representation: str
 ) -> list[dict[str, object]]:
@@ -109,7 +226,12 @@ def represented_pages(
     for artifact in artifacts:
         if artifact.artifact_type != representation:
             continue
-        if not (artifact.content and artifact.content.strip()):
+        # A table artifact may carry ONLY structured data (json_rows lands in
+        # `data`); prose representations need text.
+        has_table_data = (
+            representation in TABLE_ARTIFACT_TYPES and bool(artifact.data)
+        )
+        if not (artifact.content and artifact.content.strip()) and not has_table_data:
             continue
         current = latest.get(artifact.document_id)
         if current is None or (artifact.created_at, artifact.version) > (
@@ -121,9 +243,22 @@ def represented_pages(
     for page in pages:
         artifact = latest.get(str(page["id"]))
         content = artifact.content if artifact and artifact.content else ""
-        result.append(
-            {**page, "content": content, "has_content": bool(content.strip())}
-        )
+        entry: dict[str, object] = {
+            **page,
+            "content": content,
+            "has_content": bool(content.strip()),
+        }
+        # A table-family representation ships the PARSED table alongside the
+        # raw text (Daniel, 2026-08-29 bedtime): the template renders a real
+        # <table>, falling back to the text when nothing tabular parsed.
+        if artifact is not None and representation in TABLE_ARTIFACT_TYPES:
+            table = table_payload(artifact)
+            entry["table"] = table
+            if table is not None:
+                # A parsed table IS content, even when it arrived as
+                # structured data with no text alongside.
+                entry["has_content"] = True
+        result.append(entry)
     return result
 
 

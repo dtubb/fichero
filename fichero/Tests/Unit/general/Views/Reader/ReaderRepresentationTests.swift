@@ -24,7 +24,48 @@ struct ReaderRepresentationTests {
     func titles() {
         #expect(ReaderRepresentation.title(for: "transcription") == "Transcript")
         #expect(ReaderRepresentation.title(for: "translation") == "Translation")
+        #expect(ReaderRepresentation.title(for: "table") == "Table")
         #expect(ReaderRepresentation.title(for: "diplomatic") == "Diplomatic")
+    }
+
+    @Test("the table family is offered ONLY when the scope has a table artifact")
+    func tableOfferedOnlyWhenPresent() {
+        // Accounts → Spreadsheet (CSV) writes artifact_type "table"
+        // (table_extract); with one present the switcher offers Table…
+        #expect(ReaderRepresentation.availableTypes(
+            in: ["transcription", "table"]
+        ) == ["transcription", "table"])
+        // …and with none it never does (a toggle to nowhere is the menu lying).
+        #expect(!ReaderRepresentation.availableTypes(
+            in: ["transcription", "translation"]
+        ).contains("table"))
+    }
+
+    @Test("the CSV export names itself after the document, filesystem-safe")
+    func exportFilename() {
+        #expect(ReaderTableCSVExport.filename(forDocumentNamed: "Ledger 1933") == "Ledger 1933.csv")
+        #expect(ReaderTableCSVExport.filename(forDocumentNamed: "a/b: c") == "a-b- c.csv")
+        #expect(ReaderTableCSVExport.filename(forDocumentNamed: "  ") == "Table.csv")
+    }
+
+    @Test("the export vends the sidebar's artifact-promote payload with provenance")
+    func exportVendsLibraryDrag() {
+        let export = ReaderTableCSVExport(
+            filename: "Ledger 1933.csv",
+            csv: "a,b\n1,2\n",
+            artifactId: "art-1",
+            sourceDocumentId: "page-1",
+            nodeName: "Ledger 1933"
+        )
+        let drag = export.libraryDrag
+        // The sidebar's classifier promotes `.artifact` drags into folders,
+        // stamping source_artifact_id (drag.id) and source_document_id
+        // (drag.documentId) on the created node — "you know where it came from".
+        #expect(drag.kind == .artifact)
+        #expect(drag.id == "art-1")
+        #expect(drag.documentId == "page-1")
+        #expect(drag.text == "a,b\n1,2\n")
+        #expect(drag.name == "Ledger 1933")
     }
 }
 

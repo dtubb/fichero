@@ -1,4 +1,12 @@
+import CoreTransferable
+import OSLog
 import SwiftUI
+import UniformTypeIdentifiers
+
+/// Failures saving/dragging the table CSV are LOGGED, never swallowed.
+let readerTableExportLogger = Logger(
+    subsystem: "com.fichero.app", category: "reader-table-export"
+)
 
 // MARK: - The reader's ARTIFACT lens (artifact-compare P1, Daniel 2026-08-26:
 // "the reader can show different artifacts — an original, diplomatic, and
@@ -22,34 +30,155 @@ struct ReaderArtifactLens: Equatable {
 /// readings of the text and never appear in the switcher.
 enum ReaderRepresentation {
     /// Artifact types that ARE text representations, in display order.
+    /// KEYED TO WHAT PRODUCERS ACTUALLY WRITE (check_artifact_type_contract,
+    /// #4418 class): transcribe/audio_transcribe → transcription,
+    /// translate/text_translate → translation, summarize → summary,
+    /// convert → conversion. `normalized_text`/`transliteration`/`markdown`/
+    /// `html` exist only as ContentRepresentationKind values — no tool emits
+    /// them as artifact types, so listing them here was a lens to nowhere;
+    /// they rejoin WITH their producers, not before.
     static let textTypes = [
-        "transcription", "normalized_text", "translation",
-        "transliteration", "markdown", "html", "summary", "conversion"
+        "transcription", "translation", "summary", "conversion"
     ]
+
+    /// Table-family artifact types (Daniel, 2026-08-29 bedtime: CSV/table
+    /// output is renderable in the Reader and choosable). `table_extract` —
+    /// and the Accounts → Spreadsheet preset built on it — writes "table";
+    /// the engine view renders these as a real HTML table.
+    static let tableTypes = ["table"]
 
     static func title(for type: String) -> String {
         switch type {
         case "transcription": return "Transcript"
         case "translation": return "Translation"
-        case "normalized_text": return "Normalized"
-        case "transliteration": return "Transliteration"
-        case "markdown": return "Markdown"
-        case "html": return "HTML"
         case "summary": return "Summary"
         case "conversion": return "Conversion"
+        case "table": return "Table"
         default: return type.capitalized
         }
     }
 
     /// The distinct representation types present in a scope's artifacts, in
-    /// the fixed display order — file-scope so tests can call it directly.
+    /// the fixed display order (text readings, then tables) — file-scope so
+    /// tests can call it directly.
     static func availableTypes(in artifactTypes: [String]) -> [String] {
         let present = Set(artifactTypes)
-        return textTypes.filter { present.contains($0) }
+        return (textTypes + tableTypes).filter { present.contains($0) }
+    }
+}
+
+/// A table representation's CSV, draggable OUT of the reader as a real file
+/// (Daniel, 2026-08-29 bedtime: "drags the artifact to the Desktop or into
+/// Excel"). WebKit content can't start a native file drag, so the seam is
+/// native: this Transferable vends a FileRepresentation that writes the CSV
+/// into the app container's tmp and hands the receiver that file.
+struct ReaderTableCSVExport: Transferable, Sendable {
+    let filename: String
+    let csv: String
+    /// Provenance for the in-app drop (Daniel's third target, 2026-08-29):
+    /// dropping this on a sidebar FOLDER rides the existing artifact-promote
+    /// path (`promoteArtifacts`), which stamps `source_artifact_id` +
+    /// `source_document_id` on the created node — "you know where it came
+    /// from". Empty artifactId = no in-app payload worth vending.
+    var artifactId: String = ""
+    var sourceDocumentId: String?
+    var nodeName: String = ""
+
+    /// The in-app drag payload the sidebar's drop classifier already accepts
+    /// (`kind: .artifact` → `.internalArtifacts` → promote-with-provenance).
+    var libraryDrag: LibraryItemDrag {
+        LibraryItemDrag(
+            kind: .artifact,
+            id: artifactId,
+            documentId: sourceDocumentId,
+            text: csv,
+            name: nodeName.isEmpty ? filename : nodeName
+        )
+    }
+
+    static var transferRepresentation: some TransferRepresentation {
+        // In-app first: a sidebar drop reads the ficheroDragItem payload and
+        // promotes with provenance; Finder/Excel ignore it and take the file.
+        ProxyRepresentation(exporting: \.libraryDrag)
+        FileRepresentation(exportedContentType: .commaSeparatedText) { export in
+            let dir = FileManager.default.temporaryDirectory
+                .appendingPathComponent("reader-table-exports", isDirectory: true)
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            let url = dir.appendingPathComponent(export.filename)
+            try Data(export.csv.utf8).write(to: url, options: .atomic)
+            // The receiver takes the file's own name — written under the
+            // document's display name above, so no suggestedFileName needed.
+            return SentTransferredFile(url)
+        }
+    }
+
+    /// "Ledger 1933.csv" — the shown document's display name, with the
+    /// path-hostile characters swapped out. File-scope for tests.
+    static func filename(forDocumentNamed name: String) -> String {
+        let cleaned = name
+            .replacingOccurrences(of: "/", with: "-")
+            .replacingOccurrences(of: ":", with: "-")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return (cleaned.isEmpty ? "Table" : cleaned) + ".csv"
     }
 }
 
 extension ReadingPaneView {
+
+    /// The head's CSV-out chip, shown ONLY while a table representation is
+    /// on screen and its artifact loaded: drag it to the Desktop/Excel for a
+    /// real .csv, or click for a save panel (the sandbox-proof rung — a
+    /// pasteboard sandbox-extension denial was seen on container-tmp drags,
+    /// so the click path must always exist).
+    @ViewBuilder
+    var readerTableExportControl: some View {
+        if let export = readerTableExport {
+            Button {
+                isExportingTableCSV = true
+            } label: {
+                Image(systemName: "square.and.arrow.down")
+                    .foregroundStyle(Color.secondary)
+                    .readerIconTarget()
+            }
+            .buttonStyle(.plain)
+            .draggable(export)
+            .help("Drag out as a CSV file (or onto a sidebar folder to make a library node), or click to save…")
+            .accessibilityLabel("Save table as CSV")
+            .accessibilityIdentifier("readerTableExportChip")
+        }
+    }
+
+    /// Fetch the FULL newest table artifact for the scope when a table
+    /// representation is selected (list rows carry truncated content), so the
+    /// chip has real bytes to vend the moment a drag starts.
+    func loadReaderTableExport() async {
+        readerTableExport = nil
+        guard let representation = readerRepresentation,
+              ReaderRepresentation.tableTypes.contains(representation),
+              let doc = effectiveDocument,
+              let service = LibraryManager.shared
+                  .getLibrary(id: LibraryManager.shared.currentLibraryId ?? LibraryManager.globalLibraryId)?
+                  .artifactService
+        else { return }
+        guard let artifacts = try? await service.getArtifacts(
+            forDocumentId: doc.id, includeDescendants: true
+        ) else { return }
+        guard let newest = artifacts
+            .filter({ $0.artifactType == representation })
+            .max(by: { $0.createdAt < $1.createdAt })
+        else { return }
+        guard let full = try? await service.getArtifact(id: newest.id),
+              let content = full.content, !content.isEmpty
+        else { return }
+        let displayName = DocumentTitle.displayName(for: doc)
+        readerTableExport = ReaderTableCSVExport(
+            filename: ReaderTableCSVExport.filename(forDocumentNamed: displayName),
+            csv: content,
+            artifactId: full.id,
+            sourceDocumentId: full.documentId,
+            nodeName: displayName
+        )
+    }
 
     /// The head's representation switcher (Daniel, 2026-08-29): Content plus
     /// each representation type this document's scope actually has. Picking
