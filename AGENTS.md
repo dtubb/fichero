@@ -565,35 +565,32 @@ When unsure between `docs/` and `agent-work/`: point-in-time, dated, "what I fou
 material is agent-work; durable "how the system works" reference is `docs/`. Material
 that must never be public goes outside `docs/` entirely — not merely out of `nav`.
 
-### Manuscript model — ONE file per guide, split into site pages
+### Manuscript model — MARKDOWN IS THE MASTER (re-ruled 2026-08-30)
 
-Daniel's ruling (2026-08-27): each guide is authored and reviewed as ONE
-consolidated manuscript, not page by page. The masters live in
-`~/My Drive/Tubb Lab/Apps/Fichero/` as `Fichero User Guide` and
-`Fichero Contributor Guide` (`.md` + `.docx`; the `.docx` is what Daniel and
-colleagues edit in Word/Google Docs).
+Daniel's ruling (2026-08-30, superseding the 2026-08-27 docx flow): the
+guide chapters in the repo are the masters — `docs/user/guide/NN-<slug>.md`
+(and the contributor pages under `docs/contributor/`). Daniel edits them in
+**Scrivener** via its Sync-with-External-Folder pointed at the guide folder;
+agents edit the same files directly and may add images
+(`docs/assets/users/…`, referenced page-relative). No more round-tripping
+through the Drive `.docx` — those remain as historical copies only.
 
-The flow, in this direction:
+The contract that keeps Scrivener sync and the site build happy:
 
-1. Humans read and edit the single manuscript (`.docx`). Chapters are
-   Heading 1 in Word (`##` in markdown) — the heading structure is the split
-   map, so it must survive editing.
-2. **`python3 scripts/sync_manuscript.py <user|contributor>`** does the
-   derived half — never hand-do the split. It pandocs the `.docx` back to
-   markdown, refreshes the `.md` master beside it, writes one page per
-   chapter under `docs/<guide>/guide/NN-<slug>.md`, and prints the mkdocs
-   `nav:` block. (`--dry-run` previews the split.)
-3. The agent running it then pastes the nav into `mkdocs.yml`, retires any
-   superseded hand-written pages deliberately, and gates with
-   `scripts/check_docs_publication.py` + `mkdocs build --strict`. The site
-   and any bundled PDF regenerate from those pages.
-
-Do not treat the per-page `docs/` files as the place for substantial prose
-rewrites of guide content — they are derived from the manuscript. Small
-factual fixes may land directly on pages, but they must also be applied to
-the manuscript so the next split does not revert them. Pages marked
-`> 🤖 *AI Drafted (Not reviewed)*` are unreviewed; Daniel deletes the badge
-when he has made a page his own.
+1. One chapter per file, `NN-<slug>.md`, starting with a single `# Title`
+   H1. The `NN-` prefix is the book order. Plain markdown — headings,
+   tables, fenced code, `![alt](../../assets/users/name.png)` images.
+2. Pages marked `> 🤖 *AI Drafted (Not reviewed)*` are unreviewed; Daniel
+   deletes the badge when he has made a page his own.
+3. After edits (either side), gate with `scripts/check_docs_publication.py`
+   + `mkdocs build --strict`; a new chapter also needs its `mkdocs.yml` nav
+   line.
+4. The BOOK is built FROM the markdown:
+   `python3 scripts/build_manual_appendix.py` concatenates the chapters and
+   the generated capability reference into the Word manual in Drive
+   (prompts in small type). The `.docx` is an output artifact now, never an
+   input. `scripts/sync_manuscript.py` (docx→md) is retired to one-off
+   recovery use.
 
 ---
 

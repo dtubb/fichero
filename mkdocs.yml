@@ -322,6 +322,7 @@ nav:
       - Security Model: contributor/security-model.md
       - Setup & Contributing: contributor/setup-and-contributing.md
       - Testing: contributor/TESTING.md
+      - Writing the Guides: contributor/writing-the-guides.md
       - Ingest:
           - Overview: contributor/ingest-overview.md
           - Ingest API: contributor/ingest-api.md

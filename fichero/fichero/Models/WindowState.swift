@@ -65,6 +65,12 @@ class WindowState {
     /// windows' marquees must never mix. See `PreviewMarqueeSelection`.
     let previewMarquees = PreviewMarqueeSelection()
 
+    /// The annotation bar's ARMED tool (Daniel, 2026-08-30: "when we change
+    /// tools for markup… leave it selected"). Sticky: the tool stays armed
+    /// across uses until toggled off or another tool is armed; canvases read
+    /// it for behaviour and cursor. Per-window, like the marquee seam.
+    var activeMarkupTool: PreviewMarkupTool?
+
     init(libraryId: UUID) {
         self.libraryId = libraryId
     }

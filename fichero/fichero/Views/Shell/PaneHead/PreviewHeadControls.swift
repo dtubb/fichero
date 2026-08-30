@@ -157,6 +157,10 @@ struct PreviewHeadLensControls: View {
 /// observe `.previewAnnotateTool`). Select / draw-region / delete / combine
 /// post `.previewRegionVerb` — the seam the preview-regions lane fills.
 struct PreviewMarkupToolsRow: View {
+    /// Sticky tool state (Daniel, 2026-08-30: "leave it selected") — the
+    /// armed MODE lives per-window; optional so headless hosts stay safe.
+    @Environment(WindowState.self) private var windowState: WindowState?
+
     @AppStorage(PreviewHighlightStyle.storageKey) private var highlightStyleRaw
         = PreviewHighlightStyle.yellow.rawValue
 
@@ -174,7 +178,8 @@ struct PreviewMarkupToolsRow: View {
         toolButton(
             icon: PreviewMarkupTool.textSelect.icon,
             label: PreviewMarkupTool.textSelect.label,
-            identifier: "previewMarkupTextSelect"
+            identifier: "previewMarkupTextSelect",
+            mode: .textSelect
         ) {
             NotificationCenter.default.post(
                 name: .previewAnnotateTool, object: PreviewMarkupTool.textSelect.rawValue
@@ -184,7 +189,8 @@ struct PreviewMarkupToolsRow: View {
         toolButton(
             icon: PreviewMarkupTool.drawRegion.icon,
             label: PreviewMarkupTool.drawRegion.label,
-            identifier: "previewMarkupDrawRegion"
+            identifier: "previewMarkupDrawRegion",
+            mode: .drawRegion
         ) {
             NotificationCenter.default.post(
                 name: .previewRegionVerb, object: PreviewRegionVerb.draw.rawValue
@@ -194,7 +200,8 @@ struct PreviewMarkupToolsRow: View {
         toolButton(
             icon: PreviewMarkupTool.select.icon,
             label: PreviewMarkupTool.select.label,
-            identifier: "previewMarkupSelect"
+            identifier: "previewMarkupSelect",
+            mode: .select
         ) {
             NotificationCenter.default.post(
                 name: .previewRegionVerb, object: PreviewRegionVerb.select.rawValue
@@ -204,7 +211,8 @@ struct PreviewMarkupToolsRow: View {
         toolButton(
             icon: PreviewMarkupTool.line.icon,
             label: PreviewMarkupTool.line.label,
-            identifier: "previewMarkupLine"
+            identifier: "previewMarkupLine",
+            mode: .line
         ) {
             NotificationCenter.default.post(
                 name: .previewAnnotateTool, object: PreviewMarkupTool.line.rawValue
@@ -216,7 +224,8 @@ struct PreviewMarkupToolsRow: View {
         toolButton(
             icon: PreviewMarkupTool.note.icon,
             label: PreviewMarkupTool.note.label,
-            identifier: "previewMarkupNote"
+            identifier: "previewMarkupNote",
+            mode: .note
         ) {
             NotificationCenter.default.post(
                 name: .previewAnnotateTool, object: PreviewMarkupTool.note.rawValue
@@ -269,12 +278,17 @@ struct PreviewMarkupToolsRow: View {
     private var highlightSplitButton: some View {
         HStack(spacing: 0) {
             Button {
+                let armed = windowState?.activeMarkupTool == .highlight
+                windowState?.activeMarkupTool = armed ? nil : .highlight
+                if armed { return }
                 NotificationCenter.default.post(
                     name: .previewAnnotateTool, object: PreviewMarkupTool.highlight.rawValue
                 )
             } label: {
                 Image(systemName: "highlighter")
-                    .foregroundStyle(highlightStyle.tint)
+                    .foregroundStyle(windowState?.activeMarkupTool == .highlight
+                        ? AnyShapeStyle(Color.accentColor)
+                        : AnyShapeStyle(highlightStyle.tint))
             }
             .buttonStyle(.borderless)
             .help("Highlight (\(highlightStyle.label))")
@@ -309,14 +323,25 @@ struct PreviewMarkupToolsRow: View {
     }
 
     private func toolButton(
-        icon: String, label: String, identifier: String, action: @escaping () -> Void
+        icon: String, label: String, identifier: String,
+        mode: PreviewMarkupTool? = nil, action: @escaping () -> Void
     ) -> some View {
-        labeled(label) {
-            Button(action: action) {
+        let armed = mode != nil && windowState?.activeMarkupTool == mode
+        return labeled(label) {
+            Button {
+                // MODE buttons stay selected (sticky) until toggled off or
+                // another mode arms; plain buttons are one-shot verbs.
+                if let mode {
+                    let next: PreviewMarkupTool? = armed ? nil : mode
+                    windowState?.activeMarkupTool = next
+                    if next == nil { return }
+                }
+                action()
+            } label: {
                 Image(systemName: icon)
             }
             .buttonStyle(.borderless)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(armed ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.secondary))
             .help(label)
             .accessibilityLabel(label)
             .accessibilityIdentifier(identifier)

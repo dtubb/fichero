@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Sync a guide manuscript (Daniel's edited .docx) back into docs/ pages.
+"""RETIRED as the authoring path (Daniel, 2026-08-30): the markdown pages in
+docs/<guide>/guide/ are the MASTERS now, edited in Scrivener (folder sync) or
+directly — see docs/contributor/writing-the-guides.md. Keep this script only
+for one-off recovery of prose that exists solely in a .docx.
+
+Sync a guide manuscript (Daniel's edited .docx) back into docs/ pages.
 
 The manuscripts in ~/My Drive/Tubb Lab/Apps/Fichero/ are the human-edited
 masters (see AGENTS.md "Manuscript model"). This script does the derived
