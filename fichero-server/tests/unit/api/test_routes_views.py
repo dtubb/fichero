@@ -881,3 +881,80 @@ class TestTableRepresentation:
         # Every cell goes through escapeHtml — table data is model output.
         assert "`<td>${escapeHtml(cell)}</td>`" in template
         assert "`<th>${escapeHtml(cell)}</th>`" in template
+
+
+class TestArtifactView:
+    """?artifact_id renders exactly ONE artifact (Daniel, 2026-08-30: the
+    reader needs an artifact view — "the extract csv, rendered. or a
+    translation"). Pure-function coverage for artifact_pages."""
+
+    def _pages(self):
+        return [
+            {"id": "p1", "number": 1, "label": "Page 1", "content": "live1", "has_content": True},
+            {"id": "p2", "number": 2, "label": "Page 2", "content": "live2", "has_content": True},
+        ]
+
+    def test_owner_page_carries_the_artifact_others_go_quiet(self):
+        from fichero_server.api.routes.system.views import artifact_pages
+        from fichero_server.models import Artifact
+
+        artifact = Artifact(document_id="p2", artifact_type="translation", content="hola")
+        result = artifact_pages(self._pages(), artifact)
+        assert [p["content"] for p in result] == ["", "hola"]
+        assert [p["has_content"] for p in result] == [False, True]
+        # The sequence still matches the preview (#4356) — no page dropped.
+        assert [p["id"] for p in result] == ["p1", "p2"]
+
+    def test_table_artifact_parses_on_its_page(self):
+        from fichero_server.api.routes.system.views import artifact_pages
+        from fichero_server.models import Artifact
+
+        artifact = Artifact(
+            document_id="p1", artifact_type="table",
+            content='"a","b"\n"1","2"\n',
+        )
+        result = artifact_pages(self._pages(), artifact)
+        assert result[0]["table"]["headers"] == ["a", "b"]
+        assert result[0]["table"]["rows"] == [["1", "2"]]
+        assert "table" not in result[1]
+
+    def test_parent_anchored_artifact_becomes_one_section(self):
+        from fichero_server.api.routes.system.views import artifact_pages
+        from fichero_server.models import Artifact
+
+        # A document-level CSV names no listed page — one section, not a
+        # silent all-empty page walk.
+        artifact = Artifact(
+            document_id="parent-doc", artifact_type="table",
+            content='"x"\n"1"\n', step_name="Extract Accounts",
+        )
+        result = artifact_pages(self._pages(), artifact)
+        assert len(result) == 1
+        assert result[0]["id"] == "parent-doc"
+        assert result[0]["name"] == "Extract Accounts"
+        assert result[0]["has_content"] is True
+        assert result[0]["table"]["headers"] == ["x"]
+
+    def test_route_404s_on_unknown_artifact(self, client, db):
+        from fichero_server.models import DocType
+        doc = _make_document(doc_id="av-doc", name="A.pdf", doc_type=DocType.file)
+        db.save(doc)
+        response = client.get(f"/view/document/{doc.id}", params={"artifact_id": "nope"})
+        assert response.status_code == 404
+
+    def test_route_renders_the_named_artifact(self, client, db):
+        from fichero_server.models import Artifact, DocType
+        doc = _make_document(doc_id="av-doc2", name="B.pdf", doc_type=DocType.file)
+        db.save(doc)
+        db.save(_make_document(
+            doc_id="av-page-1", name="Page 1", doc_type=DocType.page,
+            page_content="Live content", parent_id=doc.id, sequence=1,
+        ))
+        db.save(Artifact(
+            id="av-art-1", document_id="av-page-1",
+            artifact_type="translation", content="AV translated text",
+        ))
+        response = client.get(f"/view/document/{doc.id}", params={"artifact_id": "av-art-1"})
+        assert response.status_code == 200
+        assert "AV translated text" in response.text
+        assert "Live content" not in response.text
