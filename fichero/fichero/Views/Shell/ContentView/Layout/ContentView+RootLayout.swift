@@ -202,6 +202,9 @@ extension ContentView {
             .focusedSceneValue(\.showInspector, $showInspectorSidebar)
             .focusedSceneValue(\.showWorkflowBar, $showWorkflowBar)
             .focusedSceneValue(\.showWorkflowBarLabels, $showWorkflowBarLabels)
+            // Workspace verbs for the View menu (Daniel, 2026-08-29) —
+            // constant-equal, so no per-frame focused-value churn.
+            .focusedSceneValue(\.windowLayoutCommands, windowLayoutCommands)
             // WHICH pane has focus, for commands that must act on the surface
             // the user is looking at rather than on whichever surface happens
             // to publish an action (⌘A, #4376 widened 2026-08-23). The hint is

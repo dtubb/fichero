@@ -51,7 +51,7 @@ extension ContentView {
                     }
                 }
             #else
-            detailView
+            nativeToolbarSearch(detailView)
                 // Inspector toggle in the INSPECTOR SECTION (far right).
                 // Attaching to the inspector panel content (rather than the
                 // detail column) places the button in the trailing inspector
@@ -66,15 +66,14 @@ extension ContentView {
                             inspectorToggleButton
                         }
                     }
-                    // Search RIGHT of the inspector toggle (Daniel, 2026-08-23:
-                    // "search button at the top should be to the right of the
-                    // document inspector button"). Mounting it in the same
-                    // inspector-section toolbar, after the toggle, is the only
-                    // way to sit right of it — the content section always
-                    // renders left of the inspector section.
-                    ToolbarItem(id: ContentToolbarID.searchToggle, placement: .primaryAction) {
-                        toolbarSearchField
-                    }
+                    // The SYSTEM search item, right of the inspector toggle
+                    // (Daniel, 2026-08-23 kept its position; Daniel,
+                    // 2026-08-29 replaced the hand-rolled field: "not proper
+                    // macOS search… use the default one"). Its OWN item —
+                    // never fused to another control. The field itself is
+                    // registered by `nativeToolbarSearch` above
+                    // (ContentView+ToolbarSearch.swift); this places it.
+                    DefaultToolbarItem(kind: .search, placement: .primaryAction)
                 }
                 .inspectorColumnWidth(
                     min: CGFloat(ContentView.inspectorMinWidth),

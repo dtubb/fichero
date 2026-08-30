@@ -57,6 +57,14 @@ struct ContentView: View {
     /// Per-slot pane-kind overrides (Daniel, 2026-08-23): a slot can host
     /// any pane kind; nil entry = the plan's own kind.
     @State var paneKindOverrides: [String: PaneSpec.Kind] = [:]
+    /// Per-window split mailbox/mirror (Daniel, 2026-08-29): routes the
+    /// toolbar's Split Right/Below to the FOCUSED pane's SplittablePane and
+    /// lets a workspace save read the live split counts. Injected into the
+    /// centre row via `\.paneSplitCoordinator`.
+    @State var paneSplitCoordinator = PaneSplitCoordinator()
+    /// The Save Workspace… name prompt (Daniel, 2026-08-29).
+    @State var showSaveWorkspacePrompt = false
+    @State var workspaceNameDraft = ""
     #if os(macOS)
     static let defaultColumnVisibility: NavigationSplitViewVisibility = .all
     static let defaultColumnVisibilityRaw: Int = 2 // .all
@@ -302,9 +310,8 @@ struct ContentView: View {
     @State var performanceService = PerformanceService()
     @State var documentScrollSync = DocumentScrollSyncState()
     @State var toolbarSearchText: String = ""
-    /// Focus for the resident top-right toolbar search field (#4604 Q10):
-    /// the old show/hide toggle's "summon" gesture becomes "focus".
-    @FocusState var toolbarSearchFieldFocused: Bool
+    // toolbarSearchFieldFocused (#4604 Q10) removed with the hand-rolled
+    // field (Daniel, 2026-08-29): the system search item owns its own focus.
     /// AI-first search (#4117): "Ask" (default) lets the LLM compile a
     /// plain-language query into the structured search; "Keyword" searches
     /// the raw text. Surfaced as a native search scope on the field; the

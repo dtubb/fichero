@@ -92,6 +92,44 @@ struct PaneToggleButton: View {
     }
 }
 
+// MARK: - Workspaces (Daniel, 2026-08-29)
+
+/// View ▸ Workspaces: the same commands as the toolbar's Workspaces and
+/// Views-chooser buttons — layout presets, the saved workspaces, and Save
+/// Workspace… — acting on the focused window via `windowLayoutCommands`
+/// (same mechanism as `InspectorButton`). Items disable when no window
+/// publishes the verbs rather than silently doing nothing.
+struct WorkspaceCommandsSection: View {
+    @FocusedValue(\.windowLayoutCommands) private var commands
+
+    var body: some View {
+        Section("Workspaces") {
+            ForEach(WindowLayoutPreset.allCases) { preset in
+                Button {
+                    commands?.applyPreset(preset)
+                } label: {
+                    Label(preset.title, systemImage: preset.systemImage)
+                }
+                .disabled(commands == nil)
+            }
+
+            Divider()
+
+            ForEach(WindowWorkspaceStore.shared.catalog.workspaces) { workspace in
+                Button(workspace.name) {
+                    commands?.applyWorkspace(workspace)
+                }
+                .disabled(commands == nil)
+            }
+
+            Button("Save Workspace…") {
+                commands?.saveWorkspace()
+            }
+            .disabled(commands == nil)
+        }
+    }
+}
+
 // MARK: - Selection-driven Layout
 
 // Opt-in toggle for selection-driven layout changes. OFF by default so the

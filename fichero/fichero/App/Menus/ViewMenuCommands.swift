@@ -93,6 +93,10 @@ struct ViewMenuCommands: View {
 
         PaneVisibilitySection()
 
+        // Workspaces + layout presets (Daniel, 2026-08-29): the menu-bar
+        // twins of the toolbar's Workspaces and Views-chooser buttons.
+        WorkspaceCommandsSection()
+
         Divider()
 
         // SelectionDrivenLayoutToggle moved to Settings ▸ General (#4121):

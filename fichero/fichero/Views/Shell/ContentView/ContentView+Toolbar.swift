@@ -13,7 +13,12 @@ enum ContentToolbarID {
     static let breadcrumb = "fichero.breadcrumb"
     static let modelChip = "fichero.modelChip"
     static let workflowSuggest = "fichero.workflowSuggest"
-    static let searchToggle = "fichero.searchToggle"
+    // fichero.searchToggle retired (Daniel, 2026-08-29): the hand-rolled
+    // search lozenge is replaced by the system toolbar search item, which
+    // carries its own NSToolbar identity (com.apple.SwiftUI.search).
+    static let splitMenu = "fichero.splitMenu"
+    static let workspacesMenu = "fichero.workspacesMenu"
+    static let layoutChooser = "fichero.layoutChooser"
 }
 
 // MARK: - Toolbar Content
@@ -163,10 +168,23 @@ extension ContentView {
                 .help(showChatPane ? "Hide the Chat" : "Show the Chat")
             }
 
-            // The resident search field MOVED to the inspector-section
-            // toolbar (ContentView+InspectorContainer, 2026-08-23): Daniel
-            // wants it RIGHT of the inspector toggle, and the content section
-            // always renders left of the inspector section.
+            // Search is the SYSTEM toolbar search item now (Daniel,
+            // 2026-08-29: "not proper macOS search… use the default one") —
+            // registered in ContentView+InspectorContainer/+ToolbarSearch.
+
+            // Xcode 27's window chrome (Daniel, 2026-08-29): Split/New Tab,
+            // Workspaces, and the Views chooser — three identified items
+            // after the pane group, one control each, bodies in
+            // ContentView+LayoutChooser.swift.
+            ToolbarItem(id: ContentToolbarID.splitMenu, placement: .automatic) {
+                splitAndTabMenu
+            }
+            ToolbarItem(id: ContentToolbarID.workspacesMenu, placement: .automatic) {
+                workspacesMenu
+            }
+            ToolbarItem(id: ContentToolbarID.layoutChooser, placement: .automatic) {
+                viewsChooserMenu
+            }
         }
 
         // Sort and filter used to sit here, outside the split-pane block, with
