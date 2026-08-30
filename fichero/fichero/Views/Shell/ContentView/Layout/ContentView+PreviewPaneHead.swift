@@ -101,7 +101,10 @@ extension ContentView {
             if !crumbs.isEmpty { crumbs.removeLast() }
             crumbs.append(.multiSelection(count: browserSelection.count))
         }
-        return PaneHead<PreviewHeadSelectorGroup, PreviewHeadLensControls, PreviewMarkupToolsRow>(
+        // Tools slot retired 2026-08-30: the markup row graduated to the
+        // WINDOW-level annotation bar (below the toolbar, above the workflow
+        // bar) — annotation is not a preview-pane feature.
+        return PaneHead<PreviewHeadSelectorGroup, PreviewHeadLensControls, EmptyView>(
             crumbs: crumbs,
             onClose: { setPaneVisible(.canvas, false) },
             isPinned: Binding(
@@ -140,9 +143,7 @@ extension ContentView {
                 )
             },
             controls: { PreviewHeadLensControls(chrome: self.previewChrome) },
-            tools: { PreviewMarkupToolsRow() },
-            toolsIcon: "pencil.tip.crop.circle",
-            toolsHelp: "markup row"
+            tools: { EmptyView() }
         )
     }
 }

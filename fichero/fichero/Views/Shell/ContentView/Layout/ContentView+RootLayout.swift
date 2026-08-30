@@ -151,6 +151,10 @@ extension ContentView {
             // inspector, because it acts on the content selection (2026-08-28).
             // One tiny property, per this file's type-checker budget.
             .safeAreaInset(edge: .top, spacing: 0) { workflowBarInset }
+            // The annotation bar sits ABOVE the workflow bar (applied after,
+            // so it lands outermost — directly under the toolbar). Daniel,
+            // 2026-08-30: Preview.app's markup bar, window-scoped.
+            .safeAreaInset(edge: .top, spacing: 0) { annotationBarInset }
             .toolbar { detailToolbarContent }
             // The content-pane external drop (#4184), scoped to `detailColumn`
             // specifically — never the sidebar. Scope was the ONLY reason

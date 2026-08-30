@@ -264,22 +264,9 @@ struct PreviewMarkupToolsRow: View {
     }
 
     private func styleRow(_ style: PreviewHighlightStyle) -> some View {
-        Button {
-            highlightStyleRaw = style.rawValue
-        } label: {
-            if style.isColor {
-                Label(style.label, systemImage: "circle.fill")
-            } else {
-                Label(
-                    style.label,
-                    systemImage: style == .underline ? "underline" : "strikethrough"
-                )
-            }
-            if style == highlightStyle {
-                Image(systemName: "checkmark")
-            }
-        }
-        .tint(style.tint)
+        PreviewHighlightStyleMenu.styleRow(
+            style, current: highlightStyle
+        ) { highlightStyleRaw = $0.rawValue }
     }
 
     private func toolButton(
@@ -293,5 +280,62 @@ struct PreviewMarkupToolsRow: View {
         .help(label)
         .accessibilityLabel(label)
         .accessibilityIdentifier(identifier)
+    }
+}
+
+/// The highlight-style chevron menu, shared by the annotation bar's split
+/// button and the toolbar pencil (Daniel, 2026-08-30): colors, then
+/// Underline / Strikethrough as checkable modes. One storage key, so the
+/// choice travels with every highlight wherever it is drawn.
+struct PreviewHighlightStyleMenu: View {
+    @AppStorage(PreviewHighlightStyle.storageKey) private var highlightStyleRaw
+        = PreviewHighlightStyle.yellow.rawValue
+
+    private var current: PreviewHighlightStyle {
+        PreviewHighlightStyle(rawValue: highlightStyleRaw) ?? .yellow
+    }
+
+    var body: some View {
+        Menu {
+            ForEach(PreviewHighlightStyle.colors) { style in
+                Self.styleRow(style, current: current) { highlightStyleRaw = $0.rawValue }
+            }
+            Divider()
+            Self.styleRow(.underline, current: current) { highlightStyleRaw = $0.rawValue }
+            Self.styleRow(.strikethrough, current: current) { highlightStyleRaw = $0.rawValue }
+        } label: {
+            Image(systemName: "chevron.down")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Highlight color and mode")
+        .accessibilityLabel("Highlight color and mode")
+        .accessibilityIdentifier("annotationHighlightStyleMenu")
+    }
+
+    static func styleRow(
+        _ style: PreviewHighlightStyle,
+        current: PreviewHighlightStyle,
+        select: @escaping (PreviewHighlightStyle) -> Void
+    ) -> some View {
+        Button {
+            select(style)
+        } label: {
+            if style.isColor {
+                Label(style.label, systemImage: "circle.fill")
+            } else {
+                Label(
+                    style.label,
+                    systemImage: style == .underline ? "underline" : "strikethrough"
+                )
+            }
+            if style == current {
+                Image(systemName: "checkmark")
+            }
+        }
+        .tint(style.tint)
     }
 }

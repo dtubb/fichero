@@ -255,6 +255,7 @@ struct PDFPageWithToolbar: View {
             switch tool {
             case .highlight: requestAnnotation(.highlight)
             case .note: requestAnnotation(.note)
+            case .star: requestAnnotation(.bookmark)
             case .select, .drawRegion, .line:
                 break  // preview-regions lane / future drawing kinds
             }

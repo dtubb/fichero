@@ -8,8 +8,15 @@ import XCTest
 final class WorkflowNodeEdgeCodingTests: XCTestCase {
 
     func testServiceRestoresDefaultsForBothPortDirections() throws {
-        let sourceURL = try AppSource.root().appendingPathComponent("Services/WorkflowService.swift")
-        let source = try String(contentsOf: sourceURL, encoding: .utf8)
+        // The conversions split out of WorkflowService.swift on 2026-08-30
+        // (file_length) — the three call sites now span the two halves.
+        let root = try AppSource.root()
+        let source = try [
+            "Services/WorkflowService+Conversions.swift",
+            "Services/WorkflowService+DefinitionConversion.swift"
+        ].map {
+            try String(contentsOf: root.appendingPathComponent($0), encoding: .utf8)
+        }.joined(separator: "\n")
 
         XCTAssertEqual(
             source.components(separatedBy: "defaultValue: convertPortDefaultValue(port._default)").count - 1,
