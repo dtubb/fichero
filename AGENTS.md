@@ -451,10 +451,10 @@ simplification). Both are enforced by review, not by a script.
 
 The ones that cost hours, and that no test catches for you:
 
-- **A new `.swift` file is invisible until registered.** The `Fichero` target uses
-  traditional PBX file references, not synchronized groups. Write the file, then
-  `ruby scripts/add-swift-file.rb <path>`. Never hand-edit `project.pbxproj`.
-  (Test-target files use sync'd groups and just work.)
+- **New `.swift` files just work — never run `add-swift-file.rb` on the app
+  target.** The `Fichero` target is a synchronized folder; explicit registration
+  now DUPLICATES the build file (warning storm). Never hand-edit
+  `project.pbxproj`. (Test targets are sync'd groups too.)
 - **`PYTHONPATH=fichero-server/src` on every Python command.** The shared `.venv` is
   editable-installed against your MAIN checkout, not this worktree; without it, a
   worktree gates the *stale* tree — a green run that means nothing.
@@ -681,7 +681,7 @@ Pure crud or superseded material is `git rm`-ed, not parked at the root.
 7. Never create per-task branches — commit all work to the milestone branch directly.
 8. Never start a milestone more than one ahead of what Daniel is currently testing.
 9. **Schema changes are no-migration in 0.0.x for fresh DBs, but real data needs migrations.** A new column on a Pydantic model is picked up by `_ensure_table` on fresh databases — don't add an `ALTER TABLE ADD COLUMN` for a column already in the model. BUT once a persisted DB (`app.duckdb` or a real library) exists, a new column needs an idempotent `ALTER`+backfill, not `CREATE-IF-NOT-EXISTS`. Structural changes (table renames, data backfills) belong in `db_migrations.py`.
-10. **New .swift files must be registered with `scripts/add-swift-file.rb`**: The `Fichero` main target uses traditional PBX file references — a file written to disk is invisible to the compiler until registered. Always run `ruby scripts/add-swift-file.rb <path>` after creating any new `.swift` file. Test-target files are the exception (sync'd groups). Never edit `project.pbxproj` by hand. The build gate will catch unregistered files as "Cannot find type" errors.
+10. **New .swift files just work — do NOT register them** (updated 2026-08-30): The `Fichero` main target is a SYNCHRONIZED folder now; a file written under `fichero/fichero/` is picked up by the build automatically, and running `scripts/add-swift-file.rb` on it creates a duplicate build-file warning (proved and de-registered in 156973b98). Never edit `project.pbxproj` by hand; use `git mv` for moves.
 11. **Worktrees live ONLY under `~/code/fichero-worktrees/<name>`; never `rm` a `~/code/` sibling.** Create worktrees with `git worktree add ~/code/fichero-worktrees/<name> -b <branch> main` — never as bare siblings `~/code/fichero-<name>`. Remove them ONLY with `git worktree remove --force <path>` (operates only on registered worktrees). **NEVER `rm -rf` a `~/code/` path and NEVER glob-delete `~/code/fichero-*`** — bare siblings are SEPARATE projects with their own remotes and uncommitted work. Before any destructive fs op, confirm the path is under `~/code/fichero-worktrees/` AND in `git worktree list`; otherwise stop and surface it. A worktree that must build on un-pushed integration-branch state (not yet on `origin/main`) is created from that branch's HEAD sha explicitly — `git worktree add <path> <integration-branch-or-sha>` — not the Agent tool's default `isolation: "worktree"`, which branches from `origin/main` and won't see integration-only commits.
 
 ---
