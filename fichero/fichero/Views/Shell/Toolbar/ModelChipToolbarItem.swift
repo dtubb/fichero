@@ -97,6 +97,11 @@ struct ModelChipToolbarItem: View {
     }
 
     @ViewBuilder
+    // Extracted into small CONCRETE subviews (2026-08-29): the first inline
+    // version was one giant generic tuple, and the StallSampler caught its
+    // opaque-type metadata instantiation stalling the main thread for 333ms
+    // the first time the popover opened. Concrete row/footer types keep each
+    // expression's metadata trivial.
     private var modelPicker: some View {
         VStack(alignment: .leading, spacing: 0) {
             ScrollView {
@@ -110,25 +115,13 @@ struct ModelChipToolbarItem: View {
                             .padding(12)
                     }
                     ForEach(pickableModels, id: \.model) { choice in
-                        Button {
+                        ModelPickerRow(
+                            model: choice.model,
+                            provider: choice.provider,
+                            isCurrent: choice.model == currentModel
+                        ) {
                             select(choice)
-                        } label: {
-                            HStack(spacing: 6) {
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 9, weight: .semibold))
-                                    .opacity(choice.model == currentModel ? 1 : 0)
-                                Text(Self.shorten(choice.model))
-                                    .font(.callout)
-                                Spacer(minLength: 12)
-                                Text(choice.provider)
-                                    .font(.caption2)
-                                    .foregroundStyle(.tertiary)
-                            }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 5)
-                            .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
                     }
                 }
                 .padding(.vertical, 6)
@@ -275,5 +268,35 @@ struct ModelFamilyMark: View {
                 .frame(width: 20, height: 20)
                 .background(.quaternary.opacity(0.5), in: Circle())
         }
+    }
+}
+
+
+/// One configured model in the chip's picker. A concrete type on purpose —
+/// see the metadata note above `modelPicker`.
+private struct ModelPickerRow: View {
+    let model: String
+    let provider: String
+    let isCurrent: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 9, weight: .semibold))
+                    .opacity(isCurrent ? 1 : 0)
+                Text(ModelChipToolbarItem.shorten(model))
+                    .font(.callout)
+                Spacer(minLength: 12)
+                Text(provider)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 5)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
