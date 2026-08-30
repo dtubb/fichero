@@ -24,7 +24,8 @@ struct StatusIslandMessageBudgetTests {
         isImporting: Bool = false,
         importProgress: String? = nil,
         backendWorkLabel: String? = nil,
-        runningWorkflows: Int = 0
+        runningWorkflows: Int = 0,
+        selection: StatusIslandSelection = StatusIslandSelection()
     ) -> StatusIslandMessage {
         StatusIslandMessage.resolve(
             enginePhase: enginePhase,
@@ -33,7 +34,8 @@ struct StatusIslandMessageBudgetTests {
             isImporting: isImporting,
             importProgress: importProgress,
             backendWorkLabel: backendWorkLabel,
-            runningWorkflows: runningWorkflows
+            runningWorkflows: runningWorkflows,
+            selection: selection
         )
     }
 
@@ -202,8 +204,7 @@ struct StatusIslandMessageBudgetTests {
             "  \n  padded and newlined  \n  ",
         ]
         for monster in monsters {
-            // Quiet idle (`resolve()`) is legitimately EMPTY since 2026-08-23
-            // — every state that says something must fit and be non-blank.
+            // Every state that says something must fit and be non-blank.
             let candidates = [
                 resolve(importError: monster),
                 resolve(isImporting: true, importProgress: monster),
@@ -217,7 +218,11 @@ struct StatusIslandMessageBudgetTests {
                     "over budget: \(candidate.text)")
                 #expect(!candidate.text.isEmpty)
             }
-            #expect(resolve().text.isEmpty)
+            // Idle says "Nothing selected" since 2026-08-30 — in budget too.
+            #expect(resolve().text == "Nothing selected")
+            let folder = resolve(selection: StatusIslandSelection(contextLabel: monster))
+            #expect(folder.text.count <= StatusIslandMessage.budget,
+                    "over budget: \(folder.text)")
         }
     }
 

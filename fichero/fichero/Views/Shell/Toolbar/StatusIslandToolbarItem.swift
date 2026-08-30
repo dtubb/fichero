@@ -143,6 +143,11 @@ struct StatusIslandSelection: Equatable {
     var label: String?
     var icon: String?
     var noun = "items"
+    /// The OPEN folder's name — what the island says when nothing is
+    /// selected (Daniel, 2026-08-30: "when nothing selected… it should say
+    /// so — but in this case it's actually showing the folder"). nil falls
+    /// back to "Nothing selected".
+    var contextLabel: String?
 }
 
 struct StatusIslandMessage: Equatable {
@@ -270,8 +275,12 @@ struct StatusIslandMessage: Equatable {
         if selection.count == 1, let label = selection.label, !label.isEmpty {
             return .init(text: shortForm(label), isError: false)
         }
-        // Quiet idle shows NOTHING (Daniel: "it said ready on launch,
-        // don't need that").
-        return .init(text: "", isError: false)
+        // Nothing selected (re-ruled 2026-08-30, superseding the 2026-08-23
+        // quiet idle): name the OPEN folder — the island never sits empty —
+        // and say "Nothing selected" only when there is no folder either.
+        if let context = selection.contextLabel, !context.isEmpty {
+            return .init(text: shortForm(context), isError: false)
+        }
+        return .init(text: "Nothing selected", isError: false)
     }
 }

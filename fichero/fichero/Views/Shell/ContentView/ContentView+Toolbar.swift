@@ -266,6 +266,7 @@ extension ContentView {
             // Liquid Glass section rather than fusing into the island capsule.
             ToolbarItem(id: ContentToolbarID.modelChip, placement: .principal) {
                 ModelChipToolbarItem(prefersVision: selectionPrefersVisionModel)
+                    .padding(.horizontal, 5)
             }
             ToolbarSpacer(.fixed, placement: .principal)
             ToolbarItem(id: ContentToolbarID.breadcrumb, placement: .principal) {
@@ -298,7 +299,11 @@ extension ContentView {
                                 if docs.allSatisfy({ $0.docType == .page }) { return "pages" }
                                 if docs.allSatisfy({ $0.docType == .folder }) { return "folders" }
                                 return "items"
-                            }()
+                            }(),
+                            // The open folder IS the selection when nothing
+                            // else is (Daniel, 2026-08-30).
+                            contextLabel: documentStore.selectedCollection
+                                .map { DocumentTitle.displayName(for: $0) }
                         ),
                         importError: $importError
                     )
@@ -319,20 +324,25 @@ extension ContentView {
                     workflowSuggestButton
                     annotationBarToggle
                 }
+                .padding(.horizontal, 5)
             }
             ToolbarSpacer(.fixed, placement: .principal)
+            // Server + Activity share ONE capsule (Daniel, 2026-08-30:
+            // "maybe combine server and network") — both are "how is the
+            // machinery", one glass section. The 2026-08-23 separation was
+            // from the ISLAND, which stays its own item.
             ToolbarItem(id: ContentToolbarID.engineStatus, placement: .principal) {
-                EngineStatusToolbarItem()
-            }
-            ToolbarSpacer(.fixed, placement: .principal)
-            ToolbarItem(id: ContentToolbarID.activityStatus, placement: .principal) {
-                ActivityStatusToolbarItem(
-                    isImporting: isImporting,
-                    importProgress: importProgress,
-                    libraryId: windowState.libraryId,
-                    libraryName: windowState.library?.displayName ?? "Library",
-                    importError: $importError
-                )
+                HStack(spacing: 5) {
+                    EngineStatusToolbarItem()
+                    ActivityStatusToolbarItem(
+                        isImporting: isImporting,
+                        importProgress: importProgress,
+                        libraryId: windowState.libraryId,
+                        libraryName: windowState.library?.displayName ?? "Library",
+                        importError: $importError
+                    )
+                }
+                .padding(.horizontal, 5)
             }
         }
     }

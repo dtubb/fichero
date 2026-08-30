@@ -177,26 +177,27 @@ struct ToolbarGroupingTests {
     /// fourth claimant still fails here instead of at runtime. Each carries
     /// a DISTINCT id (the #3163 crash class is duplicate identifiers, not
     /// multiple placements).
-    @Test("exactly five toolbar ITEMS claim .principal, each with its own id, separated by spacers")
-    func exactlyFivePrincipalItems() throws {
-        // C10 (2026-08-24): the ⚡ workflow chip joined the principal zone;
-        // 2026-08-29 the MODEL CHIP joined it too (provider logo, Daniel's
-        // ruling) while the suggestion trio collapsed into one bar toggle.
-        // ToolbarSpacer(.fixed) sits between every pair — the spacers are
-        // what actually break the Liquid Glass capsule groups, so they claim
-        // .principal too and are counted separately from the ITEMS.
+    @Test("exactly four toolbar ITEMS claim .principal, each with its own id, separated by spacers")
+    func exactlyFourPrincipalItems() throws {
+        // 2026-08-30 (Daniel): model chip · island · the BARS capsule
+        // (workflow toggle + annotation pencil) · machinery (server +
+        // activity combined). ToolbarSpacer(.fixed) sits between every pair
+        // — the spacers are what actually break the Liquid Glass capsule
+        // groups, so they claim .principal too and are counted separately.
         let source = try Self.appSource("Views/Shell/ContentView/ContentView+Toolbar.swift")
         let principalItems = source.components(separatedBy: "placement: .principal").count - 1
         let spacers = source.components(separatedBy: "ToolbarSpacer(.fixed, placement: .principal)").count - 1
-        #expect(principalItems - spacers == 5, Comment(rawValue: "\(principalItems - spacers) items claim .principal (\(spacers) spacers)"))
-        #expect(spacers == 4, Comment(rawValue: "\(spacers) fixed spacers — one between each adjacent pair"))
+        #expect(principalItems - spacers == 4, Comment(rawValue: "\(principalItems - spacers) items claim .principal (\(spacers) spacers)"))
+        #expect(spacers == 3, Comment(rawValue: "\(spacers) fixed spacers — one between each adjacent pair"))
         for id in [
             "ContentToolbarID.modelChip",
             "ContentToolbarID.breadcrumb", "ContentToolbarID.workflowSuggest",
-            "ContentToolbarID.engineStatus", "ContentToolbarID.activityStatus"
+            "ContentToolbarID.engineStatus"
         ] {
             #expect(source.contains("ToolbarItem(id: \(id), placement: .principal)"))
         }
+        // Server + activity share the engineStatus item (2026-08-30).
+        #expect(!source.contains("ToolbarItem(id: ContentToolbarID.activityStatus"))
     }
 
     /// The breadcrumb is the one that keeps it: `.principal` is the window's

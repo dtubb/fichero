@@ -25,7 +25,8 @@ struct StatusIslandToolbarTests {
         importProgress: String? = nil,
         backendWorkLabel: String? = nil,
         runningWorkflows: Int = 0,
-        selectionCount: Int = 0
+        selectionCount: Int = 0,
+        selection: StatusIslandSelection? = nil
     ) -> StatusIslandMessage {
         StatusIslandMessage.resolve(
             enginePhase: enginePhase,
@@ -35,7 +36,7 @@ struct StatusIslandToolbarTests {
             importProgress: importProgress,
             backendWorkLabel: backendWorkLabel,
             runningWorkflows: runningWorkflows,
-            selection: StatusIslandSelection(count: selectionCount)
+            selection: selection ?? StatusIslandSelection(count: selectionCount)
         )
     }
 
@@ -95,9 +96,15 @@ struct StatusIslandToolbarTests {
 
     // MARK: - Message precedence
 
-    @Test("an idle, connected app shows NOTHING (Daniel, 2026-08-23: no 'Ready')")
+    @Test("idle names the open folder, or says Nothing selected")
     func idleIsQuiet() {
-        #expect(resolve() == StatusIslandMessage(text: "", isError: false))
+        // Re-ruled 2026-08-30 (Daniel: "the open folder would be selected if
+        // nothing else is selected") — the island never sits blank now.
+        #expect(resolve() == StatusIslandMessage(text: "Nothing selected", isError: false))
+        #expect(
+            resolve(selection: StatusIslandSelection(contextLabel: "Marshall Diaries"))
+                == StatusIslandMessage(text: "Marshall Diaries", isError: false)
+        )
     }
 
     /// The island shows the SAME short title the popover puts on the same
@@ -262,11 +269,14 @@ struct StatusIslandToolbarTests {
     /// REVERSED 2026-08-23 (Daniel: "separate the dynamic island from server
     /// status and activity — they're all in one right now"): each is its OWN
     /// toolbar item with its own glass; the island hosts NEITHER.
-    @Test("engine and activity are separate toolbar items, not island tenants")
+    @Test("engine and activity share ONE machinery item, never the island")
     func engineAndActivityAreSeparateItems() throws {
+        // Re-ruled 2026-08-30 (Daniel: "maybe combine server and network"):
+        // server + activity share the engineStatus capsule. What must still
+        // hold from 2026-08-23: neither lives INSIDE the island's item.
         let toolbar = try Self.appSource("Views/Shell/ContentView/ContentView+Toolbar.swift")
         #expect(toolbar.contains("ToolbarItem(id: ContentToolbarID.engineStatus"))
-        #expect(toolbar.contains("ToolbarItem(id: ContentToolbarID.activityStatus"))
+        #expect(!toolbar.contains("ToolbarItem(id: ContentToolbarID.activityStatus"))
 
         let island = try Self.appSource("Views/Shell/Toolbar/StatusIslandToolbarItem.swift")
         #expect(!island.contains("EngineStatusToolbarItem()"))
