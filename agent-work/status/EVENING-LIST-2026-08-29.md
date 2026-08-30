@@ -45,6 +45,13 @@ Legend: ✅ done+committed tonight · 🔨 worker dispatched · 📋 queued (min
 - 📋 BUG: page swipe left/right broken; up/down rendition swipe broken (scroll-bar gesture conflict)
 - 📋 BUG: Image editor — clicking the verb enters edit but there's no EXIT; the verb should flip the pane-header view selector to Edit
 
+## Live-test findings (22:30+)
+- ✅ Lens menu's stray line under each group header (inline-Picker chrome) — fixed
+- ✅ Bottom bar's metadata control vanished at narrow widths — submenu coat added
+- 📋 Icon view: no filter option to hide items WITHOUT images (text-only tiles); the fuller filter cluster missing in icon view
+- 📋 PERF P1: 9.6s stall — Observation tracking-list growth in one body eval (near share sheet); 2.2s NSButtonCell; sidebar unifiedRows 835ms; IconCellIdentity copy 903ms; AttributedString iteration 1.8s. Needs an Instruments lane on a Release-ish build.
+- 📋 CoreSpotlight donations failing continuously (CSIndex -1000 / service invalidated) — indexing may be dead app-wide
+
 ## Selection-as-scope
 - 🔨 The SELECTION is the run target everywhere: 5 regions picked in the inspector = the scope (bar + target chip update); a transcription-review artifact selected in the sidebar = run on just that
 
