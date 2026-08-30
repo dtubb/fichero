@@ -13,7 +13,7 @@ extension ZoomableImagePreview {
     /// file-length) and Swift's `private` is FILE-scoped.
     func requestAnnotation(_ tool: ReaderAnnotationTool) {
         switch tool {
-        case .highlight, .note:
+        case .highlight, .note, .line:
             pendingAnnotationTool = tool
             isDrawingRegion = true
         case .bookmark:
@@ -32,15 +32,27 @@ extension ZoomableImagePreview {
         guard let documentId else { return }
         let kind: AnnotationKind = {
             switch tool {
-            case .highlight: return .highlight
+            case .highlight:
+                // The split-button's underline/strikethrough modes persist
+                // as their OWN kinds (Daniel, 2026-08-30) — a strikethrough
+                // is a judgement, not a tint.
+                switch PreviewHighlightStyle(
+                    rawValue: UserDefaults.standard.string(
+                        forKey: PreviewHighlightStyle.storageKey) ?? ""
+                ) {
+                case .underline: return .underline
+                case .strikethrough: return .strikethrough
+                default: return .highlight
+                }
             case .note: return .note
             case .bookmark: return .bookmark
+            case .line: return .line
             }
         }()
         // Sticky tool (Daniel, 2026-08-30): while the bar keeps the tool
         // armed, the draw layer stays armed for the next box.
         let sticky = windowState?.activeMarkupTool
-        isDrawingRegion = sticky == .highlight || sticky == .note
+        isDrawingRegion = sticky == .highlight || sticky == .note || sticky == .line
         // The highlight split-button's color rides the saved highlight
         // (Daniel, 2026-08-29). Underline/strikethrough save uncolored until
         // a backing kind exists (see the toolbars design report).

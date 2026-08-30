@@ -39,8 +39,14 @@ extension ContentView {
                 if selection.count > 1 { previewChrome.reset() }
             }
             // Keep the head's lens honest when edit mode is entered from
-            // the Inspector's Edits facet instead of the lens menu.
+            // the Inspector's Edits facet instead of the lens menu — and
+            // OPEN the inspector when edit mode arrives (Daniel, 2026-08-30:
+            // the edit history lives in the Edits facet, so entering edit
+            // with the inspector closed hid the history entirely).
             .onChange(of: previewEditorTab) { _, tab in
+                if tab == .edits && !showInspectorSidebar {
+                    showInspectorSidebar = true
+                }
                 let lens: PreviewLens = (tab == .edits) ? .edit : .preview
                 if previewLens != lens { previewLens = lens }
             }

@@ -22429,6 +22429,16 @@
               "nullable": true,
               "title": "Representation"
             }
+          },
+          {
+            "name": "artifact_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Artifact Id"
+            }
           }
         ],
         "responses": {
@@ -36106,7 +36116,10 @@
           "note",
           "rating",
           "bookmark",
-          "comment"
+          "comment",
+          "line",
+          "underline",
+          "strikethrough"
         ],
         "title": "AnnotationKind",
         "description": "User annotation kinds (#914).\n\nEach kind has slightly different rendering + payload conventions:\n- highlight: coloured tint over a span; ``color`` + ``rating`` carry weight\n- note: margin/sticky note; ``text`` is the body\n- rating: 1-5 importance flag; ``rating`` carries weight\n- bookmark: navigation marker; ``text`` optional label\n- comment: threaded discussion (future); ``text`` is the body"

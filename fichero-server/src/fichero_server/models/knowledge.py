@@ -1341,6 +1341,12 @@ class AnnotationKind(str, Enum):
     rating = "rating"
     bookmark = "bookmark"
     comment = "comment"
+    # Markup kinds (Daniel, 2026-08-30): the annotation bar's line tool and
+    # the highlight split-button's underline/strikethrough modes persist as
+    # their own kinds — a strikethrough is a judgement, not a tint.
+    line = "line"
+    underline = "underline"
+    strikethrough = "strikethrough"
 
 
 class Annotation(BaseModel):
