@@ -30,9 +30,15 @@ struct ReaderArtifactLens: Equatable {
 /// readings of the text and never appear in the switcher.
 enum ReaderRepresentation {
     /// Artifact types that ARE text representations, in display order.
+    /// KEYED TO WHAT PRODUCERS ACTUALLY WRITE (check_artifact_type_contract,
+    /// #4418 class): transcribe/audio_transcribe → transcription,
+    /// translate/text_translate → translation, summarize → summary,
+    /// convert → conversion. `normalized_text`/`transliteration`/`markdown`/
+    /// `html` exist only as ContentRepresentationKind values — no tool emits
+    /// them as artifact types, so listing them here was a lens to nowhere;
+    /// they rejoin WITH their producers, not before.
     static let textTypes = [
-        "transcription", "normalized_text", "translation",
-        "transliteration", "markdown", "html", "summary", "conversion"
+        "transcription", "translation", "summary", "conversion"
     ]
 
     /// Table-family artifact types (Daniel, 2026-08-29 bedtime: CSV/table
@@ -45,10 +51,6 @@ enum ReaderRepresentation {
         switch type {
         case "transcription": return "Transcript"
         case "translation": return "Translation"
-        case "normalized_text": return "Normalized"
-        case "transliteration": return "Transliteration"
-        case "markdown": return "Markdown"
-        case "html": return "HTML"
         case "summary": return "Summary"
         case "conversion": return "Conversion"
         case "table": return "Table"
@@ -136,6 +138,7 @@ extension ReadingPaneView {
             } label: {
                 Image(systemName: "square.and.arrow.down")
                     .foregroundStyle(Color.secondary)
+                    .readerIconTarget()
             }
             .buttonStyle(.plain)
             .draggable(export)
