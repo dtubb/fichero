@@ -37,7 +37,10 @@ extension ZoomableImagePreview {
             case .bookmark: return .bookmark
             }
         }()
-        isDrawingRegion = false
+        // Sticky tool (Daniel, 2026-08-30): while the bar keeps the tool
+        // armed, the draw layer stays armed for the next box.
+        let sticky = windowState?.activeMarkupTool
+        isDrawingRegion = sticky == .highlight || sticky == .note
         // The highlight split-button's color rides the saved highlight
         // (Daniel, 2026-08-29). Underline/strikethrough save uncolored until
         // a backing kind exists (see the toolbars design report).

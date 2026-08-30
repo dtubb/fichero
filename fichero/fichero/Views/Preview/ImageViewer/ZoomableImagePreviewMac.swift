@@ -128,6 +128,8 @@ struct ZoomableImagePreview: View {
     /// ⌥ summons the loupe temporarily while it is toggled off (Daniel,
     /// 2026-08-29); releasing ⌥ lets it go.
     @State var loupeTransient = false
+    /// Cursor feedback for the armed markup tool (Daniel, 2026-08-30).
+    @State var hoveringCanvas = false
     @State private var optionMonitor: Any?
 
     /// The loupe the tracking view actually shows: the toggle, or ⌥ held.
@@ -273,6 +275,17 @@ struct ZoomableImagePreview: View {
             .onChange(of: documentId) { _, _ in handleDocumentIDChangedForHighRes() }
             .onChange(of: magnifierLocked) { wasLocked, isLocked in
                 handleMagnifierLockChanged(wasLocked, isLocked)
+            }
+            // Sticky markup tool (Daniel, 2026-08-30): arming highlight/note
+            // in the bar arms the draw layer; disarming (or switching to a
+            // non-drawing tool) stands it down. Cursor follows.
+            .onChange(of: windowState?.activeMarkupTool) { _, tool in
+                switch tool {
+                case .highlight: pendingAnnotationTool = .highlight; isDrawingRegion = true
+                case .note: pendingAnnotationTool = .note; isDrawingRegion = true
+                default: isDrawingRegion = false
+                }
+                applyMarkupCursor()
             }
             // ↑/↓ = the RENDITION axis when this page has more than one
             // (Daniel's ruling: up/down flips renditions, ←/→ walks pages).

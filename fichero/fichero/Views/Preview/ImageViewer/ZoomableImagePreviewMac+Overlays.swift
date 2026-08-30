@@ -240,6 +240,26 @@ extension ZoomableImagePreview {
             // dodge it).
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
         }
+        .onHover { inside in
+            hoveringCanvas = inside
+            applyMarkupCursor()
+        }
+    }
+}
+
+
+extension ZoomableImagePreview {
+    /// The armed tool's cursor, applied while the pointer is over the canvas
+    /// (Daniel, 2026-08-30: "when we change tools for markup, the cursor
+    /// changes"). `.set()` rather than push/pop — tool changes mid-hover
+    /// would unbalance a stack.
+    func applyMarkupCursor() {
+        guard hoveringCanvas else { return }
+        switch windowState?.activeMarkupTool {
+        case .textSelect, .note: NSCursor.iBeam.set()
+        case .drawRegion, .select, .line, .highlight: NSCursor.crosshair.set()
+        default: NSCursor.arrow.set()
+        }
     }
 }
 

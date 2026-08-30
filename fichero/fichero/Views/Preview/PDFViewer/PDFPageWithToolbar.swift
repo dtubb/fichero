@@ -92,6 +92,8 @@ struct PDFPageWithToolbar: View {
     /// its page nav so the head's ‹ › cluster drives PDF pages. Optional —
     /// hosts outside the preview pane publish nowhere.
     @Environment(PreviewPaneChrome.self) var paneChrome: PreviewPaneChrome?
+    /// Sticky markup tool seam (Daniel, 2026-08-30); optional for headless hosts.
+    @Environment(WindowState.self) private var pdfWindowState: WindowState?
     /// ON by default (#4418) — same reasoning as the image surface: geometry
     /// that exists but is never drawn is geometry nobody can check a
     /// transcription against.
@@ -197,7 +199,10 @@ struct PDFPageWithToolbar: View {
         }()
         let documentId = effectiveDocumentId
         let pageIndex = effectivePageIndex
-        isDrawingRegion = false
+        // Sticky tool (Daniel, 2026-08-30): while the bar keeps the tool
+        // armed, the draw layer stays armed for the next box.
+        let sticky = pdfWindowState?.activeMarkupTool
+        isDrawingRegion = sticky == .highlight || sticky == .note
         Task {
             _ = await annotationStore.addNote(
                 scope: .document(documentId),
@@ -334,6 +339,13 @@ struct PDFPageWithToolbar: View {
             }
             .onChange(of: annotationStore.changeToken) { _, _ in
                 loadAnnotations()
+            }
+            .onChange(of: pdfWindowState?.activeMarkupTool) { _, tool in
+                switch tool {
+                case .highlight: pendingTool = .highlight; isDrawingRegion = true
+                case .note: pendingTool = .note; isDrawingRegion = true
+                default: isDrawingRegion = false
+                }
             }
 
             if loupeEnabled {
