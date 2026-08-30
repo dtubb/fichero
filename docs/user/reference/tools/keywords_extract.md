@@ -15,7 +15,7 @@ Extract keywords section only.
 | Runs over many items | no |
 | Item handling | batch |
 | Structured output | yes |
-| Verified end to end | no |
+| Human-verified | not yet |
 
 ## What it reads
 

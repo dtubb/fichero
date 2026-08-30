@@ -15,7 +15,7 @@ Parse a back-of-book index into topic entities and grounded statements from the 
 | Runs over many items | no |
 | Item handling | batch |
 | Structured output | yes |
-| Verified end to end | no |
+| Human-verified | not yet |
 
 ## What it reads
 

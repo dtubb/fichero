@@ -15,7 +15,7 @@ Generate a high-level summary of an entire collection
 | Runs over many items | no |
 | Item handling | batch |
 | Structured output | yes |
-| Verified end to end | no |
+| Human-verified | not yet |
 
 ## What it reads
 

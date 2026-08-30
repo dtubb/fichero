@@ -15,7 +15,7 @@ Use the currently selected documents from the library UI
 | Runs over many items | no |
 | Item handling | batch |
 | Structured output | no |
-| Verified end to end | no |
+| Human-verified | not yet |
 
 ## What it reads
 

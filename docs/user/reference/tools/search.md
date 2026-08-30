@@ -15,7 +15,7 @@ Find files matching a search query
 | Runs over many items | no |
 | Item handling | batch |
 | Structured output | no |
-| Verified end to end | yes |
+| Human-verified | yes |
 
 ## What it reads
 

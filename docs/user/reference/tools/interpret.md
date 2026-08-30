@@ -15,7 +15,7 @@ Apply an interpretive framework to text and persist the resulting interpretation
 | Runs over many items | no |
 | Item handling | elementwise |
 | Structured output | no |
-| Verified end to end | yes |
+| Human-verified | yes |
 
 ## What it reads
 

@@ -15,7 +15,7 @@ Fetch a document from a URL and optionally save as a Layer 1 Source in the Fiche
 | Runs over many items | no |
 | Item handling | batch |
 | Structured output | no |
-| Verified end to end | no |
+| Human-verified | not yet |
 
 ## What it reads
 

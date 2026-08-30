@@ -15,7 +15,7 @@ Generate a summary of a single document's content
 | Runs over many items | yes |
 | Item handling | elementwise |
 | Structured output | yes |
-| Verified end to end | no |
+| Human-verified | not yet |
 
 ## What it reads
 

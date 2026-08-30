@@ -15,7 +15,7 @@ Pass through input files from workflow context
 | Runs over many items | no |
 | Item handling | batch |
 | Structured output | no |
-| Verified end to end | yes |
+| Human-verified | yes |
 
 ## What it reads
 

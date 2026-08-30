@@ -15,7 +15,7 @@ Combine upstream fan-out results into a single payload.
 | Runs over many items | no |
 | Item handling | reducing |
 | Structured output | no |
-| Verified end to end | no |
+| Human-verified | not yet |
 
 ## What it reads
 

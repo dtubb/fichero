@@ -15,7 +15,7 @@ Create one subfolder per duplicate cluster and move members into it via the audi
 | Runs over many items | no |
 | Item handling | batch |
 | Structured output | no |
-| Verified end to end | no |
+| Human-verified | not yet |
 
 ## What it reads
 

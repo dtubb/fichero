@@ -15,7 +15,7 @@ Detect and describe people
 | Runs over many items | yes |
 | Item handling | batch |
 | Structured output | yes |
-| Verified end to end | no |
+| Human-verified | not yet |
 
 ## What it reads
 

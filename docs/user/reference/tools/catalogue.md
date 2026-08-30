@@ -15,7 +15,7 @@ Compose nine-section archival summary for a folder (leaf node of the Catalogue w
 | Runs over many items | no |
 | Item handling | batch |
 | Structured output | yes |
-| Verified end to end | no |
+| Human-verified | not yet |
 
 ## What it reads
 

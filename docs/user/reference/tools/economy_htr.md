@@ -15,7 +15,7 @@ Free Apple Vision line boxes + a cheap local HTR backend (no paid API calls).
 | Runs over many items | yes |
 | Item handling | batch |
 | Structured output | no |
-| Verified end to end | no |
+| Human-verified | not yet |
 
 ## What it reads
 

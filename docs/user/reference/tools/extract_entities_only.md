@@ -15,7 +15,7 @@ Extract and persist entity rows only from existing transcription artifacts
 | Runs over many items | no |
 | Item handling | batch |
 | Structured output | no |
-| Verified end to end | no |
+| Human-verified | not yet |
 
 ## What it reads
 

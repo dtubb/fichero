@@ -15,7 +15,7 @@ Agent that dynamically routes to other agents based on task requirements
 | Runs over many items | no |
 | Item handling | batch |
 | Structured output | no |
-| Verified end to end | no |
+| Human-verified | not yet |
 
 ## What it reads
 

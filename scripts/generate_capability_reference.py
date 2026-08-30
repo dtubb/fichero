@@ -201,7 +201,10 @@ def tool_page(tool: Any) -> str:
         f"| Runs over many items | {cell(tool.supports_batch)} |",
         f"| Item handling | {cell(tool.parallelism)} |",
         f"| Structured output | {cell(tool.supports_structured_output)} |",
-        f"| Verified end to end | {cell(tool.tested)} |",
+        # "Not yet human-verified", never "Verified end to end: no" — the
+        # honest wording Daniel chose for a user manual (2026-08-29): the
+        # second reads as broken, the first as a roadmap.
+        f"| Human-verified | {'yes' if tool.tested else 'not yet'} |",
         "",
         "## What it reads",
         "",

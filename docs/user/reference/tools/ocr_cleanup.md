@@ -15,7 +15,7 @@ Fix common OCR artefacts: dehyphenate line-break splits, rejoin multi-column tex
 | Runs over many items | yes |
 | Item handling | batch |
 | Structured output | no |
-| Verified end to end | no |
+| Human-verified | not yet |
 
 ## What it reads
 

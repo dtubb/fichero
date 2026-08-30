@@ -15,7 +15,7 @@ Finalize corroboration counts, canonical KG embeddings, and graph snapshot from 
 | Runs over many items | no |
 | Item handling | reducing |
 | Structured output | no |
-| Verified end to end | no |
+| Human-verified | not yet |
 
 ## What it reads
 

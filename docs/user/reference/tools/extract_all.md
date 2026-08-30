@@ -15,7 +15,7 @@ Single-pass extraction of people, places, organisations, dates, events, and keyw
 | Runs over many items | no |
 | Item handling | batch |
 | Structured output | yes |
-| Verified end to end | no |
+| Human-verified | not yet |
 
 ## What it reads
 

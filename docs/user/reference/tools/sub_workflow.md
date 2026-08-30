@@ -15,7 +15,7 @@ Run a child workflow behind declared input/output contracts.
 | Runs over many items | no |
 | Item handling | batch |
 | Structured output | no |
-| Verified end to end | no |
+| Human-verified | not yet |
 
 ## What it reads
 

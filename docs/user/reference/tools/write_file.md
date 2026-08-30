@@ -15,7 +15,7 @@ Save upstream text to a file on disk (per-file or aggregate).
 | Runs over many items | no |
 | Item handling | batch |
 | Structured output | no |
-| Verified end to end | no |
+| Human-verified | not yet |
 
 ## What it reads
 

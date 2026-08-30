@@ -15,7 +15,7 @@ Finds WHERE the words are, on-device and free. Apple Vision reads the page local
 | Runs over many items | yes |
 | Item handling | elementwise |
 | Structured output | no |
-| Verified end to end | yes |
+| Human-verified | yes |
 
 ## What it reads
 

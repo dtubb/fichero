@@ -15,7 +15,7 @@ Second-pass QA of a prior transcription against the image
 | Runs over many items | yes |
 | Item handling | batch |
 | Structured output | no |
-| Verified end to end | yes |
+| Human-verified | yes |
 
 ## What it reads
 

@@ -15,7 +15,7 @@ Second-pass AI double-check of a draft translation against the original source: 
 | Runs over many items | yes |
 | Item handling | batch |
 | Structured output | yes |
-| Verified end to end | no |
+| Human-verified | not yet |
 
 ## What it reads
 

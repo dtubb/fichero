@@ -15,7 +15,7 @@ Register import-receipt and transcription artifacts only
 | Runs over many items | no |
 | Item handling | batch |
 | Structured output | no |
-| Verified end to end | no |
+| Human-verified | not yet |
 
 ## What it reads
 

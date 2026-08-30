@@ -15,7 +15,7 @@ Split a book PDF into chapter documents using TOC and heading cues
 | Runs over many items | no |
 | Item handling | batch |
 | Structured output | no |
-| Verified end to end | no |
+| Human-verified | not yet |
 
 ## What it reads
 

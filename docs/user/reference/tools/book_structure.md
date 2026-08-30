@@ -15,7 +15,7 @@ Extract chapter/section/subsection ranges from a book PDF outline
 | Runs over many items | no |
 | Item handling | batch |
 | Structured output | no |
-| Verified end to end | no |
+| Human-verified | not yet |
 
 ## What it reads
 

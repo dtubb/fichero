@@ -15,7 +15,7 @@ Split each page's transcript into per-day entry nodes with a date attribute and 
 | Runs over many items | no |
 | Item handling | batch |
 | Structured output | no |
-| Verified end to end | no |
+| Human-verified | not yet |
 
 ## What it reads
 

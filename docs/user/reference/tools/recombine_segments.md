@@ -15,7 +15,7 @@ Stitch segment image files into one derived image.
 | Runs over many items | yes |
 | Item handling | batch |
 | Structured output | no |
-| Verified end to end | no |
+| Human-verified | not yet |
 
 ## What it reads
 

@@ -15,7 +15,7 @@ Pick global canonical places across all pages in the folder and save a cleaned a
 | Runs over many items | no |
 | Item handling | batch |
 | Structured output | no |
-| Verified end to end | no |
+| Human-verified | not yet |
 
 ## What it reads
 

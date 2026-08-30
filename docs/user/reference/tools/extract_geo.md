@@ -15,7 +15,7 @@ Extract place names from text and geocode them to lat/lon
 | Runs over many items | yes |
 | Item handling | batch |
 | Structured output | yes |
-| Verified end to end | no |
+| Human-verified | not yet |
 
 ## What it reads
 

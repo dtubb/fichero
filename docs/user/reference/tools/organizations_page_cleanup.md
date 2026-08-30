@@ -15,7 +15,7 @@ Group near-duplicate organizations within each page using a focused LLM call. Re
 | Runs over many items | no |
 | Item handling | batch |
 | Structured output | no |
-| Verified end to end | no |
+| Human-verified | not yet |
 
 ## What it reads
 

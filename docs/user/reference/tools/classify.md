@@ -15,7 +15,7 @@ Categorize document type
 | Runs over many items | yes |
 | Item handling | elementwise |
 | Structured output | yes |
-| Verified end to end | no |
+| Human-verified | not yet |
 
 ## What it reads
 

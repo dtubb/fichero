@@ -15,7 +15,7 @@ Extract text from images (OCR)
 | Runs over many items | yes |
 | Item handling | elementwise |
 | Structured output | yes |
-| Verified end to end | yes |
+| Human-verified | yes |
 
 ## What it reads
 

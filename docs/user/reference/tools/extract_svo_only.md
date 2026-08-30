@@ -15,7 +15,7 @@ Extract and persist SVO KnowledgeClaim rows only from existing entities and tran
 | Runs over many items | no |
 | Item handling | batch |
 | Structured output | no |
-| Verified end to end | no |
+| Human-verified | not yet |
 
 ## What it reads
 

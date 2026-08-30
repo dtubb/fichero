@@ -15,7 +15,7 @@ AI agent that uses tools to accomplish tasks
 | Runs over many items | no |
 | Item handling | batch |
 | Structured output | no |
-| Verified end to end | no |
+| Human-verified | not yet |
 
 ## What it reads
 
