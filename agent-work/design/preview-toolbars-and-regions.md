@@ -50,11 +50,12 @@
   audit trail, soft delete). Check what `resolve-document-text-regions` and
   the artifacts routes already offer before adding anything.
 
-8. **Rubber-band run** (late addition): drag a marquee over part of the
-   image and run a workflow on JUST that crop — Preview.app's selection
-   rectangle as the model (his Mellel-guide screenshots). This is the
-   region story's input end: rubber-band → region node → the bar's verbs
-   scope to it.
+8. **Rubber-band run** (late addition, refined 2026-08-29 ~22:30): the
+   marquee is EPHEMERAL first — drawing it persists nothing. Two exits:
+   promote to a region node ("New Region"), or run a workflow on the crop
+   directly from the bar (the marquee outranks everything in the scope
+   ladder; the chip names it "a selection of <page>"). Preview.app's
+   selection rectangle is the model.
 9. **Top-right lens icons** (late addition): Preview's pane head gets
    region-overlay and renditions toggles as compact icons, the way the
    reader's head carries its lenses — instead of the bottom bar's menus.
