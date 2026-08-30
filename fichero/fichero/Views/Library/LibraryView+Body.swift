@@ -212,11 +212,17 @@ extension LibraryView {
             // key, not `sidebarActions` — see that key's doc comment for why
             // stubbing the other 10 SidebarActions closures would be a new
             // silent no-op bug of the exact shape #4449 just closed.
-            .focusedValue(\.libraryImportAction) { mode in
+            // Wrapped in the Equatable `FocusedLibraryImportAction` — never a
+            // raw closure (Daniel, 2026-08-29): the unwrapped closure was
+            // re-published every body pass, and the resulting AttributeGraph
+            // invalidation storm hung the iPhone's navigation pop (the
+            // "no selection → back → stalls" bug) and spammed "FocusedValue
+            // update multiple times per frame" at launch.
+            .focusedValue(\.libraryImportAction, FocusedLibraryImportAction { mode in
                 fileImportMode = mode
                 fileImportTargetFolderId = folderId
                 showingFileImporter = true
-            }
+            })
             .onAppear {
                 if outlineModel == nil {
                     outlineModel = LibraryOutlineModel(
