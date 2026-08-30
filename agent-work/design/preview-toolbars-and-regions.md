@@ -72,8 +72,13 @@
 3. **Bottom bar goes quiet**: filter / find-in-image / metadata /
    what-to-show — the library-bottom grammar. No zoom, no annotation entry,
    no "…" menus.
-4. **Zoom lives BESIDE the mini-map** as one floating cluster (where + how
-   close are one concern); hiding the map collapses zoom to a small pill.
+4. **The magnification FAMILY is one bottom-right floating cluster**
+   (follow-up ruling): mini-map on top, zoom pill beneath (− % + · fit ·
+   1:1), then two toggles — the LOUPE and the magnifier bar. The loupe
+   follows the cursor when on (the draggable window "is not very good"),
+   scroll adjusts its power, ⌥ summons it temporarily; the magnifier-bar
+   toggle slides the strip up from the bottom edge. Hiding the map
+   collapses the cluster to the zoom pill.
 5. **Combine = merge destructively**: one region remains (union bbox, texts
    joined in reading order), originals soft-deleted and recoverable through
    curation history.
