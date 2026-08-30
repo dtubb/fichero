@@ -62,6 +62,10 @@ extension Notification.Name {
 /// The markup tools of the head's slide-out row (Daniel, 2026-08-29:
 /// Preview.app's markup bar is the model).
 enum PreviewMarkupTool: String, CaseIterable, Identifiable {
+    /// Text selection — Preview.app's A| tool, FIRST in the bar (Daniel,
+    /// 2026-08-30). Arms selecting recognised/transcribed text on surfaces
+    /// that have it; no consumer yet (reader text is the first).
+    case textSelect
     case select
     case drawRegion
     case line
@@ -75,6 +79,7 @@ enum PreviewMarkupTool: String, CaseIterable, Identifiable {
 
     var icon: String {
         switch self {
+        case .textSelect: "character.cursor.ibeam"
         case .select: "cursorarrow"
         case .drawRegion: "rectangle.dashed"
         case .line: "line.diagonal"
@@ -89,6 +94,7 @@ enum PreviewMarkupTool: String, CaseIterable, Identifiable {
         case .select: "Select"
         case .drawRegion: "Draw Region"
         case .line: "Line"
+        case .textSelect: "Select Text"
         case .highlight: "Highlight"
         case .note: "Text Note"
         case .star: "Star"

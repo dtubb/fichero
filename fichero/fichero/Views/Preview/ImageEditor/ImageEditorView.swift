@@ -22,6 +22,10 @@ struct ImageEditorView: View {
     var onNavigate: ((String) -> Void)?
     /// Multi-file selection (image document ids) for batch-apply (#1265).
     var selectedDocumentIDs: Set<String> = []
+    /// Leave edit mode (Daniel, 2026-08-30: "when you are done editing an
+    /// image, how do you get out?"). Edits are already committed per Apply —
+    /// Done only flips the facet back; nil hides the button.
+    var onDone: (() -> Void)?
 
     @Environment(APIClient.self) var apiClient
     @Environment(StorageService.self) var storageService

@@ -143,6 +143,8 @@ struct ZoomableImagePreview: View {
     /// default-off left a switch nobody would find, which the standing rule
     /// calls worse than absent.
     @AppStorage("imagePreview.ocrBoxesEnabled") var ocrBoxesEnabled = true
+    /// Annotation overlays show/hide (what-to-show menu, 2026-08-30).
+    @AppStorage("preview.annotationsEnabled") var annotationsEnabled = true
     @State var ocrGeometry: OCRGeometry?
     /// WHICH artifact the displayed geometry came from (2026-08-29, regions
     /// as first-class): the curation verbs — move / delete / add / combine —
@@ -257,7 +259,7 @@ struct ZoomableImagePreview: View {
                 case .highlight: requestAnnotation(.highlight)
                 case .note: requestAnnotation(.note)
                 case .star: requestAnnotation(.bookmark)
-                case .select, .drawRegion, .line:
+                case .textSelect, .select, .drawRegion, .line:
                     break  // preview-regions lane / future drawing kinds
                 }
             }

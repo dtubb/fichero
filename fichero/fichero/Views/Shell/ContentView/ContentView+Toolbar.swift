@@ -16,7 +16,8 @@ enum ContentToolbarID {
     // fichero.searchToggle retired (Daniel, 2026-08-29): the hand-rolled
     // search lozenge is replaced by the system toolbar search item, which
     // carries its own NSToolbar identity (com.apple.SwiftUI.search).
-    static let annotationBar = "fichero.annotationBar"
+    // fichero.annotationBar folded into the workflowSuggest item
+    // (Daniel, 2026-08-30: the two bar toggles share one capsule).
     static let splitMenu = "fichero.splitMenu"
     static let workspacesMenu = "fichero.workspacesMenu"
     static let layoutChooser = "fichero.layoutChooser"
@@ -177,12 +178,6 @@ extension ContentView {
             // Workspaces, and the Views chooser — three identified items
             // after the pane group, one control each, bodies in
             // ContentView+LayoutChooser.swift.
-            // The annotation pencil (Daniel, 2026-08-30, Preview.app's
-            // grammar): toggles the window-level annotation bar; the chevron
-            // picks the highlight style. One item, split-button shaped.
-            ToolbarItem(id: ContentToolbarID.annotationBar, placement: .automatic) {
-                annotationBarToggle
-            }
             ToolbarItem(id: ContentToolbarID.splitMenu, placement: .automatic) {
                 splitAndTabMenu
             }
@@ -316,8 +311,14 @@ extension ContentView {
             // adjacent items share one capsule without it (Daniel's 2026-08-24
             // screenshot: still fused). Unconditional, content-only variance.
             ToolbarSpacer(.fixed, placement: .principal)
+            // The BARS capsule (Daniel, 2026-08-30): the workflow-bar toggle
+            // and the annotation pencil share one item — "that way we know
+            // it's a bar". Same capsule, two bars.
             ToolbarItem(id: ContentToolbarID.workflowSuggest, placement: .principal) {
-                workflowSuggestButton
+                HStack(spacing: 2) {
+                    workflowSuggestButton
+                    annotationBarToggle
+                }
             }
             ToolbarSpacer(.fixed, placement: .principal)
             ToolbarItem(id: ContentToolbarID.engineStatus, placement: .principal) {

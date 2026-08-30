@@ -264,7 +264,8 @@ struct EditorView: View {
             ImageEditorView(
                 document: doc,
                 onNavigate: onNavigateToDocument,
-                selectedDocumentIDs: selectedDocumentIDs
+                selectedDocumentIDs: selectedDocumentIDs,
+                onDone: { inspectorSelectedTab = .content }
             )
         case .text(let content):
             DocumentTextReader(document: doc, content: content)

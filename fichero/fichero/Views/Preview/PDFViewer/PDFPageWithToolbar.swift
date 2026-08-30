@@ -96,6 +96,8 @@ struct PDFPageWithToolbar: View {
     /// that exists but is never drawn is geometry nobody can check a
     /// transcription against.
     @AppStorage("pdfPreview.ocrBoxesEnabled") var ocrBoxesEnabled = true
+    /// Annotation overlays show/hide (what-to-show menu, 2026-08-30).
+    @AppStorage("preview.annotationsEnabled") var annotationsEnabled = true
     @State var ocrGeometry: OCRGeometry?
     @State private var isDrawingRegion = false
     @State private var pendingTool: ReaderAnnotationTool = .highlight
@@ -256,7 +258,7 @@ struct PDFPageWithToolbar: View {
             case .highlight: requestAnnotation(.highlight)
             case .note: requestAnnotation(.note)
             case .star: requestAnnotation(.bookmark)
-            case .select, .drawRegion, .line:
+            case .textSelect, .select, .drawRegion, .line:
                 break  // preview-regions lane / future drawing kinds
             }
         }
@@ -310,7 +312,7 @@ struct PDFPageWithToolbar: View {
                 zoomController: zoom,
                 pageController: pageNav,
                 onCursorMoved: { pos in loupePosition = pos },
-                regionBoxes: pageRegionBoxes,
+                regionBoxes: annotationsEnabled ? pageRegionBoxes : [],
                 ocrBoxes: drawableOCRBoxes,
                 isDrawingRegion: isDrawingRegion,
                 onCreateRegion: { box in persistRegion(box, tool: pendingTool) },
@@ -374,6 +376,9 @@ struct PDFPageWithToolbar: View {
     private var readerToolbar: some View {
         ReaderToolbar(
             style: .quiet,
+            onShowInfo: {
+                NotificationCenter.default.post(name: .previewShowInfo, object: nil)
+            },
             title: documentTitle,
             onClose: closeHandler,
             isInSplit: isInSplit,
@@ -384,6 +389,7 @@ struct PDFPageWithToolbar: View {
             fitToWindow: { zoom.fitToWindow() },
             actualSize: { zoom.actualSize() },
             textBoxesEnabled: $ocrBoxesEnabled,
+            annotationsEnabled: $annotationsEnabled,
             isPinned: $isPinned,
             onTogglePin: togglePin
         )

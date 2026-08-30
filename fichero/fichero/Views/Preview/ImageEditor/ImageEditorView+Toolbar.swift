@@ -3,6 +3,24 @@ import SwiftUI
 extension ImageEditorView {
     var toolbar: some View {
         HStack(spacing: 12) {
+            // The way OUT (2026-08-30): edits are committed as you Apply, so
+            // Done just returns to Preview — no separate save step exists,
+            // and the button says so.
+            if let onDone {
+                Button {
+                    onDone()
+                } label: {
+                    Label("Done", systemImage: "checkmark.circle.fill")
+                        .labelStyle(.titleAndIcon)
+                }
+                .buttonStyle(.borderless)
+                .foregroundStyle(Color.accentColor)
+                .help("Done — edits are already saved; return to Preview")
+                .accessibilityIdentifier("imageEditDone")
+
+                Divider().frame(height: 20)
+            }
+
             navigationCluster
 
             Divider().frame(height: 20)

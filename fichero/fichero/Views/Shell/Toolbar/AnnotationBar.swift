@@ -10,34 +10,24 @@ import SwiftUI
 /// as they learn to. Today the preview canvases answer; the rest join
 /// without the bar moving.
 struct AnnotationBar: View {
+    /// Labels beneath the glyphs — driven by the same switch as the workflow
+    /// bar's labels (Daniel, 2026-08-30: "text underneath that is shown if I
+    /// show it in the top toolbar").
+    var showsLabels = false
+
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 10) {
             Spacer(minLength: 0)
-            PreviewMarkupToolsRow()
-            starButton
+            PreviewMarkupToolsRow(showsLabels: showsLabels)
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 10)
-        .frame(height: 38)
+        // Real margins (Daniel, 2026-08-30: "left right margins should be
+        // more") — the row breathes instead of hugging the pane edges.
+        .padding(.horizontal, 28)
+        .frame(height: showsLabels ? 52 : 38)
         .frame(maxWidth: .infinity)
         .background(.bar)
         .overlay(alignment: .bottom) { Divider() }
         .accessibilityIdentifier("annotationBar")
-    }
-
-    /// "Star anything" — the bookmark annotation kind, whole-item, no region.
-    private var starButton: some View {
-        Button {
-            NotificationCenter.default.post(
-                name: .previewAnnotateTool, object: PreviewMarkupTool.star.rawValue
-            )
-        } label: {
-            Label(PreviewMarkupTool.star.label, systemImage: PreviewMarkupTool.star.icon)
-                .labelStyle(.iconOnly)
-        }
-        .buttonStyle(.borderless)
-        .help("Star this item")
-        .accessibilityLabel("Star")
-        .accessibilityIdentifier("annotationBarStar")
     }
 }

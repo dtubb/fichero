@@ -27,13 +27,19 @@ struct PreviewZoomMapCluster<Map: View>: View {
 
     var body: some View {
         VStack(alignment: .trailing, spacing: 8) {
+            // The map floats above the pill in its own glass lozenge — the
+            // Tahoe/Golden-Gate idiom (Daniel, 2026-08-30: "golden gate and
+            // tahoe style"), never a bare rectangle.
             map()
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 10))
             zoomPill
-            togglesRow
         }
         .padding(8)
     }
 
+    /// ONE line (Daniel, 2026-08-30: "zoom, and all that on one line, not
+    /// two"): − % + · fit · 1:1 · loupe · magnifier bar, a single capsule.
     private var zoomPill: some View {
         HStack(spacing: 6) {
             pillButton("minus.magnifyingglass", help: "Zoom Out", action: zoomOut)
@@ -46,41 +52,33 @@ struct PreviewZoomMapCluster<Map: View>: View {
             Divider().frame(height: 14)
             pillButton("arrow.up.left.and.arrow.down.right", help: "Fit to Window", action: fitToWindow)
             pillButton("1.square", help: "Actual Size (100%)", action: actualSize)
+            if loupeEnabled != nil || magnifierEnabled != nil {
+                Divider().frame(height: 14)
+            }
+            if let loupeEnabled {
+                pillToggle(
+                    loupeEnabled,
+                    icon: "magnifyingglass.circle",
+                    activeIcon: "magnifyingglass.circle.fill",
+                    help: "Loupe — follows the cursor; scroll adjusts magnification, "
+                        + "⌥ summons it, Esc dismisses",
+                    identifier: "previewLoupeToggle"
+                )
+            }
+            if let magnifierEnabled {
+                pillToggle(
+                    magnifierEnabled,
+                    icon: "rectangle.bottomhalf.inset.filled",
+                    activeIcon: "rectangle.bottomhalf.inset.filled",
+                    help: "Magnifier bar — a magnified strip along the bottom edge",
+                    identifier: "previewMagnifierToggle"
+                )
+            }
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 3)
         .glassEffect(.regular, in: Capsule())
         .accessibilityIdentifier("previewZoomPill")
-    }
-
-    @ViewBuilder
-    private var togglesRow: some View {
-        if loupeEnabled != nil || magnifierEnabled != nil {
-            HStack(spacing: 6) {
-                if let loupeEnabled {
-                    pillToggle(
-                        loupeEnabled,
-                        icon: "magnifyingglass.circle",
-                        activeIcon: "magnifyingglass.circle.fill",
-                        help: "Loupe — follows the cursor; scroll adjusts magnification, "
-                            + "⌥ summons it, Esc dismisses",
-                        identifier: "previewLoupeToggle"
-                    )
-                }
-                if let magnifierEnabled {
-                    pillToggle(
-                        magnifierEnabled,
-                        icon: "rectangle.bottomhalf.inset.filled",
-                        activeIcon: "rectangle.bottomhalf.inset.filled",
-                        help: "Magnifier bar — a magnified strip along the bottom edge",
-                        identifier: "previewMagnifierToggle"
-                    )
-                }
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .glassEffect(.regular, in: Capsule())
-        }
     }
 
     private func pillButton(
