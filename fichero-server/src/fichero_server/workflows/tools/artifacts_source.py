@@ -124,9 +124,20 @@ async def artifacts_source_tool(
         return empty
 
     config = config or {}
-    artifact_type = str(config.get("artifact_type") or "transcription").strip()
+    # Run-time hints ride in the run's inputs (Daniel, 2026-08-29: selecting
+    # a specific artifact in the app scopes the run to THAT artifact). Node
+    # config, when the author set it, still wins — a hint only fills in what
+    # the workflow left unspecified.
+    run_inputs = state.get("inputs") or {}
+    artifact_type = str(
+        config.get("artifact_type")
+        or run_inputs.get("artifact_type")
+        or "transcription"
+    ).strip()
     which = str(config.get("which") or "latest").strip()
-    step_name = str(config.get("step_name") or "").strip()
+    step_name = str(
+        config.get("step_name") or run_inputs.get("step_name") or ""
+    ).strip()
 
     db = db_manager.get_database(library_path)
     records: list[dict[str, Any]] = []
