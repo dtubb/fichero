@@ -1386,6 +1386,13 @@ async def _run_workflow_in_background(
             library_path=str(db.path.parent) if hasattr(db, "path") else "",
         )
         initial_state["workflow_id"] = request.workflow_id
+        # The user's framing for the whole run (Daniel, 2026-08-30: "this is
+        # a historical diary"). Context-scoped, so every prompt this run
+        # assembles carries it first — and concurrent runs never share it.
+        user_context = str(request.inputs.get("user_context") or "").strip()
+        if user_context:
+            from fichero_server.workflows.tools.llm_prompting import run_user_context
+            run_user_context.set(user_context[:2000])
         # "Run it again for real" reaches the graph (2026-08-23). Same lesson
         # as `request.selection` below: a field validated at the boundary and
         # never put into the state is a field that does nothing.

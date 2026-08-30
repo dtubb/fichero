@@ -91,3 +91,22 @@ class TestQuarterTurnsAreLossless:
         out = apply_operation(img, {"op": "rotate", "params": {"angle": 3.5}})
         # Expanded canvas: interpolation path taken, not the transpose.
         assert out.size != img.size
+
+
+class TestRunUserContext:
+    """Daniel, 2026-08-30: a user-supplied framing line ("this is a
+    historical diary") rides every prompt of the run, first."""
+
+    def test_context_section_leads_with_the_user_framing(self):
+        from fichero_server.workflows.tools.llm_prompting import (
+            build_context_section, run_user_context,
+        )
+        token = run_user_context.set("This is a historical diary from 1926.")
+        try:
+            section = build_context_section(context="Page text here")
+            assert "About this material (from the user):" in section
+            assert section.index("historical diary") < section.index("Page text here")
+        finally:
+            run_user_context.reset(token)
+        # And absent when unset.
+        assert "About this material" not in build_context_section(context="x")

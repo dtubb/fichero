@@ -49,6 +49,11 @@ struct RegionInteractionLayer: View {
     /// Commit a moved region: (full-list index, new normalized bbox).
     let onMoveCommit: (Int, [Double]) -> Void
 
+    /// Sticky-tool + check-cycle seams (Daniel, 2026-08-30). Optional so
+    /// headless hosts stay safe.
+    @Environment(WindowState.self) private var windowState: WindowState?
+    @Environment(AnnotationStore.self) private var annotationStore: AnnotationStore?
+
     @State private var selection = RegionSelection.shared
     /// Live move drag: which box, and how far (view points).
     @State private var moveDrag: (index: Int, translation: CGSize)?
@@ -150,6 +155,12 @@ struct RegionInteractionLayer: View {
     /// AND marquees — the honest reading of "click-away clears").
     private func tapGesture(in size: CGSize) -> some Gesture {
         SpatialTapGesture().onEnded { value in
+            // CHECK tool (Daniel, 2026-08-30): armed, a click checks the
+            // nearest line — margin clicks included — cycling ✓ ✓✓ ✓✓✓ off.
+            if windowState?.activeMarkupTool == .check {
+                handleCheckTap(at: value.location, in: size)
+                return
+            }
             let additive = shiftHeld
             // Marquees first: they are drawn on top and are what the user
             // most recently made.
@@ -217,6 +228,65 @@ struct RegionInteractionLayer: View {
                     onMoveCommit(item.index, moved)
                 }
             }
+    }
+}
+
+extension RegionInteractionLayer {
+    /// The line at this click's height (x ignored so a margin click counts),
+    /// else a small square at the click. Cycles the saved check: none → ✓ →
+    /// ✓✓ → ✓✓✓ → none, persisted as the rating annotation kind.
+    func handleCheckTap(at point: CGPoint, in size: CGSize) {
+        guard let annotationStore, let windowState else { return }
+        _ = windowState  // armed-state read happens at the call site
+        let lines = allBoxes.filter { $0.level == "line" }
+        var target: [Double]?
+        for line in lines {
+            if let rect = BoundingBoxGeometry.viewRect(
+                normalized: line.bbox, in: size, visible: visible
+            ), point.y >= rect.minY, point.y <= rect.maxY {
+                target = line.bbox
+                break
+            }
+        }
+        if target == nil, size.width > 0, size.height > 0 {
+            // No recognised line at that height: a small check box AT the
+            // click, so unrecognised pages are checkable too.
+            let normalized = BoundingBoxGeometry.normalizedBox(
+                from: CGPoint(x: max(0, point.x - 8), y: max(0, point.y - 8)),
+                to: CGPoint(x: point.x + 8, y: point.y + 8),
+                in: size, visible: visible
+            )
+            target = normalized
+        }
+        guard let bbox = target else { return }
+        let docId = documentId
+        Task { @MainActor in
+            // Cycle against the existing check on the SAME extent.
+            let existing = annotationStore.annotations.first { annotation in
+                annotation.kind == .rating
+                    && (annotation.documentId == docId || annotation.pageId == docId)
+                    && Self.sameExtent(annotation.regionRect, bbox)
+            }
+            if let existing {
+                let next = (existing.rating ?? 1) + 1
+                _ = await annotationStore.delete(id: existing.id)
+                guard next <= 3 else { return }  // ✓✓✓ → clear
+                _ = await annotationStore.addNote(
+                    scope: .document(docId), text: "",
+                    bbox: bbox, kind: .rating, rating: next
+                )
+            } else {
+                _ = await annotationStore.addNote(
+                    scope: .document(docId), text: "",
+                    bbox: bbox, kind: .rating, rating: 1
+                )
+            }
+        }
+    }
+
+    static func sameExtent(_ a: [Double]?, _ b: [Double], tolerance: Double = 0.01) -> Bool {
+        guard let a, a.count >= 4, b.count >= 4 else { return false }
+        return zip(a.prefix(4), b.prefix(4)).allSatisfy { abs($0 - $1) < tolerance }
     }
 }
 

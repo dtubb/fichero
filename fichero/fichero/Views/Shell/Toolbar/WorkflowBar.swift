@@ -57,6 +57,9 @@ struct WorkflowBar: View {
     /// what it will run on"): the document's display name for one item,
     /// "3 images" for many. nil falls back to the count-only label.
     var targetDetail: String?
+    /// The run's user framing ("this is a historical diary") — shown and
+    /// edited at the head of the sentence (Daniel, 2026-08-30).
+    var userContext: Binding<String>?
     /// The subject chip's menu (Daniel, 2026-08-29): the scopes the run
     /// COULD be aimed at — Automatic, each resolvable rung, the document's
     /// artifacts by type. Empty leaves the chip a plain label.
@@ -74,6 +77,8 @@ struct WorkflowBar: View {
     @State private var showingTools = false
     /// Where a dragged chip would land.
     @State var dropTargetIndex: Int?
+    /// The context (framing) popover (Daniel, 2026-08-30).
+    @State var showsContextEditor = false
 
     private var families: [WorkflowBarPolicy.VerbFamily] {
         WorkflowBarPolicy.families(from: workflows, target: target, folders: folders)

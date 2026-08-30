@@ -257,6 +257,7 @@ extension ZoomableImagePreview {
         guard hoveringCanvas else { return }
         switch windowState?.activeMarkupTool {
         case .textSelect, .note: NSCursor.iBeam.set()
+        case .check: NSCursor.pointingHand.set()
         case .drawRegion, .select, .line, .highlight: NSCursor.crosshair.set()
         default: NSCursor.arrow.set()
         }

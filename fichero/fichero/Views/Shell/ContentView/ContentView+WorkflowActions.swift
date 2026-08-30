@@ -167,6 +167,9 @@ extension ContentView {
 
         var streamCompleted = false
         var inputs: [String: Any] = ["selected_doc_ids": docIds]
+        // The window's framing line rides every run (Daniel, 2026-08-30).
+        let framing = workflowUserContext.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !framing.isEmpty { inputs["user_context"] = framing }
         if let artifactTypeHint, !artifactTypeHint.isEmpty {
             inputs["artifact_type"] = artifactTypeHint
         }

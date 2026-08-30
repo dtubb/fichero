@@ -214,6 +214,10 @@ struct ContentView: View {
     /// Labels beneath the workflow bar's glyphs. On by default while the
     /// vocabulary is unfamiliar; off gives a dense icon rail.
     @SceneStorage("workflowBarLabels") var showWorkflowBarLabels: Bool = true
+    /// The user's one-line framing for runs from this window (Daniel,
+    /// 2026-08-30: "this is a historical diary" — tell the AI what it is
+    /// looking at). Rides every run as `user_context`; empty = absent.
+    @SceneStorage("workflowBar.userContext") var workflowUserContext: String = ""
     /// The chain assembled in the workflow bar, in order. Not persisted:
     /// it is a scratch composition for the selection in front of you, and
     /// restoring one at launch would invite a paid run nobody remembers

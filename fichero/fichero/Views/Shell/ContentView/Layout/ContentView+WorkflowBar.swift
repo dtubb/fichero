@@ -45,6 +45,7 @@ extension ContentView {
                 // mode, not a new surface: graph, steps, prompt preview.
                 onInspectWorkflow: { viewMode = .workflow($0) },
                 targetDetail: workflowBarTargetDetail,
+                userContext: $workflowUserContext,
                 scopeOptions: workflowBarScopeOptions,
                 onSelectScope: { selectWorkflowScope($0) }
             )
