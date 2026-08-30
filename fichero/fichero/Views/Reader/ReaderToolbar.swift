@@ -55,6 +55,18 @@ extension View {
 /// layout menus in `ReaderToolbar+Overflow.swift`; the shared value types are in
 /// `ReaderToolbarTypes.swift`. This file owns the layout spine (`body`), the
 /// cluster wiring, and the collapsible-cluster helper.
+/// How much the bar shows (Daniel, 2026-08-29: "the bottom bar goes quiet").
+/// `.full` keeps the historical everything-bar (iOS still uses it); `.quiet`
+/// is the library-bottom grammar — what-to-show / info / page layout / pin
+/// only. On the Mac preview surfaces, zoom+loupe+magnifier moved to the
+/// floating cluster beside the mini-map, paging+renditions to the pane head,
+/// and annotation to the head's slide-out markup row — and every "…" overflow
+/// menu is gone ("I hate that").
+enum ReaderToolbarStyle {
+    case full
+    case quiet
+}
+
 struct ReaderToolbar: View {
     // On compact width (iPhone) the desktop-centric zoom in/out + fit/actual-size
     // controls are dropped — pinch-zoom is the platform idiom there, so the
@@ -71,6 +83,13 @@ struct ReaderToolbar: View {
     @AppStorage("readerToolbar.toolsExpanded") private var toolsExpanded = false
 
     private var isCompact: Bool { horizontalSizeClass == .compact }
+
+    // ─── Style (Daniel, 2026-08-29) ───
+    var style: ReaderToolbarStyle = .full
+
+    // ─── Info/metadata (quiet style; nil ⇒ hidden) ───
+    /// The quiet bar's ⓘ — toggles the metadata surface (the inspector).
+    var onShowInfo: (() -> Void)?
 
     // ─── Pane chrome (the PDF reader supplies these; the image viewer leaves nil) ───
     var title: String?
@@ -132,6 +151,15 @@ struct ReaderToolbar: View {
     // fits and falls back to the overflow menu otherwise, so the bar never
     // wraps or crams. Mirrors the content-rail overflow pattern (#1733).
     var body: some View {
+        switch style {
+        case .full:
+            fullBody
+        case .quiet:
+            quietBody
+        }
+    }
+
+    private var fullBody: some View {
         MiniToolbar(content: {
             chromeSection
             pageNavCluster
@@ -143,6 +171,60 @@ struct ReaderToolbar: View {
         }, trailing: {
             pinButton
         })
+    }
+
+    /// The QUIET bar (Daniel, 2026-08-29): the library-bottom grammar —
+    /// what-to-show, metadata, page layout. No zoom, no magnifier/loupe, no
+    /// annotation entries, no "…" overflow. Every control that left this bar
+    /// landed per the spec: paging + renditions in the pane head, markup in
+    /// the head's slide-out row, the magnification family in the floating
+    /// cluster beside the mini-map.
+    private var quietBody: some View {
+        MiniToolbar(content: {
+            chromeSection
+            Spacer(minLength: 0)
+            whatToShowMenu
+            pageLayoutSection
+            infoButton
+            Spacer()
+        }, trailing: {
+            pinButton
+        })
+    }
+
+    /// What-to-show (the library grammar's eye menu): the overlays the canvas
+    /// can draw. Today that is the recognized text boxes; the preview-regions
+    /// lane's lenses join here.
+    @ViewBuilder
+    private var whatToShowMenu: some View {
+        if textBoxesEnabled != nil {
+            Menu {
+                Toggle("Text Boxes", isOn: textBoxesEnabled ?? .constant(false))
+            } label: {
+                Image(systemName: "eye")
+                    .foregroundStyle(.secondary)
+            }
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help("What to show over the page")
+            .accessibilityLabel("What to show")
+            .accessibilityIdentifier("previewWhatToShow")
+        }
+    }
+
+    @ViewBuilder
+    private var infoButton: some View {
+        if let onShowInfo {
+            Button(action: onShowInfo) {
+                Image(systemName: "info.circle")
+                    .foregroundStyle(.secondary)
+                    .readerIconTarget()
+            }
+            .buttonStyle(.plain)
+            .help("Show metadata in the inspector")
+            .accessibilityLabel("Show metadata")
+            .accessibilityIdentifier("previewInfoButton")
+        }
     }
 
     // `internal` (not `private`) so the control sections in

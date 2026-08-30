@@ -38,12 +38,21 @@ extension ZoomableImagePreview {
             }
         }()
         isDrawingRegion = false
+        // The highlight split-button's color rides the saved highlight
+        // (Daniel, 2026-08-29). Underline/strikethrough save uncolored until
+        // a backing kind exists (see the toolbars design report).
+        let color: String? = kind == .highlight
+            ? PreviewHighlightStyle(
+                rawValue: UserDefaults.standard.string(forKey: PreviewHighlightStyle.storageKey) ?? ""
+            )?.persistedColor
+            : nil
         Task {
             _ = await annotationStore.addNote(
                 scope: .document(documentId),
                 text: "",
                 bbox: box,
-                kind: kind
+                kind: kind,
+                color: color
             )
         }
     }

@@ -190,7 +190,11 @@ private struct StorageDisplayImageCanvas: View {
             // one replaces it in place with no jump.
             if image == nil {
                 Divider()
+                // Quiet style, matching the real bar's geometry (Daniel,
+                // 2026-08-29 restructure) — the placeholder must hold the
+                // same bottom edge the live quiet bar occupies.
                 ReaderToolbar(
+                    style: .quiet,
                     pageNav: nil,
                     scalePercent: 100,
                     zoomIn: {}, zoomOut: {}, fitToWindow: {}, actualSize: {}

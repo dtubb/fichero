@@ -105,17 +105,14 @@ class TrackingImageView: NSImageView {
         let location = convert(event.locationInWindow, from: nil)
         guard bounds.width > 0, bounds.height > 0 else { return }
 
-        // Option + move: reposition crosshairs (what loupe is looking at)
-        // Normal move: nothing (free for rubber band selection)
-        if loupeEnabled && !loupeLocked && loupePosition != nil {
-            let optionPressed = event.modifierFlags.contains(.option)
-
-            if optionPressed {
-                // Option held: move crosshairs (what's being magnified)
-                loupePosition = location
-                needsDisplay = true
-            }
-            // Normal move does nothing - loupe stays where it is
+        // The loupe FOLLOWS the cursor (Daniel, 2026-08-29: the moveable
+        // window "is not very good" — Preview.app's loupe is the model). Both
+        // the looked-at point and the drawn circle track the mouse; the
+        // legacy lock keeps a pinned loupe pinned.
+        if loupeEnabled && !loupeLocked {
+            loupePosition = location
+            loupeViewPosition = location
+            needsDisplay = true
         }
 
         // Update cursor for loupe edge resize
@@ -252,21 +249,17 @@ class TrackingImageView: NSImageView {
     }
 
     override func scrollWheel(with event: NSEvent) {
-        // Check if cursor is over the loupe
-        if loupeEnabled, let viewPos = loupeViewPosition {
-            let location = convert(event.locationInWindow, from: nil)
-            let rect = loupeRect(at: viewPos)
-
-            if rect.contains(location) {
-                // Cursor is over loupe - zoom loupe magnification
-                let delta = event.scrollingDeltaY
-                let newMag = loupeMagnification + delta * 0.05
-                loupeMagnification = max(minLoupeMagnification, min(maxLoupeMagnification, newMag))
-                onLoupeMagnificationChanged?(loupeMagnification)
-                return
-            }
+        // While the loupe is up, SCROLL adjusts its magnification (Daniel,
+        // 2026-08-29) — the loupe rides the cursor, so wherever the wheel
+        // turns over the image it is the loupe being asked about.
+        if loupeEnabled, loupeViewPosition != nil {
+            let delta = event.scrollingDeltaY
+            let newMag = loupeMagnification + delta * 0.05
+            loupeMagnification = max(minLoupeMagnification, min(maxLoupeMagnification, newMag))
+            onLoupeMagnificationChanged?(loupeMagnification)
+            return
         }
-        // Cursor not over loupe - pass to scroll view for image pan/zoom
+        // No loupe - pass to scroll view for image pan/zoom
         super.scrollWheel(with: event)
     }
 
