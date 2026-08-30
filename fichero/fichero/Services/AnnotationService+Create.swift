@@ -16,6 +16,7 @@ extension AnnotationService {
         pageIndex: Int? = nil,
         kind: AnnotationKind = .note,
         color: String? = nil,
+        rating: Int? = nil,
         tags: [String] = [],
         linkedClaimIds: [String] = []
     ) async -> DocumentAnnotation? {
@@ -39,6 +40,7 @@ extension AnnotationService {
                 ),
 
                 text: text.isEmpty ? nil : text,
+                rating: rating,
                 color: color,
                 tags: tags,
                 linkedClaimIds: linkedClaimIds.isEmpty ? nil : linkedClaimIds

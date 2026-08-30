@@ -76,6 +76,7 @@ final class AnnotationStore: ObservableDomainStore {
         pageIndex: Int? = nil,
         kind: AnnotationKind = .note,
         color: String? = nil,
+        rating: Int? = nil,
         tags: [String] = [],
         linkedClaimIds: [String] = []
     ) async -> DocumentAnnotation? {
@@ -89,6 +90,7 @@ final class AnnotationStore: ObservableDomainStore {
             pageIndex: pageIndex,
             kind: kind,
             color: color,
+            rating: rating,
             tags: tags,
             linkedClaimIds: linkedClaimIds
         )

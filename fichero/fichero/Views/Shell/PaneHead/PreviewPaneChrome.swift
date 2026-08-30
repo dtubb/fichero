@@ -74,6 +74,10 @@ enum PreviewMarkupTool: String, CaseIterable, Identifiable {
     /// Star/bookmark — "star anything" (Daniel, 2026-08-30); persists as
     /// the bookmark annotation kind on whatever surface consumes it.
     case star
+    /// Check a paragraph/line to come back to it (Daniel, 2026-08-30, the
+    /// iPad reading discipline): click by a line, ✓; again ✓✓; again ✓✓✓;
+    /// again clears. Persists as the rating kind (1–3).
+    case check
 
     var id: String { rawValue }
 
@@ -86,6 +90,7 @@ enum PreviewMarkupTool: String, CaseIterable, Identifiable {
         case .highlight: "highlighter"
         case .note: "note.text"
         case .star: "star"
+        case .check: "checkmark"
         }
     }
 
@@ -98,6 +103,7 @@ enum PreviewMarkupTool: String, CaseIterable, Identifiable {
         case .highlight: "Highlight"
         case .note: "Text Note"
         case .star: "Star"
+        case .check: "Check"
         }
     }
 

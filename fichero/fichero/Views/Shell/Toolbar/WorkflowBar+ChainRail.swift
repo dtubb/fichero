@@ -25,6 +25,7 @@ extension WorkflowBar {
         // connective tissue is plain words, which is what makes an eight-step
         // paid run readable as a plan rather than a rebus.
         ChainFlowLayout(spacing: 5) {
+            contextToken
             Text("With")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
@@ -49,6 +50,50 @@ extension WorkflowBar {
                     .foregroundStyle(.secondary)
                 chainChip(step, at: index)
             }
+        }
+    }
+
+    /// The run's FRAMING at the head of the sentence (Daniel, 2026-08-30):
+    /// "About [this is a historical diary]," — a system-prompt line every
+    /// step's prompt leads with. Empty shows a quiet "add context…" entry.
+    @ViewBuilder
+    private var contextToken: some View {
+        if let userContext {
+            let trimmed = userContext.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            Text("About")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+            Button {
+                showsContextEditor = true
+            } label: {
+                Text(trimmed.isEmpty ? "add context…" : "“\(trimmed.prefix(40))\(trimmed.count > 40 ? "…" : "")”")
+                    .font(.system(size: 11))
+                    .foregroundStyle(trimmed.isEmpty ? Color.secondary : Color.accentColor)
+            }
+            .buttonStyle(.plain)
+            .help("Tell the AI what it is looking at — this line leads every step's prompt")
+            .accessibilityIdentifier("workflowBarContext")
+            .popover(isPresented: $showsContextEditor) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("What is the AI looking at?")
+                        .font(.headline)
+                    TextField(
+                        "e.g. A handwritten historical diary from 1926, in English.",
+                        text: userContext, axis: .vertical
+                    )
+                    .lineLimit(2...5)
+                    .frame(width: 340)
+                    .textFieldStyle(.roundedBorder)
+                    Text("Sent with every step of the run, before its own prompt.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(14)
+            }
+            Text(",")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .padding(.leading, -5)
         }
     }
 

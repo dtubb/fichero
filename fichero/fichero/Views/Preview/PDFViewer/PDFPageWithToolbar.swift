@@ -297,7 +297,7 @@ struct PDFPageWithToolbar: View {
             case .note: requestAnnotation(.note)
             case .star: requestAnnotation(.bookmark)
             case .line: requestAnnotation(.line)
-            case .textSelect, .select, .drawRegion:
+            case .textSelect, .select, .drawRegion, .check:
                 break  // preview-regions lane / future drawing kinds
             }
         }

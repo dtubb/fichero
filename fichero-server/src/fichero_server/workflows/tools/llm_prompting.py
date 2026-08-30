@@ -383,6 +383,16 @@ def build_thinking_preamble(thinking_mode: str = "off") -> str:
     )
 
 
+from contextvars import ContextVar
+
+# The user's one-line framing for the whole run (Daniel, 2026-08-30: "this
+# is a historical diary" — tell the AI what it is looking at). Set by the
+# execution runner from the run inputs; async-context scoped, so concurrent
+# runs never share it. Every prompt assembled through build_context_section
+# carries it first.
+run_user_context: ContextVar[str | None] = ContextVar("run_user_context", default=None)
+
+
 def build_context_section(
     context: str | None = None,
     input_metadata: dict | None = None,
@@ -399,6 +409,10 @@ def build_context_section(
         Context section to prepend to prompt
     """
     parts = []
+
+    user_context = run_user_context.get()
+    if user_context:
+        parts.append(f"About this material (from the user):\n{user_context}")
 
     if input_metadata:
         meta_str = json.dumps(input_metadata, indent=2)

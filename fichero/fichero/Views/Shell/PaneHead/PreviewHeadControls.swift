@@ -242,6 +242,15 @@ struct PreviewMarkupToolsRow: View {
             )
         }
 
+        toolButton(
+            icon: PreviewMarkupTool.check.icon,
+            label: PreviewMarkupTool.check.label,
+            identifier: "previewMarkupCheck",
+            mode: .check
+        ) {
+            // Sticky mode only — the canvas handles clicks while armed.
+        }
+
         Divider().frame(height: PaneHeadMetrics.dividerHeight)
 
         toolButton(icon: "trash", label: "Delete", identifier: "previewMarkupDelete") {
