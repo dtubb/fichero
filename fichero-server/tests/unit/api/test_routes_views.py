@@ -2,6 +2,7 @@
 
 import json
 import re
+from pathlib import Path
 
 from fichero_server.models.knowledge import EntityType, KnowledgeClaim, KnowledgeEntity
 from fichero_server.db import Database
@@ -768,3 +769,115 @@ class TestRepresentationParameter:
         # Whitespace-only artifact content is not a reading.
         assert result[1]["content"] == ""
         assert result[1]["has_content"] is False
+
+
+class TestTableRepresentation:
+    """Table-family artifacts render as a REAL table (Daniel, 2026-08-29
+    bedtime): ?representation=table parses the artifact server-side — stdlib
+    csv, never a hand-rolled split — and ships headers + rows."""
+
+    def _page(self):
+        return {"id": "p1", "number": 1, "label": "Page 1", "content": "live", "has_content": True}
+
+    def test_quoted_comma_csv_keeps_its_columns(self):
+        from fichero_server.api.routes.system.views import represented_pages
+        from fichero_server.models import Artifact
+
+        csv_text = (
+            '"entry_text","amount_original","notes"\n'
+            '"Cash, on hand","iiiUdcccxx","carried, then checked"\n'
+            '"He said ""monta""","78.13",""\n'
+        )
+        artifact = Artifact(document_id="p1", artifact_type="table", content=csv_text)
+        result = represented_pages([self._page()], [artifact], "table")
+        table = result[0]["table"]
+        assert table["headers"] == ["entry_text", "amount_original", "notes"]
+        # The quoted comma stays INSIDE its field — the whole point.
+        assert table["rows"][0] == ["Cash, on hand", "iiiUdcccxx", "carried, then checked"]
+        # Doubled quotes decode to a literal quote.
+        assert table["rows"][1][0] == 'He said "monta"'
+
+    def test_ragged_rows_are_padded_never_dropped(self):
+        from fichero_server.api.routes.system.views import represented_pages
+        from fichero_server.models import Artifact
+
+        artifact = Artifact(
+            document_id="p1", artifact_type="table",
+            content="a,b,c\n1,2\n4,5,6,7\n",
+        )
+        result = represented_pages([self._page()], [artifact], "table")
+        table = result[0]["table"]
+        # Width follows the widest row; short rows pad with empty cells.
+        assert table["headers"] == ["a", "b", "c", ""]
+        assert table["rows"] == [["1", "2", "", ""], ["4", "5", "6", "7"]]
+
+    def test_json_rows_payload_renders_through_the_same_table(self):
+        from fichero_server.api.routes.system.views import represented_pages
+        from fichero_server.models import Artifact
+
+        artifact = Artifact(
+            document_id="p1", artifact_type="table", content=None,
+            data={"headers": ["date", "amount"], "rows": [["1933-01-01", 78.13]]},
+        )
+        result = represented_pages([self._page()], [artifact], "table")
+        table = result[0]["table"]
+        assert table["headers"] == ["date", "amount"]
+        # Cells stringify — the template escapes strings, not floats.
+        assert table["rows"] == [["1933-01-01", "78.13"]]
+        # A data-only table IS content.
+        assert result[0]["has_content"] is True
+
+    def test_untabular_table_artifact_falls_back_to_text(self):
+        from fichero_server.api.routes.system.views import represented_pages
+        from fichero_server.models import Artifact
+
+        artifact = Artifact(
+            document_id="p1", artifact_type="table",
+            content="MEMORANDA\nCash On Hand Jan. 1, 1933\n",
+        )
+        result = represented_pages([self._page()], [artifact], "table")
+        # Plain-text output (the Marshall v4 pre-CSV runs look like this)
+        # still parses: lines become rows, padded to one consistent width —
+        # never an exception, never a dropped line.
+        table = result[0]["table"]
+        assert table is not None
+        # First line heads (include_headers defaults on), the rest are rows,
+        # all padded to one consistent width.
+        assert table["headers"] is not None
+        assert len({len(row) for row in [table["headers"], *table["rows"]]}) == 1
+
+    def test_table_view_ships_the_parsed_table_over_the_route(self, client, db):
+        from fichero_server.models import Artifact
+
+        doc = _make_document(
+            doc_id="tb-doc", name="Ledger.pdf", doc_type=DocType.file,
+            file_type=FileType.pdf,
+        )
+        db.save(doc)
+        db.save(_make_document(
+            doc_id="tb-page-1", name="Page 1", doc_type=DocType.page,
+            page_content="live text", parent_id=doc.id, sequence=1,
+        ))
+        db.save(Artifact(
+            id="tb-art", document_id="tb-page-1", artifact_type="table",
+            content='"date","amount"\n"Jan 1, 1933","78.13"\n',
+        ))
+        response = client.get(f"/view/document/{doc.id}?representation=table")
+        assert response.status_code == 200
+        assert '"headers": ["date", "amount"]' in response.text
+        assert '"Jan 1, 1933"' in response.text
+        # A prose representation never grows a table key.
+        plain = client.get(f"/view/document/{doc.id}?representation=transcription")
+        assert '"table"' not in plain.text
+
+    def test_template_renders_a_real_table_with_scroll_wrap(self):
+        template = (
+            Path(__file__).resolve().parents[3]
+            / "src" / "fichero_server" / "api" / "templates" / "document_view.html"
+        ).read_text()
+        assert "function tableMarkup(table)" in template
+        assert '<div class="table-scroll">' in template
+        assert "overflow-x: auto" in template
+        # Every cell goes through escapeHtml — table data is model output.
+        assert "`<td>${escapeHtml(cell)}</td>`" in template
+        assert "`<th>${escapeHtml(cell)}</th>`" in template
