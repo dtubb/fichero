@@ -222,7 +222,6 @@ struct ModelChipToolbarItem: View {
         }
     }
 
-
     /// The model the run resolves to, or an honest admission that no tier is set.
     private var displayModel: String {
         let model = prefersVision ? defaults.visionMediumModel : defaults.mediumModel
@@ -243,7 +242,6 @@ struct ModelChipToolbarItem: View {
         model.split(separator: "/").last.map(String.init) ?? model
     }
 }
-
 
 /// A model family as a compact mark: Apple's own glyph where one exists, a
 /// coloured monogram everywhere else. The COLOUR carries the family (Claude
@@ -270,7 +268,7 @@ struct ModelFamilyMark: View {
             ("groq", "Providers/Groq"),
             ("ollama", "Providers/Ollama"),
             ("lmstudio", "Providers/LMStudio"), ("lm-studio", "Providers/LMStudio"),
-            ("openrouter", "Providers/OpenRouter"),
+            ("openrouter", "Providers/OpenRouter")
         ]
         return table.first { haystack.contains($0.needle) }?.asset
     }
@@ -320,7 +318,6 @@ struct ModelFamilyMark: View {
         }
     }
 }
-
 
 /// One configured model in the chip's picker. A concrete type on purpose —
 /// see the metadata note above `modelPicker`.

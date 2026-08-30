@@ -51,7 +51,7 @@ struct WorkflowToolsPopover: View {
         let names: [String: String] = [
             "source": "Sources", "vision": "Vision", "transform": "Transform",
             "llm": "LLM", "convert": "Convert", "logic": "Logic",
-            "sink": "Outputs", "utility": "Utility", "ai": "AI",
+            "sink": "Outputs", "utility": "Utility", "ai": "AI"
         ]
         if let known = names[category.lowercased()] { return known }
         if category.lowercased().hasPrefix("mcp_") {

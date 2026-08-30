@@ -250,7 +250,6 @@ extension WorkflowBar {
         }
     }}
 
-
 /// A minimal flow layout: rows wrap, the container grows (Daniel,
 /// 2026-08-29: "if it's multiple rows, make the rows expand so we can
 /// see"). Just enough Layout for the sentence — leading-aligned, fixed
