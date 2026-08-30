@@ -132,3 +132,4 @@ HISTORY*.md
 # the log was landing in git status as an untracked file waiting to be added.
 fichero-server/tests/perf/history.jsonl
 fichero-server/tests/history.jsonl
+.netlify/

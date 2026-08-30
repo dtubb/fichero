@@ -1,3 +1,32 @@
+### 2026.08.27
+
+**Sharing, CLI, and MCP:**
+- New: The Sharing toggle now serves the `fichero` command-line tool and MCP
+  clients from the running app — no separate engine to start. The toggle's
+  description names all three.
+- Bug: Turning Sharing on no longer shows "HTTP 400: Unexpected response";
+  the pairing QR appears reliably.
+- Bug: Sharing to another device on your network (the QR's `.local` address)
+  now actually listens on the network — pairing from iPhone/iPad reaches the
+  Mac instead of "Could not connect to the server."
+
+**Stability:**
+- Bug: A crash in the stall diagnostics (debug tooling) at first stall is
+  fixed.
+- Bug: Rendition downloads no longer fail with a server error in the
+  sandboxed app.
+
+<details markdown>
+<summary>Show more releases</summary>
+
+**Library:**
+- Bug: Names with numbers sort naturally — "page2" before "page10" — in the
+  library, bookmarks, and exports.
+
+**iPhone and iPad:**
+- This build restores iPhone/iPad TestFlight (three build errors fixed) and
+  adds left/right stepping within a multi-item selection.
+
 ### 2026.08.26
 
 **Library:**
@@ -7,9 +36,6 @@
 - Bug: Open Recent in File Menu works: closed libraries stay in the menu.
 - Bug: Ghost  "Untitled" entries and duplicate rows in the sidebar are gone.
 - Bug: a brand-new library can run workflows immediately — no relaunch.
-
-<details markdown>
-<summary>Show more releases</summary>
 
 **Workflows:**
 - Bug: Run Workflow runs on what you selected: the long-standing bug where a

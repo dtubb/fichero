@@ -1,1 +1,1 @@
-Latest release: **2026.08.26**
+Latest release: **2026.08.27**
