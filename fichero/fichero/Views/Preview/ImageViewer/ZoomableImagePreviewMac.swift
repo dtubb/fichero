@@ -73,61 +73,6 @@ struct ZoomableImagePreview: View {
         flipRendition(to: renditionIndex + step)
     }
 
-    /// Annotation tools from the reader toolbar (#2458). Highlight/Note arm a
-    /// region draw over the image; the resulting normalized box is persisted as
-    /// a bounding-box annotation. Bookmark is a whole-image marker (no region).
-    /// internal: the reader toolbar moved to +Overlays.swift (2026-08-23
-    /// file-length) and Swift's `private` is FILE-scoped.
-    func requestAnnotation(_ tool: ReaderAnnotationTool) {
-        switch tool {
-        case .highlight, .note:
-            pendingAnnotationTool = tool
-            isDrawingRegion = true
-        case .bookmark:
-            isDrawingRegion = false
-            createAnnotation(box: nil, tool: .bookmark)
-        }
-    }
-
-    /// Persist a region (or whole-image bookmark) via the typed AnnotationStore.
-    ///
-    /// `internal` (not `private`) so `boxOverlays` in
-    /// ZoomableImagePreviewMac+Overlays.swift can call it — a `private` member
-    /// is invisible to an extension in another file, the same reason
-    /// `sectionDivider` on ReaderToolbar is internal.
-    func createAnnotation(box: [Double]?, tool: ReaderAnnotationTool) {
-        guard let documentId else { return }
-        let kind: AnnotationKind = {
-            switch tool {
-            case .highlight: return .highlight
-            case .note: return .note
-            case .bookmark: return .bookmark
-            }
-        }()
-        isDrawingRegion = false
-        Task {
-            _ = await annotationStore.addNote(
-                scope: .document(documentId),
-                text: "",
-                bbox: box,
-                kind: kind
-            )
-        }
-    }
-
-    /// Saved region boxes (normalized `[x,y,w,h]`) for the shown image.
-    var regionBoxes: [[Double]] {
-        guard let documentId else { return [] }
-        return annotationStore.annotations
-            .filter { ($0.documentId == documentId || $0.pageId == documentId) && $0.hasRegion }
-            .compactMap(\.regionRect)
-    }
-
-    func loadAnnotations() {
-        guard let documentId else { return }
-        Task { await annotationStore.loadAnnotations(for: .document(documentId), force: true) }
-    }
-
     static let logger = Logger(subsystem: "app.fichero.fichero", category: "ZoomableImagePreview")
 
     /// Document ids in the +/-`radius` window around `currentId`, excluding `currentId` itself.
@@ -167,6 +112,9 @@ struct ZoomableImagePreview: View {
     /// events don't reach the client stream yet; run completion is the
     /// signal the app already observes.
     @Environment(WorkflowExecutionObserver.self) var executionObserver: WorkflowExecutionObserver?
+    /// Optional: per-window ephemeral marquee seam (2026-08-29). Previews and
+    /// hosts without a WindowState simply have no marquee surface.
+    @Environment(WindowState.self) var windowState: WindowState?
 
     // Bounding-box annotation state (#2458). `isDrawingRegion` arms the overlay
     // drag; `pendingAnnotationTool` carries the tool kind into the saved box.
@@ -184,6 +132,15 @@ struct ZoomableImagePreview: View {
     /// calls worse than absent.
     @AppStorage("imagePreview.ocrBoxesEnabled") var ocrBoxesEnabled = true
     @State var ocrGeometry: OCRGeometry?
+    /// WHICH artifact the displayed geometry came from (2026-08-29, regions
+    /// as first-class): the curation verbs — move / delete / add / combine —
+    /// must address the artifact whose boxes are on screen, so the id rides
+    /// with the boxes instead of being re-guessed at commit time.
+    @State var ocrGeometryArtifactId: String?
+    /// Rubber-band add mode: drags draw EPHEMERAL marquees (per-window seam
+    /// `WindowState.previewMarquees`) — nothing persists until the user
+    /// promotes them to regions or runs a workflow scoped to the crops.
+    @State var isAddingRegion = false
 
     // Renditions of the current page (2026-08-20 bbox review). `renditions`
     // arrives in ENGINE order — primary first, then role preference — so this
@@ -342,7 +299,9 @@ struct ZoomableImagePreview: View {
             // FocusedArtifact.shared.id is part of the task identity so
             // selecting an artifact in the inspector re-runs the geometry
             // load — the selection now drives which artifact's boxes render.
-            id: "\(documentId ?? "")|\(ocrBoxesEnabled)|\(executionObserver?.activeExecutions.count ?? 0)|\(FocusedArtifact.shared.id ?? "")"
+            id: "\(documentId ?? "")|\(ocrBoxesEnabled)"
+                + "|\(executionObserver?.activeExecutions.count ?? 0)"
+                + "|\(FocusedArtifact.shared.id ?? "")"
         ) { await loadOCRGeometry() }
         .task(id: documentId) { await loadRenditions() }
         .onAppear { handleViewAppeared() }
@@ -360,6 +319,11 @@ struct ZoomableImagePreview: View {
         .onKeyPress(.init("0"), phases: .down) { _ in actualSize(); return .handled }
         .onChange(of: magnifierLocked) { wasLocked, isLocked in handleMagnifierLockChanged(wasLocked, isLocked) }
         .onKeyPress(.init("9"), phases: .down) { _ in fitToWindow(); return .handled }
+        // Regions as first-class (2026-08-29): Delete removes the picked
+        // marquee first (most recent, most ephemeral), else the selected
+        // persisted regions; Esc clears every ephemeral region state.
+        .onDeleteCommand { handleRegionDeleteKey() }
+        .onExitCommand { clearEphemeralRegionState() }
         // Daniel's ruling (2026-08-10, audit 3c): left/right = PREVIOUS/NEXT
         // item, up/down = pan the current image. The old unconditional pan
         // claim inverted that — with the preview focused, ←/→ panned and the

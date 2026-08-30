@@ -924,6 +924,18 @@
         ],
         "request_model": null,
         "response_model": "ArtifactRegionResponse"
+      },
+      {
+        "method": "PUT",
+        "path": "/artifacts/{artifact_id}/regions",
+        "operation_id": "edit_artifact_regions_api_artifacts__artifact_id__regions_put",
+        "summary": "Edit Artifact Regions",
+        "path_params": [
+          "artifact_id"
+        ],
+        "query_params": [],
+        "request_model": "ArtifactRegionsEditRequest",
+        "response_model": "ArtifactResponse"
       }
     ],
     "auth": [

@@ -67,6 +67,11 @@ SWIFT_OPERATION_WITNESSES = {
     "DELETE /api/libraries/{lib}/entity-types/{entity_type_key}": (
         "removeLibraryEntityTypeApiLibrariesLibEntityTypesEntityTypeKeyDelete"
     ),
+    # Region curation (2026-08-29): ArtifactService.editRegions calls the
+    # generated operation, so only the operation name appears in Swift.
+    "PUT /api/artifacts/{artifact_id}/regions": (
+        "editArtifactRegionsApiArtifactsArtifactIdRegionsPut"
+    ),
 }
 
 

@@ -59,6 +59,12 @@ class WindowState {
     }
     var suggestedWorkflowRequest: SuggestedWorkflowRequest?
 
+    /// Ephemeral rubber-band selections drawn over this window's Preview
+    /// image (Daniel, 2026-08-29). Lives HERE so it is per-window by
+    /// construction — the workflow bar reads it as a run scope, and two
+    /// windows' marquees must never mix. See `PreviewMarqueeSelection`.
+    let previewMarquees = PreviewMarqueeSelection()
+
     init(libraryId: UUID) {
         self.libraryId = libraryId
     }

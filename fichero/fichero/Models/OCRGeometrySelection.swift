@@ -118,11 +118,28 @@ enum OCRGeometrySelection {
     /// share ONE decision about which artifact wins (#4418). They must draw
     /// differently because AppKit's `PDFView` has no coordinate space a SwiftUI
     /// sibling can be laid out in; they must not *choose* differently.
+    /// The winning geometry TOGETHER WITH the artifact it came from
+    /// (2026-08-29, regions as first-class): curation verbs — move / delete /
+    /// add / combine — must address the artifact that owns the boxes on
+    /// screen, so a surface that can edit needs the id, not just the boxes.
+    struct SelectedGeometry {
+        let artifactId: String
+        let geometry: OCRGeometry
+    }
+
     @MainActor
     static func load(
         documentId: String,
         using artifactService: ArtifactService
     ) async throws -> OCRGeometry? {
+        try await loadSelected(documentId: documentId, using: artifactService)?.geometry
+    }
+
+    @MainActor
+    static func loadSelected(
+        documentId: String,
+        using artifactService: ArtifactService
+    ) async throws -> SelectedGeometry? {
         // The inspector's selection outranks the ladder (Daniel, 2026-08-27:
         // "when I click on different regions in artifacts, should bounding
         // boxes update?"). Selecting a geometry-bearing artifact for THIS
@@ -137,8 +154,9 @@ enum OCRGeometrySelection {
            geometryBearingTypes.contains(focused.artifactType),
            !isKnownEmpty(focused),
            let full = try? await artifactService.getArtifact(id: focusedId),
-           carriesGeometry(full.ocrGeometry) {
-            return full.ocrGeometry
+           let geometry = full.ocrGeometry,
+           carriesGeometry(geometry) {
+            return SelectedGeometry(artifactId: focusedId, geometry: geometry)
         }
         var candidates: [Artifact] = []
         for type in geometryBearingTypes {
@@ -150,8 +168,8 @@ enum OCRGeometrySelection {
         }
         for candidate in ranked(candidates) {
             let full = try await artifactService.getArtifact(id: candidate.id)
-            if carriesGeometry(full.ocrGeometry) {
-                return full.ocrGeometry
+            if let geometry = full.ocrGeometry, carriesGeometry(geometry) {
+                return SelectedGeometry(artifactId: candidate.id, geometry: geometry)
             }
         }
         return nil

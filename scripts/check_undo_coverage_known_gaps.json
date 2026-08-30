@@ -346,6 +346,7 @@
   "POST /api/workflows/{workflow_id}/estimate-cost": "no undo registration in current tree",
   "PUT /api/actions/{action_id}": "no undo registration in current tree",
   "PUT /api/artifacts/{artifact_id}": "no undo registration in current tree",
+  "PUT /api/artifacts/{artifact_id}/regions": "2026-08-29 region curation - undo is server-side (audited artifact.regions_edit action, full before-snapshot); Swift UndoManager wiring queued with the artifact undo program",
   "PUT /api/authz/members": "undo pending #2982 for user-facing authz member-role changes",
   "PUT /api/canvas/folders/{folder_id}/canvas-layout": "no undo registration in current tree",
   "PUT /api/chains/{chain_id}": "no undo registration in current tree",

@@ -78,6 +78,12 @@ extension ZoomableImagePreview {
                         visible: geometry.visible
                     )
                 }
+                // Regions as first-class (2026-08-29): the INTERACTIVE layer
+                // — click-to-select, ⇧-click, drag-to-move, rubber-band add,
+                // marquee display. Above the inert canvas; builds views only
+                // for the few SELECTED boxes, so the one-Canvas perf fix
+                // stands.
+                regionInteractionLayer
             }
             .frame(width: geometry.drawnFrame.width, height: geometry.drawnFrame.height)
             // Boxes never bleed past the drawn image into the letterbox or the

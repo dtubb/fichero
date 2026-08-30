@@ -15,10 +15,11 @@ struct OCRGeometryOverlay: View {
     @State private var hoverPoint: CGPoint?
 
     /// Words when the pass produced them; lines otherwise (never both at
-    /// once — nested rectangles read as clutter, not structure).
+    /// once — nested rectangles read as clutter, not structure). The ladder
+    /// lives on `OCRGeometry.displayIndexedBoxes` so the interactive region
+    /// layer hit-tests EXACTLY the boxes this canvas draws (2026-08-29).
     private var boxes: [OCRGeometryBox] {
-        let words = geometry.wordBoxes
-        return words.isEmpty ? geometry.lineBoxes : words
+        geometry.displayIndexedBoxes.map(\.box)
     }
 
     var body: some View {
@@ -172,6 +173,7 @@ extension ZoomableImagePreview {
     /// type-body-length budget.
     func loadOCRGeometry() async {
         ocrGeometry = nil
+        ocrGeometryArtifactId = nil
         // Loads regardless of the boxes TOGGLE (2026-08-23): the reader's
         // word-selection linking needs the geometry even when the full box
         // layer is off — the toggle gates drawing that layer, not knowing.
@@ -179,10 +181,14 @@ extension ZoomableImagePreview {
         do {
             // The probe itself lives on OCRGeometrySelection so the PDF surface
             // shares this exact decision rather than reimplementing it (#4418).
-            ocrGeometry = try await OCRGeometrySelection.load(
+            // The artifact id rides along (2026-08-29): the curation verbs
+            // must address the artifact whose boxes are on screen.
+            let selected = try await OCRGeometrySelection.loadSelected(
                 documentId: documentId,
                 using: artifactService
             )
+            ocrGeometry = selected?.geometry
+            ocrGeometryArtifactId = selected?.artifactId
         } catch {
             // Surface in the log, render nothing — the toggle stays honest
             // (no boxes ≠ silent success).

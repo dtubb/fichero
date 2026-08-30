@@ -1359,6 +1359,36 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("edit-regions")
+    def artifacts_edit_regions_put(
+        ctx: typer.Context,
+        artifact_id: str = typer.Argument(..., help="Path parameter: artifact_id."),
+        bbox: Optional[str] = typer.Option(None, "--bbox", help="Request field: bbox."),
+        indices: Optional[str] = typer.Option(None, "--indices", help="Request field: indices."),
+        level: Optional[str] = typer.Option(None, "--level", help="Request field: level."),
+        op: str = typer.Option(..., "--op", help="Request field: op."),
+        text: Optional[str] = typer.Option(None, "--text", help="Request field: text."),
+    ) -> None:
+        """Edit Artifact Regions (PUT /api/artifacts/{artifact_id}/regions)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/artifacts/{artifact_id}/regions"
+            params = None
+            payload = _build_json_payload({
+                "bbox": bbox,
+                "indices": indices,
+                "level": level,
+                "op": op,
+                "text": text,
+            }, {
+                "bbox": {'items': {'type': 'number'}, 'type': 'array', 'nullable': True, 'title': 'Bbox', 'description': 'Normalized [x, y, w, h] for move/add', 'x-cli-required': False},
+                "indices": {'items': {'type': 'integer'}, 'type': 'array', 'title': 'Indices', 'description': 'Positions into ocr_geometry.boxes (order irrelevant)', 'x-cli-required': False},
+                "level": {'type': 'string', 'enum': ['page', 'block', 'line', 'word', 'region'], 'title': 'OCRGeometryLevel', 'x-cli-required': False},
+                "op": {'type': 'string', 'enum': ['move', 'delete', 'add', 'combine'], 'title': 'RegionEditOp', 'description': 'A closed vocabulary — an enum in the schema, never a bare str (rule 4).', 'x-cli-required': True},
+                "text": {'type': 'string', 'title': 'Text', 'default': '', 'x-cli-required': False},
+            }, required=True)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('auth')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for auth endpoints.', no_args_is_help=True)
