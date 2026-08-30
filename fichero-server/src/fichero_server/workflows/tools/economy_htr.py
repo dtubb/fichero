@@ -257,7 +257,7 @@ def economy_htr_file(
                               "crop": crop["path"] if keep_crops_dir else None})
             if not keep_crops_dir and crops:
                 shutil.rmtree(Path(crops[0]["path"]).parent, ignore_errors=True)
-            return {"source": str(source), "text": "\n".join(l["text"] for l in lines),
+            return {"source": str(source), "text": "\n".join(ln["text"] for ln in lines),
                     "lines": lines, "backend": backend, "error": None}
 
         raise ValueError(f"Unknown backend: {backend}")

@@ -28,7 +28,6 @@ import os
 import threading
 import weakref
 from functools import lru_cache
-from pathlib import Path
 from collections import OrderedDict, defaultdict, deque
 from dataclasses import dataclass
 from datetime import datetime, timezone

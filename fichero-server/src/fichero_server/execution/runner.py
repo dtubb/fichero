@@ -25,7 +25,6 @@ from fichero_server.execution.cancellation import (
 )
 from fichero_server.models import Workflow
 from fichero_server.workflows.activity import get_activity_tracker
-from fichero_server.workflows.registry import get_tool_def
 from fichero_server.workflows.run_steps import close_open_steps
 
 from fichero_server.api.routes.workflow_execution.schemas import ExecuteWorkflowRequest, SSEEvent

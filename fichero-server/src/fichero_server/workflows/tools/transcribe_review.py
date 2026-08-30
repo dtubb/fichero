@@ -28,6 +28,12 @@ from fichero_server.workflows.types import State
 from fichero_server.workflows.tools._doc_lookup import documents_from_state_outputs
 from fichero_server.workflows.tools.llm_base import BASE_OUTPUT_PORTS, merge_config_schema
 from fichero_server.workflows.tools.transcription_output import sanitize_transcription
+from fichero_server.workflows.tools.vision_base import (
+    VISION_CONFIG_SCHEMA,
+    VISION_INPUT_PORTS,
+    VisionToolConfig,
+    process_vision,
+)
 
 
 def _existing_transcription_context(
@@ -66,12 +72,6 @@ def _existing_transcription_context(
         texts.append(content or "")
         found_any = found_any or bool(content)
     return texts if found_any else None
-from fichero_server.workflows.tools.vision_base import (
-    VISION_CONFIG_SCHEMA,
-    VISION_INPUT_PORTS,
-    VisionToolConfig,
-    process_vision,
-)
 
 
 # =============================================================================
