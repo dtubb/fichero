@@ -166,13 +166,16 @@ struct PaneHeadWiringGuardTests {
     func crumbsAreFullAncestry() throws {
         // R1: the title line IS the breadcrumb — "Marshall Diaries v4 › Inbox ›
         // 1933", not "Reader". Daniel, 2026-08-23: full ancestry, in scope now.
-        let reader = try code(at: "Views/Reader/Page/ReadingPaneView.swift")
-        #expect(reader.contains("libraryPathCrumbs("),
+        // (Split to ReadingPaneView+Crumbs.swift 2026-08-29, file-length lint.)
+        let crumbs = try code(at: "Views/Reader/Page/ReadingPaneView+Crumbs.swift")
+        #expect(crumbs.contains("libraryPathCrumbs("),
                 "the reader walks ancestors itself — two walks disagree eventually")
-        #expect(reader.contains("documentStore.resolveDocument($0)"))
+        #expect(crumbs.contains("documentStore.resolveDocument($0)"))
         // The library is the root crumb: a path starting at a folder does not
         // say WHICH library's Inbox you are in.
-        #expect(reader.contains("private var libraryName: String?"))
+        #expect(crumbs.contains("var libraryName: String?"))
+        // Breadcrumb honesty (2026-08-29): N>1 selected says "N items".
+        #expect(crumbs.contains(".multiSelection(count: multiDocuments.count)"))
     }
 
     @Test("the crumb degrades by the ladder, never a mid-string ellipsis")
