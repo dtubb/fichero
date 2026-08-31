@@ -42,3 +42,10 @@ overnight did not engage for it — first bug to chase).
 - Linkage: unpinned reader panes share the existing selection seam
   (they already follow selection); pinning freezes a pane's document,
   which the pin already does. Verify paging propagates.
+
+## Addendum (Daniel, 2026-08-30 night)
+
+CSV-as-spreadsheet confirmed working (table lens + artifact view). Still
+open: HTML and SVG artifact types render as escaped text — when a
+converter starts emitting them, the artifact view should render SVG
+inline and HTML through a sanitizer, same one-renderer rule.
