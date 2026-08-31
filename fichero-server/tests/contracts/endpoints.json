@@ -1617,6 +1617,18 @@
         "query_params": [],
         "request_model": "ExecuteChainRequest",
         "response_model": "ChainExecutionResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/chains/{chain_id}/execute-steps",
+        "operation_id": "execute_chain_steps_api_chains__chain_id__execute_steps_post",
+        "summary": "Execute Chain Steps",
+        "path_params": [
+          "chain_id"
+        ],
+        "query_params": [],
+        "request_model": "ExecuteChainStepsRequest",
+        "response_model": null
       }
     ],
     "changes": [
@@ -9046,6 +9058,11 @@
         "query_params": [
           {
             "name": "artifact_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "compare_types",
             "required": false,
             "type": "string"
           },

@@ -123,6 +123,17 @@ class ChainStep(BaseModel):
         default=False, description="Continue chain even if this step fails"
     )
 
+    # Per-step model routing (workflow-bar chains, 2026-08-30). A chain reads a
+    # hard hand with the best model and counts entities with something cheap,
+    # so the override is a property of the STEP, not the chain. None means the
+    # workflow resolves its own alias.
+    provider_override: str | None = Field(
+        default=None, description="Provider override for this step's run"
+    )
+    model_override: str | None = Field(
+        default=None, description="Model override for this step's run"
+    )
+
     # Execution settings
     timeout_seconds: int = Field(
         default=300, description="Max execution time for this step"

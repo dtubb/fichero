@@ -221,12 +221,18 @@ struct ContentView: View {
     /// 2026-08-30: "this is a historical diary" — tell the AI what it is
     /// looking at). Rides every run as `user_context`; empty = absent.
     @SceneStorage("workflowBar.userContext") var workflowUserContext: String = ""
-    /// The chain assembled in the workflow bar, in order. Not persisted:
-    /// it is a scratch composition for the selection in front of you, and
-    /// restoring one at launch would invite a paid run nobody remembers
-    /// staging.
+    /// The chain assembled in the workflow bar, in order. PERSISTED through
+    /// the engine's ChainService (Daniel, 2026-08-30, workflow-bar review):
+    /// the chain survives window close/reopen and reads the same in every
+    /// window. Only the STAGING is restored — ▶ stays an explicit press, so
+    /// restore can never invite a paid run nobody remembers asking for.
     @State var stagedWorkflowChain: [StagedWorkflowStep] = []
     @State var isRunningStagedChain = false
+    /// Engine id of the persisted "Workflow Bar" chain, once known.
+    @State var workflowBarChainId: String?
+    /// One restore attempt per window lifetime — a rail the user then
+    /// clears must STAY cleared, not respawn on the next re-render.
+    @State var workflowBarChainRestoreAttempted = false
     /// The documents the LAST chain run acted on, frozen at press time.
     /// Opening a finished step's result must show what the run wrote to —
     /// not whatever the selection has wandered to since (review, 2026-08-29).

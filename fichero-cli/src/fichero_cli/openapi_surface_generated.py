@@ -953,7 +953,7 @@ def register_generated_openapi_commands(
                 "document_id": {'type': 'string', 'nullable': True, 'title': 'Document Id', 'x-cli-required': False},
                 "folder_id": {'type': 'string', 'nullable': True, 'title': 'Folder Id', 'x-cli-required': False},
                 "ink_payload": {'type': 'string', 'nullable': True, 'title': 'Ink Payload', 'x-cli-required': False},
-                "kind": {'type': 'string', 'enum': ['highlight', 'note', 'rating', 'bookmark', 'comment'], 'title': 'AnnotationKind', 'description': 'User annotation kinds (#914).\n\nEach kind has slightly different rendering + payload conventions:\n- highlight: coloured tint over a span; ``color`` + ``rating`` carry weight\n- note: margin/sticky note; ``text`` is the body\n- rating: 1-5 importance flag; ``rating`` carries weight\n- bookmark: navigation marker; ``text`` optional label\n- comment: threaded discussion (future); ``text`` is the body', 'x-cli-required': True},
+                "kind": {'type': 'string', 'enum': ['highlight', 'note', 'rating', 'bookmark', 'comment', 'line', 'underline', 'strikethrough'], 'title': 'AnnotationKind', 'description': 'User annotation kinds (#914).\n\nEach kind has slightly different rendering + payload conventions:\n- highlight: coloured tint over a span; ``color`` + ``rating`` carry weight\n- note: margin/sticky note; ``text`` is the body\n- rating: 1-5 importance flag; ``rating`` carries weight\n- bookmark: navigation marker; ``text`` optional label\n- comment: threaded discussion (future); ``text`` is the body', 'x-cli-required': True},
                 "linked_claim_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Linked Claim Ids', 'default': [], 'x-cli-required': False},
                 "linked_entity_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Linked Entity Ids', 'default': [], 'x-cli-required': False},
                 "linked_note_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Linked Note Ids', 'default': [], 'x-cli-required': False},
@@ -1004,7 +1004,7 @@ def register_generated_openapi_commands(
                 "char_end": {'type': 'integer', 'nullable': True, 'title': 'Char End', 'x-cli-required': False},
                 "char_start": {'type': 'integer', 'nullable': True, 'title': 'Char Start', 'x-cli-required': False},
                 "document_id": {'type': 'string', 'title': 'Document Id', 'x-cli-required': True},
-                "kind": {'type': 'string', 'enum': ['highlight', 'note', 'rating', 'bookmark', 'comment'], 'title': 'AnnotationKind', 'description': 'User annotation kinds (#914).\n\nEach kind has slightly different rendering + payload conventions:\n- highlight: coloured tint over a span; ``color`` + ``rating`` carry weight\n- note: margin/sticky note; ``text`` is the body\n- rating: 1-5 importance flag; ``rating`` carries weight\n- bookmark: navigation marker; ``text`` optional label\n- comment: threaded discussion (future); ``text`` is the body', 'x-cli-required': False},
+                "kind": {'type': 'string', 'enum': ['highlight', 'note', 'rating', 'bookmark', 'comment', 'line', 'underline', 'strikethrough'], 'title': 'AnnotationKind', 'description': 'User annotation kinds (#914).\n\nEach kind has slightly different rendering + payload conventions:\n- highlight: coloured tint over a span; ``color`` + ``rating`` carry weight\n- note: margin/sticky note; ``text`` is the body\n- rating: 1-5 importance flag; ``rating`` carries weight\n- bookmark: navigation marker; ``text`` optional label\n- comment: threaded discussion (future); ``text`` is the body', 'x-cli-required': False},
                 "page_index": {'type': 'integer', 'nullable': True, 'title': 'Page Index', 'x-cli-required': False},
                 "page_label": {'type': 'string', 'nullable': True, 'title': 'Page Label', 'x-cli-required': False},
                 "text": {'type': 'string', 'nullable': True, 'title': 'Text', 'x-cli-required': False},
@@ -2339,6 +2339,24 @@ def register_generated_openapi_commands(
             }, {
                 "input_files": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Input Files', 'x-cli-required': False},
                 "inputs": {'additionalProperties': True, 'type': 'object', 'title': 'Inputs', 'description': 'Free-form JSON execution inputs. This remains dynamic because each workflow chain defines its own input contract.', 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("execute-steps")
+    def chains_execute_steps_post(
+        ctx: typer.Context,
+        chain_id: str = typer.Argument(..., help="Path parameter: chain_id."),
+        inputs: Optional[str] = typer.Option(None, "--inputs", help="Request field: inputs."),
+    ) -> None:
+        """Execute Chain Steps (POST /api/chains/{chain_id}/execute-steps)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/chains/{chain_id}/execute-steps"
+            params = None
+            payload = _build_json_payload({
+                "inputs": inputs,
+            }, {
+                "inputs": {'additionalProperties': True, 'type': 'object', 'title': 'Inputs', 'description': 'Free-form JSON run inputs shared by every step (frozen selection, user context, hints). Each step merges its static_inputs on top. Values stay workflow-defined and are not coerced.', 'x-cli-required': False},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
@@ -13214,6 +13232,8 @@ def register_generated_openapi_commands(
     def view_document_get(
         ctx: typer.Context,
         doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+        artifact_id: Optional[str] = typer.Option(None, "--artifact-id", help="Query parameter: artifact_id."),
+        compare_types: Optional[str] = typer.Option(None, "--compare-types", help="Query parameter: compare_types."),
         pages: Optional[str] = typer.Option(None, "--pages", help="Query parameter: pages."),
         representation: Optional[str] = typer.Option(None, "--representation", help="Query parameter: representation."),
     ) -> None:
@@ -13221,6 +13241,8 @@ def register_generated_openapi_commands(
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = f"/view/document/{doc_id}"
             params = {
+                "artifact_id": artifact_id,
+                "compare_types": compare_types,
                 "pages": pages,
                 "representation": representation,
             }
