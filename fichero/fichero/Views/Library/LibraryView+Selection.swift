@@ -112,6 +112,32 @@ extension LibraryView {
         #endif
     }
 
+    /// Did the selection change that just fired come from the USER acting in
+    /// this pane, or from state written elsewhere?
+    ///
+    /// The Table has no tap handler of its own to answer with — `NSTableView`
+    /// owns its clicks — so its `onChange(of: selection)` is the only seam that
+    /// sees a table click at all. But that same seam also fires for selections
+    /// written by navigation and restore, and claiming pane focus on THOSE
+    /// would let the library steal ⌘A from the sidebar the moment a folder
+    /// click cleared the browser selection. `NSApp.currentEvent` is the live
+    /// event being dispatched — the same seam `currentSelectionModifiers` reads
+    /// for the modifier flags — so a click reads as a click and a programmatic
+    /// write reads as nothing.
+    var selectionChangeIsUserDriven: Bool {
+        #if os(macOS)
+        switch NSApp.currentEvent?.type {
+        case .leftMouseDown, .leftMouseUp, .rightMouseDown, .rightMouseUp,
+             .otherMouseDown, .otherMouseUp, .keyDown:
+            return true
+        default:
+            return false
+        }
+        #else
+        return true
+        #endif
+    }
+
     /// One click, one grammar (#4377).
     ///
     /// This used to be three private methods with their own anchor handling,

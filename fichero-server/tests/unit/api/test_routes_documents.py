@@ -53,13 +53,14 @@ def _ctx() -> ActionContext:
 
 class TestListDocuments:
     def test_empty_list(self, client):
+        """An empty library really is EMPTY (ruling 2026-08-31).
+
+        Nothing seeds an Inbox any more — it is created on demand by the first
+        loose-file drop — so this list has no baseline row to allow for.
+        """
         r = client.get("/api/documents")
         assert r.status_code == 200
-        items = r.json()["items"]
-        assert len(items) == 1
-        assert items[0]["name"] == "Inbox"
-        assert items[0]["parent_id"] is None
-        assert items[0]["doc_type"] == "folder"
+        assert r.json()["items"] == []
 
     def test_returns_saved_documents(self, client, db):
         _make_doc(db, "Doc A")
@@ -67,9 +68,9 @@ class TestListDocuments:
         r = client.get("/api/documents")
         assert r.status_code == 200
         items = r.json()["items"]
-        assert len(items) == 3
+        assert len(items) == 2
         names = {item["name"] for item in items}
-        assert {"Inbox", "Doc A", "Doc B"} <= names
+        assert names == {"Doc A", "Doc B"}
 
     def test_pagination_limit(self, client, db):
         for i in range(5):
@@ -83,7 +84,7 @@ class TestListDocuments:
             _make_doc(db, f"Doc {i}")
         r = client.get("/api/documents?offset=3")
         assert r.status_code == 200
-        assert len(r.json()["items"]) == 3
+        assert len(r.json()["items"]) == 2
 
 
 # ---------------------------------------------------------------------------
@@ -98,8 +99,7 @@ class TestListCollections:
         r = client.get("/api/documents/collections")
         assert r.status_code == 200
         ids = [d["id"] for d in r.json()["items"]]
-        assert root.id in ids
-        assert len(ids) == 2  # child excluded; Inbox is always present
+        assert ids == [root.id]  # child excluded; no Inbox is seeded (2026-08-31)
 
 
 # ---------------------------------------------------------------------------
@@ -1048,7 +1048,7 @@ class TestImportDocument:
 
         assert r.status_code == 422, r.text
         assert "Empty upload refused" in r.json()["detail"]
-        assert len(client.get("/api/documents").json()["items"]) == 1
+        assert client.get("/api/documents").json()["items"] == []
 
     def test_import_rejects_oversized_upload_with_413(self, client, db, monkeypatch):
         monkeypatch.setattr(storage_module.settings, "max_upload_bytes", 128)
@@ -1060,7 +1060,7 @@ class TestImportDocument:
 
         assert r.status_code == 413, r.text
         assert "maximum allowed size" in r.json()["detail"]
-        assert len(client.get("/api/documents").json()["items"]) == 1
+        assert client.get("/api/documents").json()["items"] == []
 
     # NOTE: the streaming-internals unit test (exact read_calls, asyncio.run on a
     # mock upload) was order-flaky under full-suite ordering — the UploadTooLargeError
@@ -1370,6 +1370,40 @@ class TestDeleteDocument:
         assert persisted.deleted_by == "owner"
         r2 = client.get(f"/api/documents/{doc.id}")
         assert r2.status_code == 404
+
+    def test_a_root_folder_named_inbox_is_ordinary_content(self, client, db):
+        """No system-folder guard on "Inbox" any more (ruling 2026-08-31).
+
+        `_reject_if_root_inbox` 403'd delete/move/rename of a root folder named
+        "Inbox". That guard existed to protect a folder the APP created. Nothing
+        creates one now, so such a folder is something the USER made — and
+        refusing to let them rename or delete their own folder is a bug.
+        """
+        inbox = Document(name="Inbox", parent_id=None, doc_type=DocType.folder)
+        db.save(inbox)
+
+        renamed = client.put(f"/api/documents/{inbox.id}", json={"name": "Later"})
+        assert renamed.status_code == 200, renamed.text
+        assert renamed.json()["name"] == "Later"
+
+        back = client.put(f"/api/documents/{inbox.id}", json={"name": "Inbox"})
+        assert back.status_code == 200, back.text
+
+        # ...and MOVE, the third verb the guard refused.
+        home = _make_doc(db, "Home")
+        moved = client.put(f"/api/documents/{inbox.id}/move?parent_id={home.id}")
+        assert moved.status_code == 200, moved.text
+        assert db.get(Document, inbox.id).parent_id == home.id
+        back_to_root = client.put(f"/api/documents/{inbox.id}/move")
+        assert back_to_root.status_code == 200, back_to_root.text
+
+        # Delete is SOFT, exactly like any other folder — the row survives for
+        # Trash / restore, it is not purged out from under the user.
+        assert client.delete(f"/api/documents/{inbox.id}").status_code == 204
+        persisted = db.get(Document, inbox.id)
+        assert persisted is not None, "delete must stay soft and undoable"
+        assert persisted.deleted_at is not None
+        assert persisted.deleted_by == "owner"
 
     def test_delete_missing_returns_404(self, client):
         r = client.delete("/api/documents/no-such-id")
@@ -1862,11 +1896,14 @@ class TestDocumentPageRanges:
 # ---------------------------------------------------------------------------
 
 class TestNodeKind:
-    def test_default_node_kind_is_document(self, client):
+    def test_default_node_kind_is_document(self, client, db):
+        # Was read off the seeded Inbox; nothing is seeded now (2026-08-31), so
+        # make the row this test is actually about.
+        _make_doc(db, "Plain")
         r = client.get("/api/documents")
         assert r.status_code == 200
-        inbox = next(item for item in r.json()["items"] if item["name"] == "Inbox")
-        assert inbox["node_kind"] == "document"
+        plain = next(item for item in r.json()["items"] if item["name"] == "Plain")
+        assert plain["node_kind"] == "document"
 
     def test_create_document_with_node_kind(self, client):
         r = client.post("/api/documents", json={"name": "Task A", "node_kind": "task"})

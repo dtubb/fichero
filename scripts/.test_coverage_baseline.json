@@ -82,7 +82,6 @@
       "knowledge_models.py::validate_isbn13",
       "knowledge_models.py::validate_issn",
       "knowledge_models.py::validate_url",
-      "library_bootstrap.py::ensure_inbox_folder",
       "llm.py::apple_intelligence_fits_in_context",
       "llm.py::estimate_token_count",
       "llm_mock.py::mock_chat_response",

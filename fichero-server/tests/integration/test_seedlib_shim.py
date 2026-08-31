@@ -11,7 +11,9 @@ def test_seed_builds_library_with_derived_counts(tmp_path):
     # + 1 mirrored Document node for the seeded workflow (#11 Phase 1 —
     # saving a Workflow mirrors it into the document tree for sidebar
     # placement; see `_save_workflow_document` in fichero/db.py).
-    assert summary["expected"]["documents_total"] == 6
+    # No Inbox: a library is never seeded with one (ruling 2026-08-31) —
+    # the old count of 6 was silently including it.
+    assert summary["expected"]["documents_total"] == 5
     assert summary["expected"]["children_of_collection"] == 2
     assert summary["expected"]["entities"] == 3
     assert summary["expected"]["claims"] == 3

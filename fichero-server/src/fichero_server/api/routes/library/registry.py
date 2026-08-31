@@ -997,7 +997,7 @@ def add_known_library(
         try:
             db_manager.get_database(stored_path)
         except Exception as exc:
-            logger.warning("Inbox seeding skipped for %s: %s", pkg_path, exc)
+            logger.warning("Library database open failed for %s: %s", pkg_path, exc)
 
         return library
     except Exception as e:

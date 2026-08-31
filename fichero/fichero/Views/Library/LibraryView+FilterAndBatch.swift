@@ -73,6 +73,16 @@ extension LibraryView {
                 (documentSearchKeys[doc.id] ?? Self.documentSearchKey(for: doc)).contains(query)
             }
         }
+        // The Show control's narrowing half (2026-08-31). Spreads/Pages are
+        // already answered by the tier the engine resolved, so those two pass
+        // every row through and this costs one branch; Regions and Extracted
+        // Data narrow the content tier the same way the ⌘F filter narrows it —
+        // over rows already loaded, never by inventing a wire parameter the
+        // engine does not implement. See `LibraryShowKind`.
+        let showKind = libraryShowKind
+        if showKind.narrowsClientSide {
+            docs = docs.filter { showKind.matches($0) }
+        }
         filteredDocuments = displayOrderedForCurrentContext(docs)
         // Hash the ids (Int) instead of joining every id into one giant String
         // (#3870) — it only needs to CHANGE when the visible set changes.

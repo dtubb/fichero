@@ -185,7 +185,6 @@ $(SRCROOT)/../fichero-server/src/fichero_server/db/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/app.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/dataset_query.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/embeddings.py
-$(SRCROOT)/../fichero-server/src/fichero_server/db/library_bootstrap.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/library_paths.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/manager.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/migrations/__init__.py

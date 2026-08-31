@@ -72,7 +72,6 @@ extension ContentView {
             )
             .frame(maxWidth: .infinity)
             .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview })
-            .overlay { paneFocusIndicator(for: .preview) }
         // Finder's stacked multi-selection preview (#95) — same gate as the
         // standard-layout preview pane.
         } else if stackDocuments.count > 1 {
@@ -80,7 +79,6 @@ extension ContentView {
                 documents: stackDocuments,
                 frontDocumentId: detailDocument?.id
             )
-                .overlay { paneFocusIndicator(for: .preview) }
                 .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview })
                 .frame(maxWidth: .infinity)
         } else if let pdfDocumentId = detailPDFDocumentId, previewLens == .preview {
@@ -96,7 +94,6 @@ extension ContentView {
             )
             .frame(minWidth: ContentView.pdfCanvasMinWidth, maxWidth: .infinity)
             .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview })
-            .overlay { paneFocusIndicator(for: .preview) }
         } else {
             let canvasDocument = CanvasDocumentPolicy.documentForCanvas(
                 selectedDocumentIds: browserSelection,
@@ -117,7 +114,6 @@ extension ContentView {
             )
             .frame(maxWidth: .infinity)
             .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview })
-            .overlay { paneFocusIndicator(for: .preview) }
         }
     }
 
@@ -186,12 +182,11 @@ extension ContentView {
                 multiDocuments: readerStack
             ))
         }
-        // Native focus rings OFF in this pane (Daniel's screenshot, 3:56pm:
-        // a persistent blue edge above the reader toolbar — macOS 14+ makes
-        // scroll views keyboard-focusable and rings them natively). The
-        // fading paneFocusIndicator is the one focus indicator.
+        // Native focus rings OFF in this pane: macOS 14+ makes scroll views
+        // keyboard-focusable and rings them natively, which painted a
+        // persistent blue edge above the reader toolbar. Panes draw no focus
+        // ring of their own either (ruling 2026-08-31).
         .focusEffectDisabled()
-        .overlay { paneFocusIndicator(for: .reading) }
         .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .reading; paneFocusHint = .reading })
     }
 
@@ -383,7 +378,6 @@ extension ContentView {
     var detailView: some View {
         inspectorView
             // Focus tracking without .focusable() — avoids swallowing first click
-            .overlay { paneFocusIndicator(for: .inspector) }
             .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .inspector; paneFocusHint = .inspector })
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(.bar)

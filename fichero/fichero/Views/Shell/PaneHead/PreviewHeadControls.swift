@@ -188,8 +188,16 @@ struct PreviewMarkupToolsRow: View {
     /// saved highlight / underline / strikethrough / check.
     @State private var showTagPopover = false
 
-    // Order ruled 2026-08-30: text selection FIRST (Preview.app's A|), then
-    // marquee, then the rest.
+    /// The just-saved note annotation awaiting its text (ruling 3), and the
+    /// popover that asks for it.
+    @State private var pendingNoteId: String?
+    @State private var showNotePopover = false
+
+    // Order ruled 2026-08-31 (Daniel): the three SELECTION tools first —
+    // text, rectangular, words — then Draw Region, then the marks that put
+    // something on the page (line, highlight, note, star, check), then the
+    // edit verbs. Selecting comes before marking because you pick what you
+    // are about to mark.
     var body: some View {
         toolButton(
             icon: PreviewMarkupTool.textSelect.icon,
@@ -201,19 +209,6 @@ struct PreviewMarkupToolsRow: View {
         ) {
             NotificationCenter.default.post(
                 name: .previewAnnotateTool, object: PreviewMarkupTool.textSelect.rawValue
-            )
-        }
-
-        toolButton(
-            icon: PreviewMarkupTool.drawRegion.icon,
-            label: PreviewMarkupTool.drawRegion.label,
-            identifier: "previewMarkupDrawRegion",
-            key: "r",
-            help: "Draw Region — drag a box to make a new region on this page (⌘⌥R)",
-            mode: .drawRegion
-        ) {
-            NotificationCenter.default.post(
-                name: .previewRegionVerb, object: PreviewRegionVerb.draw.rawValue
             )
         }
 
@@ -235,10 +230,28 @@ struct PreviewMarkupToolsRow: View {
             label: PreviewMarkupTool.wordSelect.label,
             identifier: "previewMarkupWordSelect",
             key: "w",
-            help: "Select Words — drag to select the recognised word boxes you touch (⌘⌥W)",
+            // Daniel, 2026-08-31: "select words is really rectangular
+            // selection…" — it IS a marquee, but what it comes away holding
+            // is WORDS, so the tooltip says so rather than leaving the two
+            // rectangular tools indistinguishable.
+            help: "Select Words — marquee a rectangle; the recognised WORD boxes it touches "
+                + "become the selection, which Highlight and Check then act on (⌘⌥W)",
             mode: .wordSelect
         ) {
             // Sticky mode only — the canvas selects word boxes while armed.
+        }
+
+        toolButton(
+            icon: PreviewMarkupTool.drawRegion.icon,
+            label: PreviewMarkupTool.drawRegion.label,
+            identifier: "previewMarkupDrawRegion",
+            key: "r",
+            help: "Draw Region — drag a box to make a new region on this page (⌘⌥R)",
+            mode: .drawRegion
+        ) {
+            NotificationCenter.default.post(
+                name: .previewRegionVerb, object: PreviewRegionVerb.draw.rawValue
+            )
         }
 
         toolButton(
@@ -259,18 +272,7 @@ struct PreviewMarkupToolsRow: View {
 
         labeled(PreviewMarkupTool.highlight.label) { highlightSplitButton }
 
-        toolButton(
-            icon: PreviewMarkupTool.note.icon,
-            label: PreviewMarkupTool.note.label,
-            identifier: "previewMarkupNote",
-            key: "n",
-            help: "Text Note — drag a box to attach a written note to that spot (⌘⌥N)",
-            mode: .note
-        ) {
-            NotificationCenter.default.post(
-                name: .previewAnnotateTool, object: PreviewMarkupTool.note.rawValue
-            )
-        }
+        noteButton
 
         toolButton(
             icon: PreviewMarkupTool.star.icon,
@@ -289,33 +291,91 @@ struct PreviewMarkupToolsRow: View {
             label: PreviewMarkupTool.check.label,
             identifier: "previewMarkupCheck",
             key: "k",
-            help: "Check — click by a line to mark it with one check, again for two, again for three, again to clear (⌘⌥K)",
+            help: "Check — with words selected, checks THEM; otherwise click by a line to mark "
+                + "it with one check, again for two, again for three, again to clear (⌘⌥K)",
             mode: .check
         ) {
-            // Sticky mode only — the canvas handles clicks while armed.
-        }
-
-        Divider().frame(height: PaneHeadMetrics.dividerHeight)
-
-        // No ⌘⌥ binding: Delete already answers to the ⌫ key path the canvas
-        // owns, and a second binding for the destructive verb is how you get
-        // two code paths that drift.
-        toolButton(
-            icon: "trash", label: "Delete", identifier: "previewMarkupDelete",
-            help: "Delete — remove the selected regions or marks (⌫)"
-        ) {
+            // Ruling 4 (Daniel, 2026-08-31): a check should land on the text
+            // you already picked. The canvas answers this by checking the
+            // selection when there is one, and staying armed for a click
+            // when there is not — so the button posts either way.
             NotificationCenter.default.post(
-                name: .previewRegionVerb, object: PreviewRegionVerb.delete.rawValue
+                name: .previewAnnotateTool, object: PreviewMarkupTool.check.rawValue
             )
         }
 
+        editVerbs
+    }
+
+    /// Delete / Combine act on the SELECTED bounding boxes (Daniel,
+    /// 2026-08-31, ruling 2), so they are only shown while there IS a
+    /// selection — a destructive verb with nothing to destroy is the bar
+    /// lying about what a press would do. `RegionSelection` is `@Observable`,
+    /// so reading it here re-renders the row as the selection comes and goes.
+    @ViewBuilder
+    private var editVerbs: some View {
+        let selection = RegionSelection.shared
+        if !selection.isEmpty {
+            Divider().frame(height: PaneHeadMetrics.dividerHeight)
+
+            // No ⌘⌥ binding: Delete already answers to the ⌫ key path the
+            // canvas owns, and a second binding for the destructive verb is
+            // how you get two code paths that drift.
+            toolButton(
+                icon: "trash",
+                label: selection.count == 1 ? "Delete" : "Delete \(selection.count)",
+                identifier: "previewMarkupDelete",
+                help: "Delete — remove the selected regions or marks (⌫)"
+            ) {
+                NotificationCenter.default.post(
+                    name: .previewRegionVerb, object: PreviewRegionVerb.delete.rawValue
+                )
+            }
+
+            // Combine needs two boxes to have anything to merge.
+            if selection.count >= 2 {
+                toolButton(
+                    icon: "arrow.triangle.merge",
+                    label: "Combine \(selection.count)",
+                    identifier: "previewMarkupCombine",
+                    key: "c", help: "Combine — merge the selected regions into one (⌘⌥C)"
+                ) {
+                    NotificationCenter.default.post(
+                        name: .previewRegionVerb, object: PreviewRegionVerb.combine.rawValue
+                    )
+                }
+            }
+        }
+    }
+
+    /// Text Note (Daniel, 2026-08-31: "text note doesn't work"). Arming the
+    /// tool and dragging a box saved a note-kind annotation with EMPTY text
+    /// and no way to type into it — a note that is not a note. The canvas now
+    /// announces the saved box on `.previewNoteTextEntry`; this popover asks
+    /// for the words. Enter (or Save) commits through
+    /// `AnnotationStore.updateText`; Esc / Cancel / an empty field DELETES
+    /// the blank annotation rather than leaving one behind.
+    @ViewBuilder
+    private var noteButton: some View {
         toolButton(
-            icon: "arrow.triangle.merge", label: "Combine", identifier: "previewMarkupCombine",
-            key: "c", help: "Combine — merge the selected regions into one (⌘⌥C)"
+            icon: PreviewMarkupTool.note.icon,
+            label: PreviewMarkupTool.note.label,
+            identifier: "previewMarkupNote",
+            key: "n",
+            help: "Text Note — drag a box, then type the note that belongs there (⌘⌥N)",
+            mode: .note
         ) {
             NotificationCenter.default.post(
-                name: .previewRegionVerb, object: PreviewRegionVerb.combine.rawValue
+                name: .previewAnnotateTool, object: PreviewMarkupTool.note.rawValue
             )
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .previewNoteTextEntry)) { note in
+            guard let id = note.object as? String else { return }
+            pendingNoteId = id
+            showNotePopover = true
+        }
+        .popover(isPresented: $showNotePopover) {
+            MarkupNotePopover(annotationId: pendingNoteId)
         }
     }
 
@@ -486,3 +546,74 @@ struct PreviewHighlightStyleMenu: View {
 // The tag-entry structs (`MarkupTagMenuEntries` / `MarkupTagPopover`, coding
 // v1, ruling 4) live in AnnotationBar.swift — the annotation bar is the one
 // home for markup verbs; both chevron menus here mount them.
+
+// MARK: - Text-note entry (Daniel, 2026-08-31, ruling 3)
+
+extension Notification.Name {
+    /// A note-kind annotation was just saved by a markup drag and has no text
+    /// yet. `object` is the annotation id. The markup row answers by opening
+    /// `MarkupNotePopover` for it; nothing else consumes this.
+    static let previewNoteTextEntry = Notification.Name("previewNoteTextEntry")
+}
+
+/// Types the text of a note the canvas just drew. Saves through the SAME
+/// `AnnotationStore` path the box came from (`updateText`), so there is one
+/// audited write per note; abandoning the entry deletes the empty box rather
+/// than leaving a blank note on the page.
+struct MarkupNotePopover: View {
+    let annotationId: String?
+
+    @Environment(AnnotationStore.self) private var annotationStore: AnnotationStore?
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var text = ""
+    /// Set only by a successful commit — `onDisappear` deletes the annotation
+    /// when it is still false, which is how Esc, Cancel, and click-away all
+    /// mean the same thing without three code paths.
+    @State private var committed = false
+    @FocusState private var fieldFocused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Note for this spot")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            // Single-line so Return COMMITS (an `axis: .vertical` field
+            // spends Return on a newline and the note could never be typed
+            // shut from the keyboard).
+            TextField("What belongs here?", text: $text)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 260)
+                .focused($fieldFocused)
+                .onSubmit(commit)
+                .accessibilityIdentifier("markupNoteField")
+            HStack {
+                Button("Cancel") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                    .accessibilityIdentifier("markupNoteCancel")
+                Spacer()
+                Button("Save", action: commit)
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .accessibilityIdentifier("markupNoteSave")
+            }
+        }
+        .padding(12)
+        .onAppear { fieldFocused = true }
+        .onDisappear {
+            guard !committed, let annotationId, let annotationStore else { return }
+            Task { _ = await annotationStore.delete(id: annotationId) }
+        }
+    }
+
+    private func commit() {
+        let value = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty, let annotationId, let annotationStore else {
+            dismiss()  // empty text is a cancel; onDisappear removes the box
+            return
+        }
+        committed = true
+        Task { _ = await annotationStore.updateText(id: annotationId, text: value) }
+        dismiss()
+    }
+}

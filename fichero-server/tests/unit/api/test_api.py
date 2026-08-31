@@ -75,7 +75,11 @@ class TestStatsEndpoint:
     """Tests for /api/stats endpoint."""
 
     def test_get_stats(self, client, db, sample_doc):
-        """Stats endpoint returns counts including the default Inbox."""
+        """Stats counts only what was saved — a library has no seeded Inbox.
+
+        Ruling 2026-08-31: the Inbox is created on demand by the first
+        loose-file drop, so a fresh library starts at zero documents.
+        """
         # Add some test data
         db.save(sample_doc)
 
@@ -83,21 +87,21 @@ class TestStatsEndpoint:
         assert response.status_code == 200
         data = response.json()
         assert "documents" in data
-        assert data["documents"] == 2
+        assert data["documents"] == 1
 
 
 class TestDocumentRoutes:
     """Tests for /api/documents endpoints."""
 
     def test_list_documents(self, client, db, sample_doc):
-        """List documents returns array including the default Inbox."""
+        """List documents returns only the saved doc — no seeded Inbox."""
         db.save(sample_doc)
 
         response = client.get("/api/documents")
         assert response.status_code == 200
         data = response.json()["items"]
         assert isinstance(data, list)
-        assert len(data) == 2
+        assert len(data) == 1
         assert any(item["id"] == sample_doc.id for item in data)
 
     def test_list_documents_with_filters(self, client, db, sample_doc):
@@ -110,16 +114,16 @@ class TestDocumentRoutes:
         assert len(data) == 1
 
     def test_list_collections(self, client, db, sample_collection):
-        """List collections returns root folders including the default Inbox."""
+        """List collections returns root folders — and NO seeded Inbox."""
         db.save(sample_collection)
 
         response = client.get("/api/documents/collections")
         assert response.status_code == 200
         data = response.json()["items"]
         assert isinstance(data, list)
-        assert len(data) == 2
+        assert len(data) == 1
         assert all(item["doc_type"] == "folder" for item in data)
-        assert any(item["name"] == "Inbox" for item in data)
+        assert not any(item["name"] == "Inbox" for item in data)
         assert any(item["id"] == sample_collection.id for item in data)
 
     def test_get_document_found(self, client, db, sample_doc):

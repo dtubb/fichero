@@ -278,10 +278,10 @@ extension ContentView {
     }
 
     /// Import batches for a content-pane drop. Browsing a folder targets it
-    /// directly; a root-level drop splits per #4274 — FOLDERS import at the
-    /// root itself (sidebar-visible there; the blanket Inbox redirect buried
-    /// dropped folders where the user wasn't looking, reading as "didn't
-    /// import"), bare files still route to Inbox (invisible at root).
+    /// directly; a root-level drop lands at the ROOT (#4274 — the blanket Inbox
+    /// redirect buried dropped folders where the user wasn't looking, reading
+    /// as "didn't import"), except that loose files still honour a root "Inbox"
+    /// folder the USER made. Nothing creates one (ruling 2026-08-31).
     static func contentDropBatches(
         urls: [URL], browsedFolderId: String?, inboxId: String?
     ) -> [LibraryRootImportBatch] {

@@ -117,6 +117,10 @@ struct LibraryView: View {
     /// Metadata-popover choice (#18): which optional attributes list rows
     /// display. App-wide preference, comma-joined raw values.
     @AppStorage("library.rowAttributes") var rowAttributesRaw: String = LibraryRowAttribute.defaultRaw
+    /// The Show control's narrowing half (2026-08-31): Regions / Extracted Data.
+    /// Spreads-vs-Pages is NOT stored here — that is an engine tier and
+    /// `DocumentStore.libraryLevel` owns it; see `LibraryShowKind`.
+    @AppStorage(LibraryShowKind.storageKey) var showKindRaw: String = LibraryShowKind.pages.rawValue
     @FocusState var filterFieldFocused: Bool
     /// The summoned engine-search field (#4521). Tracked so the row keyboard
     /// grammar can stand down while the user is TYPING — ancestor `.onKeyPress`

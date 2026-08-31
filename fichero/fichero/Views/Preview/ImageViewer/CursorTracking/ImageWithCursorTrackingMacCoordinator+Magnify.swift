@@ -1,11 +1,25 @@
 #if os(macOS)
 import AppKit
+import OSLog
 
 // MARK: - Pinch handling (split from the coordinator for file_length).
 
 @MainActor
 extension ImageWithCursorTrackingMacCoordinator {
+    private func logPinchTriage(state: NSGestureRecognizer.State) {
+        guard state == .began else { return }
+        Logger(subsystem: "app.fichero.fichero", category: "swipe-triage").info(
+            """
+            pinch-triage began: \
+            loupe=\((self.imageView as? TrackingImageView)?.loupeEnabled ?? false) \
+            scrollView=\(self.scrollView != nil)
+            """
+        )
+    }
+
     @objc func handleMagnify(_ gesture: NSMagnificationGestureRecognizer) {
+        // Gesture triage (Daniel, 2026-08-31: pinch still dead in the wild).
+        logPinchTriage(state: gesture.state)
         // Check if cursor is over loupe — zoom the loupe instead of the main image.
         if let trackingView = imageView as? TrackingImageView,
            trackingView.loupeEnabled,

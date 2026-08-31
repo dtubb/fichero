@@ -189,7 +189,6 @@ extension ContentView {
                 // shell sidebar or off the left window edge.
                 .clipped()
                 .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .content; paneFocusHint = .content })
-                .overlay { paneFocusIndicator(for: .content) }
             )
         case .preview:
             // Clicking a pane FOCUSES it — the same gesture .content and .chat
@@ -201,14 +200,12 @@ extension ContentView {
                     .simultaneousGesture(
                         TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview }
                     )
-                    .overlay { paneFocusIndicator(for: .preview) }
             )
         case .reading:
             let reading = widescreenReadingPane(splitKey: splitKey)
                 .simultaneousGesture(
                     TapGesture().onEnded { _ in focusedPane = .reading; paneFocusHint = .reading }
                 )
-                .overlay { paneFocusIndicator(for: .reading) }
             if let width = spec.fixedWidth {
                 return AnyView(reading.frame(width: width))
             }
@@ -223,7 +220,6 @@ extension ContentView {
                 }
                 .frame(width: spec.fixedWidth ?? CGFloat(ContentView.chatPaneMinWidth))
                 .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .chat; paneFocusHint = .chat })
-                .overlay { paneFocusIndicator(for: .chat) }
             )
         }
     }

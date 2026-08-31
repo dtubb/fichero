@@ -55,6 +55,14 @@ extension LibraryView {
                     // The sort/filter/metadata cluster folded in (Daniel,
                     // 2026-08-23: one bottom mini toolbar, not stacked rows).
                     libraryMiniToolbar
+                } condensed: {
+                    // The rung between "everything inline" and "everything in
+                    // the ellipsis" (Daniel, 2026-08-31: "the ellipsis is too
+                    // greedy"). The same controls, wearing icons instead of
+                    // words — the bar buys back the width the two text-bearing
+                    // controls cost before it hides anything at all.
+                    condensedBarButtons
+                    libraryMiniToolbar(condensed: true)
                 } overflowMenu: {
                     bottomBarOverflowMenu
                     // The sort/filter cluster survives narrow widths here
@@ -65,9 +73,13 @@ extension LibraryView {
                     // 2026-08-29: "loses some of the filter options when
                     // it's too narrow").
                     Divider()
-                    librarySortMenu
-                    libraryLevelToggle
-                    libraryFilterToggleButton
+                    // LABELLED coats (Daniel, 2026-08-31): these rendered as
+                    // bare `⇅` chevron rows here, because the bar's icon-only
+                    // Menu label carries into a menu as a submenu with no name
+                    // at all. A menu row has room for a word and needs one.
+                    librarySortMenu(iconOnly: false)
+                    libraryShowMenu(iconOnly: false)
+                    libraryFilterToggleButton(iconOnly: false)
                     LibraryRowAttributesMenu(raw: $rowAttributesRaw)
                     // Mode clusters reachable at narrow widths too (the gap
                     // the consolidation design named): dataset facets and the
@@ -173,18 +185,43 @@ extension LibraryView {
             entityFilterMenu
         }
 
+        exportBibtexBarButton
+
+        runWorkflowBarButton
+    }
+
+    /// The condensed mirror of the secondary tier — the SAME buttons, with the
+    /// entity filter's words dropped. The export/workflow verbs are already
+    /// icon-only, so they are shared outright rather than copied: one action,
+    /// one definition (#3057's rule, kept).
+    @ViewBuilder
+    private var condensedBarButtons: some View {
+        if displayMode == .list {
+            entityFilterMenu
+                .labelStyle(.iconOnly)
+                .accessibilityLabel("Filter by Entity")
+        }
+
+        exportBibtexBarButton
+
+        runWorkflowBarButton
+    }
+
+    private var exportBibtexBarButton: some View {
         Button {
             Task { await exportSelectedBibtex() }
         } label: {
             Image(systemName: "square.and.arrow.up")
-                .accessibilityLabel("Export BibTeX")
         }
+        .accessibilityLabel("Export BibTeX")
         .buttonStyle(.borderless)
         .frame(minWidth: bottomBarTouchTarget, minHeight: bottomBarTouchTarget)
         .contentShape(Rectangle())
         .help("Export selection as BibTeX")
         .disabled(isShowingEntitiesCollection || selection.isEmpty)
+    }
 
+    private var runWorkflowBarButton: some View {
         Button {
             selectedDocumentIdsForBatch = Array(selection)
             showWorkflowPicker = true

@@ -51,6 +51,52 @@ struct PaneVisibilityPlan: Codable, Equatable, Sendable {
     var isValid: Bool { showLibraryPane || showPreviewPane || showReaderPane }
 }
 
+/// Which of the window toolbar's OPTIONAL items are on show (Daniel,
+/// 2026-08-31: "can it control the top toolbar buttons to show, and can we
+/// have some defaults?").
+///
+/// The toolbar is BUILT by `ContentView+Toolbar`, so visibility is decided
+/// declaratively there — SwiftUI exposes no API for reading or writing an
+/// `NSToolbar`'s user customisation set, and reaching into its private
+/// defaults would be exactly the hack this app does not ship. Only items a
+/// window can live without appear here: the Workspaces menu itself is always
+/// present, so a plan can never hide the control that restores the rest.
+struct ToolbarVisibilityPlan: Codable, Equatable, Sendable {
+    /// Back/forward history buttons (the navigation zone).
+    var showNavigation: Bool = true
+    /// The Library/Preview/Reader/Chat pane-toggle group.
+    var showPaneToggles: Bool = true
+    /// The Split / New Tab menu.
+    var showSplitMenu: Bool = true
+    /// The Layouts (show-and-hide-views) chooser.
+    var showLayoutsMenu: Bool = true
+
+    /// Everything on — what a fresh window gets.
+    static let everything = ToolbarVisibilityPlan()
+
+    /// The reading-desk toolbar: panes and history, none of the arranging
+    /// controls (they stay reachable from the Workspaces menu and View menu).
+    static let minimal = ToolbarVisibilityPlan(
+        showNavigation: true,
+        showPaneToggles: true,
+        showSplitMenu: false,
+        showLayoutsMenu: false
+    )
+}
+
+extension ToolbarVisibilityPlan {
+    /// Lenient decode: a workspace saved before an item existed keeps that
+    /// item ON rather than failing the whole catalog (the alternative is a
+    /// nil catalog and a user's saved layouts silently gone).
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        showNavigation = try container.decodeIfPresent(Bool.self, forKey: .showNavigation) ?? true
+        showPaneToggles = try container.decodeIfPresent(Bool.self, forKey: .showPaneToggles) ?? true
+        showSplitMenu = try container.decodeIfPresent(Bool.self, forKey: .showSplitMenu) ?? true
+        showLayoutsMenu = try container.decodeIfPresent(Bool.self, forKey: .showLayoutsMenu) ?? true
+    }
+}
+
 /// Everything a saved workspace restores about a window's arrangement.
 /// Widths are points; `paneKindOverrides` and `splits` are keyed by the
 /// pane-slot ids the live layout already uses (`PaneSpec.id` and the
@@ -64,6 +110,36 @@ struct WindowLayoutSnapshot: Codable, Equatable, Sendable {
     var splits: [String: PaneSplitCounts] = [:]
     var viewDisplayMode: String
     var layoutMode: String
+    /// Which optional toolbar buttons the arrangement shows (2026-08-31).
+    var toolbar: ToolbarVisibilityPlan = .everything
+    /// The window-level workflow bar — chrome, like the panes, so a
+    /// "Cataloguing" arrangement can bring it with it.
+    var showWorkflowBar: Bool = false
+}
+
+extension WindowLayoutSnapshot {
+    /// Lenient decode, for the same reason `ToolbarVisibilityPlan`'s is:
+    /// fields added after a workspace was saved fall back to their defaults
+    /// instead of throwing away every saved layout the user has.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        panes = try container.decode(PaneVisibilityPlan.self, forKey: .panes)
+        libraryPaneWidth = try container.decode(Double.self, forKey: .libraryPaneWidth)
+        readerPaneWidth = try container.decode(Double.self, forKey: .readerPaneWidth)
+        chatPaneWidth = try container.decode(Double.self, forKey: .chatPaneWidth)
+        paneKindOverrides = try container.decodeIfPresent(
+            [String: String].self, forKey: .paneKindOverrides
+        ) ?? [:]
+        splits = try container.decodeIfPresent(
+            [String: PaneSplitCounts].self, forKey: .splits
+        ) ?? [:]
+        viewDisplayMode = try container.decode(String.self, forKey: .viewDisplayMode)
+        layoutMode = try container.decode(String.self, forKey: .layoutMode)
+        toolbar = try container.decodeIfPresent(
+            ToolbarVisibilityPlan.self, forKey: .toolbar
+        ) ?? .everything
+        showWorkflowBar = try container.decodeIfPresent(Bool.self, forKey: .showWorkflowBar) ?? false
+    }
 }
 
 /// A named, saved arrangement. `id` is stable across re-saves of the same
@@ -181,6 +257,91 @@ enum WindowLayoutPreset: String, CaseIterable, Identifiable, Sendable {
     /// drives the chooser's checkmark.
     func matches(_ current: PaneVisibilityPlan) -> Bool {
         plan == current
+    }
+}
+
+// MARK: - Built-in workspaces (Daniel, 2026-08-31)
+
+/// The three arrangements that ship with the app, so the Workspaces menu is
+/// useful before anyone has saved anything ("can we have some defaults?").
+///
+/// A built-in is not stored in the catalog — it is COMPUTED — so it can
+/// neither be deleted nor go stale, and "reset" is simply choosing it again.
+/// It decides only the chrome it means: pane set, workflow bar, and which
+/// toolbar buttons show. Widths, splits, kind overrides and the view mode
+/// stay exactly as the user has them, because a built-in cannot know them.
+enum BuiltInWorkspace: String, CaseIterable, Identifiable, Sendable {
+    case reading
+    case cataloguing
+    case everything
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .reading: "Reading"
+        case .cataloguing: "Cataloguing"
+        case .everything: "Everything"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .reading: "book"
+        case .cataloguing: "tray.full"
+        case .everything: "rectangle.split.3x1"
+        }
+    }
+
+    var help: String {
+        switch self {
+        case .reading: "Library, preview and reader — a clean reading desk"
+        case .cataloguing: "Library, preview, inspector and the workflow bar"
+        case .everything: "Every pane and every toolbar button"
+        }
+    }
+
+    var panes: PaneVisibilityPlan {
+        switch self {
+        case .reading:
+            PaneVisibilityPlan(
+                showSidebar: true, showInspector: false,
+                showLibraryPane: true, showPreviewPane: true,
+                showReaderPane: true, showChatPane: false
+            )
+        case .cataloguing:
+            PaneVisibilityPlan(
+                showSidebar: true, showInspector: true,
+                showLibraryPane: true, showPreviewPane: true,
+                showReaderPane: false, showChatPane: false
+            )
+        case .everything:
+            PaneVisibilityPlan(
+                showSidebar: true, showInspector: true,
+                showLibraryPane: true, showPreviewPane: true,
+                showReaderPane: true, showChatPane: true
+            )
+        }
+    }
+
+    /// The workflow bar rides with Cataloguing — that is what cataloguing is.
+    var showsWorkflowBar: Bool { self == .cataloguing }
+
+    var toolbar: ToolbarVisibilityPlan {
+        switch self {
+        case .reading: .minimal
+        case .cataloguing, .everything: .everything
+        }
+    }
+
+    /// Whether the window is currently arranged exactly this way — drives the
+    /// menu's checkmark. Compares only what the built-in decides.
+    func matches(
+        panes current: PaneVisibilityPlan,
+        toolbar currentToolbar: ToolbarVisibilityPlan,
+        workflowBar: Bool
+    ) -> Bool {
+        panes == current && toolbar == currentToolbar && showsWorkflowBar == workflowBar
     }
 }
 

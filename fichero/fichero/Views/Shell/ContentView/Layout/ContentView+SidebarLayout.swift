@@ -19,15 +19,12 @@ extension ContentView {
         max(contentWidth, 600)
     }
 
-    // MARK: - Pane Focus Indicator
-
-    /// Returns a view that shows an accent-colored border when the given pane has keyboard focus,
-    /// then fades out after a brief moment (like Tinderbox's focus highlight).
-    func paneFocusIndicator(for pane: PaneFocus) -> some View {
-        // Reads the HINT, not FocusState — see paneFocusHint's doc comment.
-        FadingFocusBorder(isActive: paneFocusHint == pane)
-            .allowsHitTesting(false)
-    }
+    // NOTE: panes draw NO focus ring (ruling 2026-08-31). The fading accent
+    // border appeared and vanished inconsistently and often framed the wrong
+    // edge, so `FadingFocusBorder` and its `paneFocusIndicator(for:)` helper
+    // were deleted outright. Focus TRACKING stays: `focusedPane` /
+    // `paneFocusHint` still feed `\.focusedPaneKind`, which ⌘A routing and the
+    // focused-command menus depend on. Do not re-add a drawn border here.
 
     // MARK: - Sidebar
 
@@ -60,7 +57,6 @@ extension ContentView {
         // List clips itself but the bottom toolbar strip does not, and its
         // overflow was left painted over the content column after collapse.
         .clipped()
-        .overlay { paneFocusIndicator(for: .sidebar) }
         // Make the sidebar focusable so arrow keys navigate the List.
         // (Removing this broke arrow-key navigation — see #560.)
         .focusable()
@@ -140,7 +136,6 @@ extension ContentView {
             contentWithOptionalModeRail
                 .frame(maxWidth: .infinity)
                 .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .content; paneFocusHint = .content })
-                .overlay { paneFocusIndicator(for: .content) }
         } else {
             // Folders now show the current layout so the WebKit/reading
             // pane remains visible for folder-level aggregate content (#1405).
@@ -156,13 +151,11 @@ extension ContentView {
                         contentWithOptionalModeRail
                             .frame(maxWidth: .infinity)
                             .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .content; paneFocusHint = .content })
-                            .overlay { paneFocusIndicator(for: .content) }
                     } else {
                         // Grid hidden (#616): show only the preview/editor at full width.
                         previewView
                             .frame(maxWidth: .infinity)
                             .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview })
-                            .overlay { paneFocusIndicator(for: .preview) }
                     }
 
                 case .standard:
@@ -171,18 +164,15 @@ extension ContentView {
                             contentWithOptionalModeRail
                                 .frame(minHeight: 150, idealHeight: 180)
                                 .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .content; paneFocusHint = .content })
-                                .overlay { paneFocusIndicator(for: .content) }
 
                             previewView
                                 .frame(minHeight: 400, idealHeight: 720)
-                                .overlay { paneFocusIndicator(for: .preview) }
                         }
                         .frame(maxWidth: .infinity)
                     } else {
                         previewView
                             .frame(maxWidth: .infinity)
                             .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview })
-                            .overlay { paneFocusIndicator(for: .preview) }
                     }
 
                 case .widescreen:

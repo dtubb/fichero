@@ -310,6 +310,12 @@ extension LibraryView {
                 recomputeFiltered()
             }
             .onChange(of: showFilterBar) { _, shown in filterBarVisibilityChanged(shown) }
+            // The Show control's narrowing half (2026-08-31). Its TIER half
+            // arrives through documentStore.revision when the engine answers
+            // with the other tier; the narrowing changes nothing server-side,
+            // so it has to re-run the filter itself or Regions/Extracted Data
+            // would only take effect at the next refresh.
+            .onChange(of: showKindRaw) { _, _ in recomputeFiltered() }
             .onReceive(processingPollTimer) { _ in
                 guard shouldUseProcessingPollFallback else { return }
                 refreshPendingStatusesFromLiveUpdate()

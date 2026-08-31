@@ -18,11 +18,14 @@ import SwiftUI
 ///    it retries (#3986-B). So "loaded" means confirmed, never "we have not
 ///    looked yet". Presenting onboarding during load would be the same bug
 ///    wearing a better gate: an absence read as an answer.
-/// 2. **Nothing is in it but the Inbox.** `ensureInboxFolder` runs on every
-///    successful load, so a freshly created library ALWAYS has one root folder.
-///    `collections.isEmpty` is therefore never true for a loaded library, and
-///    gating on it would mean the sheet never presents at all — a silent no-op
-///    dressed as a fix.
+/// 2. **Nothing is in it but (at most) a leftover Inbox.** A new library is
+///    now genuinely empty: NOTHING creates an Inbox any more (ruling
+///    2026-08-31), so `allSatisfy` is vacuously true on its zero roots. The
+///    Inbox clause stays only for libraries created BEFORE that ruling, which
+///    still carry the empty folder they were seeded with — their one root must
+///    not read as "has content", or those users would never see onboarding.
+///    That is why this is an `allSatisfy` and not an `isEmpty`; it can become
+///    one once no library in the wild carries a seeded Inbox.
 func libraryIsLoadedAndEmpty(isLoaded: Bool, rootCollections: [Document]) -> Bool {
     guard isLoaded else { return false }
     return rootCollections.allSatisfy { document in
