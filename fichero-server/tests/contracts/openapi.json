@@ -22439,6 +22439,16 @@
               "nullable": true,
               "title": "Artifact Id"
             }
+          },
+          {
+            "name": "compare_types",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Compare Types"
+            }
           }
         ],
         "responses": {
@@ -27686,6 +27696,60 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ChainCancelResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/chains/{chain_id}/execute-steps": {
+      "post": {
+        "tags": [
+          "chains",
+          "chains"
+        ],
+        "summary": "Execute Chain Steps",
+        "description": "Run a chain's steps as real, sequential workflow runs (workflow bar).\n\n202 with a pre-assigned thread id per step; poll\nGET /chains/executions/{execution_id} for per-step statuses, or attach to\nany step's SSE stream_url as it runs.",
+        "operationId": "execute_chain_steps_api_chains__chain_id__execute_steps_post",
+        "parameters": [
+          {
+            "name": "chain_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Chain Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExecuteChainStepsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChainStepsAcceptedResponse"
                 }
               }
             }
@@ -38825,6 +38889,18 @@
             "type": "integer",
             "title": "Timeout Seconds",
             "default": 300
+          },
+          "provider_override": {
+            "type": "string",
+            "nullable": true,
+            "title": "Provider Override",
+            "description": "Provider override for this step's run"
+          },
+          "model_override": {
+            "type": "string",
+            "nullable": true,
+            "title": "Model Override",
+            "description": "Model override for this step's run"
           }
         },
         "type": "object",
@@ -38876,6 +38952,18 @@
             "type": "integer",
             "title": "Timeout Seconds",
             "default": 300
+          },
+          "provider_override": {
+            "type": "string",
+            "nullable": true,
+            "title": "Provider Override",
+            "description": "Provider override for this step's run"
+          },
+          "model_override": {
+            "type": "string",
+            "nullable": true,
+            "title": "Model Override",
+            "description": "Model override for this step's run"
           }
         },
         "type": "object",
@@ -38920,6 +39008,72 @@
           "duration_ms"
         ],
         "title": "ChainStepResultInfo"
+      },
+      "ChainStepThreadInfo": {
+        "properties": {
+          "step_id": {
+            "type": "string",
+            "title": "Step Id"
+          },
+          "workflow_id": {
+            "type": "string",
+            "title": "Workflow Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          },
+          "thread_id": {
+            "type": "string",
+            "title": "Thread Id"
+          },
+          "stream_url": {
+            "type": "string",
+            "title": "Stream Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "step_id",
+          "workflow_id",
+          "thread_id",
+          "stream_url"
+        ],
+        "title": "ChainStepThreadInfo",
+        "description": "One chain step's pre-assigned workflow-run identity."
+      },
+      "ChainStepsAcceptedResponse": {
+        "properties": {
+          "execution_id": {
+            "type": "string",
+            "title": "Execution Id"
+          },
+          "chain_id": {
+            "type": "string",
+            "title": "Chain Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/ChainStepThreadInfo"
+            },
+            "type": "array",
+            "title": "Steps"
+          }
+        },
+        "type": "object",
+        "required": [
+          "execution_id",
+          "chain_id",
+          "status",
+          "steps"
+        ],
+        "title": "ChainStepsAcceptedResponse",
+        "description": "202 body for POST /chains/{chain_id}/execute-steps.\n\nThread ids are assigned up front so a client can watch any step's run\n(SSE stream, Activity trace) the moment it starts."
       },
       "CharacterRange": {
         "properties": {
@@ -46417,6 +46571,19 @@
         "type": "object",
         "title": "ExecuteChainRequest",
         "description": "Request to execute a workflow chain."
+      },
+      "ExecuteChainStepsRequest": {
+        "properties": {
+          "inputs": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Inputs",
+            "description": "Free-form JSON run inputs shared by every step (frozen selection, user context, hints). Each step merges its static_inputs on top. Values stay workflow-defined and are not coerced."
+          }
+        },
+        "type": "object",
+        "title": "ExecuteChainStepsRequest",
+        "description": "Request to run a chain's steps as real, sequential workflow runs.\n\nThe workflow bar's staged chain rides this (2026-08-30): every step is a\nfull workflow execution \u2014 thread id, SSE stream, activity record \u2014 with\nthe SAME frozen inputs (the selection the user pressed play on), plus the\nstep's own static_inputs merged on top."
       },
       "ExecuteWorkflowRequest": {
         "properties": {
