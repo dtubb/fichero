@@ -6,8 +6,8 @@ documentation site are both built from them.
 
 ## Where the words live
 
-- **User Guide chapters:** `docs/user/guide/NN-slug.md` — one chapter per
-  file, ordered by the `NN-` prefix, each starting with a single `# Title`.
+- **User Guide chapters:** `docs/user/guide/` — one chapter per file,
+  named `NN-slug` with an `.md` extension, ordered by the `NN-` prefix, each starting with a single `# Title`.
 - **Contributor pages:** `docs/contributor/*.md`.
 - **Images:** `docs/assets/users/` (user guide) and
   `docs/assets/contributor/`, referenced page-relative, e.g.

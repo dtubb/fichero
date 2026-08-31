@@ -93,7 +93,6 @@ enum WorkflowRunInputs {
     }
 }
 
-
 /// Transient window-chrome UX state, boxed off ContentView's value (see the
 /// ViewValueSizeTests ceiling): the Save Workspace prompt and the compare
 /// fan-out's cost/progress. One reference on the view; mutations observe.
