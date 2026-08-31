@@ -6,7 +6,9 @@ Provides endpoints for managing and executing workflow chains.
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import threading
 import uuid
 from typing import Any, Callable
 
@@ -18,9 +20,11 @@ from fichero_server.execution.chaining import (
     ChainStep,
     OutputMapping,
     ChainStepCondition,
+    ChainEventType,
     ChainExecutor,
     ChainExecutionResult,
     ChainProgressEvent,
+    ChainStepResult,
     ChainStepStatus,
     chain_store,
 )
@@ -75,6 +79,12 @@ class ChainStepRequest(BaseModel):
     condition: ChainStepConditionRequest | None = None
     continue_on_error: bool = False
     timeout_seconds: int = 300
+    provider_override: str | None = Field(
+        default=None, description="Provider override for this step's run"
+    )
+    model_override: str | None = Field(
+        default=None, description="Model override for this step's run"
+    )
 
 
 class ChainStepResponse(BaseModel):
@@ -94,6 +104,12 @@ class ChainStepResponse(BaseModel):
     condition: ChainStepConditionRequest | None = None
     continue_on_error: bool = False
     timeout_seconds: int = 300
+    provider_override: str | None = Field(
+        default=None, description="Provider override for this step's run"
+    )
+    model_override: str | None = Field(
+        default=None, description="Model override for this step's run"
+    )
 
 
 class CreateChainRequest(BaseModel):
@@ -223,6 +239,48 @@ class ChainCancelResponse(BaseModel):
     cancelled: bool
     execution_id: str
     message: str | None = None
+
+
+class ExecuteChainStepsRequest(BaseModel):
+    """Request to run a chain's steps as real, sequential workflow runs.
+
+    The workflow bar's staged chain rides this (2026-08-30): every step is a
+    full workflow execution — thread id, SSE stream, activity record — with
+    the SAME frozen inputs (the selection the user pressed play on), plus the
+    step's own static_inputs merged on top.
+    """
+
+    inputs: dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "Free-form JSON run inputs shared by every step (frozen selection, "
+            "user context, hints). Each step merges its static_inputs on top. "
+            "Values stay workflow-defined and are not coerced."
+        ),
+    )
+
+
+class ChainStepThreadInfo(BaseModel):
+    """One chain step's pre-assigned workflow-run identity."""
+
+    step_id: str
+    workflow_id: str
+    name: str = ""
+    thread_id: str
+    stream_url: str
+
+
+class ChainStepsAcceptedResponse(BaseModel):
+    """202 body for POST /chains/{chain_id}/execute-steps.
+
+    Thread ids are assigned up front so a client can watch any step's run
+    (SSE stream, Activity trace) the moment it starts.
+    """
+
+    execution_id: str
+    chain_id: str
+    status: str
+    steps: list[ChainStepThreadInfo]
 
 
 class PaleographyPresetResponse(BaseModel):
@@ -466,6 +524,8 @@ async def create_chain(request: CreateChainRequest) -> ChainResponse:
                 condition=condition,
                 continue_on_error=step_req.continue_on_error,
                 timeout_seconds=step_req.timeout_seconds,
+                provider_override=step_req.provider_override,
+                model_override=step_req.model_override,
             )
         )
 
@@ -544,6 +604,8 @@ async def update_chain(chain_id: str, request: UpdateChainRequest) -> ChainRespo
                     condition=condition,
                     continue_on_error=step_req.continue_on_error,
                     timeout_seconds=step_req.timeout_seconds,
+                    provider_override=step_req.provider_override,
+                    model_override=step_req.model_override,
                 )
             )
         chain.steps = steps
@@ -745,6 +807,414 @@ async def cancel_chain_execution(execution_id: str) -> ChainCancelResponse:
 
 
 # =============================================================================
+# Step-wise Chain Execution (workflow bar, 2026-08-30)
+# =============================================================================
+#
+# The legacy /execute endpoint runs a chain through the standalone
+# ChainExecutor/WorkflowExecutor path: no thread ids, no SSE, no activity
+# records, no per-step model overrides. The workflow bar's staged chain needs
+# each step to be a REAL workflow run — the same machinery as
+# /api/workflow-execution/execute — so /execute-steps runs the chain's steps
+# IN LIST ORDER, one full workflow execution per step, sequential because
+# step N+1 reads what step N wrote, stopping on failure unless the step says
+# continue_on_error. Conditions/entry_step/output-mappings are the legacy
+# executor's graph semantics and are deliberately NOT honored here.
+
+# Runner threads by execution id — lets tests join deterministically, and a
+# debugger see which chain owns which thread.
+_running_step_threads: dict[str, threading.Thread] = {}
+
+
+class _ChainStepsCanceller:
+    """Cancel flag checked between steps; registered in _running_executors so
+    the existing DELETE /executions/{id} endpoint cancels this path too."""
+
+    def __init__(self) -> None:
+        self._cancelled = False
+
+    def cancel(self) -> None:
+        self._cancelled = True
+
+    @property
+    def cancelled(self) -> bool:
+        return self._cancelled
+
+
+# Passthrough seams (same pattern as chaining.py's WorkflowExecutor, #3950):
+# deferred imports kept as MODULE attributes so tests can patch
+# `fichero_server.api.routes.workflow.chains.<name>` and the call sites
+# resolve the patched global.
+
+
+def _acquire_chain_db(library_path: str):
+    """This worker thread's Database for the library (thread-keyed, #1000)."""
+    return db_manager.get_database(library_path)
+
+
+def _load_step_workflow(db, workflow_id: str):
+    """Load the step's Workflow model: this library first, then a shipped
+    DEFAULT (#4450/#4139) — same resolution as /workflow-execution/execute."""
+    from fichero_server.workflows.default_workflows import (  # noqa: PLC0415
+        resolve_default_workflow,
+    )
+
+    return WorkflowStore(db).get(workflow_id) or resolve_default_workflow(workflow_id)
+
+
+def _validate_step_workflow(workflow, request, db) -> None:
+    """Same preflight as a direct run — including run-eligibility of the
+    step's provider/model override (#3804)."""
+    from fichero_server.api.routes.workflow_execution.core import (  # noqa: PLC0415
+        _validate_workflow_for_execution,
+    )
+
+    _validate_workflow_for_execution(workflow, request, db)
+
+
+async def _record_step_run_accepted(db, thread_id: str, workflow, request) -> None:
+    """The same activity row a direct run writes at accept time."""
+    from fichero_server.workflows.activity import get_activity_tracker  # noqa: PLC0415
+
+    await get_activity_tracker(str(db.path)).store.save_workflow_run(
+        thread_id=thread_id,
+        workflow_id=request.workflow_id,
+        workflow_name=workflow.name,
+        status="accepted",
+        workflow_snapshot={
+            "nodes": workflow.nodes,
+            "edges": workflow.edges,
+            "inputs": request.inputs,
+        },
+    )
+
+
+async def _run_step_workflow(*, thread_id: str, workflow, request, db) -> None:
+    """Passthrough to the REAL background runner — SSE events, pause/cancel,
+    caches, document finalization — exactly as a direct run gets."""
+    from fichero_server.execution.runner import (  # noqa: PLC0415
+        _run_workflow_in_background,
+    )
+
+    await _run_workflow_in_background(
+        thread_id=thread_id, workflow=workflow, request=request, db=db
+    )
+
+
+def _step_run_outcome(thread_id: str) -> tuple[str, str | None]:
+    """(status, error) the run settled with, read from the workflow state the
+    runner maintains ('completed' / 'failed' / 'cancelled')."""
+    from fichero_server.execution.runner import _get_workflow_state  # noqa: PLC0415
+
+    state = _get_workflow_state(thread_id) or {}
+    error = state.get("error")
+    return state.get("status", "failed"), str(error) if error else None
+
+
+def _set_step_result(
+    result: ChainExecutionResult,
+    index: int,
+    step: ChainStep,
+    status: ChainStepStatus,
+    error: str | None = None,
+) -> None:
+    """Replace one step's result IN PLACE in the tracked execution, so a
+    status poll mid-run reports exactly the steps that have settled."""
+    updated = list(result.step_results)
+    updated[index] = ChainStepResult(
+        step_id=step.id,
+        workflow_id=step.workflow_id,
+        status=status,
+        error=error,
+    )
+    result.step_results = updated
+
+
+def _emit_step_event(
+    execution_id: str,
+    chain: WorkflowChain,
+    event_type: ChainEventType,
+    step: ChainStep | None = None,
+    step_index: int | None = None,
+    message: str = "",
+    error: str | None = None,
+) -> None:
+    total = len(chain.steps) or 1
+    done = (step_index + 1) if step_index is not None else 0
+    _on_chain_event(
+        ChainProgressEvent(
+            event_type=event_type,
+            chain_id=chain.id,
+            execution_id=execution_id,
+            step_id=step.id if step else None,
+            step_index=step_index,
+            total_steps=len(chain.steps),
+            message=message,
+            error=error,
+            progress=min(1.0, done / total),
+        )
+    )
+
+
+async def _run_chain_steps(
+    execution_id: str,
+    chain: WorkflowChain,
+    step_threads: list[tuple[ChainStep, str]],
+    inputs: dict[str, Any],
+    library_path: str,
+    canceller: _ChainStepsCanceller,
+) -> None:
+    """Run the chain's steps sequentially through the real workflow runner."""
+    from fichero_server.api.routes.workflow_execution.schemas import (  # noqa: PLC0415
+        ExecuteWorkflowRequest,
+    )
+    from fichero_server.core.timeutil import utc_now  # noqa: PLC0415
+
+    result = _running_executions[execution_id]
+    result.started_at = utc_now()
+    failed = False
+    _emit_step_event(
+        execution_id,
+        chain,
+        ChainEventType.CHAIN_STARTED,
+        message=f"Starting chain '{chain.name}' with {len(chain.steps)} steps",
+    )
+
+    db = _acquire_chain_db(library_path)
+    for index, (step, thread_id) in enumerate(step_threads):
+        if failed or canceller.cancelled:
+            # Later chips stay visibly un-run: the rail shows exactly where
+            # the chain stopped, mirroring the client loop it replaces.
+            _set_step_result(result, index, step, ChainStepStatus.SKIPPED)
+            _emit_step_event(
+                execution_id, chain, ChainEventType.STEP_SKIPPED, step, index,
+                message=f"Skipped step '{step.name or step.id}'",
+            )
+            continue
+
+        error: str | None = None
+        workflow = _load_step_workflow(db, step.workflow_id)
+        exec_request = None
+        if workflow is None:
+            error = f"Workflow not found: {step.workflow_id}"
+        else:
+            exec_request = ExecuteWorkflowRequest(
+                workflow_id=step.workflow_id,
+                # The frozen chain inputs ride every step; the step's own
+                # static_inputs win on a key collision.
+                inputs={**inputs, **step.static_inputs},
+                thread_id=thread_id,
+                provider_override=step.provider_override,
+                model_override=step.model_override,
+            )
+            try:
+                _validate_step_workflow(workflow, exec_request, db)
+            except HTTPException as exc:
+                error = str(exc.detail)
+            except Exception as exc:  # pragma: no cover - defensive
+                error = str(exc)
+
+        if error is None:
+            _set_step_result(result, index, step, ChainStepStatus.RUNNING)
+            _emit_step_event(
+                execution_id, chain, ChainEventType.STEP_STARTED, step, index,
+                message=f"Starting step '{step.name or step.id}'",
+            )
+            try:
+                await _record_step_run_accepted(db, thread_id, workflow, exec_request)
+                await _run_step_workflow(
+                    thread_id=thread_id,
+                    workflow=workflow,
+                    request=exec_request,
+                    db=db,
+                )
+            except Exception as exc:
+                logger.exception(f"Chain step run failed: {exc}")
+                error = str(exc)
+            if error is None:
+                status_str, run_error = _step_run_outcome(thread_id)
+                if status_str != "completed" or run_error:
+                    error = run_error or f"Run ended with status: {status_str}"
+
+        if error is None:
+            _set_step_result(result, index, step, ChainStepStatus.COMPLETED)
+            _emit_step_event(
+                execution_id, chain, ChainEventType.STEP_COMPLETED, step, index,
+                message=f"Completed step '{step.name or step.id}'",
+            )
+        else:
+            _set_step_result(result, index, step, ChainStepStatus.FAILED, error)
+            _emit_step_event(
+                execution_id, chain, ChainEventType.STEP_FAILED, step, index,
+                message=f"Step '{step.name or step.id}' failed", error=error,
+            )
+            # The engine owns stop-on-failure: the review pass must not spend
+            # money on the transcription that does not exist.
+            if not step.continue_on_error:
+                failed = True
+
+    if canceller.cancelled or result.status == ChainStepStatus.CANCELLED:
+        result.status = ChainStepStatus.CANCELLED
+        _emit_step_event(
+            execution_id, chain, ChainEventType.CHAIN_CANCELLED,
+            message="Chain execution cancelled",
+        )
+    elif failed:
+        result.status = ChainStepStatus.FAILED
+        _emit_step_event(
+            execution_id, chain, ChainEventType.CHAIN_FAILED,
+            message=f"Chain '{chain.name}' failed",
+        )
+    else:
+        result.status = ChainStepStatus.COMPLETED
+        _emit_step_event(
+            execution_id, chain, ChainEventType.CHAIN_COMPLETED,
+            message=f"Chain '{chain.name}' completed successfully",
+        )
+    result.completed_at = utc_now()
+    if result.started_at:
+        result.total_duration_ms = (
+            result.completed_at - result.started_at
+        ).total_seconds() * 1000
+
+
+def _chain_steps_thread_main(
+    execution_id: str,
+    chain: WorkflowChain,
+    step_threads: list[tuple[ChainStep, str]],
+    inputs: dict[str, Any],
+    library_path: str,
+    canceller: _ChainStepsCanceller,
+) -> None:
+    """Thread entry: own event loop (#1000 — a blocking tool node must never
+    freeze the API loop), settle tracking however the run ends."""
+    try:
+        asyncio.run(
+            _run_chain_steps(
+                execution_id, chain, step_threads, inputs, library_path, canceller
+            )
+        )
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.exception(f"Chain step execution crashed: {exc}")
+        result = _running_executions.get(execution_id)
+        if result is not None and result.status not in (
+            ChainStepStatus.COMPLETED,
+            ChainStepStatus.CANCELLED,
+        ):
+            result.status = ChainStepStatus.FAILED
+    finally:
+        _running_executors.pop(execution_id, None)
+        _running_step_threads.pop(execution_id, None)
+
+
+@router.post(
+    "/{chain_id}/execute-steps",
+    response_model=ChainStepsAcceptedResponse,
+    status_code=202,
+)
+async def execute_chain_steps(
+    chain_id: str,
+    request: ExecuteChainStepsRequest,
+    http_request: Request,
+    x_fichero_library_path: str = Depends(require_library_path),
+) -> ChainStepsAcceptedResponse:
+    """Run a chain's steps as real, sequential workflow runs (workflow bar).
+
+    202 with a pre-assigned thread id per step; poll
+    GET /chains/executions/{execution_id} for per-step statuses, or attach to
+    any step's SSE stream_url as it runs.
+    """
+    chain = chain_store.get(chain_id)
+    if not chain:
+        raise HTTPException(status_code=404, detail=f"Chain not found: {chain_id}")
+    if not chain.steps:
+        raise HTTPException(status_code=400, detail="Chain has no steps to run")
+    assert_library_read_authorized(http_request, x_fichero_library_path)
+
+    # Register per-step workflow state UP FRONT (light import — dict writes
+    # and a hub), so a client can attach to a step's SSE stream before the
+    # step starts and the stream endpoint recognizes the thread.
+    from fichero_server.execution.runner import (  # noqa: PLC0415
+        WorkflowEventHub,
+        _set_workflow_state,
+    )
+
+    execution_id = str(uuid.uuid4())
+    step_threads: list[tuple[ChainStep, str]] = []
+    for step in chain.steps:
+        thread_id = f"thread-{uuid.uuid4().hex[:12]}"
+        step_threads.append((step, thread_id))
+        _set_workflow_state(
+            thread_id,
+            {
+                "workflow_id": step.workflow_id,
+                "workflow_name": step.name or step.workflow_id,
+                "status": "accepted",
+                "events": WorkflowEventHub(),
+                "error": None,
+                "final_state": None,
+            },
+        )
+
+    # Track the execution through the SAME registries the legacy path uses,
+    # so status/cancel endpoints serve both. Status stays PENDING while
+    # running (legacy-compatible: cancel requires it; pollers key on the
+    # terminal statuses). Step results are pre-seeded so a poll lists every
+    # step from the first second.
+    _execution_order.append(execution_id)
+    _evict_old_executions()
+    _execution_events[execution_id] = []
+    tracked = ChainExecutionResult(
+        chain_id=chain_id,
+        execution_id=execution_id,
+        status=ChainStepStatus.PENDING,
+        step_results=[
+            ChainStepResult(
+                step_id=step.id,
+                workflow_id=step.workflow_id,
+                status=ChainStepStatus.PENDING,
+            )
+            for step, _ in step_threads
+        ],
+    )
+    _running_executions[execution_id] = tracked
+    canceller = _ChainStepsCanceller()
+    _running_executors[execution_id] = canceller
+
+    runner = threading.Thread(
+        target=_chain_steps_thread_main,
+        args=(
+            execution_id,
+            chain,
+            step_threads,
+            dict(request.inputs),
+            x_fichero_library_path,
+            canceller,
+        ),
+        name=f"chain-steps-{execution_id[:8]}",
+        daemon=True,
+    )
+    _running_step_threads[execution_id] = runner
+    runner.start()
+
+    base_url = str(http_request.base_url).rstrip("/")
+    return ChainStepsAcceptedResponse(
+        execution_id=execution_id,
+        chain_id=chain_id,
+        status="running",
+        steps=[
+            ChainStepThreadInfo(
+                step_id=step.id,
+                workflow_id=step.workflow_id,
+                name=step.name,
+                thread_id=thread_id,
+                stream_url=f"{base_url}/api/workflow-execution/stream/{thread_id}",
+            )
+            for step, thread_id in step_threads
+        ],
+    )
+
+
+# =============================================================================
 # Helper Functions
 # =============================================================================
 
@@ -778,6 +1248,8 @@ def _chain_to_response(chain: WorkflowChain) -> ChainResponse:
                 else None,
                 continue_on_error=s.continue_on_error,
                 timeout_seconds=s.timeout_seconds,
+                provider_override=s.provider_override,
+                model_override=s.model_override,
             )
             for s in chain.steps
         ],
