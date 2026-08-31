@@ -8,6 +8,7 @@ Pure text-transformation utilities used by process_text() in llm_base.py:
 """
 
 from __future__ import annotations
+from contextvars import ContextVar
 
 import json
 import logging
@@ -383,14 +384,17 @@ def build_thinking_preamble(thinking_mode: str = "off") -> str:
     )
 
 
-from contextvars import ContextVar
-
 # The user's one-line framing for the whole run (Daniel, 2026-08-30: "this
 # is a historical diary" — tell the AI what it is looking at). Set by the
 # execution runner from the run inputs; async-context scoped, so concurrent
 # runs never share it. Every prompt assembled through build_context_section
 # carries it first.
 run_user_context: ContextVar[str | None] = ContextVar("run_user_context", default=None)
+
+# The compare fan-out's group id (Daniel, 2026-08-30 ruling 6): stamped into
+# every artifact this run writes, so the compare view can gather one
+# fan-out's outputs. Same run-scoping as run_user_context.
+run_compare_group: ContextVar[str | None] = ContextVar("run_compare_group", default=None)
 
 
 def build_context_section(

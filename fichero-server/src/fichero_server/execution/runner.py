@@ -1393,6 +1393,12 @@ async def _run_workflow_in_background(
         if user_context:
             from fichero_server.workflows.tools.llm_prompting import run_user_context
             run_user_context.set(user_context[:2000])
+        # Compare fan-out grouping (Daniel, 2026-08-30): the group id rides
+        # every artifact this run writes (llm_base stamps it into data).
+        compare_group = str(request.inputs.get("compare_group") or "").strip()
+        if compare_group:
+            from fichero_server.workflows.tools.llm_prompting import run_compare_group
+            run_compare_group.set(compare_group[:64])
         # "Run it again for real" reaches the graph (2026-08-23). Same lesson
         # as `request.selection` below: a field validated at the boundary and
         # never put into the state is a field that does nothing.
