@@ -172,6 +172,11 @@ struct PreviewMarkupToolsRow: View {
     /// when the window's label mode is on — same switch as the workflow bar.
     var showsLabels = false
 
+    /// Coding v1 (Daniel, 2026-08-30, ruling 4): the chevron menu's "Tag Next
+    /// Highlight…" opens this popover; its comma-separated tags ride the next
+    /// saved highlight / underline / strikethrough / check.
+    @State private var showTagPopover = false
+
     // Order ruled 2026-08-30: text selection FIRST (Preview.app's A|), then
     // marquee, then the rest.
     var body: some View {
@@ -206,6 +211,15 @@ struct PreviewMarkupToolsRow: View {
             NotificationCenter.default.post(
                 name: .previewRegionVerb, object: PreviewRegionVerb.select.rawValue
             )
+        }
+
+        toolButton(
+            icon: PreviewMarkupTool.wordSelect.icon,
+            label: PreviewMarkupTool.wordSelect.label,
+            identifier: "previewMarkupWordSelect",
+            mode: .wordSelect
+        ) {
+            // Sticky mode only — the canvas selects word boxes while armed.
         }
 
         toolButton(
@@ -311,6 +325,8 @@ struct PreviewMarkupToolsRow: View {
                 Divider()
                 styleRow(.underline)
                 styleRow(.strikethrough)
+                Divider()
+                MarkupTagMenuEntries(showTagPopover: $showTagPopover)
             } label: {
                 Image(systemName: "chevron.down")
                     .font(.caption2)
@@ -323,6 +339,7 @@ struct PreviewMarkupToolsRow: View {
             .accessibilityLabel("Highlight color and mode")
             .accessibilityIdentifier("previewMarkupHighlightMenu")
         }
+        .popover(isPresented: $showTagPopover) { MarkupTagPopover() }
     }
 
     private func styleRow(_ style: PreviewHighlightStyle) -> some View {
@@ -366,6 +383,8 @@ struct PreviewHighlightStyleMenu: View {
     @AppStorage(PreviewHighlightStyle.storageKey) private var highlightStyleRaw
         = PreviewHighlightStyle.yellow.rawValue
 
+    @State private var showTagPopover = false
+
     private var current: PreviewHighlightStyle {
         PreviewHighlightStyle(rawValue: highlightStyleRaw) ?? .yellow
     }
@@ -378,6 +397,8 @@ struct PreviewHighlightStyleMenu: View {
             Divider()
             Self.styleRow(.underline, current: current) { highlightStyleRaw = $0.rawValue }
             Self.styleRow(.strikethrough, current: current) { highlightStyleRaw = $0.rawValue }
+            Divider()
+            MarkupTagMenuEntries(showTagPopover: $showTagPopover)
         } label: {
             Image(systemName: "chevron.down")
                 .font(.caption2)
@@ -389,6 +410,7 @@ struct PreviewHighlightStyleMenu: View {
         .help("Highlight color and mode")
         .accessibilityLabel("Highlight color and mode")
         .accessibilityIdentifier("annotationHighlightStyleMenu")
+        .popover(isPresented: $showTagPopover) { MarkupTagPopover() }
     }
 
     static func styleRow(
@@ -414,3 +436,7 @@ struct PreviewHighlightStyleMenu: View {
         .tint(style.tint)
     }
 }
+
+// The tag-entry structs (`MarkupTagMenuEntries` / `MarkupTagPopover`, coding
+// v1, ruling 4) live in AnnotationBar.swift — the annotation bar is the one
+// home for markup verbs; both chevron menus here mount them.

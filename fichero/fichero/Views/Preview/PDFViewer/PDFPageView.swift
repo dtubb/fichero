@@ -56,9 +56,10 @@ struct PDFPageView: NSViewRepresentable {
     /// toolbar's ◀ N/M ▶ cluster can drive and reflect the current page. (#1531)
     var pageController: PDFPageController?
     var onCursorMoved: ((CGPoint) -> Void)?
-    /// Saved bounding-box regions for the current page, normalized `[x,y,w,h]`
-    /// (top-left origin). Rendered as native PDFKit square annotations (#2458).
-    var regionBoxes: [[Double]] = []
+    /// Saved annotations for the current page, normalized top-left-origin
+    /// rects with kind/color/rating. Rendered as native PDFKit annotations,
+    /// per kind (#2458; Daniel, 2026-08-30: markup should look like what it is).
+    var regionMarks: [AnnotationMark] = []
     /// Recognised text regions for the current page (#4418). Rendered as
     /// outline annotations by `applyOCRBoxes`; empty means draw none.
     var ocrBoxes: [OCRGeometryBox] = []
@@ -280,22 +281,22 @@ extension PDFPageView {
             applyRegions(to: view)
         }
 
-        /// Render saved bounding-box regions as native PDFKit square annotations
-        /// on the current page (#2458). PDFKit positions page-coordinate
-        /// annotations correctly at any zoom, so no live view math is needed.
+        /// Render saved annotations as native PDFKit annotations on the
+        /// current page, PER KIND (#2458; Daniel, 2026-08-30) — a highlight
+        /// is a wash in its color, an underline a bar, a check a margin ✓.
+        /// PDFKit positions page-coordinate annotations correctly at any
+        /// zoom, so no live view math is needed.
         func applyRegions(to view: PDFView) {
             guard let page = view.currentPage else { return }
             for existing in page.annotations where existing.userName == Self.regionAnnotationName {
                 page.removeAnnotation(existing)
             }
             let pageSize = page.bounds(for: .mediaBox).size
-            for box in owner.regionBoxes {
-                guard let rect = PDFRegionGeometry.pageRect(normalized: box, pageSize: pageSize) else { continue }
-                let annotation = PDFAnnotation(bounds: rect, forType: .square, withProperties: nil)
-                annotation.color = NSColor.controlAccentColor
-                annotation.interiorColor = NSColor.controlAccentColor.withAlphaComponent(0.12)
-                annotation.userName = Self.regionAnnotationName
-                page.addAnnotation(annotation)
+            for mark in owner.regionMarks {
+                for annotation in PDFAnnotationMarkRendering.annotations(for: mark, pageSize: pageSize) {
+                    annotation.userName = Self.regionAnnotationName
+                    page.addAnnotation(annotation)
+                }
             }
         }
 
@@ -585,7 +586,7 @@ struct PDFPageView: UIViewRepresentable {
     // API parity with macOS so the shared PDFPageWithToolbar call site compiles.
     // Region annotation rendering/creation is the macOS reader surface for
     // #2458; the iOS remote client renders text + page-scoped notes only.
-    var regionBoxes: [[Double]] = []
+    var regionMarks: [AnnotationMark] = []
     /// API parity for the shared call site (#4418); the iOS remote client does
     /// not render text-region annotations.
     var ocrBoxes: [OCRGeometryBox] = []

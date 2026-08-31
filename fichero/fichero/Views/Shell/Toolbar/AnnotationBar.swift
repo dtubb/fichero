@@ -35,12 +35,67 @@ struct AnnotationBar: View {
     }
 }
 
+// MARK: - Coding v1 (Daniel, 2026-08-30, ruling 4)
+
+/// The highlight chevron menus' tag entries: "Tag Next Highlight…" opens the
+/// popover; while tags are pending, a second entry shows them and clears.
+struct MarkupTagMenuEntries: View {
+    @Binding var showTagPopover: Bool
+    @Environment(WindowState.self) private var windowState: WindowState?
+
+    var body: some View {
+        Button("Tag Next Highlight…") { showTagPopover = true }
+        if let windowState, !windowState.pendingMarkupTags.isEmpty {
+            Button("Clear Pending Tags (\(windowState.pendingMarkupTags.joined(separator: ", ")))") {
+                windowState.pendingMarkupTags = []
+            }
+        }
+    }
+}
+
+/// Comma-separated tag entry. The parsed tags land on
+/// `WindowState.pendingMarkupTags` and ride the NEXT saved highlight /
+/// underline / strikethrough / check (`addNote(tags:)`), then clear.
+struct MarkupTagPopover: View {
+    @Environment(WindowState.self) private var windowState: WindowState?
+    @Environment(\.dismiss) private var dismiss
+    @State private var text = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Tags for the next highlight")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            TextField("code, theme, follow-up", text: $text)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 220)
+                .onSubmit(apply)
+                .accessibilityIdentifier("markupTagField")
+            HStack {
+                Spacer()
+                Button("Apply", action: apply)
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(12)
+        .onAppear { text = windowState?.pendingMarkupTags.joined(separator: ", ") ?? "" }
+    }
+
+    private func apply() {
+        windowState?.pendingMarkupTags = AnnotationTagParsing.parse(text)
+        dismiss()
+    }
+}
+
 /// Applies the bar's highlight/underline/strikethrough to the READER's live
 /// text selection as a char-span annotation (Daniel, 2026-08-30: "we can
 /// highlight in reader… even in an artifact or a content"). The selection
 /// arrives on the same seam the native readers and the WebKit bridge post.
 private struct ReaderMarkupApplier: View {
     @Environment(AnnotationStore.self) private var annotationStore: AnnotationStore?
+    /// Coding v1 (Daniel, 2026-08-30, ruling 4): pending tags ride the next
+    /// highlight-family save here too — the reader is a markup surface.
+    @Environment(WindowState.self) private var windowState: WindowState?
 
     @State private var selectionDocumentId: String?
     @State private var selectionRange: Range<Int>?
@@ -76,6 +131,7 @@ private struct ReaderMarkupApplier: View {
                 default: .highlight
                 }
                 let color = kind == .highlight ? style?.persistedColor : nil
+                let tags = windowState?.takePendingMarkupTags() ?? []
                 Task {
                     _ = await annotationStore.addNote(
                         scope: .document(docId),
@@ -83,7 +139,8 @@ private struct ReaderMarkupApplier: View {
                         charStart: range.lowerBound,
                         charEnd: range.upperBound,
                         kind: kind,
-                        color: color
+                        color: color,
+                        tags: tags
                     )
                 }
             }

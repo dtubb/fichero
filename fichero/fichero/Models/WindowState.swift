@@ -71,6 +71,22 @@ class WindowState {
     /// it for behaviour and cursor. Per-window, like the marquee seam.
     var activeMarkupTool: PreviewMarkupTool?
 
+    /// Coding v1 (Daniel, 2026-08-30, ruling 4): comma-separated tags entered
+    /// via the highlight menu's "Tag Next Highlight…" ride the NEXT saved
+    /// highlight / underline / strikethrough / check, then clear — one-shot,
+    /// per-window like the armed tool. Canvases consume via
+    /// `takePendingMarkupTags()` at the save site.
+    var pendingMarkupTags: [String] = []
+
+    /// One-shot read of `pendingMarkupTags`: returns them and clears, so a
+    /// multi-strip save (word-snapped highlight) tags every strip of ONE
+    /// gesture but never the next gesture.
+    func takePendingMarkupTags() -> [String] {
+        let tags = pendingMarkupTags
+        pendingMarkupTags = []
+        return tags
+    }
+
     init(libraryId: UUID) {
         self.libraryId = libraryId
     }

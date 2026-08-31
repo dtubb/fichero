@@ -42,19 +42,19 @@ enum AnnotationWordSnap {
         return runs.map(union).sorted { $0[1] != $1[1] ? $0[1] < $1[1] : $0[0] < $1[0] }
     }
 
-    static func intersects(_ a: [Double], _ b: [Double]) -> Bool {
-        guard a.count >= 4, b.count >= 4 else { return false }
-        return a[0] < b[0] + b[2] && b[0] < a[0] + a[2]
-            && a[1] < b[1] + b[3] && b[1] < a[1] + a[3]
+    static func intersects(_ lhs: [Double], _ rhs: [Double]) -> Bool {
+        guard lhs.count >= 4, rhs.count >= 4 else { return false }
+        return lhs[0] < rhs[0] + rhs[2] && rhs[0] < lhs[0] + lhs[2]
+            && lhs[1] < rhs[1] + rhs[3] && rhs[1] < lhs[1] + lhs[3]
     }
 
     /// Fraction of the smaller height shared vertically — the "same line" test.
-    static func verticalOverlap(_ a: [Double], _ b: [Double]) -> Double {
-        guard a.count >= 4, b.count >= 4 else { return 0 }
-        let top = max(a[1], b[1])
-        let bottom = min(a[1] + a[3], b[1] + b[3])
+    static func verticalOverlap(_ lhs: [Double], _ rhs: [Double]) -> Double {
+        guard lhs.count >= 4, rhs.count >= 4 else { return 0 }
+        let top = max(lhs[1], rhs[1])
+        let bottom = min(lhs[1] + lhs[3], rhs[1] + rhs[3])
         let overlap = bottom - top
-        let minHeight = min(a[3], b[3])
+        let minHeight = min(lhs[3], rhs[3])
         guard overlap > 0, minHeight > 0 else { return 0 }
         return overlap / minHeight
     }
