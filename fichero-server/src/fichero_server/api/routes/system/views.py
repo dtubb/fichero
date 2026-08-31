@@ -103,6 +103,33 @@ def region_cohort(regions: list[Document], anchor: Document) -> list[Document]:
 TABLE_ARTIFACT_TYPES = frozenset({"table"})
 
 
+def markup_render_payload(artifact: Artifact) -> dict[str, str] | None:
+    """SVG/HTML artifacts render as themselves in the ARTIFACT view (Daniel,
+    2026-08-30: "render in the reader csv or html or svg or whatever").
+
+    Detection is honest: the declared type when a producer names one, else a
+    content sniff — a converter's output should not need a registry change to
+    display. Safety is by construction, decided HERE and enforced by the
+    template: SVG travels as a data-URI ``<img>`` (no script can execute in
+    an image context) and HTML as a fully sandboxed ``<iframe srcdoc>``
+    (empty sandbox = no scripts, no navigation). Nothing is ever inlined
+    into the page's own DOM.
+    """
+    import base64
+
+    content = (artifact.content or "").strip()
+    if not content:
+        return None
+    kind = (artifact.artifact_type or "").lower()
+    head = content[:512].lstrip().lower()
+    if kind == "svg" or head.startswith("<svg") or head.startswith("<?xml") and "<svg" in head:
+        encoded = base64.b64encode(content.encode("utf-8")).decode("ascii")
+        return {"type": "svg", "data_uri": f"data:image/svg+xml;base64,{encoded}"}
+    if kind == "html" or head.startswith("<!doctype html") or head.startswith("<html"):
+        return {"type": "html", "srcdoc": content}
+    return None
+
+
 def table_payload(artifact: Artifact) -> dict[str, object] | None:
     """Parse a table artifact into ``{"headers": [...]|None, "rows": [[...]]}``.
 
@@ -277,6 +304,7 @@ def artifact_pages(
     unit tests.
     """
     table = table_payload(artifact) if artifact.artifact_type in TABLE_ARTIFACT_TYPES else None
+    markup = markup_render_payload(artifact)
     content = artifact.content or ""
     has_content = bool(content.strip()) or table is not None
     owner = str(artifact.document_id)
@@ -291,6 +319,8 @@ def artifact_pages(
         }
         if table is not None:
             entry["table"] = table
+        if markup is not None:
+            entry["markup_render"] = markup
         return [entry]
     result: list[dict[str, object]] = []
     for page in pages:
@@ -298,6 +328,8 @@ def artifact_pages(
             entry = {**page, "content": content, "has_content": has_content}
             if table is not None:
                 entry["table"] = table
+            if markup is not None:
+                entry["markup_render"] = markup
         else:
             entry = {**page, "content": "", "has_content": False}
         result.append(entry)

@@ -1270,3 +1270,49 @@ class TestCompareRepresentation:
         assert 'mark class="diff-ins"' in template
         assert 'mark class="diff-del"' in template
         assert "const text = escapeHtml(word);" in template
+
+
+class TestMarkupRenderPayload:
+    """SVG/HTML artifacts render as themselves (Daniel, 2026-08-30: "render
+    in the reader csv or html or svg or whatever") — safety by construction:
+    SVG becomes a data-URI image, HTML a sandboxed iframe payload."""
+
+    def test_svg_by_type_and_by_sniff(self):
+        import base64
+        from fichero_server.api.routes.system.views import markup_render_payload
+        from fichero_server.models import Artifact
+
+        svg = '<svg xmlns="http://www.w3.org/2000/svg"><rect width="4" height="4"/></svg>'
+        for artifact in (
+            Artifact(document_id="p1", artifact_type="svg", content=svg),
+            Artifact(document_id="p1", artifact_type="conversion", content=svg),
+        ):
+            render = markup_render_payload(artifact)
+            assert render["type"] == "svg"
+            decoded = base64.b64decode(render["data_uri"].split(",", 1)[1]).decode()
+            assert decoded == svg
+
+    def test_html_sniff_and_plain_text_passthrough(self):
+        from fichero_server.api.routes.system.views import markup_render_payload
+        from fichero_server.models import Artifact
+
+        html = "<!DOCTYPE html><html><body><b>hi</b></body></html>"
+        render = markup_render_payload(
+            Artifact(document_id="p1", artifact_type="html", content=html)
+        )
+        assert render == {"type": "html", "srcdoc": html}
+        # Prose stays prose — no render payload.
+        assert markup_render_payload(
+            Artifact(document_id="p1", artifact_type="translation", content="hola")
+        ) is None
+
+    def test_artifact_view_carries_the_render(self):
+        from fichero_server.api.routes.system.views import artifact_pages
+        from fichero_server.models import Artifact
+
+        svg = '<svg xmlns="http://www.w3.org/2000/svg"/>'
+        artifact = Artifact(document_id="p1", artifact_type="svg", content=svg)
+        pages = [{"id": "p1", "number": 1, "label": "Page 1", "content": "live", "has_content": True}]
+        result = artifact_pages(pages, artifact)
+        assert result[0]["markup_render"]["type"] == "svg"
+        assert result[0]["has_content"] is True
