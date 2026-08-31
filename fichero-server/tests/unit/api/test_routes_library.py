@@ -71,12 +71,9 @@ def test_create_library_creates_package_and_db(tmp_path: Path) -> None:
     assert (target / "vectors").is_dir()
     assert (target / "fichero.duckdb").exists()
 
+    # A NEW library opens EMPTY (ruling 2026-08-31) — no seeded Inbox.
     db = db_manager.get_database(target)
-    inboxes = _root_inboxes(db)
-    assert len(inboxes) == 1
-    assert inboxes[0].name == "Inbox"
-    assert inboxes[0].doc_type == DocType.folder
-    assert inboxes[0].parent_id is None
+    assert _root_inboxes(db) == []
 
 
 def test_create_library_is_idempotent(tmp_path: Path) -> None:
@@ -95,7 +92,7 @@ def test_create_library_is_idempotent(tmp_path: Path) -> None:
     assert body["tables_initialized"] is True
 
     db = db_manager.get_database(target)
-    assert len(_root_inboxes(db)) == 1
+    assert _root_inboxes(db) == []
 
 
 def test_create_library_rejects_non_allowlist_path(tmp_path: Path) -> None:
@@ -124,16 +121,16 @@ def test_create_library_initializes_schema_for_immediate_query(
     """After create, the DB has the Document table and is queryable.
 
     Proves ``tables_initialized: true`` isn't a lie — a CLI caller can
-    immediately list documents without "table not found" errors, and
-    the bootstrap Inbox is present.
+    immediately list documents without "table not found" errors — against a
+    library that starts genuinely EMPTY (ruling 2026-08-31: no seeded Inbox).
     """
     target = tmp_path / "queryable.fichero"
     response = _client().post("/api/library", json={"path": str(target)})
     assert response.status_code == 200
 
     db = db_manager.get_database(target)
-    assert db.count(Document) == 1
-    assert len(_root_inboxes(db)) == 1
+    assert db.count(Document) == 0
+    assert _root_inboxes(db) == []
 
 
 def test_create_library_closes_stale_cached_connection_after_recreate(
@@ -157,10 +154,10 @@ def test_create_library_closes_stale_cached_connection_after_recreate(
     assert response.status_code == 200
 
     stale_db = db_manager.get_database(target)
-    assert len(_root_inboxes(stale_db)) == 1
+    assert _root_inboxes(stale_db) == []
     stale_doc = Document(name="stale", path="/stale")
     stale_db.save(stale_doc)
-    assert stale_db.count(Document) == 2
+    assert stale_db.count(Document) == 1
 
     shutil.rmtree(target)
     response = client.post("/api/library", json={"path": str(target)})
@@ -168,26 +165,30 @@ def test_create_library_closes_stale_cached_connection_after_recreate(
     assert response.json()["created"] is True
 
     current_db = db_manager.get_database(target)
-    assert len(_root_inboxes(current_db)) == 1
+    assert _root_inboxes(current_db) == []
     current_doc = Document(name="current", path="/current")
     current_db.save(current_doc)
-    assert current_db.count(Document) == 2
+    assert current_db.count(Document) == 1
     assert current_db.get(Document, stale_doc.id) is None
 
     fresh_db = Database(target / "fichero.duckdb")
     try:
         assert fresh_db.get(Document, current_doc.id) is not None
         assert fresh_db.get(Document, stale_doc.id) is None
-        assert len(_root_inboxes(fresh_db)) == 1
+        assert _root_inboxes(fresh_db) == []
     finally:
         fresh_db.close()
 
 
-def test_open_library_seeds_missing_inbox_once_without_data_loss(
-    tmp_path: Path,
-) -> None:
-    """Existing libraries missing Inbox heal on open and keep other documents."""
-    target = tmp_path / "legacy-no-inbox.fichero"
+def test_deleted_inbox_stays_deleted_across_reopen(tmp_path: Path) -> None:
+    """A deleted Inbox must NOT come back on open (ruling 2026-08-31).
+
+    Open used to re-seed it, so a user who deleted the Inbox got it back every
+    single time they reopened the library. Nothing re-creates it now — and a
+    root folder named "Inbox" is ordinary user content, so deleting it is not
+    refused either. Other documents are untouched throughout.
+    """
+    target = tmp_path / "deleted-inbox.fichero"
     client = _client()
 
     response = client.post("/api/library", json={"path": str(target)})
@@ -196,32 +197,31 @@ def test_open_library_seeds_missing_inbox_once_without_data_loss(
     db = db_manager.get_database(target)
     sentinel = Document(name="Keep Me", path="/keep-me.txt")
     db.save(sentinel)
+    # A folder the USER made — the app never creates one.
+    db.save(Document(name="Inbox", parent_id=None, doc_type=DocType.folder))
+    assert len(_root_inboxes(db)) == 1
     for inbox in _root_inboxes(db):
         db.delete(inbox)
-    assert _root_inboxes(db) == []
 
     db_manager.close_database(target)
 
     headers = {"X-Fichero-Library-Path": str(target)}
-    open_response = client.get("/api/documents/collections", headers=headers)
-    assert open_response.status_code == 200, open_response.text
-
-    reopened_db = db_manager.get_database(target)
-    inboxes = _root_inboxes(reopened_db)
-    assert len(inboxes) == 1
-    assert reopened_db.get(Document, sentinel.id) is not None
-
-    db_manager.close_database(target)
-    reopen_again = client.get("/api/documents/collections", headers=headers)
-    assert reopen_again.status_code == 200, reopen_again.text
-
-    reopened_again_db = db_manager.get_database(target)
-    assert len(_root_inboxes(reopened_again_db)) == 1
-    assert reopened_again_db.get(Document, sentinel.id) is not None
+    for _ in range(2):
+        open_response = client.get("/api/documents/collections", headers=headers)
+        assert open_response.status_code == 200, open_response.text
+        reopened_db = db_manager.get_database(target)
+        assert _root_inboxes(reopened_db) == [], "open must not resurrect the Inbox"
+        assert reopened_db.get(Document, sentinel.id) is not None
+        db_manager.close_database(target)
 
 
-def test_import_can_target_seeded_inbox_from_root_lookup(tmp_path: Path) -> None:
-    """Seeded Inbox matches the root-drop lookup shape and accepts imports."""
+def test_import_can_target_a_user_made_inbox_from_root_lookup(tmp_path: Path) -> None:
+    """A user-made Inbox matches the root-drop lookup shape and takes imports.
+
+    This is all that is left of the Inbox in the engine: a name the Swift
+    root-drop routing recognises when the USER has made the folder. Nothing
+    creates it, so the library starts with nothing to route into.
+    """
     target = tmp_path / "import-target.fichero"
     client = _client()
 
@@ -229,6 +229,14 @@ def test_import_can_target_seeded_inbox_from_root_lookup(tmp_path: Path) -> None
     assert response.status_code == 200
 
     headers = {"X-Fichero-Library-Path": str(target)}
+    empty = client.get("/api/documents/collections", headers=headers)
+    assert empty.status_code == 200, empty.text
+    assert empty.json()["items"] == []
+
+    db_manager.get_database(target).save(
+        Document(name="Inbox", parent_id=None, doc_type=DocType.folder)
+    )
+
     collections = client.get("/api/documents/collections", headers=headers)
     assert collections.status_code == 200, collections.text
 
@@ -275,5 +283,5 @@ def test_open_library_accepts_percent_encoded_non_ascii_header(
     collections = client.get("/api/documents/collections", headers=encoded_headers)
 
     assert collections.status_code == 200, collections.text
-    items = collections.json()["items"]
-    assert any(item["name"] == "Inbox" for item in items)
+    # No seeded Inbox (2026-08-31) — the point here is the header round-trip.
+    assert collections.json()["items"] == []

@@ -255,8 +255,8 @@ extension LibraryManager {
         }
     }
 
-    /// Initialize the backend database, load app data, and create Inbox once
-    /// per library. Re-entrant guards avoid duplicate startup tasks when the
+    /// Initialize the backend database and load app data once per library.
+    /// Re-entrant guards avoid duplicate startup tasks when the
     /// window, restore, and backend-ready paths all observe the same library.
     func loadLibraryDataIfNeeded(for library: LibraryReference) async {
         // A security-scoped library must wait for its sandbox grant (#3986-A). The
@@ -289,8 +289,7 @@ extension LibraryManager {
         // swallows a load error into `error`/`isConnected=false` (it never throws),
         // so a load that exhausts the #3972 retry would otherwise be recorded as
         // done forever — sidebar stuck empty until relaunch. Leave it unloaded so
-        // the next trigger (heartbeat / reconnect / window .task) retries, and skip
-        // Inbox creation which must never run against an unknown collections state.
+        // the next trigger (heartbeat / reconnect / window .task) retries.
         let store = library.documentStore
         // The WORKFLOW leg counts too (user, 2026-08-20: Run Workflow menus
         // and the Data-menu picker sat on "No workflows available" all
@@ -324,7 +323,12 @@ extension LibraryManager {
         }
 
         libraryLoadRetryAttempts.removeValue(forKey: library.id)
-        await ensureInboxFolder(for: library)
+        // NOTHING creates an Inbox (ruling 2026-08-31). `ensureInboxFolder` ran
+        // here on every successful load: it seeded a brand-new library with a
+        // folder it had no use for and re-created a deleted one forever. Loose
+        // files dropped on the library land at the ROOT, which the sidebar and
+        // the library pane both show, so there is nothing for an Inbox to
+        // rescue. The function is gone with the call.
         loadedLibraryIds.insert(library.id)
         librariesLoadVersion += 1
     }
@@ -436,7 +440,7 @@ extension LibraryManager {
         do {
             _ = try await library.apiClient.healthCheck()  // generated health_check op (#3030)
             // Actually initialize: POST /api/library (idempotent) runs the
-            // engine's first-open work — migrations, workflow + Inbox seeding —
+            // engine's first-open work — migrations, workflow seeding —
             // HERE, in a call named for it. Before this, the name was a lie
             // (health ping only) and init landed on the first data fetch,
             // whose deadline it blew: a fresh library recorded
@@ -479,61 +483,5 @@ extension LibraryManager {
         guard !Task.isCancelled else { return }
         try? await library.savedSearchService.loadSavedSearches()
         libraryManagerLogger.info("⏱ loadLibraryData exit — library: \(library.displayName)")
-    }
-
-    /// Ensure every library has a default "Inbox" folder
-    func ensureInboxFolder(for library: LibraryReference) async {
-        // Never create against an unknown collections state (#3970). `hasInbox` is
-        // inferred from `documentStore.collections`, which is empty both when the
-        // library genuinely has no Inbox AND when the preceding load FAILED. In the
-        // latter window creating "Inbox" makes a SECOND one against a library that
-        // already has it. Bail if the load errored — the caller already leaves such
-        // a library unloaded (#3986-B), so a later retry re-checks once the load
-        // actually succeeds.
-        guard library.documentStore.error == nil else {
-            libraryManagerLogger.error(
-                "Skipping Inbox check — preceding load errored: \(library.displayName)"
-            )
-            return
-        }
-
-        // Check if Inbox folder exists (collections should already be loaded)
-        let hasInbox = library.documentStore.collections.contains { doc in
-            doc.name == "Inbox" && doc.docType == .folder && doc.parentId == nil
-        }
-
-        let collectionCount = library.documentStore.collections.count
-        libraryManagerLogger.info(
-            "\(library.displayName) library has \(collectionCount) documents, hasInbox: \(hasInbox)"
-        )
-
-        if !hasInbox {
-            // Create Inbox folder
-            do {
-                let inbox = try await library.documentService.createCollection(
-                    name: "Inbox",
-                    parentId: nil
-                )
-                libraryManagerLogger.info(
-                    "Created default Inbox folder in \(library.displayName) library: \(inbox.id)"
-                )
-
-                // Reload documents to include the new Inbox
-                await library.documentStore.loadCollections()
-                let reloadedCount = library.documentStore.collections.count
-                libraryManagerLogger.info("Reloaded collections, now have \(reloadedCount) documents")
-            } catch {
-                // Surface a persistent create failure instead of only logging
-                // (#3970): record it on the store's error channel — the same
-                // surface a failed collections load uses — so a library whose
-                // Inbox never got created isn't left silently half-initialized.
-                libraryManagerLogger.error(
-                    "Failed to create Inbox folder in \(library.displayName): \(error.localizedDescription)"
-                )
-                library.documentStore.error = error
-            }
-        } else {
-            libraryManagerLogger.info("Inbox folder already exists in \(library.displayName) library")
-        }
     }
 }

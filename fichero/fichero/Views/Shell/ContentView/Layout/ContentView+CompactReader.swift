@@ -88,7 +88,6 @@ extension ContentView {
             // compact path's composed type inside the iOS 1MB main-stack budget
             // during runtime metadata instantiation.
             AnyView(contentWithOptionalModeRail)
-                .overlay { paneFocusIndicator(for: .content) }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 // Title the list root so it isn't a blank bar and the pushed
                 // reader's Back button names the section it returns to (#2810).

@@ -24,7 +24,9 @@ extension WorkflowBar {
         // subject, each step's model and the step itself are live tokens; the
         // connective tissue is plain words, which is what makes an eight-step
         // paid run readable as a plan rather than a rebus.
-        ChainFlowLayout(spacing: 5) {
+        ChainFlowLayout(
+            spacing: 5, rowSpacing: WorkflowBar.chainRailRowSpacing
+        ) {
             contextToken
             Text("With")
                 .font(.system(size: 11))
@@ -50,50 +52,6 @@ extension WorkflowBar {
                     .foregroundStyle(.secondary)
                 chainChip(step, at: index)
             }
-        }
-    }
-
-    /// The run's FRAMING at the head of the sentence (Daniel, 2026-08-30):
-    /// "About [this is a historical diary]," — a system-prompt line every
-    /// step's prompt leads with. Empty shows a quiet "add context…" entry.
-    @ViewBuilder
-    private var contextToken: some View {
-        if let userContext {
-            let trimmed = userContext.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines)
-            Text("About")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-            Button {
-                showsContextEditor = true
-            } label: {
-                Text(trimmed.isEmpty ? "add context…" : "“\(trimmed.prefix(40))\(trimmed.count > 40 ? "…" : "")”")
-                    .font(.system(size: 11))
-                    .foregroundStyle(trimmed.isEmpty ? Color.secondary : Color.accentColor)
-            }
-            .buttonStyle(.plain)
-            .help("Tell the AI what it is looking at — this line leads every step's prompt")
-            .accessibilityIdentifier("workflowBarContext")
-            .popover(isPresented: $showsContextEditor) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("What is the AI looking at?")
-                        .font(.headline)
-                    TextField(
-                        "e.g. A handwritten historical diary from 1926, in English.",
-                        text: userContext, axis: .vertical
-                    )
-                    .lineLimit(2...5)
-                    .frame(width: 340)
-                    .textFieldStyle(.roundedBorder)
-                    Text("Sent with every step of the run, before its own prompt.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(14)
-            }
-            Text(",")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-                .padding(.leading, -5)
         }
     }
 
@@ -142,7 +100,12 @@ extension WorkflowBar {
             // A real LOZENGE, not a whisper of one (Daniel, 2026-08-29:
             // "model needs lozenges") — same weight as the subject chip so
             // the sentence's three token kinds read as one family.
-            Text(step.hasModelOverride ? step.modelDescription : "default model")
+            //
+            // It NAMES the model even when nothing is pinned (Daniel,
+            // 2026-08-31): "default model" told the reader that a model had
+            // been chosen without saying which, and the whole point of the
+            // sentence is that a paid run states what it will actually do.
+            Text(step.hasModelOverride ? step.modelDescription : resolvedDefaultModelLabel)
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(step.hasModelOverride ? Color.primary : Color.secondary)
                 .padding(.horizontal, 7)
@@ -154,7 +117,15 @@ extension WorkflowBar {
         .menuIndicator(.hidden)
         .fixedSize()
         .disabled(isRunning)
-        .help("The model this step runs on — click to pin a different one")
+        .help(step.hasModelOverride
+              ? "This step is pinned to \(step.modelDescription) — click to change it"
+              : "This step runs on \(resolvedDefaultModelLabel), the configured "
+              + "default — click to pin a different model")
+        .accessibilityLabel(
+            step.hasModelOverride
+                ? "Model: \(step.modelDescription)"
+                : "Model: \(resolvedDefaultModelLabel) (default)"
+        )
     }
 
     /// One step. Extracted from `chainRail` because the inline expression grew

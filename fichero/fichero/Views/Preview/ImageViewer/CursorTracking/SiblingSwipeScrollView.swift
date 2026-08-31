@@ -1,3 +1,4 @@
+import OSLog
 import SwiftUI
 
 extension Notification.Name {
@@ -40,6 +41,9 @@ final class SiblingSwipeScrollView: NSScrollView {
         let scaledHeight = doc.frame.height * magnification
         let canPanHorizontally = scaledWidth > contentSize.width + 0.5
         let canPanVertically = scaledHeight > contentSize.height + 0.5
+        // Gesture triage (Daniel, 2026-08-31: swipes still dead in the wild).
+        // One line per gesture START in Console: filter `swipe-triage`.
+        logSwipeTriage(phase: event.phase, doc: doc)
         // A fitted image has nowhere to scroll: swallowing the event kills
         // the elastic bounce that made two-finger navigation feel like the
         // page was jumping around (Daniel, 2026-08-21: "why does 2 fingers
@@ -101,6 +105,31 @@ final class SiblingSwipeScrollView: NSScrollView {
             accumulatedX = 0
             accumulatedY = 0
         }
+    }
+
+    private static var lastTriageLog = Date.distantPast
+
+    private func logSwipeTriage(phase: NSEvent.Phase, doc: NSView) {
+        // Gesture starts always log; PHASE-LESS scrolls (a real mouse wheel,
+        // or synthesized CGEvents in headless triage) log at most 1/s.
+        if phase != .began {
+            guard phase.isEmpty, Date().timeIntervalSince(Self.lastTriageLog) > 1 else { return }
+        }
+        Self.lastTriageLog = Date()
+        // Recomputed here (cheap) so the call site stays one line.
+        let scaledWidth = doc.frame.width * magnification
+        let scaledHeight = doc.frame.height * magnification
+        let canPanHorizontally = scaledWidth > contentSize.width + 0.5
+        let canPanVertically = scaledHeight > contentSize.height + 0.5
+        Logger(subsystem: "app.fichero.fichero", category: "swipe-triage").info(
+            """
+            swipe-triage began: doc=\(doc.frame.width, format: .fixed(precision: 1))x\
+            \(doc.frame.height, format: .fixed(precision: 1)) mag=\(self.magnification, format: .fixed(precision: 3)) \
+            scaled=\(scaledWidth, format: .fixed(precision: 1))x\(scaledHeight, format: .fixed(precision: 1)) \
+            content=\(self.contentSize.width, format: .fixed(precision: 1))x\(self.contentSize.height, format: .fixed(precision: 1)) \
+            canPanH=\(canPanHorizontally) canPanV=\(canPanVertically) ladder=\(self.verticalSwipeAlwaysNavigates)
+            """
+        )
     }
 }
 

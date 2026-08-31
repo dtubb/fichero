@@ -99,16 +99,18 @@ final class LaunchWindowSeedTests: XCTestCase {
         )
     }
 
-    /// The case that would have made this a silent no-op.
+    /// The LEFTOVER-Inbox world, and the case that would have made a
+    /// count-based gate a silent no-op.
     ///
-    /// `ensureInboxFolder` runs on every successful load, so a loaded library
-    /// ALWAYS has at least the Inbox and `collections.isEmpty` is never true.
-    /// Gating on emptiness-by-count would mean the sheet never presents at all
-    /// — a fix that reads as done and does nothing.
-    func testAFreshLibraryWithOnlyItsInboxCountsAsEmpty() {
+    /// Libraries created before the 2026-08-31 ruling were seeded with an Inbox
+    /// at bootstrap and had it re-created on every load, so they still carry
+    /// one root folder they never used. Nothing creates one any more, but those
+    /// libraries exist: gating on `collections.isEmpty` would mean their owners
+    /// never see onboarding at all — a fix that reads as done and does nothing.
+    func testAnExistingLibraryWithOnlyItsSeededInboxCountsAsEmpty() {
         XCTAssertTrue(
             libraryIsLoadedAndEmpty(isLoaded: true, rootCollections: [inbox()]),
-            "every loaded library has an Inbox; requiring zero collections never fires"
+            "a pre-ruling library carries a seeded Inbox; requiring zero collections never fires"
         )
     }
 
@@ -119,10 +121,11 @@ final class LaunchWindowSeedTests: XCTestCase {
         XCTAssertFalse(libraryIsLoadedAndEmpty(isLoaded: true, rootCollections: [realDocument()]))
     }
 
-    /// A genuinely empty library — loaded, and nothing at all — still counts.
+    /// The NEW-library world (ruling 2026-08-31): nothing creates an Inbox any
+    /// more, so a freshly created library really does have zero roots.
     /// `allSatisfy` is vacuously true on an empty array, which is the right
     /// answer here only BECAUSE `isLoaded` was already checked above it.
-    func testALoadedLibraryWithNothingAtAllCountsAsEmpty() {
+    func testANewLibraryWithNothingAtAllCountsAsEmpty() {
         XCTAssertTrue(libraryIsLoadedAndEmpty(isLoaded: true, rootCollections: []))
     }
 

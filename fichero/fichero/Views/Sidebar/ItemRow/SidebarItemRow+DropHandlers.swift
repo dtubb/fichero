@@ -77,9 +77,9 @@ extension SidebarItemRow {
     }
 
     /// Which parent each dropped URL imports under. An explicit folder target
-    /// takes everything; a root-level drop splits per #4274 — folders at the
-    /// root itself (sidebar-visible there), bare files to Inbox so they don't
-    /// disappear (invisible at root).
+    /// takes everything; a root-level drop goes to the ROOT, except that loose
+    /// files still honour a root "Inbox" folder the USER made. Nothing creates
+    /// one (ruling 2026-08-31), so `inboxId` is usually nil.
     private func externalDropBatches(
         fileURLs: [URL], targetFolder: SidebarItem?
     ) -> [LibraryRootImportBatch] {

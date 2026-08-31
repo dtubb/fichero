@@ -53,7 +53,14 @@ extension ContentView {
                     Task { await runModelCompare(runs: runs, groupId: groupId) }
                 },
                 compareProgress: chromeUX.compareRunProgress,
-                compareCostCeiling: chromeUX.stagedCompareCostCeiling
+                compareCostCeiling: chromeUX.stagedCompareCostCeiling,
+                // The sentence names the model a run would REALLY use
+                // (Daniel, 2026-08-31: "rather than say default model,
+                // actually use the model name").
+                defaultModelName: selectionPrefersVisionModel
+                    ? cachedAIDefaults.visionMediumModel
+                    : cachedAIDefaults.mediumModel,
+                prefersVisionModel: selectionPrefersVisionModel
             )
             // On BOTH bars: labels follow the toolbar when only one is shown.
             .background { ToolbarTextModeSync(showsLabels: $showWorkflowBarLabels) }

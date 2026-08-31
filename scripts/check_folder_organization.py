@@ -45,6 +45,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Services": "#1944 — 60 Swift files directly in Services",
     "Views/Library": "#1944 — 42 Swift files directly; mixed Library concerns",
     "Views/Sidebar": "#1944 — 27 Swift files directly; mixed Sidebar concerns",
+    "Views/Shell/Toolbar": "2026-08-31 — 20 files: the workflow bar grew ChainRow/Context splits (file_length budget); the WorkflowBar* family wants its own subfolder, queued with the toolbar reorg",
     # 2026-08-09 deliberate: the overnight crash/selection fixes added 1-2
     # files to each (DragPreviewLabel, SheetLibraryEnvironment,
     # ShellPrimarySelection, the preview catalogs), tipping 19-20 vs 18.

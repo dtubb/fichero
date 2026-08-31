@@ -104,6 +104,129 @@ struct PreviewMarkupShortcutUniquenessTests {
     }
 }
 
+/// The annotation bar's SHAPE (Daniel, 2026-08-31): the three selection tools
+/// first — text, rectangular, words — then Draw Region, then the marks that
+/// put something on the page, then the edit verbs. Order is a ruling, not a
+/// preference, so a later edit that reshuffles the row has to argue with a
+/// test rather than land quietly.
+struct PreviewMarkupRowOrderGuardTests {
+    private func headSource() throws -> String {
+        try String(
+            contentsOf: AppSource.root().appendingPathComponent(
+                "Views/Shell/PaneHead/PreviewHeadControls.swift"
+            ), encoding: .utf8
+        )
+    }
+
+    @Test("the markup row lists its tools in the ruled order")
+    func ruledOrder() throws {
+        let source = try headSource()
+        // Marks as they appear in `body` — identifiers for the plain tool
+        // buttons, property names for the three composed ones. Each name's
+        // FIRST occurrence is its call site in `body`; the declarations
+        // follow further down the file.
+        let ordered = [
+            "previewMarkupTextSelect",
+            "previewMarkupSelect",
+            "previewMarkupWordSelect",
+            "previewMarkupDrawRegion",
+            "previewMarkupLine",
+            "highlightSplitButton",
+            "noteButton",
+            "previewMarkupStar",
+            "previewMarkupCheck",
+            "editVerbs",
+        ]
+        var previous = source.startIndex
+        for name in ordered {
+            guard let found = source.range(of: name, range: previous..<source.endIndex) else {
+                Issue.record("the markup row lost \(name), or it moved out of order")
+                return
+            }
+            previous = found.upperBound
+        }
+    }
+
+    @Test("Select Words says it marquees WORDS, not pixels")
+    func wordSelectTooltipIsHonest() throws {
+        let source = try headSource()
+        // Daniel: "select words is really rectangular selection…" — both
+        // rectangular tools are marquees, so the tooltip must name what this
+        // one comes away holding.
+        #expect(source.contains("Select Words — marquee a rectangle"))
+        #expect(source.contains("WORD boxes"))
+    }
+
+    @Test("Delete and Combine appear only while regions are selected")
+    func editVerbsFollowTheSelection() throws {
+        let source = try headSource()
+        // The verbs act on the selection, so the bar must not offer them
+        // against nothing (ruling 2). Combine additionally needs two.
+        #expect(source.contains("let selection = RegionSelection.shared"))
+        #expect(source.contains("if !selection.isEmpty {"))
+        #expect(source.contains("if selection.count >= 2 {"))
+    }
+}
+
+/// Text Note, Check and Highlight over a SELECTION (Daniel, 2026-08-31,
+/// rulings 3–5). Each is a wiring the row and the canvas must agree on, and
+/// each was reported as "doesn't work" precisely because one end was missing.
+struct PreviewMarkupSelectionVerbGuardTests {
+    private func source(_ path: String) throws -> String {
+        try String(
+            contentsOf: AppSource.root().appendingPathComponent(path), encoding: .utf8
+        )
+    }
+
+    @Test("a saved note asks for its text, and an abandoned one is deleted")
+    func noteTextEntryIsWired() throws {
+        let head = try source("Views/Shell/PaneHead/PreviewHeadControls.swift")
+        let canvas = try source(
+            "Views/Preview/ImageViewer/Regions/ZoomableImagePreviewMac+Annotations.swift"
+        )
+        // Canvas end: the note box announces itself once saved.
+        #expect(canvas.contains("name: .previewNoteTextEntry, object: firstSavedId"))
+        // Row end: the popover opens on that seam and commits through the
+        // SAME annotation path the box came from.
+        #expect(head.contains("static let previewNoteTextEntry"))
+        #expect(head.contains("publisher(for: .previewNoteTextEntry)"))
+        #expect(head.contains("annotationStore.updateText(id: annotationId, text: value)"))
+        // Cancel/Esc/click-away must not leave a blank note on the page.
+        #expect(head.contains("guard !committed, let annotationId, let annotationStore"))
+        #expect(head.contains("annotationStore.delete(id: annotationId)"))
+    }
+
+    @Test("Check and Highlight act on the selection before falling back")
+    func selectionVerbsComeFirst() throws {
+        let viewer = try source("Views/Preview/ImageViewer/ZoomableImagePreviewMac.swift")
+        // Ruling 5: selected words are painted; only an empty selection arms
+        // the drag. Ruling 4: a check lands on the selection when there is
+        // one, else the sticky tool waits for a click.
+        #expect(viewer.contains("if !highlightSelectedBoxes() { requestAnnotation(.highlight) }"))
+        #expect(viewer.contains("case .check: _ = checkSelectedBoxes()"))
+        // The check button has to POST for the canvas to hear it at all —
+        // sticky-mode-only was why checks needed a separate click.
+        let head = try source("Views/Shell/PaneHead/PreviewHeadControls.swift")
+        #expect(head.contains("object: PreviewMarkupTool.check.rawValue"))
+    }
+
+    @Test("selection marks snap to one strip per line, from either selection seam")
+    func selectionResolvesLikeHighlight() throws {
+        let canvas = try source(
+            "Views/Preview/ImageViewer/Regions/ZoomableImagePreviewMac+Annotations.swift"
+        )
+        // Region selection first, reader text selection second — the two
+        // seams a highlight already knew about.
+        #expect(canvas.contains("let selection = RegionSelection.shared"))
+        #expect(canvas.contains("return linkedSelectionBoxes.map {"))
+        // Per-line strips, via the helper the drag path and word-promotion
+        // both use — not one page-blotting union.
+        #expect(canvas.contains("AnnotationWordSnap.snappedRects("))
+        // The check cycle is the CLICK path's cycle, not a second one.
+        #expect(canvas.contains("RegionInteractionLayer.sameExtent("))
+    }
+}
+
 /// The quiet bar's what-to-show menu (2026-08-31) is the ONE owner of the
 /// page's display switches. Four entries, exact wording, and the annotation
 /// switch on by default — Daniel's container had the key stuck at 0, so every

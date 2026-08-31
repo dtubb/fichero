@@ -19,6 +19,7 @@ struct OCRGeometryOverlay: View {
     @AppStorage("imagePreview.inlineTextEnabled") private var inlineTextEnabled = false
 
     @State private var hoverPoint: CGPoint?
+    @Environment(\.colorScheme) private var colorScheme
 
     /// Words when the pass produced them; lines otherwise (never both at
     /// once — nested rectangles read as clutter, not structure). The ladder
@@ -48,12 +49,22 @@ struct OCRGeometryOverlay: View {
                 Canvas { context, size in
                     let stroke = Color.accentColor.opacity(0.8)
                     let wash = Color.accentColor.opacity(0.08)
+                    // Inline text needs GROUND to read against (Daniel,
+                    // 2026-08-31: "you need to fade, or make the word
+                    // bounding box less transparent, so we can see it") —
+                    // a mostly-opaque theme-matched plate under each word.
+                    let plate = (colorScheme == .dark ? Color.black : Color.white)
+                        .opacity(0.78)
                     for box in boxes {
                         guard let rect = BoundingBoxGeometry.viewRect(
                             normalized: box.bbox, in: size, visible: visible
                         ) else { continue }
                         let path = Path(roundedRect: rect, cornerRadius: 1.5)
-                        context.fill(path, with: .color(wash))
+                        if inlineTextEnabled, !box.text.isEmpty {
+                            context.fill(path, with: .color(plate))
+                        } else {
+                            context.fill(path, with: .color(wash))
+                        }
                         context.stroke(path, with: .color(stroke), lineWidth: 1)
                         // Inline text rides the SAME Canvas pass — the whole
                         // point of the 2026-08-28 one-Canvas fix was that a

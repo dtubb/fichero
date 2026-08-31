@@ -127,9 +127,11 @@ enum SidebarItemBuilder {
     }
 
     /// Split visible documents into (parentId → children, ordinary roots,
-    /// hoisted Inbox). The Inbox match mirrors `LibraryManager.ensureInboxFolder`:
-    /// name AND docType — a root FILE the user happens to call "Inbox" is an
-    /// ordinary row, not a folder-affordanced dead end. Only the FIRST match is
+    /// hoisted Inbox). Nothing creates that folder any more (ruling
+    /// 2026-08-31) — this only hoists one a user made, or one an older library
+    /// was seeded with. The match is name AND docType — a root FILE the user
+    /// happens to call "Inbox" is an ordinary row, not a folder-affordanced
+    /// dead end. Only the FIRST match is
     /// hoisted: a duplicate root named Inbox (reachable via #3970's
     /// empty-collections window) used to overwrite the winner with a bare
     /// assignment and drop the loser from the tree entirely — the Finder rule

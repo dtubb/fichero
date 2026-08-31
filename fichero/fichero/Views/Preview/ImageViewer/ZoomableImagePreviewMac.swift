@@ -280,11 +280,19 @@ struct ZoomableImagePreview: View {
                 guard let raw = note.object as? String,
                       let tool = PreviewMarkupTool(rawValue: raw) else { return }
                 switch tool {
-                case .highlight: requestAnnotation(.highlight)
+                // Ruling 5 (Daniel, 2026-08-31): with word boxes SELECTED,
+                // Highlight paints THEM now — select-words → Highlight — and
+                // only falls back to arming a drag when nothing is picked.
+                case .highlight:
+                    if !highlightSelectedBoxes() { requestAnnotation(.highlight) }
                 case .note: requestAnnotation(.note)
                 case .star: requestAnnotation(.bookmark)
                 case .line: requestAnnotation(.line)
-                case .textSelect, .select, .wordSelect, .drawRegion, .check:
+                // Ruling 4: a check attaches to the selected text/words when
+                // there is a selection; with none it returns false and the
+                // sticky tool keeps waiting for a click beside a line.
+                case .check: _ = checkSelectedBoxes()
+                case .textSelect, .select, .wordSelect, .drawRegion:
                     break  // preview-regions interactions / reader-only
                 }
             }

@@ -28,7 +28,8 @@ final class LibraryRootDropRoutingTests: XCTestCase {
         XCTAssertEqual(batches, [LibraryRootImportBatch(parentId: nil, urls: [folderURL])])
     }
 
-    func testBareFilesStillRouteToInbox() {
+    /// Only when the USER has made an Inbox folder. Nothing creates one.
+    func testBareFilesRouteToAUserMadeInbox() {
         let batches = libraryRootImportBatches(
             urls: [fileURL, otherFileURL], inboxId: "inbox-1", isDirectory: isDir
         )
@@ -49,8 +50,9 @@ final class LibraryRootDropRoutingTests: XCTestCase {
     }
 
     func testNoInboxMeansEverythingLandsAtRoot() {
-        // With no Inbox there is nowhere to redirect to — import everything at
-        // root rather than dropping the batch on the floor.
+        // The ordinary case since 2026-08-31: no Inbox exists, and the root is
+        // where the user dropped things anyway. Root files are visible in both
+        // the sidebar and the library pane, so nothing is lost by landing here.
         let batches = libraryRootImportBatches(
             urls: [fileURL, folderURL], inboxId: nil, isDirectory: isDir
         )
@@ -67,6 +69,52 @@ final class LibraryRootDropRoutingTests: XCTestCase {
         XCTAssertTrue(
             libraryRootImportBatches(urls: [], inboxId: nil, isDirectory: isDir).isEmpty
         )
+    }
+
+    // MARK: - No default Inbox (ruling 2026-08-31)
+
+    /// Nothing creates an Inbox any more — not the engine at bootstrap, not
+    /// `LibraryManager` on load, not this routing. The library ROOT is the drop
+    /// zone. `inboxId` is now only ever the id of a folder the USER made, and
+    /// `nil` is the ordinary case rather than the degraded one.
+
+    func testANewLibraryHasNoInboxSoEveryLooseFileLandsAtRoot() {
+        // The default path for every library that has not been given an Inbox
+        // by hand: no redirect, no folder conjured to receive the drop.
+        let batches = libraryRootImportBatches(
+            urls: [fileURL, otherFileURL], inboxId: nil, isDirectory: isDir
+        )
+        XCTAssertEqual(
+            batches,
+            [LibraryRootImportBatch(parentId: nil, urls: [fileURL, otherFileURL])]
+        )
+    }
+
+    /// Routing is a pure function of the id it is HANDED, so the same
+    /// user-made Inbox is reused drop after drop — there is no code path that
+    /// could mint a second one.
+    func testASecondDropReusesTheSameUserMadeInbox() {
+        let first = libraryRootImportBatches(
+            urls: [fileURL], inboxId: "inbox-1", isDirectory: isDir
+        )
+        let second = libraryRootImportBatches(
+            urls: [otherFileURL], inboxId: "inbox-1", isDirectory: isDir
+        )
+        XCTAssertEqual(first.first?.parentId, "inbox-1")
+        XCTAssertEqual(second.first?.parentId, "inbox-1")
+    }
+
+    /// A user who DELETES their Inbox gets `nil` from the lookup on the next
+    /// drop, and loose files simply land at the root. Nothing recreates it.
+    func testDeletingTheInboxJustSendsLaterDropsToTheRoot() {
+        let before = libraryRootImportBatches(
+            urls: [fileURL], inboxId: "inbox-1", isDirectory: isDir
+        )
+        let after = libraryRootImportBatches(
+            urls: [fileURL], inboxId: nil, isDirectory: isDir
+        )
+        XCTAssertEqual(before.first?.parentId, "inbox-1")
+        XCTAssertEqual(after.first?.parentId, nil)
     }
 
     func testOrderWithinABatchIsPreserved() {

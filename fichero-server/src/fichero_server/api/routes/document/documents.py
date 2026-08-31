@@ -2171,8 +2171,6 @@ def update_document_impl(
     # the only fields that mutate are ones the client explicitly set to a
     # non-null value. (#774 + audit on 2026-05-03.)
     update_data = update.model_dump(exclude_unset=True, exclude_none=True)
-    if update_data.get("name") not in (None, doc.name):
-        _reject_if_root_inbox(doc, "renamed")
     if "path" in update_data:
         try:
             validate_stored_document_path(
@@ -2243,29 +2241,6 @@ def _reject_if_document_read_only(doc: Document, operation: str) -> None:
         )
 
 
-def _reject_if_root_inbox(doc: Document, operation: str) -> None:
-    """Raise 403 when ``doc`` is the root Inbox system folder.
-
-    Identified by the same shape the seeder and Swift root-drop routing use:
-    ``name == "Inbox" && parent_id is None && doc_type == folder``. Not the
-    ``read_only`` attribute — that would also reject filing INTO the Inbox
-    (``_reject_if_document_read_only(parent, "added to")``), and the Inbox
-    exists to be dropped on. Delete/move/rename are refused; contents stay
-    fully mutable (2026-08-12: a sidebar delete removed the Inbox itself).
-    """
-    from fichero_server.db.library_bootstrap import INBOX_NAME
-
-    if (
-        doc.doc_type == DocType.folder
-        and doc.parent_id is None
-        and doc.name == INBOX_NAME
-    ):
-        raise HTTPException(
-            status_code=403,
-            detail=f"Inbox is a system folder and cannot be {operation}",
-        )
-
-
 def _move_would_create_cycle(db: Database, doc_id: str, parent_id: str) -> bool:
     """True when re-parenting ``doc_id`` under ``parent_id`` forms a cycle.
 
@@ -2291,7 +2266,6 @@ def move_document_impl(
     """Re-parent a document. Returns ``(doc, before_snapshot)``."""
     doc = _document_or_404(db, doc_id)
     _reject_if_document_read_only(doc, "moved")
-    _reject_if_root_inbox(doc, "moved")
 
     # Verify new parent exists if specified
     if parent_id:
@@ -2533,7 +2507,6 @@ def delete_document_impl(
     # Workflows container or a preset mirror — must fail loudly. Deleting the
     # container would soft-delete every mirror inside it in one call.
     _reject_if_document_read_only(doc, "deleted")
-    _reject_if_root_inbox(doc, "deleted")
     to_delete_ids = _descendant_document_ids(db, doc.id, include_deleted=True)
 
     deleted_at = utc_now()
@@ -2565,10 +2538,6 @@ def purge_document_impl(
     two undo mechanisms never double-restore.
     """
     doc = _document_or_404(db, doc_id, include_deleted=True)
-    # A LIVE Inbox may not be purged; a pre-fix tombstone may — Empty Trash
-    # clears it and the next open reseeds.
-    if getattr(doc, "deleted_at", None) is None:
-        _reject_if_root_inbox(doc, "deleted")
     to_delete_ids = _descendant_document_ids(db, doc.id, include_deleted=True)
 
     if library_path:

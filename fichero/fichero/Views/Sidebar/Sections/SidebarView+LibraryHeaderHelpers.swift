@@ -78,9 +78,10 @@ extension SidebarView {
     }
 
     /// Drop handler for the library disclosure-group header row.
-    /// Folders import at the library ROOT (they are sidebar-visible there and
-    /// that is where the user dropped them, #4274); plain files route to Inbox
-    /// (bare files at root are invisible in the sidebar). An import failure
+    /// Everything imports at the library ROOT — that is where the user dropped
+    /// it, and root rows (files included) are sidebar-visible (#4274). The one
+    /// exception: loose files honour a root "Inbox" folder the USER made;
+    /// nothing creates one (ruling 2026-08-31). An import failure
     /// surfaces on the sidebar's drop-error banner, never only in the log.
     @discardableResult
     func handleLibraryHeaderDrop(

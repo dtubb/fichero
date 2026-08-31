@@ -117,7 +117,11 @@ struct RegionInteractionLayer: View {
                 ) {
                     let offset = moveDrag?.index == index
                         ? (moveDrag?.translation ?? .zero) : .zero
-                    let color = RegionPalette.color(forBoxIndex: index)
+                    // ONE color for selection (Daniel, 2026-08-31: "don't
+                    // make them multicolored when selected"). The palette
+                    // stays for the inspector's region ROWS, where color is
+                    // identity; on the page, selection is selection.
+                    let color = Color.accentColor
                     RoundedRectangle(cornerRadius: 2)
                         .stroke(color, lineWidth: 2)
                         .background(color.opacity(0.14))

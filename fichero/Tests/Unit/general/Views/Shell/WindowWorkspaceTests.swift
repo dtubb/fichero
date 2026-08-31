@@ -186,4 +186,86 @@ final class WindowWorkspaceTests: XCTestCase {
             focus: .chat, slots: [("library", "library")], overrides: [:]
         ))
     }
+
+    // MARK: - Toolbar visibility (Daniel, 2026-08-31)
+
+    func testSnapshotCarriesTheToolbarConfigurationThroughJSON() throws {
+        var original = snapshot()
+        original.toolbar = .minimal
+        original.showWorkflowBar = true
+        var catalog = WindowWorkspaceCatalog()
+        catalog.save(name: "Desk", layout: original)
+
+        let restored = try XCTUnwrap(
+            WindowWorkspaceCatalog.decoded(from: catalog.encoded())
+        )
+        XCTAssertEqual(restored.workspaces.first?.layout.toolbar, .minimal)
+        XCTAssertEqual(restored.workspaces.first?.layout.showWorkflowBar, true)
+    }
+
+    /// A workspace saved BEFORE the toolbar fields existed must still decode —
+    /// the alternative is `decoded(from:)` returning nil and every saved
+    /// layout the user has silently disappearing.
+    func testLegacySnapshotWithoutToolbarFieldsStillDecodes() throws {
+        let panes = #"{"showSidebar":true,"showInspector":false,"#
+            + #""showLibraryPane":true,"showPreviewPane":true,"#
+            + #""showReaderPane":true,"showChatPane":true}"#
+        let legacy = #"{"panes":"# + panes
+            + #","libraryPaneWidth":320,"readerPaneWidth":200,"chatPaneWidth":300,"#
+            + #""viewDisplayMode":"Icon","layoutMode":"Widescreen"}"#
+        let decoded = try JSONDecoder().decode(
+            WindowLayoutSnapshot.self,
+            from: Data(legacy.utf8)
+        )
+        XCTAssertEqual(decoded.toolbar, .everything)
+        XCTAssertFalse(decoded.showWorkflowBar)
+        XCTAssertTrue(decoded.paneKindOverrides.isEmpty)
+        XCTAssertTrue(decoded.splits.isEmpty)
+    }
+
+    func testMinimalToolbarKeepsNavigationAndPanesAndDropsTheArrangingMenus() {
+        XCTAssertTrue(ToolbarVisibilityPlan.minimal.showNavigation)
+        XCTAssertTrue(ToolbarVisibilityPlan.minimal.showPaneToggles)
+        XCTAssertFalse(ToolbarVisibilityPlan.minimal.showSplitMenu)
+        XCTAssertFalse(ToolbarVisibilityPlan.minimal.showLayoutsMenu)
+    }
+
+    // MARK: - Built-in workspaces
+
+    func testBuiltInWorkspacesAreValidPaneSets() {
+        for workspace in BuiltInWorkspace.allCases {
+            XCTAssertTrue(
+                workspace.panes.isValid,
+                "\(workspace.title) hides every content pane — #1696 refuses it"
+            )
+        }
+    }
+
+    func testCataloguingIsTheOnlyBuiltInThatBringsTheWorkflowBar() {
+        XCTAssertTrue(BuiltInWorkspace.cataloguing.showsWorkflowBar)
+        XCTAssertFalse(BuiltInWorkspace.reading.showsWorkflowBar)
+        XCTAssertFalse(BuiltInWorkspace.everything.showsWorkflowBar)
+    }
+
+    func testBuiltInMatchesOnlyWhenPanesToolbarAndBarAllAgree() {
+        let reading = BuiltInWorkspace.reading
+        XCTAssertTrue(reading.matches(
+            panes: reading.panes, toolbar: reading.toolbar, workflowBar: false
+        ))
+        // Same panes, but the user turned the Layouts button back on.
+        XCTAssertFalse(reading.matches(
+            panes: reading.panes, toolbar: .everything, workflowBar: false
+        ))
+        // Same panes and toolbar, but the workflow bar is up.
+        XCTAssertFalse(reading.matches(
+            panes: reading.panes, toolbar: reading.toolbar, workflowBar: true
+        ))
+    }
+
+    func testBuiltInsAreDistinctArrangements() {
+        let plans = BuiltInWorkspace.allCases.map(\.panes)
+        XCTAssertEqual(Set(BuiltInWorkspace.allCases.map(\.title)).count, 3)
+        XCTAssertNotEqual(plans[0], plans[1])
+        XCTAssertNotEqual(plans[1], plans[2])
+    }
 }

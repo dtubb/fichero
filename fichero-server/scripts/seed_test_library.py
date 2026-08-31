@@ -171,15 +171,10 @@ def _seed_full(db) -> None:
     timestamps pinned to SEED_TS."""
     ts = {"created_at": SEED_TS, "updated_at": SEED_TS}
 
-    # The engine bootstraps a root Inbox with a RANDOM id on library creation
-    # (library_bootstrap.ensure_inbox_folder) — the one nondeterministic row in
-    # a fresh library. Replace it with the same shape under a uuid5 id; the
-    # bootstrap is idempotent by shape (name+parent+doc_type), so the engine
-    # will not mint another. It is empty at seed time, so this drops no data.
-    for row in db.query(
-        Document, name="Inbox", parent_id=None, doc_type=DocType.folder
-    ):
-        db.delete(row)
+    # A user-made root folder named "Inbox". Nothing in the engine creates one
+    # any more (ruling 2026-08-31) — this fixture keeps one because the Swift
+    # root-drop routing still honours an Inbox the USER made, and the sidebar
+    # still hoists it.
     db.save(
         Document(
             id=_sid("folder-inbox"),

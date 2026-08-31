@@ -22,6 +22,10 @@ extension LibraryView {
 
     var iconsView: some View {
         let (itemMin, itemMax) = Self.iconGridItemBounds(scale: effectiveIconScale)
+        // Parsed ONCE per render, not twice per tile (2026-08-31 perf): the
+        // raw @AppStorage string was re-split into a Set inside the ForEach
+        // for every document, on both the identity and the thumbnail.
+        let showsName = LibraryRowAttribute.set(from: rowAttributesRaw).contains(.name)
         return GeometryReader { geometry in
             // Clamp pinch max so a single thumbnail never exceeds the visible
             // grid width. In the wide content grid this lets us zoom way in;
@@ -71,7 +75,7 @@ extension LibraryView {
                                         document: doc,
                                         scale: effectiveIconScale,
                                         isRenaming: renamingDocumentId == doc.id,
-                                        showsName: LibraryRowAttribute.set(from: rowAttributesRaw).contains(.name)
+                                        showsName: showsName
                                     ),
                                     isSelected: selection.contains(doc.id),
                                     tint: selectionTint
@@ -85,7 +89,7 @@ extension LibraryView {
                                         editingName: $editingName,
                                         onCommitRename: commitRename,
                                         onCancelRename: cancelRename,
-                                        showsName: LibraryRowAttribute.set(from: rowAttributesRaw).contains(.name)
+                                        showsName: showsName
                                     )
                                 }
                                 .equatable()
@@ -120,6 +124,11 @@ extension LibraryView {
                     }
                     .padding()
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    // INSIDE the scroll content, so the probe's superview
+                    // chain reaches the NSScrollView autoscroll drives. As a
+                    // `.background` on the ScrollView it would be a sibling
+                    // and find the wrong one (or none).
+                    .background(marqueeScrollProbe)
                 }
                 .coordinateSpace(name: "libraryIconGrid")
                 .onPreferenceChange(IconTileFramesKey.self) { [marqueeModel] frames in
@@ -127,6 +136,15 @@ extension LibraryView {
                     // as @State, every scroll frame's report re-rendered the
                     // whole grid. Gesture handlers read the box directly.
                     marqueeModel.tileFrames = frames
+                    // Mid-sweep, MERGE into the content-space index rather
+                    // than replace it: an autoscroll materialises new lazy
+                    // tiles below the fold, and the ones that scrolled off
+                    // the top must stay selectable (2026-08-31).
+                    guard marqueeModel.anchorContent != nil else { return }
+                    let offset = marqueeModel.scrollOffsetY
+                    for (id, frame) in frames {
+                        marqueeModel.contentFrames[id] = frame.offsetBy(dx: 0, dy: offset)
+                    }
                 }
                 // Click in the gutter/empty space deselects, like Finder
                 // (#4160). Tile taps win — their gestures are deeper.
@@ -142,37 +160,12 @@ extension LibraryView {
                 .simultaneousGesture(
                     DragGesture(minimumDistance: 4, coordinateSpace: .named("libraryIconGrid"))
                         .onChanged { value in
-                            // The gutter-only claim above, ENFORCED (Daniel:
-                            // ⌘-click add 'sometimes deselects'): a click ON A
-                            // TILE that wiggles past 4pt started a degenerate
-                            // sweep that re-applied the toggle the tile's tap
-                            // had already made. A sweep may only BEGIN where
-                            // no tile is; once live it continues anywhere.
-                            guard marqueeModel.rect != nil
-                                || LibraryMarquee.startsInGutter(value.startLocation, frames: marqueeModel.tileFrames)
-                            else { return }
-                            let rect = LibraryMarquee.rect(from: value.startLocation, to: value.location)
-                            // Per-tick: mutate the box (overlay-only render).
-                            marqueeModel.rect = rect
-                            if marqueeModel.baseSelection == nil {
-                                marqueeModel.baseSelection = selection
-                            }
-                            // Selection applies ONLY when the hit set changes
-                            // — the expensive grid re-render happens when a
-                            // tile enters/leaves the band, not per pixel.
-                            let hits = LibraryMarquee.hitIds(in: marqueeModel.tileFrames, rect: rect)
-                            guard hits != marqueeModel.lastHits else { return }
-                            marqueeModel.lastHits = hits
-                            apply(SelectionGrammar.marquee(
-                                ids: hits,
-                                selection: marqueeModel.baseSelection ?? selection,
-                                modifiers: currentSelectionModifiers
-                            ))
+                            beginMarqueeSweepIfNeeded(startingAt: value.startLocation)
+                            marqueeModel.pointerViewport = value.location
+                            updateMarqueeSweep()
                         }
                         .onEnded { _ in
-                            marqueeModel.rect = nil
-                            marqueeModel.baseSelection = nil
-                            marqueeModel.lastHits = []
+                            marqueeModel.endSweep()
                         }
                 )
                 .overlay(alignment: .topLeading) {
@@ -331,6 +324,14 @@ extension LibraryView {
                 // hash-first element could miss changes entirely when the
                 // hash-first id stayed the same.
                 .onChange(of: selection) { _, _ in
+                    // NOT while a rubber band is live (2026-08-31): every hit
+                    // set change re-entered here and ANIMATED the viewport to
+                    // the sweep's primary id — the scroll view relaid out and
+                    // re-reported every tile frame per tick, which is what
+                    // made drawing a selection "super slow", and it yanked the
+                    // grid out from under the pointer. Autoscroll owns the
+                    // viewport during a sweep.
+                    guard marqueeModel.anchorContent == nil else { return }
                     guard let id = orderedPrimarySelectionId else { return }
                     withAnimation(.easeInOut(duration: 0.15)) {
                         proxy.scrollTo(id, anchor: nil)
@@ -342,6 +343,99 @@ extension LibraryView {
                 .onDisappear {
                     thumbnailPrefetchTask?.cancel()
                 }
+            }
+        }
+    }
+
+    // MARK: - Rubber band (2026-08-31: "drawing selection in library is
+    // super slow, and if you draw a marquee so that it should scroll, it
+    // should scroll"). The sweep runs in CONTENT space — viewport point plus
+    // the scroll offset — so autoscrolling under a still pointer moves the
+    // band's far edge without dragging its anchor along.
+
+    /// The AppKit probe, or nothing where there is no AppKit.
+    @ViewBuilder
+    private var marqueeScrollProbe: some View {
+        #if os(macOS)
+        MarqueeScrollProbe(model: marqueeModel).frame(width: 0, height: 0)
+        #else
+        Color.clear.frame(width: 0, height: 0)
+        #endif
+    }
+
+    /// Open a sweep, if this drag is allowed to start one. The gutter-only
+    /// claim, ENFORCED (#34, Daniel: ⌘-click add "sometimes deselects") — a
+    /// click ON a tile that wiggles past 4pt used to start a degenerate sweep
+    /// that re-applied the toggle the tile's own tap had just made. A sweep
+    /// may only BEGIN where no tile is; once live it continues anywhere.
+    func beginMarqueeSweepIfNeeded(startingAt start: CGPoint) {
+        guard marqueeModel.anchorContent == nil,
+              LibraryMarquee.startsInGutter(start, frames: marqueeModel.tileFrames)
+        else { return }
+        let offset = marqueeModel.scrollOffsetY
+        marqueeModel.anchorContent = CGPoint(x: start.x, y: start.y + offset)
+        // The frame index, built ONCE here — hit-testing no longer depends on
+        // the preference storm the grid emits while it re-renders.
+        marqueeModel.contentFrames = marqueeModel.tileFrames.mapValues {
+            $0.offsetBy(dx: 0, dy: offset)
+        }
+        marqueeModel.baseSelection = selection
+        marqueeModel.lastHits = []
+        marqueeModel.lastHitRect = nil
+        startMarqueeAutoScroll()
+    }
+
+    /// One sweep tick: redraw the band, set the autoscroll velocity, and
+    /// re-test tiles only when the band actually moved.
+    func updateMarqueeSweep() {
+        guard let anchor = marqueeModel.anchorContent else { return }
+        let offset = marqueeModel.scrollOffsetY
+        let pointer = marqueeModel.pointerViewport
+        let contentRect = LibraryMarquee.rect(
+            from: anchor,
+            to: CGPoint(x: pointer.x, y: pointer.y + offset)
+        )
+        // The band is the ONLY thing that redraws per tick: the overlay host
+        // is the sole reader of this observed property.
+        marqueeModel.rect = contentRect.offsetBy(dx: 0, dy: -offset)
+        marqueeModel.autoScrollVelocity = LibraryMarquee.autoScrollVelocity(
+            pointerY: pointer.y,
+            viewportHeight: marqueeModel.viewportHeight
+        )
+        // Throttle 1 — a mouse reports far finer than a tile is wide, and an
+        // O(tiles) intersection sweep per sub-pixel tick is the slowness.
+        guard LibraryMarquee.shouldRecomputeHits(
+            from: marqueeModel.lastHitRect,
+            to: contentRect
+        ) else { return }
+        marqueeModel.lastHitRect = contentRect
+        let hits = LibraryMarquee.hitIds(in: marqueeModel.contentFrames, rect: contentRect)
+        // Throttle 2 — selection is written only when MEMBERSHIP changes, so
+        // the grid re-renders when a tile enters or leaves the band and never
+        // per pixel (HARD rule: no wholesale list re-render).
+        guard hits != marqueeModel.lastHits else { return }
+        marqueeModel.lastHits = hits
+        apply(SelectionGrammar.marquee(
+            ids: hits,
+            selection: marqueeModel.baseSelection ?? selection,
+            modifiers: currentSelectionModifiers
+        ))
+    }
+
+    /// Finder's edge autoscroll: while the pointer sits within ~24pt of the
+    /// viewport's top or bottom, the grid scrolls that way and the band keeps
+    /// growing. One ticker for the whole drag — it idles at velocity 0 rather
+    /// than being torn down and rebuilt as the pointer crosses the zone.
+    private func startMarqueeAutoScroll() {
+        marqueeModel.autoScrollTask?.cancel()
+        marqueeModel.autoScrollTask = Task { @MainActor in
+            while !Task.isCancelled, marqueeModel.anchorContent != nil {
+                try? await Task.sleep(for: .milliseconds(16))
+                guard !Task.isCancelled, marqueeModel.anchorContent != nil else { return }
+                let velocity = marqueeModel.autoScrollVelocity
+                // Parked at either end of the document: nothing to extend.
+                guard velocity != 0, marqueeModel.autoScroll(by: velocity) != 0 else { continue }
+                updateMarqueeSweep()
             }
         }
     }

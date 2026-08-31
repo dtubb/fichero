@@ -584,8 +584,14 @@ class TestGlobalRegistryHeaderless:
         assert str(lib_path.resolve()) in paths
         assert listed.json()["count"] == 1
 
-    def test_add_seeds_single_root_inbox(self, global_client, tmp_path):
-        """Registering a real .fichero package eagerly seeds one root Inbox."""
+    def test_add_seeds_no_inbox(self, global_client, tmp_path):
+        """Registering a real .fichero package seeds NO Inbox (2026-08-31).
+
+        Registration used to eagerly seed one, so every library the user had
+        ever opened grew a root folder it never asked for. The Inbox exists
+        only as the landing folder for LOOSE FILE drops and is now created on
+        demand by the client's root-drop path.
+        """
         from fichero_server.db.manager import db_manager
 
         lib_path = tmp_path / "Marshall Diaries.fichero"
@@ -618,11 +624,7 @@ class TestGlobalRegistryHeaderless:
             finally:
                 library_db.conn.close()
 
-            assert len(inboxes) == 1
-            inbox = inboxes[0]
-            assert inbox.name == "Inbox"
-            assert inbox.parent_id is None
-            assert inbox.doc_type == DocType.folder
+            assert inboxes == []
         finally:
             db_manager.close_database(lib_path)
 

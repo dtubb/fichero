@@ -104,16 +104,18 @@ struct WorkspaceCommandsSection: View {
 
     var body: some View {
         Section("Workspaces") {
-            ForEach(WindowLayoutPreset.allCases) { preset in
+            // The built-in arrangements first (Daniel, 2026-08-31: "can we
+            // have some defaults?") — the menu-bar twins of the toolbar's one
+            // Workspaces button. These carry the toolbar and workflow bar with
+            // them; the presets below still touch pane visibility only.
+            ForEach(BuiltInWorkspace.allCases) { workspace in
                 Button {
-                    commands?.applyPreset(preset)
+                    commands?.applyBuiltIn(workspace)
                 } label: {
-                    Label(preset.title, systemImage: preset.systemImage)
+                    Label(workspace.title, systemImage: workspace.systemImage)
                 }
                 .disabled(commands == nil)
             }
-
-            Divider()
 
             ForEach(WindowWorkspaceStore.shared.catalog.workspaces) { workspace in
                 Button(workspace.name) {
@@ -126,6 +128,20 @@ struct WorkspaceCommandsSection: View {
                 commands?.saveWorkspace()
             }
             .disabled(commands == nil)
+        }
+
+        // The Layouts button's twin, in its own section so its "Reading" and
+        // "Everything" read as pane sets rather than as duplicates of the
+        // workspaces above: a preset touches pane VISIBILITY only.
+        Section("Layouts") {
+            ForEach(WindowLayoutPreset.allCases) { preset in
+                Button {
+                    commands?.applyPreset(preset)
+                } label: {
+                    Label(preset.title, systemImage: preset.systemImage)
+                }
+                .disabled(commands == nil)
+            }
         }
     }
 }

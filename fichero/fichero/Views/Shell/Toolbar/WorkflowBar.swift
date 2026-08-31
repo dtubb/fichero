@@ -75,6 +75,16 @@ struct WorkflowBar: View {
     /// Upper bound on what the whole fan-out would cost — every model priced
     /// and summed. nil = unpriced, shown as such rather than as free.
     var compareCostCeiling: Double?
+    /// The model an UNPINNED step would actually run on — the resolved tier,
+    /// not the word "default" (Daniel, 2026-08-31: "rather than say 'default
+    /// model', actually use the icon/model name"). nil falls back to reading
+    /// the tier out of `modelChoices`, so the sentence still names a real
+    /// model before the host is wired to resolve it.
+    var defaultModelName: String?
+    /// Whether the run resolves to the VISION tier rather than the text one —
+    /// the same question `selectionPrefersVisionModel` answers for the toolbar
+    /// chip. Only consulted by the `modelChoices` fallback above.
+    var prefersVisionModel: Bool = false
 
     /// One item's footprint. Fixed so the verbs sit on an even rhythm the way
     /// toolbar items do, rather than jittering with label length.
@@ -85,8 +95,16 @@ struct WorkflowBar: View {
     @State private var showingTools = false
     /// Where a dragged chip would land.
     @State var dropTargetIndex: Int?
-    /// The context (framing) popover (Daniel, 2026-08-30).
+    /// The context (framing) popover, opened from the sentence's own token —
+    /// which only exists once context HAS been entered (Daniel, 2026-08-31).
     @State var showsContextEditor = false
+    /// The same editor, opened from the bar's ellipsis menu ("Add Context…").
+    /// A second flag rather than one shared: two anchors for one popover put
+    /// the sheet on whichever view SwiftUI attached it to, not the one clicked.
+    @State var showsContextEntry = false
+    /// Natural height of the wrapped sentence, measured so the chain row can
+    /// GROW with it instead of clipping at one fixed line.
+    @State var chainRailHeight: CGFloat = WorkflowBar.chainRailRowHeight
     /// The compare confirmation popover — a fan-out is N paid calls, so it
     /// never dispatches without naming the models and the cost first.
     @State var showsCompareConfirmation = false
@@ -175,83 +193,25 @@ struct WorkflowBar: View {
         .frame(height: 52)
     }
 
-    /// The chain: full width, left-aligned so it reads as a sequence, with the
-    /// run control and the step count anchored right.
-    private var chainRow: some View {
-        // One CENTRED cluster (Daniel, 2026-08-29: "what you are building
-        // below in a line that is also centred — right now it's on the far
-        // right"): the rail, the run controls and the cost read as one
-        // sentence under the verbs rather than being split to the edges.
-        HStack(spacing: 8) {
-            Spacer(minLength: 0)
-            ScrollView(.horizontal, showsIndicators: false) {
-                chainRail.padding(.horizontal, 10)
-            }
-            .fixedSize(horizontal: true, vertical: false)
-            .frame(maxWidth: 600)
-            HStack(spacing: 6) {
-                // Run and Clear live HERE, outside the scrolling rail (review
-                // fix, 2026-08-29): inside it, an eight-step chain pushed the
-                // play button off-screen — the one control that must never
-                // scroll away is the one that starts the run.
-                if isRunning {
-                    ProgressView()
-                        .controlSize(.small)
-                        .help("Chain is running")
-                        .accessibilityLabel("Chain is running")
-                } else {
-                    Button(action: onRunChain) {
-                        Image(systemName: "play.circle.fill")
-                            .font(.title3)
-                            .foregroundStyle(target == .nothing
-                                             ? Color.secondary : Color.accentColor)
-                    }
-                    .buttonStyle(.plain)
-                    // Pressing play with nothing selected used to silently do
-                    // nothing — the guard in runStagedChain returned without a
-                    // word (review, 2026-08-29). Disabled WITH the reason on
-                    // hover is the honest version.
-                    .disabled(target == .nothing)
-                    .help(target == .nothing
-                          ? "Select a document or folder to run this chain on"
-                          : "Run \(staged.count) step(s) in order on the selection")
-                    .accessibilityLabel("Run the chain")
-
-                    Button { staged.removeAll() } label: {
-                        Image(systemName: "trash")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                    .help("Clear the chain")
-                    .accessibilityLabel("Clear the chain")
-
-                    // "Compare models…" — the same sentence, once per model
-                    // (Daniel, 2026-08-30). Sits beside ▶ because it IS a
-                    // run control, just one that fans out.
-                    compareItem
-                }
-                if let costCeiling {
-                    // A CEILING, said as one: "≤" is the difference between a
-                    // promise that can be kept and a guess.
-                    Text("est. ≤ \(costCeiling, format: .currency(code: "USD"))")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .monospacedDigit()
-                        .help(
-                            "Estimated upper bound for this chain over "
-                            + "\(staged.count) step(s), priced from the live "
-                            + "model registry. Steps whose model cannot be "
-                            + "priced are not counted."
-                        )
-                }
-                Text(staged.count == 1 ? "1 step" : "\(staged.count) steps")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer(minLength: 0)
+    /// The model an unpinned step really runs on, shortened the way the
+    /// toolbar chip shortens it — never the bare word "default"
+    /// (Daniel, 2026-08-31).
+    ///
+    /// Prefers what the host resolved. Falling back, it reads the tier out of
+    /// the pin list, which the host builds with a `"<short>  ·  <tier>"` label
+    /// per configured tier — the same vocabulary, one hop away. Only when the
+    /// user has configured nothing at all does the word "default model"
+    /// survive, and then it is the truth.
+    var resolvedDefaultModelLabel: String {
+        if let name = defaultModelName?.trimmingCharacters(in: .whitespaces),
+           !name.isEmpty {
+            return ModelChipToolbarItem.shorten(name)
         }
-        .frame(height: 34)
+        let tier = prefersVisionModel ? "Vision" : "Text"
+        let match = modelChoices.first { $0.label.hasSuffix(tier) }
+            ?? modelChoices.first
+        guard let match, !match.model.isEmpty else { return "default model" }
+        return ModelChipToolbarItem.shorten(match.model)
     }
 
     /// Pin a model to ONE step. Offered per chip because a chain's steps do
@@ -259,7 +219,7 @@ struct WorkflowBar: View {
     /// then count entities in its output with something cheap.
     @ViewBuilder
     func modelMenu(forStepAt index: Int) -> some View {
-        Button("Use the workflow's default") {
+        Button("Use the default (\(resolvedDefaultModelLabel))") {
             guard staged.indices.contains(index) else { return }
             staged[index].providerOverride = nil
             staged[index].modelOverride = nil

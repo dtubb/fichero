@@ -378,12 +378,12 @@ struct ContentView: View {
 
     // Pane focus state for Tab cycling
     @FocusState var focusedPane: PaneFocus?
-    /// The LAST pane that took focus — drives the fading focus ring (Daniel,
-    /// 2026-08-10: "the fading ring doesn't show up anywhere, except once on
-    /// the sidebar"). `focusedPane` is FocusState: a write that no .focused
-    /// binding claims (most panes) evaporates to nil before the ring can
-    /// render, so the ring reads THIS instead — set by every tap writer and
-    /// mirrored from real focus changes.
+    /// The LAST pane that took focus. `focusedPane` is FocusState: a write
+    /// that no `.focused` binding claims (most panes) evaporates to nil, so
+    /// this hint carries the answer instead — set by every tap writer and
+    /// mirrored from real focus changes. It feeds `\.focusedPaneKind` for ⌘A
+    /// routing and the focused-command menus. It draws NOTHING: the fading
+    /// focus ring it used to drive was removed (ruling 2026-08-31).
     @State var paneFocusHint: PaneFocus?
     /// True while a pane divider drag is in flight (views audit B3): the
     /// window-width observers stand down so a drag cannot re-enter

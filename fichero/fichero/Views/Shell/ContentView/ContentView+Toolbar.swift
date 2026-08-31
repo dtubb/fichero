@@ -44,27 +44,41 @@ extension ContentView {
         // Engine status now lives in the center status island (hosted inside
         // the `ContentToolbarID.breadcrumb` principal item, #4519) beside the
         // title, not here in the leading zone.
-        ToolbarItem(id: ContentToolbarID.navigationBack, placement: .navigation) {
-            Button {
-                navigateBack()
-            } label: {
-                Label("Back", systemImage: ToolbarSymbols.navigateBack)
+        //
+        // Back/forward are OPTIONAL chrome (Daniel, 2026-08-31): a workspace
+        // records which toolbar buttons show, and this is one of them. The
+        // ⌘' shortcuts and the menu-bar items are unaffected — hiding a
+        // button never removes a command.
+        if toolbarVisibility.showNavigation {
+            ToolbarItem(id: ContentToolbarID.navigationBack, placement: .navigation) {
+                Button {
+                    navigateBack()
+                } label: {
+                    Label("Back", systemImage: ToolbarSymbols.navigateBack)
+                }
+                .help("Back (⌘')")
+                .keyboardShortcut("'", modifiers: [.command])
+                .disabled(!navigationHistory.canGoBack)
             }
-            .help("Back (⌘')")
-            .keyboardShortcut("'", modifiers: [.command])
-            .disabled(!navigationHistory.canGoBack)
-        }
 
-        ToolbarItem(id: ContentToolbarID.navigationForward, placement: .navigation) {
-            Button {
-                navigateForward()
-            } label: {
-                Label("Forward", systemImage: ToolbarSymbols.navigateForward)
+            ToolbarItem(id: ContentToolbarID.navigationForward, placement: .navigation) {
+                Button {
+                    navigateForward()
+                } label: {
+                    Label("Forward", systemImage: ToolbarSymbols.navigateForward)
+                }
+                .help("Forward (⌘⇧')")
+                .keyboardShortcut("'", modifiers: [.command, .shift])
+                .disabled(!navigationHistory.canGoForward)
             }
-            .help("Forward (⌘⇧')")
-            .keyboardShortcut("'", modifiers: [.command, .shift])
-            .disabled(!navigationHistory.canGoForward)
         }
+    }
+
+    /// The app-wide toolbar configuration this window renders (2026-08-31).
+    /// Read here rather than stored on `ContentView` so the view's value size
+    /// stays where ViewValueSizeTests pinned it.
+    var toolbarVisibility: ToolbarVisibilityPlan {
+        WindowWorkspaceStore.shared.toolbarVisibility
     }
 
     /// TRAILING zone: the compact inspector toggle, and nothing else.
@@ -134,40 +148,42 @@ extension ContentView {
             // `(placement:content:)`. The group is positional; customisation
             // identity belongs to the items a user can reorder, and these three
             // move as one by construction.
-            ToolbarItemGroup(placement: .automatic) {
-                libraryPaneToggleButton
+            if toolbarVisibility.showPaneToggles {
+                ToolbarItemGroup(placement: .automatic) {
+                    libraryPaneToggleButton
 
-                // Buttons, not Toggles (Daniel, 2026-08-29: the accent-filled
-                // on-state "changing colors — that's a bad UX"). The WORDS
-                // carry the state — Show X / Hide X — which is also what the
-                // label says beneath the icon in the toolbar's Icon-and-Text
-                // mode, so state reads without colour.
-                Button {
-                    setCanvasPaneVisible(!showDocumentCanvas)
-                } label: {
-                    Label(showDocumentCanvas ? "Hide Preview" : "Show Preview",
-                          systemImage: ToolbarSymbols.previewPane)
-                }
-                .help(showDocumentCanvas ? "Hide the Preview" : "Show the Preview")
+                    // Buttons, not Toggles (Daniel, 2026-08-29: the accent-filled
+                    // on-state "changing colors — that's a bad UX"). The WORDS
+                    // carry the state — Show X / Hide X — which is also what the
+                    // label says beneath the icon in the toolbar's Icon-and-Text
+                    // mode, so state reads without colour.
+                    Button {
+                        setCanvasPaneVisible(!showDocumentCanvas)
+                    } label: {
+                        Label(showDocumentCanvas ? "Hide Preview" : "Show Preview",
+                              systemImage: ToolbarSymbols.previewPane)
+                    }
+                    .help(showDocumentCanvas ? "Hide the Preview" : "Show the Preview")
 
-                Button {
-                    setReadingPaneVisible(!showReadingPane)
-                } label: {
-                    Label(showReadingPane ? "Hide Reader" : "Show Reader",
-                          systemImage: ToolbarSymbols.readingPane)
-                }
-                .help(showReadingPane ? "Hide the Reader" : "Show the Reader — transcripts, translations, and the knowledge graph")
+                    Button {
+                        setReadingPaneVisible(!showReadingPane)
+                    } label: {
+                        Label(showReadingPane ? "Hide Reader" : "Show Reader",
+                              systemImage: ToolbarSymbols.readingPane)
+                    }
+                    .help(showReadingPane ? "Hide the Reader" : "Show the Reader — transcripts, translations, and the knowledge graph")
 
-                // Chat is a ROW pane (Daniel 2026-08-12: "there is no button
-                // to turn it on and off") — fourth member of the pane group,
-                // same grammar as preview/reading.
-                Button {
-                    setChatPaneVisible(!showChatPane)
-                } label: {
-                    Label(showChatPane ? "Hide Chat" : "Show Chat",
-                          systemImage: ToolbarSymbols.chatPane)
+                    // Chat is a ROW pane (Daniel 2026-08-12: "there is no button
+                    // to turn it on and off") — fourth member of the pane group,
+                    // same grammar as preview/reading.
+                    Button {
+                        setChatPaneVisible(!showChatPane)
+                    } label: {
+                        Label(showChatPane ? "Hide Chat" : "Show Chat",
+                              systemImage: ToolbarSymbols.chatPane)
+                    }
+                    .help(showChatPane ? "Hide the Chat" : "Show the Chat")
                 }
-                .help(showChatPane ? "Hide the Chat" : "Show the Chat")
             }
 
             // Search is the SYSTEM toolbar search item now (Daniel,
@@ -177,15 +193,23 @@ extension ContentView {
             // Xcode 27's window chrome (Daniel, 2026-08-29): Split/New Tab,
             // Workspaces, and the Views chooser — three identified items
             // after the pane group, one control each, bodies in
-            // ContentView+LayoutChooser.swift.
-            ToolbarItem(id: ContentToolbarID.splitMenu, placement: .automatic) {
-                splitAndTabMenu
+            // ContentView+LayoutChooser.swift. Workspaces is now the ONE
+            // workspace control (2026-08-31): the Views chooser no longer
+            // repeats the saved list, it only shows and hides views.
+            if toolbarVisibility.showSplitMenu {
+                ToolbarItem(id: ContentToolbarID.splitMenu, placement: .automatic) {
+                    splitAndTabMenu
+                }
             }
+            // NEVER gated: the Workspaces menu hosts the Toolbar Buttons
+            // submenu, so it is the way every other button comes back.
             ToolbarItem(id: ContentToolbarID.workspacesMenu, placement: .automatic) {
                 workspacesMenu
             }
-            ToolbarItem(id: ContentToolbarID.layoutChooser, placement: .automatic) {
-                viewsChooserMenu
+            if toolbarVisibility.showLayoutsMenu {
+                ToolbarItem(id: ContentToolbarID.layoutChooser, placement: .automatic) {
+                    viewsChooserMenu
+                }
             }
         }
 

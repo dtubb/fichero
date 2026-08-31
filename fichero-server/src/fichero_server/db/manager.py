@@ -71,7 +71,6 @@ class DatabaseManager:
             migrate_saved_search_table,
             migrate_workflow_table,
         )
-        from fichero_server.db.library_bootstrap import ensure_inbox_folder
         from fichero_server.db.paths import is_global_library_package
         from fichero_server.workflows.default_workflows import (
             heal_default_workflow_tree,
@@ -125,7 +124,15 @@ class DatabaseManager:
                         else:
                             prune_default_workflows(db)
 
-                    ensure_inbox_folder(db)
+                    # NO Inbox seeding here, and none anywhere else (ruling
+                    # 2026-08-31): a library opens EMPTY and stays that way
+                    # until the user puts something in it. `ensure_inbox_folder`
+                    # ran here and re-seeded a deleted Inbox on every open; it
+                    # and its module are deleted. The library ROOT is the drop
+                    # zone — loose files land there and both root-listing
+                    # surfaces show them — so the folder bought nothing.
+                    # Existing libraries keep the Inbox they were seeded with,
+                    # as ordinary user content.
                 except Exception as exc:
                     db.close()
                     logger.exception("Failed to initialize library database: %s", package_str)

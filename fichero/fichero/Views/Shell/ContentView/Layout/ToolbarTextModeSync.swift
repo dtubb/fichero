@@ -1,6 +1,7 @@
+import SwiftUI
+
 #if os(macOS)
 import AppKit
-import SwiftUI
 
 /// The bars' labels FOLLOW the window toolbar's own text mode (Daniel,
 /// 2026-08-31: "when the top toolbar has show text on, they should also show
@@ -65,5 +66,12 @@ struct ToolbarTextModeSync: NSViewRepresentable {
             observedToolbar?.removeObserver(self, forKeyPath: Self.keyPath)
         }
     }
+}
+#else
+/// iOS/iPadOS: there is no NSToolbar text mode to follow — the mounts in
+/// ContentView+WorkflowBar stay platform-neutral and this is a no-op.
+struct ToolbarTextModeSync: View {
+    @Binding var showsLabels: Bool
+    var body: some View { EmptyView() }
 }
 #endif

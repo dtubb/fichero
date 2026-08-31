@@ -222,6 +222,25 @@ extension LibraryView {
             }
         }
         .onChange(of: selection) { oldSelection, newSelection in
+            // The library pane is now the ACTIVE pane (2026-08-31). Every other
+            // view mode says so from its tap handler — list, icon and columns
+            // all call `onRequestFocus()`, and `handleTap` calls it again — but
+            // the Table never had a tap handler to say it from, because
+            // `NSTableView` owns its own clicks. So clicking a table row moved
+            // the selection without moving `paneFocusHint`, and ⌘A kept routing
+            // to whichever pane was clicked BEFORE the library: `SelectAllButton`
+            // decides by focus, and the table was the one surface that never
+            // claimed any. That is why ⌘A read as dead over a table full of
+            // rows. The publication was never the problem — the library
+            // publishes `librarySelectAll` from every mode (#4376) — the claim
+            // on focus was. Single-owner rule #4354 is untouched: no second ⌘A
+            // key equivalent, just the missing fact about who has focus.
+            //
+            // Gated on the change being the USER's: this same seam also fires
+            // for selections written by navigation and restore, and claiming
+            // focus on those would let the library steal ⌘A from the sidebar
+            // the moment a folder click cleared the browser selection.
+            if selectionChangeIsUserDriven { onRequestFocus() }
             // The native Table owns its own clicks — DELIBERATELY, because
             // `NSTableView` already implements the same Finder rules and taking
             // them back would cost column drag-reorder, the native keyboard

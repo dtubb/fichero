@@ -69,38 +69,34 @@ extension ContentView {
         paneSplitCoordinator.requestSplit(storageKey: key, axis: axis)
     }
 
-    // MARK: Workspaces
+    // MARK: Workspaces (ONE button — Daniel, 2026-08-31)
 
-    /// Save/apply/delete named window arrangements (Daniel loves Xcode's
-    /// saveable workspaces). The catalog is app-wide; applying is per window.
+    /// The single workspaces control. It used to be TWO: this menu (save /
+    /// apply / delete) and the Views chooser, which listed every saved
+    /// workspace a second time beneath its presets. "Combine them all into
+    /// ONE button" — so the saved list lives here, alone, and the Views
+    /// chooser goes back to being purely about showing and hiding views.
+    ///
+    /// A workspace now carries the TOOLBAR too: which optional buttons show,
+    /// and whether the workflow bar rides along. Three built-in arrangements
+    /// ship with the app so the menu is useful before anything is saved.
     var workspacesMenu: some View {
-        let workspaces = WindowWorkspaceStore.shared.catalog.workspaces
-        return Menu {
-            Button("Save Workspace…") {
+        Menu {
+            builtInWorkspaceSection
+            savedWorkspaceSection
+            Divider()
+            Button("Save Current as Workspace…") {
                 chromeUX.workspaceNameDraft = ""
                 chromeUX.showSaveWorkspacePrompt = true
             }
-
-            if !workspaces.isEmpty {
-                Section("Workspaces") {
-                    ForEach(workspaces) { workspace in
-                        Button(workspace.name) {
-                            applyLayoutSnapshot(workspace.layout)
-                        }
-                    }
-                }
-                Menu("Delete Workspace") {
-                    ForEach(workspaces) { workspace in
-                        Button(workspace.name, role: .destructive) {
-                            WindowWorkspaceStore.shared.remove(id: workspace.id)
-                        }
-                    }
-                }
-            }
+            deleteWorkspaceMenu
+            Divider()
+            toolbarButtonsMenu
         } label: {
             Label("Workspaces", systemImage: "rectangle.grid.1x2")
         }
-        .help("Save this window arrangement, or apply a saved one")
+        .help("Apply, save, or delete a window arrangement — panes, workflow "
+            + "bar, and toolbar buttons")
         .accessibilityLabel("Workspaces")
         .alert("Save Workspace", isPresented: Bindable(chromeUX).showSaveWorkspacePrompt) {
             TextField("Name", text: Bindable(chromeUX).workspaceNameDraft)
@@ -112,18 +108,139 @@ extension ContentView {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Names the current pane arrangement so you can apply it later.")
+            Text("Names this arrangement — panes, widths, workflow bar, and "
+                + "toolbar buttons — so you can apply it later.")
         }
+    }
+
+    /// The three that ship. Computed, never stored, so they cannot be
+    /// deleted and choosing one again IS the reset.
+    @ViewBuilder
+    private var builtInWorkspaceSection: some View {
+        let panes = currentPaneVisibilityPlan
+        let toolbar = WindowWorkspaceStore.shared.toolbarVisibility
+        Section("Default") {
+            ForEach(BuiltInWorkspace.allCases) { workspace in
+                Button {
+                    applyBuiltInWorkspace(workspace)
+                } label: {
+                    if workspace.matches(
+                        panes: panes, toolbar: toolbar, workflowBar: showWorkflowBar
+                    ) {
+                        Label(workspace.title, systemImage: "checkmark")
+                    } else {
+                        Label(workspace.title, systemImage: workspace.systemImage)
+                    }
+                }
+                .help(workspace.help)
+            }
+        }
+    }
+
+    /// The user's own, checkmarked when the window matches what they saved.
+    @ViewBuilder
+    private var savedWorkspaceSection: some View {
+        let saved = WindowWorkspaceStore.shared.catalog.workspaces
+        if !saved.isEmpty {
+            let panes = currentPaneVisibilityPlan
+            let toolbar = WindowWorkspaceStore.shared.toolbarVisibility
+            Section("Saved") {
+                ForEach(saved) { workspace in
+                    Button {
+                        applyLayoutSnapshot(workspace.layout)
+                    } label: {
+                        if isActive(workspace, panes: panes, toolbar: toolbar) {
+                            Label(workspace.name, systemImage: "checkmark")
+                        } else {
+                            Text(workspace.name)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var deleteWorkspaceMenu: some View {
+        let saved = WindowWorkspaceStore.shared.catalog.workspaces
+        if !saved.isEmpty {
+            Menu("Delete Workspace") {
+                ForEach(saved) { workspace in
+                    Button(workspace.name, role: .destructive) {
+                        WindowWorkspaceStore.shared.remove(id: workspace.id)
+                    }
+                }
+            }
+            .help("Remove a saved arrangement. The built-in ones cannot be deleted.")
+        }
+    }
+
+    /// Which optional toolbar buttons show. App-wide, the way a Mac toolbar
+    /// configuration is — and never able to hide the Workspaces menu itself,
+    /// which is the control that brings the others back.
+    private var toolbarButtonsMenu: some View {
+        let plan = WindowWorkspaceStore.shared.toolbarVisibility
+        return Menu("Toolbar Buttons") {
+            toolbarItemToggle("Back and Forward", \.showNavigation)
+            toolbarItemToggle("Pane Toggles", \.showPaneToggles)
+            toolbarItemToggle("Split and New Tab", \.showSplitMenu)
+            toolbarItemToggle("Layouts", \.showLayoutsMenu)
+            Divider()
+            Button("Show All Buttons") {
+                WindowWorkspaceStore.shared.setToolbarVisibility(.everything)
+            }
+            .disabled(plan == .everything)
+            .help("Put every optional toolbar button back")
+        }
+        .help("Choose which buttons the window toolbar shows")
+    }
+
+    /// A checkmarked menu item rather than a `Toggle`: the same no-colour
+    /// grammar the pane buttons use — the words and the checkmark carry the
+    /// state, nothing changes colour.
+    private func toolbarItemToggle(
+        _ title: String,
+        _ field: WritableKeyPath<ToolbarVisibilityPlan, Bool>
+    ) -> some View {
+        let store = WindowWorkspaceStore.shared
+        let isOn = store.toolbarVisibility[keyPath: field]
+        return Button {
+            var next = store.toolbarVisibility
+            next[keyPath: field] = !isOn
+            store.setToolbarVisibility(next)
+        } label: {
+            if isOn {
+                Label(title, systemImage: "checkmark")
+            } else {
+                Text(title)
+            }
+        }
+        .help(isOn ? "Hide \(title) in the toolbar" : "Show \(title) in the toolbar")
+    }
+
+    /// A saved workspace is "active" when the window shows the chrome it
+    /// names. Widths and splits are deliberately NOT compared — dragging a
+    /// divider a few points should not un-check the workspace you are in.
+    private func isActive(
+        _ workspace: SavedWindowWorkspace,
+        panes: PaneVisibilityPlan,
+        toolbar: ToolbarVisibilityPlan
+    ) -> Bool {
+        workspace.layout.panes == panes
+            && workspace.layout.toolbar == toolbar
+            && workspace.layout.showWorkflowBar == showWorkflowBar
     }
 
     // MARK: Views chooser
 
     /// The compound layouts (Xcode's "Editor Only / Canvas / Assistant"
-    /// idiom): checkmarked presets built from the pane set, saved workspaces
-    /// beneath a divider.
+    /// idiom): checkmarked presets built from the pane set.
+    ///
+    /// The saved-workspace list that used to hang beneath these is GONE
+    /// (Daniel, 2026-08-31) — it was the second workspace control. This
+    /// button is now only what its help says: which views the window shows.
     var viewsChooserMenu: some View {
         let current = currentPaneVisibilityPlan
-        let workspaces = WindowWorkspaceStore.shared.catalog.workspaces
         return Menu {
             ForEach(WindowLayoutPreset.allCases) { preset in
                 Button {
@@ -133,14 +250,6 @@ extension ContentView {
                         Label(preset.title, systemImage: "checkmark")
                     } else {
                         Text(preset.title)
-                    }
-                }
-            }
-            if !workspaces.isEmpty {
-                Divider()
-                ForEach(workspaces) { workspace in
-                    Button(workspace.name) {
-                        applyLayoutSnapshot(workspace.layout)
                     }
                 }
             }
@@ -173,7 +282,9 @@ extension ContentView {
             paneKindOverrides: paneKindOverrides.mapValues(\.rawValue),
             splits: paneSplitCoordinator.splitCounts,
             viewDisplayMode: viewDisplayMode.rawValue,
-            layoutMode: currentLayoutMode.rawValue
+            layoutMode: currentLayoutMode.rawValue,
+            toolbar: WindowWorkspaceStore.shared.toolbarVisibility,
+            showWorkflowBar: showWorkflowBar
         )
     }
 
@@ -194,8 +305,26 @@ extension ContentView {
             if let display = ViewDisplayMode(rawValue: snapshot.viewDisplayMode) {
                 updateViewDisplayMode(display)
             }
+            showWorkflowBar = snapshot.showWorkflowBar
         }
         paneSplitCoordinator.applySplits(snapshot.splits)
+        // Toolbar last, and outside the animation: it is app-wide chrome, not
+        // this window's geometry, and re-laying the NSToolbar mid-animation is
+        // exactly the kind of churn #3163 taught us to keep off the critical
+        // path.
+        WindowWorkspaceStore.shared.setToolbarVisibility(snapshot.toolbar)
+    }
+
+    /// Applies one of the built-in arrangements. It touches ONLY what a
+    /// built-in can honestly know — panes, workflow bar, toolbar buttons —
+    /// leaving widths, splits, kind overrides and the view mode as the user
+    /// has them.
+    func applyBuiltInWorkspace(_ workspace: BuiltInWorkspace) {
+        withAnimation(FrameAnimation.snappy) {
+            applyPaneVisibilityPlan(workspace.panes)
+            showWorkflowBar = workspace.showsWorkflowBar
+        }
+        WindowWorkspaceStore.shared.setToolbarVisibility(workspace.toolbar)
     }
 
     /// A preset touches ONLY pane visibility — widths, kind overrides and
@@ -233,6 +362,7 @@ extension ContentView {
                 chromeUX.showSaveWorkspacePrompt = true
             },
             applyWorkspace: { applyLayoutSnapshot($0.layout) },
+            applyBuiltIn: { applyBuiltInWorkspace($0) },
             applyPreset: { applyLayoutPreset($0) }
         )
     }
@@ -250,5 +380,6 @@ struct WindowLayoutCommands: Equatable {
 
     let saveWorkspace: @MainActor () -> Void
     let applyWorkspace: @MainActor (SavedWindowWorkspace) -> Void
+    let applyBuiltIn: @MainActor (BuiltInWorkspace) -> Void
     let applyPreset: @MainActor (WindowLayoutPreset) -> Void
 }
