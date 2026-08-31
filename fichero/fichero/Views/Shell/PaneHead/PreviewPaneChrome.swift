@@ -67,6 +67,10 @@ enum PreviewMarkupTool: String, CaseIterable, Identifiable {
     /// that have it; no consumer yet (reader text is the first).
     case textSelect
     case select
+    /// Word-boundary marquee (Daniel, 2026-08-30, ruling 2): a drag selects
+    /// the recognised WORD boxes it touches — select words, not pixels — so
+    /// region boxes can be deleted or promoted at word granularity.
+    case wordSelect
     case drawRegion
     case line
     case highlight
@@ -85,6 +89,7 @@ enum PreviewMarkupTool: String, CaseIterable, Identifiable {
         switch self {
         case .textSelect: "character.cursor.ibeam"
         case .select: "cursorarrow"
+        case .wordSelect: "text.viewfinder"
         case .drawRegion: "rectangle.dashed"
         case .line: "line.diagonal"
         case .highlight: "highlighter"
@@ -97,6 +102,7 @@ enum PreviewMarkupTool: String, CaseIterable, Identifiable {
     var label: String {
         switch self {
         case .select: "Select"
+        case .wordSelect: "Select Words"
         case .drawRegion: "Draw Region"
         case .line: "Line"
         case .textSelect: "Select Text"

@@ -168,15 +168,17 @@ struct PDFPageWithToolbar: View {
         }
     }
 
-    /// Saved region boxes (normalized `[x,y,w,h]`) for the page on screen.
-    private var pageRegionBoxes: [[Double]] {
+    /// Saved annotations for the page on screen, as per-kind marks (Daniel,
+    /// 2026-08-30: markup should LOOK like what it is). Region-less bookmarks
+    /// ride along as whole-page stars.
+    private var pageRegionMarks: [AnnotationMark] {
         annotationStore.annotations
             .filter {
                 $0.documentId == effectiveDocumentId
                     && $0.pageIndex == effectivePageIndex
-                    && $0.hasRegion
+                    && ($0.hasRegion || $0.kind == .bookmark)
             }
-            .compactMap(\.regionRect)
+            .map(AnnotationMark.init)
     }
 
     /// Regions to draw: words when the pass produced them, lines otherwise —
@@ -233,6 +235,10 @@ struct PDFPageWithToolbar: View {
         } else {
             rects = [box]
         }
+        // Coding v1 (Daniel, 2026-08-30, ruling 4): pending tags ride the
+        // next highlight-family save — every strip of this ONE gesture.
+        let tagKinds: Set<AnnotationKind> = [.highlight, .underline, .strikethrough]
+        let tags = tagKinds.contains(kind) ? (pdfWindowState?.takePendingMarkupTags() ?? []) : []
         Task {
             for rect in rects {
                 _ = await annotationStore.addNote(
@@ -241,7 +247,8 @@ struct PDFPageWithToolbar: View {
                     bbox: rect,
                     pageIndex: pageIndex,
                     kind: kind,
-                    color: color
+                    color: color,
+                    tags: tags
                 )
             }
         }
@@ -297,7 +304,7 @@ struct PDFPageWithToolbar: View {
             case .note: requestAnnotation(.note)
             case .star: requestAnnotation(.bookmark)
             case .line: requestAnnotation(.line)
-            case .textSelect, .select, .drawRegion, .check:
+            case .textSelect, .select, .wordSelect, .drawRegion, .check:
                 break  // preview-regions lane / future drawing kinds
             }
         }
@@ -351,7 +358,7 @@ struct PDFPageWithToolbar: View {
                 zoomController: zoom,
                 pageController: pageNav,
                 onCursorMoved: { pos in loupePosition = pos },
-                regionBoxes: annotationsEnabled ? pageRegionBoxes : [],
+                regionMarks: annotationsEnabled ? pageRegionMarks : [],
                 ocrBoxes: drawableOCRBoxes,
                 isDrawingRegion: isDrawingRegion,
                 onCreateRegion: { box in persistRegion(box, tool: pendingTool) },

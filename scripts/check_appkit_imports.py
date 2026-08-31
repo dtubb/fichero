@@ -122,6 +122,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Views/Preview/PDFViewer/PDFPageView+OCRBoxes.swift": "#2713 — PDFAnnotation.color is NSColor/UIColor, not SwiftUI.Color; same PDFKit bridge as PDFPageView.swift, split out by file_length; #2101",
     "Views/Reader/Page/Immersive/KeyboardExitCatcher.swift": "#2520 — immersive reader catches Esc via AppKit keyboard bridge (moved here when ImmersiveReaderView was split by file_length); #2101",
     "Views/Preview/PDFViewer/PDFPageView.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
+    "Views/Preview/PDFViewer/PDFAnnotationMarkRendering.swift": "2026-08-30 per-kind marks — PDFAnnotation font/colors are NSFont/NSColor; same PDFKit bridge as PDFPageView+OCRBoxes.swift, split out by file_length; #2101",
     "Views/Preview/PDFViewer/PDFThumbnailView.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
     "Views/Library/Workspace/LibraryWorkspaceRoot.swift": "#2713 — workspace root uses UIKit-only mobile affordances; #2101",
     "Views/Preview/QuickLookViewer/QuickLookComponents.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",

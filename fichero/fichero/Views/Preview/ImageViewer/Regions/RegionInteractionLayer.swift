@@ -80,7 +80,7 @@ struct RegionInteractionLayer: View {
             }
             .frame(width: geo.size.width, height: geo.size.height)
             .contentShape(Rectangle())
-            .gesture(isAddingRegion ? bandGesture(in: geo.size) : nil)
+            .gesture(isAddingRegion || isWordSelecting ? bandGesture(in: geo.size) : nil)
             .gesture(tapGesture(in: geo.size))
             .onModifierKeysChanged(mask: .shift) { _, new in
                 shiftHeld = new.contains(.shift)
@@ -190,8 +190,15 @@ struct RegionInteractionLayer: View {
         }
     }
 
-    /// Rubber-band a new marquee (add mode only — a full-frame drag target
-    /// outside an armed mode would fight the platform).
+    /// Word-boundary marquee armed (Daniel, 2026-08-30, ruling 2)? The band
+    /// then selects the WORD boxes it touches instead of adding a marquee.
+    private var isWordSelecting: Bool {
+        windowState?.activeMarkupTool == .wordSelect
+    }
+
+    /// Rubber-band drag (armed modes only — a full-frame drag target outside
+    /// an armed mode would fight the platform): a new marquee in add mode, a
+    /// word-box selection in word-select mode.
     private func bandGesture(in size: CGSize) -> some Gesture {
         DragGesture(minimumDistance: 2)
             .onChanged { value in
@@ -201,14 +208,37 @@ struct RegionInteractionLayer: View {
             .onEnded { value in
                 defer { bandStart = nil; bandCurrent = nil }
                 let start = bandStart ?? value.startLocation
-                if let box = BoundingBoxGeometry.normalizedBox(
+                guard let box = BoundingBoxGeometry.normalizedBox(
                     from: start, to: value.location, in: size, visible: visible
-                ) {
+                ) else { return }
+                if isWordSelecting {
+                    selectWords(inBand: box)
+                } else {
                     marquees?.add(
                         box, documentId: documentId, imagePixelSize: imagePixelSize
                     )
                 }
             }
+    }
+
+    /// Select (⇧ = extend) the word boxes the band touched — they light via
+    /// the shared `RegionSelection`, so Delete and the region verbs address
+    /// them exactly the way the inspector's rows are addressed.
+    private func selectWords(inBand band: [Double]) {
+        guard let artifactId else { return }
+        let hits = AnnotationWordSelection.wordIndices(inBand: band, boxes: allBoxes)
+        guard !hits.isEmpty else {
+            if !shiftHeld { selection.clear() }
+            return
+        }
+        var remaining = hits[...]
+        if !shiftHeld {
+            selection.select(hits[0], artifactId: artifactId, documentId: documentId)
+            remaining = hits.dropFirst()
+        }
+        for index in remaining where !selection.isSelected(index, in: artifactId) {
+            selection.toggle(index, artifactId: artifactId, documentId: documentId)
+        }
     }
 
     /// Drag a SELECTED region to move it; the bbox commits on mouse-up.
@@ -237,7 +267,6 @@ extension RegionInteractionLayer {
     /// ✓✓ → ✓✓✓ → none, persisted as the rating annotation kind.
     func handleCheckTap(at point: CGPoint, in size: CGSize) {
         guard let annotationStore, let windowState else { return }
-        _ = windowState  // armed-state read happens at the call site
         let lines = allBoxes.filter { $0.level == "line" }
         var target: [Double]?
         for line in lines {
@@ -276,17 +305,20 @@ extension RegionInteractionLayer {
                     bbox: bbox, kind: .rating, rating: next
                 )
             } else {
+                // Coding v1 (ruling 4): pending tags ride a NEW check too —
+                // a triple-check can carry a code.
                 _ = await annotationStore.addNote(
                     scope: .document(docId), text: "",
-                    bbox: bbox, kind: .rating, rating: 1
+                    bbox: bbox, kind: .rating, rating: 1,
+                    tags: windowState.takePendingMarkupTags()
                 )
             }
         }
     }
 
-    static func sameExtent(_ a: [Double]?, _ b: [Double], tolerance: Double = 0.01) -> Bool {
-        guard let a, a.count >= 4, b.count >= 4 else { return false }
-        return zip(a.prefix(4), b.prefix(4)).allSatisfy { abs($0 - $1) < tolerance }
+    static func sameExtent(_ lhs: [Double]?, _ rhs: [Double], tolerance: Double = 0.01) -> Bool {
+        guard let lhs, lhs.count >= 4, rhs.count >= 4 else { return false }
+        return zip(lhs.prefix(4), rhs.prefix(4)).allSatisfy { abs($0 - $1) < tolerance }
     }
 }
 

@@ -73,6 +73,10 @@ extension ZoomableImagePreview {
         } else {
             rects = [box]
         }
+        // Coding v1 (Daniel, 2026-08-30, ruling 4): pending tags ride the
+        // next highlight-family save — every strip of this ONE gesture.
+        let tagKinds: Set<AnnotationKind> = [.highlight, .underline, .strikethrough]
+        let tags = tagKinds.contains(kind) ? (windowState?.takePendingMarkupTags() ?? []) : []
         Task {
             for rect in rects {
                 _ = await annotationStore.addNote(
@@ -80,18 +84,24 @@ extension ZoomableImagePreview {
                     text: "",
                     bbox: rect,
                     kind: kind,
-                    color: color
+                    color: color,
+                    tags: tags
                 )
             }
         }
     }
 
-    /// Saved region boxes (normalized `[x,y,w,h]`) for the shown image.
-    var regionBoxes: [[Double]] {
+    /// Saved annotations for the shown image, as per-kind marks (Daniel,
+    /// 2026-08-30: markup should LOOK like what it is). Region-less bookmarks
+    /// ride along as whole-page stars.
+    var annotationMarks: [AnnotationMark] {
         guard let documentId else { return [] }
         return annotationStore.annotations
-            .filter { ($0.documentId == documentId || $0.pageId == documentId) && $0.hasRegion }
-            .compactMap(\.regionRect)
+            .filter {
+                ($0.documentId == documentId || $0.pageId == documentId)
+                    && ($0.hasRegion || $0.kind == .bookmark)
+            }
+            .map(AnnotationMark.init)
     }
 
     func loadAnnotations() {

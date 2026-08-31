@@ -53,13 +53,19 @@ extension ZoomableImagePreview {
                             .allowsHitTesting(false)
                     }
                 }
-                // Saved bounding boxes + the region-draw layer (#2458).
-                // Shown whenever there are boxes or the tool is armed.
-                if (annotationsEnabled && !regionBoxes.isEmpty) || isDrawingRegion {
+                // Saved annotations, rendered BY KIND (Daniel, 2026-08-30:
+                // a highlight is a wash, an underline a bar, a check a ✓ in
+                // the margin — markup should LOOK like what it is).
+                if annotationsEnabled && !annotationMarks.isEmpty {
+                    AnnotationMarkLayer(marks: annotationMarks, visible: geometry.visible)
+                }
+                // The region-DRAW layer (#2458): drag plumbing only — the
+                // saved marks above own display now, so it draws no boxes.
+                if isDrawingRegion {
                     BoundingBoxOverlay(
-                        boxes: regionBoxes,
+                        boxes: [],
                         visible: geometry.visible,
-                        isDrawing: isDrawingRegion,
+                        isDrawing: true,
                         onCreate: { box in createAnnotation(box: box, tool: pendingAnnotationTool) }
                     )
                 }
@@ -247,7 +253,6 @@ extension ZoomableImagePreview {
     }
 }
 
-
 extension ZoomableImagePreview {
     /// The armed tool's cursor, applied while the pointer is over the canvas
     /// (Daniel, 2026-08-30: "when we change tools for markup, the cursor
@@ -258,7 +263,7 @@ extension ZoomableImagePreview {
         switch windowState?.activeMarkupTool {
         case .textSelect, .note: NSCursor.iBeam.set()
         case .check: NSCursor.pointingHand.set()
-        case .drawRegion, .select, .line, .highlight: NSCursor.crosshair.set()
+        case .drawRegion, .select, .line, .highlight, .wordSelect: NSCursor.crosshair.set()
         default: NSCursor.arrow.set()
         }
     }
