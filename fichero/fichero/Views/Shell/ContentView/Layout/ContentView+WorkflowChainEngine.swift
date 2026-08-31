@@ -157,7 +157,7 @@ extension ContentView {
         lastChainRunTargets = launch.targets
 
         isRunningStagedChain = true
-        compareRunProgress = []
+        chromeUX.compareRunProgress = []
         defer {
             isRunningStagedChain = false
             runningStagedStepIndex = nil
