@@ -17,8 +17,12 @@ extension ZoomableImagePreview {
             pendingAnnotationTool = tool
             isDrawingRegion = true
         case .bookmark:
-            isDrawingRegion = false
-            createAnnotation(box: nil, tool: .bookmark)
+            // A star marks a PLACE on the page (Daniel, 2026-08-31: "star
+            // seems to star document, but not the actual location") — same
+            // drag-to-place grammar as highlight/note. Whole-document
+            // starring stays with the library row's own star.
+            pendingAnnotationTool = .bookmark
+            isDrawingRegion = true
         }
     }
 
@@ -53,6 +57,7 @@ extension ZoomableImagePreview {
         // armed, the draw layer stays armed for the next box.
         let sticky = windowState?.activeMarkupTool
         isDrawingRegion = sticky == .highlight || sticky == .note || sticky == .line
+            || sticky == .star
         // The highlight split-button's color rides the saved highlight
         // (Daniel, 2026-08-29). Underline/strikethrough save uncolored until
         // a backing kind exists (see the toolbars design report).

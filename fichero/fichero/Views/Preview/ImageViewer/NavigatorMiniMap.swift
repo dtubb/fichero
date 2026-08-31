@@ -10,10 +10,6 @@ struct NavigatorMiniMap: View {
     private enum Layout {
         static let cornerRadius: CGFloat = 6
         static let borderOpacity: Double = 0.3
-        static let backgroundOpacity: Double = 0.7
-        static let shadowRadius: CGFloat = 5
-        static let shadowOffsetY: CGFloat = 2
-        static let shadowOpacity: Double = 0.3
         static let hoverOpacity: Double = 1.0
         static let defaultOpacity: Double = 0.7
         static let hoverAnimationDuration: Double = 0.15
@@ -51,17 +47,15 @@ struct NavigatorMiniMap: View {
         Image(platformImage: image)
             .resizable()
             .aspectRatio(contentMode: .fit)
-            .background(Color.black.opacity(Layout.backgroundOpacity))
+            // Glass, not a slab (Daniel, 2026-08-31): the letterbox around a
+            // .fit image used to be an opaque black plate, which read as a
+            // white card over a scan. The page shows through now; the host
+            // cluster supplies the lozenge and its shadow.
+            .background(.ultraThinMaterial)
             .clipShape(RoundedRectangle(cornerRadius: Layout.cornerRadius))
             .overlay(
                 RoundedRectangle(cornerRadius: Layout.cornerRadius)
-                    .stroke(Color.white.opacity(Layout.borderOpacity), lineWidth: 1)
-            )
-            .shadow(
-                color: .black.opacity(Layout.shadowOpacity),
-                radius: Layout.shadowRadius,
-                x: 0,
-                y: Layout.shadowOffsetY
+                    .stroke(Color.primary.opacity(Layout.borderOpacity), lineWidth: 1)
             )
             .overlay { gestureOverlay }
             .opacity(isHovering ? Layout.hoverOpacity : Layout.defaultOpacity)

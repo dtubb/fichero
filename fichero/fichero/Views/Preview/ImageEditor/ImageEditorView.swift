@@ -56,6 +56,9 @@ struct ImageEditorView: View {
     @State var marqueeSelection: CGRect?
     @State var compareMode: CompareMode = .single
     @State var compareSplit: CGFloat = 0.5
+    /// Revert to Original confirmation — every step is already committed, so
+    /// reverting always discards saved work and always asks (Daniel, 2026-08-31).
+    @State var showRevertConfirm = false
 
     @Environment(AnnotationStore.self) var annotationStore
 
@@ -97,6 +100,18 @@ struct ImageEditorView: View {
             FocusedLibraryAction(
                 isEnabled: model.preview != nil,
                 run: { marqueeSelection = CGRect(x: 0, y: 0, width: 1, height: 1) }
+            )
+        )
+        // ⌘Z while editing an image undoes the last committed edit step
+        // (Daniel, 2026-08-31). Published on its own key so the Edit menu's
+        // `UndoLastActionButton` routes here ahead of navigation-back — a bare
+        // `.keyboardShortcut` on the toolbar button loses to the menu's key
+        // equivalent on macOS.
+        .focusedSceneValue(
+            \.imageEditUndoAction,
+            FocusedLibraryAction(
+                isEnabled: !model.chain.isEmpty && !model.isBusy,
+                run: { Task { await model.undoLastStep() } }
             )
         )
         .task(id: document.id) {

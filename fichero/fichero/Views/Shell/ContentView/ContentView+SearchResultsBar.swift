@@ -41,6 +41,13 @@ extension ContentView {
             // to override. Compilation failure shows too, never hidden.
             compilationDetailRow(store: store)
 
+            // Expanded search notice (Daniel, 2026-08-31): one-time
+            // explanation that the results include meaning-based matches.
+            // Gated on the response's OWN `search_type` — the mode the
+            // engine reports it ran — so a full-text search, a failed
+            // search (stats nil) or an empty result set never claims it.
+            expandedSearchNotice(store: store)
+
             // Non-document legs are NOT listed here (#4118, ruling
             // 2026-08-19): entity/claim/artifact hits resolve into the grid
             // as nodes; the bar stays a slim two-row header.
@@ -64,6 +71,26 @@ extension ContentView {
             Task { @MainActor in
                 await runTransientSearch(query)
             }
+        }
+    }
+
+    /// The "Expanded Search Results" banner, above the results the grid is
+    /// about to show.
+    ///
+    /// Three conditions, all required, and the notice owns the fourth
+    /// (its persisted dismissal):
+    ///   1. a search actually completed — `searchStats` is non-nil, so a
+    ///      failure or an in-flight query says nothing;
+    ///   2. it returned rows, so the sentence describes results on screen;
+    ///   3. the mode the ENGINE reports (`search_type`) includes the
+    ///      embeddings leg — `"semantic"` or `"hybrid"`. `"fulltext"` is
+    ///      keyword-only and the claim would be untrue.
+    @ViewBuilder
+    private func expandedSearchNotice(store: SearchStore) -> some View {
+        if let stats = store.searchStats,
+           store.searchFailure == nil,
+           !searchResultDocuments.isEmpty {
+            ExpandedSearchNotice(searchType: stats.searchType)
         }
     }
 

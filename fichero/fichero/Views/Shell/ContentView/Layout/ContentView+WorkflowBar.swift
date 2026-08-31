@@ -22,6 +22,7 @@ extension ContentView {
     var annotationBarInset: some View {
         if showAnnotationBar {
             AnnotationBar(showsLabels: showWorkflowBarLabels)
+                .background { ToolbarTextModeSync(showsLabels: $showWorkflowBarLabels) }
         }
     }
 
@@ -54,6 +55,8 @@ extension ContentView {
                 compareProgress: chromeUX.compareRunProgress,
                 compareCostCeiling: chromeUX.stagedCompareCostCeiling
             )
+            // On BOTH bars: labels follow the toolbar when only one is shown.
+            .background { ToolbarTextModeSync(showsLabels: $showWorkflowBarLabels) }
             .task(id: chainCostKey) { await refreshChainCostCeiling() }
             // Persist/restore keyed on the chain's STRUCTURE — steps, order,
             // pins — never run-state churn. See ContentView+WorkflowChainEngine.
@@ -91,10 +94,8 @@ extension ContentView {
     ///
     /// Sequential, not fire-and-forget: step two should read what step one
     /// wrote (transcribe then clean up then catalogue), so each awaits the
-    /// one before it.
-    ///
-    /// The chain is NOT cleared on completion — a run you can repeat on the
-    /// next folder is the point of having assembled it.
+    /// one before it. The chain is NOT cleared on completion — a run you can
+    /// repeat on the next folder is the point of having assembled it.
     @MainActor
     func runStagedChainClientSide() async {
         guard !stagedWorkflowChain.isEmpty, !isRunningStagedChain else { return }

@@ -285,6 +285,14 @@ final class ImageEditorModel {
         await runOp { service in try await service.removeOperation(documentId: self.documentId, at: index) }
     }
 
+    /// Undo = drop the LAST committed step (Daniel, 2026-08-31). Steps commit
+    /// on Apply, so undo is a chain rewrite (PUT minus the tail), not local state.
+    func undoLastStep() async {
+        guard !chain.isEmpty else { return }
+        if selectedStepIndex == chain.operations.count - 1 { selectedStepIndex = nil }
+        await removeOperation(at: chain.operations.count - 1)
+    }
+
     /// Apply the same op across many documents (#1265 batch-apply).
     ///
     /// There is no backend batch endpoint, so this fans out client-side over

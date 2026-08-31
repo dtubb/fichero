@@ -92,6 +92,38 @@ extension ImageEditorView {
             }
             .disabled(model.isBusy)
 
+            Divider().frame(height: 20)
+
+            // Undo / Revert (Daniel, 2026-08-31). Steps commit on Apply, so
+            // Undo rewrites the saved chain minus its last step and Revert
+            // clears it — both are server truth, hence the busy gating.
+            // No .keyboardShortcut here: ⌘Z has ONE owner, the Edit menu's
+            // UndoLastActionButton, which routes to the editor via the
+            // imageEditUndoAction focused value (#4354).
+            toolButton("arrow.uturn.backward", help: "Undo — remove the last edit step (⌘Z)") {
+                Task { await model.undoLastStep() }
+            }
+            .disabled(model.isBusy || model.chain.isEmpty)
+            .accessibilityIdentifier("imageEditUndo")
+
+            toolButton("arrow.counterclockwise.circle", help: "Revert to Original — discard all edits") {
+                showRevertConfirm = true
+            }
+            .disabled(model.isBusy || model.chain.isEmpty)
+            .accessibilityIdentifier("imageEditRevertToOriginal")
+            .confirmationDialog(
+                "Revert to the original image?",
+                isPresented: $showRevertConfirm,
+                titleVisibility: .visible
+            ) {
+                Button("Revert to Original", role: .destructive) {
+                    Task { await model.resetAll() }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This discards all \(model.chain.operations.count) saved edit step(s). The original file is never changed.")
+            }
+
             if marqueeSelection != nil && compareMode == .single {
                 Divider().frame(height: 20)
                 toolButton("crop", help: "Crop to selection") {

@@ -21,6 +21,34 @@ extension ZoomableImagePreview {
         return ocrGeometry.displayIndexedBoxes
     }
 
+    /// The full box list, or nothing when the geometry names a frame other
+    /// than the pixels on screen — never draw or select against a frame that
+    /// is not the one shown.
+    var frameMatchedGeometryBoxes: [OCRGeometryBox] {
+        guard let ocrGeometry, geometryFrameMatchesDisplay(ocrGeometry) else { return [] }
+        return ocrGeometry.boxes
+    }
+
+    /// ⌘A (Daniel, 2026-08-31): with the text tool armed, every WORD box;
+    /// otherwise every box the overlay is SHOWING (visible-surface ruling —
+    /// you select what you can see), falling back to the whole geometry when
+    /// the overlay is off.
+    func selectAllGeometryForArmedTool() {
+        guard let artifactId = ocrGeometryArtifactId else { return }
+        let all = frameMatchedGeometryBoxes
+        guard !all.isEmpty else { return }
+        let indices: [Int]
+        switch windowState?.activeMarkupTool {
+        case .textSelect, .wordSelect:
+            let words = all.indices.filter { all[$0].level == "word" }
+            indices = words.isEmpty ? Array(all.indices) : words
+        default:
+            let shown = displayedGeometryBoxes.map(\.index)
+            indices = shown.isEmpty ? Array(all.indices) : shown
+        }
+        RegionSelection.shared.selectAll(indices, artifactId: artifactId, documentId: documentId)
+    }
+
     /// The interactive layer + its context menu. Mounted whenever an image is
     /// measured; a tap on empty ground clears selection, which is the
     /// click-away-deselects ruling, not an accident.
@@ -29,14 +57,23 @@ extension ZoomableImagePreview {
         if let documentId {
             RegionInteractionLayer(
                 boxes: displayedGeometryBoxes,
-                allBoxes: ocrGeometry?.boxes ?? [],
+                // FRAME GATE here too (Daniel, 2026-08-31: selected word
+                // boxes drawn off the image): the display set checks that
+                // the geometry was measured on THESE pixels, but selection
+                // highlights read the full list — a geometry from another
+                // rendition's frame scattered its boxes beside the page.
+                allBoxes: frameMatchedGeometryBoxes,
                 visible: geometry.visible,
                 artifactId: ocrGeometryArtifactId,
                 documentId: documentId,
                 marquees: windowState?.previewMarquees,
                 imagePixelSize: imageSize == .zero ? nil : imageSize,
                 isAddingRegion: isAddingRegion,
-                onMoveCommit: { index, bbox in commitRegionMove(index: index, bbox: bbox) }
+                onMoveCommit: { index, bbox in commitRegionMove(index: index, bbox: bbox) },
+                onPromote: { name, index in
+                    promoteMarquees(named: name, onlyIndex: index)
+                },
+                onOpenRegion: { index in openRegion(atIndex: index) }
             )
             .contextMenu { regionContextMenu }
         }
@@ -50,16 +87,22 @@ extension ZoomableImagePreview {
         Button(isAddingRegion ? "Stop Adding Regions" : "Add Region…") {
             isAddingRegion.toggle()
         }
-        if let marquees = windowState?.previewMarquees,
+        if let documentId, let marquees = windowState?.previewMarquees,
            marquees.documentId == documentId, !marquees.isEmpty {
+            // Daniel, 2026-08-31: the right-click verb ASKS for a name now
+            // (hence the ellipsis) — it arms the same naming request the
+            // pencil badge does, anchored on the first marquee's badge, so
+            // both routes commit through one code path.
             Button(
                 marquees.count == 1
-                    ? "New Region from Selection"
-                    : "New Regions from \(marquees.count) Selections"
+                    ? "New Region from Selection…"
+                    : "New Regions from \(marquees.count) Selections…"
             ) {
-                promoteMarquees()
+                RegionNamingRequest.shared.arm(documentId: documentId, marqueeIndex: nil)
             }
+            .help("Name the drawn selection, then save it as a region")
             Button("Clear Selections") { marquees.clear() }
+                .help("Discard the drawn selections without saving them")
         }
         let selection = RegionSelection.shared
         if let artifactId = ocrGeometryArtifactId, selection.artifactId == artifactId {
@@ -149,11 +192,31 @@ extension ZoomableImagePreview {
     /// to hold the hand-drawn boxes. The regions are created WITHOUT text: no
     /// one-crop OCR call is cheaply reachable today (detect/transcribe run as
     /// workflow passes), so an empty text is the honest value.
-    func promoteMarquees() {
+    ///
+    /// Daniel, 2026-08-31 ("if we draw it, we should be able to save it, and
+    /// double click on it to be taken to a new region"): a promoted marquee
+    /// now lands as BOTH a geometry region — the box the preview draws and
+    /// the curation verbs address by index — and a region CHILD NODE
+    /// (`image.crop_child`), which is what a double-click can be taken to.
+    /// Two writes, deliberately: the box alone has nowhere to go, and the
+    /// node alone would make the drawn region vanish the moment it was saved.
+    ///
+    /// - Parameters:
+    ///   - name: the user's name for the region; empty saves it unnamed.
+    ///   - onlyIndex: promote just that marquee (its own badge), or nil for
+    ///     the whole set in reading order (the right-click verb).
+    func promoteMarquees(named name: String = "", onlyIndex: Int? = nil) {
         guard let documentId, let artifactService,
               let marquees = windowState?.previewMarquees,
               marquees.documentId == documentId, !marquees.isEmpty else { return }
-        let rects = marquees.readingOrderRects
+        let rects: [[Double]]
+        if let onlyIndex, marquees.rects.indices.contains(onlyIndex) {
+            rects = [marquees.rects[onlyIndex]]
+        } else {
+            rects = marquees.readingOrderRects
+        }
+        let pixelSize = marquees.imagePixelSize
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         Task {
             do {
                 let artifactId: String
@@ -165,17 +228,26 @@ extension ZoomableImagePreview {
                     ).id
                 }
                 var latest: Artifact?
-                for rect in rects {
+                for (offset, rect) in rects.enumerated() {
                     latest = try await artifactService.addRegion(
                         artifactId: artifactId, documentId: documentId, bbox: rect
+                    )
+                    await materializeRegionChild(
+                        parentId: documentId, rect: rect, pixelSize: pixelSize,
+                        name: Self.childName(trimmed, offset: offset, total: rects.count)
                     )
                 }
                 if let latest {
                     ocrGeometry = latest.ocrGeometry
                     ocrGeometryArtifactId = latest.id
                 }
-                marquees.clear()
-                isAddingRegion = false
+                if onlyIndex == nil {
+                    marquees.clear()
+                    isAddingRegion = false
+                } else if let onlyIndex {
+                    marquees.selectedIndex = onlyIndex
+                    marquees.removeSelected()
+                }
             } catch {
                 Self.logger.error("Region promote failed: \(String(describing: error))")
             }

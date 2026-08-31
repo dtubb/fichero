@@ -15,6 +15,10 @@ import AppKit
 enum UndoRoute: Equatable {
     /// A text editor has focus — its own undo manager owns ⌘Z.
     case focusedTextEditor
+    /// No text focus; the mounted image editor drops its last edit step
+    /// (Daniel, 2026-08-31). Ahead of navigation: while editing an image,
+    /// ⌘Z means "undo that edit", never "go back a folder".
+    case imageEdit
     /// No text focus; the focused window's navigation history handles it.
     case navigation
     /// No text focus; the audited backend action log handles it.
@@ -28,11 +32,13 @@ enum UndoRoutingPolicy {
     /// - Parameters:
     ///   - isTextEditing: an editable text responder holds focus.
     ///   - textUndoAvailable: that responder's undo manager has something to undo.
+    ///   - imageEditUndoEnabled: an image editor is mounted with a non-empty edit chain.
     ///   - navigationUndoEnabled: the focused window can step navigation back.
     ///   - hasAuditedUndo: the audit log has a reversible forward action.
     static func route(
         isTextEditing: Bool,
         textUndoAvailable: Bool,
+        imageEditUndoEnabled: Bool = false,
         navigationUndoEnabled: Bool,
         hasAuditedUndo: Bool
     ) -> UndoRoute {
@@ -42,6 +48,7 @@ enum UndoRoutingPolicy {
         if isTextEditing {
             return textUndoAvailable ? .focusedTextEditor : .none
         }
+        if imageEditUndoEnabled { return .imageEdit }
         if navigationUndoEnabled { return .navigation }
         if hasAuditedUndo { return .auditedAction }
         return .none

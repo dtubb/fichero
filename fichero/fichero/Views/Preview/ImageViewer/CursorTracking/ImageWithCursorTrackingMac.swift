@@ -362,7 +362,9 @@ struct ImageWithCursorTracking: NSViewRepresentable {
     /// expand the image view frame so AppKit's imageAlignment centers it.
     private func layoutImageView(_ imgView: NSImageView, image: NSImage, in scrollView: NSScrollView) {
         let imageSize = image.size
-        let viewSize = scrollView.bounds.size
+        // contentSize, not bounds — legacy scrollers (see the coordinator's
+        // updateContentInsetsForCurrentLayout, 2026-08-31).
+        let viewSize = scrollView.contentSize
         let mag = scrollView.magnification
         let scaledW = imageSize.width * mag
         let scaledH = imageSize.height * mag

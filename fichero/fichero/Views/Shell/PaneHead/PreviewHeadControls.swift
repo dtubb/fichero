@@ -30,7 +30,11 @@ struct PreviewHeadSelectorGroup: View {
                     .font(.callout)
             }
             .buttonStyle(.borderless)
-            .help("Up to the parent image")
+            // No key binding for the three nav controls here: ⌘[ / ⌘] belong
+            // to `CanvasMenuCommands` and ⌘⌥[ / ⌘⌥] to the magnifier's zoom
+            // in `ImagePreviewMenuCommands`. A second view binding the same
+            // chord doesn't win, it just makes one of the two stop working.
+            .help("Up to the parent image — show the spread this part came from")
             .accessibilityLabel("Up to the parent image")
             .accessibilityIdentifier("previewHeadUpToParent")
         }
@@ -54,7 +58,7 @@ struct PreviewHeadSelectorGroup: View {
         }
         .buttonStyle(.borderless)
         .disabled(nav.map { !$0.canGoPrevious } ?? false)
-        .help("Previous page")
+        .help("Previous page in this document")
         .accessibilityLabel("Previous page")
         .accessibilityIdentifier("previewHeadPreviousPage")
 
@@ -74,40 +78,47 @@ struct PreviewHeadSelectorGroup: View {
         }
         .buttonStyle(.borderless)
         .disabled(nav.map { !$0.canGoNext } ?? false)
-        .help("Next page")
+        .help("Next page in this document")
         .accessibilityLabel("Next page")
         .accessibilityIdentifier("previewHeadNextPage")
     }
 }
 
-/// The head's top-right lenses: region show/hide, and the renditions menu.
+/// The head's top-right lenses: the zoom-cluster toggle, and the renditions
+/// menu.
 struct PreviewHeadLensControls: View {
     let chrome: PreviewPaneChrome
 
-    /// One user-facing toggle over both canvases' overlay switches — the
-    /// image and PDF keys stay distinct in storage (they gate different
-    /// loaders) but the head flips them together: "show regions" is one lens.
-    @AppStorage("imagePreview.ocrBoxesEnabled") private var imageBoxesEnabled = true
-    @AppStorage("pdfPreview.ocrBoxesEnabled") private var pdfBoxesEnabled = true
+    /// Whether the floating magnification cluster (mini-map / zoom pill /
+    /// loupe + magnifier toggles) is showing over the canvas.
+    @AppStorage("imagePreview.zoomControlsVisible") private var zoomControlsVisible = true
 
     var body: some View {
-        regionToggle
+        zoomControlsToggle
         renditionsMenu
     }
 
-    private var regionToggle: some View {
+    /// The word-boundaries toggle that used to sit here is GONE (Daniel,
+    /// 2026-08-31: "not needed as bottom metadata has that"). It was also the
+    /// desync: it wrote `imagePreview.ocrBoxesEnabled` AND
+    /// `pdfPreview.ocrBoxesEnabled` while labelling itself "regions", so the
+    /// head and the bottom menu disagreed about which switch was which. One
+    /// owner now — the quiet bar's what-to-show menu — and this seat goes to
+    /// the control the head actually lacked.
+    private var zoomControlsToggle: some View {
         Button {
-            let show = !imageBoxesEnabled
-            imageBoxesEnabled = show
-            pdfBoxesEnabled = show
+            zoomControlsVisible.toggle()
         } label: {
-            Image(systemName: imageBoxesEnabled ? "square.dashed.inset.filled" : "square.dashed")
+            Image(systemName: zoomControlsVisible ? "plus.magnifyingglass" : "minus.magnifyingglass")
         }
         .buttonStyle(.borderless)
-        .foregroundStyle(imageBoxesEnabled ? Color.accentColor : Color.secondary)
-        .help(imageBoxesEnabled ? "Hide regions" : "Show regions")
-        .accessibilityLabel(imageBoxesEnabled ? "Hide regions" : "Show regions")
-        .accessibilityIdentifier("previewHeadRegionToggle")
+        .foregroundStyle(zoomControlsVisible ? Color.accentColor : Color.secondary)
+        // Not ⌘⌥Z: any "z" key equivalent outside the Edit menu trips the
+        // ⌘Z single-owner guard (#4354).
+        .help("Show or Hide Zoom Controls (⌘⌥E)")
+        .keyboardShortcut("e", modifiers: [.command, .option])
+        .accessibilityLabel("Show or hide zoom controls")
+        .accessibilityIdentifier("previewHeadZoomControlsToggle")
     }
 
     /// Renditions as a MENU, the reader's transcript/translation grammar
@@ -134,7 +145,7 @@ struct PreviewHeadLensControls: View {
             }
             .menuStyle(.borderlessButton)
             .fixedSize()
-            .help("Which rendition of this page is showing")
+            .help("Which rendition of this page is showing — original, enhanced, deskewed…")
             .accessibilityLabel("Renditions")
             .accessibilityIdentifier("previewHeadRenditionsMenu")
         }
@@ -184,6 +195,8 @@ struct PreviewMarkupToolsRow: View {
             icon: PreviewMarkupTool.textSelect.icon,
             label: PreviewMarkupTool.textSelect.label,
             identifier: "previewMarkupTextSelect",
+            key: "t",
+            help: "Select Text — drag over recognised text to select it (⌘⌥T)",
             mode: .textSelect
         ) {
             NotificationCenter.default.post(
@@ -195,6 +208,8 @@ struct PreviewMarkupToolsRow: View {
             icon: PreviewMarkupTool.drawRegion.icon,
             label: PreviewMarkupTool.drawRegion.label,
             identifier: "previewMarkupDrawRegion",
+            key: "r",
+            help: "Draw Region — drag a box to make a new region on this page (⌘⌥R)",
             mode: .drawRegion
         ) {
             NotificationCenter.default.post(
@@ -206,6 +221,8 @@ struct PreviewMarkupToolsRow: View {
             icon: PreviewMarkupTool.select.icon,
             label: PreviewMarkupTool.select.label,
             identifier: "previewMarkupSelect",
+            key: "v",
+            help: "Select — click or ⇧-click regions to select, drag to move them (⌘⌥V)",
             mode: .select
         ) {
             NotificationCenter.default.post(
@@ -217,6 +234,8 @@ struct PreviewMarkupToolsRow: View {
             icon: PreviewMarkupTool.wordSelect.icon,
             label: PreviewMarkupTool.wordSelect.label,
             identifier: "previewMarkupWordSelect",
+            key: "w",
+            help: "Select Words — drag to select the recognised word boxes you touch (⌘⌥W)",
             mode: .wordSelect
         ) {
             // Sticky mode only — the canvas selects word boxes while armed.
@@ -226,6 +245,11 @@ struct PreviewMarkupToolsRow: View {
             icon: PreviewMarkupTool.line.icon,
             label: PreviewMarkupTool.line.label,
             identifier: "previewMarkupLine",
+            // ⌘⌥D ("draw a line"): ⌘⌥L is the Loupe toggle on this same
+            // surface (ImagePreviewMenuCommands), and SwiftUI lets duplicate
+            // shortcuts collide silently.
+            key: "d",
+            help: "Line — drag to draw a line on the page (⌘⌥D)",
             mode: .line
         ) {
             NotificationCenter.default.post(
@@ -239,6 +263,8 @@ struct PreviewMarkupToolsRow: View {
             icon: PreviewMarkupTool.note.icon,
             label: PreviewMarkupTool.note.label,
             identifier: "previewMarkupNote",
+            key: "n",
+            help: "Text Note — drag a box to attach a written note to that spot (⌘⌥N)",
             mode: .note
         ) {
             NotificationCenter.default.post(
@@ -249,7 +275,9 @@ struct PreviewMarkupToolsRow: View {
         toolButton(
             icon: PreviewMarkupTool.star.icon,
             label: PreviewMarkupTool.star.label,
-            identifier: "previewMarkupStar"
+            identifier: "previewMarkupStar",
+            key: "s",
+            help: "Star — drag a box to star that place on the page (⌘⌥S)"
         ) {
             NotificationCenter.default.post(
                 name: .previewAnnotateTool, object: PreviewMarkupTool.star.rawValue
@@ -260,6 +288,8 @@ struct PreviewMarkupToolsRow: View {
             icon: PreviewMarkupTool.check.icon,
             label: PreviewMarkupTool.check.label,
             identifier: "previewMarkupCheck",
+            key: "k",
+            help: "Check — click by a line to mark it with one check, again for two, again for three, again to clear (⌘⌥K)",
             mode: .check
         ) {
             // Sticky mode only — the canvas handles clicks while armed.
@@ -267,13 +297,22 @@ struct PreviewMarkupToolsRow: View {
 
         Divider().frame(height: PaneHeadMetrics.dividerHeight)
 
-        toolButton(icon: "trash", label: "Delete", identifier: "previewMarkupDelete") {
+        // No ⌘⌥ binding: Delete already answers to the ⌫ key path the canvas
+        // owns, and a second binding for the destructive verb is how you get
+        // two code paths that drift.
+        toolButton(
+            icon: "trash", label: "Delete", identifier: "previewMarkupDelete",
+            help: "Delete — remove the selected regions or marks (⌫)"
+        ) {
             NotificationCenter.default.post(
                 name: .previewRegionVerb, object: PreviewRegionVerb.delete.rawValue
             )
         }
 
-        toolButton(icon: "arrow.triangle.merge", label: "Combine", identifier: "previewMarkupCombine") {
+        toolButton(
+            icon: "arrow.triangle.merge", label: "Combine", identifier: "previewMarkupCombine",
+            key: "c", help: "Combine — merge the selected regions into one (⌘⌥C)"
+        ) {
             NotificationCenter.default.post(
                 name: .previewRegionVerb, object: PreviewRegionVerb.combine.rawValue
             )
@@ -314,7 +353,8 @@ struct PreviewMarkupToolsRow: View {
                         : AnyShapeStyle(highlightStyle.tint))
             }
             .buttonStyle(.borderless)
-            .help("Highlight (\(highlightStyle.label))")
+            .keyboardShortcut("h", modifiers: [.command, .option])
+            .help("Highlight — drag over words to highlight them in \(highlightStyle.label) (⌘⌥H)")
             .accessibilityLabel("Highlight, \(highlightStyle.label)")
             .accessibilityIdentifier("previewMarkupHighlight")
 
@@ -335,7 +375,7 @@ struct PreviewMarkupToolsRow: View {
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
             .fixedSize()
-            .help("Highlight color and mode")
+            .help("Highlight color and mode — pick a color, or underline/strikethrough instead")
             .accessibilityLabel("Highlight color and mode")
             .accessibilityIdentifier("previewMarkupHighlightMenu")
         }
@@ -348,8 +388,13 @@ struct PreviewMarkupToolsRow: View {
         ) { highlightStyleRaw = $0.rawValue }
     }
 
+    /// ⌘⌥ + mnemonic for every tool (Daniel, 2026-08-31). Not bare letters —
+    /// those would steal typing from any text field on the surface — and not
+    /// ⌃, which collides with the emacs-style editing bindings AppKit gives
+    /// every text view for free.
     private func toolButton(
         icon: String, label: String, identifier: String,
+        key: KeyEquivalent? = nil, help: String,
         mode: PreviewMarkupTool? = nil, action: @escaping () -> Void
     ) -> some View {
         let armed = mode != nil && windowState?.activeMarkupTool == mode
@@ -368,7 +413,8 @@ struct PreviewMarkupToolsRow: View {
             }
             .buttonStyle(.borderless)
             .foregroundStyle(armed ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.secondary))
-            .help(label)
+            .keyboardShortcut(key.map { KeyboardShortcut($0, modifiers: [.command, .option]) })
+            .help(help)
             .accessibilityLabel(label)
             .accessibilityIdentifier(identifier)
         }
