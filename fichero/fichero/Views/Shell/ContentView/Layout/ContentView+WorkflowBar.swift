@@ -47,7 +47,12 @@ extension ContentView {
                 targetDetail: workflowBarTargetDetail,
                 userContext: $workflowUserContext,
                 scopeOptions: workflowBarScopeOptions,
-                onSelectScope: { selectWorkflowScope($0) }
+                onSelectScope: { selectWorkflowScope($0) },
+                onRunCompare: { runs, groupId in
+                    Task { await runModelCompare(runs: runs, groupId: groupId) }
+                },
+                compareProgress: compareRunProgress,
+                compareCostCeiling: stagedCompareCostCeiling
             )
             .task(id: chainCostKey) { await refreshChainCostCeiling() }
             .task {
@@ -84,6 +89,10 @@ extension ContentView {
     func runStagedChain() async {
         guard !stagedWorkflowChain.isEmpty, !isRunningStagedChain else { return }
         isRunningStagedChain = true
+        // A plain run supersedes whatever the last compare showed — stale
+        // per-model capsules under a fresh chain run would claim runs this
+        // press never made.
+        compareRunProgress = []
         defer {
             isRunningStagedChain = false
             runningStagedStepIndex = nil
@@ -238,6 +247,7 @@ extension ContentView {
     func refreshChainCostCeiling() async {
         guard !stagedWorkflowChain.isEmpty, workflowBarTargetCount > 0 else {
             stagedChainCostCeiling = nil
+            stagedCompareCostCeiling = nil
             return
         }
         var total = 0.0
@@ -258,6 +268,7 @@ extension ContentView {
             }
         }
         stagedChainCostCeiling = priced ? total : nil
+        await refreshCompareCostCeiling()
     }
 
     /// Show what a step produced: the document it wrote, in whichever surface
