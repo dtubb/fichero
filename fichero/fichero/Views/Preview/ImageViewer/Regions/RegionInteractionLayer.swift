@@ -48,6 +48,13 @@ struct RegionInteractionLayer: View {
     let isAddingRegion: Bool
     /// Commit a moved region: (full-list index, new normalized bbox).
     let onMoveCommit: (Int, [Double]) -> Void
+    /// Save the drawn marquees as regions: (name, marquee index). An empty
+    /// name saves them unnamed; a nil index means the WHOLE set (the
+    /// right-click verb), a non-nil index just that one marquee (its badge).
+    let onPromote: (String, Int?) -> Void
+    /// Double-click a saved region box: (full-list index). The host decides
+    /// whether that means opening the region's child node or zooming to it.
+    let onOpenRegion: (Int) -> Void
 
     /// Sticky-tool + check-cycle seams (Daniel, 2026-08-30). Optional so
     /// headless hosts stay safe.
@@ -55,6 +62,9 @@ struct RegionInteractionLayer: View {
     @Environment(AnnotationStore.self) private var annotationStore: AnnotationStore?
 
     @State private var selection = RegionSelection.shared
+    /// The armed "name this region" request (shared with the context-menu
+    /// verb, which arms it without a badge of its own).
+    @State private var naming = RegionNamingRequest.shared
     /// Live move drag: which box, and how far (view points).
     @State private var moveDrag: (index: Int, translation: CGSize)?
     /// Live rubber-band corners (view points).
@@ -82,6 +92,10 @@ struct RegionInteractionLayer: View {
             .contentShape(Rectangle())
             .gesture(isAddingRegion || isWordSelecting ? bandGesture(in: geo.size) : nil)
             .gesture(tapGesture(in: geo.size))
+            // Simultaneous, not competing: a double-click should SELECT the
+            // region and then enter it, which is what the two gestures do
+            // together. Racing them would cost the selection.
+            .simultaneousGesture(openGesture(in: geo.size))
             .onModifierKeysChanged(mask: .shift) { _, new in
                 shiftHeld = new.contains(.shift)
             }
@@ -134,9 +148,52 @@ struct RegionInteractionLayer: View {
                         .frame(width: rect.width, height: rect.height)
                         .offset(x: rect.minX, y: rect.minY)
                         .allowsHitTesting(false)
+                    marqueeNameBadge(index: index, rect: rect)
                 }
             }
         }
+    }
+
+    /// The "name it" affordance (Daniel, 2026-08-31: "or have an icon beside
+    /// it, which lets you give it a name") — a pencil at the marquee's
+    /// top-right corner. It is the ONLY hit-testable thing in the marquee
+    /// layer: the rects themselves stay pass-through so the band and tap
+    /// gestures below keep working.
+    @ViewBuilder
+    private func marqueeNameBadge(index: Int, rect: CGRect) -> some View {
+        let side: CGFloat = 20
+        Button {
+            naming.arm(documentId: documentId, marqueeIndex: index)
+        } label: {
+            Image(systemName: "pencil.circle.fill")
+                .font(.title3)
+                .symbolRenderingMode(.palette)
+                .foregroundStyle(Color.white, Color.accentColor)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Name this selection")
+        .help("Name this selection and save it as a region")
+        .frame(width: side, height: side)
+        .offset(x: max(0, rect.maxX - side), y: max(0, rect.minY))
+        .popover(isPresented: namingBinding(for: index)) {
+            RegionNameField(request: naming) { name in
+                // Read the target BEFORE clearing: the whole-set request
+                // (nil) and this badge's own index are different verbs.
+                let target = naming.marqueeIndex
+                naming.clear()
+                onPromote(name, target)
+            }
+        }
+    }
+
+    /// Presentation binding for marquee `index`'s naming popover. Dismissal
+    /// (Esc, click-away) disarms the request rather than leaving it armed to
+    /// re-open under the next marquee drawn.
+    private func namingBinding(for index: Int) -> Binding<Bool> {
+        Binding(
+            get: { naming.anchors(documentId: documentId, index: index) },
+            set: { presented in if !presented { naming.clear() } }
+        )
     }
 
     private var liveBandRect: CGRect? {
@@ -187,6 +244,24 @@ struct RegionInteractionLayer: View {
             // Empty ground: clear everything ephemeral.
             selection.clear()
             marquees?.clear()
+        }
+    }
+
+    /// ENTER a region (Daniel, 2026-08-31: "double click on it to be taken to
+    /// a new region"). Hit-tests the DISPLAYED boxes — what you can see is
+    /// what you can enter (the visible-surface ruling) — and hands the host
+    /// the full-list index; the host decides whether the box has a child node
+    /// to open or is a bare geometry box to zoom to.
+    private func openGesture(in size: CGSize) -> some Gesture {
+        SpatialTapGesture(count: 2).onEnded { value in
+            // The check tool owns the click while armed; a double-click there
+            // is two cycles of the check, not a navigation.
+            guard windowState?.activeMarkupTool != .check, artifactId != nil else { return }
+            guard let picked = RegionHitTesting.pick(
+                at: value.location, boxes: boxes.map { $0.box.bbox },
+                in: size, visible: visible
+            ) else { return }
+            onOpenRegion(boxes[picked].index)
         }
     }
 

@@ -93,7 +93,14 @@ class ImageWithCursorTrackingMacCoordinator: NSObject, NSGestureRecognizerDelega
               let image = imgView.image else { return }
 
         let imageSize = image.size
-        let viewSize = scrollView.bounds.size
+        // contentSize, NOT bounds (2026-08-31): with "Show scroll bars:
+        // Always" (legacy scrollers) contentSize is the bounds minus the
+        // scroller thickness. Sizing the document to bounds made every
+        // fitted image "overflow" by ~15px on BOTH axes — permanent
+        // scrollbars at fit, and SiblingSwipeScrollView's pan-first grammar
+        // (which compares against contentSize) never yielded to page/
+        // rendition swipes. Every fit/layout site must use contentSize.
+        let viewSize = scrollView.contentSize
         let mag = scrollView.magnification
         let scaledW = imageSize.width * mag
         let scaledH = imageSize.height * mag
@@ -152,7 +159,7 @@ class ImageWithCursorTrackingMacCoordinator: NSObject, NSGestureRecognizerDelega
         let imageSize = image.size
         let regionWidth = rect[2] * imageSize.width
         let regionHeight = rect[3] * imageSize.height
-        let viewport = scrollView.bounds.size
+        let viewport = scrollView.contentSize
         guard viewport.width > 0, viewport.height > 0 else { return }
         let margin: CGFloat = 1.12
         let target = min(
@@ -251,7 +258,9 @@ class ImageWithCursorTrackingMacCoordinator: NSObject, NSGestureRecognizerDelega
               let image = imageView.image,
               let fit = PreviewInitialZoomPolicy.fitScale(
                   contentSize: image.size,
-                  paneSize: scrollView.bounds.size
+                  // contentSize, not bounds — legacy scrollers (see
+                  // updateContentInsetsForCurrentLayout, 2026-08-31).
+                  paneSize: scrollView.contentSize
               ) else { return nil }
 
         return PreviewInitialZoomPolicy.clamped(fit, kind: .raster)
@@ -302,7 +311,7 @@ class ImageWithCursorTrackingMacCoordinator: NSObject, NSGestureRecognizerDelega
     /// current size, so the next pass doesn't treat it as a resize.
     @MainActor
     func noteAutoFitApplied() {
-        lastAutoFitPaneSize = scrollView?.bounds.size ?? .zero
+        lastAutoFitPaneSize = scrollView?.contentSize ?? .zero
     }
 
     /// The scale to re-fit to because the pane resized and the user hasn't
@@ -310,7 +319,7 @@ class ImageWithCursorTrackingMacCoordinator: NSObject, NSGestureRecognizerDelega
     @MainActor
     func autoRefitScale() -> CGFloat? {
         guard !userHasZoomedManually, let scrollView = scrollView else { return nil }
-        let paneSize = scrollView.bounds.size
+        let paneSize = scrollView.contentSize
         // Sub-point jitter is layout noise, not a resize.
         guard abs(paneSize.width - lastAutoFitPaneSize.width) > 0.5
                 || abs(paneSize.height - lastAutoFitPaneSize.height) > 0.5,
@@ -327,7 +336,9 @@ class ImageWithCursorTrackingMacCoordinator: NSObject, NSGestureRecognizerDelega
               let image = imgView.image else { return }
 
         let imageSize = image.size
-        let viewSize = scrollView.bounds.size
+        // contentSize, not bounds — legacy scrollers (see
+        // updateContentInsetsForCurrentLayout, 2026-08-31).
+        let viewSize = scrollView.contentSize
         let mag = scrollView.magnification
         let scaledW = imageSize.width * mag
         let scaledH = imageSize.height * mag

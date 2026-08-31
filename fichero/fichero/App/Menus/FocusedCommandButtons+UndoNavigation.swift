@@ -63,6 +63,8 @@ struct UndoLastActionButton: View {
         LibraryManager.shared.globalLibrary?.auditStore
     }
     @FocusedValue(\.navigationUndoAction) private var navigationUndoAction
+    /// The mounted image editor's undo-last-step (Daniel, 2026-08-31).
+    @FocusedValue(\.imageEditUndoAction) private var imageEditUndoAction
 
     private var logger: Logger {
         Logger(subsystem: "app.fichero.fichero", category: "ActionUndo")
@@ -87,6 +89,7 @@ struct UndoLastActionButton: View {
         UndoRoutingPolicy.route(
             isTextEditing: FocusedTextResponder.isEditing,
             textUndoAvailable: FocusedTextResponder.canUndo,
+            imageEditUndoEnabled: imageEditUndoAction?.isEnabled == true,
             navigationUndoEnabled: navigationUndoAction?.isEnabled == true,
             hasAuditedUndo: auditStore?.nextUndoableEntry != nil || lastAction?.auditId != nil
         )
@@ -98,6 +101,7 @@ struct UndoLastActionButton: View {
     private var undoTitle: String {
         // While typing, the menu item names the typing — never a library action
         // the user is not looking at.
+        if route == .imageEdit { return "Undo Edit" }
         if route == .focusedTextEditor || navigationUndoAction != nil {
             return "Undo"
         }
@@ -126,6 +130,9 @@ struct UndoLastActionButton: View {
             // responder chain would have produced if a key equivalent did not
             // match first (#4354).
             FocusedTextResponder.undo()
+            return
+        case .imageEdit:
+            imageEditUndoAction?.run()
             return
         case .navigation:
             navigationUndoAction?.run()

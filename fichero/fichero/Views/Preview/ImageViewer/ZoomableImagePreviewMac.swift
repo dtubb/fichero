@@ -145,8 +145,20 @@ struct ZoomableImagePreview: View {
     /// default-off left a switch nobody would find, which the standing rule
     /// calls worse than absent.
     @AppStorage("imagePreview.ocrBoxesEnabled") var ocrBoxesEnabled = true
-    /// Annotation overlays show/hide (what-to-show menu, 2026-08-30).
+    /// Annotation overlays show/hide (what-to-show menu, 2026-08-30). ON by
+    /// default (Daniel, 2026-08-31): his container had this key stuck at 0,
+    /// so every mark the markup row drew saved correctly and then rendered
+    /// invisible — indistinguishable from markup that doesn't work. The
+    /// dead-simple-UX rule settles it: the feature is on.
     @AppStorage("preview.annotationsEnabled") var annotationsEnabled = true
+    /// Saved region marks show/hide (2026-08-31) — the untyped/legacy boxes
+    /// in the mark layer, as distinct from the typed markup kinds. Separate
+    /// from `annotationsEnabled` because "hide my highlights" and "hide the
+    /// region grid" are different questions.
+    @AppStorage("preview.regionsEnabled") var regionsEnabled = true
+    /// Draw each recognised word's text inside its box (2026-08-31). The
+    /// display lives in `OCRGeometryOverlay`, which reads the same key.
+    @AppStorage("imagePreview.inlineTextEnabled") var inlineTextEnabled = false
     @State var ocrGeometry: OCRGeometry?
     /// WHICH artifact the displayed geometry came from (2026-08-29, regions
     /// as first-class): the curation verbs — move / delete / add / combine —
@@ -214,6 +226,16 @@ struct ZoomableImagePreview: View {
                 canZoomIn: scale < maxScale,
                 canZoomOut: scale > minScale
             ))
+            // ⌘A over the preview (Daniel, 2026-08-31): the armed tool decides
+            // — text tool selects every WORD, select tool every displayed box.
+            // Published, not key-handled: `SelectAllButton` owns the chord.
+            .focusedSceneValue(
+                \.previewSelectAll,
+                FocusedLibraryAction(
+                    isEnabled: ocrGeometry?.boxes.isEmpty == false,
+                    run: { selectAllGeometryForArmedTool() }
+                )
+            )
     }
 
     /// Layer 1: content + lifecycle (tasks, appear/disappear, chrome publish).
@@ -285,8 +307,17 @@ struct ZoomableImagePreview: View {
                 case .highlight: pendingAnnotationTool = .highlight; isDrawingRegion = true
                 case .note: pendingAnnotationTool = .note; isDrawingRegion = true
                 case .line: pendingAnnotationTool = .line; isDrawingRegion = true
+                case .star: pendingAnnotationTool = .bookmark; isDrawingRegion = true
+                // The bar's Draw Region arms the SAME rubber-band add mode
+                // the context menu's "Add Region…" uses (Daniel, 2026-08-31:
+                // "draw region doesn't do anything") — drawn marquees are the
+                // existing ephemeral-region flow, ▶ crops them into nodes.
+                case .drawRegion:
+                    isDrawingRegion = false
+                    isAddingRegion = true
                 default: isDrawingRegion = false
                 }
+                if tool != .drawRegion { isAddingRegion = false }
                 applyMarkupCursor()
             }
             // ↑/↓ = the RENDITION axis when this page has more than one

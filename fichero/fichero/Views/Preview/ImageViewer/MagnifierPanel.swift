@@ -27,6 +27,7 @@ struct MagnifierPanelView: View {
         VStack(spacing: 0) {
             // Resize handle at top
             ResizeHandle(height: $panelHeight, minHeight: minHeight, maxHeight: maxHeight)
+                .help("Drag up or down to resize the magnifier strip (\(Int(minHeight))–\(Int(maxHeight))px)")
 
             ZStack(alignment: .bottomTrailing) {
                 // Full width magnified view with scroll-to-zoom
@@ -37,6 +38,10 @@ struct MagnifierPanelView: View {
                     minMagnification: minMagnification,
                     maxMagnification: maxMagnification
                 )
+                .help(isLocked
+                      ? "Magnified view of the locked spot. Scroll up/down or pinch here to zoom; click the lock to follow the cursor again"
+                      : "Magnified view under the cursor. Scroll up/down or pinch here to zoom; "
+                        + "use the − / + buttons to step; click the lock to hold a spot")
 
                 // Lock indicator overlay (top-left when locked) - clickable to unlock
                 if isLocked {
@@ -52,7 +57,7 @@ struct MagnifierPanelView: View {
                             }
                             .buttonStyle(.plain)
                             .accessibilityLabel("Unlock magnifier")
-                            .help("Click to unlock magnifier")
+                            .help("Magnifier is locked on a spot. Click to unlock and follow the cursor again")
                             .padding(8)
                             Spacer()
                         }
@@ -70,7 +75,9 @@ struct MagnifierPanelView: View {
                     .buttonStyle(.plain)
                     .foregroundColor(isLocked ? .accentColor : .primary)
                     .accessibilityLabel(isLocked ? "Unlock magnifier" : "Lock magnifier")
-                    .help(isLocked ? "Unlock magnifier (follows cursor)" : "Lock magnifier (stays on current position)")
+                    .help(isLocked
+                          ? "Unlock magnifier — click to follow the cursor again"
+                          : "Lock magnifier — click to hold the current spot while you move the cursor elsewhere")
 
                     Divider()
                         .frame(height: 12)
@@ -79,6 +86,7 @@ struct MagnifierPanelView: View {
                     Text("\(Int(panelHeight))px")
                         .font(.caption2)
                         .foregroundColor(.secondary)
+                        .help("Strip height. Drag the handle at the top edge of the strip to resize")
 
                     Divider()
                         .frame(height: 12)
@@ -88,10 +96,15 @@ struct MagnifierPanelView: View {
                         Button(action: zoomOut) {
                             Image(systemName: "minus")
                                 .font(.caption)
+                                // ponytail: the "−" glyph is a ~1pt-tall line, so a plain
+                                // button's hit target was nearly unclickable; give both
+                                // steppers the same square hit box.
+                                .frame(width: 16, height: 16)
+                                .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("Zoom out")
-                        .help("Zoom the magnifier out")
+                        .help("Zoom out one step (÷1.5) — click; or scroll down / pinch in over the strip")
                         .disabled(magnification <= minMagnification)
 
                         Text(String(format: "%.2gx", magnification))
@@ -99,14 +112,18 @@ struct MagnifierPanelView: View {
                             .fontWeight(.medium)
                             .monospacedDigit()
                             .frame(width: 44)
+                            .help("Current magnification (\(String(format: "%.2g", minMagnification))×–\(Int(maxMagnification))×). "
+                                  + "Use − / +, or scroll / pinch over the strip")
 
                         Button(action: zoomIn) {
                             Image(systemName: "plus")
                                 .font(.caption)
+                                .frame(width: 16, height: 16)
+                                .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("Zoom in")
-                        .help("Zoom the magnifier in")
+                        .help("Zoom in one step (×1.5) — click; or scroll up / pinch out over the strip")
                         .disabled(magnification >= maxMagnification)
                     }
 
@@ -120,6 +137,8 @@ struct MagnifierPanelView: View {
                     Text("X: \(pixelX)  Y: \(pixelY)")
                         .font(.caption)
                         .monospacedDigit()
+                        .help("Image pixel under the magnifier centre (origin top-left). "
+                              + "Move the cursor over the image to change it; lock to freeze it")
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
@@ -354,10 +373,12 @@ struct MagnifierPanelView: View {
                         Button(action: zoomOut) {
                             Image(systemName: "minus")
                                 .font(.caption)
+                                .frame(width: 24, height: 24) // same hit-box fix as Mac; touch-sized
+                                .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("Zoom out")
-                        .help("Zoom the magnifier out")
+                        .help("Zoom out one step (÷1.5) — tap; or pinch in over the strip")
                         .disabled(magnification <= minMagnification)
 
                         Text(String(format: "%.2gx", magnification))
@@ -369,10 +390,12 @@ struct MagnifierPanelView: View {
                         Button(action: zoomIn) {
                             Image(systemName: "plus")
                                 .font(.caption)
+                                .frame(width: 24, height: 24)
+                                .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("Zoom in")
-                        .help("Zoom the magnifier in")
+                        .help("Zoom in one step (×1.5) — tap; or pinch out over the strip")
                         .disabled(magnification >= maxMagnification)
                     }
 

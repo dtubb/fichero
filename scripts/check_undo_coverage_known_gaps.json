@@ -8,6 +8,7 @@
   "DELETE /api/batches/{batch_id}": "no undo registration in current tree",
   "DELETE /api/canvas/folders/{folder_id}/canvas-items/{item_id}": "no undo registration in current tree",
   "DELETE /api/chains/executions/{execution_id}": "no undo registration in current tree",
+  "POST /api/chains/{chain_id}/execute-steps": "2026-08-31 — launches workflow RUNS (same class as POST /api/workflows): a run is stopped/deleted, not undone; its artifacts carry their own undo",
   "DELETE /api/chains/{chain_id}": "no undo registration in current tree",
   "DELETE /api/chat/conversations/{conversation_id}": "no undo registration in current tree",
   "DELETE /api/chat/workspaces/{workspace_id}": "inverse-action design required; tracked in #3740",

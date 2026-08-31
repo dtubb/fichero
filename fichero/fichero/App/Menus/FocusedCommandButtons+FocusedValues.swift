@@ -78,6 +78,14 @@ struct PreviewSelectAllKey: FocusedValueKey {
     typealias Value = FocusedLibraryAction
 }
 
+/// The image editor answering ⌘Z by dropping its last committed edit step
+/// (Daniel, 2026-08-31). Its own key — never a second publisher of
+/// `navigationUndoAction` (two publishers of one key = the per-frame
+/// FocusedValue fault, see `ReaderZoomActionsKey`).
+struct ImageEditUndoActionKey: FocusedValueKey {
+    typealias Value = FocusedLibraryAction
+}
+
 /// The focused Reader's current lens, and the setter for it (R3).
 ///
 /// The pane head and the View menu render the SAME value through this: one
@@ -390,6 +398,11 @@ extension FocusedValues {
     var previewSelectAll: PreviewSelectAllKey.Value? {
         get { self[PreviewSelectAllKey.self] }
         set { self[PreviewSelectAllKey.self] = newValue }
+    }
+
+    var imageEditUndoAction: ImageEditUndoActionKey.Value? {
+        get { self[ImageEditUndoActionKey.self] }
+        set { self[ImageEditUndoActionKey.self] = newValue }
     }
 
     var readerLens: ReaderLensKey.Value? {

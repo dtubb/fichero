@@ -111,6 +111,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Views/Reader/Knowledge/DocumentKGWebPaneCoordinatoriOS.swift": "#2713 — iOS WKWebView coordinator #if canImport (split); #2101",
     "Views/Preview/ImageViewer/MagnifierPanel.swift": "#2713 — loupe bridge uses AppKit/UIKit-specific magnifier surfaces; #2101",
     "Views/Preview/ImageViewer/ScrollWheelZoom.swift": "#2713 — zoom gesture bridge uses AppKit/UIKit event adapters; #2101",
+    "Views/Shell/ContentView/Layout/ToolbarTextModeSync.swift": "2026-08-31 — NSToolbar.displayMode KVO bridge so the annotation/workflow bars follow the toolbar's Icon/Text mode; no SwiftUI seam exists; #2101",
     "Views/Library/ViewModes/Canvas/CanvasScrollPan.swift": "#4408 — scroll-wheel PAN bridge; SwiftUI has no scroll gesture for a non-scroll view, so this mirrors ScrollWheelZoom two-axis; #2101",
     "Views/Library/ViewModes/Canvas/CanvasTouchPan.swift": "#4408 — the touch twin of CanvasScrollPan; SwiftUI has no touch-COUNT-qualified drag, and two fingers is the only way to pan without stealing the one-finger marquee; #2101",
     # ContentDropTargetView.swift was here for #4458 and is DELETED. Its

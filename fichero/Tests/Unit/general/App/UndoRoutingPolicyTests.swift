@@ -37,6 +37,36 @@ final class UndoRoutingPolicyTests: XCTestCase {
         )
     }
 
+    // MARK: - Image editor wins over the app-level stacks
+
+    func testImageEditorWithStepsTakesUndoAheadOfNavigation() {
+        // Editing an image: ⌘Z drops the last edit step, never steps back a
+        // folder or reverts a library action (Daniel, 2026-08-31).
+        XCTAssertEqual(
+            UndoRoutingPolicy.route(
+                isTextEditing: false,
+                textUndoAvailable: false,
+                imageEditUndoEnabled: true,
+                navigationUndoEnabled: true,
+                hasAuditedUndo: true
+            ),
+            .imageEdit
+        )
+    }
+
+    func testTypingStillBeatsTheImageEditor() {
+        XCTAssertEqual(
+            UndoRoutingPolicy.route(
+                isTextEditing: true,
+                textUndoAvailable: true,
+                imageEditUndoEnabled: true,
+                navigationUndoEnabled: false,
+                hasAuditedUndo: false
+            ),
+            .focusedTextEditor
+        )
+    }
+
     // MARK: - No text focus falls back to the app-level stacks
 
     func testNoTextFocusPrefersNavigationUndo() {

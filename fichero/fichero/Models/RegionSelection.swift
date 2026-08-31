@@ -52,6 +52,14 @@ final class RegionSelection {
         }
     }
 
+    /// Replace the selection with a whole set at once (⌘A over the preview,
+    /// Daniel 2026-08-31: all text with the text tool, all boxes with the
+    /// select tool). Order is the caller's — reading order for a geometry.
+    func selectAll(_ indices: [Int], artifactId: String, documentId: String?) {
+        retarget(artifactId: artifactId, documentId: documentId)
+        self.indices = indices
+    }
+
     func clear() {
         artifactId = nil
         documentId = nil

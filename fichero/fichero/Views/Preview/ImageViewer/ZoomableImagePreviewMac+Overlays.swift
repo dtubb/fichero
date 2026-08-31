@@ -56,8 +56,16 @@ extension ZoomableImagePreview {
                 // Saved annotations, rendered BY KIND (Daniel, 2026-08-30:
                 // a highlight is a wash, an underline a bar, a check a ✓ in
                 // the margin — markup should LOOK like what it is).
-                if annotationsEnabled && !annotationMarks.isEmpty {
-                    AnnotationMarkLayer(marks: annotationMarks, visible: geometry.visible)
+                // Two switches over ONE layer (2026-08-31): `annotationsEnabled`
+                // gates the whole set, `regionsEnabled` drops just the untyped
+                // region boxes — the `default:` branch of the mark layer's
+                // per-kind switch. Filtering HERE keeps AnnotationMarkRendering
+                // a pure renderer with no display policy in it.
+                let shownMarks = regionsEnabled
+                    ? annotationMarks
+                    : annotationMarks.filter { $0.kind != .unknown && $0.kind != .comment }
+                if annotationsEnabled && !shownMarks.isEmpty {
+                    AnnotationMarkLayer(marks: shownMarks, visible: geometry.visible)
                 }
                 // The region-DRAW layer (#2458): drag plumbing only — the
                 // saved marks above own display now, so it draws no boxes.
@@ -120,7 +128,9 @@ extension ZoomableImagePreview {
             fitToWindow: fitToWindow,
             actualSize: actualSize,
             textBoxesEnabled: $ocrBoxesEnabled,
-            annotationsEnabled: $annotationsEnabled
+            annotationsEnabled: $annotationsEnabled,
+            regionsEnabled: $regionsEnabled,
+            inlineTextEnabled: $inlineTextEnabled
         )
     }
 }

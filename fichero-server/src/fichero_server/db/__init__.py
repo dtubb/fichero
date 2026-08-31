@@ -4912,6 +4912,12 @@ class Database(DatabaseEmbeddingMixin):
 
             # Check if embeddings table exists
             has_embeddings = EMBEDDINGS_TABLE in self._lance_tables()
+            # Report what actually RAN: with no embeddings table the vector
+            # leg is skipped, so a "hybrid"/"semantic" request is keyword-only
+            # and must say so (the client's semantic-search notice keys off
+            # this, 2026-08-31).
+            if search_type in ("semantic", "hybrid") and not has_embeddings:
+                search_stats["search_type"] = "fulltext"
 
             # Perform semantic search if requested and available
             if search_type in ["semantic", "hybrid"] and has_embeddings:
@@ -4974,6 +4980,13 @@ class Database(DatabaseEmbeddingMixin):
                     raise
                 except Exception as e:
                     logger.warning("Semantic search failed: %s", e)
+                    # The vector leg produced nothing: a hybrid request is now
+                    # keyword-only; a pure semantic request ran no search at
+                    # all. Under-claims on a partial failure — never a false
+                    # promise of meaning-based matching.
+                    search_stats["search_type"] = (
+                        "fulltext" if search_type == "hybrid" else "none"
+                    )
 
             # Perform full-text search if requested
             if search_type in ["fulltext", "hybrid"]:

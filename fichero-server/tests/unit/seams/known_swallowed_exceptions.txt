@@ -54,7 +54,7 @@ bibliography/extractor.py::_gather_cover_pages_text 1
 bookmarks.py::stop_accessing 1
 core/duckdb_session.py::pin_utc_session 1
 db/__init__.py::Database._reconnect_after_invalidated 2
-db/__init__.py::Database.search 2
+db/__init__.py::Database.search 1
 db/__init__.py::Database.workflow_rows_for_list 1
 db/embeddings.py::DatabaseEmbeddingMixin._schedule_embedding_task 1
 db/embeddings.py::DatabaseEmbeddingMixin._schedule_embedding_task._runner 1

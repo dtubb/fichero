@@ -1,6 +1,6 @@
 {
   "swift.lint_warnings": {
-    "count": 75,
-    "note": "68 -> 75 accepted 2026-08-30 night: four feature lanes (compare grammar, review surface, per-kind markup rendering, ChainService migration) grew seven files past length/complexity warn thresholds; the splits are queued debt, not noise"
+    "count": 77,
+    "note": "75 -> 77 accepted 2026-08-31 morning: the markup-shortcut/tooltip pass (PreviewHeadControls) and the focused-value key for editor undo (FocusedCommandButtons+FocusedValues) crossed file_length; splits are queued debt, not noise"
   }
 }

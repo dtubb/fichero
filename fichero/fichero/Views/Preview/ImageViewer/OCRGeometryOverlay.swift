@@ -12,6 +12,12 @@ struct OCRGeometryOverlay: View {
     /// Normalized sub-rect of the image currently visible (zoom/pan window).
     let visible: CGRect
 
+    /// Draw each word's recognised text INSIDE its box (Daniel, 2026-08-31).
+    /// The hover readout answers "what does this ONE box say"; this answers
+    /// "what does the machine think the whole page says" without leaving the
+    /// image — which is the only way to see a bad page at a glance.
+    @AppStorage("imagePreview.inlineTextEnabled") private var inlineTextEnabled = false
+
     @State private var hoverPoint: CGPoint?
 
     /// Words when the pass produced them; lines otherwise (never both at
@@ -49,6 +55,13 @@ struct OCRGeometryOverlay: View {
                         let path = Path(roundedRect: rect, cornerRadius: 1.5)
                         context.fill(path, with: .color(wash))
                         context.stroke(path, with: .color(stroke), lineWidth: 1)
+                        // Inline text rides the SAME Canvas pass — the whole
+                        // point of the 2026-08-28 one-Canvas fix was that a
+                        // dense page must not become hundreds of laid-out
+                        // views, and a per-word `Text` view would undo it.
+                        if inlineTextEnabled, !box.text.isEmpty {
+                            context.draw(Text(box.text).font(.caption), in: rect)
+                        }
                     }
                 }
                 .frame(width: geo.size.width, height: geo.size.height)

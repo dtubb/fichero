@@ -127,6 +127,10 @@ struct ReaderToolbar: View {
     var textBoxesEnabled: Binding<Bool>?
     /// Annotation overlays show/hide (what-to-show menu, 2026-08-30).
     var annotationsEnabled: Binding<Bool>?
+    /// Saved region marks show/hide (what-to-show menu, 2026-08-31).
+    var regionsEnabled: Binding<Bool>?
+    /// Draw each recognised word's text INSIDE its box (2026-08-31).
+    var inlineTextEnabled: Binding<Bool>?
 
     // ─── Loupe (image + PDF; nil ⇒ greyed) ───
     var loupeEnabled: Binding<Bool>?
@@ -185,46 +189,70 @@ struct ReaderToolbar: View {
         MiniToolbar(content: {
             chromeSection
             Spacer(minLength: 0)
-            // ⓘ retired as a bar button (Daniel, 2026-08-30) — metadata is
-            // an entry inside the what-to-show menu instead.
-            whatToShowMenu
             pageLayoutSection
             Spacer()
         }, trailing: {
             pinButton
+            // The library-bottom grammar, right to left (Daniel, 2026-08-31):
+            // Filter at the FAR right, the metadata glyph immediately left of
+            // it — both plain bar buttons, outside any pill.
+            whatToShowMenu
+            filterMenu
         })
     }
 
-    /// What-to-show, grown into a real menu (Daniel, 2026-08-30: word
-    /// bounding boxes are good, "but I think we want the other stuff we
-    /// might want to show, as well as metadata… more filter options, show
-    /// and hide annotations"). The library-bottom eye grammar, several
-    /// entries deep now.
+    /// What-to-show (Daniel, 2026-08-31): the library bottom bar's METADATA
+    /// glyph — `switch.2`, the same one `LibraryRowAttributesButton` uses —
+    /// not an eye, so "choose what this surface displays" reads the same in
+    /// both windows. Four display switches, nothing else: the ⓘ entry went
+    /// because the inspector has its own affordances.
     @ViewBuilder
     private var whatToShowMenu: some View {
         if textBoxesEnabled != nil || annotationsEnabled != nil {
             Menu {
-                if let textBoxesEnabled {
-                    Toggle("Words & Bounding Boxes", isOn: textBoxesEnabled)
-                }
                 if let annotationsEnabled {
-                    Toggle("Annotations", isOn: annotationsEnabled)
+                    Toggle("Show Annotations", isOn: annotationsEnabled)
                 }
-                if let onShowInfo {
-                    Divider()
-                    Button("Metadata in Inspector", action: onShowInfo)
+                if let textBoxesEnabled {
+                    Toggle("Show Word Bounding Boxes", isOn: textBoxesEnabled)
+                }
+                if let regionsEnabled {
+                    Toggle("Show Regions", isOn: regionsEnabled)
+                }
+                if let inlineTextEnabled {
+                    Toggle("Show Text Inline", isOn: inlineTextEnabled)
                 }
             } label: {
-                Image(systemName: "eye")
+                Image(systemName: "switch.2")
                     .foregroundStyle(.secondary)
                     .readerIconTarget()
             }
             .menuIndicator(.hidden)
             .fixedSize()
-            .help("What to show over the page")
+            .help("Choose what this page displays — annotations, word boxes, regions, inline text")
             .accessibilityLabel("What to show")
             .accessibilityIdentifier("previewWhatToShow")
         }
+    }
+
+    /// Filter, placeholder (2026-08-31): the glyph and the far-right seat are
+    /// the ruling; WHAT it filters is the next lane's. An empty menu with a
+    /// disabled row is the honest shape — a control that silently does
+    /// nothing would be worse than one that says so.
+    private var filterMenu: some View {
+        Menu {
+            Button("No filters yet") {}
+                .disabled(true)
+        } label: {
+            Image(systemName: ToolbarSymbols.filter)
+                .foregroundStyle(.secondary)
+                .readerIconTarget()
+        }
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Filter what this page displays")
+        .accessibilityLabel("Filter")
+        .accessibilityIdentifier("previewFilterMenu")
     }
 
     @ViewBuilder
