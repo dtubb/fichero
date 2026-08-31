@@ -72,6 +72,12 @@ SWIFT_OPERATION_WITNESSES = {
     "PUT /api/artifacts/{artifact_id}/regions": (
         "editArtifactRegionsApiArtifactsArtifactIdRegionsPut"
     ),
+    # Step-wise chain execution (2026-08-30): ChainService+StepExecution's
+    # executeChainSteps calls the generated operation, so only the operation
+    # name appears in Swift.
+    "POST /api/chains/{chain_id}/execute-steps": (
+        "executeChainStepsApiChainsChainIdExecuteStepsPost"
+    ),
 }
 
 

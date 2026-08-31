@@ -55,6 +55,11 @@ extension ContentView {
                 compareCostCeiling: stagedCompareCostCeiling
             )
             .task(id: chainCostKey) { await refreshChainCostCeiling() }
+            // Persist/restore keyed on the chain's STRUCTURE — steps, order,
+            // pins — never run-state churn. See ContentView+WorkflowChainEngine.
+            .task(id: WorkflowBarChainPersistence.structureKey(for: stagedWorkflowChain)) {
+                await syncStagedChainWithEngine()
+            }
             .task {
                 // Refresh when the bar appears rather than at launch: the menu
                 // is only consulted here, and a stale tier would offer a model
@@ -76,17 +81,22 @@ extension ContentView {
         }
     }
 
-    /// Run the staged chain, one step after another on the same selection.
+    /// FALLBACK: run the staged chain client-side, one step after another on
+    /// the same selection.
+    ///
+    /// The engine now owns chain execution (`runStagedChainViaEngine`,
+    /// 2026-08-30) — order, per-step overrides, stop-on-failure. This loop
+    /// remains for an older engine without the execute-steps route, feature-
+    /// detected by `runStagedChain` in ContentView+WorkflowChainEngine.
     ///
     /// Sequential, not fire-and-forget: step two should read what step one
     /// wrote (transcribe then clean up then catalogue), so each awaits the
-    /// one before it. The engine stores chains but does not execute them, so
-    /// the ordering lives here.
+    /// one before it.
     ///
     /// The chain is NOT cleared on completion — a run you can repeat on the
     /// next folder is the point of having assembled it.
     @MainActor
-    func runStagedChain() async {
+    func runStagedChainClientSide() async {
         guard !stagedWorkflowChain.isEmpty, !isRunningStagedChain else { return }
         isRunningStagedChain = true
         // A plain run supersedes whatever the last compare showed — stale

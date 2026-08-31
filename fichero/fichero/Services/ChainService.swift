@@ -17,7 +17,9 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "ChainSe
 @MainActor
 @Observable
 class ChainService {
-    private let apiClient: APIClient
+    // Internal (not private): ChainService+StepExecution extends this
+    // service from its own file and speaks the same transport.
+    let apiClient: APIClient
 
     var chains: [WorkflowChain] = []
     var isLoading = false
@@ -300,8 +302,8 @@ func mapChainResponse(_ response: Components.Schemas.ChainResponse) throws -> Wo
 
 /// Build a generated request body of type `T` from an app `Encodable` that
 /// shares the same wire shape. No chain request carries a `Date`, so the default
-/// coders are correct here.
-private func encodeChainBody<T: Decodable>(_ value: some Encodable) throws -> T {
+/// coders are correct here. Internal: ChainService+StepExecution shares it.
+func encodeChainBody<T: Decodable>(_ value: some Encodable) throws -> T {
     let data = try JSONEncoder().encode(value)
     return try JSONDecoder().decode(T.self, from: data)
 }
@@ -366,6 +368,10 @@ enum ChainServiceError: LocalizedError {
     case notFound(String)
     case validationError(String)
     case unexpectedResponse
+    /// The engine answered 404 to execute-steps: either an older engine
+    /// without the route, or the chain vanished. Both mean "run the chain
+    /// client-side instead" — the feature-detect seam, never a user error.
+    case stepExecutionUnavailable
 
     var errorDescription: String? {
         switch self {
@@ -377,6 +383,8 @@ enum ChainServiceError: LocalizedError {
             return "Validation error: \(message)"
         case .unexpectedResponse:
             return "Unexpected response from the chain service"
+        case .stepExecutionUnavailable:
+            return "This engine cannot run chains server-side"
         }
     }
 }

@@ -60,6 +60,12 @@ struct ChainStep: Identifiable, Codable, Equatable, Hashable {
     var condition: ChainStepCondition?
     var continueOnError: Bool
     var timeoutSeconds: Int
+    /// Per-step model routing (workflow-bar chains, 2026-08-30): each step
+    /// carries its OWN pin, so a chain can transcribe with the best model and
+    /// count entities with something cheap. `nil` = the workflow resolves its
+    /// own alias.
+    var providerOverride: String?
+    var modelOverride: String?
 
     init(
         id: String = UUID().uuidString,
@@ -69,7 +75,9 @@ struct ChainStep: Identifiable, Codable, Equatable, Hashable {
         staticInputs: [String: AnyCodableValue] = [:],
         condition: ChainStepCondition? = nil,
         continueOnError: Bool = false,
-        timeoutSeconds: Int = 300
+        timeoutSeconds: Int = 300,
+        providerOverride: String? = nil,
+        modelOverride: String? = nil
     ) {
         self.id = id
         self.workflowId = workflowId
@@ -79,6 +87,8 @@ struct ChainStep: Identifiable, Codable, Equatable, Hashable {
         self.condition = condition
         self.continueOnError = continueOnError
         self.timeoutSeconds = timeoutSeconds
+        self.providerOverride = providerOverride
+        self.modelOverride = modelOverride
     }
 
     enum CodingKeys: String, CodingKey {
@@ -88,6 +98,8 @@ struct ChainStep: Identifiable, Codable, Equatable, Hashable {
         case staticInputs = "static_inputs"
         case continueOnError = "continue_on_error"
         case timeoutSeconds = "timeout_seconds"
+        case providerOverride = "provider_override"
+        case modelOverride = "model_override"
     }
 }
 
@@ -268,4 +280,40 @@ struct ExecuteChainResponse: Codable {
 struct ChainListResponse: Codable {
     let chains: [WorkflowChain]
     let total: Int
+}
+
+// MARK: - Step-wise Chain Execution (workflow bar, 2026-08-30)
+
+/// One chain step's pre-assigned workflow-run identity, from
+/// POST /chains/{id}/execute-steps. The thread id exists from the moment the
+/// chain is accepted, so a chip can open its step's live trace immediately.
+struct ChainStepThread: Codable, Equatable {
+    let stepId: String
+    let workflowId: String
+    let name: String
+    let threadId: String
+    let streamUrl: String
+
+    enum CodingKeys: String, CodingKey {
+        case stepId = "step_id"
+        case workflowId = "workflow_id"
+        case name
+        case threadId = "thread_id"
+        case streamUrl = "stream_url"
+    }
+}
+
+/// 202 body of POST /chains/{id}/execute-steps: the engine now owns the
+/// sequential run — order, per-step overrides, stop-on-failure.
+struct ChainStepsExecution: Codable, Equatable {
+    let executionId: String
+    let chainId: String
+    let status: String
+    let steps: [ChainStepThread]
+
+    enum CodingKeys: String, CodingKey {
+        case executionId = "execution_id"
+        case chainId = "chain_id"
+        case status, steps
+    }
 }
