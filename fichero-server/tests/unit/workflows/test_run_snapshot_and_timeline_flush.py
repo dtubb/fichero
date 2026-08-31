@@ -135,6 +135,10 @@ async def test_snapshot_records_effective_override_model(monkeypatch, tmp_path):
         runner,
         "get_tool_def",
         lambda _name: SimpleNamespace(uses_llm=True),
+        # raising=False (2026-08-30): runner stopped importing get_tool_def
+        # (the import was dead, ruff F401); this patch is belt-and-braces
+        # for older trees, not a live seam.
+        raising=False,
     )
     workflow = Workflow(
         id="wf-override",
