@@ -237,6 +237,12 @@ struct ContentView: View {
     /// Upper-bound cost of the staged chain, or nil when nothing can be
     /// priced — never 0, which would read as free.
     @State var stagedChainCostCeiling: Double?
+    /// Upper-bound cost of a "Compare models…" fan-out over the one staged
+    /// step — every configured model priced and summed (Daniel, 2026-08-30).
+    @State var stagedCompareCostCeiling: Double?
+    /// Per-model progress of the running (or last) compare fan-out. Cleared
+    /// when a fan-out dispatches or a plain chain run starts.
+    @State var compareRunProgress: [WorkflowCompareRunProgress] = []
     /// AI defaults, cached for the bar's per-step model menu. Nothing holds
     /// these in a shared observable, so the window keeps its own copy and
     /// refreshes it when the bar appears.

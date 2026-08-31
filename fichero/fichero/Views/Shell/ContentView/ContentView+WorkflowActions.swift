@@ -150,6 +150,11 @@ extension ContentView {
         /// honest — it changes only the step built to consume it.
         artifactTypeHint: String? = nil,
         artifactStepNameHint: String? = nil,
+        /// Set on each run of a "Compare models…" fan-out (Daniel,
+        /// 2026-08-30): one fresh UUID per fan-out, shared by its runs, so
+        /// the artifacts they produce can be lined up later. The engine
+        /// ignores unknown inputs today; the compare-reader lane reads it.
+        compareGroup: String? = nil,
         /// Called with the SERVER's thread id as soon as the run is accepted,
         /// so a caller can watch a run it is still awaiting — the chain rail
         /// uses it to make a running step clickable (2026-08-28).
@@ -166,16 +171,15 @@ extension ContentView {
         )
 
         var streamCompleted = false
-        var inputs: [String: Any] = ["selected_doc_ids": docIds]
-        // The window's framing line rides every run (Daniel, 2026-08-30).
-        let framing = workflowUserContext.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !framing.isEmpty { inputs["user_context"] = framing }
-        if let artifactTypeHint, !artifactTypeHint.isEmpty {
-            inputs["artifact_type"] = artifactTypeHint
-        }
-        if let artifactStepNameHint, !artifactStepNameHint.isEmpty {
-            inputs["step_name"] = artifactStepNameHint
-        }
+        // Assembled in one tested place so the framing line and the
+        // compare-group stamp cannot drift between call sites.
+        let inputs = WorkflowRunInputs.build(
+            docIds: docIds,
+            userContext: workflowUserContext,
+            artifactTypeHint: artifactTypeHint,
+            artifactStepNameHint: artifactStepNameHint,
+            compareGroup: compareGroup
+        )
         do {
                 let response = try await workflowStreamService.execute(
                     workflowId: workflowId,

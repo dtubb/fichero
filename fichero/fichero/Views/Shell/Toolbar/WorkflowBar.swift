@@ -67,6 +67,14 @@ struct WorkflowBar: View {
     /// Writes the chosen scope override (nil = Automatic). nil disables the
     /// menu rather than offering choices that go nowhere.
     var onSelectScope: ((WorkflowBarPolicy.RunScope?) -> Void)?
+    /// Dispatches a "Compare models…" fan-out (Daniel, 2026-08-30): the runs,
+    /// and the fresh compare-group id stamping them. nil hides the affordance.
+    var onRunCompare: (([WorkflowCompareRun], String) -> Void)?
+    /// Per-model progress of the dispatched fan-out, one sub-state per model.
+    var compareProgress: [WorkflowCompareRunProgress] = []
+    /// Upper bound on what the whole fan-out would cost — every model priced
+    /// and summed. nil = unpriced, shown as such rather than as free.
+    var compareCostCeiling: Double?
 
     /// One item's footprint. Fixed so the verbs sit on an even rhythm the way
     /// toolbar items do, rather than jittering with label length.
@@ -79,6 +87,9 @@ struct WorkflowBar: View {
     @State var dropTargetIndex: Int?
     /// The context (framing) popover (Daniel, 2026-08-30).
     @State var showsContextEditor = false
+    /// The compare confirmation popover — a fan-out is N paid calls, so it
+    /// never dispatches without naming the models and the cost first.
+    @State var showsCompareConfirmation = false
 
     private var families: [WorkflowBarPolicy.VerbFamily] {
         WorkflowBarPolicy.families(from: workflows, target: target, folders: folders)
@@ -96,6 +107,10 @@ struct WorkflowBar: View {
             if !staged.isEmpty {
                 Divider()
                 chainRow
+                if !compareProgress.isEmpty {
+                    Divider()
+                    compareProgressRow
+                }
             }
         }
         .background(.bar)
@@ -210,6 +225,11 @@ struct WorkflowBar: View {
                     .buttonStyle(.plain)
                     .help("Clear the chain")
                     .accessibilityLabel("Clear the chain")
+
+                    // "Compare models…" — the same sentence, once per model
+                    // (Daniel, 2026-08-30). Sits beside ▶ because it IS a
+                    // run control, just one that fans out.
+                    compareItem
                 }
                 if let costCeiling {
                     // A CEILING, said as one: "≤" is the difference between a

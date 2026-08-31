@@ -657,6 +657,13 @@ def _save_artifact_sync(
 
             sequence = next_artifact_sequence(task_id, seed_fn=_seed_from_db)
 
+        # The compare fan-out's group rides artifact data (Daniel,
+        # 2026-08-30): the compare view gathers one fan-out's outputs by it.
+        from fichero_server.workflows.tools.llm_prompting import run_compare_group
+        if (group := run_compare_group.get()):
+            data = dict(data or {})
+            data["compare_group"] = group
+
         # Create Artifact
         artifact = Artifact(
             document_id=resolved_doc_id,

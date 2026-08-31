@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import difflib
 import io
 import json
 from pathlib import Path
@@ -13,7 +14,7 @@ from fastapi.responses import HTMLResponse
 
 from fichero_server.api.main import get_library_database
 from fichero_server.db import Database
-from fichero_server.models.knowledge import KnowledgeClaim, KnowledgeEntity
+from fichero_server.models.knowledge import Annotation, KnowledgeClaim, KnowledgeEntity
 from fichero_server.models import Artifact, DocType, Document
 
 router = APIRouter(prefix="/view", tags=["views"])
@@ -303,6 +304,222 @@ def artifact_pages(
     return result
 
 
+#: The two representations that are READINGS OVER THE MARKUP AND OUTPUTS, not
+#: artifact substitutions (Daniel, 2026-08-30 rulings 5 + 6): "annotations"
+#: renders the scope's user markup grouped by page with page citations — the
+#: Marked idea, a review surface over the markup; "compare" lays the scope's
+#: recent artifacts of one type side by side with a labeled word diff.
+ANNOTATIONS_REPRESENTATION = "annotations"
+COMPARE_REPRESENTATION = "compare"
+
+#: Reader-facing names for annotation kinds. A `rating` is a CHECK — the
+#: reading-discipline glyph (✓ / ✓✓ / ✓✓✓), never a star rating.
+ANNOTATION_KIND_LABELS = {
+    "highlight": "Highlight",
+    "note": "Note",
+    "rating": "Check",
+    "bookmark": "Bookmark",
+    "comment": "Comment",
+    "line": "Line",
+    "underline": "Underline",
+    "strikethrough": "Strikethrough",
+}
+
+
+def annotation_groups(
+    annotations: list[Annotation], pages: list[dict[str, object]]
+) -> list[dict[str, object]]:
+    """The scope's annotations, grouped by page and CITED to it ("p. 14") —
+    the Marked-for-Mac review surface (Daniel, 2026-08-30 ruling 5: "a
+    reader view that shows what is highlighted/checked/noted, cited properly
+    to its page").
+
+    Each entry shows its anchored text where derivable: `char_start`/
+    `char_end` slice the owning page's transcript (the #913 substrate);
+    bbox-anchored entries fall back to their captured `ocr_text` and always
+    carry their kind, so a margin check with no text still reads as "Check".
+    Annotations that resolve to no listed page group under a document-level
+    section rather than vanishing. Pure over loaded rows for unit tests.
+    """
+    pages_by_id = {str(page["id"]): page for page in pages}
+    grouped: dict[object, dict[str, object]] = {}
+    for ann in annotations:
+        page = pages_by_id.get(str(ann.page_id or "")) or pages_by_id.get(
+            str(ann.document_id or "")
+        )
+        if page is None and ann.page_index is not None and 0 <= ann.page_index < len(pages):
+            page = pages[ann.page_index]
+
+        anchored: str | None = None
+        if (
+            page is not None
+            and ann.char_start is not None
+            and ann.char_end is not None
+            and ann.char_end > ann.char_start
+        ):
+            anchored = str(page.get("content") or "")[ann.char_start:ann.char_end].strip() or None
+        if anchored is None and getattr(ann, "ocr_text", None):
+            anchored = ann.ocr_text
+
+        kind = ann.kind.value if hasattr(ann.kind, "value") else str(ann.kind)
+        entry: dict[str, object] = {
+            "id": ann.id,
+            "kind": kind,
+            "kind_label": ANNOTATION_KIND_LABELS.get(kind, kind.capitalize()),
+            # Checks read as their glyphs: rating 1-3 → ✓ / ✓✓ / ✓✓✓ (the
+            # model allows up to 5; every one renders honestly).
+            "checks": "✓" * ann.rating if kind == "rating" and ann.rating else None,
+            "text": ann.text,
+            "rating": ann.rating,
+            "color": ann.color,
+            "tags": list(ann.tags or []),
+            "anchored_text": anchored,
+            "created_at": ann.created_at.isoformat() if ann.created_at else None,
+            # Entry order within a page: reading order when the span is known,
+            # else creation order at the end of the page's list.
+            "_order": (
+                0 if ann.char_start is not None else 1,
+                ann.char_start or 0,
+                ann.created_at.isoformat() if ann.created_at else "",
+            ),
+        }
+        number = page.get("number") if page is not None else None
+        key = number if page is not None else None
+        group = grouped.get(key)
+        if group is None:
+            group = {
+                "page_number": number,
+                "page_id": str(page["id"]) if page is not None else None,
+                "page_label": page.get("label") if page is not None else None,
+                # The citation the ruling asks for. Document-level marks are
+                # cited to the document, honestly, not to an invented page.
+                "citation": f"p. {number}" if number is not None else "Document",
+                "entries": [],
+            }
+            grouped[key] = group
+        group["entries"].append(entry)
+
+    ordered = sorted(
+        grouped.values(),
+        # Pages in sequence; the document-level group last.
+        key=lambda g: (g["page_number"] is None, g["page_number"] or 0),
+    )
+    for group in ordered:
+        group["entries"].sort(key=lambda e: e["_order"])
+        for entry in group["entries"]:
+            del entry["_order"]
+    return ordered
+
+
+def diff_word_tokens(base: str, other: str) -> list[list[str]]:
+    """Word-level diff of ``other`` against ``base`` as ``[word, op]`` token
+    pairs, op in {"same", "ins", "del"} — stdlib difflib, kept readable rather
+    than perfect (Daniel, 2026-08-30 ruling 6). Deleted words from ``base``
+    appear in place so the column shows what the previous output had that this
+    one dropped. The template escapes every word; this never emits markup.
+    """
+    base_words = base.split()
+    other_words = other.split()
+    tokens: list[list[str]] = []
+    matcher = difflib.SequenceMatcher(None, base_words, other_words, autojunk=False)
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag == "equal":
+            tokens.extend([word, "same"] for word in other_words[j1:j2])
+        elif tag == "insert":
+            tokens.extend([word, "ins"] for word in other_words[j1:j2])
+        elif tag == "delete":
+            tokens.extend([word, "del"] for word in base_words[i1:i2])
+        else:  # replace = the old words out, the new words in, adjacent
+            tokens.extend([word, "del"] for word in base_words[i1:i2])
+            tokens.extend([word, "ins"] for word in other_words[j1:j2])
+    return tokens
+
+
+#: How many columns a compare view shows when no run-stamped group narrows it.
+COMPARE_COLUMN_LIMIT = 4
+
+
+def _compare_group_of(artifact: Artifact) -> str | None:
+    """The inputs-stamped fan-out group, when a run carried one. The runner
+    does not copy workflow inputs onto artifacts today — `Artifact` has no
+    metadata dict — so the only place a stamp can ride is the structured
+    ``data`` payload; honored when present, never required."""
+    if isinstance(artifact.data, dict):
+        value = artifact.data.get("compare_group")
+        if value:
+            return str(value)
+    return None
+
+
+def compare_columns(
+    artifacts: list[Artifact],
+    compare_types: list[str],
+    limit: int = COMPARE_COLUMN_LIMIT,
+) -> dict[str, object]:
+    """The scope's recent artifacts of one type, one COLUMN per artifact,
+    each labeled with the provenance the artifact actually carries — model /
+    provider / step_name — never an invented name (Daniel, 2026-08-30 ruling
+    6: compare outputs side by side with a labeled diff).
+
+    When artifacts carry a ``compare_group`` stamp (a fan-out run tagging its
+    outputs), the NEWEST group is the comparison — that run's outputs belong
+    together. Otherwise the latest ``limit`` artifacts of the type compare.
+    Columns order oldest → newest so the diff reads left to right; each
+    column after the first carries word tokens diffed against its left
+    neighbor. Pure for unit tests.
+    """
+    wanted = [
+        a
+        for a in artifacts
+        if a.artifact_type in compare_types and (a.content or "").strip()
+    ]
+    grouped = False
+    if not wanted:
+        chosen: list[Artifact] = []
+    else:
+        stamped = [a for a in wanted if _compare_group_of(a)]
+        if stamped:
+            newest = max(stamped, key=lambda a: (a.created_at, a.version))
+            group_key = _compare_group_of(newest)
+            chosen = [a for a in wanted if _compare_group_of(a) == group_key]
+            grouped = True
+        else:
+            chosen = sorted(wanted, key=lambda a: (a.created_at, a.version))[-limit:]
+    chosen.sort(key=lambda a: (a.created_at, a.version))
+
+    columns: list[dict[str, object]] = []
+    previous: str | None = None
+    for artifact in chosen:
+        content = (artifact.content or "").strip()
+        # Honest labeling: the fields the artifact actually carries, in
+        # usefulness order. An artifact with no provenance at all is named
+        # by its type — the one thing every artifact states.
+        label_parts = [
+            part
+            for part in (artifact.model or artifact.provider, artifact.step_name)
+            if part
+        ]
+        columns.append(
+            {
+                "artifact_id": artifact.id,
+                "document_id": artifact.document_id,
+                "label": " · ".join(label_parts) or artifact.artifact_type,
+                "model": artifact.model,
+                "provider": artifact.provider,
+                "step_name": artifact.step_name,
+                "created_at": artifact.created_at.isoformat() if artifact.created_at else None,
+                "compare_group": _compare_group_of(artifact),
+                "tokens": (
+                    [[word, "same"] for word in content.split()]
+                    if previous is None
+                    else diff_word_tokens(previous, content)
+                ),
+            }
+        )
+        previous = content
+    return {"types": list(compare_types), "columns": columns, "grouped": grouped}
+
+
 def transcript_pages(document: Document, child_pages: list[Document]) -> list[dict[str, object]]:
     """Every page of the document, in order — including pages with NO content.
 
@@ -470,6 +687,7 @@ async def document_view(
     pages_filter: str | None = Query(default=None, alias="pages"),
     representation: str | None = Query(default=None),
     artifact_id: str | None = Query(default=None),
+    compare_types: str | None = Query(default=None),
     db: Database = Depends(get_library_database),
 ) -> HTMLResponse:
     requested = db.get(Document, doc_id)
@@ -520,6 +738,8 @@ async def document_view(
         child_pages = [p for p in child_pages if p.id in selected_page_ids]
     region_scoped = any(p.region_in_parent is not None for p in child_pages)
     pages = transcript_pages(document, child_pages)
+    annotations_payload: list[dict[str, object]] | None = None
+    compare_payload: dict[str, object] | None = None
     if artifact_id:
         # The ARTIFACT view (Daniel, 2026-08-30): render exactly this
         # artifact - it outranks the representation switcher, and the
@@ -530,6 +750,26 @@ async def document_view(
             raise HTTPException(404, f"Artifact not found: {artifact_id}")
         representation = view_artifact.artifact_type or "artifact"
         pages = artifact_pages(pages, view_artifact)
+    elif representation == ANNOTATIONS_REPRESENTATION:
+        # The annotation review surface (Daniel, 2026-08-30 ruling 5): the
+        # scope's markup, grouped by page, each entry cited to its page. The
+        # annotations table is small and scope filtering spans three anchor
+        # columns, so this filters in Python the way the list route does.
+        scope = set(doc_scope)
+        scoped = [
+            ann
+            for ann in db.query(Annotation)
+            if {ann.document_id, ann.page_id, ann.folder_id} & scope
+        ]
+        annotations_payload = annotation_groups(scoped, pages)
+    elif representation == COMPARE_REPRESENTATION:
+        # The compare view (Daniel, 2026-08-30 ruling 6): the scope's recent
+        # artifacts of the named type(s), side by side, labeled with their
+        # real provenance and word-diffed against the column to their left.
+        types = [t for t in (compare_types or "").split(",") if t]
+        scope_ids = sorted({document.id, *(str(page["id"]) for page in pages)})
+        artifacts = db.query_in(Artifact, "document_id", scope_ids)
+        compare_payload = compare_columns(artifacts, types)
     elif representation and representation != "content":
         # The representation switcher re-requests THIS page with a
         # `representation` parameter — same scope, same renderer, different
@@ -580,6 +820,12 @@ async def document_view(
         # Every page in sequence, empty ones included (#4356) — the reader
         # renders this list, so reader page N is preview page N.
         "pages": pages,
+        # The markup review surface (ruling 5): non-null ONLY under
+        # ?representation=annotations — page-grouped, page-cited entries.
+        "annotations": annotations_payload,
+        # The compare view (ruling 6): non-null ONLY under
+        # ?representation=compare — labeled columns with word-diff tokens.
+        "compare": compare_payload,
     }
     entity_payload = [
         {
