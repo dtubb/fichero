@@ -2,7 +2,7 @@
 
 *Full commit-level history, day by day, lives in [`CHANGELOG.md`](CHANGELOG.md).*
 
-## 2026.08.27
+## 2026.08.31-beta
 
 **Sharing, CLI, and MCP:**
 - New: The Sharing toggle now serves the `fichero` command-line tool and MCP
