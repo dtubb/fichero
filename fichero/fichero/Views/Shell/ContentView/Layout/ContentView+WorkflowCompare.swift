@@ -33,7 +33,7 @@ extension ContentView {
         let hints = Self.artifactHints(for: scope)
         lastChainRunTargets = targets
 
-        compareRunProgress = runs.map {
+        chromeUX.compareRunProgress = runs.map {
             WorkflowCompareRunProgress(
                 id: $0.model,
                 label: ModelChipToolbarItem.shorten($0.model)
@@ -41,8 +41,8 @@ extension ContentView {
         }
 
         func update(_ model: String, _ state: StagedStepState) {
-            if let index = compareRunProgress.firstIndex(where: { $0.id == model }) {
-                compareRunProgress[index].state = state
+            if let index = chromeUX.compareRunProgress.firstIndex(where: { $0.id == model }) {
+                chromeUX.compareRunProgress[index].state = state
             }
         }
 
@@ -92,7 +92,7 @@ extension ContentView {
         guard let runs = WorkflowComparePlanner.fanOut(
             staged: stagedWorkflowChain, choices: workflowBarModelChoices
         ), let workflowId = stagedWorkflowChain.first?.workflow?.id else {
-            stagedCompareCostCeiling = nil
+            chromeUX.stagedCompareCostCeiling = nil
             return
         }
         var total = 0.0
@@ -108,7 +108,7 @@ extension ContentView {
                 priced = true
             }
         }
-        stagedCompareCostCeiling = priced ? total : nil
+        chromeUX.stagedCompareCostCeiling = priced ? total : nil
     }
 
     /// An artifact scope carries the type/step hint every run must honour.

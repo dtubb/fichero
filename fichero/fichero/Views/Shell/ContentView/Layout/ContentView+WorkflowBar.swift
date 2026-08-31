@@ -51,8 +51,8 @@ extension ContentView {
                 onRunCompare: { runs, groupId in
                     Task { await runModelCompare(runs: runs, groupId: groupId) }
                 },
-                compareProgress: compareRunProgress,
-                compareCostCeiling: stagedCompareCostCeiling
+                compareProgress: chromeUX.compareRunProgress,
+                compareCostCeiling: chromeUX.stagedCompareCostCeiling
             )
             .task(id: chainCostKey) { await refreshChainCostCeiling() }
             .task {
@@ -92,7 +92,7 @@ extension ContentView {
         // A plain run supersedes whatever the last compare showed — stale
         // per-model capsules under a fresh chain run would claim runs this
         // press never made.
-        compareRunProgress = []
+        chromeUX.compareRunProgress = []
         defer {
             isRunningStagedChain = false
             runningStagedStepIndex = nil
@@ -247,7 +247,7 @@ extension ContentView {
     func refreshChainCostCeiling() async {
         guard !stagedWorkflowChain.isEmpty, workflowBarTargetCount > 0 else {
             stagedChainCostCeiling = nil
-            stagedCompareCostCeiling = nil
+            chromeUX.stagedCompareCostCeiling = nil
             return
         }
         var total = 0.0

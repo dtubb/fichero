@@ -71,8 +71,11 @@ struct ContentView: View {
     /// centre row via `\.paneSplitCoordinator`.
     @State var paneSplitCoordinator = PaneSplitCoordinator()
     /// The Save Workspace… name prompt (Daniel, 2026-08-29).
-    @State var showSaveWorkspacePrompt = false
-    @State var workspaceNameDraft = ""
+    /// BOXED window-chrome UX state (2026-08-30, the ViewValueSizeTests
+    /// promise): ContentView is value-copied on every graph update, so
+    /// transient prompt/progress state lives behind ONE reference instead of
+    /// growing the struct — the workspace prompt and the compare fan-out.
+    @State var chromeUX = WindowChromeUXState()
     #if os(macOS)
     static let defaultColumnVisibility: NavigationSplitViewVisibility = .all
     static let defaultColumnVisibilityRaw: Int = 2 // .all
@@ -237,12 +240,6 @@ struct ContentView: View {
     /// Upper-bound cost of the staged chain, or nil when nothing can be
     /// priced — never 0, which would read as free.
     @State var stagedChainCostCeiling: Double?
-    /// Upper-bound cost of a "Compare models…" fan-out over the one staged
-    /// step — every configured model priced and summed (Daniel, 2026-08-30).
-    @State var stagedCompareCostCeiling: Double?
-    /// Per-model progress of the running (or last) compare fan-out. Cleared
-    /// when a fan-out dispatches or a plain chain run starts.
-    @State var compareRunProgress: [WorkflowCompareRunProgress] = []
     /// AI defaults, cached for the bar's per-step model menu. Nothing holds
     /// these in a shared observable, so the window keeps its own copy and
     /// refreshes it when the bar appears.

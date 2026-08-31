@@ -77,8 +77,8 @@ extension ContentView {
         let workspaces = WindowWorkspaceStore.shared.catalog.workspaces
         return Menu {
             Button("Save Workspace…") {
-                workspaceNameDraft = ""
-                showSaveWorkspacePrompt = true
+                chromeUX.workspaceNameDraft = ""
+                chromeUX.showSaveWorkspacePrompt = true
             }
 
             if !workspaces.isEmpty {
@@ -102,11 +102,11 @@ extension ContentView {
         }
         .help("Save this window arrangement, or apply a saved one")
         .accessibilityLabel("Workspaces")
-        .alert("Save Workspace", isPresented: $showSaveWorkspacePrompt) {
-            TextField("Name", text: $workspaceNameDraft)
+        .alert("Save Workspace", isPresented: Bindable(chromeUX).showSaveWorkspacePrompt) {
+            TextField("Name", text: Bindable(chromeUX).workspaceNameDraft)
             Button("Save") {
                 WindowWorkspaceStore.shared.save(
-                    name: workspaceNameDraft,
+                    name: chromeUX.workspaceNameDraft,
                     layout: captureLayoutSnapshot()
                 )
             }
@@ -229,8 +229,8 @@ extension ContentView {
     var windowLayoutCommands: WindowLayoutCommands {
         WindowLayoutCommands(
             saveWorkspace: {
-                workspaceNameDraft = ""
-                showSaveWorkspacePrompt = true
+                chromeUX.workspaceNameDraft = ""
+                chromeUX.showSaveWorkspacePrompt = true
             },
             applyWorkspace: { applyLayoutSnapshot($0.layout) },
             applyPreset: { applyLayoutPreset($0) }

@@ -92,3 +92,20 @@ enum WorkflowRunInputs {
         return inputs
     }
 }
+
+
+/// Transient window-chrome UX state, boxed off ContentView's value (see the
+/// ViewValueSizeTests ceiling): the Save Workspace prompt and the compare
+/// fan-out's cost/progress. One reference on the view; mutations observe.
+@MainActor
+@Observable
+final class WindowChromeUXState {
+    var showSaveWorkspacePrompt = false
+    var workspaceNameDraft = ""
+    /// Upper-bound cost of a "Compare models…" fan-out over the one staged
+    /// step — every configured model priced and summed (Daniel, 2026-08-30).
+    var stagedCompareCostCeiling: Double?
+    /// Per-model progress of the running (or last) compare fan-out. Cleared
+    /// when a fan-out dispatches or a plain chain run starts.
+    var compareRunProgress: [WorkflowCompareRunProgress] = []
+}
