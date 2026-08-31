@@ -131,7 +131,11 @@ def test_apple_vision_word_boxes_sit_inside_their_line(apple_geometry):
         assert owner is not None, f"word {word.text!r} belongs to no line"
         wx, wy, ww, wh = word.bbox
         lx, ly, lw, lh = owner.bbox
-        tol = 1e-3
+        # 3e-3 (2026-08-30): VNRecognizeText on macOS 27 beta returns word
+        # rects up to ~1.5e-3 outside their line's rect — measurement jitter,
+        # not a flipped axis. The property still catches a real flip (off by
+        # a whole line height, not thousandths).
+        tol = 3e-3
         assert lx - tol <= wx and wx + ww <= lx + lw + tol
         assert ly - tol <= wy and wy + wh <= ly + lh + tol
 

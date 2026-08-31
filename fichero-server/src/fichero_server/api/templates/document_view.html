@@ -252,7 +252,9 @@
         /* Table representations (2026-08-29): a real table in the page's own
            idiom, inside its own horizontal scroller — a wide ledger scrolls
            HERE, never the page body (#4385's rule applied to tables). */
-        .table-scroll {
+        .artifact-svg { max-width: 100%; height: auto; display: block; margin: 0 auto; }
+.artifact-html { width: 100%; min-height: 420px; border: 1px solid rgba(0,0,0,0.1); border-radius: 6px; background: white; }
+.table-scroll {
             max-width: 100%;
             overflow-x: auto;
         }
@@ -1002,6 +1004,7 @@ function transcriptPages() {
                 label: page.label || null,
                 isRegion: Boolean(page.is_region),
                 table: page.table || null,
+                markup_render: page.markup_render || null,
                 number: page.number == null ? index + 1 : page.number,
                 content: content,
                 hasContent: page.has_content == null
@@ -1061,7 +1064,9 @@ function transcriptPageMarkup(page) {
     return `
         <article class="transcript-page${page.hasContent ? "" : " empty-page"}" data-page="${page.number}">
             <div class="page-marker">${proxy}Page ${page.number}${label}</div>
-            ${page.table ? tableMarkup(page.table) : `<div class="transcript-page-body">${escapeHtml(page.content)}</div>`}
+            ${page.markup_render ? markupRenderMarkup(page.markup_render)
+                : page.table ? tableMarkup(page.table)
+                : `<div class="transcript-page-body">${escapeHtml(page.content)}</div>`}
             ${placeholder}
         </article>
     `;
@@ -1072,6 +1077,20 @@ function transcriptPageMarkup(page) {
 // server parsed the artifact (csv module / json_rows) into headers + rows;
 // this only lays it out. Wrapped in its own horizontal scroller so a wide
 // ledger never widens the page — the reader body must not scroll sideways.
+// SVG/HTML artifacts render as THEMSELVES (Daniel, 2026-08-30) — safety by
+// construction: SVG through an <img data:> (no script context), HTML through
+// a fully sandboxed iframe (empty sandbox = inert). Never inlined into this
+// page's DOM.
+function markupRenderMarkup(render) {
+    if (render.type === "svg" && render.data_uri && render.data_uri.startsWith("data:image/svg+xml;base64,")) {
+        return `<img class="artifact-svg" src="${render.data_uri}" alt="SVG artifact">`;
+    }
+    if (render.type === "html" && typeof render.srcdoc === "string") {
+        return `<iframe class="artifact-html" sandbox="" srcdoc="${escapeHtml(render.srcdoc)}"></iframe>`;
+    }
+    return "";
+}
+
 function tableMarkup(table) {
     const rows = Array.isArray(table.rows) ? table.rows : [];
     if (!rows.length && !(table.headers || []).length) {

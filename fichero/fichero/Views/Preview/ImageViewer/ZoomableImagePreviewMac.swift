@@ -262,7 +262,7 @@ struct ZoomableImagePreview: View {
                 case .note: requestAnnotation(.note)
                 case .star: requestAnnotation(.bookmark)
                 case .line: requestAnnotation(.line)
-                case .textSelect, .select, .drawRegion, .check:
+                case .textSelect, .select, .wordSelect, .drawRegion, .check:
                     break  // preview-regions interactions / reader-only
                 }
             }

@@ -66,6 +66,12 @@ extension ZoomableImagePreview {
             if selection.count >= 2 {
                 Button("Combine \(selection.count) Regions") { combineSelectedRegions() }
             }
+            if selectionIsWordLevel {
+                // Word-boundary marquee (Daniel, 2026-08-30, ruling 2): the
+                // selected WORDS become regions — one strip per line, the
+                // same grammar as promoting marquees.
+                Button("New Region from Words") { promoteSelectedWords() }
+            }
             if !selection.isEmpty {
                 Button(
                     selection.count == 1 ? "Delete Region" : "Delete \(selection.count) Regions",
@@ -172,6 +178,59 @@ extension ZoomableImagePreview {
                 isAddingRegion = false
             } catch {
                 Self.logger.error("Region promote failed: \(String(describing: error))")
+            }
+        }
+    }
+
+    /// True when every selected index is a WORD-level box in the displayed
+    /// geometry — the only selection "New Region from Words" can honestly
+    /// promote (line rows already ARE regions).
+    var selectionIsWordLevel: Bool {
+        let selection = RegionSelection.shared
+        guard let artifactId = ocrGeometryArtifactId, selection.artifactId == artifactId,
+              !selection.isEmpty, let boxes = ocrGeometry?.boxes else { return false }
+        return selection.indices.allSatisfy { boxes.indices.contains($0) && boxes[$0].level == "word" }
+    }
+
+    /// PROMOTE the word selection to regions (ruling 2): the selected words
+    /// group into one strip per line via the same word-snap math a highlight
+    /// uses, and each strip lands as its own region — like `promoteMarquees`,
+    /// but word-bounded instead of hand-drawn.
+    func promoteSelectedWords() {
+        let selection = RegionSelection.shared
+        guard let artifactId = ocrGeometryArtifactId, selection.artifactId == artifactId,
+              !selection.isEmpty, let documentId, let artifactService,
+              let geometry = ocrGeometry else { return }
+        let words = selection.indices
+            .filter { geometry.boxes.indices.contains($0) }
+            .map { geometry.boxes[$0] }
+        guard !words.isEmpty else { return }
+        // The words' union as the "drag": snappedRects then yields one
+        // strip per line of exactly these words. Bounded sub-expressions —
+        // one chained array literal here timed out the type-checker.
+        let minX: Double = words.map { $0.bbox[0] }.min() ?? 0
+        let minY: Double = words.map { $0.bbox[1] }.min() ?? 0
+        let maxX: Double = words.map { $0.bbox[0] + $0.bbox[2] }.max() ?? 0
+        let maxY: Double = words.map { $0.bbox[1] + $0.bbox[3] }.max() ?? 0
+        let union: [Double] = [minX, minY, maxX - minX, maxY - minY]
+        let strips = AnnotationWordSnap.snappedRects(
+            drag: union, words: words, lines: geometry.lineBoxes
+        )
+        Task {
+            do {
+                var latest: Artifact?
+                for strip in strips {
+                    latest = try await artifactService.addRegion(
+                        artifactId: artifactId, documentId: documentId, bbox: strip
+                    )
+                }
+                if let latest {
+                    ocrGeometry = latest.ocrGeometry
+                    ocrGeometryArtifactId = latest.id
+                }
+                selection.invalidate(artifactId: artifactId)
+            } catch {
+                Self.logger.error("Region-from-words promote failed: \(String(describing: error))")
             }
         }
     }

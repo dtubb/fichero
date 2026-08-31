@@ -79,6 +79,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Views/Workflow/Nodes/DynamicConfigView+FieldRendering.swift": "#1945 — candidate dead file: DynamicFolderPickerOption",
     "Views/Workflow/Editor/SimpleWorkflowView.swift": "#1945 — candidate dead file: SimpleWorkflowView, SimpleWorkflow",
     "Views/Workflow/Execution/WorkflowExecutionView.swift": "#1945 — candidate dead file: workflow execution helper types",
+    "Services/WorkflowService+Conversions.swift": "#2955 — split from WorkflowService by file_length (2026-08-30); DerivedFlags is a private mapper helper used by the same-file conversion extension; scanner misses same-file wiring",
     "Models/WorkflowSuggestionPolicy.swift": "2026-08-30 — suggestion glyphs left the toolbar (Daniel's ruling) so the policy is momentarily unreferenced; the suggestions-row-INSIDE-the-bar lane is APPROVED and rewires it. Do not let this entry outlive that lane.",
     "Views/Shell/ContentView/Layout/ContentView+WorkflowBar.swift": "#2955 — extension file driving the workflow bar from ContentView; TierCandidate is its private AI-defaults retry carrier; scanner misses same-file extension wiring",
     "Views/Shell/Toolbar/WorkflowBar+ChainRail.swift": "#2955 — extension file; ChainFlowLayout is the chain rail's private wrapping Layout, used by the same-file rail builder; scanner misses same-file extension wiring",

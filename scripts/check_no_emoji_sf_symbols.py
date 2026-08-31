@@ -27,7 +27,13 @@ ROOT = Path(__file__).resolve().parent.parent
 SWIFT_DIR = ROOT / "fichero" / "fichero"
 RULE_DOC = "agents/ROADMAP.md"
 
-KNOWN_VIOLATIONS: dict[str, str] = {}
+KNOWN_VIOLATIONS: dict[str, str] = {
+    # Per-kind annotation MARKS drawn over the page image (2026-08-30): the
+    # check ✓✓✓ and star are page-overlay GLYPHS scaled with the canvas, not
+    # UI chrome — an SF symbol Image cannot ride a PDFKit freeText or repeat
+    # by rating. Deliberate.
+    "fichero/fichero/Views/Preview/ImageViewer/AnnotationMarkRendering.swift#9027280c1e": "check marks as page-overlay glyphs",
+    "fichero/fichero/Views/Preview/PDFViewer/PDFAnnotationMarkRendering.swift#c3157daddc": "star as PDF freeText glyph",}
 _BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
 _LINE_COMMENT = re.compile(r"(?<!:)//.*")
 _EMOJI = re.compile(

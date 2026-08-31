@@ -337,8 +337,8 @@ extension ReadingPaneView {
         for id in candidates {
             guard let response = try? await annotationService.client.api
                 .listAnnotationsApiAnnotationsGet(.init(query: .init(documentId: id))),
-                case .ok(let ok) = response,
-                let body = try? ok.body.json
+                case .ok(let okResponse) = response,
+                let body = try? okResponse.body.json
             else { continue }
             if body.count > 0 { return true }
         }
