@@ -46,6 +46,14 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
     /// and droppable") — the SAME LibraryItemDrag a library row exports, so
     /// a crumb drops anywhere a row does. nil disables dragging.
     var crumbDragPayload: ((PaneCrumb) -> LibraryItemDrag?)?
+    /// What the LEAF crumb — the pane's proxy icon — drags, when the pane
+    /// wants something other than the library item (Daniel, 2026-09-01:
+    /// "dragging the reader's proxy icon should drag the reader TEXT as
+    /// Markdown, not the image"). An `NSItemProvider` rather than a
+    /// `Transferable`, because the payload differs by pane and `.draggable`
+    /// would force one concrete type on every head. nil keeps the leaf on the
+    /// shared `crumbDragPayload`.
+    var leafDragItemProvider: (() -> NSItemProvider)?
     /// The two-level kind ▾ / lens ▾ control.
     @ViewBuilder var selector: () -> Selector
     /// The few controls that always apply to this pane kind.
@@ -283,7 +291,13 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
     /// wiring: text.
     @ViewBuilder
     private func crumbSegment(_ crumb: PaneCrumb, isLeaf: Bool) -> some View {
-        if let payload = crumbDragPayload?(crumb) {
+        // The leaf is the PROXY ICON: when the pane supplies its own payload
+        // it wins, because what the pane is showing is not always the file it
+        // came from. Ancestors keep the library payload either way.
+        if isLeaf, let provider = leafDragItemProvider {
+            crumbSegmentCore(crumb, isLeaf: isLeaf)
+                .onDrag(provider)
+        } else if let payload = crumbDragPayload?(crumb) {
             crumbSegmentCore(crumb, isLeaf: isLeaf)
                 .draggable(payload)
         } else {

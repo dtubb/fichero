@@ -11,7 +11,7 @@ Translate extracted or transcribed text into the user's preferred language. Targ
 | Tool id | `text_translate` |
 | Category | llm |
 | Uses a language model | yes |
-| Needs a generative model | no |
+| Needs a generative model | yes |
 | Runs over many items | yes |
 | Item handling | batch |
 | Structured output | yes |

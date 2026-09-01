@@ -57,8 +57,19 @@ extension LibraryView {
         }
 
         // Dataset facets (Daniel, 2026-08-24: "I want it all in the one at
-        // the bottom") — shown only while the dataset has rows.
-        if displayMode.group == .dataset, datasetStore.page?.rows.isEmpty == false {
+        // the bottom"). ONE EXTRA, never a substitute (Daniel, 2026-09-01:
+        // "data/dataset mode shows a different bar"): the cluster used to
+        // carry its own Show menu with the reading level in it AND the shared
+        // Show control was suppressed below, so switching to Data swapped one
+        // control for a differently-named one in the same slot — which is what
+        // made the bar read as a different bar. The cluster now adds only what
+        // is genuinely extra to this mode, the row types and the date facet,
+        // and the shared Show / Sort / Filter / Metadata controls stay exactly
+        // where they are in every other mode.
+        //
+        // No longer gated on the dataset having rows, either: a control that
+        // appears once data lands is a bar that changes shape under the user.
+        if displayMode.group == .dataset {
             DatasetFilterCluster(store: datasetStore, documentStore: documentStore)
         }
 
@@ -70,11 +81,12 @@ extension LibraryView {
             datasetStore: displayMode.group == .dataset ? datasetStore : nil
         )
 
-        // In dataset mode the level choice lives inside the cluster's Show
-        // menu with the types (Daniel, 2026-08-27) — one menu, one question.
-        if displayMode.group != .dataset {
-            libraryLevelToggle
-        }
+        // The Show control is in EVERY mode (2026-09-01). It used to be hidden
+        // in Data mode on the theory that the cluster's own Show menu carried
+        // the level — see `DatasetFilterCluster` for why that swap is gone.
+        // The reading level is a library-wide question (`documentStore
+        // .libraryLevel`), so the library-wide control is the one that asks it.
+        libraryLevelToggle
 
         librarySortMenu
 

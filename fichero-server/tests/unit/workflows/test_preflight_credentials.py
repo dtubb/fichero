@@ -184,7 +184,20 @@ def test_keyless_fresh_install_passes_preflight_for_every_default_workflow(
     # Vision OCR — a recognition pass that ignores the prompt. It used to pass
     # preflight and then die mid-run on "Expecting value: line 1 column 1";
     # now it refuses up front, naming the capability to configure.
-    generative_vision_presets = {"Group Same Documents"}
+    # 2026-09-01 (Daniel: "Apple Vision → CSV failed"): the same class, three
+    # more presets. `table_extract` and `convert` ask a model to LAY OUT a
+    # page as CSV / HTML / Markdown / SVG; their own VisionToolConfig has
+    # always said supports_apple_vision=False, but only mid-run — so a
+    # keyless install dispatched, priced and logged the run before refusing.
+    # The refusal moved to preflight; the verdict is unchanged.
+    generative_vision_presets = {
+        "Group Same Documents",
+        "Accounts → Spreadsheet (CSV)",
+        "Extract Table",
+        "Convert to HTML",
+        "Convert to Markdown",
+        "Convert to SVG",
+    }
 
     # 2026-08-26 redesign: the Pipeline preset DELEGATES to the paleography
     # and review workflows, whose staged review passes need a configured,
@@ -311,3 +324,153 @@ def test_ocr_only_model_is_fine_for_a_tool_that_does_not_parse(monkeypatch):
     )
 
     assert errors == []
+
+
+# ---------------------------------------------------------------------------
+# 2026-09-01: a batch-only model must be refused BEFORE the run is paid for.
+#
+# Daniel ran a workflow and the provider answered "404 This model is only
+# available through the Batch API. Use the /api/beta/batches endpoint
+# instead." Fichero has no batch client, so the only honest outcome is a
+# preflight refusal that names the model — the run had nothing to gain by
+# starting.
+# ---------------------------------------------------------------------------
+
+
+def test_batch_only_model_is_refused_before_the_run(monkeypatch):
+    _common_env(monkeypatch, api_key="sk-test")
+    node = NodeDef(
+        id="summarize",
+        tool="summarize_file",
+        provider_name="openai",
+        model_name="gpt-5-batch",
+    )
+
+    errors = validate_workflow_llm_preflight(
+        _workflow_for(node), LLMConfig(provider="openai", model="gpt-5")
+    )
+
+    assert errors, "a batch-only model must not reach the run"
+    assert "Batch API" in errors[0]
+    assert "gpt-5-batch" in errors[0]
+
+
+def test_an_interactive_model_still_passes(monkeypatch):
+    _common_env(monkeypatch, api_key="sk-test")
+    node = NodeDef(
+        id="summarize",
+        tool="summarize_file",
+        provider_name="openai",
+        model_name="gpt-5",
+    )
+
+    assert validate_workflow_llm_preflight(
+        _workflow_for(node), LLMConfig(provider="openai", model="gpt-5")
+    ) == []
+
+
+# ---------------------------------------------------------------------------
+# 2026-09-01: "Apple Vision → CSV failed".
+#
+# 22 vision tools declare supports_apple_vision=False in their own
+# VisionToolConfig; exactly one of them ALSO carried
+# requires_generative_model=True, so the other 21 refused mid-run instead of
+# at preflight. The declaration the tools already make is now the one the
+# preflight reads.
+# ---------------------------------------------------------------------------
+
+
+def test_a_tool_that_disowns_apple_vision_is_refused_at_preflight(monkeypatch):
+    _common_env(monkeypatch, api_key="sk-test")
+    node = NodeDef(
+        id="csv",
+        tool="table_extract",
+        provider_name="apple",
+        model_name="apple-vision",
+    )
+
+    errors = validate_workflow_llm_preflight(
+        _workflow_for(node), LLMConfig(provider="apple", model="apple-vision")
+    )
+
+    assert errors, "table_extract must not be dispatched onto Apple Vision"
+    assert "Apple Vision" in errors[0] or "on-device OCR" in errors[0]
+
+
+def test_a_tool_that_supports_apple_vision_is_untouched(monkeypatch):
+    _common_env(monkeypatch, api_key="sk-test")
+    # transcribe DOES support Apple Vision — its whole cheap tier is that
+    # path, and refusing it here would break the free on-device lane.
+    node = NodeDef(
+        id="read",
+        tool="transcribe",
+        provider_name="apple",
+        model_name="apple-vision",
+    )
+
+    assert validate_workflow_llm_preflight(
+        _workflow_for(node), LLMConfig(provider="apple", model="apple-vision")
+    ) == []
+
+
+# ---------------------------------------------------------------------------
+# 2026-09-01 (Daniel, screenshot): the staged chain read "use apple-vision to
+# … → then use apple-vision to Translate". Translation is GENERATION — Apple
+# Vision's OCR route ignores the prompt and returns the page's own text — so
+# the step could only ever fail. It now fails BEFORE the run is paid for.
+# ---------------------------------------------------------------------------
+
+
+def test_translate_is_refused_on_apple_vision(monkeypatch):
+    _common_env(monkeypatch, api_key="sk-test")
+    node = NodeDef(
+        id="translate",
+        tool="translate",
+        provider_name="apple",
+        model_name="apple-vision",
+    )
+
+    errors = validate_workflow_llm_preflight(
+        _workflow_for(node), LLMConfig(provider="apple", model="apple-vision")
+    )
+
+    assert errors, "translate must not be dispatched onto Apple Vision OCR"
+    assert "generation-capable" in errors[0], errors
+    assert "Translate" in errors[0], errors
+
+
+def test_text_translate_is_refused_on_apple_vision(monkeypatch):
+    _common_env(monkeypatch, api_key="sk-test")
+    node = NodeDef(
+        id="translate-text",
+        tool="text_translate",
+        provider_name="apple",
+        model_name="apple-vision",
+    )
+
+    errors = validate_workflow_llm_preflight(
+        _workflow_for(node), LLMConfig(provider="apple", model="apple-vision")
+    )
+
+    assert errors, "text_translate must not be dispatched onto Apple Vision OCR"
+    assert "generation-capable" in errors[0], errors
+
+
+def test_translate_on_a_generative_model_is_untouched(monkeypatch):
+    """The rule refuses the OCR ROUTE, never translation itself.
+
+    Apple Intelligence generates text on-device; a keyless install must keep
+    its free translation lane (the regression a blanket flag caused once
+    already — keyless Transcribe (Auto-Detect) stopped running).
+    """
+    _common_env(monkeypatch, api_key=None)
+    node = NodeDef(
+        id="translate",
+        tool="translate",
+        provider_name="apple",
+        model_name="apple-intelligence",
+    )
+
+    assert validate_workflow_llm_preflight(
+        _workflow_for(node), LLMConfig(provider="apple", model="apple-intelligence")
+    ) == []

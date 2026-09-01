@@ -104,6 +104,18 @@ extension ContentView {
         guard let library = LibraryManager.shared.getLibrary(id: windowState.libraryId)
             ?? LibraryManager.shared.globalLibrary else { return }
         let store = library.searchStore
+        // Name the library that is about to be QUERIED, not the one the
+        // window nominally shows (Daniel, 2026-09-01). The `?? globalLibrary`
+        // above is the divergence: when `windowState.libraryId` does not
+        // resolve, this searches a different library than the chrome names.
+        // Recording it here makes the chrome follow the request; the warning
+        // makes the underlying id mismatch visible rather than silent.
+        if LibraryManager.shared.getLibrary(id: windowState.libraryId) == nil {
+            searchResultsLogger.warning(
+                "search fell back to the global library — window libraryId did not resolve"
+            )
+        }
+        chromeUX.resultsLibraryName = library.displayName
         let folderId = transientSearchScopeIsFolder ? transientSearchContextFolder?.id : nil
         await store.performSearch(
             query: query,
@@ -165,10 +177,56 @@ extension ContentView {
            !resolved.contains(where: { $0.id == detailDocument?.id }) {
             detailDocument = first
         }
-        transientSearchRowHits = Dictionary(
-            store.results.map { ($0.documentId, $0.rowHit) },
+        // The reader shows the SELECTED result with the matched terms lit
+        // (Daniel, 2026-09-01: the reader "shows something unrelated"). The
+        // find-in-page machinery already exists — `ReaderSearchState` driving
+        // the CSS Custom Highlight API through `WebPaneFindSync` (#4338) —
+        // it was simply never told what the library search was looking for.
+        // Seeding it here means one query string reaches both surfaces from
+        // the same place the request was built, rather than a second copy of
+        // "what are we searching for" living in the reader.
+        chromeUX.readerFindQuery = query
+        transientSearchRowHits = Self.rowHits(results: store.results, stats: store.searchStats)
+    }
+
+    /// Relevance for EVERY row the grid shows — not just the document leg.
+    ///
+    /// `hitDocumentIds` folds entity- and claim-leg hits into the result set
+    /// as nodes (#4118), but the hit map was built from `store.results`
+    /// alone, so those rows resolved to `nil` and rendered with no relevance
+    /// number at all (Daniel, 2026-09-01: "some rows show no relevance
+    /// number"). A row on screen because the engine ranked it can always say
+    /// how well it ranked; the legs carry their own similarity score, so the
+    /// number is real, not invented.
+    ///
+    /// The document leg wins on collision — a doc that matched text AND an
+    /// entity is scored by the fused ranking, which already counted the
+    /// entity evidence (`_kg_evidence_results`, RRF leg #1833 M1).
+    static func rowHits(
+        results: [SearchResult], stats: SearchResponse?
+    ) -> [String: TransientSearchRowHit] {
+        var hits = Dictionary(
+            results.map { ($0.documentId, $0.rowHit) },
             uniquingKeysWith: { first, _ in first }
         )
+        guard let stats else { return hits }
+        for entity in stats.entityHits {
+            guard let documentId = entity.sourceDocumentIds?.first,
+                  hits[documentId] == nil else { continue }
+            hits[documentId] = TransientSearchRowHit(
+                excerpt: entity.canonicalName,
+                score: entity.similarityScore ?? 0
+            )
+        }
+        for claim in stats.claimHits {
+            guard let documentId = claim.sourceDocumentId,
+                  hits[documentId] == nil else { continue }
+            hits[documentId] = TransientSearchRowHit(
+                excerpt: claim.text,
+                score: claim.similarityScore ?? 0
+            )
+        }
+        return hits
     }
 
     /// Grow the page and re-run the active query (S9 UI half).
@@ -242,6 +300,25 @@ extension ContentView {
         return parts.isEmpty ? "" : " · \(parts.joined(separator: " · "))"
     }
 
+    /// Drop the PREVIOUS query's rows the moment a new query starts.
+    ///
+    /// Daniel, 2026-09-01: old results lingered and the new ones appeared
+    /// beneath them. `SearchStore.performSearch` replaces `results` only when
+    /// the response lands, and `searchResultDocuments` is resolved a further
+    /// round trip later — so for the whole in-flight window the grid showed
+    /// the old query's rows under a bar that said "Searching for …", and the
+    /// swap read as an append. Clearing at submit is the honest state: there
+    /// are no results for this query yet.
+    ///
+    /// Deliberately NOT called from `loadMoreTransientResults` or the
+    /// retrieval-type re-run — those refine the SAME query, and blanking the
+    /// grid to grow a page would be a flash, not information.
+    @MainActor
+    func clearTransientSearchResults() {
+        searchResultDocuments = []
+        transientSearchRowHits = [:]
+    }
+
     /// Leave transient-search presentation and return to folder browsing.
     @MainActor
     func clearTransientSearch() {
@@ -252,6 +329,16 @@ extension ContentView {
         transientSearchLimit = Self.transientSearchPageSize
         transientSearchContextFolder = nil
         transientSearchScopeIsFolder = false
+        chromeUX.readerFindQuery = ""
+        chromeUX.resultsLibraryName = nil
+    }
+
+    /// What the chrome calls the library while results are showing: the one
+    /// the request actually ran against, falling back to the window's own
+    /// library when no search is up. ONE value, so the toolbar island and the
+    /// results header cannot name different libraries (Daniel, 2026-09-01).
+    var searchChromeLibraryName: String {
+        chromeUX.resultsLibraryName ?? windowState.library?.displayName ?? "Library"
     }
 }
 

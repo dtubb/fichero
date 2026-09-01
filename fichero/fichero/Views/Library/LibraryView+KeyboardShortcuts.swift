@@ -109,6 +109,15 @@ extension LibraryView {
             // `withKeyboardShortcuts` so the canvases get them too (#4601).
             .onKeyPress(characters: .alphanumerics.union(.punctuationCharacters)) { keyPress in
                 guard !isTextEntryActive else { return .ignored }
+                // Type-to-select is for BARE characters. Without this it
+                // claimed ⌘-anything too, so any command chord the menu bar
+                // declined (a disabled ⌘A, say) landed here and jumped the
+                // selection to a row beginning with "a" — a keystroke that
+                // should have fallen through to the responder chain instead
+                // silently moved the user's selection.
+                guard keyPress.modifiers.isDisjoint(with: [.command, .control, .option]) else {
+                    return .ignored
+                }
                 handleTypeToSelect(keyPress.characters)
                 return .handled
             }
@@ -205,9 +214,13 @@ extension LibraryView {
         }
     }
 
-    @ViewBuilder
+    // No `@ViewBuilder`: the body is one modifier chain behind an explicit
+    // `return`, which opts out of the builder transform anyway.
     private func applyPrimaryFocusedActions(to content: some View) -> some View {
-        content
+        // Computed ONCE per pass: it is both the enablement and the identity
+        // below, and the two must be the same answer (see `selectAllIds`).
+        let rowIds = selectAllIds
+        return content
             .focusedSceneValue(
                 \.librarySelectAll,
                 FocusedLibraryAction(
@@ -215,7 +228,18 @@ extension LibraryView {
                     // different question here than `selectAllIds` answers is
                     // how a command comes up enabled and then does nothing —
                     // or comes up dead over a surface full of rows.
-                    isEnabled: !selectAllIds.isEmpty,
+                    isEnabled: !rowIds.isEmpty,
+                    // The row set is the action's IDENTITY, not just its
+                    // enablement (2026-09-01, Daniel: "⌘A still does nothing").
+                    // `FocusedLibraryAction` compares equal on `isEnabled` +
+                    // `target`, and SwiftUI keeps the OLD value — closure and
+                    // all — when the new one compares equal. With enablement
+                    // alone, the first `isEnabled: true` publish pinned a
+                    // closure over a snapshot of this view, so ⌘A kept
+                    // selecting the rows of whatever folder and view mode were
+                    // open at that instant. Naming the row set here republishes
+                    // exactly when the target changes and never per frame.
+                    target: focusedActionTarget(mode: displayMode.rawValue, ids: rowIds),
                     run: { selectAll() }
                 )
             )
@@ -223,6 +247,10 @@ extension LibraryView {
                 \.libraryDeleteSelection,
                 FocusedLibraryAction(
                     isEnabled: !isShowingEntitiesCollection && !selection.isEmpty,
+                    // Same staleness, same fix: Delete's closure captures the
+                    // selection it was published with, so the menu item has to
+                    // republish when the selection changes.
+                    target: focusedActionTarget(mode: displayMode.rawValue, selection: selection),
                     run: { promptDeleteSelected() }
                 )
             )

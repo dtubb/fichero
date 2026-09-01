@@ -30,6 +30,15 @@ def main() -> None:
     extract_out = os.environ.get("FICHERO_KREUZBERG_EXTRACT_OUTPUT")
     probe = os.environ.get("FICHERO_PDFIUM_PROBE_PDF")
 
+    # Bind pdfium and pre-import the FFI-callback deps IN THIS CHILD before
+    # touching kreuzberg. This used to ride on the engine parent having done it
+    # at startup, which stopped being true when that work moved off the launch
+    # path (2026-09-01) — and a child that depends on the parent's process state
+    # is a latent failure anyway. prepare_pdfium's hardlink is idempotent.
+    from fichero_server.loaders import kreuzberg_cache
+
+    kreuzberg_cache.prewarm_for_extraction()
+
     import kreuzberg
 
     if extract_in and extract_out:

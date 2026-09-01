@@ -8,7 +8,7 @@ extension ImageEditorView {
             // and the button says so.
             if let onDone {
                 Button {
-                    onDone()
+                    finishEditing(onDone)
                 } label: {
                     Label("Done", systemImage: "checkmark.circle.fill")
                         .labelStyle(.titleAndIcon)
@@ -144,6 +144,8 @@ extension ImageEditorView {
             }
 
             Spacer()
+
+            zoomCluster
 
             // Compare mode — icon-only segmented (#1420 spec).
             Picker("Compare mode", selection: $compareMode) {
@@ -309,6 +311,66 @@ extension ImageEditorView {
             kind: .highlight
         )
         if created != nil { marqueeSelection = nil }
+    }
+
+    /// Zoom for the compare views (Daniel, 2026-09-01: "add zoom controls").
+    ///
+    /// Shown only where it does something: single mode is a `DocumentCanvas`
+    /// with the shared floating zoom pill over it and its own scale, so a
+    /// second set of buttons there would be two controls for one image —
+    /// exactly the needless toggle the dead-simple-UX rule forbids. The
+    /// compare panes have no zoom at all without these.
+    @ViewBuilder
+    private var zoomCluster: some View {
+        if compareMode != .single {
+            HStack(spacing: 4) {
+                toolButton("minus.magnifyingglass", help: "Zoom out one step (÷1.5)") {
+                    setCompareZoom(compareZoom / 1.5)
+                }
+                .disabled(compareZoom <= Self.minCompareZoom)
+
+                Text("\(Int((compareZoom * 100).rounded()))%")
+                    .font(.caption)
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+                    .frame(minWidth: 40)
+                    .help("Compare-view magnification. Use − / + to step, or Fit to reset")
+
+                toolButton("plus.magnifyingglass", help: "Zoom in one step (×1.5)") {
+                    setCompareZoom(compareZoom * 1.5)
+                }
+                .disabled(compareZoom >= Self.maxCompareZoom)
+
+                toolButton(
+                    "arrow.up.left.and.arrow.down.right",
+                    help: "Fit the compare view to the pane (100%)"
+                ) {
+                    setCompareZoom(1.0)
+                }
+                .disabled(compareZoom == 1.0)
+            }
+            .accessibilityIdentifier("imageEditZoomCluster")
+
+            Divider().frame(height: 20)
+        }
+    }
+
+    private func setCompareZoom(_ value: CGFloat) {
+        compareZoom = min(max(value, Self.minCompareZoom), Self.maxCompareZoom)
+    }
+
+    /// Leaves edit mode, and makes sure the preview shows what you just did.
+    ///
+    /// Done used to be a pure view switch, which is why the pane came back
+    /// holding the OLD picture (Daniel, 2026-09-01). Per-op invalidation
+    /// (`model.onEditApplied`) only clears the storage caches, and the display
+    /// canvas prefers a RENDITION — a list and a byte blob cached under
+    /// unchanged ids, which editing rewrites in place. Both caches are dropped
+    /// here, on the one path out, so the next fetch is a real fetch.
+    private func finishEditing(_ done: () -> Void) {
+        storageService.invalidateImageCache(for: activeDocumentID)
+        renditionService?.invalidate(documentId: activeDocumentID)
+        done()
     }
 
     private func toolButton(_ systemImage: String, help: String, action: @escaping () -> Void) -> some View {

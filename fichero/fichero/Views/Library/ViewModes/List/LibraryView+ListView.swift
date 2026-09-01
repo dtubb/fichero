@@ -10,7 +10,37 @@ import SwiftUI
 // Both branches share the SAME row builders, tap handlers, context menu, and
 // delete pipeline (promptDelete → confirm dialog → document.delete action).
 
+/// The two row-wide settings every list row renders from, resolved ONCE per
+/// render pass instead of twice per row (2026-09-01 — "scrolling list view
+/// feels slow").
+///
+/// Both were computed inline in `documentRow` AND again in `mailRow`, so a
+/// visible screen of 40 rows paid for them 160 times per pass:
+///
+///   · parsing the row-attribute CSV splits a string, trims each token, and
+///     builds a `Set` — four allocations a call.
+///   · `listVisibleEntityTypes` reads `hiddenKindsCSV`, which is `@AppStorage`
+///     — a **UserDefaults read** — then splits it, builds a `Set`, walks the
+///     five kind mappings and builds a second `Set`.
+///
+/// This is precisely the icon-grid defect fixed on 2026-08-31 ("the raw
+/// @AppStorage string was re-split into a Set inside the ForEach for every
+/// document"), which list mode never got. Neither value depends on the row, so
+/// neither belongs inside the `ForEach`.
+struct ListRowChrome: Equatable {
+    let attributes: Set<LibraryRowAttribute>
+    let entityTypes: Set<String>
+}
+
 extension LibraryView {
+    /// Resolved once per render and threaded down to every row.
+    var listRowChrome: ListRowChrome {
+        ListRowChrome(
+            attributes: LibraryRowAttribute.set(from: rowAttributesRaw),
+            entityTypes: listVisibleEntityTypes
+        )
+    }
+
     var listView: some View {
         ScrollViewReader { proxy in
             #if os(macOS)
@@ -28,7 +58,7 @@ extension LibraryView {
     /// Container-specific chrome (macOS Divider, iOS swipe actions and list-row
     /// styling) stays with the caller.
     @ViewBuilder
-    private func documentRow(_ doc: Document) -> some View {
+    private func documentRow(_ doc: Document, _ chrome: ListRowChrome) -> some View {
         LibrarySelectableRow(
             // Identity must capture EVERYTHING the row content
             // renders from — the document AND which entity-type
@@ -36,8 +66,8 @@ extension LibraryView {
             // the row (isSelected/tint cover selection + focus).
             identity: DocRowIdentity(
                 document: doc,
-                visibleEntityTypes: listVisibleEntityTypes,
-                visibleAttributes: LibraryRowAttribute.set(from: rowAttributesRaw),
+                visibleEntityTypes: chrome.entityTypes,
+                visibleAttributes: chrome.attributes,
                 searchHit: searchRowHits[doc.id],
                 isRenaming: renamingDocumentId == doc.id
             ),
@@ -45,7 +75,7 @@ extension LibraryView {
             tint: selectionTint,
             focused: isPaneFocused
         ) {
-            mailRow(for: doc)
+            mailRow(for: doc, chrome)
         }
         .equatable()
         .id(doc.id)
@@ -81,7 +111,7 @@ extension LibraryView {
 
     /// The row content itself, split from `documentRow` so the behavior
     /// wrapper stays inside the function-body budget.
-    private func mailRow(for doc: Document) -> some View {
+    private func mailRow(for doc: Document, _ chrome: ListRowChrome) -> some View {
         MailStyleRow(
             document: doc,
             isSelected: selection.contains(doc.id),
@@ -90,8 +120,8 @@ extension LibraryView {
             editingName: $editingName,
             onCommitRename: commitRename,
             onCancelRename: cancelRename,
-            visibleEntityTypes: listVisibleEntityTypes,
-            visibleAttributes: LibraryRowAttribute.set(from: rowAttributesRaw),
+            visibleEntityTypes: chrome.entityTypes,
+            visibleAttributes: chrome.attributes,
             searchHit: searchRowHits[doc.id]
         ) { tag in
             searchText = tag
@@ -193,7 +223,9 @@ extension LibraryView {
     }
 
     private func macList(proxy: ScrollViewProxy) -> some View {
-        listScrollSync(
+        // ONE derivation for the whole pass — see `ListRowChrome`.
+        let chrome = listRowChrome
+        return listScrollSync(
             ScrollView {
                 LazyVStack(spacing: 0) {
                     if isShowingEntitiesCollection {
@@ -207,7 +239,7 @@ extension LibraryView {
                         // #3322: same predicate and same title as the outline
                         // table's Section — one grouping, not two that drift.
                         ForEach(datedDocuments) { doc in
-                            documentRow(doc)
+                            documentRow(doc, chrome)
 
                             Divider()
                                 .padding(.leading, 12)
@@ -216,14 +248,14 @@ extension LibraryView {
                         undatedSectionHeader
 
                         ForEach(undatedDocuments) { doc in
-                            documentRow(doc)
+                            documentRow(doc, chrome)
 
                             Divider()
                                 .padding(.leading, 12)
                         }
                     } else {
                         ForEach(filteredDocuments) { doc in
-                            documentRow(doc)
+                            documentRow(doc, chrome)
 
                             Divider()
                                 .padding(.leading, 12)
@@ -258,8 +290,8 @@ extension LibraryView {
     /// Extracted so the sectioned and unsectioned branches share it — two
     /// copies of a row that carries a DESTRUCTIVE swipe action is how one copy
     /// quietly loses its confirmation.
-    private func touchDocumentRow(_ doc: Document) -> some View {
-        documentRow(doc)
+    private func touchDocumentRow(_ doc: Document, _ chrome: ListRowChrome) -> some View {
+        documentRow(doc, chrome)
             // The rows draw their own selection wash and Mail-style layout —
             // keep List chrome out of the way so both platforms render
             // identically.
@@ -280,7 +312,9 @@ extension LibraryView {
     }
 
     private func touchList(proxy: ScrollViewProxy) -> some View {
-        listScrollSync(
+        // ONE derivation for the whole pass — see `ListRowChrome`.
+        let chrome = listRowChrome
+        return listScrollSync(
             List {
                 if isShowingEntitiesCollection {
                     ForEach(filteredEntities, id: \.stableInspectorId) { entity in
@@ -293,12 +327,12 @@ extension LibraryView {
                     }
                 } else if showsUndatedSection {
                     // #3322: same predicate and title as every other mode.
-                    Section { ForEach(datedDocuments) { touchDocumentRow($0) } }
+                    Section { ForEach(datedDocuments) { touchDocumentRow($0, chrome) } }
                     Section(LibraryDateSectioning.undatedSectionTitle) {
-                        ForEach(undatedDocuments) { touchDocumentRow($0) }
+                        ForEach(undatedDocuments) { touchDocumentRow($0, chrome) }
                     }
                 } else {
-                    ForEach(filteredDocuments) { touchDocumentRow($0) }
+                    ForEach(filteredDocuments) { touchDocumentRow($0, chrome) }
                 }
             }
             .listStyle(.plain),

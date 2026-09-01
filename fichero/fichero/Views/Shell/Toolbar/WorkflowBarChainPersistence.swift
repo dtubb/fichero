@@ -32,9 +32,14 @@ enum WorkflowBarChainPersistence {
     /// workflow a run just realised for a tool step; the tool marker is kept
     /// alongside so a later restore still shows a tool chip, not a mystery
     /// one-step workflow.
+    /// `modelOverrides` (staged step id → provider/model) is what the RUN
+    /// stamps for a step the bar resolved to a different tier than the engine
+    /// would (2026-09-01). Empty while merely staging, so an idle rail is
+    /// never persisted with today's Settings frozen into it.
     static func chainSteps(
         from staged: [StagedWorkflowStep],
-        resolvedWorkflowIds: [UUID: String] = [:]
+        resolvedWorkflowIds: [UUID: String] = [:],
+        modelOverrides: [UUID: WorkflowBarModelChoice] = [:]
     ) -> [ChainStep] {
         staged.map { step in
             var staticInputs: [String: AnyCodableValue] = [:]
@@ -50,13 +55,14 @@ enum WorkflowBarChainPersistence {
                 staticInputs[toolIconKey] = .string(icon)
                 staticInputs[toolUsesLLMKey] = .bool(usesLLM)
             }
+            let stamped = modelOverrides[step.id]
             return ChainStep(
                 id: step.id.uuidString,
                 workflowId: workflowId,
                 name: step.name,
                 staticInputs: staticInputs,
-                providerOverride: step.providerOverride,
-                modelOverride: step.modelOverride
+                providerOverride: step.providerOverride ?? stamped?.provider,
+                modelOverride: step.modelOverride ?? stamped?.model
             )
         }
     }

@@ -144,6 +144,24 @@ final class RenditionService {
     /// page must not refetch either.
     private var contentCache: [String: Data] = [:]
 
+    /// Forgets everything cached for one document — the rendition LIST and the
+    /// bytes of each of its renditions.
+    ///
+    /// Editing an image rewrites those bytes under the same rendition ids, and
+    /// `contentCache` is keyed by rendition id with no expiry, so without this
+    /// the preview kept showing the pre-edit picture after Done (Daniel,
+    /// 2026-09-01). `StorageService.invalidateImageCache` cannot reach these:
+    /// the display canvas prefers a rendition and returns before it ever
+    /// consults the storage caches.
+    func invalidate(documentId: String) {
+        if let cached = renditionsByDocument[documentId] {
+            for rendition in cached {
+                contentCache.removeValue(forKey: rendition.id)
+            }
+        }
+        renditionsByDocument.removeValue(forKey: documentId)
+    }
+
     func contentData(documentId: String, renditionId: String) async throws -> Data {
         if let cached = contentCache[renditionId] { return cached }
         let response = try await client.api

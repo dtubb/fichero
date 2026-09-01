@@ -104,6 +104,13 @@ class ToolResponse(BaseModel):
     supports_structured_output: bool
     sort_order: int
     tested: bool = False  # False = UNTESTED; only the HTR chain is tested today
+    # A HARD requirement (ToolDef.requires_generative_model, #4345): the tool
+    # parses the model's ANSWER, so a recognition-only model (Apple Vision OCR
+    # returns page text and ignores the prompt) can never satisfy it. Served so
+    # the client can pick the right TIER for the step instead of inheriting the
+    # selection's vision default — Daniel, 2026-09-01: a chain read "use
+    # apple-vision to Translate" because every step took the selection's tier.
+    requires_generative_model: bool = False
     # How the tool consumes its batch: elementwise | reducing | batch
     # (ToolDef.parallelism, exposed 2026-08-19 for the ToolInfo model sync).
     parallelism: str = "batch"
@@ -403,6 +410,7 @@ def _tool_to_response(tool: ToolDef) -> ToolResponse:
         supports_structured_output=tool.supports_structured_output,
         sort_order=tool.sort_order,
         tested=tool.tested,
+        requires_generative_model=tool.requires_generative_model,
         parallelism=tool.parallelism,
     )
 

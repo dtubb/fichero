@@ -60,7 +60,13 @@ extension ContentView {
                 defaultModelName: selectionPrefersVisionModel
                     ? cachedAIDefaults.visionMediumModel
                     : cachedAIDefaults.mediumModel,
-                prefersVisionModel: selectionPrefersVisionModel
+                prefersVisionModel: selectionPrefersVisionModel,
+                // Both tiers, so the bar can pick one PER STEP from what that
+                // step's tool needs (Daniel, 2026-09-01: every step of a chain
+                // had inherited the selection's vision default, and Translate
+                // cannot run on an OCR pass).
+                textTierDefault: workflowBarTextTierDefault,
+                visionTierDefault: workflowBarVisionTierDefault
             )
             // On BOTH bars: labels follow the toolbar when only one is shown.
             .background { ToolbarTextModeSync(showsLabels: $showWorkflowBarLabels) }
@@ -163,12 +169,16 @@ extension ContentView {
                 update(step.id) { $0.state = .failed }
                 break
             }
+            // The model the SENTENCE named for this step — its pin, or the
+            // tier its tool actually needs (2026-09-01). Display and
+            // execution answer to one rule.
+            let overrides = workflowBarRunOverrides(for: step)
             let threadId = await awaitWorkflowExecution(
                 workflowId: workflowId,
                 workflowName: step.name,
                 docIds: targets,
-                providerOverride: step.providerOverride,
-                modelOverride: step.modelOverride,
+                providerOverride: overrides.provider,
+                modelOverride: overrides.model,
                 artifactTypeHint: artifactTypeHint,
                 artifactStepNameHint: artifactStepNameHint,
                 onThreadId: { threadId in
@@ -366,6 +376,30 @@ extension ContentView {
                 model: model
             )
         }
+    }
+
+    /// The configured Text default as a choice the tier rule can read.
+    /// nil when nothing is configured, which the rule reads as "no tier" —
+    /// never as an empty model name it could put in the sentence.
+    var workflowBarTextTierDefault: WorkflowBarModelChoice? {
+        let defaults = cachedAIDefaults
+        guard !defaults.mediumModel.isEmpty else { return nil }
+        return WorkflowBarModelChoice(
+            label: "\(ModelChipToolbarItem.shorten(defaults.mediumModel))  ·  Text",
+            provider: defaults.mediumProvider,
+            model: defaults.mediumModel
+        )
+    }
+
+    /// The configured Vision default, same shape.
+    var workflowBarVisionTierDefault: WorkflowBarModelChoice? {
+        let defaults = cachedAIDefaults
+        guard !defaults.visionMediumModel.isEmpty else { return nil }
+        return WorkflowBarModelChoice(
+            label: "\(ModelChipToolbarItem.shorten(defaults.visionMediumModel))  ·  Vision",
+            provider: defaults.visionMediumProvider,
+            model: defaults.visionMediumModel
+        )
     }
 
     /// Whether a run on the current selection would go to a VISION model.

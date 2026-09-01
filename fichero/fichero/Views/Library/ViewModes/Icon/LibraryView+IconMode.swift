@@ -75,7 +75,8 @@ extension LibraryView {
                                         document: doc,
                                         scale: effectiveIconScale,
                                         isRenaming: renamingDocumentId == doc.id,
-                                        showsName: showsName
+                                        showsName: showsName,
+                                        searchHit: searchRowHits[doc.id]
                                     ),
                                     isSelected: selection.contains(doc.id),
                                     tint: selectionTint
@@ -91,10 +92,24 @@ extension LibraryView {
                                         onCancelRename: cancelRename,
                                         showsName: showsName
                                     )
+                                    // The relevance number, same value and
+                                    // same format list view shows on the row's
+                                    // right edge (Daniel, 2026-09-01). Inside
+                                    // the cell's content so `.equatable()`
+                                    // governs it through `IconCellIdentity`.
+                                    .overlay(alignment: .topTrailing) {
+                                        if let hit = searchRowHits[doc.id] {
+                                            SearchRelevanceBadge(score: hit.score)
+                                                .padding(.horizontal, 4)
+                                                .padding(.vertical, 1)
+                                                .background(.thinMaterial, in: Capsule())
+                                                .padding(4)
+                                        }
+                                    }
                                 }
                                 .equatable()
                                 .id(doc.id)
-                                .iconTileFrame(id: doc.id, in: "libraryIconGrid")
+                                .iconTileFrame(id: doc.id, in: "libraryIconGrid", model: marqueeModel)
                                 .draggable(libraryItemDrag(for: doc)) {
                                     TileDragPreview(document: doc)
                                 }
@@ -131,24 +146,21 @@ extension LibraryView {
                     .background(marqueeScrollProbe)
                 }
                 .coordinateSpace(name: "libraryIconGrid")
-                .onPreferenceChange(IconTileFramesKey.self) { [marqueeModel] frames in
-                    // Into the observation-ignored BOX (log audit 2026-08-19):
-                    // as @State, every scroll frame's report re-rendered the
-                    // whole grid. Gesture handlers read the box directly.
-                    marqueeModel.tileFrames = frames
-                    // Mid-sweep, MERGE into the content-space index rather
-                    // than replace it: an autoscroll materialises new lazy
-                    // tiles below the fold, and the ones that scrolled off
-                    // the top must stay selectable (2026-08-31).
-                    guard marqueeModel.anchorContent != nil else { return }
-                    let offset = marqueeModel.scrollOffsetY
-                    for (id, frame) in frames {
-                        marqueeModel.contentFrames[id] = frame.offsetBy(dx: 0, dy: offset)
-                    }
-                }
+                // No `onPreferenceChange` here any more (2026-09-01): each
+                // tile writes its own frame into the marquee box from
+                // `iconTileFrame`, so there is no N-way dictionary reduce and
+                // no N-entry equality diff on every layout pass. See that
+                // modifier for what the preference was actually costing.
                 // Click in the gutter/empty space deselects, like Finder
                 // (#4160). Tile taps win — their gestures are deeper.
                 .onTapGesture {
+                    // A gutter click is still a click IN THIS PANE, so it
+                    // claims focus the way a tile click does (2026-09-01). It
+                    // did not, so clicking empty library space after clicking
+                    // the preview left `paneFocusHint` on the preview and ⌘A
+                    // kept routing there — the same missing claim #4436 fixed
+                    // for the Table, in the one mode Daniel actually uses.
+                    onRequestFocus()
                     apply(SelectionGrammar.clear())
                 }
                 // RUBBER BAND (Daniel's Finder ruling, 2026-08-09): a drag
@@ -398,9 +410,16 @@ extension LibraryView {
         // The band is the ONLY thing that redraws per tick: the overlay host
         // is the sole reader of this observed property.
         marqueeModel.rect = contentRect.offsetBy(dx: 0, dy: -offset)
+        // The edge zone is measured against the band the pointer can actually
+        // occupy — the viewport MINUS the pane head and the bottom action bar,
+        // which SwiftUI applies to this scroll view as content insets. Passing
+        // the raw viewport put both zones under chrome, which is why the sweep
+        // reached the visible edge and nothing scrolled.
         marqueeModel.autoScrollVelocity = LibraryMarquee.autoScrollVelocity(
             pointerY: pointer.y,
-            viewportHeight: marqueeModel.viewportHeight
+            viewportHeight: marqueeModel.viewportHeight,
+            topInset: marqueeModel.viewportTopInset,
+            bottomInset: marqueeModel.viewportBottomInset
         )
         // Throttle 1 — a mouse reports far finer than a tile is wide, and an
         // O(tiles) intersection sweep per sub-pixel tick is the slowness.

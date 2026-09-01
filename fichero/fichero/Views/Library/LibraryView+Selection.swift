@@ -106,6 +106,11 @@ extension LibraryView {
         var modifiers: SelectionGrammar.Modifiers = []
         if flags.contains(.shift) { modifiers.insert(.shift) }
         if flags.contains(.command) { modifiers.insert(.command) }
+        // ⌥ was DROPPED here, which is why ⌥⇧-click read as a plain ⇧-click
+        // and collapsed a full selection into a range instead of dropping the
+        // clicked row (Daniel, 2026-09-01). The grammar ranks ⌥ above ⇧; this
+        // is the seam that has to tell it ⌥ was held at all.
+        if flags.contains(.option) { modifiers.insert(.option) }
         return modifiers
         #else
         return []

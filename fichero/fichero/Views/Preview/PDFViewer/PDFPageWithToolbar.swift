@@ -267,13 +267,12 @@ struct PDFPageWithToolbar: View {
             pageContent
             Divider()
             readerToolbar
-                // Active-surface indicator (#3579): accent hairline on the
-                // toolbar strip when this pane is active. Additive, no relayout.
-                .overlay(alignment: .top) {
-                    Rectangle()
-                        .fill(isActiveSurface ? Color.accentColor : Color.clear)
-                        .frame(height: 2)
-                }
+                // The #3579 active-surface hairline is GONE here too (Daniel,
+                // 2026-09-01: "no focus or active rings anywhere") — the same
+                // 2pt accent rectangle the reader pane drew, removed in the
+                // same pass so the rule holds on every surface rather than on
+                // the one that got reported. Active-surface TRACKING stays.
+                //
                 // Title-bar "Open in New Tab/Window" (#3582). Right-click the
                 // pane's toolbar to pop THIS document out — the browser-tab
                 // metaphor. Reuses the shared OpenInMenuItems (no "Open": the
@@ -336,11 +335,6 @@ struct PDFPageWithToolbar: View {
             await loadOCRGeometry()
             #endif
         }
-    }
-
-    /// True when this pane instance is the window's active surface (#3579).
-    private var isActiveSurface: Bool {
-        activeSurfaceState?.activeSurfaceId == surfaceId
     }
 
     private var pageContent: some View {

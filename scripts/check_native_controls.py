@@ -30,14 +30,14 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     # would impose row selection and separators on content whose whole purpose
     # is to be read before choosing — and the expand gesture must not select.
     "Shell/Toolbar/WorkflowToolsPopover.swift#2d76b922c8": "2026-08-28 tools browser: searchable tool cards with expandable prompts, not selectable rows (re-pinned 2026-08-30 after card rework)",
-    "Shell/Toolbar/ModelChipToolbarItem.swift#7e9c52bd28": "2026-08-29 model picker popover: logo+pricing+vision rows in a fixed-height popover; List chrome misbehaves in popovers and the concrete-row perf fix (333ms stall) depends on this structure",
+    "Shell/Toolbar/ModelChipToolbarItem.swift#e46b79020f": "2026-08-29 model picker popover (rehashed 2026-09-01 by the model-routing pass): logo+pricing+vision rows in a fixed-height popover; List chrome misbehaves in popovers and the concrete-row perf fix (333ms stall) depends on this structure",
     "Reader/MultiSelectionReaderView.swift#59b0e99ae5": "2026-08-23 multi-selection reader: continuous transcript SECTIONS under pinned headers — prose, not a row collection; List would impose row selection and separators on reading text",
     "Activity/Overview/ActivityOverviewView+Cards.swift#d6f20143ab": "#1912 baseline (re-hashed by function_body extraction; same docStep grid)",
     "Library/ViewModes/Graph/Ontology/Entity/EntitySourceGroupsView.swift#c6a609c38d": "#1912 baseline",
     "Library/ViewModes/Graph/Ontology/Claim/HeuristicReviewSheet.swift#aa939bcbf4": "#1912 baseline",
     "Library/ViewModes/Graph/Ontology/SpeakerComparisonView.swift#ffffcf8a29": "#1912 baseline",
     "Preview/ImageEditor/ImageEditChainPanel.swift#83a0175036": "#1912 baseline",
-    "Library/ViewModes/List/LibraryView+ListView.swift#48ada56631": "#1912 baseline (ScrollView is required for #4160 keyboard handling; rehashed by the #2501 iOS List split and again by #3322's 'No date' section — same sanctioned container, more content inside it)",
+    "Library/ViewModes/List/LibraryView+ListView.swift#5acecef157": "#1912 baseline (ScrollView is required for #4160 keyboard handling; rehashed by the #2501 iOS List split, by #3322's 'No date' section, and by the 2026-09-01 per-pass row-chrome hoist — same sanctioned container)",
     # Miller columns (#4160 step 4): List is NSTableView-backed and consumes
     # arrow keys before .onKeyPress — the browser's whole keyboard model
     # (up/down in the active column, left/right BETWEEN columns, one shared

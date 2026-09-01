@@ -169,6 +169,10 @@ struct ZoomableImagePreview: View {
     /// `WindowState.previewMarquees`) — nothing persists until the user
     /// promotes them to regions or runs a workflow scoped to the crops.
     @State var isAddingRegion = false
+    /// AppKit → region-layer pointer seam (2026-09-01): the image view's
+    /// clicks and drags, normalized to image space, so the SwiftUI region
+    /// layer never has to own a gesture (which starved the scroll view).
+    @State var pointerFeed = PreviewPointerFeed()
 
     // Renditions of the current page (2026-08-20 bbox review). `renditions`
     // arrives in ENGINE order — primary first, then role preference — so this

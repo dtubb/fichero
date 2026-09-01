@@ -67,11 +67,20 @@ struct AnnotatableTextView: NSViewRepresentable {
         scrollView.autohidesScrollers = true
         scrollView.drawsBackground = false
         scrollView.borderType = .noBorder
+        // No focus ring (Daniel, 2026-09-01: "a blue line still shows at the
+        // TOP of the reader pane"). That line is AppKit's focus ring drawn
+        // around this scroll view when the transcript takes key focus — it
+        // reads as a stray rule under the pane head, not as "this is where
+        // typing goes", and the reader is not editable anyway. The ring is
+        // suppressed on BOTH views: the scroll view draws it around the
+        // clipped content, the text view around itself.
+        scrollView.focusRingType = .none
 
         let textView = NSTextView()
         textView.isEditable = false
         textView.isSelectable = true
         textView.drawsBackground = false
+        textView.focusRingType = .none
         // Slimmer side margin (Daniel, 2026-08-10: "can the margin be a bit
         // less so we have more width") — the transcript column keeps its
         // vertical breathing room but gives the text the pane's width.

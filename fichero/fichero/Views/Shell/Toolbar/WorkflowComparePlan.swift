@@ -107,4 +107,9 @@ final class WindowChromeUXState {
     /// Per-model progress of the running (or last) compare fan-out. Cleared
     /// when a fan-out dispatches or a plain chain run starts.
     var compareRunProgress: [WorkflowCompareRunProgress] = []
+    /// The library the CURRENT results were actually queried from — the one
+    /// name the results header and the toolbar island both read (2026-09-01).
+    var resultsLibraryName: String?
+    /// The query the reader highlights for the selected result.
+    var readerFindQuery = ""
 }

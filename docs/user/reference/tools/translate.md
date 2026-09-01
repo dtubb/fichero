@@ -11,7 +11,7 @@ Translate text from source_lang to target_lang.
 | Tool id | `translate` |
 | Category | llm |
 | Uses a language model | yes |
-| Needs a generative model | no |
+| Needs a generative model | yes |
 | Runs over many items | yes |
 | Item handling | batch |
 | Structured output | no |

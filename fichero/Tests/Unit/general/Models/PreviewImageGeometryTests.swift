@@ -123,4 +123,43 @@ final class PreviewImageGeometryTests: XCTestCase {
         let bounds = CGRect(x: 0, y: 0, width: 300, height: 150)
         XCTAssertEqual(DrawnImageFrame.aspectFitRect(of: .zero, in: bounds), bounds)
     }
+
+    // MARK: - `.scaleNone` mapping (2026-09-01: boxes spilled off the page at
+    // 47%). The preview's image view draws at NATIVE size, centred — so when
+    // the view is slack on BOTH axes the drawn rect is the image's own size,
+    // never a proportional blow-up to the bounds.
+
+    func testCenteredNativeRectKeepsNativeSizeWhenSlackOnBothAxes() {
+        let rect = DrawnImageFrame.centeredNativeRect(
+            of: CGSize(width: 200, height: 100),
+            in: CGRect(x: 0, y: 0, width: 400, height: 400)
+        )
+        XCTAssertEqual(rect, CGRect(x: 100, y: 150, width: 200, height: 100))
+        // The aspect-fit answer for the same inputs is the wrong one here.
+        XCTAssertNotEqual(
+            rect,
+            DrawnImageFrame.aspectFitRect(of: CGSize(width: 200, height: 100),
+                                          in: CGRect(x: 0, y: 0, width: 400, height: 400))
+        )
+    }
+
+    /// Zoomed in, the view IS the image: the rect is the bounds.
+    func testCenteredNativeRectClampsToBoundsWhenImageLarger() {
+        let bounds = CGRect(x: 0, y: 0, width: 300, height: 150)
+        XCTAssertEqual(
+            DrawnImageFrame.centeredNativeRect(of: CGSize(width: 900, height: 450), in: bounds),
+            bounds
+        )
+    }
+
+    /// Fit on one axis (the common case): both rules agree, so the fix cannot
+    /// have moved a single box in the state that already looked right.
+    func testCenteredNativeRectAgreesWithAspectFitAtOneAxisFit() {
+        let image = CGSize(width: 200, height: 100)
+        let bounds = CGRect(x: 0, y: 0, width: 200, height: 400)
+        XCTAssertEqual(
+            DrawnImageFrame.centeredNativeRect(of: image, in: bounds),
+            DrawnImageFrame.aspectFitRect(of: image, in: bounds)
+        )
+    }
 }

@@ -11,6 +11,12 @@ from pathlib import Path
 from fichero_server.loaders import kreuzberg_cache  # noqa: F401 — env-var side effect
 from fichero_server.loaders.base import MediaContent, MediaLoader
 
+# Bind pdfium and pre-import kreuzberg's FFI-callback dependencies before any
+# extraction in this module can reach the Rust pipeline. Module scope on
+# purpose: it must precede the lazy `import kreuzberg` below, and this module
+# is NOT imported at engine startup, so the cost stays off the launch path.
+kreuzberg_cache.prewarm_for_extraction()
+
 logger = logging.getLogger(__name__)
 
 # Office document formats

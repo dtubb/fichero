@@ -107,7 +107,15 @@ struct DocumentTabView: View {
             // re-introduced exactly the full-window error splash the root gate
             // (`BackendRootGate`) removed (startup-transport-ux S1). ContentView
             // handles a down backend with inline empty/error states.
-            contentView
+            VStack(spacing: 0) {
+                // A stale embedded engine is reported HERE, above the content,
+                // not as a modal: the app still works, it is just talking to
+                // the wrong engine build (Daniel, 2026-09-01). Non-modal and
+                // dismissible, like every other engine-state surface in the
+                // window — see EngineVersionMismatchNotice.
+                EngineVersionMismatchNotice()
+                contentView
+            }
         }
         // ★ EVERY FRAME PERFECT (#3615): surface color as the base layer so a
         // not-yet-painted ContentView first frame never exposes a bare white frame.

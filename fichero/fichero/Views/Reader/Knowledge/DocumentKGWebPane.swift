@@ -128,6 +128,11 @@ struct DocumentKGWebPane: NSViewRepresentable {
         webView.underPageBackgroundColor = .clear
         // Enable trackpad pinch-to-zoom (#2316).
         webView.allowsMagnification = true
+        // No focus ring (Daniel, 2026-09-01). Same stray blue line as the
+        // transcript's scroll view: WebKit's own scroll view draws a ring when
+        // the graph pane takes key focus, and it lands as a rule across the
+        // top of the reader pane.
+        webView.focusRingType = .none
         context.coordinator.webView = webView
         context.coordinator.loadIfNeeded(webView)
         return webView

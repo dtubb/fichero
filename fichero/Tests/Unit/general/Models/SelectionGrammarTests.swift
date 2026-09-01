@@ -387,3 +387,106 @@ struct SelectionGrammarTests {
         }
     }
 }
+
+// MARK: - ⌥ toggles (Daniel's re-test, 2026-09-01)
+//
+// "With everything selected, ⌥⇧-click on an item must DESELECT that item, not
+// collapse the selection to it." ⌥ was not in the grammar at all, so ⌥⇧
+// arrived as a bare ⇧ and built a range.
+
+@Suite("SelectionGrammar — ⌥ is a toggle and outranks ⇧")
+struct SelectionGrammarOptionToggleTests {
+    private static let ids = ["a", "b", "c", "d", "e"]
+
+    @Test("⌥⇧-click over a full selection drops the clicked row")
+    func optionShiftDeselectsFromSelectAll() {
+        let all = SelectionGrammar.selectAll(in: Self.ids)
+        let result = SelectionGrammar.click(
+            id: "c",
+            in: Self.ids,
+            selection: all.selection,
+            anchor: all.anchor,
+            modifiers: [.option, .shift]
+        )
+        #expect(result.selection == ["a", "b", "d", "e"])
+        // Rule 1: the anchor follows the row that was acted on, even though
+        // the act removed it.
+        #expect(result.anchor == "c")
+        #expect(result.cursor == "c")
+    }
+
+    @Test("plain ⌥-click toggles exactly like ⌘-click, both directions")
+    func optionMatchesCommand() {
+        for chord in [SelectionGrammar.Modifiers.option, .command] {
+            let off = SelectionGrammar.click(
+                id: "b", in: Self.ids, selection: ["a", "b"], anchor: "a", modifiers: chord
+            )
+            #expect(off.selection == ["a"])
+            #expect(off.anchor == "b")
+
+            let on = SelectionGrammar.click(
+                id: "d", in: Self.ids, selection: ["a"], anchor: "a", modifiers: chord
+            )
+            #expect(on.selection == ["a", "d"])
+            #expect(on.anchor == "d")
+        }
+    }
+
+    @Test("⌥ outranks ⇧ — the range branch never claims an ⌥ chord")
+    func optionOutranksShift() {
+        // Bare ⇧ from the same start state still ranges; that ruling stands.
+        let ranged = SelectionGrammar.click(
+            id: "d", in: Self.ids, selection: ["a"], anchor: "a", modifiers: .shift
+        )
+        #expect(ranged.selection == ["a", "b", "c", "d"])
+        #expect(ranged.anchor == "a")
+
+        // Add ⌥ and the SAME click becomes a toggle instead.
+        let toggled = SelectionGrammar.click(
+            id: "d", in: Self.ids, selection: ["a"], anchor: "a", modifiers: [.option, .shift]
+        )
+        #expect(toggled.selection == ["a", "d"])
+        #expect(toggled.anchor == "d")
+
+        // ⌥⇧⌘ is still a toggle: only ⌘ without ⌥ keeps the additive range.
+        let withCommand = SelectionGrammar.click(
+            id: "d", in: Self.ids, selection: ["a"], anchor: "a",
+            modifiers: [.option, .shift, .command]
+        )
+        #expect(withCommand.selection == ["a", "d"])
+    }
+
+    @Test("⌘-click still toggles and ⇧-click still ranges — nothing regressed")
+    func finderChordsUnchanged() {
+        let all = SelectionGrammar.selectAll(in: Self.ids)
+        // ⌘-click over a full selection removes one row (Finder).
+        let commandClick = SelectionGrammar.click(
+            id: "c", in: Self.ids, selection: all.selection, anchor: all.anchor,
+            modifiers: .command
+        )
+        #expect(commandClick.selection == ["a", "b", "d", "e"])
+        // ⇧-click over a full selection narrows to the range — the documented
+        // Finder list behaviour, and Daniel's 2026-08-28 ruling for icon view.
+        let shiftClick = SelectionGrammar.click(
+            id: "c", in: Self.ids, selection: all.selection, anchor: all.anchor,
+            modifiers: .shift
+        )
+        #expect(shiftClick.selection == ["a", "b", "c"])
+        #expect(shiftClick.anchor == "a")
+    }
+
+    @Test("reconcile treats an ⌥ toggle as a click, not a range")
+    func reconcileHonoursOption() {
+        // The Table's seam: {a,b,c,d,e} → {a,b,d,e} with ⌥⇧ held. The anchor
+        // must follow "c" (rule 1), not hold at the old anchor (rule 2).
+        let result = SelectionGrammar.reconcile(
+            from: ["a", "b", "c", "d", "e"],
+            to: ["a", "b", "d", "e"],
+            anchor: "a",
+            in: Self.ids,
+            modifiers: [.option, .shift]
+        )
+        #expect(result.anchor == "c")
+        #expect(result.cursor == "c")
+    }
+}

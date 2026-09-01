@@ -15,6 +15,7 @@ import pathlib
 import signal
 import socket
 import sys
+import time
 import faulthandler
 import tracemalloc
 import warnings
@@ -33,6 +34,25 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Engine launch timeline (Daniel, 2026-09-01: "launch is still slower than I
+# would like"). The app's own LaunchProfile can only see the engine as one
+# opaque gap between "engine process launched" and "engine bound" — which on a
+# cold start is the single biggest interval in the whole launch. These stamps
+# split that gap open, and land in the engine log the app already captures, so
+# a slow launch can be attributed without attaching a profiler.
+#
+# The epoch is this module's import, i.e. as close to interpreter start as our
+# own code can observe; the interpreter+site run-up before it is the difference
+# between the app's "engine process launched" stamp and our first line.
+# ---------------------------------------------------------------------------
+_LAUNCH_EPOCH = time.monotonic()
+
+
+def _stamp(label: str) -> None:
+    """One line on the engine's launch timeline, in ms since module import."""
+    logger.info("engine-launch: %s @ %.0fms", label, (time.monotonic() - _LAUNCH_EPOCH) * 1000)
 
 
 def _listener_hosts(bind_host: str) -> list[str]:
@@ -172,6 +192,8 @@ _RUN_MODULE_WHITELIST = {"fichero_cli", "fichero_mcp.server", "fichero_mcp.simpl
 
 def main(argv: list[str] | None = None):
     """Start the Fichero API backend server."""
+
+    _stamp("main() entry")
 
     # The installed command-line tools (Fichero ▸ Install Command-Line
     # Tools…, 2026-08-27) exec THIS binary with FICHERO_RUN_MODULE set:
@@ -313,7 +335,10 @@ def main(argv: list[str] | None = None):
     # transport marker stamped by the wrapped app (fichero_server.api.uds_transport).
     uds_path = (os.environ.get("FICHERO_UDS_PATH") or "").strip()
     if uds_path:
+        _stamp("importing FastAPI app (UDS)")
         from fichero_server.api.uds_transport import app as uds_app
+
+        _stamp("FastAPI app imported")
 
         uds_kwargs = dict(
             app=uds_app,
@@ -446,6 +471,10 @@ def main(argv: list[str] | None = None):
         uds_sock = _bind_uds_socket(uds_path)
         server = uvicorn.Server(uvicorn.Config(**uds_kwargs))
         try:
+            # Last stamp before uvicorn takes the thread: everything after this
+            # is lifespan startup, and the app's first successful /api/health
+            # poll closes the interval from the other side.
+            _stamp("serving on UDS — health can now answer")
             server.run(sockets=[uds_sock])
         except KeyboardInterrupt:
             logger.info("Backend shutting down...")

@@ -15,6 +15,12 @@ struct NavigatorMiniMap: View {
         static let hoverAnimationDuration: Double = 0.15
         static let minimumViewportSize: CGFloat = 8
         static let zoomThreshold: CGFloat = 0.99
+        /// Near-opaque, theme-matched (Daniel, 2026-09-01).
+        static let plateOpacity: Double = 0.85
+
+        static func plateColor(for scheme: ColorScheme) -> Color {
+            scheme == .dark ? Color.black : Color.white
+        }
     }
 
     private enum ViewportStyle {
@@ -34,6 +40,7 @@ struct NavigatorMiniMap: View {
 
     @State private var isHovering = false
     @State private var isDragging = false
+    @Environment(\.colorScheme) private var colorScheme
 
     // MARK: - Computed Properties
 
@@ -47,11 +54,12 @@ struct NavigatorMiniMap: View {
         Image(platformImage: image)
             .resizable()
             .aspectRatio(contentMode: .fit)
-            // Glass, not a slab (Daniel, 2026-08-31): the letterbox around a
-            // .fit image used to be an opaque black plate, which read as a
-            // white card over a scan. The page shows through now; the host
-            // cluster supplies the lozenge and its shadow.
-            .background(.ultraThinMaterial)
+            // Glass reversed (Daniel, 2026-09-01): yesterday's
+            // `.ultraThinMaterial` let so much page through that the map read
+            // as a smear rather than a plate you can aim at. A theme-matched
+            // plate at 0.85 — near-opaque, still not a slab — gives the
+            // thumbnail and the viewport rectangle something to sit on.
+            .background(Layout.plateColor(for: colorScheme).opacity(Layout.plateOpacity))
             .clipShape(RoundedRectangle(cornerRadius: Layout.cornerRadius))
             .overlay(
                 RoundedRectangle(cornerRadius: Layout.cornerRadius)

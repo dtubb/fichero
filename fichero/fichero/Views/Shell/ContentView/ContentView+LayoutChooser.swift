@@ -1,12 +1,16 @@
 import SwiftUI
 
-// MARK: - Split/Tab, Workspaces, and Views chooser (Daniel, 2026-08-29)
+// MARK: - The Workspaces menu (Daniel, 2026-09-01)
 //
-// Xcode 27's window chrome is the explicit model: one toolbar button unifies
-// New Tab + pane splitting (the ⊞+ idiom), one saves/applies named
-// workspaces, and one offers the compound layouts. Small named subviews per
-// the type-checker budget; policy (serialisation, presets, split routing)
-// lives in WindowWorkspace.swift as pure testable types.
+// ONE toolbar button, not three. Split/New Tab, Workspaces and Layouts each
+// had their own item, so "how this window is arranged" was spread across
+// three menus that had to be found in the right order. They are now sections
+// of a single "Workspaces" menu — layouts, split, saved arrangements, toolbar
+// buttons — with every verb that was reachable before still reachable.
+//
+// Small named subviews per the type-checker budget; policy (serialisation,
+// presets, split routing) lives in WindowWorkspace.swift as pure testable
+// types.
 
 extension ContentView {
 
@@ -22,14 +26,15 @@ extension ContentView {
         )
     }
 
-    /// ONE entry point to tabs and splits (Daniel, 2026-08-29: some panes
-    /// offered splits and chat did not — this button splits whichever pane
-    /// has focus, chat included, through the existing SplittablePane
-    /// machinery). "Split Right"/"Split Below" CYCLE the axis the way the
-    /// pane-head buttons always have (1 → 2 → 3 → 1).
-    var splitAndTabMenu: some View {
+    /// Tabs and splits, as a SECTION of the Workspaces menu (Daniel,
+    /// 2026-09-01 — it was its own toolbar item). "Split Right"/"Split Below"
+    /// CYCLE the axis the way the pane-head buttons always have (1 → 2 → 3 →
+    /// 1), and they split whichever pane has focus, chat included, through the
+    /// existing SplittablePane machinery.
+    @ViewBuilder
+    var splitSection: some View {
         let splitKey = focusedSplitStorageKey
-        return Menu {
+        Section("Split") {
             Button {
                 // The existing new-tab path — the same WindowOpener the
                 // library rows' "Open in New Tab" uses.
@@ -41,8 +46,7 @@ extension ContentView {
             } label: {
                 Label("New Tab", systemImage: "plus.rectangle.on.rectangle")
             }
-
-            Divider()
+            .help("Open this library in a new tab of this window")
 
             Button {
                 requestFocusedPaneSplit(.vertical)
@@ -50,6 +54,9 @@ extension ContentView {
                 Label("Split Right", systemImage: "square.split.2x1")
             }
             .disabled(splitKey == nil)
+            .help(splitKey == nil
+                  ? "Focus a pane that can split first"
+                  : "Split the focused pane side by side — click again to cycle 1 → 2 → 3 panes")
 
             Button {
                 requestFocusedPaneSplit(.horizontal)
@@ -57,11 +64,10 @@ extension ContentView {
                 Label("Split Below", systemImage: "square.split.1x2")
             }
             .disabled(splitKey == nil)
-        } label: {
-            Label("Split", systemImage: "square.split.2x1")
+            .help(splitKey == nil
+                  ? "Focus a pane that can split first"
+                  : "Split the focused pane top and bottom — click again to cycle 1 → 2 → 3 panes")
         }
-        .help("Open a new tab, or split the focused pane")
-        .accessibilityLabel("New tab and split options")
     }
 
     private func requestFocusedPaneSplit(_ axis: SplitPaneAxis) {
@@ -71,17 +77,20 @@ extension ContentView {
 
     // MARK: Workspaces (ONE button — Daniel, 2026-08-31)
 
-    /// The single workspaces control. It used to be TWO: this menu (save /
-    /// apply / delete) and the Views chooser, which listed every saved
-    /// workspace a second time beneath its presets. "Combine them all into
-    /// ONE button" — so the saved list lives here, alone, and the Views
-    /// chooser goes back to being purely about showing and hiding views.
+    /// The single window-arrangement control (Daniel, 2026-09-01: "merge
+    /// split, workspaces and layouts into ONE Workspaces button"). It was
+    /// three toolbar items; it is now four sections of one menu — Layouts
+    /// (which panes show), Split (new tab / split the focused pane), the
+    /// built-in and saved arrangements, and the Toolbar Buttons submenu.
+    /// Nothing that was reachable before is gone.
     ///
     /// A workspace now carries the TOOLBAR too: which optional buttons show,
     /// and whether the workflow bar rides along. Three built-in arrangements
     /// ship with the app so the menu is useful before anything is saved.
     var workspacesMenu: some View {
         Menu {
+            layoutsSection
+            splitSection
             builtInWorkspaceSection
             savedWorkspaceSection
             Divider()
@@ -89,6 +98,8 @@ extension ContentView {
                 chromeUX.workspaceNameDraft = ""
                 chromeUX.showSaveWorkspacePrompt = true
             }
+            .help("Name the current arrangement — panes, widths, workflow bar, "
+                + "and toolbar buttons — so you can come back to it")
             deleteWorkspaceMenu
             Divider()
             toolbarButtonsMenu
@@ -183,8 +194,10 @@ extension ContentView {
         return Menu("Toolbar Buttons") {
             toolbarItemToggle("Back and Forward", \.showNavigation)
             toolbarItemToggle("Pane Toggles", \.showPaneToggles)
-            toolbarItemToggle("Split and New Tab", \.showSplitMenu)
-            toolbarItemToggle("Layouts", \.showLayoutsMenu)
+            // "Split and New Tab" and "Layouts" are gone from this list
+            // (Daniel, 2026-09-01): they no longer name toolbar items — they
+            // are sections of the menu you are standing in. The plan still
+            // carries the flags so older saved workspaces decode.
             Divider()
             Button("Show All Buttons") {
                 WindowWorkspaceStore.shared.setToolbarVisibility(.everything)
@@ -231,17 +244,16 @@ extension ContentView {
             && workspace.layout.showWorkflowBar == showWorkflowBar
     }
 
-    // MARK: Views chooser
+    // MARK: Layouts
 
     /// The compound layouts (Xcode's "Editor Only / Canvas / Assistant"
-    /// idiom): checkmarked presets built from the pane set.
-    ///
-    /// The saved-workspace list that used to hang beneath these is GONE
-    /// (Daniel, 2026-08-31) — it was the second workspace control. This
-    /// button is now only what its help says: which views the window shows.
-    var viewsChooserMenu: some View {
+    /// idiom): checkmarked presets built from the pane set. A SECTION now
+    /// (Daniel, 2026-09-01) rather than its own toolbar item — "which views
+    /// this window shows" is the first question the Workspaces menu answers.
+    @ViewBuilder
+    var layoutsSection: some View {
         let current = currentPaneVisibilityPlan
-        return Menu {
+        Section("Layouts") {
             ForEach(WindowLayoutPreset.allCases) { preset in
                 Button {
                     applyLayoutPreset(preset)
@@ -252,12 +264,9 @@ extension ContentView {
                         Text(preset.title)
                     }
                 }
+                .help("Show the \(preset.title) arrangement of panes")
             }
-        } label: {
-            Label("Layouts", systemImage: "squares.leading.rectangle")
         }
-        .help("Choose which panes this window shows")
-        .accessibilityLabel("Layout chooser")
     }
 
     // MARK: Capture / apply

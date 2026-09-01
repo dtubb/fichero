@@ -203,13 +203,13 @@ struct MailStyleRow: View {
                         // two-line reservation): "title is in one line (with
                         // truncation)" — rows stay uniform because one line
                         // reserves exactly as predictably as two did.
-                        Text(DocumentTitle.displayName(for: document))
+                        Text(displayName)
                             .font(.headline)
                             .foregroundStyle(titleColor)
                             .lineLimit(1)
                             .truncationMode(.middle)
                             // Middle-truncated titles reveal in full on hover.
-                            .help(DocumentTitle.displayName(for: document))
+                            .help(displayName)
                     }
 
                     if document.isLinked {
@@ -238,10 +238,11 @@ struct MailStyleRow: View {
                     }
 
                     if let hit = searchHit {
-                        Text(hit.score, format: .percent.precision(.fractionLength(0)))
+                        // One spelling of the relevance number across view
+                        // modes (Daniel, 2026-09-01) — icon view mounts the
+                        // same view rather than growing a second copy.
+                        SearchRelevanceBadge(score: hit.score)
                             .font(.caption.monospacedDigit())
-                            .foregroundStyle(.secondary)
-                            .help("Search relevance")
                     }
                 }
 
@@ -311,8 +312,13 @@ struct MailStyleRow: View {
         .accessibilityIdentifier("libraryRow.\(document.id)")
     }
 
+    /// Resolved ONCE per row (2026-09-01): `DocumentTitle.displayName` walks the
+    /// #4416 fall-through ladder, and the row asked it three times — the Text,
+    /// its hover `.help`, and the accessibility label.
+    private var displayName: String { DocumentTitle.displayName(for: document) }
+
     private var rowAccessibilityLabel: String {
-        let name = DocumentTitle.displayName(for: document)  // #4416: `?? name` spoke a storage name
+        let name = displayName  // #4416: `?? name` spoke a storage name
         if document.docType == .folder { return "\(name), folder" }
         if let fileType = document.fileType { return "\(name), \(fileType.rawValue)" }
         return name

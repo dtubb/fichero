@@ -1113,9 +1113,44 @@ class TestCapabilityDerivation:
             _derive_capabilities_from_registry,
         )
 
+        # CHANGED 2026-09-01: a model the VENDORED registry has never heard
+        # of is the normal case for anything released since the snapshot.
+        # Returning [] saved it capability-less, and a capability-less model
+        # is dropped by the Settings Defaults pickers — the model was addable
+        # and then unselectable (Daniel: "cannot select a model like Opus or
+        # Google"). An unknown chat model is at minimum text-capable.
         with self._registry([]):
             caps = _derive_capabilities_from_registry("openai", "not-a-real-model")
-        assert caps == []
+        assert caps == ["text"]
+
+    def test_unknown_vision_family_model_still_derives_vision(self):
+        from fichero_server.api.routes.ai.providers import (
+            _derive_capabilities_from_registry,
+        )
+
+        # The case that started this: an Opus newer than the snapshot.
+        with self._registry([]):
+            caps = _derive_capabilities_from_registry(
+                "anthropic", "claude-opus-4-9-20260901"
+            )
+        assert caps == ["text", "vision"]
+
+    def test_an_explicit_non_vision_row_is_never_overridden(self):
+        from fichero_server.api.routes.ai.providers import (
+            _derive_capabilities_from_registry,
+        )
+
+        # The family floor must not argue with a row that STATES the answer —
+        # promoting a text-only model into the Vision slot fails at the
+        # provider, which is worse than failing in a picker.
+        rows = [{
+            "model_id": "gpt-4o-mini-text",
+            "mode": "chat",
+            "supports_vision": False,
+        }]
+        with self._registry(rows):
+            caps = _derive_capabilities_from_registry("openai", "gpt-4o-mini-text")
+        assert "vision" not in caps
 
 
 class TestProviderModelDiscoveryHelpers:

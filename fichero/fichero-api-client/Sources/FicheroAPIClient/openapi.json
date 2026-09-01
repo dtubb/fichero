@@ -63048,6 +63048,11 @@
             "title": "Tested",
             "default": false
           },
+          "requires_generative_model": {
+            "type": "boolean",
+            "title": "Requires Generative Model",
+            "default": false
+          },
           "parallelism": {
             "type": "string",
             "title": "Parallelism",

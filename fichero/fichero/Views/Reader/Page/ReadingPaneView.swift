@@ -22,6 +22,13 @@ struct ReadingPaneView: View {
     /// crumbs). With 2+ entries the Page lens renders all of them in archival
     /// order; the pane chrome is untouched.
     var multiDocuments: [Document] = []
+    /// The active library-search query (Daniel, 2026-09-01). Selecting a
+    /// search result must show the matched terms lit IN the reader, not just
+    /// open the document. This seeds the pane's existing find-in-page state
+    /// (#4338) — the same CSS Custom Highlight path the find bar drives — so
+    /// there is one highlighter, not a search-specific second one. Empty
+    /// outside a search; the user's own typing in the find bar always wins.
+    var searchHighlightQuery: String = ""
 
     @Environment(APIClient.self) var apiClient
     /// The existing busy-state source for per-page run progress (#4357): the
@@ -60,6 +67,11 @@ struct ReadingPaneView: View {
     /// the shared filter bar (top on Mac, bottom on touch — #4362) and
     /// executed inside the shared WebKit surface.
     @State var searchState = ReaderSearchState()
+    /// The `searchHighlightQuery` value already pushed into `searchState`, so
+    /// a re-render never re-stomps a query the user has since edited or
+    /// dismissed in the find bar — only an actual CHANGE of the library
+    /// search re-seeds it.
+    @State private var seededSearchHighlight: String = ""
     /// The reader's ARTIFACT lens (artifact-compare P1): non-nil pins this
     /// pane to one artifact's text instead of the live transcript. Per-pane
     /// state, so split readers compare two artifacts side by side.
@@ -162,14 +174,13 @@ struct ReadingPaneView: View {
             // a second row. The pane CHROME — close, pin, split, zoom — lives
             // in the floating PaneHead at the top.
         }
-        // Active-surface indicator (#3579): accent hairline along the pane's
-        // top edge when this pane is the active one. Additive overlay — flips
-        // one pane's fill, no relayout.
-        .overlay(alignment: .top) {
-            Rectangle()
-                .fill(isActiveSurface ? Color.accentColor : Color.clear)
-                .frame(height: 2)
-        }
+        // The #3579 active-surface hairline used to hang here: a 2pt accent
+        // rectangle along the pane's top edge. GONE (Daniel, 2026-09-01: "no
+        // focus or active rings anywhere"). It was the blue line reported at
+        // the top of the reader pane — the AppKit focus rings suppressed below
+        // were only half of it. Active-surface TRACKING stays: which pane the
+        // verbs act on is real state, it just does not draw itself.
+        //
         // A direct click anywhere in this pane makes it the active surface
         // (#3579). simultaneousGesture runs alongside PDF/WebKit hit-testing so
         // it never steals the click — same pattern as focusedPane tracking.
@@ -201,6 +212,21 @@ struct ReadingPaneView: View {
             )
         }
         .onChange(of: effectiveDocument?.id) { _, _ in trackedRunPages = [] }
+        // Light the library search's terms in the reader (Daniel, 2026-09-01:
+        // selecting a result showed the document but nothing about WHY it
+        // matched). One seed per distinct query — `seededSearchHighlight`
+        // guards the re-render case so a query the user has since edited or
+        // dismissed in the find bar is never re-imposed on them.
+        .onChange(of: searchHighlightQuery, initial: true) { _, query in
+            guard query != seededSearchHighlight else { return }
+            seededSearchHighlight = query
+            if query.isEmpty {
+                searchState.dismiss()
+            } else {
+                searchState.query = query
+                searchState.isActive = true
+            }
+        }
         // Mandate 1, consumer 1: ONE fetch brings the anchor's whole
         // neighbourhood — the crumb chain stops losing middle ancestors the
         // moment this lands in the store's caches.
@@ -231,11 +257,6 @@ struct ReadingPaneView: View {
         }
     }
 
-    /// True when this pane instance is the window's active surface (#3579).
-    private var isActiveSurface: Bool {
-        activeSurfaceState?.activeSurfaceId == surfaceId
-    }
-
     /// Open this reader's document in a native tab (`asTab`) or a new window
     /// (#3582), via the same Safari-style path library rows use.
     private func openThisDocumentInNewWindow(_ documentId: String, asTab: Bool) {
@@ -263,6 +284,11 @@ struct ReadingPaneView: View {
             lenses: ReaderLens.allCases,
             lensTitle: { (lens: ReaderLens) in lens.title },
             lensIcon: { (lens: ReaderLens) in lens.icon },
+            // ONE icon (Daniel, 2026-09-01). The kind glyph and the Content
+            // lens glyph were two document pictures a divider apart, with the
+            // breadcrumb's proxy icon a capsule away — three ways of saying
+            // "a page". The kind icon now opens the lens menu itself.
+            collapsesKindIntoLens: true,
             lens: readerLensBinding
         )
     }
@@ -305,6 +331,10 @@ struct ReadingPaneView: View {
                     paneCrumbDragPayload(crumb, store: documentStore, libraryId: $0)
                 }
             },
+            // The proxy icon drags the TEXT (Daniel, 2026-09-01). Ancestors
+            // still drag as library items; only the leaf — the pane's proxy
+            // icon — promises what the reader is actually showing.
+            leafDragItemProvider: readerMarkdownProvider,
             selector: { self.readerSelector },
             controls: {
                 self.readerRepresentationControl
@@ -340,6 +370,21 @@ struct ReadingPaneView: View {
                     )
                 }
             }
+    }
+
+    /// The proxy icon's payload: this document's transcript as Markdown, or
+    /// nil when there is nothing to promise (an unread page, a multi-selection
+    /// whose leaf is a count rather than a document) — in which case the head
+    /// falls back to the shared library-item drag.
+    private var readerMarkdownProvider: (() -> NSItemProvider)? {
+        guard multiDocuments.count <= 1,
+              let document = effectiveDocument,
+              let text = document.pageContent,
+              let provider = ReaderMarkdownDrag.itemProvider(
+                  text: text, documentName: document.name
+              )
+        else { return nil }
+        return { provider }
     }
 
     /// Pinning freezes this pane on its current view (Daniel, 2026-08-23);

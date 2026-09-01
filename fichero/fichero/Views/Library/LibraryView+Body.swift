@@ -119,6 +119,16 @@ extension LibraryView {
         VStack(spacing: 0) {
             libraryContent
         }
+            // The PANE is a drop target (2026-09-01, Daniel: "drag and drop to
+            // library, not sure it works" — it did not). Only folder CELLS
+            // accepted drops, so a Finder drag onto the gutter, onto the empty
+            // -folder placeholder, or onto a plain document row hit nothing at
+            // all. This lands it in the folder the pane is SHOWING — the
+            // library root when that is nil. Attached to the rows' container
+            // and NOT to the insets, so the head and the bottom bar are not
+            // drop targets; folder cells sit deeper and still win their own
+            // drops. See `LibraryPaneDrop`.
+            .modifier(libraryPaneDrop)
             // The library's floating head (Daniel, 2026-08-23): view-mode
             // picker + breadcrumb, same grammar and components as the reader.
             .safeAreaInset(edge: .top, spacing: 0) { libraryPaneHead }

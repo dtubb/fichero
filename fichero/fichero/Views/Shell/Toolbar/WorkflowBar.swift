@@ -83,8 +83,69 @@ struct WorkflowBar: View {
     var defaultModelName: String?
     /// Whether the run resolves to the VISION tier rather than the text one —
     /// the same question `selectionPrefersVisionModel` answers for the toolbar
-    /// chip. Only consulted by the `modelChoices` fallback above.
+    /// chip. The per-step rule below overrides it; it survives as the answer
+    /// for a step whose tool the registry cannot name.
     var prefersVisionModel: Bool = false
+    /// The configured Text default, provider and model. Passed as the tier
+    /// rather than as one pre-picked name because a chain's steps do not all
+    /// want the same tier (Daniel, 2026-09-01) — see WorkflowBarModelTier.
+    var textTierDefault: WorkflowBarModelChoice?
+    /// The configured Vision default, same reason.
+    var visionTierDefault: WorkflowBarModelChoice?
+
+    /// Which configured default an unpinned STEP resolves to — its tool's
+    /// need, not the selection's tier.
+    func defaultTier(for step: StagedWorkflowStep) -> WorkflowBarPolicy.ModelTier {
+        WorkflowBarPolicy.defaultTier(
+            for: step,
+            tools: tools,
+            visionTier: visionTierDefault,
+            selectionPrefersVision: prefersVisionModel
+        )
+    }
+
+    /// That tier's name, for the tooltip: "why THIS model?" is a fair
+    /// question of a sentence about a paid run, and the tier is the answer.
+    func defaultTierName(for step: StagedWorkflowStep) -> String {
+        switch defaultTier(for: step) {
+        case .vision: return "Vision"
+        case .text:   return "Text"
+        }
+    }
+
+    /// The provider/model an unpinned STEP resolves to — its tool's need, not
+    /// the selection's tier.
+    func defaultChoice(for step: StagedWorkflowStep) -> WorkflowBarModelChoice? {
+        WorkflowBarPolicy.defaultChoice(
+            for: step,
+            tools: tools,
+            textTier: textTierDefault,
+            visionTier: visionTierDefault,
+            selectionPrefersVision: prefersVisionModel
+        )
+    }
+
+    /// The model name the sentence shows for an unpinned step.
+    func resolvedDefaultModelLabel(for step: StagedWorkflowStep) -> String {
+        guard let choice = defaultChoice(for: step), !choice.model.isEmpty else {
+            return resolvedDefaultModelLabel
+        }
+        return ModelChipToolbarItem.shorten(choice.model)
+    }
+
+    /// The provider behind that name, for the sentence's family mark.
+    func resolvedDefaultModelProvider(for step: StagedWorkflowStep) -> String {
+        defaultChoice(for: step)?.provider ?? resolvedDefaultModelProvider
+    }
+
+    /// The FULL model id for the family mark — the mark reads the family out
+    /// of the id, and a shortened name loses the vendor prefix it looks for.
+    func resolvedDefaultModelId(for step: StagedWorkflowStep) -> String {
+        if let choice = defaultChoice(for: step), !choice.model.isEmpty {
+            return choice.model
+        }
+        return defaultModelName ?? resolvedDefaultModelLabel
+    }
 
     /// One item's footprint. Fixed so the verbs sit on an even rhythm the way
     /// toolbar items do, rather than jittering with label length.
@@ -214,12 +275,29 @@ struct WorkflowBar: View {
         return ModelChipToolbarItem.shorten(match.model)
     }
 
+    /// The provider behind `resolvedDefaultModelLabel`, for the sentence's
+    /// family mark. The host's `defaultModelName` carries no provider, so the
+    /// pin list — which does — is what names it; an empty string simply
+    /// leaves the mark to read the family out of the model id, which is what
+    /// it does for routed models anyway.
+    var resolvedDefaultModelProvider: String {
+        let tier = prefersVisionModel ? "Vision" : "Text"
+        let match = modelChoices.first { $0.label.hasSuffix(tier) }
+            ?? modelChoices.first
+        return match?.provider ?? ""
+    }
+
     /// Pin a model to ONE step. Offered per chip because a chain's steps do
     /// not deserve the same model: read a hard hand with the best available,
     /// then count entities in its output with something cheap.
     @ViewBuilder
     func modelMenu(forStepAt index: Int) -> some View {
-        Button("Use the default (\(resolvedDefaultModelLabel))") {
+        // The default this STEP would take, named — which is not the same
+        // model for every step of a chain (2026-09-01).
+        let stepDefault = staged.indices.contains(index)
+            ? resolvedDefaultModelLabel(for: staged[index])
+            : resolvedDefaultModelLabel
+        Button("Use the default (\(stepDefault))") {
             guard staged.indices.contains(index) else { return }
             staged[index].providerOverride = nil
             staged[index].modelOverride = nil

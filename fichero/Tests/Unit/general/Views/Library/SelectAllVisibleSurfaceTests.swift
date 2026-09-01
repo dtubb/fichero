@@ -116,7 +116,11 @@ struct SelectAllVisibleSurfaceTests {
         // command comes up live and then does nothing — or comes up dead over a
         // surface full of rows.
         let shortcuts = try code(at: "Views/Library/LibraryView+KeyboardShortcuts.swift")
-        #expect(shortcuts.contains("isEnabled: !selectAllIds.isEmpty"))
+        // `selectAllIds` is computed ONCE into `rowIds` and used for both the
+        // enablement and the action's identity (2026-09-01: the stale-closure
+        // fix) — one answer to one question.
+        #expect(shortcuts.contains("let rowIds = selectAllIds"))
+        #expect(shortcuts.contains("isEnabled: !rowIds.isEmpty"))
         #expect(!shortcuts.contains("filteredDocuments.isEmpty"),
                 "enablement asks a different question than selectAllIds answers")
     }

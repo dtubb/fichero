@@ -52,9 +52,12 @@ struct OCRGeometryOverlay: View {
                     // Inline text needs GROUND to read against (Daniel,
                     // 2026-08-31: "you need to fade, or make the word
                     // bounding box less transparent, so we can see it") —
-                    // a mostly-opaque theme-matched plate under each word.
+                    // a theme-matched plate under each word. Lightened to 0.6
+                    // (Daniel, 2026-09-01): the word has to be legible, but
+                    // the SCAN underneath it has to stay checkable — that is
+                    // the whole point of drawing the transcription in place.
                     let plate = (colorScheme == .dark ? Color.black : Color.white)
-                        .opacity(0.78)
+                        .opacity(InlineWordText.plateOpacity)
                     for box in boxes {
                         guard let rect = BoundingBoxGeometry.viewRect(
                             normalized: box.bbox, in: size, visible: visible
@@ -71,7 +74,15 @@ struct OCRGeometryOverlay: View {
                         // dense page must not become hundreds of laid-out
                         // views, and a per-word `Text` view would undo it.
                         if inlineTextEnabled, !box.text.isEmpty {
-                            context.draw(Text(box.text).font(.caption), in: rect)
+                            // FILL the box (Daniel, 2026-09-01). A fixed
+                            // `.caption` overflowed a short box and rattled
+                            // around in a tall one; the word should look like
+                            // the word it replaces, so the size comes from the
+                            // box itself.
+                            context.draw(
+                                InlineWordText.fitted(box.text, in: rect, context: context),
+                                in: rect
+                            )
                         }
                     }
                 }
@@ -223,3 +234,49 @@ extension ZoomableImagePreview {
     }
 }
 #endif
+
+// MARK: - Inline word text
+
+/// Sizing for the transcription drawn INSIDE each word box.
+///
+/// File-scoped rather than static members on the view: a `View`'s statics
+/// inherit the type's `@MainActor` isolation, and these are read from the
+/// `Canvas` draw closure.
+private enum InlineWordText {
+    /// Plate under an inline word — theme-matched, deliberately translucent
+    /// (Daniel, 2026-09-01): legible word, still-checkable scan underneath.
+    static let plateOpacity: Double = 0.6
+    /// Below this the glyphs are mush; above it a one-letter box shouts.
+    static let minFontSize: CGFloat = 5
+    static let maxFontSize: CGFloat = 64
+    /// Leaves a hairline of plate above and below the cap height.
+    static let heightFillRatio: CGFloat = 0.82
+
+    /// Resolves `string` at the largest size that fits `rect` in BOTH axes:
+    /// take the size from the box HEIGHT (clamped), measure, then shrink by
+    /// the width-overflow ratio when the word is too long for its box. One
+    /// measure-and-correct pass, not a search — this runs per box, per frame,
+    /// inside the single-Canvas draw the dense-page fix (2026-08-28) bought.
+    static func fitted(
+        _ string: String, in rect: CGRect, context: GraphicsContext
+    ) -> GraphicsContext.ResolvedText {
+        let unbounded = CGSize(
+            width: CGFloat.greatestFiniteMagnitude,
+            height: CGFloat.greatestFiniteMagnitude
+        )
+        let fromHeight = clamp(rect.height * heightFillRatio)
+        var resolved = context.resolve(Text(string).font(.system(size: fromHeight)))
+        let measured = resolved.measure(in: unbounded)
+        if measured.width > rect.width, measured.width > 0 {
+            let shrunk = clamp(fromHeight * (rect.width / measured.width))
+            if shrunk < fromHeight {
+                resolved = context.resolve(Text(string).font(.system(size: shrunk)))
+            }
+        }
+        return resolved
+    }
+
+    private static func clamp(_ value: CGFloat) -> CGFloat {
+        min(max(value, minFontSize), maxFontSize)
+    }
+}

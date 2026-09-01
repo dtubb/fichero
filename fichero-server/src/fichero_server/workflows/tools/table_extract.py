@@ -153,6 +153,13 @@ def build_table_prompt(config: dict) -> str:
     uses_llm=True,
     supports_batch=True,
     supports_structured_output=True,
+    # The same fact TOOL_CONFIG already states as supports_apple_vision=False,
+    # said where the PREFLIGHT can read it (Daniel, 2026-09-01: "Apple Vision
+    # → CSV failed"). This tool asks a model to lay a page out as CSV/HTML/
+    # Markdown; Apple Vision performs OCR and ignores the prompt, so on the
+    # keyless factory default the run was dispatched, priced and only then
+    # refused. Refusing before it starts is the same verdict, cheaper.
+    requires_generative_model=True,
     input_ports=VISION_INPUT_PORTS,
     output_ports=BASE_OUTPUT_PORTS,
     config_schema=merge_config_schema(VISION_CONFIG_SCHEMA, TABLE_CONFIG),

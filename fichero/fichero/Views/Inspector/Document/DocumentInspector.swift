@@ -117,9 +117,18 @@ struct DocumentInspector: View {
         // Content tab only — it described the document, which is the Content
         // tab's concern, and it shouldn't crowd the Knowledge Graph /
         // Citations / Info tabs. (#1228)
+        // While the image editor is open the inspector shows ONLY the edit
+        // steps (Daniel, 2026-09-01). `.edits` IS edit mode — `EditorView`
+        // derives `isEditing` from this same scene value — so the section bar
+        // and the facet picker would be offering to walk away from a canvas
+        // that is mid-edit, with the chain the only thing that applies. The
+        // way out is the editor's own Done button, which returns to Content.
+        let isEditingImage = effectiveTab == .edits
         return VStack(spacing: 0) {
-            sectionBar
-            facetPicker(for: doc, selectedTab: effectiveTab)
+            if !isEditingImage {
+                sectionBar
+                facetPicker(for: doc, selectedTab: effectiveTab)
+            }
             Divider()
             tabContent(for: doc, selectedTab: effectiveTab)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)

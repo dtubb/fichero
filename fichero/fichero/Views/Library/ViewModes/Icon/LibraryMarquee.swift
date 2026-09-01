@@ -15,25 +15,40 @@ import SwiftUI
 // own `.draggable` wins on the tiles themselves, so a marquee can only
 // begin on empty space — exactly Finder.
 
-/// Per-tile frames in the icon grid's coordinate space.
-struct IconTileFramesKey: PreferenceKey {
-    static let defaultValue: [String: CGRect] = [:]
-    static func reduce(value: inout [String: CGRect], nextValue: () -> [String: CGRect]) {
-        value.merge(nextValue(), uniquingKeysWith: { _, new in new })
-    }
-}
-
 extension View {
     /// Report this tile's frame under `id` for marquee hit-testing.
-    func iconTileFrame(id: String, in space: String) -> some View {
-        background(
-            GeometryReader { geo in
-                Color.clear.preference(
-                    key: IconTileFramesKey.self,
-                    value: [id: geo.frame(in: .named(space))]
-                )
+    ///
+    /// Writes STRAIGHT into the marquee box, per tile (2026-09-01). This used
+    /// to be a `PreferenceKey` whose `reduce` merged a `[String: CGRect]`
+    /// dictionary pairwise up the whole grid, and that is what "there's a
+    /// pause on first click" was: a click in the gutter clears the selection,
+    /// every tile re-evaluates `isSelected`, the LazyVGrid re-lays out — and
+    /// the preference machinery then rebuilt an N-entry dictionary by N merges
+    /// (each copying the accumulated result) and diffed it for equality
+    /// against the previous N-entry dictionary, on the main thread, before the
+    /// drag's first `onChanged` could run. Over a 600-tile diary folder that
+    /// is the visible stall, and it repeated on every layout pass of the sweep.
+    ///
+    /// One tile writing one key into an `@ObservationIgnored` box is O(1),
+    /// allocates nothing, and — because the box is observation-ignored —
+    /// re-renders nothing (HARD rule: no wholesale list re-render).
+    ///
+    /// Mid-sweep the tile also seeds its CONTENT-space frame if the sweep has
+    /// not seen it yet: that is how a tile materialised by an autoscroll
+    /// becomes selectable, without the sweep ever re-reading the live index.
+    func iconTileFrame(id: String, in space: String, model: MarqueeModel) -> some View {
+        onGeometryChange(for: CGRect.self) { proxy in
+            proxy.frame(in: .named(space))
+        } action: { frame in
+            model.tileFrames[id] = frame
+            if model.anchorContent != nil, model.contentFrames[id] == nil {
+                model.contentFrames[id] = frame.offsetBy(dx: 0, dy: model.scrollOffsetY)
             }
-        )
+        }
+        // A tile the lazy grid recycled must not leave a stale frame behind:
+        // `startsInGutter` would read it as "a tile is here" and refuse to
+        // begin a sweep over empty space.
+        .onDisappear { model.tileFrames.removeValue(forKey: id) }
     }
 }
 
@@ -107,6 +122,41 @@ final class MarqueeModel {
         #endif
     }
 
+    /// How much of the viewport's TOP edge is covered by chrome the user
+    /// cannot drag into, in the SAME space the pointer is reported in
+    /// (2026-09-01 — "it doesn't scroll at edges").
+    ///
+    /// The library pane stacks two `safeAreaInset`s on this scroll view: the
+    /// floating pane head above the rows and the bottom action bar below
+    /// them. SwiftUI expresses those as `contentInsets` on the NSScrollView —
+    /// the clip view keeps its FULL height, and the content is pushed inward.
+    /// So the topmost pixel the user can actually reach with the pointer is
+    /// `contentInsets.top`, not 0, and the bottom-most is
+    /// `viewportHeight - contentInsets.bottom`, not `viewportHeight`.
+    ///
+    /// The old edge test compared the pointer against the raw 0…viewportHeight
+    /// band with a 24pt zone. The head is taller than 24pt and so is the bottom
+    /// bar, so the pointer could never enter EITHER zone: the sweep reached the
+    /// visible edge and the velocity was still exactly 0. That is the whole bug
+    /// — the ticker, the probe and the clip-view scroll were all working and
+    /// simply never asked to move.
+    var viewportTopInset: CGFloat {
+        #if os(macOS)
+        max(0, scrollView?.contentInsets.top ?? 0)
+        #else
+        0
+        #endif
+    }
+
+    /// The bottom half of `viewportTopInset`'s story — the action bar.
+    var viewportBottomInset: CGFloat {
+        #if os(macOS)
+        max(0, scrollView?.contentInsets.bottom ?? 0)
+        #else
+        0
+        #endif
+    }
+
     /// Scroll by `deltaY` points, clamped to the document. Returns the distance
     /// actually travelled (0 at either end, which parks the autoscroll).
     @discardableResult
@@ -151,7 +201,15 @@ struct MarqueeScrollProbe: NSViewRepresentable {
     let model: MarqueeModel
 
     func makeNSView(context: Context) -> NSView { ProbeView(model: model) }
-    func updateNSView(_ nsView: NSView, context: Context) {}
+
+    /// Re-adopt on every SwiftUI update too. `viewDidMoveToWindow` fires once,
+    /// and SwiftUI may host this view before the enclosing `NSScrollView`
+    /// exists — a single missed adoption left `model.scrollView` nil for the
+    /// whole session, which reads to the user as "autoscroll is not
+    /// implemented" (`viewportHeight` is then 0 and every velocity is 0).
+    func updateNSView(_ nsView: NSView, context: Context) {
+        (nsView as? ProbeView)?.adoptScrollView()
+    }
 
     private final class ProbeView: NSView {
         private let model: MarqueeModel
@@ -177,9 +235,25 @@ struct MarqueeScrollProbe: NSViewRepresentable {
         /// Keep the last scroll view we saw: SwiftUI detaches and re-attaches
         /// backgrounds during relayout, and dropping the reference mid-sweep
         /// would silently kill autoscroll.
-        private func adopt() {
+        ///
+        /// Internal (not private): `updateNSView` re-adopts from every SwiftUI
+        /// update, so a scroll view that did not exist at insertion time is
+        /// still found on the next pass rather than never.
+        func adoptScrollView() {
             guard let found = enclosingScrollView else { return }
             model.scrollView = found
+        }
+
+        private func adopt() {
+            adoptScrollView()
+            // The probe can be inserted into its immediate superview BEFORE
+            // that superview joins the scroll view's document view. One
+            // deferred retry costs nothing and closes that window; without it
+            // the miss is permanent and silent.
+            guard model.scrollView == nil else { return }
+            DispatchQueue.main.async { [weak self] in
+                self?.adoptScrollView()
+            }
         }
     }
 }
@@ -255,24 +329,43 @@ enum LibraryMarquee {
             || abs(previous.maxY - current.maxY) > tolerance
     }
 
-    /// Signed autoscroll speed for a pointer at `pointerY` in a viewport
-    /// `viewportHeight` tall: negative near the top, positive near the
-    /// bottom, ramping linearly from 0 at the edge zone's inner boundary to
-    /// `maxSpeed` at the edge itself (and staying at `maxSpeed` past it, so
-    /// dragging out of the window keeps scrolling — Finder).
+    /// Signed autoscroll speed for a pointer at `pointerY`, measured in the
+    /// scroll view's own coordinate space: negative near the top, positive
+    /// near the bottom, ramping linearly from 0 at the edge zone's inner
+    /// boundary to `maxSpeed` at the edge itself (and staying at `maxSpeed`
+    /// past it, so dragging out of the window keeps scrolling — Finder).
+    ///
+    /// `topInset` / `bottomInset` are the chrome the pane lays OVER this
+    /// scroll view (`safeAreaInset`: the floating pane head, the bottom action
+    /// bar), which SwiftUI applies as `contentInsets`. The zone is measured
+    /// against the band the pointer can actually occupy — `topInset` to
+    /// `viewportHeight - bottomInset` — not the raw viewport.
+    ///
+    /// This is the coordinate-space bug behind "it doesn't scroll at edges":
+    /// with a ~44pt pane head and a ~34pt bottom bar, a pointer at the visible
+    /// top edge reported `pointerY ≈ 44`, which is OUTSIDE a 24pt zone
+    /// measured from 0 — so the velocity was 0 everywhere the user could
+    /// actually put the pointer. Insets default to 0, so the pure math is the
+    /// same one the existing table pins.
     static func autoScrollVelocity(
         pointerY: CGFloat,
         viewportHeight: CGFloat,
+        topInset: CGFloat = 0,
+        bottomInset: CGFloat = 0,
         edge: CGFloat = autoScrollEdge,
         maxSpeed: CGFloat = autoScrollMaxSpeed
     ) -> CGFloat {
+        let top = max(0, topInset)
+        let bottom = max(0, bottomInset)
+        let visibleHeight = viewportHeight - top - bottom
         // Too short to have two distinct zones: no autoscroll at all.
-        guard viewportHeight > edge * 2 else { return 0 }
-        if pointerY < edge {
-            let depth = min(1, (edge - pointerY) / edge)
+        guard visibleHeight > edge * 2 else { return 0 }
+        let fromTop = pointerY - top
+        if fromTop < edge {
+            let depth = min(1, (edge - fromTop) / edge)
             return -maxSpeed * depth
         }
-        let fromBottom = viewportHeight - pointerY
+        let fromBottom = (viewportHeight - bottom) - pointerY
         if fromBottom < edge {
             let depth = min(1, (edge - fromBottom) / edge)
             return maxSpeed * depth
