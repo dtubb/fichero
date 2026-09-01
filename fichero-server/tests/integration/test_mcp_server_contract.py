@@ -50,6 +50,13 @@ EXPECTED_TOOLS = {
     # (actor from auth state, change events emitted).
     "fichero_kg_entity_upsert",
     "fichero_kg_claim_create",
+    # Library selection: the server binds NO library by default (one server,
+    # all libraries), so an agent lists the registry and scopes the session.
+    "fichero_list_libraries",
+    "fichero_use_library",
+    # Authoring/canvas writes through the audited action layer (#4469, #4192).
+    "fichero_workflow_create",
+    "fichero_document_move",
 }
 
 

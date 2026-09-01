@@ -5113,7 +5113,7 @@ class Database(DatabaseEmbeddingMixin):
                                 if max_bm25 > 0
                                 else 1.0
                             )
-                    else:
+                    if not fulltext_results:
                         # NO-EMBEDDINGS FALLBACK (2026-08-10, Daniel: "search
                         # doesn't seem to work"): the whole full-text leg above
                         # runs over the LanceDB EMBEDDINGS table, so a corpus
@@ -5124,8 +5124,20 @@ class Database(DatabaseEmbeddingMixin):
                         # depend on embeddings: scan the documents table's
                         # page_content directly. A folded contains + BM25 over
                         # the matching rows is honest and bounded for local
-                        # libraries; the LanceDB FTS path takes over as soon
-                        # as embeddings exist.
+                        # libraries.
+                        #
+                        # It runs whenever the vector-backed leg produced NO
+                        # hits, not only when the table is missing (#4245
+                        # transport matrix flake, 2026-08-31): a table that
+                        # exists but whose newest rows the FTS leg cannot see
+                        # yet — the row is written, the index is not caught up
+                        # — made a document that had just been ingested
+                        # unfindable by a term sitting verbatim in its
+                        # page_content, and the miss was indistinguishable
+                        # from an honest "no match". A vector-leg hit still
+                        # wins: this only fills an empty result set, so the
+                        # ranked FTS/BM25 ordering above is untouched whenever
+                        # it produced anything at all.
                         rows = self._execute(
                             """
                             SELECT d.id, d.name, d.doc_type, d.file_type,

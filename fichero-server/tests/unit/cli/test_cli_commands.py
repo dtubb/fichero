@@ -740,6 +740,10 @@ def test_global_options_passed_to_client():
         "library_path": "/tmp/L.fichero",
         "token": "tk",
         "as_user": "alice",
+        # Every CLI-built client names its surface so an ActionAudit row says
+        # WHICH surface used the credential (#4469); it is attribution
+        # metadata, never authz.
+        "client_name": "fichero-cli",
     }
 
 
