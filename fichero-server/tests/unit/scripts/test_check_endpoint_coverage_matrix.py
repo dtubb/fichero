@@ -57,4 +57,9 @@ def test_witnesses_are_limited_to_the_repaired_store_methods():
         "PUT /api/artifacts/{artifact_id}/regions": (
             "editArtifactRegionsApiArtifactsArtifactIdRegionsPut"
         ),
+        # Step-wise chain execution (ChainService+StepExecution.executeChainSteps,
+        # 2026-08-30) — the generated operation again, no literal path in Swift.
+        "POST /api/chains/{chain_id}/execute-steps": (
+            "executeChainStepsApiChainsChainIdExecuteStepsPost"
+        ),
     }

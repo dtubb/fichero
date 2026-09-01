@@ -665,6 +665,12 @@ def test_request_picks_up_library_path_after_startup_gap(monkeypatch):
 
 def test_base_url_falls_back_to_default(monkeypatch):
     monkeypatch.delenv("FICHERO_API_URL", raising=False)
+    # With no transport passed, the client probes for the running app's Unix
+    # socket and rewrites base_url to "http://fichero-app" when it finds one
+    # (client._app_socket_to_dial). FICHERO_UDS=0 is that probe's documented
+    # off switch, so this asserts the URL default rather than whether a
+    # Fichero app happens to be running on the developer's machine.
+    monkeypatch.setenv("FICHERO_UDS", "0")
     c = FicheroClient(token="x")
     assert c.base_url == DEFAULT_BASE_URL
     c.close()

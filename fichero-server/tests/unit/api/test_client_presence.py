@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from fichero_server.api import client_presence
 
 
@@ -25,12 +27,15 @@ def test_named_clients_and_uds_app_traffic_are_recorded():
     assert len(snap) == 3
 
 
-def test_clients_endpoint_serves_the_snapshot():
-    import asyncio
-
+@pytest.mark.asyncio
+async def test_clients_endpoint_serves_the_snapshot():
+    # Awaited on pytest-asyncio's loop rather than asyncio.get_event_loop():
+    # that helper only returns a loop when one is already set for this thread,
+    # and under full-suite ordering an earlier test leaves MainThread without
+    # one ("no current event loop in thread MainThread").
     _reset()
     client_presence.record("fichero-cli", transport=None)
     from fichero_server.api.main import connected_clients
 
-    payload = asyncio.get_event_loop().run_until_complete(connected_clients())
+    payload = await connected_clients()
     assert [c.client for c in payload.clients] == ["fichero-cli"]

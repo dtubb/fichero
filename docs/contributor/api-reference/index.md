@@ -358,6 +358,43 @@ a `geometry_status` (so "this engine cannot point at the page" is
 distinguishable from "this page is blank"), an optional `geometry_reason`, and
 the resolved `region` when geometry exists. Unknown artifact ids return `404`.
 
+### Artifact region curation
+
+`PUT /api/artifacts/{artifact_id}/regions` curates an artifact's
+`ocr_geometry.boxes`. The body is `ArtifactRegionsEditRequest` with an `op`:
+`move` (one index plus a normalized `bbox`), `delete` (one or more indices),
+`add` (a `bbox`, optional `text`/`level` — bootstraps an empty user geometry
+when the artifact has none yet, which is the rubber-band draw on a bare page),
+or `combine` (two or more indices replaced by their union box, texts joined in
+reading order). Every edit runs as one audited, undoable action with a full
+before-snapshot, and appends a `curation_log` entry inside the geometry so the
+history travels with the artifact. The response is `ArtifactResponse` with
+geometry included, so the caller re-renders its overlay from the reply rather
+than re-fetching.
+
+### Workflow folder presentation
+
+`GET /api/workflows/folders` returns the presentation metadata for workflow
+folders — `path`, `display_name`, `sort_order`, and `icon` per folder, plus a
+`count`. The order is the order work actually happens (prepare, find regions,
+read, clean, translate, extract, catalogue), which is data rather than a rule,
+so the capability bar draws its verbs from this list instead of a literal in
+Swift. A folder absent from the list is not hidden: the client sorts it after
+the known route with a fallback glyph, so a user's own folder appears the
+moment they make one.
+
+### Chain step execution
+
+`POST /api/chains/{chain_id}/execute-steps` runs a chain's steps as real,
+sequential workflow runs — the workflow bar's staged chain. The body is
+`ExecuteChainStepsRequest` (`inputs`: the frozen run inputs shared by every
+step; each step merges its own `static_inputs` on top). The response is `202`
+with `ChainStepsAcceptedResponse`: an `execution_id` and, per step, a
+pre-assigned `thread_id` and `stream_url`, so a client can attach to a step's
+SSE stream before that step starts. Poll
+`GET /api/chains/executions/{execution_id}` for per-step statuses. Unknown
+chain ids return `404`; a chain with no steps returns `400`.
+
 ### Workflow run comparison
 
 `GET /api/workflow-execution/comparisons` diffs what two runs produced from
