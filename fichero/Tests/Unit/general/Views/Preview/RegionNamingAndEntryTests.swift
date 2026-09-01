@@ -79,15 +79,21 @@ struct RegionNamingAndEntryTests {
     }
 
     @Test("a double-click enters a region without costing the selection")
-    func doubleClickIsSimultaneous() throws {
+    func doubleClickSelectsThenEnters() throws {
         let layer = try source(
             "Views/Preview/ImageViewer/Regions/RegionInteractionLayer.swift"
         )
-        #expect(layer.contains("SpatialTapGesture(count: 2)"))
-        // Simultaneous, not `.gesture`: racing the single tap would drop the
-        // select-then-enter pairing the ruling asks for.
-        #expect(layer.contains(".simultaneousGesture(openGesture(in: geo.size))"))
+        // The pointer now arrives from AppKit (2026-09-01): a double-click is
+        // clickCount == 2 on mouse-down, and the layer selects THEN enters —
+        // the same select-then-enter pairing the ruling asks for.
+        #expect(layer.contains("if clickCount == 2 {"))
+        #expect(layer.contains("handleTap(at: point, in: size)\n            handleOpen(at: point, in: size)"))
         #expect(layer.contains("onOpenRegion(boxes[picked].index)"))
+        // And the layer itself never owns a gesture: that is what starved the
+        // scroll view of pan/pinch/swipe.
+        #expect(!layer.contains(".gesture("))
+        #expect(!layer.contains("SpatialTapGesture"))
+        #expect(layer.contains(".allowsHitTesting(false)"))
     }
 
     @Test("entering a region opens its child node, and only zooms as a fallback")

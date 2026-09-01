@@ -83,6 +83,51 @@ extension AppState {
         backendAccessError = nil
         engine.markReady()
         await loadProviders()
+        await verifyEmbeddedEngineVersion()
+    }
+
+    /// Ask the engine that just became ready which version it is, and say so
+    /// when it is not the one this build embedded (Daniel, 2026-09-01).
+    ///
+    /// Runs AFTER `markReady` on purpose: this is a correctness *report*, not a
+    /// gate. A version mismatch is a stale-restage bug, not a reason to refuse a
+    /// working engine, and putting a round-trip in front of `markReady` would
+    /// add it to the launch critical path the #3975 fast path exists to shorten.
+    ///
+    /// It also fills `backendVersion` on the proven-readiness path, which skips
+    /// the health GET entirely — About's "Server X" row was blank there.
+    func verifyEmbeddedEngineVersion() async {
+        let reported = await reportedEngineVersion()
+        if let reported { backendVersion = reported }
+        let verdict = EmbeddedEngineVersionCheck.verdict(
+            isEmbedded: EngineConfig.engineProvisioningStrategy() == .releaseEmbedded,
+            reportedVersion: reported,
+            stamps: EmbeddedEngineVersionCheck.stamps(from: .main)
+        )
+        switch verdict {
+        case .notApplicable, .matches:
+            engineVersionWarning = nil
+        case .unstamped:
+            // Blind, not clean. No banner (previews and unit hosts land here),
+            // but never silent: an embedded build with no stamps means the embed
+            // phase did not write them, and the guard script should have caught it.
+            logger.warning("Engine version check is blind — the app bundle carries no engine version stamps")
+            engineVersionWarning = nil
+        case .mismatch(let running, let expected):
+            let detail = "Embedded engine is \(running), app expected \(expected)"
+            logger.error("\(detail, privacy: .public) — the staged engine is not the checkout's; restage it")
+            engineVersionWarning = EmbeddedEngineVersionCheck.warning(for: verdict)
+            engineVersionWarningDismissed = false
+        }
+    }
+
+    /// `backend_version` from one `/api/health`, or nil if it doesn't answer.
+    /// Fail-quiet: an unreachable engine is the heartbeat's story to tell, and
+    /// this check must never invent a second unreachable surface.
+    private func reportedEngineVersion() async -> String? {
+        guard let response = try? await ficheroClient.api.healthCheckApiHealthGet(headers: .init()),
+              case .ok(let okResponse) = response else { return nil }
+        return try? okResponse.body.json.backendVersion
     }
 
     /// Remember the endpoint the app is currently connected to so failover can

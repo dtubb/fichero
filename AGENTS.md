@@ -418,6 +418,36 @@ either**. If a client needs logic, the logic belongs in the engine.
   `.../lance/`. Never query them directly — everything goes through `db.py`.
 - **Engine is macOS-only when embedded.** Briefcase declares one platform; iOS and
   iPadOS always talk to a remote engine. See `fichero-server/README.md`.
+- **Restaging the embedded engine — use a script, never bare `briefcase`.**
+
+  ```bash
+  scripts/preflight-embedded-engine.sh --rebuild   # the restage; Xcode runs the no-arg form itself
+  fichero-server/scripts/build_backend_bundle.sh   # full rebuild + Briefcase sign (release path)
+  ```
+
+  `briefcase update -r` by hand is **not** a restage. `update` re-installs app
+  code and requirements; it never re-renders the generated app template, so
+  `Contents/Info.plist` keeps whatever `CFBundleShortVersionString` was current
+  the last time `briefcase create` ran. (briefcase 0.4.2,
+  `commands/update.py: UpdateCommand.update_app` — code, requirements,
+  resources, support, stub, and no cookiecutter pass.)
+
+  2026-09-01, the failure that put this paragraph here: `~/code/fichero` held
+  **three** versions at once — `Info.plist` 2026.8.27 (last `create`, Aug 30),
+  `fichero_server-2026.8.31b1.dist-info` (a hand-run `update -r`), and
+  `pyproject.toml` 2026.9.1b2 (that morning's date stamp). Both scripts above
+  now recreate the template when the stamped version has drifted, so a restage
+  carries the current version instead of a fossil.
+
+- **The version label is checked at launch, not just at build.** The embed phase
+  stamps `FicheroEmbeddedEngineVersion` (the version of the engine bundle it
+  actually copied) and `FicheroExpectedEngineVersion` (the checkout's
+  `fichero-server/pyproject.toml` at build time) into the host app's
+  `Info.plist`. When the engine reports ready, `AppState` compares them against
+  the `backend_version` `/api/health` returns and — on any mismatch — logs an
+  error and shows a dismissible banner above the window content saying which
+  version is running and which was expected. `scripts/check_engine_version_stamp.py`
+  guards that the embed phase still writes the stamps.
 
 ---
 

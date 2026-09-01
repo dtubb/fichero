@@ -29,6 +29,9 @@ struct ImageEditorView: View {
 
     @Environment(APIClient.self) var apiClient
     @Environment(StorageService.self) var storageService
+    /// Optional, like the display canvas's own: a host without a rendition
+    /// service simply has no rendition caches to drop.
+    @Environment(RenditionService.self) var renditionService: RenditionService?
     @Environment(DocumentStore.self) var documentStore: DocumentStore
     @State var model = ImageEditorModel()
 
@@ -56,6 +59,15 @@ struct ImageEditorView: View {
     @State var marqueeSelection: CGRect?
     @State var compareMode: CompareMode = .single
     @State var compareSplit: CGFloat = 0.5
+    /// Canvas zoom for the COMPARE modes (Daniel, 2026-09-01: the editor had
+    /// no way to get closer to what it was changing). Single mode is a
+    /// `DocumentCanvas`, which floats the shared zoom pill over itself and
+    /// owns its own scale — a second zoom there would be two controls fighting
+    /// over one image. Side-by-side and wipe are plain `Image`s with no scale
+    /// of their own, and this is it.
+    @State var compareZoom: CGFloat = 1.0
+    static let minCompareZoom: CGFloat = 0.25
+    static let maxCompareZoom: CGFloat = 8.0
     /// Revert to Original confirmation — every step is already committed, so
     /// reverting always discards saved work and always asks (Daniel, 2026-08-31).
     @State var showRevertConfirm = false

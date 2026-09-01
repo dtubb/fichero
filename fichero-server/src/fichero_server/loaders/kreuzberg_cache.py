@@ -135,9 +135,6 @@ def prepare_pdfium(logger=None) -> None:
 
 import sys  # noqa: E402 — deliberate: runs after prepare_pdfium is defined
 
-if sys.platform == "darwin":
-    prepare_pdfium()
-
 
 # ---------------------------------------------------------------------------
 # kreuzberg PDF usability gate (2026-08-09, the freeze root).
@@ -206,22 +203,51 @@ def kreuzberg_pdf_usable(logger=None) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Pre-import kreuzberg's lazy Python dependencies (2026-08-09, the SECOND
-# wedge layer, faulthandler-dumped live once pdfium finally loaded).
-#
-# kreuzberg's Rust pipeline calls back into Python from FFI threads, and
-# those callbacks LAZILY import modules (charset_normalizer.api was caught
-# mid-import at the freeze). A lazy import from an FFI callback deadlocks:
-# the sync FFI entry holds the GIL while its worker needs the import lock —
-# every thread in the engine stops, health goes dark, the watchdog SIGKILLs.
-# Importing them here, single-threaded at startup, means the callback only
-# ever finds cached modules. Best-effort: a missing module just falls out.
+# Extraction prewarm (2026-08-09 freeze fixes, moved off the launch path
+# 2026-09-01). Both halves are wedge fixes that must precede kreuzberg's FFI;
+# neither needs to happen at engine startup. See the function's docstring.
 # ---------------------------------------------------------------------------
-for _lazy in ("charset_normalizer", "charset_normalizer.api"):
-    try:
-        __import__(_lazy)
-    except Exception:  # noqa: S112 — absence is kreuzberg's problem, not fatal
-        pass
+_PREWARMED = False
+
+
+def prewarm_for_extraction() -> None:
+    """Do the two things that must happen BEFORE kreuzberg's FFI ever runs.
+
+    Both used to run at module scope, which put them on the ENGINE LAUNCH path:
+    `api.main` imports this module for its cheap env-var side effect, and paid
+    ~1s (cold: more) to import kreuzberg and charset_normalizer for work that
+    only matters once a document is actually extracted (Daniel, 2026-09-01:
+    "launch is still slower than I would like").
+
+    Deferring them is safe because it does not weaken the invariant either one
+    exists for. The invariant is "done before the first kreuzberg FFI call",
+    NOT "done at startup": every `import kreuzberg` in the engine lives inside
+    a function in `pdf_loader` / `document_loader`, and BOTH of those modules
+    call this at their own import — which is strictly earlier, and neither is
+    imported at engine startup. Idempotent, so the second caller is free.
+    """
+    global _PREWARMED
+    if _PREWARMED:
+        return
+    _PREWARMED = True
+
+    # pdfium bind path — see prepare_pdfium's own docstring for the ladder.
+    if sys.platform == "darwin":
+        prepare_pdfium()
+
+    # kreuzberg's Rust pipeline calls back into Python from FFI threads, and
+    # those callbacks LAZILY import modules (charset_normalizer.api was caught
+    # mid-import at the 2026-08-09 freeze). A lazy import from an FFI callback
+    # deadlocks: the sync FFI entry holds the GIL while its worker needs the
+    # import lock — every thread in the engine stops, health goes dark, the
+    # watchdog SIGKILLs. Importing them here, single-threaded and ahead of the
+    # first extraction, means the callback only ever finds cached modules.
+    # Best-effort: a missing module just falls out.
+    for _lazy in ("charset_normalizer", "charset_normalizer.api"):
+        try:
+            __import__(_lazy)
+        except Exception:  # noqa: S112 — absence is kreuzberg's problem, not fatal
+            pass
 
 
 def _worker_command() -> list[str]:

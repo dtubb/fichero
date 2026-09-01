@@ -16,6 +16,7 @@ from pydantic import BaseModel
 from fichero_server.db.app import get_app_db
 from fichero_server.security.keychain import get_api_key
 from fichero_server.llm.providers import get_provider_info
+from fichero_server.llm.model_types import infer_vision_support, is_batch_only_model
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -515,6 +516,10 @@ async def _live_openai_compatible_models(provider_type: str) -> list[dict]:
             "full_name": m.get("id", ""),
             "provider": provider_type,
             "mode": "chat",
+            # Same floor as the Anthropic/Google live catalogs: /v1/models on
+            # the OpenAI wire format carries ids and nothing else, so without
+            # this every GPT-4o-class model reads as text-only.
+            "supports_vision": infer_vision_support(m.get("id", "")),
         }
         for m in payload.get("data", [])
         if m.get("id")
@@ -540,12 +545,20 @@ async def _live_anthropic_models() -> list[dict]:
         )
         response.raise_for_status()
         payload = response.json()
+    # A live catalog ships ids with NO capability flags. Without a floor
+    # every freshly released Claude arrived as supports_vision=False and was
+    # filtered straight out of the vision pickers (Daniel, 2026-09-01:
+    # "cannot select a model like Opus"). The static registry still wins
+    # wherever it has a row — the enrichment in list_models_for_provider
+    # overwrites this key from the static entry whenever one exists, so the
+    # floor only survives for models the registry has never heard of.
     models = [
         {
             "model_id": m.get("id", ""),
             "full_name": m.get("display_name") or m.get("id", ""),
             "provider": "anthropic",
             "mode": "chat",
+            "supports_vision": infer_vision_support(m.get("id", "")),
         }
         for m in payload.get("data", [])
         if m.get("id")
@@ -576,6 +589,10 @@ async def _live_google_models() -> list[dict]:
         name = str(m.get("name", "")).removeprefix("models/")
         if not name or "generateContent" not in (m.get("supportedGenerationMethods") or []):
             continue
+        # Gemini's ListModels reports supportedGenerationMethods, not
+        # modalities — so the vision floor is the only thing that keeps a new
+        # Gemini out of the "text only" bucket (Daniel, 2026-09-01: "or
+        # Google"). inputTokenLimit alone never implied it.
         models.append({
             "model_id": name,
             "full_name": m.get("displayName") or name,
@@ -583,6 +600,7 @@ async def _live_google_models() -> list[dict]:
             "description": (m.get("description") or "")[:200],
             "provider": "google",
             "mode": "chat",
+            "supports_vision": infer_vision_support(name),
         })
     if models:
         _live_cache_put("google", models)
@@ -909,6 +927,13 @@ async def list_models_for_provider(
                     for key, value in static.items():
                         if value is not None:
                             live.setdefault(key, value)
+                    # The live row's supports_vision is a FAMILY FLOOR, not a
+                    # statement — setdefault would let a guess outrank the
+                    # registry. Where the registry has an opinion, it wins;
+                    # the floor only survives for models it has never heard
+                    # of, which is exactly what it is for.
+                    if "supports_vision" in static:
+                        live["supports_vision"] = bool(static["supports_vision"])
         else:
             raw_models = llm_list_models(provider_type)
         litellm_models = {m["model_id"]: m for m in raw_models}
@@ -938,6 +963,13 @@ async def list_models_for_provider(
                 data.setdefault("full_name", model_id)
                 data.setdefault("provider", provider_type)
                 models.append(ModelResponse(**data))
+
+    # A model Fichero cannot actually call must not be OFFERED. Batch-only
+    # SKUs answer a normal run with a 404 naming the provider's batches
+    # endpoint; Fichero has no batch client, so listing one only buys the
+    # user a failed run (Daniel, 2026-09-01). The preflight refuses one too
+    # — this is the half that stops it being picked in the first place.
+    models = [m for m in models if not is_batch_only_model(m.model_id)]
 
     # Apply filters
     if search:

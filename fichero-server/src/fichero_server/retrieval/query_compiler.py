@@ -16,6 +16,7 @@ still runs on the raw query so retrieval never breaks on an LLM outage.
 from __future__ import annotations
 
 import logging
+import re
 from typing import TYPE_CHECKING, Optional
 
 from pydantic import BaseModel, Field
@@ -37,12 +38,53 @@ _QUESTION_WORDS = {
 _COMPILER_SYSTEM_PROMPT = (
     "You compile a researcher's natural-language request into a structured "
     "archive search. Extract ONLY what the request states — never invent "
-    "entities, dates, or types that are not implied by the wording. Dates "
-    "must be ISO format (YYYY-MM-DD); use the span boundaries for partial "
-    "dates ('March 1948' → 1948-03-01 to 1948-03-31). semantic_query is the "
-    "request rephrased as a dense retrieval query in the request's own "
-    "language, stripped of filter words already captured in other fields."
+    "entities, dates, or types that are not implied by the wording. Put every "
+    "date the request implies in the date_from and date_to FIELDS, in ISO "
+    "format (YYYY-MM-DD), using the span boundaries for a partial date: "
+    "'March 1948' sets date_from=1948-03-01 and date_to=1948-03-31. "
+    "semantic_query is the request rephrased as a dense retrieval query in "
+    "the request's own language, stripped of every filter already captured in "
+    "another field. semantic_query must contain NO dates and NO date range — "
+    "the dates live in date_from/date_to and are shown to the user from there."
 )
+
+# The prompt above asks for a date-free semantic query; this GUARANTEES one.
+#
+# Daniel, 2026-09-01: the results bar read "1948-01-01 to 1948-03-01", which
+# looked like a scope the user had set. It was the compiler echoing its own
+# date extraction back into `semantic_query` — the old prompt spelled the
+# example as "1948-03-01 to 1948-03-31" and the model copied the phrasing
+# into the prose. A prompt is guidance, not a contract, so the boundary is
+# enforced here: an ISO date (with or without a range partner) is scrubbed
+# out of the retrieval text, which is also better RETRIEVAL — "1948-01-01"
+# is not a phrase any transcription contains.
+_ISO_DATE = r"\d{4}-\d{2}-\d{2}"
+_DATE_RANGE_RE = re.compile(
+    rf"\b{_ISO_DATE}\s*(?:to|-|–|—|until|through|a|hasta)\s*{_ISO_DATE}\b",
+    re.IGNORECASE,
+)
+_LONE_DATE_RE = re.compile(rf"\b{_ISO_DATE}\b")
+# Connectives left dangling by the scrub ("letters from  , mining").
+_DANGLING_RE = re.compile(
+    r"\s*\b(from|between|and|de|entre|desde|hasta|until|through|in|en)\b\s*$",
+    re.IGNORECASE,
+)
+
+
+def strip_dates_from_semantic_query(text: str) -> str:
+    """Remove ISO dates and ISO date ranges from a compiled retrieval query.
+
+    Ranges first, so "1948-01-01 to 1948-03-01" leaves no orphan "to".
+    Whitespace and stranded punctuation are then collapsed; a query that was
+    NOTHING but a date range comes back empty and the caller falls back to
+    the user's raw words rather than searching for a blank.
+    """
+    cleaned = _DATE_RANGE_RE.sub(" ", text)
+    cleaned = _LONE_DATE_RE.sub(" ", cleaned)
+    cleaned = re.sub(r"\s*[,;]\s*(?=[,;]|$)", "", cleaned)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip(" ,;-–—")
+    cleaned = _DANGLING_RE.sub("", cleaned).strip(" ,;-–—")
+    return cleaned
 
 
 class CompiledQuery(BaseModel):
@@ -150,6 +192,11 @@ async def compile_query(db: "Database", query: str) -> CompiledQuery:
     )
     if not isinstance(compiled, CompiledQuery):
         compiled = CompiledQuery.model_validate(compiled)
+    # The retrieval text never carries the dates it already put in the
+    # filter fields — see `strip_dates_from_semantic_query`.
+    compiled.semantic_query = strip_dates_from_semantic_query(compiled.semantic_query)
     if not compiled.semantic_query.strip():
+        # Scrubbed to nothing (or never produced): search the user's own
+        # words rather than a blank. The date FILTERS still apply.
         compiled.semantic_query = query
     return compiled

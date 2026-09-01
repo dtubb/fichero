@@ -4,10 +4,11 @@ import Testing
 
 @testable import Fichero
 
-/// A background-removed PNG must READ as transparent in the viewer — the bug
-/// was alpha rendering over a near-white pane ground, indistinguishable from
-/// a white background. TrackingImageView now draws a checkerboard under the
-/// image, but ONLY when the image actually carries an alpha channel.
+/// A background-removed PNG gets a PLAIN WHITE ground under the image's own
+/// frame (Daniel, 2026-09-01: "when transparent, I say just white" — the
+/// checkerboard this suite used to pin made a cleaned page look like a
+/// defect). The ground is drawn ONLY when the image carries an alpha channel;
+/// an opaque page is untouched.
 @MainActor
 struct TransparencyCheckerboardTests {
     private func renderedPixels(image: NSImage) -> [UInt8] {
@@ -50,12 +51,12 @@ struct TransparencyCheckerboardTests {
         return image
     }
 
-    @Test func transparentImageGetsCheckerGround() {
-        // Fully transparent pixels: whatever shows through is the checker.
+    @Test func transparentImageGetsWhiteGround() {
+        // Fully transparent pixels: whatever shows through is the ground. A
+        // ground that was drawn yields opaque samples; every one is white.
         let reds = renderedPixels(image: solidImage(white: 1, alpha: 0))
-        // The darker checker square is 0.78 grey (~199); pure white is 255.
-        // Its presence proves the ground was drawn.
-        #expect(reds.contains { (170...230).contains($0) })
+        #expect(!reds.isEmpty, "no ground was drawn under a transparent image")
+        #expect(reds.allSatisfy { $0 > 245 }, "the ground must be plain white, never a checker")
     }
 
     @Test func opaqueImageGetsNoChecker() {

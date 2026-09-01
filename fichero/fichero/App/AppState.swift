@@ -61,6 +61,15 @@ class AppState {
     var backendError: String? { engine.diagnosis }
     var documentCount: Int = 0  // Note: Now tracks active libraries count in multi-library architecture
     var backendVersion: String?
+    /// Set when the engine that answered is not the one this build embedded
+    /// (Daniel, 2026-09-01) — the whole user-facing sentence, ready to show.
+    /// nil whenever the versions agree, the engine is remote/dev-external, or
+    /// the app carries no build-time stamps. See `EmbeddedEngineVersionCheck`.
+    var engineVersionWarning: String?
+    /// Dismissal is per-session, not persisted: a mismatch is a live defect in
+    /// the build you are running, not a one-time explanation, so it must come
+    /// back on the next launch that still has it. Cleared on every new mismatch.
+    var engineVersionWarningDismissed: Bool = false
     var backendAccessError: AccessError?
     /// True while starting/probing. Backed by `engine.phase == .starting`.
     var isCheckingBackend: Bool { engine.isChecking }

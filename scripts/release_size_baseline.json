@@ -1,7 +1,7 @@
 {
   "release.app_binary": {
-    "bytes": 224242192,
-    "note": "2026-09-01: re-measured on the REAL beta artifacts (dmg-stage Fichero.app + Fichero.dmg); the previous app_binary baseline (~59KB) was measured without --app against a stub and never described the shipped binary"
+    "bytes": 60384,
+    "note": "tightened from 224242192 bytes"
   },
   "release.app_bundle": {
     "bytes": 1433040842,

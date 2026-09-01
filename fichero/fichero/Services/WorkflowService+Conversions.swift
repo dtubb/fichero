@@ -44,6 +44,13 @@ extension WorkflowService {
             supportsStreaming: tool.supportsStreaming,
             supportsStructuredOutput: tool.supportsStructuredOutput,
             sortOrder: tool.sortOrder,
+            // The engine's answer to "can this tool run on a recognition-only
+            // model?" (#4345), carried so the capability bar can pick the
+            // right TIER per step instead of inheriting the selection's
+            // (Daniel, 2026-09-01). Absent on an older engine = false, which
+            // leaves the bar's old tier behaviour and the engine as the only
+            // enforcement point — never harden this into a client-side gate.
+            requiresGenerativeModel: tool.requiresGenerativeModel ?? false,
             parallelism: tool.parallelism
         )
     }

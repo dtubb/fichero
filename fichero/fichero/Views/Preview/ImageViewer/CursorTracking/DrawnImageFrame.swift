@@ -22,7 +22,16 @@ enum DrawnImageFrame {
     static func compute(scrollView: NSScrollView, imageView: NSView) -> CGRect? {
         var imageRect = imageView.bounds
         if let hostView = imageView as? NSImageView, let img = hostView.image {
-            imageRect = aspectFitRect(of: img.size, in: imageRect)
+            // The preview's image view uses `.scaleNone`: the image is drawn
+            // at its NATIVE size, centred in the (letterbox-expanded) bounds
+            // — never fitted to them. Aspect-fitting here inflated the frame
+            // whenever the view was slack on BOTH axes (zoomed out past fit),
+            // so every box grew with it and spilled off the page (Daniel,
+            // 2026-09-01: "text regions don't update" at 47%). Proportional
+            // scaling modes keep the fit maths.
+            imageRect = hostView.imageScaling == .scaleNone
+                ? centeredNativeRect(of: img.size, in: imageRect)
+                : aspectFitRect(of: img.size, in: imageRect)
         }
         let visible = scrollView.convert(imageRect, from: imageView)
             .intersection(scrollView.bounds)
@@ -33,6 +42,22 @@ enum DrawnImageFrame {
         return CGRect(
             x: visible.minX, y: topLeftY,
             width: visible.width, height: visible.height
+        )
+    }
+
+    /// Where `.scaleNone` + `.alignCenter` draws the image: native size,
+    /// centred; when the bounds are SMALLER than the image (zoomed in, the
+    /// frame equals the image) the rect is the bounds themselves.
+    static func centeredNativeRect(of size: CGSize, in bounds: CGRect) -> CGRect {
+        guard size.width > 0, size.height > 0,
+              bounds.width > 0, bounds.height > 0 else { return bounds }
+        let width = min(size.width, bounds.width)
+        let height = min(size.height, bounds.height)
+        return CGRect(
+            x: bounds.midX - width / 2,
+            y: bounds.midY - height / 2,
+            width: width,
+            height: height
         )
     }
 

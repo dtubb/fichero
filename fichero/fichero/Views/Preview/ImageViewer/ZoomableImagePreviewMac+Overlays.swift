@@ -182,7 +182,8 @@ extension ZoomableImagePreview {
                             get: { CGFloat(loupeSize) },
                             set: { loupeSize = Double($0) }
                         ),
-                        coordinator: $imageCoordinator
+                        coordinator: $imageCoordinator,
+                        onPointer: { pointerFeed.publish($0) }
                     )
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                     .overlay(alignment: .topLeading) {

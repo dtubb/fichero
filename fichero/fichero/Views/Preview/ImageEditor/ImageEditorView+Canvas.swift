@@ -10,7 +10,13 @@ extension ImageEditorView {
 
     var canvas: some View {
         ZStack {
-            CheckerboardPattern().opacity(0.12)
+            // Transparency renders over PLAIN WHITE (Daniel, 2026-09-01:
+            // "when transparent, just white"). The checkerboard that used to
+            // sit here was invisible anyway — `.opacity(0.12)` over a
+            // near-white ground faded a 0.3-grey check to 0.036 — and the
+            // ruling is that a cut-out page should read the way the page will
+            // read, not like a graphics-editor swatch. The ground below is
+            // that white.
             if compareMode == .sideBySide {
                 if let original = model.originalPreview, let edited = model.editedPreview {
                     HStack(spacing: 8) {
@@ -18,6 +24,7 @@ extension ImageEditorView {
                         comparePane(image: edited.image, pixelSize: edited.pixelSize, title: "Edited")
                     }
                     .padding(8)
+                    .scaleEffect(compareZoom)
                 } else {
                     ProgressView("Loading compare preview…")
                         .controlSize(.small)
@@ -84,6 +91,11 @@ extension ImageEditorView {
                         }
                         .frame(width: frame.width, height: frame.height)
                         .offset(x: frame.minX, y: frame.minY)
+                        // Zoom BEFORE the gesture, deliberately: scaleEffect
+                        // scales the gesture's coordinate space with the view,
+                        // so `value.location.x / frame.width` keeps meaning the
+                        // same fraction of the image at any magnification.
+                        .scaleEffect(compareZoom)
                         // Drag on the image to adjust the wipe position
                         .gesture(
                             DragGesture(minimumDistance: 0)
@@ -132,6 +144,12 @@ extension ImageEditorView {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // A zoomed compare view must not spill over the toolbar or the
+        // neighbouring pane.
+        .clipped()
+        // The ground transparent pixels read as (Daniel, 2026-09-01: "when
+        // transparent, just white") — `.textBackgroundColor`, the same white
+        // the reader's page sits on, rather than a pattern.
         .background(Color(platformColor: .textBackgroundColor))
     }
 

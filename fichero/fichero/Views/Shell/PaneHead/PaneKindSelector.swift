@@ -27,9 +27,26 @@ struct PaneKindSelector<Lens: Hashable & Identifiable>: View {
     /// keeps its browse/dataset/canvas sections (Daniel, 2026-08-23). Empty →
     /// one flat list.
     var lensSections: [(String, [Lens])] = []
+    /// ONE glyph in the identity capsule (Daniel, 2026-09-01: "the proxy icon
+    /// and the kind icon appear twice — one icon"). The reader head carried a
+    /// kind glyph AND a lens glyph a divider apart, both reading as "a page of
+    /// text", right beside the breadcrumb's document icon. Panes that set this
+    /// always render the merged rung — the kind icon IS the lens menu — which
+    /// is the same collapse the narrowest width already performs, so no rung
+    /// and no menu entry is lost.
+    var collapsesKindIntoLens: Bool = false
     @Binding var lens: Lens
 
     var body: some View {
+        if collapsesKindIntoLens {
+            mergedSelector
+        } else {
+            adaptiveSelector
+        }
+    }
+
+    @ViewBuilder
+    private var adaptiveSelector: some View {
         // Adaptive (Daniel, 2026-08-23): when the pane is tight the lens
         // collapses to its ICON — the head can always be two glyphs on the
         // left, one crumb icon in the middle, one glyph on the right.

@@ -69,6 +69,7 @@ extension ZoomableImagePreview {
                 marquees: windowState?.previewMarquees,
                 imagePixelSize: imageSize == .zero ? nil : imageSize,
                 isAddingRegion: isAddingRegion,
+                pointer: pointerFeed,
                 onMoveCommit: { index, bbox in commitRegionMove(index: index, bbox: bbox) },
                 onPromote: { name, index in
                     promoteMarquees(named: name, onlyIndex: index)

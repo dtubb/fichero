@@ -177,6 +177,11 @@ def build_text_translate_prompt(config: dict) -> str:
     uses_llm=True,
     supports_batch=True,
     supports_structured_output=True,
+    # Same rule as `translate` (2026-09-01): the tool asks a model to render
+    # text in another language and then reads the ANSWER. Apple Vision's OCR
+    # route returns the recognized page instead, so the node is refused at
+    # preflight rather than billed and then parsed into nonsense.
+    requires_generative_model=True,
     input_ports=TEXT_TRANSLATE_INPUT_PORTS,
     output_ports=BASE_OUTPUT_PORTS,
     config_schema=merge_config_schema(BASE_CONFIG_SCHEMA, TEXT_TRANSLATE_CONFIG),

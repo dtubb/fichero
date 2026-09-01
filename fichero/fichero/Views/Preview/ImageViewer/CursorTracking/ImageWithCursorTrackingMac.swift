@@ -42,6 +42,9 @@ struct ImageWithCursorTracking: NSViewRepresentable {
     @Binding var loupeMagnification: CGFloat
     @Binding var loupeSize: CGFloat
     @Binding var coordinator: Coordinator?  // Exposed for external scroll control
+    /// Region-layer input (2026-09-01): clicks/drags the loupe left alone,
+    /// already NORMALIZED to image space. nil in hosts without a region layer.
+    var onPointer: ((PreviewPointerEvent) -> Void)?
 
     /// The scroll view's own configuration — zoom limits, Preview.app-style
     /// overlay scrollers, and the initial hidden state that prevents a flash
@@ -125,6 +128,24 @@ struct ImageWithCursorTracking: NSViewRepresentable {
             Task { @MainActor in
                 self.loupeSize = newSize
             }
+        }
+        // View point (bottom-left origin, letterbox-expanded frame) →
+        // normalized image point (top-left origin). The image is drawn at
+        // native size centred in the frame (`.scaleNone`), the same rule
+        // DrawnImageFrame.centeredNativeRect encodes for the overlays.
+        imageView.onPointer = { [weak imageView] phase, viewPoint, event in
+            guard let imageView, let image = imageView.image, let onPointer = self.onPointer else { return }
+            let drawn = DrawnImageFrame.centeredNativeRect(of: image.size, in: imageView.bounds)
+            guard drawn.width > 0, drawn.height > 0 else { return }
+            let normalized = CGPoint(
+                x: (viewPoint.x - drawn.minX) / drawn.width,
+                y: 1 - (viewPoint.y - drawn.minY) / drawn.height
+            )
+            onPointer(PreviewPointerEvent(
+                phase: phase, point: normalized,
+                shift: event.modifierFlags.contains(.shift),
+                clickCount: event.clickCount
+            ))
         }
         imageView.loupeMagnification = loupeMagnification
         imageView.loupeSize = loupeSize

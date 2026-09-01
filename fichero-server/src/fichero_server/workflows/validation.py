@@ -324,6 +324,29 @@ def _require_provider_credentials(provider: str) -> None:
     )
 
 
+def _require_interactive_model(provider: str, model: str) -> None:
+    """Raise when a RESOLVED model can only be called through a Batch API.
+
+    Sits beside :func:`_require_provider_credentials`: same question ("can
+    this node's resolved model actually serve this run?"), same pre-run
+    timing. A batch-only model answers a normal call with a 404 pointing at
+    the provider's batches endpoint — which arrived mid-run, after the run
+    had already been paid for (Daniel, 2026-09-01). Fichero has no batch
+    client, so the honest answer is to refuse before spending anything.
+    """
+    from fichero_server.llm import is_batch_only_model
+
+    if not is_batch_only_model(model):
+        return
+    where = provider or "the configured provider"
+    raise ValueError(
+        f"Model '{model}' on '{where}' is only "
+        "available through that provider's Batch API, which Fichero does not "
+        "use — a normal run would be refused by the provider. Pick a different "
+        "model for this node, or change the default in Settings."
+    )
+
+
 def _require_generative_model(tool_def: ToolDef, node: NodeDef, llm_config: LLMConfig) -> None:
     """Raise when a parse-the-answer tool resolves to a recognition-only model (#4345).
 
@@ -399,6 +422,7 @@ def _preflight_node_error(node: NodeDef, llm_config: LLMConfig) -> str | None:
                 kind=kind,
             )
             _require_provider_credentials(profile_config.provider)
+            _require_interactive_model(profile_config.provider, profile_config.model)
             return None
 
         if node_provider or node_model:
@@ -416,6 +440,7 @@ def _preflight_node_error(node: NodeDef, llm_config: LLMConfig) -> str | None:
             )
             enforce_local_only_provider(provider, model, kind=kind)
             _require_provider_credentials(provider)
+            _require_interactive_model(provider, model)
             return None
 
         provider = llm_config.provider
@@ -440,6 +465,7 @@ def _preflight_node_error(node: NodeDef, llm_config: LLMConfig) -> str | None:
                 kind=kind,
             )
             _require_provider_credentials(profile_config.provider)
+            _require_interactive_model(profile_config.provider, profile_config.model)
             return None
 
         if not (provider and model):
@@ -473,6 +499,7 @@ def _preflight_node_error(node: NodeDef, llm_config: LLMConfig) -> str | None:
             )
             enforce_local_only_provider(provider, model, kind=kind)
             _require_provider_credentials(provider)
+            _require_interactive_model(provider, model)
     except Exception as exc:
         node_label = node.label or node.id or node.tool
         return f"Node '{node_label}' ({node.tool}): {exc}"

@@ -63,10 +63,12 @@ extension ContentView {
                 await runTransientSearch(query)
             }
         }
-        // Changing type/sort re-runs the active query with a fresh page
-        // (#4112/S8) — the values are Strings, so one observed tuple
-        // keeps the modifier count down.
-        .onChange(of: [transientSearchType, transientSearchSortBy, transientSearchSortDirection]) { _, _ in
+        // Changing the retrieval type re-runs the active query with a fresh
+        // page (#4112/S8).
+        // Sort no longer lives in this bar, so only the retrieval type can
+        // change here; the bottom bar's sort re-orders the rows client-side
+        // and needs no round trip.
+        .onChange(of: transientSearchType) { _, _ in
             transientSearchLimit = Self.transientSearchPageSize
             Task { @MainActor in
                 await runTransientSearch(query)
@@ -96,33 +98,41 @@ extension ContentView {
 
     @ViewBuilder
     private func searchResultsHeaderRow(query: String, store: SearchStore) -> some View {
+        // CONSOLIDATION (Daniel, 2026-09-01: "too many controls"). What left
+        // this row and where it went — each control has ONE home now:
+        //  * Ask / Keyword — already a scope inside the search FIELD
+        //    (`ContentView+ToolbarSearch.swift`); it was never duplicated here.
+        //  * Sort By / Order — the library BOTTOM bar's sort menu, which
+        //    already overrides relevance mid-search (`userChoseSortDuringSearch`,
+        //    #11). Two sort controls disagreeing about one list is the defect.
+        //  * Chat — the toolbar's chat button. Chatting a result set is not a
+        //    search-specific verb.
+        //  * Done — Esc in the search field (`SearchEscapeDismiss` in ContentView+ToolbarSearch.swift), the
+        //    same gesture that dismisses every other transient state.
+        //  * Load More — folded into the count, which is the thing that
+        //    made you want more.
+        //
+        // What stays: the count (now also the pager), the scope control, the
+        // retrieval-type menu, and Save — the one explicit persistence path
+        // (#4086), which has no bottom-bar home to move to yet.
         HStack(spacing: 12) {
             searchStatusLabel(query: query, store: store)
+                // The flexible element must be the one that gives way, and it
+                // must be ALLOWED to (Daniel, 2026-09-01: the bar "rendered
+                // off-layout"). Every trailing control is `.fixedSize()`, so
+                // with no priority and no minimum the HStack's ideal width
+                // exceeded a narrow pane and the trailing buttons were pushed
+                // out of it — an HStack clips, it does not collapse.
+                .layoutPriority(1)
+                .frame(minWidth: 0, alignment: .leading)
 
-            Spacer()
+            Spacer(minLength: 8)
 
             searchScopePicker(query: query)
 
             searchOptionsMenu
 
-            if store.searchStats?.hasMore == true {
-                Button("Load More") {
-                    loadMoreTransientResults()
-                }
-                .controlSize(.small)
-            }
-
             searchResultActions(store: store)
-
-            Button {
-                toolbarSearchText = ""
-                clearTransientSearch()
-            } label: {
-                Label("Done", systemImage: "xmark.circle.fill")
-                    .labelStyle(.titleOnly)
-            }
-            .controlSize(.small)
-            .help("Clear the search and return to browsing")
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
@@ -149,37 +159,61 @@ extension ContentView {
                 .font(.callout)
                 .foregroundStyle(.secondary)
         } else {
-            // #4403: this read `searchStats.totalResults`, which is the
-            // DOCUMENT leg alone — so a query matching six artifacts and no
-            // documents said "3 results" above a section headed "Artifacts (6)".
-            //
-            // It now reads the SAME `SearchHitCounts` the body renders from:
-            // `transientSearchHitCounts` counts `searchResultDocuments`,
-            // `artifactHits`, `entityHits` and `claimHits` — the four arrays the
-            // sections below are built out of. Header and body are therefore one
-            // value from one source, and cannot disagree by construction.
-            //
-            // Deliberately NOT the server's new `rendered_total`, which is also
-            // correct arithmetic but is a SECOND source of truth for one number:
-            // it would have to be kept in step with whatever the client actually
-            // renders, and "two places compute the same thing" is the defect
-            // class this issue belongs to. rendered_total remains available and
-            // is worth using as a server/client AGREEMENT check — a different
-            // job from deciding what the header says.
-            // The grid IS the result set now (#4118): every leg's hits resolve
-            // into it as nodes, so the honest count is the rows on screen —
-            // summing the legs would double-count a doc that also matched an
-            // entity.
-            let total = searchResultDocuments.count
-            Text("\(total) result\(total == 1 ? "" : "s") for “\(query)”")
+            searchCountLabel(query: query, store: store)
+        }
+    }
+
+    /// The count, and the pager it justifies.
+    ///
+    /// #4403: this read `searchStats.totalResults`, which is the DOCUMENT leg
+    /// alone — so a query matching six artifacts and no documents said "3
+    /// results" above a section headed "Artifacts (6)". The grid IS the
+    /// result set now (#4118): every leg's hits resolve into it as nodes, so
+    /// the honest count is the rows on screen. Deliberately NOT the server's
+    /// `rendered_total`, which is correct arithmetic but a SECOND source of
+    /// truth for one number; it stays available as an AGREEMENT check.
+    @ViewBuilder
+    private func searchCountLabel(query: String, store: SearchStore) -> some View {
+        let total = searchResultDocuments.count
+        HStack(spacing: 6) {
+            // The header must say WHERE it looked (Daniel, 2026-09-01: the
+            // bar read as though the search were scoped to the open folder,
+            // and once named the wrong library). The scope comes from the
+            // same state the request is built from, so the sentence and the
+            // query cannot drift apart.
+            Text("\(total) result\(total == 1 ? "" : "s") for “\(query)” in \(searchScopeName)")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 // ONE line, truncating — in a narrow pane this wrapped into a
-                // one-character vertical column ("9 1 r e s u l t s…",
-                // Daniel 2026-08-22), same class as the editor's "S h".
+                // one-character vertical column ("9 1 r e s u l t s…", Daniel
+                // 2026-08-22), same class as the editor's "S h".
                 .lineLimit(1)
                 .truncationMode(.tail)
+
+            // Paging belongs to the count, not to a button three controls
+            // away from it: the number you are reading is the reason you want
+            // more of them. `.borderless`, not `.link` — LinkButtonStyle is
+            // macOS-only and this bar is multiplatform chrome.
+            if store.searchStats?.hasMore == true {
+                Button("Load more") { loadMoreTransientResults() }
+                    .buttonStyle(.borderless)
+                    .font(.callout)
+                    .fixedSize()
+            }
         }
+    }
+
+    /// What the results header names as the place searched: the browsed
+    /// folder when the scope control says so, otherwise THIS window's
+    /// library by its display name — never a name carried over from
+    /// whichever library was open before.
+    private var searchScopeName: String {
+        if transientSearchScopeIsFolder, let folder = transientSearchContextFolder {
+            return "“\(folder.name)”"
+        }
+        // The library the RESULTS came from — the same value the toolbar
+        // island shows, so the two cannot disagree.
+        return searchChromeLibraryName
     }
 
     /// Scope control (#4107/S3): whole library vs the folder that was being
@@ -205,21 +239,16 @@ extension ContentView {
         }
     }
 
-    /// What you can do with a result set: chat it, or save it. Both require
-    /// results that actually loaded, so a failed search offers neither.
+    /// What you can do with a result set that the SEARCH owns: save it.
+    ///
+    /// Chat left this bar (Daniel, 2026-09-01) — the toolbar's chat button is
+    /// the one chat affordance, and `openChatWithSearchResults()` stays as the
+    /// action it calls when a search is showing. Save has no bottom-bar home
+    /// yet and is the only explicit persistence path (#4086), so it stays here
+    /// rather than being deleted with nowhere to land.
     @ViewBuilder
     private func searchResultActions(store: SearchStore) -> some View {
         if !store.results.isEmpty && store.searchFailure == nil {
-            // Chat the search (#4117): the result set becomes the
-            // conversation's document scope.
-            Button {
-                openChatWithSearchResults()
-            } label: {
-                Label("Chat", systemImage: "bubble.left.and.text.bubble.right")
-            }
-            .controlSize(.small)
-            .help("Chat about these results — the search scope becomes the conversation's context")
-
             Button {
                 Task { await saveTransientSearch() }
             } label: {
@@ -268,7 +297,7 @@ extension ContentView {
         }
     }
 
-    /// Search type and sort order (#4112/S8), lifted out of
+    /// Search type (#4112/S8), lifted out of
     /// `searchResultsHeaderRow` (#4353).
     ///
     /// That function was at 95 of the 100-line ERROR threshold — five lines of
@@ -276,33 +305,29 @@ extension ContentView {
     /// is one self-contained control, not a slice taken to reach a number.
     @ViewBuilder
     private var searchOptionsMenu: some View {
-                // Real parameters (#4112/S8): search type + sort, the
-                // knobs the deleted mode surface used to own. One compact
-                // menu, not a pile of chrome.
+                // The one real retrieval parameter (#4112/S8) the deleted
+                // mode surface used to own. Sort moved to the bottom bar
+                // (2026-09-01); what is left is a single picker.
                 Menu {
                     Picker("Search Type", selection: $transientSearchType) {
                         Text("Hybrid").tag("hybrid")
                         Text("Semantic").tag("semantic")
                         Text("Full Text").tag("fulltext")
                     }
-                    Divider()
-                    Picker("Sort By", selection: $transientSearchSortBy) {
-                        Text("Relevance").tag("relevance")
-                        Text("Date").tag("date")
-                        Text("Name").tag("name")
-                        Text("Size").tag("size")
-                    }
-                    Picker("Order", selection: $transientSearchSortDirection) {
-                        Text("Descending").tag("desc")
-                        Text("Ascending").tag("asc")
-                    }
+                    // Sort left this menu (Daniel, 2026-09-01): the library
+                    // BOTTOM bar's sort menu already owns the order of these
+                    // rows — it sets `userChoseSortDuringSearch` and overrides
+                    // the engine's relevance default (#11). Two sort controls
+                    // over one list is the thing being fixed. The request
+                    // still asks the engine for relevance/desc, which is the
+                    // order the grid shows until the bottom bar says otherwise.
                 } label: {
-                    Label("Search Options", systemImage: "slider.horizontal.3")
+                    Label("Search Type", systemImage: "slider.horizontal.3")
                         .labelStyle(.iconOnly)
                 }
                 .menuStyle(.borderlessButton)
                 .fixedSize()
-                .help("Search type and sort order")
+                .help("How the engine retrieves: hybrid, semantic, or full text")
     }
 
 }

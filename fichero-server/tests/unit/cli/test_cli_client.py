@@ -671,6 +671,12 @@ def test_base_url_falls_back_to_default(monkeypatch):
     # off switch, so this asserts the URL default rather than whether a
     # Fichero app happens to be running on the developer's machine.
     monkeypatch.setenv("FICHERO_UDS", "0")
+    # The default URL is https over loopback, and __init__ then reads the
+    # engine's certificate from 127.0.0.1:8765 to pin it (_loopback_trust).
+    # That is a live connection — stub it, so the test asserts the URL
+    # default with or without an engine running.
+    import ssl
+    monkeypatch.setattr(client_module, "_loopback_trust", lambda base_url: ssl.create_default_context())
     c = FicheroClient(token="x")
     assert c.base_url == DEFAULT_BASE_URL
     c.close()

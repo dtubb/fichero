@@ -28,14 +28,7 @@ struct LibraryActivityIndicator: View {
 
     @Environment(DocumentStore.self) private var documentStore
 
-    private var activity: ContainerActivity {
-        let counts = documentStore.childActivityCounts(of: document.id)
-        return ContainerActivity.resolve(
-            isSelfProcessing: document.status == .processing,
-            busyChildren: counts.busy,
-            totalChildren: counts.total
-        )
-    }
+    private var activity: ContainerActivity { Self.activity(for: document, in: documentStore) }
 
     var body: some View {
         switch activity {
@@ -76,15 +69,58 @@ struct LibraryActivityIndicator: View {
         .accessibilityLabel(summary)
     }
 
-    /// Whether this document contributes any indicator at all, so a call site
-    /// can keep rendering its own idle treatment (a status dot, a checkmark)
-    /// without this view having to know about it.
-    static func isIdle(_ document: Document, in store: DocumentStore) -> Bool {
+    /// The ONE resolution both the view and `isIdle` read, so the indicator
+    /// and the call site that decides whether to mount it cannot disagree.
+    ///
+    /// ## The leaf fast path (2026-09-01 — "scrolling list view feels slow")
+    ///
+    /// `childActivityCounts` is memoised per (revision, overrides) — but the
+    /// memo is keyed by PARENT ID, so the first render pass after any store
+    /// revision is one cache MISS per row, and each miss scans
+    /// `currentDocuments` looking for children. Over a folder of N rows that is
+    /// O(N²) on the main thread, and `revision` bumps on every refresh and every
+    /// live-delivery splice — which is exactly while the user is scrolling.
+    /// #4417's own note records the same scan costing 231ms before it was
+    /// memoised; the memo removed the repeat cost, not the first-pass cost.
+    ///
+    /// A document that cannot HOLD children cannot have a busy one. For those
+    /// rows `resolve` can only ever answer from `isSelfProcessing`, so asking
+    /// the store is asking a question whose answer is already known. The
+    /// predicate is the app's own `isNavigableContainer` (folder or PDF) — the
+    /// same answer navigation and drop targeting use — so a surface can never
+    /// disagree with itself about what holds things.
+    ///
+    /// The saving is not only the scan. `MailStyleRow` reads `documentStore`
+    /// from the environment, and it is `@Observable`: touching
+    /// `childActivityCounts` registers that row as a DEPENDENT of the store, so
+    /// every store change re-ran every visible row's `body` regardless of the
+    /// row's own `.equatable()` identity. A leaf row now reads no store
+    /// property at all, so store churn no longer invalidates it.
+    static func activity(for document: Document, in store: DocumentStore) -> ContainerActivity {
+        guard document.isNavigableContainer else {
+            // Still through the ONE resolver — with the counts a leaf provably
+            // has — rather than re-deriving the rule here. A second copy of
+            // "processing means spin" in this file is exactly the drift
+            // `LibraryActivityAgreementTests` exists to catch, and skipping a
+            // lookup is no reason to earn it.
+            return ContainerActivity.resolve(
+                isSelfProcessing: document.status == .processing,
+                busyChildren: 0,
+                totalChildren: 0
+            )
+        }
         let counts = store.childActivityCounts(of: document.id)
         return ContainerActivity.resolve(
             isSelfProcessing: document.status == .processing,
             busyChildren: counts.busy,
             totalChildren: counts.total
-        ) == .idle
+        )
+    }
+
+    /// Whether this document contributes any indicator at all, so a call site
+    /// can keep rendering its own idle treatment (a status dot, a checkmark)
+    /// without this view having to know about it.
+    static func isIdle(_ document: Document, in store: DocumentStore) -> Bool {
+        activity(for: document, in: store) == .idle
     }
 }

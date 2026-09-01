@@ -45,16 +45,30 @@ struct ModelChipToolbarItem: View {
     @State private var isPresented = false
     @Environment(ChatService.self) private var chatService: ChatService?
 
+    /// Every configured model, NEVER filtered — only marked (Daniel,
+    /// 2026-09-01: "cannot select a model like Opus or Google — maybe it's
+    /// not got the right vision toggle"). Hiding a model because a capability
+    /// flag says it lacks vision makes a metadata gap indistinguishable from
+    /// a provider that ships no such model, and the flag is exactly the thing
+    /// that goes missing for a model newer than the catalog. A greyed row
+    /// with a reason can be argued with; an absent row cannot.
     private var pickableModels: [(provider: String, model: String, vision: Bool)] {
         WorkflowRunProviderCache.shared.providers.flatMap { provider in
-            provider.models.compactMap { model -> (String, String, Bool)? in
+            provider.models.map { model -> (String, String, Bool) in
                 let visionCapable = provider.modelDetails
                     .first { $0.modelId == model }?.supportsVision
                     ?? provider.supportsVision
-                if prefersVision && !visionCapable { return nil }
                 return (provider.id, model, visionCapable)
             }
         }
+    }
+
+    /// Why this row cannot be picked for the tier the chip resolves, or nil
+    /// when it can. The ONLY gate, and it states itself.
+    private func disabledReason(vision: Bool) -> String? {
+        guard prefersVision, !vision else { return nil }
+        return "This selection is a page, so the run needs a model that can "
+            + "read images. The catalog does not list image input for this model."
     }
 
     /// Catalog pricing per model id, fetched once per provider when the
@@ -146,7 +160,8 @@ struct ModelChipToolbarItem: View {
                             provider: choice.provider,
                             isCurrent: choice.model == currentModel,
                             supportsVision: choice.vision,
-                            pricing: modelPricing[choice.model]
+                            pricing: modelPricing[choice.model],
+                            disabledReason: disabledReason(vision: choice.vision)
                         ) {
                             select((choice.provider, choice.model))
                         }
@@ -250,6 +265,11 @@ struct ModelChipToolbarItem: View {
 struct ModelFamilyMark: View {
     let model: String
     let provider: String
+    /// Edge of the square the mark occupies. The toolbar chip wants 20pt;
+    /// the workflow sentence's lozenges are 10pt type, where a 20pt logo
+    /// would set the line height on its own — so the mark scales rather
+    /// than the sentence growing around it.
+    var side: CGFloat = 20
 
     /// The bundled provider logos Settings already ships
     /// (Resources/Assets.xcassets/Providers/*) — matched on the MODEL first,
@@ -287,23 +307,23 @@ struct ModelFamilyMark: View {
         let haystack = "\(provider)/\(model)".lowercased()
         if haystack.contains("apple") {
             Image(systemName: "apple.logo")
-                .font(.system(size: 12))
-                .frame(width: 20, height: 20)
+                .font(.system(size: side * 0.6))
+                .frame(width: side, height: side)
         } else if let logoAsset {
             Image(logoAsset)
                 .resizable()
                 .aspectRatio(contentMode: .fit)
-                .frame(width: 18, height: 18)
-                .frame(width: 20, height: 20)
+                .frame(width: side * 0.9, height: side * 0.9)
+                .frame(width: side, height: side)
                 .overlay(alignment: .bottomTrailing) {
                     if isRouted {
                         Image("Providers/OpenRouter")
                             .resizable()
                             .aspectRatio(contentMode: .fit)
-                            .frame(width: 9, height: 9)
+                            .frame(width: side * 0.45, height: side * 0.45)
                             .padding(1)
                             .background(.background, in: Circle())
-                            .offset(x: 3, y: 3)
+                            .offset(x: side * 0.15, y: side * 0.15)
                     }
                 }
         } else {
@@ -311,9 +331,9 @@ struct ModelFamilyMark: View {
             // a quiet circle. This is what lets logo-first survive providers
             // that ship no logo.
             Text(model.isEmpty ? "?" : String(model.prefix(1)).uppercased())
-                .font(.system(size: 11, weight: .bold, design: .rounded))
+                .font(.system(size: side * 0.55, weight: .bold, design: .rounded))
                 .foregroundStyle(.secondary)
-                .frame(width: 20, height: 20)
+                .frame(width: side, height: side)
                 .background(.quaternary.opacity(0.5), in: Circle())
         }
     }
@@ -327,6 +347,9 @@ private struct ModelPickerRow: View {
     let isCurrent: Bool
     var supportsVision: Bool = false
     var pricing: (input: Double, output: Double)?
+    /// Non-nil when the row is not pickable for this selection — greys the
+    /// row and becomes its tooltip, so the reason travels with the refusal.
+    var disabledReason: String?
     let action: () -> Void
 
     var body: some View {
@@ -369,5 +392,8 @@ private struct ModelPickerRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .disabled(disabledReason != nil)
+        .opacity(disabledReason == nil ? 1 : 0.45)
+        .help(disabledReason ?? "\(model) — \(provider)")
     }
 }

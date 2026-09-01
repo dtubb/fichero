@@ -51,7 +51,7 @@ enum SelectionGrammar {
 
     // MARK: - Inputs
 
-    /// The two modifiers that change what a click means. Deliberately NOT
+    /// The modifiers that change what a click means. Deliberately NOT
     /// `NSEvent.ModifierFlags`: this type has to be constructible in a test and
     /// on iOS, so the platform event is translated at the call site.
     struct Modifiers: OptionSet, Equatable, Sendable {
@@ -59,6 +59,24 @@ enum SelectionGrammar {
 
         static let shift = Modifiers(rawValue: 1 << 0)
         static let command = Modifiers(rawValue: 1 << 1)
+        /// ⌥ — a TOGGLE, exactly like ⌘ (Daniel, 2026-09-01).
+        ///
+        /// It is here because of a specific complaint: with everything
+        /// selected, ⌥⇧-clicking one item collapsed the whole selection into a
+        /// range instead of dropping that item. ⌥⇧ is the chord Daniel's hand
+        /// reaches for, and the grammar had no case for it — ⌥ was simply
+        /// dropped at the call site, so ⌥⇧ arrived as a bare ⇧ and did the one
+        /// thing ⇧ means: extend a range from the anchor.
+        ///
+        /// Ranking it ABOVE `.shift` (see `click`) is the whole point. ⌥ is
+        /// only ever added to a chord deliberately, so when it is present the
+        /// user is naming an item, not a span.
+        static let option = Modifiers(rawValue: 1 << 2)
+
+        /// True when this chord means "toggle exactly the row I clicked".
+        var togglesOneRow: Bool {
+            contains(.command) || contains(.option)
+        }
 
         init(rawValue: Int) {
             self.rawValue = rawValue
@@ -111,11 +129,21 @@ enum SelectionGrammar {
     ///
     /// - plain → select one, anchor and cursor move to it
     /// - ⌘ → toggle one, keep the rest, anchor and cursor move to it
+    /// - ⌥ (and ⌥⇧) → the same toggle. ⌥ outranks ⇧ (2026-09-01).
     /// - ⇧ → contiguous range from the anchor to the clicked row; the anchor
     ///   does NOT move (repeated ⇧-clicks re-extend from the same place), the
     ///   cursor does
     /// - ⇧⌘ → the same range, UNIONED with the existing selection, so a range
     ///   can be added to a discontiguous set
+    ///
+    /// **⌥ before ⇧.** With everything selected, ⌥⇧-clicking a row has to drop
+    /// that row — that is the gesture's whole purpose, and it is what Daniel
+    /// re-tested on 2026-09-01. Handled below ⇧ it would instead build a range
+    /// from the anchor to that row, i.e. collapse the selection to a span that
+    /// still CONTAINS the row the user was pointing at to remove. There is no
+    /// reading of ⌥⇧ where a range is the intent, so ⌥ claims the click first.
+    /// ⇧⌘ keeps its additive-range meaning because ⌘ without ⌥ is the chord
+    /// Finder gives that job; only ⌥ jumps the queue.
     ///
     /// A ⇧-click always produces a selection. If the clicked row is not in
     /// `ids` at all — a deep Miller-column child, which lives in a different
@@ -128,6 +156,9 @@ enum SelectionGrammar {
         anchor: String?,
         modifiers: Modifiers
     ) -> Result {
+        if modifiers.contains(.option) {
+            return toggle(id: id, in: selection)
+        }
         if modifiers.contains(.shift) {
             let anchorId = resolvedAnchor(
                 anchor: anchor,
@@ -149,19 +180,27 @@ enum SelectionGrammar {
         }
 
         if modifiers.contains(.command) {
-            var updated = selection
-            if updated.contains(id) {
-                updated.remove(id)
-            } else {
-                updated.insert(id)
-            }
-            // The anchor follows a ⌘-click even when the click DESELECTED the
-            // row: Finder extends from where you last acted, not from where
-            // you last landed a selection.
-            return Result(selection: updated, anchor: id, cursor: id)
+            return toggle(id: id, in: selection)
         }
 
         return Result(selection: [id], anchor: id, cursor: id)
+    }
+
+    /// Add the row if it is out, remove it if it is in — the ⌘ and ⌥ branches
+    /// of `click`, which must not drift apart (they are the same gesture with
+    /// two spellings).
+    ///
+    /// The anchor follows a toggle even when the toggle DESELECTED the row:
+    /// Finder extends from where you last acted, not from where you last
+    /// landed a selection (rule 1 above).
+    static func toggle(id: String, in selection: Set<String>) -> Result {
+        var updated = selection
+        if updated.contains(id) {
+            updated.remove(id)
+        } else {
+            updated.insert(id)
+        }
+        return Result(selection: updated, anchor: id, cursor: id)
     }
 
     // MARK: - Keyboard
@@ -325,13 +364,15 @@ enum SelectionGrammar {
         // rule 2 says the anchor holds and only the cursor end moves. Skips
         // both click-shaped branches below, because with ⇧ known they would
         // both be wrong answers.
-        if !modifiers.contains(.shift) {
-            // ⌘ was down and exactly one row changed: that is a ⌘-toggle, and
-            // rule 1 says the anchor follows the acted row EVEN when the
+        // ⌥ outranks ⇧ here for the same reason it does in `click`: ⌥⇧ is a
+        // toggle, so the range branch below must not claim it.
+        if !modifiers.contains(.shift) || modifiers.contains(.option) {
+            // ⌘ (or ⌥) was down and exactly one row changed: that is a toggle,
+            // and rule 1 says the anchor follows the acted row EVEN when the
             // toggle deselected it — including deselecting down to a single
             // survivor, which without the modifier is indistinguishable from
             // a plain click on that survivor.
-            if modifiers.contains(.command), changed.count == 1, let acted = changed.first {
+            if modifiers.togglesOneRow, changed.count == 1, let acted = changed.first {
                 return Result(selection: current, anchor: acted, cursor: acted)
             }
 

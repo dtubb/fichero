@@ -62,6 +62,45 @@ def _refresh_registry_cache(cache: Path) -> bool:
         return False
 
 
+_REFRESH_STARTED = False
+
+
+def _schedule_registry_refresh(cache: Path) -> None:
+    """Refresh the registry cache WITHOUT stalling a request (2026-09-01).
+
+    The refresh is a 5-second-timeout HTTPS GET, and ``_price_table`` is
+    reached from ``async def`` route handlers (workflow cost estimation, the
+    provider-model catalogs) and from the runner's per-node cost tally.
+    Calling ``httpx.get`` there blocked the event loop — the whole engine —
+    for up to five seconds, on every fresh install and again each week. That
+    is a real slice of "runs feel slow for a single file", and it is entirely
+    fixed cost: the answer served afterwards is identical.
+
+    So: serve what is on disk NOW — the stale cache, or the vendored snapshot
+    beneath it — and refresh on a daemon thread for the next caller. Nothing
+    here buys correctness, only freshness, so nothing here is worth waiting
+    for.
+    """
+    global _REFRESH_STARTED
+    if _REFRESH_STARTED:
+        return
+    _REFRESH_STARTED = True
+    import threading
+
+    def _refresh() -> None:
+        global _PRICE_TABLE
+        if not _refresh_registry_cache(cache):
+            return
+        # Drop the memo so the next lookup picks the fresh table up. A torn
+        # read is impossible: the global is only ever rebound to a complete
+        # dict, never mutated in place.
+        _PRICE_TABLE = None
+
+    threading.Thread(
+        target=_refresh, name="model-registry-refresh", daemon=True
+    ).start()
+
+
 def _price_table() -> dict[str, dict[str, Any]]:
     """The model registry, LIVE-preferring (Daniel, 2026-08-27: "we want to
     make sure we're checking live, not a cached thing from months ago").
@@ -82,7 +121,7 @@ def _price_table() -> dict[str, dict[str, Any]]:
         except OSError:
             age = None
         if age is None or age > _REGISTRY_MAX_AGE_SECONDS:
-            _refresh_registry_cache(cache)
+            _schedule_registry_refresh(cache)
         try:
             if cache.exists():
                 table = json.loads(cache.read_text(encoding="utf-8"))
@@ -331,3 +370,109 @@ def list_models_for_provider(provider: str) -> list[dict[str, Any]]:
     # Sort by name
     models.sort(key=lambda m: m["model_id"])
     return models
+
+
+# =============================================================================
+# Selectability — which registry rows may be OFFERED as a run's model
+# =============================================================================
+
+# Endpoints on which a model can serve an interactive (synchronous) call.
+# A registry row that lists endpoints but NONE of these is batch-only: the
+# provider will answer a normal chat call with a 404 telling you to post the
+# request to its batches endpoint instead. Offering such a model as a default
+# is what burned a run (Daniel, 2026-09-01): "Requested model is unavailable
+# on this provider… This model is only available through the Batch API."
+_INTERACTIVE_ENDPOINT_MARKERS = (
+    "chat/completions",
+    "completions",
+    "responses",
+    "messages",
+    "generatecontent",
+    "predict",
+    "ocr",
+    "realtime",
+    "embeddings",
+    "audio",
+    "images",
+)
+
+# Ids that ANNOUNCE themselves as batch-only. Providers that ship a separate
+# batch SKU name it in the id; the registry does not always carry a row for
+# those, so the name is the only signal available offline.
+_BATCH_ONLY_ID_MARKERS = ("-batch", "batch-", ":batch", "/batch", "_batch")
+
+
+def is_batch_only_model(model: str) -> bool:
+    """True when ``model`` can only be called through a provider's Batch API.
+
+    Two signals, cheapest first:
+
+    1. The model id names itself a batch SKU.
+    2. The registry row lists ``supported_endpoints`` and every one of them is
+       a batch endpoint.
+
+    A model with NO registry row is never called batch-only — absence of
+    evidence is not evidence, and guessing here would hide working models
+    (the failure mode of the vision gating this sits beside).
+    """
+    raw = (model or "").strip().lower()
+    if not raw:
+        return False
+    stem = raw.rsplit("/", 1)[-1]
+    if any(marker in stem for marker in _BATCH_ONLY_ID_MARKERS):
+        return True
+    entry = _resolve_entry(raw)
+    if not entry:
+        return False
+    endpoints = entry.get("supported_endpoints")
+    if not isinstance(endpoints, (list, tuple)) or not endpoints:
+        return False
+    for endpoint in endpoints:
+        text = str(endpoint).lower()
+        if any(marker in text for marker in _INTERACTIVE_ENDPOINT_MARKERS):
+            return False
+    return True
+
+
+# Model-family fragments that are vision-capable across every id in the
+# family. Used ONLY as a floor when neither a live catalog nor the vendored
+# registry says anything: a live provider catalog (Anthropic's /v1/models,
+# Google's ListModels) ships ids WITHOUT capability flags, so a brand-new
+# Opus or Gemini fell through as supports_vision=False and vanished from
+# every vision picker (Daniel, 2026-09-01: "cannot select a model like Opus
+# or Google"). A model the registry explicitly marks non-vision keeps that.
+# Family PREFIXES, not exact versions: the whole point is to cover a model
+# that shipped after the snapshot, so "claude-3, claude-4" would have needed
+# editing on the day Opus 4.8 arrived and would have failed exactly the way
+# the registry already fails. The known text-only siblings below carve out
+# the exceptions.
+_VISION_FAMILY_MARKERS = (
+    "claude-", "gemini-", "gemini-pro-vision",
+    "gpt-4o", "gpt-4.1", "gpt-4-turbo", "gpt-5", "gpt-6", "o1", "o3", "o4",
+    "pixtral", "llava", "qwen-vl", "qwen2-vl", "qwen2.5-vl", "qwen3-vl",
+    "-vl-", "-vl:", "vision", "grok-2-vision", "grok-3", "grok-4",
+    "internvl", "minicpm-v", "moondream", "phi-4-multimodal",
+)
+
+# Families that share a vision-family prefix but are text-only, so the floor
+# above does not promote them (embedding/TTS/audio siblings mostly).
+_NON_VISION_MARKERS = (
+    "embed", "tts", "whisper", "moderation", "rerank", "guard",
+    "claude-1", "claude-2", "claude-instant", "gemini-1.0",
+    "-audio", "text-only", "gemma",
+)
+
+
+def infer_vision_support(model: str) -> bool:
+    """Best-effort "can this model read an image?" from its id alone.
+
+    The floor for catalogs that publish ids without capabilities. Never
+    consulted when a source states the capability — see the call sites, which
+    all use it as a fallback rather than an override.
+    """
+    raw = (model or "").strip().lower()
+    if not raw:
+        return False
+    if any(marker in raw for marker in _NON_VISION_MARKERS):
+        return False
+    return any(marker in raw for marker in _VISION_FAMILY_MARKERS)

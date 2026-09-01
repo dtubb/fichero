@@ -106,9 +106,19 @@ extension EmbeddedBackendService {
         let startTime = Date()
         var pollInterval: Duration = .milliseconds(100)
         var markedBound = false
+        var markedFirstPoll = false
 
         while true {
             if Task.isCancelled { throw CancellationError() }
+
+            if !markedFirstPoll {
+                markedFirstPoll = true
+                // Closes the app-side gap that no stamp covered: spawn returning
+                // vs. the first time we actually ask the engine anything. A slow
+                // TLS/socket setup shows up here rather than being charged to the
+                // engine's own startup.
+                LaunchProfile.milestone("first readiness poll issued")
+            }
 
             let result = await probeReadiness()
             lastReadiness = result
@@ -160,7 +170,13 @@ extension EmbeddedBackendService {
 
             try await Task.sleep(for: pollInterval)
             if Date().timeIntervalSince(startTime) > 1 {
-                pollInterval = .milliseconds(500)
+                // 250ms, not 500ms (Daniel, 2026-09-01: launch feels slow). The
+                // engine takes seconds to import, so the app used to discover a
+                // ready engine up to half a second after it was actually ready —
+                // dead time at the very end of launch, where it is most visible.
+                // Halving the interval halves that; the probe is one request over
+                // a local socket, so the extra polls cost nothing measurable.
+                pollInterval = .milliseconds(250)
             }
         }
     }
@@ -238,7 +254,9 @@ extension EmbeddedBackendService {
 
             try await Task.sleep(for: pollInterval)
             if Date().timeIntervalSince(startTime) > 1 {
-                pollInterval = .milliseconds(500)
+                // Matches the spawn wait's 250ms (2026-09-01) — same dead-time
+                // argument on the adopt/external path.
+                pollInterval = .milliseconds(250)
             }
         }
 

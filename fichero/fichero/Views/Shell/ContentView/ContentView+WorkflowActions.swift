@@ -5,6 +5,40 @@ private let workflowLogger = Logger(subsystem: "app.fichero.fichero", category: 
 
 extension ContentView {
 
+    // MARK: - Per-step model resolution
+
+    /// The provider/model an UNPINNED chain step must send so the run does
+    /// what the bar's sentence promised (Daniel, 2026-09-01). nil for the
+    /// common case, where the engine resolves the same tier by itself — see
+    /// `WorkflowBarPolicy.implicitRunOverride` for the one exception.
+    @MainActor
+    func workflowBarImplicitOverride(
+        for step: StagedWorkflowStep
+    ) -> WorkflowBarModelChoice? {
+        WorkflowBarPolicy.implicitRunOverride(
+            for: step,
+            tools: Array(workflowStore.toolRegistry.values),
+            textTier: workflowBarTextTierDefault,
+            visionTier: workflowBarVisionTierDefault,
+            selectionPrefersVision: selectionPrefersVisionModel
+        )
+    }
+
+    /// The overrides one staged step rides into the run with: its pin, or the
+    /// implicit tier correction, or nothing.
+    @MainActor
+    func workflowBarRunOverrides(
+        for step: StagedWorkflowStep
+    ) -> (provider: String?, model: String?) {
+        if step.hasModelOverride {
+            return (step.providerOverride, step.modelOverride)
+        }
+        guard let implicit = workflowBarImplicitOverride(for: step) else {
+            return (step.providerOverride, step.modelOverride)
+        }
+        return (implicit.provider, implicit.model)
+    }
+
     // MARK: - Workflow Actions
 
     func addNodeFromTool(_ tool: ToolInfo, at position: CGPoint) {

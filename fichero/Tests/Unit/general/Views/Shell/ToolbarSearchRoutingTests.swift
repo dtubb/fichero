@@ -224,7 +224,10 @@ final class ToolbarSearchRoutingTests: XCTestCase {
         // through the SAME router the sidebar chat entry uses.
         XCTAssertTrue(resultsSource.contains("func openChatWithSearchResults"))
         XCTAssertTrue(resultsSource.contains("ChatWithDocsRouter.mainChatRoute(documentIds: ids)"))
-        XCTAssertTrue(resultsSource.contains("Label(\"Chat\""))
+        // No Chat CONTROL in the results bar (Daniel, 2026-09-01: "chat can be
+        // at bottom; we can chat with any view") — the toolbar's chat button is
+        // the one affordance; the router stays as the action it calls.
+        XCTAssertFalse(resultsSource.contains("Label(\"Chat\""))
     }
 
     func testArtifactHitsPresentInTheResultsBar() throws {

@@ -109,7 +109,12 @@ struct PreviewHeadLensControls: View {
         Button {
             zoomControlsVisible.toggle()
         } label: {
-            Image(systemName: zoomControlsVisible ? "plus.magnifyingglass" : "minus.magnifyingglass")
+            // ONE icon, both states (Daniel, 2026-09-01). Swapping the glyph
+            // for +/− made the button read as "zoom in" / "zoom out" rather
+            // than "show the zoom controls" — a toggle whose picture changes
+            // is a different button. The loupe-with-a-plus stays put; only the
+            // tint says whether the cluster is on.
+            Image(systemName: "plus.magnifyingglass")
         }
         .buttonStyle(.borderless)
         .foregroundStyle(zoomControlsVisible ? Color.accentColor : Color.secondary)

@@ -179,7 +179,10 @@ extension ContentView {
                 scrollSync: documentScrollSync,
                 onPageSelected: { index in syncGridSelectionToPDFPage(index: index) },
                 onClose: { setPaneVisible(.reading, false) },
-                multiDocuments: readerStack
+                multiDocuments: readerStack,
+                // The active library-search terms, so the reader lights up
+                // where the selected result matched (Daniel, 2026-09-01).
+                searchHighlightQuery: chromeUX.readerFindQuery
             ))
         }
         // Native focus rings OFF in this pane: macOS 14+ makes scroll views

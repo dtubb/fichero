@@ -23,10 +23,13 @@ enum RegionPalette {
 /// for the handful of SELECTED boxes and marquees, so the hundreds-of-boxes
 /// perf fix is not regressed.
 ///
-/// Event posture: pan is the NSScrollView's two-finger scroll (scrollWheel),
-/// which a SwiftUI tap layer does not consume — so a full-frame TAP target is
-/// safe here where a full-frame drag target would not be. Drags exist only
-/// (a) inside a selected region (move) and (b) in add mode (rubber band).
+/// Event posture (2026-09-01): this layer owns NO gestures and is never
+/// hit-testable (except the marquee name badges). Its clicks and drags come
+/// from the AppKit image view via `PreviewPointerFeed`. The earlier
+/// "a SwiftUI tap layer does not consume scrollWheel" belief was wrong on
+/// macOS 26: a full-frame `contentShape` + gesture made the hosting view
+/// claim hit-testing, and two-finger pan, pinch, and the page/rendition
+/// swipes never reached the NSScrollView underneath.
 struct RegionInteractionLayer: View {
     /// Displayed boxes with their FULL-list indices into the owning
     /// artifact's `ocr_geometry.boxes` — the index the engine addresses.
@@ -46,6 +49,12 @@ struct RegionInteractionLayer: View {
     let imagePixelSize: CGSize?
     /// True while rubber-band add mode is armed.
     let isAddingRegion: Bool
+    /// The image view's clicks and drags, normalized (2026-09-01). This
+    /// layer owns NO gestures: a gesture-bearing SwiftUI view over the
+    /// NSScrollView made the hosting view claim hit-testing, and two-finger
+    /// pan, pinch and the swipes never reached the scroll view. nil in
+    /// headless hosts (the layer is then display-only).
+    var pointer: PreviewPointerFeed?
     /// Commit a moved region: (full-list index, new normalized bbox).
     let onMoveCommit: (Int, [Double]) -> Void
     /// Save the drawn marquees as regions: (name, marquee index). An empty
@@ -65,8 +74,9 @@ struct RegionInteractionLayer: View {
     /// The armed "name this region" request (shared with the context-menu
     /// verb, which arms it without a badge of its own).
     @State private var naming = RegionNamingRequest.shared
-    /// Live move drag: which box, and how far (view points).
+    /// Live move drag: which box, and how far (view points); where it began.
     @State private var moveDrag: (index: Int, translation: CGSize)?
+    @State private var moveStart: CGPoint?
     /// Live rubber-band corners (view points).
     @State private var bandStart: CGPoint?
     @State private var bandCurrent: CGPoint?
@@ -77,27 +87,28 @@ struct RegionInteractionLayer: View {
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .topLeading) {
-                marqueeRects(in: geo.size)
-                selectedRegionRects(in: geo.size)
-                if let rect = liveBandRect {
-                    RoundedRectangle(cornerRadius: 2)
-                        .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 1.5, dash: [4]))
-                        .background(Color.accentColor.opacity(0.12))
-                        .frame(width: rect.width, height: rect.height)
-                        .offset(x: rect.minX, y: rect.minY)
-                        .allowsHitTesting(false)
+                // Display layer: never hit-testable, so every trackpad
+                // gesture falls through to the NSScrollView beneath.
+                ZStack(alignment: .topLeading) {
+                    marqueeRects(in: geo.size)
+                    selectedRegionRects(in: geo.size)
+                    if let rect = liveBandRect {
+                        RoundedRectangle(cornerRadius: 2)
+                            .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 1.5, dash: [4]))
+                            .background(Color.accentColor.opacity(0.12))
+                            .frame(width: rect.width, height: rect.height)
+                            .offset(x: rect.minX, y: rect.minY)
+                    }
                 }
+                .allowsHitTesting(false)
+                // The ONE clickable thing: each marquee's name badge. A
+                // 20pt button claims only its own square.
+                marqueeBadges(in: geo.size)
             }
             .frame(width: geo.size.width, height: geo.size.height)
-            .contentShape(Rectangle())
-            .gesture(isAddingRegion || isWordSelecting ? bandGesture(in: geo.size) : nil)
-            .gesture(tapGesture(in: geo.size))
-            // Simultaneous, not competing: a double-click should SELECT the
-            // region and then enter it, which is what the two gestures do
-            // together. Racing them would cost the selection.
-            .simultaneousGesture(openGesture(in: geo.size))
-            .onModifierKeysChanged(mask: .shift) { _, new in
-                shiftHeld = new.contains(.shift)
+            .onChange(of: pointer?.sequence) { _, _ in
+                guard let event = pointer?.latest else { return }
+                handlePointer(event, in: geo.size)
             }
         }
     }
@@ -127,7 +138,6 @@ struct RegionInteractionLayer: View {
                         .background(color.opacity(0.14))
                         .frame(width: rect.width, height: rect.height)
                         .offset(x: rect.minX + offset.width, y: rect.minY + offset.height)
-                        .gesture(moveGesture(for: (index: index, box: box), in: size))
                 }
             }
         }
@@ -151,7 +161,20 @@ struct RegionInteractionLayer: View {
                         .background(Color.accentColor.opacity(isPicked ? 0.18 : 0.08))
                         .frame(width: rect.width, height: rect.height)
                         .offset(x: rect.minX, y: rect.minY)
-                        .allowsHitTesting(false)
+                }
+            }
+        }
+    }
+
+    /// The badges alone, in their own hit-testable layer above the inert
+    /// display layer (see `body`).
+    @ViewBuilder
+    private func marqueeBadges(in size: CGSize) -> some View {
+        if let marquees, marquees.documentId == documentId {
+            ForEach(Array(marquees.rects.enumerated()), id: \.offset) { index, box in
+                if let rect = BoundingBoxGeometry.viewRect(
+                    normalized: box, in: size, visible: visible
+                ) {
                     marqueeNameBadge(index: index, rect: rect)
                 }
             }
@@ -212,43 +235,94 @@ struct RegionInteractionLayer: View {
 
     // MARK: - Gestures
 
+    /// Where a normalized image point lands in this layer.
+    private func layerPoint(_ normalized: CGPoint, in size: CGSize) -> CGPoint? {
+        guard let rect = BoundingBoxGeometry.viewRect(
+            normalized: [normalized.x, normalized.y, 0, 0], in: size, visible: visible
+        ) else { return nil }
+        return CGPoint(x: rect.minX, y: rect.minY)
+    }
+
+    /// The AppKit pointer, dispatched by phase. Mouse-down decides the verb
+    /// (check, band, move, or click-select) exactly as the three former
+    /// gestures did; drag and up continue whatever the down began.
+    private func handlePointer(_ event: PreviewPointerEvent, in size: CGSize) {
+        guard let point = layerPoint(event.point, in: size) else { return }
+        shiftHeld = event.shift
+        switch event.phase {
+        case .pressed:
+            handlePress(at: point, clickCount: event.clickCount, in: size)
+        case .dragged:
+            if bandStart != nil {
+                bandCurrent = point
+            } else if let drag = moveDrag, let start = moveStart {
+                moveDrag = (drag.index, CGSize(width: point.x - start.x, height: point.y - start.y))
+            }
+        case .released:
+            if let start = bandStart {
+                finishBand(from: start, to: point, in: size)
+            } else if let drag = moveDrag {
+                finishMove(drag, in: size)
+            }
+        }
+    }
+
+    /// Mouse-down decides the verb: double-click enters, the check tool
+    /// checks, an armed band mode starts a rubber band, a press on a selected
+    /// box starts a move, anything else is a click-select.
+    private func handlePress(at point: CGPoint, clickCount: Int, in size: CGSize) {
+        if clickCount == 2 {
+            // Select, THEN enter — the two verbs of a double-click.
+            handleTap(at: point, in: size)
+            handleOpen(at: point, in: size)
+            return
+        }
+        if windowState?.activeMarkupTool == .check {
+            handleCheckTap(at: point, in: size)
+            return
+        }
+        if isAddingRegion || isWordSelecting {
+            bandStart = point
+            bandCurrent = point
+            return
+        }
+        if let hit = selectedBoxIndex(at: point, in: size) {
+            moveDrag = (hit, .zero)
+            moveStart = point
+            return
+        }
+        handleTap(at: point, in: size)
+    }
+
     /// Click = select; ⇧-click = add/toggle; click-away = deselect (regions
     /// AND marquees — the honest reading of "click-away clears").
-    private func tapGesture(in size: CGSize) -> some Gesture {
-        SpatialTapGesture().onEnded { value in
-            // CHECK tool (Daniel, 2026-08-30): armed, a click checks the
-            // nearest line — margin clicks included — cycling ✓ ✓✓ ✓✓✓ off.
-            if windowState?.activeMarkupTool == .check {
-                handleCheckTap(at: value.location, in: size)
-                return
-            }
-            let additive = shiftHeld
-            // Marquees first: they are drawn on top and are what the user
-            // most recently made.
-            if let marquees, marquees.documentId == documentId,
-               let picked = RegionHitTesting.pick(
-                   at: value.location, boxes: marquees.rects, in: size, visible: visible
-               ) {
-                marquees.selectedIndex = picked
-                return
-            }
-            if let artifactId,
-               let picked = RegionHitTesting.pick(
-                   at: value.location, boxes: boxes.map { $0.box.bbox }, in: size, visible: visible
-               ) {
-                let fullIndex = boxes[picked].index
-                if additive {
-                    selection.toggle(fullIndex, artifactId: artifactId, documentId: documentId)
-                } else {
-                    selection.select(fullIndex, artifactId: artifactId, documentId: documentId)
-                }
-                marquees?.selectedIndex = nil
-                return
-            }
-            // Empty ground: clear everything ephemeral.
-            selection.clear()
-            marquees?.clear()
+    private func handleTap(at location: CGPoint, in size: CGSize) {
+        let additive = shiftHeld
+        // Marquees first: they are drawn on top and are what the user
+        // most recently made.
+        if let marquees, marquees.documentId == documentId,
+           let picked = RegionHitTesting.pick(
+               at: location, boxes: marquees.rects, in: size, visible: visible
+           ) {
+            marquees.selectedIndex = picked
+            return
         }
+        if let artifactId,
+           let picked = RegionHitTesting.pick(
+               at: location, boxes: boxes.map { $0.box.bbox }, in: size, visible: visible
+           ) {
+            let fullIndex = boxes[picked].index
+            if additive {
+                selection.toggle(fullIndex, artifactId: artifactId, documentId: documentId)
+            } else {
+                selection.select(fullIndex, artifactId: artifactId, documentId: documentId)
+            }
+            marquees?.selectedIndex = nil
+            return
+        }
+        // Empty ground: clear everything ephemeral.
+        selection.clear()
+        marquees?.clear()
     }
 
     /// ENTER a region (Daniel, 2026-08-31: "double click on it to be taken to
@@ -256,17 +330,25 @@ struct RegionInteractionLayer: View {
     /// what you can enter (the visible-surface ruling) — and hands the host
     /// the full-list index; the host decides whether the box has a child node
     /// to open or is a bare geometry box to zoom to.
-    private func openGesture(in size: CGSize) -> some Gesture {
-        SpatialTapGesture(count: 2).onEnded { value in
-            // The check tool owns the click while armed; a double-click there
-            // is two cycles of the check, not a navigation.
-            guard windowState?.activeMarkupTool != .check, artifactId != nil else { return }
-            guard let picked = RegionHitTesting.pick(
-                at: value.location, boxes: boxes.map { $0.box.bbox },
-                in: size, visible: visible
-            ) else { return }
-            onOpenRegion(boxes[picked].index)
-        }
+    private func handleOpen(at location: CGPoint, in size: CGSize) {
+        // The check tool owns the click while armed; a double-click there
+        // is two cycles of the check, not a navigation.
+        guard windowState?.activeMarkupTool != .check, artifactId != nil else { return }
+        guard let picked = RegionHitTesting.pick(
+            at: location, boxes: boxes.map { $0.box.bbox },
+            in: size, visible: visible
+        ) else { return }
+        onOpenRegion(boxes[picked].index)
+    }
+
+    /// A SELECTED box under the point (full-list index), for move drags.
+    private func selectedBoxIndex(at location: CGPoint, in size: CGSize) -> Int? {
+        guard let artifactId, selection.artifactId == artifactId else { return nil }
+        let candidates = selection.indices.filter { allBoxes.indices.contains($0) }
+        guard let picked = RegionHitTesting.pick(
+            at: location, boxes: candidates.map { allBoxes[$0].bbox }, in: size, visible: visible
+        ) else { return nil }
+        return candidates[picked]
     }
 
     /// Word-boundary marquee armed (Daniel, 2026-08-30, ruling 2)? The band
@@ -275,29 +357,20 @@ struct RegionInteractionLayer: View {
         windowState?.activeMarkupTool == .wordSelect
     }
 
-    /// Rubber-band drag (armed modes only — a full-frame drag target outside
-    /// an armed mode would fight the platform): a new marquee in add mode, a
-    /// word-box selection in word-select mode.
-    private func bandGesture(in size: CGSize) -> some Gesture {
-        DragGesture(minimumDistance: 2)
-            .onChanged { value in
-                if bandStart == nil { bandStart = value.startLocation }
-                bandCurrent = value.location
-            }
-            .onEnded { value in
-                defer { bandStart = nil; bandCurrent = nil }
-                let start = bandStart ?? value.startLocation
-                guard let box = BoundingBoxGeometry.normalizedBox(
-                    from: start, to: value.location, in: size, visible: visible
-                ) else { return }
-                if isWordSelecting {
-                    selectWords(inBand: box)
-                } else {
-                    marquees?.add(
-                        box, documentId: documentId, imagePixelSize: imagePixelSize
-                    )
-                }
-            }
+    /// Rubber band released: a new marquee in add mode, a word-box selection
+    /// in word-select mode. A degenerate (tap-sized) band does nothing.
+    private func finishBand(from start: CGPoint, to end: CGPoint, in size: CGSize) {
+        defer { bandStart = nil; bandCurrent = nil }
+        guard let box = BoundingBoxGeometry.normalizedBox(
+            from: start, to: end, in: size, visible: visible
+        ) else { return }
+        if isWordSelecting {
+            selectWords(inBand: box)
+        } else {
+            marquees?.add(
+                box, documentId: documentId, imagePixelSize: imagePixelSize
+            )
+        }
     }
 
     /// Select (⇧ = extend) the word boxes the band touched — they light via
@@ -320,23 +393,17 @@ struct RegionInteractionLayer: View {
         }
     }
 
-    /// Drag a SELECTED region to move it; the bbox commits on mouse-up.
-    private func moveGesture(
-        for item: (index: Int, box: OCRGeometryBox), in size: CGSize
-    ) -> some Gesture {
-        DragGesture(minimumDistance: 2)
-            .onChanged { value in
-                moveDrag = (item.index, value.translation)
-            }
-            .onEnded { value in
-                moveDrag = nil
-                if let moved = RegionHitTesting.moved(
-                    bbox: item.box.bbox, byViewDelta: value.translation,
-                    in: size, visible: visible
-                ) {
-                    onMoveCommit(item.index, moved)
-                }
-            }
+    /// A SELECTED region was dragged; the bbox commits on mouse-up. A drag
+    /// too small to mean anything leaves the region where it was.
+    private func finishMove(_ drag: (index: Int, translation: CGSize), in size: CGSize) {
+        defer { moveDrag = nil; moveStart = nil }
+        guard allBoxes.indices.contains(drag.index),
+              abs(drag.translation.width) >= 2 || abs(drag.translation.height) >= 2,
+              let moved = RegionHitTesting.moved(
+                  bbox: allBoxes[drag.index].bbox, byViewDelta: drag.translation,
+                  in: size, visible: visible
+              ) else { return }
+        onMoveCommit(drag.index, moved)
     }
 }
 

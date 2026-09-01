@@ -7,20 +7,71 @@ import SwiftUI
 /// Closures are non-Equatable, so publishing a raw `() -> Void` via
 /// `focusedSceneValue` causes SwiftUI to see a new value on every `body` pass
 /// → republishes → cascading invalidation ("FocusedValue update tried to update
-/// multiple times per frame"). This wrapper keys equality on `isEnabled` only;
-/// the `run` closure is excluded (closures are non-Equatable). Because the
-/// enable state is the only part readers query for menu-item enable/disable, this
-/// is semantically identical to the old nil-means-disabled pattern while being
-/// stable across re-renders.
+/// multiple times per frame"). This wrapper keys equality on the SMALL
+/// description of what the action will do; the `run` closure is excluded
+/// (closures are non-Equatable).
+///
+/// ## Why `target` exists (2026-09-01 — "⌘A still does nothing")
+///
+/// Equality on `isEnabled` ALONE is not merely a coarse key, it is a stale
+/// one. `run` is a closure over a `LibraryView` **struct value** — a snapshot
+/// of that view's state at the instant it was published. When SwiftUI finds
+/// the new value equal to the published one it keeps the OLD value, closure
+/// included. So the very first publish that said `isEnabled: true` won the
+/// key for the rest of the session: every later publish — a new folder, a new
+/// view mode, a filter, a re-sort — compared equal and was dropped, and ⌘A
+/// went on calling `selectAll()` over the row list of whichever folder
+/// happened to be open when the action first became enabled. Selecting a set
+/// of ids that are not in the current list looks exactly like doing nothing,
+/// which is what it was reported as. #4376 published the action correctly and
+/// #4436's table fix claimed focus correctly; both were downstream of this.
+///
+/// `target` is a cheap signature of what the action ACTS ON (the row set for
+/// ⌘A, the selection for Delete). It changes only when the answer genuinely
+/// changes, so the anti-churn property the wrapper exists for is intact: a
+/// body pass that changes nothing still publishes an equal value.
 struct FocusedLibraryAction: Equatable {
     /// Whether the action is currently available (non-empty list or selection).
     let isEnabled: Bool
+    /// A cheap signature of what `run` will act on. Two actions with the same
+    /// `isEnabled` and the same `target` are interchangeable; a change in
+    /// either MUST republish, or the stale closure is kept.
+    let target: String
     /// Execute the action.
     let run: () -> Void
 
-    static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.isEnabled == rhs.isEnabled
+    /// `target` defaults to empty for the callers whose closure captures
+    /// nothing that can go stale (an `@Observable` store, a binding).
+    init(isEnabled: Bool, target: String = "", run: @escaping () -> Void) {
+        self.isEnabled = isEnabled
+        self.target = target
+        self.run = run
     }
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.isEnabled == rhs.isEnabled && lhs.target == rhs.target
+    }
+}
+
+/// The `target` signature for a list of ids, without paying for the whole list.
+///
+/// Count plus the two ends plus the mode name distinguishes every change that
+/// matters here — a different folder, a different view mode, a filter that
+/// removed rows, a re-sort that moved the ends — while staying O(1) per body
+/// pass. Deliberately NOT the joined id list: that is O(n) string building on
+/// every body pass of a 600-row folder, which is the cost this wrapper was
+/// invented to avoid.
+func focusedActionTarget(mode: String, ids: [String]) -> String {
+    "\(mode)|\(ids.count)|\(ids.first ?? "-")|\(ids.last ?? "-")"
+}
+
+/// The same signature for an UNORDERED selection. `min`/`max` rather than
+/// `sorted()`: a set has no visual order to take ends from, and sorting a
+/// 600-row ⌘A selection on every body pass is exactly the per-frame cost this
+/// wrapper exists to avoid. Lexical ends are deterministic, which is all an
+/// identity needs to be.
+func focusedActionTarget(mode: String, selection: Set<String>) -> String {
+    "\(mode)|\(selection.count)|\(selection.min() ?? "-")|\(selection.max() ?? "-")"
 }
 
 /// Equatable wrapper for the library sort-field focused value.

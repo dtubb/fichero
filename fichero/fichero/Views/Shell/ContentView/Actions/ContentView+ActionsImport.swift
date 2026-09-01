@@ -63,6 +63,10 @@ extension ContentView {
         sidebarMode = route.sidebarMode
         viewMode = route.viewMode
         activeSearchQuery = route.query
+        // A new query owns the grid from the moment it is submitted — the
+        // previous query's rows are cleared, not left standing under a bar
+        // that says "Searching…" (Daniel, 2026-09-01).
+        clearTransientSearchResults()
         transientSearchLimit = Self.transientSearchPageSize
         // New query → relevance order until the user explicitly re-sorts (#11).
         libraryToolbarState.userChoseSortDuringSearch = false

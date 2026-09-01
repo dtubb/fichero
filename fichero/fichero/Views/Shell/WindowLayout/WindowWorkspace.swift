@@ -66,9 +66,12 @@ struct ToolbarVisibilityPlan: Codable, Equatable, Sendable {
     var showNavigation: Bool = true
     /// The Library/Preview/Reader/Chat pane-toggle group.
     var showPaneToggles: Bool = true
-    /// The Split / New Tab menu.
+    /// LEGACY, decode-only (Daniel, 2026-09-01). Split/New Tab and Layouts
+    /// stopped being toolbar items of their own when they became sections of
+    /// the Workspaces menu, so nothing gates on these any more. They stay in
+    /// the shape so workspaces saved before the merge still decode, and so a
+    /// round-trip of an old file does not silently drop keys.
     var showSplitMenu: Bool = true
-    /// The Layouts (show-and-hide-views) chooser.
     var showLayoutsMenu: Bool = true
 
     /// Everything on — what a fresh window gets.

@@ -698,9 +698,22 @@ def _derive_capabilities_from_registry(provider_type: str, model_id: str) -> lis
         logger.warning("Capability derivation failed for %s: %s", model_id, exc)
         return []
 
+    from fichero_server.llm import infer_vision_support
+
     info = registry.get(model_id)
     if not info:
-        return []
+        # A model the VENDORED registry has never heard of is the normal case
+        # for anything released since the snapshot — every new Opus, every new
+        # Gemini. Returning [] saved it capability-less, and a capability-less
+        # model is rejected by the Defaults pickers as "(saved — wrong
+        # capability)": the model was addable and then unselectable (Daniel,
+        # 2026-09-01: "cannot select a model like Opus or Google"). An unknown
+        # chat model is at minimum text-capable; vision comes off the family
+        # floor. A guess that can be corrected beats a silence that cannot.
+        caps = ["text"]
+        if infer_vision_support(model_id):
+            caps.append("vision")
+        return caps
 
     caps: list[str] = []
     mode = str(info.get("mode") or "chat").lower()
@@ -709,7 +722,16 @@ def _derive_capabilities_from_registry(provider_type: str, model_id: str) -> lis
         caps.append("text")
     if mode == "audio_transcription" or info.get("supports_audio_input"):
         caps.extend(["audio", "transcription"])
-    if info.get("supports_vision"):
+    # The floor applies only where the row is SILENT. A registry row that
+    # explicitly says supports_vision=False is a statement, and overriding a
+    # statement with a name-shaped guess would put text-only models into the
+    # Vision slot — the mirror of the bug being fixed, and worse, because it
+    # fails at the provider instead of in a picker.
+    if info.get("supports_vision") or (
+        "supports_vision" not in info
+        and mode in ("chat", "completion", "responses")
+        and infer_vision_support(model_id)
+    ):
         caps.append("vision")
     if info.get("supports_function_calling"):
         caps.append("tools")

@@ -106,7 +106,21 @@ async def detect_regions(
         )
         prompt = _build_prompt(inputs.get("language", "auto"), return_boxes=True)
         effective_llm = llm_config
-        if not effective_llm.provider:
+        # "Missing" is not the only unusable config here (Daniel, 2026-09-01:
+        # "Detect Regions with a VLM on Apple Vision fails"). Apple Vision is
+        # RECOGNITION-only: it ignores the prompt and returns plain OCR text,
+        # so the boxes prompt built just above is never asked and the geometry
+        # parser downstream gets a transcript where it expects JSON — a silent
+        # regions artifact with no boxes rather than an error. This tool
+        # registers supports_apple_vision=True (its Apple branch is the whole
+        # point), which disarms every downstream refusal, so the substitution
+        # has to happen HERE.
+        from fichero_server.llm import (  # noqa: PLC0415
+            is_recognition_only_vision_model,
+        )
+        if not effective_llm.provider or is_recognition_only_vision_model(
+            effective_llm.provider, effective_llm.model or ""
+        ):
             # The tool registers uses_llm=False (true for the Apple default),
             # so the builder never resolves a vision default for VLM mode —
             # resolve the Settings vision tier here instead.
@@ -116,6 +130,20 @@ async def detect_regions(
             prov, mod = resolve_model_alias_for_capability(
                 "$vision_medium", "", required_capability="vision"
             )
+            if is_recognition_only_vision_model(prov, mod or ""):
+                # The configured Vision tier is ITSELF Apple Vision. Say so
+                # rather than running a VLM preset on a model that cannot
+                # answer a prompt — the failure it produced was a regions
+                # artifact that looked fine and had no geometry.
+                raise ValueError(
+                    "Detect Regions (VLM) needs a vision model that can answer "
+                    "a prompt, but the configured Vision default is Apple "
+                    "Vision — on-device OCR, which returns recognized text and "
+                    "ignores the prompt. Set a vision-capable LLM as the Vision "
+                    "default in Settings, pin one on this step, or run the "
+                    "plain Detect Regions preset, which uses Apple Vision's own "
+                    "geometry."
+                )
             effective_llm = LLMConfig(provider=prov, model=mod)
     else:
         # The Apple branch never sends a prompt to a model; kept explicit so

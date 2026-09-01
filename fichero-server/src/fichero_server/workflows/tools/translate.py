@@ -64,6 +64,12 @@ TRANSLATE_INPUT_PORTS = [
     uses_llm=True,
     supports_batch=True,
     supports_structured_output=False,
+    # Translation is GENERATION, not recognition (Daniel, 2026-09-01: a chain
+    # read "use apple-vision to Translate" and the step failed). Apple Vision
+    # is an OCR pass that ignores the prompt and returns the page's own text,
+    # so a node resolved onto it would "translate" a document into itself.
+    # Preflight refuses that before the run is paid for.
+    requires_generative_model=True,
     input_ports=TRANSLATE_INPUT_PORTS,
     output_ports=BASE_OUTPUT_PORTS,
     config_schema=merge_config_schema(BASE_CONFIG_SCHEMA, TRANSLATE_CONFIG),

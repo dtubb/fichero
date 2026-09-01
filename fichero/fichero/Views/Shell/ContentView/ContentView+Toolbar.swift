@@ -18,9 +18,10 @@ enum ContentToolbarID {
     // carries its own NSToolbar identity (com.apple.SwiftUI.search).
     // fichero.annotationBar folded into the workflowSuggest item
     // (Daniel, 2026-08-30: the two bar toggles share one capsule).
-    static let splitMenu = "fichero.splitMenu"
+    // fichero.splitMenu and fichero.layoutChooser retired (Daniel,
+    // 2026-09-01): Split/New Tab and Layouts are sections of the Workspaces
+    // menu now, not toolbar items of their own.
     static let workspacesMenu = "fichero.workspacesMenu"
-    static let layoutChooser = "fichero.layoutChooser"
 }
 
 // MARK: - Toolbar Content
@@ -190,26 +191,17 @@ extension ContentView {
             // 2026-08-29: "not proper macOS search… use the default one") —
             // registered in ContentView+InspectorContainer/+ToolbarSearch.
 
-            // Xcode 27's window chrome (Daniel, 2026-08-29): Split/New Tab,
-            // Workspaces, and the Views chooser — three identified items
-            // after the pane group, one control each, bodies in
-            // ContentView+LayoutChooser.swift. Workspaces is now the ONE
-            // workspace control (2026-08-31): the Views chooser no longer
-            // repeats the saved list, it only shows and hides views.
-            if toolbarVisibility.showSplitMenu {
-                ToolbarItem(id: ContentToolbarID.splitMenu, placement: .automatic) {
-                    splitAndTabMenu
-                }
-            }
-            // NEVER gated: the Workspaces menu hosts the Toolbar Buttons
-            // submenu, so it is the way every other button comes back.
+            // ONE item, not three (Daniel, 2026-09-01). Split/New Tab,
+            // Workspaces and Layouts were three identified toolbar items
+            // asking the same question — how is this window arranged — so a
+            // user had to know which of three menus held the verb they
+            // wanted. They are sections of the Workspaces menu now; the body
+            // is in ContentView+LayoutChooser.swift.
+            //
+            // NEVER gated: this menu hosts the Toolbar Buttons submenu, so it
+            // is the way every other button comes back.
             ToolbarItem(id: ContentToolbarID.workspacesMenu, placement: .automatic) {
                 workspacesMenu
-            }
-            if toolbarVisibility.showLayoutsMenu {
-                ToolbarItem(id: ContentToolbarID.layoutChooser, placement: .automatic) {
-                    viewsChooserMenu
-                }
             }
         }
 
@@ -310,7 +302,7 @@ extension ContentView {
                         isImporting: isImporting,
                         importProgress: importProgress,
                         libraryId: windowState.libraryId,
-                        libraryName: windowState.library?.displayName ?? "Library",
+                        libraryName: searchChromeLibraryName,
                         selection: StatusIslandSelection(
                             count: browserSelection.count,
                             label: inspectorDocument.map { DocumentTitle.displayName(for: $0) },
@@ -362,7 +354,7 @@ extension ContentView {
                         isImporting: isImporting,
                         importProgress: importProgress,
                         libraryId: windowState.libraryId,
-                        libraryName: windowState.library?.displayName ?? "Library",
+                        libraryName: searchChromeLibraryName,
                         importError: $importError
                     )
                 }
@@ -416,6 +408,10 @@ extension ContentView {
                 systemImage: "arrow.triangle.branch"
             )
             .labelStyle(.iconOnly)
+            // Lit while the bar is up, like the markup toggle beside it
+            // (Daniel, 2026-09-01: "do the same for workflows").
+            .foregroundStyle(showWorkflowBar
+                ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.primary))
         }
         .help(showWorkflowBar
               ? "Hide the workflow bar"

@@ -127,18 +127,9 @@ struct MagnifierPanelView: View {
                         .disabled(magnification >= maxMagnification)
                     }
 
-                    Divider()
-                        .frame(height: 12)
-
-                    // Coordinates
-                    let pixelX = Int(cursorPosition.x * imageSize.width)
-                    let pixelY = Int((1 - cursorPosition.y) * imageSize.height)
-
-                    Text("X: \(pixelX)  Y: \(pixelY)")
-                        .font(.caption)
-                        .monospacedDigit()
-                        .help("Image pixel under the magnifier centre (origin top-left). "
-                              + "Move the cursor over the image to change it; lock to freeze it")
+                    // The X/Y pixel readout is gone (Daniel, 2026-09-01): the
+                    // strip is for LOOKING at the page, and a coordinate pair
+                    // nobody acts on is just noise beside the controls.
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
@@ -399,15 +390,7 @@ struct MagnifierPanelView: View {
                         .disabled(magnification >= maxMagnification)
                     }
 
-                    Divider()
-                        .frame(height: 12)
-
-                    let pixelX = Int(cursorPosition.x * imageSize.width)
-                    let pixelY = Int((1 - cursorPosition.y) * imageSize.height)
-
-                    Text("X: \(pixelX)  Y: \(pixelY)")
-                        .font(.caption)
-                        .monospacedDigit()
+                    // No X/Y readout — see the macOS strip (Daniel, 2026-09-01).
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)

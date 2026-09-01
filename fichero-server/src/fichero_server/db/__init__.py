@@ -519,15 +519,93 @@ def _fold_with_index(text: str) -> tuple[str, list[int]]:
     return "".join(folded_chars), index_map
 
 
+# Function words carry no retrieval signal, and the lexical leg unions its
+# terms (``_contains_any_term``) — so ONE stopword in a natural-language
+# question matched the entire corpus. "Where was the dam built" tokenised to
+# {where, was, the, dam, built}; every page containing "the" became a
+# full-text candidate, and full-text candidates are EXEMPT from ``min_score``
+# (#4236), so the noise could not be floored out either. Daniel, 2026-09-01:
+# a diary page about river velocities and cattle came back as a top hit.
+#
+# EN + ES, because the corpus is bilingual (Marshall diaries + colonial
+# Spanish). Kept small and closed-class on purpose: only words that are
+# never the point of a query. Numerals and content words are untouched.
+_SEARCH_STOPWORDS: frozenset[str] = frozenset(
+    {
+        # English
+        "a", "an", "and", "are", "as", "at", "be", "been", "but", "by",
+        "can", "did", "do", "does", "for", "from", "had", "has", "have", "he",
+        "her", "him", "his", "how", "i", "if", "in", "into", "is", "it", "its",
+        "me", "my", "no", "not", "of", "on", "or", "our", "out", "she", "so",
+        "than", "that", "the", "their", "them", "then", "there", "these",
+        "they", "this", "to", "up", "us", "was", "we", "were", "what", "when",
+        "where", "which", "who", "whom", "why", "will", "with", "would", "you",
+        "your",
+        # Spanish
+        "al", "como", "con", "cual", "cuando", "de", "del", "donde", "el",
+        "ella", "ellos", "en", "era", "es", "esa", "ese", "esta", "este",
+        "esto", "fue", "ha", "han", "la", "las", "le", "les", "lo", "los",
+        "mas", "me", "mi", "muy", "nos", "o", "para", "pero", "por", "que",
+        "se", "ser", "si", "sin", "sobre", "son", "su", "sus", "te", "un",
+        "una", "uno", "y", "ya",
+    }
+)
+
+
 def _search_match_terms(query: str) -> list[str]:
-    """Return ordered excerpt terms, preferring the full phrase over tokens."""
+    """Return ordered excerpt terms, preferring the full phrase over tokens.
+
+    The first element is always the WHOLE folded query — a verbatim phrase
+    hit is the strongest lexical evidence there is. After it come the
+    individual tokens, with stopwords removed (``_SEARCH_STOPWORDS``) so a
+    question's function words cannot match the whole library.
+
+    The strip is conditional: a query made ENTIRELY of stopwords ("the
+    hague" folds fine, but a literal "who" search must still work) keeps its
+    tokens, because dropping them all would turn a real search into silence.
+    """
     folded = _fold_for_search(query.strip())
     if not folded:
         return []
-    terms = [folded]
-    terms.extend(t for t in re.findall(r"\w+", folded) if len(t) > 1)
+    tokens = [t for t in re.findall(r"\w+", folded) if len(t) > 1]
+    content_tokens = [t for t in tokens if t not in _SEARCH_STOPWORDS]
+    terms = [folded, *(content_tokens or tokens)]
     seen: set[str] = set()
     return [t for t in terms if not (t in seen or seen.add(t))]
+
+
+# A full-text hit is EXEMPT from ``min_score`` because a keyword match is
+# evidence, not a fuzzy neighbour (#4236). But the lexical leg unions its
+# terms, so "matched something" ranged from "contains the whole phrase" down
+# to "contains one word out of five" — and the weak end rode the exemption
+# straight past the floor. Strength quantifies the difference; only hits at
+# or above ``_LEXICAL_EVIDENCE_FLOOR`` keep the exemption, the rest must
+# clear the floor like any other candidate.
+_LEXICAL_EVIDENCE_FLOOR = 0.5
+
+
+def _lexical_evidence_strength(
+    folded_content: str,
+    base_terms: list[str],
+    alias_terms: frozenset[str] | set[str] = frozenset(),
+) -> float:
+    """How much of the query this text actually contains, in [0, 1].
+
+    ``base_terms[0]`` is the whole folded query: a verbatim phrase hit is
+    total evidence (1.0), and so is a hit on an entity alias the query
+    resolved to — a curated surface form IS the term the user meant.
+    Otherwise it is the fraction of the query's content tokens present.
+    """
+    if not folded_content or not base_terms:
+        return 0.0
+    phrase, tokens = base_terms[0], [t for t in base_terms[1:] if t]
+    if phrase and phrase in folded_content:
+        return 1.0
+    if any(alias and alias in folded_content for alias in alias_terms):
+        return 1.0
+    if not tokens:
+        return 0.0
+    return sum(1 for t in tokens if t in folded_content) / len(tokens)
 
 
 def _contains_any_term(text_series, terms: list[str]):
@@ -4898,7 +4976,14 @@ class Database(DatabaseEmbeddingMixin):
         results = []
         total_count = 0
         expanded_terms, matched_entity_ids = self._expand_query_with_entity_aliases(query)
-        semantic_query = " ".join(expanded_terms) if expanded_terms else query
+        base_terms = _search_match_terms(query)
+        alias_terms = frozenset(expanded_terms) - frozenset(base_terms)
+        # Embed the user's ACTUAL sentence, plus any alias surfaces the query
+        # resolved to. The old `" ".join(expanded_terms)` embedded the folded
+        # phrase followed by its own tokens again ("where was the dam built
+        # dam built") — a bag of words in a vector space trained on prose,
+        # which is not what the documents were embedded as.
+        semantic_query = " ".join([query, *sorted(alias_terms)]) if alias_terms else query
         search_stats = {
             "search_type": search_type,
             "execution_time_ms": 0,
@@ -5040,6 +5125,9 @@ class Database(DatabaseEmbeddingMixin):
                                     {
                                         "document_id": document_id,
                                         "score": lexical_score,
+                                        "lexical_strength": _lexical_evidence_strength(
+                                            folded_content, base_terms, alias_terms
+                                        ),
                                         "content": row.get("text", ""),
                                         "metadata": {
                                             "name": row.get("name"),
@@ -5089,6 +5177,11 @@ class Database(DatabaseEmbeddingMixin):
                                     {
                                         "document_id": document_id,
                                         "score": lexical_score,
+                                        "lexical_strength": _lexical_evidence_strength(
+                                            str(row.get("folded_text") or ""),
+                                            base_terms,
+                                            alias_terms,
+                                        ),
                                         "content": row.get("text", ""),
                                         "metadata": {
                                             "name": row.get("name"),
@@ -5175,6 +5268,11 @@ class Database(DatabaseEmbeddingMixin):
                                     {
                                         "document_id": row[0],
                                         "score": score,
+                                        # The content-scan fallback only ever
+                                        # fills an EMPTY result set (#4245), so
+                                        # its hits are the only evidence there
+                                        # is — never floor them away.
+                                        "lexical_strength": 1.0,
                                         "content": str(row[6] or ""),
                                         "metadata": {
                                             "name": row[1],
@@ -5224,6 +5322,10 @@ class Database(DatabaseEmbeddingMixin):
                                 prior["_lexical_score"] = max(
                                     prior.get("_lexical_score", 0.0),
                                     item.get("score", 0.0),
+                                )
+                                prior["lexical_strength"] = max(
+                                    prior.get("lexical_strength", 0.0),
+                                    item.get("lexical_strength", 0.0),
                                 )
                             prior["match_sources"] = sorted(
                                 set(prior["match_sources"]) | {source}
@@ -5282,12 +5384,30 @@ class Database(DatabaseEmbeddingMixin):
                 # pages. A keyword match and a curated entity/claim link are
                 # EVIDENCE, not fuzzy neighbours; the floor exists to cut
                 # semantic-only noise.
+                #
+                # The full-text exemption is now conditional on the STRENGTH
+                # of the lexical evidence (2026-09-01). "Where was the dam
+                # built" put a diary page about river velocities and cattle at
+                # the top: the page contained one query token and nothing
+                # else, but "matched the keyword leg" was enough to ride the
+                # exemption past the floor. A hit that contains the phrase, an
+                # entity alias, or at least half the query's content tokens is
+                # still evidence and still exempt; a one-word-out-of-five
+                # brush has to earn its place on rank like anything else.
                 if min_score > 0:
-                    evidence_sources = {"fulltext", "kg"}
+                    def _is_evidence(row: dict) -> bool:
+                        sources = row.get("match_sources", [])
+                        if "kg" in sources:
+                            return True
+                        return (
+                            "fulltext" in sources
+                            and row.get("lexical_strength", 0.0)
+                            >= _LEXICAL_EVIDENCE_FLOOR
+                        )
+
                     combined_results = [
                         r for r in merged.values()
-                        if evidence_sources.intersection(r.get("match_sources", []))
-                        or r["score"] >= min_score
+                        if _is_evidence(r) or r["score"] >= min_score
                     ]
                 else:
                     combined_results = list(merged.values())

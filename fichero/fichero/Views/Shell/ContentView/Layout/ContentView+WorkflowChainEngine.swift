@@ -37,11 +37,26 @@ extension ContentView {
     /// the rail keeps working locally and the next edit retries.
     @MainActor
     @discardableResult
-    func persistStagedChain(resolvedWorkflowIds: [UUID: String] = [:]) async -> String? {
+    func persistStagedChain(
+        resolvedWorkflowIds: [UUID: String] = [:],
+        stampResolvedModels: Bool = false
+    ) async -> String? {
         guard let service = workflowBarChainService else { return nil }
+        // Only a RUN stamps the resolved model (2026-09-01). Staging persists
+        // the rail as the user assembled it, so a chain restored next week
+        // still follows whatever Settings say then.
+        var overrides: [UUID: WorkflowBarModelChoice] = [:]
+        if stampResolvedModels {
+            for step in stagedWorkflowChain {
+                if let implicit = workflowBarImplicitOverride(for: step) {
+                    overrides[step.id] = implicit
+                }
+            }
+        }
         let steps = WorkflowBarChainPersistence.chainSteps(
             from: stagedWorkflowChain,
-            resolvedWorkflowIds: resolvedWorkflowIds
+            resolvedWorkflowIds: resolvedWorkflowIds,
+            modelOverrides: overrides
         )
         do {
             if let chain = try await findWorkflowBarChain(service) {
@@ -151,8 +166,9 @@ extension ContentView {
             resolved[step.id] = workflowId
         }
 
-        guard let chainId = await persistStagedChain(resolvedWorkflowIds: resolved)
-        else { return false }
+        guard let chainId = await persistStagedChain(
+            resolvedWorkflowIds: resolved, stampResolvedModels: true
+        ) else { return false }
         guard let launch = await frozenEngineChainLaunch() else { return true }
         lastChainRunTargets = launch.targets
 
@@ -178,6 +194,10 @@ extension ContentView {
                 }
             }
             await followEngineChainExecution(execution, service: service)
+            // Un-stamp: the resolved models were this RUN's, not pins the
+            // user made. Left behind, a chain restored next week would come
+            // back pinned to models Settings has since moved on from.
+            await persistStagedChain(resolvedWorkflowIds: resolved)
             return true
         } catch ChainServiceError.stepExecutionUnavailable {
             // Older engine: no execute-steps route. The client loop still

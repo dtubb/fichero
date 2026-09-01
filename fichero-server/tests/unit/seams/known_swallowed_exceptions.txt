@@ -130,7 +130,7 @@ loaders/docling_loader.py::DoclingLoader._extract_images 1
 loaders/docling_loader.py::DoclingLoader._extract_tables 2
 loaders/document_loader.py::DocumentLoader._load_with_kreuzberg 1
 loaders/iiif_loader.py::IIIFLoader.load 1
-loaders/kreuzberg_cache.py::<module> 1
+loaders/kreuzberg_cache.py::prewarm_for_extraction 1
 loaders/kreuzberg_cache.py::_strip_quarantine 1
 loaders/pdf_loader.py::PDFTextLoader.load 1
 loaders/xmp_loader.py::_extract_xmp_fields 1

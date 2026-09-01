@@ -56,6 +56,8 @@ from fichero_server.llm.model_types import (  # noqa: F401 (re-exported)
     estimate_cost,
     get_model_cost,
     get_model_info,
+    infer_vision_support,
+    is_batch_only_model,
     list_models_for_provider,
 )
 logger = logging.getLogger(__name__)
@@ -4345,6 +4347,8 @@ __all__ = [
     "vision",
     "vision_batch",
     "is_recognition_only_vision_model",
+    "is_batch_only_model",
+    "infer_vision_support",
     # Embeddings
     # Tools
     "chat_with_tools",

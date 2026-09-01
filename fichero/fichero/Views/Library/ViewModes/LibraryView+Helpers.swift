@@ -36,6 +36,30 @@ struct IconCellIdentity: Equatable, Sendable {
     var isRenaming: Bool = false
     /// Part of identity so the metadata Name toggle repaints tiles.
     var showsName: Bool = true
+    /// The active search's relevance for this tile (Daniel, 2026-09-01:
+    /// "icon view should show the relevance number like list view does").
+    /// Part of identity for the same reason it is on `DocRowIdentity` — a
+    /// new query must repaint tiles past `.equatable()`, which compares this
+    /// struct and nothing else.
+    var searchHit: TransientSearchRowHit?
+}
+
+/// The relevance number, rendered identically wherever a view mode shows it.
+///
+/// List view had the only copy (`LibraryViewComponents`, #11). Icon view
+/// showed nothing, so the same result read as ranked in one mode and
+/// unranked in another (Daniel, 2026-09-01). One view, one format — a mode
+/// that wants the number mounts this rather than growing a second spelling
+/// of "percent, no decimals, secondary".
+struct SearchRelevanceBadge: View {
+    let score: Double
+
+    var body: some View {
+        Text(score, format: .percent.precision(.fractionLength(0)))
+            .font(.caption2.monospacedDigit())
+            .foregroundStyle(.secondary)
+            .help("Search relevance")
+    }
 }
 
 /// Equatable identity for a Miller column row — everything the row renders

@@ -30,14 +30,17 @@ extension WorkflowBar {
     var contextToken: some View {
         if let userContext, let trimmed = contextText {
             Text("About")
-                .font(.system(size: 11))
+                .font(WorkflowBar.chainConnectiveFont)
                 .foregroundStyle(.secondary)
             Button {
                 showsContextEditor = true
             } label: {
+                // The same lozenge the subject, model and step tokens wear
+                // (Daniel, 2026-09-01) — the framing is a part of the
+                // sentence, so it reads as one, not as a stray blue phrase.
                 Text("“\(trimmed.prefix(40))\(trimmed.count > 40 ? "…" : "")”")
-                    .font(.system(size: 11))
                     .foregroundStyle(Color.accentColor)
+                    .chainTokenLozenge(tint: Color.accentColor.opacity(0.10))
             }
             .buttonStyle(.plain)
             .help("The framing sent with every step: “\(trimmed)”. Click to edit it.")
@@ -58,7 +61,7 @@ extension WorkflowBar {
             .help("Remove the context from this run")
             .accessibilityLabel("Remove the run context")
             Text(",")
-                .font(.system(size: 11))
+                .font(WorkflowBar.chainConnectiveFont)
                 .foregroundStyle(.secondary)
                 .padding(.leading, -5)
         }

@@ -7,6 +7,14 @@ class TrackingImageView: NSImageView {
     var onCursorMoved: ((CGPoint) -> Void)?
     var onLoupeMagnificationChanged: ((CGFloat) -> Void)?
     var onLoupeSizeChanged: ((CGFloat) -> Void)?
+    /// Mouse down/drag/up that the loupe did not consume, in VIEW points
+    /// (bottom-left origin) plus the event — the region layer's input since
+    /// 2026-09-01 (see PreviewPointerFeed).
+    var onPointer: ((PreviewPointerPhase, CGPoint, NSEvent) -> Void)?
+
+    private func forwardPointer(_ phase: PreviewPointerPhase, _ event: NSEvent) {
+        onPointer?(phase, convert(event.locationInWindow, from: nil), event)
+    }
     var loupeEnabled: Bool = false {
         didSet {
             // Just redraw - user must click to place loupe
@@ -41,11 +49,8 @@ class TrackingImageView: NSImageView {
     private let minLoupeMagnification: CGFloat = 0.25
     private let maxLoupeMagnification: CGFloat = 20.0
 
-    /// Transparency must READ as transparency: a background-removed PNG over
-    /// the pane's near-white ground looks like a white background, which is a
-    /// lie about the pixels. Preview.app answers this with a checkerboard
-    /// behind alpha images only — same here, and only under the image's own
-    /// frame so opaque pages are untouched.
+    /// Alpha images get an explicit ground under the image's own frame (see
+    /// `transparencyGround`); opaque pages are untouched.
     private var imageHasAlpha = false
     override var image: NSImage? {
         didSet {
@@ -53,20 +58,12 @@ class TrackingImageView: NSImageView {
         }
     }
 
-    /// One 16pt pattern tile filled by AppKit's pattern machinery — a per-draw
-    /// square loop would be O(pixels) on a 4000px scan; a pattern fill is not.
-    private static let transparencyChecker: NSColor = {
-        let tile: CGFloat = 16
-        let image = NSImage(size: NSSize(width: tile, height: tile), flipped: false) { _ in
-            NSColor(white: 0.95, alpha: 1).setFill()
-            NSRect(x: 0, y: 0, width: tile, height: tile).fill()
-            NSColor(white: 0.78, alpha: 1).setFill()
-            NSRect(x: 0, y: 0, width: tile / 2, height: tile / 2).fill()
-            NSRect(x: tile / 2, y: tile / 2, width: tile / 2, height: tile / 2).fill()
-            return true
-        }
-        return NSColor(patternImage: image)
-    }()
+    /// Transparent pixels read as PLAIN WHITE (Daniel, 2026-09-01: "when
+    /// transparent, I say just white" — the checkerboard that used to sit
+    /// here made a background-removed page look like a defect). The ground is
+    /// still drawn only under the image's own frame so the letterbox keeps the
+    /// pane colour.
+    private static let transparencyGround = NSColor.white
 
     /// Show loupe at center of visible area
     func showLoupeAtCenter() {
@@ -105,11 +102,11 @@ class TrackingImageView: NSImageView {
         let location = convert(event.locationInWindow, from: nil)
         guard bounds.width > 0, bounds.height > 0 else { return }
 
-        // The loupe FOLLOWS the cursor (Daniel, 2026-08-29: the moveable
-        // window "is not very good" — Preview.app's loupe is the model). Both
-        // the looked-at point and the drawn circle track the mouse; the
-        // legacy lock keeps a pinned loupe pinned.
-        if loupeEnabled && !loupeLocked {
+        // The loupe STAYS where you leave it and follows the cursor only
+        // while ⌥ is held (Daniel, 2026-09-01: "it should live where you
+        // leave it; it should move when option is pressed"). ⌥ is the one
+        // leash: it also summons the transient loupe (ZoomableImagePreview).
+        if loupeEnabled, !loupeLocked, event.modifierFlags.contains(.option) {
             loupePosition = location
             loupeViewPosition = location
             needsDisplay = true
@@ -163,6 +160,7 @@ class TrackingImageView: NSImageView {
 
     override func mouseDown(with event: NSEvent) {
         guard loupeEnabled else {
+            forwardPointer(.pressed, event)
             super.mouseDown(with: event)
             return
         }
@@ -192,11 +190,13 @@ class TrackingImageView: NSImageView {
         }
 
         // Click outside loupe - pass through for rubber band selection
+        forwardPointer(.pressed, event)
         super.mouseDown(with: event)
     }
 
     override func mouseDragged(with event: NSEvent) {
         guard loupeEnabled else {
+            forwardPointer(.dragged, event)
             super.mouseDragged(with: event)
             return
         }
@@ -214,16 +214,19 @@ class TrackingImageView: NSImageView {
         }
 
         if isDraggingLoupe {
-            // Move only the view position (where loupe is displayed)
-            // Crosshairs (what we're looking at) stays the same - use Option+move to change that
-            loupeViewPosition = CGPoint(
+            // Dragging the loupe moves what it LOOKS AT along with it: a
+            // parked loupe shows what is under it (Daniel, 2026-09-01).
+            let moved = CGPoint(
                 x: location.x - dragOffset.width,
                 y: location.y - dragOffset.height
             )
+            loupeViewPosition = moved
+            loupePosition = moved
             needsDisplay = true
             return
         }
 
+        forwardPointer(.dragged, event)
         super.mouseDragged(with: event)
     }
 
@@ -233,6 +236,7 @@ class TrackingImageView: NSImageView {
         } else if isResizingLoupe {
             isResizingLoupe = false
         } else {
+            forwardPointer(.released, event)
             super.mouseUp(with: event)
         }
     }
@@ -249,10 +253,12 @@ class TrackingImageView: NSImageView {
     }
 
     override func scrollWheel(with event: NSEvent) {
-        // While the loupe is up, SCROLL adjusts its magnification (Daniel,
-        // 2026-08-29) — the loupe rides the cursor, so wherever the wheel
-        // turns over the image it is the loupe being asked about.
-        if loupeEnabled, loupeViewPosition != nil {
+        // SCROLL over a parked loupe adjusts its magnification; anywhere else
+        // the wheel pans the page as usual. (While the loupe rode the cursor
+        // — 2026-08-29 — every scroll was the loupe's; now it lives where you
+        // leave it, so only the wheel OVER it is about it.)
+        if loupeEnabled, let viewPos = loupeViewPosition,
+           loupeRect(at: viewPos).contains(convert(event.locationInWindow, from: nil)) {
             let delta = event.scrollingDeltaY
             let newMag = loupeMagnification + delta * 0.05
             loupeMagnification = max(minLoupeMagnification, min(maxLoupeMagnification, newMag))
@@ -277,7 +283,7 @@ class TrackingImageView: NSImageView {
                 width: min(image.size.width, bounds.width),
                 height: min(image.size.height, bounds.height)
             )
-            Self.transparencyChecker.setFill()
+            Self.transparencyGround.setFill()
             imageRect.intersection(dirtyRect).fill()
         }
         super.draw(dirtyRect)

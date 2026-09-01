@@ -29,26 +29,26 @@ extension WorkflowBar {
         ) {
             contextToken
             Text("With")
-                .font(.system(size: 11))
+                .font(WorkflowBar.chainConnectiveFont)
                 .foregroundStyle(.secondary)
             if let label = targetDetail ?? WorkflowBarPolicy.targetLabel(target) {
                 subjectToken(label)
             } else {
                 Text("nothing selected")
-                    .font(.system(size: 11))
+                    .font(WorkflowBar.chainConnectiveFont)
                     .foregroundStyle(.tertiary)
             }
             Text(",")
-                .font(.system(size: 11))
+                .font(WorkflowBar.chainConnectiveFont)
                 .foregroundStyle(.secondary)
                 .padding(.leading, -5)
             ForEach(Array(staged.enumerated()), id: \.element.id) { index, step in
                 Text(index == 0 ? "use" : "then use")
-                    .font(.system(size: 11))
+                    .font(WorkflowBar.chainConnectiveFont)
                     .foregroundStyle(.secondary)
                 modelToken(for: step, at: index)
                 Text("to")
-                    .font(.system(size: 11))
+                    .font(WorkflowBar.chainConnectiveFont)
                     .foregroundStyle(.secondary)
                 chainChip(step, at: index)
             }
@@ -83,11 +83,13 @@ extension WorkflowBar {
     /// The chip itself — shared by the menu label and the plain fallback so
     /// a clickable subject looks exactly like a static one.
     private func subjectLabel(_ label: String) -> some View {
-        Text(label)
-            .font(.system(size: 10, weight: .medium))
-            .padding(.horizontal, 6)
-            .padding(.vertical, 3)
-            .background(Color.accentColor.opacity(0.12), in: Capsule())
+        Label {
+            Text(label)
+        } icon: {
+            Image(systemName: "scope")
+        }
+        .labelStyle(ChainTokenLabelStyle())
+        .chainTokenLozenge(tint: Color.accentColor.opacity(0.12))
     }
 
     /// The step's model as a clickable token in the sentence. The same menu
@@ -105,13 +107,25 @@ extension WorkflowBar {
             // 2026-08-31): "default model" told the reader that a model had
             // been chosen without saying which, and the whole point of the
             // sentence is that a paid run states what it will actually do.
-            Text(step.hasModelOverride ? step.modelDescription : resolvedDefaultModelLabel)
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(step.hasModelOverride ? Color.primary : Color.secondary)
-                .padding(.horizontal, 7)
-                .padding(.vertical, 3)
-                .background(Color.accentColor.opacity(0.10), in: Capsule())
-                .overlay(Capsule().strokeBorder(.quaternary, lineWidth: 1))
+            // Still TEXT — the name is the fact a paid run has to state — but
+            // with the family's mark in front of it (Daniel, 2026-09-01:
+            // "keep the model as text but add the provider/model icon"). The
+            // logo is what lets the eye find "the Claude step" in an
+            // eight-step sentence without reading every lozenge.
+            Label {
+                Text(step.hasModelOverride
+                     ? step.modelDescription
+                     : resolvedDefaultModelLabel(for: step))
+            } icon: {
+                ModelFamilyMark(
+                    model: step.modelOverride ?? resolvedDefaultModelId(for: step),
+                    provider: step.providerOverride ?? resolvedDefaultModelProvider(for: step),
+                    side: 12
+                )
+            }
+            .labelStyle(ChainTokenLabelStyle())
+            .foregroundStyle(step.hasModelOverride ? Color.primary : Color.secondary)
+            .chainTokenLozenge(tint: Color.accentColor.opacity(0.10))
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
@@ -119,12 +133,13 @@ extension WorkflowBar {
         .disabled(isRunning)
         .help(step.hasModelOverride
               ? "This step is pinned to \(step.modelDescription) — click to change it"
-              : "This step runs on \(resolvedDefaultModelLabel), the configured "
-              + "default — click to pin a different model")
+              : "This step runs on \(resolvedDefaultModelLabel(for: step)), the "
+              + "configured \(defaultTierName(for: step)) default for what this "
+              + "step does — click to pin a different model")
         .accessibilityLabel(
             step.hasModelOverride
                 ? "Model: \(step.modelDescription)"
-                : "Model: \(resolvedDefaultModelLabel) (default)"
+                : "Model: \(resolvedDefaultModelLabel(for: step)) (default)"
         )
     }
 
@@ -135,9 +150,7 @@ extension WorkflowBar {
     @ViewBuilder
     private func chainChip(_ step: StagedWorkflowStep, at index: Int) -> some View {
         chipBody(step, at: index)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 3)
-            .background(chipBackground(for: step), in: Capsule())
+            .chainTokenLozenge(tint: chipBackground(for: step))
             .foregroundStyle(chipForeground(for: step))
             .overlay(alignment: .leading) { chipLeadingAccessory(step, at: index) }
             .help(chipHelp(for: step, index: index))
@@ -166,11 +179,16 @@ extension WorkflowBar {
             ]?.icon ?? WorkflowBarPolicy.symbol(
                 forFamily: WorkflowBarPolicy.folderKey(step.folderPath)
             ))
-            .font(.system(size: 11))
+            .font(WorkflowBar.chainTokenFont)
 
             if showsLabels {
+                // The SAME type as the subject and model tokens (Daniel,
+                // 2026-09-01: "render each part as a lozenge with the same
+                // text style"). The step used to be a size-10 regular next to
+                // two size-10 mediums, which read as a caption dropped into a
+                // sentence rather than as its verb.
                 Text(step.name)
-                    .font(.system(size: 10))
+                    .font(WorkflowBar.chainTokenFont)
                     .lineLimit(1)
             }
             if let symbol = chipSymbol(for: step) {
@@ -265,6 +283,50 @@ extension WorkflowBar {
         default:         return nil
         }
     }}
+
+/// ONE lozenge for every part of the sentence (Daniel, 2026-09-01: "render
+/// each part — selection, model, step — as a lozenge with the same text
+/// style"). The three tokens used to carry three different paddings, two
+/// fonts and an inconsistent border; only the TINT is meant to differ, since
+/// the tint is what carries a step's outcome.
+struct ChainTokenLozenge: ViewModifier {
+    let tint: Color
+
+    func body(content: Content) -> some View {
+        content
+            .font(WorkflowBar.chainTokenFont)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 3)
+            .background(tint, in: Capsule())
+            .overlay(Capsule().strokeBorder(.quaternary, lineWidth: 1))
+    }
+}
+
+extension View {
+    func chainTokenLozenge(tint: Color) -> some View {
+        modifier(ChainTokenLozenge(tint: tint))
+    }
+}
+
+/// Icon-then-text on one baseline, tight enough for a 10pt lozenge —
+/// `.titleAndIcon` leaves a gap sized for body text, which pushed the
+/// sentence's tokens apart.
+struct ChainTokenLabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 3) {
+            configuration.icon
+            configuration.title
+        }
+    }
+}
+
+extension WorkflowBar {
+    /// The sentence's one type style, worn by every token.
+    static let chainTokenFont = Font.system(size: 10, weight: .medium)
+    /// The plain words between tokens — same size, unemphasised, so the
+    /// lozenges are what the eye lands on.
+    static let chainConnectiveFont = Font.system(size: 10)
+}
 
 /// A minimal flow layout: rows wrap, the container grows (Daniel,
 /// 2026-08-29: "if it's multiple rows, make the rows expand so we can

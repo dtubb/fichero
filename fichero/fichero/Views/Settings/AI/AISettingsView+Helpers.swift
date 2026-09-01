@@ -69,13 +69,48 @@ extension AISettingsView {
             let caps = Set(model.capabilities.map { $0.lowercased() })
             if !caps.isDisjoint(with: accepted) { return true }
 
+            // The `supports*` bools the discovery endpoint reports, which the
+            // `capabilities` strings are silent about (that field is only
+            // populated for a user-configured row). Requiring the strings
+            // alone is what made a perfectly vision-capable model
+            // unselectable for the Vision tier (Daniel, 2026-09-01: "cannot
+            // select a model like Opus or Google").
+            switch self {
+            case .vision where model.supportsVision: return true
+            case .audio where model.supportsAudioInput: return true
+            default: break
+            }
+
             // Tolerate legacy rows that carry no capability metadata
             // (cloud models added before registry-derived caps, #1290):
             // treat an unknown model as LLM-shaped since chat is the
-            // registry default. Vision/Audio require explicit caps so a
-            // text model never leaks into those slots.
+            // registry default. A capability-less row is exactly the shape a
+            // model NEWER than the vendored registry arrives in, so Vision
+            // falls back to the family floor rather than to silence — an
+            // absent row is indistinguishable from "this provider ships no
+            // such model", which is the lie that started this.
             if case .text = self { return caps.isEmpty }
+            if case .vision = self, caps.isEmpty {
+                return Self.idLooksVisionCapable(model.modelId)
+            }
             return false
+        }
+
+        /// Mirror of the engine's `infer_vision_support` family floor
+        /// (fichero_server/llm/model_types.py). Duplicated deliberately: the
+        /// engine cannot re-derive capabilities for a row already saved with
+        /// none, and Settings must not present that row as non-existent.
+        static func idLooksVisionCapable(_ modelId: String) -> Bool {
+            let id = modelId.lowercased()
+            let notVision = ["embed", "tts", "whisper", "moderation", "rerank",
+                             "guard", "claude-1", "claude-2", "claude-instant",
+                             "gemini-1.0", "-audio", "gemma"]
+            if notVision.contains(where: id.contains) { return false }
+            let vision = ["claude-", "gemini-", "gpt-4o", "gpt-4.1", "gpt-4-turbo",
+                          "gpt-5", "gpt-6", "o1", "o3", "o4", "pixtral", "llava",
+                          "-vl-", "-vl:", "vl-", "vision", "grok-3", "grok-4",
+                          "internvl", "minicpm-v", "moondream"]
+            return vision.contains(where: id.contains)
         }
     }
 
@@ -92,6 +127,7 @@ extension AISettingsView {
         // The old "(saved — wrong capability)" escape-hatch row is gone
         // by design (#1290).
         let filtered = models.filter { tier.matches($0) }
+        let hidden = models.count - filtered.count
 
         Picker("Model", selection: selection) {
             Text("None").tag("")
@@ -99,6 +135,15 @@ extension AISettingsView {
                 Text(model.fullName).tag(model.modelId)
             }
         }
+        // SAY what was withheld (Daniel, 2026-09-01: "show WHY one is
+        // greyed"). A Picker cannot grey an individual row, so the count and
+        // the reason sit beneath it — which at least makes a wrong filter
+        // arguable instead of invisible.
+        .help(hidden > 0
+              ? "\(hidden) of this provider's \(models.count) models are not "
+                + "offered here because their catalog entry does not claim the "
+                + "capability this slot needs."
+              : "Every model configured for this provider fits this slot.")
     }
 
     /// Provider-change companion — clears the model selection immediately,
