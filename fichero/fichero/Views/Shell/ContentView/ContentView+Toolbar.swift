@@ -417,10 +417,11 @@ extension ContentView {
                 systemImage: "arrow.triangle.branch"
             )
             .labelStyle(.iconOnly)
-            // Lit while the bar is up, like the markup toggle beside it
-            // (Daniel, 2026-09-01: "do the same for workflows"). These two
-            // were the ONLY toggles that did this; 2026-09-02 made it the
-            // rule for every toggle that opens a surface.
+            // Lit whenever the bar is up, like the markup toggle beside it
+            // (Daniel, 2026-09-01). Those two were the only lit toggles;
+            // the 2026-09-02 rule extends the treatment to every surface
+            // toggle, because in Icon Only mode nothing else says what is
+            // already open.
             .toolbarSurfaceLit(showWorkflowBar)
         }
         .help(showWorkflowBar
