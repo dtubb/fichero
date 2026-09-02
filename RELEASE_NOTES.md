@@ -27,7 +27,8 @@ the build is a plain counter — this is 2026.09.03 (1).
 - Bug: List scrolling is smooth in both directions; clicking a row no
   longer stalls or jumps the view.
 - New: Choose what rows show (status, date, and 2/4/6 lines of text) from
-  the metadata menu.
+  the metadata menu. Your metadata choices reset once with this build (the
+  new defaults apply); set them again from the same menu.
 
 **Search:**
 - Bug: Searching again actually refreshes the results.

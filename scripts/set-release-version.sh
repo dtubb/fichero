@@ -262,9 +262,12 @@ if ! grep -qE "^## (Unreleased|$APP_VERSION)\b" "$ROOT/CHANGELOG.md"; then
   exit 1
 fi
 if grep -qE "^## Unreleased\b" "$ROOT/CHANGELOG.md" && [ "$DRY_RUN" != true ]; then
-  CL_V="$APP_VERSION" python3 - <<'PY'
+  # $ROOT-anchored, not Path("CHANGELOG.md") (2026-09-02): the relative path
+  # resolved against the CALLER's cwd — a fixture test running from the repo
+  # root promoted headings into the real repo's changelog.
+  CL_V="$APP_VERSION" CL_FILE="$ROOT/CHANGELOG.md" python3 - <<'PY'
 import os, pathlib
-p = pathlib.Path("CHANGELOG.md")
+p = pathlib.Path(os.environ["CL_FILE"])
 s = p.read_text()
 s = s.replace("## Unreleased\n", "## Unreleased\n\n## " + os.environ["CL_V"] + "\n", 1)
 p.write_text(s)

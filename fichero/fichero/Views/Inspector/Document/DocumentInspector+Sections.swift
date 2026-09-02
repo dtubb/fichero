@@ -153,7 +153,14 @@ private struct DocumentInspectorImageEditsTab: View {
                 },
                 onRemoveBackground: { Task { await model.removeBackground() } },
                 onFuzzyClean: { Task { await model.fuzzyClean() } },
-                onSegment: { Task { await model.segment() } }
+                onSegment: { Task { await model.segment() } },
+                // In-place step editing (2026-09-02): without this wiring the
+                // Inspector's steps panel fell back to remove-and-append,
+                // which re-ordered the chain (the editor host already wires
+                // it — the two panels must behave identically).
+                onUpdateStep: { index, params in
+                    Task { await model.updateOperation(at: index, params: params) }
+                }
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
