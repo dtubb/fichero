@@ -151,6 +151,10 @@ struct WorkflowBar: View {
     /// toolbar items do, rather than jittering with label length.
     private var itemWidth: CGFloat { showsLabels ? 68 : 34 }
 
+    /// A verb's glyph — the toolbar's own square, so a verb in this strip is
+    /// the same size as a button in the toolbar above it.
+    static let verbGlyphHeight: CGFloat = 17
+
     /// Which family's variant popover is open, if any.
     @State private var openFamily: String?
     @State private var showingTools = false
@@ -251,7 +255,12 @@ struct WorkflowBar: View {
                     .accessibilityLabel("Will run on \(label)")
             }
         }
-        .frame(height: 52)
+        // The toolbar's own row height, and it FOLLOWS the label mode the way
+        // the markup bar's always has (Daniel, 2026-09-02: "the whole workflow
+        // strip should match toolbar metrics"). Pinned at the tall value in
+        // both modes, hiding the labels shrank the items and left the strip
+        // the same height — a 52pt band of empty bar above the content.
+        .frame(height: ToolbarMetrics.rowHeight(showsLabels: showsLabels))
     }
 
     /// The model an unpinned step really runs on, shortened the way the
@@ -324,7 +333,7 @@ struct WorkflowBar: View {
             VStack(spacing: 1) {
                 Image(systemName: "wrench.and.screwdriver")
                     .font(.body)
-                    .frame(height: 17)
+                    .frame(height: WorkflowBar.verbGlyphHeight)
                 if showsLabels {
                     Text("Tools")
                         .font(.system(size: 9))
@@ -364,7 +373,7 @@ struct WorkflowBar: View {
             VStack(spacing: 1) {
                 Image(systemName: family.symbol)
                     .font(.body)
-                    .frame(height: 17)
+                    .frame(height: WorkflowBar.verbGlyphHeight)
                 if showsLabels {
                     Text(family.title)
                         .font(.system(size: 9))

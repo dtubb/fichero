@@ -111,7 +111,15 @@ struct ModelChipToolbarItem: View {
             // No horizontal padding (Daniel, 2026-08-29: "same with the
             // google one") — the mark alone keeps the capsule as circular as
             // its toolbar neighbours.
-            ModelFamilyMark(model: currentModel, provider: currentProvider)
+            // Toolbar-glyph sized, not badge sized (Daniel, 2026-09-02: the
+            // mark "blows up the UX"). The default 20pt edge put a circle
+            // three points taller than the `.body` SF Symbols on either side,
+            // which is exactly enough to read as a different KIND of thing.
+            ModelFamilyMark(
+                model: currentModel,
+                provider: currentProvider,
+                side: ToolbarMetrics.glyphSide
+            )
         }
         .buttonStyle(.plain)
         .fixedSize()
@@ -265,11 +273,12 @@ struct ModelChipToolbarItem: View {
 struct ModelFamilyMark: View {
     let model: String
     let provider: String
-    /// Edge of the square the mark occupies. The toolbar chip wants 20pt;
-    /// the workflow sentence's lozenges are 10pt type, where a 20pt logo
-    /// would set the line height on its own — so the mark scales rather
-    /// than the sentence growing around it.
-    var side: CGFloat = 20
+    /// Edge of the square the mark occupies. The toolbar chip wants a
+    /// standard toolbar glyph (`ToolbarMetrics.glyphSide`); the workflow
+    /// sentence's lozenges are 10pt type, where even that would set the line
+    /// height on its own — so the mark scales rather than the sentence
+    /// growing around it. The default is the toolbar's.
+    var side: CGFloat = ToolbarMetrics.glyphSide
 
     /// The bundled provider logos Settings already ships
     /// (Resources/Assets.xcassets/Providers/*) — matched on the MODEL first,

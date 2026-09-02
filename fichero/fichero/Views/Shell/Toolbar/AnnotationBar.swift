@@ -24,7 +24,9 @@ struct AnnotationBar: View {
         // Real margins (Daniel, 2026-08-30: "left right margins should be
         // more") — the row breathes instead of hugging the pane edges.
         .padding(.horizontal, 28)
-        .frame(height: showsLabels ? 52 : 38)
+        // Shared with the workflow bar (2026-09-02): the two bars are one
+        // stack under one toolbar, so one table owns their height.
+        .frame(height: ToolbarMetrics.rowHeight(showsLabels: showsLabels))
         .frame(maxWidth: .infinity)
         .background(.bar)
         .overlay(alignment: .bottom) { Divider() }
