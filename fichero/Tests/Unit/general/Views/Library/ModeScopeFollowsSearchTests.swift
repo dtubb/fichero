@@ -36,8 +36,8 @@ struct ModeScopeFollowsSearchTests {
     func projectionUsesFilteredDocuments() throws {
         let insets = try Self.appSource("Views/Library/LibraryView+Insets.swift")
         #expect(insets.contains("documents: filteredDocuments.map {"),
-                "projecting the raw `documents` parameter ignores the quick filter, "
-                    + "the Show kind, and a search's relevance order")
+                Comment(rawValue: "projecting the raw `documents` parameter ignores the "
+                    + "quick filter, the Show kind, and a search's relevance order"))
         #expect(!insets.contains("documents: documents.map {"),
                 "the un-filtered projection is exactly the defect")
     }
@@ -112,8 +112,8 @@ struct ModeScopeFollowsSearchTests {
     func datasetModesStillScope() throws {
         let branches = try Self.appSource("Views/Library/LibraryView+ContentBranches.swift")
         #expect(branches.contains("searchHitIds: activeSearchQuery != nil ? documents.map(\\.id) : nil"),
-                "the dataset renderers query the engine themselves, so they narrow by "
-                    + "hit id rather than by the pane's row array — the reference for "
-                    + "what 'scoped' means here")
+                Comment(rawValue: "the dataset renderers query the engine themselves, "
+                    + "so they narrow by hit id rather than by the pane's row array — "
+                    + "the reference for what 'scoped' means here"))
     }
 }

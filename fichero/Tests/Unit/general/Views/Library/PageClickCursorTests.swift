@@ -73,8 +73,8 @@ struct PageClickCursorTests {
     func callSitePassesTheCondition() throws {
         let selection = try AppSource.text("Views/Library/LibraryView+Selection.swift")
         #expect(selection.contains("isShowingSearchResults: activeSearchQuery != nil"),
-                "handleTap must state which list the click came from — the same "
-                    + "condition the mode-scoping fix uses")
+                Comment(rawValue: "handleTap must state which list the click came from "
+                    + "— the same condition the mode-scoping fix uses"))
     }
 
     @Test("a page with no resolvable parent re-roots")

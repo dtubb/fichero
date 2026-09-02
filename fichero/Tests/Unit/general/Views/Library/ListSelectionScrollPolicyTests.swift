@@ -128,7 +128,7 @@ struct ListSelectionScrollPolicyTests {
         #expect(list.contains("isUserDriven: selectionChangeIsUserDriven"),
                 "the policy needs the SAME user-driven probe the Table uses")
         #expect(!list.contains(".onChange(of: selection) { _, _ in"),
-                "the watcher must read the OLD and NEW selection — a narrowing is only "
-                    + "visible as a difference between them")
+                Comment(rawValue: "the watcher must read the OLD and NEW selection — a "
+                    + "narrowing is only visible as a difference between them"))
     }
 }

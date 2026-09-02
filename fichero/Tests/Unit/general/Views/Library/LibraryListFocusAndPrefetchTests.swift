@@ -57,8 +57,8 @@ struct LibraryListFocusAndPrefetchTests {
         #expect(keys.contains("keyPress.modifiers == .command"),
                 "a BARE `a` is type-to-select; only the ⌘ chord may select all")
         #expect(keys.contains("guard !selectAllIds.isEmpty else { return .ignored }"),
-                "an empty surface must decline so ⌘A falls through, matching "
-                    + "SelectAllRoute.none")
+                Comment(rawValue: "an empty surface must decline so ⌘A falls through, "
+                    + "matching SelectAllRoute.none"))
         #expect(keys.contains("guard !isTextEntryActive"),
                 "⌘A must yield to a live rename / filter / search field")
     }
@@ -81,8 +81,8 @@ struct LibraryListFocusAndPrefetchTests {
         #expect(view.contains("@State var thumbnailPrefetch = ThumbnailPrefetchLedger()"))
         for gone in ["prefetchedThumbnailIds", "thumbnailPrefetchTask", "folderThumbnailPrefetchTask"] {
             #expect(!view.contains("@State var \(gone)"),
-                    "`\(gone)` is written from a row's .onAppear; as @State that is one "
-                        + "whole-library re-render per revealed row")
+                    Comment(rawValue: "`\(gone)` is written from a row's .onAppear; as "
+                        + "@State that is one whole-library re-render per revealed row"))
         }
     }
 
@@ -91,8 +91,8 @@ struct LibraryListFocusAndPrefetchTests {
         let ledger = try AppSource.text("Views/Library/ThumbnailPrefetchLedger.swift")
         #expect(ledger.contains("final class ThumbnailPrefetchLedger"))
         #expect(!ledger.contains("@Observable"),
-                "observing it would restore exactly the per-row invalidation this "
-                    + "type exists to remove")
+                Comment(rawValue: "observing it would restore exactly the per-row "
+                    + "invalidation this type exists to remove"))
     }
 
     @Test("one claim seam, so the folder sweep and the look-ahead cannot double-fetch")
