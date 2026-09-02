@@ -237,6 +237,7 @@ extension ContentView {
         }
         if stepWithinSidebarSelection(forward: false, from: current) { return }
         if stepWithinLibrarySelection(forward: false, from: current) { return }
+        if stepWithinSearchResults(forward: false, from: current) { return }
         let docs = navigableSiblings(for: current)
         if docs.count <= 1 { stepViaFetchedSiblings(forward: false, from: current); return }
         guard let idx = docs.firstIndex(where: { $0.id == current.id }), idx > 0 else { return }
@@ -254,6 +255,7 @@ extension ContentView {
         }
         if stepWithinSidebarSelection(forward: true, from: current) { return }
         if stepWithinLibrarySelection(forward: true, from: current) { return }
+        if stepWithinSearchResults(forward: true, from: current) { return }
         let docs = navigableSiblings(for: current)
         if docs.count <= 1 { stepViaFetchedSiblings(forward: true, from: current); return }
         guard let idx = docs.firstIndex(where: { $0.id == current.id }), idx < docs.count - 1 else { return }

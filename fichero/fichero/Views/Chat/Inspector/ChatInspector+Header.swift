@@ -16,7 +16,11 @@ extension ChatInspector {
                         .font(.caption)
                 }
                 .buttonStyle(.plain)
-                .keyboardShortcut("a", modifiers: .command)
+                // No ⌘A binding (2026-09-02): a second view-level ⌘A anywhere
+                // in the window fights the Edit menu's SelectAllButton — the
+                // one-chord-one-owner rule (#4354's lesson, applied to ⌘A).
+                // It also stole the shortcut LABEL from Edit ▸ Select All.
+                // The button stays clickable; the chord routes by focus.
 
                 Button {
                     removeSelectedFromScope()

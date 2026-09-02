@@ -68,7 +68,10 @@ struct AboutView: View {
     private let tagline = "A document workbench for researchers — read, organize, "
         + "search, and make things from your sources."
     private let credit = "Created by Daniel Tubb"
-    private let fallbackCopyright = "© 2025–2026 Daniel Tubb · MIT License"
+    // AGPL-3.0, not MIT (2026-09-02 license audit): the repo LICENSE is the
+    // GNU AGPL-3.0 and CONTRIBUTING/LICENSING.md say so — the About box was
+    // the one place still claiming MIT.
+    private let fallbackCopyright = "© 2025–2026 Daniel Tubb · AGPL-3.0"
 
     private var versionLine: String {
         AboutInfo.versionLine(

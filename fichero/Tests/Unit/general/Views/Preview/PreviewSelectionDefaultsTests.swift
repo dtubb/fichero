@@ -151,6 +151,26 @@ struct PreviewSelectionDefaultsTests {
         #expect(mouseDown.contains("modifierFlags.contains(.option)"))
     }
 
+    // MARK: - Search results own the sibling walk
+
+    @Test("while search results show, the sibling swipe walks the results")
+    func swipeWalksSearchResults() throws {
+        let stepping = try appSource(
+            "Views/Shell/ContentView/Actions/ContentView+SelectionStepping.swift"
+        )
+        #expect(stepping.contains("func stepWithinSearchResults"))
+        #expect(stepping.contains("guard activeSearchQuery != nil"),
+                "the walk must engage ONLY while results are the visible surface")
+        #expect(!stepping.contains("displayOrdered(searchResultDocuments"),
+                "relevance IS the results' order — re-sorting walks a list that isn't on screen")
+
+        let nav = try appSource(
+            "Views/Shell/ContentView/Actions/ContentView+ActionsNavigation.swift"
+        )
+        #expect(nav.contains("stepWithinSearchResults(forward: true"))
+        #expect(nav.contains("stepWithinSearchResults(forward: false"))
+    }
+
     // MARK: - Inline words never truncate
 
     @Test("the inline word fit corrects until it actually fits")

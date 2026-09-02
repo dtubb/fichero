@@ -62,4 +62,28 @@ extension ContentView {
         return true
     }
 
+    /// Search-results stepping (Daniel, 2026-09-02: "swipe left right in
+    /// library search, to move between search results"): while the library
+    /// shows SEARCH RESULTS, ←/→ and the sibling swipe walk the RESULTS in
+    /// relevance order — not the folder the current hit happens to live in.
+    /// Deliberately NOT displayOrdered: relevance IS the results' order, and
+    /// re-sorting it by a folder's saved sort would walk a different list
+    /// than the one on screen (the visible-surface ruling). No wrap: the ends
+    /// are the ends, same as folder stepping. Returns true when it consumed
+    /// the step.
+    func stepWithinSearchResults(forward: Bool, from current: Document) -> Bool {
+        guard activeSearchQuery != nil, searchResultDocuments.count > 1,
+              let idx = searchResultDocuments.firstIndex(where: { $0.id == current.id })
+        else { return false }
+        let next = idx + (forward ? 1 : -1)
+        guard searchResultDocuments.indices.contains(next) else { return true }
+        let target = searchResultDocuments[next]
+        NavTrace.log("stepWithinSearchResults", "\(current.id) → \(target.id)")
+        withAnimation(.easeInOut(duration: 0.2)) {
+            detailDocument = target
+            browserSelection = [target.id]
+        }
+        return true
+    }
+
 }
