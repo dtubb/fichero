@@ -106,8 +106,8 @@ struct WorkspaceCommandsSection: View {
         Section("Workspaces") {
             // The built-in arrangements first (Daniel, 2026-08-31: "can we
             // have some defaults?") — the menu-bar twins of the toolbar's one
-            // Workspaces button. These carry the toolbar and workflow bar with
-            // them; the presets below still touch pane visibility only.
+            // Workspaces button. These carry the toolbar and BOTH window bars
+            // with them; the presets below still touch pane visibility only.
             ForEach(BuiltInWorkspace.allCases) { workspace in
                 Button {
                     commands?.applyBuiltIn(workspace)
@@ -118,9 +118,15 @@ struct WorkspaceCommandsSection: View {
             }
 
             ForEach(WindowWorkspaceStore.shared.catalog.workspaces) { workspace in
-                Button(workspace.name) {
+                Button {
                     commands?.applyWorkspace(workspace)
+                } label: {
+                    // Icons on every row (Daniel, 2026-09-02), and the same
+                    // derived glyph the toolbar's Workspaces menu shows — one
+                    // arrangement must not wear two faces in two menus.
+                    Label(workspace.name, systemImage: workspace.systemImage)
                 }
+                .help(workspace.help)
                 .disabled(commands == nil)
             }
 

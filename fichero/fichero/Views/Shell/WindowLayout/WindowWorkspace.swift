@@ -118,6 +118,13 @@ struct WindowLayoutSnapshot: Codable, Equatable, Sendable {
     /// The window-level workflow bar — chrome, like the panes, so a
     /// "Cataloguing" arrangement can bring it with it.
     var showWorkflowBar: Bool = false
+    /// The window-level markup bar, for the same reason (Daniel, 2026-09-02:
+    /// applying a workspace "doesn't seem to do much"). It was the ONE piece
+    /// of window chrome a workspace named nothing about, so a reading
+    /// arrangement saved with the markup bar up came back without it — and a
+    /// restore that silently drops something is exactly what makes the whole
+    /// feature feel inert.
+    var showAnnotationBar: Bool = false
 }
 
 extension WindowLayoutSnapshot {
@@ -142,6 +149,8 @@ extension WindowLayoutSnapshot {
             ToolbarVisibilityPlan.self, forKey: .toolbar
         ) ?? .everything
         showWorkflowBar = try container.decodeIfPresent(Bool.self, forKey: .showWorkflowBar) ?? false
+        showAnnotationBar = try container.decodeIfPresent(
+            Bool.self, forKey: .showAnnotationBar) ?? false
     }
 }
 
@@ -152,6 +161,44 @@ struct SavedWindowWorkspace: Codable, Equatable, Identifiable, Sendable {
     var name: String
     var savedAt: Date
     var layout: WindowLayoutSnapshot
+
+    /// A glyph for the menu row (Daniel, 2026-09-02: "add icons to the menu
+    /// rows"). DERIVED from what the arrangement actually is, never stored: a
+    /// saved workspace has no icon of its own to persist, and one picked at
+    /// save time would go stale the moment the workspace is re-saved.
+    var systemImage: String {
+        let panes = layout.panes
+        if panes.showChatPane { return "sparkles.rectangle.stack" }
+        if panes.showReaderPane && !panes.showPreviewPane { return "book" }
+        if layout.showWorkflowBar { return "tray.full" }
+        if panes.showPreviewPane && panes.showReaderPane { return "rectangle.split.3x1" }
+        if !panes.showPreviewPane && !panes.showReaderPane { return "sidebar.left" }
+        return "rectangle.grid.1x2"
+    }
+
+    /// What applying it will actually do, in the row's own tooltip. Daniel's
+    /// 2026-09-02 reading of the menu was that applying a workspace "doesn't
+    /// seem to do much" — a row that lists what it is about to restore is
+    /// half the answer to that, and the other half is restoring it.
+    var help: String {
+        var parts: [String] = []
+        let panes = layout.panes
+        var visible: [String] = []
+        if panes.showSidebar { visible.append("sidebar") }
+        if panes.showLibraryPane { visible.append("library") }
+        if panes.showPreviewPane { visible.append("preview") }
+        if panes.showReaderPane { visible.append("reader") }
+        if panes.showChatPane { visible.append("chat") }
+        if panes.showInspector { visible.append("inspector") }
+        parts.append(visible.isEmpty ? "no panes" : visible.joined(separator: ", "))
+        if layout.showWorkflowBar { parts.append("workflow bar") }
+        if layout.showAnnotationBar { parts.append("markup bar") }
+        if !layout.splits.isEmpty {
+            let count = layout.splits.count
+            parts.append(count == 1 ? "1 split pane" : "\(count) split panes")
+        }
+        return "Restores: " + parts.joined(separator: " · ")
+    }
 }
 
 /// The app-wide list of saved workspaces (workspaces apply per window but the
@@ -330,6 +377,11 @@ enum BuiltInWorkspace: String, CaseIterable, Identifiable, Sendable {
     /// The workflow bar rides with Cataloguing — that is what cataloguing is.
     var showsWorkflowBar: Bool { self == .cataloguing }
 
+    /// The markup bar rides with Reading — annotating is what a reading desk
+    /// is for, and a built-in that names the workflow bar but stays silent
+    /// about the markup bar leaves half the chrome wherever it happened to be.
+    var showsMarkupBar: Bool { self == .reading }
+
     var toolbar: ToolbarVisibilityPlan {
         switch self {
         case .reading: .minimal
@@ -342,9 +394,13 @@ enum BuiltInWorkspace: String, CaseIterable, Identifiable, Sendable {
     func matches(
         panes current: PaneVisibilityPlan,
         toolbar currentToolbar: ToolbarVisibilityPlan,
-        workflowBar: Bool
+        workflowBar: Bool,
+        markupBar: Bool
     ) -> Bool {
-        panes == current && toolbar == currentToolbar && showsWorkflowBar == workflowBar
+        panes == current
+            && toolbar == currentToolbar
+            && showsWorkflowBar == workflowBar
+            && showsMarkupBar == markupBar
     }
 }
 

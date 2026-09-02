@@ -247,19 +247,109 @@ final class WindowWorkspaceTests: XCTestCase {
         XCTAssertFalse(BuiltInWorkspace.everything.showsWorkflowBar)
     }
 
-    func testBuiltInMatchesOnlyWhenPanesToolbarAndBarAllAgree() {
+    func testBuiltInMatchesOnlyWhenPanesToolbarAndBarsAllAgree() {
         let reading = BuiltInWorkspace.reading
         XCTAssertTrue(reading.matches(
-            panes: reading.panes, toolbar: reading.toolbar, workflowBar: false
+            panes: reading.panes, toolbar: reading.toolbar,
+            workflowBar: false, markupBar: true
         ))
         // Same panes, but the user turned the Layouts button back on.
         XCTAssertFalse(reading.matches(
-            panes: reading.panes, toolbar: .everything, workflowBar: false
+            panes: reading.panes, toolbar: .everything,
+            workflowBar: false, markupBar: true
         ))
         // Same panes and toolbar, but the workflow bar is up.
         XCTAssertFalse(reading.matches(
-            panes: reading.panes, toolbar: reading.toolbar, workflowBar: true
+            panes: reading.panes, toolbar: reading.toolbar,
+            workflowBar: true, markupBar: true
         ))
+        // Same panes, toolbar and workflow bar — but the markup bar is down,
+        // and Reading brings it. A checkmark on an arrangement the window is
+        // not actually in is the bug this closes.
+        XCTAssertFalse(reading.matches(
+            panes: reading.panes, toolbar: reading.toolbar,
+            workflowBar: false, markupBar: false
+        ))
+    }
+
+    // MARK: - The markup bar is part of the arrangement (Daniel, 2026-09-02)
+
+    func testSnapshotCarriesBothWindowBars() throws {
+        // Applying a workspace "doesn't seem to do much" was, in part, this:
+        // the markup bar was the one piece of window chrome a workspace named
+        // nothing about, so a reading desk saved with it up came back without.
+        var original = snapshot()
+        original.showWorkflowBar = true
+        original.showAnnotationBar = true
+        var catalog = WindowWorkspaceCatalog()
+        catalog.save(name: "Marking Up", layout: original)
+        let restored = WindowWorkspaceCatalog.decoded(from: try catalog.encoded())
+        XCTAssertEqual(restored?.workspaces.first?.layout.showAnnotationBar, true)
+        XCTAssertEqual(restored?.workspaces.first?.layout.showWorkflowBar, true)
+    }
+
+    func testAWorkspaceSavedBeforeTheMarkupBarStillDecodes() throws {
+        // Lenient decode, same contract as every field added since: an old
+        // saved layout must not throw away the user's whole catalog.
+        let json = """
+        {"panes":{"showSidebar":true,"showInspector":false,"showLibraryPane":true,
+        "showPreviewPane":true,"showReaderPane":false,"showChatPane":false},
+        "libraryPaneWidth":320,"readerPaneWidth":200,"chatPaneWidth":300,
+        "viewDisplayMode":"Icon","layoutMode":"Widescreen"}
+        """
+        let decoded = try JSONDecoder().decode(
+            WindowLayoutSnapshot.self, from: Data(json.utf8))
+        XCTAssertFalse(decoded.showAnnotationBar)
+        XCTAssertFalse(decoded.showWorkflowBar)
+    }
+
+    func testEachBuiltInNamesItsOwnBars() {
+        // Reading is a desk you annotate at; Cataloguing is one you run
+        // workflows from. Neither may leave the other's bar wherever it
+        // happened to be.
+        XCTAssertTrue(BuiltInWorkspace.reading.showsMarkupBar)
+        XCTAssertFalse(BuiltInWorkspace.cataloguing.showsMarkupBar)
+        XCTAssertFalse(BuiltInWorkspace.everything.showsMarkupBar)
+        XCTAssertTrue(BuiltInWorkspace.cataloguing.showsWorkflowBar)
+    }
+
+    // MARK: - Menu rows carry a glyph
+
+    func testSavedWorkspacesDeriveAGlyphAndNeverStoreOne() {
+        // Derived, never persisted: an icon picked at save time goes stale the
+        // moment the workspace is re-saved over.
+        var reading = snapshot(chat: false)
+        reading.panes.showPreviewPane = false
+        XCTAssertEqual(
+            SavedWindowWorkspace(id: UUID(), name: "R", savedAt: Date(), layout: reading)
+                .systemImage,
+            "book")
+        var cataloguing = snapshot(chat: false)
+        cataloguing.panes.showReaderPane = false
+        cataloguing.showWorkflowBar = true
+        XCTAssertEqual(
+            SavedWindowWorkspace(id: UUID(), name: "C", savedAt: Date(), layout: cataloguing)
+                .systemImage,
+            "tray.full")
+        let withChat = SavedWindowWorkspace(
+            id: UUID(), name: "E", savedAt: Date(), layout: snapshot(chat: true))
+        XCTAssertEqual(withChat.systemImage, "sparkles.rectangle.stack")
+        // Every workspace gets SOME glyph — a menu with one bare row is worse
+        // than a menu with none.
+        XCTAssertFalse(withChat.systemImage.isEmpty)
+    }
+
+    func testTheRowTooltipListsWhatWillBeRestored() {
+        var layout = snapshot(
+            splits: ["reading-reading": PaneSplitCounts(vertical: 2, horizontal: 1)])
+        layout.showAnnotationBar = true
+        let workspace = SavedWindowWorkspace(
+            id: UUID(), name: "Marking Up", savedAt: Date(), layout: layout)
+        let help = workspace.help
+        XCTAssertTrue(help.hasPrefix("Restores:"))
+        XCTAssertTrue(help.contains("reader"))
+        XCTAssertTrue(help.contains("markup bar"))
+        XCTAssertTrue(help.contains("1 split pane"))
     }
 
     func testBuiltInsAreDistinctArrangements() {
