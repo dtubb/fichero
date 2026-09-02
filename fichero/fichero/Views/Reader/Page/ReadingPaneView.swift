@@ -381,10 +381,38 @@ struct ReadingPaneView: View {
               let document = effectiveDocument,
               let text = document.pageContent,
               let provider = ReaderMarkdownDrag.itemProvider(
-                  text: text, documentName: document.name
+                  text: text,
+                  documentName: document.name,
+                  identity: readerProxyIdentity(for: document, text: text)
               )
         else { return nil }
         return { provider }
+    }
+
+    /// WHO the proxy icon is dragging — the in-app half of the payload
+    /// (Daniel, 2026-09-02: dragging it into the workflow bar's "With" slot
+    /// must run the workflow on this document, or on the artifact the pane is
+    /// pointed at). The lens wins over the document, because the pane's head
+    /// names the artifact and the drag must promise what the head says.
+    private func readerProxyIdentity(for document: Document, text: String) -> LibraryItemDrag {
+        if let lens = artifactLens {
+            return LibraryItemDrag(
+                kind: .artifact,
+                id: lens.artifactId,
+                documentId: document.id,
+                text: text,
+                libraryId: LibraryManager.shared.currentLibraryId,
+                name: lens.label
+            )
+        }
+        return LibraryItemDrag(
+            kind: document.docType == .page ? .page : .document,
+            id: document.id,
+            documentId: document.id,
+            text: text,
+            libraryId: LibraryManager.shared.currentLibraryId,
+            name: DocumentTitle.displayName(for: document)
+        )
     }
 
     /// Pinning freezes this pane on its current view (Daniel, 2026-08-23);

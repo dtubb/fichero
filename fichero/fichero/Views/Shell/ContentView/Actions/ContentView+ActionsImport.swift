@@ -60,6 +60,15 @@ extension ContentView {
         transientSearchScopeIsFolder = transientSearchContextFolder != nil
             && UserDefaults.standard.bool(forKey: Self.searchDefaultScopeIsFolderKey)
         sidebarSelectionState.selectedItemId = nil
+        // A NEW submission owns the selection too (Daniel, 2026-09-02: a
+        // second search "does not refresh … until you click around"). A
+        // selection carried over from the previous result set survives into
+        // rows that no longer contain it, and — because `runTransientSearch`
+        // only re-points the reader `if browserSelection.isEmpty` — it also
+        // pins the reader to the OLD query's document while the grid shows
+        // the new one. Clearing here is what makes "search again" read as a
+        // fresh answer rather than an edit of the last one.
+        browserSelection = []
         sidebarMode = route.sidebarMode
         viewMode = route.viewMode
         activeSearchQuery = route.query

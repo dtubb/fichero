@@ -41,13 +41,39 @@ enum ReaderMarkdownDrag {
     /// Finder and any editor that takes documents) and plain UTF-8 text (for
     /// anything that takes a string). Returns nil for empty text: a proxy icon
     /// that drags nothing should not be draggable at all.
-    static func itemProvider(text: String, documentName: String) -> NSItemProvider? {
+    ///
+    /// `identity` — when supplied — is registered FIRST, under the app's own
+    /// `UTType.ficheroDragItem`, so an IN-APP destination gets the node or
+    /// artifact ID rather than a wad of Markdown (Daniel, 2026-09-02:
+    /// dragging the reader's proxy icon into the workflow bar's "With" slot
+    /// must run the workflow on THIS document/artifact). Finder and outside
+    /// editors ignore the named flavor and take the file, exactly as before —
+    /// registration ORDER is the preference order, so the extension never
+    /// changes what a cross-app drop receives.
+    static func itemProvider(
+        text: String,
+        documentName: String,
+        identity: LibraryItemDrag? = nil
+    ) -> NSItemProvider? {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
         let name = filename(forDocumentNamed: documentName)
         let data = Data(text.utf8)
 
         let provider = NSItemProvider()
         provider.suggestedName = name
+        if let identity, let json = try? JSONEncoder().encode(identity) {
+            provider.registerDataRepresentation(
+                // `.all`, not `.ownProcess`: the ownProcess flavor is the one
+                // the pasteboard DROPPED in the #4401 multi-drag repro, and
+                // an identifier no other app declares is invisible to them
+                // regardless. Same choice LibraryItemDrag's own
+                // DataRepresentation makes.
+                for: .ficheroDragItem, visibility: .all
+            ) { completion in
+                completion(json, nil)
+                return nil
+            }
+        }
         provider.registerDataRepresentation(
             for: .utf8PlainText, visibility: .all
         ) { completion in

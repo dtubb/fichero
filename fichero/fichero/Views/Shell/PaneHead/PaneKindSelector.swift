@@ -35,6 +35,21 @@ struct PaneKindSelector<Lens: Hashable & Identifiable>: View {
     /// is the same collapse the narrowest width already performs, so no rung
     /// and no menu entry is lost.
     var collapsesKindIntoLens: Bool = false
+    /// What the pane is actually SHOWING, named beside the glyph (Daniel,
+    /// 2026-09-02: the reader head "never says WHAT is displayed — document
+    /// content, or which artifact"). The lens TITLE is not always the answer:
+    /// the Content lens can be pointed at a transcription, a translation or
+    /// one named artifact, and all four look identical without this. nil =
+    /// the pane has nothing more specific to say than its lens icon, and the
+    /// selector renders exactly as it did before.
+    var shownLabel: String?
+    /// Extra rows appended to the LENS menu below a divider — the reader's
+    /// "Showing" submenu of representations and artifacts (Daniel,
+    /// 2026-09-02: the View menu "should gain a submenu listing the artifacts
+    /// available for the current document"). `AnyView` deliberately: a fourth
+    /// generic parameter on this type multiplies into every head that
+    /// composes it, which is the #4331 stall class.
+    var extraLensMenu: (() -> AnyView)?
     @Binding var lens: Lens
 
     var body: some View {
@@ -54,20 +69,46 @@ struct PaneKindSelector<Lens: Hashable & Identifiable>: View {
             selectorRow(lensIconOnly: false)
             selectorRow(lensIconOnly: true)
             // Narrowest rung (Daniel, 2026-08-23): kind and lens COLLAPSE
-            // into one control — the kind icon opens the lens menu.
-            mergedSelector
+            // into one control — the kind icon opens the lens menu. No
+            // `shownLabel` here: this rung exists because the head ran out of
+            // room, so it must stay the icon alone.
+            mergedRung(namesWhatIsShown: false)
         }
     }
 
+    /// One glyph, and — when the pane says what it is showing — its name
+    /// beside it. Degrades to the glyph alone in a narrow pane.
     private var mergedSelector: some View {
+        // AnyView per rung is LOAD-BEARING (the #4331 rule the breadcrumb
+        // ladder documents): menu-bearing candidates compose deep.
+        ViewThatFits(in: .horizontal) {
+            AnyView(mergedRung(namesWhatIsShown: shownLabel != nil))
+            AnyView(mergedRung(namesWhatIsShown: false))
+        }
+    }
+
+    private func mergedRung(namesWhatIsShown: Bool) -> some View {
         // ponytail: the merged rung keeps the LENS menu; kind switching at
         // the narrowest width goes through the pane's right-click/full head.
         lensMenuContent {
-            Label(kindTitle, systemImage: kindIcon)
-                .font(.callout.weight(.medium))
-                .labelStyle(.iconOnly)
+            HStack(spacing: 4) {
+                Label(kindTitle, systemImage: kindIcon)
+                    .font(.callout.weight(.medium))
+                    .labelStyle(.iconOnly)
+                if namesWhatIsShown, let shownLabel {
+                    Text(shownLabel)
+                        .font(.callout)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .frame(maxWidth: PaneKindSelectorMetrics.shownLabelMaxWidth,
+                               alignment: .leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
         }
-        .help("\(kindTitle) — choose what this pane shows")
+        .help(shownLabel.map { "\(kindTitle) — showing \($0). Click to change." }
+            ?? "\(kindTitle) — choose what this pane shows")
+        .accessibilityLabel(shownLabel.map { "\(kindTitle), showing \($0)" } ?? kindTitle)
     }
 
     private func selectorRow(lensIconOnly: Bool) -> some View {
