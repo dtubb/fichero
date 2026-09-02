@@ -1,7 +1,7 @@
 {
   "release.app_binary": {
-    "bytes": 60384,
-    "note": "tightened from 224242192 bytes"
+    "bytes": 224640816,
+    "note": "2026-09-02: re-corrected \u2014 a guardrail --update-baseline run in the integration worktree measured a 59KB stub via the default paths and the bogus value got merged; this is the real beta Mach-O from the 2026.09.01.2 train"
   },
   "release.app_bundle": {
     "bytes": 1433040842,
