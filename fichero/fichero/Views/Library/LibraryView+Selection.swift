@@ -9,10 +9,28 @@ import SwiftUI
 /// table mode has moved the cursor since the sidebar page-click fix, and the
 /// grid modes now match (2026-08-09, #100 sibling sweep).
 ///
+/// Never while SEARCH RESULTS are showing (2026-09-02). The cursor-only path
+/// assumes the list you are clicking in IS the rooted PDF — sibling pages of
+/// the document already open — so moving the cursor rather than re-rooting is
+/// the same document either way. A result list is not that list: its rows come
+/// from anywhere in the library, and the one thing a click on a hit means is
+/// "show me THIS result". A hit that happened to be a page of the currently
+/// rooted PDF took the cursor branch and never re-rooted the reader, which is
+/// what "the reader doesn't show the selected result" was.
+///
 /// FILE SCOPE deliberately: a static on a `View` inherits MainActor under the
 /// macOS 26 SDK and SIGTRAPs Swift Testing off-main (DocumentThumbnailKind
 /// precedent).
-func pageClickMovesCursorOnly(clicked: Document, detailDocument: Document?) -> Bool {
+///
+/// `isShowingSearchResults` is REQUIRED rather than defaulted: a new call site
+/// must state which list its click came from, because getting it wrong is
+/// silent — the reader simply does not move.
+func pageClickMovesCursorOnly(
+    clicked: Document,
+    detailDocument: Document?,
+    isShowingSearchResults: Bool
+) -> Bool {
+    guard !isShowingSearchResults else { return false }
     guard clicked.docType == .page, let root = detailDocument else { return false }
     let clickedParent = pdfParentDocumentId(of: clicked)
     guard clickedParent != nil else { return false }
@@ -181,7 +199,13 @@ extension LibraryView {
             // grid modes re-rooted detailDocument — reloading the transcript
             // pane under a click meant to move within it (#1463 class) and
             // leaving the preview's page label to a stale cursor.
-            if pageClickMovesCursorOnly(clicked: doc, detailDocument: detailDocument) {
+            if pageClickMovesCursorOnly(
+                clicked: doc,
+                detailDocument: detailDocument,
+                // The SAME condition the mode-scoping fix uses: while a query
+                // is up this pane is showing hits, not a folder listing.
+                isShowingSearchResults: activeSearchQuery != nil
+            ) {
                 onPageFocus(doc)
             } else {
                 detailDocument = doc
