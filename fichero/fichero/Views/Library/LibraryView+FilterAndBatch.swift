@@ -127,6 +127,14 @@ extension LibraryView {
             }
             return lhs.selectionId < rhs.selectionId
         }.map { $0.entity }
+
+        // The spatial boards project `filteredDocuments`, so they are refreshed
+        // HERE rather than by each caller remembering to (2026-09-02). Four
+        // handlers already called `recomputeFiltered()` alone — folderId, the
+        // three sort writers, the Show kind, and the debounced ⌘F pass — which
+        // as of this change would have left a canvas showing the previous
+        // filter. It self-gates on the display mode, so a list pays one branch.
+        refreshLibraryProjection()
     }
 
     /// Max OCR characters folded into a document's search key (#3865). ⌘F is a

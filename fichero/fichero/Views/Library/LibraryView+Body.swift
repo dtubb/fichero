@@ -247,15 +247,13 @@ extension LibraryView {
                 loadSortSettings(for: folderId)
                 syncSortOrder()
                 recomputeFiltered()
-                refreshLibraryProjection()
                 consumePendingOpen()
             }
             // Merged the two former documentStore.revision observers into one
             // (#3870) — SwiftUI would run both every revision.
             .onChange(of: documentStore.revision) { _, _ in
                 // Pending-open hand-off retry once rows arrive (#1685).
-                recomputeFiltered()
-                refreshLibraryProjection()               // no-op unless canvas/space (#3867)
+                recomputeFiltered()                     // refreshes the spatial projection too
                 if displayMode == .table { syncPagesByParentId() }  // outline-only (#3870)
                 consumePendingOpen()
             }
@@ -284,11 +282,9 @@ extension LibraryView {
             // costs no second pass.
             .onChange(of: documents) { _, _ in
                 recomputeFiltered()
-                refreshLibraryProjection()
             }
             .onChange(of: entities) { _, _ in
                 recomputeFiltered()
-                refreshLibraryProjection()
             }
             .onChange(of: scopedLibraryReference?.activityStore.refreshToken ?? 0) { _, _ in
                 refreshPendingStatusesFromLiveUpdate()
