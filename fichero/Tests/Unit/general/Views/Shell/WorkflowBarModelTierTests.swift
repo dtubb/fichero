@@ -122,11 +122,16 @@ struct WorkflowBarModelTierTests {
         #expect(tier(workflowStep("Transcribe", requiresVision: true)) == .vision)
     }
 
-    @Test("an unknown tool keeps the old selection-based answer")
-    func unknownToolFallsBackToSelection() {
-        // Older engine, or the registry not loaded yet: guessing would rename
-        // the model in a sentence about a paid run.
-        #expect(tier(toolStep("not_in_registry")) == .vision)
+    @Test("an unknown tool is never defaulted onto an OCR-only route")
+    func unknownToolIsNeverDefaultedOntoOCR() {
+        // Daniel, 2026-09-02: "Cleanup — single small-model pass" resolved to
+        // Apple Vision and failed with the engine's own refusal. The tool was
+        // not in the client registry, so `requires_generative_model` read
+        // false BY ABSENCE and the step inherited the image selection's tier.
+        // Absence of the flag is not evidence that the flag is false.
+        #expect(tier(toolStep("not_in_registry")) == .text)
+        // Nothing is being guessed about the SELECTION: with a text selection
+        // the answer was already Text, and it still is.
         let textSelection = WorkflowBarPolicy.defaultTier(
             for: toolStep("not_in_registry"),
             tools: registry,
@@ -134,6 +139,68 @@ struct WorkflowBarModelTierTests {
             selectionPrefersVision: false
         )
         #expect(textSelection == .text)
+    }
+
+    @Test("an unknown tool keeps the Vision default once that default can generate")
+    func unknownToolKeepsCapableVisionDefault() {
+        // The rule excludes NON-GENERATIVE providers, not the vision tier: a
+        // vision model that can answer a prompt is still the right default for
+        // an image selection, and moving it to the text tier would spend money
+        // for nothing.
+        #expect(tier(toolStep("not_in_registry"), vision: Self.visionLLM) == .vision)
+    }
+
+    @Test("a registry tool that declares no generative need still takes Vision")
+    func knownRecognitionToolIsConfirmed() {
+        #expect(WorkflowBarPolicy.stepIsConfirmedRecognitionWork(
+            toolStep("transcribe"), tools: registry))
+        #expect(!WorkflowBarPolicy.stepIsConfirmedRecognitionWork(
+            toolStep("table_extract"), tools: registry))
+        #expect(!WorkflowBarPolicy.stepIsConfirmedRecognitionWork(
+            toolStep("not_in_registry"), tools: registry))
+        // A workflow keeps the server's requires_vision as its confirmation —
+        // demoting Apple-Vision transcription presets would spend money.
+        #expect(WorkflowBarPolicy.stepIsConfirmedRecognitionWork(
+            workflowStep("Transcribe", requiresVision: true), tools: registry))
+    }
+
+    @Test("a text-tier step never falls back onto the excluded OCR model")
+    func textTierNeverFallsBackOntoOCR() {
+        // The fallback must not undo the rule that produced it: with no Text
+        // tier configured, a generative step names NOTHING rather than naming
+        // the very provider the rule excluded.
+        let choice = WorkflowBarPolicy.defaultChoice(
+            for: toolStep("table_extract"),
+            tools: registry,
+            textTier: nil,
+            visionTier: Self.appleVision,
+            selectionPrefersVision: true
+        )
+        #expect(choice == nil)
+        // A vision model that CAN generate is a legitimate fallback.
+        let capable = WorkflowBarPolicy.defaultChoice(
+            for: toolStep("translate"),
+            tools: registry,
+            textTier: nil,
+            visionTier: Self.visionLLM,
+            selectionPrefersVision: true
+        )
+        #expect(capable?.model == "gpt-5")
+    }
+
+    @Test("the run stamps the text model for an unknown tool too")
+    func unknownToolRunOverride() {
+        // Display and execution answer to one rule: the bar names the text
+        // model, so the run must send it — otherwise the engine resolves the
+        // Vision default and refuses exactly as it did on 2026-09-02.
+        let override = WorkflowBarPolicy.implicitRunOverride(
+            for: toolStep("not_in_registry"),
+            tools: registry,
+            textTier: Self.claude,
+            visionTier: Self.appleVision,
+            selectionPrefersVision: true
+        )
+        #expect(override?.model == "claude-opus-4-7")
     }
 
     // MARK: - Which model that names
