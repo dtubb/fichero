@@ -281,6 +281,76 @@ final class ImageEditorModel {
         }
     }
 
+    /// Re-edit ONE committed step in place, keeping its position in the chain
+    /// (Daniel, 2026-09-02: Aperture/Lightroom step editing — "click a step to
+    /// re-open its settings, change them, and the stack reapplies from that
+    /// point").
+    ///
+    /// The chain is the recipe, so changing a step is a chain rewrite, not a
+    /// new operation: the passed `params` are merged onto the step at `index`
+    /// and the whole list goes back through `PUT /edits`, after which the
+    /// engine re-renders the document from the SOURCE through every step in
+    /// order — which is exactly "reapplies from that point".
+    ///
+    /// Remove-then-re-add, which the panel used to do, is not the same thing:
+    /// the new step lands at the END, so re-editing a rotate that sat before a
+    /// crop silently moved it after the crop and changed the picture. It also
+    /// spent two round-trips and two renders on one edit.
+    func updateOperation(at index: Int, params: [String: Any]) async {
+        guard chain.operations.indices.contains(index) else { return }
+        await runOp { service in
+            var ops = self.chain.operations.map(\.raw)
+            guard var dict = ops[index].value as? [String: Any] else {
+                throw ImageEditingError.invalidResponse
+            }
+            var merged = (dict["params"] as? [String: Any]) ?? [:]
+            for (key, value) in params { merged[key] = value }
+            dict["params"] = merged
+            // `derived_path` names the cached render of the step's OLD
+            // settings. Left in place it is a stale pointer the engine could
+            // prefer over the recipe we just changed.
+            dict.removeValue(forKey: "derived_path")
+            ops[index] = AnyCodable(dict)
+            return try await service.setOperations(documentId: self.documentId, operations: ops)
+        }
+    }
+
+    // MARK: - Copy / Paste edits (Daniel, 2026-09-02)
+
+    /// Put this document's chain on the app-wide edit clipboard.
+    func copyEdits() {
+        ImageEditClipboard.shared.copy(
+            operations: chain.operations.map(\.raw),
+            fromDocumentId: documentId
+        )
+    }
+
+    /// Adopt the copied chain on the CURRENT document.
+    ///
+    /// Paste REPLACES rather than appends, the way Lightroom's Paste Settings
+    /// does: pasting the same copy onto an image twice must leave it looking
+    /// the way the source looks, not rotated twice.
+    func pasteEdits() async {
+        let operations = ImageEditClipboard.shared.operations
+        guard !documentId.isEmpty else { return }
+        await runOp { service in
+            try await service.setOperations(
+                documentId: self.documentId,
+                operations: ImageEditClipboard.sanitized(operations)
+            )
+        }
+    }
+
+    /// Adopt the copied chain on many documents at once — the multi-selection
+    /// form of Paste Edits. Failures are collected per document, like every
+    /// other batch op, rather than aborting the rest.
+    func pasteEdits(to documentIds: [String]) async {
+        let operations = ImageEditClipboard.sanitized(ImageEditClipboard.shared.operations)
+        await batchApply(documentIds: documentIds) { service, id in
+            try await service.setOperations(documentId: id, operations: operations)
+        }
+    }
+
     func removeOperation(at index: Int) async {
         await runOp { service in try await service.removeOperation(documentId: self.documentId, at: index) }
     }

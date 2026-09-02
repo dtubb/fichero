@@ -22,6 +22,22 @@ let readerTableExportLogger = Logger(
 struct ReaderArtifactLens: Equatable {
     let artifactId: String
     let label: String
+
+    /// "Transcription — claude-opus-5" (Daniel, 2026-09-02). The head has to
+    /// name WHICH artifact it is showing, and "transcription · 2 hours ago"
+    /// names the wrong axis: several models produce the same type, and which
+    /// model wrote it is the thing you are comparing. The relative date stays
+    /// as the fallback for an artifact with no recorded model — a bare type
+    /// would leave two rows reading identically.
+    ///
+    /// Pure and static so the naming rule is testable without a view.
+    static func label(type: String, model: String?, relativeDate: String) -> String {
+        let title = ReaderRepresentation.title(for: type)
+        guard let model, !model.trimmingCharacters(in: .whitespaces).isEmpty else {
+            return "\(title) · \(relativeDate)"
+        }
+        return "\(title) — \(model)"
+    }
 }
 
 /// The artifact types the reader can read a document THROUGH — the text
@@ -188,83 +204,97 @@ extension ReadingPaneView {
         )
     }
 
-    /// The head's representation switcher (Daniel, 2026-08-29): Content plus
-    /// each representation type this document's scope actually has. Picking
-    /// one re-requests the SAME WebKit page with `?representation=` — one
-    /// renderer, several readings. Hidden when there is nothing to switch to.
-    @ViewBuilder
-    var readerRepresentationControl: some View {
-        if !readerRepresentationChoices.isEmpty {
+    /// What this pane is SHOWING, in words (Daniel, 2026-09-02: the reader
+    /// head "never says WHAT is displayed — document content, or which
+    /// artifact"). Rendered beside the head's one glyph.
+    ///
+    /// Only the Content lens has a choice to state: the knowledge surfaces
+    /// ARE their lens, so they name themselves. Precedence matches the
+    /// renderer's own (`ReadingPaneView+Tabs`): the artifact lens outranks
+    /// the representation switcher, which outranks the live content.
+    var readerShownLabel: String {
+        guard readerTab == .page else { return readerLensBinding.wrappedValue.title }
+        if let artifactLens { return artifactLens.label }
+        if let readerRepresentation {
+            return ReaderRepresentation.title(for: readerRepresentation)
+        }
+        return ReaderLens.page.title
+    }
+
+    /// The "Showing" submenu of the head's View menu (Daniel, 2026-09-02:
+    /// the View menu "should gain a submenu listing the artifacts AVAILABLE
+    /// for the current document … so you can point the pane at any of them").
+    ///
+    /// This is ONE menu where the head used to carry two more controls beside
+    /// the selector — a text menu of representations and a `doc.on.doc` menu
+    /// of artifacts. Three menus a divider apart, none of which said what was
+    /// on screen. Every row they offered is here; nothing was dropped.
+    ///
+    /// Absent entirely when the document has neither representations nor
+    /// artifacts: a submenu whose only row is the state you are already in is
+    /// the menu lying (dead-simple-UX).
+    func readerShowingMenu() -> AnyView {
+        guard !readerRepresentationChoices.isEmpty || !artifactLensChoices.isEmpty else {
+            return AnyView(EmptyView())
+        }
+        return AnyView(
             Menu {
                 Button {
                     readerRepresentation = nil
-                } label: {
-                    if readerRepresentation == nil {
-                        Label("Content", systemImage: "checkmark")
-                    } else {
-                        Text("Content")
-                    }
-                }
-                Divider()
-                ForEach(readerRepresentationChoices, id: \.self) { type in
-                    Button {
-                        readerRepresentation = type
-                    } label: {
-                        if readerRepresentation == type {
-                            Label(ReaderRepresentation.title(for: type), systemImage: "checkmark")
-                        } else {
-                            Text(ReaderRepresentation.title(for: type))
-                        }
-                    }
-                }
-            } label: {
-                Text(readerRepresentation.map { ReaderRepresentation.title(for: $0) } ?? "Content")
-                    .font(.caption)
-                    .foregroundStyle(readerRepresentation == nil ? Color.secondary : Color.accentColor)
-            }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
-            .help("Read this document as its content or one of its representations")
-            .accessibilityIdentifier("readerRepresentationSwitcher")
-        }
-    }
-
-    /// The head's artifact-lens control: a menu of this document's artifacts
-    /// plus "Live Transcript" to return. Hidden entirely for documents with
-    /// no artifacts — absent beats present-and-useless (#4421).
-    @ViewBuilder
-    var artifactLensControl: some View {
-        if !artifactLensChoices.isEmpty {
-            Menu {
-                Button {
                     artifactLens = nil
                 } label: {
-                    if artifactLens == nil {
-                        Label("Live Transcript", systemImage: "checkmark")
-                    } else {
-                        Text("Live Transcript")
+                    Self.showingRow(
+                        title: ReaderLens.page.title,
+                        isCurrent: readerRepresentation == nil && artifactLens == nil,
+                        icon: "doc.text"
+                    )
+                }
+                if !readerRepresentationChoices.isEmpty {
+                    Section("Representations") {
+                        ForEach(readerRepresentationChoices, id: \.self) { type in
+                            Button {
+                                artifactLens = nil
+                                readerRepresentation = type
+                            } label: {
+                                Self.showingRow(
+                                    title: ReaderRepresentation.title(for: type),
+                                    isCurrent: artifactLens == nil && readerRepresentation == type,
+                                    icon: "text.alignleft"
+                                )
+                            }
+                        }
                     }
                 }
-                Divider()
-                ForEach(artifactLensChoices, id: \.artifactId) { choice in
-                    Button {
-                        artifactLens = choice
-                    } label: {
-                        if artifactLens == choice {
-                            Label(choice.label, systemImage: "checkmark")
-                        } else {
-                            Text(choice.label)
+                if !artifactLensChoices.isEmpty {
+                    Section("Artifacts") {
+                        ForEach(artifactLensChoices, id: \.artifactId) { choice in
+                            Button {
+                                artifactLens = choice
+                            } label: {
+                                Self.showingRow(
+                                    title: choice.label,
+                                    isCurrent: artifactLens == choice,
+                                    icon: "doc.on.doc"
+                                )
+                            }
                         }
                     }
                 }
             } label: {
-                Image(systemName: "doc.on.doc")
-                    .foregroundStyle(artifactLens == nil ? Color.secondary : Color.accentColor)
+                Label("Showing: \(readerShownLabel)", systemImage: "eye")
             }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
-            .help(artifactLens.map { "Showing artifact: \($0.label)" }
-                ?? "Show one of this document's artifacts instead of the live transcript")
+        )
+    }
+
+    /// One checkmarked row. Extracted and explicitly typed: the inline
+    /// conditional inside three nested ForEach builders is exactly the shape
+    /// that has collapsed this file's type checker before.
+    @ViewBuilder
+    static func showingRow(title: String, isCurrent: Bool, icon: String) -> some View {
+        if isCurrent {
+            Label(title, systemImage: "checkmark")
+        } else {
+            Label(title, systemImage: icon)
         }
     }
 
@@ -307,10 +337,15 @@ extension ReadingPaneView {
             .sorted { $0.createdAt > $1.createdAt }
             .prefix(12)
             .map { artifact in
-                let when = formatter.localizedString(for: artifact.createdAt, relativeTo: Date())
-                return ReaderArtifactLens(
+                ReaderArtifactLens(
                     artifactId: artifact.id,
-                    label: "\(artifact.artifactType) · \(when)"
+                    label: ReaderArtifactLens.label(
+                        type: artifact.artifactType,
+                        model: artifact.model,
+                        relativeDate: formatter.localizedString(
+                            for: artifact.createdAt, relativeTo: Date()
+                        )
+                    )
                 )
             }
     }

@@ -74,6 +74,17 @@ extension ContentView {
                 await runTransientSearch(query)
             }
         }
+        // Scope changed in the options menu (#4107/S3). This handler used to
+        // live on the segmented picker itself; the picker is gone, so it sits
+        // beside the retrieval-type handler on the container that is mounted
+        // for exactly as long as a search is presented. Changing WHERE a
+        // search looks is a new request, not a client-side filter.
+        .onChange(of: transientSearchScopeIsFolder) { _, _ in
+            transientSearchLimit = Self.transientSearchPageSize
+            Task { @MainActor in
+                await runTransientSearch(query)
+            }
+        }
     }
 
     /// The "Expanded Search Results" banner, above the results the grid is
@@ -112,10 +123,22 @@ extension ContentView {
         //  * Load More — folded into the count, which is the thing that
         //    made you want more.
         //
-        // What stays: the count (now also the pager), the scope control, the
-        // retrieval-type menu, and Save — the one explicit persistence path
-        // (#4086), which has no bottom-bar home to move to yet.
+        // 2026-09-02 finished the job (Daniel: "fold it into a submenu
+        // attached to the search field"). The scope pills, the retrieval-type
+        // button and Save Search left the row too — they are rows of
+        // `SearchFieldOptionsMenu` now, behind the one loupe control below.
+        //
+        // What stays is not a control at all: the count, and the pager that
+        // count justifies. A row above a result set should say what the
+        // result set IS; everything that CHANGES it is one gesture away at
+        // the loupe, which is where a search's settings are looked for.
         HStack(spacing: 12) {
+            // ONE control, at the loupe, holding everything the row used to
+            // spread across it (Daniel, 2026-09-02): Ask/Keyword, the scope,
+            // the retrieval type and Save Search. The row that is left says
+            // only what the results say.
+            searchFieldOptionsMenu(store: store)
+
             searchStatusLabel(query: query, store: store)
                 // The flexible element must be the one that gives way, and it
                 // must be ALLOWED to (Daniel, 2026-09-01: the bar "rendered
@@ -127,12 +150,6 @@ extension ContentView {
                 .frame(minWidth: 0, alignment: .leading)
 
             Spacer(minLength: 8)
-
-            searchScopePicker(query: query)
-
-            searchOptionsMenu
-
-            searchResultActions(store: store)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
@@ -209,54 +226,37 @@ extension ContentView {
     /// whichever library was open before.
     private var searchScopeName: String {
         if transientSearchScopeIsFolder, let folder = transientSearchContextFolder {
-            return "“\(folder.name)”"
+            return "“\(folder.shortLabel)”"
         }
         // The library the RESULTS came from — the same value the toolbar
         // island shows, so the two cannot disagree.
         return searchChromeLibraryName
     }
 
-    /// Scope control (#4107/S3): whole library vs the folder that was being
-    /// browsed when the search ran. Absent when there was no browsing folder.
-    /// No "All libraries" until cross-library fan-out lands (#4110).
-    @ViewBuilder
-    private func searchScopePicker(query: String) -> some View {
-        if let folder = transientSearchContextFolder {
-            Picker("Search scope", selection: $transientSearchScopeIsFolder) {
-                Text("Library").tag(false)
-                Text("“\(folder.name)”").tag(true)
-            }
-            .pickerStyle(.segmented)
-            .fixedSize()
-            .labelsHidden()
-            .controlSize(.small)
-            .onChange(of: transientSearchScopeIsFolder) { _, _ in
-                transientSearchLimit = Self.transientSearchPageSize
-                Task { @MainActor in
-                    await runTransientSearch(query)
-                }
-            }
-        }
-    }
-
-    /// What you can do with a result set that the SEARCH owns: save it.
+    /// Every control the row used to carry, behind one loupe.
     ///
-    /// Chat left this bar (Daniel, 2026-09-01) — the toolbar's chat button is
-    /// the one chat affordance, and `openChatWithSearchResults()` stays as the
-    /// action it calls when a search is showing. Save has no bottom-bar home
-    /// yet and is the only explicit persistence path (#4086), so it stays here
-    /// rather than being deleted with nowhere to land.
+    /// The bindings are the SAME state the request is built from
+    /// (`runTransientSearch` reads `transientSearchScopeIsFolder` and
+    /// `transientSearchType`; `runToolbarSearch` reads `searchFieldMode`), so
+    /// the menu cannot show a setting the next search will not honour. The
+    /// menu body itself is `SearchFieldOptionsMenu` in
+    /// `Views/Library/Search/` — a plain view over bindings, so the same rows
+    /// can be mounted inside the toolbar search item without a second copy of
+    /// the scope logic.
     @ViewBuilder
-    private func searchResultActions(store: SearchStore) -> some View {
-        if !store.results.isEmpty && store.searchFailure == nil {
-            Button {
-                Task { await saveTransientSearch() }
-            } label: {
-                Label("Save Search", systemImage: "square.and.arrow.down")
-            }
-            .controlSize(.small)
-            .help("Save this search to the sidebar")
-        }
+    private func searchFieldOptionsMenu(store: SearchStore) -> some View {
+        SearchFieldOptionsMenuButton(
+            mode: searchFieldModeBinding,
+            scopeIsFolder: $transientSearchScopeIsFolder,
+            searchType: $transientSearchType,
+            libraryName: searchChromeLibraryName,
+            contextFolder: transientSearchContextFolder,
+            // Save is offered for a result set worth saving, and never over a
+            // failure — saving a query that just errored would persist a
+            // question the library could not answer.
+            canSave: !store.results.isEmpty && store.searchFailure == nil,
+            onSave: { Task { await saveTransientSearch() } }
+        )
     }
 
     @ViewBuilder
@@ -296,38 +296,4 @@ extension ContentView {
             .background(.bar)
         }
     }
-
-    /// Search type (#4112/S8), lifted out of
-    /// `searchResultsHeaderRow` (#4353).
-    ///
-    /// That function was at 95 of the 100-line ERROR threshold — five lines of
-    /// headroom, in a file #4403 had just added to. Extracted by cohesion: this
-    /// is one self-contained control, not a slice taken to reach a number.
-    @ViewBuilder
-    private var searchOptionsMenu: some View {
-                // The one real retrieval parameter (#4112/S8) the deleted
-                // mode surface used to own. Sort moved to the bottom bar
-                // (2026-09-01); what is left is a single picker.
-                Menu {
-                    Picker("Search Type", selection: $transientSearchType) {
-                        Text("Hybrid").tag("hybrid")
-                        Text("Semantic").tag("semantic")
-                        Text("Full Text").tag("fulltext")
-                    }
-                    // Sort left this menu (Daniel, 2026-09-01): the library
-                    // BOTTOM bar's sort menu already owns the order of these
-                    // rows — it sets `userChoseSortDuringSearch` and overrides
-                    // the engine's relevance default (#11). Two sort controls
-                    // over one list is the thing being fixed. The request
-                    // still asks the engine for relevance/desc, which is the
-                    // order the grid shows until the bottom bar says otherwise.
-                } label: {
-                    Label("Search Type", systemImage: "slider.horizontal.3")
-                        .labelStyle(.iconOnly)
-                }
-                .menuStyle(.borderlessButton)
-                .fixedSize()
-                .help("How the engine retrieves: hybrid, semantic, or full text")
-    }
-
 }

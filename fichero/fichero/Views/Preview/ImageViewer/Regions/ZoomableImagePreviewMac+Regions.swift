@@ -241,6 +241,15 @@ extension ZoomableImagePreview {
                 if let latest {
                     ocrGeometry = latest.ocrGeometry
                     ocrGeometryArtifactId = latest.id
+                    // FOCUS the artifact we just wrote (Daniel, 2026-09-02:
+                    // "I added regions and then they disappear"). The next
+                    // geometry reload re-runs the authority ladder, where a
+                    // newer transcription outranks this regions artifact —
+                    // the drawn boxes vanished on the very next reload.
+                    // Focus outranks the ladder, so what you drew stays up.
+                    FocusedArtifact.shared.select(
+                        latest.id, documentId: documentId, in: [latest]
+                    )
                 }
                 if onlyIndex == nil {
                     marquees.clear()
@@ -300,6 +309,10 @@ extension ZoomableImagePreview {
                 if let latest {
                     ocrGeometry = latest.ocrGeometry
                     ocrGeometryArtifactId = latest.id
+                    // Same stay-visible rule as promoteMarquees (2026-09-02).
+                    FocusedArtifact.shared.select(
+                        latest.id, documentId: documentId, in: [latest]
+                    )
                 }
                 selection.invalidate(artifactId: artifactId)
             } catch {

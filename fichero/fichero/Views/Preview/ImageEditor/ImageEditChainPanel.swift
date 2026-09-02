@@ -21,6 +21,20 @@ struct ImageEditChainPanel: View {
     let onRemoveBackground: () -> Void
     let onFuzzyClean: () -> Void
     let onSegment: () -> Void
+    /// Re-edit the step at `index` IN PLACE with merged `params` — the
+    /// Aperture/Lightroom behaviour Daniel asked for on 2026-09-02.
+    ///
+    /// Optional, and nil by default, because a host that has not wired it
+    /// still gets the older remove-then-re-add path rather than a dead
+    /// button. Wire it wherever an `ImageEditorModel` is in reach:
+    ///
+    ///     onUpdateStep: { index, params in
+    ///         Task { await model.updateOperation(at: index, params: params) }
+    ///     }
+    ///
+    /// The difference is not cosmetic: without it, re-editing step 1 of 3
+    /// moves it to the end of the chain and changes the rendered result.
+    var onUpdateStep: ((Int, [String: Any]) -> Void)?
 
     @State var addStepExpanded = false
     @State var enhanceBrightness: Double = 1.0

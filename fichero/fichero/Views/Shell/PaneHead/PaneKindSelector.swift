@@ -204,10 +204,26 @@ struct PaneKindSelector<Lens: Hashable & Identifiable>: View {
                         }
                     }
                 }
+                // The pane's own extra rows — the reader's "Showing" submenu
+                // of representations and artifacts. Below a divider, so the
+                // lens list above stays the same list it always was.
+                if let extraLensMenu {
+                    Divider()
+                    extraLensMenu()
+                }
         } label: {
             label()
         }
         .menuStyle(.borderlessButton)
         .fixedSize()
     }
+}
+
+/// The selector's own metric, kept out of `PaneHeadMetrics` because it is a
+/// property of this control rather than of the head's capsule geometry.
+enum PaneKindSelectorMetrics {
+    /// How much room the "what is shown" name may take before it truncates.
+    /// Wide enough for "Transcription — claude-opus-5", narrow enough that it
+    /// cannot squeeze the breadcrumb out of the head.
+    static let shownLabelMaxWidth: CGFloat = 190
 }

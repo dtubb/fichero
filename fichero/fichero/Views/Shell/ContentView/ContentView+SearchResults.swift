@@ -17,9 +17,48 @@ private let searchResultsLogger = Logger(
 
 /// The folder the user was browsing when a transient search ran — offered as
 /// a search scope beside the whole library (#4107/S3).
+///
+/// Scope is the BREADCRUMB (Daniel, 2026-09-02): "search the whole library,
+/// or the current breadcrumb context." The folder therefore carries the trail
+/// that named it in the chrome, not just its own leaf name — a library with
+/// three folders called "1885" makes a bare leaf label ambiguous, and the
+/// breadcrumb is the vocabulary the rest of the window already uses for
+/// "where you are". Two choices, never more.
 struct TransientSearchFolder: Equatable {
     let id: String
     let name: String
+    /// Root-first trail to this folder, WITHOUT the leading "Library"
+    /// segment (that segment IS the other choice). Empty when the ancestors
+    /// were not loaded — the leaf name still names the scope.
+    var path: [String] = []
+
+    /// The label a compact control can afford: the folder itself.
+    var shortLabel: String { name }
+
+    /// The label a menu row can afford: the whole context path.
+    var trail: String { path.isEmpty ? name : path.joined(separator: " ▸ ") }
+
+    /// Build a scope from the browsed folder, naming it the way the
+    /// breadcrumb does.
+    ///
+    /// Goes through `BreadcrumbBuilder` rather than reading `Document.name`
+    /// so the scope cannot disagree with the trail shown above it — that
+    /// builder is also what stops a page contributing its upload temp
+    /// filename (#4416).
+    static func browsing(
+        _ document: Document,
+        parentLookup: BreadcrumbBuilder.DocumentLookup
+    ) -> TransientSearchFolder {
+        let path = BreadcrumbBuilder
+            .buildSegments(from: document, parentLookup: parentLookup)
+            .filter { !$0.isRoot }
+            .map(\.name)
+        return TransientSearchFolder(
+            id: document.id,
+            name: path.last ?? document.name,
+            path: path
+        )
+    }
 }
 
 extension ContentView {

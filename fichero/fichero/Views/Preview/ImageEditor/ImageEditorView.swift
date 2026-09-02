@@ -135,11 +135,21 @@ struct ImageEditorView: View {
                 documentId: document.id,
                 page: currentPage(for: document)
             )
-            // Invalidate the storage-display cache after every successful edit so
-            // StorageDisplayImageCanvas re-fetches edited bytes when exiting edit
-            // mode (#2459 / #2469).
-            model.onEditApplied = { [storageService] id in
+            // Invalidate every derived-pixel cache after each successful edit,
+            // not just on the way out.
+            //
+            // Storage covers the thumbnail / display / source blobs (#2459 /
+            // #2469). Renditions are a SECOND cache the display canvas
+            // consults FIRST — a list plus per-rendition bytes keyed by ids
+            // that editing rewrites in place — so leaving them warm is why a
+            // rotate showed a stale picture in the library row and the preview
+            // strip while the editor was still open (Daniel, 2026-09-02).
+            // `finishEditing` drops both again on Done; doing it here as well
+            // is what makes the rest of the window agree with the canvas
+            // BEFORE you leave the editor.
+            model.onEditApplied = { [storageService, renditionService] id in
                 storageService.invalidateImageCache(for: id)
+                renditionService?.invalidate(documentId: id)
             }
         }
         .onChange(of: model.chain.operations.count) { _, _ in

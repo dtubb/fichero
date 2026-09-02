@@ -248,11 +248,12 @@ struct LibraryView: View {
     /// id → index in `filteredDocuments`, rebuilt in recomputeFiltered() so
     /// prefetch scheduling is an O(1) lookup, not an O(n) firstIndex per cell (#3870).
     @State var documentIndexById: [String: Int] = [:]
-    @State var prefetchedThumbnailIds: Set<String> = []
-    @State var thumbnailPrefetchTask: Task<Void, Never>?
-    /// The folder-open thumbnail sweep (#4589) — separate from the scroll
-    /// look-ahead task so a row appearing never cancels the sweep.
-    @State var folderThumbnailPrefetchTask: Task<Void, Never>?
+    /// Prefetch bookkeeping, by REFERENCE (2026-09-02). These were three
+    /// `@State` properties written from every row's `.onAppear`, so scrolling
+    /// down invalidated the whole library body once per appearing row — see
+    /// `ThumbnailPrefetchLedger` for the full account and why scrolling UP
+    /// stayed smooth.
+    @State var thumbnailPrefetch = ThumbnailPrefetchLedger()
 
     // Delete confirmation state
     @State var showDeleteConfirmation = false

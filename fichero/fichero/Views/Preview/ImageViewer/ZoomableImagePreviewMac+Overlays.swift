@@ -274,7 +274,10 @@ extension ZoomableImagePreview {
         switch windowState?.activeMarkupTool {
         case .textSelect, .note: NSCursor.iBeam.set()
         case .check: NSCursor.pointingHand.set()
-        case .drawRegion, .select, .line, .highlight, .wordSelect: NSCursor.crosshair.set()
+        // Select is the DEFAULT tool now (2026-09-02) — the plain pointer,
+        // not a crosshair over every page.
+        case .select: NSCursor.arrow.set()
+        case .drawRegion, .line, .highlight, .wordSelect: NSCursor.crosshair.set()
         default: NSCursor.arrow.set()
         }
     }

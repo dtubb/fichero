@@ -167,6 +167,16 @@ class TrackingImageView: NSImageView {
 
         let clickLocation = convert(event.locationInWindow, from: nil)
 
+        // ⌥-click PARKS the loupe at the click (Daniel, 2026-09-02: "option
+        // click or option move, moves what it is focused on") — the click
+        // twin of the ⌥-move follow above.
+        if event.modifierFlags.contains(.option) {
+            loupePosition = clickLocation
+            loupeViewPosition = clickLocation
+            needsDisplay = true
+            return
+        }
+
         // Check if clicking on existing loupe
         if let viewPos = loupeViewPosition {
             let rect = loupeRect(at: viewPos)

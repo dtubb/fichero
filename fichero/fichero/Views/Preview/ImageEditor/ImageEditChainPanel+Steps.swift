@@ -4,6 +4,27 @@ import SwiftUI
 // Split out of ImageEditChainPanel to keep the type/file under the SwiftLint
 // thresholds.
 extension ImageEditChainPanel {
+    /// Commit a step's edited settings.
+    ///
+    /// In place when the host wired `onUpdateStep`: the step keeps its
+    /// position and the engine re-renders the chain from that point, which is
+    /// what "re-open a step and change it" has to mean. Otherwise it falls
+    /// back to the older remove-then-re-add, which appends the replacement at
+    /// the END of the chain — correct only for a step that was already last.
+    func reapplyStep(at index: Int, params: [String: Any], legacy: () -> Void) {
+        if let onUpdateStep {
+            onUpdateStep(index, params)
+        } else {
+            onRemove(index)
+            legacy()
+        }
+        selectedStepIndex = nil
+    }
+
+    /// True when re-editing keeps the step where it is. Drives the row's
+    /// wording so the button never promises order it cannot keep.
+    var editsStepsInPlace: Bool { onUpdateStep != nil }
+
     @ViewBuilder
     func stepEditor(for operation: ImageEditOperation, at index: Int) -> some View {
         switch operation.opKind {
@@ -39,10 +60,18 @@ extension ImageEditChainPanel {
             Toggle("Auto Levels", isOn: $enhanceAutoLevels).font(.caption)
             HStack {
                 Spacer()
-                Button("Re-apply") {
-                    onRemove(index)
-                    onEnhance(enhanceBrightness, enhanceContrast, enhanceSharpen, enhanceAutoLevels)
-                    selectedStepIndex = nil
+                Button(editsStepsInPlace ? "Update Step" : "Re-apply") {
+                    reapplyStep(
+                        at: index,
+                        params: [
+                            "brightness": enhanceBrightness,
+                            "contrast": enhanceContrast,
+                            "sharpen": enhanceSharpen,
+                            "auto_levels": enhanceAutoLevels
+                        ]
+                    ) {
+                        onEnhance(enhanceBrightness, enhanceContrast, enhanceSharpen, enhanceAutoLevels)
+                    }
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
@@ -68,10 +97,10 @@ extension ImageEditChainPanel {
                 Button("90°") { rotateAngle = 90 }.buttonStyle(.bordered).controlSize(.mini)
                 Button("−90°") { rotateAngle = -90 }.buttonStyle(.bordered).controlSize(.mini)
                 Spacer()
-                Button("Re-apply") {
-                    onRemove(index)
-                    onRotate(rotateAngle)
-                    selectedStepIndex = nil
+                Button(editsStepsInPlace ? "Update Step" : "Re-apply") {
+                    reapplyStep(at: index, params: ["angle": rotateAngle]) {
+                        onRotate(rotateAngle)
+                    }
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
@@ -94,9 +123,7 @@ extension ImageEditChainPanel {
             HStack {
                 Spacer()
                 Button("Re-apply") {
-                    onRemove(index)
-                    onStraighten()
-                    selectedStepIndex = nil
+                    reapplyStep(at: index, params: [:]) { onStraighten() }
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
@@ -107,10 +134,13 @@ extension ImageEditChainPanel {
 
     @ViewBuilder
     private func cropStepEditor(for operation: ImageEditOperation, at index: Int) -> some View {
-        let cropLeft = operation.params["left"] as? Int ?? 0
-        let cropTop = operation.params["top"] as? Int ?? 0
-        let cropWidth = operation.params["width"] as? Int ?? 0
-        let cropHeight = operation.params["height"] as? Int ?? 0
+        // Same free-form-JSON hazard as the sliders: a crop written by one
+        // path arrives as Int, by another as Double, and a bare `as? Int`
+        // showed the user a 0×0 crop it could not then re-apply.
+        let cropLeft = Int(Self.numericParam(operation.params, "left") ?? 0)
+        let cropTop = Int(Self.numericParam(operation.params, "top") ?? 0)
+        let cropWidth = Int(Self.numericParam(operation.params, "width") ?? 0)
+        let cropHeight = Int(Self.numericParam(operation.params, "height") ?? 0)
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
                 Image(systemName: "crop").foregroundStyle(.secondary)
@@ -136,9 +166,17 @@ extension ImageEditChainPanel {
                         }
                         let newLeft = cropLeft + (cropWidth - newWidth) / 2
                         let newTop = cropTop + (cropHeight - newHeight) / 2
-                        onRemove(index)
-                        onCrop(newLeft, newTop, newWidth, newHeight)
-                        selectedStepIndex = nil
+                        reapplyStep(
+                            at: index,
+                            params: [
+                                "left": newLeft,
+                                "top": newTop,
+                                "width": newWidth,
+                                "height": newHeight
+                            ]
+                        ) {
+                            onCrop(newLeft, newTop, newWidth, newHeight)
+                        }
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.mini)
@@ -163,9 +201,7 @@ extension ImageEditChainPanel {
             HStack {
                 Spacer()
                 Button("Re-apply") {
-                    onRemove(index)
-                    onRemoveBackground()
-                    selectedStepIndex = nil
+                    reapplyStep(at: index, params: [:]) { onRemoveBackground() }
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
@@ -187,9 +223,7 @@ extension ImageEditChainPanel {
             HStack {
                 Spacer()
                 Button("Re-apply") {
-                    onRemove(index)
-                    onFuzzyClean()
-                    selectedStepIndex = nil
+                    reapplyStep(at: index, params: [:]) { onFuzzyClean() }
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
@@ -211,9 +245,7 @@ extension ImageEditChainPanel {
             HStack {
                 Spacer()
                 Button("Re-apply") {
-                    onRemove(index)
-                    onSegment()
-                    selectedStepIndex = nil
+                    reapplyStep(at: index, params: [:]) { onSegment() }
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
@@ -222,18 +254,31 @@ extension ImageEditChainPanel {
         }
     }
 
+    /// One saved parameter as a `Double`, whatever JSON shape it came back in.
+    ///
+    /// A chain is stored as free-form JSON, so a brightness the user set to
+    /// exactly 1 round-trips as an Int and a bare `as? Double` misses it —
+    /// which silently re-seeded the slider to its neutral default and made a
+    /// re-opened step lie about its own settings.
+    static func numericParam(_ params: [String: Any], _ key: String) -> Double? {
+        if let value = params[key] as? Double { return value }
+        if let value = params[key] as? Int { return Double(value) }
+        if let value = params[key] as? NSNumber { return value.doubleValue }
+        if let value = params[key] as? String { return Double(value) }
+        return nil
+    }
+
     func seedEnhanceSliders(from operation: ImageEditOperation) {
         guard operation.opKind == "enhance" else { return }
-        enhanceBrightness = (operation.params["brightness"] as? Double) ?? 1.0
-        enhanceContrast = (operation.params["contrast"] as? Double) ?? 1.0
-        enhanceSharpen = (operation.params["sharpen"] as? Double) ?? 1.0
+        enhanceBrightness = Self.numericParam(operation.params, "brightness") ?? 1.0
+        enhanceContrast = Self.numericParam(operation.params, "contrast") ?? 1.0
+        enhanceSharpen = Self.numericParam(operation.params, "sharpen") ?? 1.0
         enhanceAutoLevels = (operation.params["auto_levels"] as? Bool) ?? false
     }
 
     func seedRotateSlider(from operation: ImageEditOperation) {
         guard operation.opKind == "rotate" else { return }
-        rotateAngle = (operation.params["angle"] as? Double)
-            ?? Double(operation.params["angle"] as? Int ?? 0)
+        rotateAngle = Self.numericParam(operation.params, "angle") ?? 0
     }
 
     // MARK: - Add Step

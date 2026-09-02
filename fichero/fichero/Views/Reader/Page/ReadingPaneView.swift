@@ -289,6 +289,12 @@ struct ReadingPaneView: View {
             // breadcrumb's proxy icon a capsule away — three ways of saying
             // "a page". The kind icon now opens the lens menu itself.
             collapsesKindIntoLens: true,
+            // The head SAYS what it is showing (Daniel, 2026-09-02) — the
+            // glyph alone could not tell content from a translation from one
+            // named artifact — and the View menu carries the "Showing"
+            // submenu those choices used to need two extra head menus for.
+            shownLabel: readerShownLabel,
+            extraLensMenu: { self.readerShowingMenu() },
             lens: readerLensBinding
         )
     }
@@ -336,10 +342,13 @@ struct ReadingPaneView: View {
             // icon — promises what the reader is actually showing.
             leafDragItemProvider: readerMarkdownProvider,
             selector: { self.readerSelector },
+            // The representation and artifact-lens menus folded INTO the
+            // View menu's "Showing" submenu (Daniel, 2026-09-02): the head
+            // carried three menus that all changed what you were reading and
+            // none of which named it. The CSV chip stays — it is an action on
+            // what is shown, not another way to choose it.
             controls: {
-                self.readerRepresentationControl
                 self.readerTableExportControl
-                self.artifactLensControl
             },
             tools: { EmptyView() }
         )

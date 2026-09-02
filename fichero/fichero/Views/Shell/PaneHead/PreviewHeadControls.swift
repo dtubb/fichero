@@ -25,8 +25,11 @@ struct PreviewHeadSelectorGroup: View {
         Divider().frame(height: PaneHeadMetrics.dividerHeight)
 
         if let onUpToParent {
+            // Not a bare chevron.up (Daniel, 2026-09-02): sitting beside the
+            // page arrows it read as "rendition up" — an axis it isn't. The
+            // turn-up glyph says "go up a level", which is what it does.
             Button(action: onUpToParent) {
-                Image(systemName: "chevron.up")
+                Image(systemName: "arrow.turn.left.up")
                     .font(.callout)
             }
             .buttonStyle(.borderless)
@@ -95,7 +98,40 @@ struct PreviewHeadLensControls: View {
 
     var body: some View {
         zoomControlsToggle
+        renditionSteppers
         renditionsMenu
+    }
+
+    /// ▲▼ rendition stepping RIGHT of the breadcrumb (Daniel, 2026-09-02:
+    /// "left right to left of breadcrumb, renditions to right of breadcrumbs").
+    /// The vertical swipe flips the same axis; these buttons make it VISIBLE —
+    /// a page with one rendition shows nothing, which is why the axis felt
+    /// dead on documents that had nothing to flip to.
+    @ViewBuilder
+    private var renditionSteppers: some View {
+        if chrome.renditionNames.count > 1 {
+            Button {
+                chrome.selectRendition?(chrome.renditionIndex - 1)
+            } label: {
+                Image(systemName: "chevron.up").font(.callout)
+            }
+            .buttonStyle(.borderless)
+            .disabled(chrome.renditionIndex <= 0)
+            .help("Previous rendition of this page (swipe up)")
+            .accessibilityLabel("Previous rendition")
+            .accessibilityIdentifier("previewHeadRenditionPrevious")
+
+            Button {
+                chrome.selectRendition?(chrome.renditionIndex + 1)
+            } label: {
+                Image(systemName: "chevron.down").font(.callout)
+            }
+            .buttonStyle(.borderless)
+            .disabled(chrome.renditionIndex >= chrome.renditionNames.count - 1)
+            .help("Next rendition of this page (swipe down)")
+            .accessibilityLabel("Next rendition")
+            .accessibilityIdentifier("previewHeadRenditionNext")
+        }
     }
 
     /// The word-boundaries toggle that used to sit here is GONE (Daniel,

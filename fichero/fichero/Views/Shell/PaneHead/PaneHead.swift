@@ -357,13 +357,44 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
         }
     }
 
+    /// Pin, as a one-click TOGGLE in the head rather than a row inside the
+    /// "+" menu (Daniel, 2026-09-02: with horizontal/vertical splits "there
+    /// is no way to pin a pane to what it currently shows" — there was, two
+    /// clicks deep behind a plus sign that reads as "add a split"). Pinning
+    /// is a mode the pane is IN, so it needs a control that shows its state
+    /// without being opened. Lives here, in the shared chrome, so every pane
+    /// that supplies a pin binding gets it — reader and preview alike.
+    @ViewBuilder
+    private var pinToggle: some View {
+        if let isPinned {
+            Button {
+                isPinned.wrappedValue.toggle()
+            } label: {
+                Image(systemName: isPinned.wrappedValue ? "pin.fill" : "pin")
+                    .foregroundStyle(
+                        isPinned.wrappedValue ? Color.accentColor : Color.secondary
+                    )
+            }
+            .buttonStyle(.borderless)
+            .accessibilityIdentifier("paneHeadPinToggle")
+            .accessibilityLabel(isPinned.wrappedValue
+                ? "Unpin this pane — follow selection"
+                : "Pin this pane to what it is showing")
+            .help(isPinned.wrappedValue
+                ? "Pinned — click to follow the selection again"
+                : "Pin this pane to what it is showing")
+        }
+    }
+
     private var controlsCapsule: some View {
         capsule {
             HStack(spacing: 6) {
                 controls()
-                // Shared chrome, automatic: split "+" (from the environment)
-                // and the pin menu (when the pane supplies its state).
-                PaneChromeMenu(splitActions: splitAxisActions, isPinned: isPinned)
+                // Shared chrome, automatic: the pin TOGGLE (when the pane
+                // supplies its state) and the split "+" (from the
+                // environment).
+                pinToggle
+                PaneChromeMenu(splitActions: splitAxisActions)
                 if Tools.self != EmptyView.self {
                     Divider().frame(height: PaneHeadMetrics.dividerHeight)
                     Button {

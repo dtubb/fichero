@@ -353,7 +353,7 @@ extension LibraryView {
                     resetThumbnailPrefetch()
                 }
                 .onDisappear {
-                    thumbnailPrefetchTask?.cancel()
+                    thumbnailPrefetch.cancelAll()
                 }
             }
         }
@@ -460,9 +460,7 @@ extension LibraryView {
     }
 
     private func resetThumbnailPrefetch() {
-        prefetchedThumbnailIds.removeAll()
-        thumbnailPrefetchTask?.cancel()
-        thumbnailPrefetchTask = nil
+        thumbnailPrefetch.resetScrollLookAhead()
     }
 
     // Internal (not private): the list view prefetches with the same window
@@ -472,7 +470,7 @@ extension LibraryView {
     /// Prefetch the WHOLE open folder's thumbnails, front to back, capped
     /// (#4589). Runs once per folder/document-set through the same
     /// storage-service pipeline (6-wide concurrency) and the same
-    /// `prefetchedThumbnailIds` ledger the scroll look-ahead uses, so the two
+    /// `ThumbnailPrefetchLedger` the scroll look-ahead uses, so the two
     /// paths never double-fetch. Its own task variable — a scroll prefetch
     /// must not cancel the folder sweep.
     func prefetchFolderThumbnails() {
@@ -480,17 +478,15 @@ extension LibraryView {
         // headroom; beyond the cap the scroll look-ahead still catches up.
         let cap = 600
         guard !isShowingEntitiesCollection else { return }
-        let imageIds = filteredDocuments.prefix(cap)
-            .filter {
-                DocumentThumbnailKind.forDocument($0).fetchesStorageThumbnail
-                    && !prefetchedThumbnailIds.contains($0.id)
-            }
-            .map(\.id)
-        guard !imageIds.isEmpty,
-              let storageService = scopedLibraryReference?.storageService else { return }
-        prefetchedThumbnailIds.formUnion(imageIds)
-        folderThumbnailPrefetchTask?.cancel()
-        folderThumbnailPrefetchTask = Task {
+        guard let storageService = scopedLibraryReference?.storageService else { return }
+        let imageIds = thumbnailPrefetch.claimUnfetched(
+            filteredDocuments.prefix(cap)
+                .filter { DocumentThumbnailKind.forDocument($0).fetchesStorageThumbnail }
+                .map(\.id)
+        )
+        guard !imageIds.isEmpty else { return }
+        thumbnailPrefetch.folderTask?.cancel()
+        thumbnailPrefetch.folderTask = Task {
             await storageService.prefetchThumbnails(imageIds)
         }
     }
@@ -507,18 +503,15 @@ extension LibraryView {
         // symbol and text documents draw their preview, so neither hits
         // storage — but PDFs and pages do, and the old `.image`-only filter
         // left them fetching one per row on scroll (#4202).
-        let imageIds = filteredDocuments[start..<end]
-            .filter {
-                DocumentThumbnailKind.forDocument($0).fetchesStorageThumbnail
-                    && !prefetchedThumbnailIds.contains($0.id)
-            }
-            .map(\.id)
-        guard !imageIds.isEmpty,
-              let storageService = scopedLibraryReference?.storageService else { return }
-
-        prefetchedThumbnailIds.formUnion(imageIds)
-        thumbnailPrefetchTask?.cancel()
-        thumbnailPrefetchTask = Task {
+        guard let storageService = scopedLibraryReference?.storageService else { return }
+        let imageIds = thumbnailPrefetch.claimUnfetched(
+            filteredDocuments[start..<end]
+                .filter { DocumentThumbnailKind.forDocument($0).fetchesStorageThumbnail }
+                .map(\.id)
+        )
+        guard !imageIds.isEmpty else { return }
+        thumbnailPrefetch.scrollTask?.cancel()
+        thumbnailPrefetch.scrollTask = Task {
             await storageService.prefetchThumbnails(imageIds)
         }
     }

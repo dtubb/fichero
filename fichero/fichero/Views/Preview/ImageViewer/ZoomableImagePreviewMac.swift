@@ -70,6 +70,15 @@ struct ZoomableImagePreview: View {
     /// the rendition flip otherwise.
     private func verticalStep(_ step: Int) {
         if let onContainmentStep, onContainmentStep(step) { return }
+        // Say WHY nothing happened (Daniel, 2026-09-02: "up/down swipe not
+        // working") — on a page with one rendition the axis has nowhere to
+        // go, and a silent no-op is indistinguishable from a broken gesture.
+        guard renditions.count > 1 else {
+            Self.logger.info(
+                "verticalStep ignored: page has \(renditions.count) rendition(s)"
+            )
+            return
+        }
         flipRendition(to: renditionIndex + step)
     }
 
@@ -144,7 +153,12 @@ struct ZoomableImagePreview: View {
     /// its text is a page the transcription never read. Shipping that
     /// default-off left a switch nobody would find, which the standing rule
     /// calls worse than absent.
-    @AppStorage("imagePreview.ocrBoxesEnabled") var ocrBoxesEnabled = true
+    /// PER-PANE since 2026-09-02 (Daniel: "I hide bounding boxes on left, and
+    /// applies to right"): @State seeded from the shared default, written back
+    /// on change — so a split can show boxes on one side only, while a fresh
+    /// pane still opens the way the last toggle left things.
+    @State var ocrBoxesEnabled = UserDefaults.standard
+        .object(forKey: "imagePreview.ocrBoxesEnabled") as? Bool ?? true
     /// Annotation overlays show/hide (what-to-show menu, 2026-08-30). ON by
     /// default (Daniel, 2026-08-31): his container had this key stuck at 0,
     /// so every mark the markup row drew saved correctly and then rendered
@@ -310,6 +324,11 @@ struct ZoomableImagePreview: View {
             .onChange(of: documentId) { _, _ in handleDocumentIDChangedForHighRes() }
             .onChange(of: magnifierLocked) { wasLocked, isLocked in
                 handleMagnifierLockChanged(wasLocked, isLocked)
+            }
+            // Per-pane boxes: the toggle changes THIS pane; the default is
+            // remembered for the next pane that mounts.
+            .onChange(of: ocrBoxesEnabled) { _, enabled in
+                UserDefaults.standard.set(enabled, forKey: "imagePreview.ocrBoxesEnabled")
             }
             // Sticky markup tool (Daniel, 2026-08-30): arming highlight/note
             // in the bar arms the draw layer; disarming (or switching to a

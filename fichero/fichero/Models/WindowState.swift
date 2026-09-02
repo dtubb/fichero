@@ -69,7 +69,10 @@ class WindowState {
     /// tools for markup… leave it selected"). Sticky: the tool stays armed
     /// across uses until toggled off or another tool is armed; canvases read
     /// it for behaviour and cursor. Per-window, like the marquee seam.
-    var activeMarkupTool: PreviewMarkupTool?
+    /// Select is ON from the first click (Daniel, 2026-09-02: "Selection
+    /// should default on") — a window opens able to select regions without
+    /// first opening the markup bar.
+    var activeMarkupTool: PreviewMarkupTool? = .select
 
     /// Coding v1 (Daniel, 2026-08-30, ruling 4): comma-separated tags entered
     /// via the highlight menu's "Tag Next Highlight…" ride the NEXT saved

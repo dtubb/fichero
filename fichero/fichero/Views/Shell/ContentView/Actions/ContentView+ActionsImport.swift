@@ -50,8 +50,21 @@ extension ContentView {
 
         // Capture the browsed folder BEFORE clearing the selection so the
         // results bar can offer it as a scope (#4107/S3).
+        //
+        // Named through the BREADCRUMB (Daniel, 2026-09-02: scope should
+        // "reuse the breadcrumb concept — the whole library or the current
+        // breadcrumb context"). One id-indexed dictionary, then one walk —
+        // the same shape `breadcrumbSubtitle` uses, and for the same reason:
+        // a per-hop `first(where:)` over the library is an O(depth × library)
+        // scan on a gesture the user waits on (#4602).
         if case .library(let doc) = viewMode, let doc, doc.docType == .folder {
-            transientSearchContextFolder = TransientSearchFolder(id: doc.id, name: doc.name)
+            let documentsById = Dictionary(
+                (documentStore.currentDocuments + documentStore.collections).map { ($0.id, $0) },
+                uniquingKeysWith: { first, _ in first }
+            )
+            transientSearchContextFolder = TransientSearchFolder.browsing(
+                doc, parentLookup: { documentsById[$0] }
+            )
         } else {
             transientSearchContextFolder = nil
         }
