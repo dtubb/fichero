@@ -88,10 +88,17 @@ struct EngineStatusToolbarItem: View {
                     // circular") — the extra floor was what stretched this
                     // capsule into an oval beside the circular workflow
                     // button. The Label alone sizes like its neighbours.
+                    // Lit while ITS surface is open (Daniel, 2026-09-02: the
+                    // rule covers the server button too). The lit state means
+                    // "the thing this button opens is open" — here the
+                    // connection popover — which is the same sentence the pane
+                    // toggles say. `.secondary` when closed keeps chrome
+                    // whispering while all is well (#4391).
                     Label("Server", systemImage: isRemote
                         ? ToolbarSymbols.engineReadyRemote
                         : ToolbarSymbols.engineReadyLocal)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(showPopover
+                            ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.secondary))
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Server status")
