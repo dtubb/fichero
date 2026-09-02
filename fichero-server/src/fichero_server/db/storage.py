@@ -812,6 +812,35 @@ def _generate_pdf_image(
         return None
 
 
+def _flatten_for_jpeg(img):
+    """Return an image JPEG can hold, compositing any transparency onto WHITE.
+
+    JPEG has no alpha, so something has to decide what shows through. The old
+    line was ``img.convert("RGB")``, which simply DROPS the alpha channel and
+    keeps whatever colour sits underneath it — and for a background-removed
+    image those pixels are (0, 0, 0). Every cut-out therefore rendered on a
+    BLACK ground in thumbnails and display renditions (Daniel, 2026-09-02),
+    which reads as a ruined image rather than a transparent one.
+
+    Daniel's standing ruling: transparent flattens to plain WHITE. Compositing
+    (rather than dropping the channel) also keeps ANTI-ALIASED edges honest —
+    a half-transparent edge pixel blends toward white instead of snapping to
+    the black underneath it.
+
+    Called after ``_load_pil()``, so the module-level ``Image`` is bound.
+    """
+    mode = img.mode
+    if mode in ("RGB", "L"):
+        return img
+    # Palette images carry transparency in a tRNS chunk, not in the mode name;
+    # converting straight to RGB would drop it the same way.
+    if mode in ("RGBA", "LA") or (mode == "P" and "transparency" in img.info):
+        rgba = img if mode == "RGBA" else img.convert("RGBA")
+        white = Image.new("RGBA", rgba.size, (255, 255, 255, 255))
+        return Image.alpha_composite(white, rgba).convert("RGB")
+    return img.convert("RGB")
+
+
 def _generate_image(source: Path, dest: Path, size: tuple[int, int]) -> Path | None:
     """Generate a resized image.
 
@@ -858,10 +887,12 @@ def _generate_image(source: Path, dest: Path, size: tuple[int, int]) -> Path | N
             # Create thumbnail (modifies in place, maintains aspect ratio)
             img.thumbnail(size, Image.Resampling.LANCZOS)
 
-            # Convert to RGB for JPEG (handles RGBA, P mode, etc.)
+            # Convert to RGB for JPEG. Transparency composites onto white —
+            # see _flatten_for_jpeg; dropping the alpha channel is what made
+            # background-removed images render on black.
             if img.mode not in ("RGB", "L"):
-                logger.debug(f"Converting from {img.mode} to RGB")
-                img = img.convert("RGB")
+                logger.debug(f"Flattening {img.mode} onto white for JPEG")
+            img = _flatten_for_jpeg(img)
 
             img.save(dest, "JPEG", quality=settings.quality)
 
@@ -877,8 +908,7 @@ def _generate_image(source: Path, dest: Path, size: tuple[int, int]) -> Path | N
                 try:
                     with Image.open(converted) as img:
                         img.thumbnail(size, Image.Resampling.LANCZOS)
-                        if img.mode not in ("RGB", "L"):
-                            img = img.convert("RGB")
+                        img = _flatten_for_jpeg(img)
                         img.save(dest, "JPEG", quality=settings.quality)
                     logger.info(f"Generated thumbnail via sips fallback: {source.name}")
                     return dest
