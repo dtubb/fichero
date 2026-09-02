@@ -114,6 +114,8 @@ struct SearchFieldOptionsMenuButton: View {
         .menuStyle(.borderlessButton)
         .fixedSize()
         .help("How this search runs: Ask or Keyword, where it looks, and how it retrieves")
+        // Icon-only, so VoiceOver has nothing to read off the glyph.
+        .accessibilityLabel("Search Options")
         .accessibilityIdentifier("library.search.optionsMenu")
     }
 }
