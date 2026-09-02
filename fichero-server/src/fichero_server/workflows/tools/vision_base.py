@@ -104,6 +104,7 @@ from fichero_server.workflows.circuit_breaker import (
     ProviderRateLimitedError,
     call_with_breaker,
 )
+from fichero_server.media.image_flatten import flatten_for_opaque_format
 
 logger = logging.getLogger(__name__)
 
@@ -2450,8 +2451,9 @@ def file_to_data_uri(file_path: str, max_dimension: int = 2048) -> str:
 
                 if source_mime == "image/jpeg":
                     img_format, mime_type = "JPEG", "image/jpeg"
-                    if img.mode not in ("RGB", "L"):
-                        img = img.convert("RGB")
+                    # JPEG carries no alpha. Dropping the channel would send
+                    # the model a page on a BLACK ground (media/image_flatten).
+                    img = flatten_for_opaque_format(img)
                 else:
                     # PNG is the universal fallback (WebP sources included:
                     # re-encoding them as PNG keeps label == bytes).

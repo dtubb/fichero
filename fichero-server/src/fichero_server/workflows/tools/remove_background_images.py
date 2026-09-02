@@ -76,6 +76,8 @@ def _remove_background_threshold(image: Any, threshold: int) -> Any:
 
     threshold = max(0, min(255, int(threshold)))
     rgba = image.convert("RGBA")
+    # ANALYSIS path, not a save: the flat RGB is differenced against the corner
+    # colour to BUILD the alpha mask. Dropping alpha here is the point.
     rgb = image.convert("RGB")
     background = Image.new("RGB", rgb.size, rgb.getpixel((0, 0)))
     diff = ImageChops.difference(rgb, background).convert("L")
@@ -101,6 +103,7 @@ def remove_background(image: Any, *, method: str = "threshold", threshold: int =
             from PIL import Image
         except ImportError:
             return _remove_background_threshold(image, threshold)
+        # Analysis path — feeds Otsu thresholding to compute the mask.
         rgb = np.array(image.convert("RGB"))
         gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
         _, mask = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)

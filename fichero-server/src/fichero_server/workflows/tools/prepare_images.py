@@ -15,6 +15,7 @@ from fichero_server.workflows.tools.image_edit_chains import (
     persist_workflow_renditions,
 )
 from fichero_server.workflows.types import DataType, PortDef, State
+from fichero_server.media.image_flatten import flatten_for_opaque_format
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +92,8 @@ def _prepare_image(image: Any, *, grayscale: bool, autocontrast: bool) -> Any:
     if grayscale:
         image = ImageOps.grayscale(image)
     elif image.mode not in {"RGB", "RGBA", "L"}:
+        # RGBA is deliberately EXCLUDED — alpha survives this step and is
+        # resolved at save time by flatten_for_opaque_format.
         image = image.convert("RGB")
 
     if autocontrast:
@@ -110,8 +113,10 @@ def _save_prepared_image(
     save_kwargs: dict[str, Any] = {"format": fmt.upper() if fmt != "jpeg" else "JPEG"}
     if fmt in {"jpeg", "webp"}:
         save_kwargs["quality"] = compression_quality
-    if fmt == "jpeg" and image.mode in {"RGBA", "P"}:
-        image = image.convert("RGB")
+    if fmt == "jpeg":
+        # JPEG has no alpha. convert("RGB") would DROP the channel and keep the
+        # black underneath a cut-out; this composites it onto white instead.
+        image = flatten_for_opaque_format(image)
     image.save(output_path, **save_kwargs)
 
 
