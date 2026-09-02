@@ -171,6 +171,19 @@ struct PreviewSelectionDefaultsTests {
         #expect(nav.contains("stepWithinSearchResults(forward: false"))
     }
 
+    // MARK: - Show Sidebar never overflows
+
+    @Test("the sidebar toggle is owned at .navigation placement on macOS")
+    func sidebarToggleNeverOverflows() throws {
+        let layout = try appSource(
+            "Views/Shell/ContentView/Layout/ContentView+RootLayout.swift"
+        )
+        #expect(layout.contains(".toolbar(removing: .sidebarToggle)"))
+        #expect(layout.contains("ToolbarItem(placement: .navigation)"),
+                "the owned toggle must sit where the ≫ overflow can't reach")
+        #expect(layout.contains(".ownSidebarToggle"))
+    }
+
     // MARK: - Transient storage 404s retry quietly
 
     @Test("a shed thumbnail 404 gets bounded quiet retries, not a dead-end banner")

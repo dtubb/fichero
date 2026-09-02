@@ -257,6 +257,14 @@ extension ContentView {
         // of the content/library list and clips its leading edge. `.balanced`
         // keeps the sidebar as a real column beside the content, fully visible.
         .navigationSplitViewStyle(.balanced)
+        // Show Sidebar must NEVER fall into the ≫ overflow (Daniel,
+        // 2026-09-02): it anchors the whole layout, and losing it behind the
+        // chevron reads as "the sidebar is gone". The system item is the one
+        // that collapses; owning it at .navigation placement keeps it at the
+        // window's leading edge, where overflow pressure never reaches.
+        .ownSidebarToggle {
+            columnVisibility = (columnVisibility == .detailOnly) ? .all : .detailOnly
+        }
         .navigationTitle(toolbarTitle)
         // The breadcrumb subtitle is a desktop window-title affordance; on a
         // compact iPhone nav bar it reads as duplicate path text, so drop it
@@ -493,3 +501,30 @@ enum SearchFieldMode: String, CaseIterable, Hashable {
 // the reader. The search field now lives in the library's own mini toolbar —
 // see `LibraryView+MiniToolbar`. Left as a comment rather than deleted
 // silently: this is where the next person will look for the window search.
+
+private extension View {
+    /// macOS: replace the SYSTEM sidebar toggle (which the toolbar happily
+    /// collapses into the ≫ overflow under pressure) with an owned item at
+    /// `.navigation` placement, which sits at the leading edge and never
+    /// overflows. iOS keeps the system toggle — NavigationSplitView's own
+    /// affordance is correct there.
+    @ViewBuilder
+    func ownSidebarToggle(toggle: @escaping () -> Void) -> some View {
+        #if os(macOS)
+        self
+            .toolbar(removing: .sidebarToggle)
+            .toolbar {
+                ToolbarItem(placement: .navigation) {
+                    Button(action: toggle) {
+                        Image(systemName: "sidebar.leading")
+                    }
+                    .help("Show or Hide the Sidebar")
+                    .accessibilityLabel("Show Sidebar")
+                    .accessibilityIdentifier("sidebarToggleOwned")
+                }
+            }
+        #else
+        self
+        #endif
+    }
+}
