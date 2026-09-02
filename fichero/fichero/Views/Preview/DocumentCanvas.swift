@@ -293,6 +293,40 @@ private struct StorageDisplayImageCanvas: View {
         loadGeneration += 1
         let claimed = loadGeneration
         loadError = nil
+        // Bounded retry (2026-09-02, search-results 404): the storage
+        // endpoints GENERATE a missing rendition on request, but shed a
+        // transient 404 when the generation semaphore is saturated — the
+        // normal state right after an import, and exactly when search
+        // results show fresh documents. Two quiet retries with backoff
+        // absorb the shed; a real failure still surfaces, once.
+        for attempt in 0 ..< 3 {
+            do {
+                try await loadImageOnce(claimed: claimed)
+                return
+            } catch {
+                guard claimed == loadGeneration else { return }
+                if attempt < 2, Self.isTransientStorageMiss(error) {
+                    try? await Task.sleep(for: .milliseconds(600 * (attempt + 1)))
+                    continue
+                }
+                // A failed load must not silently keep showing the WRONG page.
+                image = nil
+                loadError = error
+                promptForSourceAccessIfMissing()
+                return
+            }
+        }
+    }
+
+    /// A shed 404 from the storage endpoints ("no thumbnail/display image
+    /// generated yet") — worth a quiet retry; anything else is not.
+    static func isTransientStorageMiss(_ error: Error) -> Bool {
+        let text = String(describing: error).lowercased()
+        return text.contains("404") || text.contains("not found")
+            || text.contains("no thumbnail")
+    }
+
+    private func loadImageOnce(claimed: Int) async throws {
         do {
             // PREFERRED RENDITION FIRST (Daniel, 2026-08-24: "it should just
             // load background removed"): a sibling step used to fetch the
@@ -337,11 +371,8 @@ private struct StorageDisplayImageCanvas: View {
             image = loaded
             renderedRenditionId = nil
         } catch {
-            guard claimed == loadGeneration else { return }
-            // A failed load must not silently keep showing the WRONG page.
-            image = nil
-            loadError = error
-            promptForSourceAccessIfMissing()
+            // The retry loop in loadImage owns failure handling.
+            throw error
         }
     }
 

@@ -171,6 +171,20 @@ struct PreviewSelectionDefaultsTests {
         #expect(nav.contains("stepWithinSearchResults(forward: false"))
     }
 
+    // MARK: - Transient storage 404s retry quietly
+
+    @Test("a shed thumbnail 404 gets bounded quiet retries, not a dead-end banner")
+    func transientStorageMissRetries() throws {
+        // The storage endpoints generate a missing rendition on request but
+        // shed a 404 when the generation semaphore is saturated — the normal
+        // state right after an import (search-lane root cause, 2026-09-02).
+        let canvas = try appSource("Views/Preview/DocumentCanvas.swift")
+        #expect(canvas.contains("isTransientStorageMiss"))
+        #expect(canvas.contains("for attempt in 0 ..< 3"),
+                "the retry must stay bounded")
+        #expect(canvas.contains("Task.sleep"), "retries back off, never hammer")
+    }
+
     // MARK: - Inline words never truncate
 
     @Test("the inline word fit corrects until it actually fits")
