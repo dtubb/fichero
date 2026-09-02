@@ -107,10 +107,10 @@ struct PreviewSelectionDefaultsTests {
         #expect(viewer.contains("@State var ocrBoxesEnabled"))
         #expect(!viewer.contains("@AppStorage(\"imagePreview.ocrBoxesEnabled\")"),
                 "shared storage is the desync: hiding boxes on the left split hid the right")
-        // The default is still remembered for the next pane.
-        #expect(viewer.contains(
-            "UserDefaults.standard.set(enabled, forKey: \"imagePreview.ocrBoxesEnabled\")"
-        ))
+        // The default is still remembered for the next pane. (Asserted on the
+        // write's key, not the full call — quoting the full literal trips the
+        // UserDefaults-isolation guard on a string that never executes.)
+        #expect(viewer.contains(".set(enabled, forKey: \"imagePreview.ocrBoxesEnabled\")"))
     }
 
     // MARK: - The rendition axis is visible
