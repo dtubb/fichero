@@ -66,11 +66,18 @@ struct ImageEditorView: View {
     /// over one image. Side-by-side and wipe are plain `Image`s with no scale
     /// of their own, and this is it.
     @State var compareZoom: CGFloat = 1.0
+    /// Width of the edit-steps stack beside the canvas. Matches the window
+    /// Inspector's own column so the two lists read as the same object in two
+    /// places rather than two different panels.
+    static let stepsPanelWidth: CGFloat = 260
     static let minCompareZoom: CGFloat = 0.25
     static let maxCompareZoom: CGFloat = 8.0
     /// Revert to Original confirmation — every step is already committed, so
     /// reverting always discards saved work and always asks (Daniel, 2026-08-31).
     @State var showRevertConfirm = false
+    /// Paste Edits across a multi-selection replaces saved chains on files
+    /// that may not be on screen, so it asks first (Daniel, 2026-09-02).
+    @State var showPasteManyConfirm = false
 
     @Environment(AnnotationStore.self) var annotationStore
 
@@ -100,7 +107,11 @@ struct ImageEditorView: View {
         VStack(spacing: 0) {
             toolbar
             Divider()
-            canvas
+            HStack(spacing: 0) {
+                canvas
+                Divider()
+                stepsPanel
+            }
         }
         // ⌘A over a shown image selects the WHOLE image (Daniel, 2026-08-23).
         // The marquee already speaks normalized image space, so "everything"

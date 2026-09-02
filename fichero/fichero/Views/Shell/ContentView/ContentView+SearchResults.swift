@@ -225,7 +225,9 @@ extension ContentView {
         // the same place the request was built, rather than a second copy of
         // "what are we searching for" living in the reader.
         chromeUX.readerFindQuery = query
-        transientSearchRowHits = Self.rowHits(results: store.results, stats: store.searchStats)
+        transientSearchRowHits = Self.rowHits(
+            results: store.results, stats: store.searchStats, query: query
+        )
     }
 
     /// Relevance for EVERY row the grid shows — not just the document leg.
@@ -241,11 +243,14 @@ extension ContentView {
     /// The document leg wins on collision — a doc that matched text AND an
     /// entity is scored by the fused ranking, which already counted the
     /// entity evidence (`_kg_evidence_results`, RRF leg #1833 M1).
+    /// `query` rides along so every row can say WHY it is here (Daniel,
+    /// 2026-09-02) — the hit carries the terms the row emphasises, rather
+    /// than the row reaching back into the shell for them at render time.
     static func rowHits(
-        results: [SearchResult], stats: SearchResponse?
+        results: [SearchResult], stats: SearchResponse?, query: String = ""
     ) -> [String: TransientSearchRowHit] {
         var hits = Dictionary(
-            results.map { ($0.documentId, $0.rowHit) },
+            results.map { ($0.documentId, $0.rowHit(query: query)) },
             uniquingKeysWith: { first, _ in first }
         )
         guard let stats else { return hits }
@@ -254,7 +259,8 @@ extension ContentView {
                   hits[documentId] == nil else { continue }
             hits[documentId] = TransientSearchRowHit(
                 excerpt: entity.canonicalName,
-                score: entity.similarityScore ?? 0
+                score: entity.similarityScore ?? 0,
+                query: query
             )
         }
         for claim in stats.claimHits {
@@ -262,7 +268,8 @@ extension ContentView {
                   hits[documentId] == nil else { continue }
             hits[documentId] = TransientSearchRowHit(
                 excerpt: claim.text,
-                score: claim.similarityScore ?? 0
+                score: claim.similarityScore ?? 0,
+                query: query
             )
         }
         return hits

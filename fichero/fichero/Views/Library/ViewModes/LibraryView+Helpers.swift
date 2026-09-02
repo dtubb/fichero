@@ -25,6 +25,10 @@ struct DocRowIdentity: Equatable, Sendable {
     /// without this in `==`, `.equatable()` suppresses the redraw and the
     /// rename field never appears.
     var isRenaming: Bool = false
+    /// Lines of body text the row reserves (Daniel, 2026-09-02) — part of
+    /// identity for the same reason `visibleAttributes` is: changing it must
+    /// re-render rows past `.equatable()`.
+    var contentLines: Int = LibraryRowContentLines.defaultValue.rawValue
 }
 
 /// Icon-grid analogue of `DocRowIdentity` (#4160): everything a tile renders

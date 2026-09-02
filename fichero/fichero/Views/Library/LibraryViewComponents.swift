@@ -138,6 +138,11 @@ struct MailStyleRow: View {
     /// The metadata-popover choice (#18): date/type/status/entities are
     /// OPT-IN; title + transcript are the row, not metadata.
     var visibleAttributes: Set<LibraryRowAttribute> = [.entities]
+    /// Lines of body text the row RESERVES (Daniel, 2026-09-02: "show more
+    /// lines of content per row"). Still a fixed reservation at every
+    /// setting — see `LibraryRowContentLines` for why the #4191 density cap
+    /// survives the option.
+    var contentLines: Int = LibraryRowContentLines.defaultValue.rawValue
     /// The active search's matched text + relevance for this row (#11):
     /// the excerpt replaces the generic transcript preview — it answers
     /// "why did the query get us THIS document" — and the score renders
@@ -270,14 +275,16 @@ struct MailStyleRow: View {
                     }
                 }
 
-                // Summary/Output preview — ALWAYS two reserved lines
-                // (#4191 density cap): docs without body text keep the same
-                // row height as docs with it, so nothing re-pitches as
-                // content loads and the scroll position never jumps.
+                // Summary/Output preview — ALWAYS a reserved block (#4191
+                // density cap): docs without body text keep the same row
+                // height as docs with it, so nothing re-pitches as content
+                // loads and the scroll position never jumps. How MANY lines is
+                // the user's choice now (2 / 4 / 6, Metadata ▸ Content); that
+                // it reserves them is not.
                 Text(searchHit?.excerpt ?? document.pageContent ?? "")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-                    .lineLimit(2, reservesSpace: true)
+                    .lineLimit(contentLines, reservesSpace: true)
 
                 // Entity preview rows — surfaces the NER results from
                 // extract_all (people, places, organizations, dates,

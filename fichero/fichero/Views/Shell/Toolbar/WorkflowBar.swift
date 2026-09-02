@@ -177,6 +177,9 @@ struct WorkflowBar: View {
     /// The compare confirmation popover — a fan-out is N paid calls, so it
     /// never dispatches without naming the models and the cost first.
     @State var showsCompareConfirmation = false
+    /// Which failed compare capsule has its reason open. One at a time: the
+    /// row is a summary, and two popovers over a 28pt strip is not one.
+    @State var expandedCompareModel: String?
 
     private var families: [WorkflowBarPolicy.VerbFamily] {
         WorkflowBarPolicy.families(from: workflows, target: target, folders: folders)

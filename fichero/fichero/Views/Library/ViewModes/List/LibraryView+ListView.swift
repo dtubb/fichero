@@ -30,6 +30,9 @@ import SwiftUI
 struct ListRowChrome: Equatable {
     let attributes: Set<LibraryRowAttribute>
     let entityTypes: Set<String>
+    /// Lines of body text each row reserves (Daniel, 2026-09-02) — a row-wide
+    /// setting like the other two, resolved in the same one place.
+    let contentLines: Int
 }
 
 extension LibraryView {
@@ -37,7 +40,8 @@ extension LibraryView {
     var listRowChrome: ListRowChrome {
         ListRowChrome(
             attributes: LibraryRowAttribute.set(from: rowAttributesRaw),
-            entityTypes: listVisibleEntityTypes
+            entityTypes: listVisibleEntityTypes,
+            contentLines: LibraryRowContentLines.resolve(rowContentLinesRaw).rawValue
         )
     }
 
@@ -69,7 +73,8 @@ extension LibraryView {
                 visibleEntityTypes: chrome.entityTypes,
                 visibleAttributes: chrome.attributes,
                 searchHit: searchRowHits[doc.id],
-                isRenaming: renamingDocumentId == doc.id
+                isRenaming: renamingDocumentId == doc.id,
+                contentLines: chrome.contentLines
             ),
             isSelected: selection.contains(doc.id),
             tint: selectionTint,
@@ -122,6 +127,7 @@ extension LibraryView {
             onCancelRename: cancelRename,
             visibleEntityTypes: chrome.entityTypes,
             visibleAttributes: chrome.attributes,
+            contentLines: chrome.contentLines,
             searchHit: searchRowHits[doc.id]
         ) { tag in
             searchText = tag

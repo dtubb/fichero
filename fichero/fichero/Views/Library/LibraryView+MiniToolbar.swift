@@ -78,6 +78,7 @@ extension LibraryView {
         // too, acts on the library list.
         LibraryRowAttributesButton(
             raw: $rowAttributesRaw,
+            contentLines: $rowContentLinesRaw,
             datasetStore: displayMode.group == .dataset ? datasetStore : nil
         )
 

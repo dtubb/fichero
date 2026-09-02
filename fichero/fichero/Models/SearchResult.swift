@@ -59,16 +59,35 @@ struct SearchResult: Identifiable, Codable {
 struct TransientSearchRowHit: Equatable, Sendable {
     let excerpt: String?
     let score: Double
+    /// The query this row matched, carried so the row can SHOW why (Daniel,
+    /// 2026-09-02: "show the matched/relevant text with the query terms
+    /// highlighted, not just the leading snippet").
+    ///
+    /// The query travels with the hit rather than being read from the shell
+    /// at render time because this struct is the row's `.equatable()`
+    /// identity: a new query must repaint the row, and a value the identity
+    /// does not contain cannot make it.
+    var query: String = ""
+
+    /// The excerpt as the row should read it: windowed onto the first match
+    /// instead of the top of the page, with the query's terms emphasised.
+    /// `nil` when the engine gave no excerpt, so the row can fall back to the
+    /// document's own text exactly as it did before.
+    var highlightedExcerpt: AttributedString? {
+        guard let excerpt, !excerpt.isEmpty else { return nil }
+        return SearchSnippetHighlighter.rowText(excerpt: excerpt, query: query)
+    }
 }
 
 extension SearchResult {
     /// The best row-sized explanation of the match: a transcript excerpt
     /// (verbatim, span-anchored) first, then an FTS highlight, then the
     /// generic content preview.
-    var rowHit: TransientSearchRowHit {
+    func rowHit(query: String = "") -> TransientSearchRowHit {
         TransientSearchRowHit(
             excerpt: transcriptExcerpts.first?.text ?? highlights?.first ?? contentPreview,
-            score: score
+            score: score,
+            query: query
         )
     }
 }

@@ -163,12 +163,14 @@ enum LibraryRowAttributes {
 
 struct LibraryRowAttributesButton: View {
     @Binding var raw: String
+    /// Lines of body text a list row reserves (Daniel, 2026-09-02). Declared
+    /// BEFORE `datasetStore`: this is the memberwise initialiser, so the
+    /// property order is the call-site argument order.
+    @Binding var contentLines: Int
     /// Dataset mode only: excerpt-vs-full-text lives HERE, with the other
     /// "what do rows display" choices (Daniel, 2026-08-27: "the full text
     /// excerpt is more logically part of the metadata").
     var datasetStore: DatasetModeStore?
-    /// Lines of body text a list row reserves (Daniel, 2026-09-02).
-    @Binding var contentLines: Int
     @State private var isPresented = false
 
     private func binding(for attribute: LibraryRowAttribute) -> Binding<Bool> {
@@ -225,7 +227,7 @@ struct LibraryRowAttributesButton: View {
                 }
             }
             .padding(12)
-            .frame(minWidth: 160)
+            .frame(minWidth: 200)
         }
     }
 }

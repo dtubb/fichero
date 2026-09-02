@@ -28,22 +28,34 @@ struct OCRTextRegionDefaultTests {
 
     @Test("both preview surfaces default their text regions on")
     func bothSurfacesDefaultOn() throws {
-        let surfaces = [
-            ("Views/Preview/ImageViewer/ZoomableImagePreviewMac.swift", "imagePreview.ocrBoxesEnabled"),
-            ("Views/Preview/PDFViewer/PDFPageWithToolbar.swift", "pdfPreview.ocrBoxesEnabled")
-        ]
+        // The IMAGE surface is per-PANE since 2026-09-02 (Daniel: hiding
+        // boxes on the left split hid them on the right): @State seeded from
+        // the shared default, written back on change. Default still ON.
+        let image = try AppSource.text("Views/Preview/ImageViewer/ZoomableImagePreviewMac.swift")
+        #expect(
+            image.contains(
+                ".object(forKey: \"imagePreview.ocrBoxesEnabled\") as? Bool ?? true"
+            ),
+            "imagePreview.ocrBoxesEnabled must default on — see #4418/#4497"
+        )
+        #expect(
+            !image.contains("as? Bool ?? false"),
+            "imagePreview.ocrBoxesEnabled is back to default-off, which ships a switch nobody finds"
+        )
+        #expect(
+            image.contains("@State var ocrBoxesEnabled"),
+            "the image surface's boxes toggle must be per-pane state, not shared storage"
+        )
 
-        for (path, key) in surfaces {
-            let source = try AppSource.text(path)
-            #expect(
-                source.contains("@AppStorage(\"\(key)\") var ocrBoxesEnabled = true"),
-                "\(key) must default on — see #4418/#4497"
-            )
-            #expect(
-                !source.contains("@AppStorage(\"\(key)\") var ocrBoxesEnabled = false"),
-                "\(key) is back to default-off, which ships a switch nobody finds"
-            )
-        }
+        let pdf = try AppSource.text("Views/Preview/PDFViewer/PDFPageWithToolbar.swift")
+        #expect(
+            pdf.contains("@AppStorage(\"pdfPreview.ocrBoxesEnabled\") var ocrBoxesEnabled = true"),
+            "pdfPreview.ocrBoxesEnabled must default on — see #4418/#4497"
+        )
+        #expect(
+            !pdf.contains("@AppStorage(\"pdfPreview.ocrBoxesEnabled\") var ocrBoxesEnabled = false"),
+            "pdfPreview.ocrBoxesEnabled is back to default-off, which ships a switch nobody finds"
+        )
     }
 
     /// The geometry probe re-runs when the DOCUMENT or the TOGGLE changes —
