@@ -51,9 +51,9 @@ final class MenuShortcutBoundaryTests: XCTestCase {
     /// Scoped to `App/Menus/**` deliberately: the hazard #4354 documents is
     /// specifically the NSMenuItem key equivalent, which AppKit matches ahead of
     /// the responder chain. View-level `.keyboardShortcut` on an ordinary Button
-    /// is matched later and is a different (lesser) problem — see the reported
-    /// second ⌘A binding in `Views/Chat/Inspector/ChatInspector+Header.swift`,
-    /// which this lane did not route.
+    /// is matched later and is a different (lesser) problem — the one known
+    /// case (`ChatInspector+Header.swift`'s second ⌘A) was removed
+    /// 2026-09-02; the chord has one owner everywhere now.
     func testOnlySelectAllCommandRegistersCommandAInTheMenus() throws {
         let owner = "App/Menus/FocusedCommandButtons+SelectAll.swift"
         var offenders: [String] = []
