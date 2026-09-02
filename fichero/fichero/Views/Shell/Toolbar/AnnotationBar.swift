@@ -14,6 +14,10 @@ struct AnnotationBar: View {
     /// bar's labels (Daniel, 2026-08-30: "text underneath that is shown if I
     /// show it in the top toolbar").
     var showsLabels = false
+    /// Writes that same flag, from the bar's own right-click Show/Hide Labels
+    /// (Daniel, 2026-09-02) — the one switch the window toolbar's text mode
+    /// also throws.
+    var onSetLabels: ((Bool) -> Void)?
 
     var body: some View {
         HStack(spacing: 10) {
@@ -31,6 +35,9 @@ struct AnnotationBar: View {
         .background(.bar)
         .overlay(alignment: .bottom) { Divider() }
         .accessibilityIdentifier("annotationBar")
+        .contextMenu {
+            BarLabelsContextMenu(showsLabels: showsLabels, onSetLabels: onSetLabels)
+        }
         // ONE applier per window — mounted here so split reader panes can
         // never double-save the same span.
         .background { ReaderMarkupApplier() }

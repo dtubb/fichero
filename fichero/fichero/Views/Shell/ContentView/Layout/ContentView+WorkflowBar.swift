@@ -21,8 +21,11 @@ extension ContentView {
     @ViewBuilder
     var annotationBarInset: some View {
         if showAnnotationBar {
-            AnnotationBar(showsLabels: showWorkflowBarLabels)
-                .background { ToolbarTextModeSync(showsLabels: $showWorkflowBarLabels) }
+            AnnotationBar(
+                showsLabels: showWorkflowBarLabels,
+                onSetLabels: { showWorkflowBarLabels = $0 }
+            )
+            .background { ToolbarTextModeSync(showsLabels: $showWorkflowBarLabels) }
         }
     }
 
@@ -35,6 +38,10 @@ extension ContentView {
                 folders: workflowStore.folderPresentation,
                 modelChoices: workflowBarModelChoices,
                 showsLabels: showWorkflowBarLabels,
+                // The bar's own right-click writes the SAME flag the window
+                // toolbar's text mode does (Daniel, 2026-09-02) — the
+                // representable below carries it back to the NSToolbar.
+                onSetLabels: { showWorkflowBarLabels = $0 },
                 staged: $stagedWorkflowChain,
                 onRunChain: { Task { await runStagedChain() } },
                 isRunning: isRunningStagedChain,

@@ -31,6 +31,10 @@ struct WorkflowBar: View {
     /// Labels under the glyphs. Off gives a dense icon rail; on names every
     /// verb for someone still learning the vocabulary (Daniel, 2026-08-28).
     var showsLabels: Bool = true
+    /// Writes that same flag, from the bar's own right-click Show/Hide Labels
+    /// (Daniel, 2026-09-02). nil leaves the entry out rather than offering a
+    /// change that goes nowhere — see `BarLabelsContextMenu`.
+    var onSetLabels: ((Bool) -> Void)?
     /// The chain being assembled. Clicking a verb APPENDS to this rather
     /// than running (Daniel, 2026-08-28: "it shouldn't run right away, it
     /// should construct the chain") — the run is one deliberate press of ▶,
@@ -198,6 +202,12 @@ struct WorkflowBar: View {
         }
         .background(.bar)
         .overlay(alignment: .bottom) { Divider() }
+        // Right-click the BAR, not a chip: the chain chips keep their own
+        // model menu, and an inner context menu wins, so the two never
+        // collide.
+        .contextMenu {
+            BarLabelsContextMenu(showsLabels: showsLabels, onSetLabels: onSetLabels)
+        }
     }
 
     private var verbRow: some View {
