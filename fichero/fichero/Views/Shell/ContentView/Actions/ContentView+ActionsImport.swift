@@ -82,6 +82,17 @@ extension ContentView {
         // the new one. Clearing here is what makes "search again" read as a
         // fresh answer rather than an edit of the last one.
         browserSelection = []
+        // Release a pinned library scope (Daniel, 2026-09-02: while results
+        // are showing, the other view modes "show the whole folder, not the
+        // search results"). `libraryContentColumn` reads
+        // `pinnedLibrary?.documents ?? … searchResultDocuments` — a pin is a
+        // FROZEN snapshot of the rows that were showing when it was set, and
+        // it wins over the result set in EVERY view mode: timeline, canvas,
+        // list alike. So a pinned pane made a search look like it had run and
+        // found the folder. A search takes over the library column by
+        // definition; a pin the results cannot be seen through is worse than
+        // no pin.
+        pinnedLibrary = nil
         sidebarMode = route.sidebarMode
         viewMode = route.viewMode
         activeSearchQuery = route.query
