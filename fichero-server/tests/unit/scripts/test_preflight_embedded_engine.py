@@ -161,11 +161,9 @@ def test_package_data_names_the_package_that_actually_exists():
     """`[tool.setuptools.package-data]` was keyed `fichero` long after the
     package became `fichero_server` (#2566), so it matched nothing —
     resources/bin/* included."""
-    text = PYPROJECT.read_text()
-    section = text.split("[tool.setuptools.package-data]", 1)[1]
-    assert section.lstrip().startswith("#") or True
-    assert "\nfichero_server = [" in section.split("[", 1)[0] + "\nfichero_server = [" \
-        or "fichero_server = [" in section.split("\n[", 1)[0], (
-        "package-data is not keyed on fichero_server"
+    section = PYPROJECT.read_text().split("[tool.setuptools.package-data]", 1)[1]
+    section = section.split("\n[", 1)[0]
+    assert "fichero_server = [" in section, (
+        "package-data is not keyed on the fichero_server package"
     )
-    assert "resources/bin/*" in section.split("\n[", 1)[0]
+    assert "resources/bin/*" in section

@@ -1938,6 +1938,122 @@ def _supports_return_boxes(llm_config: LLMConfig) -> bool:
     return provider == "google" and "gemini" in model
 
 
+# =============================================================================
+# Naming HOW a vision call failed (Daniel, 2026-09-02)
+# =============================================================================
+#
+# The old message was one sentence for four different failures: "Likely a
+# provider safety refusal or sustained timeout; no transcription artifact
+# saved." "Likely … or …" is a guess printed as a finding. An operator cannot
+# act on it (raise the timeout? change the model? re-run later?) and the UI
+# cannot group by it, so a page that failed because the network hiccuped looked
+# exactly like a page the provider refused to read.
+#
+# These kinds are machine-readable and travel on the step's error payload as
+# `error_kind`, so the UI can show a per-model failure chip. The honest-failure
+# principle is unchanged: naming the failure never invents an artifact.
+
+#: A provider declined to answer — safety filter, content policy, blocked.
+VISION_ERROR_REFUSAL = "refusal"
+#: The call did not come back in time. Worth one more attempt.
+VISION_ERROR_TIMEOUT = "timeout"
+#: 429 / quota / breaker-open. Retrying now makes it worse.
+VISION_ERROR_RATE_LIMITED = "rate_limited"
+#: The model answered, and the answer was empty. Not an error we can retry away.
+VISION_ERROR_EMPTY = "empty"
+#: Something else went wrong; the detail carries it.
+VISION_ERROR_UNKNOWN = "unknown"
+
+_REFUSAL_MARKERS = (
+    "safety",
+    "refus",
+    "content policy",
+    "content_policy",
+    "content_filter",
+    "prohibited_content",
+    "blocked",
+    "responsible ai",
+    "policy violation",
+)
+_TIMEOUT_MARKERS = (
+    "timeout",
+    "timed out",
+    "deadline exceeded",
+    "read timed out",
+    "connection reset",
+    "connection aborted",
+    "server disconnected",
+)
+_RATE_LIMIT_MARKERS = ("rate limit", "rate_limit", "429", "quota", "too many requests")
+
+
+#: Backoff before the one extra attempt a timed-out call earns. Long enough to
+#: outlast a provider hiccup, short enough that a stuck page does not hold a
+#: concurrency slot for a meaningful part of the run.
+_EMPTY_RETRY_BACKOFF_SECONDS = 5.0
+
+
+def classify_vision_failure(exc: BaseException | None) -> str:
+    """Name the shape of a vision failure so the caller need not guess.
+
+    Order matters: a refusal that mentions a timeout in passing is still a
+    refusal, and a rate limit is checked before the generic timeout markers
+    because providers phrase 429s as "request timed out, slow down" often
+    enough to matter.
+    """
+    if exc is None:
+        return VISION_ERROR_EMPTY
+    if isinstance(exc, ProviderRateLimitedError):
+        return VISION_ERROR_RATE_LIMITED
+    if isinstance(exc, (asyncio.TimeoutError, TimeoutError)):
+        return VISION_ERROR_TIMEOUT
+    haystack = f"{type(exc).__name__} {exc}".lower()
+    if any(marker in haystack for marker in _REFUSAL_MARKERS):
+        return VISION_ERROR_REFUSAL
+    if any(marker in haystack for marker in _RATE_LIMIT_MARKERS):
+        return VISION_ERROR_RATE_LIMITED
+    if any(marker in haystack for marker in _TIMEOUT_MARKERS):
+        return VISION_ERROR_TIMEOUT
+    return VISION_ERROR_UNKNOWN
+
+
+def is_retryable_vision_failure(kind: str) -> bool:
+    """Only timeout-shaped failures earn another attempt.
+
+    A refusal repeats deterministically — re-asking burns tokens and the
+    operator's patience for the same answer. A rate limit is already handled by
+    the circuit breaker's own backoff, and hammering it holds the breaker open
+    for every other file. A timeout is the one failure that is plausibly about
+    the network rather than the request.
+    """
+    return kind == VISION_ERROR_TIMEOUT
+
+
+def describe_vision_failure(kind: str, *, detail: str | None = None) -> str:
+    """One human sentence per kind — what happened and what to do about it."""
+    sentences = {
+        VISION_ERROR_REFUSAL: (
+            "the provider refused to answer (safety or content policy) — "
+            "another model may read this page"
+        ),
+        VISION_ERROR_TIMEOUT: (
+            "the provider did not answer in time, twice — raise the node's "
+            "timeout or try again when the provider is less loaded"
+        ),
+        VISION_ERROR_RATE_LIMITED: (
+            "the provider rate-limited this run — re-run it later; retrying "
+            "now holds the circuit breaker open for every other file"
+        ),
+        VISION_ERROR_EMPTY: (
+            "the model answered with nothing at all, twice — it may be unable "
+            "to read this hand; try a stronger vision model"
+        ),
+        VISION_ERROR_UNKNOWN: "the call failed for a reason we could not classify",
+    }
+    text = sentences.get(kind, sentences[VISION_ERROR_UNKNOWN])
+    return f"{text} ({detail})" if detail else text
+
+
 def _parse_return_boxes_payload(
     payload: str,
     *,
@@ -3747,10 +3863,21 @@ async def process_vision(
             # is a real result — don't retry that one.
             # Skip for _llm_multipage: per-page failures were logged individually;
             # re-sending only page 0 would not help a multi-page failure.
+            # Carries WHY the call failed, if it failed, across the retry
+            # ladder and onto the step's error payload as `error_kind`.
+            _empty_failure_kind: str | None = None
+            _empty_failure_detail: str | None = None
             if not (text or "").strip() and vision_mode != "apple" and not _llm_multipage and image_uri is not None:
                 logger.warning(
                     f"Vision LLM returned empty for {Path(file_path).name}; "
                     f"retrying once before declaring failure"
+                )
+                # Built BEFORE the try so the final attempt in the except
+                # handler cannot trip over an unbound name.
+                retry_config = dataclasses.replace(
+                    effective_config,
+                    max_tokens=max(8192, effective_config.max_tokens * 2),
+                    reasoning_effort="disabled",
                 )
                 try:
                     # A NATIVE-reasoning model (qwen3.6-plus, 2026-08-24) can
@@ -3759,16 +3886,10 @@ async def process_vision(
                     # is output ≈ max_tokens exactly. Retrying with the same
                     # cap fails identically, so the retry raises the ceiling;
                     # a genuinely empty page still comes back empty and fails
-                    # loudly below.
-                    retry_config = dataclasses.replace(
-                        effective_config,
-                        max_tokens=max(8192, effective_config.max_tokens * 2),
-                        # A default-reasoning model can drown ANY cap (run 3:
-                        # the 8192 retry burned 8193). Disable reasoning
-                        # outright on the retry — the answer channel is what
-                        # we're here for.
-                        reasoning_effort="disabled",
-                    )
+                    # loudly below. A default-reasoning model can drown ANY
+                    # cap (run 3: the 8192 retry burned 8193), so reasoning is
+                    # disabled outright above — the answer channel is what
+                    # we're here for.
                     text = await _vision_resilient(
                         lambda: vision(
                             images=[image_uri],
@@ -3788,9 +3909,60 @@ async def process_vision(
                     # fail this file fast instead of saving an empty result.
                     raise
                 except Exception as retry_exc:
+                    _empty_failure_kind = classify_vision_failure(retry_exc)
+                    _empty_failure_detail = str(retry_exc)
                     logger.warning(
-                        f"Retry failed for {Path(file_path).name}: {retry_exc}"
+                        "Retry failed for %s [%s]: %s",
+                        Path(file_path).name,
+                        _empty_failure_kind,
+                        retry_exc,
                     )
+                    # ONE more attempt, and only for timeout-shaped failures.
+                    # A refusal repeats; a rate limit is the breaker's job. A
+                    # timeout is the one failure plausibly about the network,
+                    # and it is the one Daniel kept losing whole pages to.
+                    if is_retryable_vision_failure(_empty_failure_kind):
+                        await asyncio.sleep(_EMPTY_RETRY_BACKOFF_SECONDS)
+                        logger.warning(
+                            "Timed-out vision call for %s; one final attempt "
+                            "after %.1fs backoff",
+                            Path(file_path).name,
+                            _EMPTY_RETRY_BACKOFF_SECONDS,
+                        )
+                        try:
+                            text = await _vision_resilient(
+                                lambda: vision(
+                                    images=[image_uri],
+                                    prompt=final_prompt,
+                                    config=retry_config,
+                                    language=language,
+                                    recognition_only_ok=(
+                                        tool_config.supports_apple_vision
+                                    ),
+                                )
+                            )
+                            parsed = parse_output(
+                                text, output_format, output_options
+                            )
+                            if reference_values:
+                                parsed = apply_reference_matching(
+                                    parsed, reference_values
+                                )
+                            _empty_failure_kind = None
+                            _empty_failure_detail = None
+                        except ProviderRateLimitedError:
+                            raise
+                        except Exception as final_exc:
+                            _empty_failure_kind = classify_vision_failure(
+                                final_exc
+                            )
+                            _empty_failure_detail = str(final_exc)
+                            logger.warning(
+                                "Final vision attempt failed for %s [%s]: %s",
+                                Path(file_path).name,
+                                _empty_failure_kind,
+                                final_exc,
+                            )
 
             # #4329: markup tools sanitize/validate the model output BEFORE
             # anything is saved or rendered. A postprocess raise fails this
@@ -3836,16 +4008,26 @@ async def process_vision(
                     parsed = apply_reference_matching(parsed, reference_values)
 
             if not (text or "").strip():
+                # Name the failure instead of guessing at it. `error_kind` is
+                # the machine-readable half (the UI groups per-model failure
+                # chips by it); the sentence is the operator-readable half.
+                error_kind = _empty_failure_kind or classify_vision_failure(None)
                 msg = (
-                    f"Vision LLM returned empty response for "
-                    f"{Path(file_path).name} (after retry). Likely a "
-                    f"provider safety refusal or sustained timeout; no "
-                    f"transcription artifact saved."
+                    f"Vision LLM returned no transcription for "
+                    f"{Path(file_path).name} after retries [{error_kind}]: "
+                    f"{describe_vision_failure(error_kind, detail=_empty_failure_detail)}. "
+                    f"No transcription artifact saved."
                 )
                 logger.warning(msg)
                 _log_vision_warning(msg, file_path)
                 results.append(
-                    {"file": file_path, "text": "", "value": "", "error": msg}
+                    {
+                        "file": file_path,
+                        "text": "",
+                        "value": "",
+                        "error": msg,
+                        "error_kind": error_kind,
+                    }
                 )
                 texts.append("")
                 values.append(None)
