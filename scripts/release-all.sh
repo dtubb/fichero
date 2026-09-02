@@ -789,3 +789,21 @@ echo "DMG (beta): $DMG_PATH"
 if [ -f "$DEV_DMG_PATH" ]; then echo "DMG (dev):  $DEV_DMG_PATH"; fi
 echo "Mac archive: $MAC_ARCHIVE_PATH"
 echo "iOS archive: $IOS_ARCHIVE_PATH"
+
+# Back-merge the stamp into the integration lane (2026-09-02): the build
+# counter increments from the PREVIOUS stamped value, so the stamp must flow
+# back or integration's dev builds wear a stale version and the next stamp
+# read from a stale tree miscounts. Best-effort: a missing or dirty worktree
+# warns instead of failing a finished release.
+INTEGRATION_WT="${FICHERO_INTEGRATION_WORKTREE:-$HOME/code/fichero-worktrees/integration}"
+if [ -e "$INTEGRATION_WT/.git" ]; then
+  if [ -n "$(git -C "$INTEGRATION_WT" status --porcelain)" ]; then
+    echo "warning: $INTEGRATION_WT is dirty — merge main back into integration by hand" >&2
+  elif git -C "$INTEGRATION_WT" merge --no-edit main >/dev/null 2>&1 \
+      || git -C "$INTEGRATION_WT" merge --no-edit origin/main >/dev/null 2>&1; then
+    echo "Stamp back-merged into integration ($INTEGRATION_WT)."
+  else
+    git -C "$INTEGRATION_WT" merge --abort >/dev/null 2>&1 || true
+    echo "warning: back-merge into integration did not apply cleanly — do it by hand" >&2
+  fi
+fi

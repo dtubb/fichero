@@ -33,11 +33,15 @@ echo "[2/3] Syncing built site to $DEST"
 mkdir -p "$DEST"
 # --exclude appcast.xml: the Sparkle feed is written into apps/fichero/ by
 # create-github-release.sh, NOT by this MkDocs build — --delete would nuke it.
-rsync -av --delete --exclude appcast.xml "$BUILD_DIR/" "$DEST/"
+# --exclude images/: the /apps/ index's icon lives there, outside the MkDocs
+# build — --delete was one run away from a broken icon on the apps page.
+rsync -av --delete --exclude appcast.xml --exclude images/ "$BUILD_DIR/" "$DEST/"
 
 echo "[3/3] Committing and pushing tubb.ca"
 cd "$TUBB_SITE"
-git add -A
+# Scoped add (2026-09-02): `git add -A` swept every unrelated dirty file in
+# the site repo into this commit — the whole-tree-add bug, site edition.
+git add apps/fichero
 git commit -m "Update Fichero app page" || echo "Nothing to commit"
 git push
 
