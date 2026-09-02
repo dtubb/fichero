@@ -76,7 +76,10 @@ def test_stamp_round_trips_through_xcconfig(tmp_path: Path) -> None:
     lines = xcconfig.splitlines()
     # Exact, UNQUOTED lines — quotes would leak into CFBundleShortVersionString.
     assert "MARKETING_VERSION = 2026.07.31-beta" in lines
-    assert "CURRENT_PROJECT_VERSION = 2026073101" in lines
+    # Build counter (Daniel, 2026-09-02): the date belongs to MARKETING; the
+    # build is a plain counter. The fixture's previous value is from the
+    # dated-int era, so the first counter stamp resets to 1.
+    assert "CURRENT_PROJECT_VERSION = 1" in lines
     assert '"' not in xcconfig
 
     # The pbxproj is untouched by the stamp.
@@ -90,6 +93,22 @@ def test_stamp_round_trips_through_xcconfig(tmp_path: Path) -> None:
     # Release-notes heading tracks the stamp.
     notes = (root / "RELEASE_NOTES.md").read_text(encoding="utf-8")
     assert notes.startswith("## 2026.07.31-beta\n")
+
+
+def test_build_counter_increments_from_previous_stamp(tmp_path: Path) -> None:
+    """A second stamp in the counter era is previous + 1, never a date."""
+    root = _make_fixture(tmp_path)
+    (root / "fichero" / "Configs" / "Version.xcconfig").write_text(
+        "MARKETING_VERSION = 2026.09.03\nCURRENT_PROJECT_VERSION = 4\n",
+        encoding="utf-8",
+    )
+    (root / "RELEASE_NOTES.md").write_text(
+        "## 2026.09.03\n\n- previous entry\n", encoding="utf-8"
+    )
+    result = _run_stamp(root, "2026.09.04")
+    assert result.returncode == 0, result.stdout + result.stderr
+    xcconfig = (root / "fichero" / "Configs" / "Version.xcconfig").read_text(encoding="utf-8")
+    assert "CURRENT_PROJECT_VERSION = 5" in xcconfig.splitlines()
 
 
 def test_stamp_refuses_pbxproj_version_literals(tmp_path: Path) -> None:

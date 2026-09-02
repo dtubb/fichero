@@ -258,6 +258,18 @@ fi
 # ── Create release on GitHub ────────────────────────────────────────────────
 echo "[2/5] Create GitHub release on $RELEASE_REPO ($TAG, build $BUILD, $DMG_SIZE_HUMAN)"
 RELEASE_TARGET="${RELEASE_TARGET:-$(git -C "$ROOT_DIR" rev-parse HEAD)}"
+# GitHub rejects a target_commitish it has never seen (2026-09-01: the whole
+# 2026.09.01.2 release leg died with HTTP 422 "tag_name is not a valid tag /
+# target_commitish is invalid" because release-merge's stamp commit was only
+# local). Fail with the fix in hand rather than let gh translate it badly.
+if [ "$DRY_RUN" = false ] \
+   && ! git -C "$ROOT_DIR" branch -r --contains "$RELEASE_TARGET" 2>/dev/null | grep -q .; then
+  echo "error: release target $RELEASE_TARGET is not on any remote branch." >&2
+  echo "       GitHub rejects unknown commits (HTTP 422). Push first:" >&2
+  echo "         git push origin HEAD:main   (from the release-merge worktree)" >&2
+  echo "       or set RELEASE_TARGET to a pushed commit." >&2
+  exit 1
+fi
 
 RELEASE_BODY="## Installation
 

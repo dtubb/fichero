@@ -9,7 +9,14 @@
 # build is distinct and Sparkle's build integer stays strictly increasing.
 #
 #   Frontend (Xcode):   MARKETING_VERSION       = <date>[.N][-beta]   (Apple display string)
-#                       CURRENT_PROJECT_VERSION = <YYYYMMDD><NN>       (Sparkle build int, monotonic)
+#                       CURRENT_PROJECT_VERSION = plain counter 1, 2, 3…
+#                       (Daniel, 2026-09-02: the date belongs to MARKETING;
+#                       the build is just a number. TestFlight shows
+#                       "2026.09.03 (1)" instead of "20260830…". The counter
+#                       increments from the previous stamped value; the first
+#                       stamp after the dated-int era resets to 1 — the
+#                       appcast was regenerated fresh at the same moment, so
+#                       Sparkle monotonicity restarts with it.)
 #                       Both live ONLY in fichero/Configs/Version.xcconfig (#3234);
 #                       project.pbxproj carries no version literals.
 #   Backend (pyproject): version = "<PEP440>"   (e.g. 2026.6.27, 2026.6.27.2, 2026.6.27b1)
@@ -19,10 +26,6 @@
 #   N == 1 → display  YYYY.MM.DD[-beta]
 #   N  > 1 → display  YYYY.MM.DD.N[-beta]
 #
-# Build integer is a 10-digit YYYYMMDD + 2-digit NN (2026062701, 2026062702,
-# next day 2026062801). This is strictly greater than the OLD 8-digit YYYYMMDD
-# scheme (20260627) for every plausible date, so Sparkle monotonicity survives
-# the scheme change.
 #
 # PEP 440 forbids leading zeros (2026.06.27 is invalid) and the literal "-beta",
 # so the engine uses the canonical form: strip leading zeros on month/day; a
@@ -40,7 +43,8 @@
 #   scripts/set-release-version.sh --self-check    # assert N=1 vs N=2 produce expected strings
 #
 # Env:
-#   FICHERO_RELEASE_SEQ=N   force the same-day sub-number (skip tag counting)
+#   FICHERO_RELEASE_SEQ=N     force the same-day sub-number (skip tag counting)
+#   FICHERO_BUILD_NUMBER=N    force the build counter (skip increment)
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PBX="$ROOT/fichero/fichero.xcodeproj/project.pbxproj"
@@ -84,11 +88,24 @@ seq_for_date() {
   echo "$(( n + 1 ))"
 }
 
+# ── build counter (2026-09-02) ───────────────────────────────────────────────
+# The next CURRENT_PROJECT_VERSION, from the previous one: plain increment.
+# A previous value from the dated-int era (>= 100000) resets to 1 — that
+# reset happens exactly once, alongside the fresh appcast.
+next_build_int() {  # <previous build int>
+  local prev="$1"
+  if [ -n "${FICHERO_BUILD_NUMBER:-}" ]; then echo "$FICHERO_BUILD_NUMBER"; return; fi
+  case "$prev" in
+    ''|*[!0-9]*) echo 1; return ;;
+  esac
+  if [ "$prev" -ge 100000 ]; then echo 1; else echo "$(( prev + 1 ))"; fi
+}
+
 # ── version computation (pure; sets the three globals) ───────────────────────
 # Args: <date> <beta:true|false> <N>
 compute_versions() {
   local d="$1" beta="$2" n="$3"
-  local yyyy rest mm dd nn
+  local yyyy rest mm dd
 
   # display sub-number suffix: empty for N==1, ".N" for N>1
   local subdisp=""
@@ -96,10 +113,6 @@ compute_versions() {
 
   APP_VERSION="$d$subdisp"
   [ "$beta" = true ] && APP_VERSION="$APP_VERSION-beta"
-
-  # build int: YYYYMMDD + zero-padded NN  (2026.06.27, N=1 -> 2026062701)
-  printf -v nn '%02d' "$n"
-  BUILD_INT="${d//./}$nn"
 
   # PEP 440: drop leading zeros on month/day
   yyyy="${d%%.*}"; rest="${d#*.}"; mm="${rest%%.*}"; dd="${rest#*.}"
@@ -183,28 +196,26 @@ if [ "$SELF_CHECK" = true ]; then
   # stable, N=1
   compute_versions 2026.06.27 false 1
   assert_eq "N1 stable APP"    "$APP_VERSION"    "2026.06.27"
-  assert_eq "N1 stable BUILD"  "$BUILD_INT"      "2026062701"
   assert_eq "N1 stable ENGINE" "$ENGINE_VERSION" "2026.6.27"
   # stable, N=2
   compute_versions 2026.06.27 false 2
   assert_eq "N2 stable APP"    "$APP_VERSION"    "2026.06.27.2"
-  assert_eq "N2 stable BUILD"  "$BUILD_INT"      "2026062702"
   assert_eq "N2 stable ENGINE" "$ENGINE_VERSION" "2026.6.27.2"
   # beta, N=1
   compute_versions 2026.06.27 true 1
   assert_eq "N1 beta APP"      "$APP_VERSION"    "2026.06.27-beta"
-  assert_eq "N1 beta BUILD"    "$BUILD_INT"      "2026062701"
   assert_eq "N1 beta ENGINE"   "$ENGINE_VERSION" "2026.6.27b1"
   # beta, N=2
   compute_versions 2026.06.27 true 2
   assert_eq "N2 beta APP"      "$APP_VERSION"    "2026.06.27.2-beta"
-  assert_eq "N2 beta BUILD"    "$BUILD_INT"      "2026062702"
   assert_eq "N2 beta ENGINE"   "$ENGINE_VERSION" "2026.6.27b2"
-  # next-day rollover: build int must exceed today's and the old 8-digit scheme
-  compute_versions 2026.06.28 true 1
-  assert_eq "next-day BUILD"   "$BUILD_INT"      "2026062801"
-  [ "$BUILD_INT" -gt 2026062702 ] && echo "  ok: monotonic across days" || { echo "  FAIL: build int not monotonic" >&2; fails=$((fails+1)); }
-  [ "$BUILD_INT" -gt 20260627 ]   && echo "  ok: new 10-digit > old 8-digit scheme" || { echo "  FAIL: not > old scheme" >&2; fails=$((fails+1)); }
+  # build counter (2026-09-02): plain increment; the dated-int era resets to 1
+  assert_eq "counter increment"     "$(next_build_int 1)"          "2"
+  assert_eq "counter increment 41"  "$(next_build_int 41)"         "42"
+  assert_eq "dated-era reset"       "$(next_build_int 2026090102)" "1"
+  assert_eq "old 8-digit era reset" "$(next_build_int 20260830)"   "1"
+  assert_eq "garbage resets"        "$(next_build_int '')"         "1"
+  assert_eq "forced counter" "$(FICHERO_BUILD_NUMBER=7 next_build_int 3)" "7"
   # release-notes heading guard: retitle dated entries, never historical ones
   assert_heading() {  # <heading> <want:yes|no>
     if is_calver_heading "$1"; then got=yes; else got=no; fi
@@ -224,6 +235,9 @@ fi
 # ── compute for the real run ─────────────────────────────────────────────────
 N="$(seq_for_date "$DATE")"
 compute_versions "$DATE" "$BETA" "$N"
+# Build counter: previous stamped value + 1 (dated era resets to 1).
+PREV_BUILD="$(sed -nE 's/^CURRENT_PROJECT_VERSION = (.*)$/\1/p' "$XCCONFIG" | head -1)"
+BUILD_INT="$(next_build_int "$PREV_BUILD")"
 
 echo "date   : $DATE  (same-day build #$N)"
 echo "app    : MARKETING_VERSION=$APP_VERSION  CURRENT_PROJECT_VERSION=$BUILD_INT"
