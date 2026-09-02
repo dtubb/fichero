@@ -51,7 +51,7 @@ final class ImageEditClipboard {
     /// `derived_path` names a cached render of THIS document's pixels; carried
     /// across, it would point the target at another file's bytes. The recipe
     /// (`op` + `params` + `page`) is the only portable part.
-    static func sanitized(_ operations: [AnyCodable]) -> [AnyCodable] {
+    nonisolated static func sanitized(_ operations: [AnyCodable]) -> [AnyCodable] {
         operations.map { operation in
             guard var dict = operation.value as? [String: Any] else { return operation }
             dict.removeValue(forKey: "derived_path")

@@ -204,7 +204,12 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.setuptools.package-data]
-fichero = [
+# Keyed on the PACKAGE name. It said `fichero` until 2026-09-02, four months
+# after the package became `fichero_server` (#2566) — so this stanza matched
+# nothing and fm-bridge, the workflow presets and the meta manifests were left
+# out of any wheel built from this project. Briefcase copies `sources` trees
+# directly, which is why the embedded engine still worked and nobody noticed.
+fichero_server = [
     "resources/bin/*",
     "resources/default_workflows/*.json",
     "resources/workflow_meta/*.json",

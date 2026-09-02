@@ -34,7 +34,7 @@ struct ImageEditChainPanel: View {
     ///
     /// The difference is not cosmetic: without it, re-editing step 1 of 3
     /// moves it to the end of the chain and changes the rendered result.
-    var onUpdateStep: ((Int, [String: Any]) -> Void)?
+    var onUpdateStep: ((Int, [String: Any]) -> Void)? = nil
 
     @State var addStepExpanded = false
     @State var showRevertConfirm = false

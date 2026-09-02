@@ -281,7 +281,15 @@ struct MailStyleRow: View {
                 // loads and the scroll position never jumps. How MANY lines is
                 // the user's choice now (2 / 4 / 6, Metadata ▸ Content); that
                 // it reserves them is not.
-                Text(searchHit?.excerpt ?? document.pageContent ?? "")
+                // Under a search the row shows the matched text with the
+                // query's terms emphasised (Daniel, 2026-09-02: rows should
+                // show "the matched/relevant text with the query terms
+                // highlighted, not just the leading snippet") — the windowing
+                // and the emphasis are both decided by
+                // `SearchSnippetHighlighter`, off the hit that ranked this
+                // row. With no search this is the document's own text, byte
+                // for byte what it was.
+                Text(searchHit?.highlightedExcerpt ?? AttributedString(document.pageContent ?? ""))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .lineLimit(contentLines, reservesSpace: true)
