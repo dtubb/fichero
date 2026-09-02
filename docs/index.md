@@ -10,7 +10,7 @@ hide:
 
 # Fichero: AI for archives & research
 
-What is Fichero? It's an app to read archives and research material: to transcribe handwritten documents with AI models; to organize sources; to generate structured data from research collections.
+What is Fichero? It's an app to read archives and research material; to transcribe handwritten documents with AI models; to organize sources; to generate structured data from research collections.
 
 **Fichero is a Public Alpha. It's not yet in Beta.**
 
