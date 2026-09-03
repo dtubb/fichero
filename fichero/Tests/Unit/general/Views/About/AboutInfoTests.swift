@@ -30,7 +30,12 @@ final class AboutInfoTests: XCTestCase {
     }
 
     func testEngineVersionLineUsesVersion() {
-        XCTAssertEqual(AboutInfo.engineVersionLine("2026.7.8b2"), "Server 2026.7.8b2")
+        // PEP 440 re-padded for display (2026-09-02): one About box must not
+        // show the same release as two different-looking versions.
+        XCTAssertEqual(AboutInfo.engineVersionLine("2026.7.8b2"), "Server 2026.07.08-beta.2")
+        XCTAssertEqual(AboutInfo.engineVersionLine("2026.9.3"), "Server 2026.09.03")
+        XCTAssertEqual(AboutInfo.engineVersionLine("2026.9.3.2"), "Server 2026.09.03.2")
+        XCTAssertEqual(AboutInfo.dateStyleVersion("1.2"), "1.2")  // non-date passes through
     }
 
     func testEngineVersionLineIsOmittedWhenMissing() {

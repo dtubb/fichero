@@ -27,7 +27,27 @@ enum AboutInfo {
 
     static func engineVersionLine(_ version: String?) -> String? {
         guard displayValue(version) != "—" else { return nil }
-        return "Server \(displayValue(version))"
+        return "Server \(dateStyleVersion(displayValue(version)))"
+    }
+
+    /// The engine wears PEP 440 ("2026.9.3" — no leading zeros allowed), the
+    /// app wears the display form ("2026.09.03"). One About box must not show
+    /// the same release as two different-looking versions (Daniel,
+    /// 2026-09-02), so the engine's dotted date is re-padded for display.
+    /// Non-date-shaped versions pass through untouched.
+    static func dateStyleVersion(_ version: String) -> String {
+        let core = version.split(separator: "b").first.map(String.init) ?? version
+        let parts = core.split(separator: ".").map(String.init)
+        guard parts.count >= 3, parts.allSatisfy({ Int($0) != nil }),
+              parts[0].count == 4 else { return version }
+        let month = parts[1].count == 1 ? "0" + parts[1] : parts[1]
+        let day = parts[2].count == 1 ? "0" + parts[2] : parts[2]
+        var padded = "\(parts[0]).\(month).\(day)"
+        if parts.count > 3 { padded += "." + parts[3...].joined(separator: ".") }
+        if version.contains("b"), let beta = version.split(separator: "b").last {
+            padded += "-beta\(beta == "1" ? "" : ".\(beta)")"
+        }
+        return padded
     }
 
     static func copyrightLine(bundleValue: String?, fallback: String) -> String {
@@ -65,9 +85,12 @@ struct AboutView: View {
     @State private var isAcknowledgementsPresented = false
 
     private let appName = "Fichero"
-    private let tagline = "A document workbench for researchers — read, organize, "
-        + "search, and make things from your sources."
-    private let credit = "Created by Daniel Tubb"
+    // The website's sentence (Daniel, 2026-09-02: the About box should
+    // reflect the description on the site).
+    private let tagline = "Read, search, and use AI with archives & research "
+        + "material — transcribe handwritten documents, organize sources, and "
+        + "generate structured data from your collections."
+    private let credit = "Creative Direction by Daniel Tubb. Coding by AI."
     // AGPL-3.0, not MIT (2026-09-02 license audit): the repo LICENSE is the
     // GNU AGPL-3.0 and CONTRIBUTING/LICENSING.md say so — the About box was
     // the one place still claiming MIT.
