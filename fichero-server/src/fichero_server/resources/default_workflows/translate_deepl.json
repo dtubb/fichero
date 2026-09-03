@@ -5,9 +5,15 @@
   "is_template": true,
   "is_system": true,
   "folder_path": "/Translate",
-  "tags": ["preset", "translate", "deepl", "text", "language"],
+  "tags": [
+    "preset",
+    "translate",
+    "deepl",
+    "text",
+    "language"
+  ],
   "config": {
-    "preset_version": 1
+    "preset_version": 2
   },
   "nodes": [
     {
@@ -67,6 +73,13 @@
       "target": "translate",
       "source_port": "text",
       "target_port": "text"
+    },
+    {
+      "id": "edge-files-translate-documents",
+      "source": "files-source",
+      "target": "translate",
+      "source_port": "documents",
+      "target_port": "documents"
     }
   ]
 }

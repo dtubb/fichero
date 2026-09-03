@@ -1543,6 +1543,49 @@ class TestTranscriptionPresetConvention:
             "into the documents port, or inputs['documents']):\n"
             + "\n".join(missing)
         )
+    #: Text tools that persist their result onto a DOCUMENT via
+    #: llm_base.process_text / save_artifact. With save_to_db on (the
+    #: default) and no `documents` wired in, process_text raises "nothing to
+    #: attach the result to" — which is exactly how the shipped Translate
+    #: preset failed end-to-end (2026-09-02, Marshall sample): its
+    #: text node received `text` from transcribe but never the source's
+    #: `documents`, so every run died at the save step.
+    _DOC_PERSISTING_TEXT_TOOLS = (
+        "clean_text",
+        "text_translate",
+        "text_translate_review",
+        "extract_geo",
+        "translate",
+    )
+
+    def test_doc_persisting_text_nodes_receive_source_documents(self):
+        """Every shipped text node that saves per-document must be wired to
+        the source's `documents` port (or set save_to_db false)."""
+        missing: list[str] = []
+        for preset in self._all_preset_dicts():
+            edges = preset.get("edges", [])
+            for node in preset.get("nodes", []):
+                if node.get("tool") not in self._DOC_PERSISTING_TEXT_TOOLS:
+                    continue
+                if (node.get("config") or {}).get("save_to_db") is False:
+                    continue
+                node_id = node.get("id", "")
+                has_edge = any(
+                    e.get("target") == node_id
+                    and e.get("target_port") == "documents"
+                    for e in edges
+                )
+                has_input = "documents" in (node.get("inputs") or {})
+                if not (has_edge or has_input):
+                    missing.append(f"{preset['name']}[{node_id}]")
+        assert not missing, (
+            "These text nodes save per-document (save_to_db defaults on) but "
+            "receive no `documents`, so process_text has nothing to attach "
+            "the result to and the workflow fails at the save step. Wire "
+            "files-source documents -> node documents (see Diary Entries), "
+            "or set save_to_db=false:\n" + "\n".join(missing)
+        )
+
     def test_transcribe_review_nodes_always_use_llm_vision_mode(self):
         """Review nodes (tool='transcribe_review') must always use
         vision_mode='llm' — structured review reasoning requires LLM."""

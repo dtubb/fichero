@@ -5,9 +5,15 @@
   "is_template": true,
   "is_system": true,
   "folder_path": "/Clean Up",
-  "tags": ["preset", "cleanup", "text", "ocr", "small"],
+  "tags": [
+    "preset",
+    "cleanup",
+    "text",
+    "ocr",
+    "small"
+  ],
   "config": {
-    "preset_version": 1
+    "preset_version": 2
   },
   "nodes": [
     {
@@ -69,6 +75,13 @@
       "target": "clean_text",
       "source_port": "text",
       "target_port": "text"
+    },
+    {
+      "id": "edge-files-clean-documents",
+      "source": "files-source",
+      "target": "clean_text",
+      "source_port": "documents",
+      "target_port": "documents"
     }
   ]
 }
