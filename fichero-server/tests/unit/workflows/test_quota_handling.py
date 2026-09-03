@@ -27,9 +27,27 @@ from fichero_server.workflows.activity_types import Activity, ActivityType, Acti
 class TestIsQuotaError:
     """_is_quota_error correctly identifies non-retriable provider errors."""
 
-    def test_http_403_returns_true(self):
-        """An exception whose string representation contains '403' is a quota error."""
+    def test_http_403_without_quota_wording_is_not_quota(self):
+        """A bare 403 is an AUTH failure, not a billing one (2026-09-03).
+
+        The old bare-'403' substring match told a user with a DeepL pro key
+        on the wrong host to 'top up account' instead of fixing the key. A
+        403 only counts as quota when the message actually says so.
+        """
         exc = Exception("HTTP 403 Forbidden: access denied")
+        assert _is_quota_error(exc) is False
+
+    def test_deepl_forbidden_is_not_quota(self):
+        """The exact live DeepL pro-key-on-free-host failure is auth, not quota."""
+        exc = RuntimeError(
+            'DeepL translate failed (403): {"message":"Forbidden. You can find '
+            'more info in our docs: https://developers.deepl.com/docs/'
+            'getting-started/auth"}'
+        )
+        assert _is_quota_error(exc) is False
+
+    def test_http_403_with_quota_wording_returns_true(self):
+        exc = Exception("HTTP 403: quota exceeded for this billing period")
         assert _is_quota_error(exc) is True
 
     def test_quota_exceeded_returns_true(self):
@@ -79,10 +97,10 @@ class TestIsQuotaError:
         exc = ConnectionError("Connection reset by peer")
         assert _is_quota_error(exc) is False
 
-    def test_value_error_with_403_in_body_returns_true(self):
-        """Any exception subclass works — detection is string-based."""
+    def test_value_error_with_bare_403_is_not_quota(self):
+        """Any exception subclass works, but a bare 403 stays an auth failure."""
         exc = ValueError("Received 403 from provider endpoint")
-        assert _is_quota_error(exc) is True
+        assert _is_quota_error(exc) is False
 
 
 # ---------------------------------------------------------------------------

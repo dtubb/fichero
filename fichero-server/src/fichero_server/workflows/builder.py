@@ -405,13 +405,16 @@ class SystemicErrorDetected(WorkflowExecutionError):
 def _is_quota_error(exception: Exception) -> bool:
     """Detect if an exception is a quota/rate-limit error.
 
-    Checks for common quota error indicators: 403 status code,
-    "quota", "rate limit", or "key limit" in the error message.
+    Delegates to the LLM error taxonomy rather than substring-matching.
+    The old bare-"403" match labelled every auth failure a quota problem —
+    a DeepL pro key on the free host ("DeepL translate failed (403):
+    Forbidden") surfaced as "Provider quota or rate limit reached. Top up
+    account…", pointing the user at billing instead of the key (2026-09-03).
     """
-    error_str = str(exception).lower()
-    return any(indicator in error_str for indicator in [
-        "403", "quota", "rate limit", "key limit", "rate_limit"
-    ])
+    from fichero_server.llm import _is_provider_quota_error  # noqa: PLC0415
+
+    is_quota, _status, _detail = _is_provider_quota_error(exception)
+    return is_quota
 
 
 def _generate_node_names(workflow: WorkflowDef) -> dict[str, str]:

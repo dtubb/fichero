@@ -657,6 +657,7 @@ def _is_provider_quota_error(exc: BaseException) -> tuple[bool, int | None, str]
         "insufficient quota",
         "quota exceeded",
         "key limit exceeded",
+        "key limit",
         "limit exceeded",
         "rate limit",
         "rate_limit",
@@ -1778,6 +1779,19 @@ async def chat_with_fallback(
         raise apple_exc
 
 
+def _deepl_default_base(api_key: str) -> str:
+    """DeepL serves free and pro keys on DIFFERENT hosts and answers the wrong
+    pairing with a bare 403 Forbidden (no quota hint). Free keys end in ":fx"
+    and belong on api-free.deepl.com; every other key is a pro key on
+    api.deepl.com. Found live 2026-09-03: the shipped Translate (DeepL) preset
+    403'd every run for a valid pro key because the free host was the
+    unconditional default. An explicit ``config.api_base`` still wins.
+    """
+    if api_key.strip().endswith(":fx"):
+        return "https://api-free.deepl.com"
+    return "https://api.deepl.com"
+
+
 async def _translate_with_deepl(
     *,
     text: str,
@@ -1794,7 +1808,7 @@ async def _translate_with_deepl(
     if not api_key:
         raise ValueError("DeepL provider requires DEEPL_API_KEY (or config.api_key).")
 
-    base = (config.api_base or "https://api-free.deepl.com").rstrip("/")
+    base = (config.api_base or _deepl_default_base(api_key)).rstrip("/")
     url = f"{base}/v2/translate"
     payload: dict[str, Any] = {
         "text": [text],

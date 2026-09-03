@@ -101,3 +101,16 @@ async def test_translate_tool_saves_translation_artifact(monkeypatch):
     assert result["artifacts"] == ["artifact-123"]
     assert result["results"][0]["artifact_id"] == "artifact-123"
     save_artifact.assert_awaited_once()
+
+
+def test_deepl_default_base_routes_pro_and_free_keys():
+    """DeepL free keys (":fx" suffix) live on api-free; pro keys on api.deepl.com.
+
+    The free host was the unconditional default, so a valid PRO key 403'd
+    every Translate (DeepL) run (found live 2026-09-03).
+    """
+    from fichero_server.llm import _deepl_default_base
+
+    assert _deepl_default_base("abcd-1234:fx") == "https://api-free.deepl.com"
+    assert _deepl_default_base("abcd-1234:fx ") == "https://api-free.deepl.com"
+    assert _deepl_default_base("abcd-1234-5678") == "https://api.deepl.com"
