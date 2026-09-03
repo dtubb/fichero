@@ -28,15 +28,26 @@ extension ContentView {
     /// implicit tier correction, or nothing.
     @MainActor
     func workflowBarRunOverrides(
-        for step: StagedWorkflowStep
+        for step: StagedWorkflowStep,
+        stagedCount: Int = 1
     ) -> (provider: String?, model: String?) {
         if step.hasModelOverride {
             return (step.providerOverride, step.modelOverride)
         }
-        guard let implicit = workflowBarImplicitOverride(for: step) else {
-            return (step.providerOverride, step.modelOverride)
+        if let implicit = workflowBarImplicitOverride(for: step) {
+            return (implicit.provider, implicit.model)
         }
-        return (implicit.provider, implicit.model)
+        // A single staged PRESET rides the picker's vision choice
+        // (2026-09-02) — see workflowStepPickerOverride for the ruling.
+        if let picker = WorkflowBarPolicy.workflowStepPickerOverride(
+            for: step,
+            stagedCount: stagedCount,
+            visionTier: workflowBarVisionTierDefault,
+            selectionPrefersVision: selectionPrefersVisionModel
+        ) {
+            return (picker.provider, picker.model)
+        }
+        return (step.providerOverride, step.modelOverride)
     }
 
     // MARK: - Workflow Actions

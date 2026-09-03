@@ -228,4 +228,36 @@ extension WorkflowBarPolicy {
         else { return nil }
         return text
     }
+
+    /// The PICKER reaches a staged PRESET too (Daniel, 2026-09-02: "I tried
+    /// detect regions with apple local, but it seems to auto select
+    /// google"). `implicitRunOverride` is deliberately tool-steps-only — a
+    /// multi-node workflow must not have every node dragged onto one model —
+    /// but a preset run as the SINGLE staged step over a pixel-reading
+    /// selection is the toolbar's verb plus the picker's model, and ignoring
+    /// the picker made choosing a model a silent no-op. The engine refuses
+    /// loudly when a workflow's nodes cannot take an override (#3804), so an
+    /// unsuitable send SURFACES instead of silently running the preset's
+    /// embedded model.
+    static func workflowStepPickerOverride(
+        for step: StagedWorkflowStep,
+        stagedCount: Int,
+        visionTier: WorkflowBarModelChoice?,
+        selectionPrefersVision: Bool
+    ) -> WorkflowBarModelChoice? {
+        guard stagedCount == 1,
+              !step.hasModelOverride,
+              case .workflow(let item) = step.kind,
+              // The item SAYS whether it takes overrides (false = pinned by
+              // design; nil = unknown, engine enforces — fail open, #3804).
+              item.acceptsModelOverride != false,
+              // Vision presets take the vision pick; the engine's
+              // requires_vision is authoritative, with the selection's
+              // posture as the old-server fallback.
+              item.requiresVision || selectionPrefersVision,
+              let vision = visionTier,
+              !vision.model.isEmpty
+        else { return nil }
+        return vision
+    }
 }

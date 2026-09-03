@@ -208,3 +208,80 @@ struct PreviewSelectionDefaultsTests {
         #expect(overlay.contains("passes < 3"), "the correction must stay bounded — it runs per box, per frame")
     }
 }
+
+// MARK: - The picker reaches a staged preset (B6, 2026-09-02)
+
+struct WorkflowPickerReachesPresetTests {
+    private func item(
+        accepts: Bool? = true, requiresVision: Bool = true
+    ) -> WorkflowSidebarItem {
+        WorkflowSidebarItem(
+            id: "wf1", name: "Detect Regions", description: nil,
+            nodeCount: 1, edgeCount: 0, isEnabled: true,
+            folderPath: "/Detect Regions", sortOrder: 10, isSystem: true,
+            isUntested: false, isDirectlyRunnable: true,
+            acceptsModelOverride: accepts,
+            createdAt: Date(), updatedAt: Date(),
+            requiresVision: requiresVision
+        )
+    }
+
+    private func choice(_ provider: String, _ model: String) -> WorkflowBarModelChoice {
+        WorkflowBarModelChoice(provider: provider, model: model, label: model)
+    }
+
+    @Test("a single staged vision preset rides the picker's choice")
+    func singlePresetTakesPicker() {
+        let step = StagedWorkflowStep(kind: .workflow(item()))
+        let picked = WorkflowBarPolicy.workflowStepPickerOverride(
+            for: step, stagedCount: 1,
+            visionTier: choice("apple", "apple-vision"),
+            selectionPrefersVision: true
+        )
+        #expect(picked?.provider == "apple")
+    }
+
+    @Test("a multi-step chain never gets a run-wide preset override")
+    func chainStaysUntouched() {
+        let step = StagedWorkflowStep(kind: .workflow(item()))
+        #expect(WorkflowBarPolicy.workflowStepPickerOverride(
+            for: step, stagedCount: 2,
+            visionTier: choice("apple", "apple-vision"),
+            selectionPrefersVision: true
+        ) == nil)
+    }
+
+    @Test("a preset that refuses overrides is never overridden")
+    func declaredPinIsRespected() {
+        let step = StagedWorkflowStep(kind: .workflow(item(accepts: false)))
+        #expect(WorkflowBarPolicy.workflowStepPickerOverride(
+            for: step, stagedCount: 1,
+            visionTier: choice("apple", "apple-vision"),
+            selectionPrefersVision: true
+        ) == nil)
+    }
+
+    @Test("a pinned step keeps its pin")
+    func pinWins() {
+        var pinned = StagedWorkflowStep(kind: .workflow(item()))
+        pinned.providerOverride = "openrouter"
+        pinned.modelOverride = "google/gemini-2.5-flash"
+        #expect(WorkflowBarPolicy.workflowStepPickerOverride(
+            for: pinned, stagedCount: 1,
+            visionTier: choice("apple", "apple-vision"),
+            selectionPrefersVision: true
+        ) == nil)
+    }
+
+    @Test("a text-only preset over a text selection stays off the vision picker")
+    func textPresetUntouched() {
+        let step = StagedWorkflowStep(kind: .workflow(
+            item(requiresVision: false)
+        ))
+        #expect(WorkflowBarPolicy.workflowStepPickerOverride(
+            for: step, stagedCount: 1,
+            visionTier: choice("apple", "apple-vision"),
+            selectionPrefersVision: false
+        ) == nil)
+    }
+}

@@ -179,7 +179,9 @@ extension ContentView {
             // The model the SENTENCE named for this step — its pin, or the
             // tier its tool actually needs (2026-09-01). Display and
             // execution answer to one rule.
-            let overrides = workflowBarRunOverrides(for: step)
+            let overrides = workflowBarRunOverrides(
+                for: step, stagedCount: stagedWorkflowChain.count
+            )
             let threadId = await awaitWorkflowExecution(
                 workflowId: workflowId,
                 workflowName: step.name,

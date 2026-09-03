@@ -19,12 +19,31 @@ struct BarLabelsContextMenu: View {
 
     var body: some View {
         if let onSetLabels {
-            Button(showsLabels ? "Hide Labels" : "Show Labels") {
-                onSetLabels(!showsLabels)
+            // Two CHECKED states, not a verb (Daniel, 2026-09-02): the
+            // system toolbar's own context menu says "Icon and Text / Icon
+            // Only" with a checkmark on the current mode — ours reads the
+            // same way, because it drives the same switch.
+            Button {
+                onSetLabels(true)
+            } label: {
+                if showsLabels {
+                    Label("Icon and Text", systemImage: "checkmark")
+                } else {
+                    Text("Icon and Text")
+                }
             }
-            .help(showsLabels
-                  ? "Hide the labels here and in the window toolbar"
-                  : "Show the labels here and in the window toolbar")
+            .help("Show labels here and in the window toolbar")
+
+            Button {
+                onSetLabels(false)
+            } label: {
+                if showsLabels {
+                    Text("Icon Only")
+                } else {
+                    Label("Icon Only", systemImage: "checkmark")
+                }
+            }
+            .help("Hide labels here and in the window toolbar")
         }
     }
 }
