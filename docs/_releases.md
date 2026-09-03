@@ -1,3 +1,55 @@
+### 2026.09.03
+
+**First public build.** Versioning starts fresh: the version is the date,
+the build is a plain counter — this is 2026.09.03 (1).
+
+**Reading and markup:**
+- New: The Select tool is on from the first click — click, ⇧-click, or drag
+  a band to select regions; drag a selected region to move it; double-click
+  a drawn selection to name and save it.
+- Bug: Regions you draw no longer vanish after saving.
+- Bug: Selecting regions in the artifacts browser now highlights them on
+  the page.
+- New: ▲▼ rendition stepping sits by the breadcrumb; swipe up/down still
+  flips renditions.
+- Bug: Word-box labels never truncate with "…" — they fit their box.
+- New: Show/hide word boxes per pane, so a split can compare marked and
+  clean views of the same page.
+- Loupe: parks where you leave it; ⌥-move or ⌥-click moves it; scroll over
+  it zooms it.
+
+<details markdown>
+<summary>Show more releases</summary>
+
+**Library:**
+- Bug: ⌘A selects all in every view mode, including lists.
+- Bug: List scrolling is smooth in both directions; clicking a row no
+  longer stalls or jumps the view.
+- New: Choose what rows show (status, date, and 2/4/6 lines of text) from
+  the metadata menu. Your metadata choices reset once with this build (the
+  new defaults apply); set them again from the same menu.
+
+**Search:**
+- Bug: Searching again actually refreshes the results.
+- New: Result rows show the matched text with your terms highlighted;
+  swiping left/right in results steps through the results themselves.
+- New: Search scope reads as the breadcrumb — whole library or the folder
+  you're in.
+
+**Workflows and AI:**
+- Bug: A generative step never lands on Apple Vision by mistake.
+- New: When comparing models, a failed model says why — the others keep
+  going.
+- New: Workspaces restore what was open, including the markup and workflow
+  bars, with icons in the menu.
+
+**Image editing:**
+- Bug: Background-removed images show a white ground everywhere —
+  thumbnails included — instead of black.
+- Bug: Thumbnails refresh immediately after edits like rotate.
+- New: Edit steps can be re-opened and adjusted in place, Lightroom-style;
+  Copy Edits / Paste Edits applies one image's recipe to others.
+
 ### 2026.08.27
 
 **Sharing, CLI, and MCP:**
@@ -15,9 +67,6 @@
   fixed.
 - Bug: Rendition downloads no longer fail with a server error in the
   sandboxed app.
-
-<details markdown>
-<summary>Show more releases</summary>
 
 **Library:**
 - Bug: Names with numbers sort naturally — "page2" before "page10" — in the

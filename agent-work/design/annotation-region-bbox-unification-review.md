@@ -129,6 +129,53 @@ Tests: `Tests/Unit/general/Views/Preview/AnnotationFrameIdentityTests.swift`.
 
 ---
 
+## Verified against the real library (2026-09-03, scratch APFS clone)
+
+The original `Marshall Diaries.fichero` was never opened. A copy-on-write
+clone plus its WAL (the WAL mattered — the package had not been checkpointed
+since 16:13, so every write from that evening lived in it) was queried
+in-process through the real FastAPI routers. Findings:
+
+| Question | Answer |
+|---|---|
+| Annotations carrying a rect | **12 of 12** |
+| Annotations carrying a `rendition_id` | **0 of 12** |
+| Geometry artifacts | 955 |
+| Geometry artifacts with `provider: "user"` | **0** |
+| Artifact providers | `manifest-importer` 794, `apple` 155, `openrouter` 6 |
+| `artifact.regions_edit` in the audit trail | 2, ever |
+| Writes during the evening session | **one `document.move`** |
+
+Three things follow, and two of them corrected what code-reading alone had
+suggested:
+
+1. **The frame-identity finding is confirmed outright.** Every annotation in
+   the real library claims the node's own frame, because the client never
+   sent one.
+2. **Bug 2 is a NEVER-SAVED bug, not a never-restored one.** No artifact or
+   annotation row was created during the session where regions "disappeared".
+   Drawing a marquee persists nothing; persistence needs the explicit promote
+   gesture (pencil badge, double-click a marquee, or the context menu), and
+   `clearEphemeralRegionState()` discards marquees on document change. Daniel
+   drew, switched view, and there was nothing to come back to.
+3. **`createRegionsArtifact` has never once produced a row here.** With only
+   two `regions_edit` calls ever and no `provider: "user"` artifact, the
+   region verbs have essentially never persisted anything in this library —
+   and when they did, the boxes went into an artifact a machine pass had
+   already written, via the `if let existing = ocrGeometryArtifactId` branch.
+
+Consequence for the ladder fix: the artifact-level `provider: "user"` signal
+covers only the bootstrap path, which is the rare one. The per-box signal
+(`provider: "user"` / `source: "manual"`, which the engine has always
+stamped) is the one that matches reality — and the Swift mirror was dropping
+it in `OCRGeometry.init(generated:)`, the same defect shape as `wireAnchor`
+dropping `rendition_id`. That is fixed; the boxes are now visible as
+hand-drawn. It is deliberately NOT used to reorder the ladder, because the
+lean list omits geometry and hunting for curation would cost a round-trip per
+candidate on every page load.
+
+---
+
 ## Follow-ups that need their own tickets
 
 1. **Give region boxes stable ids.** The blocker is stated in the code
@@ -150,11 +197,18 @@ Tests: `Tests/Unit/general/Views/Preview/AnnotationFrameIdentityTests.swift`.
 6. **Region membership is not a query.** `list_annotations` has no "has anchor" filter;
    the client fetches every annotation and filters in memory on `hasRegion`. Fine at
    Marshall-diaries scale, not fine indefinitely.
-7. **Ephemeral marquees look like data loss.** Drawing a region with the region tool
-   creates a marquee that is discarded on document change unless the user explicitly
-   promotes it (pencil badge / double-click / context menu). Daniel's own ruling — "if
-   we draw it, we should be able to save it" — argues the draw itself should persist, or
-   the impermanence should be visible. See the separate note in the lane report.
+7. **Ephemeral marquees look like data loss — and this is the CONFIRMED cause of the
+   reported bug, so it should be ticketed first.** Drawing a region creates a marquee
+   that is discarded on document change unless explicitly promoted (pencil badge /
+   double-click / context menu). The real library shows the promote path has run twice,
+   ever. Daniel's own ruling — "if we draw it, we should be able to save it" — argues
+   the draw itself should persist, or the impermanence should be unmistakable on screen.
+   This is a design decision, not a defect to patch unilaterally.
+8. **Hand-drawn regions land in machine artifacts.** `promoteMarquees` appends to
+   whichever artifact the ladder picked, so a person's boxes end up inside a machine
+   transcription and the artifact's provenance keeps saying `apple`. They should go to
+   the user's own artifact. This changes what the combine/delete verbs can address by
+   index, so it needs its own pass.
 
 ---
 
