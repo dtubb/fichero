@@ -10,7 +10,7 @@ import logging
 from copy import deepcopy
 from datetime import datetime
 from fichero_server.core.timeutil import utc_now
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, model_validator
@@ -1019,6 +1019,122 @@ async def unmerge_claims(
         ctx,
     )
     return ClaimAuditResponse.model_validate(result.result)
+
+
+# ---------------------------------------------------------------------------
+# Batch claim dedupe — plan (dry-run) and audited apply (#4508)
+# ---------------------------------------------------------------------------
+
+
+class ClaimDedupeGroup(BaseModel):
+    """One planned merge: duplicate statements fold into the survivor."""
+
+    survivor_id: str
+    survivor_text: str
+    absorbed_ids: list[str]
+    absorbed_texts: list[str]
+    basis: Literal["normalized-name", "similarity"]
+    similarity: float | None = None
+    audit_id: str | None = Field(
+        default=None, description="ClaimMergeAudit id once applied; null on dry-run."
+    )
+
+
+class ClaimDedupeRequest(BaseModel):
+    apply: bool = Field(
+        default=False,
+        description="False (default) returns the plan only; true executes every "
+        "planned merge through the audited claim.merge action.",
+    )
+    include_reviewed: bool = Field(
+        default=False,
+        description="By default only unreviewed claims are absorbed; curated "
+        "rows stay put unless explicitly opted in.",
+    )
+    near_duplicate_threshold: float | None = Field(
+        default=None,
+        ge=0.5,
+        le=1.0,
+        description="Opt-in fuzzy tier: also group same-subject statements whose "
+        "normalized keys share a token set and reach this SequenceMatcher "
+        "ratio. Off by default — exact normalized statements only.",
+    )
+
+
+class ClaimDedupeResponse(BaseModel):
+    dry_run: bool
+    claim_count: int = Field(description="Live (unmerged, unrejected) claims scanned.")
+    groups: list[ClaimDedupeGroup]
+    duplicates_found: int = Field(description="Claims the plan would absorb.")
+    merges_applied: int = 0
+
+
+@kg_claims_router.post(
+    "/dedupe",
+    response_model=ClaimDedupeResponse,
+    summary="Plan (dry-run) or apply batch claim dedupe via audited merges",
+    description=(
+        "Groups duplicate statements about the SAME subject — identical "
+        "(subject, normalized verb+object) keys, the normalization the "
+        "display path (svo_cleanup) already trusts, plus an opt-in "
+        "near-duplicate tier — and either returns the merge plan (default) "
+        "or executes it through the audited, undoable claim.merge action. "
+        "Merging folds provenance and recomputes corroboration_count from "
+        "the union of sources. Rejected and already-merged claims never "
+        "participate; only unreviewed claims are absorbed unless "
+        "include_reviewed is set. (#4508)"
+    ),
+)
+async def dedupe_claims(
+    request: ClaimDedupeRequest,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> ClaimDedupeResponse:
+    from fichero_server.knowledge.dedupe import plan_claim_dedupe
+
+    claims = list(db.query(KnowledgeClaim))
+    live_count = sum(
+        1
+        for c in claims
+        if c.merged_into_id is None and c.curation_state != ClaimCurationState.rejected
+    )
+    plan = plan_claim_dedupe(
+        claims,
+        include_reviewed=request.include_reviewed,
+        near_duplicate_threshold=request.near_duplicate_threshold,
+    )
+    groups = [
+        ClaimDedupeGroup(
+            survivor_id=group.survivor.id,
+            survivor_text=group.survivor.text,
+            absorbed_ids=[c.id for c in group.absorbed],
+            absorbed_texts=[c.text for c in group.absorbed],
+            basis=group.basis,
+            similarity=group.similarity,
+        )
+        for group in plan
+    ]
+    merges_applied = 0
+    if request.apply:
+        for group in groups:
+            result = registry.invoke(
+                db,
+                "claim.merge",
+                {
+                    "surviving_claim_id": group.survivor_id,
+                    "absorbed_claim_ids": group.absorbed_ids,
+                },
+                ctx,
+            )
+            group.audit_id = result.result["id"]
+            merges_applied += 1
+    return ClaimDedupeResponse(
+        dry_run=not request.apply,
+        claim_count=live_count,
+        groups=groups,
+        duplicates_found=sum(len(group.absorbed_ids) for group in groups),
+        merges_applied=merges_applied,
+    )
 
 
 @kg_claims_router.post(

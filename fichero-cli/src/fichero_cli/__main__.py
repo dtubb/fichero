@@ -2403,6 +2403,83 @@ def kg_search(
     _invoke(ctx, lambda c: c.kg_search(query, limit=limit))
 
 
+@kg_app.command("dedupe-entities")
+def kg_dedupe_entities(
+    ctx: typer.Context,
+    apply: bool = typer.Option(
+        False,
+        "--apply",
+        help="Execute the planned merges (default is a dry-run plan). "
+        "Every merge goes through the audited, undoable entity.merge action.",
+    ),
+    include_reviewed: bool = typer.Option(
+        False,
+        "--include-reviewed",
+        help="Also absorb curated entities (default absorbs unreviewed only).",
+    ),
+    min_similarity: Optional[float] = typer.Option(
+        None,
+        "--min-similarity",
+        min=0.5,
+        max=1.0,
+        help="Opt-in fuzzy tier: also group same-type entities whose normalized "
+        "names reach this similarity ratio. Off by default.",
+    ),
+) -> None:
+    """Find duplicate entities (normalized name / alias collision) and merge them.
+
+    Dry-run by default: prints the merge plan and touches nothing. Re-run with
+    ``--apply`` to execute it. Cross-type merges are never planned.
+    """
+    _invoke(
+        ctx,
+        lambda c: c.dedupe_entities(
+            apply=apply,
+            include_reviewed=include_reviewed,
+            min_similarity=min_similarity,
+        ),
+    )
+
+
+@kg_app.command("dedupe-claims")
+def kg_dedupe_claims(
+    ctx: typer.Context,
+    apply: bool = typer.Option(
+        False,
+        "--apply",
+        help="Execute the planned merges (default is a dry-run plan). "
+        "Every merge goes through the audited, undoable claim.merge action.",
+    ),
+    include_reviewed: bool = typer.Option(
+        False,
+        "--include-reviewed",
+        help="Also absorb curated claims (default absorbs unreviewed only).",
+    ),
+    near_duplicate_threshold: Optional[float] = typer.Option(
+        None,
+        "--near-duplicate-threshold",
+        min=0.5,
+        max=1.0,
+        help="Opt-in fuzzy tier: also group same-subject statements with the "
+        "same token set at this similarity ratio. Off by default.",
+    ),
+) -> None:
+    """Find duplicate SVO claims (same subject, same normalized statement) and merge them.
+
+    Dry-run by default: prints the merge plan and touches nothing. Re-run with
+    ``--apply`` to execute it; merging folds provenance and recomputes
+    corroboration_count from the union of sources.
+    """
+    _invoke(
+        ctx,
+        lambda c: c.dedupe_claims(
+            apply=apply,
+            include_reviewed=include_reviewed,
+            near_duplicate_threshold=near_duplicate_threshold,
+        ),
+    )
+
+
 @kg_app.command("rebuild")
 def kg_rebuild(
     ctx: typer.Context,

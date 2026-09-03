@@ -1631,6 +1631,42 @@ class FicheroClient:
             )
         )
 
+    def dedupe_entities(
+        self,
+        *,
+        apply: bool = False,
+        include_reviewed: bool = False,
+        min_similarity: float | None = None,
+    ) -> dict[str, Any]:
+        """Plan (default) or apply batch entity dedupe via audited merges."""
+        return self.request(
+            "POST",
+            "/api/kg/entity-curation/dedupe",
+            json={
+                "apply": apply,
+                "include_reviewed": include_reviewed,
+                "min_similarity": min_similarity,
+            },
+        )
+
+    def dedupe_claims(
+        self,
+        *,
+        apply: bool = False,
+        include_reviewed: bool = False,
+        near_duplicate_threshold: float | None = None,
+    ) -> dict[str, Any]:
+        """Plan (default) or apply batch claim dedupe via audited merges."""
+        return self.request(
+            "POST",
+            "/api/kg/claims/dedupe",
+            json={
+                "apply": apply,
+                "include_reviewed": include_reviewed,
+                "near_duplicate_threshold": near_duplicate_threshold,
+            },
+        )
+
     def split_entity(
         self,
         primary_id: str,

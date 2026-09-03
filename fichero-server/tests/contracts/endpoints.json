@@ -4629,6 +4629,16 @@
       },
       {
         "method": "POST",
+        "path": "/kg/claims/dedupe",
+        "operation_id": "dedupe_claims_api_kg_claims_dedupe_post",
+        "summary": "Plan (dry-run) or apply batch claim dedupe via audited merges",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ClaimDedupeRequest",
+        "response_model": "ClaimDedupeResponse"
+      },
+      {
+        "method": "POST",
         "path": "/kg/claims/merge",
         "operation_id": "merge_claims_api_kg_claims_merge_post",
         "summary": "Merge duplicate claims into a surviving claim",
@@ -4872,6 +4882,16 @@
         ],
         "request_model": null,
         "response_model": "KGGraphListResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/kg/entity-curation/dedupe",
+        "operation_id": "dedupe_entities_api_kg_entity_curation_dedupe_post",
+        "summary": "Plan (dry-run) or apply batch entity dedupe via audited merges",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "EntityDedupeRequest",
+        "response_model": "EntityDedupeResponse"
       },
       {
         "method": "POST",

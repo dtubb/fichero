@@ -6707,6 +6707,29 @@ def register_generated_openapi_commands(
             return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("plan-dry-run-or-apply-batch-claim-dedupe-via-audited-merges")
+    def kg_plan_dry_run_or_apply_batch_claim_dedupe_via_audited_merges_post(
+        ctx: typer.Context,
+        apply: Optional[bool] = typer.Option(None, "--apply/--no-apply", help="Request field: apply."),
+        include_reviewed: Optional[bool] = typer.Option(None, "--include-reviewed/--no-include-reviewed", help="Request field: include_reviewed."),
+        near_duplicate_threshold: Optional[float] = typer.Option(None, "--near-duplicate-threshold", help="Request field: near_duplicate_threshold."),
+    ) -> None:
+        """Plan (dry-run) or apply batch claim dedupe via audited merges (POST /api/kg/claims/dedupe)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/kg/claims/dedupe"
+            params = None
+            payload = _build_json_payload({
+                "apply": apply,
+                "include_reviewed": include_reviewed,
+                "near_duplicate_threshold": near_duplicate_threshold,
+            }, {
+                "apply": {'type': 'boolean', 'title': 'Apply', 'description': 'False (default) returns the plan only; true executes every planned merge through the audited claim.merge action.', 'default': False, 'x-cli-required': False},
+                "include_reviewed": {'type': 'boolean', 'title': 'Include Reviewed', 'description': 'By default only unreviewed claims are absorbed; curated rows stay put unless explicitly opted in.', 'default': False, 'x-cli-required': False},
+                "near_duplicate_threshold": {'type': 'number', 'maximum': 1.0, 'minimum': 0.5, 'nullable': True, 'title': 'Near Duplicate Threshold', 'description': 'Opt-in fuzzy tier: also group same-subject statements whose normalized keys share a token set and reach this SequenceMatcher ratio. Off by default — exact normalized statements only.', 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("merge-duplicate-claims-into-a-surviving-claim")
     def kg_merge_duplicate_claims_into_a_surviving_claim_post(
         ctx: typer.Context,
@@ -7095,6 +7118,29 @@ def register_generated_openapi_commands(
                 "top_k": top_k,
             }
             return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("plan-dry-run-or-apply-batch-entity-dedupe-via-audited-merges")
+    def kg_plan_dry_run_or_apply_batch_entity_dedupe_via_audited_merges_post(
+        ctx: typer.Context,
+        apply: Optional[bool] = typer.Option(None, "--apply/--no-apply", help="Request field: apply."),
+        include_reviewed: Optional[bool] = typer.Option(None, "--include-reviewed/--no-include-reviewed", help="Request field: include_reviewed."),
+        min_similarity: Optional[float] = typer.Option(None, "--min-similarity", help="Request field: min_similarity."),
+    ) -> None:
+        """Plan (dry-run) or apply batch entity dedupe via audited merges (POST /api/kg/entity-curation/dedupe)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/kg/entity-curation/dedupe"
+            params = None
+            payload = _build_json_payload({
+                "apply": apply,
+                "include_reviewed": include_reviewed,
+                "min_similarity": min_similarity,
+            }, {
+                "apply": {'type': 'boolean', 'title': 'Apply', 'description': 'False (default) returns the plan only; true executes every planned merge through the audited entity.merge action.', 'default': False, 'x-cli-required': False},
+                "include_reviewed": {'type': 'boolean', 'title': 'Include Reviewed', 'description': 'By default only unreviewed entities are absorbed; curated rows stay put unless explicitly opted in.', 'default': False, 'x-cli-required': False},
+                "min_similarity": {'type': 'number', 'maximum': 1.0, 'minimum': 0.5, 'nullable': True, 'title': 'Min Similarity', 'description': 'Opt-in fuzzy tier: also group same-type entities whose normalized names reach this SequenceMatcher ratio. Off by default — exact normalized-name/alias collisions only.', 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("merge-entities")

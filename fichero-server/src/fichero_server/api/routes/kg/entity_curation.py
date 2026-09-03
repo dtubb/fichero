@@ -11,7 +11,7 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime
 from fichero_server.core.timeutil import utc_now
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from pydantic import BaseModel, Field
@@ -37,6 +37,9 @@ from fichero_server.models.knowledge import (
     MutationOperationType,
 )
 from fichero_server.models import EntityAuditListResponse, KGGraphListResponse
+
+if TYPE_CHECKING:
+    from fichero_server.knowledge.dedupe import EntityMergeGroup
 
 router = APIRouter(prefix="/kg/entity-curation")
 kg_entities_router = APIRouter(prefix="/kg/entities", tags=["knowledge-graph"])
@@ -931,6 +934,131 @@ async def candidate_pairs(
     rows.sort(key=lambda r: r.jaccard, reverse=True)
     rows = rows[:top_k]
     return KGGraphListResponse(items=rows, count=len(rows))
+
+
+# ---------------------------------------------------------------------------
+# Batch entity dedupe — plan (dry-run) and audited apply (#4508)
+# ---------------------------------------------------------------------------
+
+
+class EntityDedupeGroup(BaseModel):
+    """One planned merge: absorbed entities fold into the survivor."""
+
+    survivor_id: str
+    survivor_name: str
+    entity_type: str
+    absorbed_ids: list[str]
+    absorbed_names: list[str]
+    basis: Literal["normalized-name", "alias-collision", "similarity"]
+    similarity: float | None = None
+    audit_id: str | None = Field(
+        default=None, description="EntityMergeAudit id once applied; null on dry-run."
+    )
+
+
+class EntityDedupeRequest(BaseModel):
+    apply: bool = Field(
+        default=False,
+        description="False (default) returns the plan only; true executes every "
+        "planned merge through the audited entity.merge action.",
+    )
+    include_reviewed: bool = Field(
+        default=False,
+        description="By default only unreviewed entities are absorbed; curated "
+        "rows stay put unless explicitly opted in.",
+    )
+    min_similarity: float | None = Field(
+        default=None,
+        ge=0.5,
+        le=1.0,
+        description="Opt-in fuzzy tier: also group same-type entities whose "
+        "normalized names reach this SequenceMatcher ratio. Off by default — "
+        "exact normalized-name/alias collisions only.",
+    )
+
+
+class EntityDedupeResponse(BaseModel):
+    dry_run: bool
+    entity_count: int = Field(description="Live (unmerged, unrejected) entities scanned.")
+    groups: list[EntityDedupeGroup]
+    duplicates_found: int = Field(description="Entities the plan would absorb.")
+    merges_applied: int = 0
+
+
+def _dedupe_group_payload(group: EntityMergeGroup) -> EntityDedupeGroup:
+    return EntityDedupeGroup(
+        survivor_id=group.survivor.id,
+        survivor_name=group.survivor.canonical_name,
+        entity_type=group.survivor.entity_type.value,
+        absorbed_ids=[e.id for e in group.absorbed],
+        absorbed_names=[e.canonical_name for e in group.absorbed],
+        basis=group.basis,
+        similarity=group.similarity,
+    )
+
+
+@router.post(
+    "/dedupe",
+    response_model=EntityDedupeResponse,
+    summary="Plan (dry-run) or apply batch entity dedupe via audited merges",
+    description=(
+        "Groups same-type entities by normalized canonical name and alias "
+        "collision (plus an opt-in similarity tier) and either returns the "
+        "merge plan (default) or executes it — every merge going through the "
+        "audited, undoable entity.merge action, one EntityMergeAudit per "
+        "group. Cross-type merges are structurally impossible; rejected and "
+        "already-merged entities never participate; only unreviewed entities "
+        "are absorbed unless include_reviewed is set. (#4508)"
+    ),
+)
+async def dedupe_entities(
+    request: EntityDedupeRequest,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> EntityDedupeResponse:
+    from fichero_server.knowledge.dedupe import plan_entity_dedupe
+
+    entities = list(db.query(KnowledgeEntity))
+    live_count = sum(
+        1
+        for e in entities
+        if e.merged_into_id is None and e.curation_state != EntityCurationState.rejected
+    )
+    plan = plan_entity_dedupe(
+        entities,
+        include_reviewed=request.include_reviewed,
+        min_similarity=request.min_similarity,
+    )
+    groups = [_dedupe_group_payload(group) for group in plan]
+    merges_applied = 0
+    if request.apply:
+        for group in groups:
+            result = registry.invoke(
+                db,
+                "entity.merge",
+                {
+                    "absorbing_entity_id": group.survivor_id,
+                    "absorbed_entity_ids": group.absorbed_ids,
+                    # The absorbed spellings become aliases so no name form
+                    # (e.g. the accented 'Quibdó') is lost to search.
+                    "merged_aliases": [
+                        name
+                        for name in group.absorbed_names
+                        if name != group.survivor_name
+                    ],
+                    "merged_description": None,
+                },
+                ctx,
+            )
+            group.audit_id = result.result["id"]
+            merges_applied += 1
+    return EntityDedupeResponse(
+        dry_run=not request.apply,
+        entity_count=live_count,
+        groups=groups,
+        duplicates_found=sum(len(group.absorbed_ids) for group in groups),
+        merges_applied=merges_applied,
+    )
 
 
 @router.get(
