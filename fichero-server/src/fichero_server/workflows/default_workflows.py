@@ -69,6 +69,12 @@ _DEPRECATED_PRESET_NAMES: set[str] = {
     # Renamed into the "/Detect Regions" folder group (2026-08-26):
     # reseeded as "Detect Regions (Apple Vision)" beside the new VLM sibling.
     "Detect Regions",
+    # 2026-09-03 Convert re-scope (Daniel): these are GENERATIVE conversions —
+    # an AI model re-creates the page — and their names now say so. Reseeded
+    # as "AI Convert to Markdown/HTML" and "AI Redraw as SVG".
+    "Convert to Markdown",
+    "Convert to HTML",
+    "Convert to SVG",
 }
 
 

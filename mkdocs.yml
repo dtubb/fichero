@@ -136,13 +136,13 @@ nav:
               - 4 · Merge / Dedup: user/reference/workflows/4-merge-dedup.md
               - 5 · KG Persist / Finalize: user/reference/workflows/5-kg-persist-finalize.md
               - 6 · Catalogue: user/reference/workflows/6-catalogue.md
+              - AI Convert to HTML: user/reference/workflows/ai-convert-to-html.md
+              - AI Convert to Markdown: user/reference/workflows/ai-convert-to-markdown.md
+              - AI Redraw as SVG: user/reference/workflows/ai-redraw-as-svg.md
               - Accounts → Spreadsheet (CSV): user/reference/workflows/accounts-spreadsheet-csv.md
               - Capture OCR + Transcribe: user/reference/workflows/capture-ocr-transcribe.md
               - Catalogue: user/reference/workflows/catalogue.md
               - Clean Up Text: user/reference/workflows/clean-up-text.md
-              - Convert to HTML: user/reference/workflows/convert-to-html.md
-              - Convert to Markdown: user/reference/workflows/convert-to-markdown.md
-              - Convert to SVG: user/reference/workflows/convert-to-svg.md
               - Describe (visual): user/reference/workflows/describe-visual.md
               - Detect Regions (Apple Vision): user/reference/workflows/detect-regions-apple-vision.md
               - Detect Regions (VLM): user/reference/workflows/detect-regions-vlm.md
@@ -183,6 +183,7 @@ nav:
               - Translate to English (Historical): user/reference/workflows/translate-to-english-historical.md
           - Tools:
               - Every Tool: user/reference/tools/index.md
+              - AI Convert: user/reference/tools/convert.md
               - Adaptive Binarize Images: user/reference/tools/adaptive_binarize_images.md
               - Agent Coordinator: user/reference/tools/agent_coordinator.md
               - Aggregate: user/reference/tools/aggregate.md
@@ -216,7 +217,6 @@ nav:
               - Colors: user/reference/tools/colors.md
               - Compare: user/reference/tools/compare.md
               - Consistency Check: user/reference/tools/consistency-check.md
-              - Convert: user/reference/tools/convert.md
               - Denoise Images: user/reference/tools/denoise_images.md
               - Describe: user/reference/tools/describe.md
               - Describe Video: user/reference/tools/video_describe.md

@@ -36,16 +36,16 @@
   "sha256": "c65c1661ad355554d70178f2b5977dbc41119c6ca7af1bab088590c8b5e3e20f"
  },
  "convert_to_html.json": {
-  "preset_version": 1,
-  "sha256": "e182f698bc714188fde71be9a372c30f6a217ca7d1ec9c1feb4f8e3695adeae1"
+  "preset_version": 2,
+  "sha256": "070937d6535d5b8f8d68ad6ab1fd546f5e1acfc831498aea37e0ad5c39058dd7"
  },
  "convert_to_markdown.json": {
-  "preset_version": 1,
-  "sha256": "8ef52b05ae207455571f7c7ae0cc459542dc6e60e2baac2d48cd78fe6abb381a"
+  "preset_version": 2,
+  "sha256": "e5255a4ca84ebb819e03524b938880eac2b95dff865771ebf8853e7ce48445e6"
  },
  "convert_to_svg.json": {
-  "preset_version": 1,
-  "sha256": "33df47dd82dd0f7f5ba662b6469def2979addbfb7a5571e6d16f4ac92e6bd948"
+  "preset_version": 2,
+  "sha256": "a9fafa7df95ca7de5eba4bc7e075a51fa9abae5722699bfdc8963efbf012226a"
  },
  "describe_visual.json": {
   "preset_version": 1,

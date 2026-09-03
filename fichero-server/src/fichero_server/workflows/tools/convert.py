@@ -185,8 +185,12 @@ def build_convert_prompt(config: dict) -> str:
 
 @register_tool(
     name="convert",
-    display_name="Convert",
-    description="Convert image to text format",
+    display_name="AI Convert",
+    description=(
+        "Generative format conversion: an AI vision model re-creates the page "
+        "as Markdown, HTML, SVG, LaTeX, or CSV. The output is the model's "
+        "reading of the page, not a mechanical file conversion."
+    ),
     category="vision",
     icon="doc.richtext",
     color="mint",

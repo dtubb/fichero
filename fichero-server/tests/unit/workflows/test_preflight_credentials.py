@@ -194,9 +194,9 @@ def test_keyless_fresh_install_passes_preflight_for_every_default_workflow(
         "Group Same Documents",
         "Accounts → Spreadsheet (CSV)",
         "Extract Table",
-        "Convert to HTML",
-        "Convert to Markdown",
-        "Convert to SVG",
+        "AI Convert to HTML",
+        "AI Convert to Markdown",
+        "AI Redraw as SVG",
     }
 
     # 2026-08-26 redesign: the Pipeline preset DELEGATES to the paleography

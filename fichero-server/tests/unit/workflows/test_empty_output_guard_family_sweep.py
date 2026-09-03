@@ -74,7 +74,7 @@ FAMILIES: list[tuple[str, str]] = [
     ("image-prep", "Prepare Images for OCR"),
     ("image-edit", "Enhance Images"),
     ("split-segment", "Segment Images"),
-    ("convert-render", "Convert to Markdown"),
+    ("convert-render", "AI Convert to Markdown"),
     ("export", "Export to Desktop (MD + DOCX + XLSX)"),
     ("group-merge", "Group Same Documents"),
     ("geo", "Extract Geo"),

@@ -12,9 +12,9 @@ from fichero_server.workflows.default_workflows import _load_preset_files
 from fichero_server.workflows.registry import get_tool_def
 
 PRESET_TARGET = {
-    "Convert to Markdown": ("convert", {"target_format": "markdown"}),
-    "Convert to HTML": ("convert", {"target_format": "html"}),
-    "Convert to SVG": ("convert", {"target_format": "svg"}),
+    "AI Convert to Markdown": ("convert", {"target_format": "markdown"}),
+    "AI Convert to HTML": ("convert", {"target_format": "html"}),
+    "AI Redraw as SVG": ("convert", {"target_format": "svg"}),
     "Extract Table": ("table_extract", {"output_style": "csv"}),
     "Extract Geo": ("extract_geo", {"online_geocoding": False}),
 }

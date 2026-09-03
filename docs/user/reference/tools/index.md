@@ -160,13 +160,13 @@ A tool is one step: it reads something, does one job, and emits a result. Workfl
 
 | Tool | What it does | Uses a model |
 | --- | --- | --- |
+| [AI Convert](tools/convert.md) | Generative format conversion: an AI vision model re-creates the page as Markdown, HTML, SVG, LaTeX, or CSV. The output is the model's reading of the page, not a mechanical file conversion. | yes |
 | [Analyze](tools/analyze.md) | Custom vision analysis | yes |
 | [Caption](tools/caption.md) | Generate short image caption | yes |
 | [Classify](tools/classify.md) | Categorize document type | yes |
 | [Classify Script Type](tools/classify_script.md) | Detect whether a document is typescript, manuscript, HTR, or paleography | yes |
 | [Colors](tools/colors.md) | Extract color palette | yes |
 | [Compare](tools/compare.md) | Compare multiple images | yes |
-| [Convert](tools/convert.md) | Convert image to text format | yes |
 | [Describe](tools/describe.md) | Generate image descriptions | yes |
 | [Detect Regions](tools/detect_regions.md) | Finds WHERE the words are, on-device and free. Apple Vision reads the page locally to locate line and word boxes, so it does produce text — that text is a by-product of finding the boxes, not a transcription: it never replaces the page's transcript, and no model is called. Runs before a transcriber so every box exists up front. | no |
 | [Diagram](tools/diagram.md) | Parse diagrams and flowcharts | yes |
