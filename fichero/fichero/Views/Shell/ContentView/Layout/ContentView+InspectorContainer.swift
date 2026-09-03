@@ -74,6 +74,18 @@ extension ContentView {
                     // registered by `nativeToolbarSearch` above
                     // (ContentView+ToolbarSearch.swift); this places it.
                     DefaultToolbarItem(kind: .search, placement: .primaryAction)
+                    // How the search RUNS, beside the field it configures
+                    // (Daniel, 2026-09-03: reachable from the main toolbar
+                    // loupe). Its own item, next to the system search item —
+                    // the system item is opaque, so a neighbouring loupe menu
+                    // is the closest SwiftUI allows to hanging the options off
+                    // the magnifier itself. Same bindings as the results-bar
+                    // mount; see `searchOptionsToolbarButton`.
+                    ToolbarItem(
+                        id: ContentToolbarID.searchOptions, placement: .primaryAction
+                    ) {
+                        searchOptionsToolbarButton
+                    }
                 }
                 .inspectorColumnWidth(
                     min: CGFloat(ContentView.inspectorMinWidth),

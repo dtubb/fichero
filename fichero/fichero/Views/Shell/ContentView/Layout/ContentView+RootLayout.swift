@@ -107,15 +107,27 @@ extension ContentView {
         pageFocusDocument ?? detailDocument
     }
 
+    /// What the immersive reader pages THROUGH: the visible list, filtered to
+    /// what it can show. `selectedDocuments` is already "results while
+    /// searching, browsed children otherwise" — reusing it means the reader
+    /// and the grid cannot disagree about which list the user is in.
+    private var immersiveReadingSiblings: [Document] {
+        selectedDocuments.filter { $0.fileType == .image || $0.docType == .page }
+    }
+
     @ViewBuilder
     private var immersiveReadingOverlay: some View {
         if isImmersiveReading, let doc = immersiveReadingDocument {
             ImmersiveReaderView(
                 document: doc,
                 isPresented: $isImmersiveReading,
-                siblings: documentStore.currentDocuments.filter {
-                    $0.fileType == .image || $0.docType == .page
-                },
+                // The reader's stream follows the LIST (Daniel, 2026-09-03),
+                // and while a search is up the list is the results — the same
+                // rule `selectedDocuments` already applies to the library
+                // grid. Paging from a hit walked into the browsed folder's
+                // children instead of the next result, because this read
+                // `currentDocuments` unconditionally.
+                siblings: immersiveReadingSiblings,
                 onNavigate: { detailDocument = $0 }
             )
             .transition(.opacity)

@@ -13,6 +13,10 @@ struct PageContentPane: View {
     @State var editState = PageContentPaneEditState()
     @State var sourceHighlight: PageContentClaimSourceHighlight?
     @State var sourceHighlightToken = UUID()
+    /// A passage anchor that has arrived but cannot land yet — the document's
+    /// text has not loaded, or the pane is showing a different document. Held
+    /// rather than dropped (Daniel, 2026-09-03); see `ReaderPassageAnchor`.
+    @State var pendingPassageAnchor: ReaderPassageAnchor?
     @State var isSaving = false
     @State var saveError: String?
     @FocusState var isEditorFocused: Bool
@@ -167,6 +171,18 @@ struct PageContentPane: View {
             // only on change — so switching to the Page transcript after picking
             // a claim in the Knowledge tab reveals the highlight (#3511).
             syncSourceHighlightFromClaimFocus()
+            // A search hit's passage anchor is posted the moment the selected
+            // document changes — which is the same turn this pane is created,
+            // so the post lands before the subscription below exists (#4614,
+            // Daniel 2026-09-03: "the reader does not land on the matched
+            // passage"). Reading the latch on appear is what closes that race.
+            adoptLatestPassageAnchor()
+        }
+        // The passage seam the shell posts search hits on. `updateSourceHighlight`
+        // has existed since the claim-source work and was never subscribed —
+        // the anchor was posted into a room the reader was not in.
+        .onReceive(NotificationCenter.default.publisher(for: .readerTextSelection)) { note in
+            updateSourceHighlight(note)
         }
         .onChange(of: pageDoc?.id ?? "") { _, _ in
             isSaving = false
@@ -176,6 +192,12 @@ struct PageContentPane: View {
             editState = PageContentPaneEditState()
             editState.synchronize(with: pageContent)
             loadAnnotations()
+            // A different document: any anchor still waiting was for the old
+            // one unless it names this one, and `applyPendingPassageAnchor`
+            // checks exactly that. Re-offer the latch too — navigating INTO
+            // the hit's page is the moment its passage becomes showable.
+            adoptLatestPassageAnchor()
+            applyPendingPassageAnchor()
         }
         // Resync when an annotation.* change event lands (create/delete/edit).
         .onChange(of: selectionRange) { _, newRange in
@@ -193,6 +215,12 @@ struct PageContentPane: View {
             guard !editState.isEditing else { return }
             sourceHighlight = nil
             editState.synchronize(with: newContent)
+            // The text just arrived — which is precisely when an anchor that
+            // could not land yet becomes landable. Without this, the clear
+            // above ATE the highlight the anchor was about to draw: the
+            // anchor is posted on document change, the transcript is fetched
+            // after it, and the fetch landing wiped the result.
+            applyPendingPassageAnchor()
         }
         .onChange(of: editState.isEditing) { _, isEditing in
             if isEditing {

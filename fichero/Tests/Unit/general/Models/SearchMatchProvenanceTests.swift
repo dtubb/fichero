@@ -131,20 +131,30 @@ final class SearchMatchProvenanceTests: XCTestCase {
         XCTAssertFalse(source.contains("SearchRelevanceBadge(score: hit.score)"))
     }
 
-    /// A document reached ONLY through an entity or claim hit is a graph
-    /// match and says so — the difference between "mentions Bagadó" and
-    /// "the graph connected this to Bagadó".
-    func testEntityAndClaimRowsAreChippedAsGraphMatches() throws {
+    /// A document reached ONLY through an entity or claim hit says which of
+    /// those legs found it — NOT "graph" (corrected, Daniel live 2026-09-03).
+    ///
+    /// This test previously pinned `.kg` for both, which is what put the word
+    /// "graph" on rows in a library with essentially no graph and the graph
+    /// tier switched off. The entity and claim legs are semantic searches
+    /// over the entity and claim tables, requested on every search; the graph
+    /// leg is the opt-in `hybrid_graph` RRF fusion leg, and the engine's own
+    /// `match_sources` says "kg" only when that leg actually ran.
+    func testEntityAndClaimRowsNameTheLegThatFoundThem() throws {
         let source = try Self.appSource("Views/Shell/ContentView/ContentView+SearchResults.swift")
 
         let entity = try XCTUnwrap(
             source.components(separatedBy: "excerpt: entity.canonicalName").dropFirst().first
         )
-        XCTAssertTrue(String(entity.prefix(200)).contains("matchSources: [.kg]"))
+        XCTAssertTrue(String(entity.prefix(200)).contains("matchSources: [.entity]"))
 
         let claim = try XCTUnwrap(
             source.components(separatedBy: "excerpt: claim.text").dropFirst().first
         )
-        XCTAssertTrue(String(claim.prefix(200)).contains("matchSources: [.kg]"))
+        XCTAssertTrue(String(claim.prefix(300)).contains("matchSources: [.claim]"))
+
+        // The client must never synthesise a graph attribution: only the
+        // engine may say "kg", and it says it in `match_sources`.
+        XCTAssertFalse(source.contains("matchSources: [.kg]"))
     }
 }

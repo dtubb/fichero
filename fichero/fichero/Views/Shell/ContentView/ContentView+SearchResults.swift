@@ -265,15 +265,18 @@ extension ContentView {
         for entity in stats.entityHits {
             guard let documentId = entity.sourceDocumentIds?.first,
                   hits[documentId] == nil else { continue }
-            // A row that only the entity leg reached IS a graph match, and
-            // says so (Daniel, 2026-09-02): the chip is the difference
-            // between "this document mentions Bagadó" and "the graph
-            // connected this document to Bagadó".
+            // A row only the ENTITY leg reached says "entity", not "graph"
+            // (Daniel, 2026-09-03). This chipped `.kg` — the word reserved
+            // for the opt-in `hybrid_graph` fusion leg — so every entity-name
+            // hit claimed a graph traversal that never ran, in a library with
+            // essentially no graph. The entity leg is a semantic search over
+            // the entity table; naming it honestly is the whole point of the
+            // chip.
             hits[documentId] = TransientSearchRowHit(
                 excerpt: entity.canonicalName,
                 score: entity.similarityScore ?? 0,
                 query: query,
-                matchSources: [.kg]
+                matchSources: [.entity]
             )
         }
         for claim in stats.claimHits {
@@ -283,7 +286,9 @@ extension ContentView {
                 excerpt: claim.text,
                 score: claim.similarityScore ?? 0,
                 query: query,
-                matchSources: [.kg]
+                // Same correction as the entity leg above: a claim-table
+                // semantic hit is a "claim" match, not a graph traversal.
+                matchSources: [.claim]
             )
         }
         return hits
@@ -397,8 +402,21 @@ extension ContentView {
     /// the request actually ran against, falling back to the window's own
     /// library when no search is up. ONE value, so the toolbar island and the
     /// results header cannot name different libraries (Daniel, 2026-09-01).
+    ///
+    /// `resultsLibraryName` is only consulted WHILE a search is active
+    /// (Daniel, 2026-09-03: the scope chip and the document island both read
+    /// "Test" with Marshall Diaries selected). It is written at request time
+    /// and was cleared only by `clearTransientSearch()` — which
+    /// `handleLibraryChange()` calls solely when a query is up. Search in one
+    /// library, dismiss the results, switch libraries, and the name of the
+    /// PREVIOUS library outlived the results it described, so the chrome
+    /// named a library the window was no longer showing. Gating on
+    /// `activeSearchQuery` makes the fallback structural: with no results on
+    /// screen there is nothing for a results-name to be the name OF.
     var searchChromeLibraryName: String {
-        chromeUX.resultsLibraryName ?? windowState.library?.displayName ?? "Library"
+        let windowLibraryName = windowState.library?.displayName ?? "Library"
+        guard activeSearchQuery != nil else { return windowLibraryName }
+        return chromeUX.resultsLibraryName ?? windowLibraryName
     }
 }
 

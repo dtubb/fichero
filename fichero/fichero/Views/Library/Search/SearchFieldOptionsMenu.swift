@@ -130,6 +130,11 @@ struct SearchFieldOptionsMenuButton: View {
     let reviewedEntityCount: Int?
     let canSave: Bool
     let onSave: () -> Void
+    /// Distinguishes the mounts. The button is deliberately mountable more
+    /// than once (the results bar AND the main toolbar, 2026-09-03), and two
+    /// controls sharing one accessibility identifier make a UI test's
+    /// "the options menu" ambiguous — so each mount names itself.
+    var accessibilityId: String = "library.search.optionsMenu"
 
     var body: some View {
         Menu {
@@ -152,6 +157,6 @@ struct SearchFieldOptionsMenuButton: View {
         .help("How this search runs: Ask or Keyword, where it looks, and how it retrieves")
         // Icon-only, so VoiceOver has nothing to read off the glyph.
         .accessibilityLabel("Search Options")
-        .accessibilityIdentifier("library.search.optionsMenu")
+        .accessibilityIdentifier(accessibilityId)
     }
 }

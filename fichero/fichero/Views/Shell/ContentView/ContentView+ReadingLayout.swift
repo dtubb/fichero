@@ -51,6 +51,24 @@ extension ContentView {
         return (cached + browsed).filter { seen.insert($0.id).inserted }
     }
 
+    /// Pure: which library row a reader page signal may select, or `nil` for
+    /// "leave the selection alone".
+    ///
+    /// Outside a search the page itself is the row. Inside one, the visible
+    /// rows are the RESULTS: the page is selectable only when it IS a result.
+    /// It deliberately never falls back to the page's parent container
+    /// (Daniel, 2026-09-03) — selecting the container promotes it to
+    /// `detailDocument`, which re-roots the reader onto the containing folder
+    /// and opens it at page one, which is the "reader shows the wrong item"
+    /// defect. Nothing selected is a missing highlight; the wrong thing
+    /// selected is the reader showing a document the user did not pick.
+    static func readerPageSelectionId(
+        pageId: String, isSearching: Bool, searchResultIds: [String]
+    ) -> String? {
+        guard isSearching else { return pageId }
+        return searchResultIds.contains(pageId) ? pageId : nil
+    }
+
     /// Pure: page-document ids at pdfIndex ±1/±2 — the prefetch set for a
     /// page turn (#18). Nearest neighbours first so the bounded prefetch pool
     /// warms the likeliest next flip before the speculative ones.
@@ -182,17 +200,29 @@ extension ContentView {
         // changes in the sidebar"). A scroll/swipe never stomps a
         // multi-selection the user built — only a click replaces one.
         // During a transient search the visible rows are the RESULTS, so a
-        // reader click selects the result row for this page (itself, or its
-        // parent when only the parent matched) — the bare page id highlighted
-        // nothing (user, live 2026-08-19).
-        let selectionId: String = {
-            guard activeSearchQuery != nil else { return match.id }
-            if searchResultDocuments.contains(where: { $0.id == match.id }) { return match.id }
-            if let parentId = match.parentId,
-               searchResultDocuments.contains(where: { $0.id == parentId }) { return parentId }
-            return match.id
-        }()
-        if signal.movesBrowserSelection,
+        // reader click selects the result row for this page when the page IS
+        // one — the bare page id highlighted nothing (user, live 2026-08-19).
+        //
+        // It must NOT fall back to the page's PARENT (Daniel, 2026-09-03:
+        // "the reader shows the first page of the item's original folder, not
+        // the selected result"). That substitution was the whole bug. Writing
+        // the parent id into `browserSelection` sends
+        // `handleBrowserSelectionChange` promoting the CONTAINER to
+        // `detailDocument`, which re-roots `readerDocument` and with it
+        // `readerPageCandidates` — so the reader's stream stopped being the
+        // hit and became the containing folder, opening at its first page.
+        // The auto-scroll that lands on the matched passage fires
+        // `.scrolledPast` immediately after selection, so this ran with no
+        // user gesture at all: the right page showed for one frame and then
+        // jumped. Highlighting nothing is a cosmetic gap; navigating the
+        // reader away from the result the user picked is a wrong answer.
+        let selectionId = Self.readerPageSelectionId(
+            pageId: match.id,
+            isSearching: activeSearchQuery != nil,
+            searchResultIds: searchResultDocuments.map(\.id)
+        )
+        if let selectionId,
+           signal.movesBrowserSelection,
            browserSelection != [selectionId],
            signal == .clicked || browserSelection.count <= 1 {
             NavTrace.log("readerPageActivation.browserSelection", "→ \(selectionId)"); browserSelection = [selectionId]

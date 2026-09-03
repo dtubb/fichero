@@ -7,19 +7,32 @@ import SwiftUI
 // near neighbour in vector space looked identical — which is exactly the
 // confusion the honesty surface exists to end.
 //
-// The engine now rides `metadata.match_sources` on every hit. Two of the
-// three legs earn a chip:
+// The engine rides `metadata.match_sources` on every hit. The legs that add
+// something the % badge does not already say earn a chip:
 //
 //   * "exact"  — the literal words are in this document (`fulltext`)
-//   * "graph"  — a knowledge-graph entity connected it (`kg`)
+//   * "entity" — an entity record's name matched (`entity`)
+//   * "claim"  — a recorded claim matched (`claim`)
+//   * "graph"  — the knowledge-graph fusion leg connected it (`kg`)
 //
 // Semantic gets NO chip on purpose: it is the leg the % badge already
 // describes, and a chip on every row is a chip that says nothing.
+//
+// `entity` and `claim` are DISTINCT from `graph` (Daniel, 2026-09-03: rows
+// were badged "graph" in a library with essentially no graph, while the graph
+// tier was off). The entity and claim legs are semantic searches over the
+// entity/claim tables — `include: [.entities, .claims]`, which the shell sends
+// on every search. The graph leg is the opt-in `hybrid_graph` RRF fusion leg,
+// and it is the ONLY thing entitled to the word "graph". Labelling an entity
+// name hit as a graph traversal claimed a capability the library had not been
+// given, which is the opposite of the honesty surface's job.
 
 /// One leg of the retrieval that claimed a row.
 enum SearchMatchSource: String, CaseIterable, Sendable {
     case semantic
     case fulltext
+    case entity
+    case claim
     case kg
 
     /// The chip's word, or `nil` for the leg the badge already covers.
@@ -27,6 +40,8 @@ enum SearchMatchSource: String, CaseIterable, Sendable {
         switch self {
         case .semantic: return nil
         case .fulltext: return "exact"
+        case .entity: return "entity"
+        case .claim: return "claim"
         case .kg: return "graph"
         }
     }
@@ -35,6 +50,8 @@ enum SearchMatchSource: String, CaseIterable, Sendable {
         switch self {
         case .semantic: return "Matched by meaning"
         case .fulltext: return "Contains the words you typed"
+        case .entity: return "Matched the name of an entity in this library"
+        case .claim: return "Matched a claim recorded about this document"
         case .kg: return "Reached through the knowledge graph"
         }
     }

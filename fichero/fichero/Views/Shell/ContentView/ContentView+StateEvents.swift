@@ -215,14 +215,34 @@ extension ContentView {
               let result = transientSearchStore?.results
                   .first(where: { $0.documentId == doc.id }),
               let excerpt = result.transcriptExcerpts.first else { return }
+        let anchor = ReaderPassageAnchor(
+            documentId: excerpt.anchor.documentId,
+            text: excerpt.text,
+            charStart: Int(excerpt.anchor.charStart),
+            charEnd: Int(excerpt.anchor.charEnd)
+        )
+        // LATCH, then post (Daniel, 2026-09-03). This fires from the
+        // `detailDocument` change, so the reader for that document is
+        // frequently built in the same turn — after this post. A notification
+        // reaches only the surfaces that already exist; the latch is what a
+        // reader mounting one frame later reads on appear. The post stays for
+        // the surfaces already up (the preview's word boxes, the annotation
+        // bar) — one anchor, two ways of arriving, no second source of truth.
+        ReaderPassageFocus.record(anchor)
         NotificationCenter.default.post(
             name: .readerTextSelection,
             object: nil,
             userInfo: [
-                "documentId": excerpt.anchor.documentId,
-                "text": excerpt.text,
-                "charStart": Int(excerpt.anchor.charStart),
-                "charEnd": Int(excerpt.anchor.charEnd),
+                "documentId": anchor.documentId,
+                "text": anchor.text,
+                // Non-nil by construction here; unwrapped rather than bridged
+                // through `as Any`, which would put an Optional in the
+                // userInfo for every reader to fail to cast.
+                "charStart": anchor.charStart ?? 0,
+                "charEnd": anchor.charEnd ?? 0,
+                // "Land here", not "here is a selection" — the reader is a
+                // publisher on this seam too, and must not answer itself.
+                ReaderPassageAnchor.kindKey: ReaderPassageAnchor.searchPassageKind,
             ]
         )
     }
@@ -254,6 +274,11 @@ extension ContentView {
         if activeSearchQuery != nil {
             clearTransientSearch()
         }
+        // The results-library name is per-RESULTS state, and this window now
+        // shows a different library (Daniel, 2026-09-03). `clearTransientSearch`
+        // above nils it, but only when a query was up — so a dismissed search
+        // left the OLD library's name behind for the chrome to keep showing.
+        chromeUX.resultsLibraryName = nil
         kgFocusState.clear()
     }
 

@@ -73,6 +73,41 @@ extension ContentView {
         return searchable
         #endif
     }
+
+    /// Search options, reachable from the MAIN TOOLBAR (Daniel, 2026-09-03).
+    ///
+    /// They lived only in the results bar's loupe — a bar that exists only
+    /// AFTER a search returns, so the way to change how a search runs was
+    /// behind having already run one the wrong way. SwiftUI gives no API for
+    /// hanging a menu off the system search field's own magnifier
+    /// (`DefaultToolbarItem(kind: .search)` is opaque), so the closest the
+    /// framework allows is a loupe-with-menu sited immediately beside it —
+    /// the placement `SearchFieldOptionsMenu`'s header anticipated.
+    ///
+    /// Mounted over the SAME bindings the request is built from
+    /// (`runTransientSearch` reads `transientSearchScopeIsFolder` and
+    /// `transientSearchType`; `runToolbarSearch` reads `searchFieldMode`), so
+    /// the two mounts are two views of one state, never two settings.
+    @ViewBuilder
+    var searchOptionsToolbarButton: some View {
+        SearchFieldOptionsMenuButton(
+            mode: searchFieldModeBinding,
+            scopeIsFolder: $transientSearchScopeIsFolder,
+            searchType: $transientSearchType,
+            libraryName: searchChromeLibraryName,
+            contextFolder: transientSearchContextFolder,
+            reviewedEntityCount: transientSearchStore?.searchStats?.reviewedEntityCount,
+            // Save needs a result set to save. With no search up there is
+            // none, so the row is absent rather than dead — the same rule the
+            // results-bar mount follows.
+            canSave: {
+                guard let store = transientSearchStore else { return false }
+                return !store.results.isEmpty && store.searchFailure == nil
+            }(),
+            onSave: { Task { await saveTransientSearch() } },
+            accessibilityId: "toolbar.search.optionsMenu"
+        )
+    }
 }
 
 /// Esc clears the search — `onExitCommand` is macOS/tvOS only, so the
