@@ -8,5 +8,5 @@
 // MARKETING_VERSION stays UNQUOTED: xcconfig values are raw tokens, and quotes
 // would leak verbatim into CFBundleShortVersionString.
 
-MARKETING_VERSION = 2026.09.01.2-beta
-CURRENT_PROJECT_VERSION = 2026090102
+MARKETING_VERSION = 2026.09.03
+CURRENT_PROJECT_VERSION = 1

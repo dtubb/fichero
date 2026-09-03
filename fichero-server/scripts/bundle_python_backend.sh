@@ -36,9 +36,13 @@ ln -s python3 python
   langchain-ollama litellm python-multipart python-dotenv aiofiles
 
 "$BUNDLE_DIR/bin/python3" -m pip install -e "$API_ROOT" --target "$BUNDLE_DIR/lib/python${PYTHON_VERSION}/site-packages"
-mkdir -p "$BUNDLE_DIR/lib/python${PYTHON_VERSION}/site-packages/fichero/resources/bin"
+# fichero_server, not fichero: the package was renamed in #2566 and this
+# path was never updated, so fm-bridge landed where _fm_bridge_candidates()
+# does not look. Latent because nothing calls this script today (see
+# scripts/README.md — stale candidate pending removal review).
+mkdir -p "$BUNDLE_DIR/lib/python${PYTHON_VERSION}/site-packages/fichero_server/resources/bin"
 swiftc -O -parse-as-library \
-  -o "$BUNDLE_DIR/lib/python${PYTHON_VERSION}/site-packages/fichero/resources/bin/fm-bridge" \
+  -o "$BUNDLE_DIR/lib/python${PYTHON_VERSION}/site-packages/fichero_server/resources/bin/fm-bridge" \
   "$FM_BRIDGE_SOURCE"
 cp "$API_ROOT/scripts/start_backend.py" "$BUNDLE_DIR/"
 chmod +x "$BUNDLE_DIR/start_backend.py"

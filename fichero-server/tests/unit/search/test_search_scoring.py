@@ -498,11 +498,27 @@ class TestKGFusionLeg:
         }]
         self._wire(db, monkeypatch, kg_leg)
 
+        # The graph tier is OPT-IN since 2026-09-02 (Daniel's ladder): the
+        # KG leg — and this exemption with it — runs under "hybrid_graph".
         results, total, _stats = Database.search(
-            db, "Andagoya", search_type="hybrid", min_score=0.55
+            db, "Andagoya", search_type="hybrid_graph", min_score=0.55
         )
         assert total == 1
         assert results[0].document_id == "doc-kg"
+
+    def test_plain_hybrid_keeps_the_graph_out(self, db, monkeypatch) -> None:
+        # With no graph — or a garbage one — the default tier must not let
+        # entity links reorder or inject documents (the 'cattle' case).
+        kg_leg = [{
+            "document_id": "doc-kg", "score": 0.0,
+            "content": "entity-linked page",
+            "metadata": {"name": "IMG_010", "doc_type": "page", "file_type": "image"},
+        }]
+        self._wire(db, monkeypatch, kg_leg)
+        results, total, _stats = Database.search(
+            db, "Andagoya", search_type="hybrid", min_score=0.55
+        )
+        assert total == 0
 
     def test_no_matched_entities_means_no_kg_leg(self, db, monkeypatch) -> None:
         self._wire(db, monkeypatch, [])
@@ -510,3 +526,125 @@ class TestKGFusionLeg:
             db, "nothing", search_type="hybrid", min_score=0.55
         )
         assert total == 0
+
+
+class TestExcerptPassageAnchoring:
+    """A semantic hit's excerpt anchors where the PASSAGE sits (2026-09-02).
+
+    The vector leg returns the matched passage's text plus its char_start in
+    the document; the excerpt builder used to claim document chars 0..N for
+    a passage that sits mid-document — the reader scrolled to the top of the
+    page and the excerpt read as an arbitrary opening line.
+    """
+
+    def test_pure_semantic_fallback_carries_the_passage_offset(self) -> None:
+        from fichero_server.db import _build_transcript_excerpts
+
+        # No literal query term in the passage — the semantic case.
+        excerpts = _build_transcript_excerpts(
+            document_id="doc1",
+            content="the doctor was sent out to dredge two after the fall",
+            query="workplace injuries",
+            content_offset=1200,
+        )
+        assert len(excerpts) == 1
+        ex = excerpts[0]
+        assert ex.match_start is None  # honest: no literal match
+        assert ex.char_start == 1200
+        assert ex.anchor.char_start == 1200
+        assert ex.anchor.char_end > 1200
+
+    def test_literal_match_offsets_shift_too(self) -> None:
+        from fichero_server.db import _build_transcript_excerpts
+
+        excerpts = _build_transcript_excerpts(
+            document_id="doc1",
+            content="a report of the accident at dredge two",
+            query="accident",
+            content_offset=500,
+        )
+        assert excerpts, "a literal term must anchor an excerpt"
+        ex = excerpts[0]
+        local = "a report of the accident at dredge two".find("accident")
+        assert ex.match_start == 500 + local
+        assert ex.anchor.char_start == 500 + local
+
+    def test_no_offset_behaves_as_before(self) -> None:
+        from fichero_server.db import _build_transcript_excerpts
+
+        excerpts = _build_transcript_excerpts(
+            document_id="doc1",
+            content="plain page content with nothing matching",
+            query="zzz-not-here",
+        )
+        assert excerpts[0].char_start == 0
+
+
+class TestSearchTierLadderAndHonesty:
+    """Daniel's tier ladder + visibility rulings (2026-09-02, 'cattle').
+
+    fulltext / semantic / hybrid (text legs only) / hybrid_graph (opt-in KG
+    leg); whole-word entity matching; best-passage-per-document before
+    fusion; and stats that SAY what ran.
+    """
+
+    def test_entity_surface_matching_is_whole_word(self) -> None:
+        # The old bidirectional substring let "cat" match "cattle" and any
+        # two-letter NER fragment match half the dictionary — phantom
+        # entities then fed alias expansion and the KG leg.
+        import inspect
+
+        from fichero_server.db import Database
+
+        src = inspect.getsource(Database._expand_query_with_entity_aliases)
+        assert "_term_hits_surface" in src
+        assert "folded_surface in term" not in src.replace(
+            'f" {term} " in f" {folded_surface} "', ""
+        )
+
+    def test_best_passage_per_document_wins(self, monkeypatch) -> None:
+        # A long page with five mediocre passages must not out-rank a page
+        # whose single best passage is the corpus's closest match.
+        from fichero_server import db as db_module
+
+        rows = [
+            {"document_id": "long-page", "score": 0.60, "content": "p1", "metadata": {}},
+            {"document_id": "long-page", "score": 0.61, "content": "p2", "metadata": {}},
+            {"document_id": "long-page", "score": 0.62, "content": "p3", "metadata": {}},
+            {"document_id": "best-page", "score": 0.73, "content": "hit", "metadata": {}},
+        ]
+        best: dict[str, dict] = {}
+        for row in rows:
+            prior = best.get(row["document_id"])
+            if prior is None or row["score"] > prior["score"]:
+                best[row["document_id"]] = row
+        collapsed = sorted(best.values(), key=lambda r: r["score"], reverse=True)
+        assert [r["document_id"] for r in collapsed] == ["best-page", "long-page"]
+        assert collapsed[0]["content"] == "hit"
+        # And the production code carries exactly this collapse.
+        import inspect
+
+        assert "BEST PASSAGE PER DOCUMENT" in inspect.getsource(db_module.Database.search)
+
+    def test_graph_leg_is_opt_in(self) -> None:
+        import inspect
+
+        from fichero_server.db import Database
+
+        src = inspect.getsource(Database.search)
+        assert 'search_type == "hybrid_graph"' in src
+        assert "if include_graph" in src
+        # The KG fusion leg must be gated on the tier, not unconditional.
+        call_at = src.index("_kg_evidence_results(")
+        assert "if include_graph" in src[call_at : call_at + 200]
+
+    def test_route_accepts_the_graph_tier(self) -> None:
+        from pathlib import Path
+
+        core = Path(__file__).resolve().parents[3] / (
+            "src/fichero_server/api/routes/search/core.py"
+        )
+        text = core.read_text(encoding="utf-8")
+        assert '"hybrid_graph"' in text
+        assert "graph_leg_enabled" in text
+        assert "weak_semantic_only" in text

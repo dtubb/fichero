@@ -15,6 +15,8 @@ from fichero_server.workflows.tools.image_edit_chains import (
     persist_workflow_renditions,
 )
 from fichero_server.workflows.types import DataType, PortDef, State
+from fichero_server.media.image_flatten import flatten_for_opaque_format
+from fichero_server.media.image_ops import apply_fuzzy_clean
 
 logger = logging.getLogger(__name__)
 
@@ -83,31 +85,11 @@ def _save_image(
     save_kwargs: dict[str, Any] = {"format": fmt.upper() if fmt != "jpeg" else "JPEG"}
     if fmt in {"jpeg", "webp"}:
         save_kwargs["quality"] = max(1, min(100, int(compression_quality)))
-    if fmt == "jpeg" and image.mode in {"RGBA", "P"}:
-        image = image.convert("RGB")
+    if fmt == "jpeg":
+        # JPEG has no alpha. convert("RGB") would DROP the channel and keep the
+        # black underneath a cut-out; this composites it onto white instead.
+        image = flatten_for_opaque_format(image)
     image.save(output_path, **save_kwargs)
-
-
-def apply_fuzzy_clean(image: Any, *, despeckle_radius: int = 3, background_clean: bool = True) -> Any:
-    """Apply a conservative document despeckle/background cleanup."""
-    from PIL import ImageFilter, ImageOps
-
-    # MedianFilter + autocontrast operate on colour channels only. Remove-
-    # Background produces RGBA (transparent edges) and autocontrast raises
-    # "not supported for mode RGBA"; palette (P) images choke on the filters
-    # too. Split the original alpha off, clean the colour, then re-attach the
-    # untouched alpha so transparency is preserved exactly (#1534).
-    has_alpha = image.mode in {"RGBA", "LA"}
-    alpha = image.getchannel("A") if has_alpha else None
-    base = image if image.mode in {"RGB", "L"} else image.convert("RGB")
-
-    cleaned = base.filter(ImageFilter.MedianFilter(size=_normalise_radius(despeckle_radius)))
-    if background_clean:
-        cleaned = ImageOps.autocontrast(cleaned)
-    if alpha is not None:
-        cleaned = cleaned.convert("RGBA")
-        cleaned.putalpha(alpha)
-    return cleaned
 
 
 def fuzzy_clean_image_file(

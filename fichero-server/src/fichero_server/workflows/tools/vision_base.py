@@ -104,6 +104,7 @@ from fichero_server.workflows.circuit_breaker import (
     ProviderRateLimitedError,
     call_with_breaker,
 )
+from fichero_server.media.image_flatten import flatten_for_opaque_format
 
 logger = logging.getLogger(__name__)
 
@@ -805,6 +806,172 @@ def _snap_word_boxes_to_ink(
     return moved
 
 
+def _long_run_mask(mask: "Any", length: int, axis: int) -> "Any":
+    """Pixels belonging to a straight run of >= ``length`` set pixels.
+
+    Ruled ledger lines, column dividers and scan borders are exactly such
+    runs; handwriting and print are not. Doubling shift-AND finds run STARTS
+    in O(log length) passes, then a reverse OR spreads membership back over
+    the whole run — numpy only, no OpenCV/scipy dependency.
+    """
+    import numpy as np
+
+    def _shift(arr, offset):
+        out = np.zeros_like(arr)
+        if offset == 0:
+            return arr.copy()
+        if axis == 1:
+            out[:, :-offset] = arr[:, offset:]
+        else:
+            out[:-offset, :] = arr[offset:, :]
+        return out
+
+    starts = mask.copy()
+    covered = 1
+    while covered < length:
+        step = min(covered, length - covered)
+        starts &= _shift(starts, step)
+        covered += step
+
+    members = starts.copy()
+    covered = 1
+    while covered < length:
+        step = min(covered, length - covered)
+        back = np.zeros_like(members)
+        if axis == 1:
+            back[:, step:] = members[:, :-step]
+        else:
+            back[step:, :] = members[:-step, :]
+        members |= back
+        covered += step
+    return members & mask
+
+
+def _uncovered_ink_rects(
+    image_path: str,
+    word_boxes: list["VisionOCRBox"],
+    *,
+    work_width: int = 1200,
+    grid: int = 8,
+    max_rects: int = 8,
+    pad_frac: float = 0.015,
+) -> list[tuple[float, float, float, float]]:
+    """Normalized page rects [x, y, w, h] holding TEXT ink no word box covers.
+
+    The sparse-area review pass (Daniel, 2026-09-02): Apple Vision misses
+    whole faint-pencil lines and dense small print that a page-scale pass
+    cannot resolve, and the strip escalation only re-reads full-width bands.
+    The ink itself says where the misses are. This measures ink the way the
+    ink-snap does (darker than the LOCAL background, so paper grain and
+    stains stay out), subtracts ruled lines/borders (long straight runs) and
+    dark backdrop regions, masks everything already inside a word box, and
+    groups what remains onto a coarse grid merged into at most ``max_rects``
+    crop rectangles.
+
+    Frame: rects are fractions of THIS image's own pixels — the same frame
+    the word boxes are normalized against — so a caller can crop and re-OCR
+    and map results straight back. PIL + numpy only; any failure returns []
+    (the pass is an improvement, never a new way to fail the page).
+    """
+    if not os.path.exists(image_path or ""):
+        return []
+    try:
+        from PIL import Image, ImageFilter
+        import numpy as np
+
+        with Image.open(image_path) as raw:
+            img = raw.convert("L")
+            if img.width > work_width:
+                scale = work_width / img.width
+                img = img.resize((work_width, max(1, int(img.height * scale))))
+            background = img.filter(ImageFilter.MedianFilter(15))
+            page = np.asarray(img, dtype=np.int16)
+            bg = np.asarray(background, dtype=np.int16)
+            blurred = np.asarray(img.filter(ImageFilter.BoxBlur(30)), dtype=np.int16)
+    except Exception:
+        return []
+
+    height, width = page.shape
+    ink = (bg - page) > 40
+    # Ruled lines / borders: long straight runs are page furniture, not text.
+    ink &= ~_long_run_mask(ink, max(40, width // 10), axis=1)
+    ink &= ~_long_run_mask(ink, max(40, height // 10), axis=0)
+    # Dark REGIONS (bindings, black scanner backdrop): dark even when blurred.
+    ink &= blurred > 100
+    # Scan-edge junk: ignore a thin border margin.
+    margin_x, margin_y = int(width * 0.015), int(height * 0.015)
+    if margin_x and margin_y:
+        border = np.zeros_like(ink)
+        border[margin_y:-margin_y, margin_x:-margin_x] = True
+        ink &= border
+
+    for box in word_boxes:
+        bbox = getattr(box, "bbox", None)
+        if not bbox or len(bbox) != 4:
+            continue
+        x, y, w, h = bbox
+        ink[int(y * height):int((y + h) * height) + 1,
+            int(x * width):int((x + w) * width) + 1] = False
+
+    if not ink.any():
+        return []
+
+    # Grid pooling: which coarse cells still hold enough leftover ink to be
+    # worth a re-read. Threshold ~ a short word at this resolution.
+    cell_h, cell_w = height // grid, width // grid
+    if cell_h < 8 or cell_w < 8:
+        return []
+    min_cell_ink = max(120, (width * height) // 12_000)
+    cells = np.zeros((grid, grid), dtype=bool)
+    for row in range(grid):
+        for col in range(grid):
+            cell = ink[row * cell_h:(row + 1) * cell_h, col * cell_w:(col + 1) * cell_w]
+            cells[row, col] = int(cell.sum()) >= min_cell_ink
+    if not cells.any():
+        return []
+
+    # Merge marked cells into rectangles: greedy row-major growth — extend
+    # right across marked neighbours, then down while the whole row span is
+    # marked. Bounded and deterministic; at worst one rect per marked cell.
+    # Growth is CAPPED at 3x3 cells: the whole point of the re-read is that
+    # a crop shows Vision the glyphs several times larger, and a rect that
+    # swallows the page re-reads it at page scale — the pass that already
+    # missed (measured: uncapped, the dense-print sample merged into one
+    # near-page rect and recovered half of what capped crops recover).
+    max_span = 3
+    rects: list[tuple[float, float, float, float]] = []
+    remaining = cells.copy()
+    for row in range(grid):
+        for col in range(grid):
+            if not remaining[row, col]:
+                continue
+            col_end = col
+            while (
+                col_end + 1 < grid
+                and col_end + 1 - col < max_span
+                and remaining[row, col_end + 1]
+            ):
+                col_end += 1
+            row_end = row
+            while (
+                row_end + 1 < grid
+                and row_end + 1 - row < max_span
+                and remaining[row_end + 1, col:col_end + 1].all()
+            ):
+                row_end += 1
+            remaining[row:row_end + 1, col:col_end + 1] = False
+            x0 = max(0.0, col / grid - pad_frac)
+            y0 = max(0.0, row / grid - pad_frac)
+            x1 = min(1.0, (col_end + 1) / grid + pad_frac)
+            y1 = min(1.0, (row_end + 1) / grid + pad_frac)
+            ink_px = int(ink[row * cell_h:(row_end + 1) * cell_h,
+                             col * cell_w:(col_end + 1) * cell_w].sum())
+            rects.append((x0, y0, x1 - x0, y1 - y0, ink_px))  # type: ignore[arg-type]
+
+    rects.sort(key=lambda r: -r[4])  # type: ignore[misc]
+    return [(x, y, w, h) for x, y, w, h, _ in rects[:max_rects]]  # type: ignore[misc]
+
+
 def _vision_geometry_from_results(
     results: list[Any],
     *,
@@ -1479,6 +1646,87 @@ def _vision_ocr_cgimage_with_geometry(
         text, lines, words = _rebase_geometry_reading_order(lines, words)
         return VisionOCRResult(text=text, line_boxes=lines, word_boxes=words)
 
+    def _escalate_ink_residue(base: VisionOCRResult) -> VisionOCRResult:
+        """Re-OCR the RECTS still holding ink no word box covers.
+
+        The band escalation reads full-width strips; this pass is 2-D and
+        ink-driven (Daniel, 2026-09-02): a faint pencil line mid-page, a
+        margin figure, or a table of small print leaves ink the page pass
+        never boxed, and a crop at region scale makes those glyphs several
+        times larger to Vision. Measured on Marshall diary pages: text-ink
+        coverage 0.26→0.69 on dense small print, 0.75→0.85 on a page with
+        missed pencil lines, no page worse (agent-work/design/
+        local-vision-bbox-lab.md). Needs source_path — the flat image the
+        boxes are fractions of — so PDF-page runs skip it, like the snap.
+        """
+        if not source_path:
+            return base
+        from Quartz import (  # noqa: PLC0415
+            CGImageCreateWithImageInRect,
+            CGImageGetHeight,
+            CGImageGetWidth,
+            CGRectMake,
+        )
+        rects = _uncovered_ink_rects(source_path, base.word_boxes)
+        if not rects:
+            return base
+        width = CGImageGetWidth(cg_image)
+        height = CGImageGetHeight(cg_image)
+        lines = list(base.line_boxes)
+        words = list(base.word_boxes)
+        recovered = 0
+        for rect_x, rect_y, rect_w, rect_h in rects:
+            if rect_w <= 0 or rect_h <= 0:
+                continue
+            crop = CGImageCreateWithImageInRect(
+                cg_image,
+                CGRectMake(
+                    rect_x * width, rect_y * height,
+                    rect_w * width, rect_h * height,
+                ),
+            )
+            if crop is None:
+                continue
+            request = Vision.VNRecognizeTextRequest.alloc().init()  # pylint: disable=no-member
+            request.setRecognitionLevel_(Vision.VNRequestTextRecognitionLevelAccurate)  # pylint: disable=no-member
+            request.setRecognitionLanguages_([lang])
+            handler = Vision.VNImageRequestHandler.alloc().initWithCGImage_options_(crop, None)
+            success, _error = handler.performRequests_error_([request], None)
+            results = request.results() if success else None
+            if not results:
+                continue
+            region = _vision_geometry_from_results(results, page_index=page_index)
+            # Crop frame → page frame: the crop's fractions scale by the
+            # rect's own size and shift by its origin (BBox rule: the frame
+            # math names its frames).
+            for box in region.line_boxes + region.word_boxes:
+                x, y, w, h = box.bbox
+                box.bbox = [
+                    rect_x + x * rect_w,
+                    rect_y + y * rect_h,
+                    w * rect_w,
+                    h * rect_h,
+                ]
+            for line in region.line_boxes:
+                if _is_duplicate_line(line, lines):
+                    continue
+                lines.append(line)
+                start, end = line.char_start, line.char_end
+                if start is not None and end is not None:
+                    words.extend(
+                        w2 for w2 in region.word_boxes
+                        if w2.char_start is not None and start <= w2.char_start < end
+                    )
+                recovered += 1
+        if recovered == 0:
+            return base
+        logger.info(
+            "Ink-residue escalation recovered %d line(s) across %d region(s)",
+            recovered, len(rects),
+        )
+        text, lines, words = _rebase_geometry_reading_order(lines, words)
+        return VisionOCRResult(text=text, line_boxes=lines, word_boxes=words)
+
     # Try Accurate first
     request = Vision.VNRecognizeTextRequest.alloc().init()  # pylint: disable=no-member
     request.setRecognitionLevel_(Vision.VNRequestTextRecognitionLevelAccurate)  # pylint: disable=no-member
@@ -1486,7 +1734,7 @@ def _vision_ocr_cgimage_with_geometry(
 
     geometry = _extract_text(request, "Accurate")
     if geometry is not None:
-        escalated = _escalate_gaps(geometry)
+        escalated = _escalate_ink_residue(_escalate_gaps(geometry))
         snapped = _snap_word_boxes_to_ink(source_path, escalated.word_boxes) if source_path else 0
         if snapped:
             logger.info("Ink-snap tightened %d word boxes", snapped)
@@ -1500,7 +1748,7 @@ def _vision_ocr_cgimage_with_geometry(
 
     geometry = _extract_text(request, "Fast")
     if geometry is not None:
-        escalated = _escalate_gaps(geometry)
+        escalated = _escalate_ink_residue(_escalate_gaps(geometry))
         snapped = _snap_word_boxes_to_ink(source_path, escalated.word_boxes) if source_path else 0
         if snapped:
             logger.info("Ink-snap tightened %d word boxes", snapped)
@@ -1938,6 +2186,122 @@ def _supports_return_boxes(llm_config: LLMConfig) -> bool:
     return provider == "google" and "gemini" in model
 
 
+# =============================================================================
+# Naming HOW a vision call failed (Daniel, 2026-09-02)
+# =============================================================================
+#
+# The old message was one sentence for four different failures: "Likely a
+# provider safety refusal or sustained timeout; no transcription artifact
+# saved." "Likely … or …" is a guess printed as a finding. An operator cannot
+# act on it (raise the timeout? change the model? re-run later?) and the UI
+# cannot group by it, so a page that failed because the network hiccuped looked
+# exactly like a page the provider refused to read.
+#
+# These kinds are machine-readable and travel on the step's error payload as
+# `error_kind`, so the UI can show a per-model failure chip. The honest-failure
+# principle is unchanged: naming the failure never invents an artifact.
+
+#: A provider declined to answer — safety filter, content policy, blocked.
+VISION_ERROR_REFUSAL = "refusal"
+#: The call did not come back in time. Worth one more attempt.
+VISION_ERROR_TIMEOUT = "timeout"
+#: 429 / quota / breaker-open. Retrying now makes it worse.
+VISION_ERROR_RATE_LIMITED = "rate_limited"
+#: The model answered, and the answer was empty. Not an error we can retry away.
+VISION_ERROR_EMPTY = "empty"
+#: Something else went wrong; the detail carries it.
+VISION_ERROR_UNKNOWN = "unknown"
+
+_REFUSAL_MARKERS = (
+    "safety",
+    "refus",
+    "content policy",
+    "content_policy",
+    "content_filter",
+    "prohibited_content",
+    "blocked",
+    "responsible ai",
+    "policy violation",
+)
+_TIMEOUT_MARKERS = (
+    "timeout",
+    "timed out",
+    "deadline exceeded",
+    "read timed out",
+    "connection reset",
+    "connection aborted",
+    "server disconnected",
+)
+_RATE_LIMIT_MARKERS = ("rate limit", "rate_limit", "429", "quota", "too many requests")
+
+
+#: Backoff before the one extra attempt a timed-out call earns. Long enough to
+#: outlast a provider hiccup, short enough that a stuck page does not hold a
+#: concurrency slot for a meaningful part of the run.
+_EMPTY_RETRY_BACKOFF_SECONDS = 5.0
+
+
+def classify_vision_failure(exc: BaseException | None) -> str:
+    """Name the shape of a vision failure so the caller need not guess.
+
+    Order matters: a refusal that mentions a timeout in passing is still a
+    refusal, and a rate limit is checked before the generic timeout markers
+    because providers phrase 429s as "request timed out, slow down" often
+    enough to matter.
+    """
+    if exc is None:
+        return VISION_ERROR_EMPTY
+    if isinstance(exc, ProviderRateLimitedError):
+        return VISION_ERROR_RATE_LIMITED
+    if isinstance(exc, (asyncio.TimeoutError, TimeoutError)):
+        return VISION_ERROR_TIMEOUT
+    haystack = f"{type(exc).__name__} {exc}".lower()
+    if any(marker in haystack for marker in _REFUSAL_MARKERS):
+        return VISION_ERROR_REFUSAL
+    if any(marker in haystack for marker in _RATE_LIMIT_MARKERS):
+        return VISION_ERROR_RATE_LIMITED
+    if any(marker in haystack for marker in _TIMEOUT_MARKERS):
+        return VISION_ERROR_TIMEOUT
+    return VISION_ERROR_UNKNOWN
+
+
+def is_retryable_vision_failure(kind: str) -> bool:
+    """Only timeout-shaped failures earn another attempt.
+
+    A refusal repeats deterministically — re-asking burns tokens and the
+    operator's patience for the same answer. A rate limit is already handled by
+    the circuit breaker's own backoff, and hammering it holds the breaker open
+    for every other file. A timeout is the one failure that is plausibly about
+    the network rather than the request.
+    """
+    return kind == VISION_ERROR_TIMEOUT
+
+
+def describe_vision_failure(kind: str, *, detail: str | None = None) -> str:
+    """One human sentence per kind — what happened and what to do about it."""
+    sentences = {
+        VISION_ERROR_REFUSAL: (
+            "the provider refused to answer (safety or content policy) — "
+            "another model may read this page"
+        ),
+        VISION_ERROR_TIMEOUT: (
+            "the provider did not answer in time, twice — raise the node's "
+            "timeout or try again when the provider is less loaded"
+        ),
+        VISION_ERROR_RATE_LIMITED: (
+            "the provider rate-limited this run — re-run it later; retrying "
+            "now holds the circuit breaker open for every other file"
+        ),
+        VISION_ERROR_EMPTY: (
+            "the model answered with nothing at all, twice — it may be unable "
+            "to read this hand; try a stronger vision model"
+        ),
+        VISION_ERROR_UNKNOWN: "the call failed for a reason we could not classify",
+    }
+    text = sentences.get(kind, sentences[VISION_ERROR_UNKNOWN])
+    return f"{text} ({detail})" if detail else text
+
+
 def _parse_return_boxes_payload(
     payload: str,
     *,
@@ -2334,8 +2698,9 @@ def file_to_data_uri(file_path: str, max_dimension: int = 2048) -> str:
 
                 if source_mime == "image/jpeg":
                     img_format, mime_type = "JPEG", "image/jpeg"
-                    if img.mode not in ("RGB", "L"):
-                        img = img.convert("RGB")
+                    # JPEG carries no alpha. Dropping the channel would send
+                    # the model a page on a BLACK ground (media/image_flatten).
+                    img = flatten_for_opaque_format(img)
                 else:
                     # PNG is the universal fallback (WebP sources included:
                     # re-encoding them as PNG keeps label == bytes).
@@ -3747,10 +4112,21 @@ async def process_vision(
             # is a real result — don't retry that one.
             # Skip for _llm_multipage: per-page failures were logged individually;
             # re-sending only page 0 would not help a multi-page failure.
+            # Carries WHY the call failed, if it failed, across the retry
+            # ladder and onto the step's error payload as `error_kind`.
+            _empty_failure_kind: str | None = None
+            _empty_failure_detail: str | None = None
             if not (text or "").strip() and vision_mode != "apple" and not _llm_multipage and image_uri is not None:
                 logger.warning(
                     f"Vision LLM returned empty for {Path(file_path).name}; "
                     f"retrying once before declaring failure"
+                )
+                # Built BEFORE the try so the final attempt in the except
+                # handler cannot trip over an unbound name.
+                retry_config = dataclasses.replace(
+                    effective_config,
+                    max_tokens=max(8192, effective_config.max_tokens * 2),
+                    reasoning_effort="disabled",
                 )
                 try:
                     # A NATIVE-reasoning model (qwen3.6-plus, 2026-08-24) can
@@ -3759,16 +4135,10 @@ async def process_vision(
                     # is output ≈ max_tokens exactly. Retrying with the same
                     # cap fails identically, so the retry raises the ceiling;
                     # a genuinely empty page still comes back empty and fails
-                    # loudly below.
-                    retry_config = dataclasses.replace(
-                        effective_config,
-                        max_tokens=max(8192, effective_config.max_tokens * 2),
-                        # A default-reasoning model can drown ANY cap (run 3:
-                        # the 8192 retry burned 8193). Disable reasoning
-                        # outright on the retry — the answer channel is what
-                        # we're here for.
-                        reasoning_effort="disabled",
-                    )
+                    # loudly below. A default-reasoning model can drown ANY
+                    # cap (run 3: the 8192 retry burned 8193), so reasoning is
+                    # disabled outright above — the answer channel is what
+                    # we're here for.
                     text = await _vision_resilient(
                         lambda: vision(
                             images=[image_uri],
@@ -3788,9 +4158,60 @@ async def process_vision(
                     # fail this file fast instead of saving an empty result.
                     raise
                 except Exception as retry_exc:
+                    _empty_failure_kind = classify_vision_failure(retry_exc)
+                    _empty_failure_detail = str(retry_exc)
                     logger.warning(
-                        f"Retry failed for {Path(file_path).name}: {retry_exc}"
+                        "Retry failed for %s [%s]: %s",
+                        Path(file_path).name,
+                        _empty_failure_kind,
+                        retry_exc,
                     )
+                    # ONE more attempt, and only for timeout-shaped failures.
+                    # A refusal repeats; a rate limit is the breaker's job. A
+                    # timeout is the one failure plausibly about the network,
+                    # and it is the one Daniel kept losing whole pages to.
+                    if is_retryable_vision_failure(_empty_failure_kind):
+                        await asyncio.sleep(_EMPTY_RETRY_BACKOFF_SECONDS)
+                        logger.warning(
+                            "Timed-out vision call for %s; one final attempt "
+                            "after %.1fs backoff",
+                            Path(file_path).name,
+                            _EMPTY_RETRY_BACKOFF_SECONDS,
+                        )
+                        try:
+                            text = await _vision_resilient(
+                                lambda: vision(
+                                    images=[image_uri],
+                                    prompt=final_prompt,
+                                    config=retry_config,
+                                    language=language,
+                                    recognition_only_ok=(
+                                        tool_config.supports_apple_vision
+                                    ),
+                                )
+                            )
+                            parsed = parse_output(
+                                text, output_format, output_options
+                            )
+                            if reference_values:
+                                parsed = apply_reference_matching(
+                                    parsed, reference_values
+                                )
+                            _empty_failure_kind = None
+                            _empty_failure_detail = None
+                        except ProviderRateLimitedError:
+                            raise
+                        except Exception as final_exc:
+                            _empty_failure_kind = classify_vision_failure(
+                                final_exc
+                            )
+                            _empty_failure_detail = str(final_exc)
+                            logger.warning(
+                                "Final vision attempt failed for %s [%s]: %s",
+                                Path(file_path).name,
+                                _empty_failure_kind,
+                                final_exc,
+                            )
 
             # #4329: markup tools sanitize/validate the model output BEFORE
             # anything is saved or rendered. A postprocess raise fails this
@@ -3836,16 +4257,26 @@ async def process_vision(
                     parsed = apply_reference_matching(parsed, reference_values)
 
             if not (text or "").strip():
+                # Name the failure instead of guessing at it. `error_kind` is
+                # the machine-readable half (the UI groups per-model failure
+                # chips by it); the sentence is the operator-readable half.
+                error_kind = _empty_failure_kind or classify_vision_failure(None)
                 msg = (
-                    f"Vision LLM returned empty response for "
-                    f"{Path(file_path).name} (after retry). Likely a "
-                    f"provider safety refusal or sustained timeout; no "
-                    f"transcription artifact saved."
+                    f"Vision LLM returned no transcription for "
+                    f"{Path(file_path).name} after retries [{error_kind}]: "
+                    f"{describe_vision_failure(error_kind, detail=_empty_failure_detail)}. "
+                    f"No transcription artifact saved."
                 )
                 logger.warning(msg)
                 _log_vision_warning(msg, file_path)
                 results.append(
-                    {"file": file_path, "text": "", "value": "", "error": msg}
+                    {
+                        "file": file_path,
+                        "text": "",
+                        "value": "",
+                        "error": msg,
+                        "error_kind": error_kind,
+                    }
                 )
                 texts.append("")
                 values.append(None)

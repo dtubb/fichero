@@ -8,9 +8,11 @@ from fichero_server.llm import LLMConfig, translate_text
 from fichero_server.workflows.registry import register_tool
 from fichero_server.workflows.tools.llm_base import (
     BASE_CONFIG_SCHEMA,
+    BASE_INPUT_PORTS,
     BASE_OUTPUT_PORTS,
     LLMToolConfig,
     merge_config_schema,
+    merge_ports,
     parse_output,
     apply_reference_matching,
     save_artifact,
@@ -42,16 +44,24 @@ TRANSLATE_CONFIG = {
     },
 }
 
-TRANSLATE_INPUT_PORTS = [
-    PortDef(
-        id="text",
-        name="Text",
-        port_type="input",
-        data_type=DataType.TEXT,
-        required=True,
-        description="Source text to translate.",
-    )
-]
+# Includes the BASE ports (documents/context/metadata): the tool body reads
+# inputs["documents"] to attach the saved translation to a document, but the
+# port was never declared, so a preset edge wiring documents in failed the
+# /execute validation gate ("unknown target port") while a run WITHOUT the
+# edge had nothing to save onto (2026-09-02, Marshall sample).
+TRANSLATE_INPUT_PORTS = merge_ports(
+    [
+        PortDef(
+            id="text",
+            name="Text",
+            port_type="input",
+            data_type=DataType.TEXT,
+            required=True,
+            description="Source text to translate.",
+        )
+    ],
+    BASE_INPUT_PORTS,
+)
 
 
 @register_tool(

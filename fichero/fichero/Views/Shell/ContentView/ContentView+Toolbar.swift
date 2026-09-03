@@ -153,16 +153,21 @@ extension ContentView {
                 ToolbarItemGroup(placement: .automatic) {
                     libraryPaneToggleButton
 
-                    // Buttons, not Toggles (Daniel, 2026-08-29: the accent-filled
+                    // Buttons, not Toggles (Daniel, 2026-08-29: the accent-FILLED
                     // on-state "changing colors — that's a bad UX"). The WORDS
-                    // carry the state — Show X / Hide X — which is also what the
-                    // label says beneath the icon in the toolbar's Icon-and-Text
-                    // mode, so state reads without colour.
+                    // still carry the state — Show X / Hide X — which is what
+                    // the label says beneath the icon in Icon-and-Text mode, so
+                    // state reads without colour. On top of that the glyph is
+                    // LIT while the surface is open (Daniel, 2026-09-02): in
+                    // Icon Only mode there are no words, and six identical
+                    // buttons said nothing about what was already up. Lit glyph,
+                    // not filled control — see `toolbarSurfaceLit`.
                     Button {
                         setCanvasPaneVisible(!showDocumentCanvas)
                     } label: {
                         Label(showDocumentCanvas ? "Hide Preview" : "Show Preview",
                               systemImage: ToolbarSymbols.previewPane)
+                            .toolbarSurfaceLit(showDocumentCanvas)
                     }
                     .help(showDocumentCanvas ? "Hide the Preview" : "Show the Preview")
 
@@ -171,6 +176,7 @@ extension ContentView {
                     } label: {
                         Label(showReadingPane ? "Hide Reader" : "Show Reader",
                               systemImage: ToolbarSymbols.readingPane)
+                            .toolbarSurfaceLit(showReadingPane)
                     }
                     .help(showReadingPane ? "Hide the Reader" : "Show the Reader — transcripts, translations, and the knowledge graph")
 
@@ -182,6 +188,7 @@ extension ContentView {
                     } label: {
                         Label(showChatPane ? "Hide Chat" : "Show Chat",
                               systemImage: ToolbarSymbols.chatPane)
+                            .toolbarSurfaceLit(showChatPane)
                     }
                     .help(showChatPane ? "Hide the Chat" : "Show the Chat")
                 }
@@ -224,6 +231,7 @@ extension ContentView {
         } label: {
             Label(model.isVisible ? "Hide Library" : "Show Library",
                   systemImage: model.systemImage)
+                .toolbarSurfaceLit(model.isVisible)
         }
         .disabled(!model.isEnabled)
         .help(model.help)
@@ -240,7 +248,8 @@ extension ContentView {
     /// primary-tint fill), which was a custom approximation of exactly this
     /// treatment (#4360).
     var inspectorToggleButton: some View {
-        // Same no-colour rule as the pane group: the words flip, not the fill.
+        // Same rule as the pane group: the words flip and the glyph lights;
+        // the control's own fill never changes.
         Button {
             withAnimation(FrameAnimation.snappy) {
                 showInspectorSidebar.toggle()
@@ -248,6 +257,7 @@ extension ContentView {
         } label: {
             Label(showInspectorSidebar ? "Hide Inspector" : "Show Inspector",
                   systemImage: ToolbarSymbols.inspector)
+                .toolbarSurfaceLit(showInspectorSidebar)
         }
         .help(showInspectorSidebar ? "Hide Inspector (⌘⌥I)" : "Show Inspector (⌘⌥I)")
     }
@@ -385,8 +395,7 @@ extension ContentView {
                     systemImage: "pencil.tip.crop.circle"
                 )
                 .labelStyle(.iconOnly)
-                .foregroundStyle(showAnnotationBar
-                    ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.primary))
+                .toolbarSurfaceLit(showAnnotationBar)
             }
             .help(showAnnotationBar ? "Hide the markup bar" : "Show the markup bar")
             .accessibilityLabel(showAnnotationBar ? "Hide markup bar" : "Show markup bar")
@@ -408,10 +417,12 @@ extension ContentView {
                 systemImage: "arrow.triangle.branch"
             )
             .labelStyle(.iconOnly)
-            // Lit while the bar is up, like the markup toggle beside it
-            // (Daniel, 2026-09-01: "do the same for workflows").
-            .foregroundStyle(showWorkflowBar
-                ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.primary))
+            // Lit whenever the bar is up, like the markup toggle beside it
+            // (Daniel, 2026-09-01). Those two were the only lit toggles;
+            // the 2026-09-02 rule extends the treatment to every surface
+            // toggle, because in Icon Only mode nothing else says what is
+            // already open.
+            .toolbarSurfaceLit(showWorkflowBar)
         }
         .help(showWorkflowBar
               ? "Hide the workflow bar"

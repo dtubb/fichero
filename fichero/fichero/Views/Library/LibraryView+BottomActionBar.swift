@@ -80,7 +80,7 @@ extension LibraryView {
                     librarySortMenu(iconOnly: false)
                     libraryShowMenu(iconOnly: false)
                     libraryFilterToggleButton(iconOnly: false)
-                    LibraryRowAttributesMenu(raw: $rowAttributesRaw)
+                    LibraryRowAttributesMenu(raw: $rowAttributesRaw, contentLines: $rowContentLinesRaw)
                     // Mode clusters reachable at narrow widths too (the gap
                     // the consolidation design named): dataset facets and the
                     // canvas channels as titled submenus.

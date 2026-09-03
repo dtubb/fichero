@@ -113,9 +113,32 @@ def test_mlx_runtime_targets_separate_prefix(tmp_path, monkeypatch):
 
 
 def test_package_data_includes_fm_bridge_binary():
+    """The stanza must name the package that EXISTS, and ship resources/bin.
+
+    This test used to read ``package-data["fichero"]`` — and passed, because
+    the stanza said "fichero" too. Both were four months stale: the package
+    became ``fichero_server`` in #2566, so setuptools matched nothing and the
+    fm-bridge binary, the workflow presets and the meta manifests were left
+    out of any wheel built from this project (2026-09-02). A test that
+    hard-codes the same wrong key as the code cannot see that.
+
+    So assert the KEY against the real package name rather than a literal.
+    Nothing here needs a built fm-bridge on disk: the binary is gitignored, so
+    requiring it would fail in every fresh worktree while saying nothing about
+    the packaging contract, which is what this guards.
+    """
     data = _pyproject()
-    package_data = data["tool"]["setuptools"]["package-data"]["fichero"]
-    assert "resources/bin/*" in package_data
+    package_data = data["tool"]["setuptools"]["package-data"]
+
+    package_name = data["project"]["name"].replace("-", "_")
+    assert package_name in package_data, (
+        f"package-data is keyed {sorted(package_data)}, but the package is "
+        f"{package_name!r} — setuptools matches nothing and ships no resources"
+    )
+    assert "resources/bin/*" in package_data[package_name], (
+        "resources/bin/* is not shipped; the fm-bridge binary would be absent "
+        "from the wheel"
+    )
 
 
 if __name__ == "__main__":

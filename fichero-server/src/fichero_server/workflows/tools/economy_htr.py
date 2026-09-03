@@ -40,6 +40,7 @@ from fichero_server.llm import LLMConfig
 from fichero_server.workflows.registry import register_tool
 from fichero_server.workflows.tools._doc_lookup import documents_from_state_outputs
 from fichero_server.workflows.types import DataType, PortDef, State
+from fichero_server.media.image_flatten import flatten_for_opaque_format
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +116,11 @@ def crop_line_strips(
             strip = strip.resize(
                 (round(strip.width * scale), round(strip.height * scale)),
                 Image.Resampling.LANCZOS,
-            ).convert("RGB")
+            )
+            # Flatten onto WHITE, not black: an HTR model handed a black strip
+            # reads nothing. convert("RGB") alone drops the alpha and leaves
+            # exactly that (see media/image_flatten).
+            strip = flatten_for_opaque_format(strip)
             path = target_dir / f"{source.stem}.line-{index:03d}.png"
             strip.save(path, format="PNG")
             crops.append(
@@ -156,6 +161,8 @@ def trocr_transcribe_lines(
     processor, model, device = _load_trocr(model_id)
     texts: list[str] = []
     for start in range(0, len(crop_paths), batch_size):
+        # Opaque by construction — these are the strips written just above,
+        # already flattened. No alpha to resolve here.
         images = [Image.open(p).convert("RGB") for p in crop_paths[start:start + batch_size]]
         pixel_values = processor(images=images, return_tensors="pt").pixel_values.to(device)
         with torch.no_grad():

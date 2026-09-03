@@ -197,7 +197,7 @@ workflows/tools/vision_base.py::_build_page_records_for_file 1
 workflows/tools/vision_base.py::_log_vision_warning 1
 workflows/tools/vision_base.py::_propagate_to_page_children 1
 workflows/tools/vision_base.py::process_vision 1
-workflows/tools/vision_base.py::process_vision._process_file 4
+workflows/tools/vision_base.py::process_vision._process_file 3
 workflows/types.py::ToolDef.get_prompt 1
 workflows/validation.py::validate_workflow_llm_preflight.visit 1
 workflows/validation.py::workflow_input_kinds.visit 1

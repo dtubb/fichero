@@ -273,6 +273,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/mcp/manager.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/geo.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/geometry_merge.py
+$(SRCROOT)/../fichero-server/src/fichero_server/media/image_flatten.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/image_ops.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/ocr_geometry.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/region_crops.py

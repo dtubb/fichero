@@ -66,11 +66,16 @@ struct ImageEditorView: View {
     /// over one image. Side-by-side and wipe are plain `Image`s with no scale
     /// of their own, and this is it.
     @State var compareZoom: CGFloat = 1.0
+    // The beside-canvas steps column and its width constant were removed
+    // 2026-09-02 — the Inspector's Edits facet is the one steps list.
     static let minCompareZoom: CGFloat = 0.25
     static let maxCompareZoom: CGFloat = 8.0
     /// Revert to Original confirmation — every step is already committed, so
     /// reverting always discards saved work and always asks (Daniel, 2026-08-31).
     @State var showRevertConfirm = false
+    /// Paste Edits across a multi-selection replaces saved chains on files
+    /// that may not be on screen, so it asks first (Daniel, 2026-09-02).
+    @State var showPasteManyConfirm = false
 
     @Environment(AnnotationStore.self) var annotationStore
 
@@ -100,6 +105,10 @@ struct ImageEditorView: View {
         VStack(spacing: 0) {
             toolbar
             Divider()
+            // ONE steps list, in the window Inspector's Edits facet — which
+            // auto-opens with edit mode and now edits steps in place too
+            // (Daniel, 2026-09-02: the beside-canvas copy duplicated the
+            // Inspector's panel one divider apart; see his 9:50pm screenshot).
             canvas
         }
         // ⌘A over a shown image selects the WHOLE image (Daniel, 2026-08-23).
@@ -135,11 +144,21 @@ struct ImageEditorView: View {
                 documentId: document.id,
                 page: currentPage(for: document)
             )
-            // Invalidate the storage-display cache after every successful edit so
-            // StorageDisplayImageCanvas re-fetches edited bytes when exiting edit
-            // mode (#2459 / #2469).
-            model.onEditApplied = { [storageService] id in
+            // Invalidate every derived-pixel cache after each successful edit,
+            // not just on the way out.
+            //
+            // Storage covers the thumbnail / display / source blobs (#2459 /
+            // #2469). Renditions are a SECOND cache the display canvas
+            // consults FIRST — a list plus per-rendition bytes keyed by ids
+            // that editing rewrites in place — so leaving them warm is why a
+            // rotate showed a stale picture in the library row and the preview
+            // strip while the editor was still open (Daniel, 2026-09-02).
+            // `finishEditing` drops both again on Done; doing it here as well
+            // is what makes the rest of the window agree with the canvas
+            // BEFORE you leave the editor.
+            model.onEditApplied = { [storageService, renditionService] id in
                 storageService.invalidateImageCache(for: id)
+                renditionService?.invalidate(documentId: id)
             }
         }
         .onChange(of: model.chain.operations.count) { _, _ in

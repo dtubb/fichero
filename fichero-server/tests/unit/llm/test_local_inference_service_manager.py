@@ -133,7 +133,10 @@ if mode == "exit":
 
 class Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
-        if self.path not in {"/health", "/v1/health"}:
+        # Real mlx_lm serves /health at the ROOT only. The fake must match
+        # that granularity: accepting /v1/health too is how the wrong URL
+        # join stayed green while every live health check 404ed.
+        if self.path != "/health":
             self.send_response(404)
             self.end_headers()
             return
@@ -229,6 +232,44 @@ def test_loopback_url_detection(url: str, expected: bool) -> None:
 
 
 @pytest.mark.asyncio
+async def test_bare_status_ok_payload_is_healthy() -> None:
+    """The REAL mlx_lm server answers /health with just {"status": "ok"}.
+
+    Parsing that through the rich shape defaulted model_loaded=False, so a
+    ready runtime sat permanently 'degraded' and every omlx workflow run
+    failed (2026-09-02, live on the Marshall sample)."""
+    process = FakeProcess()
+    client = FakeHealthClient([{"status": "ok"}])
+    manager = LocalInferenceServiceManager(
+        profile(),
+        process,
+        client,
+        poll_interval_seconds=0,
+    )
+
+    status = await manager.start()
+
+    assert status.state == LocalServiceState.healthy
+    assert status.healthy is True
+
+
+@pytest.mark.asyncio
+async def test_bare_status_error_payload_is_not_healthy() -> None:
+    process = FakeProcess()
+    client = FakeHealthClient([{"status": "error"}, {"status": "error"}])
+    manager = LocalInferenceServiceManager(
+        profile(),
+        process,
+        client,
+        poll_interval_seconds=0,
+    )
+
+    status = await manager.start(timeout_seconds=0)
+
+    assert status.healthy is False
+
+
+@pytest.mark.asyncio
 async def test_success_health_marks_service_healthy() -> None:
     process = FakeProcess()
     client = FakeHealthClient([healthy_payload()])
@@ -246,7 +287,9 @@ async def test_success_health_marks_service_healthy() -> None:
     assert status.restart_count == 0
     assert status.pid == 1201
     assert status.uptime_seconds is not None
-    assert client.urls == ["http://127.0.0.1:8766/v1/health"]
+    # Absolute healthcheck_path resolves from the server ROOT: the real
+    # mlx_lm server 404s /v1/health (2026-09-02).
+    assert client.urls == ["http://127.0.0.1:8766/health"]
 
 
 @pytest.mark.asyncio
@@ -644,3 +687,75 @@ def test_one_cleanly_stopped_sidecar_does_not_strand_the_others() -> None:
 
     with pytest.raises(ProcessLookupError):
         os.kill(survivor.pid, 0)
+
+
+@pytest.mark.asyncio
+async def test_managed_stop_falls_back_to_signals_across_loops(tmp_path) -> None:
+    """The asyncio subprocess handle is bound to the loop that spawned it.
+
+    Stopping from another loop raises 'got Future ... attached to a different
+    loop'; the stop route 500ed and the manager kept a stale healthy pid
+    (2026-09-02, live). stop() must fall back to pid signals and still kill
+    the child."""
+    import subprocess as _sp
+
+    from fichero_server.llm.local_inference import ManagedLocalInferenceProcess
+
+    child = _sp.Popen(["sleep", "60"])
+
+    class ForeignLoopHandle:
+        # Mimics an asyncio.subprocess.Process owned by ANOTHER loop.
+        returncode = None
+        pid = child.pid
+
+        def terminate(self):
+            raise RuntimeError(
+                "got Future <Future pending> attached to a different loop"
+            )
+
+    proc = ManagedLocalInferenceProcess(profile(), stop_grace_seconds=2.0)
+    proc._process = ForeignLoopHandle()
+    proc.pid = child.pid
+
+    await proc.stop()
+
+    child.poll()
+    for _ in range(30):
+        if child.poll() is not None:
+            break
+        await asyncio.sleep(0.1)
+    assert child.poll() is not None, "child survived cross-loop stop"
+    assert proc.pid is None
+    assert proc._process is None
+
+
+@pytest.mark.asyncio
+async def test_cold_start_deadline_uses_startup_timeout_not_probe_timeout(monkeypatch) -> None:
+    """Loading an 8B MLX model takes ~30-60s; the 5s health-PROBE timeout
+    must not double as the cold-start deadline (2026-09-02: every on-demand
+    cold start failed its triggering run, then succeeded on manual retry)."""
+    assert profile().startup_timeout_seconds == 120.0
+
+    process = FakeProcess()
+    # 3 transient failures, then healthy — keeps polling under the startup
+    # deadline even though each probe "took" longer than timeout_seconds.
+    client = FakeHealthClient(
+        [ConnectionError("loading"), ConnectionError("loading"),
+         ConnectionError("loading"), healthy_payload()]
+    )
+    manager = LocalInferenceServiceManager(
+        profile(),
+        process,
+        client,
+        poll_interval_seconds=0,
+    )
+
+    import itertools
+    clock = itertools.chain([0.0, 10.0, 20.0, 30.0, 40.0], itertools.count(50.0, 10.0))
+    monkeypatch.setattr(local_inference.time, "monotonic", lambda: next(clock))
+
+    status = await manager.start()
+
+    # With the old 5s deadline the third probe (t=20s) would already have
+    # timed out; the startup budget lets the model finish loading.
+    assert status.healthy is True

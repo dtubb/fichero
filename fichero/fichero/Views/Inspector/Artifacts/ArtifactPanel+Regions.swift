@@ -28,6 +28,12 @@ struct ArtifactRegionsSection: View {
     @State private var rows: [(index: Int, box: OCRGeometryBox)] = []
     @State private var loaded = false
     @State private var selection = RegionSelection.shared
+    /// The fetched artifact, kept so selecting a row can FOCUS it — the
+    /// preview draws the focused artifact's boxes (2026-09-02, Daniel: "when
+    /// I select multiple regions in artifacts browser, they're supposed to
+    /// show up in preview"). Without the focus, the selection lit indices in
+    /// an artifact the preview wasn't displaying, and nothing showed.
+    @State private var fullArtifact: Artifact?
 
     var body: some View {
         Group {
@@ -64,8 +70,16 @@ struct ArtifactRegionsSection: View {
         Button {
             selection.toggle(row.index, artifactId: artifactId, documentId: documentId)
             // Selecting (not deselecting) still drives the reader/preview
-            // word-linking seam, as before.
-            if !isSelected { postSelection(row.box) }
+            // word-linking seam, as before — and FOCUSES this artifact so
+            // the preview is drawing the boxes the selection indexes into.
+            if !isSelected {
+                if let fullArtifact {
+                    FocusedArtifact.shared.select(
+                        artifactId, documentId: documentId, in: [fullArtifact]
+                    )
+                }
+                postSelection(row.box)
+            }
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: isSelected ? "rectangle.inset.filled" : "rectangle.dashed")
@@ -96,6 +110,7 @@ struct ArtifactRegionsSection: View {
         guard let artifactService else { return }
         guard let full = try? await artifactService.getArtifact(id: artifactId),
               let geometry = full.ocrGeometry else { return }
+        fullArtifact = full
         let indexed = geometry.boxes.enumerated().map { (index: $0.offset, box: $0.element) }
         let lines = indexed.filter {
             ($0.box.level == "line" || $0.box.level == "region") && !$0.box.text.isEmpty

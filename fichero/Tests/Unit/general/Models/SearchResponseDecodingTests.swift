@@ -99,4 +99,60 @@ final class SearchResponseDecodingTests: XCTestCase {
         XCTAssertNil(resp.suggestions)
         XCTAssertFalse(resp.hasMore)
     }
+
+    // MARK: - The honesty surface (Daniel, 2026-09-02)
+
+    /// Every field the engine grew tonight decodes off its snake_case key —
+    /// the UI's whole claim to say "what ran" rests on these five.
+    func testSearchResponseDecodesTheHonestySurface() throws {
+        let json = Data("""
+        {
+            "results": [],
+            "count": 0,
+            "total_results": 0,
+            "query": "Bagado",
+            "search_type": "hybrid",
+            "execution_time_ms": 12.0,
+            "has_more": false,
+            "legs": {"semantic": 45, "fulltext": 0, "kg": 0},
+            "graph_leg_enabled": false,
+            "best_semantic_similarity": 0.73,
+            "weak_semantic_only": true,
+            "kg_entities": {"matched": 0, "reviewed": 0}
+        }
+        """.utf8)
+        let response = try JSONDecoder().decode(SearchResponse.self, from: json)
+
+        XCTAssertEqual(response.legs?["semantic"], 45)
+        XCTAssertEqual(response.legs?["fulltext"], 0)
+        XCTAssertFalse(response.graphLegEnabled)
+        XCTAssertEqual(response.bestSemanticSimilarity, 0.73)
+        XCTAssertTrue(response.weakSemanticOnly)
+        XCTAssertEqual(response.reviewedEntityCount, 0)
+    }
+
+    /// An older engine reports none of it. The client must not invent
+    /// "graph off, 0 semantic" it never measured — nil, not zero.
+    func testAnOlderEngineReportsNoHonestySurfaceRatherThanZeroes() throws {
+        let json = Data("""
+        {
+            "results": [],
+            "count": 0,
+            "total_results": 0,
+            "query": "Bagado",
+            "search_type": "hybrid",
+            "execution_time_ms": 12.0,
+            "has_more": false
+        }
+        """.utf8)
+        let response = try JSONDecoder().decode(SearchResponse.self, from: json)
+
+        XCTAssertNil(response.legs)
+        XCTAssertNil(response.bestSemanticSimilarity)
+        XCTAssertNil(response.kgEntities)
+        XCTAssertNil(response.reviewedEntityCount)
+        // The two booleans have an honest default: nothing ran, nothing weak.
+        XCTAssertFalse(response.graphLegEnabled)
+        XCTAssertFalse(response.weakSemanticOnly)
+    }
 }

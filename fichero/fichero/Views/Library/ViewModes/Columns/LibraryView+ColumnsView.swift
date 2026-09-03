@@ -42,10 +42,9 @@ extension LibraryView {
         // column one that PDF's pages with no path context to browse left
         // through. `collections` is the store's root listing; the current
         // listing remains the fallback until roots have loaded.
-        guard depth > 0 else {
-            let roots = documentStore.collections
-            return roots.isEmpty ? filteredDocuments : roots
-        }
+        // Depth 0 is the library's TOP LEVEL, or the hits under a search —
+        // see `columnsRootDocuments` (LibraryView+ColumnsSeeding.swift).
+        guard depth > 0 else { return columnsRootDocuments }
         let path = columnsLivePath
         guard depth <= path.count else { return [] }
         return columnsChildren[path[depth - 1]] ?? []

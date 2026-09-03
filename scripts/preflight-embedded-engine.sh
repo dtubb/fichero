@@ -98,6 +98,13 @@ fi
 
 echo "Building embedded engine with Briefcase"
 
+# fm-bridge FIRST — before briefcase stages the source tree, because briefcase
+# copies whatever is on disk at that moment. This step used to live only in
+# fichero-server/scripts/build_backend_bundle.sh, which the release never
+# calls, so the release path staged an empty resources/bin/ and the shipped app
+# answered "fm-bridge binary not found" for every Apple Intelligence call.
+"$ENGINE_DIR/scripts/build_fm_bridge.sh"
+
 # Briefcase update refreshes code and dependencies, but not the generated app
 # template (including Info.plist). Recreate only when the stamped version has
 # changed; otherwise keep the much faster update/build path.
@@ -137,6 +144,20 @@ if [ ! -x "$ENGINE_APP/Contents/MacOS/Fichero Server" ]; then
   echo "error: Briefcase did not produce an executable engine at $ENGINE_APP" >&2
   exit 1
 fi
+
+# Absence must never read as success (2026-09-02). engine_is_current() checks
+# for the staged fm-bridge, but --rebuild SKIPS engine_is_current entirely —
+# which is exactly the path the release takes — so nothing verified the staged
+# bundle after the build. An engine that cannot run Apple Intelligence is not a
+# complete engine; say so here rather than shipping it and discovering it in
+# the field.
+STAGED_BRIDGE="$ENGINE_APP/Contents/Resources/app/fichero_server/resources/bin/fm-bridge"
+if [ ! -x "$STAGED_BRIDGE" ]; then
+  echo "error: the staged engine has no executable fm-bridge at $STAGED_BRIDGE." >&2
+  echo "       Apple Intelligence and search refinement would be dead in this build." >&2
+  exit 1
+fi
+echo "  Staged fm-bridge: $STAGED_BRIDGE"
 
 # Briefcase ships .py with NO .pyc, so every import pays a full compile. This is
 # not a micro-optimisation — measured on this exact bundle, same binary, only

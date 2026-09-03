@@ -83,16 +83,50 @@ extension WorkflowBarPolicy {
         toolInfo(for: step, tools: tools)?.requiresGenerativeModel ?? false
     }
 
+    /// Whether anything CONFIRMS that a recognition-only model can serve this
+    /// step — the only case in which one may be chosen as a default.
+    ///
+    /// The hole this closes (Daniel, 2026-09-02): a "Cleanup — single
+    /// small-model pass" step resolved to Apple Vision and died on the
+    /// engine's own refusal ("Apple Vision performs OCR and ignores the
+    /// prompt"). The `requires_generative_model` preflight fired correctly —
+    /// but it fired at RUN time, after the default selection had already
+    /// named a provider that could not do the work. A tool the registry
+    /// cannot name (older engine, registry still loading) used to inherit the
+    /// selection's tier with `requiresGenerativeModel` reading `false` by
+    /// absence, so ANY unknown tool on an image selection defaulted to OCR.
+    ///
+    /// Absence of the flag is not evidence that the flag is false. So:
+    /// - a TOOL is confirmed only when the registry names it AND it does not
+    ///   declare `requires_generative_model`;
+    /// - an unknown tool is never confirmed;
+    /// - a WORKFLOW keeps the server's `requires_vision` as its confirmation.
+    ///   It is a positive statement from the engine about a whole graph, and
+    ///   demoting Apple-Vision transcription presets to a paid cloud model
+    ///   would spend money the user never asked to spend. The engine's
+    ///   preflight stays the enforcement point for its individual nodes.
+    static func stepIsConfirmedRecognitionWork(
+        _ step: StagedWorkflowStep,
+        tools: [ToolInfo]
+    ) -> Bool {
+        if step.workflow != nil { return true }
+        guard let info = toolInfo(for: step, tools: tools) else { return false }
+        return !info.requiresGenerativeModel
+    }
+
     /// The tier an unpinned step resolves to.
     ///
     /// Two rules, in order:
     ///
     /// 1. A step that does not read pixels takes the TEXT default, whatever
     ///    is selected. Translate on a scanned page is still translation.
-    /// 2. A step that reads pixels AND parses the answer takes the TEXT
-    ///    default when the configured Vision default is OCR-only — the OCR
-    ///    route cannot answer its prompt, so naming it in the sentence would
-    ///    promise a run the engine is about to refuse.
+    /// 2. A step that reads pixels but is NOT confirmed recognition work
+    ///    takes the TEXT default when the configured Vision default is
+    ///    OCR-only — the OCR route cannot answer a prompt, so naming it would
+    ///    promise a run the engine is about to refuse. "Not confirmed" covers
+    ///    both a tool that declares `requires_generative_model` and a tool
+    ///    the registry cannot name at all (see
+    ///    `stepIsConfirmedRecognitionWork`).
     ///
     /// Everything else keeps the Vision default: Transcribe and Detect
     /// Regions are exactly the work Apple Vision is for, and routing them to
@@ -108,7 +142,7 @@ extension WorkflowBarPolicy {
         ) else {
             return .text
         }
-        guard stepRequiresGenerativeModel(step, tools: tools) else { return .vision }
+        if stepIsConfirmedRecognitionWork(step, tools: tools) { return .vision }
         let visionIsOCROnly = visionTier.map {
             isRecognitionOnlyVisionModel(provider: $0.provider, model: $0.model)
         } ?? true
@@ -131,8 +165,24 @@ extension WorkflowBarPolicy {
             visionTier: visionTier,
             selectionPrefersVision: selectionPrefersVision
         ) {
-        case .vision: return visionTier ?? textTier
-        case .text:   return textTier ?? visionTier
+        case .vision:
+            return visionTier ?? textTier
+        case .text:
+            // The fallback must not undo the rule that produced it. A step
+            // lands on `.text` precisely because a recognition-only model
+            // cannot serve it, so falling back onto the Vision tier when no
+            // Text tier is configured would hand the step the very provider
+            // the rule just excluded (Daniel, 2026-09-02). Naming NOTHING is
+            // the honest answer there — the bar says "default model" and the
+            // engine resolves it — because a non-generative provider must be
+            // excluded from default selection, not merely refused at run time.
+            if let textTier { return textTier }
+            guard let visionTier,
+                  !isRecognitionOnlyVisionModel(
+                      provider: visionTier.provider, model: visionTier.model
+                  )
+            else { return nil }
+            return visionTier
         }
     }
 
@@ -157,12 +207,16 @@ extension WorkflowBarPolicy {
         visionTier: WorkflowBarModelChoice?,
         selectionPrefersVision: Bool
     ) -> WorkflowBarModelChoice? {
+        // No `stepRequiresGenerativeModel` clause of its own: the condition
+        // that matters is that the TIER rule moved this pixel-reading step
+        // off the Vision default, which is true both for a declared
+        // generative tool and for an unnameable one. Asking for the flag as
+        // well re-introduced the absence-is-false hole one layer down.
         guard !step.hasModelOverride,
               step.isTool,
               stepReadsPixels(
                   step, tools: tools, selectionPrefersVision: selectionPrefersVision
               ),
-              stepRequiresGenerativeModel(step, tools: tools),
               defaultTier(
                   for: step,
                   tools: tools,
@@ -173,5 +227,37 @@ extension WorkflowBarPolicy {
               !text.model.isEmpty
         else { return nil }
         return text
+    }
+
+    /// The PICKER reaches a staged PRESET too (Daniel, 2026-09-02: "I tried
+    /// detect regions with apple local, but it seems to auto select
+    /// google"). `implicitRunOverride` is deliberately tool-steps-only — a
+    /// multi-node workflow must not have every node dragged onto one model —
+    /// but a preset run as the SINGLE staged step over a pixel-reading
+    /// selection is the toolbar's verb plus the picker's model, and ignoring
+    /// the picker made choosing a model a silent no-op. The engine refuses
+    /// loudly when a workflow's nodes cannot take an override (#3804), so an
+    /// unsuitable send SURFACES instead of silently running the preset's
+    /// embedded model.
+    static func workflowStepPickerOverride(
+        for step: StagedWorkflowStep,
+        stagedCount: Int,
+        visionTier: WorkflowBarModelChoice?,
+        selectionPrefersVision: Bool
+    ) -> WorkflowBarModelChoice? {
+        guard stagedCount == 1,
+              !step.hasModelOverride,
+              case .workflow(let item) = step.kind,
+              // The item SAYS whether it takes overrides (false = pinned by
+              // design; nil = unknown, engine enforces — fail open, #3804).
+              item.acceptsModelOverride != false,
+              // Vision presets take the vision pick; the engine's
+              // requires_vision is authoritative, with the selection's
+              // posture as the old-server fallback.
+              item.requiresVision || selectionPrefersVision,
+              let vision = visionTier,
+              !vision.model.isEmpty
+        else { return nil }
+        return vision
     }
 }

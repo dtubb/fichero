@@ -194,6 +194,13 @@ extension SidebarView {
                 // click supersedes it. An extend-selection click IS a
                 // measurable interaction; it just ends early.
                 InteractionProfile.end(.selectionCommit, detail: "highlight only")
+                // RE-clicking the place you already are means "take me back
+                // there" (Daniel, 2026-09-02): while search results are
+                // showing, that click exits the search. Posted, not handled —
+                // the transient-search state lives on ContentView.
+                NotificationCenter.default.post(
+                    name: .sidebarReselectedCurrent, object: nil
+                )
             }
     }
 
@@ -218,4 +225,11 @@ extension SidebarView {
         let spurious = dropped.filter(isMomentarilyMissing)
         return proposed.union(spurious)
     }
+}
+
+extension Notification.Name {
+    /// The user clicked the sidebar row they were ALREADY on (no reroute).
+    /// ContentView answers by exiting an active transient search — the
+    /// "take me back to browsing" gesture (Daniel, 2026-09-02).
+    static let sidebarReselectedCurrent = Notification.Name("sidebarReselectedCurrent")
 }

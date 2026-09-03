@@ -254,9 +254,11 @@ private enum InlineWordText {
 
     /// Resolves `string` at the largest size that fits `rect` in BOTH axes:
     /// take the size from the box HEIGHT (clamped), measure, then shrink by
-    /// the width-overflow ratio when the word is too long for its box. One
-    /// measure-and-correct pass, not a search — this runs per box, per frame,
-    /// inside the single-Canvas draw the dense-page fix (2026-08-28) bought.
+    /// the width-overflow ratio when the word is too long for its box.
+    /// Up to two corrective passes (Daniel, 2026-09-02: "never has
+    /// ellipses"): font metrics are not perfectly linear, so the single
+    /// ratio pass could land a hair over the box and the draw truncated
+    /// with "…" — the one thing an in-place word must never do.
     static func fitted(
         _ string: String, in rect: CGRect, context: GraphicsContext
     ) -> GraphicsContext.ResolvedText {
@@ -264,14 +266,18 @@ private enum InlineWordText {
             width: CGFloat.greatestFiniteMagnitude,
             height: CGFloat.greatestFiniteMagnitude
         )
-        let fromHeight = clamp(rect.height * heightFillRatio)
-        var resolved = context.resolve(Text(string).font(.system(size: fromHeight)))
-        let measured = resolved.measure(in: unbounded)
-        if measured.width > rect.width, measured.width > 0 {
-            let shrunk = clamp(fromHeight * (rect.width / measured.width))
-            if shrunk < fromHeight {
-                resolved = context.resolve(Text(string).font(.system(size: shrunk)))
-            }
+        var size = clamp(rect.height * heightFillRatio)
+        var resolved = context.resolve(Text(string).font(.system(size: size)))
+        var measured = resolved.measure(in: unbounded)
+        var passes = 0
+        while measured.width > rect.width, measured.width > 0,
+              size > minFontSize, passes < 3 {
+            // 0.98: bias UNDER the box so metric nonlinearity can't push the
+            // corrected size back over the edge it was correcting for.
+            size = clamp(size * (rect.width / measured.width) * 0.98)
+            resolved = context.resolve(Text(string).font(.system(size: size)))
+            measured = resolved.measure(in: unbounded)
+            passes += 1
         }
         return resolved
     }

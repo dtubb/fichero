@@ -431,17 +431,122 @@ def parse_vlm_geometry(
         raise ValueError("VLM OCR geometry payload must be a JSON object")
     width = _first_number(data, "image_width", "width", "page_width") or page_width
     height = _first_number(data, "image_height", "height", "page_height") or page_height
+    items = _box_items(data)
+    # Decide the INPUT coordinate space once, for the whole reply, before any
+    # box is normalized (#4372). A box on its own cannot tell Gemini's 0..1000
+    # grid from honest pixels; the reply as a whole can, and the boxes all
+    # share one frame anyway. See _detect_vlm_coordinate_space.
+    space = _detect_vlm_coordinate_space(
+        items, provider=provider, model=model, page_width=width, page_height=height
+    )
     boxes = [
-        _box_from_vlm_item(item, provider=provider, model=model, page_width=width, page_height=height)
-        for item in _box_items(data)
+        _box_from_vlm_item(
+            item,
+            provider=provider,
+            model=model,
+            page_width=width,
+            page_height=height,
+            space=space,
+        )
+        for item in items
     ]
     return OCRGeometryResult(
         text=str(data.get("text") or _join_box_text(boxes)),
         provider=provider,
         model=model,
         boxes=boxes,
-        metadata={"format": "vlm_json"},
+        metadata={
+            "format": "vlm_json",
+            # Name the frame these boxes were read in — the parsed space and
+            # the frame the reply claimed — so a wrong reading is legible in
+            # the artifact instead of only visible as misplaced rectangles.
+            "source_coordinate_space": space,
+            "declared_frame": (
+                [width, height] if width and height else None
+            ),
+        },
     )
+
+
+#: Coordinate spaces ``parse_vlm_geometry`` can read a reply in.
+#:
+#: - ``normalized``: fractions of the image, 0..1 — what our prompt asks for.
+#: - ``normalized_1000``: Gemini's native grid, 0..1000 ints, top-left origin.
+#: - ``pixel``: pixels of the frame the reply named in image_width/image_height.
+VLMCoordinateSpace = Literal["normalized", "normalized_1000", "pixel"]
+
+_GEMINI_NORMALIZED_SCALE = 1000.0
+
+
+def _is_gemini_family(provider: str, model: str | None) -> bool:
+    """Whether this reply comes from a model that normalizes boxes to 0..1000.
+
+    Gemini's documented box format is ``box_2d`` = ``[ymin, xmin, ymax, xmax]``
+    scaled to 0..1000 regardless of the image's pixel size. Models reach us
+    through OpenRouter as ``google/gemini-…``, so the family shows up in the
+    MODEL id as often as in the provider.
+    """
+    haystack = f"{_provider_key(provider)} {_provider_key(model or '')}"
+    return "gemini" in haystack
+
+
+def _raw_bbox_values(item: Any) -> list[float]:
+    """Every numeric coordinate in one box item, whatever key shape it uses."""
+    if not isinstance(item, dict):
+        return []
+    for key in ("bbox", "bbox_2d", "box_2d", "box"):
+        value = item.get(key)
+        if isinstance(value, (list, tuple)) and len(value) == 4:
+            try:
+                return [float(entry) for entry in value]
+            except (TypeError, ValueError):
+                return []
+    if {"x", "y", "width", "height"}.issubset(item):
+        try:
+            return [float(item[key]) for key in ("x", "y", "width", "height")]
+        except (TypeError, ValueError):
+            return []
+    return []
+
+
+def _detect_vlm_coordinate_space(
+    items: list[Any],
+    *,
+    provider: str,
+    model: str | None,
+    page_width: float | None,
+    page_height: float | None,
+) -> VLMCoordinateSpace:
+    """Which space the reply's coordinates are in — decided ONCE, page-wide.
+
+    The bug this exists for (Daniel, 2026-09-02): a Gemini flash-lite reply
+    answered the fractions prompt in its native 0..1000 grid while honestly
+    naming the image's real pixel frame. Read box-by-box, every value was
+    "> 1, so it must be pixels", and dividing 0..1000 numbers by a ~2500px
+    page squashed the whole page's lines into a thin band across the top
+    ~15% — geometry that looks authoritative and is wrong everywhere.
+
+    A single box cannot distinguish the two readings. The reply can: if the
+    model is Gemini-family, no coordinate exceeds 1000, and the frame it
+    claimed is meaningfully bigger than 1000, then the pixel reading would
+    confine every box to the top-left corner of its own declared frame. That
+    is not a page of text; it is the 0..1000 grid.
+    """
+    values = [value for item in items for value in _raw_bbox_values(item)]
+    if not values:
+        return "normalized"
+    if all(0.0 <= value <= 1.0 for value in values):
+        return "normalized"
+    if max(values) > _GEMINI_NORMALIZED_SCALE:
+        # Larger than the grid can express — these really are pixels.
+        return "pixel"
+    if not _is_gemini_family(provider, model):
+        return "pixel" if (page_width and page_height) else "normalized"
+    # Gemini-family, nothing above 1000. Trust the declared frame only when
+    # it is small enough that pixels and the grid mean nearly the same thing.
+    if page_width and page_height and max(page_width, page_height) <= 1024:
+        return "pixel"
+    return "normalized_1000"
 
 
 def parse_google_vision_response(
@@ -809,16 +914,22 @@ def _box_from_vlm_item(
     model: str | None,
     page_width: float | None,
     page_height: float | None,
+    space: VLMCoordinateSpace = "normalized",
 ) -> OCRGeometryBox:
     if not isinstance(item, dict):
         raise ValueError("VLM OCR geometry boxes must be objects")
     raw_bbox: Any
-    coordinate_space = "normalized"
+    source_space = space
     if "bbox" in item:
         raw_bbox = item["bbox"]
     elif "bbox_2d" in item:
         raw_bbox = _xyxy_to_xywh(item["bbox_2d"])
-        coordinate_space = "pixel_xyxy"
+        source_space = "pixel_xyxy" if space == "pixel" else space
+    elif "box_2d" in item:
+        # Gemini's own key, and its own order: [ymin, xmin, ymax, xmax].
+        # Reading it as [x1, y1, x2, y2] transposes every box, which looks
+        # like plausible geometry rotated onto the wrong axis.
+        raw_bbox = _xyxy_to_xywh(_yxyx_to_xyxy(item["box_2d"]))
     elif {"x", "y", "width", "height"}.issubset(item):
         raw_bbox = [item["x"], item["y"], item["width"], item["height"]]
     else:
@@ -826,7 +937,9 @@ def _box_from_vlm_item(
 
     width = _first_number(item, "image_width", "page_width") or page_width
     height = _first_number(item, "image_height", "page_height") or page_height
-    bbox = _coerce_normalized_bbox(raw_bbox, page_width=width, page_height=height)
+    bbox = _coerce_normalized_bbox(
+        raw_bbox, page_width=width, page_height=height, space=space
+    )
     return OCRGeometryBox(
         text=str(item.get("text") or item.get("label") or ""),
         bbox=bbox,
@@ -835,8 +948,19 @@ def _box_from_vlm_item(
         page_index=_zero_based_page(item.get("page") or item.get("page_index"), already_zero_based="page_index" in item),
         provider=provider,
         model=model,
-        coordinate_space=coordinate_space if width and height else "normalized",
+        coordinate_space=source_space if width and height else "normalized",
+        # The bbox above is always normalized 0..1; this says what it was
+        # normalized FROM, so a misread frame is inspectable per box.
+        metadata={"parsed_from": space},
     )
+
+
+def _yxyx_to_xyxy(bbox: Any) -> list[float]:
+    """Gemini's [ymin, xmin, ymax, xmax] → the [x1, y1, x2, y2] we read."""
+    if not isinstance(bbox, (list, tuple)) or len(bbox) != 4:
+        raise ValueError("box_2d must be [ymin, xmin, ymax, xmax]")
+    ymin, xmin, ymax, xmax = [float(value) for value in bbox]
+    return [xmin, ymin, xmax, ymax]
 
 
 def _bbox_from_google_poly(
@@ -870,10 +994,22 @@ def _coerce_normalized_bbox(
     *,
     page_width: float | None,
     page_height: float | None,
+    space: VLMCoordinateSpace = "normalized",
 ) -> list[float]:
     if not isinstance(bbox, (list, tuple)) or len(bbox) != 4:
         raise ValueError("bbox must be a four-item list")
     values = [float(value) for value in bbox]
+    if space == "normalized_1000":
+        # Gemini's grid: one frame, 1000 units wide and 1000 tall, whatever
+        # the image's pixel size. Dividing by the pixel frame instead is the
+        # #4372 squashed-band bug.
+        return _salvage_normalized_xywh(
+            _normalize_xywh(
+                values,
+                page_width=_GEMINI_NORMALIZED_SCALE,
+                page_height=_GEMINI_NORMALIZED_SCALE,
+            )
+        )
     if all(0.0 <= value <= 1.0 for value in values):
         return _salvage_normalized_xywh(values)
     if page_width and page_height:

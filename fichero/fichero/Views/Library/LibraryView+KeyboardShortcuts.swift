@@ -104,6 +104,32 @@ extension LibraryView {
                 openSelectedDocument()
                 return .handled
             }
+            // ⌘A, through the RESPONDER CHAIN (2026-09-02, Daniel: "⌘A works
+            // in icon view but not in list view; Edit ▸ Select All works but
+            // shows no keyboard shortcut").
+            //
+            // The Edit menu's `SelectAllButton` is still the owner of the ⌘A
+            // MENU key equivalent and still the only one — this is not a
+            // second key equivalent, and `MenuShortcutBoundaryTests` is
+            // unaffected. `.onKeyPress` sits in the responder chain, which
+            // AppKit reaches only AFTER menu key equivalents have all
+            // declined. So this fires in exactly the case that was broken:
+            // the menu item's shortcut is missing or its route declined,
+            // while the library list is the surface the user is typing at.
+            // When the menu item does fire, the event never reaches here, so
+            // there is no double-run.
+            //
+            // Scoped as tightly as the menu route: only when this view holds
+            // keyboard focus, only when no text entry is live, and only when
+            // there are rows — an empty surface still declines, so ⌘A falls
+            // through the way `SelectAllRoute.none` intends.
+            .onKeyPress(keys: ["a"], phases: .down) { keyPress in
+                guard !isTextEntryActive,
+                      keyPress.modifiers == .command else { return .ignored }
+                guard !selectAllIds.isEmpty else { return .ignored }
+                selectAll()
+                return .handled
+            }
             // Space + the Quick Look presenter live in
             // `applyQuickLookHandlers` — attached in BOTH branches of
             // `withKeyboardShortcuts` so the canvases get them too (#4601).

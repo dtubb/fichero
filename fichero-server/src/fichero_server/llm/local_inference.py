@@ -84,6 +84,13 @@ class LocalProviderProfile(BaseModel):
     startup_policy: LocalProviderStartupPolicy = LocalProviderStartupPolicy.on_demand
     healthcheck_path: str = "/health"
     timeout_seconds: float = Field(default=5.0, ge=0)
+    #: Cold-start budget, distinct from the per-probe timeout above. Loading
+    #: an 8B MLX model takes ~30-60s on Apple silicon; reusing the 5s health
+    #: probe timeout as the whole startup deadline made every on-demand cold
+    #: start fail its triggering workflow run ("health check unavailable
+    #: during startup"), which then succeeded on manual retry once the model
+    #: finished loading (2026-09-02, live on the Marshall exercise).
+    startup_timeout_seconds: float = Field(default=120.0, ge=0)
     max_concurrency: int = Field(default=1, ge=1)
     visible_in_ui: bool = True
     supported: bool = True
@@ -424,17 +431,47 @@ class ManagedLocalInferenceProcess:
         if process is None:
             self.pid = None
             return
-        if process.returncode is None:
-            process.terminate()
-            try:
-                await asyncio.wait_for(process.wait(), timeout=self.stop_grace_seconds)
-            except asyncio.TimeoutError:
-                process.kill()
-                await process.wait()
-        await self._join_stream_tasks()
-        self._update_last_error()
+        try:
+            if process.returncode is None:
+                process.terminate()
+                try:
+                    await asyncio.wait_for(process.wait(), timeout=self.stop_grace_seconds)
+                except asyncio.TimeoutError:
+                    process.kill()
+                    await process.wait()
+            await self._join_stream_tasks()
+            self._update_last_error()
+        except RuntimeError:
+            # The asyncio subprocess handle is BOUND to the event loop that
+            # spawned it — and the on-demand start path spawns it from a
+            # workflow run's loop, while the stop endpoint runs on the API
+            # loop. Awaiting wait() there raises "got Future … attached to a
+            # different loop", the stop route 500ed, and the manager kept
+            # reporting a stale healthy pid forever (2026-09-02, live).
+            # Signals are loop-free and always correct for our own child.
+            await self._stop_via_signals(process)
         self._process = None
         self.pid = None
+
+    async def _stop_via_signals(self, process: Any) -> None:
+        """Terminate the child by pid when its loop-bound handle is unusable."""
+        import signal
+
+        pid = getattr(process, "pid", None) or self.pid
+        if not pid:
+            return
+        for sig in (signal.SIGTERM, signal.SIGKILL):
+            try:
+                os.kill(pid, sig)
+            except ProcessLookupError:
+                return
+            deadline = time.monotonic() + self.stop_grace_seconds
+            while time.monotonic() < deadline:
+                await asyncio.sleep(0.1)
+                try:
+                    os.kill(pid, 0)
+                except ProcessLookupError:
+                    return
 
     def is_running(self) -> bool:
         if self._process is None:
@@ -622,7 +659,11 @@ class LocalInferenceServiceManager:
 
     async def start(self, timeout_seconds: float | None = None) -> LocalInferenceServiceStatus:
         """Start the process and wait until it is healthy or fails."""
-        timeout = timeout_seconds if timeout_seconds is not None else self.profile.timeout_seconds
+        timeout = (
+            timeout_seconds
+            if timeout_seconds is not None
+            else self.profile.startup_timeout_seconds
+        )
         if self.state in {LocalServiceState.healthy, LocalServiceState.degraded} and self.process.is_running():
             return self.status()
 
@@ -775,9 +816,35 @@ class LocalInferenceServiceManager:
         )
 
     def _health_url(self) -> str:
-        return urljoin(str(self.profile.base_url).rstrip("/") + "/", self.profile.healthcheck_path.lstrip("/"))
+        # healthcheck_path is validated ABSOLUTE ("/health"), so resolve it
+        # from the server root, not under the API prefix. base_url carries
+        # the OpenAI-compatible "/v1" prefix, and mlx_lm's server answers
+        # GET /health at the root — the old join produced /v1/health, which
+        # 404s on the real runtime, so a perfectly healthy managed oMLX
+        # server was reported "unavailable" on every workflow run
+        # (2026-09-02, live). The unit fake accepted both paths, which is
+        # how the wrong join stayed green.
+        return urljoin(str(self.profile.base_url), self.profile.healthcheck_path)
 
     def _parse_health(self, payload: dict[str, Any]) -> LocalInferenceServiceHealth:
+        # mlx_lm's real server answers GET /health with just {"status": "ok"}
+        # — no reachable/model_loaded fields. Parsing that through the rich
+        # shape below defaulted model_loaded=False, so a ready runtime sat
+        # permanently 'degraded' and every omlx workflow run failed with
+        # 'local inference service did not become healthy' (2026-09-02,
+        # live). A bare status field IS the whole contract for that server:
+        # "ok" means up and serving the model it was started with.
+        if "status" in payload and not any(
+            k in payload for k in ("reachable", "model_loaded", "loaded")
+        ):
+            ok = str(payload.get("status", "")).lower() in {"ok", "healthy", "ready"}
+            return LocalInferenceServiceHealth(
+                reachable=ok,
+                model_loaded=ok,
+                warm=ok,
+                configured_model_id=payload.get("model_id"),
+                last_error=None if ok else f"status={payload.get('status')!r}",
+            )
         try:
             return LocalInferenceServiceHealth(
                 reachable=payload.get("reachable", True),

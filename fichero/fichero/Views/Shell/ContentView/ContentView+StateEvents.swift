@@ -200,6 +200,31 @@ extension ContentView {
         }
         guard !isRestoringNavigationHistory else { return }
         recordNavigationEntry()
+        postSearchPassageAnchor(for: newDoc)
+    }
+
+    /// While search results show, selecting a hit LIGHTS the matched passage
+    /// (Daniel, 2026-09-02: the row/reader/preview should show "why on each
+    /// page"). The hit's excerpt anchor — which the engine now places at the
+    /// matched PASSAGE, not char 0 — rides the same `.readerTextSelection`
+    /// seam the reader's own selection uses, so the preview's word boxes
+    /// light the passage and the reader's source highlight follows, with
+    /// zero new plumbing.
+    func postSearchPassageAnchor(for doc: Document?) {
+        guard activeSearchQuery != nil, let doc,
+              let result = transientSearchStore?.results
+                  .first(where: { $0.documentId == doc.id }),
+              let excerpt = result.transcriptExcerpts.first else { return }
+        NotificationCenter.default.post(
+            name: .readerTextSelection,
+            object: nil,
+            userInfo: [
+                "documentId": excerpt.anchor.documentId,
+                "text": excerpt.text,
+                "charStart": Int(excerpt.anchor.charStart),
+                "charEnd": Int(excerpt.anchor.charEnd),
+            ]
+        )
     }
 
     /// Handles `.onChange(of: windowState.libraryId)` — the ONE teardown for

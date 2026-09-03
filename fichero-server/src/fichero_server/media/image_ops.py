@@ -5,14 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import HTTPException
-from PIL import Image, ImageChops, ImageEnhance, ImageFilter, ImageOps, ImageStat
-
-# NOTE: apply_fuzzy_clean is imported at CALL time, not here (#3950).
-# fuzzy_clean_images lives in the tools package, and importing ANY module in
-# that package runs tools/__init__.py — which imports every one of the ~60
-# tools, and with them Quartz, MCP and langgraph. api/routes/image_editing.py
-# imports this module, so that one name cost the engine the whole AI stack
-# at startup.
+from PIL import Image, ImageEnhance, ImageFilter, ImageOps, ImageStat
 
 
 def detect_deskew_angle(image: Image.Image) -> float:
@@ -46,7 +39,14 @@ def detect_content_bbox(image: Image.Image) -> tuple[int, int, int, int]:
     return left, top, right - left, bottom - top
 
 
-def _remove_black_background_opencv(image: Image.Image) -> Image.Image:
+def remove_black_background_opencv(image: Image.Image) -> Image.Image:
+    """Contour-based page lift for photographed documents on a dark ground.
+
+    Ported from the legacy Fichero pipeline: threshold for the dark ground,
+    keep the large/central contours, fill them SOLID, feather, crop. Because
+    the kept contour covers the whole page, every ink stroke inside it
+    survives — the mask is drawn at the page level, never per pixel.
+    """
     import cv2  # type: ignore[import-not-found]
     import numpy as np
 
@@ -71,6 +71,87 @@ def _remove_black_background_opencv(image: Image.Image) -> Image.Image:
     return rgba.crop((int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1))
 
 
+#: Connectivity is computed at this bounded working size; similarity stays at
+#: full resolution, so the page edge remains crisp while the flood fill stays
+#: fast on multi-megapixel scans.
+_MAX_FLOOD_DIM = 1024
+
+
+def _border_connected(similar: "Any") -> "Any":
+    """Boolean mask of background-similar pixels reachable from the border.
+
+    Iterative 4-neighbour dilation, fully vectorised; converges when the
+    reachable set stops growing (bounded by the image diameter).
+    """
+    import numpy as np
+
+    reach = np.zeros_like(similar)
+    reach[0, :] = similar[0, :]
+    reach[-1, :] = similar[-1, :]
+    reach[:, 0] = similar[:, 0]
+    reach[:, -1] = similar[:, -1]
+    for _ in range(similar.shape[0] + similar.shape[1]):
+        grown = reach.copy()
+        grown[1:, :] |= reach[:-1, :]
+        grown[:-1, :] |= reach[1:, :]
+        grown[:, 1:] |= reach[:, :-1]
+        grown[:, :-1] |= reach[:, 1:]
+        grown &= similar
+        if np.array_equal(grown, reach):
+            break
+        reach = grown
+    return reach
+
+
+def remove_scan_background(image: Image.Image, threshold: int = 28) -> Image.Image:
+    """Magic-wand background removal that preserves page content.
+
+    Flood-fills from the image borders: only pixels within ``threshold`` of
+    the border colour AND connected to the border become transparent. Ink
+    strokes — and the paper between them — are interior, so they survive.
+
+    The per-pixel colour-difference this replaces made EVERY background-
+    coloured pixel transparent: on a manuscript scan the paper itself matched,
+    so the whole ground vanished and faint/anti-aliased stroke edges went with
+    it (Daniel, 2026-09-02: remove-background "eats parts of the text").
+    """
+    import numpy as np
+
+    threshold = max(0, min(255, int(threshold)))
+    rgb_full = np.asarray(image.convert("RGB"), dtype=np.int16)
+    height, width = rgb_full.shape[:2]
+    border = np.concatenate(
+        [rgb_full[0, :], rgb_full[-1, :], rgb_full[:, 0], rgb_full[:, -1]]
+    )
+    # Median of ALL border pixels, not one corner: robust when a page corner
+    # pokes into the frame edge.
+    background = np.median(border, axis=0)
+    similar_full = np.abs(rgb_full - background).max(axis=2) <= threshold
+
+    scale = max(height, width) / _MAX_FLOOD_DIM
+    if scale > 1:
+        small = image.convert("RGB").resize(
+            (max(1, round(width / scale)), max(1, round(height / scale))),
+            Image.Resampling.BILINEAR,
+        )
+        rgb_small = np.asarray(small, dtype=np.int16)
+        similar_small = np.abs(rgb_small - background).max(axis=2) <= threshold
+        reach_small = _border_connected(similar_small)
+        reach_image = Image.fromarray(
+            reach_small.astype(np.uint8) * 255, mode="L"
+        ).resize((width, height), Image.Resampling.BILINEAR)
+        # Upsampling dilates reach by ~a pixel; ANDing with the full-res
+        # similarity mask restores the exact page edge.
+        reach = (np.asarray(reach_image) > 0) & similar_full
+    else:
+        reach = _border_connected(similar_full)
+
+    alpha = np.where(reach, 0, 255).astype(np.uint8)
+    rgba = image.convert("RGBA")
+    rgba.putalpha(Image.fromarray(alpha, mode="L"))
+    return rgba
+
+
 def _remove_background(image: Image.Image, params: dict[str, Any]) -> Image.Image:
     method = str(params.get("method", "opencv")).strip().lower()
     if method == "rembg":
@@ -86,14 +167,74 @@ def _remove_background(image: Image.Image, params: dict[str, Any]) -> Image.Imag
             method = "threshold"
         else:
             del cv2
-            return _remove_black_background_opencv(image)
+            return remove_black_background_opencv(image)
     if method == "threshold":
-        rgba = image.convert("RGBA")
-        rgb = image.convert("RGB")
-        diff = ImageChops.difference(rgb, Image.new("RGB", rgb.size, rgb.getpixel((0, 0)))).convert("L")
-        rgba.putalpha(diff.point(lambda value: 255 if value > int(params.get("threshold", 28)) else 0))
-        return rgba
+        return remove_scan_background(image, int(params.get("threshold", 28)))
     raise HTTPException(400, f"Unsupported background method: {method}")
+
+
+def _flatten_illumination(base: Image.Image) -> Image.Image:
+    """Divide the page by its own background estimate to even out lighting.
+
+    Grayscale-dilate at a downscale (MaxFilter reaches past the ink to the
+    paper), blur, upscale, then normalise each pixel against that estimate.
+    Shadows, stains and yellowing flatten to near-white while ink keeps its
+    contrast — the classic document-cleanup trick from the legacy pipeline.
+    """
+    import numpy as np
+
+    small = base.resize(
+        (max(1, base.width // 8), max(1, base.height // 8)), Image.Resampling.BOX
+    )
+    background = small.filter(ImageFilter.MaxFilter(7)).filter(
+        ImageFilter.GaussianBlur(4)
+    )
+    background = background.resize(base.size, Image.Resampling.BILINEAR)
+    values = np.asarray(base, dtype=np.float32)
+    estimate = np.maximum(np.asarray(background, dtype=np.float32), 1.0)
+    flattened = np.clip(values / estimate * 245.0, 0, 255).astype(np.uint8)
+    return Image.fromarray(flattened, mode=base.mode)
+
+
+def apply_fuzzy_clean(
+    image: Image.Image, *, despeckle_radius: int = 3, background_clean: bool = True
+) -> Image.Image:
+    """Despeckle and clean a scanned page for legibility.
+
+    MedianFilter kills isolated speckles; ``background_clean`` then flattens
+    uneven illumination (see :func:`_flatten_illumination`), autocontrasts and
+    lightly unsharpens — the legacy pipeline's CLAHE-and-sharpen intent in
+    pure PIL/numpy, so it works in the embedded engine without OpenCV.
+    """
+    # MedianFilter + autocontrast operate on colour channels only. Remove-
+    # Background produces RGBA (transparent edges) and autocontrast raises
+    # "not supported for mode RGBA"; palette (P) images choke on the filters
+    # too. Split the original alpha off, clean the colour, then re-attach the
+    # untouched alpha so transparency is preserved exactly (#1534).
+    has_alpha = image.mode in {"RGBA", "LA"}
+    alpha = image.getchannel("A") if has_alpha else None
+    # Analysis path — the base for pixel statistics, never written out.
+    base = image if image.mode in {"RGB", "L"} else image.convert("RGB")
+
+    radius = 5 if int(despeckle_radius) >= 5 else 3
+    cleaned = base.filter(ImageFilter.MedianFilter(size=radius))
+    if background_clean:
+        # The background estimate needs room to see paper past the ink; on a
+        # thumbnail-sized image just autocontrast.
+        if min(cleaned.size) >= 32:
+            # No autocontrast after the flatten: the divide already normalises
+            # paper to ~245, and stretching a background-dominated histogram
+            # would clip the paper itself toward black.
+            cleaned = _flatten_illumination(cleaned)
+            cleaned = cleaned.filter(
+                ImageFilter.UnsharpMask(radius=2, percent=60, threshold=2)
+            )
+        else:
+            cleaned = ImageOps.autocontrast(cleaned)
+    if alpha is not None:
+        cleaned = cleaned.convert("RGBA")
+        cleaned.putalpha(alpha)
+    return cleaned
 
 
 def apply_operation(image: Image.Image, op: dict[str, Any]) -> Image.Image:
@@ -157,12 +298,8 @@ def apply_operation(image: Image.Image, op: dict[str, Any]) -> Image.Image:
             edited = enhancer(edited).enhance(float(params.get(key, 1.0)))
         return edited
     if name == "fuzzy_clean":
-        from fichero_server.workflows.tools.fuzzy_clean_images import apply_fuzzy_clean  # noqa: PLC0415  (#3950)
-
         return apply_fuzzy_clean(image, despeckle_radius=int(params.get("despeckle_radius", 3)), background_clean=bool(params.get("background_clean", True)))
     if name == "denoise":
-        from fichero_server.workflows.tools.fuzzy_clean_images import apply_fuzzy_clean  # noqa: PLC0415  (#3950)
-
         return apply_fuzzy_clean(image, despeckle_radius=int(params.get("radius", 3)), background_clean=False)
     if name == "adaptive_binarize":
         gray = image.convert("L")

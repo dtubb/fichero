@@ -19301,6 +19301,72 @@
         }
       }
     },
+    "/api/kg/claims/dedupe": {
+      "post": {
+        "tags": [
+          "knowledge-graph",
+          "knowledge-graph",
+          "claim-curation"
+        ],
+        "summary": "Plan (dry-run) or apply batch claim dedupe via audited merges",
+        "description": "Groups duplicate statements about the SAME subject \u2014 identical (subject, normalized verb+object) keys, the normalization the display path (svo_cleanup) already trusts, plus an opt-in near-duplicate tier \u2014 and either returns the merge plan (default) or executes it through the audited, undoable claim.merge action. Merging folds provenance and recomputes corroboration_count from the union of sources. Rejected and already-merged claims never participate; only unreviewed claims are absorbed unless include_reviewed is set. (#4508)",
+        "operationId": "dedupe_claims_api_kg_claims_dedupe_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClaimDedupeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaimDedupeResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/kg/claims/prune-trivial": {
       "post": {
         "tags": [
@@ -25749,6 +25815,70 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/KGGraphListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/entity-curation/dedupe": {
+      "post": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Plan (dry-run) or apply batch entity dedupe via audited merges",
+        "description": "Groups same-type entities by normalized canonical name and alias collision (plus an opt-in similarity tier) and either returns the merge plan (default) or executes it \u2014 every merge going through the audited, undoable entity.merge action, one EntityMergeAudit per group. Cross-type merges are structurally impossible; rejected and already-merged entities never participate; only unreviewed entities are absorbed unless include_reviewed is set. (#4508)",
+        "operationId": "dedupe_entities_api_kg_entity_curation_dedupe_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EntityDedupeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityDedupeResponse"
                 }
               }
             }
@@ -40176,6 +40306,125 @@
         ],
         "title": "ClaimCurationState"
       },
+      "ClaimDedupeGroup": {
+        "properties": {
+          "survivor_id": {
+            "type": "string",
+            "title": "Survivor Id"
+          },
+          "survivor_text": {
+            "type": "string",
+            "title": "Survivor Text"
+          },
+          "absorbed_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Absorbed Ids"
+          },
+          "absorbed_texts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Absorbed Texts"
+          },
+          "basis": {
+            "type": "string",
+            "enum": [
+              "normalized-name",
+              "similarity"
+            ],
+            "title": "Basis"
+          },
+          "similarity": {
+            "type": "number",
+            "nullable": true,
+            "title": "Similarity"
+          },
+          "audit_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Audit Id",
+            "description": "ClaimMergeAudit id once applied; null on dry-run."
+          }
+        },
+        "type": "object",
+        "required": [
+          "survivor_id",
+          "survivor_text",
+          "absorbed_ids",
+          "absorbed_texts",
+          "basis"
+        ],
+        "title": "ClaimDedupeGroup",
+        "description": "One planned merge: duplicate statements fold into the survivor."
+      },
+      "ClaimDedupeRequest": {
+        "properties": {
+          "apply": {
+            "type": "boolean",
+            "title": "Apply",
+            "description": "False (default) returns the plan only; true executes every planned merge through the audited claim.merge action.",
+            "default": false
+          },
+          "include_reviewed": {
+            "type": "boolean",
+            "title": "Include Reviewed",
+            "description": "By default only unreviewed claims are absorbed; curated rows stay put unless explicitly opted in.",
+            "default": false
+          },
+          "near_duplicate_threshold": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.5,
+            "nullable": true,
+            "title": "Near Duplicate Threshold",
+            "description": "Opt-in fuzzy tier: also group same-subject statements whose normalized keys share a token set and reach this SequenceMatcher ratio. Off by default \u2014 exact normalized statements only."
+          }
+        },
+        "type": "object",
+        "title": "ClaimDedupeRequest"
+      },
+      "ClaimDedupeResponse": {
+        "properties": {
+          "dry_run": {
+            "type": "boolean",
+            "title": "Dry Run"
+          },
+          "claim_count": {
+            "type": "integer",
+            "title": "Claim Count",
+            "description": "Live (unmerged, unrejected) claims scanned."
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/ClaimDedupeGroup"
+            },
+            "type": "array",
+            "title": "Groups"
+          },
+          "duplicates_found": {
+            "type": "integer",
+            "title": "Duplicates Found",
+            "description": "Claims the plan would absorb."
+          },
+          "merges_applied": {
+            "type": "integer",
+            "title": "Merges Applied",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "dry_run",
+          "claim_count",
+          "groups",
+          "duplicates_found"
+        ],
+        "title": "ClaimDedupeResponse"
+      },
       "ClaimLinkCreateRequest": {
         "properties": {
           "related_claim_id": {
@@ -45468,6 +45717,131 @@
           "merged"
         ],
         "title": "EntityCurationState"
+      },
+      "EntityDedupeGroup": {
+        "properties": {
+          "survivor_id": {
+            "type": "string",
+            "title": "Survivor Id"
+          },
+          "survivor_name": {
+            "type": "string",
+            "title": "Survivor Name"
+          },
+          "entity_type": {
+            "type": "string",
+            "title": "Entity Type"
+          },
+          "absorbed_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Absorbed Ids"
+          },
+          "absorbed_names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Absorbed Names"
+          },
+          "basis": {
+            "type": "string",
+            "enum": [
+              "normalized-name",
+              "alias-collision",
+              "similarity"
+            ],
+            "title": "Basis"
+          },
+          "similarity": {
+            "type": "number",
+            "nullable": true,
+            "title": "Similarity"
+          },
+          "audit_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Audit Id",
+            "description": "EntityMergeAudit id once applied; null on dry-run."
+          }
+        },
+        "type": "object",
+        "required": [
+          "survivor_id",
+          "survivor_name",
+          "entity_type",
+          "absorbed_ids",
+          "absorbed_names",
+          "basis"
+        ],
+        "title": "EntityDedupeGroup",
+        "description": "One planned merge: absorbed entities fold into the survivor."
+      },
+      "EntityDedupeRequest": {
+        "properties": {
+          "apply": {
+            "type": "boolean",
+            "title": "Apply",
+            "description": "False (default) returns the plan only; true executes every planned merge through the audited entity.merge action.",
+            "default": false
+          },
+          "include_reviewed": {
+            "type": "boolean",
+            "title": "Include Reviewed",
+            "description": "By default only unreviewed entities are absorbed; curated rows stay put unless explicitly opted in.",
+            "default": false
+          },
+          "min_similarity": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.5,
+            "nullable": true,
+            "title": "Min Similarity",
+            "description": "Opt-in fuzzy tier: also group same-type entities whose normalized names reach this SequenceMatcher ratio. Off by default \u2014 exact normalized-name/alias collisions only."
+          }
+        },
+        "type": "object",
+        "title": "EntityDedupeRequest"
+      },
+      "EntityDedupeResponse": {
+        "properties": {
+          "dry_run": {
+            "type": "boolean",
+            "title": "Dry Run"
+          },
+          "entity_count": {
+            "type": "integer",
+            "title": "Entity Count",
+            "description": "Live (unmerged, unrejected) entities scanned."
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/EntityDedupeGroup"
+            },
+            "type": "array",
+            "title": "Groups"
+          },
+          "duplicates_found": {
+            "type": "integer",
+            "title": "Duplicates Found",
+            "description": "Entities the plan would absorb."
+          },
+          "merges_applied": {
+            "type": "integer",
+            "title": "Merges Applied",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "dry_run",
+          "entity_count",
+          "groups",
+          "duplicates_found"
+        ],
+        "title": "EntityDedupeResponse"
       },
       "EntityDocumentLink": {
         "properties": {
@@ -60722,6 +61096,37 @@
             "type": "array",
             "nullable": true,
             "title": "Suggestions"
+          },
+          "legs": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "nullable": true,
+            "title": "Legs"
+          },
+          "graph_leg_enabled": {
+            "type": "boolean",
+            "title": "Graph Leg Enabled",
+            "default": false
+          },
+          "best_semantic_similarity": {
+            "type": "number",
+            "nullable": true,
+            "title": "Best Semantic Similarity"
+          },
+          "weak_semantic_only": {
+            "type": "boolean",
+            "title": "Weak Semantic Only",
+            "default": false
+          },
+          "kg_entities": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "nullable": true,
+            "title": "Kg Entities"
           },
           "compiled_query": {
             "$ref": "#/components/schemas/CompiledQuery",

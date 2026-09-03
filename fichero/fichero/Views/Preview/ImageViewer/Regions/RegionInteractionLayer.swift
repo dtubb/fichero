@@ -49,6 +49,16 @@ struct RegionInteractionLayer: View {
     let imagePixelSize: CGSize?
     /// True while rubber-band add mode is armed.
     let isAddingRegion: Bool
+    /// True while an ANNOTATION draw tool is armed (highlight/note/line/
+    /// star). The band then becomes the annotation's box via `onAnnotate`
+    /// (2026-09-02): these drags used to ride a full-frame SwiftUI
+    /// DragGesture on `BoundingBoxOverlay` — the exact hit-claiming shape
+    /// that starved the scroll view, and the one drag path left OFF the
+    /// AppKit pointer feed, which is why its boxes could land away from the
+    /// cursor while marquees landed true.
+    var isAnnotating: Bool = false
+    /// Finish an annotation band: normalized `[x, y, w, h]`.
+    var onAnnotate: (([Double]) -> Void)?
     /// The image view's clicks and drags, normalized (2026-09-01). This
     /// layer owns NO gestures: a gesture-bearing SwiftUI view over the
     /// NSScrollView made the hosting view claim hit-testing, and two-finger
@@ -272,6 +282,17 @@ struct RegionInteractionLayer: View {
     /// box starts a move, anything else is a click-select.
     private func handlePress(at point: CGPoint, clickCount: Int, in size: CGSize) {
         if clickCount == 2 {
+            // Double-click a MARQUEE names it (Daniel, 2026-09-02: the
+            // pointer feed "feels off" — the pencil badge was the only way
+            // in). Saved regions keep their select-then-enter double-click.
+            if let marquees, marquees.documentId == documentId,
+               let picked = RegionHitTesting.pick(
+                   at: point, boxes: marquees.rects, in: size, visible: visible
+               ) {
+                marquees.selectedIndex = picked
+                naming.arm(documentId: documentId, marqueeIndex: picked)
+                return
+            }
             // Select, THEN enter — the two verbs of a double-click.
             handleTap(at: point, in: size)
             handleOpen(at: point, in: size)
@@ -281,7 +302,7 @@ struct RegionInteractionLayer: View {
             handleCheckTap(at: point, in: size)
             return
         }
-        if isAddingRegion || isWordSelecting {
+        if isAddingRegion || isWordSelecting || isAnnotating {
             bandStart = point
             bandCurrent = point
             return
@@ -291,7 +312,33 @@ struct RegionInteractionLayer: View {
             moveStart = point
             return
         }
+        // Select tool on empty ground: a DRAG band-selects the boxes it
+        // sweeps (2026-09-02, select-by-default); a plain click still
+        // resolves as a tap when the band comes back degenerate.
+        if isBandSelecting, !hitsAnything(at: point, in: size) {
+            bandStart = point
+            bandCurrent = point
+            return
+        }
         handleTap(at: point, in: size)
+    }
+
+    /// The select tool armed (the DEFAULT since 2026-09-02)?
+    private var isBandSelecting: Bool {
+        windowState?.activeMarkupTool == .select
+    }
+
+    /// Anything clickable under the point — a marquee or a displayed box.
+    private func hitsAnything(at location: CGPoint, in size: CGSize) -> Bool {
+        if let marquees, marquees.documentId == documentId,
+           RegionHitTesting.pick(
+               at: location, boxes: marquees.rects, in: size, visible: visible
+           ) != nil {
+            return true
+        }
+        return RegionHitTesting.pick(
+            at: location, boxes: boxes.map { $0.box.bbox }, in: size, visible: visible
+        ) != nil
     }
 
     /// Click = select; ⇧-click = add/toggle; click-away = deselect (regions
@@ -358,18 +405,56 @@ struct RegionInteractionLayer: View {
     }
 
     /// Rubber band released: a new marquee in add mode, a word-box selection
-    /// in word-select mode. A degenerate (tap-sized) band does nothing.
+    /// in word-select mode, a region band-select with the select tool. A
+    /// degenerate (tap-sized) band resolves as the click it really was.
     private func finishBand(from start: CGPoint, to end: CGPoint, in size: CGSize) {
         defer { bandStart = nil; bandCurrent = nil }
         guard let box = BoundingBoxGeometry.normalizedBox(
             from: start, to: end, in: size, visible: visible
-        ) else { return }
-        if isWordSelecting {
+        ) else {
+            // The select tool's degenerate band IS the empty-ground click —
+            // it must still deselect, or click-away stops working.
+            if isBandSelecting, !isWordSelecting, !isAddingRegion {
+                handleTap(at: start, in: size)
+            }
+            return
+        }
+        if isAnnotating {
+            onAnnotate?(box)
+        } else if isWordSelecting {
             selectWords(inBand: box)
-        } else {
+        } else if isAddingRegion {
             marquees?.add(
                 box, documentId: documentId, imagePixelSize: imagePixelSize
             )
+        } else {
+            selectRegions(inBand: box)
+        }
+    }
+
+    /// Select (⇧ = extend) every DISPLAYED box the band touches — the select
+    /// tool's sweep, addressed exactly the way a click-select is.
+    private func selectRegions(inBand band: [Double]) {
+        guard let artifactId else { return }
+        let bandRect = CGRect(x: band[0], y: band[1], width: band[2], height: band[3])
+        let hits = boxes.filter { entry in
+            let bbox = entry.box.bbox
+            guard bbox.count >= 4 else { return false }
+            return bandRect.intersects(
+                CGRect(x: bbox[0], y: bbox[1], width: bbox[2], height: bbox[3])
+            )
+        }.map(\.index)
+        guard !hits.isEmpty else {
+            if !shiftHeld { selection.clear() }
+            return
+        }
+        var remaining = hits[...]
+        if !shiftHeld {
+            selection.select(hits[0], artifactId: artifactId, documentId: documentId)
+            remaining = hits.dropFirst()
+        }
+        for index in remaining where !selection.isSelected(index, in: artifactId) {
+            selection.toggle(index, artifactId: artifactId, documentId: documentId)
         }
     }
 

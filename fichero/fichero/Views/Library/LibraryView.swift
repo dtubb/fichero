@@ -116,7 +116,15 @@ struct LibraryView: View {
     @State var fileImportMode: IngestMode = .link
     /// Metadata-popover choice (#18): which optional attributes list rows
     /// display. App-wide preference, comma-joined raw values.
-    @AppStorage("library.rowAttributes") var rowAttributesRaw: String = LibraryRowAttribute.defaultRaw
+    /// Versioned key (2026-09-02): the "Status and Date are OFF by default"
+    /// ruling has always been the DEFAULT, but a stored value from before it
+    /// outlives a default change. `.v2` applies the ruling once on existing
+    /// installs; the Metadata menu owns it from there.
+    @AppStorage(LibraryRowAttribute.storageKey) var rowAttributesRaw: String = LibraryRowAttribute.defaultRaw
+    /// Lines of body text a list row reserves — 2 / 4 / 6, from the same
+    /// Metadata control (Daniel, 2026-09-02).
+    @AppStorage(LibraryRowContentLines.storageKey)
+    var rowContentLinesRaw: Int = LibraryRowContentLines.defaultValue.rawValue
     /// The Show control's narrowing half (2026-08-31): Regions / Extracted Data.
     /// Spreads-vs-Pages is NOT stored here — that is an engine tier and
     /// `DocumentStore.libraryLevel` owns it; see `LibraryShowKind`.
@@ -248,11 +256,12 @@ struct LibraryView: View {
     /// id → index in `filteredDocuments`, rebuilt in recomputeFiltered() so
     /// prefetch scheduling is an O(1) lookup, not an O(n) firstIndex per cell (#3870).
     @State var documentIndexById: [String: Int] = [:]
-    @State var prefetchedThumbnailIds: Set<String> = []
-    @State var thumbnailPrefetchTask: Task<Void, Never>?
-    /// The folder-open thumbnail sweep (#4589) — separate from the scroll
-    /// look-ahead task so a row appearing never cancels the sweep.
-    @State var folderThumbnailPrefetchTask: Task<Void, Never>?
+    /// Prefetch bookkeeping, by REFERENCE (2026-09-02). These were three
+    /// `@State` properties written from every row's `.onAppear`, so scrolling
+    /// down invalidated the whole library body once per appearing row — see
+    /// `ThumbnailPrefetchLedger` for the full account and why scrolling UP
+    /// stayed smooth.
+    @State var thumbnailPrefetch = ThumbnailPrefetchLedger()
 
     // Delete confirmation state
     @State var showDeleteConfirmation = false

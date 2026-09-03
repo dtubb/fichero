@@ -6,9 +6,6 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 API_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-FM_BRIDGE_SOURCE="$API_ROOT/bin/fm-bridge/FmBridge.swift"
-FM_BRIDGE_DEST="$API_ROOT/src/fichero_server/resources/bin/fm-bridge"
-
 echo "🔨 Building Fichero Backend with Briefcase"
 cd "$API_ROOT"
 
@@ -22,14 +19,10 @@ if [ -d "build/server" ]; then
   rm -rf build/server || /bin/rm -rf build/server
 fi
 
-if ! command -v swiftc >/dev/null 2>&1; then
-  echo "❌ swiftc not found; can't build fm-bridge"
-  exit 1
-fi
-
-mkdir -p "$(dirname "$FM_BRIDGE_DEST")"
-swiftc -O -parse-as-library -o "$FM_BRIDGE_DEST" "$FM_BRIDGE_SOURCE"
-chmod 755 "$FM_BRIDGE_DEST"
+# One owner for the fm-bridge build, shared with
+# scripts/preflight-embedded-engine.sh — the entry point the release actually
+# uses. When only this script built it, every release shipped without it.
+"$API_ROOT/scripts/build_fm_bridge.sh"
 
 SIGNING_IDENTITY=$(security find-identity -v -p codesigning | grep "Apple Development" | head -1 | awk -F'"' '{print $2}')
 if [ -z "$SIGNING_IDENTITY" ]; then
@@ -80,6 +73,12 @@ fi
 briefcase update macOS --app fichero_server -r
 briefcase build macOS --app fichero_server
 briefcase package macOS --app fichero_server --identity "$SIGNING_IDENTITY"
+STAGED_BRIDGE="$BACKEND_APP_SOURCE/Contents/Resources/app/fichero_server/resources/bin/fm-bridge"
+if [ -d "$BACKEND_APP_SOURCE" ] && [ ! -x "$STAGED_BRIDGE" ]; then
+  echo "❌ Staged engine has no executable fm-bridge at $STAGED_BRIDGE"
+  echo "   Apple Intelligence and search refinement would be dead in this build."
+  exit 1
+fi
 if [ -d "$BACKEND_APP_SOURCE" ]; then
   echo "✅ Backend bundle ready: $BACKEND_APP_SOURCE"
 else

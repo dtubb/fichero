@@ -1,0 +1,28 @@
+Programmatic cleaner, before vs after the 2026-09-02 fix, on the first 20
+Marshall 1923 reference transcripts (chars retained).
+
+NCM_Diary_1923IMG_001.jpg.transcript.txt         orig=   36 old=   36 new=   35
+NCM_Diary_1923IMG_002.jpg.transcript.txt         orig=   20 old=   21 new=   19
+NCM_Diary_1923IMG_003_part_1.jpg.transcript.txt  orig=  491 old=   56 new=  141
+NCM_Diary_1923IMG_003_part_2.jpg.transcript.txt  orig=  106 old=  113 new=  105
+NCM_Diary_1923IMG_004_part_1.jpg.transcript.txt  orig=  236 old=  240 new=  228
+NCM_Diary_1923IMG_004_part_2.jpg.transcript.txt  orig=  324 old=  331 new=  323
+NCM_Diary_1923IMG_005_part_1.jpg.transcript.txt  orig=  295 old=  303 new=  294
+NCM_Diary_1923IMG_005_part_2.jpg.transcript.txt  orig=  433 old=  318 new=  432
+NCM_Diary_1923IMG_006_part_1.jpg.transcript.txt  orig=  219 old=  225 new=  218
+NCM_Diary_1923IMG_006_part_2.jpg.transcript.txt  orig=  460 old=  472 new=  459
+NCM_Diary_1923IMG_007_part_1.jpg.transcript.txt  orig=  274 old=  281 new=  273
+NCM_Diary_1923IMG_007_part_2.jpg.transcript.txt  orig=  588 old=  604 new=  587
+NCM_Diary_1923IMG_008_part_1.jpg.transcript.txt  orig=  599 old=  612 new=  598
+NCM_Diary_1923IMG_008_part_2.jpg.transcript.txt  orig=  279 old=  286 new=  278
+NCM_Diary_1923IMG_009_part_1.jpg.transcript.txt  orig=  211 old=  216 new=  210
+NCM_Diary_1923IMG_009_part_2.jpg.transcript.txt  orig=  392 old=  403 new=  391
+NCM_Diary_1923IMG_010_part_1.jpg.transcript.txt  orig=  342 old=  352 new=  341
+NCM_Diary_1923IMG_010_part_2.jpg.transcript.txt  orig=  371 old=  381 new=  370
+NCM_Diary_1923IMG_011_part_1.jpg.transcript.txt  orig=  425 old=  435 new=  424
+NCM_Diary_1923IMG_011_part_2.jpg.transcript.txt  orig=  385 old=  393 new=  384
+
+TOTAL orig=6486 old=6078 new=6110
+
+Worst case, IMG_005_part_2: the OLD cleaner deleted the entire
+Tuesday Jan 9 diary entry ('TUESDAY, .'), the NEW one preserves it verbatim.

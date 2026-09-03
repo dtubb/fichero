@@ -2,7 +2,56 @@
 
 *Full commit-level history, day by day, lives in [`CHANGELOG.md`](CHANGELOG.md).*
 
-## 2026.09.01.2-beta
+## 2026.09.03
+
+**First public build.** Versioning starts fresh: the version is the date,
+the build is a plain counter — this is 2026.09.03 (1).
+
+**Reading and markup:**
+- New: The Select tool is on from the first click — click, ⇧-click, or drag
+  a band to select regions; drag a selected region to move it; double-click
+  a drawn selection to name and save it.
+- Bug: Regions you draw no longer vanish after saving.
+- Bug: Selecting regions in the artifacts browser now highlights them on
+  the page.
+- New: ▲▼ rendition stepping sits by the breadcrumb; swipe up/down still
+  flips renditions.
+- Bug: Word-box labels never truncate with "…" — they fit their box.
+- New: Show/hide word boxes per pane, so a split can compare marked and
+  clean views of the same page.
+- Loupe: parks where you leave it; ⌥-move or ⌥-click moves it; scroll over
+  it zooms it.
+
+**Library:**
+- Bug: ⌘A selects all in every view mode, including lists.
+- Bug: List scrolling is smooth in both directions; clicking a row no
+  longer stalls or jumps the view.
+- New: Choose what rows show (status, date, and 2/4/6 lines of text) from
+  the metadata menu. Your metadata choices reset once with this build (the
+  new defaults apply); set them again from the same menu.
+
+**Search:**
+- Bug: Searching again actually refreshes the results.
+- New: Result rows show the matched text with your terms highlighted;
+  swiping left/right in results steps through the results themselves.
+- New: Search scope reads as the breadcrumb — whole library or the folder
+  you're in.
+
+**Workflows and AI:**
+- Bug: A generative step never lands on Apple Vision by mistake.
+- New: When comparing models, a failed model says why — the others keep
+  going.
+- New: Workspaces restore what was open, including the markup and workflow
+  bars, with icons in the menu.
+
+**Image editing:**
+- Bug: Background-removed images show a white ground everywhere —
+  thumbnails included — instead of black.
+- Bug: Thumbnails refresh immediately after edits like rotate.
+- New: Edit steps can be re-opened and adjusted in place, Lightroom-style;
+  Copy Edits / Paste Edits applies one image's recipe to others.
+
+## 2026.08.27
 
 **Sharing, CLI, and MCP:**
 - New: The Sharing toggle now serves the `fichero` command-line tool and MCP
@@ -58,50 +107,6 @@
   one library reached by two path spellings; library context menus gain
   New Folder / Import Files; a 12-second launch stall moved off the main
   thread; live model catalogs stay per-provider live.
-
-## 2026.08.25
-
-The overnight reliability build. Word bounding boxes on cursive
-handwriting now snap to their ink — boxes that cut into glyphs or
-spanned two lines hug the words instead — and the Apple Vision geometry
-pass reads the background-removed rendition when one exists, recovering
-faint pencil lines the original scan loses. Transcription drafts that
-quote the prompt's own instructions are refused instead of stored.
-
-The sidebar's reveal path and child fetch now ride the one outline
-endpoint (which also learned server-side date ordering), test engines
-keep their credentials out of yours (the phantom sign-out bug), an
-explicitly configured database memory cap that cannot apply refuses to
-run unbounded, and the empty-response retry chain from yesterday's
-paleography work is fully regression-pinned.
-
-## 2026.08.24
-
-The reliability build. Paleography transcription now survives the models'
-own habits: a draft model that hides its answer inside an unclosed
-thinking block gets one clean retry without the thinking preamble; a
-model that burns its whole token budget reasoning gets a retry with a
-raised ceiling and reasoning disabled; and the response cache no longer
-stores empty answers or replays them across runs — the failure cascades
-that killed whole ensemble runs are gone, verified end-to-end on a 1700
-notarial protocol.
-
-The library tells the truth faster. A folder dropped on Inbox grows its
-disclosure chevron immediately; moving a folder out no longer leaves a
-permanent spinner and a phantom row (the move event now names both
-parents). Adding an AI model can't be silently lost any more — clicking
-a model row adds it on the spot, failures show in red, and a provider
-awaiting its API key appears disabled in the run menu instead of
-vanishing. The status island reports live work over a stale selection
-count, in its own glass capsule beside a one-click workflow chip.
-
-Panes keep maturing: colorized, draggable breadcrumbs; preferred
-renditions load first (no more flash-through); the dataset views share
-one bottom toolbar; split state is per-slot. Under the hood, one outline
-endpoint now answers "where am I, what's in here, what does it have" for
-every tree consumer, folder listings dropped an N+1 query (2.4s → 0.4s),
-and zero-byte drops are refused at both the client and the engine
-instead of minting hollow documents.
 
 ## 2026.08.22
 

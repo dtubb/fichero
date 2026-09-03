@@ -31,6 +31,11 @@ struct ReadingPaneView: View {
     var searchHighlightQuery: String = ""
 
     @Environment(APIClient.self) var apiClient
+    /// THIS window's artifact service (2026-09-02): the lens loader used to
+    /// resolve `LibraryManager.currentLibraryId` — the app-globally current
+    /// library, not this pane's — so in a multi-library window the "Showing"
+    /// artifact submenu queried the wrong library and came back empty.
+    @Environment(ArtifactService.self) var paneArtifactService: ArtifactService?
     /// The existing busy-state source for per-page run progress (#4357): the
     /// store's run target record (#4295) plus the live page content it splices
     /// in mid-run (#4318). No second notion of "this document is working".
@@ -289,6 +294,12 @@ struct ReadingPaneView: View {
             // breadcrumb's proxy icon a capsule away — three ways of saying
             // "a page". The kind icon now opens the lens menu itself.
             collapsesKindIntoLens: true,
+            // The head SAYS what it is showing (Daniel, 2026-09-02) — the
+            // glyph alone could not tell content from a translation from one
+            // named artifact — and the View menu carries the "Showing"
+            // submenu those choices used to need two extra head menus for.
+            shownLabel: readerShownLabel,
+            extraLensMenu: { self.readerShowingMenu() },
             lens: readerLensBinding
         )
     }
@@ -336,10 +347,13 @@ struct ReadingPaneView: View {
             // icon — promises what the reader is actually showing.
             leafDragItemProvider: readerMarkdownProvider,
             selector: { self.readerSelector },
+            // The representation and artifact-lens menus folded INTO the
+            // View menu's "Showing" submenu (Daniel, 2026-09-02): the head
+            // carried three menus that all changed what you were reading and
+            // none of which named it. The CSV chip stays — it is an action on
+            // what is shown, not another way to choose it.
             controls: {
-                self.readerRepresentationControl
                 self.readerTableExportControl
-                self.artifactLensControl
             },
             tools: { EmptyView() }
         )
@@ -381,10 +395,38 @@ struct ReadingPaneView: View {
               let document = effectiveDocument,
               let text = document.pageContent,
               let provider = ReaderMarkdownDrag.itemProvider(
-                  text: text, documentName: document.name
+                  text: text,
+                  documentName: document.name,
+                  identity: readerProxyIdentity(for: document, text: text)
               )
         else { return nil }
         return { provider }
+    }
+
+    /// WHO the proxy icon is dragging — the in-app half of the payload
+    /// (Daniel, 2026-09-02: dragging it into the workflow bar's "With" slot
+    /// must run the workflow on this document, or on the artifact the pane is
+    /// pointed at). The lens wins over the document, because the pane's head
+    /// names the artifact and the drag must promise what the head says.
+    private func readerProxyIdentity(for document: Document, text: String) -> LibraryItemDrag {
+        if let lens = artifactLens {
+            return LibraryItemDrag(
+                kind: .artifact,
+                id: lens.artifactId,
+                documentId: document.id,
+                text: text,
+                libraryId: LibraryManager.shared.currentLibraryId,
+                name: lens.label
+            )
+        }
+        return LibraryItemDrag(
+            kind: document.docType == .page ? .page : .document,
+            id: document.id,
+            documentId: document.id,
+            text: text,
+            libraryId: LibraryManager.shared.currentLibraryId,
+            name: DocumentTitle.displayName(for: document)
+        )
     }
 
     /// Pinning freezes this pane on its current view (Daniel, 2026-08-23);

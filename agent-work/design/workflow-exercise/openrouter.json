@@ -1,0 +1,70 @@
+{
+  "pass": "openrouter-gemini-flash-lite",
+  "settings": {
+    "audio_model": "apple-speech",
+    "audio_provider": "apple",
+    "embeddings_model": "",
+    "embeddings_provider": "",
+    "large_model": "apple-intelligence",
+    "large_provider": "apple",
+    "max_tokens": "",
+    "medium_model": "apple-intelligence",
+    "medium_provider": "apple",
+    "primary_language": "",
+    "prompt_prefix": "",
+    "small_model": "apple-intelligence",
+    "small_provider": "apple",
+    "temperature": "",
+    "text_model": "apple-intelligence",
+    "text_provider": "apple",
+    "video_model": "",
+    "video_provider": "",
+    "vision_large_model": "apple-vision",
+    "vision_large_provider": "apple",
+    "vision_medium_model": "apple-vision",
+    "vision_medium_provider": "apple",
+    "vision_model": "google/gemini-3.1-flash-lite",
+    "vision_provider": "openrouter",
+    "vision_small_model": "apple-vision",
+    "vision_small_provider": "apple"
+  },
+  "rows": [
+    {
+      "workflow": "Detect Regions (VLM)",
+      "doc": "5414d953a2fd49748bb405e9d14d0b9d",
+      "seconds": 3.7,
+      "status": "failed",
+      "error": "All parallel branches failed for detect-regions. First error: Detect Regions (VLM) needs a vision model that can answer a prompt, but the configured Vision default is Apple Vision \u2014 on-device OCR, which returns recognized text and ignores the prompt. Set a vision-capable LLM as the Vision default in Settings, pin one on this step, or run the plain Detect Regions preset, which uses Apple Vision's own geometry.",
+      "completed_nodes": [
+        "files-source"
+      ],
+      "failed_node": "files-source",
+      "pass": "openrouter-gemini-flash-lite"
+    },
+    {
+      "workflow": "Extract Table",
+      "doc": "5414d953a2fd49748bb405e9d14d0b9d",
+      "seconds": 5.7,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "table"
+      ],
+      "failed_node": "table",
+      "pass": "openrouter-gemini-flash-lite"
+    },
+    {
+      "workflow": "Transcribe (Auto-Detect)",
+      "doc": "5414d953a2fd49748bb405e9d14d0b9d",
+      "seconds": 11.6,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "classify",
+        "transcribe-ms"
+      ],
+      "failed_node": "transcribe-ms",
+      "pass": "openrouter-gemini-flash-lite"
+    }
+  ]
+}

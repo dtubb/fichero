@@ -67,16 +67,13 @@ extension ZoomableImagePreview {
                 if annotationsEnabled && !shownMarks.isEmpty {
                     AnnotationMarkLayer(marks: shownMarks, visible: geometry.visible)
                 }
-                // The region-DRAW layer (#2458): drag plumbing only — the
-                // saved marks above own display now, so it draws no boxes.
-                if isDrawingRegion {
-                    BoundingBoxOverlay(
-                        boxes: [],
-                        visible: geometry.visible,
-                        isDrawing: true,
-                        onCreate: { box in createAnnotation(box: box, tool: pendingAnnotationTool) }
-                    )
-                }
+                // The region-DRAW plumbing moved to the pointer feed
+                // (2026-09-02): `BoundingBoxOverlay`'s full-frame SwiftUI
+                // DragGesture was the LAST gesture riding over the scroll
+                // view — the hit-claiming shape that starved pan/pinch, and
+                // the one drag path whose boxes could land away from the
+                // cursor. `RegionInteractionLayer` now owns annotation bands
+                // via `isAnnotating`/`onAnnotate`.
                 // OCR text boxes from the transcription pass (#4309),
                 // toggled from the reader toolbar. FRAME GATE (2026-08-23,
                 // entry-scoped runs): a box set naming a rendition_id was
@@ -274,7 +271,10 @@ extension ZoomableImagePreview {
         switch windowState?.activeMarkupTool {
         case .textSelect, .note: NSCursor.iBeam.set()
         case .check: NSCursor.pointingHand.set()
-        case .drawRegion, .select, .line, .highlight, .wordSelect: NSCursor.crosshair.set()
+        // Select is the DEFAULT tool now (2026-09-02) — the plain pointer,
+        // not a crosshair over every page.
+        case .select: NSCursor.arrow.set()
+        case .drawRegion, .line, .highlight, .wordSelect: NSCursor.crosshair.set()
         default: NSCursor.arrow.set()
         }
     }

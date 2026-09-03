@@ -40,16 +40,30 @@ extension ContentView {
             )
         }
 
-        func update(_ model: String, _ state: StagedStepState) {
-            if let index = chromeUX.compareRunProgress.firstIndex(where: { $0.id == model }) {
-                chromeUX.compareRunProgress[index].state = state
-            }
+        func update(
+            _ model: String,
+            _ state: StagedStepState,
+            reason: String? = nil,
+            threadId: String? = nil
+        ) {
+            guard let index = chromeUX.compareRunProgress
+                .firstIndex(where: { $0.id == model }) else { return }
+            chromeUX.compareRunProgress[index].state = state
+            // A re-run of the same fan-out must not leave last time's reason
+            // hanging off a capsule that has since gone green: a non-failed
+            // state clears it.
+            chromeUX.compareRunProgress[index].failureReason =
+                state == .failed ? reason : nil
+            if let threadId { chromeUX.compareRunProgress[index].threadId = threadId }
         }
 
         // One resolution for the whole fan-out — every run IS the same step,
         // only the model pin differs.
         guard let workflowId = await resolveWorkflowId(for: step) else {
-            for run in runs { update(run.model, .failed) }
+            // One reason, and it is the same for every capsule here — the step
+            // itself could not be realised, so no model was ever asked.
+            let reason = "This step could not be prepared to run, so no model was called."
+            for run in runs { update(run.model, .failed, reason: reason) }
             setStagedStepState(step.id, .failed)
             return
         }
@@ -66,11 +80,25 @@ extension ContentView {
                 modelOverride: run.model,
                 artifactTypeHint: hints.type,
                 artifactStepNameHint: hints.stepName,
-                compareGroup: groupId
+                compareGroup: groupId,
+                // Stamped the moment the server accepts, so a capsule can name
+                // its own run even while it is still going.
+                onThreadId: { accepted in update(run.model, .running, threadId: accepted) }
             )
-            let settled = executionObserver.getExecution(threadId: threadId)?.status
-            let succeeded = settled == .completed
-            update(run.model, succeeded ? .succeeded : .failed)
+            let execution = executionObserver.getExecution(threadId: threadId)
+            let succeeded = execution?.status == .completed
+            // The engine's own words, kept per model (Daniel, 2026-09-02):
+            // "Vision LLM returned empty response … after retry" belongs to
+            // the ONE model that returned nothing, not to the fan-out. Three
+            // models succeeding and one failing is a RESULT of a comparison,
+            // not an error in it, which is exactly what a global alert could
+            // not express.
+            update(
+                run.model,
+                succeeded ? .succeeded : .failed,
+                reason: succeeded ? nil : execution?.workflowError,
+                threadId: threadId
+            )
             anySucceeded = anySucceeded || succeeded
         }
         // The chip states whether the COMPARISON produced anything to look

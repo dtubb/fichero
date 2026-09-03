@@ -21,8 +21,23 @@ struct ImageEditChainPanel: View {
     let onRemoveBackground: () -> Void
     let onFuzzyClean: () -> Void
     let onSegment: () -> Void
+    /// Re-edit the step at `index` IN PLACE with merged `params` — the
+    /// Aperture/Lightroom behaviour Daniel asked for on 2026-09-02.
+    ///
+    /// Optional, and nil by default, because a host that has not wired it
+    /// still gets the older remove-then-re-add path rather than a dead
+    /// button. Wire it wherever an `ImageEditorModel` is in reach:
+    ///
+    ///     onUpdateStep: { index, params in
+    ///         Task { await model.updateOperation(at: index, params: params) }
+    ///     }
+    ///
+    /// The difference is not cosmetic: without it, re-editing step 1 of 3
+    /// moves it to the end of the chain and changes the rendered result.
+    var onUpdateStep: ((Int, [String: Any]) -> Void)? = nil
 
     @State var addStepExpanded = false
+    @State var showRevertConfirm = false
     @State var enhanceBrightness: Double = 1.0
     @State var enhanceContrast: Double = 1.0
     @State var enhanceSharpen: Double = 1.0
@@ -51,14 +66,37 @@ struct ImageEditChainPanel: View {
                 Text("\(chain.operations.count)")
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
-                Button(role: .destructive, action: onReset) {
-                    Image(systemName: "trash")
+                // Words, not a bare trash can: "Revert to Original" is what
+                // the toolbar's button says and what the action does, and a
+                // step list whose only escape hatch is an unlabelled icon is
+                // the "is it discoverable?" half of Daniel's 2026-09-02 note.
+                Button(role: .destructive) {
+                    showRevertConfirm = true
+                } label: {
+                    Label("Revert", systemImage: "arrow.counterclockwise.circle")
+                        .font(.caption)
                 }
                 .buttonStyle(.borderless)
                 .disabled(isBusy)
-                .help("Reset all edits — restores the original image")
-                .accessibilityLabel("Reset all edits")
+                .help("Revert to Original — discard all \(chain.operations.count) saved edit step(s)")
+                .accessibilityLabel("Revert to Original")
                 .accessibilityIdentifier("imageEditChainReset")
+                // Every step in this list is already committed, so reverting
+                // always throws away saved work and always asks — the same
+                // confirmation the editor toolbar shows (Daniel, 2026-08-31).
+                .confirmationDialog(
+                    "Revert to the original image?",
+                    isPresented: $showRevertConfirm,
+                    titleVisibility: .visible
+                ) {
+                    Button("Revert to Original", role: .destructive) {
+                        selectedStepIndex = nil
+                        onReset()
+                    }
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text("This discards all \(chain.operations.count) saved edit step(s). The original file is never changed.")
+                }
             }
         }
         .padding(.horizontal, 12)

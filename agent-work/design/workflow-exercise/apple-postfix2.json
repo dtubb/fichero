@@ -1,0 +1,59 @@
+{
+  "pass": "apple-postfix2",
+  "settings": {
+    "audio_model": "apple-speech",
+    "audio_provider": "apple",
+    "embeddings_model": "",
+    "embeddings_provider": "",
+    "large_model": "apple-intelligence",
+    "large_provider": "apple",
+    "max_tokens": "",
+    "medium_model": "apple-intelligence",
+    "medium_provider": "apple",
+    "primary_language": "",
+    "prompt_prefix": "",
+    "small_model": "apple-intelligence",
+    "small_provider": "apple",
+    "temperature": "",
+    "text_model": "apple-intelligence",
+    "text_provider": "apple",
+    "video_model": "",
+    "video_provider": "",
+    "vision_large_model": "apple-vision",
+    "vision_large_provider": "apple",
+    "vision_medium_model": "apple-vision",
+    "vision_medium_provider": "apple",
+    "vision_model": "apple-vision",
+    "vision_provider": "apple",
+    "vision_small_model": "apple-vision",
+    "vision_small_provider": "apple"
+  },
+  "rows": [
+    {
+      "workflow": "Translate",
+      "doc": "17787b7b35c24e028f7d974b7e5ebe16",
+      "seconds": 42.7,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "transcribe",
+        "text_translate"
+      ],
+      "failed_node": "text_translate",
+      "pass": "apple-postfix2"
+    },
+    {
+      "workflow": "Clean Up Text",
+      "doc": "17787b7b35c24e028f7d974b7e5ebe16",
+      "seconds": 4.2,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "transcribe",
+        "clean_text"
+      ],
+      "failed_node": "clean_text",
+      "pass": "apple-postfix2"
+    }
+  ]
+}

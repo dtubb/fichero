@@ -98,16 +98,17 @@ extension ContentView {
                 chromeUX.workspaceNameDraft = ""
                 chromeUX.showSaveWorkspacePrompt = true
             }
-            .help("Name the current arrangement — panes, widths, workflow bar, "
-                + "and toolbar buttons — so you can come back to it")
+            .help("Name the current arrangement — panes, widths, splits, the "
+                + "workflow and markup bars, and toolbar buttons — so you can "
+                + "come back to it")
             deleteWorkspaceMenu
             Divider()
             toolbarButtonsMenu
         } label: {
             Label("Workspaces", systemImage: "rectangle.grid.1x2")
         }
-        .help("Apply, save, or delete a window arrangement — panes, workflow "
-            + "bar, and toolbar buttons")
+        .help("Apply, save, or delete a window arrangement — panes, splits, "
+            + "the workflow and markup bars, and toolbar buttons")
         .accessibilityLabel("Workspaces")
         .alert("Save Workspace", isPresented: Bindable(chromeUX).showSaveWorkspacePrompt) {
             TextField("Name", text: Bindable(chromeUX).workspaceNameDraft)
@@ -119,8 +120,9 @@ extension ContentView {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Names this arrangement — panes, widths, workflow bar, and "
-                + "toolbar buttons — so you can apply it later.")
+            Text("Names this arrangement — panes, widths, splits, the workflow "
+                + "and markup bars, and toolbar buttons — so you can apply it "
+                + "later.")
         }
     }
 
@@ -136,7 +138,8 @@ extension ContentView {
                     applyBuiltInWorkspace(workspace)
                 } label: {
                     if workspace.matches(
-                        panes: panes, toolbar: toolbar, workflowBar: showWorkflowBar
+                        panes: panes, toolbar: toolbar,
+                        workflowBar: showWorkflowBar, markupBar: showAnnotationBar
                     ) {
                         Label(workspace.title, systemImage: "checkmark")
                     } else {
@@ -160,12 +163,19 @@ extension ContentView {
                     Button {
                         applyLayoutSnapshot(workspace.layout)
                     } label: {
-                        if isActive(workspace, panes: panes, toolbar: toolbar) {
-                            Label(workspace.name, systemImage: "checkmark")
-                        } else {
-                            Text(workspace.name)
-                        }
+                        // Every row carries a glyph (Daniel, 2026-09-02: "add
+                        // icons to the menu rows") — derived from what the
+                        // arrangement IS, so it cannot go stale on a re-save.
+                        // The checkmark still wins when the window matches:
+                        // "you are here" outranks "this is what it looks like".
+                        Label(
+                            workspace.name,
+                            systemImage: isActive(workspace, panes: panes, toolbar: toolbar)
+                                ? "checkmark"
+                                : workspace.systemImage
+                        )
                     }
+                    .help(workspace.help)
                 }
             }
         }
@@ -177,8 +187,10 @@ extension ContentView {
         if !saved.isEmpty {
             Menu("Delete Workspace") {
                 ForEach(saved) { workspace in
-                    Button(workspace.name, role: .destructive) {
+                    Button(role: .destructive) {
                         WindowWorkspaceStore.shared.remove(id: workspace.id)
+                    } label: {
+                        Label(workspace.name, systemImage: workspace.systemImage)
                     }
                 }
             }
@@ -242,6 +254,7 @@ extension ContentView {
         workspace.layout.panes == panes
             && workspace.layout.toolbar == toolbar
             && workspace.layout.showWorkflowBar == showWorkflowBar
+            && workspace.layout.showAnnotationBar == showAnnotationBar
     }
 
     // MARK: Layouts
@@ -258,11 +271,9 @@ extension ContentView {
                 Button {
                     applyLayoutPreset(preset)
                 } label: {
-                    if preset.matches(current) {
-                        Label(preset.title, systemImage: "checkmark")
-                    } else {
-                        Text(preset.title)
-                    }
+                    Label(preset.title,
+                          systemImage: preset.matches(current)
+                              ? "checkmark" : preset.systemImage)
                 }
                 .help("Show the \(preset.title) arrangement of panes")
             }
@@ -293,7 +304,8 @@ extension ContentView {
             viewDisplayMode: viewDisplayMode.rawValue,
             layoutMode: currentLayoutMode.rawValue,
             toolbar: WindowWorkspaceStore.shared.toolbarVisibility,
-            showWorkflowBar: showWorkflowBar
+            showWorkflowBar: showWorkflowBar,
+            showAnnotationBar: showAnnotationBar
         )
     }
 
@@ -315,6 +327,7 @@ extension ContentView {
                 updateViewDisplayMode(display)
             }
             showWorkflowBar = snapshot.showWorkflowBar
+            showAnnotationBar = snapshot.showAnnotationBar
         }
         paneSplitCoordinator.applySplits(snapshot.splits)
         // Toolbar last, and outside the animation: it is app-wide chrome, not
@@ -325,13 +338,14 @@ extension ContentView {
     }
 
     /// Applies one of the built-in arrangements. It touches ONLY what a
-    /// built-in can honestly know — panes, workflow bar, toolbar buttons —
-    /// leaving widths, splits, kind overrides and the view mode as the user
+    /// built-in can honestly know — panes, both window bars, toolbar buttons
+    /// — leaving widths, splits, kind overrides and the view mode as the user
     /// has them.
     func applyBuiltInWorkspace(_ workspace: BuiltInWorkspace) {
         withAnimation(FrameAnimation.snappy) {
             applyPaneVisibilityPlan(workspace.panes)
             showWorkflowBar = workspace.showsWorkflowBar
+            showAnnotationBar = workspace.showsMarkupBar
         }
         WindowWorkspaceStore.shared.setToolbarVisibility(workspace.toolbar)
     }

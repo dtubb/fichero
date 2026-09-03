@@ -124,6 +124,10 @@ extension ImageEditorView {
                 Text("This discards all \(model.chain.operations.count) saved edit step(s). The original file is never changed.")
             }
 
+            Divider().frame(height: 20)
+
+            editsClipboardMenu
+
             if marqueeSelection != nil && compareMode == .single {
                 Divider().frame(height: 20)
                 toolButton("crop", help: "Crop to selection") {

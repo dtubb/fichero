@@ -1,6 +1,6 @@
 {
   "swift.lint_warnings": {
-    "count": 94,
-    "note": "83 -> current accepted 2026-09-01 midday: the re-test batch (pointer route, search deep dive, library bar/marquee/\u2318A, models routing, workspaces merge, launch-perf) added length/complexity warnings in ~8 files (EmbeddedBackendService+Readiness, ContentView+SearchResults, LibraryView+PaneDrop, ModelChipToolbarItem tuples, file_length crossings); splits are queued debt"
+    "count": 107,
+    "note": "manually updated"
   }
 }

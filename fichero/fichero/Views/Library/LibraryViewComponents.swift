@@ -138,6 +138,11 @@ struct MailStyleRow: View {
     /// The metadata-popover choice (#18): date/type/status/entities are
     /// OPT-IN; title + transcript are the row, not metadata.
     var visibleAttributes: Set<LibraryRowAttribute> = [.entities]
+    /// Lines of body text the row RESERVES (Daniel, 2026-09-02: "show more
+    /// lines of content per row"). Still a fixed reservation at every
+    /// setting — see `LibraryRowContentLines` for why the #4191 density cap
+    /// survives the option.
+    var contentLines: Int = LibraryRowContentLines.defaultValue.rawValue
     /// The active search's matched text + relevance for this row (#11):
     /// the excerpt replaces the generic transcript preview — it answers
     /// "why did the query get us THIS document" — and the score renders
@@ -238,10 +243,21 @@ struct MailStyleRow: View {
                     }
 
                     if let hit = searchHit {
+                        // WHY this row matched, beside HOW WELL (Daniel,
+                        // 2026-09-02). The chips come off the engine's
+                        // `match_sources`; a semantic-only row draws none,
+                        // because the badge already says that.
+                        SearchMatchSourceChips(sources: hit.matchSources)
+
                         // One spelling of the relevance number across view
                         // modes (Daniel, 2026-09-01) — icon view mounts the
                         // same view rather than growing a second copy.
-                        SearchRelevanceBadge(score: hit.score)
+                        //
+                        // `displayScore`, not `score`: for a semantic-only hit
+                        // the fused rank score renormalises the top row toward
+                        // 100%, which dressed a weak 0.73 neighbour as an 87%
+                        // match. The badge shows the RAW cosine there.
+                        SearchRelevanceBadge(score: hit.displayScore)
                             .font(.caption.monospacedDigit())
                     }
                 }
@@ -270,14 +286,24 @@ struct MailStyleRow: View {
                     }
                 }
 
-                // Summary/Output preview — ALWAYS two reserved lines
-                // (#4191 density cap): docs without body text keep the same
-                // row height as docs with it, so nothing re-pitches as
-                // content loads and the scroll position never jumps.
-                Text(searchHit?.excerpt ?? document.pageContent ?? "")
+                // Summary/Output preview — ALWAYS a reserved block (#4191
+                // density cap): docs without body text keep the same row
+                // height as docs with it, so nothing re-pitches as content
+                // loads and the scroll position never jumps. How MANY lines is
+                // the user's choice now (2 / 4 / 6, Metadata ▸ Content); that
+                // it reserves them is not.
+                // Under a search the row shows the matched text with the
+                // query's terms emphasised (Daniel, 2026-09-02: rows should
+                // show "the matched/relevant text with the query terms
+                // highlighted, not just the leading snippet") — the windowing
+                // and the emphasis are both decided by
+                // `SearchSnippetHighlighter`, off the hit that ranked this
+                // row. With no search this is the document's own text, byte
+                // for byte what it was.
+                Text(searchHit?.highlightedExcerpt ?? AttributedString(document.pageContent ?? ""))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-                    .lineLimit(2, reservesSpace: true)
+                    .lineLimit(contentLines, reservesSpace: true)
 
                 // Entity preview rows — surfaces the NER results from
                 // extract_all (people, places, organizations, dates,

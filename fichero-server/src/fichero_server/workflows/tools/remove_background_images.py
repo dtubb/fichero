@@ -34,7 +34,7 @@ REMOVE_BACKGROUND_IMAGES_CONFIG = {
         "default": 28,
         "minimum": 0,
         "maximum": 255,
-        "description": "Foreground threshold for threshold/opencv fallback methods.",
+        "description": "Background colour tolerance for the border flood-fill method.",
     },
     "output_format": {
         "type": "string",
@@ -71,46 +71,37 @@ def _normalise_format(output_format: str) -> str:
     return fmt
 
 
-def _remove_background_threshold(image: Any, threshold: int) -> Any:
-    from PIL import Image, ImageChops
-
-    threshold = max(0, min(255, int(threshold)))
-    rgba = image.convert("RGBA")
-    rgb = image.convert("RGB")
-    background = Image.new("RGB", rgb.size, rgb.getpixel((0, 0)))
-    diff = ImageChops.difference(rgb, background).convert("L")
-    alpha = diff.point(lambda value: 255 if value > threshold else 0)
-    rgba.putalpha(alpha)
-    return rgba
-
-
 def remove_background(image: Any, *, method: str = "threshold", threshold: int = 28) -> Any:
-    """Remove background, falling back to threshold when optional deps are absent."""
+    """Remove background via the shared media owner (one implementation for
+    the image editor and workflow tools), falling back to the text-preserving
+    border flood-fill when optional deps are absent.
+
+    The previous local "opencv" path Otsu-inverted the page — its mask kept
+    only DARK pixels, so on a manuscript scan the paper vanished and the
+    3x3 morphological open then ate the thin strokes themselves. The contour
+    method masks at the page level instead.
+    """
+    from fichero_server.media.image_ops import (
+        remove_black_background_opencv,
+        remove_scan_background,
+    )
+
     method = _normalise_method(method)
     if method == "rembg":
         try:
             from rembg import remove
         except ImportError:
-            return _remove_background_threshold(image, threshold)
+            return remove_scan_background(image, threshold)
         return remove(image.convert("RGBA"))
 
     if method == "opencv":
         try:
-            import cv2  # type: ignore[import-not-found]
-            import numpy as np
-            from PIL import Image
+            import cv2  # type: ignore[import-not-found]  # noqa: F401
         except ImportError:
-            return _remove_background_threshold(image, threshold)
-        rgb = np.array(image.convert("RGB"))
-        gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
-        _, mask = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-        kernel = np.ones((3, 3), np.uint8)
-        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
-        rgba = image.convert("RGBA")
-        rgba.putalpha(Image.fromarray(mask))
-        return rgba
+            return remove_scan_background(image, threshold)
+        return remove_black_background_opencv(image)
 
-    return _remove_background_threshold(image, threshold)
+    return remove_scan_background(image, threshold)
 
 
 def _save_image(

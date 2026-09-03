@@ -26,6 +26,14 @@ struct WorkflowCompareRunProgress: Identifiable, Equatable {
     /// Short model name for the capsule.
     let label: String
     var state: StagedStepState = .pending
+    /// Why THIS model's run failed, as the engine reported it (Daniel,
+    /// 2026-09-02: one model returned "Vision LLM returned empty response …
+    /// after retry" and the whole fan-out surfaced one opaque global error).
+    /// A comparison's whole point is that the models differ, so the failure
+    /// belongs to the capsule that failed, not to the run.
+    var failureReason: String?
+    /// The run's thread id, so a failed capsule can point at its trace.
+    var threadId: String?
 }
 
 enum WorkflowComparePlanner {

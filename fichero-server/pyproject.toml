@@ -23,7 +23,7 @@ project_name = "Fichero"
 # Contents/Helpers/Fichero Server.app, so `com.fichero.*` was never a valid
 # identity for it — the DMG path never checks, only App Store Connect does.
 bundle = "app.fichero.fichero"
-version = "2026.9.1b2"
+version = "2026.9.3"
 url = "https://www.tubb.ca/fichero/"
 license.file = "LICENSE"
 author = "Daniel Tubb"
@@ -204,7 +204,12 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.setuptools.package-data]
-fichero = [
+# Keyed on the PACKAGE name. It said `fichero` until 2026-09-02, four months
+# after the package became `fichero_server` (#2566) — so this stanza matched
+# nothing and fm-bridge, the workflow presets and the meta manifests were left
+# out of any wheel built from this project. Briefcase copies `sources` trees
+# directly, which is why the embedded engine still worked and nobody noticed.
+fichero_server = [
     "resources/bin/*",
     "resources/default_workflows/*.json",
     "resources/workflow_meta/*.json",
@@ -222,7 +227,7 @@ fichero = [
 
 [project]
 name = "fichero-server"
-version = "2026.9.1b2"
+version = "2026.9.3"
 description = "Headless server for Fichero — embedded FastAPI service that powers document processing, AI workflows, and data storage."
 readme = "README.md"
 requires-python = ">=3.10"

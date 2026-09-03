@@ -705,6 +705,38 @@ def _ensure_bootstrap_token_written() -> None:
     sync_app_bootstrap_token(_api_token)
 
 
+def fm_bridge_status() -> dict[str, object]:
+    """Whether this engine build carries an executable fm-bridge, and where.
+
+    Returned as data (not just logged) so a caller — a health probe, a test,
+    a support dump — can assert on the capability instead of grepping a log.
+    """
+    from fichero_server.llm import _find_fm_bridge_binary
+
+    binary = _find_fm_bridge_binary()
+    return {
+        "present": binary is not None,
+        "path": str(binary) if binary is not None else None,
+    }
+
+
+def _log_fm_bridge_presence() -> None:
+    try:
+        status = fm_bridge_status()
+    except Exception as exc:  # noqa: BLE001 — never block startup on a probe
+        logger.warning("fm-bridge presence check failed: %r", exc)
+        return
+    if status["present"]:
+        logger.info("fm-bridge present: %s", status["path"])
+    else:
+        logger.warning(
+            "fm-bridge is NOT present in this engine build — Apple Intelligence "
+            "and search refinement are unavailable. Build it with "
+            "fichero-server/scripts/build_fm_bridge.sh, or restage the engine "
+            "with scripts/preflight-embedded-engine.sh --rebuild."
+        )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown events."""
@@ -752,6 +784,15 @@ async def lifespan(app: FastAPI):
     # Quiet the /api/health access-log spam now that uvicorn has
     # configured its access logger (#1000).
     _install_access_log_filter()
+
+    # Say at startup whether fm-bridge shipped with this engine.
+    #
+    # It is a gitignored Swift binary staged into resources/bin/ by the engine
+    # build. When the release path skipped that step (2026-09-02) the app was
+    # completely silent about it until a user ran an Apple Intelligence node
+    # and got "fm-bridge binary not found" — the absence had faked a green all
+    # the way through packaging. A missing capability announces itself now.
+    _log_fm_bridge_presence()
 
     # Seed built-in providers (Apple Vision/Transcribe) on first run
     _seed_builtin_providers()

@@ -82,8 +82,11 @@ struct ActivityStatusToolbarItem: View {
                 Button {
                     showPopover = true
                 } label: {
+                    // Lit while its popover is open, same rule as the server
+                    // button beside it (Daniel, 2026-09-02).
                     Label("Activity", systemImage: ToolbarSymbols.activityIdle)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(showPopover
+                            ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.secondary))
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Activity")

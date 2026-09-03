@@ -24,7 +24,8 @@ struct ToolbarTextModeSyncMountGuardTests {
         #expect(mounts == 2, "one bar lost the toolbar sync (\(mounts) mounts)")
         // Both insets are the mount points; neither may quietly drop it.
         #expect(source.contains("var annotationBarInset: some View"))
-        #expect(source.contains("AnnotationBar(showsLabels: showWorkflowBarLabels)"))
+        #expect(source.contains("AnnotationBar("))
+        #expect(source.contains("showsLabels: showWorkflowBarLabels"))
     }
 
     @Test("anything but icon-only means labels, on attach and on every change")
@@ -36,9 +37,10 @@ struct ToolbarTextModeSyncMountGuardTests {
         )
         let source = try String(contentsOf: url, encoding: .utf8)
         let mappings = source.components(separatedBy: "displayMode != .iconOnly").count - 1
-        // Once for the initial read at attach, once inside the KVO callback —
-        // losing the first left the bars wrong until the user toggled.
-        #expect(mappings == 2, "the display-mode mapping lost a site (\(mappings))")
+        // Attach read + KVO callback + the PUSH half (apply(showsLabels:)
+        // writes displayMode from the bars' context menu, 2026-09-02) —
+        // losing any of the three desyncs a direction.
+        #expect(mappings == 3, "the display-mode mapping lost a site (\(mappings))")
         // String KVO: Swift 6 refuses a key path to the main-actor property.
         #expect(source.contains("addObserver(self, forKeyPath: Self.keyPath"))
         // Idempotent: re-attaching to the same toolbar must not stack observers.
@@ -273,7 +275,9 @@ struct PreviewWhatToShowMenuGuardTests {
             guard url.pathExtension == "swift",
                   let source = try? String(contentsOf: url, encoding: .utf8) else { continue }
             let name = url.lastPathComponent
-            if source.contains("@AppStorage(\"imagePreview.ocrBoxesEnabled\")") { imageOwners.append(name) }
+            // The image switch is per-pane @State since 2026-09-02; its
+            // ownership marker is the one seed-read of the shared default.
+            if source.contains(".object(forKey: \"imagePreview.ocrBoxesEnabled\")") { imageOwners.append(name) }
             if source.contains("@AppStorage(\"pdfPreview.ocrBoxesEnabled\")") { pdfOwners.append(name) }
         }
         #expect(imageOwners.count == 1, "image word-box switch has \(imageOwners.count) owners: \(imageOwners)")

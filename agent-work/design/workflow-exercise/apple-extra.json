@@ -1,0 +1,73 @@
+{
+  "pass": "apple-extra",
+  "settings": {
+    "audio_model": "apple-speech",
+    "audio_provider": "apple",
+    "embeddings_model": "",
+    "embeddings_provider": "",
+    "large_model": "apple-intelligence",
+    "large_provider": "apple",
+    "max_tokens": "",
+    "medium_model": "apple-intelligence",
+    "medium_provider": "apple",
+    "primary_language": "",
+    "prompt_prefix": "",
+    "small_model": "apple-intelligence",
+    "small_provider": "apple",
+    "temperature": "",
+    "text_model": "apple-intelligence",
+    "text_provider": "apple",
+    "video_model": "",
+    "video_provider": "",
+    "vision_large_model": "apple-vision",
+    "vision_large_provider": "apple",
+    "vision_medium_model": "apple-vision",
+    "vision_medium_provider": "apple",
+    "vision_model": "apple-vision",
+    "vision_provider": "apple",
+    "vision_small_model": "apple-vision",
+    "vision_small_provider": "apple"
+  },
+  "rows": [
+    {
+      "workflow": "Convert to Markdown",
+      "doc": "6fe395c095314807b2ec2f4ea74422a5",
+      "seconds": 2.5,
+      "status": "cli_error",
+      "error": "POST /api/workflow-execution/execute -> 400: {\"detail\":\"Workflow validation failed: Node 'Convert to Markdown' (convert): 'Convert' needs a generation-capable vision model, which is not configured \u2014 the current vision model (apple/apple-vision) is on-device OCR, which returns recognized text and cannot answer a prompt. Configure a vision-capable LLM as the Vision default in Settings, or set one on this node.\"}",
+      "pass": "apple-extra"
+    },
+    {
+      "workflow": "Split Chapters",
+      "doc": "6fe395c095314807b2ec2f4ea74422a5",
+      "seconds": 3.6,
+      "status": "failed",
+      "error": "Step 'Split Chapters' failed: No PDF source document found for chapter splitting",
+      "completed_nodes": [
+        "files-source"
+      ],
+      "failed_node": "files-source",
+      "pass": "apple-extra"
+    },
+    {
+      "workflow": "Group Same Documents",
+      "doc": "6fe395c095314807b2ec2f4ea74422a5",
+      "seconds": 2.6,
+      "status": "cli_error",
+      "error": "POST /api/workflow-execution/execute -> 400: {\"detail\":\"Workflow validation failed: Node 'Group Same Documents' (similarity): 'Similarity' needs a generation-capable vision model, which is not configured \u2014 the current vision model (apple/apple-vision) is on-device OCR, which returns recognized text and cannot answer a prompt. Configure a vision-capable LLM as the Vision default in Settings, or set one on this node.\"}",
+      "pass": "apple-extra"
+    },
+    {
+      "workflow": "Recombine Segments",
+      "doc": "6fe395c095314807b2ec2f4ea74422a5",
+      "seconds": 3.7,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "recombine_segments"
+      ],
+      "failed_node": "recombine_segments",
+      "pass": "apple-extra"
+    }
+  ]
+}

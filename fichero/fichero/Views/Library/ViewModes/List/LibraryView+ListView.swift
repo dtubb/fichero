@@ -30,6 +30,9 @@ import SwiftUI
 struct ListRowChrome: Equatable {
     let attributes: Set<LibraryRowAttribute>
     let entityTypes: Set<String>
+    /// Lines of body text each row reserves (Daniel, 2026-09-02) — a row-wide
+    /// setting like the other two, resolved in the same one place.
+    let contentLines: Int
 }
 
 extension LibraryView {
@@ -37,7 +40,8 @@ extension LibraryView {
     var listRowChrome: ListRowChrome {
         ListRowChrome(
             attributes: LibraryRowAttribute.set(from: rowAttributesRaw),
-            entityTypes: listVisibleEntityTypes
+            entityTypes: listVisibleEntityTypes,
+            contentLines: LibraryRowContentLines.resolve(rowContentLinesRaw).rawValue
         )
     }
 
@@ -69,7 +73,8 @@ extension LibraryView {
                 visibleEntityTypes: chrome.entityTypes,
                 visibleAttributes: chrome.attributes,
                 searchHit: searchRowHits[doc.id],
-                isRenaming: renamingDocumentId == doc.id
+                isRenaming: renamingDocumentId == doc.id,
+                contentLines: chrome.contentLines
             ),
             isSelected: selection.contains(doc.id),
             tint: selectionTint,
@@ -122,6 +127,7 @@ extension LibraryView {
             onCancelRename: cancelRename,
             visibleEntityTypes: chrome.entityTypes,
             visibleAttributes: chrome.attributes,
+            contentLines: chrome.contentLines,
             searchHit: searchRowHits[doc.id]
         ) { tag in
             searchText = tag
@@ -180,8 +186,20 @@ extension LibraryView {
             // for the same reason: PDF-driven selection wasn't reaching
             // the ScrollViewReader without it. (#929) Scrolls to the ORDERED
             // primary row, not Set.first hash order (#4160).
-            .onChange(of: selection) { _, _ in
-                guard let id = orderedPrimarySelectionId else { return }
+            //
+            // Gated on `ListSelectionScrollPolicy` (2026-09-02): this watcher
+            // used to fire for EVERY selection change, so a ⌥⇧-deselect
+            // animated the viewport to whatever row became primary, and a
+            // plain click paid for a layout pass + animation to reach a row
+            // that was already under the pointer. See that policy for the
+            // whole account.
+            .onChange(of: selection) { previous, next in
+                guard ListSelectionScrollPolicy.shouldScroll(
+                    isUserDriven: selectionChangeIsUserDriven,
+                    previous: previous,
+                    next: next,
+                    primary: orderedPrimarySelectionId
+                ), let id = orderedPrimarySelectionId else { return }
                 withAnimation(.easeInOut(duration: 0.15)) {
                     proxy.scrollTo(id, anchor: nil)
                 }
@@ -276,6 +294,15 @@ extension LibraryView {
             // Finder/NNW (#4160). Row taps win — their own tap gestures are
             // deeper in the hierarchy.
             .onTapGesture {
+                // A gutter click is still a click IN THIS PANE, so it claims
+                // focus the way a row click does (2026-09-02). It did not,
+                // so clicking empty list space after clicking the preview or
+                // the sidebar left `paneFocusHint` on the OTHER pane and ⌘A
+                // kept routing there — the library's Select All came up
+                // disabled over a list full of rows. Icon mode got this fix
+                // on 2026-09-01; list mode never did, which is exactly the
+                // "⌘A works in icon view but not in list view" report.
+                onRequestFocus()
                 apply(SelectionGrammar.clear())
             },
             proxy: proxy

@@ -32,6 +32,10 @@ RELEASE_ALL = SCRIPTS_DIR / "release-all.sh"
 START_BACKEND = REPO_ROOT / "fichero-server" / "scripts" / "start_backend.sh"
 BUILD_BACKEND_BUNDLE = REPO_ROOT / "fichero-server" / "scripts" / "build_backend_bundle.sh"
 BUNDLE_PYTHON_BACKEND = REPO_ROOT / "fichero-server" / "scripts" / "bundle_python_backend.sh"
+BUILD_FM_BRIDGE = REPO_ROOT / "fichero-server" / "scripts" / "build_fm_bridge.sh"
+# The entry point the RELEASE uses (release-all.sh), as distinct from
+# build_backend_bundle.sh which it never calls.
+PREFLIGHT_EMBEDDED_ENGINE = SCRIPTS_DIR / "preflight-embedded-engine.sh"
 CLEAN_EMBEDDED_ENGINE = SCRIPTS_DIR / "clean-embedded-engine.sh"
 
 ALL_SCRIPTS = [BUILD_RELEASE, BUILD_AND_VALIDATE, NOTARIZE, CREATE_RELEASE, NIGHTLY_RELEASE]
@@ -283,18 +287,47 @@ def test_start_backend_syncs_bootstrap_token_into_debug_sandbox() -> None:
 
 
 def test_backend_bundle_builds_fm_bridge_into_package_resources() -> None:
-    text = _script_text(BUILD_BACKEND_BUNDLE)
+    """The CONTRACT is that this entry point stages fm-bridge — not that it
+    runs swiftc with its own hands.
 
-    assert "bin/fm-bridge/FmBridge.swift" in text
-    assert "src/fichero_server/resources/bin/fm-bridge" in text
-    assert "swiftc -O -parse-as-library" in text
+    The compile moved into fichero-server/scripts/build_fm_bridge.sh
+    (2026-09-02) so that the release's own entry point,
+    scripts/preflight-embedded-engine.sh, could share it. Only one of the two
+    used to build the binary, which is how the shipped 2026.09.01.2 app got an
+    EMPTY resources/bin/ and answered "fm-bridge binary not found" for every
+    Apple Intelligence call.
+
+    So: assert the delegation here, and assert the swiftc invocation and the
+    destination in the builder that now owns them. No prebuilt binary is
+    required on disk — it is gitignored, so demanding one would fail in every
+    fresh worktree while proving nothing about the packaging contract.
+    """
+    text = _script_text(BUILD_BACKEND_BUNDLE)
+    assert "build_fm_bridge.sh" in text, (
+        "build_backend_bundle.sh no longer stages fm-bridge at all"
+    )
+
+    builder = _script_text(BUILD_FM_BRIDGE)
+    assert "bin/fm-bridge/FmBridge.swift" in builder
+    assert "src/fichero_server/resources/bin/fm-bridge" in builder
+    assert "swiftc -O -parse-as-library" in builder
+
+
+def test_the_release_engine_entry_point_also_builds_fm_bridge() -> None:
+    """The half that was missing. release-all.sh calls the preflight, never
+    build_backend_bundle.sh, so a builder wired only into the latter never
+    ran for a release."""
+    text = PREFLIGHT_EMBEDDED_ENGINE.read_text()
+    assert "build_fm_bridge.sh" in text
 
 
 def test_python_bundle_builds_fm_bridge_into_site_packages() -> None:
     text = _script_text(BUNDLE_PYTHON_BACKEND)
 
     assert "bin/fm-bridge/FmBridge.swift" in text
-    assert "site-packages/fichero/resources/bin/fm-bridge" in text
+    # fichero_server, not fichero — the package rename (#2566) left this path
+    # pointing at a directory nothing imports from.
+    assert "site-packages/fichero_server/resources/bin/fm-bridge" in text
     assert "swiftc -O -parse-as-library" in text
 
 

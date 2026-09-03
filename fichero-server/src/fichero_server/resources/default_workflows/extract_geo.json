@@ -5,16 +5,79 @@
   "is_template": true,
   "is_system": true,
   "folder_path": "/Convert",
-  "tags": ["preset", "geo", "map", "extract", "representation"],
-  "config": {"preset_version": 1},
+  "tags": [
+    "preset",
+    "geo",
+    "map",
+    "extract",
+    "representation"
+  ],
+  "config": {
+    "preset_version": 2
+  },
   "nodes": [
-    {"id": "files-source", "tool": "files", "label": "Files", "position_x": 80, "position_y": 200, "inputs": {}, "config": {}},
-    {"id": "transcribe", "tool": "transcribe", "label": "Transcribe each file", "position_x": 320, "position_y": 200, "inputs": {}, "config": {"vision_mode": "auto", "language": "auto", "update_page_content": true}},
-    {"id": "extract_geo", "tool": "extract_geo", "label": "Extract Geo", "position_x": 560, "position_y": 200, "inputs": {}, "config": {"online_geocoding": false}}
+    {
+      "id": "files-source",
+      "tool": "files",
+      "label": "Files",
+      "position_x": 80,
+      "position_y": 200,
+      "inputs": {},
+      "config": {}
+    },
+    {
+      "id": "transcribe",
+      "tool": "transcribe",
+      "label": "Transcribe each file",
+      "position_x": 320,
+      "position_y": 200,
+      "inputs": {},
+      "config": {
+        "vision_mode": "auto",
+        "language": "auto",
+        "update_page_content": true
+      }
+    },
+    {
+      "id": "extract_geo",
+      "tool": "extract_geo",
+      "label": "Extract Geo",
+      "position_x": 560,
+      "position_y": 200,
+      "inputs": {},
+      "config": {
+        "online_geocoding": false
+      }
+    }
   ],
   "edges": [
-    {"id": "edge-files-transcribe", "source": "files-source", "target": "transcribe", "source_port": "files", "target_port": "files"},
-    {"id": "edge-files-transcribe-documents", "source": "files-source", "target": "transcribe", "source_port": "documents", "target_port": "documents"},
-    {"id": "edge-transcribe-geo", "source": "transcribe", "target": "extract_geo", "source_port": "text", "target_port": "text"}
+    {
+      "id": "edge-files-transcribe",
+      "source": "files-source",
+      "target": "transcribe",
+      "source_port": "files",
+      "target_port": "files"
+    },
+    {
+      "id": "edge-files-transcribe-documents",
+      "source": "files-source",
+      "target": "transcribe",
+      "source_port": "documents",
+      "target_port": "documents"
+    },
+    {
+      "id": "edge-transcribe-geo",
+      "source": "transcribe",
+      "target": "extract_geo",
+      "source_port": "text",
+      "target_port": "text"
+    },
+    {
+      "id": "edge-files-geo-documents",
+      "source": "files-source",
+      "target": "extract_geo",
+      "source_port": "documents",
+      "target_port": "documents"
+    }
   ]
 }

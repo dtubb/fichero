@@ -50,6 +50,9 @@ from fichero_server.security.path_security import (
 )
 from fichero_server.core.perf import perf_span
 from fichero_server.db.paths import server_state_dir
+# Transparency -> WHITE, in one place for the whole engine. Imports no
+# PIL at module scope, so storage.py's lazy _load_pil() still holds.
+from fichero_server.media.image_flatten import flatten_for_opaque_format
 
 # PIL is bound lazily (#3985): storage is on the engine boot path, but only the
 # thumbnail/display render helpers need Pillow, and only when they run. Eagerly
@@ -858,10 +861,12 @@ def _generate_image(source: Path, dest: Path, size: tuple[int, int]) -> Path | N
             # Create thumbnail (modifies in place, maintains aspect ratio)
             img.thumbnail(size, Image.Resampling.LANCZOS)
 
-            # Convert to RGB for JPEG (handles RGBA, P mode, etc.)
+            # Convert to RGB for JPEG. Transparency composites onto white —
+            # see media/image_flatten; dropping the alpha channel is what made
+            # background-removed images render on black.
             if img.mode not in ("RGB", "L"):
-                logger.debug(f"Converting from {img.mode} to RGB")
-                img = img.convert("RGB")
+                logger.debug(f"Flattening {img.mode} onto white for JPEG")
+            img = flatten_for_opaque_format(img)
 
             img.save(dest, "JPEG", quality=settings.quality)
 
@@ -877,8 +882,7 @@ def _generate_image(source: Path, dest: Path, size: tuple[int, int]) -> Path | N
                 try:
                     with Image.open(converted) as img:
                         img.thumbnail(size, Image.Resampling.LANCZOS)
-                        if img.mode not in ("RGB", "L"):
-                            img = img.convert("RGB")
+                        img = flatten_for_opaque_format(img)
                         img.save(dest, "JPEG", quality=settings.quality)
                     logger.info(f"Generated thumbnail via sips fallback: {source.name}")
                     return dest

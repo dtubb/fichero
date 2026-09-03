@@ -57,13 +57,14 @@
     "/api/images/batch-apply": "baseline: image batch-apply endpoint, SwiftUI wiring tracked in image-editing milestone",
     "/api/images/batch-apply/{batch_id}/undo": "baseline: image batch-apply undo, SwiftUI wiring tracked in image-editing milestone",
     "/api/images/crops/batch": "baseline: image crops batch endpoint, SwiftUI wiring tracked in image-editing milestone",
-    "/api/images/{document_id}/crop": "baseline: image-edit endpoint, SwiftUI wiring tracked in image-editing milestone",
     "/api/images/{document_id}/split": "baseline: image-edit endpoint, SwiftUI wiring tracked in image-editing milestone",
     "/api/images/{document_id}/uncrop": "baseline: image-edit endpoint, SwiftUI wiring tracked in image-editing milestone",
     "/api/images/{document_id}/unsplit": "baseline: image-edit endpoint, SwiftUI wiring tracked in image-editing milestone",
     "/api/ingest/xlsx": "baseline: not yet wired",
     "/api/integrations/available": "baseline: not yet wired",
     "/api/integrations/tinderbox/notes/{external_id}/attributes": "baseline: not yet wired",
+    "/api/kg/claims/dedupe": "KG batch dedupe is CLI-first (fichero kg dedupe-claims, 2026-09-03); a curation UI runs it later.",
+    "/api/kg/entity-curation/dedupe": "KG batch dedupe is CLI-first (fichero kg dedupe-entities, 2026-09-03); a curation UI runs it later.",
     "/api/kg/export/rdf": "#2614 RDF export surface is backend/CLI/MCP-only today; no SwiftUI export/query UX yet (#2638/#2640)",
     "/api/kg/review/summary": "backend KG review-queue badge summary (#1356); SwiftUI badge wiring tracked in KG wiring backlog (#1422)",
     "/api/library-items/{item_id}/links": "#2636 generic node-relation backend landed first; Swift service/store wiring deferred to follow-up",
@@ -138,7 +139,6 @@
     "/api/workflow-execution/threads/{thread_id}/diagram.png": "baseline: not yet wired",
     "/api/workflow-execution/threads/{thread_id}/diagram.svg": "#2628 thread graph SVG is returned for backend/CLI/export flows; Activity has no SwiftUI SVG viewer yet (#2638/#2640)",
     "/api/workflow-execution/workflows/{workflow_id}/cache": "baseline: not yet wired",
-    "/api/workflow-execution/workflows/{workflow_id}/cache/stats": "baseline: not yet wired",
-    "/api/workflows/{workflow_id}/estimate-cost": "baseline: not yet wired"
+    "/api/workflow-execution/workflows/{workflow_id}/cache/stats": "baseline: not yet wired"
   }
 }

@@ -17,9 +17,48 @@ private let searchResultsLogger = Logger(
 
 /// The folder the user was browsing when a transient search ran — offered as
 /// a search scope beside the whole library (#4107/S3).
+///
+/// Scope is the BREADCRUMB (Daniel, 2026-09-02): "search the whole library,
+/// or the current breadcrumb context." The folder therefore carries the trail
+/// that named it in the chrome, not just its own leaf name — a library with
+/// three folders called "1885" makes a bare leaf label ambiguous, and the
+/// breadcrumb is the vocabulary the rest of the window already uses for
+/// "where you are". Two choices, never more.
 struct TransientSearchFolder: Equatable {
     let id: String
     let name: String
+    /// Root-first trail to this folder, WITHOUT the leading "Library"
+    /// segment (that segment IS the other choice). Empty when the ancestors
+    /// were not loaded — the leaf name still names the scope.
+    var path: [String] = []
+
+    /// The label a compact control can afford: the folder itself.
+    var shortLabel: String { name }
+
+    /// The label a menu row can afford: the whole context path.
+    var trail: String { path.isEmpty ? name : path.joined(separator: " ▸ ") }
+
+    /// Build a scope from the browsed folder, naming it the way the
+    /// breadcrumb does.
+    ///
+    /// Goes through `BreadcrumbBuilder` rather than reading `Document.name`
+    /// so the scope cannot disagree with the trail shown above it — that
+    /// builder is also what stops a page contributing its upload temp
+    /// filename (#4416).
+    static func browsing(
+        _ document: Document,
+        parentLookup: BreadcrumbBuilder.DocumentLookup
+    ) -> TransientSearchFolder {
+        let path = BreadcrumbBuilder
+            .buildSegments(from: document, parentLookup: parentLookup)
+            .filter { !$0.isRoot }
+            .map(\.name)
+        return TransientSearchFolder(
+            id: document.id,
+            name: path.last ?? document.name,
+            path: path
+        )
+    }
 }
 
 extension ContentView {
@@ -182,11 +221,21 @@ extension ContentView {
         // find-in-page machinery already exists — `ReaderSearchState` driving
         // the CSS Custom Highlight API through `WebPaneFindSync` (#4338) —
         // it was simply never told what the library search was looking for.
-        // Seeding it here means one query string reaches both surfaces from
-        // the same place the request was built, rather than a second copy of
-        // "what are we searching for" living in the reader.
-        chromeUX.readerFindQuery = query
-        transientSearchRowHits = Self.rowHits(results: store.results, stats: store.searchStats)
+        //
+        // ONE SIGNIFICANT TERM, not the raw sentence (Daniel, 2026-09-02):
+        // the search is vector — an Ask query like "workplace injuries and
+        // accidents" almost never occurs literally in a hit, so injecting
+        // the whole sentence made find-in-page silently match nothing. The
+        // find machinery matches ONE literal string, so seed the longest
+        // stopword-stripped term (the most distinctive one, likeliest to
+        // occur); an all-stopword query seeds nothing rather than a doomed
+        // find. Multi-term OR-highlighting is the finder's follow-up.
+        chromeUX.readerFindQuery = SearchSnippetHighlighter
+            .terms(in: query)
+            .max(by: { $0.count < $1.count }) ?? ""
+        transientSearchRowHits = Self.rowHits(
+            results: store.results, stats: store.searchStats, query: query
+        )
     }
 
     /// Relevance for EVERY row the grid shows — not just the document leg.
@@ -202,20 +251,29 @@ extension ContentView {
     /// The document leg wins on collision — a doc that matched text AND an
     /// entity is scored by the fused ranking, which already counted the
     /// entity evidence (`_kg_evidence_results`, RRF leg #1833 M1).
+    /// `query` rides along so every row can say WHY it is here (Daniel,
+    /// 2026-09-02) — the hit carries the terms the row emphasises, rather
+    /// than the row reaching back into the shell for them at render time.
     static func rowHits(
-        results: [SearchResult], stats: SearchResponse?
+        results: [SearchResult], stats: SearchResponse?, query: String = ""
     ) -> [String: TransientSearchRowHit] {
         var hits = Dictionary(
-            results.map { ($0.documentId, $0.rowHit) },
+            results.map { ($0.documentId, $0.rowHit(query: query)) },
             uniquingKeysWith: { first, _ in first }
         )
         guard let stats else { return hits }
         for entity in stats.entityHits {
             guard let documentId = entity.sourceDocumentIds?.first,
                   hits[documentId] == nil else { continue }
+            // A row that only the entity leg reached IS a graph match, and
+            // says so (Daniel, 2026-09-02): the chip is the difference
+            // between "this document mentions Bagadó" and "the graph
+            // connected this document to Bagadó".
             hits[documentId] = TransientSearchRowHit(
                 excerpt: entity.canonicalName,
-                score: entity.similarityScore ?? 0
+                score: entity.similarityScore ?? 0,
+                query: query,
+                matchSources: [.kg]
             )
         }
         for claim in stats.claimHits {
@@ -223,7 +281,9 @@ extension ContentView {
                   hits[documentId] == nil else { continue }
             hits[documentId] = TransientSearchRowHit(
                 excerpt: claim.text,
-                score: claim.similarityScore ?? 0
+                score: claim.similarityScore ?? 0,
+                query: query,
+                matchSources: [.kg]
             )
         }
         return hits

@@ -50,8 +50,21 @@ extension ContentView {
 
         // Capture the browsed folder BEFORE clearing the selection so the
         // results bar can offer it as a scope (#4107/S3).
+        //
+        // Named through the BREADCRUMB (Daniel, 2026-09-02: scope should
+        // "reuse the breadcrumb concept — the whole library or the current
+        // breadcrumb context"). One id-indexed dictionary, then one walk —
+        // the same shape `breadcrumbSubtitle` uses, and for the same reason:
+        // a per-hop `first(where:)` over the library is an O(depth × library)
+        // scan on a gesture the user waits on (#4602).
         if case .library(let doc) = viewMode, let doc, doc.docType == .folder {
-            transientSearchContextFolder = TransientSearchFolder(id: doc.id, name: doc.name)
+            let documentsById = Dictionary(
+                (documentStore.currentDocuments + documentStore.collections).map { ($0.id, $0) },
+                uniquingKeysWith: { first, _ in first }
+            )
+            transientSearchContextFolder = TransientSearchFolder.browsing(
+                doc, parentLookup: { documentsById[$0] }
+            )
         } else {
             transientSearchContextFolder = nil
         }
@@ -60,6 +73,26 @@ extension ContentView {
         transientSearchScopeIsFolder = transientSearchContextFolder != nil
             && UserDefaults.standard.bool(forKey: Self.searchDefaultScopeIsFolderKey)
         sidebarSelectionState.selectedItemId = nil
+        // A NEW submission owns the selection too (Daniel, 2026-09-02: a
+        // second search "does not refresh … until you click around"). A
+        // selection carried over from the previous result set survives into
+        // rows that no longer contain it, and — because `runTransientSearch`
+        // only re-points the reader `if browserSelection.isEmpty` — it also
+        // pins the reader to the OLD query's document while the grid shows
+        // the new one. Clearing here is what makes "search again" read as a
+        // fresh answer rather than an edit of the last one.
+        browserSelection = []
+        // Release a pinned library scope (Daniel, 2026-09-02: while results
+        // are showing, the other view modes "show the whole folder, not the
+        // search results"). `libraryContentColumn` reads
+        // `pinnedLibrary?.documents ?? … searchResultDocuments` — a pin is a
+        // FROZEN snapshot of the rows that were showing when it was set, and
+        // it wins over the result set in EVERY view mode: timeline, canvas,
+        // list alike. So a pinned pane made a search look like it had run and
+        // found the folder. A search takes over the library column by
+        // definition; a pin the results cannot be seen through is worse than
+        // no pin.
+        pinnedLibrary = nil
         sidebarMode = route.sidebarMode
         viewMode = route.viewMode
         activeSearchQuery = route.query

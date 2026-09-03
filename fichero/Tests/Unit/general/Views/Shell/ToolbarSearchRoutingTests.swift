@@ -18,9 +18,15 @@ final class ToolbarSearchRoutingTests: XCTestCase {
     /// stayed in ContentView+SearchResults.swift, the bar UI moved to
     /// ContentView+SearchResultsBar.swift. The seams these tests pin live
     /// across both, so "the results source" is the concatenated pair.
+    /// 2026-09-02 added the third: every control the bar used to carry folded
+    /// into `SearchFieldOptionsMenu` (Daniel: "fold it into a submenu attached
+    /// to the search field"), so the scope, the retrieval type and Save Search
+    /// are declared there now. The surface these tests pin is the search
+    /// results feature, not any one file in it.
     private static func resultsSurface() throws -> String {
         try appSource("Views/Shell/ContentView/ContentView+SearchResults.swift")
             + appSource("Views/Shell/ContentView/ContentView+SearchResultsBar.swift")
+            + appSource("Views/Library/Search/SearchFieldOptionsMenu.swift")
     }
 
     func testResultsBarErasesInsetTypeAtContentRouterBoundary() throws {
@@ -150,7 +156,10 @@ final class ToolbarSearchRoutingTests: XCTestCase {
         // result filtering, and no "All libraries" until #4110.
         XCTAssertTrue(storeSource.contains("[\"folder_id\": $0]"))
         XCTAssertTrue(resultsSource.contains("transientSearchScopeIsFolder ? transientSearchContextFolder?.id : nil"))
-        XCTAssertTrue(resultsSource.contains("Picker(\"Search scope\""))
+        // The scope control is a menu row now, and it is named the way the
+        // breadcrumb names places (2026-09-02) — but it still resolves to the
+        // SAME engine filter, which is what this test is really about.
+        XCTAssertTrue(resultsSource.contains("Picker(\"Look in\", selection: $scopeIsFolder)"))
         XCTAssertFalse(resultsSource.contains("All Libraries"))
     }
 

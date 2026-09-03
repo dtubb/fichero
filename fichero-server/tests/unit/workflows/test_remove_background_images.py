@@ -93,44 +93,30 @@ async def test_remove_background_workflow_appends_preview_editor_operation(tmp_p
     assert result["image_edit_operations"][0]["document_id"] == doc.id
 
 
-def test_remove_background_opencv_uses_cv2_when_available(monkeypatch):
-    import sys
-    import types
+def test_remove_background_opencv_preserves_page_and_text_on_dark_ground():
+    """The contour method keeps the WHOLE page — ink included — and drops the ground.
 
-    import numpy as np
+    Guards against the old per-pixel Otsu-inverted mask, whose "foreground" was
+    only the dark pixels: it deleted the paper and morphologically ate the thin
+    strokes themselves (Daniel, 2026-09-02).
+    """
+    pytest.importorskip("cv2")
 
     from fichero_server.workflows.tools.remove_background_images import remove_background
 
-    calls = {"cvtColor": 0, "threshold": 0, "morphologyEx": 0}
-    fake_cv2 = types.SimpleNamespace(
-        COLOR_RGB2GRAY=1,
-        THRESH_BINARY_INV=2,
-        THRESH_OTSU=4,
-        MORPH_OPEN=8,
-    )
+    image = Image.new("RGB", (60, 60), (10, 10, 10))
+    for x in range(15, 45):
+        for y in range(15, 45):
+            image.putpixel((x, y), (235, 230, 220))
+    for x in range(20, 40):  # a thin ink stroke on the paper
+        image.putpixel((x, 30), (30, 25, 20))
 
-    def cvt_color(rgb, code):
-        calls["cvtColor"] += 1
-        return np.zeros(rgb.shape[:2], dtype=np.uint8)
-
-    def threshold(gray, thresh, maxval, mode):
-        calls["threshold"] += 1
-        return 0, np.full(gray.shape, 255, dtype=np.uint8)
-
-    def morphology_ex(mask, op, kernel):
-        calls["morphologyEx"] += 1
-        return mask
-
-    fake_cv2.cvtColor = cvt_color
-    fake_cv2.threshold = threshold
-    fake_cv2.morphologyEx = morphology_ex
-    monkeypatch.setitem(sys.modules, "cv2", fake_cv2)
-
-    image = Image.new("RGB", (5, 5), "white")
-    cleaned = remove_background(image, method="opencv", threshold=5)
+    cleaned = remove_background(image, method="opencv", threshold=28)
 
     assert cleaned.mode == "RGBA"
-    assert calls == {"cvtColor": 1, "threshold": 1, "morphologyEx": 1}
+    assert cleaned.size[0] < 60  # cropped to the page
+    centre = cleaned.getpixel((cleaned.width // 2, cleaned.height // 2))
+    assert centre[3] > 200  # the stroke at page centre is still opaque
 
 
 def test_remove_background_opencv_falls_back_without_cv2(monkeypatch):

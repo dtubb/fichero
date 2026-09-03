@@ -247,15 +247,13 @@ extension LibraryView {
                 loadSortSettings(for: folderId)
                 syncSortOrder()
                 recomputeFiltered()
-                refreshLibraryProjection()
                 consumePendingOpen()
             }
             // Merged the two former documentStore.revision observers into one
             // (#3870) — SwiftUI would run both every revision.
             .onChange(of: documentStore.revision) { _, _ in
                 // Pending-open hand-off retry once rows arrive (#1685).
-                recomputeFiltered()
-                refreshLibraryProjection()               // no-op unless canvas/space (#3867)
+                recomputeFiltered()                     // refreshes the spatial projection too
                 if displayMode == .table { syncPagesByParentId() }  // outline-only (#3870)
                 consumePendingOpen()
             }
@@ -265,9 +263,28 @@ extension LibraryView {
                 refreshLibraryProjection()
                 if displayMode == .table { syncPagesByParentId() }
             }
+            // The ROW SET ITSELF changed (Daniel, 2026-09-02: a second search
+            // "does not refresh"). `filteredDocuments` is @State, recomputed
+            // only from the handlers in this stack — and `documents` (the
+            // parameter the shell swaps to `searchResultDocuments` while a
+            // transient search is up, ContentView+Navigation.swift) had no
+            // handler at all. The FIRST search happened to recompute because
+            // `runToolbarSearch` clears the sidebar selection, so `folderId`
+            // changed; the second search left `folderId` already nil and the
+            // grid kept the previous query's rows until an unrelated click
+            // moved something this stack does observe.
+            //
+            // Observing the input directly is the fix rather than a new token:
+            // whatever hands rows to this view — search, a pinned scope, a
+            // folder listing — the visible list is derived from THAT array.
+            // `documents` is `[Document]` and Document is Hashable, so an
+            // unchanged array (the common `revision` tick) compares equal and
+            // costs no second pass.
+            .onChange(of: documents) { _, _ in
+                recomputeFiltered()
+            }
             .onChange(of: entities) { _, _ in
                 recomputeFiltered()
-                refreshLibraryProjection()
             }
             .onChange(of: scopedLibraryReference?.activityStore.refreshToken ?? 0) { _, _ in
                 refreshPendingStatusesFromLiveUpdate()

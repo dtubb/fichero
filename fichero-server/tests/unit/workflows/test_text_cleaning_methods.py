@@ -36,6 +36,23 @@ def test_remove_repeated_phrases_keeps_unique():
     assert TextCleaner.remove_repeated_phrases("a b c d e f g h i j") == "a b c d e f g h i j"
 
 
+def test_remove_repeated_phrases_keeps_non_adjacent_recurrence():
+    # Diary formulae legitimately recur on different days; only immediately
+    # adjacent duplicates are stutter (2026-09-02, Marshall sample: the old
+    # global seen-set deleted the second "Went to church in the morning").
+    t = "Jan 1. Went to church in the morning.\nJan 8. Went to church in the morning."
+    assert TextCleaner.remove_repeated_phrases(t) == t
+
+
+def test_remove_repeated_words_keeps_legitimate_doubles():
+    t = "He said that that was all he had had since Tuesday."
+    assert TextCleaner.remove_repeated_words(t) == t
+
+
+def test_remove_repeated_words_collapses_triple_even_when_legitimate_double():
+    assert TextCleaner.remove_repeated_words("that that that") == "that that"
+
+
 # ===========================================================================
 # combine_single_word_paragraphs
 # ===========================================================================
@@ -122,9 +139,22 @@ def test_pathological_removes_guess_runs():
     assert TextCleaner.remove_pathological_patterns("[Guess:a] [Guess:b] [Guess:c] real") == "real"
 
 
-def test_pathological_strips_punctuationless_word_soup():
-    soup = " ".join(str(i) for i in range(25))  # 25 word-tokens, no punctuation
-    assert TextCleaner.remove_pathological_patterns(soup) == ""
+def test_pathological_keeps_punctuationless_prose():
+    # Handwritten diaries and HTR output routinely run 20+ words with no
+    # punctuation. Length alone is never grounds for deletion (2026-09-02:
+    # a legitimate 26-word Marshall diary sentence came back empty).
+    prose = (
+        "Went to town this morning and bought some flour sugar tea and "
+        "tobacco then walked back home along the shore before dinner and "
+        "split wood all afternoon"
+    )
+    assert TextCleaner.remove_pathological_patterns(prose) == prose
+
+
+def test_pathological_still_drops_dominated_repetition_lines():
+    # The per-line repetition check is the pathological-run guard.
+    line = "spam " * 60  # >100 chars, >50 words, one token dominates
+    assert TextCleaner.remove_pathological_patterns(line.strip()) == ""
 
 
 def test_pathological_preserves_real_punctuated_prose():
@@ -143,6 +173,29 @@ def test_pathological_preserves_real_punctuated_prose():
 
 def test_remove_specific_phrases_strips_wrapper():
     assert TextCleaner.remove_specific_phrases("here is the text: El documento") == "El documento"
+
+
+def test_remove_specific_phrases_keeps_content_around_midline_phrase():
+    # "Note:" (and other listed phrases) inside genuine document text must
+    # not swallow the content before or after it. The old `.*?phrase.*?` +
+    # DOTALL form deleted everything from the top of the text through the
+    # phrase (2026-09-02, Marshall sample).
+    t = "Jan 3. Cold morning. Note: the mail did not arrive.\nJan 4. Walked out."
+    cleaned = TextCleaner.remove_specific_phrases(t)
+    assert "Jan 3. Cold morning." in cleaned
+    assert "Jan 4. Walked out." in cleaned
+
+
+def test_remove_specific_phrases_strips_stacked_wrapper_prefixes():
+    # Multiple wrapper phrases at the head of one line all come off.
+    t = "here is the text: extracted text: El documento"
+    assert TextCleaner.remove_specific_phrases(t) == "El documento"
+
+
+def test_remove_specific_phrases_preserves_line_structure():
+    # Single newlines stay single: the old join doubled every line break.
+    t = "line one stays here\nline two stays here"
+    assert TextCleaner.remove_specific_phrases(t) == t
 
 
 def test_remove_specific_phrases_no_crash_on_blank_or_empty():
@@ -165,6 +218,18 @@ def test_clean_text_empty_and_whitespace():
 def test_clean_text_keeps_real_prose():
     prose = "The notary signed the deed before witnesses."
     assert "notary" in TextCleaner.clean_text(prose)
+
+
+def test_clean_text_end_to_end_preserves_diary_content():
+    # The full pipeline on realistic diary text: nothing may vanish.
+    t = (
+        "Went to town this morning and bought some flour sugar tea and "
+        "tobacco then walked back home along the shore before dinner and "
+        "split wood all afternoon"
+    )
+    cleaned = TextCleaner.clean_text(t)
+    for word in ("town", "flour", "tobacco", "shore", "afternoon"):
+        assert word in cleaned
 
 
 def test_clean_ocr_text_delegates_to_clean_text():
