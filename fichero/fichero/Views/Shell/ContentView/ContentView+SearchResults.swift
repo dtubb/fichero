@@ -221,10 +221,18 @@ extension ContentView {
         // find-in-page machinery already exists — `ReaderSearchState` driving
         // the CSS Custom Highlight API through `WebPaneFindSync` (#4338) —
         // it was simply never told what the library search was looking for.
-        // Seeding it here means one query string reaches both surfaces from
-        // the same place the request was built, rather than a second copy of
-        // "what are we searching for" living in the reader.
-        chromeUX.readerFindQuery = query
+        //
+        // ONE SIGNIFICANT TERM, not the raw sentence (Daniel, 2026-09-02):
+        // the search is vector — an Ask query like "workplace injuries and
+        // accidents" almost never occurs literally in a hit, so injecting
+        // the whole sentence made find-in-page silently match nothing. The
+        // find machinery matches ONE literal string, so seed the longest
+        // stopword-stripped term (the most distinctive one, likeliest to
+        // occur); an all-stopword query seeds nothing rather than a doomed
+        // find. Multi-term OR-highlighting is the finder's follow-up.
+        chromeUX.readerFindQuery = SearchSnippetHighlighter
+            .terms(in: query)
+            .max(by: { $0.count < $1.count }) ?? ""
         transientSearchRowHits = Self.rowHits(
             results: store.results, stats: store.searchStats, query: query
         )

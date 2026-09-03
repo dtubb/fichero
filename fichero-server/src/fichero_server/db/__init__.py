@@ -700,11 +700,18 @@ def _build_transcript_excerpts(
     *,
     context_chars: int = 80,
     max_excerpts: int = 3,
+    content_offset: int = 0,
 ) -> list[SearchExcerpt]:
     """Build anchored snippets from the already-indexed search text.
 
     This deliberately consumes the content returned by the search layer
     (LanceDB rows / merged result content), not a fresh document lookup.
+
+    ``content_offset`` (2026-09-02): for a SEMANTIC hit, ``content`` is the
+    matched PASSAGE, whose row carries its char_start in the document. The
+    anchors used to claim document chars 0–N for a passage that sits
+    mid-document — so the reader scrolled to the top of the page and the
+    excerpt read as an arbitrary opening line rather than the match.
     """
     if not content:
         return []
@@ -731,14 +738,14 @@ def _build_transcript_excerpts(
         return [
             SearchExcerpt(
                 text=content[:preview_end],
-                char_start=0,
-                char_end=preview_end,
+                char_start=content_offset,
+                char_end=content_offset + preview_end,
                 match_start=None,
                 match_end=None,
                 anchor=SearchAnchor(
                     document_id=document_id,
-                    char_start=0,
-                    char_end=preview_end,
+                    char_start=content_offset,
+                    char_end=content_offset + preview_end,
                 ),
             )
         ]
@@ -750,14 +757,14 @@ def _build_transcript_excerpts(
         excerpts.append(
             SearchExcerpt(
                 text=content[excerpt_start:excerpt_end],
-                char_start=excerpt_start,
-                char_end=excerpt_end,
-                match_start=match_start,
-                match_end=match_end,
+                char_start=content_offset + excerpt_start,
+                char_end=content_offset + excerpt_end,
+                match_start=content_offset + match_start,
+                match_end=content_offset + match_end,
                 anchor=SearchAnchor(
                     document_id=document_id,
-                    char_start=match_start,
-                    char_end=match_end,
+                    char_start=content_offset + match_start,
+                    char_end=content_offset + match_end,
                 ),
             )
         )
@@ -5576,10 +5583,15 @@ class Database(DatabaseEmbeddingMixin):
             for result in paginated_results:
                 content = result["content"]
                 highlights = None
+                # A semantic hit's content is the matched PASSAGE; anchor its
+                # excerpt where the passage actually sits in the document.
+                raw_offset = result["metadata"].get("char_start")
+                content_offset = raw_offset if isinstance(raw_offset, int) else 0
                 transcript_excerpts = _build_transcript_excerpts(
                     document_id=result["document_id"],
                     content=content,
                     query=query,
+                    content_offset=max(0, content_offset),
                 )
 
                 if highlight_results and query:

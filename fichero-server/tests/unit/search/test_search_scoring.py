@@ -510,3 +510,55 @@ class TestKGFusionLeg:
             db, "nothing", search_type="hybrid", min_score=0.55
         )
         assert total == 0
+
+
+class TestExcerptPassageAnchoring:
+    """A semantic hit's excerpt anchors where the PASSAGE sits (2026-09-02).
+
+    The vector leg returns the matched passage's text plus its char_start in
+    the document; the excerpt builder used to claim document chars 0..N for
+    a passage that sits mid-document — the reader scrolled to the top of the
+    page and the excerpt read as an arbitrary opening line.
+    """
+
+    def test_pure_semantic_fallback_carries_the_passage_offset(self) -> None:
+        from fichero_server.db import _build_transcript_excerpts
+
+        # No literal query term in the passage — the semantic case.
+        excerpts = _build_transcript_excerpts(
+            document_id="doc1",
+            content="the doctor was sent out to dredge two after the fall",
+            query="workplace injuries",
+            content_offset=1200,
+        )
+        assert len(excerpts) == 1
+        ex = excerpts[0]
+        assert ex.match_start is None  # honest: no literal match
+        assert ex.char_start == 1200
+        assert ex.anchor.char_start == 1200
+        assert ex.anchor.char_end > 1200
+
+    def test_literal_match_offsets_shift_too(self) -> None:
+        from fichero_server.db import _build_transcript_excerpts
+
+        excerpts = _build_transcript_excerpts(
+            document_id="doc1",
+            content="a report of the accident at dredge two",
+            query="accident",
+            content_offset=500,
+        )
+        assert excerpts, "a literal term must anchor an excerpt"
+        ex = excerpts[0]
+        local = "a report of the accident at dredge two".find("accident")
+        assert ex.match_start == 500 + local
+        assert ex.anchor.char_start == 500 + local
+
+    def test_no_offset_behaves_as_before(self) -> None:
+        from fichero_server.db import _build_transcript_excerpts
+
+        excerpts = _build_transcript_excerpts(
+            document_id="doc1",
+            content="plain page content with nothing matching",
+            query="zzz-not-here",
+        )
+        assert excerpts[0].char_start == 0
