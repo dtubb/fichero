@@ -99,7 +99,7 @@ extension LibraryView {
                                     // governs it through `IconCellIdentity`.
                                     .overlay(alignment: .topTrailing) {
                                         if let hit = searchRowHits[doc.id] {
-                                            SearchRelevanceBadge(score: hit.score)
+                                            SearchRelevanceBadge(score: hit.displayScore)
                                                 .padding(.horizontal, 4)
                                                 .padding(.vertical, 1)
                                                 .background(.thinMaterial, in: Capsule())

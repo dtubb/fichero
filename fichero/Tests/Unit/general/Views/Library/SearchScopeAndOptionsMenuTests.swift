@@ -110,7 +110,9 @@ final class SearchScopeAndOptionsMenuTests: XCTestCase {
         XCTAssertTrue(source.contains("Picker(\"Interpretation\", selection: $mode)"))
         XCTAssertTrue(source.contains("Text(\"Ask\").tag(SearchFieldMode.ask)"))
         XCTAssertTrue(source.contains("Text(\"Keyword\").tag(SearchFieldMode.keyword)"))
-        XCTAssertTrue(source.contains("Picker(\"Search Type\", selection: $searchType)"))
+        // The retrieval type is in the menu still, re-cut as the three-rung
+        // ladder (2026-09-02) — see SearchRetrievalTierTests for its rungs.
+        XCTAssertTrue(source.contains("ForEach(SearchRetrievalTier.ladder)"))
         XCTAssertTrue(source.contains("Label(\"Save Search\", systemImage: \"square.and.arrow.down\")"))
     }
 

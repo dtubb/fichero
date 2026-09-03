@@ -265,10 +265,15 @@ extension ContentView {
         for entity in stats.entityHits {
             guard let documentId = entity.sourceDocumentIds?.first,
                   hits[documentId] == nil else { continue }
+            // A row that only the entity leg reached IS a graph match, and
+            // says so (Daniel, 2026-09-02): the chip is the difference
+            // between "this document mentions Bagadó" and "the graph
+            // connected this document to Bagadó".
             hits[documentId] = TransientSearchRowHit(
                 excerpt: entity.canonicalName,
                 score: entity.similarityScore ?? 0,
-                query: query
+                query: query,
+                matchSources: [.kg]
             )
         }
         for claim in stats.claimHits {
@@ -277,7 +282,8 @@ extension ContentView {
             hits[documentId] = TransientSearchRowHit(
                 excerpt: claim.text,
                 score: claim.similarityScore ?? 0,
-                query: query
+                query: query,
+                matchSources: [.kg]
             )
         }
         return hits

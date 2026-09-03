@@ -36,6 +36,12 @@ extension ContentView {
         VStack(spacing: 0) {
             searchResultsHeaderRow(query: query, store: store)
 
+            // WHAT RAN (Daniel, 2026-09-02: "the user must SEE what ran").
+            // One quiet line under the headline — visibility is the point,
+            // so it is always there while a search is presented, and it is
+            // never a control.
+            retrievalLegsRow(store: store)
+
             // What the AI actually searched (#4116) — always visible so
             // the compiled query is inspectable; edit the toolbar field
             // to override. Compilation failure shows too, never hidden.
@@ -192,13 +198,29 @@ extension ContentView {
     @ViewBuilder
     private func searchCountLabel(query: String, store: SearchStore) -> some View {
         let total = searchResultDocuments.count
+        // HONESTY (Daniel, 2026-09-02): when the engine reports
+        // `weak_semantic_only` it found no literal and no graph evidence and
+        // every vector neighbour is far away. "45 results" over that state
+        // claims 45 matches the search did not make. The header says what
+        // actually happened instead, and names the best similarity so the
+        // weakness is stated, not left to be inferred from the row badges.
+        let headline: String = {
+            guard let stats = store.searchStats, stats.weakSemanticOnly else {
+                return SearchHonestySummary.countHeadline(
+                    total: total, query: query, scopeName: searchScopeName
+                )
+            }
+            return SearchHonestySummary.weakHeadline(
+                total: total, bestSimilarity: stats.bestSemanticSimilarity
+            )
+        }()
         HStack(spacing: 6) {
             // The header must say WHERE it looked (Daniel, 2026-09-01: the
             // bar read as though the search were scoped to the open folder,
             // and once named the wrong library). The scope comes from the
             // same state the request is built from, so the sentence and the
             // query cannot drift apart.
-            Text("\(total) result\(total == 1 ? "" : "s") for “\(query)” in \(searchScopeName)")
+            Text(headline)
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 // ONE line, truncating — in a narrow pane this wrapped into a
@@ -251,12 +273,45 @@ extension ContentView {
             searchType: $transientSearchType,
             libraryName: searchChromeLibraryName,
             contextFolder: transientSearchContextFolder,
+            // What the knowledge graph actually has (Daniel, 2026-09-02:
+            // "with no graph or garbage entities the graph must be OFF").
+            // `nil` when no response has reported it — the rung stays
+            // enabled rather than being disabled on an unasked question.
+            reviewedEntityCount: store.searchStats?.reviewedEntityCount,
             // Save is offered for a result set worth saving, and never over a
             // failure — saving a query that just errored would persist a
             // question the library could not answer.
             canSave: !store.results.isEmpty && store.searchFailure == nil,
             onSave: { Task { await saveTransientSearch() } }
         )
+    }
+
+    /// The legs line: how many rows each retrieval leg contributed, and
+    /// whether the graph leg ran at all.
+    ///
+    /// Absent over a failure, an in-flight query, and an engine that reports
+    /// no legs — the line describes a completed retrieval or it says nothing.
+    @ViewBuilder
+    private func retrievalLegsRow(store: SearchStore) -> some View {
+        if let stats = store.searchStats,
+           store.searchFailure == nil,
+           !store.isSearching,
+           let legs = SearchHonestySummary.legsLine(
+               legs: stats.legs, graphLegEnabled: stats.graphLegEnabled
+           ) {
+            HStack(spacing: 6) {
+                Text(legs)
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+                    .help("Which retrieval legs produced these results")
+                    .accessibilityIdentifier("library.search.legs")
+                Spacer()
+            }
+            .padding(.horizontal, 12)
+            .padding(.bottom, 4)
+            .background(.bar)
+        }
     }
 
     @ViewBuilder

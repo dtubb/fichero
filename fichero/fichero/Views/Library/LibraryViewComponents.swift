@@ -243,10 +243,21 @@ struct MailStyleRow: View {
                     }
 
                     if let hit = searchHit {
+                        // WHY this row matched, beside HOW WELL (Daniel,
+                        // 2026-09-02). The chips come off the engine's
+                        // `match_sources`; a semantic-only row draws none,
+                        // because the badge already says that.
+                        SearchMatchSourceChips(sources: hit.matchSources)
+
                         // One spelling of the relevance number across view
                         // modes (Daniel, 2026-09-01) — icon view mounts the
                         // same view rather than growing a second copy.
-                        SearchRelevanceBadge(score: hit.score)
+                        //
+                        // `displayScore`, not `score`: for a semantic-only hit
+                        // the fused rank score renormalises the top row toward
+                        // 100%, which dressed a weak 0.73 neighbour as an 87%
+                        // match. The badge shows the RAW cosine there.
+                        SearchRelevanceBadge(score: hit.displayScore)
                             .font(.caption.monospacedDigit())
                     }
                 }

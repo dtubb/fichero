@@ -259,7 +259,16 @@ class SearchService {
             suggestions: generated.suggestions,
             compiledQuery: generated.compiledQuery,
             compilationError: generated.compilationError,
-            renderedTotal: generated.renderedTotal
+            renderedTotal: generated.renderedTotal,
+            // The honesty surface (Daniel, 2026-09-02) — carried through
+            // verbatim; nothing here is derived on the client, because a
+            // number the UI computes about the engine is a second source of
+            // truth for what the engine did.
+            legs: generated.legs?.additionalProperties,
+            graphLegEnabled: generated.graphLegEnabled ?? false,
+            bestSemanticSimilarity: generated.bestSemanticSimilarity,
+            weakSemanticOnly: generated.weakSemanticOnly ?? false,
+            kgEntities: generated.kgEntities?.additionalProperties
         )
         // #4505: the ONE place both numbers are known — the engine's claim and
         // what decoded. Checked at the response boundary, not in a view: a leg

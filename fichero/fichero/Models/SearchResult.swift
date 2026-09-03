@@ -69,6 +69,35 @@ struct TransientSearchRowHit: Equatable, Sendable {
     /// does not contain cannot make it.
     var query: String = ""
 
+    /// The RAW cosine the vector leg gave this row, when it had one
+    /// (`metadata.semantic_similarity`).
+    ///
+    /// The fused `score` renormalises the top hit toward ~1.0, so a weak 0.73
+    /// neighbour arrived at the row dressed as an 87% match (Daniel,
+    /// 2026-09-02). The badge shows THIS number for a row the vector leg
+    /// alone claimed; see `displayScore`.
+    var semanticSimilarity: Double?
+
+    /// Which legs claimed this row (`metadata.match_sources`). Empty when the
+    /// engine did not say — an older engine, or a leg that rides no metadata.
+    var matchSources: [SearchMatchSource] = []
+
+    /// True when nothing but the vector leg claimed this row, so the fused
+    /// rank score is a renormalised cosine and nothing more.
+    var isSemanticOnly: Bool {
+        matchSources == [.semantic]
+    }
+
+    /// The number the badge shows.
+    ///
+    /// For a semantic-only row that is the RAW cosine — the honest answer to
+    /// "how close is this?". For a row with literal or graph evidence the
+    /// fused score is what ranked it against the others, and it stands.
+    var displayScore: Double {
+        if isSemanticOnly, let semanticSimilarity { return semanticSimilarity }
+        return score
+    }
+
     /// The excerpt as the row should read it: windowed onto the first match
     /// instead of the top of the page, with the query's terms emphasised.
     /// `nil` when the engine gave no excerpt, so the row can fall back to the
@@ -87,7 +116,29 @@ extension SearchResult {
         TransientSearchRowHit(
             excerpt: transcriptExcerpts.first?.text ?? highlights?.first ?? contentPreview,
             score: score,
-            query: query
+            query: query,
+            semanticSimilarity: metadataSemanticSimilarity,
+            matchSources: SearchMatchSource.parse(metadataMatchSources)
         )
+    }
+
+    /// `metadata.semantic_similarity` — the raw cosine, tolerant of the
+    /// number arriving as either a Double or an Int-shaped 1.0.
+    var metadataSemanticSimilarity: Double? {
+        switch metadata["semantic_similarity"]?.value {
+        case let double as Double: return double
+        case let int as Int: return Double(int)
+        default: return nil
+        }
+    }
+
+    /// `metadata.match_sources` — the legs that claimed this row. The array
+    /// arrives through `AnyCodable`/`OpenAPIValueContainer`, so the elements
+    /// are read one at a time rather than cast wholesale to `[String]`.
+    var metadataMatchSources: [String] {
+        guard let value = metadata["match_sources"]?.value else { return [] }
+        if let strings = value as? [String] { return strings }
+        guard let raw = value as? [Any] else { return [] }
+        return raw.compactMap { $0 as? String }
     }
 }

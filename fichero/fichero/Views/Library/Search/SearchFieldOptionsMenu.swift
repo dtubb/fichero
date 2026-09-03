@@ -30,7 +30,8 @@ struct SearchFieldOptionsMenu: View {
     /// Scope (#4107/S3): false = the whole library, true = the breadcrumb
     /// context. Two choices, never three (Daniel: "dead simple").
     @Binding var scopeIsFolder: Bool
-    /// Retrieval type (#4112/S8): hybrid / semantic / fulltext.
+    /// Retrieval tier (#4112/S8, re-cut as a ladder 2026-09-02): the raw
+    /// request value, so the menu and the request cannot disagree.
     @Binding var searchType: String
 
     /// What the whole-library choice is CALLED — the library the results
@@ -41,6 +42,10 @@ struct SearchFieldOptionsMenu: View {
     /// library root: there is no second scope to choose, so the scope
     /// section does not appear rather than showing one dead option.
     let contextFolder: TransientSearchFolder?
+    /// Reviewed knowledge-graph entities in this library, from the last
+    /// response's `kg_entities.reviewed`. `nil` = the engine did not say, and
+    /// an unknown count keeps the graph rung ENABLED (honest, not cautious).
+    let reviewedEntityCount: Int?
     /// Save is offered only for a result set there is something to save.
     let canSave: Bool
     let onSave: () -> Void
@@ -64,10 +69,16 @@ struct SearchFieldOptionsMenu: View {
 
         Divider()
 
-        Picker("Search Type", selection: $searchType) {
-            Text("Hybrid").tag("hybrid")
-            Text("Semantic").tag("semantic")
-            Text("Full Text").tag("fulltext")
+        // The retrieval LADDER (Daniel, 2026-09-02) — three rungs in cost
+        // order, each adding a leg to the one below, and the user can see
+        // which one is running. Not a `Picker`: the top rung has to be able
+        // to go dead with a sentence explaining why, and a Picker row cannot
+        // carry its own `.disabled` + `.help`. Buttons with an explicit
+        // checkmark are the same radio gesture with that control kept.
+        Section("Search Type") {
+            ForEach(SearchRetrievalTier.ladder) { tier in
+                retrievalTierRow(tier)
+            }
         }
 
         if canSave {
@@ -81,6 +92,29 @@ struct SearchFieldOptionsMenu: View {
             }
         }
     }
+
+    /// One rung. Checked when it is the tier the next request will use — read
+    /// through `SearchRetrievalTier(requestValue:)` so a saved search carrying
+    /// the legacy pure-vector `"semantic"` still shows a checked row.
+    @ViewBuilder
+    private func retrievalTierRow(_ tier: SearchRetrievalTier) -> some View {
+        let isSelected = SearchRetrievalTier(requestValue: searchType) == tier
+        let isAvailable = tier != .semanticGraph
+            || SearchRetrievalTier.graphTierAvailable(reviewedEntities: reviewedEntityCount)
+        Button {
+            searchType = tier.requestValue
+        } label: {
+            if isSelected {
+                Label(tier.title, systemImage: "checkmark")
+            } else {
+                Text(tier.title)
+            }
+        }
+        .disabled(!isAvailable)
+        // A dead row that does not say why it is dead is the defect this
+        // whole change exists to remove.
+        .help(isAvailable ? tier.help : SearchRetrievalTier.noGraphHelp)
+    }
 }
 
 /// The loupe button that hosts `SearchFieldOptionsMenu`.
@@ -93,6 +127,7 @@ struct SearchFieldOptionsMenuButton: View {
     @Binding var searchType: String
     let libraryName: String
     let contextFolder: TransientSearchFolder?
+    let reviewedEntityCount: Int?
     let canSave: Bool
     let onSave: () -> Void
 
@@ -104,6 +139,7 @@ struct SearchFieldOptionsMenuButton: View {
                 searchType: $searchType,
                 libraryName: libraryName,
                 contextFolder: contextFolder,
+                reviewedEntityCount: reviewedEntityCount,
                 canSave: canSave,
                 onSave: onSave
             )
