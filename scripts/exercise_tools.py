@@ -287,6 +287,11 @@ async def main() -> int:
                          "no cost, the whole registry in one page")
     ap.add_argument("--markdown", help="also write a readable report here: one "
                                        "section per tool, prompt and output in full")
+    ap.add_argument("--max-cloud-calls", type=int, default=0,
+                    help="hard budget for CLOUD model calls (apple/mlx/ollama "
+                         "are free and uncounted). 0 = unlimited. When the "
+                         "budget is spent, cloud fallbacks stop and the row "
+                         "says so instead of silently costing more.")
     ap.add_argument("--assert-ok", action="store_true",
                     help="exit non-zero if any tool errored or answered without "
                          "calling the model")
@@ -351,6 +356,13 @@ async def main() -> int:
         print(f"\n{len(tools)} tools")
         return 0
 
+    local_providers = {"apple", "mlx", "ollama", "mock"}
+
+    def cloud_calls_so_far() -> int:
+        return sum(
+            1 for c in recorder.calls if (c.get("provider") or "") not in local_providers
+        )
+
     recorder = Recorder()
     recorder.install()
     state = {"input_files": [file_path], "library_path": args.library,
@@ -364,6 +376,13 @@ async def main() -> int:
             if inputs is None:
                 skipped.append(tool_def.name)
                 continue
+            if (
+                args.max_cloud_calls
+                and llm_config.provider not in local_providers
+                and cloud_calls_so_far() >= args.max_cloud_calls
+            ):
+                print(f"  cloud budget spent — stopping before {tool_def.name}")
+                break
             print(f"  → {tool_def.name} …", flush=True)
             row = await run_one(tool_def.name, tool_def, inputs, state,
                                 llm_config, recorder,
@@ -373,7 +392,22 @@ async def main() -> int:
             # stack cannot do (describe, classify, table) fails or answers
             # without calling anything, and that is not a verdict on the tool —
             # it is a verdict on the model. Ask the other one before judging.
-            if fallback_config is not None and (
+            budget_left = (
+                args.max_cloud_calls - cloud_calls_so_far()
+                if args.max_cloud_calls
+                else None
+            )
+            if (
+                fallback_config is not None
+                and (not row["ok"] or not row["called_model"])
+                and budget_left is not None
+                and budget_left <= 0
+                and fallback_config.provider not in local_providers
+            ):
+                row["fallback_skipped"] = (
+                    f"cloud budget spent ({args.max_cloud_calls} calls)"
+                )
+            elif fallback_config is not None and (
                 not row["ok"] or not row["called_model"]
             ):
                 retry = await run_one(tool_def.name, tool_def, inputs, state,

@@ -310,7 +310,7 @@ async def extract(
     # Combine data from all files
     combined_data = all_data[0] if len(all_data) == 1 else all_data
 
-    return {
+    out = {
         "text": "\n\n".join(texts),
         "data": combined_data,
         "value": combined_data,
@@ -319,3 +319,13 @@ async def extract(
         "results": results,
         "artifacts": artifact_ids,
     }
+    # Every file failed → the run failed. Per-file errors alone leave the
+    # top-level result looking green (found by the 2026-09-03 tool sweep:
+    # Apple Vision refused every page and extract still answered ok with
+    # empty text/value). Never report success for a run that produced nothing.
+    errors = [r["error"] for r in results if r.get("error")]
+    if errors and len(errors) == len(results):
+        out["error"] = errors[0] if len(errors) == 1 else (
+            f"All {len(errors)} file(s) failed; first error: {errors[0]}"
+        )
+    return out
