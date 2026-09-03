@@ -74,6 +74,6 @@ Execution tracking lives in GitHub:
 
 ## Release State
 
-Fichero is in Public Beta, under active development. The repository contains the
+Fichero is under active development. The repository contains the
 app, engine, docs site, release scripts, and worker workflow used to ship dated
-builds. But, Fichero is usable, in-progress software. It is not finished.
+builds. While Fichero is usable, it is in-progress and unfinished software.
