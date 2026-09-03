@@ -80,3 +80,100 @@ def test_adaptive_binarize_on_a_flat_image_is_all_white():
     image = Image.new("L", (3, 2), 77)
 
     assert set(_pixels(apply_operation(image, {"op": "adaptive_binarize", "params": {}}))) == {(255, 255, 255)}
+
+
+def _scan_on_dark_ground() -> Image.Image:
+    """A 40x40 'photographed page': dark ground, light paper, one ink stroke."""
+    image = Image.new("RGB", (40, 40), (15, 15, 15))
+    for x in range(10, 30):
+        for y in range(10, 30):
+            image.putpixel((x, y), (235, 230, 220))
+    for x in range(14, 26):
+        image.putpixel((x, 20), (40, 35, 30))
+    return image
+
+
+def test_remove_scan_background_keeps_paper_and_ink_drops_ground():
+    from fichero_server.media.image_ops import remove_scan_background
+
+    cleaned = remove_scan_background(_scan_on_dark_ground(), threshold=28)
+
+    assert cleaned.mode == "RGBA"
+    assert cleaned.getpixel((0, 0))[3] == 0  # ground is gone
+    assert cleaned.getpixel((12, 12))[3] == 255  # paper survives
+    assert cleaned.getpixel((20, 20))[3] == 255  # ink survives
+
+
+def test_remove_scan_background_preserves_enclosed_paper():
+    """Paper enclosed by ink (the counter of an 'o') must stay opaque.
+
+    The old per-pixel colour difference erased EVERY background-coloured
+    pixel; the flood fill only erases what connects to the border.
+    """
+    from fichero_server.media.image_ops import remove_scan_background
+
+    image = Image.new("RGB", (30, 30), (240, 240, 240))
+    for x in range(8, 22):  # closed dark ring
+        image.putpixel((x, 8), (0, 0, 0))
+        image.putpixel((x, 21), (0, 0, 0))
+    for y in range(8, 22):
+        image.putpixel((8, y), (0, 0, 0))
+        image.putpixel((21, y), (0, 0, 0))
+
+    cleaned = remove_scan_background(image, threshold=28)
+
+    assert cleaned.getpixel((0, 0))[3] == 0  # border-connected paper removed
+    assert cleaned.getpixel((10, 8))[3] == 255  # the ink ring survives
+    assert cleaned.getpixel((15, 15))[3] == 255  # enclosed paper survives
+
+
+def test_remove_scan_background_downscaled_flood_path():
+    """Images beyond the flood working size take the downscale branch."""
+    from fichero_server.media.image_ops import remove_scan_background
+
+    image = Image.new("RGB", (1200, 40), (15, 15, 15))
+    for x in range(300, 900):
+        for y in range(10, 30):
+            image.putpixel((x, y), (235, 235, 235))
+
+    cleaned = remove_scan_background(image, threshold=28)
+
+    assert cleaned.getpixel((5, 5))[3] == 0
+    assert cleaned.getpixel((600, 20))[3] == 255
+
+
+def _speckled_uneven_page() -> Image.Image:
+    """A 256x256 page with an illumination gradient, speckles and a stroke."""
+    image = Image.new("RGB", (256, 256))
+    for y in range(256):
+        shade = 140 + int(y * 90 / 255)  # dark top, light bottom
+        for x in range(256):
+            image.putpixel((x, y), (shade, shade, shade))
+    for x, y in ((40, 40), (200, 60), (100, 200)):  # isolated speckles
+        image.putpixel((x, y), (20, 20, 20))
+    for x in range(80, 176):  # a 3px-thick stroke survives a median filter
+        for y in range(120, 123):
+            image.putpixel((x, y), (25, 25, 25))
+    return image
+
+
+def test_fuzzy_clean_removes_speckles_and_keeps_strokes():
+    from fichero_server.media.image_ops import apply_fuzzy_clean
+
+    cleaned = apply_fuzzy_clean(_speckled_uneven_page(), despeckle_radius=3, background_clean=True)
+
+    for x, y in ((40, 40), (200, 60), (100, 200)):
+        assert cleaned.getpixel((x, y))[0] > 150, "speckle must despeckle to paper"
+    assert cleaned.getpixel((128, 121))[0] < 128, "ink stroke must survive"
+
+
+def test_fuzzy_clean_flattens_uneven_illumination():
+    """The shadowed top of the page must come out as light as the bottom."""
+    from fichero_server.media.image_ops import apply_fuzzy_clean
+
+    cleaned = apply_fuzzy_clean(_speckled_uneven_page(), despeckle_radius=3, background_clean=True)
+
+    top = cleaned.getpixel((20, 12))[0]
+    bottom = cleaned.getpixel((20, 244))[0]
+    assert top > 200 and bottom > 200
+    assert abs(top - bottom) < 25
