@@ -134,8 +134,12 @@ struct ImageWithCursorTracking: NSViewRepresentable {
         // native size centred in the frame (`.scaleNone`), the same rule
         // DrawnImageFrame.centeredNativeRect encodes for the overlays.
         imageView.onPointer = { [weak imageView] phase, viewPoint, event in
-            guard let imageView, let image = imageView.image, let onPointer = self.onPointer else { return }
-            let drawn = DrawnImageFrame.centeredNativeRect(of: image.size, in: imageView.bounds)
+            guard let imageView, imageView.image != nil, let onPointer = self.onPointer else { return }
+            // ONE rule, shared with the overlay (2026-09-03): this used to
+            // call `centeredNativeRect` directly, so a non-`.scaleNone`
+            // image view would have mapped clicks through the centred-native
+            // rule while the overlay drew through the aspect-fit one.
+            let drawn = DrawnImageFrame.drawnRect(in: imageView)
             guard drawn.width > 0, drawn.height > 0 else { return }
             let normalized = CGPoint(
                 x: (viewPoint.x - drawn.minX) / drawn.width,

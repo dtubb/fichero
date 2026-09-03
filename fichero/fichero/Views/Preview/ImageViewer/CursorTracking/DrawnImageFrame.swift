@@ -20,21 +20,22 @@ enum DrawnImageFrame {
     /// inset is a no-op.
     @MainActor
     static func compute(scrollView: NSScrollView, imageView: NSView) -> CGRect? {
-        var imageRect = imageView.bounds
-        if let hostView = imageView as? NSImageView, let img = hostView.image {
-            // The preview's image view uses `.scaleNone`: the image is drawn
-            // at its NATIVE size, centred in the (letterbox-expanded) bounds
-            // — never fitted to them. Aspect-fitting here inflated the frame
-            // whenever the view was slack on BOTH axes (zoomed out past fit),
-            // so every box grew with it and spilled off the page (Daniel,
-            // 2026-09-01: "text regions don't update" at 47%). Proportional
-            // scaling modes keep the fit maths.
-            imageRect = hostView.imageScaling == .scaleNone
-                ? centeredNativeRect(of: img.size, in: imageRect)
-                : aspectFitRect(of: img.size, in: imageRect)
-        }
+        let imageRect = drawnRect(in: imageView)
+        // The CLIP VIEW, not `scrollView.bounds` (Daniel, 2026-09-03:
+        // "marquee still offset down and to the right … disconnected from
+        // the mouse"). With legacy scrollers — the system's "Show scroll
+        // bars: Always", which overrides `scrollerStyle` — the clip view is
+        // the scroll view minus ~17pt of gutter on the right and bottom.
+        // `updateVisibleRect` already derives the normalized window from
+        // `documentVisibleRect`, which IS clipped to the clip view; framing
+        // the overlay to the wider `bounds` stretched that window across an
+        // extra 17pt on each axis. Not a constant offset but a ~2% SCALE
+        // error, so the band ran away from the pointer the further it got
+        // from the top-left corner — measured +2pt at 100pt out, +15pt at
+        // 700pt out. Both halves must name the same viewport.
+        let viewport = scrollView.convert(scrollView.contentView.bounds, from: scrollView.contentView)
         let visible = scrollView.convert(imageRect, from: imageView)
-            .intersection(scrollView.bounds)
+            .intersection(viewport)
         guard !visible.isNull, visible.width > 0, visible.height > 0 else { return nil }
         let topLeftY = scrollView.isFlipped
             ? visible.minY
@@ -43,6 +44,28 @@ enum DrawnImageFrame {
             x: visible.minX, y: topLeftY,
             width: visible.width, height: visible.height
         )
+    }
+
+    /// Where the image lands inside `imageView`'s OWN bounds — the one rule
+    /// both halves of the pointer round-trip must use. The overlay maps
+    /// normalized boxes out through it; `ImageWithCursorTracking` maps mouse
+    /// points in through it. It lived in two places until 2026-09-03, and a
+    /// second copy of a coordinate rule is a second chance to disagree.
+    @MainActor
+    static func drawnRect(in imageView: NSView) -> CGRect {
+        guard let hostView = imageView as? NSImageView, let img = hostView.image else {
+            return imageView.bounds
+        }
+        // The preview's image view uses `.scaleNone`: the image is drawn
+        // at its NATIVE size, centred in the (letterbox-expanded) bounds
+        // — never fitted to them. Aspect-fitting here inflated the frame
+        // whenever the view was slack on BOTH axes (zoomed out past fit),
+        // so every box grew with it and spilled off the page (Daniel,
+        // 2026-09-01: "text regions don't update" at 47%). Proportional
+        // scaling modes keep the fit maths.
+        return hostView.imageScaling == .scaleNone
+            ? centeredNativeRect(of: img.size, in: imageView.bounds)
+            : aspectFitRect(of: img.size, in: imageView.bounds)
     }
 
     /// Where `.scaleNone` + `.alignCenter` draws the image: native size,
