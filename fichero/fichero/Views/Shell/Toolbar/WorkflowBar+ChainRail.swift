@@ -96,40 +96,45 @@ extension WorkflowBar {
     /// the chip's right-click offers — one wiring, two doors.
     @ViewBuilder
     private func modelToken(for step: StagedWorkflowStep, at index: Int) -> some View {
-        Menu {
-            modelMenu(forStepAt: index)
-        } label: {
-            // A real LOZENGE, not a whisper of one (Daniel, 2026-08-29:
-            // "model needs lozenges") — same weight as the subject chip so
-            // the sentence's three token kinds read as one family.
-            //
-            // It NAMES the model even when nothing is pinned (Daniel,
-            // 2026-08-31): "default model" told the reader that a model had
-            // been chosen without saying which, and the whole point of the
-            // sentence is that a paid run states what it will actually do.
-            // Still TEXT — the name is the fact a paid run has to state — but
-            // with the family's mark in front of it (Daniel, 2026-09-01:
-            // "keep the model as text but add the provider/model icon"). The
-            // logo is what lets the eye find "the Claude step" in an
-            // eight-step sentence without reading every lozenge.
-            Label {
+        // A real LOZENGE, not a whisper of one (Daniel, 2026-08-29:
+        // "model needs lozenges") — same weight as the subject chip so
+        // the sentence's three token kinds read as one family.
+        //
+        // It NAMES the model even when nothing is pinned (Daniel,
+        // 2026-08-31): "default model" told the reader that a model had
+        // been chosen without saying which, and the whole point of the
+        // sentence is that a paid run states what it will actually do.
+        // Still TEXT — the name is the fact a paid run has to state — but
+        // with the family's mark in front of it (Daniel, 2026-09-01:
+        // "keep the model as text but add the provider/model icon"). The
+        // logo is what lets the eye find "the Claude step" in an
+        // eight-step sentence without reading every lozenge.
+        //
+        // The mark sits BESIDE the menu, not inside its label (Daniel,
+        // 2026-09-03, third "still giant" round): a Menu label is re-hosted
+        // by AppKit, which drops SwiftUI frame modifiers on images — so the
+        // logo asset rendered at NATIVE size no matter what frame the mark
+        // asked for. Outside the label it is ordinary SwiftUI layout and the
+        // 12pt side finally holds. The text stays the click target.
+        HStack(spacing: 3) {
+            ModelFamilyMark(
+                model: step.modelOverride ?? resolvedDefaultModelId(for: step),
+                provider: step.providerOverride ?? resolvedDefaultModelProvider(for: step),
+                side: 12
+            )
+            Menu {
+                modelMenu(forStepAt: index)
+            } label: {
                 Text(step.hasModelOverride
                      ? step.modelDescription
                      : resolvedDefaultModelLabel(for: step))
-            } icon: {
-                ModelFamilyMark(
-                    model: step.modelOverride ?? resolvedDefaultModelId(for: step),
-                    provider: step.providerOverride ?? resolvedDefaultModelProvider(for: step),
-                    side: 12
-                )
             }
-            .labelStyle(ChainTokenLabelStyle())
-            .foregroundStyle(step.hasModelOverride ? Color.primary : Color.secondary)
-            .chainTokenLozenge(tint: Color.accentColor.opacity(0.10))
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
         }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .fixedSize()
+        .foregroundStyle(step.hasModelOverride ? Color.primary : Color.secondary)
+        .chainTokenLozenge(tint: Color.accentColor.opacity(0.10))
         .disabled(isRunning)
         .help(step.hasModelOverride
               ? "This step is pinned to \(step.modelDescription) — click to change it"
