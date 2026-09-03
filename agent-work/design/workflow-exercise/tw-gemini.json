@@ -1,0 +1,84 @@
+{
+  "pass": "tw-gemini",
+  "settings": {
+    "audio_model": "apple-speech",
+    "audio_provider": "apple",
+    "embeddings_model": "",
+    "embeddings_provider": "",
+    "large_model": "apple-intelligence",
+    "large_provider": "apple",
+    "max_tokens": "",
+    "medium_model": "apple-intelligence",
+    "medium_provider": "apple",
+    "primary_language": "",
+    "prompt_prefix": "",
+    "small_model": "google/gemini-3.1-flash-lite",
+    "small_provider": "openrouter",
+    "temperature": "",
+    "text_model": "google/gemini-3.1-flash-lite",
+    "text_provider": "openrouter",
+    "video_model": "",
+    "video_provider": "",
+    "vision_large_model": "apple-vision",
+    "vision_large_provider": "apple",
+    "vision_medium_model": "apple-vision",
+    "vision_medium_provider": "apple",
+    "vision_model": "google/gemini-3.1-flash-lite",
+    "vision_provider": "openrouter",
+    "vision_small_model": "apple-vision",
+    "vision_small_provider": "apple"
+  },
+  "rows": [
+    {
+      "workflow": "Transcribe (Auto-Detect)",
+      "doc": "0004de541c6f425bbf9d1ce361f41eab",
+      "seconds": 38.7,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "classify",
+        "transcribe-ms"
+      ],
+      "failed_node": "transcribe-ms",
+      "pass": "tw-gemini"
+    },
+    {
+      "workflow": "Clean Up Text (LLM)",
+      "doc": "0004de541c6f425bbf9d1ce361f41eab",
+      "seconds": 27.6,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "transcribe",
+        "clean_text"
+      ],
+      "failed_node": "clean_text",
+      "pass": "tw-gemini"
+    },
+    {
+      "workflow": "Translate",
+      "doc": "0004de541c6f425bbf9d1ce361f41eab",
+      "seconds": 51.9,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "transcribe",
+        "text_translate"
+      ],
+      "failed_node": "text_translate",
+      "pass": "tw-gemini"
+    },
+    {
+      "workflow": "Describe (visual)",
+      "doc": "0004de541c6f425bbf9d1ce361f41eab",
+      "seconds": 29.6,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "describe"
+      ],
+      "failed_node": "describe",
+      "pass": "tw-gemini"
+    }
+  ]
+}

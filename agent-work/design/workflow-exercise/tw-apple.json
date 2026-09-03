@@ -1,0 +1,109 @@
+{
+  "pass": "tw-apple",
+  "settings": {
+    "audio_model": "apple-speech",
+    "audio_provider": "apple",
+    "embeddings_model": "",
+    "embeddings_provider": "",
+    "large_model": "apple-intelligence",
+    "large_provider": "apple",
+    "max_tokens": "",
+    "medium_model": "apple-intelligence",
+    "medium_provider": "apple",
+    "primary_language": "",
+    "prompt_prefix": "",
+    "small_model": "apple-intelligence",
+    "small_provider": "apple",
+    "temperature": "",
+    "text_model": "apple-intelligence",
+    "text_provider": "apple",
+    "video_model": "",
+    "video_provider": "",
+    "vision_large_model": "apple-vision",
+    "vision_large_provider": "apple",
+    "vision_medium_model": "apple-vision",
+    "vision_medium_provider": "apple",
+    "vision_model": "apple-vision",
+    "vision_provider": "apple",
+    "vision_small_model": "apple-vision",
+    "vision_small_provider": "apple"
+  },
+  "rows": [
+    {
+      "workflow": "Transcribe",
+      "doc": "0004de541c6f425bbf9d1ce361f41eab",
+      "seconds": 43.2,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "transcribe"
+      ],
+      "failed_node": "transcribe",
+      "pass": "tw-apple"
+    },
+    {
+      "workflow": "Clean Up Text",
+      "doc": "0004de541c6f425bbf9d1ce361f41eab",
+      "seconds": 21.9,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "transcribe",
+        "clean_text"
+      ],
+      "failed_node": "clean_text",
+      "pass": "tw-apple"
+    },
+    {
+      "workflow": "Clean Up Text (LLM)",
+      "doc": "0004de541c6f425bbf9d1ce361f41eab",
+      "seconds": 31.6,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "transcribe",
+        "clean_text"
+      ],
+      "failed_node": "clean_text",
+      "pass": "tw-apple"
+    },
+    {
+      "workflow": "Translate",
+      "doc": "0004de541c6f425bbf9d1ce361f41eab",
+      "seconds": 33.5,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "transcribe",
+        "text_translate"
+      ],
+      "failed_node": "text_translate",
+      "pass": "tw-apple"
+    },
+    {
+      "workflow": "Translate (DeepL)",
+      "doc": "0004de541c6f425bbf9d1ce361f41eab",
+      "seconds": 21.5,
+      "status": "failed",
+      "error": "Provider authentication failed. Update API key in Settings. Details: Step 'Translate (DeepL)' failed: DeepL translate failed (403): {\"message\":\"Forbidden. You can find more info in our docs: https://developers.deepl.com/docs/getting-started/auth\"}",
+      "completed_nodes": [
+        "files-source",
+        "transcribe"
+      ],
+      "failed_node": "transcribe",
+      "pass": "tw-apple"
+    },
+    {
+      "workflow": "Describe (visual)",
+      "doc": "0004de541c6f425bbf9d1ce361f41eab",
+      "seconds": 13.7,
+      "status": "failed",
+      "error": "All parallel branches failed for describe. First error: Apple Vision performs OCR and ignores the prompt, so it cannot answer what 'description' asks. Choose a generative vision model for this step, or use Transcribe if the page's text is what you want.",
+      "completed_nodes": [
+        "files-source"
+      ],
+      "failed_node": "files-source",
+      "pass": "tw-apple"
+    }
+  ]
+}

@@ -1,0 +1,267 @@
+{
+  "pass": "apple-20260903",
+  "settings": {
+    "audio_model": "apple-speech",
+    "audio_provider": "apple",
+    "embeddings_model": "",
+    "embeddings_provider": "",
+    "large_model": "apple-intelligence",
+    "large_provider": "apple",
+    "max_tokens": "",
+    "medium_model": "apple-intelligence",
+    "medium_provider": "apple",
+    "primary_language": "",
+    "prompt_prefix": "",
+    "small_model": "apple-intelligence",
+    "small_provider": "apple",
+    "temperature": "",
+    "text_model": "apple-intelligence",
+    "text_provider": "apple",
+    "video_model": "",
+    "video_provider": "",
+    "vision_large_model": "apple-vision",
+    "vision_large_provider": "apple",
+    "vision_medium_model": "apple-vision",
+    "vision_medium_provider": "apple",
+    "vision_model": "apple-vision",
+    "vision_provider": "apple",
+    "vision_small_model": "apple-vision",
+    "vision_small_provider": "apple"
+  },
+  "rows": [
+    {
+      "workflow": "Capture OCR + Transcribe",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 90.0,
+      "status": "cli_error",
+      "error": "GET /api/activity failed: Server disconnected without sending a response.",
+      "pass": "apple-20260903"
+    },
+    {
+      "workflow": "Transcribe",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 46.9,
+      "status": "cli_error",
+      "error": "GET /api/activity failed: Server disconnected without sending a response.",
+      "pass": "apple-20260903"
+    },
+    {
+      "workflow": "Transcribe (Auto-Detect)",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 40.1,
+      "status": "failed",
+      "error": "Step 'Classify Script Type' failed: Apple Vision performs OCR and ignores the prompt, so it cannot answer what 'script_classification' asks. Choose a generative vision model for this step, or use Transcribe if the page's text is what you want.",
+      "completed_nodes": [
+        "files-source"
+      ],
+      "failed_node": "files-source",
+      "pass": "apple-20260903"
+    },
+    {
+      "workflow": "Transcribe HTR",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 41.3,
+      "status": "cli_error",
+      "error": "GET /api/activity failed: Server disconnected without sending a response.",
+      "pass": "apple-20260903"
+    },
+    {
+      "workflow": "Transcribe Manuscript",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 40.8,
+      "status": "cli_error",
+      "error": "GET /api/activity failed: Server disconnected without sending a response.",
+      "pass": "apple-20260903"
+    },
+    {
+      "workflow": "Transcribe Typescript",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 65.9,
+      "status": "cli_error",
+      "error": "GET /api/activity failed: Server disconnected without sending a response.",
+      "pass": "apple-20260903"
+    },
+    {
+      "workflow": "Transcribe + Review (Pipeline)",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 79.8,
+      "status": "cli_error",
+      "error": "GET /api/activity failed: Server disconnected without sending a response.",
+      "pass": "apple-20260903"
+    },
+    {
+      "workflow": "Transcribe Paleography",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 45.6,
+      "status": "cli_error",
+      "error": "GET /api/activity failed: Server disconnected without sending a response.",
+      "pass": "apple-20260903"
+    },
+    {
+      "workflow": "Transcribe Paleography (Economy)",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 32.6,
+      "status": "cli_error",
+      "error": "GET /api/activity failed: Server disconnected without sending a response.",
+      "pass": "apple-20260903"
+    },
+    {
+      "workflow": "English Secretary Hand (16th\u201317th C.)",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 44.3,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "transcribe"
+      ],
+      "failed_node": "transcribe",
+      "pass": "apple-20260903"
+    },
+    {
+      "workflow": "Paleograf\u00eda Espa\u00f1ola (s. XVI\u2013XVII)",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 45.4,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "transcribe"
+      ],
+      "failed_node": "transcribe",
+      "pass": "apple-20260903"
+    },
+    {
+      "workflow": "Paleograf\u00eda Espa\u00f1ola (s. XVIII\u2013XIX)",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 80.4,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "transcribe"
+      ],
+      "failed_node": "transcribe",
+      "pass": "apple-20260903"
+    },
+    {
+      "workflow": "Latin Paleography",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 39.1,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "transcribe"
+      ],
+      "failed_node": "transcribe",
+      "pass": "apple-20260903"
+    },
+    {
+      "workflow": "Paleographer Review",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 40.4,
+      "status": "failed",
+      "error": "Step 'Review 1 \u2014 Abbreviations & Formulary' failed: Apple Vision performs OCR and ignores the prompt, so it cannot answer what 'transcription_review' asks. Choose a generative vision model for this step, or use Transcribe if the page's text is what you want.",
+      "completed_nodes": [
+        "files-source"
+      ],
+      "failed_node": "files-source",
+      "pass": "apple-20260903"
+    },
+    {
+      "workflow": "Clean Up Text",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 18.0,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "transcribe",
+        "clean_text"
+      ],
+      "failed_node": "clean_text",
+      "pass": "apple-20260903"
+    },
+    {
+      "workflow": "Translate",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 103.6,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "transcribe",
+        "text_translate"
+      ],
+      "failed_node": "text_translate",
+      "pass": "apple-20260903"
+    },
+    {
+      "workflow": "Translate (DeepL)",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 98.0,
+      "status": "failed",
+      "error": "Provider quota or rate limit reached. Top up account or switch provider/model. Details: Quota/rate-limit error in step 'Translate (DeepL)': DeepL translate failed (403): {\"message\":\"Forbidden. You can find more info in our docs: https://developers.deepl.com/docs/getting-started/auth\"}",
+      "completed_nodes": [
+        "files-source",
+        "transcribe"
+      ],
+      "failed_node": "transcribe",
+      "pass": "apple-20260903"
+    },
+    {
+      "workflow": "Translate + Double-Check",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 250.6,
+      "status": "failed",
+      "error": "Step 'Translate (Pass 1)' failed: Apple Intelligence (generation): Generation failed: Error Domain=FoundationModels.LanguageModelSession.GenerationError Code=-1 \"The operation couldn\u2019t be completed. (FoundationModels.LanguageModelError error -1.)\" UserInfo={NSMultipleUnderlyingErrorsKey=(\n    \"Error Domain=FoundationModels.LanguageModelError Code=-1 \\\"(null)\\\" UserInfo={NSMultipleUnderlyingErrorsKey=(\\n    \\\"Error Domain=ModelManagerServices.ModelManagerError Code=1013 \\\\\\\"(null)\\\\\\\" UserInfo={NSMultipleUnderlyingErrorsKey=(\\\\n)}\\\"\\n)}\"\n), NSLocalizedDescription=The operation couldn\u2019t be completed. (FoundationModels.LanguageModelError error -1.)}",
+      "completed_nodes": [
+        "files-source",
+        "transcribe"
+      ],
+      "failed_node": "transcribe",
+      "pass": "apple-20260903"
+    },
+    {
+      "workflow": "Translate the Reviewed Transcription",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 195.4,
+      "status": "failed",
+      "error": "Object of type datetime is not JSON serializable",
+      "completed_nodes": null,
+      "failed_node": null,
+      "pass": "apple-20260903"
+    },
+    {
+      "workflow": "Translate to English (Historical)",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 240.6,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "translate"
+      ],
+      "failed_node": "translate",
+      "pass": "apple-20260903"
+    },
+    {
+      "workflow": "Modernizaci\u00f3n (Spanish)",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 31.9,
+      "status": "cli_error",
+      "error": "Could not read the engine's certificate from 127.0.0.1:8767: [Errno 61] Connection refused",
+      "pass": "apple-20260903"
+    },
+    {
+      "workflow": "Regesto (Archival Abstract)",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 49.4,
+      "status": "cli_error",
+      "error": "Could not read the engine's certificate from 127.0.0.1:8767: [Errno 61] Connection refused",
+      "pass": "apple-20260903"
+    },
+    {
+      "workflow": "Describe (visual)",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 28.6,
+      "status": "cli_error",
+      "error": "Could not read the engine's certificate from 127.0.0.1:8767: [Errno 61] Connection refused",
+      "pass": "apple-20260903"
+    }
+  ]
+}

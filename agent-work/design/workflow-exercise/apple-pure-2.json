@@ -1,0 +1,145 @@
+{
+  "pass": "apple-pure-2",
+  "settings": {
+    "audio_model": "apple-speech",
+    "audio_provider": "apple",
+    "embeddings_model": "",
+    "embeddings_provider": "",
+    "large_model": "apple-intelligence",
+    "large_provider": "apple",
+    "max_tokens": "",
+    "medium_model": "apple-intelligence",
+    "medium_provider": "apple",
+    "primary_language": "",
+    "prompt_prefix": "",
+    "small_model": "apple-intelligence",
+    "small_provider": "apple",
+    "temperature": "",
+    "text_model": "apple-intelligence",
+    "text_provider": "apple",
+    "video_model": "",
+    "video_provider": "",
+    "vision_large_model": "apple-vision",
+    "vision_large_provider": "apple",
+    "vision_medium_model": "apple-vision",
+    "vision_medium_provider": "apple",
+    "vision_model": "google/gemini-3.1-flash-lite",
+    "vision_provider": "openrouter",
+    "vision_small_model": "apple-vision",
+    "vision_small_provider": "apple"
+  },
+  "rows": [
+    {
+      "workflow": "Transcribe Paleography",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 14.8,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "transcribe"
+      ],
+      "failed_node": "transcribe",
+      "pass": "apple-pure-2"
+    },
+    {
+      "workflow": "Transcribe Paleography (Economy)",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 22.2,
+      "status": "failed",
+      "error": "Step 'Cleanup \u2014 single small-model pass' failed: Apple Vision performs OCR and ignores the prompt, so it cannot answer what 'transcription_review' asks. Choose a generative vision model for this step, or use Transcribe if the page's text is what you want.",
+      "completed_nodes": [
+        "files-source",
+        "economy-htr"
+      ],
+      "failed_node": "economy-htr",
+      "pass": "apple-pure-2"
+    },
+    {
+      "workflow": "English Secretary Hand (16th\u201317th C.)",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 31.0,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "transcribe"
+      ],
+      "failed_node": "transcribe",
+      "pass": "apple-pure-2"
+    },
+    {
+      "workflow": "Paleograf\u00eda Espa\u00f1ola (s. XVI\u2013XVII)",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 33.8,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "transcribe"
+      ],
+      "failed_node": "transcribe",
+      "pass": "apple-pure-2"
+    },
+    {
+      "workflow": "Paleograf\u00eda Espa\u00f1ola (s. XVIII\u2013XIX)",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 31.5,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "transcribe"
+      ],
+      "failed_node": "transcribe",
+      "pass": "apple-pure-2"
+    },
+    {
+      "workflow": "Latin Paleography",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 22.3,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "transcribe"
+      ],
+      "failed_node": "transcribe",
+      "pass": "apple-pure-2"
+    },
+    {
+      "workflow": "Paleographer Review",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 27.2,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "r1",
+        "reference-search",
+        "r2",
+        "r3"
+      ],
+      "failed_node": "r3",
+      "pass": "apple-pure-2"
+    },
+    {
+      "workflow": "Translate to English (Historical)",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 18.9,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "translate"
+      ],
+      "failed_node": "translate",
+      "pass": "apple-pure-2"
+    },
+    {
+      "workflow": "Modernizaci\u00f3n (Spanish)",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 13.7,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "modern"
+      ],
+      "failed_node": "modern",
+      "pass": "apple-pure-2"
+    }
+  ]
+}

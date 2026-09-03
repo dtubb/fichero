@@ -1,0 +1,181 @@
+{
+  "pass": "apple-20260903-rerun",
+  "settings": {
+    "audio_model": "apple-speech",
+    "audio_provider": "apple",
+    "embeddings_model": "",
+    "embeddings_provider": "",
+    "large_model": "apple-intelligence",
+    "large_provider": "apple",
+    "max_tokens": "",
+    "medium_model": "apple-intelligence",
+    "medium_provider": "apple",
+    "primary_language": "",
+    "prompt_prefix": "",
+    "small_model": "apple-intelligence",
+    "small_provider": "apple",
+    "temperature": "",
+    "text_model": "apple-intelligence",
+    "text_provider": "apple",
+    "video_model": "",
+    "video_provider": "",
+    "vision_large_model": "apple-vision",
+    "vision_large_provider": "apple",
+    "vision_medium_model": "apple-vision",
+    "vision_medium_provider": "apple",
+    "vision_model": "google/gemini-3.1-flash-lite",
+    "vision_provider": "openrouter",
+    "vision_small_model": "apple-vision",
+    "vision_small_provider": "apple"
+  },
+  "rows": [
+    {
+      "workflow": "Capture OCR + Transcribe",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 183.3,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "prepare_images",
+        "enhance_images",
+        "transcribe"
+      ],
+      "failed_node": "transcribe",
+      "pass": "apple-20260903-rerun"
+    },
+    {
+      "workflow": "Transcribe",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 53.8,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "transcribe"
+      ],
+      "failed_node": "transcribe",
+      "pass": "apple-20260903-rerun"
+    },
+    {
+      "workflow": "Transcribe HTR",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 58.4,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "transcribe"
+      ],
+      "failed_node": "transcribe",
+      "pass": "apple-20260903-rerun"
+    },
+    {
+      "workflow": "Transcribe Manuscript",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 109.7,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "transcribe"
+      ],
+      "failed_node": "transcribe",
+      "pass": "apple-20260903-rerun"
+    },
+    {
+      "workflow": "Transcribe Typescript",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 50.9,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "transcribe"
+      ],
+      "failed_node": "transcribe",
+      "pass": "apple-20260903-rerun"
+    },
+    {
+      "workflow": "Transcribe + Review (Pipeline)",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 51.6,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "stage-transcribe",
+        "stage-review"
+      ],
+      "failed_node": "stage-review",
+      "pass": "apple-20260903-rerun"
+    },
+    {
+      "workflow": "Transcribe Paleography",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 27.9,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "transcribe"
+      ],
+      "failed_node": "transcribe",
+      "pass": "apple-20260903-rerun"
+    },
+    {
+      "workflow": "Transcribe Paleography (Economy)",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 17.8,
+      "status": "failed",
+      "error": "Step 'Cleanup \u2014 single small-model pass' failed: Apple Vision performs OCR and ignores the prompt, so it cannot answer what 'transcription_review' asks. Choose a generative vision model for this step, or use Transcribe if the page's text is what you want.",
+      "completed_nodes": [
+        "files-source",
+        "economy-htr"
+      ],
+      "failed_node": "economy-htr",
+      "pass": "apple-20260903-rerun"
+    },
+    {
+      "workflow": "Translate the Reviewed Transcription",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 58.4,
+      "status": "completed",
+      "completed_nodes": [
+        "artifacts-source",
+        "text_translate"
+      ],
+      "failed_node": "text_translate",
+      "pass": "apple-20260903-rerun"
+    },
+    {
+      "workflow": "Modernizaci\u00f3n (Spanish)",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 40.6,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "modern"
+      ],
+      "failed_node": "modern",
+      "pass": "apple-20260903-rerun"
+    },
+    {
+      "workflow": "Regesto (Archival Abstract)",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 32.1,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "regesto"
+      ],
+      "failed_node": "regesto",
+      "pass": "apple-20260903-rerun"
+    },
+    {
+      "workflow": "Describe (visual)",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 23.9,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "describe"
+      ],
+      "failed_node": "describe",
+      "pass": "apple-20260903-rerun"
+    }
+  ]
+}

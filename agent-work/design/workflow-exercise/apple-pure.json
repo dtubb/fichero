@@ -1,0 +1,230 @@
+{
+  "pass": "apple-pure",
+  "settings": {
+    "audio_model": "apple-speech",
+    "audio_provider": "apple",
+    "embeddings_model": "",
+    "embeddings_provider": "",
+    "large_model": "apple-intelligence",
+    "large_provider": "apple",
+    "max_tokens": "",
+    "medium_model": "apple-intelligence",
+    "medium_provider": "apple",
+    "primary_language": "",
+    "prompt_prefix": "",
+    "small_model": "apple-intelligence",
+    "small_provider": "apple",
+    "temperature": "",
+    "text_model": "apple-intelligence",
+    "text_provider": "apple",
+    "video_model": "",
+    "video_provider": "",
+    "vision_large_model": "apple-vision",
+    "vision_large_provider": "apple",
+    "vision_medium_model": "apple-vision",
+    "vision_medium_provider": "apple",
+    "vision_model": "apple-vision",
+    "vision_provider": "apple",
+    "vision_small_model": "apple-vision",
+    "vision_small_provider": "apple"
+  },
+  "rows": [
+    {
+      "workflow": "Capture OCR + Transcribe",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 79.3,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "prepare_images",
+        "enhance_images",
+        "transcribe"
+      ],
+      "failed_node": "transcribe",
+      "pass": "apple-pure"
+    },
+    {
+      "workflow": "Transcribe",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 99.2,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "transcribe"
+      ],
+      "failed_node": "transcribe",
+      "pass": "apple-pure"
+    },
+    {
+      "workflow": "Transcribe (Auto-Detect)",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 88.3,
+      "status": "failed",
+      "error": "Step 'Classify Script Type' failed: Apple Vision performs OCR and ignores the prompt, so it cannot answer what 'script_classification' asks. Choose a generative vision model for this step, or use Transcribe if the page's text is what you want.",
+      "completed_nodes": [
+        "files-source"
+      ],
+      "failed_node": "files-source",
+      "pass": "apple-pure"
+    },
+    {
+      "workflow": "Transcribe HTR",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 65.1,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "transcribe"
+      ],
+      "failed_node": "transcribe",
+      "pass": "apple-pure"
+    },
+    {
+      "workflow": "Transcribe Manuscript",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 72.8,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "transcribe"
+      ],
+      "failed_node": "transcribe",
+      "pass": "apple-pure"
+    },
+    {
+      "workflow": "Transcribe Typescript",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 40.9,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "transcribe"
+      ],
+      "failed_node": "transcribe",
+      "pass": "apple-pure"
+    },
+    {
+      "workflow": "Transcribe + Review (Pipeline)",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 68.8,
+      "status": "failed",
+      "error": "Step 'Stage 2 \u2014 Paleographer Review' failed: Sub-workflow 'Paleographer Review' failed under parent node 'stage-review': Step 'Review 1 \u2014 Abbreviations & Formulary' failed: Apple Vision performs OCR and ignores the prompt, so it cannot answer what 'transcription_review' asks. Choose a generative vision model for this step, or use Transcribe if the page's text is what you want.",
+      "completed_nodes": [
+        "files-source",
+        "stage-transcribe"
+      ],
+      "failed_node": "stage-transcribe",
+      "pass": "apple-pure"
+    },
+    {
+      "workflow": "Transcribe Paleography",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 37.2,
+      "status": "cli_error",
+      "error": "Could not read the engine's certificate from 127.0.0.1:8767: [Errno 61] Connection refused",
+      "pass": "apple-pure"
+    },
+    {
+      "workflow": "Transcribe Paleography (Economy)",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 47.8,
+      "status": "cli_error",
+      "error": "GET /api/workflows -> 401: {\"detail\":\"missing or invalid Authorization header\"}",
+      "pass": "apple-pure"
+    },
+    {
+      "workflow": "English Secretary Hand (16th\u201317th C.)",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 105.5,
+      "status": "cli_error",
+      "error": "GET /api/workflows -> 401: {\"detail\":\"missing or invalid Authorization header\"}",
+      "pass": "apple-pure"
+    },
+    {
+      "workflow": "Paleograf\u00eda Espa\u00f1ola (s. XVI\u2013XVII)",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 63.5,
+      "status": "cli_error",
+      "error": "GET /api/workflows -> 401: {\"detail\":\"missing or invalid Authorization header\"}",
+      "pass": "apple-pure"
+    },
+    {
+      "workflow": "Paleograf\u00eda Espa\u00f1ola (s. XVIII\u2013XIX)",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 51.8,
+      "status": "cli_error",
+      "error": "GET /api/workflows -> 401: {\"detail\":\"missing or invalid Authorization header\"}",
+      "pass": "apple-pure"
+    },
+    {
+      "workflow": "Latin Paleography",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 59.1,
+      "status": "cli_error",
+      "error": "GET /api/workflows -> 401: {\"detail\":\"missing or invalid Authorization header\"}",
+      "pass": "apple-pure"
+    },
+    {
+      "workflow": "Paleographer Review",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 67.1,
+      "status": "cli_error",
+      "error": "GET /api/workflows -> 401: {\"detail\":\"missing or invalid Authorization header\"}",
+      "pass": "apple-pure"
+    },
+    {
+      "workflow": "Translate to English (Historical)",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 49.1,
+      "status": "cli_error",
+      "error": "GET /api/workflows -> 401: {\"detail\":\"missing or invalid Authorization header\"}",
+      "pass": "apple-pure"
+    },
+    {
+      "workflow": "Modernizaci\u00f3n (Spanish)",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 57.9,
+      "status": "cli_error",
+      "error": "Could not read the engine's certificate from 127.0.0.1:8767: [Errno 61] Connection refused",
+      "pass": "apple-pure"
+    },
+    {
+      "workflow": "Regesto (Archival Abstract)",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 56.0,
+      "status": "failed",
+      "error": "Step 'Regesto' failed: Apple Vision performs OCR and ignores the prompt, so it cannot answer what 'analysis' asks. Choose a generative vision model for this step, or use Transcribe if the page's text is what you want.",
+      "completed_nodes": [
+        "files-source"
+      ],
+      "failed_node": "files-source",
+      "pass": "apple-pure"
+    },
+    {
+      "workflow": "Describe (visual)",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 38.7,
+      "status": "failed",
+      "error": "All parallel branches failed for describe. First error: Apple Vision performs OCR and ignores the prompt, so it cannot answer what 'description' asks. Choose a generative vision model for this step, or use Transcribe if the page's text is what you want.",
+      "completed_nodes": [
+        "files-source"
+      ],
+      "failed_node": "files-source",
+      "pass": "apple-pure"
+    },
+    {
+      "workflow": "Translate + Double-Check",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 114.6,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "transcribe",
+        "text_translate",
+        "text_translate_review"
+      ],
+      "failed_node": "text_translate_review",
+      "pass": "apple-pure"
+    }
+  ]
+}

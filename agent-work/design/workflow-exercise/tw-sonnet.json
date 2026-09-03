@@ -1,0 +1,83 @@
+{
+  "pass": "tw-sonnet",
+  "settings": {
+    "audio_model": "apple-speech",
+    "audio_provider": "apple",
+    "embeddings_model": "",
+    "embeddings_provider": "",
+    "large_model": "apple-intelligence",
+    "large_provider": "apple",
+    "max_tokens": "",
+    "medium_model": "apple-intelligence",
+    "medium_provider": "apple",
+    "primary_language": "",
+    "prompt_prefix": "",
+    "small_model": "anthropic/claude-sonnet-5",
+    "small_provider": "openrouter",
+    "temperature": "",
+    "text_model": "anthropic/claude-sonnet-5",
+    "text_provider": "openrouter",
+    "video_model": "",
+    "video_provider": "",
+    "vision_large_model": "apple-vision",
+    "vision_large_provider": "apple",
+    "vision_medium_model": "apple-vision",
+    "vision_medium_provider": "apple",
+    "vision_model": "anthropic/claude-sonnet-5",
+    "vision_provider": "openrouter",
+    "vision_small_model": "apple-vision",
+    "vision_small_provider": "apple"
+  },
+  "rows": [
+    {
+      "workflow": "Transcribe",
+      "doc": "59354c35ef1e409eb94f045e473c69ac",
+      "seconds": 27.1,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "transcribe"
+      ],
+      "failed_node": "transcribe",
+      "pass": "tw-sonnet"
+    },
+    {
+      "workflow": "Clean Up Text (LLM)",
+      "doc": "59354c35ef1e409eb94f045e473c69ac",
+      "seconds": 34.0,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "transcribe",
+        "clean_text"
+      ],
+      "failed_node": "clean_text",
+      "pass": "tw-sonnet"
+    },
+    {
+      "workflow": "Translate",
+      "doc": "59354c35ef1e409eb94f045e473c69ac",
+      "seconds": 27.4,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "transcribe",
+        "text_translate"
+      ],
+      "failed_node": "text_translate",
+      "pass": "tw-sonnet"
+    },
+    {
+      "workflow": "Describe (visual)",
+      "doc": "59354c35ef1e409eb94f045e473c69ac",
+      "seconds": 22.7,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "describe"
+      ],
+      "failed_node": "describe",
+      "pass": "tw-sonnet"
+    }
+  ]
+}
