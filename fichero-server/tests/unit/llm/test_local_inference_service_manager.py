@@ -687,3 +687,43 @@ def test_one_cleanly_stopped_sidecar_does_not_strand_the_others() -> None:
 
     with pytest.raises(ProcessLookupError):
         os.kill(survivor.pid, 0)
+
+
+@pytest.mark.asyncio
+async def test_managed_stop_falls_back_to_signals_across_loops(tmp_path) -> None:
+    """The asyncio subprocess handle is bound to the loop that spawned it.
+
+    Stopping from another loop raises 'got Future ... attached to a different
+    loop'; the stop route 500ed and the manager kept a stale healthy pid
+    (2026-09-02, live). stop() must fall back to pid signals and still kill
+    the child."""
+    import subprocess as _sp
+
+    from fichero_server.llm.local_inference import ManagedLocalInferenceProcess
+
+    child = _sp.Popen(["sleep", "60"])
+
+    class ForeignLoopHandle:
+        # Mimics an asyncio.subprocess.Process owned by ANOTHER loop.
+        returncode = None
+        pid = child.pid
+
+        def terminate(self):
+            raise RuntimeError(
+                "got Future <Future pending> attached to a different loop"
+            )
+
+    proc = ManagedLocalInferenceProcess(profile(), stop_grace_seconds=2.0)
+    proc._process = ForeignLoopHandle()
+    proc.pid = child.pid
+
+    await proc.stop()
+
+    child.poll()
+    for _ in range(30):
+        if child.poll() is not None:
+            break
+        await asyncio.sleep(0.1)
+    assert child.poll() is not None, "child survived cross-loop stop"
+    assert proc.pid is None
+    assert proc._process is None

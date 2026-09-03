@@ -424,17 +424,47 @@ class ManagedLocalInferenceProcess:
         if process is None:
             self.pid = None
             return
-        if process.returncode is None:
-            process.terminate()
-            try:
-                await asyncio.wait_for(process.wait(), timeout=self.stop_grace_seconds)
-            except asyncio.TimeoutError:
-                process.kill()
-                await process.wait()
-        await self._join_stream_tasks()
-        self._update_last_error()
+        try:
+            if process.returncode is None:
+                process.terminate()
+                try:
+                    await asyncio.wait_for(process.wait(), timeout=self.stop_grace_seconds)
+                except asyncio.TimeoutError:
+                    process.kill()
+                    await process.wait()
+            await self._join_stream_tasks()
+            self._update_last_error()
+        except RuntimeError:
+            # The asyncio subprocess handle is BOUND to the event loop that
+            # spawned it — and the on-demand start path spawns it from a
+            # workflow run's loop, while the stop endpoint runs on the API
+            # loop. Awaiting wait() there raises "got Future … attached to a
+            # different loop", the stop route 500ed, and the manager kept
+            # reporting a stale healthy pid forever (2026-09-02, live).
+            # Signals are loop-free and always correct for our own child.
+            await self._stop_via_signals(process)
         self._process = None
         self.pid = None
+
+    async def _stop_via_signals(self, process: Any) -> None:
+        """Terminate the child by pid when its loop-bound handle is unusable."""
+        import signal
+
+        pid = getattr(process, "pid", None) or self.pid
+        if not pid:
+            return
+        for sig in (signal.SIGTERM, signal.SIGKILL):
+            try:
+                os.kill(pid, sig)
+            except ProcessLookupError:
+                return
+            deadline = time.monotonic() + self.stop_grace_seconds
+            while time.monotonic() < deadline:
+                await asyncio.sleep(0.1)
+                try:
+                    os.kill(pid, 0)
+                except ProcessLookupError:
+                    return
 
     def is_running(self) -> bool:
         if self._process is None:
