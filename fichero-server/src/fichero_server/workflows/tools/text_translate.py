@@ -140,6 +140,13 @@ def _build_prompt(
             "carry the marker across unchanged and do not replace it with a guess.",
             f"- Output ONLY the {target} translation, with no preamble, notes, "
             "or the original text.",
+            # Same measured tune as clean_text (49bdad4eb): without it,
+            # small models emit markdown hard line breaks — every line ends
+            # in a trailing double-space (seen live on Apple Intelligence
+            # translations, 2026-09-03).
+            "- Return PLAIN TEXT: no markdown formatting, no trailing spaces "
+            "on lines, and no added blank lines beyond the original "
+            "paragraph breaks.",
         ]
     )
     rule_block = "\n".join(rules)

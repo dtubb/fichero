@@ -170,3 +170,15 @@ class TestReviewRegistration:
         assert "context" in in_ids  # the original source
         text_port = next(p for p in tool_def.input_ports if p.id == "text")
         assert text_port.required is True
+
+
+class TestPlainTextInstruction:
+    def test_plain_text_rule_always_present(self):
+        """Same measured tune as clean_text (49bdad4eb), applied 2026-09-03:
+        without it small models emit markdown hard line breaks — Apple
+        Intelligence translations ended every line in a trailing double-space.
+        """
+        for combo in [("English", "auto", True), ("German", "es", False)]:
+            prompt = _build_translate_prompt(*combo)
+            assert "PLAIN TEXT" in prompt
+            assert "no trailing spaces" in prompt
