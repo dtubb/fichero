@@ -47,6 +47,31 @@ def test_claims_only_resumen_puts_the_claims_in_the_user_prompt(monkeypatch):
     )
 
 
+def test_claims_only_keywords_puts_the_claims_in_the_user_prompt(monkeypatch):
+    """Same defect class as the resumen fix, found by the Sonnet run:
+    Anthropic returns 400 'at least one message is required' when the
+    keywords call sends an empty user prompt."""
+    seen: dict[str, str] = {}
+
+    async def fake_chat(prompt, *, config, system, **kwargs):
+        seen["prompt"] = prompt
+        return "diaries; Panama"
+
+    monkeypatch.setattr(catalogue_module, "chat_with_fallback", fake_chat)
+
+    keywords = asyncio.run(
+        catalogue_module._generate_keywords(
+            "",
+            "English",
+            LLMConfig(provider="anthropic", model="claude-sonnet-5"),
+            claim_context="People: N.C. Marshall\nDates: 1923",
+        )
+    )
+    assert keywords == "diaries; Panama"
+    assert seen["prompt"].strip(), "empty user prompt reached the model"
+    assert "N.C. Marshall" in seen["prompt"]
+
+
 def test_nothing_at_all_still_returns_empty_without_calling_the_model(
     monkeypatch,
 ):

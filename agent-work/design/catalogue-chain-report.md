@@ -89,7 +89,47 @@ error None**; 3 OpenRouter calls total (≤8 cap held). Machine was under load
 | 5 · KG Persist / Finalize | ✅ |
 | 6 · Catalogue | ⚠️→✅ first attempt tripped the 600s provider-hang guard under load-214 ("chat exceeded 600.0s"), degrading cleanly to partial success with KG intact and the error surfaced; a standalone "6 · Catalogue" re-run (the exact re-run the stage exists for) succeeded — `catalogue.narrative` + `catalogue.keywords` landed. One oddity: `output_language: auto` produced a SPANISH narrative for an English cover page when only 47 chars of claim context existed — see rulings |
 
-## 4. Remaining rulings for Daniel
+### (c) Anthropic Sonnet 5 (`$small` = openrouter/anthropic/claude-sonnet-5; no direct anthropic key configured)
+
+Run C — chain on NCM_Diary_1923IMG_003_left.md: **all six stages completed,
+error None**, 35.5s, 4 Sonnet calls (well under the ≤8 cap).
+
+| Stage | Outcome |
+|---|---|
+| 1 · Import → Artifacts | ✅ |
+| 2 · Extract Entities | ✅ structured (function_calling), clean |
+| 3 · Extract SVO → Claims | ✅ dates + per-entity claims |
+| 4 · Merge / Dedup | ✅ |
+| 5 · KG Persist / Finalize | ✅ |
+| 6 · Catalogue | ⚠️→✅ narrative fine, but the KEYWORDS call surfaced a sibling of the empty-prompt bug: Anthropic 400 "messages: at least one message is required" — `_generate_keywords` had the same empty-user-prompt shape as `_generate_resumen`. **Fixed** (claims context now rides in the prompt; third case added to `test_catalogue_claims_only_prompt.py`); standalone stage-6 re-run on the fixed engine verified narrative + keywords land |
+
+**Provider-tolerance map for the empty-prompt defect class**: Apple fm-bridge
+rejects ("Missing or empty 'prompt' field"), Anthropic rejects (400
+messages-required), Gemini silently tolerates. Only running THREE providers
+exposed both call sites — a one-provider matrix would have shipped either bug.
+
+## 4. Lessons for the next lanes (harness + CLI recipes)
+
+- Engine from a worktree: `start_backend.sh --fast` + `FICHERO_TLS_CERTFILE/KEYFILE`
+  pointed at the `127.0.0.1-8765-…` cert dir from `--prepare-local-access`;
+  CLI needs `SSL_CERT_FILE=<that server.crt>` AND `FICHERO_UDS=0` (otherwise
+  it silently dials the app's UDS socket as `http://fichero-app`).
+- Start the engine with `run_in_background` (a `&` job dies with its shell —
+  the engine logs "Parent PID 1 gone — engine self-terminating").
+- Model aliases per run: `FICHERO_SMALL_PROVIDER/MODEL` env at engine start;
+  one engine restart per model config.
+- Don't grep engine logs for `workflow_completed` — the activity-poll GET
+  querystrings contain the word; grep the `[workflow_completed]` bracket form.
+- `$small` structured calls go method=function_calling on OpenRouter for both
+  gemini and Sonnet; the 600s provider-hang guard fires under heavy machine
+  load and degrades stage 6 to a clean partial — re-running "6 · Catalogue"
+  standalone is the designed recovery and works.
+- The shared integration worktree has ONE git index: two lanes staging
+  concurrently WILL sweep each other's files into the wrong commit (happened
+  here: 16f7545cf carries this lane's staged diff). Stage-and-commit
+  atomically, or better, give lanes separate worktrees.
+
+## 5. Remaining rulings for Daniel
 
 1. **Catalogue no longer transcribes.** The chain starts from text already on
    the pages (stage 1's contract). A user who selects raw scans and runs

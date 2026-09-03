@@ -1518,6 +1518,17 @@ async def _generate_keywords(
     """
     if not text and not claim_context:
         return ""
+    if not text:
+        # Claims-only path: the claim context IS the source material and must
+        # ride in the USER prompt — Anthropic rejects an empty messages list
+        # (400 "at least one message is required") and Apple's fm-bridge
+        # rejects an empty prompt. Same defect class as _generate_resumen's
+        # empty-prompt fix (found live, Sonnet run, 2026-09-03).
+        text = (
+            "No transcript text was supplied. Generate the keywords from "
+            "these extracted entities and claims:\n\n" + claim_context
+        )
+        claim_context = ""  # already in the prompt; don't duplicate below
     context_block = (
         f"\n\nExtracted entities (from prior workflow steps):\n{claim_context}\n"
         if claim_context else ""
