@@ -60723,6 +60723,37 @@
             "nullable": true,
             "title": "Suggestions"
           },
+          "legs": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "nullable": true,
+            "title": "Legs"
+          },
+          "graph_leg_enabled": {
+            "type": "boolean",
+            "title": "Graph Leg Enabled",
+            "default": false
+          },
+          "best_semantic_similarity": {
+            "type": "number",
+            "nullable": true,
+            "title": "Best Semantic Similarity"
+          },
+          "weak_semantic_only": {
+            "type": "boolean",
+            "title": "Weak Semantic Only",
+            "default": false
+          },
+          "kg_entities": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "nullable": true,
+            "title": "Kg Entities"
+          },
           "compiled_query": {
             "$ref": "#/components/schemas/CompiledQuery",
             "nullable": true
