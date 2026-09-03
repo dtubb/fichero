@@ -239,7 +239,7 @@ def test_status_start_health_stop_lifecycle_uses_manager_contract(client) -> Non
     assert started.json()["state"] == "healthy"
     assert started.json()["healthy"] is True
     assert started.json()["pid"] == 9001
-    assert health_client.urls == ["http://localhost:8000/v1/health"]
+    assert health_client.urls == ["http://localhost:8000/health"]
 
     stopped = client.post(f"/api/local-inference/profiles/{routes.DEFAULT_OMLX_PROFILE_ID}/stop")
     assert stopped.status_code == 200

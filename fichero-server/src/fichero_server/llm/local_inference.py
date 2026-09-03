@@ -775,7 +775,15 @@ class LocalInferenceServiceManager:
         )
 
     def _health_url(self) -> str:
-        return urljoin(str(self.profile.base_url).rstrip("/") + "/", self.profile.healthcheck_path.lstrip("/"))
+        # healthcheck_path is validated ABSOLUTE ("/health"), so resolve it
+        # from the server root, not under the API prefix. base_url carries
+        # the OpenAI-compatible "/v1" prefix, and mlx_lm's server answers
+        # GET /health at the root — the old join produced /v1/health, which
+        # 404s on the real runtime, so a perfectly healthy managed oMLX
+        # server was reported "unavailable" on every workflow run
+        # (2026-09-02, live). The unit fake accepted both paths, which is
+        # how the wrong join stayed green.
+        return urljoin(str(self.profile.base_url), self.profile.healthcheck_path)
 
     def _parse_health(self, payload: dict[str, Any]) -> LocalInferenceServiceHealth:
         try:

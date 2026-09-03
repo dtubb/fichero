@@ -133,7 +133,10 @@ if mode == "exit":
 
 class Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
-        if self.path not in {"/health", "/v1/health"}:
+        # Real mlx_lm serves /health at the ROOT only. The fake must match
+        # that granularity: accepting /v1/health too is how the wrong URL
+        # join stayed green while every live health check 404ed.
+        if self.path != "/health":
             self.send_response(404)
             self.end_headers()
             return
@@ -246,7 +249,9 @@ async def test_success_health_marks_service_healthy() -> None:
     assert status.restart_count == 0
     assert status.pid == 1201
     assert status.uptime_seconds is not None
-    assert client.urls == ["http://127.0.0.1:8766/v1/health"]
+    # Absolute healthcheck_path resolves from the server ROOT: the real
+    # mlx_lm server 404s /v1/health (2026-09-02).
+    assert client.urls == ["http://127.0.0.1:8766/health"]
 
 
 @pytest.mark.asyncio
