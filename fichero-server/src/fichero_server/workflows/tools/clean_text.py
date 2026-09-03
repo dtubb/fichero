@@ -8,7 +8,10 @@ available for explicit opt-in.
 The cleanup behaviour is driven entirely by user-editable config:
 
   * Per-aspect toggles compose the default instruction (`fix_ocr`,
-    `normalize_whitespace`, `fix_hyphenation`, `strip_artifacts`).
+    `normalize_whitespace`, `fix_hyphenation`, `reflow_paragraphs`,
+    `strip_artifacts`). In programmatic mode the same toggles drive the
+    deterministic passes in `text_passes`, so a checkbox means the same
+    thing whichever cleaning method is selected.
   * The full prompt is overridable via the BASE_CONFIG_SCHEMA `prompt`
     field, and the model via `provider_name` / `model_name`.
 
@@ -38,6 +41,7 @@ from fichero_server.workflows.tools.llm_base import (
 )
 from fichero_server.llm import LLMConfig
 from fichero_server.workflows.tools.text_cleaning import TextCleaner
+from fichero_server.workflows.tools.text_passes import TextCleanOptions
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +82,14 @@ CLEAN_TEXT_CONFIG = {
         "default": True,
         "description": "Rejoin words split across line breaks by hyphens",
     },
+    "reflow_paragraphs": {
+        "type": "boolean",
+        "default": True,
+        "description": (
+            "Join hard-wrapped lines back into paragraphs (book/OCR text). "
+            "Tables, verse, lists and headings keep their own line structure."
+        ),
+    },
     "strip_artifacts": {
         "type": "boolean",
         "default": True,
@@ -112,6 +124,7 @@ def _build_prompt(
     normalize_whitespace: bool,
     fix_hyphenation: bool,
     strip_artifacts: bool,
+    reflow_paragraphs: bool = True,
 ) -> str:
     """Build the cleanup prompt from the enabled aspect toggles.
 
@@ -123,6 +136,12 @@ def _build_prompt(
         aspects.append(
             "- Correct obvious OCR misrecognitions (e.g. 'rn'→'m', '0'→'o', "
             "'l'→'I') only when the intended word is unambiguous."
+        )
+    if reflow_paragraphs:
+        aspects.append(
+            "- Rejoin lines that were hard-wrapped mid-sentence back into "
+            "paragraphs. Keep tables, verse, lists and headings on their own "
+            "lines."
         )
     if fix_hyphenation:
         aspects.append(
@@ -170,6 +189,23 @@ def build_clean_text_prompt(config: dict) -> str:
         normalize_whitespace=bool(config.get("normalize_whitespace", True)),
         fix_hyphenation=bool(config.get("fix_hyphenation", True)),
         strip_artifacts=bool(config.get("strip_artifacts", True)),
+        reflow_paragraphs=bool(config.get("reflow_paragraphs", True)),
+    )
+
+
+def _clean_options_from_inputs(inputs: dict[str, Any]) -> TextCleanOptions:
+    """Map the tool's user-facing toggles onto the deterministic passes.
+
+    The same four toggles have always driven the LLM prompt; in programmatic
+    mode they now drive the actual passes, so the checkbox a user unticks means
+    the same thing whichever cleaning method is selected.
+    """
+    return TextCleanOptions(
+        fix_ocr=bool(inputs.get("fix_ocr", True)),
+        normalize_whitespace=bool(inputs.get("normalize_whitespace", True)),
+        fix_hyphenation=bool(inputs.get("fix_hyphenation", True)),
+        reflow_paragraphs=bool(inputs.get("reflow_paragraphs", True)),
+        strip_page_chrome=bool(inputs.get("strip_artifacts", True)),
     )
 
 
@@ -249,7 +285,8 @@ async def clean_text(
             metadata_field=inputs.get("metadata_field"),
         )
 
-    cleaned_text = TextCleaner.clean_text(text)
+    options = _clean_options_from_inputs(inputs)
+    cleaned_text = TextCleaner.clean_text(text, options)
     output_format = inputs.get("output_format", "text")
     output_options = {
         "choices": inputs.get("choices"),

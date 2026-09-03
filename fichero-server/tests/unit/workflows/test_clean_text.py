@@ -81,7 +81,7 @@ class TestBuildPrompt:
         assert "page headers/footers" not in prompt
 
     def test_all_off_still_yields_minimal_cleanup(self):
-        prompt = _build_prompt(False, False, False, False)
+        prompt = _build_prompt(False, False, False, False, reflow_paragraphs=False)
         # No specific aspect lines, but a minimal tidy instruction remains.
         assert "Tidy obvious whitespace issues only." in prompt
 

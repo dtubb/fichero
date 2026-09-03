@@ -4,10 +4,19 @@ from __future__ import annotations
 
 import re
 
+from fichero_server.workflows.tools.text_passes import (
+    TextCleanOptions,
+    dehyphenate,
+    normalize_whitespace,
+    reflow_paragraphs,
+    split_pages,
+    strip_page_chrome,
+)
 
-def clean_ocr_text(text: str) -> str:
+
+def clean_ocr_text(text: str, options: TextCleanOptions | None = None) -> str:
     """Clean OCR/transcription text with deterministic rules only."""
-    return TextCleaner.clean_text(text)
+    return TextCleaner.clean_text(text, options)
 
 
 class TextCleaner:
@@ -378,15 +387,52 @@ class TextCleaner:
         return text.strip()
 
     @staticmethod
-    def clean_text(text: str) -> str:
-        """Run deterministic cleaning passes in fixed order."""
+    def clean_text(text: str, options: TextCleanOptions | None = None) -> str:
+        """Run deterministic cleaning passes in fixed order.
+
+        The reflow family (whitespace, page chrome, dehyphenation, paragraph
+        un-wrapping) runs BEFORE the OCR-garbage pass on purpose: that pass
+        strips each line to its content, and indentation is the signal a book
+        page uses to mark a paragraph opening. Reflow itself refuses to absorb
+        a non-prose line, so garbage still reaches the garbage pass on its own
+        line and is still dropped.
+        """
+        opts = options or TextCleanOptions()
+
+        if opts.normalize_whitespace:
+            text = normalize_whitespace(text, preserve_indent=True)
+
+        if opts.strip_page_chrome:
+            pages = split_pages(text)
+            if len(pages) > 1:
+                text = "\n\n".join(
+                    page for page in strip_page_chrome(pages) if page.strip()
+                )
+
         text = TextCleaner.remove_pathological_patterns(text)
+
+        if opts.fix_hyphenation:
+            text = dehyphenate(text)
+        if opts.reflow_paragraphs:
+            text = reflow_paragraphs(text)
+
         text = TextCleaner.remove_ocr_garbage_lines(text)
-        text = TextCleaner.normalize_obvious_ocr_tokens(text)
+        if opts.fix_ocr:
+            text = TextCleaner.normalize_obvious_ocr_tokens(text)
         text = TextCleaner.remove_specific_phrases(text)
-        text = TextCleaner.combine_single_word_paragraphs(text)
+        if not opts.reflow_paragraphs:
+            # Only meaningful when lines are still the document's own; after a
+            # reflow it would re-shatter the paragraphs that were just built.
+            text = TextCleaner.combine_single_word_paragraphs(text)
         text = TextCleaner.remove_repeated_phrases(text)
         text = TextCleaner.remove_repeated_words(text)
-        text = TextCleaner.split_long_lines(text, max_length=72)
+
+        wrap_width = opts.wrap_width
+        if wrap_width is None and not opts.reflow_paragraphs:
+            # Legacy shape: without reflow the cleaner has always hard-wrapped.
+            wrap_width = 72
+        if wrap_width:
+            text = TextCleaner.split_long_lines(text, max_length=wrap_width)
+
         text = TextCleaner.clean_line_spacing(text)
         return text.strip()
