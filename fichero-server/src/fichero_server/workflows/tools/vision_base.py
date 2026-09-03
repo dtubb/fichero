@@ -806,6 +806,172 @@ def _snap_word_boxes_to_ink(
     return moved
 
 
+def _long_run_mask(mask: "Any", length: int, axis: int) -> "Any":
+    """Pixels belonging to a straight run of >= ``length`` set pixels.
+
+    Ruled ledger lines, column dividers and scan borders are exactly such
+    runs; handwriting and print are not. Doubling shift-AND finds run STARTS
+    in O(log length) passes, then a reverse OR spreads membership back over
+    the whole run — numpy only, no OpenCV/scipy dependency.
+    """
+    import numpy as np
+
+    def _shift(arr, offset):
+        out = np.zeros_like(arr)
+        if offset == 0:
+            return arr.copy()
+        if axis == 1:
+            out[:, :-offset] = arr[:, offset:]
+        else:
+            out[:-offset, :] = arr[offset:, :]
+        return out
+
+    starts = mask.copy()
+    covered = 1
+    while covered < length:
+        step = min(covered, length - covered)
+        starts &= _shift(starts, step)
+        covered += step
+
+    members = starts.copy()
+    covered = 1
+    while covered < length:
+        step = min(covered, length - covered)
+        back = np.zeros_like(members)
+        if axis == 1:
+            back[:, step:] = members[:, :-step]
+        else:
+            back[step:, :] = members[:-step, :]
+        members |= back
+        covered += step
+    return members & mask
+
+
+def _uncovered_ink_rects(
+    image_path: str,
+    word_boxes: list["VisionOCRBox"],
+    *,
+    work_width: int = 1200,
+    grid: int = 8,
+    max_rects: int = 8,
+    pad_frac: float = 0.015,
+) -> list[tuple[float, float, float, float]]:
+    """Normalized page rects [x, y, w, h] holding TEXT ink no word box covers.
+
+    The sparse-area review pass (Daniel, 2026-09-02): Apple Vision misses
+    whole faint-pencil lines and dense small print that a page-scale pass
+    cannot resolve, and the strip escalation only re-reads full-width bands.
+    The ink itself says where the misses are. This measures ink the way the
+    ink-snap does (darker than the LOCAL background, so paper grain and
+    stains stay out), subtracts ruled lines/borders (long straight runs) and
+    dark backdrop regions, masks everything already inside a word box, and
+    groups what remains onto a coarse grid merged into at most ``max_rects``
+    crop rectangles.
+
+    Frame: rects are fractions of THIS image's own pixels — the same frame
+    the word boxes are normalized against — so a caller can crop and re-OCR
+    and map results straight back. PIL + numpy only; any failure returns []
+    (the pass is an improvement, never a new way to fail the page).
+    """
+    if not os.path.exists(image_path or ""):
+        return []
+    try:
+        from PIL import Image, ImageFilter
+        import numpy as np
+
+        with Image.open(image_path) as raw:
+            img = raw.convert("L")
+            if img.width > work_width:
+                scale = work_width / img.width
+                img = img.resize((work_width, max(1, int(img.height * scale))))
+            background = img.filter(ImageFilter.MedianFilter(15))
+            page = np.asarray(img, dtype=np.int16)
+            bg = np.asarray(background, dtype=np.int16)
+            blurred = np.asarray(img.filter(ImageFilter.BoxBlur(30)), dtype=np.int16)
+    except Exception:
+        return []
+
+    height, width = page.shape
+    ink = (bg - page) > 40
+    # Ruled lines / borders: long straight runs are page furniture, not text.
+    ink &= ~_long_run_mask(ink, max(40, width // 10), axis=1)
+    ink &= ~_long_run_mask(ink, max(40, height // 10), axis=0)
+    # Dark REGIONS (bindings, black scanner backdrop): dark even when blurred.
+    ink &= blurred > 100
+    # Scan-edge junk: ignore a thin border margin.
+    margin_x, margin_y = int(width * 0.015), int(height * 0.015)
+    if margin_x and margin_y:
+        border = np.zeros_like(ink)
+        border[margin_y:-margin_y, margin_x:-margin_x] = True
+        ink &= border
+
+    for box in word_boxes:
+        bbox = getattr(box, "bbox", None)
+        if not bbox or len(bbox) != 4:
+            continue
+        x, y, w, h = bbox
+        ink[int(y * height):int((y + h) * height) + 1,
+            int(x * width):int((x + w) * width) + 1] = False
+
+    if not ink.any():
+        return []
+
+    # Grid pooling: which coarse cells still hold enough leftover ink to be
+    # worth a re-read. Threshold ~ a short word at this resolution.
+    cell_h, cell_w = height // grid, width // grid
+    if cell_h < 8 or cell_w < 8:
+        return []
+    min_cell_ink = max(120, (width * height) // 12_000)
+    cells = np.zeros((grid, grid), dtype=bool)
+    for row in range(grid):
+        for col in range(grid):
+            cell = ink[row * cell_h:(row + 1) * cell_h, col * cell_w:(col + 1) * cell_w]
+            cells[row, col] = int(cell.sum()) >= min_cell_ink
+    if not cells.any():
+        return []
+
+    # Merge marked cells into rectangles: greedy row-major growth — extend
+    # right across marked neighbours, then down while the whole row span is
+    # marked. Bounded and deterministic; at worst one rect per marked cell.
+    # Growth is CAPPED at 3x3 cells: the whole point of the re-read is that
+    # a crop shows Vision the glyphs several times larger, and a rect that
+    # swallows the page re-reads it at page scale — the pass that already
+    # missed (measured: uncapped, the dense-print sample merged into one
+    # near-page rect and recovered half of what capped crops recover).
+    max_span = 3
+    rects: list[tuple[float, float, float, float]] = []
+    remaining = cells.copy()
+    for row in range(grid):
+        for col in range(grid):
+            if not remaining[row, col]:
+                continue
+            col_end = col
+            while (
+                col_end + 1 < grid
+                and col_end + 1 - col < max_span
+                and remaining[row, col_end + 1]
+            ):
+                col_end += 1
+            row_end = row
+            while (
+                row_end + 1 < grid
+                and row_end + 1 - row < max_span
+                and remaining[row_end + 1, col:col_end + 1].all()
+            ):
+                row_end += 1
+            remaining[row:row_end + 1, col:col_end + 1] = False
+            x0 = max(0.0, col / grid - pad_frac)
+            y0 = max(0.0, row / grid - pad_frac)
+            x1 = min(1.0, (col_end + 1) / grid + pad_frac)
+            y1 = min(1.0, (row_end + 1) / grid + pad_frac)
+            ink_px = int(ink[row * cell_h:(row_end + 1) * cell_h,
+                             col * cell_w:(col_end + 1) * cell_w].sum())
+            rects.append((x0, y0, x1 - x0, y1 - y0, ink_px))  # type: ignore[arg-type]
+
+    rects.sort(key=lambda r: -r[4])  # type: ignore[misc]
+    return [(x, y, w, h) for x, y, w, h, _ in rects[:max_rects]]  # type: ignore[misc]
+
+
 def _vision_geometry_from_results(
     results: list[Any],
     *,
@@ -1480,6 +1646,87 @@ def _vision_ocr_cgimage_with_geometry(
         text, lines, words = _rebase_geometry_reading_order(lines, words)
         return VisionOCRResult(text=text, line_boxes=lines, word_boxes=words)
 
+    def _escalate_ink_residue(base: VisionOCRResult) -> VisionOCRResult:
+        """Re-OCR the RECTS still holding ink no word box covers.
+
+        The band escalation reads full-width strips; this pass is 2-D and
+        ink-driven (Daniel, 2026-09-02): a faint pencil line mid-page, a
+        margin figure, or a table of small print leaves ink the page pass
+        never boxed, and a crop at region scale makes those glyphs several
+        times larger to Vision. Measured on Marshall diary pages: text-ink
+        coverage 0.26→0.69 on dense small print, 0.75→0.85 on a page with
+        missed pencil lines, no page worse (agent-work/design/
+        local-vision-bbox-lab.md). Needs source_path — the flat image the
+        boxes are fractions of — so PDF-page runs skip it, like the snap.
+        """
+        if not source_path:
+            return base
+        from Quartz import (  # noqa: PLC0415
+            CGImageCreateWithImageInRect,
+            CGImageGetHeight,
+            CGImageGetWidth,
+            CGRectMake,
+        )
+        rects = _uncovered_ink_rects(source_path, base.word_boxes)
+        if not rects:
+            return base
+        width = CGImageGetWidth(cg_image)
+        height = CGImageGetHeight(cg_image)
+        lines = list(base.line_boxes)
+        words = list(base.word_boxes)
+        recovered = 0
+        for rect_x, rect_y, rect_w, rect_h in rects:
+            if rect_w <= 0 or rect_h <= 0:
+                continue
+            crop = CGImageCreateWithImageInRect(
+                cg_image,
+                CGRectMake(
+                    rect_x * width, rect_y * height,
+                    rect_w * width, rect_h * height,
+                ),
+            )
+            if crop is None:
+                continue
+            request = Vision.VNRecognizeTextRequest.alloc().init()  # pylint: disable=no-member
+            request.setRecognitionLevel_(Vision.VNRequestTextRecognitionLevelAccurate)  # pylint: disable=no-member
+            request.setRecognitionLanguages_([lang])
+            handler = Vision.VNImageRequestHandler.alloc().initWithCGImage_options_(crop, None)
+            success, _error = handler.performRequests_error_([request], None)
+            results = request.results() if success else None
+            if not results:
+                continue
+            region = _vision_geometry_from_results(results, page_index=page_index)
+            # Crop frame → page frame: the crop's fractions scale by the
+            # rect's own size and shift by its origin (BBox rule: the frame
+            # math names its frames).
+            for box in region.line_boxes + region.word_boxes:
+                x, y, w, h = box.bbox
+                box.bbox = [
+                    rect_x + x * rect_w,
+                    rect_y + y * rect_h,
+                    w * rect_w,
+                    h * rect_h,
+                ]
+            for line in region.line_boxes:
+                if _is_duplicate_line(line, lines):
+                    continue
+                lines.append(line)
+                start, end = line.char_start, line.char_end
+                if start is not None and end is not None:
+                    words.extend(
+                        w2 for w2 in region.word_boxes
+                        if w2.char_start is not None and start <= w2.char_start < end
+                    )
+                recovered += 1
+        if recovered == 0:
+            return base
+        logger.info(
+            "Ink-residue escalation recovered %d line(s) across %d region(s)",
+            recovered, len(rects),
+        )
+        text, lines, words = _rebase_geometry_reading_order(lines, words)
+        return VisionOCRResult(text=text, line_boxes=lines, word_boxes=words)
+
     # Try Accurate first
     request = Vision.VNRecognizeTextRequest.alloc().init()  # pylint: disable=no-member
     request.setRecognitionLevel_(Vision.VNRequestTextRecognitionLevelAccurate)  # pylint: disable=no-member
@@ -1487,7 +1734,7 @@ def _vision_ocr_cgimage_with_geometry(
 
     geometry = _extract_text(request, "Accurate")
     if geometry is not None:
-        escalated = _escalate_gaps(geometry)
+        escalated = _escalate_ink_residue(_escalate_gaps(geometry))
         snapped = _snap_word_boxes_to_ink(source_path, escalated.word_boxes) if source_path else 0
         if snapped:
             logger.info("Ink-snap tightened %d word boxes", snapped)
@@ -1501,7 +1748,7 @@ def _vision_ocr_cgimage_with_geometry(
 
     geometry = _extract_text(request, "Fast")
     if geometry is not None:
-        escalated = _escalate_gaps(geometry)
+        escalated = _escalate_ink_residue(_escalate_gaps(geometry))
         snapped = _snap_word_boxes_to_ink(source_path, escalated.word_boxes) if source_path else 0
         if snapped:
             logger.info("Ink-snap tightened %d word boxes", snapped)
