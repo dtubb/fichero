@@ -152,3 +152,34 @@ class TestFindExistingArtifact:
                     artifact_type="transcription",
                     library_path="/tmp/lib.fichero",
                 )
+
+
+class TestPromptShapedToolsNeverReuse:
+    """Prompt-shaped tools must OPT OUT of skip-if-done.
+
+    The skip-if-done seam matches on (document, artifact_type, provider,
+    model) — the prompt is not part of the key. For tools whose output is
+    defined by the prompt, one preset's artifact silently satisfies every
+    other preset that shares the tool. Live on 2026-09-03: after Regesto
+    saved an 'analysis' artifact, Modernización and Translate to English
+    (Historical) each "completed" in ~70ms returning the Regesto text
+    verbatim and saving nothing. Same class for table_extract (Extract
+    Table vs Accounts → Spreadsheet share artifact_type 'table').
+
+    Idempotent re-runs of the SAME preset are still deduped by the node
+    cache, whose key includes the full node config (prompt included).
+    """
+
+    def test_analyze_opts_out_of_skip_if_done(self):
+        from fichero_server.workflows.tools.analyze import (
+            TOOL_CONFIG as analyze_config,
+        )
+
+        assert analyze_config.skip_if_artifact_exists is False
+
+    def test_table_extract_opts_out_of_skip_if_done(self):
+        from fichero_server.workflows.tools.table_extract import (
+            TOOL_CONFIG as table_config,
+        )
+
+        assert table_config.skip_if_artifact_exists is False

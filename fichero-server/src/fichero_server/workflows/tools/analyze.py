@@ -34,6 +34,15 @@ TOOL_CONFIG = VisionToolConfig(
     trigger_embedding=False,
     supports_apple_vision=False,
     metadata_field="analysis",
+    # NEVER skip-if-done for analyze: its output is defined by the PROMPT,
+    # but the skip-if-done seam matches on (document, artifact_type,
+    # provider, model) only. With it on, any prior 'analysis' artifact
+    # satisfied every other analyze preset on the same page — live on
+    # 2026-09-03, Modernización and Translate to English (Historical)
+    # "completed" in ~70ms returning the Regesto output verbatim, saving
+    # nothing. The node cache still dedupes true re-runs (its key includes
+    # the node config, prompt included).
+    skip_if_artifact_exists=False,
 )
 
 # Analyze has no additional config - it uses all BASE + VISION config

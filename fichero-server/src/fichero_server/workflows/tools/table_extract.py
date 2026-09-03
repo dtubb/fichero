@@ -34,6 +34,12 @@ TOOL_CONFIG = VisionToolConfig(
     trigger_embedding=False,
     supports_apple_vision=False,
     metadata_field="table",
+    # Same class as analyze (2026-09-03): table_extract output is
+    # prompt-shaped (Extract Table vs Accounts → Spreadsheet ask for very
+    # different tables), but skip-if-done matches on artifact_type only, so
+    # one preset's table silently satisfied the other. The node cache still
+    # dedupes identical re-runs via the config-keyed cache key.
+    skip_if_artifact_exists=False,
 )
 
 TABLE_CONFIG = {
