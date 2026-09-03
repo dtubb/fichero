@@ -46,7 +46,11 @@ def compact_output_for_state(value: Any) -> Any:
         compact["value_count"] = len(compact["values"])
         compact.pop("values", None)
 
-    size = len(json.dumps(compact, ensure_ascii=False))
+    # default=str: this dumps is a SIZE ESTIMATE, not a serialization contract.
+    # Node outputs legitimately carry datetimes (artifacts_source returns
+    # artifact rows with created_at); letting the estimator throw TypeError
+    # killed every 'Translate the Reviewed Transcription' run (2026-09-03).
+    size = len(json.dumps(compact, ensure_ascii=False, default=str))
     if size > _STATE_OUTPUT_MAX_BYTES:
         raise ValueError(
             "Workflow State output exceeded the capped serialized size "

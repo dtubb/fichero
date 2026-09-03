@@ -53,6 +53,20 @@ def test_compact_leaves_non_list_fields_alone():
     assert out == {"texts": "not-a-list"}  # only lists are compacted
 
 
+def test_compact_tolerates_non_json_values_in_output():
+    """The size check is an ESTIMATE, not a serialization contract (2026-09-03).
+
+    artifacts_source returns artifact rows carrying real ``datetime`` values;
+    the strict ``json.dumps`` size probe raised TypeError and killed every
+    'Translate the Reviewed Transcription' run before its first LLM call.
+    """
+    from datetime import datetime, timezone
+
+    out = {"artifacts": [{"id": "a1", "created_at": datetime.now(timezone.utc)}]}
+    compacted = compact_output_for_state(out)
+    assert compacted["artifacts"][0]["id"] == "a1"
+
+
 def test_compact_raises_when_over_size_cap(monkeypatch):
     monkeypatch.setattr(wt, "_STATE_OUTPUT_MAX_BYTES", 10)
     with pytest.raises(ValueError, match="capped serialized size"):
