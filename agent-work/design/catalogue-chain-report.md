@@ -87,7 +87,7 @@ error None**; 3 OpenRouter calls total (≤8 cap held). Machine was under load
 | 3 · Extract SVO → Claims | ✅ dates + per-entity calls (one empty result on the sparse cover page — logged, not fatal) |
 | 4 · Merge / Dedup | ✅ |
 | 5 · KG Persist / Finalize | ✅ |
-| 6 · Catalogue | ⚠️ narrative chat call tripped the 600s provider-hang guard under load-214 ("chat exceeded 600.0s — provider hang"); degraded cleanly to partial success with KG intact and the error surfaced in Activity. Wiring correct; structured calls to the same model completed in 6–20s. Standalone re-run attempted — see log |
+| 6 · Catalogue | ⚠️→✅ first attempt tripped the 600s provider-hang guard under load-214 ("chat exceeded 600.0s"), degrading cleanly to partial success with KG intact and the error surfaced; a standalone "6 · Catalogue" re-run (the exact re-run the stage exists for) succeeded — `catalogue.narrative` + `catalogue.keywords` landed. One oddity: `output_language: auto` produced a SPANISH narrative for an English cover page when only 47 chars of claim context existed — see rulings |
 
 ## 4. Remaining rulings for Daniel
 
@@ -109,3 +109,14 @@ error None**; 3 OpenRouter calls total (≤8 cap held). Machine was under load
 4. **Numbered-name cosmetics**: sidebar now shows "Catalogue" beside
    "1 ·"…"6 ·" in the same folder. If the numbered ones should visually nest
    under Catalogue, that's client IA work.
+5. **Language auto-detect on sparse claim context**: with only ~50 chars of
+   entity context and no transcript, `output_language: auto` wrote a Spanish
+   narrative for an English cover page (gemini flash-lite run). The
+   claims-only path should probably resolve language from the source
+   document's language metadata rather than the prompt text.
+6. **Monolith capabilities intentionally dropped by the ruling** (recorded,
+   not restored): per-page `people/places/…` typed artifacts, the six
+   `<type>_clean` folder artifacts, keyword ENTITIES (stage 6 still writes a
+   `catalogue.keywords` artifact), and `citations_extract`. Date claims were
+   also dropped by the stage design — restored via the new stage-3 dates
+   pass because the timeline probe contract (#1470) depends on them.
