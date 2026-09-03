@@ -84,6 +84,13 @@ class LocalProviderProfile(BaseModel):
     startup_policy: LocalProviderStartupPolicy = LocalProviderStartupPolicy.on_demand
     healthcheck_path: str = "/health"
     timeout_seconds: float = Field(default=5.0, ge=0)
+    #: Cold-start budget, distinct from the per-probe timeout above. Loading
+    #: an 8B MLX model takes ~30-60s on Apple silicon; reusing the 5s health
+    #: probe timeout as the whole startup deadline made every on-demand cold
+    #: start fail its triggering workflow run ("health check unavailable
+    #: during startup"), which then succeeded on manual retry once the model
+    #: finished loading (2026-09-02, live on the Marshall exercise).
+    startup_timeout_seconds: float = Field(default=120.0, ge=0)
     max_concurrency: int = Field(default=1, ge=1)
     visible_in_ui: bool = True
     supported: bool = True
@@ -652,7 +659,11 @@ class LocalInferenceServiceManager:
 
     async def start(self, timeout_seconds: float | None = None) -> LocalInferenceServiceStatus:
         """Start the process and wait until it is healthy or fails."""
-        timeout = timeout_seconds if timeout_seconds is not None else self.profile.timeout_seconds
+        timeout = (
+            timeout_seconds
+            if timeout_seconds is not None
+            else self.profile.startup_timeout_seconds
+        )
         if self.state in {LocalServiceState.healthy, LocalServiceState.degraded} and self.process.is_running():
             return self.status()
 

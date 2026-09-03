@@ -727,3 +727,35 @@ async def test_managed_stop_falls_back_to_signals_across_loops(tmp_path) -> None
     assert child.poll() is not None, "child survived cross-loop stop"
     assert proc.pid is None
     assert proc._process is None
+
+
+@pytest.mark.asyncio
+async def test_cold_start_deadline_uses_startup_timeout_not_probe_timeout(monkeypatch) -> None:
+    """Loading an 8B MLX model takes ~30-60s; the 5s health-PROBE timeout
+    must not double as the cold-start deadline (2026-09-02: every on-demand
+    cold start failed its triggering run, then succeeded on manual retry)."""
+    assert profile().startup_timeout_seconds == 120.0
+
+    process = FakeProcess()
+    # 3 transient failures, then healthy — keeps polling under the startup
+    # deadline even though each probe "took" longer than timeout_seconds.
+    client = FakeHealthClient(
+        [ConnectionError("loading"), ConnectionError("loading"),
+         ConnectionError("loading"), healthy_payload()]
+    )
+    manager = LocalInferenceServiceManager(
+        profile(),
+        process,
+        client,
+        poll_interval_seconds=0,
+    )
+
+    import itertools
+    clock = itertools.chain([0.0, 10.0, 20.0, 30.0, 40.0], itertools.count(50.0, 10.0))
+    monkeypatch.setattr(local_inference.time, "monotonic", lambda: next(clock))
+
+    status = await manager.start()
+
+    # With the old 5s deadline the third probe (t=20s) would already have
+    # timed out; the startup budget lets the model finish loading.
+    assert status.healthy is True
