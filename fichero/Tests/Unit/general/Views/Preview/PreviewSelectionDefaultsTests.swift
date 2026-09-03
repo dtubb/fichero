@@ -320,3 +320,24 @@ struct ReaderShowingMenuScopeTests {
         #expect(pane.contains("var paneArtifactService: ArtifactService?"))
     }
 }
+
+// MARK: - Selecting a hit lights the matched passage (B3)
+
+struct SearchPassageAnchorTests {
+    private func appSource(_ path: String) throws -> String {
+        try String(contentsOf: AppSource.root().appendingPathComponent(path), encoding: .utf8)
+    }
+
+    @Test("hit selection posts the excerpt anchor on the readerTextSelection seam")
+    func selectionPostsAnchor() throws {
+        let events = try appSource("Views/Shell/ContentView/ContentView+StateEvents.swift")
+        #expect(events.contains("func postSearchPassageAnchor"))
+        #expect(events.contains("guard activeSearchQuery != nil"),
+                "the passage light must engage only while results show")
+        #expect(events.contains(".readerTextSelection"))
+        #expect(events.contains("\"charStart\": Int(excerpt.anchor.charStart)"))
+        // Wired from the ONE detail-change seam, so every selection path
+        // (click, swipe, arrow) lights the passage.
+        #expect(events.contains("postSearchPassageAnchor(for: newDoc)"))
+    }
+}
