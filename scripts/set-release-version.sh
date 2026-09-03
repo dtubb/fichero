@@ -261,7 +261,10 @@ if ! grep -qE "^## (Unreleased|$APP_VERSION)\b" "$ROOT/CHANGELOG.md"; then
   echo "       the changelog rots the moment the release flow stops checking it)." >&2
   exit 1
 fi
-if grep -qE "^## Unreleased\b" "$ROOT/CHANGELOG.md" && [ "$DRY_RUN" != true ]; then
+if grep -qE "^## Unreleased\b" "$ROOT/CHANGELOG.md" && [ "$DRY_RUN" != true ] \
+   && ! grep -qE "^## ${APP_VERSION//./\\.}\$" "$ROOT/CHANGELOG.md"; then
+  # The second grep (2026-09-03): re-stamping the SAME version must not
+  # promote the fresh Unreleased into a duplicate heading.
   # $ROOT-anchored, not Path("CHANGELOG.md") (2026-09-02): the relative path
   # resolved against the CALLER's cwd — a fixture test running from the repo
   # root promoted headings into the real repo's changelog.
