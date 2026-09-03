@@ -183,6 +183,13 @@ class WorkflowRun:
     # RESOLVED document set plus the ids that were requested. None for
     # runs recorded before the column existed.
     resolved_scope: dict[str, Any] | None = None
+    # What the run SPENT (2026-09-03): the `UsageTotals` shape from
+    # llm/usage.py — model calls, provider-reported tokens, and cost when the
+    # models could be priced. None means "not recorded" (a legacy run, or one
+    # that made no model call); it never means "free". A run whose models
+    # could not be priced records `cost_usd: null` with `priced: false`
+    # rather than a $0.00 that reads as a fact.
+    run_usage: dict[str, Any] | None = None
 
 
 @dataclass

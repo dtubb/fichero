@@ -55,10 +55,64 @@ struct RunTraceNode: Identifiable, Equatable {
     let error: String?
     let skipReason: String?
 
-    // NOTE (#4343 seam): per-step tokens/cost is not in the timeline yet.
-    // When the runner drains the `_record_usage` collector into per-node
-    // timeline entries, surface it here as `costText` and render it beside
-    // the duration in `RunTraceNodeDetail`.
+    /// What this step spent, when it called a model at all (2026-09-03 —
+    /// the #4343 seam, now filled: the runner drains the usage collector
+    /// into the per-node timeline entry). Nil for a step that called no
+    /// model; `costUsd` nil WITH `modelCalls > 0` means the models ran but
+    /// nobody could price them, which is not the same as free.
+    let modelCalls: Int?
+    let totalTokens: Int?
+    let costUsd: Double?
+    let costPriced: Bool
+
+    /// Usage defaults to "no model call recorded" so the older call sites
+    /// (and tests) that predate per-step cost keep compiling and keep
+    /// rendering nothing rather than a zero.
+    init(
+        id: String,
+        label: String,
+        tool: String,
+        provider: String?,
+        model: String?,
+        status: RunTraceNodeStatus,
+        durationMs: Double?,
+        error: String?,
+        skipReason: String?,
+        modelCalls: Int? = nil,
+        totalTokens: Int? = nil,
+        costUsd: Double? = nil,
+        costPriced: Bool = false
+    ) {
+        self.id = id
+        self.label = label
+        self.tool = tool
+        self.provider = provider
+        self.model = model
+        self.status = status
+        self.durationMs = durationMs
+        self.error = error
+        self.skipReason = skipReason
+        self.modelCalls = modelCalls
+        self.totalTokens = totalTokens
+        self.costUsd = costUsd
+        self.costPriced = costPriced
+    }
+
+    /// "$0.0042 · 1,204 tokens", "Free", or "Cost unpriced · 1,204 tokens".
+    /// Nil when this step made no model call — silence, not a zero.
+    var costText: String? {
+        guard let calls = modelCalls, calls > 0 else { return nil }
+        let money: String
+        if let cost = costUsd {
+            money = cost == 0 ? "Free" : (cost < 0.01
+                ? String(format: "$%.4f", cost)
+                : String(format: "$%.2f", cost))
+        } else {
+            money = "Cost unpriced"
+        }
+        guard let tokens = totalTokens, tokens > 0 else { return money }
+        return "\(money) · \(tokens.formatted()) tokens"
+    }
 
     var providerModelText: String? {
         let parts = [provider, model].compactMap { $0 }
@@ -199,7 +253,11 @@ enum RunTraceModelBuilder {
                         fileErrors: index.fileErrors,
                         runError: runError
                     ),
-                    skipReason: normalized(step?["skip_reason"] as? String)
+                    skipReason: normalized(step?["skip_reason"] as? String),
+                    modelCalls: intValue(step?["model_calls"]),
+                    totalTokens: intValue(step?["total_tokens"]),
+                    costUsd: doubleValue(step?["cost_usd"]),
+                    costPriced: (step?["cost_priced"] as? Bool) ?? false
                 )
             )
         }
@@ -248,6 +306,16 @@ enum RunTraceModelBuilder {
         guard let value else { return nil }
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private static func intValue(_ value: Any?) -> Int? {
+        if let int = value as? Int { return int }
+        if let double = value as? Double { return Int(double) }
+        if let number = value as? NSNumber { return number.intValue }
+        // Activity metadata reaches the client stringified; the timeline
+        // entry does not, but a mixed-provenance dict is cheap to tolerate.
+        if let string = value as? String { return Int(string) }
+        return nil
     }
 
     private static func doubleValue(_ value: Any?) -> Double? {

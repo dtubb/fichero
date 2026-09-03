@@ -188,9 +188,9 @@ extension ModelComparisonView {
 
                 Spacer()
 
-                Text(String(format: "$%.4f", result.totalCostUsd))
+                Text(CostDisplay.text(result.totalCostUsd))
                     .font(.caption2)
-                    .foregroundStyle(.green)
+                    .foregroundStyle(CostDisplay.isKnown(result.totalCostUsd) ? Color.green : Color.orange)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

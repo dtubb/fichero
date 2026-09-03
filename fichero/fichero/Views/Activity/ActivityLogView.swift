@@ -199,6 +199,23 @@ extension ActivityLogView {
         }
     }
 
+    /// What the run spent, beside how long it took (2026-09-03). A run that
+    /// made no model call shows nothing here — silence is honest; "$0.00"
+    /// would be a claim about a run that never called a model. An unpriced
+    /// run says so in words, with the models that have no price in its help.
+    @ViewBuilder
+    private func runCostLabel(_ run: WorkflowRunResponse) -> some View {
+        if let usage = run.runUsage, usage.hasUsage {
+            Text(usage.costText)
+                .font(.caption)
+                .foregroundStyle(usage.priced ? .secondary : Color.orange)
+                .help([usage.tokensText, usage.unpricedNotice]
+                    .compactMap { $0 }
+                    .joined(separator: " — "))
+                .accessibilityLabel("Run cost: \(usage.costText). \(usage.tokensText)")
+        }
+    }
+
     @ViewBuilder
     private func executionStatusHeader(_ run: WorkflowRunResponse) -> some View {
         if run.status == "failed" || run.error != nil {
@@ -208,6 +225,7 @@ extension ActivityLogView {
                 Text("Workflow Failed")
                     .font(.subheadline.bold())
                 Spacer()
+                runCostLabel(run)
                 if let duration = run.durationMs {
                     Text(ActivityViewHelpers.formatDuration(duration))
                         .font(.caption)
@@ -235,6 +253,7 @@ extension ActivityLogView {
                 Text("Workflow Completed")
                     .font(.subheadline.bold())
                 Spacer()
+                runCostLabel(run)
                 if let duration = run.durationMs {
                     Text(ActivityViewHelpers.formatDuration(duration))
                         .font(.caption)

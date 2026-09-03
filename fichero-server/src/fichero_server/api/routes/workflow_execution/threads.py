@@ -92,6 +92,33 @@ class ThreadDeletedResponse(BaseModel):
     message: str
 
 
+class RunUsageResponse(BaseModel):
+    """What one run actually spent (2026-09-03).
+
+    Three states, kept apart on purpose. `priced` with a `cost_usd` is the
+    cost. `priced` with `cost_usd == 0` means the run was genuinely free —
+    every call ran on-device. `priced == false` means nobody could price the
+    models in `unpriced_models`, and `cost_usd` is null: a UI that renders
+    that as "$0.00" is asserting something the server never said.
+    """
+
+    model_calls: int = 0
+    input_tokens: int = 0
+    output_tokens: int = 0
+    total_tokens: int = 0
+    cache_read_tokens: int = 0
+    #: Null when nothing could be priced. Never a stand-in zero.
+    cost_usd: float | None = None
+    #: True only when EVERY call priced.
+    priced: bool = False
+    #: Some calls priced and some did not — the total is a floor.
+    partially_priced: bool = False
+    #: At least one call's tokens are a character-count guess, not the
+    #: provider's own count.
+    estimated_tokens: bool = False
+    unpriced_models: list[str] = Field(default_factory=list)
+
+
 class WorkflowRunResponse(BaseModel):
     """Response with workflow run data (code, logs, etc.)."""
 
@@ -120,6 +147,10 @@ class WorkflowRunResponse(BaseModel):
     # being absent like a step that never ran.
     steps: list["WorkflowRunStepResponse"] = Field(default_factory=list)
     diagram_svg_url: str | None = None
+    #: Tokens and cost for the run. None for a run that made no model call,
+    #: or one recorded before usage accounting existed — which is not the
+    #: same as a run that cost nothing.
+    run_usage: RunUsageResponse | None = None
 
 
 class WorkflowPlannedStepResponse(BaseModel):
@@ -1119,6 +1150,11 @@ async def get_workflow_run(
             run_artifacts=_flatten_run_artifacts(step_records),
             steps=[_step_row(step) for step in step_records],
             diagram_svg_url=f"/api/workflow-execution/threads/{thread_id}/diagram.svg",
+            run_usage=(
+                RunUsageResponse.model_validate(run.run_usage)
+                if isinstance(run.run_usage, dict) and run.run_usage
+                else None
+            ),
         )
 
     except HTTPException:

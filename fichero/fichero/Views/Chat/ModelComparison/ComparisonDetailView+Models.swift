@@ -8,7 +8,8 @@ struct ComparisonDetail: Codable, Identifiable {
     let results: [ModelResultDetail]
     let fastestModel: String?
     let cheapestModel: String?
-    let totalCostUsd: Double
+    /// Nil when nothing could be priced — see `CostDisplay`.
+    let totalCostUsd: Double?
     let totalLatencyMs: Double
     let comparisonId: String
     let timestamp: String
@@ -35,7 +36,8 @@ struct ModelResultDetail: Codable, Identifiable {
     let latencyMs: Double
     let inputTokens: Int
     let outputTokens: Int
-    let costUsd: Double
+    /// Nil when this model has no registry price.
+    let costUsd: Double?
     let error: String?
     let timestamp: String
 

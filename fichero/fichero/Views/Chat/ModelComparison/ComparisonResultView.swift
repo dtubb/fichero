@@ -49,7 +49,7 @@ struct ComparisonResultView: View {
 
                 StatBadge(
                     label: "Total Cost",
-                    value: String(format: "$%.4f", result.totalCostUsd),
+                    value: CostDisplay.text(result.totalCostUsd),
                     icon: "dollarsign.circle"
                 )
 

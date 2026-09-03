@@ -100,6 +100,9 @@ async def test_vision_records_usage_when_present() -> None:
         input_tokens=10,
         output_tokens=5,
         total_tokens=15,
+        # Carried since 2026-09-03 so pricing can bill cached input at the
+        # cheaper cache rate.
+        cache_read_tokens=0,
     )
 
 

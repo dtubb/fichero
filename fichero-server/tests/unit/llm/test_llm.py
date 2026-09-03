@@ -1606,6 +1606,9 @@ async def test_collect_usage_records_chat_usage_metadata() -> None:
             "input_tokens": 50,
             "output_tokens": 20,
             "total_tokens": 70,
+            # Cached input is carried separately so pricing can bill it at
+            # the cheaper cache rate (2026-09-03).
+            "cache_read_tokens": 0,
             "estimated": False,
         }
     ]
@@ -1669,6 +1672,7 @@ async def test_collect_usage_records_structured_usage_metadata() -> None:
             "input_tokens": 120,
             "output_tokens": 45,
             "total_tokens": 165,
+            "cache_read_tokens": 0,
             "estimated": False,
             "method": "function_calling",
         }

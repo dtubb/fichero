@@ -74,6 +74,14 @@ from fichero_server.llm.model_types import (  # noqa: F401 (re-exported)
     is_batch_only_model,
     list_models_for_provider,
 )
+from fichero_server.llm.usage import (  # noqa: F401 (re-exported)
+    ModelCallUsage,
+    UsageTotals,
+    aggregate_usage,
+    price_call,
+    provider_is_free,
+    usage_from_message,
+)
 logger = logging.getLogger(__name__)
 
 _FM_BRIDGE_MISSING_MESSAGE = (
@@ -216,7 +224,9 @@ def collect_usage() -> Iterator[list[dict[str, Any]]]:
         _usage_collector.reset(token)
 
 
-def begin_usage_collection() -> tuple[list[dict[str, Any]], Any]:
+def begin_usage_collection(
+    bucket: list[dict[str, Any]] | None = None,
+) -> tuple[list[dict[str, Any]], Any]:
     """Start collecting model-call usage; returns ``(bucket, token)``.
 
     The explicit form of :func:`collect_usage`, for callers whose scope is not
@@ -226,8 +236,14 @@ def begin_usage_collection() -> tuple[list[dict[str, Any]], Any]:
 
     Pair every call with :func:`end_usage_collection` — the bucket keeps
     filling until you do.
+
+    Pass an existing ``bucket`` when the caller must hold the list BEFORE
+    collection starts — the workflow runner declares its bucket above the
+    cancel/pause finishers so those closures can report what a stopped run
+    already spent (2026-09-03).
     """
-    bucket: list[dict[str, Any]] = []
+    if bucket is None:
+        bucket = []
     return bucket, _usage_collector.set(bucket)
 
 
@@ -249,6 +265,7 @@ def _record_usage(
     input_tokens: int | None,
     output_tokens: int | None,
     total_tokens: int | None,
+    cache_read_tokens: int = 0,
     estimated: bool = False,
     method: str | None = None,
 ) -> None:
@@ -265,6 +282,10 @@ def _record_usage(
             "input_tokens": input_tokens,
             "output_tokens": output_tokens,
             "total_tokens": total_tokens,
+            # Cached input is inside input_tokens per the langchain contract
+            # and bills at the cheaper cache rate — carried separately so
+            # pricing can subtract it out (llm/usage.py).
+            "cache_read_tokens": cache_read_tokens,
             "estimated": estimated,
         }
         if method is not None:
@@ -1362,15 +1383,16 @@ def _record_batch_usage(
     kind: str,
 ) -> None:
     for response in responses:
-        usage = getattr(response, "usage_metadata", None)
-        if isinstance(usage, dict) and usage:
+        usage = usage_from_message(response)
+        if usage:
             _record_usage(
                 config.provider,
                 config.model,
                 kind,
-                input_tokens=usage.get("input_tokens"),
-                output_tokens=usage.get("output_tokens"),
-                total_tokens=usage.get("total_tokens"),
+                input_tokens=usage["input_tokens"],
+                output_tokens=usage["output_tokens"],
+                total_tokens=usage["total_tokens"],
+                cache_read_tokens=usage["cache_read_tokens"],
             )
 
 
@@ -1629,13 +1651,14 @@ async def chat(
         # Surface usage_metadata to the cost-tracking layer (#844 item 8 +
         # #852). AIMessage.usage_metadata is the LangChain ≥0.3 standard
         # shape: input_tokens / output_tokens / total_tokens dict.
-        usage = getattr(response, "usage_metadata", None)
-        if isinstance(usage, dict) and usage:
+        usage = usage_from_message(response)
+        if usage:
             _record_usage(
                 config.provider, config.model, "chat",
-                input_tokens=usage.get("input_tokens"),
-                output_tokens=usage.get("output_tokens"),
-                total_tokens=usage.get("total_tokens"),
+                input_tokens=usage["input_tokens"],
+                output_tokens=usage["output_tokens"],
+                total_tokens=usage["total_tokens"],
+                cache_read_tokens=usage["cache_read_tokens"],
             )
         return _strip_outer_code_fences(response.content)
 
@@ -2578,13 +2601,14 @@ async def vision(
     except Exception as exc:
         _raise_provider_quota_error(config, exc)
         raise
-    usage = getattr(response, "usage_metadata", None)
-    if isinstance(usage, dict) and usage:
+    usage = usage_from_message(response)
+    if usage:
         _record_usage(
             config.provider, config.model, "vision",
-            input_tokens=usage.get("input_tokens"),
-            output_tokens=usage.get("output_tokens"),
-            total_tokens=usage.get("total_tokens"),
+            input_tokens=usage["input_tokens"],
+            output_tokens=usage["output_tokens"],
+            total_tokens=usage["total_tokens"],
+            cache_read_tokens=usage["cache_read_tokens"],
         )
     result = _strip_outer_code_fences(response.content)
 
@@ -3309,13 +3333,14 @@ async def chat_structured(
     # Log usage_metadata when present so it flows into the cost-tracking
     # collector (#852). AIMessage.usage_metadata is a dict with
     # input_tokens / output_tokens / total_tokens (LangChain ≥0.3 standard).
-    usage = getattr(raw_message, "usage_metadata", None) if raw_message else None
-    if isinstance(usage, dict) and usage:
+    usage = usage_from_message(raw_message) if raw_message else None
+    if usage:
         _record_usage(
             config.provider, config.model, "structured",
-            input_tokens=usage.get("input_tokens"),
-            output_tokens=usage.get("output_tokens"),
-            total_tokens=usage.get("total_tokens"),
+            input_tokens=usage["input_tokens"],
+            output_tokens=usage["output_tokens"],
+            total_tokens=usage["total_tokens"],
+            cache_read_tokens=usage["cache_read_tokens"],
             method=method,
         )
 
@@ -4498,6 +4523,13 @@ __all__ = [
     "get_model_cost",
     "estimate_cost",
     "list_models_for_provider",
+    # Usage & cost (#852 / 2026-09-03)
+    "ModelCallUsage",
+    "UsageTotals",
+    "aggregate_usage",
+    "price_call",
+    "provider_is_free",
+    "usage_from_message",
     # Key resolution
     "get_api_key",
     "clear_api_key_cache",

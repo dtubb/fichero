@@ -302,9 +302,9 @@ private struct NodeResultCard: View {
                 Text(String(format: "%.0f ms", choice.result.latencyMs))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
-                Text(String(format: "$%.5f", choice.result.costUsd))
+                Text(CostDisplay.text(choice.result.costUsd, decimals: 5))
                     .font(.caption2)
-                    .foregroundStyle(.green)
+                    .foregroundStyle(CostDisplay.isKnown(choice.result.costUsd) ? Color.green : Color.orange)
             }
             Spacer()
             if !isCurrent {

@@ -41791,7 +41791,20 @@
           },
           "total_cost_usd": {
             "type": "number",
+            "nullable": true,
             "title": "Total Cost Usd"
+          },
+          "total_cost_priced": {
+            "type": "boolean",
+            "title": "Total Cost Priced",
+            "default": false
+          },
+          "unpriced_models": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Unpriced Models"
           },
           "total_latency_ms": {
             "type": "number",
@@ -41813,7 +41826,6 @@
           "results",
           "fastest_model",
           "cheapest_model",
-          "total_cost_usd",
           "total_latency_ms",
           "comparison_id",
           "timestamp"
@@ -42456,14 +42468,19 @@
           },
           "estimated_cost_usd": {
             "type": "number",
+            "nullable": true,
             "title": "Estimated Cost Usd"
+          },
+          "priced": {
+            "type": "boolean",
+            "title": "Priced",
+            "default": false
           }
         },
         "type": "object",
         "required": [
           "provider",
-          "model",
-          "estimated_cost_usd"
+          "model"
         ],
         "title": "CostEstimateItem"
       },
@@ -42486,15 +42503,27 @@
           },
           "total_estimated_cost_usd": {
             "type": "number",
+            "nullable": true,
             "title": "Total Estimated Cost Usd"
+          },
+          "all_models_priced": {
+            "type": "boolean",
+            "title": "All Models Priced",
+            "default": false
+          },
+          "unpriced_models": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Unpriced Models"
           }
         },
         "type": "object",
         "required": [
           "estimated_input_tokens",
           "estimated_output_tokens",
-          "model_estimates",
-          "total_estimated_cost_usd"
+          "model_estimates"
         ],
         "title": "CostEstimateResponse"
       },
@@ -52123,6 +52152,12 @@
             "title": "Timeout Seconds",
             "default": 5.0
           },
+          "startup_timeout_seconds": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Startup Timeout Seconds",
+            "default": 120.0
+          },
           "max_concurrency": {
             "type": "integer",
             "minimum": 1.0,
@@ -53825,7 +53860,18 @@
           },
           "cost_usd": {
             "type": "number",
+            "nullable": true,
             "title": "Cost Usd"
+          },
+          "cost_priced": {
+            "type": "boolean",
+            "title": "Cost Priced",
+            "default": false
+          },
+          "tokens_estimated": {
+            "type": "boolean",
+            "title": "Tokens Estimated",
+            "default": false
           },
           "error": {
             "type": "string",
@@ -53874,7 +53920,6 @@
           "latency_ms",
           "input_tokens",
           "output_tokens",
-          "cost_usd",
           "error",
           "timestamp"
         ],
@@ -59606,6 +59651,65 @@
         ],
         "title": "RunStatus",
         "description": "Canonical lifecycle states of a workflow run (#4316)."
+      },
+      "RunUsageResponse": {
+        "properties": {
+          "model_calls": {
+            "type": "integer",
+            "title": "Model Calls",
+            "default": 0
+          },
+          "input_tokens": {
+            "type": "integer",
+            "title": "Input Tokens",
+            "default": 0
+          },
+          "output_tokens": {
+            "type": "integer",
+            "title": "Output Tokens",
+            "default": 0
+          },
+          "total_tokens": {
+            "type": "integer",
+            "title": "Total Tokens",
+            "default": 0
+          },
+          "cache_read_tokens": {
+            "type": "integer",
+            "title": "Cache Read Tokens",
+            "default": 0
+          },
+          "cost_usd": {
+            "type": "number",
+            "nullable": true,
+            "title": "Cost Usd"
+          },
+          "priced": {
+            "type": "boolean",
+            "title": "Priced",
+            "default": false
+          },
+          "partially_priced": {
+            "type": "boolean",
+            "title": "Partially Priced",
+            "default": false
+          },
+          "estimated_tokens": {
+            "type": "boolean",
+            "title": "Estimated Tokens",
+            "default": false
+          },
+          "unpriced_models": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Unpriced Models"
+          }
+        },
+        "type": "object",
+        "title": "RunUsageResponse",
+        "description": "What one run actually spent (2026-09-03).\n\nThree states, kept apart on purpose. `priced` with a `cost_usd` is the\ncost. `priced` with `cost_usd == 0` means the run was genuinely free \u2014\nevery call ran on-device. `priced == false` means nobody could price the\nmodels in `unpriced_models`, and `cost_usd` is null: a UI that renders\nthat as \"$0.00\" is asserting something the server never said."
       },
       "SavedSearchCreate": {
         "properties": {
@@ -66027,6 +66131,10 @@
             "type": "string",
             "nullable": true,
             "title": "Diagram Svg Url"
+          },
+          "run_usage": {
+            "$ref": "#/components/schemas/RunUsageResponse",
+            "nullable": true
           }
         },
         "type": "object",

@@ -87,7 +87,14 @@ class ModelResult:
     latency_ms: float
     input_tokens: int = 0
     output_tokens: int = 0
-    cost_usd: float = 0.0
+    # None = nobody could price this model. It is NOT zero: a 0.0 here read as
+    # "this comparison was free", which is the defect this field's type now
+    # makes unrepresentable (2026-09-03).
+    cost_usd: float | None = None
+    cost_priced: bool = False
+    #: True when the token counts are a character-count guess because the
+    #: provider returned no usage metadata.
+    tokens_estimated: bool = False
     error: str | None = None
     structured_decode_success: bool | None = None
     structured_decode_error: str | None = None
@@ -106,6 +113,8 @@ class ModelResult:
             "input_tokens": self.input_tokens,
             "output_tokens": self.output_tokens,
             "cost_usd": self.cost_usd,
+            "cost_priced": self.cost_priced,
+            "tokens_estimated": self.tokens_estimated,
             "error": self.error,
             "structured_decode_success": self.structured_decode_success,
             "structured_decode_error": self.structured_decode_error,
@@ -126,7 +135,11 @@ class ComparisonResult:
     results: list[ModelResult]
     fastest_model: str | None = None
     cheapest_model: str | None = None
-    total_cost_usd: float = 0.0
+    #: None when nothing in the comparison could be priced.
+    total_cost_usd: float | None = None
+    #: True only when EVERY result priced — otherwise the total is a floor.
+    total_cost_priced: bool = False
+    unpriced_models: list[str] = field(default_factory=list)
     total_latency_ms: float = 0.0
     comparison_id: str = ""
     timestamp: str = field(default_factory=lambda: utc_now().isoformat())
@@ -139,6 +152,8 @@ class ComparisonResult:
             "fastest_model": self.fastest_model,
             "cheapest_model": self.cheapest_model,
             "total_cost_usd": self.total_cost_usd,
+            "total_cost_priced": self.total_cost_priced,
+            "unpriced_models": list(self.unpriced_models),
             "total_latency_ms": self.total_latency_ms,
             "comparison_id": self.comparison_id,
             "timestamp": self.timestamp,
@@ -196,19 +211,65 @@ _FREE_LOCAL_MODELS = {
 }
 
 
-def estimate_cost(model: str, input_tokens: int, output_tokens: int) -> float | None:
-    """Estimate cost for a model run via the litellm-backed registry (#4325).
+def estimate_cost(
+    model: str,
+    input_tokens: int,
+    output_tokens: int,
+    provider: str = "",
+) -> float | None:
+    """Estimate cost for a model run via the registry (#4325).
 
     On-device / local-server models are free; unknown models return None
     (pricing unavailable) rather than a stale guess.
+
+    Pass ``provider`` when it is known: gateway rows are keyed by the gateway
+    ("openrouter/qwen/qwen3.6-plus"), so without it every OpenRouter model
+    prices as unknown (2026-09-03). Pricing itself lives in `llm/usage.py` —
+    one implementation, so this path and the workflow runner cannot drift.
     """
     name = (model or "").strip()
     if name.lower() in _FREE_LOCAL_MODELS:
         return 0.0
 
-    from fichero_server.llm.model_types import estimate_cost as _registry_estimate
+    from fichero_server.llm.usage import price_call
 
-    return _registry_estimate(name, input_tokens, output_tokens)
+    return price_call(
+        {
+            "provider": provider,
+            "model": name,
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+        }
+    ).cost_usd
+
+
+def _cheapest_model_label(results: list["ModelResult"]) -> str | None:
+    """The cheapest PRICED result, or None when none could be priced.
+
+    Ranking on an unpriced result means ranking on a fabricated zero, which
+    named the model nobody has a price for as the bargain (2026-09-03).
+    """
+    priced = [r for r in results if r.cost_usd is not None]
+    if not priced:
+        return None
+    cheapest = min(priced, key=lambda r: r.cost_usd or 0.0)
+    return f"{cheapest.provider}/{cheapest.model}"
+
+
+def _total_cost(results: list["ModelResult"]) -> tuple[float | None, bool, list[str]]:
+    """(total, fully-priced, unpriced model ids) for a set of results.
+
+    Errored results are excluded from the unpriced list — a call that never
+    happened has no price to be missing.
+    """
+    priced = [r for r in results if r.cost_usd is not None]
+    unpriced: list[str] = []
+    for r in results:
+        if r.cost_usd is None and not r.error and r.model not in unpriced:
+            unpriced.append(r.model)
+    if not priced:
+        return None, False, unpriced
+    return sum(r.cost_usd or 0.0 for r in priced), not unpriced, unpriced
 
 
 # =============================================================================
@@ -278,10 +339,9 @@ class ModelComparisonEngine:
             fastest_model = f"{fastest.provider}/{fastest.model}"
 
             if request.include_cost_tracking:
-                cheapest = min(successful_results, key=lambda r: r.cost_usd)
-                cheapest_model = f"{cheapest.provider}/{cheapest.model}"
+                cheapest_model = _cheapest_model_label(successful_results)
 
-        total_cost = sum(r.cost_usd for r in model_results)
+        total_cost, total_priced, unpriced = _total_cost(model_results)
         total_latency = sum(r.latency_ms for r in model_results)
 
         comparison = ComparisonResult(
@@ -291,6 +351,8 @@ class ModelComparisonEngine:
             fastest_model=fastest_model,
             cheapest_model=cheapest_model,
             total_cost_usd=total_cost,
+            total_cost_priced=total_priced,
+            unpriced_models=unpriced,
             total_latency_ms=total_latency,
             comparison_id=comparison_id,
         )
@@ -347,14 +409,17 @@ class ModelComparisonEngine:
                         "output_tokens", usage.get("completion_tokens", 0)
                     )
 
-            # Estimate tokens if not available
+            # Estimate tokens if not available. Flagged, always: a guessed
+            # token count priced to six decimals looks exactly like a measured
+            # one, and the reader has no way to tell (2026-09-03).
+            tokens_estimated = input_tokens == 0 or output_tokens == 0
             if input_tokens == 0:
                 # Rough estimate: ~4 chars per token
                 input_tokens = len(prompt) // 4
             if output_tokens == 0:
                 output_tokens = len(response.content) // 4
 
-            cost = estimate_cost(spec.model, input_tokens, output_tokens) or 0.0
+            cost = estimate_cost(spec.model, input_tokens, output_tokens, spec.provider)
             structured_success = None
             structured_error = None
             raw_response = None
@@ -374,6 +439,8 @@ class ModelComparisonEngine:
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
                 cost_usd=cost,
+                cost_priced=cost is not None,
+                tokens_estimated=tokens_estimated,
                 structured_decode_success=structured_success,
                 structured_decode_error=structured_error,
                 guardrail_fallback_used=fallback is not None,
@@ -536,8 +603,9 @@ class ModelComparisonEngine:
         if successful_results:
             fastest = min(successful_results, key=lambda r: r.latency_ms)
             fastest_model = f"{fastest.provider}/{fastest.model}"
-            cheapest = min(successful_results, key=lambda r: r.cost_usd)
-            cheapest_model = f"{cheapest.provider}/{cheapest.model}"
+            cheapest_model = _cheapest_model_label(successful_results)
+
+        total_cost, total_priced, unpriced = _total_cost(model_results)
 
         comparison = ComparisonResult(
             prompt=f"[Vision: {len(images)} images] {prompt}",
@@ -545,7 +613,9 @@ class ModelComparisonEngine:
             results=model_results,
             fastest_model=fastest_model,
             cheapest_model=cheapest_model,
-            total_cost_usd=sum(r.cost_usd for r in model_results),
+            total_cost_usd=total_cost,
+            total_cost_priced=total_priced,
+            unpriced_models=unpriced,
             total_latency_ms=sum(r.latency_ms for r in model_results),
             comparison_id=comparison_id,
         )
@@ -601,7 +671,8 @@ class ModelComparisonEngine:
                 len(images) * 1000
             )  # ~1000 tokens per image
             output_tokens = len(response) // 4
-            cost = estimate_cost(spec.model, input_tokens, output_tokens) or 0.0
+            tokens_estimated = True
+            cost = estimate_cost(spec.model, input_tokens, output_tokens, spec.provider)
 
             return ModelResult(
                 provider=spec.provider,
@@ -611,6 +682,8 @@ class ModelComparisonEngine:
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
                 cost_usd=cost,
+                cost_priced=cost is not None,
+                tokens_estimated=tokens_estimated,
             )
 
         except asyncio.TimeoutError:
@@ -697,8 +770,9 @@ class ModelComparisonEngine:
         if successful_results:
             fastest = min(successful_results, key=lambda r: r.latency_ms)
             fastest_model = f"{fastest.provider}/{fastest.model}"
-            cheapest = min(successful_results, key=lambda r: r.cost_usd)
-            cheapest_model = f"{cheapest.provider}/{cheapest.model}"
+            cheapest_model = _cheapest_model_label(successful_results)
+
+        total_cost, total_priced, unpriced = _total_cost(model_results)
 
         comparison = ComparisonResult(
             prompt=f"[Tool: {tool_name}] {str(inputs)[:100]}",
@@ -706,7 +780,9 @@ class ModelComparisonEngine:
             results=model_results,
             fastest_model=fastest_model,
             cheapest_model=cheapest_model,
-            total_cost_usd=sum(r.cost_usd for r in model_results),
+            total_cost_usd=total_cost,
+            total_cost_priced=total_priced,
+            unpriced_models=unpriced,
             total_latency_ms=sum(r.latency_ms for r in model_results),
             comparison_id=comparison_id,
         )
@@ -770,8 +846,9 @@ class ModelComparisonEngine:
         if successful_results:
             fastest = min(successful_results, key=lambda r: r.latency_ms)
             fastest_model = f"{fastest.provider}/{fastest.model}"
-            cheapest = min(successful_results, key=lambda r: r.cost_usd)
-            cheapest_model = f"{cheapest.provider}/{cheapest.model}"
+            cheapest_model = _cheapest_model_label(successful_results)
+
+        total_cost, total_priced, unpriced = _total_cost(model_results)
 
         comparison = ComparisonResult(
             prompt=(
@@ -782,7 +859,9 @@ class ModelComparisonEngine:
             results=model_results,
             fastest_model=fastest_model,
             cheapest_model=cheapest_model,
-            total_cost_usd=sum(r.cost_usd for r in model_results),
+            total_cost_usd=total_cost,
+            total_cost_priced=total_priced,
+            unpriced_models=unpriced,
             total_latency_ms=sum(r.latency_ms for r in model_results),
             comparison_id=comparison_id,
         )
@@ -848,7 +927,8 @@ class ModelComparisonEngine:
             # Estimate cost
             input_tokens = len(str(inputs)) // 4
             output_tokens = len(response) // 4
-            cost = estimate_cost(spec.model, input_tokens, output_tokens) or 0.0
+            tokens_estimated = True
+            cost = estimate_cost(spec.model, input_tokens, output_tokens, spec.provider)
 
             return ModelResult(
                 provider=spec.provider,
@@ -858,6 +938,8 @@ class ModelComparisonEngine:
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
                 cost_usd=cost,
+                cost_priced=cost is not None,
+                tokens_estimated=tokens_estimated,
                 structured_decode_success=isinstance(result, dict)
                 and not bool(result.get("error")),
                 structured_decode_error=str(result.get("error"))
@@ -915,7 +997,8 @@ class ModelComparisonEngine:
                 response=response,
                 final_state=final_state,
             )
-            cost = estimate_cost(spec.model, input_tokens, output_tokens) or 0.0
+            tokens_estimated = True
+            cost = estimate_cost(spec.model, input_tokens, output_tokens, spec.provider)
 
             return ModelResult(
                 provider=spec.provider,
@@ -925,6 +1008,8 @@ class ModelComparisonEngine:
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
                 cost_usd=cost,
+                cost_priced=cost is not None,
+                tokens_estimated=tokens_estimated,
                 raw_response=final_state if isinstance(final_state, dict) else None,
             )
         except asyncio.TimeoutError:

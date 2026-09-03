@@ -40,9 +40,9 @@ struct ModelResultCard: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
-                    Text(String(format: "$%.4f", result.costUsd))
+                    Text(CostDisplay.text(result.costUsd))
                         .font(.caption)
-                        .foregroundStyle(.green)
+                        .foregroundStyle(CostDisplay.isKnown(result.costUsd) ? Color.green : Color.orange)
                 }
             }
 

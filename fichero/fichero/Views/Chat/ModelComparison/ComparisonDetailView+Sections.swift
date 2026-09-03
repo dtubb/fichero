@@ -133,7 +133,7 @@ extension ComparisonDetailView {
             HStack(spacing: 24) {
                 statCard(
                     title: "Total Cost",
-                    value: String(format: "$%.4f", comparison.totalCostUsd),
+                    value: CostDisplay.text(comparison.totalCostUsd),
                     icon: "dollarsign.circle"
                 )
 
@@ -254,7 +254,7 @@ extension ComparisonDetailView {
                 }
 
                 VStack(alignment: .trailing, spacing: 2) {
-                    Text(String(format: "$%.4f", result.costUsd))
+                    Text(CostDisplay.text(result.costUsd))
                         .font(.caption)
                         .fontWeight(.medium)
                     Text("cost")

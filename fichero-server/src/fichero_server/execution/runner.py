@@ -36,6 +36,7 @@ logger = logging.getLogger(__name__)
 # module is reachable from api/routes/workflow_execution at engine startup, so
 # those imports ran before the HTTP socket was ever bound.
 if TYPE_CHECKING:  # pragma: no cover - import-time typing only
+    from fichero_server.llm.usage import UsageTotals
     from fichero_server.workflows.builder import SystemicErrorDetected
 
 
@@ -888,6 +889,29 @@ async def _run_workflow_in_background(
         }
     }
 
+    # Live token accounting, declared HERE rather than beside the stream loop
+    # so the cancel/pause finishers below can report what a stopped run had
+    # already spent. A run that was cancelled after three paid nodes cost
+    # money, and a record that omits it says otherwise (2026-09-03).
+    usage_bucket: list[dict[str, Any]] = []
+
+    def _run_usage_totals() -> "UsageTotals":
+        """Everything the run spent so far, across every node."""
+        from fichero_server.llm.usage import aggregate_usage
+
+        return aggregate_usage(usage_bucket)
+
+    def _run_usage_record() -> dict[str, Any] | None:
+        """The persisted `run_usage` payload, or None when nothing ran.
+
+        None is "no model call was made", NOT "free" — the column stays null
+        and the client shows no cost rather than a confident $0.00.
+        """
+        totals = _run_usage_totals()
+        if not totals.model_calls:
+            return None
+        return totals.model_dump(exclude={"calls"})
+
     async def _finish_as_cancelled() -> None:
         """Record the run as cancelled and settle its documents (#4402).
 
@@ -921,6 +945,7 @@ async def _run_workflow_in_background(
             ).total_seconds()
             * 1000,
             partial_results_preserved=True,
+            **_run_usage_totals().to_activity_metadata(),
         )
         # #4284: the node that was in flight when the user hit stop must not
         # stay 'running' in the record forever — a cancelled run whose steps
@@ -937,6 +962,7 @@ async def _run_workflow_in_background(
             ).total_seconds()
             * 1000,
             completed_at=datetime.now(timezone.utc),
+            run_usage=_run_usage_record(),
         )
         # #4315: cancelled runs must not strand documents at
         # Status.processing — revert them to pending with provenance.
@@ -1037,6 +1063,7 @@ async def _run_workflow_in_background(
             status="paused",
             execution_log="\n".join(execution_log_lines),
             progress_timeline=progress_timeline,
+            run_usage=_run_usage_record(),
         )
 
     try:
@@ -1479,40 +1506,24 @@ async def _run_workflow_in_background(
         # into the graph's tasks, so parallel fan-out lands in the same bucket.
         from fichero_server.llm import begin_usage_collection, end_usage_collection
 
-        usage_bucket, usage_token = begin_usage_collection()
+        _, usage_token = begin_usage_collection(usage_bucket)
         usage_cursor = 0
 
         def _usage_since_last_node() -> dict[str, Any]:
-            """Tokens and cost for the calls made since the previous node."""
+            """Tokens and cost for the calls made since the previous node.
+
+            Pricing lives in `llm/usage.py` — one place that knows a free
+            provider from an unpriceable model, so a node never reports $0.00
+            for a call nobody could price (2026-09-03).
+            """
             nonlocal usage_cursor
             entries = usage_bucket[usage_cursor:]
             usage_cursor = len(usage_bucket)
             if not entries:
                 return {}
-            from fichero_server.llm.model_types import estimate_cost
+            from fichero_server.llm.usage import aggregate_usage
 
-            cost = 0.0
-            priced = False
-            for entry in entries:
-                value = estimate_cost(
-                    entry.get("model") or "",
-                    entry.get("input_tokens") or 0,
-                    entry.get("output_tokens") or 0,
-                )
-                if value is not None:
-                    cost += value
-                    priced = True
-            usage: dict[str, Any] = {
-                "input_tokens": sum(e.get("input_tokens") or 0 for e in entries),
-                "output_tokens": sum(e.get("output_tokens") or 0 for e in entries),
-                "total_tokens": sum(e.get("total_tokens") or 0 for e in entries),
-                "model_calls": len(entries),
-            }
-            # Absent, not zero, when nothing could be priced — free is a claim,
-            # and usually the wrong one.
-            if priced:
-                usage["cost_usd"] = round(cost, 6)
-            return usage
+            return aggregate_usage(entries).to_activity_metadata()
 
         # Stream execution events
         async for event in app.astream_events(
@@ -1797,6 +1808,19 @@ async def _run_workflow_in_background(
                                 entry["skip_reason"] = activity_metadata.get(
                                     "skip_reason", ""
                                 )
+                            # Per-step tokens and cost (2026-09-03) — the
+                            # #4343 seam the trace view left open. Copied
+                            # only when there WAS a model call, so a step
+                            # that called nothing shows nothing rather than
+                            # a fabricated zero.
+                            for usage_key in (
+                                "model_calls",
+                                "total_tokens",
+                                "cost_usd",
+                                "cost_priced",
+                            ):
+                                if usage_key in activity_metadata:
+                                    entry[usage_key] = activity_metadata[usage_key]
                             break
 
                     event_queue.put(
@@ -1916,6 +1940,10 @@ async def _run_workflow_in_background(
         # green checkmark for a run that did NOTHING. Record it failed with
         # the aggregated per-file error so every activity surface shows it.
         _all_files_failed = _empty and _ALL_FILES_FAILED_MARKER in _empty_reason
+        # What the whole run spent, on the completion event itself — the
+        # Activity console shows one line per run, and until now that line
+        # could not say what the run cost (2026-09-03).
+        completion_metadata.update(_run_usage_totals().to_activity_metadata())
         if _empty:
             completion_metadata["empty_output"] = True
             completion_metadata["empty_output_reason"] = _empty_reason
@@ -2015,6 +2043,7 @@ async def _run_workflow_in_background(
             progress_timeline=progress_timeline,
             duration_ms=total_duration_ms,
             completed_at=datetime.now(timezone.utc),
+            run_usage=_run_usage_record(),
         )
 
     except WorkflowCancelled:
@@ -2070,6 +2099,9 @@ async def _run_workflow_in_background(
             workflow_name=workflow.name,
             error=failure_message,
             duration_ms=total_duration_ms,
+            # A failed run still spent what it spent — the Activity line for
+            # it says so (2026-09-03).
+            **_run_usage_totals().to_activity_metadata(),
         )
 
         # Save execution log and progress timeline to workflow run
@@ -2102,6 +2134,7 @@ async def _run_workflow_in_background(
             duration_ms=total_duration_ms,
             error=failure_message,
             completed_at=datetime.now(timezone.utc),
+            run_usage=_run_usage_record(),
         )
         # #4315: failed runs revert their processing documents to pending.
         await _finalize_documents("failed", error=str(e)[:500])
@@ -2125,6 +2158,7 @@ async def _run_workflow_in_background(
             workflow_name=workflow.name,
             error=str(e),
             duration_ms=total_duration_ms,
+            **_run_usage_totals().to_activity_metadata(),
         )
 
         # Save execution log and progress timeline to workflow run
@@ -2153,6 +2187,7 @@ async def _run_workflow_in_background(
             duration_ms=total_duration_ms,
             error=str(e),
             completed_at=datetime.now(timezone.utc),
+            run_usage=_run_usage_record(),
         )
         # #4315: failed runs revert their processing documents to pending.
         await _finalize_documents("failed", error=str(e)[:500])

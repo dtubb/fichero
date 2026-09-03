@@ -27,6 +27,11 @@ struct WorkflowRunResponse: Codable {
     /// Empty for legacy runs recorded before step records existed, which is
     /// why the timeline mapping is kept as the fallback rather than deleted.
     let steps: [WorkflowRunStep]
+    /// What the run SPENT (2026-09-03). Nil for a run that made no model
+    /// call, or one recorded before usage accounting existed — which is not
+    /// the same as a run that cost nothing, so nil renders as nothing at all
+    /// rather than as "$0.00".
+    let runUsage: RunUsage?
 
     enum CodingKeys: String, CodingKey {
         case threadId = "thread_id"
@@ -45,6 +50,7 @@ struct WorkflowRunResponse: Codable {
         case diagramMermaid = "diagram_mermaid"
         case runArtifacts = "run_artifacts"
         case steps
+        case runUsage = "run_usage"
     }
 
     init(from decoder: Decoder) throws {
@@ -82,6 +88,7 @@ struct WorkflowRunResponse: Codable {
         steps = try container.decodeIfPresent(
             [WorkflowRunStep].self, forKey: .steps
         ) ?? []
+        runUsage = try container.decodeIfPresent(RunUsage.self, forKey: .runUsage)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -107,6 +114,7 @@ struct WorkflowRunResponse: Codable {
         try container.encodeIfPresent(diagramMermaid, forKey: .diagramMermaid)
         try container.encode(runArtifacts, forKey: .runArtifacts)
         try container.encode(steps, forKey: .steps)
+        try container.encodeIfPresent(runUsage, forKey: .runUsage)
     }
 
     init(
@@ -125,7 +133,8 @@ struct WorkflowRunResponse: Codable {
         progressTimeline: [String: Any]? = nil,
         diagramMermaid: String? = nil,
         runArtifacts: [WorkflowRunArtifact] = [],
-        steps: [WorkflowRunStep] = []
+        steps: [WorkflowRunStep] = [],
+        runUsage: RunUsage? = nil
     ) {
         self.threadId = threadId
         self.workflowId = workflowId
@@ -143,6 +152,126 @@ struct WorkflowRunResponse: Codable {
         self.diagramMermaid = diagramMermaid
         self.runArtifacts = runArtifacts
         self.steps = steps
+        self.runUsage = runUsage
+    }
+}
+
+// MARK: - Run Usage & Cost (2026-09-03)
+
+/// Tokens and money for one run, mirroring the server's `RunUsageResponse`.
+///
+/// The three states the server keeps apart are kept apart here too, because
+/// collapsing them is exactly how a cost display starts lying:
+/// - `priced` with a cost → that is the cost.
+/// - `priced` with a cost of 0 → genuinely free; every call ran on-device.
+/// - not `priced` → nobody could price these models, `costUsd` is nil, and
+///   the UI says "Cost unpriced" rather than inventing a zero.
+struct RunUsage: Codable, Equatable {
+    let modelCalls: Int
+    let inputTokens: Int
+    let outputTokens: Int
+    let totalTokens: Int
+    let cacheReadTokens: Int
+    /// Nil when nothing could be priced. Never a stand-in zero.
+    let costUsd: Double?
+    /// True only when EVERY call in the run priced.
+    let priced: Bool
+    /// Some calls priced and some did not — `costUsd` is a floor.
+    let partiallyPriced: Bool
+    /// At least one call's tokens are a character-count estimate rather than
+    /// the provider's own count.
+    let estimatedTokens: Bool
+    let unpricedModels: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case modelCalls = "model_calls"
+        case inputTokens = "input_tokens"
+        case outputTokens = "output_tokens"
+        case totalTokens = "total_tokens"
+        case cacheReadTokens = "cache_read_tokens"
+        case costUsd = "cost_usd"
+        case priced
+        case partiallyPriced = "partially_priced"
+        case estimatedTokens = "estimated_tokens"
+        case unpricedModels = "unpriced_models"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        modelCalls = try container.decodeIfPresent(Int.self, forKey: .modelCalls) ?? 0
+        inputTokens = try container.decodeIfPresent(Int.self, forKey: .inputTokens) ?? 0
+        outputTokens = try container.decodeIfPresent(Int.self, forKey: .outputTokens) ?? 0
+        totalTokens = try container.decodeIfPresent(Int.self, forKey: .totalTokens) ?? 0
+        cacheReadTokens = try container.decodeIfPresent(Int.self, forKey: .cacheReadTokens) ?? 0
+        costUsd = try container.decodeIfPresent(Double.self, forKey: .costUsd)
+        priced = try container.decodeIfPresent(Bool.self, forKey: .priced) ?? false
+        partiallyPriced = try container.decodeIfPresent(Bool.self, forKey: .partiallyPriced) ?? false
+        estimatedTokens = try container.decodeIfPresent(Bool.self, forKey: .estimatedTokens) ?? false
+        unpricedModels = try container.decodeIfPresent([String].self, forKey: .unpricedModels) ?? []
+    }
+
+    init(
+        modelCalls: Int = 0,
+        inputTokens: Int = 0,
+        outputTokens: Int = 0,
+        totalTokens: Int = 0,
+        cacheReadTokens: Int = 0,
+        costUsd: Double? = nil,
+        priced: Bool = false,
+        partiallyPriced: Bool = false,
+        estimatedTokens: Bool = false,
+        unpricedModels: [String] = []
+    ) {
+        self.modelCalls = modelCalls
+        self.inputTokens = inputTokens
+        self.outputTokens = outputTokens
+        self.totalTokens = totalTokens
+        self.cacheReadTokens = cacheReadTokens
+        self.costUsd = costUsd
+        self.priced = priced
+        self.partiallyPriced = partiallyPriced
+        self.estimatedTokens = estimatedTokens
+        self.unpricedModels = unpricedModels
+    }
+
+    /// True when there is anything at all to report.
+    var hasUsage: Bool { modelCalls > 0 }
+
+    /// What to print for the money. Four outcomes, none of them a bare zero
+    /// standing in for an unknown:
+    /// - "Free" — priced at exactly nothing, i.e. it all ran on this machine.
+    /// - "$0.0132" — the cost.
+    /// - "≥ $0.0132" — a floor: some calls could not be priced.
+    /// - "Cost unpriced" — no price exists for these models.
+    var costText: String {
+        guard let cost = costUsd else { return "Cost unpriced" }
+        if partiallyPriced {
+            return "≥ \(Self.currency(cost))"
+        }
+        return cost == 0 ? "Free" : Self.currency(cost)
+    }
+
+    /// "12,431 tokens · 3 calls", with the estimate flagged when the tokens
+    /// were guessed rather than reported.
+    var tokensText: String {
+        let calls = modelCalls == 1 ? "1 call" : "\(modelCalls) calls"
+        let prefix = estimatedTokens ? "~" : ""
+        return "\(prefix)\(totalTokens.formatted()) tokens · \(calls)"
+    }
+
+    /// The models nobody could price, for the tooltip that explains why the
+    /// cost is missing. Nil when everything priced.
+    var unpricedNotice: String? {
+        guard !unpricedModels.isEmpty else { return nil }
+        return "No registry price for: " + unpricedModels.joined(separator: ", ")
+    }
+
+    /// Sub-cent costs need more than two decimals to say anything at all.
+    private static func currency(_ value: Double) -> String {
+        if value > 0 && value < 0.01 {
+            return String(format: "$%.4f", value)
+        }
+        return String(format: "$%.2f", value)
     }
 }
 

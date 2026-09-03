@@ -57,6 +57,7 @@ _WORKFLOW_RUNS_COLUMNS = (
     "progress_timeline",
     "diagram_mermaid",
     "resolved_scope",
+    "run_usage",
 )
 
 # Secondary indexes on workflow_runs that must be recreated after a rebuild.
@@ -392,8 +393,24 @@ def _rebuild_workflow_runs_flipping_stale(
             "THEN COALESCE(completed_at, CURRENT_TIMESTAMP) ELSE completed_at END"
         )
 
+        # Rebuild only the columns this table ACTUALLY has. The canonical
+        # list grows as the schema does (run_usage, 2026-09-03), and a table
+        # that predates a column — a library opened before the migration, or
+        # a fixture built from the original CREATE TABLE — would otherwise
+        # make the rebuild fail on a missing column and leave the corrupt
+        # index unrepaired. Recovery must not be the thing that needs the
+        # newest schema.
+        try:
+            cursor = conn.execute("SELECT * FROM workflow_runs LIMIT 0")
+            present = {str(col[0]) for col in (cursor.description or [])}
+        except Exception:  # pragma: no cover - defensive; assume canonical
+            present = set()
+        columns = [
+            c for c in _WORKFLOW_RUNS_COLUMNS if c in present
+        ] or list(_WORKFLOW_RUNS_COLUMNS)
+
         select_cols = []
-        for col in _WORKFLOW_RUNS_COLUMNS:
+        for col in columns:
             if col == "status":
                 select_cols.append(f"{status_expr} AS status")
             elif col == "error":
@@ -697,6 +714,16 @@ class ActivityStore:
                 conn.execute(
                     "ALTER TABLE workflow_runs ADD COLUMN diagram_mermaid TEXT"
                 )
+            except Exception:
+                pass  # Column already exists
+
+            try:
+                # What the run actually SPENT (2026-09-03): provider-reported
+                # tokens and the cost computed from them, per run. Without it
+                # Activity could show a run's duration to the millisecond and
+                # not a cent of its cost — the numbers existed in the engine
+                # log and died there.
+                conn.execute("ALTER TABLE workflow_runs ADD COLUMN run_usage JSON")
             except Exception:
                 pass  # Column already exists
 
@@ -1075,8 +1102,14 @@ class ActivityStore:
         duration_ms: Optional[float] = None,
         error: Optional[str] = None,
         completed_at: Optional[datetime] = None,
+        run_usage: Optional[dict] = None,
     ) -> None:
-        """Update an existing workflow run record."""
+        """Update an existing workflow run record.
+
+        ``run_usage`` is the run's own accounting — tokens, model calls and
+        cost — written on EVERY terminal path, not just success. A run that
+        failed halfway still spent the money it spent (2026-09-03).
+        """
 
         def _update():
             conn = connect_utc(self.db_path)
@@ -1102,6 +1135,9 @@ class ActivityStore:
                 if completed_at is not None:
                     updates.append("completed_at = ?")
                     params.append(completed_at)
+                if run_usage is not None:
+                    updates.append("run_usage = ?")
+                    params.append(json.dumps(run_usage))
 
                 if updates:
                     params.append(thread_id)
@@ -1170,6 +1206,10 @@ class ActivityStore:
             # #4384: what the run was scoped to. Index 14 — the SELECTs
             # feeding this mapping all list resolved_scope last.
             resolved_scope=json.loads(row[14]) if len(row) > 14 and row[14] else None,
+            # Index 15 — run_usage trails resolved_scope in every SELECT
+            # below. None for runs recorded before the column existed, which
+            # is not the same as a run that cost nothing.
+            run_usage=json.loads(row[15]) if len(row) > 15 and row[15] else None,
         )
 
     async def get_workflow_run(self, thread_id: str) -> Optional[WorkflowRun]:
@@ -1183,7 +1223,8 @@ class ActivityStore:
                     SELECT thread_id, workflow_id, workflow_name, python_code,
                            execution_log, status, started_at, completed_at,
                            duration_ms, error, workflow_snapshot, node_name_map,
-                           progress_timeline, diagram_mermaid, resolved_scope
+                           progress_timeline, diagram_mermaid, resolved_scope,
+                           run_usage
                     FROM workflow_runs
                     WHERE thread_id = ?
                 """,
@@ -1237,7 +1278,8 @@ class ActivityStore:
                         SELECT thread_id, workflow_id, workflow_name, python_code,
                                execution_log, status, started_at, completed_at,
                                duration_ms, error, workflow_snapshot, node_name_map,
-                               progress_timeline, diagram_mermaid, resolved_scope
+                               progress_timeline, diagram_mermaid, resolved_scope,
+                               run_usage
                         FROM workflow_runs
                         WHERE workflow_id = ?
                         ORDER BY started_at DESC
@@ -1251,7 +1293,8 @@ class ActivityStore:
                         SELECT thread_id, workflow_id, workflow_name, python_code,
                                execution_log, status, started_at, completed_at,
                                duration_ms, error, workflow_snapshot, node_name_map,
-                               progress_timeline, diagram_mermaid, resolved_scope
+                               progress_timeline, diagram_mermaid, resolved_scope,
+                               run_usage
                         FROM workflow_runs
                         ORDER BY started_at DESC
                         LIMIT ?

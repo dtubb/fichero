@@ -119,8 +119,16 @@ struct RunTraceNodeDetail: View {
                         Text(skipReason)
                     }
                 }
-                // #4343 seam: when per-step tokens/cost lands in the
-                // timeline, add a "Cost" GridRow here beside Duration.
+                // #4343, filled 2026-09-03: what this step spent, beside
+                // how long it took. Absent for a step that called no model.
+                if let cost = node.costText {
+                    GridRow {
+                        Text("Cost").foregroundStyle(.secondary)
+                        Text(cost)
+                            .monospacedDigit()
+                            .foregroundStyle(node.costPriced ? Color.primary : Color.orange)
+                    }
+                }
             }
             .font(.caption)
 

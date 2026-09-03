@@ -140,7 +140,12 @@ class ModelResultResponse(BaseModel):
     latency_ms: float
     input_tokens: int
     output_tokens: int
-    cost_usd: float
+    #: Null when this model has no price in the registry. Not zero — a zero
+    #: here claimed the call was free (2026-09-03).
+    cost_usd: float | None = None
+    cost_priced: bool = False
+    #: Tokens are a character-count guess, not the provider's own count.
+    tokens_estimated: bool = False
     error: str | None
     structured_decode_success: bool | None = None
     structured_decode_error: str | None = None
@@ -159,7 +164,11 @@ class ComparisonResultResponse(BaseModel):
     results: list[ModelResultResponse]
     fastest_model: str | None
     cheapest_model: str | None
-    total_cost_usd: float
+    #: Null when nothing in the comparison could be priced; a floor rather
+    #: than a total when `total_cost_priced` is false.
+    total_cost_usd: float | None = None
+    total_cost_priced: bool = False
+    unpriced_models: list[str] = Field(default_factory=list)
     total_latency_ms: float
     comparison_id: str
     timestamp: str
@@ -176,14 +185,20 @@ class ModelListResponse(BaseModel):
 class CostEstimateItem(BaseModel):
     provider: str
     model: str
-    estimated_cost_usd: float
+    #: Null when the registry has no price for this model.
+    estimated_cost_usd: float | None = None
+    priced: bool = False
 
 
 class CostEstimateResponse(BaseModel):
     estimated_input_tokens: int
     estimated_output_tokens: int
     model_estimates: list[CostEstimateItem]
-    total_estimated_cost_usd: float
+    #: The sum of the PRICED estimates; null when none priced. Read with
+    #: `all_models_priced` — otherwise it is a floor wearing a total's name.
+    total_estimated_cost_usd: float | None = None
+    all_models_priced: bool = False
+    unpriced_models: list[str] = Field(default_factory=list)
 
 
 class TierModelInfo(BaseModel):
@@ -665,26 +680,37 @@ async def estimate_comparison_cost(
 
     estimates = []
     total_estimated_cost = 0.0
+    unpriced_models: list[str] = []
+    priced_any = False
 
     for spec in _model_specs(request.models, app_db):
         model_name = spec.model
-        # None = pricing unavailable in the litellm registry; report 0.0
-        # rather than fabricating a stale per-model price (#4325).
+        # None = pricing unavailable in the registry (#4325). Reported as
+        # null, never as 0.0: this endpoint answers "what will this cost",
+        # and "nothing" is the one answer we must not invent (2026-09-03).
         cost = estimate_cost(
-            model_name, estimated_input_tokens, estimated_output_tokens
-        ) or 0.0
+            model_name, estimated_input_tokens, estimated_output_tokens, spec.provider
+        )
         estimates.append(CostEstimateItem(
             provider=spec.provider,
             model=model_name,
             estimated_cost_usd=cost,
+            priced=cost is not None,
         ))
-        total_estimated_cost += cost
+        if cost is None:
+            if model_name not in unpriced_models:
+                unpriced_models.append(model_name)
+        else:
+            priced_any = True
+            total_estimated_cost += cost
 
     return CostEstimateResponse(
         estimated_input_tokens=estimated_input_tokens,
         estimated_output_tokens=estimated_output_tokens,
         model_estimates=estimates,
-        total_estimated_cost_usd=total_estimated_cost,
+        total_estimated_cost_usd=total_estimated_cost if priced_any else None,
+        all_models_priced=priced_any and not unpriced_models,
+        unpriced_models=unpriced_models,
     )
 
 

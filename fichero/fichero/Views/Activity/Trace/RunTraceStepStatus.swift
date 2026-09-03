@@ -40,7 +40,14 @@ extension RunTraceModelBuilder {
                 ),
                 durationMs: step.durationMs ?? node.durationMs,
                 error: step.error ?? node.error,
-                skipReason: step.skipReason ?? node.skipReason
+                skipReason: step.skipReason ?? node.skipReason,
+                // Step records carry no usage; the timeline layer does, so
+                // carry it forward rather than dropping the cost whenever a
+                // run has step records (which is every modern run).
+                modelCalls: node.modelCalls,
+                totalTokens: node.totalTokens,
+                costUsd: node.costUsd,
+                costPriced: node.costPriced
             )
         }
         return RunTraceGraph(nodes: nodes, edges: graph.edges)
