@@ -67,15 +67,29 @@ enum OCRGeometrySelection {
             guard let typeRank: Int = geometryBearingTypes.firstIndex(of: artifact.artifactType) else {
                 continue
             }
-            // `text_geometry` keeps absolute authority — it is the file's OWN
-            // text layer, exact coordinates, not an estimate. But between
-            // `transcription` and `regions` the type no longer decides
-            // (2026-08-25, Daniel's re-run): both are MEASURED passes over the
-            // same pixels, and ranking transcription above regions let a stale
-            // 8/23 transcription's sparse boxes permanently mask every fresh
-            // Detect Regions run — re-running "did nothing" on screen while
-            // the engine wrote 52 good boxes. Estimates tier: newest wins.
-            let rank = typeRank == 0 ? 0 : 1
+            // HAND-CURATED geometry outranks every machine pass (Daniel,
+            // 2026-09-03: "I draw a region, switch view, come back and it's
+            // gone"). A `provider: "user"` artifact is the one a PERSON drew
+            // on this page; ranking it with the estimates let the next
+            // transcription or Detect Regions run — newer by definition —
+            // mask the boxes its author had just curated. Curation persists
+            // and constrains the machine, never the other way round.
+            //
+            // `text_geometry` keeps authority over the machine tier — it is
+            // the file's OWN text layer, exact coordinates, not an estimate.
+            // But between `transcription` and `regions` the type no longer
+            // decides (2026-08-25, Daniel's re-run): both are MEASURED passes
+            // over the same pixels, and ranking transcription above regions
+            // let a stale 8/23 transcription's sparse boxes permanently mask
+            // every fresh Detect Regions run — re-running "did nothing" on
+            // screen while the engine wrote 52 good boxes. Within a tier:
+            // newest wins.
+            let rank: Int
+            if isHandCurated(artifact) {
+                rank = -1
+            } else {
+                rank = typeRank == 0 ? 0 : 1
+            }
             ranked.append((rank: rank, artifact: artifact))
         }
         ranked.sort { lhs, rhs in
@@ -83,6 +97,17 @@ enum OCRGeometrySelection {
             return lhs.artifact.createdAt > rhs.artifact.createdAt
         }
         return ranked.map { $0.artifact }
+    }
+
+    /// Whether a person drew this geometry rather than a pass measuring it.
+    ///
+    /// The engine stamps `provider: "user"` on the artifact the region verbs
+    /// bootstrap (`createRegionsArtifact`) and on every hand-added box. It is
+    /// the only signal in the LEAN list payload that distinguishes curation
+    /// from a machine estimate, which is why the ranking reads it here rather
+    /// than fetching each candidate's geometry to look.
+    static func isHandCurated(_ artifact: Artifact) -> Bool {
+        artifact.provider?.lowercased() == "user"
     }
 
     /// Whether the list payload already proves this artifact has no boxes.
