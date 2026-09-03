@@ -11,6 +11,8 @@ extension AnnotationService {
         text: String,
         pageLabel: String? = nil,
         bbox: [Double]? = nil,
+        // The rendition `bbox` was measured on; nil = the node's own image.
+        renditionId: String? = nil,
         charStart: Int? = nil,
         charEnd: Int? = nil,
         pageIndex: Int? = nil,
@@ -36,7 +38,8 @@ extension AnnotationService {
                 charStart: charStart,
                 charEnd: charEnd,
                 anchor: Self.wireAnchor(
-                    bbox: bbox, documentId: documentId, pageId: pageId, folderId: folderId
+                    bbox: bbox, documentId: documentId, pageId: pageId, folderId: folderId,
+                    renditionId: renditionId
                 ),
 
                 text: text.isEmpty ? nil : text,
@@ -97,13 +100,24 @@ extension AnnotationService {
     /// region-drawing caller (the PDF reader's drawn highlight) hands
     /// NORMALIZED page fractions on a document scope, so the anchor names the
     /// document and the space instead of shipping bare numbers.
+    ///
+    /// `renditionId` closes the gap that made annotations a SECOND geometry
+    /// path (Daniel, 2026-09-03: "bounding boxes are fine" — annotations were
+    /// not). The engine has carried `SourceAnchor.rendition_id` since the
+    /// anchor type replaced the bare bbox, and the comment on the model calls
+    /// a frameless rect the defect the type exists to remove — but this
+    /// client never set it, so EVERY annotation ever written claims the
+    /// node's own frame. Draw one on a cropped or deskewed rendition and it
+    /// was silently recorded as if it had been drawn on the base page.
     static func wireAnchor(
-        bbox: [Double]?, documentId: String?, pageId: String?, folderId: String?
+        bbox: [Double]?, documentId: String?, pageId: String?, folderId: String?,
+        renditionId: String? = nil
     ) -> Components.Schemas.SourceAnchorInput? {
         bbox.map { rect in
             .init(
                 documentId: documentId ?? pageId ?? folderId ?? "",
                 pageId: pageId,
+                renditionId: renditionId,
                 space: .normalized,
                 rect: rect
             )

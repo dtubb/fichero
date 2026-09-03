@@ -47,6 +47,11 @@ struct RegionInteractionLayer: View {
     /// The source image's pixel size — recorded with each marquee so ▶ can
     /// denormalize into `image.crop_child`'s pixel coordinates.
     let imagePixelSize: CGSize?
+    /// The rendition whose pixels are on screen, or nil for the node's own
+    /// image. The check tool writes annotations from here, and an annotation
+    /// with no frame is one that will be drawn over the wrong pixels
+    /// (2026-09-03 — the same identity region geometry carries).
+    var renditionId: String?
     /// True while rubber-band add mode is armed.
     let isAddingRegion: Bool
     /// True while an ANNOTATION draw tool is armed (highlight/note/line/
@@ -520,11 +525,16 @@ extension RegionInteractionLayer {
         }
         guard let bbox = target else { return }
         let docId = documentId
+        let frame = renditionId
         Task { @MainActor in
             // Cycle against the existing check on the SAME extent.
             let existing = annotationStore.annotations.first { annotation in
                 annotation.kind == .rating
                     && (annotation.documentId == docId || annotation.pageId == docId)
+                    // Same PLACE means same frame too: a check on the deskewed
+                    // rendition and one on the base page can share a rect and
+                    // still be different marks (2026-09-03).
+                    && annotation.renditionId == frame
                     && Self.sameExtent(annotation.regionRect, bbox)
             }
             if let existing {
@@ -533,14 +543,14 @@ extension RegionInteractionLayer {
                 guard next <= 3 else { return }  // ✓✓✓ → clear
                 _ = await annotationStore.addNote(
                     scope: .document(docId), text: "",
-                    bbox: bbox, kind: .rating, rating: next
+                    bbox: bbox, renditionId: frame, kind: .rating, rating: next
                 )
             } else {
                 // Coding v1 (ruling 4): pending tags ride a NEW check too —
                 // a triple-check can carry a code.
                 _ = await annotationStore.addNote(
                     scope: .document(docId), text: "",
-                    bbox: bbox, kind: .rating, rating: 1,
+                    bbox: bbox, renditionId: frame, kind: .rating, rating: 1,
                     tags: windowState.takePendingMarkupTags()
                 )
             }

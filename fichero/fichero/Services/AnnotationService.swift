@@ -174,6 +174,11 @@ struct DocumentAnnotation: Codable, Identifiable, Hashable {
     /// True when the annotation carries an image/PDF region (`[x, y, width, height]`).
     var hasRegion: Bool { (regionRect?.count ?? 0) >= 4 }
 
+    /// The frame `regionRect` was measured on — nil meaning the node's own
+    /// image. The same identity `OCRGeometry.renditionId` carries for region
+    /// boxes, so one `overlayFrameMatches` gate can govern both (2026-09-03).
+    var renditionId: String? { anchor?.renditionId }
+
     /// True when the annotation carries a text span.
     var hasSpan: Bool { charStart != nil && charEnd != nil }
 

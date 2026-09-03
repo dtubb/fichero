@@ -71,6 +71,11 @@ final class AnnotationStore: ObservableDomainStore {
         text: String,
         pageLabel: String? = nil,
         bbox: [Double]? = nil,
+        // The rendition the rect was MEASURED on, or nil for the node's own
+        // image. Same frame identity `OCRGeometry.renditionId` carries for
+        // region boxes (2026-09-03): a mark whose frame is unknown is a mark
+        // that will be drawn over the wrong pixels sooner or later.
+        renditionId: String? = nil,
         charStart: Int? = nil,
         charEnd: Int? = nil,
         pageIndex: Int? = nil,
@@ -85,6 +90,7 @@ final class AnnotationStore: ObservableDomainStore {
             text: text,
             pageLabel: pageLabel,
             bbox: bbox,
+            renditionId: renditionId,
             charStart: charStart,
             charEnd: charEnd,
             pageIndex: pageIndex,

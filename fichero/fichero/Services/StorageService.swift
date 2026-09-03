@@ -312,6 +312,22 @@ class StorageService {
         }
     }
 
+    /// How many times each document's images have been invalidated.
+    ///
+    /// Eviction alone does NOT refresh anything already on screen (Daniel,
+    /// 2026-09-03: the library row kept the pre-edit picture after a
+    /// background removal). `LibraryImageView` holds the decoded `Image` in
+    /// its own `@State` and reloads only when its `.task(id:)` key changes —
+    /// emptying a cache the view is no longer consulting changes nothing.
+    /// This counter is that key's third component: bump it and every view
+    /// showing that document reloads, and only those views (the
+    /// one-item-in-place rule — a global token would restart every thumbnail
+    /// in the folder).
+    private(set) var imageCacheEpoch: [String: Int] = [:]
+
+    /// The current epoch for `docId`; 0 until something invalidates it.
+    func imageEpoch(for docId: String) -> Int { imageCacheEpoch[docId] ?? 0 }
+
     /// Evict a document's cached images — call when the user knows a
     /// thumbnail has changed (e.g., after a rebuild/reindex).
     func invalidateImageCache(for docId: String) {
@@ -321,10 +337,14 @@ class StorageService {
         sourceDataCache.removeValue(forKey: docId)
         thumbnailCacheOrder.removeAll { $0 == docId }
         displayPlatformImageCacheOrder.removeAll { $0 == docId }
+        imageCacheEpoch[docId] = imageEpoch(for: docId) + 1
     }
 
     /// Clear every in-memory byte/image cache, used when the app switches engine hosts.
     func clearAll() {
+        // Every document's images are gone, so every epoch moves — a host
+        // switch must not leave a stale picture on screen either.
+        for key in imageCacheEpoch.keys { imageCacheEpoch[key] = (imageCacheEpoch[key] ?? 0) + 1 }
         thumbnailCache.removeAll()
         displayCache.removeAll()
         displayPlatformImageCache.removeAll()

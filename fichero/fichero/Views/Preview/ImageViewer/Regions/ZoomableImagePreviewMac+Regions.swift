@@ -68,6 +68,7 @@ extension ZoomableImagePreview {
                 documentId: documentId,
                 marquees: windowState?.previewMarquees,
                 imagePixelSize: imageSize == .zero ? nil : imageSize,
+                renditionId: displayedRenditionId,
                 isAddingRegion: isAddingRegion,
                 isAnnotating: isDrawingRegion,
                 onAnnotate: { box in

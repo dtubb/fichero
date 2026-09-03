@@ -66,22 +66,15 @@ extension ZoomableImagePreview {
                 rawValue: UserDefaults.standard.string(forKey: PreviewHighlightStyle.storageKey) ?? ""
             )?.persistedColor
             : nil
-        // Word-boundary snap (Daniel, 2026-08-30): highlight/underline/
-        // strikethrough hug the recognised words the drag touched — one
-        // strip per line. Free-form kinds (note, line) keep the drawn rect.
-        let snapKinds: Set<AnnotationKind> = [.highlight, .underline, .strikethrough]
-        let rects: [[Double]?]
-        if let box, snapKinds.contains(kind), let geometry = ocrGeometry {
-            rects = AnnotationWordSnap.snappedRects(
-                drag: box, words: geometry.wordBoxes, lines: geometry.lineBoxes
-            )
-        } else {
-            rects = [box]
-        }
+        let rects = snappedRects(for: box, kind: kind)
         // Coding v1 (Daniel, 2026-08-30, ruling 4): pending tags ride the
         // next highlight-family save — every strip of this ONE gesture.
         let tagKinds: Set<AnnotationKind> = [.highlight, .underline, .strikethrough]
         let tags = tagKinds.contains(kind) ? (windowState?.takePendingMarkupTags() ?? []) : []
+        // The frame these rects were MEASURED on — read before the hop so the
+        // save records the pixels the user drew on, not whatever is on screen
+        // when the write lands.
+        let drawnOn = displayedRenditionId
         Task {
             var firstSavedId: String?
             for rect in rects {
@@ -89,6 +82,7 @@ extension ZoomableImagePreview {
                     scope: .document(documentId),
                     text: "",
                     bbox: rect,
+                    renditionId: drawnOn,
                     kind: kind,
                     color: color,
                     tags: tags
@@ -105,6 +99,25 @@ extension ZoomableImagePreview {
                 )
             }
         }
+    }
+
+    /// Word-boundary snap (Daniel, 2026-08-30): highlight/underline/
+    /// strikethrough hug the recognised words the drag touched — one strip
+    /// per line. Free-form kinds (note, line) keep the drawn rect.
+    ///
+    /// The snap reads the FRAME-MATCHED geometry (2026-09-03), the same set
+    /// the region overlay draws and selects from. Reading raw `ocrGeometry`
+    /// let a highlight snap to word boxes measured on a rendition that was
+    /// not the one on screen — the wrong-frame defect the region layer has
+    /// been gated against since 2026-08-23, arriving by the annotation door.
+    func snappedRects(for box: [Double]?, kind: AnnotationKind) -> [[Double]?] {
+        let snapKinds: Set<AnnotationKind> = [.highlight, .underline, .strikethrough]
+        guard let box, snapKinds.contains(kind),
+              !frameMatchedGeometryBoxes.isEmpty,
+              let geometry = ocrGeometry else { return [box] }
+        return AnnotationWordSnap.snappedRects(
+            drag: box, words: geometry.wordBoxes, lines: geometry.lineBoxes
+        )
     }
 
     // MARK: - Marks over the SELECTION (Daniel, 2026-08-31, rulings 4 & 5)
@@ -172,11 +185,12 @@ extension ZoomableImagePreview {
         }
         let color: String? = kind == .highlight ? style?.persistedColor : nil
         let tags = windowState?.takePendingMarkupTags() ?? []
+        let drawnOn = displayedRenditionId
         Task {
             for strip in strips {
                 _ = await annotationStore.addNote(
                     scope: .document(documentId), text: "", bbox: strip,
-                    kind: kind, color: color, tags: tags
+                    renditionId: drawnOn, kind: kind, color: color, tags: tags
                 )
             }
         }
@@ -193,11 +207,13 @@ extension ZoomableImagePreview {
         let strips = selectedMarkupStrips
         guard !strips.isEmpty else { return false }
         let tags = windowState?.takePendingMarkupTags() ?? []
+        let drawnOn = displayedRenditionId
         Task {
             for bbox in strips {
                 let existing = annotationStore.annotations.first { annotation in
                     annotation.kind == .rating
                         && (annotation.documentId == documentId || annotation.pageId == documentId)
+                        && annotation.renditionId == drawnOn
                         && RegionInteractionLayer.sameExtent(annotation.regionRect, bbox)
                 }
                 if let existing {
@@ -206,12 +222,12 @@ extension ZoomableImagePreview {
                     guard next <= 3 else { continue }  // ✓✓✓ → clear
                     _ = await annotationStore.addNote(
                         scope: .document(documentId), text: "",
-                        bbox: bbox, kind: .rating, rating: next
+                        bbox: bbox, renditionId: drawnOn, kind: .rating, rating: next
                     )
                 } else {
                     _ = await annotationStore.addNote(
                         scope: .document(documentId), text: "",
-                        bbox: bbox, kind: .rating, rating: 1, tags: tags
+                        bbox: bbox, renditionId: drawnOn, kind: .rating, rating: 1, tags: tags
                     )
                 }
             }
@@ -222,14 +238,36 @@ extension ZoomableImagePreview {
     /// Saved annotations for the shown image, as per-kind marks (Daniel,
     /// 2026-08-30: markup should LOOK like what it is). Region-less bookmarks
     /// ride along as whole-page stars.
+    ///
+    /// FRAME GATE (2026-09-03), the one the region overlay has had since the
+    /// entry-scoped runs and annotations never did: a mark measured on a
+    /// crop/rotate/deskew rendition must not be drawn over any other frame's
+    /// pixels. Match-or-SKIP through the SAME `overlayFrameMatches` matrix
+    /// `geometryFrameMatchesDisplay` uses — blank beats a plausible band in
+    /// the wrong place, and one predicate means the two layers cannot
+    /// disagree about what frame is on screen.
     var annotationMarks: [AnnotationMark] {
         guard let documentId else { return [] }
         return annotationStore.annotations
             .filter {
                 ($0.documentId == documentId || $0.pageId == documentId)
                     && ($0.hasRegion || $0.kind == .bookmark)
+                    && annotationFrameMatchesDisplay($0.renditionId)
             }
             .map(AnnotationMark.init)
+    }
+
+    /// Whether a mark measured on `renditionId` may be drawn over the pixels
+    /// currently on screen. The region twin is `geometryFrameMatchesDisplay`.
+    func annotationFrameMatchesDisplay(_ renditionId: String?) -> Bool {
+        let displayedOwnFrame = renditionOverrideImage != nil
+            && renditions.indices.contains(renditionIndex)
+            && renditions[renditionIndex].hasOwnFrame
+        return overlayFrameMatches(
+            required: renditionId,
+            displayed: displayedRenditionId,
+            displayedHasOwnFrame: displayedOwnFrame
+        )
     }
 
     func loadAnnotations() {

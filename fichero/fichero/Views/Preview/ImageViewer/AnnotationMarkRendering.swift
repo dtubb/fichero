@@ -18,6 +18,10 @@ struct AnnotationMark: Identifiable {
     let kind: AnnotationKind
     /// Normalized `[x, y, w, h]`; nil = whole-page mark (bookmark).
     let rect: [Double]?
+    /// The frame `rect` was measured on; nil = the node's own image. Carried
+    /// so a mark can be FRAME-GATED exactly as a region box set is
+    /// (2026-09-03) — `OCRGeometry.renditionId` is the same identity.
+    let renditionId: String?
     /// Engine-persisted `#RRGGBB[AA]`, when the kind carries one.
     let color: String?
     let rating: Int?
@@ -27,6 +31,7 @@ struct AnnotationMark: Identifiable {
         id = annotation.id
         kind = annotation.kind
         rect = annotation.regionRect
+        renditionId = annotation.renditionId
         color = annotation.color
         rating = annotation.rating
         text = annotation.text ?? ""
@@ -35,11 +40,13 @@ struct AnnotationMark: Identifiable {
     /// Test/local construction.
     init(
         id: String, kind: AnnotationKind, rect: [Double]?,
+        renditionId: String? = nil,
         color: String? = nil, rating: Int? = nil, text: String = ""
     ) {
         self.id = id
         self.kind = kind
         self.rect = rect
+        self.renditionId = renditionId
         self.color = color
         self.rating = rating
         self.text = text
@@ -133,6 +140,12 @@ struct AnnotationMarkLayer: View {
     let marks: [AnnotationMark]
     /// Normalized sub-rect of the image currently visible (zoom/pan window).
     let visible: CGRect
+    /// The annotation the INSPECTOR has selected, if it is one of `marks`.
+    /// Region rows have lit their box on the page since 2026-08-29 through
+    /// `RegionSelection`; annotation rows had no such wire, so clicking one
+    /// in the inspector said nothing about where on the page it was (Daniel,
+    /// 2026-09-03). Same grammar, same accent ring.
+    var selectedId: String?
 
     var body: some View {
         GeometryReader { geo in
@@ -143,9 +156,27 @@ struct AnnotationMarkLayer: View {
                     markView(mark, in: geo.size)
                         .allowsHitTesting(mark.kind == .note)
                 }
+                if let selectedId, let rect = selectionRect(for: selectedId, in: geo.size) {
+                    RoundedRectangle(cornerRadius: 3)
+                        .stroke(Color.accentColor, lineWidth: 2)
+                        .background(Color.accentColor.opacity(0.10))
+                        .frame(width: rect.width, height: rect.height)
+                        .offset(x: rect.minX, y: rect.minY)
+                        .allowsHitTesting(false)
+                }
             }
             .frame(width: geo.size.width, height: geo.size.height)
         }
+    }
+
+    /// Where the selected mark's box lands, or nil when the selection names
+    /// an annotation this page is not showing (another document's row, a
+    /// whole-page bookmark, a mark gated out by its frame).
+    func selectionRect(for id: String, in size: CGSize) -> CGRect? {
+        guard let mark = marks.first(where: { $0.id == id }), let box = mark.rect else {
+            return nil
+        }
+        return BoundingBoxGeometry.viewRect(normalized: box, in: size, visible: visible)
     }
 
     @ViewBuilder

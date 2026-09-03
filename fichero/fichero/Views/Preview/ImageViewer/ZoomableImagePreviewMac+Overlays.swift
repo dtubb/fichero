@@ -65,7 +65,14 @@ extension ZoomableImagePreview {
                     ? annotationMarks
                     : annotationMarks.filter { $0.kind != .unknown && $0.kind != .comment }
                 if annotationsEnabled && !shownMarks.isEmpty {
-                    AnnotationMarkLayer(marks: shownMarks, visible: geometry.visible)
+                    AnnotationMarkLayer(
+                        marks: shownMarks,
+                        visible: geometry.visible,
+                        // The inspector's annotation row lights its mark on
+                        // the page (2026-09-03) — the annotation twin of
+                        // `RegionSelection` driving the region overlay.
+                        selectedId: FocusedAnnotation.shared.id
+                    )
                 }
                 // The region-DRAW plumbing moved to the pointer feed
                 // (2026-09-02): `BoundingBoxOverlay`'s full-frame SwiftUI

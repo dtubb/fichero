@@ -5,6 +5,14 @@ import SwiftUI
 struct LibraryImageLoadKey: Hashable {
     let documentId: String
     let imageType: LibraryImageView.ImageType
+    /// `StorageService.imageEpoch(for:)` at the time the key was built.
+    ///
+    /// Without it an edited image never reappears: the editor evicts the
+    /// storage caches, but this view already holds the decoded `Image` in
+    /// `@State` and its `.task(id:)` key is unchanged, so nothing re-fetches
+    /// and the row keeps the pre-edit picture (Daniel, 2026-09-03). The
+    /// epoch makes an invalidation something the VIEW can see.
+    var epoch: Int = 0
 }
 
 /// Image view that loads from backend with proper library path headers
@@ -34,7 +42,13 @@ struct LibraryImageView: View {
     @State private var loadError: Error?
 
     private static let logger = Logger(subsystem: "app.fichero.fichero", category: "LibraryImageView")
-    private var loadKey: LibraryImageLoadKey { .init(documentId: documentId, imageType: imageType) }
+    private var loadKey: LibraryImageLoadKey {
+        .init(
+            documentId: documentId,
+            imageType: imageType,
+            epoch: storageService?.imageEpoch(for: documentId) ?? 0
+        )
+    }
 
     var body: some View {
         Group {
