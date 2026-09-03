@@ -8,7 +8,7 @@ Use this when: you want the document's text in modern Spanish orthography — sa
 
 | | |
 | --- | --- |
-| Folder | /Extract Data |
+| Folder | /Extract |
 | Steps | 2 |
 | Tags | preset, paleography, spanish, modernization |
 

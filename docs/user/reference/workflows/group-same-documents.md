@@ -61,6 +61,9 @@ Return as JSON:
     ]
 }
 
+In same_document_clusters, similarity_score is a fraction between 0 and 1
+(NOT a percentage), regardless of the aspect score scale above.
+
 Return ONLY valid JSON.
 ```
 

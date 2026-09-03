@@ -4,7 +4,7 @@
   "format": "nodes",
   "is_template": true,
   "is_system": true,
-  "folder_path": "/Convert",
+  "folder_path": "/Extract",
   "tags": [
     "preset",
     "geo",
@@ -13,7 +13,7 @@
     "representation"
   ],
   "config": {
-    "preset_version": 2
+    "preset_version": 3
   },
   "nodes": [
     {

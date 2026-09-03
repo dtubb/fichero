@@ -8,7 +8,7 @@ Transcribe each page (reusing any existing text layer), then extract every place
 
 | | |
 | --- | --- |
-| Folder | /Convert |
+| Folder | /Extract |
 | Steps | 3 |
 | Tags | preset, geo, map, extract, representation |
 

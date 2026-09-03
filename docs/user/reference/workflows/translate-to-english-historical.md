@@ -8,7 +8,7 @@ Use this when: you want an English translation of a historical document (Spanish
 
 | | |
 | --- | --- |
-| Folder | /Extract Data |
+| Folder | /Extract |
 | Steps | 2 |
 | Tags | preset, paleography, translation, english |
 

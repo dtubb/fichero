@@ -8,7 +8,7 @@ Use this when: you want the archivist's calendar entry for a historical document
 
 | | |
 | --- | --- |
-| Folder | /Extract Data |
+| Folder | /Extract |
 | Steps | 2 |
 | Tags | preset, paleography, regesto, abstract, calendar |
 

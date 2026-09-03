@@ -8,7 +8,7 @@ Detect and extract tabular data from each image/page using vision, emitting CSV 
 
 | | |
 | --- | --- |
-| Folder | /Convert |
+| Folder | /Extract |
 | Steps | 2 |
 | Tags | preset, table, extract, representation |
 

@@ -4,9 +4,9 @@
   "format": "nodes",
   "is_template": true,
   "is_system": true,
-  "folder_path": "/Convert",
+  "folder_path": "/Extract",
   "tags": ["preset", "table", "extract", "representation"],
-  "config": {"preset_version": 2},
+  "config": {"preset_version": 3},
   "nodes": [
     {"id": "files-source", "tool": "files", "label": "Files", "position_x": 80, "position_y": 200, "inputs": {}, "config": {}},
     {"id": "table", "tool": "table_extract", "label": "Extract Table", "position_x": 320, "position_y": 200, "inputs": {}, "config": {"output_style": "csv", "include_headers": true}}

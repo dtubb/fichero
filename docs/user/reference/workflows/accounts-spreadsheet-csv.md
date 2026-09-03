@@ -8,7 +8,7 @@ Use this when: a page (or each page of a document) holds historical accounts —
 
 | | |
 | --- | --- |
-| Folder | /Extract Data |
+| Folder | /Extract |
 | Steps | 2 |
 | Tags | preset, extract, table, accounts, csv, paleography |
 
