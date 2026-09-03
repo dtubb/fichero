@@ -322,7 +322,13 @@ struct ModelFamilyMark: View {
             Image(logoAsset)
                 .resizable()
                 .aspectRatio(contentMode: .fit)
-                .frame(width: side * 0.9, height: side * 0.9)
+                // 0.62, not 0.9 (Daniel, 2026-09-03: "still giant"). The
+                // frame was already toolbar-sized; the INK wasn't — a logo
+                // asset fills its square edge-to-edge while an SF symbol
+                // inks ~60% of its frame, so at equal frames the logo read
+                // half-again bigger than its neighbours. Match the symbol
+                // ink ratio; the full `side` square stays the hit target.
+                .frame(width: side * 0.62, height: side * 0.62)
                 .frame(width: side, height: side)
                 .overlay(alignment: .bottomTrailing) {
                     if isRouted {
