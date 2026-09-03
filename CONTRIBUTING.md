@@ -5,13 +5,11 @@
 Fichero is released under the
 [GNU Affero General Public License, version 3.0 (AGPL-3.0)](LICENSE).
 Contributors agree to a [Contributor License Agreement](CLA.md) (CLA), which
-lets Daniel Tubb, Fichero's maintainer, also release Fichero under other terms
+lets Daniel Tubb, Fichero’s maintainer, also release Fichero under other terms
 (commercially, or where a channel like the Mac App Store requires it, because
-its rules and the AGPL do not fit). Your contribution always remains available
+its rules and the AGPL do not fit). Your contribution will remain available
 under the AGPL. The Fichero name is trademark-reserved (an unregistered ™
-claim). The full explanation is in [LICENSING.md](LICENSING.md).
-
-Fichero is written by AI coding agents, which receive creative direction from Daniel Tubb.
+claim). The full explanation is in [LICENSING.md](LICENSING.md). Fichero is written by AI coding agents, which receive creative direction from Daniel Tubb.
 
 The backlog lives in GitHub Issues and the project's working ledgers. Work
 lands on lane branches (one worktree per lane); there are no per-task
@@ -63,11 +61,8 @@ contributor manual: architecture, the OpenAPI contract, the action registry, the
 security model, and the release lane.
 
 If you would like to contribute, open a pull request against
-`integration` (the [CLA](CLA.md) applies, and the same merge gates run
-on your change that run on every lane). Until an automated CLA check is
-in place, state your agreement to the CLA in the pull-request
-description. Bug reports and feature requests
-are welcome as
+`integration` or `origin/main` (the [CLA](CLA.md) applies, and the same merge gates run
+on your change that run on every lane). By contributing you agree to the CLA. Bug reports and feature requests are welcome as
 [GitHub issues](https://github.com/dtubb/fichero/issues). The short
 [Code of Conduct](CODE_OF_CONDUCT.md) applies everywhere in the project.
 
@@ -80,8 +75,8 @@ Fichero itself.
 This is the canonical from-source setup. The subtree READMEs point here rather than
 repeating it.
 
-**0. Requirements.** Building the app needs a Mac on **macOS 26** with
-**Xcode 26** (the deployment target is macOS 26.0 / iOS 26.5; there is no
+**0. Requirements.** Building the app needs a Mac on **macOS 27** with
+**Xcode 27** (the deployment target is macOS 26.0 / iOS 26.5; there is no
 back-deployment to older systems). For linting, `brew install swiftlint`.
 
 **1. Install Python 3.12.** Briefcase pins 3.12 for the shipped app (many of the
@@ -110,7 +105,7 @@ on your `PATH`.
 dependency manifest: the runtime dependencies plus the optional extras `[dev]`,
 `[kg]` and `[image]`. The only `requirements-*.txt` in the repo is
 `requirements-docs.txt`, which builds this documentation site and nothing else.
-**Briefcase is a build tool, not a runtime dependency**
+**Briefcase is a build tool**
 (`fichero-server/scripts/build_backend_bundle.sh` uses it to package the engine into
 the shipped app).
 
