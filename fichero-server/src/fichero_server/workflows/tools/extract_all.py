@@ -796,6 +796,62 @@ _SYSTEMIC_SIGNATURES = (
 _SYSTEMIC_FAIL_FRACTION = 0.8
 _SYSTEMIC_MIN_FAILED_CHUNKS = 3
 
+# Consecutive IDENTICAL per-chunk failures before the in-flight circuit
+# breaker opens. `_classify_systemic_error` aborts a systemically-broken run,
+# but it only runs AFTER the gather — a beta catalogue run (2026-09-03)
+# ground through ~894 of 1,084 items re-raising the same structured-call
+# failure on every one. The breaker stops paying for calls the moment the
+# failure is provably repetitive; remaining chunks are skipped with a clear
+# message, and the end-of-run systemic classification then fires as before.
+_CIRCUIT_BREAK_CONSECUTIVE = 8
+
+
+class _FailureBreaker:
+    """Opens after N consecutive identical chunk failures; then skip, don't call.
+
+    Honest-failure rules: nothing is fabricated — skipped chunks fail loudly
+    with a message naming the repeated cause, and a single success resets the
+    streak so a genuinely-partial run (sparse pages, one flaky call) never
+    trips it.
+    """
+
+    def __init__(self, threshold: int = _CIRCUIT_BREAK_CONSECUTIVE):
+        self.threshold = threshold
+        self._consecutive = 0
+        self._last: str | None = None
+        self.cause: str | None = None
+
+    @property
+    def open(self) -> bool:
+        return self.cause is not None
+
+    def record_failure(self, message: str) -> None:
+        if self.open:
+            return
+        if message == self._last:
+            self._consecutive += 1
+        else:
+            self._last = message
+            self._consecutive = 1
+        if self._consecutive >= self.threshold:
+            self.cause = message
+            logger.error(
+                "extract_all: circuit breaker OPEN after %d consecutive "
+                "identical failures — skipping remaining LLM calls. Cause: %s",
+                self.threshold,
+                message,
+            )
+
+    def record_success(self) -> None:
+        self._consecutive = 0
+        self._last = None
+
+    def skip_message(self) -> str:
+        return (
+            f"skipped: circuit breaker open after {self.threshold} "
+            f"consecutive identical failures — {self.cause}"
+        )
+
 
 def _record_text(record: Any) -> str:
     if not isinstance(record, dict):
@@ -1240,11 +1296,26 @@ async def _run_two_stage(
     import os
     max_in_flight = int(os.environ.get("FICHERO_EXTRACT_MAX_IN_FLIGHT", "3"))
     extraction_sem = asyncio.Semaphore(max_in_flight)
+    breaker = _FailureBreaker()
 
     chunk_timings: list[float] = []
     chunk_errors: list[str] = []
 
     async def _run_stage1_one(idx: int, chunk_text: str) -> _EntitiesOnly:
+        if breaker.open:
+            msg = breaker.skip_message()
+            chunk_errors.append(msg)
+            await emit_progress_event(
+                progress_callback,
+                "file_error",
+                "",
+                f"Stage 1 chunk {idx + 1}/{len(chunks)}",
+                idx + 1,
+                len(chunks),
+                message=f"Stage 1 chunk {idx + 1}/{len(chunks)} skipped",
+                error=msg,
+            )
+            return _EntitiesOnly()
         await emit_progress_event(
             progress_callback,
             "file_start",
@@ -1274,8 +1345,11 @@ async def _run_two_stage(
         except Exception as exc:
             elapsed = time.monotonic() - call_start
             chunk_timings.append(elapsed)
+            breaker.record_failure(str(exc))
             chunk_errors.append(str(exc))
-            logger.error(f"Stage 1 chunk {idx} failed: {exc}")
+            error_kind = getattr(exc, "error_kind", None)
+            kind_tag = f" [error_kind={error_kind}]" if error_kind else ""
+            logger.error(f"Stage 1 chunk {idx} failed{kind_tag}: {exc}")
             await emit_progress_event(
                 progress_callback,
                 "file_error",
@@ -1298,6 +1372,7 @@ async def _run_two_stage(
             )
         elapsed = time.monotonic() - call_start
         chunk_timings.append(elapsed)
+        breaker.record_success()
         entity_count = sum(
             len(getattr(extraction, f, []))
             for f in ["people", "places", "organizations", "dates", "events"]
@@ -1405,20 +1480,34 @@ async def _run_two_stage(
                 entity_context = "\n\n".join(chunks[i] for i in relevant_indices)
             else:
                 entity_context = text
+            async def _claims_unless_breaker_open(
+                entity_context: str = entity_context,
+                entity_name: str = entity.name,
+                entity_type: str = section_key.rstrip("s"),
+            ) -> list[dict]:
+                # A breaker opened by Stage 1 (provider down, auth broken,
+                # budget-truncated on every chunk) means every Stage 2 call
+                # fails the same way — skip instead of paying for it
+                # per-entity. Claims come back empty; the run's systemic
+                # classification and Stage 1 chunk errors carry the cause.
+                if breaker.open:
+                    return []
+                return await _extract_claims_for_entity(
+                    entity_context,
+                    entity_name,
+                    entity_type,
+                    llm_config,
+                    claim_instructions,
+                    extraction_sem,
+                )
+
             entity_jobs.append({
                 "section_key": section_key,
                 "section": section,
                 "entity": entity,
                 "relevant_indices": relevant_indices,
                 "entity_context": entity_context,
-                "claims_task": _extract_claims_for_entity(
-                    entity_context,
-                    entity.name,
-                    section_key.rstrip("s"),
-                    llm_config,
-                    claim_instructions,
-                    extraction_sem,
-                ),
+                "claims_task": _claims_unless_breaker_open(),
             })
 
     claim_results = await asyncio.gather(*(job["claims_task"] for job in entity_jobs))
@@ -1529,7 +1618,7 @@ async def _run_two_stage(
     # every id in `written_entity_ids` / `written_claim_ids` came from one of
     # its returns — so emitting again would publish the same rows twice. The
     # accumulators are kept because the return payload reports them.
-    return {
+    result: dict[str, Any] = {
         "text": _render_extraction_markdown(extraction),
         "value": {
             "people": [p.model_dump(mode="json") for p in extraction.people],
@@ -1543,6 +1632,26 @@ async def _run_two_stage(
         "kg_payload": kg_payload,
         "cached": False,
     }
+    # Fail-fast on systemic Stage 1 errors — same policy as the oneshot path
+    # (#1060). The two-stage path used to swallow chunk_errors entirely, so a
+    # provider that failed identically on EVERY chunk still returned a clean
+    # empty "success" and the batch runner kept feeding it items (beta
+    # catalogue run 2026-09-03: hundreds of per-item failures, zero aborts).
+    if chunk_errors:
+        systemic_cause = _classify_systemic_error(chunk_errors, len(chunks))
+        if systemic_cause:
+            result["error"] = (
+                f"Extract All (two-stage): {len(chunk_errors)}/{len(chunks)} "
+                f"Stage 1 calls failed with a systemic error — {systemic_cause}"
+            )
+        else:
+            logger.warning(
+                "extract_all (two-stage): %d/%d Stage 1 chunks failed "
+                "(partial extraction continued)",
+                len(chunk_errors),
+                len(chunks),
+            )
+    return result
 
 
 def _render_extraction_markdown(extraction: _Extraction) -> str:
@@ -1690,6 +1799,7 @@ async def extract_all(
     import os
     max_in_flight = int(os.environ.get("FICHERO_EXTRACT_MAX_IN_FLIGHT", "3"))
     extraction_sem = asyncio.Semaphore(max_in_flight)
+    breaker = _FailureBreaker()
 
     async def _extract_one(idx: int, chunk_text: str) -> dict[str, list]:
         # Sub-chunk if the page exceeds the small-model window. Apple
@@ -1722,6 +1832,22 @@ async def extract_all(
         display_index = idx + 1 if idx >= 0 else len(chunk_timings) + 1
         display_total = len(chunks) if idx >= 0 else len(chunk_timings) + 1
         phase = f"Extract All chunk {display_index}/{display_total}"
+        if breaker.open:
+            msg = breaker.skip_message()
+            chunk_errors.append(msg)
+            if idx >= 0:
+                page_errors[idx] = msg
+            await emit_progress_event(
+                progress_callback,
+                "file_error",
+                "",
+                phase,
+                display_index,
+                display_total,
+                message=f"Extract All chunk {display_index}/{display_total} skipped",
+                error=msg,
+            )
+            return {}
         await emit_progress_event(
             progress_callback,
             "file_start",
@@ -1766,11 +1892,16 @@ async def extract_all(
         except Exception as exc:
             elapsed = time.monotonic() - call_start
             chunk_timings.append(elapsed)
-            msg = f"structured LLM call failed: {exc}"
+            # Carry the classified failure shape when the LLM layer named it
+            # (StructuredCallEmptyError.error_kind, mirroring 10872b864).
+            error_kind = getattr(exc, "error_kind", None)
+            kind_tag = f" [error_kind={error_kind}]" if error_kind else ""
+            msg = f"structured LLM call failed{kind_tag}: {exc}"
             logger.error(
                 f"extract_all chunk {idx} failed after {elapsed:.1f}s "
                 f"({len(chunk_text)} chars) — {msg}"
             )
+            breaker.record_failure(str(exc))
             chunk_errors.append(str(exc))
             if idx >= 0:
                 page_errors[idx] = msg
@@ -1791,6 +1922,7 @@ async def extract_all(
 
         elapsed = time.monotonic() - call_start
         chunk_timings.append(elapsed)
+        breaker.record_success()
         logger.info(
             f"extract_all chunk {idx} extracted in {elapsed:.1f}s "
             f"({len(chunk_text)} chars)"

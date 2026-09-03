@@ -47,10 +47,24 @@ import threading
 import weakref
 from collections import OrderedDict
 from collections.abc import Callable, Iterator
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace as _dc_replace
 from typing import AsyncIterator, Any, Literal as _Literal
 
 from pydantic import BaseModel
+
+# Eager, deliberate: bind the openai SDK's class hierarchy to the REAL httpx
+# classes at import time. `openai._base_client` defines
+# `DefaultAsyncHttpxClient(httpx.AsyncClient)` when the module is FIRST
+# imported — if that first import happens while something has monkeypatched
+# `httpx.AsyncClient` (several test suites patch it to fake the network), the
+# fake becomes a permanent base class and every later default-client
+# ChatOpenAI construction dies with "Invalid `http_client` argument; Expected
+# an instance of `httpx.AsyncClient` but got …_AsyncHttpxClientWrapper" for
+# the rest of the process (reproduced 2026-09-03: gate-only Stage 1 chunk
+# failures in extract_all). Importing here — before any caller can patch —
+# makes the lazy `langchain_openai` imports inside `_build_langchain_model`
+# safe regardless of patch timing. Costs ~0.8s once at engine boot.
+import openai  # noqa: F401  (import for side effect: real httpx base classes)
 
 from fichero_server.llm.model_types import (  # noqa: F401 (re-exported)
     estimate_cost,
@@ -3040,6 +3054,53 @@ async def structured_output(
     return result
 
 
+# Classified shapes for a structured call that came back with NO parsed
+# result. Mirrors the vision classification work (classify_vision_failure,
+# 10872b864): the failure NAMES itself so the caller and the UI can act on it
+# instead of guessing, and it travels on step error payloads as `error_kind`.
+#: The output budget ran out before any parseable answer was produced —
+#: finish_reason=length. On models that reason BY DEFAULT (gemini flash,
+#: qwen3.6-plus) the hidden reasoning channel can burn the ENTIRE max_tokens
+#: budget and hand back empty content with output_tokens=0. Worth one retry
+#: with a raised ceiling and reasoning disabled.
+STRUCTURED_ERROR_TRUNCATED = "truncated"
+#: The provider declined to answer (safety / content filter).
+STRUCTURED_ERROR_REFUSAL = "refusal"
+#: The model answered, and the answer had no parseable structure.
+STRUCTURED_ERROR_EMPTY = "empty"
+
+
+class StructuredCallEmptyError(RuntimeError):
+    """A structured call returned no parsed result. Carries `error_kind`."""
+
+    def __init__(self, message: str, *, error_kind: str = STRUCTURED_ERROR_EMPTY):
+        super().__init__(message)
+        self.error_kind = error_kind
+
+
+def _structured_finish_reason(raw_message: Any) -> str:
+    """Extract finish_reason from a raw AIMessage, tolerating doubled values.
+
+    Providers/paths that fold the same response metadata twice produce
+    'lengthlength' and a doubled model name (LangChain merges chunk
+    response_metadata strings with `+`); callers must therefore match by
+    SUBSTRING, never equality.
+    """
+    metadata = getattr(raw_message, "response_metadata", None)
+    if isinstance(metadata, dict):
+        return str(metadata.get("finish_reason") or "")
+    return ""
+
+
+def _classify_structured_empty(raw_message: Any) -> str:
+    finish_reason = _structured_finish_reason(raw_message).lower()
+    if "length" in finish_reason or "max_tokens" in finish_reason:
+        return STRUCTURED_ERROR_TRUNCATED
+    if "content_filter" in finish_reason or "refus" in finish_reason:
+        return STRUCTURED_ERROR_REFUSAL
+    return STRUCTURED_ERROR_EMPTY
+
+
 async def chat_structured(
     prompt: str,
     schema: type[BaseModel],
@@ -3048,6 +3109,7 @@ async def chat_structured(
     include_schema_in_prompt: bool | None = None,
     use_case: str | None = None,
     permissive_guardrails: bool = False,
+    _retry_truncation: bool = True,
 ) -> BaseModel:
     """Provider-routed structured output. Returns a Pydantic instance.
 
@@ -3099,6 +3161,26 @@ async def chat_structured(
 
     await _ensure_managed_local_provider_ready(config)
     model = get_langchain_model(config)
+
+    # Pin the structured call to the NON-streaming request path. An ambient
+    # streaming callback (astream_events tracing, a v1 streaming handler on
+    # the run) flips BaseChatModel.ainvoke into client-side chunk streaming,
+    # and OpenRouter-routed Gemini repeats finish_reason / model / cumulative
+    # usage across chunks — LangChain's chunk merge then CONCATENATES the
+    # strings ('lengthlength', the model name twice) and SUMS the cumulative
+    # usage (double-counted tokens). Structured extraction gains nothing from
+    # client streaming; disable it so one response is one response.
+    # (Beta catalogue run, 2026-09-03: extract_all's raw AIMessage carried
+    # finish_reason='lengthlength', a doubled model name, and input_tokens
+    # exactly 2× the prompt.)
+    # Guarded on real pydantic models: LangChain chat models are pydantic and
+    # copy cheaply (client objects are shared by reference); test doubles are
+    # not and must pass through untouched.
+    if (
+        isinstance(model, BaseModel)
+        and getattr(model, "disable_streaming", None) is not True
+    ):
+        model = model.model_copy(update={"disable_streaming": True})
 
     # Some local OpenAI-compatible servers (omlx/lmstudio/ollama) do
     # not implement tool-calling or response_format=json_schema. Let
@@ -3224,9 +3306,46 @@ async def chat_structured(
         )
 
     if parsed is None:
-        raise RuntimeError(
+        error_kind = _classify_structured_empty(raw_message)
+        finish_reason = _structured_finish_reason(raw_message)
+        if error_kind == STRUCTURED_ERROR_TRUNCATED and _retry_truncation:
+            # Same recovery the transcription path uses for the same shape
+            # (vision_base empty-response retry, de336cc92): finish=length
+            # with empty/unparseable content on a small prompt means the
+            # output budget was consumed — on default-reasoning models
+            # (gemini flash, qwen3.6-plus) the hidden reasoning channel can
+            # drown ANY cap, so the retry BOTH raises the ceiling and
+            # disables reasoning outright. One retry: a second identical
+            # failure is a real failure and must surface, classified.
+            retry_config = _dc_replace(
+                config,
+                max_tokens=max(16384, (config.max_tokens or 8192) * 2),
+                reasoning_effort="disabled",
+            )
+            logger.warning(
+                "LangChain %s/%s structured call truncated "
+                "(finish_reason=%r, no parsed result) — retrying once with "
+                "max_tokens=%d and reasoning disabled.",
+                config.provider,
+                config.model,
+                finish_reason,
+                retry_config.max_tokens,
+            )
+            return await chat_structured(
+                prompt,
+                schema,
+                retry_config,
+                system=system,
+                include_schema_in_prompt=include_schema_in_prompt,
+                use_case=use_case,
+                permissive_guardrails=permissive_guardrails,
+                _retry_truncation=False,
+            )
+        raise StructuredCallEmptyError(
             f"LangChain {config.provider}/{config.model} structured call "
-            f"returned no parsed result (raw={raw_message!r})"
+            f"returned no parsed result [error_kind={error_kind}] "
+            f"(finish_reason={finish_reason!r}, raw={raw_message!r})",
+            error_kind=error_kind,
         )
     return parsed
 
@@ -4354,6 +4473,10 @@ __all__ = [
     "chat_with_tools",
     # Structured
     "structured_output",
+    "StructuredCallEmptyError",
+    "STRUCTURED_ERROR_TRUNCATED",
+    "STRUCTURED_ERROR_REFUSAL",
+    "STRUCTURED_ERROR_EMPTY",
     # Translation
     "translate_text",
     # Model info
