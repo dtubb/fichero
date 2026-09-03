@@ -249,6 +249,14 @@ extension ContentView {
             preferredCompactColumn: $preferredCompactColumn
         ) {
             sidebarContent
+                // The removal must ALSO ride inside the sidebar column
+                // (Daniel, 2026-09-02: both toggles rendered): on macOS 27
+                // the system item is contributed by the sidebar column's own
+                // toolbar, and removing it only at the split-view level left
+                // it standing beside our owned .navigation item.
+                #if os(macOS)
+                .toolbar(removing: .sidebarToggle)
+                #endif
         } detail: {
             detailColumn
         }

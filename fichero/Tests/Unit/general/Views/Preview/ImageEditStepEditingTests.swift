@@ -55,15 +55,22 @@ struct ImageEditStepEditingTests {
         #expect(steps.components(separatedBy: "onRemove(index)").count == 2)
     }
 
-    @Test("the editor hosts the steps stack and wires in-place editing")
-    func editorHostsAndWiresTheStack() throws {
-        let panel = try source("Views/Preview/ImageEditor/ImageEditorView+Steps.swift")
-        #expect(panel.contains("onUpdateStep: { index, params in"))
-        #expect(panel.contains("await model.updateOperation(at: index, params: params)"))
-        #expect(panel.contains("accessibilityIdentifier(\"imageEditStepsPanel\")"))
-        // …and it is actually in the editor's body, beside the canvas.
+    @Test("the Inspector's steps panel wires in-place editing")
+    func inspectorWiresTheStack() throws {
+        // ONE steps list (Daniel, 2026-09-02): the beside-canvas copy
+        // duplicated the Inspector's panel a divider apart, so it went. The
+        // Inspector's Edits facet — which auto-opens with edit mode — is the
+        // host, and it must edit steps IN PLACE (the unwired fallback was
+        // the remove-then-append reordering bug).
+        let inspector = try source(
+            "Views/Inspector/Document/DocumentInspector+Sections.swift"
+        )
+        #expect(inspector.contains("onUpdateStep: { index, params in"))
+        #expect(inspector.contains("await model.updateOperation(at: index, params: params)"))
+
         let view = try source("Views/Preview/ImageEditor/ImageEditorView.swift")
-        #expect(view.contains("stepsPanel"))
+        #expect(!view.contains("stepsPanel"),
+                "the duplicated beside-canvas steps column is back")
     }
 
     @Test("delete-a-step and revert-to-original stay reachable and confirmed")

@@ -69,7 +69,8 @@ struct ImageEditorView: View {
     /// Width of the edit-steps stack beside the canvas. Matches the window
     /// Inspector's own column so the two lists read as the same object in two
     /// places rather than two different panels.
-    static let stepsPanelWidth: CGFloat = 260
+    // stepsPanelWidth removed 2026-09-02 with the beside-canvas steps copy —
+    // the Inspector's Edits facet is the one steps list.
     static let minCompareZoom: CGFloat = 0.25
     static let maxCompareZoom: CGFloat = 8.0
     /// Revert to Original confirmation — every step is already committed, so
@@ -107,11 +108,11 @@ struct ImageEditorView: View {
         VStack(spacing: 0) {
             toolbar
             Divider()
-            HStack(spacing: 0) {
-                canvas
-                Divider()
-                stepsPanel
-            }
+            // ONE steps list, in the window Inspector's Edits facet — which
+            // auto-opens with edit mode and now edits steps in place too
+            // (Daniel, 2026-09-02: the beside-canvas copy duplicated the
+            // Inspector's panel one divider apart; see his 9:50pm screenshot).
+            canvas
         }
         // ⌘A over a shown image selects the WHOLE image (Daniel, 2026-08-23).
         // The marquee already speaks normalized image space, so "everything"
