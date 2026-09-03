@@ -19,6 +19,16 @@ struct OCRGeometryBox: Codable, Hashable, Identifiable {
     var pageIndex: Int?
     var charStart: Int?
     var charEnd: Int?
+    /// Who put this box here, and how. The engine has stamped
+    /// `provider: "user"` / `source: "manual"` on every hand-drawn region
+    /// since the region verbs landed; this mirror dropped both, so the app
+    /// could not tell a box a PERSON drew from one a model estimated
+    /// (2026-09-03). Curation you cannot see is curation you will overwrite.
+    var provider: String?
+    var source: String?
+
+    /// A box a person drew, rather than a pass measuring one.
+    var isHandDrawn: Bool { provider?.lowercased() == "user" || source?.lowercased() == "manual" }
 
     /// Stable identity for ForEach — geometry rows have no server id.
     var id: String { "\(level)-\(charStart ?? -1)-\(bbox.map { String($0) }.joined(separator: ","))" }
@@ -31,6 +41,8 @@ struct OCRGeometryBox: Codable, Hashable, Identifiable {
         case pageIndex = "page_index"
         case charStart = "char_start"
         case charEnd = "char_end"
+        case provider
+        case source
     }
 }
 
@@ -86,6 +98,14 @@ struct OCRGeometry: Codable, Hashable {
 extension OCRGeometry {
     /// Map the generated OpenAPI payload into the app model. Boxes without a
     /// level default to "word", matching the backend contract's default.
+    ///
+    /// Per-box PROVENANCE rides along (2026-09-03). The engine stamps
+    /// `provider: "user"` / `source: "manual"` on every hand-drawn region and
+    /// has since the region verbs landed; this mapping dropped both, so no
+    /// surface in the app could tell a box a PERSON drew from one a model
+    /// estimated — the same shape as `wireAnchor` dropping `rendition_id`.
+    /// A hand mapping that silently loses a field the generated schema
+    /// carries is the recurring defect on this path.
     init(generated: Components.Schemas.OCRGeometryResult) {
         self.text = generated.text ?? ""
         self.provider = generated.provider
@@ -99,7 +119,9 @@ extension OCRGeometry {
                 confidence: box.confidence,
                 pageIndex: box.pageIndex,
                 charStart: box.charStart,
-                charEnd: box.charEnd
+                charEnd: box.charEnd,
+                provider: box.provider,
+                source: box.source
             )
         }
     }

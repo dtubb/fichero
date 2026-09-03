@@ -5,14 +5,20 @@ import Testing
 /// Daniel, 2026-09-03: "I draw a region, switch view, come back and it's
 /// gone."
 ///
-/// Drawn regions ARE saved — they land as boxes on a `provider: "user"`
-/// artifact the region verbs bootstrap. What loses them is the authority
-/// ladder. It ranked hand-drawn regions in the same tier as machine passes
-/// and broke ties by recency, so the next transcription or Detect Regions run
-/// — newer by definition — permanently masked the boxes their author had just
-/// curated. The preview kept the selection alive through `FocusedArtifact`,
-/// which is in-memory only: switch away, come back, and the ladder decides
-/// again.
+/// CORRECTION, from reading the real library that evening: in HIS case
+/// nothing was written at all — the session's only audited action was a
+/// `document.move`, and no artifact or annotation row was created. Drawing a
+/// marquee persists nothing until it is explicitly promoted, and the promote
+/// gesture was never reached. That is a separate defect, filed in the review
+/// doc; it is not what these tests cover.
+///
+/// What these tests DO cover is the second way the same symptom is produced,
+/// and the one that bites once a region IS saved: the authority ladder ranked
+/// hand-drawn regions in the same tier as machine passes and broke ties by
+/// recency, so the next transcription or Detect Regions run — newer by
+/// definition — masked the boxes their author had curated. The preview held
+/// on through `FocusedArtifact`, which is process memory: switch away, come
+/// back, and the ladder decides again.
 ///
 /// Curation persists and constrains the machine, never the other way round.
 struct OCRGeometryCurationAuthorityTests {
@@ -100,5 +106,78 @@ struct OCRGeometryCurationAuthorityTests {
         #expect(OCRGeometrySelection.isHandCurated(
             artifact(id: "a", type: "regions", ageInHours: 1, provider: "User")
         ))
+    }
+}
+
+/// Per-box provenance, verified against the real Marshall library on
+/// 2026-09-03: 955 geometry artifacts, NONE of them `provider: "user"`, yet
+/// the audit trail carries `artifact.regions_edit` calls. So in practice a
+/// drawn region lands inside an artifact a machine pass already wrote, and
+/// the artifact-level signal never fires for it.
+///
+/// The engine has stamped `provider: "user"` / `source: "manual"` on every
+/// hand-added box since the region verbs landed. The Swift mirror dropped
+/// both — through `OCRGeometry.init(generated:)`, the same shape as
+/// `wireAnchor` dropping `rendition_id` — so nothing in the app could tell a
+/// box a person drew from one a model estimated.
+struct OCRGeometryBoxProvenanceTests {
+
+    private func box(provider: String? = nil, source: String? = nil) -> OCRGeometryBox {
+        OCRGeometryBox(
+            text: "x", bbox: [0, 0, 0.1, 0.1], level: "region",
+            confidence: nil, pageIndex: nil, charStart: nil, charEnd: nil,
+            provider: provider, source: source
+        )
+    }
+
+    @Test("a box the engine stamped as a person's is recognised as hand-drawn")
+    func userProviderIsHandDrawn() {
+        #expect(box(provider: "user").isHandDrawn)
+    }
+
+    @Test("a manually sourced box is hand-drawn even without a provider")
+    func manualSourceIsHandDrawn() {
+        #expect(box(source: "manual").isHandDrawn)
+    }
+
+    @Test("a machine box is not hand-drawn")
+    func machineBoxIsNotHandDrawn() {
+        #expect(!box(provider: "apple").isHandDrawn)
+        #expect(!box().isHandDrawn)
+    }
+
+    @Test("geometry holding one hand-drawn box counts as curated")
+    func geometryWithOneDrawnBoxIsCurated() {
+        let geometry = OCRGeometry(
+            text: "", provider: "apple", model: nil,
+            boxes: [box(provider: "apple"), box(provider: "user")], renditionId: nil
+        )
+        #expect(OCRGeometrySelection.carriesCuration(geometry))
+    }
+
+    @Test("all-machine geometry is not curated")
+    func allMachineGeometryIsNotCurated() {
+        let geometry = OCRGeometry(
+            text: "", provider: "apple", model: nil,
+            boxes: [box(provider: "apple")], renditionId: nil
+        )
+        #expect(!OCRGeometrySelection.carriesCuration(geometry))
+    }
+
+    /// A LIST payload omits geometry entirely. Absent geometry is not
+    /// evidence that a page was never curated.
+    @Test("absent geometry is not evidence either way")
+    func absentGeometryIsNotEvidence() {
+        #expect(!OCRGeometrySelection.carriesCuration(nil))
+    }
+
+    /// The artifact-level signal must still stand on its own, since it is all
+    /// the lean list can see.
+    @Test("a user-provider artifact is curated even with no geometry attached")
+    func userProviderArtifactIsCuratedWithoutGeometry() {
+        let artifact = Artifact(
+            id: "a", documentId: "d", artifactType: "regions", provider: "user"
+        )
+        #expect(OCRGeometrySelection.isHandCurated(artifact))
     }
 }

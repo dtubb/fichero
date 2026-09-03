@@ -101,13 +101,31 @@ enum OCRGeometrySelection {
 
     /// Whether a person drew this geometry rather than a pass measuring it.
     ///
-    /// The engine stamps `provider: "user"` on the artifact the region verbs
-    /// bootstrap (`createRegionsArtifact`) and on every hand-added box. It is
-    /// the only signal in the LEAN list payload that distinguishes curation
-    /// from a machine estimate, which is why the ranking reads it here rather
-    /// than fetching each candidate's geometry to look.
+    /// TWO signals, because a drawn region can land two ways (verified
+    /// against the real library, 2026-09-03: 955 geometry artifacts, none of
+    /// them `provider: "user"`, yet the audit trail records `regions_edit`
+    /// calls — so in practice the boxes went into machine artifacts):
+    ///
+    ///   * the ARTIFACT is `provider: "user"` — the one the region verbs
+    ///     bootstrap when a page has no geometry at all. This is the only
+    ///     curation signal in the LEAN list payload, so it is all the
+    ///     ranking can see before fetching.
+    ///   * the GEOMETRY carries hand-drawn boxes — true whenever a region
+    ///     was added to an artifact a machine pass had already written,
+    ///     which is the common case. Only visible once the geometry is in
+    ///     hand, so it is checked where the candidate is fetched anyway.
+    ///
+    /// Neither alone is enough, and the second cannot be lifted into the
+    /// ranking without fetching every candidate. See the review doc.
     static func isHandCurated(_ artifact: Artifact) -> Bool {
-        artifact.provider?.lowercased() == "user"
+        if artifact.provider?.lowercased() == "user" { return true }
+        return carriesCuration(artifact.ocrGeometry)
+    }
+
+    /// Whether this geometry holds boxes a person drew. Nil geometry — a
+    /// list payload, which omits it — is not evidence either way.
+    static func carriesCuration(_ geometry: OCRGeometry?) -> Bool {
+        geometry?.boxes.contains(where: \.isHandDrawn) ?? false
     }
 
     /// Whether the list payload already proves this artifact has no boxes.
@@ -191,6 +209,17 @@ enum OCRGeometrySelection {
                 includeDescendants: false
             )
         }
+        // Probe best-first and stop at the first candidate that carries
+        // boxes — one fetch in the common case.
+        //
+        // Deliberately NOT "keep probing for a curated candidate"
+        // (2026-09-03): the lean list omits geometry, so hand-drawn boxes
+        // inside a machine artifact are invisible until it is fetched, and
+        // hunting for them would cost a round-trip per candidate on every
+        // page load. It buys almost nothing either — `promoteMarquees`
+        // writes into the artifact the ladder already picked, so curated
+        // boxes are normally in the winner. The artifact-level signal in
+        // `ranked` covers the bootstrap case; the rest is in the review doc.
         for candidate in ranked(candidates) {
             let full = try await artifactService.getArtifact(id: candidate.id)
             if let geometry = full.ocrGeometry, carriesGeometry(geometry) {
