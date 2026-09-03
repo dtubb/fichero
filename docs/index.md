@@ -49,42 +49,49 @@ video slot: short demo embed(s). Keep empty until there is one. -->
 
 ## Features
 
+Your documents are stored in a library, which can contain folders,
+documents, workflows, and saved searches. Fichero can have multiple
+libraries open at the same time.
+
 <div class="grid cards" markdown>
-
--   :material-file-tree: __Sidebar__
-
-    ---
-
-    Your libraries, folders, workflows, and saved searches — several
-    libraries open side by side.
 
 -   :material-folder-multiple: __Library__
 
     ---
 
     Import and organize your sources; browse them as lists, icons, tables,
-    datasets, timelines, and boards.
+    and columns; or extract data and browse them as datasets, timelines,
+    and boards; or organize them visually on a 2D or 3D canvas.
+
+-   :material-sitemap: __Workflow bar__
+
+    ---
+
+    Use AI tools and workflows, or chain them together with custom AI
+    models per step, to run on a selection — or compare the same steps on
+    the same page across models.
 
 -   :material-image: __Preview__
 
     ---
 
-    The page itself: zoom, loupe, word boxes over the scan, regions you can
-    draw and save, and every rendition of a page.
+    A powerful image, PDF, and document viewer: zoom, loupe, and magnify a
+    page; show word boxes over the scan; draw and save regions; flip
+    between renditions of a page.
 
 -   :material-image-edit: __Edit__
 
     ---
 
-    Rotate, crop, enhance, and remove backgrounds — as editable steps you
-    can adjust, reorder, and copy between images.
+    Rotate, crop, enhance, and remove backgrounds — as image-editing steps
+    you can adjust, reorder, and copy between images.
 
 -   :material-book-open-variant: __Reader__
 
     ---
 
-    Transcripts, translations, and other artifacts as readable text, side
-    by side with the page.
+    Read transcripts, translations, and other artifacts you write or
+    generate, side by side with the original image.
 
 -   :material-chat: __Chat__
 
@@ -96,31 +103,43 @@ video slot: short demo embed(s). Keep empty until there is one. -->
 
     ---
 
-    Metadata, artifacts, entities, annotations, and edit history for
+    See metadata, artifacts, entities, annotations, and edit history for
     whatever is selected.
 
 -   :material-magnify: __Search__
 
     ---
 
-    Keyword and Ask (semantic) search across the whole collection, with
-    matches highlighted on the page.
-
--   :material-sitemap: __Workflow bar__
-
-    ---
-
-    Stage steps, pick a model per step, run on your selection — or compare
-    the same page across models.
+    Use semantic search across a whole library, or part of a collection,
+    with matches highlighted on the page.
 
 -   :material-pencil: __Markup bar__
 
     ---
 
-    Select, highlight, note, star, and check — marks that live on the page
-    and travel with it.
+    Select, edit, highlight, and annotate your documents.
 
 </div>
+
+## Under the hood
+
+One native Mac app with an embedded engine — nothing to install, nothing to
+run separately:
+
+- **SwiftUI** — the native Mac (and iPhone/iPad) app.
+- **FastAPI (Python)** — the engine, embedded inside the app; the app talks
+  to it over a typed, OpenAPI-generated client.
+- **DuckDB** — the library database: documents, artifacts, provenance.
+- **LanceDB** — the vector database behind semantic (Ask) search and
+  embeddings.
+- **LangChain & LangGraph** — model calls and the workflow graphs that
+  chain transcription, translation, extraction, and cataloguing.
+- **Apple Vision & vision LLMs** — OCR on-device, plus local (MLX) and
+  cloud models for handwriting, review, and structured extraction.
+- **Sparkle** — the app keeps itself up to date.
+
+More in [How It's Built](user/guide/12-appendix-b-how-fichero-is-built.md)
+and the [Contributor Guide](contributor/README.md).
 
 ## Documentation
 
