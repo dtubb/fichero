@@ -1112,6 +1112,12 @@ def _render_pdf_page_to_cgimage(pdf_path: str, page_index: int = 0, dpi: int = 3
 # accuracy beyond this resolution. (#796)
 _VISION_MAX_DIMENSION = 4096
 
+# The recognition revision run as a SECOND DETECTOR after the newest one has
+# read the page. Newest reads best; older localizes text the newest never
+# reports (measured 2026-09-03 — see `_escalate_second_detector`). Skipped
+# when this OS does not offer it.
+_VISION_SECOND_DETECTOR_REVISION = 1
+
 # Floor for a return_boxes reply: the transcription, again as one box per
 # line, plus JSON scaffolding — and any thinking the node asked for shares
 # the same budget. Kept as an explicit floor rather than relying on the
@@ -1279,6 +1285,7 @@ def _pdf_text_layer_geometry(pdf_path: str) -> list[OCRGeometryResult | None] | 
     from fichero_server.media.ocr_geometry import (  # noqa: PLC0415
         OCRGeometryBox,
         OCRGeometryLevel,
+        pdf_rect_to_display,
     )
 
     def _clamp(value: float) -> float:
@@ -1290,6 +1297,10 @@ def _pdf_text_layer_geometry(pdf_path: str) -> list[OCRGeometryResult | None] | 
             try:
                 rect = page.rect
                 width, height = float(rect.width), float(rect.height)
+                # ``page.rect`` and every pixmap are the ROTATED view; the word
+                # rects below are UNROTATED page space. Mixing them puts every
+                # box ninety degrees out on a /Rotate page.
+                rotation = int(getattr(page, "rotation", 0) or 0)
                 page_text = page.get_text("text") or ""
                 words = page.get_text("words") or []
             except Exception as page_exc:
@@ -1308,7 +1319,9 @@ def _pdf_text_layer_geometry(pdf_path: str) -> list[OCRGeometryResult | None] | 
             span_cursor = 0
             for word in words:
                 try:
-                    x0, y0, x1, y1 = (float(v) for v in word[:4])
+                    x0, y0, x1, y1 = pdf_rect_to_display(
+                        rotation, width, height, *(float(v) for v in word[:4])
+                    )
                     token = str(word[4])
                 except (IndexError, TypeError, ValueError):
                     continue
@@ -1646,6 +1659,65 @@ def _vision_ocr_cgimage_with_geometry(
         text, lines, words = _rebase_geometry_reading_order(lines, words)
         return VisionOCRResult(text=text, line_boxes=lines, word_boxes=words)
 
+    def _escalate_second_detector(base: VisionOCRResult) -> VisionOCRResult:
+        """Read the whole page again with an OLDER recognition revision and
+        keep only the lines this run had not already found.
+
+        Revision 3 is the newest text recognizer the OS exposes, and the lab
+        had assumed newest meant best. Measured on six Marshall pages
+        (2026-09-03, agent-work/design/vision-region-experiments.md) that is
+        true of the reading and false of the DETECTING: revision 1 localizes
+        text revision 3 never reports, most dramatically on dense small print
+        — a 1923 printed calendar went 0.54 → 0.79 text-ink coverage through
+        the full ladder — and never localized less on any sample. Every
+        recovered box is one Vision measured; none landed off the ink.
+
+        So the newer revision stays the reader and the older one is only a
+        second detector: `_is_duplicate_line` drops everything the page
+        already holds, which makes the pass additive by construction. Costs
+        0.1–0.4s per page.
+        """
+        if _VISION_SECOND_DETECTOR_REVISION not in _supported_text_revisions():
+            return base
+        request = Vision.VNRecognizeTextRequest.alloc().init()  # pylint: disable=no-member
+        request.setRecognitionLevel_(Vision.VNRequestTextRecognitionLevelAccurate)  # pylint: disable=no-member
+        request.setRevision_(_VISION_SECOND_DETECTOR_REVISION)
+        request.setRecognitionLanguages_([lang])
+        handler = Vision.VNImageRequestHandler.alloc().initWithCGImage_options_(
+            cg_image, None
+        )
+        try:
+            success, _error = handler.performRequests_error_([request], None)
+        except Exception as exc:  # a second opinion must never fail the page
+            logger.warning("Second-detector pass failed: %s", exc)
+            return base
+        results = request.results() if success else None
+        if not results:
+            return base
+        second = _vision_geometry_from_results(results, page_index=page_index)
+        lines = list(base.line_boxes)
+        words = list(base.word_boxes)
+        recovered = 0
+        for line in second.line_boxes:
+            if _is_duplicate_line(line, lines):
+                continue
+            lines.append(line)
+            start, end = line.char_start, line.char_end
+            if start is not None and end is not None:
+                words.extend(
+                    box for box in second.word_boxes
+                    if box.char_start is not None and start <= box.char_start < end
+                )
+            recovered += 1
+        if not recovered:
+            return base
+        logger.info(
+            "Second-detector (revision %d) recovered %d line(s)",
+            _VISION_SECOND_DETECTOR_REVISION, recovered,
+        )
+        text, lines, words = _rebase_geometry_reading_order(lines, words)
+        return VisionOCRResult(text=text, line_boxes=lines, word_boxes=words)
+
     def _escalate_ink_residue(base: VisionOCRResult) -> VisionOCRResult:
         """Re-OCR the RECTS still holding ink no word box covers.
 
@@ -1734,7 +1806,9 @@ def _vision_ocr_cgimage_with_geometry(
 
     geometry = _extract_text(request, "Accurate")
     if geometry is not None:
-        escalated = _escalate_ink_residue(_escalate_gaps(geometry))
+        escalated = _escalate_second_detector(
+            _escalate_ink_residue(_escalate_gaps(geometry))
+        )
         snapped = _snap_word_boxes_to_ink(source_path, escalated.word_boxes) if source_path else 0
         if snapped:
             logger.info("Ink-snap tightened %d word boxes", snapped)
@@ -1748,7 +1822,9 @@ def _vision_ocr_cgimage_with_geometry(
 
     geometry = _extract_text(request, "Fast")
     if geometry is not None:
-        escalated = _escalate_ink_residue(_escalate_gaps(geometry))
+        escalated = _escalate_second_detector(
+            _escalate_ink_residue(_escalate_gaps(geometry))
+        )
         snapped = _snap_word_boxes_to_ink(source_path, escalated.word_boxes) if source_path else 0
         if snapped:
             logger.info("Ink-snap tightened %d word boxes", snapped)
@@ -2089,6 +2165,28 @@ def _supported_vision_locales() -> frozenset[str]:
         logger.error("Vision reported no supported recognition locales: %r", error)
         return frozenset()
     return frozenset(str(locale) for locale in supported)
+
+
+@lru_cache(maxsize=1)
+def _supported_text_revisions() -> frozenset[int]:
+    """The text-recognition revisions THIS machine offers.
+
+    A property of the installed macOS, so asked once per process. An empty
+    set is the safe answer: every caller treats it as "do not use a revision
+    I cannot confirm exists".
+    """
+    try:
+        import Vision  # noqa: PLC0415
+
+        supported = Vision.VNRecognizeTextRequest.supportedRevisions()
+    except Exception as exc:  # pragma: no cover - depends on the OS build
+        logger.warning("Could not enumerate Vision text revisions: %s", exc)
+        return frozenset()
+    try:
+        return frozenset(int(revision) for revision in supported)
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.warning("Unreadable Vision revision list %r: %s", supported, exc)
+        return frozenset()
 
 
 def validate_vision_language(language: str | None) -> str:

@@ -48,8 +48,17 @@ extension PDFPageView.Coordinator {
         // as clutter rather than structure and carpets a dense page.
         guard !owner.ocrBoxes.isEmpty else { return }
         let cropBounds = page.bounds(for: .cropBox)
+        // `bounds(for:)` and every `PDFAnnotation` are UNROTATED page space —
+        // "you might need to transform the points if the page has a rotation
+        // on it" — while the engine normalises PDF text geometry in DISPLAY
+        // space, the picture the reader is actually looking at and the frame
+        // every server-rendered rendition shares. On a `/Rotate 90` page,
+        // handing the box straight to an annotation drew it ninety degrees out
+        // of true, sideways across the text it describes.
+        let rotation = page.rotation
         for box in owner.ocrBoxes {
-            guard let rect = PDFRegionGeometry.pageRect(normalized: box.bbox, pageSize: cropBounds.size)
+            let pageSpaceBox = PDFRegionGeometry.unrotated(normalized: box.bbox, rotation: rotation)
+            guard let rect = PDFRegionGeometry.pageRect(normalized: pageSpaceBox, pageSize: cropBounds.size)
             else { continue }
             // `pageRect` performs the flip but computes from the SIZE alone, so
             // it assumes a zero origin. That holds for `applyRegions`, which

@@ -372,7 +372,7 @@ def _resolve_thumbnail_cache_candidate(
         if db is not None
         else resolve_source(doc, library_root=package_path)
     )
-    pdf_render = _resolve_pdf_render_source(doc, db=db, library_root=package_path)
+    pdf_render = resolve_pdf_render_source(doc, db=db, library_root=package_path)
 
     if not source and not pdf_render:
         return alias_path if alias_path.exists() else None, alias_path, source, None
@@ -602,7 +602,7 @@ def _get_bookmark(doc: "Document") -> bytes | None:
     return None
 
 
-def _resolve_pdf_render_source(
+def resolve_pdf_render_source(
     doc: "Document",
     *,
     db: "Database | None" = None,
@@ -689,7 +689,7 @@ def ensure_thumbnail(
             perf["source_mtime_ns"] = source_mtime_ns
             return cached_path
 
-        pdf_render = _resolve_pdf_render_source(doc, db=db, library_root=package_path)
+        pdf_render = resolve_pdf_render_source(doc, db=db, library_root=package_path)
         source_path = pdf_render[0] if pdf_render else source
         if not source_path:
             logger.warning(f"No source found for {doc.id}")
@@ -740,7 +740,7 @@ def ensure_display(
         if db is not None
         else resolve_source(doc, library_root=package_path)
     )
-    pdf_render = _resolve_pdf_render_source(
+    pdf_render = resolve_pdf_render_source(
         doc, db=db, library_root=package_path
     )
 

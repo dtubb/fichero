@@ -295,6 +295,45 @@ def from_apple_vision_result(
 PDF_TEXT_LAYER_FLAG = "pdf_text_layer_present"
 
 
+def pdf_rect_to_display(
+    rotation: int,
+    display_width: float,
+    display_height: float,
+    x0: float,
+    y0: float,
+    x1: float,
+    y1: float,
+) -> tuple[float, float, float, float]:
+    """Map an UNROTATED PDF text-layer rect into the page's DISPLAY space.
+
+    PyMuPDF hands back two coordinate systems on the same page and never says
+    so: ``page.rect`` (and every pixmap rendered from the page) is the ROTATED
+    view, while ``page.get_text("words")`` returns rectangles in the page's
+    UNROTATED space. Normalising the second by the first is what put every
+    overlay box on a ``/Rotate 90`` page ninety degrees out of true, sideways
+    against the bitmap the user is looking at.
+
+    ``display_width``/``display_height`` are ``page.rect``'s. Rotation is the
+    page's ``/Rotate``, normalised to one of 0/90/180/270 — anything else is a
+    malformed page and raises rather than silently landing boxes at the wrong
+    angle.
+    """
+    rotation %= 360
+    if rotation == 0:
+        return x0, y0, x1, y1
+    if rotation == 90:
+        # (x, y) -> (W - y, x); the min/max keeps the result a normalised rect.
+        return display_width - y1, x0, display_width - y0, x1
+    if rotation == 180:
+        return display_width - x1, display_height - y1, display_width - x0, display_height - y0
+    if rotation == 270:
+        return y0, display_height - x1, y1, display_height - x0
+    raise ValueError(
+        f"pdf_rect_to_display: unsupported page rotation {rotation}; "
+        "PDF /Rotate must be a multiple of 90"
+    )
+
+
 def from_pymupdf_page(
     page: Any,
     *,
@@ -340,6 +379,8 @@ def from_pymupdf_page(
             f"({page_width}x{page_height}) — cannot normalise geometry"
         )
 
+    rotation = int(getattr(page, "rotation", 0) or 0)
+
     words = list(page.get_text("words") or [])
 
     boxes: list[OCRGeometryBox] = []
@@ -350,7 +391,15 @@ def from_pymupdf_page(
         # Already top-left origin, already page space.
         if len(word) < 5:
             continue
-        x0, y0, x1, y1 = (float(word[0]), float(word[1]), float(word[2]), float(word[3]))
+        x0, y0, x1, y1 = pdf_rect_to_display(
+            rotation,
+            page_width,
+            page_height,
+            float(word[0]),
+            float(word[1]),
+            float(word[2]),
+            float(word[3]),
+        )
         text = str(word[4] or "")
         if not text:
             continue

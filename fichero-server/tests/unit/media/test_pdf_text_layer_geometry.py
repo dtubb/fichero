@@ -308,3 +308,66 @@ class TestGeometryIsPersistedAtIngest:
             parent, text_layer_pdf, FakeDB()
         )
         assert pages, "the import must still produce page children"
+
+
+class TestRotatedPages:
+    """A ``/Rotate 90`` page renders rotated but reports words UNROTATED.
+
+    PyMuPDF hands back two coordinate systems on one page and never says so:
+    ``page.rect`` (and every pixmap) is the rotated view, while
+    ``get_text("words")`` stays in unrotated page space. Normalising the second
+    by the first drew every overlay box ninety degrees out of true — boxes
+    sideways across the page the user is looking at.
+    """
+
+    @staticmethod
+    def _rotated_pdf(tmp_path: Path, rotation: int) -> Path:
+        path = tmp_path / f"rotated-{rotation}.pdf"
+        doc = fitz.open()
+        page = doc.new_page(width=400, height=600)
+        page.insert_text((72, 144), _WORDS, fontsize=12)
+        page.set_rotation(rotation)
+        doc.save(str(path))
+        doc.close()
+        return path
+
+    @pytest.mark.parametrize("rotation", [0, 90, 180, 270])
+    def test_boxes_land_inside_the_rendered_page(self, tmp_path: Path, rotation: int):
+        doc = fitz.open(str(self._rotated_pdf(tmp_path, rotation)))
+        try:
+            page = doc[0]
+            assert page.rotation == rotation
+            result = from_pymupdf_page(page, page_index=0)
+            # The picture the overlay is drawn on.
+            display_w, display_h = page.rect.width, page.rect.height
+            # Every box, mapped back to display points, must match the rect
+            # PyMuPDF itself produces for that word through rotation_matrix.
+            words = [w for w in page.get_text("words") if w[4]]
+            assert len(result.boxes) == len(words)
+            for box, word in zip(result.boxes, words):
+                expected = fitz.Rect(word[:4]) * page.rotation_matrix
+                x, y, w, h = box.bbox
+                assert x * display_w == pytest.approx(min(expected.x0, expected.x1), abs=0.5)
+                assert y * display_h == pytest.approx(min(expected.y0, expected.y1), abs=0.5)
+                assert w * display_w == pytest.approx(abs(expected.width), abs=0.5)
+                assert h * display_h == pytest.approx(abs(expected.height), abs=0.5)
+        finally:
+            doc.close()
+
+    def test_rotation_changes_the_answer(self, tmp_path: Path):
+        """Guard against a fix that is a no-op: 90° must NOT equal 0°."""
+        boxes = {}
+        for rotation in (0, 90):
+            doc = fitz.open(str(self._rotated_pdf(tmp_path, rotation)))
+            try:
+                boxes[rotation] = [tuple(b.bbox) for b in from_pymupdf_page(doc[0]).boxes]
+            finally:
+                doc.close()
+        assert boxes[0] and boxes[90]
+        assert boxes[0] != boxes[90]
+
+    def test_a_nonsense_rotation_raises_rather_than_guessing(self):
+        from fichero_server.media.ocr_geometry import pdf_rect_to_display
+
+        with pytest.raises(ValueError, match="multiple of 90"):
+            pdf_rect_to_display(45, 400.0, 600.0, 1.0, 2.0, 3.0, 4.0)

@@ -30,7 +30,7 @@ from fichero_server.db import Database
 from fichero_server.models import DocType, Document, FileType, ImageEditChain
 from fichero_server.models.anchors import NodeRegion, RegionConfidence
 from fichero_server.execution.batch import BatchItemStatus, BatchStatus
-from fichero_server.db.storage import resolve_source
+from fichero_server.db.storage import resolve_pdf_render_source, resolve_source
 # NOTE: apply_operation is imported inside the functions that render (#3985) and
 # apply_fuzzy_clean inside the one handler that uses it
 # (#3950). Importing any module in the tools package runs tools/__init__.py,
@@ -208,6 +208,36 @@ def _resolve_source_or_404(db: Database, doc: Document) -> Path:
     if not source_path:
         raise HTTPException(status_code=404, detail="Source file not available")
     return source_path
+
+
+def _resolve_source_and_page(
+    db: Database, doc: Document, page: int
+) -> tuple[Path, int]:
+    """Return the file to render and the 1-based page inside it.
+
+    A PDF page child owns no file: it renders page ``sequence`` of its PARENT
+    PDF. ``resolve_source`` only ever knew about a document's own path, so
+    every image-editing call against a page node answered 404 "Source file not
+    available" — the whole editor, on every PDF page (#4574).
+
+    The page number is resolved from the DOCUMENT, not from the caller's
+    ``page``: a client points at a node, the server decides what that node
+    means. Otherwise a caller that omitted ``page`` would edit page 1 of the
+    book while looking at page 40, and nothing in the round-trip could object.
+    """
+    if doc.doc_type == DocType.page:
+        resolved = resolve_pdf_render_source(doc, db=db, library_root=db.path.parent)
+        if resolved is None:
+            raise HTTPException(
+                status_code=404,
+                detail=(
+                    f"Source file not available: page {doc.id} has no readable "
+                    "parent PDF"
+                ),
+            )
+        pdf_path, page_index = resolved
+        return pdf_path, page_index + 1
+    return _resolve_source_or_404(db, doc), page
 
 
 def _get_chain(db: Database, document_id: str) -> ImageEditChain | None:
@@ -578,6 +608,7 @@ def _render_preview(
     from fichero_server.media.image_ops import apply_operation  # lazy (#3985): keep PIL off the boot path
 
     doc = _get_or_404_document(db, document_id)
+    source_path, page = _resolve_source_and_page(db, doc, page)
     chain = _get_chain(db, document_id) if apply_edits else None
     version = chain.updated_at.isoformat() if chain else "raw"
     key = hashlib.sha256(f"{document_id}:{page}:{apply_edits}:{version}".encode()).hexdigest()
@@ -587,7 +618,7 @@ def _render_preview(
     if cache_path.exists() and media_path.exists():
         return cache_path.read_bytes(), media_path.read_text()
 
-    image = _load_source_image(_resolve_source_or_404(db, doc), page=page)
+    image = _load_source_image(source_path, page=page)
     if chain:
         for op in chain.operations:
             if int(op.get("page", page)) == page:
@@ -792,7 +823,8 @@ def unsplit_image_impl(db: Database, source_id: str) -> list[Document]:
 
 def _validate_crop_bounds(db: Database, source_id: str, request: CropOperationRequest) -> Document:
     source = _get_or_404_document(db, source_id)
-    image = _load_source_image(_resolve_source_or_404(db, source), page=request.page)
+    source_path, request_page = _resolve_source_and_page(db, source, request.page)
+    image = _load_source_image(source_path, page=request_page)
     if (
         request.left < 0
         or request.top < 0
@@ -811,7 +843,8 @@ def crop_image_child_impl(
     """Reuse the crop edit-chain on a derived child, never on its source."""
     source = _validate_crop_bounds(db, source_id, request)
     bbox = (request.left, request.top, request.width, request.height)
-    source_image = _load_source_image(_resolve_source_or_404(db, source), page=request.page)
+    source_path, request_page = _resolve_source_and_page(db, source, request.page)
+    source_image = _load_source_image(source_path, page=request_page)
     child = Document(
         parent_id=source.id,
         doc_type=DocType.chunk,
@@ -905,10 +938,10 @@ def crop_image_impl(
     db: Database, document_id: str, request: CropOperationRequest
 ) -> ImageEditChain:
     doc = _get_or_404_document(db, document_id)
-    source_path = _resolve_source_or_404(db, doc)
+    source_path, page = _resolve_source_and_page(db, doc, request.page)
     op = {
         "op": "crop",
-        "page": request.page,
+        "page": page,
         "params": {
             "left": request.left,
             "top": request.top,
@@ -917,36 +950,36 @@ def crop_image_impl(
             "auto_orient": request.auto_orient,
         },
     }
-    return _render_and_append(db, document_id, source_path, op, request.page)
+    return _render_and_append(db, document_id, source_path, op, page)
 
 
 def rotate_image_impl(
     db: Database, document_id: str, request: RotateOperationRequest
 ) -> ImageEditChain:
     doc = _get_or_404_document(db, document_id)
-    source_path = _resolve_source_or_404(db, doc)
+    source_path, page = _resolve_source_and_page(db, doc, request.page)
     op = {
         "op": "rotate",
-        "page": request.page,
+        "page": page,
         "params": {"angle": request.angle, "expand": request.expand},
     }
-    return _render_and_append(db, document_id, source_path, op, request.page)
+    return _render_and_append(db, document_id, source_path, op, page)
 
 
 def straighten_image_impl(
     db: Database, document_id: str, request: StraightenOperationRequest
 ) -> ImageEditChain:
     doc = _get_or_404_document(db, document_id)
-    source_path = _resolve_source_or_404(db, doc)
-    base = _load_source_image(source_path, page=request.page)
+    source_path, page = _resolve_source_and_page(db, doc, request.page)
+    base = _load_source_image(source_path, page=page)
     angle = _estimate_straighten_angle(base)
     op = {
         "op": "straighten",
-        "page": request.page,
+        "page": page,
         "params": {"angle": angle, "expand": True},
     }
     derived = _apply_operation(base, op)
-    op["derived_path"] = _write_derived_image(document_id, request.page, derived)
+    op["derived_path"] = _write_derived_image(document_id, page, derived)
     op["created_at"] = utc_now().isoformat()
     return _append_operation(db, document_id, op)
 
@@ -955,10 +988,10 @@ def enhance_image_impl(
     db: Database, document_id: str, request: EnhanceOperationRequest
 ) -> ImageEditChain:
     doc = _get_or_404_document(db, document_id)
-    source_path = _resolve_source_or_404(db, doc)
+    source_path, page = _resolve_source_and_page(db, doc, request.page)
     op = {
         "op": "enhance",
-        "page": request.page,
+        "page": page,
         "params": {
             "brightness": request.brightness,
             "contrast": request.contrast,
@@ -966,20 +999,20 @@ def enhance_image_impl(
             "auto_levels": request.auto_levels,
         },
     }
-    return _render_and_append(db, document_id, source_path, op, request.page)
+    return _render_and_append(db, document_id, source_path, op, page)
 
 
 def remove_background_image_impl(
     db: Database, document_id: str, request: RemoveBackgroundOperationRequest
 ) -> ImageEditChain:
     doc = _get_or_404_document(db, document_id)
-    source_path = _resolve_source_or_404(db, doc)
+    source_path, page = _resolve_source_and_page(db, doc, request.page)
     op = {
         "op": "remove_background",
-        "page": request.page,
+        "page": page,
         "params": {"method": request.method, "threshold": request.threshold},
     }
-    return _render_and_append(db, document_id, source_path, op, request.page)
+    return _render_and_append(db, document_id, source_path, op, page)
 
 
 def segment_image_impl(
@@ -988,9 +1021,9 @@ def segment_image_impl(
     """Segment the (saved-edits-applied) image, create child chunk documents,
     and append the ``segment`` op. Returns ``(chain, child_document_ids)``."""
     doc = _get_or_404_document(db, document_id)
-    source_path = _resolve_source_or_404(db, doc)
+    source_path, page = _resolve_source_and_page(db, doc, request.page)
     base = _apply_saved_operations(
-        db, document_id, request.page, _load_source_image(source_path, page=request.page)
+        db, document_id, page, _load_source_image(source_path, page=page)
     )
     params = {
         "method": request.method,
@@ -1000,16 +1033,16 @@ def segment_image_impl(
     }
     segments = _segment_image(base, params)
     child_ids = _create_segment_documents(
-        db, doc, request.page, segments, (base.width, base.height)
+        db, doc, page, segments, (base.width, base.height)
     )
     op = {
         "op": "segment",
-        "page": request.page,
+        "page": page,
         "params": params,
         "segments": segments,
         "child_document_ids": child_ids,
     }
-    op["derived_path"] = _write_derived_image(document_id, request.page, base)
+    op["derived_path"] = _write_derived_image(document_id, page, base)
     op["created_at"] = utc_now().isoformat()
     chain = _append_operation(db, document_id, op)
     return chain, child_ids

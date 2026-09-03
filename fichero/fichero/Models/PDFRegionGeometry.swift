@@ -40,6 +40,38 @@ enum PDFRegionGeometry {
         return CGRect(x: originX, y: originY, width: width, height: height)
     }
 
+    /// Undo a page's `/Rotate` so a DISPLAY-space normalized box can be drawn
+    /// as a PDFKit annotation.
+    ///
+    /// Two coordinate systems meet on a rotated page and neither announces
+    /// itself. The engine normalizes PDF text-layer geometry in DISPLAY space
+    /// — the picture the reader is looking at, and the one every server-
+    /// rendered rendition shares. PDFKit's `bounds(for:)` and every
+    /// `PDFAnnotation` live in the page's UNROTATED space; `PDFView` applies
+    /// the rotation itself when it draws. Handing a display-space box straight
+    /// to an annotation therefore lands it ninety degrees out of true —
+    /// boxes sideways across the page.
+    ///
+    /// Returns the box re-expressed as normalized top-left coordinates of the
+    /// UNROTATED page, ready for `pageRect(normalized:pageSize:)`. `rotation`
+    /// is `PDFPage.rotation` (a multiple of 90; anything else is treated as 0
+    /// because PDFKit has already normalized it).
+    static func unrotated(normalized box: [Double], rotation: Int) -> [Double] {
+        guard box.count >= 4 else { return box }
+        let x = box[0], y = box[1], w = box[2], h = box[3]
+        switch ((rotation % 360) + 360) % 360 {
+        case 90:
+            // display (x, y) came from unrotated (y, 1 - x - w) — invert it.
+            return [y, 1 - x - w, h, w]
+        case 180:
+            return [1 - x - w, 1 - y - h, w, h]
+        case 270:
+            return [1 - y - h, x, h, w]
+        default:
+            return box
+        }
+    }
+
     /// Normalized top-left box for a drag between two PDF page points
     /// (bottom-left origin), clamped to 0…1 with a positive size. `nil` for a
     /// degenerate (tap-sized) drag.
