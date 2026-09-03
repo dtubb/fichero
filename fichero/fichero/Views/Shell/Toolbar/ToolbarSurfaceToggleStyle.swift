@@ -5,7 +5,7 @@ import SwiftUI
 /// is open, "the way the workflow bar and markup bar toggles already do").
 ///
 /// History matters here, because this looks like a reversal and is not. On
-/// 2026-08-29 the pane toggles stopped being native `Toggle`s: their on-state
+/// 2026-08-29 the pane switches stopped being native toggle controls: their on-state
 /// filled the control with the accent colour, and "changing colors — that's a
 /// bad UX". The words carried the state instead — Show Preview / Hide Preview
 /// — which is right, and stays. But words are only legible in the toolbar's

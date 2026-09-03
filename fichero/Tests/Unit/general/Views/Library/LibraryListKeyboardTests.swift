@@ -140,7 +140,9 @@ struct LibraryListModeGuardTests {
         // a fixed-height window matching its loading reservation, and tile
         // labels reserve two lines. Stable scroll + honest PageUp/Down.
         let components = try appSource("Views/Library/LibraryViewComponents.swift")
-        #expect(components.contains(".lineLimit(2, reservesSpace: true)"))
+        // The count became the user's 2/4/6 option (2026-09-02); density
+        // still reserves space so late transcripts can't re-pitch the list.
+        #expect(components.contains(".lineLimit(contentLines, reservesSpace: true)"))
         #expect(components.contains("static let entityBlockHeight: CGFloat = 40"))
         #expect(components.contains(".frame(height: Self.entityBlockHeight, alignment: .topLeading)"))
         #expect(!components.contains(".lineLimit(4)"))

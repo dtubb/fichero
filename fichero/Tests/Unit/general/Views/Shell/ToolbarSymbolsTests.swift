@@ -127,7 +127,9 @@ struct ToolbarSymbolsTests {
         let readySection = source
             .components(separatedBy: "case .setupNeeded, .ready:")[1]
             .components(separatedBy: "\n        }")[0]
-        #expect(readySection.contains(".foregroundStyle(.secondary)"))
+        // Quiet = secondary at rest; the accent appears only while the
+        // popover is open (the lit-state pass, 2026-09-02).
+        #expect(readySection.contains("AnyShapeStyle(.secondary)"))
         #expect(!readySection.contains(".foregroundStyle(.green)"))
         #expect(readySection.contains("ToolbarSymbols.engineReadyRemote"))
         #expect(readySection.contains("ToolbarSymbols.engineReadyLocal"))

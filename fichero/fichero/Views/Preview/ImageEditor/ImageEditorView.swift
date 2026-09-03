@@ -66,11 +66,8 @@ struct ImageEditorView: View {
     /// over one image. Side-by-side and wipe are plain `Image`s with no scale
     /// of their own, and this is it.
     @State var compareZoom: CGFloat = 1.0
-    /// Width of the edit-steps stack beside the canvas. Matches the window
-    /// Inspector's own column so the two lists read as the same object in two
-    /// places rather than two different panels.
-    // stepsPanelWidth removed 2026-09-02 with the beside-canvas steps copy —
-    // the Inspector's Edits facet is the one steps list.
+    // The beside-canvas steps column and its width constant were removed
+    // 2026-09-02 — the Inspector's Edits facet is the one steps list.
     static let minCompareZoom: CGFloat = 0.25
     static let maxCompareZoom: CGFloat = 8.0
     /// Revert to Original confirmation — every step is already committed, so

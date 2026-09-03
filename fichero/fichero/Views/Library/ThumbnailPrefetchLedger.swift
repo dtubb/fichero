@@ -22,7 +22,7 @@ import Foundation
 /// Scrolling DOWN reveals unseen rows, so every one of them writes state and
 /// re-renders the list under the pointer. Same code, one direction janky.
 ///
-/// A plain `final class` (deliberately NOT `@Observable`) stored in `@State`
+/// A plain `final class` (deliberately NOT the Observable macro) stored in `@State`
 /// gives the view a stable box whose contents SwiftUI does not watch: the
 /// ledger survives re-renders, and mutating it causes none. Nothing in the
 /// view's body reads these values, so there is nothing to observe.
