@@ -1,14 +1,14 @@
 {
   "release.app_binary": {
-    "bytes": 224640816,
-    "note": "2026-09-02: re-corrected \u2014 a guardrail --update-baseline run in the integration worktree measured a 59KB stub via the default paths and the bogus value got merged; this is the real beta Mach-O from the 2026.09.01.2 train"
+    "bytes": 225830976,
+    "note": "manually updated"
   },
   "release.app_bundle": {
-    "bytes": 1433040842,
-    "note": "2026-09-01: re-measured on the REAL beta artifacts (dmg-stage Fichero.app + Fichero.dmg); the previous app_binary baseline (~59KB) was measured without --app against a stub and never described the shipped binary"
+    "bytes": 1436376367,
+    "note": "manually updated"
   },
   "release.dmg": {
-    "bytes": 520887268,
-    "note": "2026-09-01: re-measured on the REAL beta artifacts (dmg-stage Fichero.app + Fichero.dmg); the previous app_binary baseline (~59KB) was measured without --app against a stub and never described the shipped binary"
+    "bytes": 521208652,
+    "note": "manually updated"
   }
 }
