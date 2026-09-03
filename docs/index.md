@@ -10,9 +10,9 @@ hide:
 
 # Fichero: AI for archives & research
 
-What is Fichero? It's an app to read archives and research material; to transcribe handwritten documents with AI models; to organize sources; to generate structured data from research collections.
+What is Fichero? It's a Mac app to read archives and research material; to transcribe handwritten documents with AI models; to generate structured data from the results; and to navigate and search the results.
 
-**Fichero is a Public Alpha. It's not yet in Beta.**
+**Fichero is in early days. It is open source. It is in Public Alpha. It is not yet in Beta.**
 
 To learn more about how Fichero works, please read the [FAQ](user/guide/10-frequently-asked-questions.md).
 
@@ -51,29 +51,74 @@ video slot: short demo embed(s). Keep empty until there is one. -->
 
 <div class="grid cards" markdown>
 
+-   :material-file-tree: __Sidebar__
+
+    ---
+
+    Your libraries, folders, workflows, and saved searches — several
+    libraries open side by side.
+
 -   :material-folder-multiple: __Library__
 
     ---
 
-    <!-- copy --> Import, organize, and read your sources in one place.
+    Import and organize your sources; browse them as lists, icons, tables,
+    datasets, timelines, and boards.
+
+-   :material-image: __Preview__
+
+    ---
+
+    The page itself: zoom, loupe, word boxes over the scan, regions you can
+    draw and save, and every rendition of a page.
+
+-   :material-image-edit: __Edit__
+
+    ---
+
+    Rotate, crop, enhance, and remove backgrounds — as editable steps you
+    can adjust, reorder, and copy between images.
+
+-   :material-book-open-variant: __Reader__
+
+    ---
+
+    Transcripts, translations, and other artifacts as readable text, side
+    by side with the page.
+
+-   :material-chat: __Chat__
+
+    ---
+
+    Ask questions of your sources, scoped to the documents you choose.
+
+-   :material-information: __Inspector__
+
+    ---
+
+    Metadata, artifacts, entities, annotations, and edit history for
+    whatever is selected.
 
 -   :material-magnify: __Search__
 
     ---
 
-    <!-- copy --> Keyword and semantic search across the whole collection.
+    Keyword and Ask (semantic) search across the whole collection, with
+    matches highlighted on the page.
 
--   :material-sitemap: __Workflows__
-
-    ---
-
-    <!-- copy --> Transcribe, extract, and catalogue — visually, repeatably.
-
--   :material-graph: __Knowledge graph__
+-   :material-sitemap: __Workflow bar__
 
     ---
 
-    <!-- copy --> Entities and claims, with provenance back to the page.
+    Stage steps, pick a model per step, run on your selection — or compare
+    the same page across models.
+
+-   :material-pencil: __Markup bar__
+
+    ---
+
+    Select, highlight, note, star, and check — marks that live on the page
+    and travel with it.
 
 </div>
 
