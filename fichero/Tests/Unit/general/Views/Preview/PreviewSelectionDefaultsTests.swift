@@ -213,7 +213,7 @@ struct PreviewSelectionDefaultsTests {
 
 struct WorkflowPickerReachesPresetTests {
     private func item(
-        accepts: Bool? = true, requiresVision: Bool = true
+        accepts: Bool = true, requiresVision: Bool = true
     ) -> WorkflowSidebarItem {
         WorkflowSidebarItem(
             id: "wf1", name: "Detect Regions", description: nil,
@@ -227,7 +227,7 @@ struct WorkflowPickerReachesPresetTests {
     }
 
     private func choice(_ provider: String, _ model: String) -> WorkflowBarModelChoice {
-        WorkflowBarModelChoice(provider: provider, model: model, label: model)
+        WorkflowBarModelChoice(label: model, provider: provider, model: model)
     }
 
     @Test("a single staged vision preset rides the picker's choice")

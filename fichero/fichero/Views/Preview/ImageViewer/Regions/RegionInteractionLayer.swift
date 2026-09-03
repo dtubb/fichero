@@ -49,6 +49,16 @@ struct RegionInteractionLayer: View {
     let imagePixelSize: CGSize?
     /// True while rubber-band add mode is armed.
     let isAddingRegion: Bool
+    /// True while an ANNOTATION draw tool is armed (highlight/note/line/
+    /// star). The band then becomes the annotation's box via `onAnnotate`
+    /// (2026-09-02): these drags used to ride a full-frame SwiftUI
+    /// DragGesture on `BoundingBoxOverlay` — the exact hit-claiming shape
+    /// that starved the scroll view, and the one drag path left OFF the
+    /// AppKit pointer feed, which is why its boxes could land away from the
+    /// cursor while marquees landed true.
+    var isAnnotating: Bool = false
+    /// Finish an annotation band: normalized `[x, y, w, h]`.
+    var onAnnotate: (([Double]) -> Void)?
     /// The image view's clicks and drags, normalized (2026-09-01). This
     /// layer owns NO gestures: a gesture-bearing SwiftUI view over the
     /// NSScrollView made the hosting view claim hit-testing, and two-finger
@@ -292,7 +302,7 @@ struct RegionInteractionLayer: View {
             handleCheckTap(at: point, in: size)
             return
         }
-        if isAddingRegion || isWordSelecting {
+        if isAddingRegion || isWordSelecting || isAnnotating {
             bandStart = point
             bandCurrent = point
             return
@@ -409,7 +419,9 @@ struct RegionInteractionLayer: View {
             }
             return
         }
-        if isWordSelecting {
+        if isAnnotating {
+            onAnnotate?(box)
+        } else if isWordSelecting {
             selectWords(inBand: box)
         } else if isAddingRegion {
             marquees?.add(
