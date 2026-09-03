@@ -232,6 +232,44 @@ def test_loopback_url_detection(url: str, expected: bool) -> None:
 
 
 @pytest.mark.asyncio
+async def test_bare_status_ok_payload_is_healthy() -> None:
+    """The REAL mlx_lm server answers /health with just {"status": "ok"}.
+
+    Parsing that through the rich shape defaulted model_loaded=False, so a
+    ready runtime sat permanently 'degraded' and every omlx workflow run
+    failed (2026-09-02, live on the Marshall sample)."""
+    process = FakeProcess()
+    client = FakeHealthClient([{"status": "ok"}])
+    manager = LocalInferenceServiceManager(
+        profile(),
+        process,
+        client,
+        poll_interval_seconds=0,
+    )
+
+    status = await manager.start()
+
+    assert status.state == LocalServiceState.healthy
+    assert status.healthy is True
+
+
+@pytest.mark.asyncio
+async def test_bare_status_error_payload_is_not_healthy() -> None:
+    process = FakeProcess()
+    client = FakeHealthClient([{"status": "error"}, {"status": "error"}])
+    manager = LocalInferenceServiceManager(
+        profile(),
+        process,
+        client,
+        poll_interval_seconds=0,
+    )
+
+    status = await manager.start(timeout_seconds=0)
+
+    assert status.healthy is False
+
+
+@pytest.mark.asyncio
 async def test_success_health_marks_service_healthy() -> None:
     process = FakeProcess()
     client = FakeHealthClient([healthy_payload()])

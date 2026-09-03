@@ -786,6 +786,24 @@ class LocalInferenceServiceManager:
         return urljoin(str(self.profile.base_url), self.profile.healthcheck_path)
 
     def _parse_health(self, payload: dict[str, Any]) -> LocalInferenceServiceHealth:
+        # mlx_lm's real server answers GET /health with just {"status": "ok"}
+        # — no reachable/model_loaded fields. Parsing that through the rich
+        # shape below defaulted model_loaded=False, so a ready runtime sat
+        # permanently 'degraded' and every omlx workflow run failed with
+        # 'local inference service did not become healthy' (2026-09-02,
+        # live). A bare status field IS the whole contract for that server:
+        # "ok" means up and serving the model it was started with.
+        if "status" in payload and not any(
+            k in payload for k in ("reachable", "model_loaded", "loaded")
+        ):
+            ok = str(payload.get("status", "")).lower() in {"ok", "healthy", "ready"}
+            return LocalInferenceServiceHealth(
+                reachable=ok,
+                model_loaded=ok,
+                warm=ok,
+                configured_model_id=payload.get("model_id"),
+                last_error=None if ok else f"status={payload.get('status')!r}",
+            )
         try:
             return LocalInferenceServiceHealth(
                 reachable=payload.get("reachable", True),
