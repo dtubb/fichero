@@ -144,7 +144,7 @@ def test_catalogue_default_workflow_processes_imported_pdf_page_children(
     for page_doc_id in page_doc_ids:
         artifacts = db.query(Artifact, document_id=page_doc_id)
         assert any(a.artifact_type == "transcription" for a in artifacts)
-        assert any(a.artifact_type == "people" for a in artifacts)
+        assert any(a.artifact_type == "import_receipt" for a in artifacts)
 
         claims = db.query(KnowledgeClaim, source_document_id=page_doc_id)
         assert any(
@@ -204,8 +204,13 @@ def test_catalogue_live_graph_waits_for_all_merge_inputs_before_catalogue(
         except ValueError as exc:  # pragma: no cover - assertion message path
             raise AssertionError(f"missing event {(kind, name)!r} in {events!r}") from exc
 
-    catalogue_start = event_index("on_chain_start", "Catalogue")
-    assert event_index("on_chain_end", "Extract All Entities") < catalogue_start
+    # Chain ordering: every stage ends before the next begins, and the
+    # narrative stage (6) never starts before extraction (2-3) and KG
+    # finalize (5) have ended.
+    catalogue_start = event_index("on_chain_start", "6 · Catalogue")
+    assert event_index("on_chain_end", "2 · Extract Entities") < catalogue_start
+    assert event_index("on_chain_end", "3 · Extract SVO → Claims") < catalogue_start
+    assert event_index("on_chain_end", "5 · KG Persist / Finalize") < catalogue_start
     assert ("on_chain_end", "Write KG") not in events
 
 
@@ -346,6 +351,96 @@ def _install_deterministic_workflow_stubs(
         "fichero_server.workflows.tools.catalogue._generate_keywords",
         fake_keywords,
     )
+
+    # The Catalogue chain's stage children (2 · Extract Entities and
+    # 3 · Extract SVO → Claims) reach the model through their own
+    # module-level names, so they need their own deterministic stand-ins.
+    async def fake_stage_structured(**kwargs):
+        schema = kwargs.get("schema")
+        if schema is extract_all_module._EntitiesOnly:
+            return extract_all_module._EntitiesOnly(
+                people=[
+                    extract_all_module._EntityOnly(
+                        name="Regression Person", entity_type="person"
+                    )
+                ],
+                places=[
+                    extract_all_module._EntityOnly(
+                        name="Regression Place", entity_type="place"
+                    )
+                ],
+                organizations=[],
+                dates=[
+                    extract_all_module._EntityOnly(name="1842", entity_type="date")
+                ],
+                events=[],
+            )
+        if schema is extract_all_module._EntityClaims:
+            prompt = str(kwargs.get("prompt") or "")
+            per_entity = {
+                "Regression Person": extract_all_module._SVOClaim(
+                    subject="Regression Person",
+                    verb="signed",
+                    object="the fixture deed",
+                    source_text="Regression Person signed the fixture deed",
+                    epistemic_status="established",
+                    claim_type="action",
+                ),
+                "Regression Place": extract_all_module._SVOClaim(
+                    subject="Regression Place",
+                    verb="hosted",
+                    object="the fixture signing",
+                    source_text="in Regression Place",
+                    epistemic_status="established",
+                    claim_type="action",
+                ),
+                "1842": extract_all_module._SVOClaim(
+                    subject="1842",
+                    verb="dated",
+                    object="the fixture deed",
+                    source_text="in 1842",
+                    epistemic_status="established",
+                    claim_type="action",
+                ),
+            }
+            for name, claim in per_entity.items():
+                if f"Entity: {name}" in prompt:
+                    return extract_all_module._EntityClaims(
+                        subject=name, claims=[claim]
+                    )
+            return extract_all_module._EntityClaims(subject="unknown", claims=[])
+        if schema is not None and getattr(schema, "__name__", "") == "_Section_Dates":
+            # Stage 3's direct dates pass (claim-only section, #1470).
+            return schema(
+                items=[
+                    {
+                        "date": "1842",
+                        "date_normalized": "1842",
+                        "verb": "dated",
+                        "object": "the fixture deed",
+                        "source_text": "in 1842",
+                    }
+                ]
+            )
+        return await fake_extract_all_structured(**kwargs)
+
+    monkeypatch.setattr(
+        "fichero_server.workflows.tools.extract_entities_only."
+        "chat_structured_with_fallback",
+        fake_stage_structured,
+    )
+    monkeypatch.setattr(
+        "fichero_server.workflows.tools.extract_svo_only."
+        "chat_structured_with_fallback",
+        fake_stage_structured,
+    )
+    # extract_svo_only routes per-entity claim calls through extract_all's
+    # module-level chat_structured_with_fallback (already patched above), but
+    # that fake only knows the combined _Extraction schema — widen it.
+    monkeypatch.setattr(
+        "fichero_server.workflows.tools.extract_all.chat_structured_with_fallback",
+        fake_stage_structured,
+    )
     # #4414 Stage 4: the six folder-cleanup nodes and citations_extract used
     # to be REPLACED with no-ops here — seven of the Catalogue preset's twelve
     # nodes. A harness that swaps out over half the shipped preset cannot see
@@ -425,6 +520,10 @@ def _seed_fixture_library(
         path=str(source_file),
         doc_type=DocType.file,
         file_type=FileType.text,
+        # The Catalogue chain starts from already-carried text (stage 1
+        # registers artifacts from page content; it never re-transcribes).
+        page_content=FIXTURE_TEXT,
+        metadata={"transcription": FIXTURE_TEXT},
     )
     db.save(folder)
     db.save(source_doc)
@@ -625,21 +724,35 @@ def _assert_declared_terminal_outputs(workflow, final_state: dict, preset_name: 
         )
 
 
-def _assert_workflow_completed(final_state: dict) -> None:
+#: The chain's node ids (Daniel's 2026-09-03 ruling: Catalogue IS the 1–6
+#: stage chain, each stage a sub_workflow over the numbered preset).
+_CHAIN_NODE_IDS = {
+    "files-source",
+    "stage-1-import-artifacts",
+    "stage-2-extract-entities",
+    "stage-3-extract-svo",
+    "stage-4-merge-dedup",
+    "stage-5-kg-persist",
+    "stage-6-catalogue",
+}
+
+#: The inline monolith vehicle the twostage tests run (see
+#: _load_catalogue_workflow_twostage — extract_all's twostage path needs a
+#: transcribe→extract_all graph, which the shipped chain no longer carries).
+_TWOSTAGE_NODE_IDS = {"files-source", "transcribe", "extract_all", "catalogue"}
+
+
+def _assert_workflow_completed(
+    final_state: dict, required_nodes: set[str] = frozenset(_CHAIN_NODE_IDS)
+) -> None:
     serialized = repr(final_state)
     assert final_state.get("error") in (None, ""), final_state.get("error")
     assert "No KG payload" not in serialized
 
     completed = set(final_state.get("completed_nodes") or [])
-    assert {
-        "files-source",
-        "transcribe",
-        "extract_all",
-        "catalogue",
-    } <= completed
-
-    extract_output = (final_state.get("outputs") or {}).get("extract_all") or {}
-    assert extract_output.get("kg_payload"), "extract_all emitted no kg_payload"
+    assert set(required_nodes) <= completed, (
+        f"missing completed nodes: {sorted(set(required_nodes) - completed)}"
+    )
     assert "kg_writer" not in completed
 
 
@@ -650,8 +763,10 @@ def _assert_artifacts_landed(
     source_doc_id: str,
 ) -> None:
     source_artifacts = db.query(Artifact, document_id=source_doc_id)
+    # Stage 1 registers import receipts + transcription artifacts from the
+    # page content the documents already carry.
     assert any(a.artifact_type == "transcription" for a in source_artifacts)
-    assert any(a.artifact_type == "people" for a in source_artifacts)
+    assert any(a.artifact_type == "import_receipt" for a in source_artifacts)
 
     target_artifacts = db.query(Artifact, document_id=catalogue_target_id)
     assert any(a.artifact_type == "catalogue.narrative" for a in target_artifacts)
@@ -684,7 +799,9 @@ def _assert_kg_rows_landed(
     assert len(claims) > before_claims
 
     names = {entity.canonical_name for entity in entities}
-    assert {"Regression Person", "Regression Place", "regression fixture"} <= names
+    # Keywords are a catalogue-narrative construct; the chain's stage 2
+    # persists the typed NER sections only.
+    assert {"Regression Person", "Regression Place"} <= names
 
     fixture_claims = db.query(KnowledgeClaim, source_document_id=source_doc_id)
     claim_texts = {claim.text for claim in fixture_claims}
@@ -751,7 +868,7 @@ def test_catalogue_twostage_workflow_lands_kg_rows(
 
     final_state = asyncio.run(build_graph(workflow, skip_cache=True).ainvoke(state))
 
-    _assert_workflow_completed(final_state)
+    _assert_workflow_completed(final_state, _TWOSTAGE_NODE_IDS)
     _assert_twostage_kg_rows_landed(
         db,
         catalogue_target_id=catalogue_target_id,
@@ -901,23 +1018,59 @@ def _install_twostage_stubs(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def _load_catalogue_workflow_twostage():
-    """Catalogue preset with extraction_mode=twostage forced in extract_all config."""
-    import copy
-    preset = next(p for p in _load_preset_files() if p["name"] == "Catalogue")
-    nodes = copy.deepcopy(preset["nodes"])
-    for node in nodes:
-        if node.get("tool") == "extract_all":
-            node.setdefault("config", {})["extraction_mode"] = "twostage"
-            break
+    """Inline transcribe→extract_all(twostage)→catalogue vehicle.
+
+    These tests guard extract_all's twostage path (#1285/#1403/#1404). The
+    shipped 'Catalogue' preset is the 1–6 stage chain now (2026-09-03) and no
+    longer carries an extract_all node, so the vehicle that exercises the
+    path is built here instead of borrowed from the preset.
+    """
+    nodes = [
+        {"id": "files-source", "tool": "files", "inputs": {}, "config": {}},
+        {
+            "id": "transcribe",
+            "tool": "transcribe",
+            "inputs": {},
+            "config": {"vision_mode": "auto", "update_page_content": True},
+        },
+        {
+            "id": "extract_all",
+            "tool": "extract_all",
+            "inputs": {},
+            "config": {
+                "provider_name": "$small",
+                "persist_kg": True,
+                "extraction_mode": "twostage",
+            },
+        },
+        {
+            "id": "catalogue",
+            "tool": "catalogue",
+            "inputs": {},
+            "config": {"provider_name": "$small"},
+        },
+    ]
+    edges = [
+        {"id": "e1", "source": "files-source", "target": "transcribe",
+         "source_port": "files", "target_port": "files"},
+        {"id": "e2", "source": "files-source", "target": "transcribe",
+         "source_port": "documents", "target_port": "documents"},
+        {"id": "e3", "source": "transcribe", "target": "extract_all",
+         "source_port": "text", "target_port": "text"},
+        {"id": "e4", "source": "transcribe", "target": "extract_all",
+         "source_port": "records", "target_port": "records"},
+        {"id": "e5", "source": "extract_all", "target": "catalogue",
+         "source_port": "text", "target_port": "data"},
+    ]
     return to_workflow_def(
         Workflow(
             id="default-catalogue-twostage-regression-harness",
-            name=preset["name"],
-            description=preset.get("description", ""),
+            name="Catalogue (twostage harness vehicle)",
+            description="extract_all twostage regression vehicle",
             nodes=nodes,
-            edges=preset["edges"],
-            config=preset.get("config", {}),
-            folder_path=preset.get("folder_path", "/"),
+            edges=edges,
+            config={},
+            folder_path="/Catalogue",
         )
     )
 
@@ -1098,7 +1251,7 @@ def test_catalogue_twostage_folder_uses_page_records_for_page_scoped_kg(
     state["task_id"] = "test-folder-page-records-catalogue-twostage"
 
     final_state = asyncio.run(build_graph(workflow, skip_cache=True).ainvoke(state))
-    _assert_workflow_completed(final_state)
+    _assert_workflow_completed(final_state, _TWOSTAGE_NODE_IDS)
 
     claims = db.all(KnowledgeClaim)
     entities = db.all(KnowledgeEntity)
@@ -1175,7 +1328,7 @@ def test_catalogue_twostage_folder_writes_kg_rows_to_child_docs(
 
     final_state = asyncio.run(build_graph(workflow, skip_cache=True).ainvoke(state))
 
-    _assert_workflow_completed(final_state)
+    _assert_workflow_completed(final_state, _TWOSTAGE_NODE_IDS)
     _assert_twostage_kg_rows_landed(
         db,
         catalogue_target_id=catalogue_target_id,

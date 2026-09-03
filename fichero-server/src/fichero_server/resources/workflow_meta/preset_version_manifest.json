@@ -4,8 +4,8 @@
   "sha256": "0b67751fe6c93d759acff68214621189951ac0fbef2c1692de47e775c0873645"
  },
  "catalogue.json": {
-  "preset_version": 5,
-  "sha256": "24fda829f86a4f08ed98883043491ae9974502b07055d1481e93b3badd935f32"
+  "preset_version": 6,
+  "sha256": "f39e5e7df55fb69895b1ad0eb4b48c3d6f84d063e8a4540c5164afa34a54ae1f"
  },
  "catalogue_stage_1_import_artifacts.json": {
   "preset_version": 1,

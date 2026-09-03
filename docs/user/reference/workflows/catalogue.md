@@ -4,13 +4,13 @@
 
 > 🤖 *AI Drafted (Not reviewed)*
 
-Transcribe every file, extract typed entities (people, places, organizations, dates, events, keywords) in a single combined LLM call per page, persist per-page KG claims inline during extraction, then folder-level dedup and a narrative catalogue entry. All LLM nodes use the $small model alias — set your default small model in Settings → AI Defaults (e.g. Apple Intelligence for free local use).
+Run the whole Catalogue pipeline: the six numbered stage presets in this folder, in order, as one chain. 1 · Import → Artifacts registers per-page import receipts and transcription artifacts from the already-imported page content; 2 · Extract Entities and 3 · Extract SVO → Claims read those artifacts and persist entity and claim rows ($small model); 4 · Merge / Dedup reapplies curation rules; 5 · KG Persist / Finalize recomputes corroboration, embeddings and the graph snapshot; 6 · Catalogue writes the narrative archival description ($small model). Every stage is also runnable standalone from this folder, and each is safe to re-run. Pages must already carry text — run a Transcribe workflow first for scans without content.
 
 | | |
 | --- | --- |
 | Folder | /Catalogue |
-| Steps | 12 |
-| Tags | preset, catalogue, small |
+| Steps | 7 |
+| Tags | preset, catalogue, chain, pipeline, sub-workflow, small |
 
 ## Steps, in run order
 
@@ -18,324 +18,80 @@ Transcribe every file, extract typed entities (people, places, organizations, da
 
 Tool: [Files](../tools/files.md) — Pass through input files from workflow context
 
-### 2. Transcribe each file
+### 2. 1 · Import → Artifacts
 
-Tool: [Transcribe](../tools/transcribe.md) — Extract text from images (OCR)
-
-Settings this step uses:
-
-| Option | Value |
-| --- | --- |
-| `language` | auto |
-| `update_page_content` | yes |
-| `vision_mode` | auto |
-
-What this step asks the model:
-
-```text
-Transcribe the text visible on this image.
-
-Language: transcribe in the language of the source. Do not translate, and do not assume the document is in English.
-
-Rules:
-- Output ONLY the transcription. No headings, no preamble, no commentary,
-  no summary, no notes, no explanations, no observations about quality or
-  legibility, no descriptions of seals or images, no language about the
-  difficulty of the handwriting.
-- Preserve original layout, line breaks, and paragraph structure.
-- Preserve original spelling and capitalisation, including ALL CAPS
-  headers if they appear that way.
-- Preserve orthography exactly as written, including all diacritics
-  and accent marks (e.g., keep "Chocó" as "Chocó", never "Choco";
-  keep "Ramón" as "Ramón", never "Ramon").
-- Do not strip accents, tildes, cedillas, or umlauts. If a mark is
-  visible, keep it.
-- Include every visible text element — headers, body, marginalia, stamps,
-  signatures (transcribe the signed name as written), printed labels,
-  handwritten annotations.
-- For text you cannot confidently read, use explicit uncertainty markers:
-  [ilegible] for unreadable text and [uncertain] for plausible-but-low-
-  confidence readings. Place the marker inline at the uncertain span.
-  Do not guess. Do not fill in.
-- Do NOT invent dates, numbers, names, or words that are not legibly
-  present. Do not normalise dates ("23/7/1999" stays "23/7/1999", not
-  "1999-07-23").
-- Do NOT repeat any portion of the transcription. Output each visible
-  passage exactly once.
-- If the image contains no legible text, output the single token
-  [sin texto].
-```
-
-### 3. Extract All Entities
-
-Tool: [Extract All Entities](../tools/extract_all.md) — Single-pass extraction of people, places, organisations, dates, events, and keywords. One LLM call per page returns all six types as JSON — 6× fewer calls than the per-type extractors, same downstream shape (KG claims + per-page artifacts).
+Tool: [Sub-Workflow](../tools/sub_workflow.md) — Run a child workflow behind declared input/output contracts.
 
 Settings this step uses:
 
 | Option | Value |
 | --- | --- |
-| `output_language` | auto |
-| `persist_kg` | yes |
-| `provider_name` | $small |
+| `input_contract` | [{"data_type": "any", "description": "Selected document metadata (scope is re-resolved from the selection inside the stage).", "id": "documents", "required": false}] |
+| `output_contract` | [{"data_type": "json", "description": "Stage summary; also the ordering edge into stage 2.", "id": "summary", "required": true}] |
+| `output_mapping` | {"summary": "$.nodes.import-artifacts.summary"} |
+| `workflow_ref` | 1 · Import → Artifacts |
 
-What this step asks the model:
+### 3. 2 · Extract Entities
 
-```text
-You are an expert archivist extracting structured entities from a document. Extract evidence, not ontology labels. Do NOT emit generic claims like 'Pedro is a person', 'Colombia is a location', or 'cash is a concept'. Entity type is metadata only. For each useful entity or index term, extract specific SVO facts grounded in nearby text, with source_text as a short exact quote from the page, preserving any [ilegible] / [uncertain] markers exactly as written. Cover repeated useful facts for the same entity when the text supports them. Only include facts the text supports — do not speculate or invent. Keywords are book-index terms for finding this page later: include relevant concepts, subjects, and names only when they help locate the passage; do not pad to a quota. Write prose fields in English. Use verbs from the page context for ordinary claims. Reserve reporting verbs (said, stated, declared, asserted, claimed, testified, petitioned, reported, argued, wrote, denied, requested) for direct quotations or explicitly attributed statements only.
-
-Section-specific guidance:
-- people: named people or named groups only. Extract specific facts about what they did, used, worked, produced, relied on, valued, or experienced. Do not use reporting verbs unless the text directly quotes or attributes speech.
-- places: named places or geographic regions with a specific relationship stated by the text. This includes geographic and land-use CATEGORIES, not just proper names: 'agricultural zones', 'mining districts', 'territories' all belong here. If a term denotes a location or land area — even a generic one — it is a place, NOT a keyword/concept.
-- organizations: named organizations only.
-- dates: dates stated in the text, with the event or condition attached to that date.
-- events: occurrences explicitly stated by the text. This includes unnamed/generic occurrences: 'accident', 'flood', 'death', 'fire' are events, NOT keywords/concepts. If a term denotes something that happened, it is an event.
-- quotes: direct quotations only, where the source gives quoted words or an explicit speaker/writer attribution.
-- keywords: the 5-8 MOST SALIENT, distinctive keywords for ABSTRACT ideas only — themes, subjects, time periods, ideologies. Do NOT put places, events, people, or organizations here. If a term names a location (even 'agricultural zones') it belongs in places; if it names an occurrence (like 'accident' or 'flood') it belongs in events. Keywords are concepts, not concrete entities.
-```
-
-### 4. Clean People (folder)
-
-Tool: [Clean People (folder)](../tools/people_folder_cleanup.md) — Pick global canonical people across all pages in the folder and save a cleaned artifact on the folder doc.
+Tool: [Sub-Workflow](../tools/sub_workflow.md) — Run a child workflow behind declared input/output contracts.
 
 Settings this step uses:
 
 | Option | Value |
 | --- | --- |
-| `provider_name` | $small |
+| `input_contract` | [{"data_type": "any", "description": "Selected document metadata (scope is re-resolved from the selection inside the stage).", "id": "documents", "required": false}, {"data_type": "any", "description": "Ordering edge: stage 1 must finish before entities are extracted.", "id": "barrier", "required": false}] |
+| `output_contract` | [{"data_type": "json", "description": "Stage summary; also the ordering edge into stage 3.", "id": "summary", "required": true}] |
+| `output_mapping` | {"summary": "$.nodes.extract-entities.summary"} |
+| `workflow_ref` | 2 · Extract Entities |
 
-What this step asks the model:
+### 4. 3 · Extract SVO → Claims
 
-```text
-You are an expert archivist deduplicating people extracted from a document. Different entries may refer to the same person via spelling variants.
-
-Duplicate rule: Two entries refer to the same person if their names match (full name vs. partial form of the SAME person, with or without title or initials), or one is clearly a misspelling, abbreviation, or accent variant of the other. Pick the most complete form (longest, with title if used in the document) as canonical.
-
-DO NOT merge possessive or relational references — 'Leidy's mother', 'Pedro's brother', 'the Captain's wife' denote DIFFERENT people related to Leidy / Pedro / the Captain. Substring overlap is NOT a duplicate signal; only treat two entries as the same person when they plausibly name the same individual.
-
-You are deduplicating, not curating. Every numbered input MUST appear in your output as a canonical or as an alias — total across all groups must equal 3. Do NOT invent new entries.
-
-Title Case the canonical (re-case ALL-CAPS entries). Keep accents (María, José, Chocó). Entries with no duplicates become their own group with empty aliases.
-
-Return ONLY valid JSON, no prose, no fences:
-{"groups": [{"canonical": "...", "aliases": ["...", "..."]}, ...]}
-
----
-Items to deduplicate:
-1. Don Mateo Restrepo
-2. Don Mateo
-3. D. Mateo
-```
-
-### 5. Clean Places (folder)
-
-Tool: [Clean Places (folder)](../tools/places_folder_cleanup.md) — Pick global canonical places across all pages in the folder and save a cleaned artifact on the folder doc.
+Tool: [Sub-Workflow](../tools/sub_workflow.md) — Run a child workflow behind declared input/output contracts.
 
 Settings this step uses:
 
 | Option | Value |
 | --- | --- |
-| `provider_name` | $small |
+| `input_contract` | [{"data_type": "any", "description": "Selected document metadata (scope is re-resolved from the selection inside the stage).", "id": "documents", "required": false}, {"data_type": "any", "description": "Ordering edge: stage 2's entity rows must exist before claims are extracted.", "id": "barrier", "required": false}] |
+| `output_contract` | [{"data_type": "json", "description": "Stage summary; also the ordering edge into stage 4.", "id": "summary", "required": true}] |
+| `output_mapping` | {"summary": "$.nodes.extract-svo.summary"} |
+| `workflow_ref` | 3 · Extract SVO → Claims |
 
-What this step asks the model:
+### 5. 4 · Merge / Dedup
 
-```text
-You are an expert archivist deduplicating places extracted from a document. Different entries may refer to the same place via spelling variants.
-
-Duplicate rule: Two entries refer to the same place if names are spelling or accent variants (Bazán / Basán), abbreviations, or recognised alternate names of the same town, river, region, address, or geographic feature. Pick the form the document uses most often as canonical.
-
-You are deduplicating, not curating. Every numbered input MUST appear in your output as a canonical or as an alias — total across all groups must equal 3. Do NOT invent new entries.
-
-Title Case the canonical (re-case ALL-CAPS entries). Keep accents (María, José, Chocó). Entries with no duplicates become their own group with empty aliases.
-
-Return ONLY valid JSON, no prose, no fences:
-{"groups": [{"canonical": "...", "aliases": ["...", "..."]}, ...]}
-
----
-Items to deduplicate:
-1. Don Mateo Restrepo
-2. Don Mateo
-3. D. Mateo
-```
-
-### 6. Clean Organizations (folder)
-
-Tool: [Clean Organizations (folder)](../tools/organizations_folder_cleanup.md) — Pick global canonical organizations across all pages in the folder and save a cleaned artifact on the folder doc.
+Tool: [Sub-Workflow](../tools/sub_workflow.md) — Run a child workflow behind declared input/output contracts.
 
 Settings this step uses:
 
 | Option | Value |
 | --- | --- |
-| `provider_name` | $small |
+| `input_contract` | [{"data_type": "any", "description": "Selected document metadata (scope is re-resolved from the selection inside the stage).", "id": "documents", "required": false}, {"data_type": "any", "description": "Ordering edge: stages 2-3 must have written their rows before curation reapplies.", "id": "barrier", "required": false}] |
+| `output_contract` | [{"data_type": "json", "description": "Stage summary; also the ordering edge into stage 5.", "id": "summary", "required": true}] |
+| `output_mapping` | {"summary": "$.nodes.merge-dedup.summary"} |
+| `workflow_ref` | 4 · Merge / Dedup |
 
-What this step asks the model:
+### 6. 5 · KG Persist / Finalize
 
-```text
-You are an expert archivist deduplicating organizations extracted from a document. Different entries may refer to the same organisation via spelling variants.
-
-Duplicate rule: Two entries refer to the same organisation if names are spelling variants, abbreviations (Cía. / Compañía, S.A. / Sociedad Anónima), or one is the long form and the other a short form. Pick the most complete form as canonical.
-
-You are deduplicating, not curating. Every numbered input MUST appear in your output as a canonical or as an alias — total across all groups must equal 3. Do NOT invent new entries.
-
-Title Case the canonical (re-case ALL-CAPS entries). Keep accents (María, José, Chocó). Entries with no duplicates become their own group with empty aliases.
-
-Return ONLY valid JSON, no prose, no fences:
-{"groups": [{"canonical": "...", "aliases": ["...", "..."]}, ...]}
-
----
-Items to deduplicate:
-1. Don Mateo Restrepo
-2. Don Mateo
-3. D. Mateo
-```
-
-### 7. Clean Dates (folder)
-
-Tool: [Clean Dates (folder)](../tools/dates_folder_cleanup.md) — Pick global canonical dates across all pages in the folder and save a cleaned artifact on the folder doc.
+Tool: [Sub-Workflow](../tools/sub_workflow.md) — Run a child workflow behind declared input/output contracts.
 
 Settings this step uses:
 
 | Option | Value |
 | --- | --- |
-| `provider_name` | $small |
+| `input_contract` | [{"data_type": "any", "description": "Selected document metadata (scope is re-resolved from the selection inside the stage).", "id": "documents", "required": false}, {"data_type": "any", "description": "Ordering edge: merged/deduped rows must be final before corroboration and the graph snapshot.", "id": "barrier", "required": false}] |
+| `output_contract` | [{"data_type": "json", "description": "Stage summary; also the ordering edge into stage 6.", "id": "summary", "required": true}] |
+| `output_mapping` | {"summary": "$.nodes.kg-persist-finalize.summary"} |
+| `workflow_ref` | 5 · KG Persist / Finalize |
 
-What this step asks the model:
+### 7. 6 · Catalogue
 
-```text
-You are an expert archivist deduplicating dates extracted from a document. Different entries may refer to the same date via spelling variants.
-
-Duplicate rule: Two entries refer to the same date if their normalised YYYY-MM-DD strings are identical.
-
-You are deduplicating, not curating. Every numbered input MUST appear in your output as a canonical or as an alias — total across all groups must equal 3. Do NOT invent new entries.
-
-Title Case the canonical (re-case ALL-CAPS entries). Keep accents (María, José, Chocó). Entries with no duplicates become their own group with empty aliases.
-
-Return ONLY valid JSON, no prose, no fences:
-{"groups": [{"canonical": "...", "aliases": ["...", "..."]}, ...]}
-
----
-Items to deduplicate:
-1. Don Mateo Restrepo
-2. Don Mateo
-3. D. Mateo
-```
-
-### 8. Clean Events (folder)
-
-Tool: [Clean Events (folder)](../tools/events_folder_cleanup.md) — Pick global canonical events across all pages in the folder and save a cleaned artifact on the folder doc.
+Tool: [Sub-Workflow](../tools/sub_workflow.md) — Run a child workflow behind declared input/output contracts.
 
 Settings this step uses:
 
 | Option | Value |
 | --- | --- |
-| `provider_name` | $small |
-
-What this step asks the model:
-
-```text
-You are an expert archivist deduplicating events extracted from a document. Different entries may refer to the same event via spelling variants.
-
-Duplicate rule: Two entries refer to the same event if they describe the same incident, transaction, signing, meeting, voyage, ruling, death, or transfer — even when worded differently or seen from different angles. Pick the most precise and concise description as canonical, in evidentiary phrasing ('the file records that X', 'Y is reported to have...'), with the alternative wordings as aliases.
-
-You are deduplicating, not curating. Every numbered input MUST appear in your output as a canonical or as an alias — total across all groups must equal 3. Do NOT invent new entries.
-
-Title Case the canonical (re-case ALL-CAPS entries). Keep accents (María, José, Chocó). Entries with no duplicates become their own group with empty aliases.
-
-Return ONLY valid JSON, no prose, no fences:
-{"groups": [{"canonical": "...", "aliases": ["...", "..."]}, ...]}
-
----
-Items to deduplicate:
-1. Don Mateo Restrepo
-2. Don Mateo
-3. D. Mateo
-```
-
-### 9. Clean Keywords (folder)
-
-Tool: [Clean Keywords (folder)](../tools/keywords_folder_cleanup.md) — Pick global canonical keywords across all pages in the folder and save a cleaned artifact on the folder doc.
-
-Settings this step uses:
-
-| Option | Value |
-| --- | --- |
-| `provider_name` | $small |
-
-What this step asks the model:
-
-```text
-You are an expert archivist deduplicating keywords extracted from a document. Different entries may refer to the same keyword via spelling variants.
-
-Duplicate rule: Two entries are duplicates if they describe the same subject in different forms — singular vs. plural, language variant (mining / minería), or one is a more specific instance of the other. Pick the form the document uses, in Title Case.
-
-You are deduplicating, not curating. Every numbered input MUST appear in your output as a canonical or as an alias — total across all groups must equal 3. Do NOT invent new entries.
-
-Title Case the canonical (re-case ALL-CAPS entries). Keep accents (María, José, Chocó). Entries with no duplicates become their own group with empty aliases.
-
-Return ONLY valid JSON, no prose, no fences:
-{"groups": [{"canonical": "...", "aliases": ["...", "..."]}, ...]}
-
----
-Items to deduplicate:
-1. Don Mateo Restrepo
-2. Don Mateo
-3. D. Mateo
-```
-
-### 10. Extract Citations
-
-Tool: [Extract Citations](../tools/citations_extract.md) — Extract bibliography entries and inline citation links
-
-Settings this step uses:
-
-| Option | Value |
-| --- | --- |
-| `provider_name` | $medium |
-
-### 11. Combine all per-section outputs
-
-Tool: [Aggregate](../tools/aggregate.md) — Combine upstream fan-out results into a single payload.
-
-Settings this step uses:
-
-| Option | Value |
-| --- | --- |
-| `mode` | concat |
-| `separator` | --- |
-
-### 12. Catalogue
-
-Tool: [Archival Summary](../tools/catalogue.md) — Compose nine-section archival summary for a folder (leaf node of the Catalogue workflow)
-
-Settings this step uses:
-
-| Option | Value |
-| --- | --- |
-| `output_language` | auto |
-| `provider_name` | $small |
-
-What this step asks the model:
-
-```text
-You are an expert archivist. Write a catalogue entry in English
-for what these documents CONTAIN. One paragraph, plain prose. NO title,
-NO heading, NO label like "Catalogue Entry" or "Summary:" — start the
-entry directly with the document type. NO bold markers (**…**), NO
-Markdown headers (#), NO bullets, NO JSON.
-
-Open with the document type in the source's own vocabulary (a deed,
-lawsuit, letter, report, chapter, photograph, etc.). Length matches
-the source: 30-100 words for a short formulaic record (parties +
-object + price + terms); 200-450 words for a long file (subject and
-actors first, then concrete dates, places, sums, occupations, claims,
-outcomes).
-
-Use evidentiary verbs: contains, records, states, alleges, describes,
-names, signs. Preserve concrete details verbatim — names, dates, sums,
-places, terms, injuries, sentences. Preserve any [ilegible] /
-[uncertain] markers and accents verbatim; do not smooth them away.
-Frame any racial, caste, or status label as the source's:
-"(described as …)" / "(caracterizado como …)".
-
-Do not invent names, dates, places, or facts. Do not interpret. Do
-not add atmosphere, mood, theme, or significance. Plain working prose.
-```
+| `input_contract` | [{"data_type": "any", "description": "Selected document metadata (scope is re-resolved from the selection inside the stage).", "id": "documents", "required": false}, {"data_type": "any", "description": "Ordering edge: the narrative reads the KG rows stages 1-5 produced.", "id": "barrier", "required": false}] |
+| `output_contract` | [{"data_type": "text", "description": "The narrative catalogue entry written onto the selected container.", "id": "text", "required": true}] |
+| `output_mapping` | {"text": "$.nodes.catalogue.text"} |
+| `workflow_ref` | 6 · Catalogue |

@@ -33,14 +33,12 @@ No real LLM/vision/provider is called — fake tools are injected into the regis
 
 from __future__ import annotations
 
-import json
 import shutil
 import tempfile
 from pathlib import Path
 
 import pytest
 
-import fichero_server
 from fichero_server.workflows import registry
 from fichero_server.workflows.builder import build_graph
 from fichero_server.workflows.cache import compute_cache_key
@@ -478,28 +476,101 @@ async def test_resume_from_mid_fanout_completes_each_branch_once(
 
 
 def _build_catalogue_workflow() -> WorkflowDef:
-    """Load the actual shipped Catalogue preset JSON into a WorkflowDef.
+    """The pre-chain Catalogue monolith topology, frozen inline.
 
-    The ``$small``/``$medium`` provider aliases in node configs are stripped:
-    they are LLM-routing hints irrelevant to graph SCHEDULING (what #1665 is
-    about), and resolving them would reach into the app DB. With no provider
-    declared, each node falls back to the workflow default (openai/gpt-4o),
-    which the fakes ignore anyway. Topology + ports are preserved verbatim.
+    #2532 Part A needs a fan-out (parallel transcribe per page) that fans back
+    in to a final node. The shipped 'Catalogue' preset became the sequential
+    1–6 stage chain on 2026-09-03 and no longer carries that topology, so the
+    regression vehicle is pinned here verbatim (provider aliases stripped —
+    LLM routing is irrelevant to graph SCHEDULING, which is what #1665 is
+    about). Topology + ports match the retired monolith preset.
     """
-    preset_path = (
-        Path(fichero_server.__file__).parent
-        / "resources"
-        / "default_workflows"
-        / "catalogue.json"
-    )
-    data = json.loads(preset_path.read_text())
-    for node in data.get("nodes", []):
-        cfg = node.get("config") or {}
-        cfg.pop("provider_name", None)
-        node["config"] = cfg
-    data["id"] = "catalogue-preset"
-    data["provider"] = "openai"
-    data["model"] = "gpt-4o"
+    cleanups = [
+        "people_folder_cleanup",
+        "places_folder_cleanup",
+        "organizations_folder_cleanup",
+        "dates_folder_cleanup",
+        "events_folder_cleanup",
+        "keywords_folder_cleanup",
+    ]
+    nodes = [
+        {"id": "files-source", "tool": "files", "inputs": {}, "config": {}},
+        {
+            "id": "transcribe",
+            "tool": "transcribe",
+            "inputs": {},
+            "config": {
+                "vision_mode": "auto",
+                "language": "auto",
+                "update_page_content": True,
+            },
+        },
+        {
+            "id": "extract_all",
+            "tool": "extract_all",
+            "inputs": {},
+            "config": {"output_language": "auto", "persist_kg": True},
+        },
+        *[
+            {"id": tool.replace("_cleanup", "_clean"), "tool": tool, "inputs": {}, "config": {}}
+            for tool in cleanups
+        ],
+        {
+            "id": "citations_extract",
+            "tool": "citations_extract",
+            "inputs": {},
+            "config": {},
+        },
+        {
+            "id": "merge_extracts",
+            "tool": "aggregate",
+            "inputs": {},
+            "config": {"mode": "concat", "separator": "\n\n---\n\n"},
+        },
+        {
+            "id": "catalogue",
+            "tool": "catalogue",
+            "inputs": {},
+            "config": {"output_language": "auto"},
+        },
+    ]
+    edges = [
+        {"id": "e-f-t-files", "source": "files-source", "target": "transcribe",
+         "source_port": "files", "target_port": "files"},
+        {"id": "e-f-t-docs", "source": "files-source", "target": "transcribe",
+         "source_port": "documents", "target_port": "documents"},
+        {"id": "e-t-x-text", "source": "transcribe", "target": "extract_all",
+         "source_port": "text", "target_port": "text"},
+        {"id": "e-t-x-records", "source": "transcribe", "target": "extract_all",
+         "source_port": "records", "target_port": "records"},
+        {"id": "e-f-cit", "source": "files-source", "target": "citations_extract",
+         "source_port": "documents", "target_port": "documents"},
+        *[
+            {"id": f"e-x-{tool}", "source": "extract_all",
+             "target": tool.replace("_cleanup", "_clean"),
+             "source_port": "text", "target_port": "text"}
+            for tool in cleanups
+        ],
+        *[
+            {"id": f"e-{tool}-m", "source": tool.replace("_cleanup", "_clean"),
+             "target": "merge_extracts",
+             "source_port": "text", "target_port": "text"}
+            for tool in cleanups
+        ],
+        {"id": "e-cit-m", "source": "citations_extract", "target": "merge_extracts",
+         "source_port": "text", "target_port": "text"},
+        {"id": "e-m-c", "source": "merge_extracts", "target": "catalogue",
+         "source_port": "text", "target_port": "data"},
+    ]
+    data = {
+        "id": "catalogue-preset",
+        "name": "Catalogue (monolith scheduling vehicle)",
+        "format": "nodes",
+        "nodes": nodes,
+        "edges": edges,
+        "provider": "openai",
+        "model": "gpt-4o",
+    }
     return WorkflowDef.model_validate(data)
 
 

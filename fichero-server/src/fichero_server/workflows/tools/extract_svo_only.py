@@ -21,7 +21,11 @@ from typing import Any
 
 from fichero_server.db import db_manager
 from fichero_server.models.knowledge import KnowledgeClaim, KnowledgeEntity
-from fichero_server.llm import LLMConfig
+from fichero_server.llm import (
+    LLMConfig,
+    ProviderQuotaError,
+    chat_structured_with_fallback,
+)
 from fichero_server.llm.language_policy import (
     UNKNOWN,
     configured_policy,
@@ -40,7 +44,12 @@ from fichero_server.workflows.tools.extract_entities_only import (
     _ENTITY_TYPES,
     _records_for_documents,
 )
-from fichero_server.workflows.tools.extractors import _SECTIONS, _write_kg_rows
+from fichero_server.workflows.tools.extractors import (
+    _SECTION_SCHEMAS,
+    _SECTIONS,
+    _build_section_prompt,
+    _write_kg_rows,
+)
 from fichero_server.workflows.tools.import_artifacts import _coerce_documents
 from fichero_server.workflows.tools.progress import emit_progress_event
 from fichero_server.workflows.tools.sources import files_tool
@@ -51,7 +60,11 @@ logger = logging.getLogger(__name__)
 _SECTION_BY_KEY = {
     section["schema_key"]: section
     for section in _SECTIONS
+    # Entity-backed sections plus "dates": dates are claim-only
+    # (entity_type None) and are extracted by the direct dates pass below,
+    # not the per-entity loop.
     if section.get("schema_key") in _ENTITY_TYPES
+    or section.get("schema_key") == "dates"
 }
 _SECTION_KEY_BY_ENTITY_TYPE = {
     entity_type: section_key for section_key, entity_type in _ENTITY_TYPES.items()
@@ -262,6 +275,54 @@ async def extract_svo_only(
             len(records),
             message=f"Extracting step-3 SVO claims for {doc_name}",
         )
+
+        # Dates are claim-only (entity_type None — no canonical entity row),
+        # so the per-entity loop below can never yield a date claim. Extract
+        # them directly per record, the way extract_all's combined pass did,
+        # so the timeline probe contract (#1470: time_start/time_end/
+        # date_values on date claims) survives the Catalogue chain (2026-09-03).
+        dates_section = _SECTION_BY_KEY.get("dates")
+        if dates_section is not None and (record["text"] or "").strip():
+            try:
+                async with extraction_sem:
+                    dates_result = await chat_structured_with_fallback(
+                        prompt=record["text"],
+                        schema=_SECTION_SCHEMAS["dates"],
+                        config=llm_config,
+                        system=_build_section_prompt(
+                            dates_section, instruction_key
+                        ),
+                        include_schema_in_prompt=False,
+                        permissive_guardrails=True,
+                    )
+                date_items = [
+                    item.model_dump()
+                    for item in (getattr(dates_result, "items", None) or [])
+                ]
+            except ProviderQuotaError:
+                raise
+            except Exception as exc:
+                # Mirror the per-entity soft-fail semantics: one bad call
+                # loses one record's dates, not the whole stage.
+                logger.warning(
+                    "extract_svo_only: date extraction failed for %s: %s",
+                    doc_name,
+                    exc,
+                )
+                date_items = []
+            if date_items:
+                claims_extracted += len(date_items)
+                _write_kg_rows(
+                    db,
+                    dates_section,
+                    date_items,
+                    doc_id,
+                    page_label=_page_label(documents[record["index"]]),
+                    source_excerpt=record["text"][:500] if record["text"] else None,
+                    provider=getattr(llm_config, "provider", None),
+                    model=getattr(llm_config, "model", None),
+                    grounding_text=record["text"],
+                )
 
         for section_key, entities in page_entities.items():
             section = _SECTION_BY_KEY.get(section_key)

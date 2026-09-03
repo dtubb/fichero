@@ -274,7 +274,11 @@ final class AnnotationService {
     var libraryPath: String?
 
     let client: FicheroClient
-    let decoder = JSONDecoder()
+    // No `JSONDecoder` here on purpose (2026-09-03): every annotation now
+    // arrives as a generated schema value and is mapped in
+    // `AnnotationService+Conversions`. A decoder on the service is an
+    // invitation to re-hand-roll the wire read, which is the exact defect
+    // that shipped on 2026-08-23.
 
     init(ficheroClient: FicheroClient? = nil, libraryPath: String? = nil) {
         let resolvedClient = ficheroClient ?? FicheroClient(

@@ -204,23 +204,24 @@ def test_a_workflow_actors_edit_is_not_mistaken_for_a_correction(
     )
 
 
-def test_a_corrected_cleanup_artifact_survives_the_same_rerun(
+def test_a_corrected_stage1_artifact_survives_the_same_rerun(
     two_folder_library, monkeypatch  # noqa: F811
 ):
-    """The six folder-cleanup nodes run INSIDE this preset and had the same
-    unconditional delete. Fixing only catalogue.* would leave the same run
-    destroying `people_clean` on its way past."""
+    """The chain's per-document artifacts come from stage 1 (import receipts
+    + transcription). A corrected transcription artifact must survive a full
+    Catalogue re-run — stage 1 skips artifacts that already exist, which is
+    exactly the property that protects the correction."""
     _install_deterministic_workflow_stubs(monkeypatch)
     library_path, db = two_folder_library
 
     _run(library_path, "cleanup-correction-first")
-    clean = [
+    stage1 = [
         a
         for a in db.all(Artifact)
-        if a.document_id == "caja-3" and (a.artifact_type or "").endswith("_clean")
+        if a.document_id == "caja-3-doc" and a.artifact_type == "transcription"
     ]
-    assert clean, "no <type>_clean artifact produced, so this proves nothing"
-    target = clean[0]
+    assert stage1, "no stage-1 transcription artifact produced, so this proves nothing"
+    target = stage1[0]
     _correct_artifact(library_path, target.id)
 
     _run(library_path, "cleanup-correction-second")
@@ -233,7 +234,7 @@ def test_a_corrected_cleanup_artifact_survives_the_same_rerun(
     assert surviving.content == CORRECTION
 
 
-def test_uncorrected_cleanup_artifacts_still_do_not_accumulate(
+def test_uncorrected_stage1_artifacts_still_do_not_accumulate(
     two_folder_library, monkeypatch  # noqa: F811
 ):
     _install_deterministic_workflow_stubs(monkeypatch)
@@ -245,10 +246,14 @@ def test_uncorrected_cleanup_artifacts_still_do_not_accumulate(
     db = db_manager.get_database(library_path)
     counts: dict[str, int] = {}
     for a in db.all(Artifact):
-        if a.document_id == "caja-3" and (a.artifact_type or "").endswith("_clean"):
+        if a.document_id == "caja-3-doc" and a.artifact_type in {
+            "transcription",
+            "import_receipt",
+        }:
             counts[a.artifact_type] = counts.get(a.artifact_type, 0) + 1
+    assert counts, "no stage-1 artifacts at all — the accumulation check is vacuous"
     duplicated = {t: n for t, n in counts.items() if n > 1}
-    assert not duplicated, f"cleanup output accumulated across re-runs: {duplicated}"
+    assert not duplicated, f"stage-1 output accumulated across re-runs: {duplicated}"
 
 
 def test_uncorrected_catalogue_artifacts_still_do_not_accumulate(

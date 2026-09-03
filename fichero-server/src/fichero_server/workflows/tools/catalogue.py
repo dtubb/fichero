@@ -619,11 +619,11 @@ async def catalogue(
                 "error": (
                     f"Catalogue: nothing to describe for '{container.name}'. "
                     "No knowledge-graph claims exist for it, and no transcript "
-                    "text was supplied. Run '2 · Extract Entities' (and "
-                    "optionally '3 · Extract SVO' and '4 · Merge / Dedup') on "
-                    "this material first, then run the catalogue again — or "
-                    "use the full 'Catalogue' preset, which performs those "
-                    "stages itself."
+                    "text was supplied. The pages likely carry no text yet — "
+                    "run a Transcribe workflow on this material first, then "
+                    "'2 · Extract Entities' (and optionally '3 · Extract SVO' "
+                    "and '4 · Merge / Dedup') or the full 'Catalogue' chain, "
+                    "then run the catalogue again."
                 ),
             }
 
@@ -1333,6 +1333,20 @@ async def _generate_resumen(
 
     if not text and not claim_context:
         return "", []
+
+    if not text:
+        # Claims-only path (the 1–6 Catalogue chain and the standalone
+        # '6 · Catalogue' stage): no transcript flows in, only KG rows. The
+        # source material must ride in the USER prompt — Apple's fm-bridge
+        # rejects an empty prompt outright ("Missing or empty 'prompt'
+        # field"), which silently degraded every Apple-only stage-6 run to a
+        # narrative-less partial success (found live, Marshall sample,
+        # 2026-09-03).
+        text = (
+            "No transcript text was supplied. Write the catalogue entry "
+            "from these extracted entities and claims:\n\n" + claim_context
+        )
+        claim_context = ""  # already in the prompt; don't duplicate below
 
     context_block = (
         f"\n\nExtracted entities (from prior workflow steps):\n{claim_context}\n"

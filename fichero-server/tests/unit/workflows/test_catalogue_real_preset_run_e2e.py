@@ -222,9 +222,12 @@ class TestTheShippedPresetsOwnNodesRun:
     harness that swaps out over half the shipped preset proves nothing about
     the shipped preset."""
 
-    def test_folder_cleanup_writes_its_canonical_lists_to_the_folder(
+    def test_the_chain_lands_its_durable_output_on_the_folder(
         self, two_folder_library, monkeypatch
     ):
+        """Catalogue is the 1–6 stage chain (2026-09-03): the run's durable
+        folder-level output is the catalogue narrative artifact from stage 6,
+        with the per-page stage-1 artifacts on the folder's documents."""
         _install_deterministic_workflow_stubs(monkeypatch)
         library_path, db = two_folder_library
 
@@ -234,19 +237,22 @@ class TestTheShippedPresetsOwnNodesRun:
             WorkflowSelection(kind=SelectionKind.folder, ids=["caja-3"]),
         )
 
-        clean_types = {
+        folder_types = {
+            a.artifact_type for a in db.all(Artifact) if a.document_id == "caja-3"
+        }
+        assert any(
+            t == "catalogue" or t.startswith("catalogue.") for t in folder_types
+        ), (
+            f"only {sorted(folder_types)} landed on the folder — stage 6 did "
+            "not write its narrative onto the selected container (#4397/#4414)"
+        )
+        doc_types = {
             a.artifact_type
             for a in db.all(Artifact)
-            if a.document_id == "caja-3" and a.artifact_type.endswith("_clean")
+            if a.document_id == "caja-3-doc"
         }
-        assert clean_types, (
-            "no `<type>_clean` artifact reached the folder document — the "
-            "folder-cleanup nodes did not run, or their output went somewhere "
-            "other than the folder they describe (#4404/#4414)"
-        )
-        assert {"people_clean", "places_clean"} <= clean_types, (
-            f"only {sorted(clean_types)} landed; the fixture names a person "
-            "and a place, so both cleanup nodes had work to do"
+        assert {"import_receipt", "transcription"} <= doc_types, (
+            f"stage 1 artifacts missing on the folder's document: {sorted(doc_types)}"
         )
 
     def test_no_cleanup_output_reaches_the_unselected_folder(

@@ -17,7 +17,6 @@ from fichero_server.workflows.default_workflows import (
     _load_preset_files,
     seed_default_workflows,
 )
-from fichero_server.workflows.types import WorkflowDef
 from fichero_server.workflows.validation import (
     validate_workflow_connections,
     validate_workflow_preflight,
@@ -50,17 +49,31 @@ class TestLoadPresetFiles:
             if preset.get("format") == "nodes":
                 assert preset.get("nodes"), f"{preset['name']} has no nodes"
 
+    #: Daniel's ruling (2026-09-03): 'Catalogue' IS the chain of the six
+    #: numbered stage presets in /Catalogue, run in order via sub_workflow.
+    _CATALOGUE_STAGE_ORDER = (
+        "1 · Import → Artifacts",
+        "2 · Extract Entities",
+        "3 · Extract SVO → Claims",
+        "4 · Merge / Dedup",
+        "5 · KG Persist / Finalize",
+        "6 · Catalogue",
+    )
+
     def test_catalogue_preset_wiring(self):
-        """The single 0.0.2 Catalogue preset is the full composable pipeline:
-        Files → Transcribe → Aggregate → 6 extractors → merge → Catalogue.
-        (The earlier 'Catalogue (composable)' variant was merged into the
-        sole 'Catalogue' preset — runtime model picker replaces variants.)"""
+        """'Catalogue' is the 1–6 stage chain: a files source plus six
+        sub_workflow nodes referencing the numbered stage presets, wired
+        sequentially (summary → barrier ordering edges) so each stage only
+        runs after the previous one has persisted its rows."""
         presets = {p["name"]: p for p in _load_preset_files()}
         catalogue = presets["Catalogue"]
 
-        node_tools = {n["tool"] for n in catalogue["nodes"]}
-        for tool in ("files", "transcribe", "extract_all", "catalogue"):
-            assert tool in node_tools, f"preset missing {tool!r} node"
+        node_tools = [n["tool"] for n in catalogue["nodes"]]
+        assert node_tools.count("files") == 1
+        assert node_tools.count("sub_workflow") == 6
+        assert set(node_tools) == {"files", "sub_workflow"}, (
+            "Catalogue is a chain of the stage presets — no inline LLM nodes"
+        )
 
         # Edges use UI schema (source/target, source_port/target_port) so they
         # render in the workflow editor canvas.
@@ -68,37 +81,55 @@ class TestLoadPresetFiles:
             for key in ("source", "target", "source_port", "target_port"):
                 assert key in edge, f"edge missing {key!r}: {edge}"
 
-        # Transcribe → extract_all (per-page text flows downstream via the
-        # auto-aggregator; the user-aggregate Marshal node was removed
-        # in the #837 fix because it created a super-step race).
-        transcribe_id = _node_id(catalogue, "transcribe")
-        extract_id = _node_id(catalogue, "extract_all")
-        assert any(
-            e["source"] == transcribe_id and e["target"] == extract_id
-            for e in catalogue["edges"]
-        ), "transcribe must flow into extract_all"
+        # The six sub_workflow nodes reference the numbered presets, in order.
+        stage_nodes = [n for n in catalogue["nodes"] if n["tool"] == "sub_workflow"]
+        refs = [n["config"]["workflow_ref"] for n in stage_nodes]
+        assert refs == list(self._CATALOGUE_STAGE_ORDER), refs
 
-    def test_catalogue_has_final_catalogue_node_fed_by_merge(self):
-        """The preset must end with a catalogue node so the workflow produces
-        a unified Catalogue artifact, not just per-entity outputs (#720).
+        # Each referenced stage preset actually ships (the chain resolves by
+        # name via resolve_sub_workflow_ref's shipped-preset fallback).
+        for ref in refs:
+            assert ref in presets, f"chain references unshipped preset {ref!r}"
 
-        Catalogue's only wired input is `data` from merge_extracts; the
-        transcript is read from state.outputs by the tool itself so the
-        node fires once on `data` arrival rather than twice (#837 follow-up).
-        """
+        # Sequential ordering edges: stage N summary -> stage N+1 barrier.
+        by_ref = {n["config"]["workflow_ref"]: n["id"] for n in stage_nodes}
+        for earlier, later in zip(
+            self._CATALOGUE_STAGE_ORDER, self._CATALOGUE_STAGE_ORDER[1:]
+        ):
+            assert any(
+                e["source"] == by_ref[earlier]
+                and e["target"] == by_ref[later]
+                and e["source_port"] == "summary"
+                and e["target_port"] == "barrier"
+                for e in catalogue["edges"]
+            ), f"missing ordering edge {earlier!r} -> {later!r}"
+
+        # The files source feeds documents into every stage so scope stays
+        # explicit (the stage tools also re-resolve selection from state).
+        files_id = _node_id(catalogue, "files")
+        for node in stage_nodes:
+            assert any(
+                e["source"] == files_id
+                and e["target"] == node["id"]
+                and e["source_port"] == "documents"
+                and e["target_port"] == "documents"
+                for e in catalogue["edges"]
+            ), f"files-source documents must flow into {node['id']!r}"
+
+    def test_catalogue_chain_ends_with_stage_6_catalogue(self):
+        """The chain must end with the '6 · Catalogue' stage so the workflow
+        produces the unified narrative Catalogue artifact (#720), gated on
+        stage 5 having finalised the KG rows it reads."""
         presets = {p["name"]: p for p in _load_preset_files()}
         catalogue = presets["Catalogue"]
 
-        node_tools = {n["tool"] for n in catalogue["nodes"]}
-        assert "catalogue" in node_tools
-
-        catalogue_id = _node_id(catalogue, "catalogue")
-        data_feeders = [
-            e for e in catalogue["edges"]
-            if e["target"] == catalogue_id and e.get("target_port") == "data"
-        ]
-        assert data_feeders, "no edge feeds catalogue.data"
-        assert {e["source"] for e in data_feeders} == {"merge_extracts"}
+        stage_nodes = [n for n in catalogue["nodes"] if n["tool"] == "sub_workflow"]
+        final = stage_nodes[-1]
+        assert final["config"]["workflow_ref"] == "6 · Catalogue"
+        # Its required output is the narrative text mapped out of the child.
+        outputs = {c["id"] for c in final["config"]["output_contract"]}
+        assert "text" in outputs
+        assert final["config"]["output_mapping"]["text"] == "$.nodes.catalogue.text"
 
     def test_legacy_catalogue_duplicate_presets_do_not_ship(self):
         presets = {p["name"]: p for p in _load_preset_files()}
@@ -123,50 +154,26 @@ class TestLoadPresetFiles:
             assert name in presets, f"missing preset: {name}"
             assert presets[name].get("folder_path") == expected_path
 
-    def test_catalogue_uses_combined_extractor(self):
-        """The Catalogue preset uses the single combined extract_all tool
-        (one LLM call per page returns all six entity types) instead of six
-        separate per-entity extractors. Per-type folder cleanup nodes still
-        run downstream of the combined extractor."""
+    def test_catalogue_extraction_lives_in_the_stage_children(self):
+        """The chain delegates all extraction to the numbered stage presets:
+        no inline extractor, cleanup, or kg_writer nodes remain in Catalogue
+        itself, and the stage children keep their own extraction tools."""
         presets = {p["name"]: p for p in _load_preset_files()}
         node_tools = {n["tool"] for n in presets["Catalogue"]["nodes"]}
-        assert "extract_all" in node_tools, (
-            "Catalogue preset must use the combined extract_all tool"
-        )
-        assert "kg_writer" not in node_tools, (
-            "Catalogue preset must persist KG inline, not via kg_writer"
-        )
-        for cleaner in (
-            "people_folder_cleanup",
-            "places_folder_cleanup",
-            "organizations_folder_cleanup",
-            "dates_folder_cleanup",
-            "events_folder_cleanup",
-            "keywords_folder_cleanup",
-        ):
-            assert cleaner in node_tools, (
-                f"Catalogue preset missing folder cleanup {cleaner!r}"
-            )
-        extract_all_node = next(
-            n for n in presets["Catalogue"]["nodes"] if n["tool"] == "extract_all"
-        )
-        assert extract_all_node["config"].get("persist_kg") is True
-        # Per-type extractors and per-page cleanups dropped for speed.
-        for dropped in (
-            "people_extract", "places_extract", "organizations_extract",
-            "dates_extract", "events_extract", "keywords_extract",
-            "people_page_cleanup", "places_page_cleanup",
-            "organizations_page_cleanup", "dates_page_cleanup",
-            "events_page_cleanup", "keywords_page_cleanup",
-        ):
-            assert dropped not in node_tools, (
-                f"Catalogue preset should no longer use {dropped!r}"
-            )
-        extract_id = _node_id(presets["Catalogue"], "extract_all")
-        assert not any(
-            e["source"] == extract_id and e["source_port"] == "kg_payload"
-            for e in presets["Catalogue"]["edges"]
-        )
+        assert node_tools == {"files", "sub_workflow"}
+
+        # The children the chain references still carry the real work.
+        stage_tools = {
+            "1 · Import → Artifacts": "import_artifacts",
+            "2 · Extract Entities": "extract_entities_only",
+            "3 · Extract SVO → Claims": "extract_svo_only",
+            "4 · Merge / Dedup": "merge_dedup_only",
+            "5 · KG Persist / Finalize": "kg_persist_finalize",
+            "6 · Catalogue": "catalogue",
+        }
+        for stage_name, tool in stage_tools.items():
+            child_tools = {n["tool"] for n in presets[stage_name]["nodes"]}
+            assert tool in child_tools, f"{stage_name} lost its {tool!r} node"
 
     def test_catalogue_drops_archive_specific_extractors(self):
         """Archive-specific extractors don't ship in the default workflow."""
@@ -297,23 +304,16 @@ class TestLoadPresetFiles:
         """
         presets = {p["name"]: p for p in _load_preset_files()}
         small_tools = {
-            "extract_all", "catalogue",
-            "people_folder_cleanup", "places_folder_cleanup",
-            "organizations_folder_cleanup", "dates_folder_cleanup",
-            "events_folder_cleanup", "keywords_folder_cleanup",
+            "extract_entities_only", "extract_svo_only", "catalogue",
         }
-        for node in presets["Catalogue"]["nodes"]:
-            if node["tool"] in small_tools:
-                assert node["config"].get("provider_name") == "$small", (
-                    f"node {node['id']} ({node['tool']}) should use $small"
-                )
-        # Transcribe must not use the text alias.
-        for node in presets["Catalogue"]["nodes"]:
-            if node["tool"] == "transcribe":
-                assert "provider_name" not in node["config"], (
-                    "transcribe should fall back to the vision category "
-                    "default — aliasing it to $small breaks Apple Vision OCR"
-                )
+        # Catalogue is a chain now — the LLM nodes live in the stage children.
+        for stage_name in self._CATALOGUE_STAGE_ORDER:
+            for node in presets[stage_name]["nodes"]:
+                if node["tool"] in small_tools:
+                    assert node["config"].get("provider_name") == "$small", (
+                        f"{stage_name}: node {node['id']} ({node['tool']}) "
+                        "should use $small"
+                    )
 
     def test_retired_duplicate_presets_do_not_ship(self):
         """Retired duplicate presets must not appear in shipped JSON (#2251).
@@ -476,98 +476,6 @@ class TestLoadPresetFiles:
 
         # The connection graph must be fully clean (environment-independent).
         assert connection_errors == []
-    def test_catalogue_inputs_route_via_transcribe_not_user_aggregate(self):
-        """Catalogue + extract_all + merge_extracts read directly from
-        `transcribe`, NOT through a user-defined `aggregate` (Marshal
-        page records) node.
-
-        The previous wiring routed through a user `aggregate` node that
-        LangGraph scheduled in the same super-step as the parallel
-        transcribers. State is frozen within a super-step, so the user
-        aggregate read an empty parallel_results snapshot and produced
-        an empty payload — leaving catalogue and extract_all with no
-        text input and the workflow aborting with 'No aggregated text
-        provided' (#837).
-
-        The auto-aggregator (transcribe_aggregate) handles fan-in
-        correctly per LangGraph semantics: it fires AFTER all parallel
-        sub-nodes complete, so any node downstream of `transcribe`
-        sees the real aggregated text. By removing the redundant user
-        aggregate, catalogue / extract_all / merge_extracts all land
-        in the correct super-step with real data."""
-        presets = {p["name"]: p for p in _load_preset_files()}
-        for preset_name in ("Catalogue",):
-            preset = presets[preset_name]
-
-            # No user-defined aggregate node should exist (only the
-            # `merge_extracts` aggregate which fans-in cleanup outputs
-            # AFTER extract_all has run).
-            user_aggregate_nodes = [
-                n for n in preset["nodes"]
-                if n["tool"] == "aggregate" and n["id"] != "merge_extracts"
-            ]
-            assert not user_aggregate_nodes, (
-                f"{preset_name}: removed the user aggregate (Marshal page "
-                f"records) node to avoid the LangGraph super-step race; "
-                f"unexpected aggregate(s) still present: "
-                f"{[n['id'] for n in user_aggregate_nodes]}"
-            )
-
-            # catalogue has exactly one wired input (`data` from
-            # merge_extracts). The transcript text is pulled out of
-            # state.outputs by the catalogue tool itself so the node
-            # only fires once — when `data` is ready — instead of
-            # twice (#837 follow-up; multi-input nodes fire whenever
-            # any input port is ready).
-            cat_text_sources = {
-                e["source"]
-                for e in preset["edges"]
-                if e["target"] == "catalogue"
-                and e.get("target_port") == "text"
-            }
-            assert cat_text_sources == set(), (
-                f"{preset_name}: catalogue.text edge should be removed "
-                f"so the node fires once — got {cat_text_sources}"
-            )
-
-            # catalogue.data still sources from merge_extracts so the
-            # LLM has cleaned entity lists alongside the raw text.
-            cat_data_sources = {
-                e["source"]
-                for e in preset["edges"]
-                if e["target"] == "catalogue"
-                and e.get("target_port") == "data"
-            }
-            assert cat_data_sources == {"merge_extracts"}, (
-                f"{preset_name}: catalogue.data must come from merge_extracts "
-                f"(entity context) — got {cat_data_sources}"
-            )
-
-            # extract_all reads from transcribe via two ports: `text`
-            # (concatenated, kept as a fallback) and `records`
-            # ([{doc_id, text}, ...] — the per-page provenance carrier
-            # that drives page-level KG + per-page artifacts, #701).
-            ext_text_sources = {
-                e["source"]
-                for e in preset["edges"]
-                if e["target"] == "extract_all"
-                and e.get("target_port") == "text"
-            }
-            assert ext_text_sources == {"transcribe"}, (
-                f"{preset_name}: extract_all.text must come from transcribe — "
-                f"got {ext_text_sources}"
-            )
-            ext_records_sources = {
-                e["source"]
-                for e in preset["edges"]
-                if e["target"] == "extract_all"
-                and e.get("target_port") == "records"
-            }
-            assert ext_records_sources == {"transcribe"}, (
-                f"{preset_name}: extract_all.records must come from transcribe "
-                f"(per-page records for page-level KG) — got {ext_records_sources}"
-            )
-
 
     def test_auto_detect_preset_wiring(self):
         """Auto-detect preset: classify_script node + route_map edge covering all 4 profiles."""

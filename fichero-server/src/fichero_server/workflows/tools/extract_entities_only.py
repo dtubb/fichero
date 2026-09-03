@@ -49,6 +49,8 @@ _TRANSCRIPTION_ARTIFACT = "transcription"
 _ENTITY_TYPES = {
     section["schema_key"]: section["entity_type"]
     for section in _SECTIONS
+    # Dates are claim-only (entity_type None — no canonical entity row), so
+    # they are NOT upserted here; stage 3 extracts date claims directly.
     if section.get("schema_key") in {"people", "places", "organizations", "events"}
 }
 
