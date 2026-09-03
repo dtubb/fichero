@@ -38,7 +38,7 @@ Create alpha-background image derivatives without modifying source files.
 | `method` | string | threshold | Background removal method. opencv/rembg fall back when unavailable. One of: threshold, opencv, rembg. |
 | `output_dir` | string | — | Optional output directory. Defaults to a temp directory. |
 | `output_format` | string | png | Derived image format. Must support alpha. One of: png, webp, tiff. |
-| `threshold` | integer | 28 | Foreground threshold for threshold/opencv fallback methods. |
+| `threshold` | integer | 28 | Background colour tolerance for the border flood-fill method. |
 
 ## The prompt it sends
 

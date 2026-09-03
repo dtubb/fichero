@@ -22,6 +22,9 @@ Translate text from source_lang to target_lang.
 | Port | Type | Required | What it is |
 | --- | --- | --- | --- |
 | Text (`text`) | `text` | yes | Source text to translate. |
+| Context (`context`) | `any` | no | Previous text/transcription |
+| Metadata (`metadata`) | `json` | no | Existing metadata |
+| Documents (`documents`) | `json` | no | Document metadata |
 
 ## What it emits
 

@@ -90,6 +90,7 @@ Rules:
 - Keep proper names, place names, institutions, and archival citations in their original form — do not anglicise or translate them.
 - If a passage is illegible or marked [ilegible] / [uncertain], carry the marker across unchanged and do not replace it with a guess.
 - Output ONLY the English translation, with no preamble, notes, or the original text.
+- Return PLAIN TEXT: no markdown formatting, no trailing spaces on lines, and no added blank lines beyond the original paragraph breaks.
 ```
 
 ### 4. Double-Check (Pass 2)

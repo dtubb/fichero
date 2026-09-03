@@ -37,6 +37,8 @@ HTTP_METHODS = {"get", "put", "post", "delete", "patch", "head", "options", "tra
 # Current baseline. The script exits 0 while every unused/asymmetric endpoint is
 # listed here and exits 1 when a new gap appears.
 KNOWN_GAPS: dict[str, str] = {
+    'POST /api/kg/claims/dedupe': "CLI-first KG dedupe (2026-09-02) - cli-only",
+    'POST /api/kg/entity-curation/dedupe': "CLI-first KG dedupe (2026-09-02) - cli-only",
     'POST /api/entities/bulk': "2026-08-18 bulk entity upsert - engine+importer path; Swift wiring queued with #4118",
     'POST /api/artifacts/bulk': "2026-08-18 bulk artifact create - engine+importer path; Swift wiring queued with #4118",
     'POST /api/documents/bulk': "2026-08-19 bulk document create (#1848) - manifest importer path; Swift wiring queued",

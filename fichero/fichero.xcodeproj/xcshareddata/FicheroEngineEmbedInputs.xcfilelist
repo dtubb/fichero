@@ -223,6 +223,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/integrations/devonthink.py
 $(SRCROOT)/../fichero-server/src/fichero_server/integrations/tinderbox.py
 $(SRCROOT)/../fichero-server/src/fichero_server/knowledge/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/knowledge/_common.py
+$(SRCROOT)/../fichero-server/src/fichero_server/knowledge/dedupe.py
 $(SRCROOT)/../fichero-server/src/fichero_server/knowledge/entity_vectors.py
 $(SRCROOT)/../fichero-server/src/fichero_server/knowledge/graph.py
 $(SRCROOT)/../fichero-server/src/fichero_server/knowledge/graph_reasoning.py
@@ -254,6 +255,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/llm/orchestration_policy.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/prompts.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/provider_validation.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/providers.py
+$(SRCROOT)/../fichero-server/src/fichero_server/llm/usage.py
 $(SRCROOT)/../fichero-server/src/fichero_server/loaders/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/loaders/base.py
 $(SRCROOT)/../fichero-server/src/fichero_server/loaders/docling_loader.py

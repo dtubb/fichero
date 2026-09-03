@@ -319,9 +319,16 @@ def test_estimated_call_is_flagged_all_the_way_through_the_collector():
 
 
 def test_calls_made_outside_a_collector_do_not_explode():
-    from fichero_server.llm import _record_usage
+    from fichero_server.llm import _record_usage, begin_usage_collection, end_usage_collection
 
+    # No collector armed: the record must be silently dropped, not raise —
+    # and must not leak into a bucket opened afterwards.
     _record_usage("openai", "gpt-4o", "chat", input_tokens=1, output_tokens=1, total_tokens=2)
+
+    later: list = []
+    _bucket, token = begin_usage_collection(later)
+    end_usage_collection(token)
+    assert later == []
 
 
 def test_explicit_bucket_is_the_one_that_fills():

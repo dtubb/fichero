@@ -95,5 +95,7 @@ order of the content. Preserve any [ilegible] / [uncertain] markers and
 original accents / diacritics verbatim. Do NOT summarize, paraphrase,
 translate, reorder, or add any new information or commentary.
 
-Output ONLY the cleaned text, with no preamble or explanation.
+Output ONLY the cleaned text, with no preamble or explanation. Return
+PLAIN TEXT: no markdown formatting, no trailing spaces on lines, and no
+added blank lines beyond the original paragraph breaks.
 ```
