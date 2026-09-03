@@ -1,0 +1,129 @@
+{
+  "pass": "image-ops",
+  "settings": {
+    "audio_model": "apple-speech",
+    "audio_provider": "apple",
+    "embeddings_model": "",
+    "embeddings_provider": "",
+    "large_model": "apple-intelligence",
+    "large_provider": "apple",
+    "max_tokens": "",
+    "medium_model": "apple-intelligence",
+    "medium_provider": "apple",
+    "primary_language": "",
+    "prompt_prefix": "",
+    "small_model": "apple-intelligence",
+    "small_provider": "apple",
+    "temperature": "",
+    "text_model": "apple-intelligence",
+    "text_provider": "apple",
+    "video_model": "",
+    "video_provider": "",
+    "vision_large_model": "apple-vision",
+    "vision_large_provider": "apple",
+    "vision_medium_model": "apple-vision",
+    "vision_medium_provider": "apple",
+    "vision_model": "apple-vision",
+    "vision_provider": "apple",
+    "vision_small_model": "apple-vision",
+    "vision_small_provider": "apple"
+  },
+  "rows": [
+    {
+      "workflow": "Rotate / Auto-Orient Images",
+      "doc": "6fe395c095314807b2ec2f4ea74422a5",
+      "seconds": 14.1,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "rotate_images"
+      ],
+      "failed_node": "rotate_images",
+      "pass": "image-ops"
+    },
+    {
+      "workflow": "Prepare Images for OCR",
+      "doc": "6fe395c095314807b2ec2f4ea74422a5",
+      "seconds": 16.8,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "prepare_images"
+      ],
+      "failed_node": "prepare_images",
+      "pass": "image-ops"
+    },
+    {
+      "workflow": "Enhance Images",
+      "doc": "6fe395c095314807b2ec2f4ea74422a5",
+      "seconds": 12.0,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "enhance_images"
+      ],
+      "failed_node": "enhance_images",
+      "pass": "image-ops"
+    },
+    {
+      "workflow": "Remove Background Images",
+      "doc": "6fe395c095314807b2ec2f4ea74422a5",
+      "seconds": 7.8,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "remove_background_images"
+      ],
+      "failed_node": "remove_background_images",
+      "pass": "image-ops"
+    },
+    {
+      "workflow": "Fuzzy Clean Images",
+      "doc": "6fe395c095314807b2ec2f4ea74422a5",
+      "seconds": 11.3,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "fuzzy_clean_images"
+      ],
+      "failed_node": "fuzzy_clean_images",
+      "pass": "image-ops"
+    },
+    {
+      "workflow": "Split Images",
+      "doc": "6fe395c095314807b2ec2f4ea74422a5",
+      "seconds": 8.5,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "split_images"
+      ],
+      "failed_node": "split_images",
+      "pass": "image-ops"
+    },
+    {
+      "workflow": "Segment Images",
+      "doc": "6fe395c095314807b2ec2f4ea74422a5",
+      "seconds": 18.7,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "segment_images"
+      ],
+      "failed_node": "segment_images",
+      "pass": "image-ops"
+    },
+    {
+      "workflow": "Recombine Segments",
+      "doc": "6fe395c095314807b2ec2f4ea74422a5",
+      "seconds": 3.9,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "recombine_segments"
+      ],
+      "failed_node": "recombine_segments",
+      "pass": "image-ops"
+    }
+  ]
+}

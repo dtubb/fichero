@@ -1,0 +1,85 @@
+{
+  "pass": "omlx-qwen3vl-text",
+  "settings": {
+    "audio_model": "apple-speech",
+    "audio_provider": "apple",
+    "embeddings_model": "",
+    "embeddings_provider": "",
+    "large_model": "apple-intelligence",
+    "large_provider": "apple",
+    "max_tokens": "",
+    "medium_model": "apple-intelligence",
+    "medium_provider": "apple",
+    "primary_language": "",
+    "prompt_prefix": "",
+    "small_model": "mlx-community/Qwen3-VL-8B-Instruct-4bit",
+    "small_provider": "omlx",
+    "temperature": "",
+    "text_model": "mlx-community/Qwen3-VL-8B-Instruct-4bit",
+    "text_provider": "omlx",
+    "video_model": "",
+    "video_provider": "",
+    "vision_large_model": "apple-vision",
+    "vision_large_provider": "apple",
+    "vision_medium_model": "apple-vision",
+    "vision_medium_provider": "apple",
+    "vision_model": "apple-vision",
+    "vision_provider": "apple",
+    "vision_small_model": "apple-vision",
+    "vision_small_provider": "apple"
+  },
+  "rows": [
+    {
+      "workflow": "Translate",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 52.7,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "transcribe",
+        "text_translate"
+      ],
+      "failed_node": "text_translate",
+      "pass": "omlx-qwen3vl-text"
+    },
+    {
+      "workflow": "Clean Up Text",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 9.8,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "transcribe",
+        "clean_text"
+      ],
+      "failed_node": "clean_text",
+      "pass": "omlx-qwen3vl-text"
+    },
+    {
+      "workflow": "Diary Entries",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 37.2,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "transcribe",
+        "diary_entries"
+      ],
+      "failed_node": "diary_entries",
+      "pass": "omlx-qwen3vl-text"
+    },
+    {
+      "workflow": "NER per-page (local)",
+      "doc": "b0dd8e2f4108461984856de5b51f249e",
+      "seconds": 17.5,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "aggregate_text",
+        "extract_all"
+      ],
+      "failed_node": "extract_all",
+      "pass": "omlx-qwen3vl-text"
+    }
+  ]
+}

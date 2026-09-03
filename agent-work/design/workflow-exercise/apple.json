@@ -1,0 +1,175 @@
+{
+  "pass": "apple",
+  "settings": {
+    "audio_model": "apple-speech",
+    "audio_provider": "apple",
+    "embeddings_model": "",
+    "embeddings_provider": "",
+    "large_model": "apple-intelligence",
+    "large_provider": "apple",
+    "max_tokens": "",
+    "medium_model": "apple-intelligence",
+    "medium_provider": "apple",
+    "primary_language": "",
+    "prompt_prefix": "",
+    "small_model": "apple-intelligence",
+    "small_provider": "apple",
+    "temperature": "",
+    "text_model": "apple-intelligence",
+    "text_provider": "apple",
+    "video_model": "",
+    "video_provider": "",
+    "vision_large_model": "apple-vision",
+    "vision_large_provider": "apple",
+    "vision_medium_model": "apple-vision",
+    "vision_medium_provider": "apple",
+    "vision_model": "apple-vision",
+    "vision_provider": "apple",
+    "vision_small_model": "apple-vision",
+    "vision_small_provider": "apple"
+  },
+  "rows": [
+    {
+      "workflow": "Transcribe",
+      "doc": "17787b7b35c24e028f7d974b7e5ebe16",
+      "seconds": 25.6,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "transcribe"
+      ],
+      "failed_node": "transcribe",
+      "pass": "apple"
+    },
+    {
+      "workflow": "Detect Regions (Apple Vision)",
+      "doc": "17787b7b35c24e028f7d974b7e5ebe16",
+      "seconds": 15.3,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "detect-regions"
+      ],
+      "failed_node": "detect-regions",
+      "pass": "apple"
+    },
+    {
+      "workflow": "Clean Up Text",
+      "doc": "17787b7b35c24e028f7d974b7e5ebe16",
+      "seconds": 17.9,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "transcribe",
+        "clean_text"
+      ],
+      "failed_node": "clean_text",
+      "pass": "apple"
+    },
+    {
+      "workflow": "Translate",
+      "doc": "17787b7b35c24e028f7d974b7e5ebe16",
+      "seconds": 58.9,
+      "status": "failed",
+      "error": "Step 'Translate Text' failed: process_text: nothing to attach the result to \u2014 save_to_db is on but no document with an id was resolved (got 0 candidate(s)). The output was produced and would have been discarded. Wire a document/container source into this node, or set save_to_db=false if this node is not meant to persist.",
+      "completed_nodes": [
+        "files-source",
+        "transcribe"
+      ],
+      "failed_node": "transcribe",
+      "pass": "apple"
+    },
+    {
+      "workflow": "Diary Entries",
+      "doc": "17787b7b35c24e028f7d974b7e5ebe16",
+      "seconds": 68.3,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "transcribe",
+        "diary_entries"
+      ],
+      "failed_node": "diary_entries",
+      "pass": "apple"
+    },
+    {
+      "workflow": "NER per-page (local)",
+      "doc": "17787b7b35c24e028f7d974b7e5ebe16",
+      "seconds": 448.2,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "aggregate_text",
+        "extract_all"
+      ],
+      "failed_node": "extract_all",
+      "pass": "apple"
+    },
+    {
+      "workflow": "Extract Table",
+      "doc": "17787b7b35c24e028f7d974b7e5ebe16",
+      "seconds": 11.9,
+      "status": "cli_error",
+      "error": "POST /api/workflow-execution/execute -> 400: {\"detail\":\"Workflow validation failed: Node 'Extract Table' (table_extract): 'Table' needs a generation-capable vision model, which is not configured \u2014 the current vision model (apple/apple-vision) is on-device OCR, which returns recognized text and cannot answer a prompt. Configure a vision-capable LLM as the Vision default in Settings, or set one on this node.\"}",
+      "pass": "apple"
+    },
+    {
+      "workflow": "Describe (visual)",
+      "doc": "17787b7b35c24e028f7d974b7e5ebe16",
+      "seconds": 8.7,
+      "status": "failed",
+      "error": "All parallel branches failed for describe. First error: Apple Vision performs OCR and ignores the prompt, so it cannot answer what 'description' asks. Choose a generative vision model for this step, or use Transcribe if the page's text is what you want.",
+      "completed_nodes": [
+        "files-source"
+      ],
+      "failed_node": "files-source",
+      "pass": "apple"
+    },
+    {
+      "workflow": "Detect Regions (VLM)",
+      "doc": "17787b7b35c24e028f7d974b7e5ebe16",
+      "seconds": 12.4,
+      "status": "failed",
+      "error": "All parallel branches failed for detect-regions. First error: Detect Regions (VLM) needs a vision model that can answer a prompt, but the configured Vision default is Apple Vision \u2014 on-device OCR, which returns recognized text and ignores the prompt. Set a vision-capable LLM as the Vision default in Settings, pin one on this step, or run the plain Detect Regions preset, which uses Apple Vision's own geometry.",
+      "completed_nodes": [
+        "files-source"
+      ],
+      "failed_node": "files-source",
+      "pass": "apple"
+    },
+    {
+      "workflow": "Transcribe (Auto-Detect)",
+      "doc": "17787b7b35c24e028f7d974b7e5ebe16",
+      "seconds": 8.9,
+      "status": "failed",
+      "error": "Step 'Classify Script Type' failed: Apple Vision performs OCR and ignores the prompt, so it cannot answer what 'script_classification' asks. Choose a generative vision model for this step, or use Transcribe if the page's text is what you want.",
+      "completed_nodes": [
+        "files-source"
+      ],
+      "failed_node": "files-source",
+      "pass": "apple"
+    },
+    {
+      "workflow": "Catalogue",
+      "doc": "17787b7b35c24e028f7d974b7e5ebe16",
+      "seconds": 154.2,
+      "status": "completed",
+      "completed_nodes": [
+        "files-source",
+        "citations_extract",
+        "transcribe",
+        "extract_all",
+        "dates_folder_clean",
+        "events_folder_clean",
+        "keywords_folder_clean",
+        "organizations_folder_clean",
+        "people_folder_clean",
+        "places_folder_clean",
+        "merge_extracts",
+        "catalogue"
+      ],
+      "failed_node": "catalogue",
+      "pass": "apple"
+    }
+  ]
+}

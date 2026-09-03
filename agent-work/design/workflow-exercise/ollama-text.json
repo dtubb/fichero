@@ -1,0 +1,72 @@
+{
+  "pass": "ollama-qwen35-text",
+  "settings": {
+    "audio_model": "apple-speech",
+    "audio_provider": "apple",
+    "embeddings_model": "",
+    "embeddings_provider": "",
+    "large_model": "apple-intelligence",
+    "large_provider": "apple",
+    "max_tokens": "",
+    "medium_model": "apple-intelligence",
+    "medium_provider": "apple",
+    "primary_language": "",
+    "prompt_prefix": "",
+    "small_model": "qwen3.5:cloud",
+    "small_provider": "ollama",
+    "temperature": "",
+    "text_model": "qwen3.5:cloud",
+    "text_provider": "ollama",
+    "video_model": "",
+    "video_provider": "",
+    "vision_large_model": "apple-vision",
+    "vision_large_provider": "apple",
+    "vision_medium_model": "apple-vision",
+    "vision_medium_provider": "apple",
+    "vision_model": "apple-vision",
+    "vision_provider": "apple",
+    "vision_small_model": "apple-vision",
+    "vision_small_provider": "apple"
+  },
+  "rows": [
+    {
+      "workflow": "Translate",
+      "doc": "5414d953a2fd49748bb405e9d14d0b9d",
+      "seconds": 12.2,
+      "status": "failed",
+      "error": "Provider quota or rate limit reached. Top up account or switch provider/model. Details: Step 'Translate Text' failed: Provider ollama quota/limit hit \u2014 set a different $large provider in Settings",
+      "completed_nodes": [
+        "files-source",
+        "transcribe"
+      ],
+      "failed_node": "transcribe",
+      "pass": "ollama-qwen35-text"
+    },
+    {
+      "workflow": "Clean Up Text (LLM exercise)",
+      "doc": "5414d953a2fd49748bb405e9d14d0b9d",
+      "seconds": 4.0,
+      "status": "failed",
+      "error": "Provider quota or rate limit reached. Top up account or switch provider/model. Details: Step 'Clean Up Text (LLM)' failed: Provider ollama quota/limit hit \u2014 set a different $large provider in Settings",
+      "completed_nodes": [
+        "files-source",
+        "transcribe"
+      ],
+      "failed_node": "transcribe",
+      "pass": "ollama-qwen35-text"
+    },
+    {
+      "workflow": "Diary Entries",
+      "doc": "5414d953a2fd49748bb405e9d14d0b9d",
+      "seconds": 8.8,
+      "status": "failed",
+      "error": "Provider quota or rate limit reached. Top up account or switch provider/model. Details: Quota/rate-limit error in step 'Split Diary Entries': Provider ollama quota/limit hit \u2014 set a different $large provider in Settings",
+      "completed_nodes": [
+        "files-source",
+        "transcribe"
+      ],
+      "failed_node": "transcribe",
+      "pass": "ollama-qwen35-text"
+    }
+  ]
+}
