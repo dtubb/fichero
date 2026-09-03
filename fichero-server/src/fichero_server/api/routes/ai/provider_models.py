@@ -890,6 +890,31 @@ async def list_models_for_provider(
         except Exception as e:
             logger.warning(f"Failed to query oMLX: {e}")
 
+    # DeepL — a translation service, not an LLM catalog. It publishes no
+    # /models endpoint and the vendored LiteLLM snapshot has never heard of
+    # it, so the generic cloud path below returns an EMPTY list: Settings
+    # could add the provider and then offer nothing to select, leaving the
+    # key unsavable through the normal flow (Daniel, 2026-09-03: the DeepL
+    # key belongs in the provider screen like every other key). One engine,
+    # named once, priced per CHARACTER — so the per-token cost fields stay
+    # None rather than carrying a number that would be a lie.
+    elif provider_type == "deepl":
+        models = [
+            ModelResponse(
+                model_id="deepl-default",
+                full_name="DeepL Translate",
+                description=(
+                    "DeepL's translation engine (/v2/translate). Billed per "
+                    "character, not per token. Translation only — it does not "
+                    "answer prompts."
+                ),
+                mode="translation",
+                supports_streaming=False,
+                is_recommended=True,
+                provider="deepl",
+            )
+        ]
+
     # Cloud providers — LIVE catalog when the provider publishes one
     # (2026-08-25), else LiteLLM's static registry; curated flags merge on
     # top either way. A live fetch that fails falls straight through to the

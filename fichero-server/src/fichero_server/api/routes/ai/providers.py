@@ -680,6 +680,15 @@ def _derive_capabilities_from_registry(provider_type: str, model_id: str) -> lis
     on: ``text``/``vision``/``audio``/``transcription``/``tools``.
     Returns ``[]`` when the model is unknown to the registry.
     """
+    # DeepL translates; it does not chat. Its one model is unknown to the
+    # vendored registry, so the unknown-model floor below would save it as
+    # "text" and put a translation engine in every LLM/Defaults picker that
+    # filters on the text tier. Name the capability it actually has: the
+    # tier vocabulary (text/vision/audio/transcription/tools) does not
+    # contain "translation", so the pickers leave it alone (#4534 follow-up).
+    if provider_type == "deepl":
+        return ["translation"]
+
     if provider_type == "omlx":
         model_lower = model_id.lower()
         caps = ["text"]

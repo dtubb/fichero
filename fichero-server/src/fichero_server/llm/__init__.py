@@ -1829,7 +1829,11 @@ async def _translate_with_deepl(
         return ""
     api_key = _resolve_api_key(config)
     if not api_key:
-        raise ValueError("DeepL provider requires DEEPL_API_KEY (or config.api_key).")
+        raise ValueError(
+            "DeepL provider requires an API key. Add one in Settings > AI > "
+            "Providers > DeepL; DEEPL_API_KEY in the environment still works "
+            "as a fallback."
+        )
 
     base = (config.api_base or _deepl_default_base(api_key)).rstrip("/")
     url = f"{base}/v2/translate"

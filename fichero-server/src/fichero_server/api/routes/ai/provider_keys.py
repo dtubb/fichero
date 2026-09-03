@@ -514,6 +514,57 @@ async def test_provider_connection(
                         latency_ms=latency,
                     )
 
+        elif provider_type == "deepl":
+            api_key = get_api_key("deepl")
+            if not api_key:
+                return ConnectionTestResponse(
+                    success=False,
+                    provider_type=provider_type,
+                    message="No API key configured",
+                )
+            # DeepL answers a free key on the pro host (and vice versa) with a
+            # bare 403 and no hint, so the host is chosen from the key itself —
+            # the same rule the translate path uses (2026-09-03). /v2/usage is
+            # the cheap probe: it costs no characters and proves the pairing.
+            from fichero_server.llm import _deepl_default_base
+
+            base = _deepl_default_base(api_key).rstrip("/")
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{base}/v2/usage",
+                    headers={"Authorization": f"DeepL-Auth-Key {api_key}"},
+                    timeout=10.0,
+                )
+                latency = (time.time() - start_time) * 1000
+                if response.status_code == 200:
+                    data = response.json()
+                    used = data.get("character_count")
+                    limit = data.get("character_limit")
+                    detail = (
+                        f" ({used:,}/{limit:,} characters used)"
+                        if isinstance(used, int) and isinstance(limit, int)
+                        else ""
+                    )
+                    return ConnectionTestResponse(
+                        success=True,
+                        provider_type=provider_type,
+                        message=f"DeepL API connected{detail}",
+                        latency_ms=latency,
+                    )
+                if response.status_code in (401, 403):
+                    return ConnectionTestResponse(
+                        success=False,
+                        provider_type=provider_type,
+                        message="Invalid API key (DeepL refused it)",
+                        latency_ms=latency,
+                    )
+                return ConnectionTestResponse(
+                    success=False,
+                    provider_type=provider_type,
+                    message=f"API returned status {response.status_code}",
+                    latency_ms=latency,
+                )
+
         else:
             api_key = get_api_key(provider_type)
             if api_key or info.is_local:

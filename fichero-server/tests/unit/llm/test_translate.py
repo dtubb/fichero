@@ -114,3 +114,83 @@ def test_deepl_default_base_routes_pro_and_free_keys():
     assert _deepl_default_base("abcd-1234:fx") == "https://api-free.deepl.com"
     assert _deepl_default_base("abcd-1234:fx ") == "https://api-free.deepl.com"
     assert _deepl_default_base("abcd-1234-5678") == "https://api.deepl.com"
+
+
+# =============================================================================
+# DeepL as a first-class provider (Daniel, 2026-09-03): the key is entered in
+# Settings > AI > Providers like every other provider key. The environment
+# variable survives only as a fallback so existing setups keep working.
+# =============================================================================
+
+
+@pytest.fixture
+def _clean_deepl_key(monkeypatch):
+    """Isolate DeepL key resolution: no keychain, no cache, no leaked supply."""
+    from fichero_server.llm import clear_api_key_cache
+    from fichero_server.security import provider_keys as supply
+
+    monkeypatch.setattr(
+        "fichero_server.security.keychain.get_api_key", lambda provider: None
+    )
+    supply.forget_api_key("deepl")
+    clear_api_key_cache()
+    yield
+    supply.forget_api_key("deepl")
+    clear_api_key_cache()
+
+
+def test_deepl_key_from_settings_wins_over_environment(monkeypatch, _clean_deepl_key):
+    """A key supplied by the app (Settings' provider screen) outranks the env."""
+    from fichero_server.llm import clear_api_key_cache, get_api_key
+    from fichero_server.security import provider_keys as supply
+
+    monkeypatch.setenv("DEEPL_API_KEY", "env-key:fx")
+    supply.supply_api_key("deepl", "settings-key")
+    clear_api_key_cache()
+
+    assert get_api_key("deepl") == "settings-key"
+
+
+def test_deepl_key_falls_back_to_environment(monkeypatch, _clean_deepl_key):
+    """No key in Settings yet -> DEEPL_API_KEY still works (existing setups)."""
+    from fichero_server.llm import clear_api_key_cache, get_api_key
+
+    monkeypatch.setenv("DEEPL_API_KEY", "env-key:fx")
+    clear_api_key_cache()
+
+    assert get_api_key("deepl") == "env-key:fx"
+
+
+def test_deepl_capability_is_translation_not_text():
+    """A translation engine must not land in the text/vision model pickers:
+    the tier vocabulary they filter on has no 'translation' entry, and the
+    unknown-model floor would otherwise save deepl-default as 'text'.
+    """
+    from fichero_server.api.routes.ai.providers import (
+        _derive_capabilities_from_registry,
+    )
+
+    assert _derive_capabilities_from_registry("deepl", "deepl-default") == [
+        "translation"
+    ]
+
+
+@pytest.mark.asyncio
+async def test_deepl_model_catalog_offers_the_translate_engine():
+    """DeepL publishes no /models endpoint and the vendored LiteLLM snapshot
+    has never heard of it, so without an explicit branch Settings offers an
+    EMPTY model list and the provider cannot be finished (and the key never
+    stored)."""
+    from fichero_server.api.routes.ai.provider_models import list_models_for_provider
+
+    response = await list_models_for_provider(
+        "deepl", search=None, vision_only=False, sort_by="name"
+    )
+
+    assert response.count == 1
+    model = response.items[0]
+    assert model.model_id == "deepl-default"
+    assert model.mode == "translation"
+    # Billed per character — a per-token number here would be a lie.
+    assert model.input_cost_per_million is None
+    assert model.output_cost_per_million is None
