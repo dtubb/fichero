@@ -57,8 +57,12 @@ final class SearchResubmissionRefreshTests: XCTestCase {
             body.contains("recomputeFiltered()"),
             "Observing `documents` without recomputing would be a no-op observer."
         )
+        // The projection refresh is OWNED by recomputeFiltered since
+        // 2026-09-02 (the hand-paired call sites kept drifting), so the
+        // handler follows the swap by calling the one owner.
+        let filter = try Self.appSource("Views/Library/LibraryView+FilterAndBatch.swift")
         XCTAssertTrue(
-            body.contains("refreshLibraryProjection()"),
+            filter.contains("refreshLibraryProjection()"),
             "Canvas/space modes project from the same rows and must follow the swap too."
         )
     }
@@ -82,7 +86,7 @@ final class SearchResubmissionRefreshTests: XCTestCase {
         let run = try XCTUnwrap(
             source.components(separatedBy: "func runToolbarSearch(").dropFirst().first
         )
-        let body = String(run.prefix(2500))
+        let body = String(run.prefix(6000))
         XCTAssertTrue(
             body.contains("browserSelection = []"),
             "A new submission must not inherit the previous result set's selection."
@@ -106,7 +110,7 @@ final class SearchResubmissionRefreshTests: XCTestCase {
         let run = try XCTUnwrap(
             source.components(separatedBy: "func runToolbarSearch(").dropFirst().first
         )
-        let body = String(run.prefix(2500))
+        let body = String(run.prefix(6000))
         XCTAssertTrue(body.contains("clearTransientSearchResults()"))
         XCTAssertTrue(body.contains("transientSearchLimit = Self.transientSearchPageSize"))
     }

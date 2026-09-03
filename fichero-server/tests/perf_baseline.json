@@ -55,9 +55,9 @@
     "note": "first recorded run"
   },
   "mem::session::tests/unit/llm/test_lang_detect.py": {
-    "commit": "e123a8a43",
-    "mb": 263.0,
-    "note": "first recorded run"
+    "commit": "9c137cfd0",
+    "mb": 226.7,
+    "note": "tightened from 263 MB"
   },
   "queries.DELETE./api/activity/cleanup": {
     "commit": "107c1c884",
@@ -205,14 +205,14 @@
     "note": "tightened from 88.5 ms"
   },
   "test::tests/integration/test_batch_execution_integration.py::TestActivityTracking::test_query_by_type[asyncio]": {
-    "commit": "18917fe1f",
-    "ms": 75.3,
-    "note": "first recorded run"
+    "commit": "9c137cfd0",
+    "ms": 57.6,
+    "note": "tightened from 75.3 ms"
   },
   "test::tests/integration/test_batch_execution_integration.py::TestActivityTracking::test_save_and_query_activity[asyncio]": {
-    "commit": "07c13c1ea",
-    "ms": 37.6,
-    "note": "tightened from 41.9 ms"
+    "commit": "9c137cfd0",
+    "ms": 25.7,
+    "note": "tightened from 37.6 ms"
   },
   "test::tests/integration/test_batch_execution_integration.py::TestBatchActivityIntegration::test_batch_item_completion_logging[asyncio]": {
     "commit": "107c1c884",
@@ -230,9 +230,9 @@
     "note": "tightened from 77.1 ms"
   },
   "test::tests/integration/test_batch_execution_integration.py::TestBatchExecution::test_batch_progress[asyncio]": {
-    "commit": "18917fe1f",
-    "ms": 45.7,
-    "note": "first recorded run"
+    "commit": "9c137cfd0",
+    "ms": 39.7,
+    "note": "tightened from 45.7 ms"
   },
   "test::tests/integration/test_batch_execution_integration.py::TestBatchExecution::test_cancel_batch[asyncio]": {
     "commit": "107c1c884",
@@ -245,9 +245,9 @@
     "note": "tightened from 45.9 ms"
   },
   "test::tests/integration/test_batch_execution_integration.py::TestBatchExecution::test_delete_batch[asyncio]": {
-    "commit": "107c1c884",
-    "ms": 50.1,
-    "note": "tightened from 60.4 ms"
+    "commit": "9c137cfd0",
+    "ms": 44.2,
+    "note": "tightened from 50.1 ms"
   },
   "test::tests/integration/test_batch_execution_integration.py::TestBatchExecution::test_get_batch[asyncio]": {
     "commit": "07c13c1ea",
@@ -280,9 +280,9 @@
     "note": "tightened from 1497.4 ms"
   },
   "test::tests/integration/test_contract_endpoint_walk.py::test_no_envelope_get_endpoint_returns_500": {
-    "commit": "107c1c884",
-    "ms": 175.3,
-    "note": "tightened from 196.5 ms"
+    "commit": "9c137cfd0",
+    "ms": 157.5,
+    "note": "tightened from 175.3 ms"
   },
   "test::tests/integration/test_device_pairing_e2e.py::test_device_pairing_e2e_rejects_remote_pairing_without_https": {
     "commit": "18917fe1f",
@@ -410,9 +410,9 @@
     "note": "first recorded run"
   },
   "test::tests/integration/test_spawn_per_run_harness.py::TestSpawnPerRunHarness::test_live_round_trip_serves_the_seeded_library": {
-    "commit": "c2e0cb61d",
-    "ms": 500.3,
-    "note": "first recorded run"
+    "commit": "9c137cfd0",
+    "ms": 215.1,
+    "note": "tightened from 500.3 ms"
   },
   "test::tests/integration/test_spawn_per_run_harness.py::TestSpawnPerRunHarness::test_stop_leaves_no_orphan_engine_no_socket": {
     "commit": "c2e0cb61d",
@@ -14585,9 +14585,9 @@
     "note": "tightened from 130.0 ms"
   },
   "test::tests/unit/test_perf_history.py::TestTheQueryCountRatchet::test_a_timing_entry_and_a_count_entry_share_the_baseline_file": {
-    "commit": "18917fe1f",
-    "ms": 77.9,
-    "note": "first recorded run"
+    "commit": "9c137cfd0",
+    "ms": 66.2,
+    "note": "tightened from 77.9 ms"
   },
   "test::tests/unit/test_perf_history.py::TestTheQueryCountRatchet::test_an_equal_count_is_not_a_regression_and_does_not_rewrite": {
     "commit": "c2e0cb61d",
@@ -14620,9 +14620,9 @@
     "note": "tightened from 147.7 ms"
   },
   "test::tests/unit/test_query_ratchet_bar_hygiene.py::TestFlushWritesOnlyWhatWasMeasured::test_a_genuine_zero_is_recorded_and_held": {
-    "commit": "107c1c884",
-    "ms": 104.2,
-    "note": "first recorded run"
+    "commit": "9c137cfd0",
+    "ms": 89.9,
+    "note": "tightened from 104.2 ms"
   },
   "test::tests/unit/test_query_ratchet_bar_hygiene.py::TestFlushWritesOnlyWhatWasMeasured::test_an_unexercised_endpoint_gets_no_bar": {
     "commit": "07c13c1ea",
@@ -14884,6 +14884,11 @@
     "ms": 26.2,
     "note": "first recorded run"
   },
+  "test::tests/unit/workflows/test_camera_capture_preset.py::test_rotate_auto_orient_images_ships_as_camera_capture_preset": {
+    "commit": "9c137cfd0",
+    "ms": 53.3,
+    "note": "first recorded run"
+  },
   "test::tests/unit/workflows/test_catalogue_consumes_claims.py::TestCatalogueWithExistingClaims::test_skips_full_extraction_when_claims_exist[asyncio]": {
     "commit": "18917fe1f",
     "ms": 955.8,
@@ -14920,9 +14925,9 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_catalogue_rerun_preserves_corrections.py::test_a_rerun_does_not_delete_a_corrected_catalogue_artifact": {
-    "commit": "c2e0cb61d",
-    "ms": 1404.2,
-    "note": "first recorded run"
+    "commit": "9c137cfd0",
+    "ms": 1262.6,
+    "note": "tightened from 1404.2 ms"
   },
   "test::tests/unit/workflows/test_catalogue_rerun_preserves_corrections.py::test_a_rerun_does_not_overwrite_corrected_container_page_content": {
     "commit": "c2e0cb61d",
@@ -15285,9 +15290,9 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_default_workflow_e2e_harness.py::test_all_default_workflows_complete_with_deterministic_tool_stubs[Prepare Images for OCR]": {
-    "commit": "c2e0cb61d",
-    "ms": 589.6,
-    "note": "tightened from 741.9 ms"
+    "commit": "9c137cfd0",
+    "ms": 486.0,
+    "note": "tightened from 589.6 ms"
   },
   "test::tests/unit/workflows/test_default_workflow_e2e_harness.py::test_all_default_workflows_complete_with_deterministic_tool_stubs[Recombine Segments]": {
     "commit": "c2e0cb61d",
@@ -15300,9 +15305,9 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_default_workflow_e2e_harness.py::test_all_default_workflows_complete_with_deterministic_tool_stubs[Remove Background Images]": {
-    "commit": "c2e0cb61d",
-    "ms": 560.1,
-    "note": "tightened from 812.2 ms"
+    "commit": "9c137cfd0",
+    "ms": 484.5,
+    "note": "tightened from 560.1 ms"
   },
   "test::tests/unit/workflows/test_default_workflow_e2e_harness.py::test_all_default_workflows_complete_with_deterministic_tool_stubs[Rotate / Auto-Orient Images]": {
     "commit": "c2e0cb61d",
@@ -15320,9 +15325,9 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_default_workflow_e2e_harness.py::test_all_default_workflows_complete_with_deterministic_tool_stubs[Split Chapters]": {
-    "commit": "c2e0cb61d",
-    "ms": 591.9,
-    "note": "tightened from 758.7 ms"
+    "commit": "9c137cfd0",
+    "ms": 523.3,
+    "note": "tightened from 591.9 ms"
   },
   "test::tests/unit/workflows/test_default_workflow_e2e_harness.py::test_all_default_workflows_complete_with_deterministic_tool_stubs[Split Images]": {
     "commit": "c2e0cb61d",
@@ -15335,9 +15340,9 @@
     "note": "tightened from 792.0 ms"
   },
   "test::tests/unit/workflows/test_default_workflow_e2e_harness.py::test_all_default_workflows_complete_with_deterministic_tool_stubs[Transcribe + Review (Pipeline)]": {
-    "commit": "c2e0cb61d",
-    "ms": 600.0,
-    "note": "first recorded run"
+    "commit": "9c137cfd0",
+    "ms": 491.4,
+    "note": "tightened from 600.0 ms"
   },
   "test::tests/unit/workflows/test_default_workflow_e2e_harness.py::test_all_default_workflows_complete_with_deterministic_tool_stubs[Transcribe HTR]": {
     "commit": "c2e0cb61d",
@@ -15370,9 +15375,9 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_default_workflow_e2e_harness.py::test_all_default_workflows_complete_with_deterministic_tool_stubs[Transcribe Typescript]": {
-    "commit": "18917fe1f",
-    "ms": 774.1,
-    "note": "first recorded run"
+    "commit": "9c137cfd0",
+    "ms": 552.1,
+    "note": "tightened from 774.1 ms"
   },
   "test::tests/unit/workflows/test_default_workflow_e2e_harness.py::test_all_default_workflows_complete_with_deterministic_tool_stubs[Transcribe]": {
     "commit": "c2e0cb61d",
@@ -15380,14 +15385,14 @@
     "note": "tightened from 744.2 ms"
   },
   "test::tests/unit/workflows/test_default_workflow_e2e_harness.py::test_all_default_workflows_complete_with_deterministic_tool_stubs[Translate (DeepL)]": {
-    "commit": "c2e0cb61d",
-    "ms": 664.5,
-    "note": "tightened from 748.9 ms"
+    "commit": "9c137cfd0",
+    "ms": 554.4,
+    "note": "tightened from 664.5 ms"
   },
   "test::tests/unit/workflows/test_default_workflow_e2e_harness.py::test_all_default_workflows_complete_with_deterministic_tool_stubs[Translate + Double-Check]": {
-    "commit": "c2e0cb61d",
-    "ms": 604.6,
-    "note": "tightened from 747.4 ms"
+    "commit": "9c137cfd0",
+    "ms": 541.4,
+    "note": "tightened from 604.6 ms"
   },
   "test::tests/unit/workflows/test_default_workflow_e2e_harness.py::test_all_default_workflows_complete_with_deterministic_tool_stubs[Translate the Reviewed Transcription]": {
     "commit": "c2e0cb61d",
@@ -15400,9 +15405,9 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_default_workflow_e2e_harness.py::test_all_default_workflows_complete_with_deterministic_tool_stubs[Translate]": {
-    "commit": "c2e0cb61d",
-    "ms": 663.5,
-    "note": "tightened from 752.5 ms"
+    "commit": "9c137cfd0",
+    "ms": 510.8,
+    "note": "tightened from 663.5 ms"
   },
   "test::tests/unit/workflows/test_default_workflow_e2e_harness.py::test_catalogue_default_workflow_lands_artifacts_and_kg_rows[file]": {
     "commit": "c2e0cb61d",
@@ -15420,9 +15425,9 @@
     "note": "tightened from 1426.1 ms"
   },
   "test::tests/unit/workflows/test_default_workflow_e2e_harness.py::test_catalogue_live_graph_waits_for_all_merge_inputs_before_catalogue": {
-    "commit": "107c1c884",
-    "ms": 1399.6,
-    "note": "tightened from 1777.4 ms"
+    "commit": "9c137cfd0",
+    "ms": 1255.1,
+    "note": "tightened from 1399.6 ms"
   },
   "test::tests/unit/workflows/test_default_workflow_e2e_harness.py::test_catalogue_twostage_folder_uses_page_records_for_page_scoped_kg": {
     "commit": "c2e0cb61d",
@@ -15444,6 +15449,11 @@
     "ms": 934.8,
     "note": "tightened from 1134.3 ms"
   },
+  "test::tests/unit/workflows/test_default_workflow_tree_heal.py::test_heal_is_noop_on_healthy_tree": {
+    "commit": "9c137cfd0",
+    "ms": 35.5,
+    "note": "first recorded run"
+  },
   "test::tests/unit/workflows/test_default_workflow_tree_heal.py::test_heal_leaves_user_folder_with_content_alone": {
     "commit": "07c13c1ea",
     "ms": 42.0,
@@ -15462,6 +15472,11 @@
   "test::tests/unit/workflows/test_default_workflow_tree_heal.py::test_heal_restores_is_system_on_homed_legacy_rows": {
     "commit": "c2e0cb61d",
     "ms": 42.5,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/workflows/test_default_workflow_tree_heal.py::test_heal_skips_user_authored_workflows": {
+    "commit": "9c137cfd0",
+    "ms": 38.8,
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_default_workflows.py::test_every_default_preset_passes_execution_gate[Transcribe + Review (Pipeline)]": {
@@ -15529,6 +15544,16 @@
     "ms": 53.8,
     "note": "tightened from 59.8 ms"
   },
+  "test::tests/unit/workflows/test_diary_entries.py::TestDiaryEntries::test_VLM_boxes_are_marked_nominal_not_measured[asyncio]": {
+    "commit": "9c137cfd0",
+    "ms": 26.2,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/workflows/test_diary_entries.py::TestDiaryEntries::test_a_user_corrected_region_SURVIVES_re_extraction[asyncio]": {
+    "commit": "9c137cfd0",
+    "ms": 35.5,
+    "note": "first recorded run"
+  },
   "test::tests/unit/workflows/test_diary_entries.py::TestDiaryEntries::test_an_entry_that_disappears_is_SOFT_deleted[asyncio]": {
     "commit": "c2e0cb61d",
     "ms": 32.9,
@@ -15537,6 +15562,21 @@
   "test::tests/unit/workflows/test_diary_entries.py::TestDiaryEntries::test_empty_transcript_raises[asyncio]": {
     "commit": "c2e0cb61d",
     "ms": 33.0,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/workflows/test_diary_entries.py::TestDiaryEntries::test_prototype_created_with_date_role[asyncio]": {
+    "commit": "9c137cfd0",
+    "ms": 29.7,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/workflows/test_diary_entries.py::TestDiaryEntries::test_rerun_touches_only_this_tools_children[asyncio]": {
+    "commit": "9c137cfd0",
+    "ms": 36.9,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/workflows/test_diary_entries.py::TestFlicker::test_a_PERSON_s_deletion_is_not_undone[asyncio]": {
+    "commit": "9c137cfd0",
+    "ms": 139.4,
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_diary_entries.py::TestFlicker::test_an_entry_that_returns_gets_its_OLD_node_back[asyncio]": {
@@ -15564,15 +15604,20 @@
     "ms": 110.5,
     "note": "first recorded run"
   },
+  "test::tests/unit/workflows/test_economy_htr.py::test_crop_line_strips_uses_bbox_geometry": {
+    "commit": "9c137cfd0",
+    "ms": 27.6,
+    "note": "first recorded run"
+  },
   "test::tests/unit/workflows/test_elementwise_streaming.py::test_flag_off_keeps_the_batch_shape[asyncio]": {
     "commit": "c2e0cb61d",
     "ms": 28.9,
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_elementwise_streaming.py::test_flag_on_streams_each_item_through_both_stages[asyncio]": {
-    "commit": "c2e0cb61d",
-    "ms": 749.8,
-    "note": "first recorded run"
+    "commit": "9c137cfd0",
+    "ms": 35.6,
+    "note": "tightened from 749.8 ms"
   },
   "test::tests/unit/workflows/test_elementwise_streaming.py::test_mid_chain_failure_propagates_and_never_hangs[asyncio]": {
     "commit": "c2e0cb61d",
@@ -15765,9 +15810,9 @@
     "note": "tightened from 832.6 ms"
   },
   "test::tests/unit/workflows/test_empty_output_guard_family_sweep.py::test_terminal_finalization_can_find_each_family_documents[describe]": {
-    "commit": "c2e0cb61d",
-    "ms": 666.8,
-    "note": "tightened from 827.5 ms"
+    "commit": "9c137cfd0",
+    "ms": 599.5,
+    "note": "tightened from 666.8 ms"
   },
   "test::tests/unit/workflows/test_empty_output_guard_family_sweep.py::test_terminal_finalization_can_find_each_family_documents[export]": {
     "commit": "c2e0cb61d",
@@ -15885,9 +15930,9 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_entity_run_empty_output_guard.py::TestFilesIsADeclaredChannel::test_a_source_node_publishes_its_files_into_the_terminal_state": {
-    "commit": "18917fe1f",
-    "ms": 809.1,
-    "note": "first recorded run"
+    "commit": "9c137cfd0",
+    "ms": 639.6,
+    "note": "tightened from 809.1 ms"
   },
   "test::tests/unit/workflows/test_entity_writer.py::TestAccentDedupIntegration::test_accent_variants_collapse_to_one_entity": {
     "commit": "c2e0cb61d",
@@ -16045,9 +16090,9 @@
     "note": "tightened from 123.3 ms"
   },
   "test::tests/unit/workflows/test_entity_writer.py::TestSaveClaim::test_disable_rule_rejects_claim_without_pruning": {
-    "commit": "18917fe1f",
-    "ms": 133.8,
-    "note": "first recorded run"
+    "commit": "9c137cfd0",
+    "ms": 116.3,
+    "note": "tightened from 133.8 ms"
   },
   "test::tests/unit/workflows/test_entity_writer.py::TestSaveClaim::test_save_claim_keeps_asserted_date_over_source_anchor": {
     "commit": "c2e0cb61d",
@@ -16075,14 +16120,14 @@
     "note": "tightened from 444.7 ms"
   },
   "test::tests/unit/workflows/test_entity_writer.py::TestStage4RaceRecovery::test_oldest_wins_aliases_fold_in": {
-    "commit": "107c1c884",
-    "ms": 94.3,
-    "note": "tightened from 107.7 ms"
+    "commit": "9c137cfd0",
+    "ms": 81.9,
+    "note": "tightened from 94.3 ms"
   },
   "test::tests/unit/workflows/test_entity_writer.py::TestStage4RaceRecovery::test_race_recovery_merges_duplicates": {
-    "commit": "18917fe1f",
-    "ms": 238.9,
-    "note": "first recorded run"
+    "commit": "9c137cfd0",
+    "ms": 185.5,
+    "note": "tightened from 238.9 ms"
   },
   "test::tests/unit/workflows/test_entity_writer.py::TestStage4RaceRecovery::test_race_recovery_with_pre_existing_duplicate": {
     "commit": "c2e0cb61d",
@@ -16269,6 +16314,11 @@
     "ms": 25.8,
     "note": "first recorded run"
   },
+  "test::tests/unit/workflows/test_extraction_fail_loud.py::TestExtractRaisesAbortsPipeline::test_extract_raise_sets_error_not_completed": {
+    "commit": "9c137cfd0",
+    "ms": 38.1,
+    "note": "first recorded run"
+  },
   "test::tests/unit/workflows/test_extraction_fail_loud.py::TestMakeNodeFunctionErrorHandling::test_node_error_dict_propagates_to_state": {
     "commit": "c2e0cb61d",
     "ms": 25.8,
@@ -16430,14 +16480,14 @@
     "note": "tightened from 572.1 ms"
   },
   "test::tests/unit/workflows/test_extractor_kg_integration.py::TestClaimAttribution1113::test_full_svo_invariant_holds_for_every_written_claim": {
-    "commit": "18917fe1f",
-    "ms": 1208.8,
-    "note": "first recorded run"
+    "commit": "9c137cfd0",
+    "ms": 1085.8,
+    "note": "tightened from 1208.8 ms"
   },
   "test::tests/unit/workflows/test_extractor_kg_integration.py::TestClaimAttribution1113::test_llm_svo_passes_through_with_provider_model[asyncio]": {
-    "commit": "18917fe1f",
-    "ms": 274.9,
-    "note": "first recorded run"
+    "commit": "9c137cfd0",
+    "ms": 246.8,
+    "note": "tightened from 274.9 ms"
   },
   "test::tests/unit/workflows/test_extractor_kg_integration.py::TestClaimAttribution1113::test_write_kg_rows_synthesises_svo_for_legacy_context_items": {
     "commit": "c2e0cb61d",
@@ -16569,6 +16619,41 @@
     "ms": 635.1,
     "note": "tightened from 850.5 ms"
   },
+  "test::tests/unit/workflows/test_ink_residue_rects.py::test_blank_page_yields_nothing": {
+    "commit": "9c137cfd0",
+    "ms": 103.7,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/workflows/test_ink_residue_rects.py::test_dark_backdrop_is_not_ink": {
+    "commit": "9c137cfd0",
+    "ms": 106.7,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/workflows/test_ink_residue_rects.py::test_ink_inside_a_word_box_is_covered": {
+    "commit": "9c137cfd0",
+    "ms": 99.9,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/workflows/test_ink_residue_rects.py::test_merged_rects_stay_region_scale": {
+    "commit": "9c137cfd0",
+    "ms": 103.0,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/workflows/test_ink_residue_rects.py::test_rect_count_is_capped": {
+    "commit": "9c137cfd0",
+    "ms": 110.0,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/workflows/test_ink_residue_rects.py::test_ruled_lines_are_furniture_not_ink": {
+    "commit": "9c137cfd0",
+    "ms": 110.1,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/workflows/test_ink_residue_rects.py::test_uncovered_ink_is_named_where_it_sits": {
+    "commit": "9c137cfd0",
+    "ms": 109.8,
+    "note": "first recorded run"
+  },
   "test::tests/unit/workflows/test_kg_persist_finalize_workflow.py::test_kg_persist_finalize_preset_recomputes_and_is_idempotent": {
     "commit": "c2e0cb61d",
     "ms": 736.2,
@@ -16585,9 +16670,9 @@
     "note": "tightened from 197.8 ms"
   },
   "test::tests/unit/workflows/test_kg_provenance_rerun_idempotent.py::test_rerun_same_source_does_not_duplicate_entity": {
-    "commit": "07c13c1ea",
-    "ms": 95.4,
-    "note": "tightened from 109.1 ms"
+    "commit": "9c137cfd0",
+    "ms": 84.5,
+    "note": "tightened from 95.4 ms"
   },
   "test::tests/unit/workflows/test_kg_provenance_rerun_idempotent.py::test_source_provenance_survives_model_dump": {
     "commit": "18917fe1f",
@@ -16600,9 +16685,9 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_kg_write_announces_itself.py::TestEveryCallerIsCorrectByConstruction::test_no_caller_emits_the_same_rows_twice": {
-    "commit": "18917fe1f",
-    "ms": 486.4,
-    "note": "first recorded run"
+    "commit": "9c137cfd0",
+    "ms": 380.3,
+    "note": "tightened from 486.4 ms"
   },
   "test::tests/unit/workflows/test_kg_write_announces_itself.py::TestGuardrailPinsTheSharedEmission::test_the_shared_write_paths_are_covered_by_the_ratchet": {
     "commit": "18917fe1f",
@@ -16629,15 +16714,20 @@
     "ms": 63.5,
     "note": "first recorded run"
   },
+  "test::tests/unit/workflows/test_mcp_tools.py::TestMCPToolRegistration::test_mcp_tool_wrapper_error_handling[asyncio]": {
+    "commit": "9c137cfd0",
+    "ms": 27.4,
+    "note": "first recorded run"
+  },
   "test::tests/unit/workflows/test_merge_dedup_curation_survival.py::test_a_settled_conflict_is_not_rewritten_on_the_next_run": {
     "commit": "c2e0cb61d",
     "ms": 1459.0,
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_merge_dedup_curation_survival.py::test_disagreement_is_recorded_not_silently_resolved": {
-    "commit": "c2e0cb61d",
-    "ms": 1970.5,
-    "note": "first recorded run"
+    "commit": "9c137cfd0",
+    "ms": 1369.8,
+    "note": "tightened from 1970.5 ms"
   },
   "test::tests/unit/workflows/test_merge_dedup_curation_survival.py::test_hand_corrected_claim_survives_a_rerun": {
     "commit": "c2e0cb61d",
@@ -16779,6 +16869,11 @@
     "ms": 111.4,
     "note": "first recorded run"
   },
+  "test::tests/unit/workflows/test_node_cache_hit_unwrap.py::test_second_run_cache_hit_still_emits_text": {
+    "commit": "9c137cfd0",
+    "ms": 1038.0,
+    "note": "first recorded run"
+  },
   "test::tests/unit/workflows/test_ocr_geometry_first_pass.py::TestAppleVisionGeometryPersisted::test_image_pass_saves_geometry[asyncio]": {
     "commit": "18917fe1f",
     "ms": 153.8,
@@ -16835,9 +16930,9 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_paleography_manuscript_fixture.py::test_pipeline_graph_wiring_with_no_transcriber_running": {
-    "commit": "c2e0cb61d",
-    "ms": 2395.7,
-    "note": "first recorded run"
+    "commit": "9c137cfd0",
+    "ms": 1599.5,
+    "note": "tightened from 2395.7 ms"
   },
   "test::tests/unit/workflows/test_paleography_manuscript_fixture.py::test_the_recognition_language_reaches_vision_and_changes_nothing_here": {
     "commit": "c2e0cb61d",
@@ -16949,15 +17044,20 @@
     "ms": 26.1,
     "note": "tightened from 29.2 ms"
   },
+  "test::tests/unit/workflows/test_recovered_run_settles_documents.py::TestRecoveredRunReleasesDocuments::test_killed_run_releases_its_documents": {
+    "commit": "9c137cfd0",
+    "ms": 28.2,
+    "note": "first recorded run"
+  },
   "test::tests/unit/workflows/test_recovered_run_settles_documents.py::TestRecoveredRunReleasesDocuments::test_page_children_are_released_too": {
     "commit": "18917fe1f",
     "ms": 28.5,
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_recovered_run_settles_documents.py::TestSettlementEdgeCases::test_one_unreadable_run_does_not_block_the_others": {
-    "commit": "18917fe1f",
-    "ms": 42.1,
-    "note": "first recorded run"
+    "commit": "9c137cfd0",
+    "ms": 25.0,
+    "note": "tightened from 42.1 ms"
   },
   "test::tests/unit/workflows/test_region_crop_substitution.py::TestTheLengthInvariant::test_the_list_length_never_changes": {
     "commit": "c2e0cb61d",
@@ -17090,9 +17190,9 @@
     "note": "tightened from 819.6 ms"
   },
   "test::tests/unit/workflows/test_subworkflow_preflight_descent.py::test_delegating_presets_exist_and_report_their_real_vision_requirement": {
-    "commit": "c2e0cb61d",
-    "ms": 871.4,
-    "note": "first recorded run"
+    "commit": "9c137cfd0",
+    "ms": 781.3,
+    "note": "tightened from 871.4 ms"
   },
   "test::tests/unit/workflows/test_tasks.py::TestGlobalFunctions::test_init_task_queue[asyncio]": {
     "commit": "18917fe1f",
@@ -17175,13 +17275,18 @@
     "note": "tightened from 243.5 ms"
   },
   "test::tests/unit/workflows/test_thinking_capture.py::TestThinkingRidesThePageArtifact::test_per_page_thinking_lands_on_each_artifact[asyncio]": {
-    "commit": "c2e0cb61d",
-    "ms": 335.8,
-    "note": "first recorded run"
+    "commit": "9c137cfd0",
+    "ms": 231.4,
+    "note": "tightened from 335.8 ms"
   },
   "test::tests/unit/workflows/test_transcribe_pdf_text_layer.py::test_born_digital_pdf_beats_stale_cached_artifact[asyncio]": {
     "commit": "18917fe1f",
     "ms": 80.1,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/workflows/test_transcribe_pdf_text_layer.py::test_born_digital_pdf_uses_text_layer_in_apple_mode[asyncio]": {
+    "commit": "9c137cfd0",
+    "ms": 33.2,
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_transcribe_pdf_text_layer.py::test_force_ocr_bypasses_text_layer[asyncio]": {
@@ -17225,9 +17330,9 @@
     "note": "tightened from 88.0 ms"
   },
   "test::tests/unit/workflows/test_verbatim_source_text_contract.py::TestTheREALExtractorPersistsItThisWay::test_a_translated_quote_is_not_persisted_as_source_text": {
-    "commit": "c2e0cb61d",
-    "ms": 506.5,
-    "note": "first recorded run"
+    "commit": "9c137cfd0",
+    "ms": 308.7,
+    "note": "tightened from 506.5 ms"
   },
   "test::tests/unit/workflows/test_verbatim_source_text_contract.py::TestTheREALExtractorPersistsItThisWay::test_a_verbatim_quote_is_persisted_and_anchored": {
     "commit": "c2e0cb61d",
@@ -17285,9 +17390,9 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_workflow_child_regions.py::TestChildCreation::test_children_are_discoverable_by_the_unsplit_key": {
-    "commit": "c2e0cb61d",
-    "ms": 95.3,
-    "note": "first recorded run"
+    "commit": "9c137cfd0",
+    "ms": 38.0,
+    "note": "tightened from 95.3 ms"
   },
   "test::tests/unit/workflows/test_workflow_child_regions.py::TestChildCreation::test_children_carry_the_converged_geometry": {
     "commit": "c2e0cb61d",
@@ -17300,9 +17405,9 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_workflow_child_regions.py::TestRefusalsAndIdempotence::test_no_archival_original_is_attached": {
-    "commit": "c2e0cb61d",
-    "ms": 35.3,
-    "note": "first recorded run"
+    "commit": "9c137cfd0",
+    "ms": 30.4,
+    "note": "tightened from 35.3 ms"
   },
   "test::tests/unit/workflows/test_workflow_child_regions.py::TestRefusalsAndIdempotence::test_part_without_a_frame_still_becomes_a_child_but_no_region": {
     "commit": "c2e0cb61d",
@@ -17310,9 +17415,9 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_workflow_child_regions.py::TestRefusalsAndIdempotence::test_rerun_creates_no_duplicate_children": {
-    "commit": "c2e0cb61d",
-    "ms": 41.9,
-    "note": "first recorded run"
+    "commit": "9c137cfd0",
+    "ms": 33.7,
+    "note": "tightened from 41.9 ms"
   },
   "test::tests/unit/workflows/test_workflow_child_regions.py::TestSourcePathResolution::test_page_with_no_path_matches_through_its_parent": {
     "commit": "c2e0cb61d",
@@ -17369,9 +17474,34 @@
     "ms": 103.4,
     "note": "first recorded run"
   },
+  "test::tests/unit/workflows/test_workflow_executor.py::TestWorkflowExecutor::test_add_remove_progress_listener": {
+    "commit": "9c137cfd0",
+    "ms": 43.7,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/workflows/test_workflow_executor.py::TestWorkflowExecutor::test_execute_simple_workflow[asyncio]": {
+    "commit": "9c137cfd0",
+    "ms": 29.1,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/workflows/test_workflow_executor.py::TestWorkflowExecutor::test_initialization": {
+    "commit": "9c137cfd0",
+    "ms": 29.0,
+    "note": "first recorded run"
+  },
   "test::tests/unit/workflows/test_workflow_input_kinds.py::TestAcceptedKinds::test_every_workflow_accepts_documents": {
     "commit": "c2e0cb61d",
     "ms": 828.5,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/workflows/test_workflow_persistence_typing.py::test_all_shipped_presets_load_and_validate": {
+    "commit": "9c137cfd0",
+    "ms": 29.9,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/workflows/test_workflow_renditions.py::TestPersistence::test_output_becomes_a_rendition_on_its_document": {
+    "commit": "9c137cfd0",
+    "ms": 42.5,
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_workflow_renditions.py::TestPersistence::test_rerun_does_not_stack_duplicate_rows": {
@@ -17450,9 +17580,9 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_workflow_runs_index_corruption.py::TestStartupRecoveryIsCrashSafe::test_recover_stale_runs_respects_cutoff_on_indexed_table": {
-    "commit": "18917fe1f",
-    "ms": 43.2,
-    "note": "first recorded run"
+    "commit": "9c137cfd0",
+    "ms": 38.3,
+    "note": "tightened from 43.2 ms"
   },
   "test::tests/unit/workflows/test_workflow_store.py::TestCRUDOperations::test_save_updates_timestamp": {
     "commit": "18917fe1f",
@@ -17489,10 +17619,15 @@
     "ms": 82.5,
     "note": "first recorded run"
   },
-  "test::tests/unit/workflows/test_workflow_tools.py::TestTranscribeTool::test_transcribe_with_files[asyncio]": {
-    "commit": "c2e0cb61d",
-    "ms": 57.3,
+  "test::tests/unit/workflows/test_workflow_tools.py::TestTranscribeTool::test_transcribe_labels_pdf_text_layer_as_pdf_text[asyncio]": {
+    "commit": "9c137cfd0",
+    "ms": 40.3,
     "note": "first recorded run"
+  },
+  "test::tests/unit/workflows/test_workflow_tools.py::TestTranscribeTool::test_transcribe_with_files[asyncio]": {
+    "commit": "9c137cfd0",
+    "ms": 36.0,
+    "note": "tightened from 57.3 ms"
   },
   "test::tests/unit/workflows/test_workflows.py::TestTranscribeTool::test_transcribe_normalizes_locale_before_processing[asyncio]": {
     "commit": "c2e0cb61d",
@@ -17502,6 +17637,16 @@
   "test::tests/unit/workflows/test_workflows.py::TestVisionFanOutConcurrencyCap::test_concurrency_never_exceeds_cap[asyncio]": {
     "commit": "18917fe1f",
     "ms": 158.2,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/workflows/test_write_file.py::TestWriteFileIntegration::test_collision_auto_suffixes[asyncio]": {
+    "commit": "9c137cfd0",
+    "ms": 44.1,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/workflows/test_write_file.py::TestWriteFileIntegration::test_missing_output_dir_returns_error[asyncio]": {
+    "commit": "9c137cfd0",
+    "ms": 28.9,
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_write_file.py::TestWriteFileIntegration::test_per_file_mode_writes_one_per_record[asyncio]": {

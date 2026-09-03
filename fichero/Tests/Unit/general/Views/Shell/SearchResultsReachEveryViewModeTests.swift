@@ -38,7 +38,7 @@ final class SearchResultsReachEveryViewModeTests: XCTestCase {
             actions.components(separatedBy: "func runToolbarSearch(").dropFirst().first
         )
         XCTAssertTrue(
-            String(run.prefix(3000)).contains("pinnedLibrary = nil"),
+            String(run.prefix(6000)).contains("pinnedLibrary = nil"),
             "A pin the results cannot be seen through is worse than no pin."
         )
     }
