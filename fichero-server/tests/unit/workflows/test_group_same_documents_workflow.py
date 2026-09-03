@@ -81,6 +81,46 @@ def test_group_same_documents_preset_clusters_known_duplicates(tmp_path: Path):
     assert len(move_audits) == 2
 
 
+def test_group_same_documents_normalises_percentage_cluster_scores(tmp_path: Path):
+    """A model that echoes the aspect percentage scale (0-100) into
+    same_document_clusters must not blow up the run (live failure, gemini
+    flash-lite returned similarity_score=100 against the le=1.0 bound,
+    2026-09-03). Percentages are normalised to 0-1 fractions."""
+    library_path, folder_id, docs = _seed_duplicate_folder(tmp_path)
+    workflow = _load_workflow("Group Same Documents")
+
+    response = (
+        "{"
+        '"overall_similarity":87,'
+        '"aspect_scores":[{"aspect":"content","score":97}],'
+        '"most_similar":"content",'
+        '"most_different":"style",'
+        '"notes":"percentage-scale cluster scores.",'
+        '"same_document_clusters":['
+        '{"cluster_id":"cluster-a","member_indexes":[0,1],"similarity_score":100},'
+        '{"cluster_id":"cluster-b","member_indexes":[2],"similarity_score":41},'
+        '{"cluster_id":"cluster-c","member_indexes":[3],"similarity_score":38}'
+        "]}"
+    )
+
+    with patch(
+        "fichero_server.workflows.tools.similarity.vision",
+        new=AsyncMock(return_value=response),
+    ):
+        result = asyncio.run(
+            build_graph(workflow, skip_cache=True).ainvoke(
+                _workflow_state(
+                    library_path, folder_id, task_id="group-same-docs-percent"
+                )
+            )
+        )
+
+    assert not result.get("error")
+    clusters = result["outputs"]["similarity"]["value"]["same_document_clusters"]
+    assert [cluster["similarity_score"] for cluster in clusters] == [1.0, 0.41, 0.38]
+    assert clusters[0]["member_document_ids"] == [docs[0].id, docs[1].id]
+
+
 def _seed_duplicate_folder(tmp_path: Path) -> tuple[Path, str, list[Document]]:
     library_path = tmp_path / "same-document-clusters.fichero"
     seed(library_path)

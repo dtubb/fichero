@@ -13,7 +13,7 @@ import json
 import logging
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from fichero_server.db import db_manager
 from fichero_server.models import Artifact
@@ -72,6 +72,18 @@ class _RawSameDocumentCluster(BaseModel):
     cluster_id: str
     member_indexes: list[int] = Field(min_length=1)
     similarity_score: float = Field(ge=0.0, le=1.0)
+
+    @field_validator("similarity_score", mode="before")
+    @classmethod
+    def _normalise_score(cls, value: Any) -> Any:
+        # The default prompt scores ASPECTS on a 0-100 percentage scale, so
+        # models routinely echo the same scale here (gemini flash-lite
+        # returned 100 and the le=1.0 bound blew up the whole run,
+        # 2026-09-03). The cluster score is defined as a 0-1 fraction;
+        # accept an obvious percentage and normalise instead of failing.
+        if isinstance(value, (int, float)) and 1.0 < float(value) <= 100.0:
+            return float(value) / 100.0
+        return value
 
 
 class SameDocumentClusterResult(BaseModel):
@@ -167,6 +179,9 @@ Return as JSON:
         }}
     ]
 }}
+
+In same_document_clusters, similarity_score is a fraction between 0 and 1
+(NOT a percentage), regardless of the aspect score scale above.
 
 Return ONLY valid JSON."""
 
