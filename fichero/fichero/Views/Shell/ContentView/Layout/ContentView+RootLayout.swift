@@ -294,6 +294,14 @@ extension ContentView {
                 clearTransientSearch()
             }
         }
+        // RE-clicking the current sidebar folder exits search (Daniel,
+        // 2026-09-02): the sidebar can't reach the transient-search state,
+        // so it posts and this window answers.
+        .onReceive(
+            NotificationCenter.default.publisher(for: .sidebarReselectedCurrent)
+        ) { _ in
+            if activeSearchQuery != nil { clearTransientSearch() }
+        }
         .onAppear {
             handleOnAppear()
             syncFocusedDocumentSelection(detailDocument)

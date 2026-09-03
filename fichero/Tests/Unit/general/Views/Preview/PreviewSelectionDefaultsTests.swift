@@ -285,3 +285,20 @@ struct WorkflowPickerReachesPresetTests {
         ) == nil)
     }
 }
+
+// MARK: - Re-clicking the current folder exits search (B10)
+
+struct SidebarReselectExitsSearchTests {
+    private func appSource(_ path: String) throws -> String {
+        try String(contentsOf: AppSource.root().appendingPathComponent(path), encoding: .utf8)
+    }
+
+    @Test("the sidebar posts on a no-reroute reselect; the shell exits search")
+    func reselectExitsSearch() throws {
+        let sidebar = try appSource("Views/Sidebar/Sections/SidebarView+ViewComponents.swift")
+        #expect(sidebar.contains("sidebarReselectedCurrent"))
+        let shell = try appSource("Views/Shell/ContentView/Layout/ContentView+RootLayout.swift")
+        #expect(shell.contains(".sidebarReselectedCurrent"))
+        #expect(shell.contains("if activeSearchQuery != nil { clearTransientSearch() }"))
+    }
+}
