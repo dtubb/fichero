@@ -212,6 +212,13 @@ struct GoMenuCommands: Commands {
             Divider()
             NavigateToParentButton()
         }
+        // Help-menu manual link (Daniel, 2026-09-03: "add to help menu link
+        // to user manual"). It rides in this composed element because the app
+        // CommandsBuilder is at its arity cap (#3347) — a standalone
+        // `CommandGroup(after: .help)` in FicheroApp would be the 11th entry.
+        CommandGroup(after: .help) {
+            Link("Fichero User Manual", destination: URL(string: "https://tubb.ca/apps/fichero/")!)
+        }
     }
 }
 
