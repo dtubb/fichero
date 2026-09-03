@@ -155,7 +155,7 @@ struct AboutView: View {
 
             HStack(spacing: 12) {
                 Link("Fichero on GitHub", destination: AboutLinks.repository)
-                Link("MIT License", destination: AboutLinks.license)
+                Link("AGPL-3.0 License", destination: AboutLinks.license)
                 Button("Acknowledgements") {
                     isAcknowledgementsPresented = true
                 }
