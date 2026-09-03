@@ -524,6 +524,34 @@ class FicheroClient:
             )
         except httpx.ConnectError as exc:
             raise _connect_error(self.base_url, exc) from exc
+        except httpx.RemoteProtocolError as exc:
+            # A pooled keep-alive connection the server already closed (uvicorn
+            # expires idle connections after ~5s; a blocked engine loop expires
+            # them mid-poll too) surfaces as "Server disconnected without
+            # sending a response". The request never reached a handler, so a
+            # GET is safe to retry ONCE on a fresh connection. Non-GETs are
+            # not retried: the disconnect is ambiguous about whether the write
+            # was processed. Found live 2026-09-03: every `workflow run --wait`
+            # poll against a busy engine died here and reported cli_error for
+            # runs that actually completed.
+            if method.upper() != "GET":
+                raise FicheroError(f"{method} {path} failed: {exc}") from exc
+            try:
+                response = self._client.request(
+                    method,
+                    path,
+                    params=_clean(params),
+                    json=json,
+                    files=files,
+                    headers=self._headers(),
+                )
+            except httpx.ConnectError as retry_exc:
+                raise _connect_error(self.base_url, retry_exc) from retry_exc
+            except httpx.HTTPError as retry_exc:
+                raise FicheroError(
+                    f"{method} {path} failed after retrying a dropped "
+                    f"keep-alive connection: {retry_exc}"
+                ) from retry_exc
         except httpx.HTTPError as exc:
             raise FicheroError(f"{method} {path} failed: {exc}") from exc
 
