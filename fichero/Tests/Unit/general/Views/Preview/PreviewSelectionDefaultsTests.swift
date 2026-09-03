@@ -302,3 +302,21 @@ struct SidebarReselectExitsSearchTests {
         #expect(shell.contains("if activeSearchQuery != nil { clearTransientSearch() }"))
     }
 }
+
+// MARK: - The reader's Showing submenu asks ITS OWN library (B12)
+
+struct ReaderShowingMenuScopeTests {
+    private func appSource(_ path: String) throws -> String {
+        try String(contentsOf: AppSource.root().appendingPathComponent(path), encoding: .utf8)
+    }
+
+    @Test("the lens loader prefers the pane's injected artifact service")
+    func lensLoaderUsesPaneService() throws {
+        let lens = try appSource("Views/Reader/Page/ReadingPaneView+ArtifactLens.swift")
+        #expect(lens.contains("paneArtifactService ?? library?.artifactService"),
+                "the app-global currentLibraryId pointer answered for the "
+                + "wrong library in a multi-library window — empty submenu")
+        let pane = try appSource("Views/Reader/Page/ReadingPaneView.swift")
+        #expect(pane.contains("var paneArtifactService: ArtifactService?"))
+    }
+}

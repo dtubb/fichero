@@ -305,11 +305,17 @@ extension ReadingPaneView {
         artifactLensChoices = []
         readerRepresentation = nil
         readerRepresentationChoices = []
-        guard let doc = effectiveDocument,
-              let library = LibraryManager.shared
-                  .getLibrary(id: LibraryManager.shared.currentLibraryId ?? LibraryManager.globalLibraryId)
+        guard let doc = effectiveDocument else { return }
+        // The pane's OWN injected service first (2026-09-02): the
+        // currentLibraryId lookup is the app-global pointer, and in a
+        // multi-library window it named a different library than this pane —
+        // the artifact fetch answered for the wrong scope and the "Showing"
+        // submenu rendered empty (Daniel: "reader view has no artefact
+        // submenu"). The lookup stays only as the headless-host fallback.
+        let library = LibraryManager.shared
+            .getLibrary(id: LibraryManager.shared.currentLibraryId ?? LibraryManager.globalLibraryId)
+        guard let service = paneArtifactService ?? library?.artifactService
         else { return }
-        let service = library.artifactService
         // ONE fetch answers both head controls: the whole scope's artifacts
         // (pages included) drive the representation switcher; the document's
         // OWN artifacts drive the per-artifact lens, as before.
@@ -324,7 +330,7 @@ extension ReadingPaneView {
         // node exactly (a page annotation stores the page's id), so the scope
         // check asks about the shown node AND the descendant nodes the
         // artifact fetch just named — capped, first hit wins.
-        if await Self.scopeHasAnnotations(
+        if let library, await Self.scopeHasAnnotations(
             documentId: doc.id,
             descendantIds: artifacts.map(\.documentId),
             annotationService: library.annotationService

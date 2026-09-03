@@ -31,6 +31,11 @@ struct ReadingPaneView: View {
     var searchHighlightQuery: String = ""
 
     @Environment(APIClient.self) var apiClient
+    /// THIS window's artifact service (2026-09-02): the lens loader used to
+    /// resolve `LibraryManager.currentLibraryId` — the app-globally current
+    /// library, not this pane's — so in a multi-library window the "Showing"
+    /// artifact submenu queried the wrong library and came back empty.
+    @Environment(ArtifactService.self) var paneArtifactService: ArtifactService?
     /// The existing busy-state source for per-page run progress (#4357): the
     /// store's run target record (#4295) plus the live page content it splices
     /// in mid-run (#4318). No second notion of "this document is working".
