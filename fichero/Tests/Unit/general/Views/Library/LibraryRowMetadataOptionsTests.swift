@@ -55,8 +55,9 @@ struct LibraryRowMetadataOptionsTests {
     func menuShowsCheckmarks() throws {
         let source = try AppSource.text("Views/Library/LibraryRowAttributes.swift")
         #expect(source.contains("Toggle(attribute.title, isOn: LibraryRowAttributes.binding("),
-                "a macOS menu renders a Toggle as a checkmark item and re-reads its "
-                    + "binding each time it opens — that is the state display Daniel asked for")
+                Comment(rawValue: "a macOS menu renders a Toggle as a checkmark item "
+                    + "and re-reads its binding each time it opens — the state display "
+                    + "Daniel asked for"))
         #expect(!source.contains("Label(attribute.title, systemImage: \"checkmark\")"),
                 "the tick belonged in the icon slot, which is not a checkmark affordance")
     }
@@ -67,8 +68,8 @@ struct LibraryRowMetadataOptionsTests {
         // The popover's own copy of the get/set is gone: two coats, one rule.
         #expect(source.contains("enum LibraryRowAttributes"))
         #expect(source.components(separatedBy: "LibraryRowAttribute.raw(from: set)").count - 1 == 1,
-                "the CSV round-trip must live in ONE place, or the popover and the "
-                    + "menu can toggle differently")
+                Comment(rawValue: "the CSV round-trip must live in ONE place, or the "
+                    + "popover and the menu can toggle differently"))
     }
 
     @Test("toggling round-trips through the CSV codec")
@@ -112,8 +113,8 @@ struct LibraryRowMetadataOptionsTests {
     func rowReservesTheChosenLines() throws {
         let row = try AppSource.text("Views/Library/LibraryViewComponents.swift")
         #expect(row.contains(".lineLimit(contentLines, reservesSpace: true)"),
-                "reservesSpace is the #4191 density cap — a document whose transcript "
-                    + "lands late must not re-pitch the list under a scroll")
+                Comment(rawValue: "reservesSpace is the #4191 density cap — a document "
+                    + "whose transcript lands late must not re-pitch the list under a scroll"))
         #expect(!row.contains(".lineLimit(2, reservesSpace: true)"),
                 "the hard-coded 2 is what the option replaces")
     }
@@ -128,8 +129,8 @@ struct LibraryRowMetadataOptionsTests {
 
         let helpers = try AppSource.text("Views/Library/ViewModes/LibraryView+Helpers.swift")
         #expect(helpers.contains("var contentLines: Int = LibraryRowContentLines.defaultValue.rawValue"),
-                "without it in DocRowIdentity, .equatable() suppresses the redraw and "
-                    + "changing the setting appears to do nothing")
+                Comment(rawValue: "without it in DocRowIdentity, .equatable() suppresses "
+                    + "the redraw and changing the setting appears to do nothing"))
     }
 
     @Test("both coats of the control offer the content-lines choice")

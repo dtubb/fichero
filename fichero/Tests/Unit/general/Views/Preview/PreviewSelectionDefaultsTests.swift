@@ -75,8 +75,8 @@ struct PreviewSelectionDefaultsTests {
             separatedBy: "FocusedArtifact.shared.select("
         ).count - 1
         #expect(focusCalls >= 2,
-                "both promote paths must focus the written artifact, or the "
-                + "authority ladder re-ranks it away on the next reload")
+                Comment(rawValue: "both promote paths must focus the written artifact, or the "
+                + "authority ladder re-ranks it away on the next reload"))
     }
 
     @Test("the focused artifact outranks the authority ladder")
@@ -94,8 +94,8 @@ struct PreviewSelectionDefaultsTests {
     func artifactRowFocuses() throws {
         let panel = try appSource("Views/Inspector/Artifacts/ArtifactPanel+Regions.swift")
         #expect(panel.contains("FocusedArtifact.shared.select("),
-                "row selection must point the preview at the artifact the "
-                + "indices belong to, or the selection lights nothing")
+                Comment(rawValue: "row selection must point the preview at the artifact "
+                    + "the indices belong to, or the selection lights nothing"))
         #expect(panel.contains("fullArtifact = full"))
     }
 
@@ -314,8 +314,8 @@ struct ReaderShowingMenuScopeTests {
     func lensLoaderUsesPaneService() throws {
         let lens = try appSource("Views/Reader/Page/ReadingPaneView+ArtifactLens.swift")
         #expect(lens.contains("paneArtifactService ?? library?.artifactService"),
-                "the app-global currentLibraryId pointer answered for the "
-                + "wrong library in a multi-library window — empty submenu")
+                Comment(rawValue: "the app-global currentLibraryId pointer answered for the "
+                + "wrong library in a multi-library window — empty submenu"))
         let pane = try appSource("Views/Reader/Page/ReadingPaneView.swift")
         #expect(pane.contains("var paneArtifactService: ArtifactService?"))
     }
