@@ -1628,7 +1628,7 @@ def artifacts_get(
 
 # Backend accepts only these search types (#1107). `keyword` is a friendly
 # alias for `fulltext` so users with that mental model don't get a 400.
-_SEARCH_TYPE_CHOICES = ("semantic", "fulltext", "hybrid", "keyword")
+_SEARCH_TYPE_CHOICES = ("semantic", "fulltext", "hybrid", "hybrid_graph", "keyword")
 _SEARCH_TYPE_ALIASES = {"keyword": "fulltext"}
 _SEARCH_SCOPE_CHOICES = ("content", "entities", "claims")
 

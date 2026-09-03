@@ -757,7 +757,7 @@ class SearchRequest(BaseModel):
     min_score: float = 0.55
 
     # Advanced search options
-    search_type: str = "hybrid"  # "semantic", "fulltext", or "hybrid"
+    search_type: str = "hybrid"  # "semantic" | "fulltext" | "hybrid" | "hybrid_graph"
     filters: dict | None = (
         None  # Advanced filters (doc_type, file_type, date ranges, etc.)
     )
@@ -829,6 +829,17 @@ class SearchResponse(BaseModel):
     has_more: bool = False  # Whether more results are available
     filters_applied: dict | None = None  # Filters that were applied
     suggestions: list[str] | None = None  # Search suggestions
+
+    # LEG VISIBILITY (Daniel, 2026-09-02: "the human ought to know what's
+    # going on"). Which retrievers ran, what each contributed, and whether
+    # the whole answer is only weak semantic neighbours — so the UX can say
+    # "no literal matches; showing closest pages" instead of dressing a
+    # fused rank up as confidence.
+    legs: dict[str, int] | None = None  # {"semantic": n, "fulltext": n, "kg": n}
+    graph_leg_enabled: bool = False  # the opt-in hybrid_graph tier ran
+    best_semantic_similarity: float | None = None  # raw cosine of the best hit
+    weak_semantic_only: bool = False  # no literal/graph evidence, weak cosines
+    kg_entities: dict[str, int] | None = None  # {"matched": n, "reviewed": n}
 
     # Query compilation (#4116). AI = instrument: what the LLM compiled the
     # request into is always returned so the user sees and can edit what was
@@ -921,11 +932,16 @@ async def enhanced_search(
             suggestions=None,
         )
 
-    # Validate search type
-    if request.search_type not in ["semantic", "fulltext", "hybrid"]:
+    # Validate search type — Daniel's tier ladder (2026-09-02): full text /
+    # semantic / semantic+fulltext / semantic+fulltext+graph. Logical
+    # default stays "hybrid"; the graph leg is opt-in via "hybrid_graph".
+    if request.search_type not in ["semantic", "fulltext", "hybrid", "hybrid_graph"]:
         raise HTTPException(
             status_code=400,
-            detail="Invalid search_type. Must be 'semantic', 'fulltext', or 'hybrid'",
+            detail=(
+                "Invalid search_type. Must be 'semantic', 'fulltext', "
+                "'hybrid', or 'hybrid_graph'"
+            ),
         )
 
     # Validate sort options
@@ -1022,7 +1038,8 @@ async def enhanced_search(
     # all entity types, which is what makes clicking a blue lozenge
     # always return the doc the lozenge came from. (#481 / B4)
     bridge_run = search_content and (
-        request.search_type in ("hybrid", "fulltext") or skip_retriever
+        request.search_type in ("hybrid", "hybrid_graph", "fulltext")
+        or skip_retriever
     )
     if bridge_run:
         seen_ids = {r.document_id for r in results}
@@ -1363,6 +1380,11 @@ async def enhanced_search(
         execution_time_ms=search_stats.get("execution_time_ms", 0),
         has_more=search_stats.get("has_more", False),
         filters_applied=request.filters,
+        legs=search_stats.get("legs"),
+        graph_leg_enabled=search_stats.get("graph_leg_enabled", False),
+        best_semantic_similarity=search_stats.get("best_semantic_similarity"),
+        weak_semantic_only=search_stats.get("weak_semantic_only", False),
+        kg_entities=search_stats.get("kg_entities"),
         suggestions=suggestions,
         compiled_query=compiled_query,
         compilation_error=compilation_error,

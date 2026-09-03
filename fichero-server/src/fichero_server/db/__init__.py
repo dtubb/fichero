@@ -4887,11 +4887,26 @@ class Database(DatabaseEmbeddingMixin):
         expanded = list(terms)
         matched_entity_ids: set[str] = set()
         seen_folded = set(terms)
+
+        # WHOLE-WORD matching (Daniel, 2026-09-02: "entity alias matching
+        # might be an issue" — it was). The old bidirectional substring test
+        # let "cat" match "cattle" and any two-letter NER fragment match
+        # half the dictionary, and those phantom entities then fed the KG
+        # leg and alias expansion. A term matches a surface only when it
+        # equals it or appears as a whole word inside it, and only at three
+        # characters or more.
+        def _term_hits_surface(term: str, folded_surface: str) -> bool:
+            if len(term) < 3 or len(folded_surface) < 3:
+                return term == folded_surface
+            if term == folded_surface:
+                return True
+            return f" {term} " in f" {folded_surface} "
+
         for entity in entities:
             surfaces = [entity.canonical_name, *entity.aliases]
             folded_surfaces = [_fold_for_search(s or "") for s in surfaces]
             if not any(
-                term in folded_surface or folded_surface in term
+                _term_hits_surface(term, folded_surface)
                 for term in terms
                 for folded_surface in folded_surfaces
                 if folded_surface
@@ -4964,7 +4979,13 @@ class Database(DatabaseEmbeddingMixin):
             query: Search query text
             limit: Maximum results to return
             min_score: Minimum similarity score (0-1)
-            search_type: "semantic", "fulltext", or "hybrid"
+            search_type: "semantic", "fulltext", "hybrid", or "hybrid_graph".
+                The tiers are Daniel's ladder (2026-09-02): full text /
+                semantic / semantic+graph (+RAG later). Plain "hybrid" fuses
+                the TEXT legs only — the knowledge-graph leg joins ONLY in
+                "hybrid_graph", because on a library with noisy NER entities
+                the KG leg reordered results for queries the graph knows
+                nothing about ("cattle").
             filters: Advanced filters (doc_type, file_type, date ranges, etc.)
             sort_by: "relevance", "date", "name", "size"
             sort_order: "asc" or "desc"
@@ -4978,6 +4999,12 @@ class Database(DatabaseEmbeddingMixin):
 
         if not query or not query.strip():
             return [], 0, {"search_type": "none"}
+
+        # The graph tier is OPT-IN (Daniel's ladder, 2026-09-02); internally
+        # it is hybrid fusion plus the KG leg.
+        include_graph = search_type == "hybrid_graph"
+        if include_graph:
+            search_type = "hybrid"
 
         start_time = time.time()
         results = []
@@ -5065,6 +5092,13 @@ class Database(DatabaseEmbeddingMixin):
                                     "page_id": r.get("page_id"),
                                     "char_start": r.get("char_start"),
                                     "char_end": r.get("char_end"),
+                                    # The RAW cosine survives fusion (Daniel,
+                                    # 2026-09-02): the fused rank score gets
+                                    # projected to ~1.0 for the top hit, which
+                                    # dressed a weak 0.73 neighbour as an 87%
+                                    # match in the UI. The UX can now say what
+                                    # the match actually was.
+                                    "semantic_similarity": score,
                                 },
                             }
                         )
@@ -5081,6 +5115,26 @@ class Database(DatabaseEmbeddingMixin):
                     )
 
             # Perform full-text search if requested
+            # BEST PASSAGE PER DOCUMENT before any fusion (2026-09-02,
+            # Daniel's 'cattle' case): the vector table holds PASSAGE rows,
+            # and RRF sums a contribution per ROW — so a long page with many
+            # mediocre passages (Σ 1/(k+rank) over five 0.6s) out-ranked a
+            # page whose single best passage was the corpus's closest match.
+            # A document's semantic rank is its BEST passage, and that
+            # passage's text/offsets are exactly what the excerpt should
+            # show. Order by cosine so downstream rank-based fusion sees the
+            # honest per-document ordering.
+            if semantic_results:
+                best_by_doc: dict[str, dict] = {}
+                for row in semantic_results:
+                    doc_id = row["document_id"]
+                    prior = best_by_doc.get(doc_id)
+                    if prior is None or row["score"] > prior["score"]:
+                        best_by_doc[doc_id] = row
+                semantic_results = sorted(
+                    best_by_doc.values(), key=lambda r: r["score"], reverse=True
+                )
+
             if search_type in ["fulltext", "hybrid"]:
                 try:
                     # Use DuckDB for full-text search
@@ -5352,11 +5406,16 @@ class Database(DatabaseEmbeddingMixin):
 
                 _rrf_add(semantic_results, "semantic")
                 _rrf_add(fulltext_results, "fulltext")
-                # KG evidence as a REAL fusion leg (#1833 M1): claims and
-                # entity links rank documents alongside text similarity,
-                # instead of the post-hoc +0.1 staple (skipped below for
-                # hybrid so the same evidence never counts twice).
-                kg_results = self._kg_evidence_results(query, matched_entity_ids)
+                # KG evidence as a REAL fusion leg (#1833 M1) — but ONLY on
+                # the graph tier (Daniel, 2026-09-02): claims and entity
+                # links rank documents alongside text similarity when asked
+                # for, instead of silently reordering every hybrid search on
+                # whatever entities a noisy NER pass left behind.
+                kg_results = (
+                    self._kg_evidence_results(query, matched_entity_ids)
+                    if include_graph
+                    else []
+                )
                 _rrf_add(kg_results, "kg")
 
                 # Project the RRF score into [0, 1] for UI display: the
@@ -5425,8 +5484,11 @@ class Database(DatabaseEmbeddingMixin):
 
             # Entity-aware rank bonus for the SINGLE-leg search types only:
             # hybrid now fuses KG evidence as its own RRF leg above, and the
-            # same evidence must not count twice (#1833 M1).
-            if search_type != "hybrid":
+            # same evidence must not count twice (#1833 M1). Graph evidence
+            # is OPT-IN everywhere (Daniel, 2026-09-02): with no graph — or
+            # a garbage one — it must be possible to keep it out of the
+            # ranking entirely rather than pollute the results.
+            if search_type != "hybrid" and include_graph:
                 boosted_doc_ids = self._entity_bonus_doc_ids(matched_entity_ids)
                 if boosted_doc_ids:
                     for item in combined_results:
@@ -5611,6 +5673,14 @@ class Database(DatabaseEmbeddingMixin):
                         )
                         highlights.append(highlighted)
 
+                # WHICH LEGS matched this row rides the metadata (Daniel,
+                # 2026-09-02, visibility): without it, a surprising #1 hit
+                # cannot even be diagnosed, let alone explained in the UI.
+                row_metadata = dict(result["metadata"] or {})
+                if result.get("match_sources"):
+                    row_metadata["match_sources"] = result["match_sources"]
+                if result.get("lexical_strength"):
+                    row_metadata["lexical_strength"] = result["lexical_strength"]
                 results.append(
                     SearchResult(
                         document_id=result["document_id"],
@@ -5619,7 +5689,7 @@ class Database(DatabaseEmbeddingMixin):
                             result["content"],
                             transcript_excerpts,
                         ),
-                        metadata=result["metadata"],
+                        metadata=row_metadata,
                         highlights=highlights,
                         transcript_excerpts=transcript_excerpts,
                     )
@@ -5633,6 +5703,44 @@ class Database(DatabaseEmbeddingMixin):
             search_stats["total_results"] = total_count
             search_stats["returned_results"] = len(results)
             search_stats["has_more"] = (offset + len(results)) < total_count
+            # LEG VISIBILITY (Daniel, 2026-09-02: "the human ought to know in
+            # search options what's going on"): which retrievers ran and what
+            # each contributed, so the UX can SAY "semantic only, no literal
+            # matches" instead of presenting a fused rank as confidence.
+            best_semantic = max(
+                (r.get("score", 0.0) for r in semantic_results), default=0.0
+            )
+            kg_leg_count = len(kg_results) if include_graph else 0
+            search_stats["legs"] = {
+                "semantic": len(semantic_results),
+                "fulltext": len(fulltext_results),
+                "kg": kg_leg_count,
+            }
+            search_stats["graph_leg_enabled"] = include_graph
+            search_stats["best_semantic_similarity"] = round(best_semantic, 4)
+            # Curation visibility (Daniel: "check uncurated or curated —
+            # make it all visible"): how many query-matched entities fed the
+            # graph leg, and how many of those a human has reviewed.
+            if include_graph and matched_entity_ids:
+                from fichero_server.models.knowledge import KnowledgeEntity
+
+                reviewed = 0
+                for entity_id in matched_entity_ids:
+                    entity = self.get(KnowledgeEntity, entity_id)
+                    if entity is not None and entity.curation_state != "unreviewed":
+                        reviewed += 1
+                search_stats["kg_entities"] = {
+                    "matched": len(matched_entity_ids),
+                    "reviewed": reviewed,
+                }
+            # No literal matches anywhere and only weak neighbours: the
+            # honest headline is "closest pages", not "45 results".
+            search_stats["weak_semantic_only"] = bool(
+                not fulltext_results
+                and kg_leg_count == 0
+                and semantic_results
+                and best_semantic < 0.75
+            )
 
             return results, total_count, search_stats
 
