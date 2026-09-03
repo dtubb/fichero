@@ -197,6 +197,12 @@ def test_keyless_fresh_install_passes_preflight_for_every_default_workflow(
         "AI Convert to HTML",
         "AI Convert to Markdown",
         "AI Redraw as SVG",
+        # analyze declares requires_generative_model since 2026-09-03 — the
+        # paleography derivations refuse keyless at preflight instead of
+        # failing mid-run on apple-vision.
+        "Regesto (Archival Abstract)",
+        "Modernización (Spanish)",
+        "Translate to English (Historical)",
     }
 
     # 2026-08-26 redesign: the Pipeline preset DELEGATES to the paleography
@@ -474,3 +480,25 @@ def test_translate_on_a_generative_model_is_untouched(monkeypatch):
     assert validate_workflow_llm_preflight(
         _workflow_for(node), LLMConfig(provider="apple", model="apple-intelligence")
     ) == []
+
+
+def test_analyze_refuses_ocr_only_vision_model(monkeypatch):
+    """analyze answers a custom prompt — the paleography presets (Regesto,
+    Modernización, Translate to English (Historical)) all ride on it. On
+    factory defaults they passed preflight and failed MID-RUN on apple-vision
+    (live, 2026-09-03); the tool now declares requires_generative_model."""
+    _common_env(monkeypatch, api_key=None)
+    node = NodeDef(
+        id="regesto",
+        tool="analyze",
+        provider_name="apple",
+        model_name="apple-vision",
+    )
+
+    errors = validate_workflow_llm_preflight(
+        _workflow_for(node), LLMConfig(provider="", model="")
+    )
+
+    assert len(errors) == 1
+    assert "generation-capable vision model" in errors[0]
+    assert "regesto" in errors[0]

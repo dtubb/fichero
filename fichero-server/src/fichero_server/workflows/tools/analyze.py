@@ -65,6 +65,11 @@ ANALYZE_CONFIG = {}  # Empty - all options inherited
     uses_llm=True,
     supports_batch=True,
     supports_structured_output=True,
+    # analyze answers a custom PROMPT, which recognition-only Apple Vision
+    # ignores — without this flag the paleography presets (Regesto,
+    # Modernización, Translate to English (Historical)) passed preflight on
+    # factory defaults and failed mid-run instead (live, 2026-09-03).
+    requires_generative_model=True,
     input_ports=VISION_INPUT_PORTS,
     output_ports=BASE_OUTPUT_PORTS,
     config_schema=merge_config_schema(VISION_CONFIG_SCHEMA, ANALYZE_CONFIG),
