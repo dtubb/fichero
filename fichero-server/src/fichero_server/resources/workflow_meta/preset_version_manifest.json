@@ -1,7 +1,7 @@
 {
  "capture_ocr_transcribe.json": {
-  "preset_version": 1,
-  "sha256": "582ec1997db79a555ebfdad9186baa1d7d1cc8a8635b86d1240790d01f5ee9a1"
+  "preset_version": 2,
+  "sha256": "0b67751fe6c93d759acff68214621189951ac0fbef2c1692de47e775c0873645"
  },
  "catalogue.json": {
   "preset_version": 5,

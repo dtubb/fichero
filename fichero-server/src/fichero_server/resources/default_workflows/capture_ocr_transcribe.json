@@ -14,7 +14,7 @@
     "pdf"
   ],
   "config": {
-    "preset_version": 1
+    "preset_version": 2
   },
   "nodes": [
     {
@@ -47,7 +47,9 @@
       "label": "Enhance Images",
       "position_x": 520,
       "position_y": 200,
-      "inputs": {},
+      "inputs": {
+        "documents": "$.nodes.files-source.documents"
+      },
       "config": {
         "contrast": 1.25,
         "sharpness": 1.1,
@@ -62,7 +64,9 @@
       "label": "Transcribe Capture",
       "position_x": 740,
       "position_y": 200,
-      "inputs": {},
+      "inputs": {
+        "documents": "$.nodes.files-source.documents"
+      },
       "config": {
         "vision_mode": "auto",
         "language": "auto",
@@ -87,25 +91,11 @@
       "target_port": "files"
     },
     {
-      "id": "edge-documents-enhance-images",
-      "source": "files-source",
-      "target": "enhance_images",
-      "source_port": "documents",
-      "target_port": "documents"
-    },
-    {
       "id": "edge-prepared-files-enhance-images",
       "source": "prepare_images",
       "target": "enhance_images",
       "source_port": "output_files",
       "target_port": "files"
-    },
-    {
-      "id": "edge-documents-transcribe",
-      "source": "files-source",
-      "target": "transcribe",
-      "source_port": "documents",
-      "target_port": "documents"
     },
     {
       "id": "edge-enhanced-files-transcribe",

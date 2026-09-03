@@ -982,13 +982,24 @@ class TestLoadPresetFiles:
             and e["target_port"] == "files"
             for e in preset["edges"]
         ), "prepared derived files must flow into enhance_images"
-        assert any(
-            e["source"] == files_id
-            and e["target"] == transcribe_id
-            and e["source_port"] == "documents"
-            and e["target_port"] == "documents"
+        # Documents reach enhance/transcribe via STATIC INPUT MAPPINGS, not
+        # edges (2026-09-03): transcribe is a PARALLEL tool, and any edge from
+        # the files SOURCE marked it for per-file fan-out — so it transcribed
+        # the ORIGINAL files the moment the source completed (before
+        # prepare/enhance ran), then the enhance->transcribe chain edge fired
+        # the Send-expecting _process node once more with no payload
+        # ("File not found:" on an empty path). Single inbound edge + static
+        # documents mapping is the #837 pattern; guarded repo-wide by
+        # test_preset_parallel_edge_rules.py.
+        for node_id, label in ((enhance_id, "enhance_images"), (transcribe_id, "transcribe")):
+            node = next(n for n in preset["nodes"] if n["id"] == node_id)
+            assert (node.get("inputs") or {}).get("documents") == (
+                f"$.nodes.{files_id}.documents"
+            ), f"original documents must reach {label} via a static inputs mapping"
+        assert not any(
+            e["source"] == files_id and e["target"] == transcribe_id
             for e in preset["edges"]
-        ), "original documents must flow into transcribe for page-content persistence"
+        ), "no direct source->transcribe edge: it re-arms the broken fan-out"
         assert any(
             e["source"] == enhance_id
             and e["target"] == transcribe_id
