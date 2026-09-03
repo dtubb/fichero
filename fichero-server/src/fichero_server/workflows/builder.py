@@ -1099,9 +1099,12 @@ def _make_node_function(
                                 model=node_llm_config.model,
                                 file_paths=file_paths,
                             )
+                            # Unwrap the CacheEntry: the guard must judge the
+                            # RESULT dict, not the wrapper (bool(entry) is
+                            # always True, so a poisoned empty entry passed).
                             cached_result = seq_cache.get(seq_cache_key)
                             if cached_result is not None and not _result_worth_caching(
-                                cached_result
+                                cached_result.result
                             ):
                                 logger.info(
                                     "Stale empty sequential cache entry for %s; ignoring",
@@ -1817,7 +1820,18 @@ def _make_parallel_node_function(
                     # #837 follow-up). Without this, libraries that
                     # cached an empty Apple Vision result while a
                     # bug was active stay broken until manually cleared.
-                    cached_result = cache.get(cache_key)
+                    # cache.get returns a CacheEntry WRAPPER; the tool result
+                    # dict is entry.result. Both the worth-caching guard and
+                    # the parallel_results item must see the RESULT, not the
+                    # wrapper: feeding the entry through made the guard
+                    # vacuously true (bool(entry)) and made the aggregator's
+                    # isinstance(result, dict) miss every field — a cache HIT
+                    # "completed" with empty text and downstream nodes died
+                    # with "No text provided" (2026-09-02, Marshall sample).
+                    cached_entry = cache.get(cache_key)
+                    cached_result = (
+                        cached_entry.result if cached_entry is not None else None
+                    )
                     if cached_result is not None and not _result_worth_caching(cached_result):
                         logger.info(
                             f"Stale empty cache entry for {file_path}; ignoring + redoing"
