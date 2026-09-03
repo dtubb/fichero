@@ -234,3 +234,57 @@ def test_clean_text_end_to_end_preserves_diary_content():
 
 def test_clean_ocr_text_delegates_to_clean_text():
     assert clean_ocr_text("the the cat") == TextCleaner.clean_text("the the cat")
+
+
+# ---------------------------------------------------------------------------
+# Table awareness (2026-09-03): a tally/accounts page keeps its numbers
+# ---------------------------------------------------------------------------
+
+_MARSHALL_TALLY_PAGE = """1922
+Cali and La Cumbre
+97
+Bogotá
+18
+7
+Buenaventura
+Inafui and Inapi
+6
+Quildo
+5
+5
+Dredge ho. 3
+Travelling
+51
+172
+1,2
+At Audagaya
+3 6 5
+Day trips frun Andagaya included in above (72).
+dredge ho. 1
+Condoto
+34
+53"""
+
+
+def test_tabular_page_keeps_its_number_lines():
+    """Live regression (Marshall dredge-tally page, 2026-09-03): the per-line
+    'short pure number = page noise' drop deleted EVERY count on a page whose
+    content IS a numeric table. When >=25% of non-empty lines are numeric-ish
+    the page is a table and its numbers are kept.
+    """
+    cleaned = TextCleaner.remove_ocr_garbage_lines(_MARSHALL_TALLY_PAGE)
+    for value in ("97", "18", "51", "172", "34", "53", "3 6 5", "1,2"):
+        assert value in cleaned.splitlines(), f"tally value {value!r} was dropped"
+
+
+def test_prose_page_still_drops_stray_number_lines():
+    """A prose page with one stray page-number keeps the old behaviour."""
+    prose = (
+        "Went to church in the morning and wrote letters afterwards.\n"
+        "42\n"
+        "In the afternoon we walked to the river and back before supper.\n"
+        "Dinner with the Marshalls; long talk about the dredge accounts."
+    )
+    cleaned = TextCleaner.remove_ocr_garbage_lines(prose)
+    assert "42" not in cleaned.splitlines()
+    assert "Went to church in the morning and wrote letters afterwards." in cleaned

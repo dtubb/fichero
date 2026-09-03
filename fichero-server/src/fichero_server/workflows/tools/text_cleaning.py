@@ -56,6 +56,32 @@ class TextCleaner:
         lines = text.splitlines()
         kept: list[str] = []
 
+        # Table awareness (2026-09-03, Marshall dredge-tally page): "a short
+        # pure number is page noise" is only true on PROSE pages. On a tally /
+        # accounts page most lines ARE numbers — the old per-line drops
+        # deleted every count on the page (310 -> 257 chars, all data) while
+        # the run still reported success. When a substantial share of the
+        # page's non-empty lines are numeric-ish, the page is a table and its
+        # numbers are content: keep them.
+        numericish = re.compile(r"[\d\s.,+\-!'\"/]{1,20}")
+
+        def _is_tally_line(ln: str) -> bool:
+            # A plausible table VALUE: short, number-shaped, and not a digit
+            # blob ("290029090" is OCR soup, "172" or "3 6 5" is a count).
+            return (
+                numericish.fullmatch(ln) is not None
+                and any(c.isdigit() for c in ln)
+                and sum(c.isdigit() for c in ln) <= 6
+            )
+
+        non_empty = [ln.strip() for ln in lines if ln.strip()]
+        numeric_lines = sum(1 for ln in non_empty if _is_tally_line(ln))
+        page_is_tabular = (
+            numeric_lines >= 5
+            and bool(non_empty)
+            and (numeric_lines / len(non_empty)) >= 0.3
+        )
+
         for raw_line in lines:
             line = raw_line.strip()
             if not line:
@@ -85,6 +111,12 @@ class TextCleaner:
             # Drop extreme repeated-char lines such as "000000000000000000".
             collapsed = re.sub(r"\s+", "", line)
             if len(collapsed) >= 10 and len(set(collapsed)) <= 2:
+                continue
+
+            # On a tabular page a tally-shaped numeric line is content and
+            # skips both drops and the letters>=3 gate below.
+            if page_is_tabular and _is_tally_line(line):
+                kept.append(line)
                 continue
 
             # Drop very short pure number lines (page noise / OCR residue).
