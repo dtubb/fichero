@@ -528,3 +528,90 @@ def test_export_word_docx_raises_for_missing_declared_image_source(db, tmp_path,
     with pytest.raises(ValueError, match=image.id):
         export_word_docx(db, tmp_path / "export.docx", target_id=root.id)
     assert image.id in caplog.text
+
+
+def test_iter_export_records_exports_unsourced_knowledge_at_library_scope(db):
+    """An entity/claim with NO source documents still reaches a whole-library
+    export (library-scope record) instead of being silently dropped —
+    hand-created rows (MCP kg_entity_upsert, agent chat) carry no sources."""
+    page = Document(
+        id="page-a",
+        name="Folio A",
+        doc_type=DocType.file,
+        file_type=FileType.text,
+        page_content="text",
+    )
+    entity = KnowledgeEntity(
+        id="entity-unsourced",
+        canonical_name="Hand-made Entity",
+        entity_type=EntityType.person,
+        source_document_ids=[],
+    )
+    claim = KnowledgeClaim(
+        id="claim-unsourced",
+        text="A hand-written claim.",
+        entity_ids=[entity.id],
+        claim_type=ClaimType.fact,
+    )
+    for row in (page, entity, claim):
+        db.save(row)
+
+    records = list(iter_export_records(db))
+    entities = [r for r in records if r["record_type"] == "entity"]
+    claims = [r for r in records if r["record_type"] == "claim"]
+    assert [e["id"] for e in entities] == ["entity-unsourced"]
+    assert entities[0]["scope_kind"] == "library"
+    assert entities[0]["scope_id"] is None
+    assert entities[0]["found_in_document_id"] is None
+    assert [c["id"] for c in claims] == ["claim-unsourced"]
+    assert claims[0]["scope_kind"] == "library"
+
+
+def test_iter_export_records_scoped_export_still_drops_unsourced_knowledge(db):
+    """A folder-scoped export promises that folder's knowledge only: an
+    unsourced row cannot be placed inside any folder and stays out."""
+    root = Document(id="scoped-root", name="Archivo", doc_type=DocType.folder)
+    page = Document(
+        id="scoped-page",
+        name="Folio",
+        parent_id=root.id,
+        doc_type=DocType.file,
+        file_type=FileType.text,
+    )
+    entity = KnowledgeEntity(
+        id="entity-unsourced-scoped",
+        canonical_name="Floating Entity",
+        entity_type=EntityType.person,
+        source_document_ids=[],
+    )
+    for row in (root, page, entity):
+        db.save(row)
+
+    records = list(iter_export_records(db, target_id=root.id))
+    assert [r["record_type"] for r in records] == ["document"]
+
+
+def test_export_eleventy_site_renders_unsourced_entity_without_page_link(db, tmp_path):
+    page = Document(
+        id="page-b",
+        name="Folio B",
+        doc_type=DocType.file,
+        file_type=FileType.text,
+        page_content="text",
+    )
+    entity = KnowledgeEntity(
+        id="entity-unsourced-11ty",
+        canonical_name="Floating Entity",
+        entity_type=EntityType.person,
+        source_document_ids=[],
+    )
+    db.save(page)
+    db.save(entity)
+
+    result = export_eleventy_site(db, output_path=tmp_path / "site", overwrite=True)
+    entity_pages = [
+        f.path for f in result.files if "floating-entity" in str(f.path).lower()
+    ]
+    assert entity_pages, "unsourced entity page missing from the 11ty export"
+    body = Path(entity_pages[0]).read_text(encoding="utf-8")
+    assert "library-level (no source page)" in body

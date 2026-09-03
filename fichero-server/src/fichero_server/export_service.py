@@ -155,7 +155,9 @@ def iter_export_records(
             "workflow_runs": doc.workflow_runs,
         }
 
-    entities, claims = _knowledge_graph_rows(db, documents)
+    entities, claims = _knowledge_graph_rows(
+        db, documents, include_unsourced=target_id is None
+    )
     for entity in entities:
         for scope in _knowledge_scope_records(
             entity.source_document_ids,
@@ -163,7 +165,7 @@ def iter_export_records(
             root_id,
             granularity,
             allowed_doc_ids=doc_ids,
-        ):
+        ) or _library_scope_fallback(entity.source_document_ids, target_id):
             yield {
                 "record_type": "entity",
                 "granularity": granularity,
@@ -192,7 +194,7 @@ def iter_export_records(
             allowed_doc_ids=doc_ids,
             page_label=claim.source_page_label,
             excerpt=claim.source_excerpt,
-        ):
+        ) or _library_scope_fallback(source_ids, target_id):
             yield {
                 "record_type": "claim",
                 "granularity": granularity,
@@ -431,6 +433,39 @@ def _scope_for_document(
         "scope_name": provenance["found_in_box_collection_name"] or doc.name,
         "scope_kind": "box-collection",
     }
+
+
+def _library_scope_fallback(
+    source_document_ids: list[str],
+    target_id: str | None,
+) -> list[dict[str, Any]]:
+    """Library-level scope for knowledge rows with NO source documents.
+
+    A hand-created entity/claim (MCP `kg_entity_upsert`, agent chat) can carry
+    an empty source list; before this fallback a whole-library export silently
+    omitted it — an export claiming completeness while dropping rows. On a
+    scoped (folder) export an unsourced row still exports nowhere: it cannot be
+    placed inside any folder, and scoped exports promise only that folder's
+    knowledge. Rows whose sources are merely OUTSIDE the scope keep the
+    existing behavior (dropped from scoped exports) and are unaffected here.
+    """
+    if source_document_ids or target_id is not None:
+        return []
+    return [
+        {
+            "scope_id": None,
+            "scope_name": None,
+            "scope_kind": "library",
+            "found_in_document_id": None,
+            "found_in_document_name": None,
+            "found_in_page_id": None,
+            "found_in_page_label": None,
+            "found_in_expediente_id": None,
+            "found_in_expediente_name": None,
+            "found_in_box_collection_id": None,
+            "found_in_box_collection_name": None,
+        }
+    ]
 
 
 def _knowledge_scope_records(
@@ -720,6 +755,10 @@ def _eleventy_page_link(
     page_paths_by_id: dict[str, Path],
     src_dir: Path,
 ) -> str:
+    if record.get("scope_kind") == "library" and record["found_in_page_id"] is None:
+        # Unsourced knowledge row exported at library scope — there is no
+        # source page to link to, and that absence is the honest statement.
+        return "library-level (no source page)"
     target = page_paths_by_id.get(record["found_in_page_id"])
     if target is None:
         raise ValueError(
@@ -1086,7 +1125,9 @@ def export_word_docx(
             body_parts.extend(_docx_paragraph(part) for part in _paragraphs(text))
 
     if include_knowledge_graph:
-        appendix = _docx_knowledge_graph_appendix(db, documents)
+        appendix = _docx_knowledge_graph_appendix(
+            db, documents, include_unsourced=target_id is None
+        )
         if appendix:
             body_parts.extend(appendix)
 
@@ -1133,7 +1174,9 @@ def export_excel_xlsx(
     output_file.parent.mkdir(parents=True, exist_ok=True)
 
     _, documents = _collect_documents(db, target_id=target_id, recursive=recursive)
-    entities, claims = _knowledge_graph_rows(db, documents)
+    entities, claims = _knowledge_graph_rows(
+        db, documents, include_unsourced=target_id is None
+    )
 
     document_rows = [
         {
@@ -1489,8 +1532,11 @@ def _page_child_text(db: Database, doc: Document) -> str:
 def _docx_knowledge_graph_appendix(
     db: Database,
     documents: list[Document],
+    include_unsourced: bool = False,
 ) -> list[str]:
-    entities, claims = _knowledge_graph_rows(db, documents)
+    entities, claims = _knowledge_graph_rows(
+        db, documents, include_unsourced=include_unsourced
+    )
     if not claims and not entities:
         return []
 
@@ -1519,17 +1565,23 @@ def _docx_knowledge_graph_appendix(
 def _knowledge_graph_rows(
     db: Database,
     documents: list[Document],
+    include_unsourced: bool = False,
 ) -> tuple[list[KnowledgeEntity], list[KnowledgeClaim]]:
     doc_ids = {doc.id for doc in documents}
-    if not doc_ids:
+    if not doc_ids and not include_unsourced:
         return [], []
+
+    def _claim_unsourced(claim: KnowledgeClaim) -> bool:
+        return claim.source_document_id is None and not claim.source_ids
 
     claims = [
         claim
         for claim in db.all(KnowledgeClaim)
-        if claim.source_document_id in doc_ids or doc_ids.intersection(claim.source_ids)
+        if claim.source_document_id in doc_ids
+        or doc_ids.intersection(claim.source_ids)
+        or (include_unsourced and _claim_unsourced(claim))
     ]
-    claims.sort(key=lambda claim: (claim.source_document_id, claim.text.lower()))
+    claims.sort(key=lambda claim: (claim.source_document_id or "", claim.text.lower()))
 
     claim_entity_ids: set[str] = set()
     for claim in claims:
@@ -1549,6 +1601,7 @@ def _knowledge_graph_rows(
         for entity in db.all(KnowledgeEntity)
         if entity.id in claim_entity_ids
         or doc_ids.intersection(entity.source_document_ids)
+        or (include_unsourced and not entity.source_document_ids)
     ]
     entities.sort(key=lambda entity: entity.canonical_name.lower())
     return entities, claims
