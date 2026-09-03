@@ -123,49 +123,37 @@ libraries open at the same time.
 
 ## Under the hood
 
-One native Mac app with an embedded engine — nothing to install, nothing to
-run separately:
-
-- **SwiftUI** — the native Mac (and iPhone/iPad) app.
-- **FastAPI (Python)** — the engine, embedded inside the app; the app talks
+- **SwiftUI**: A native Mac (and iPhone/iPad) app.
+- **FastAPI (Python)**: An embedded server inside the app; the app talks
   to it over a typed, OpenAPI-generated client.
-- **DuckDB** — the library database: documents, artifacts, provenance.
-- **LanceDB** — the vector database behind semantic (Ask) search and
-  embeddings.
-- **LangChain & LangGraph** — model calls and the workflow graphs that
-  chain transcription, translation, extraction, and cataloguing.
-- **Apple Vision & vision LLMs** — OCR on-device, plus local (MLX) and
-  cloud models for handwriting, review, and structured extraction.
-- **Sparkle** — the app keeps itself up to date.
+- **DuckDB** and **LanceDB**: Provide the databases behind semantic search.
+- **LangChain & LangGraph**: Support model calls and the workflow graphs that  chain transcription, translation, extraction, and cataloguing.
+- **Apple Vision & vision LLMs**: Run local on device models, or use cloud models for structured extraction of data using AI models.
 
 More in [How It's Built](user/guide/12-appendix-b-how-fichero-is-built.md)
 and the [Contributor Guide](contributor/README.md).
 
 ## Documentation
 
-- **[FAQ](user/guide/10-frequently-asked-questions.md)** — common questions, answered.
-- **[User Guide](user/README.md)** — install, import, read, search, run workflows.
-- **[Contributor Guide](contributor/README.md)** — architecture, API, release lane.
+- **[FAQ](user/guide/10-frequently-asked-questions.md)**
+- **[User Guide](user/README.md)** for end users.
+- **[Contributor Guide](contributor/README.md)** for contributors.
 
 ## Open source
 
-Fichero is developed in the open at
-[github.com/dtubb/fichero](https://github.com/dtubb/fichero). It is coded
-(almost) entirely by AI, under the creative direction of myself, Daniel Tubb, and other [contributors](https://github.com/dtubb/fichero/graphs/contributors). See
+Fichero is developed at [github.com/dtubb/fichero](https://github.com/dtubb/fichero). It is coded
+(almost) entirely by AI, under the "Creative Direction" of Daniel Tubb, and other [contributors](https://github.com/dtubb/fichero/graphs/contributors). See
 [How It's Built](user/guide/12-appendix-b-how-fichero-is-built.md).
 
 Fichero is free and open source, released under the
 [GNU Affero General Public License, version 3.0 (AGPL-3.0)](https://www.gnu.org/licenses/agpl-3.0.html).
 That means anyone can read the code, use the app, modify it, and share it.
 Whoever distributes it, or runs a modified version as a service, must share
-their source code under the same license in turn — so nobody can take Fichero
-closed-source. Contributors agree to a
+their source code under the same license in turn. (Nobody can take Fichero
+closed-source). Contributors must agree to a
 [Contributor License Agreement](https://github.com/dtubb/fichero/blob/main/CLA.md),
-which lets Daniel Tubb, Fichero's maintainer, also release Fichero under other
-terms (commercially, or where a channel like Apple's Mac and iOS App Stores
-requires it, because their rules and the AGPL do not fit), while every
-contribution always remains available under the AGPL. The Fichero name is
-trademark-reserved (an unregistered ™ claim). The full explanation is in
+which lets Daniel Tubb, Fichero's maintainer, release Fichero under other
+terms (e.g. commercially, or where a channel like Apple's Mac and iOS App Stores has rules where the AGPL do not fit). See
 [LICENSING.md](https://github.com/dtubb/fichero/blob/main/LICENSING.md).
 
 ---
