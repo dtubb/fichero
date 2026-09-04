@@ -24,6 +24,15 @@ struct NewEntitySheet: View {
     }
 
     @Environment(\.dismiss) private var dismiss
+    /// THIS sheet's entity service — the library it is MUTATING.
+    ///
+    /// It resolved `LibraryManager.shared.globalLibrary`, the library
+    /// holding the RESERVED id rather than the one on screen, so the
+    /// write landed in a graph the user was not looking at. Optional so
+    /// a host that injects none fails VISIBLY: a sheet that cannot name
+    /// the library it is about to change must not guess one
+    /// (#4306/#4461).
+    @Environment(EntityService.self) private var entityService: EntityService?
     @State private var canonicalName: String
     @State private var entityType: String
     @State private var aliasesText: String
@@ -108,7 +117,10 @@ struct NewEntitySheet: View {
     }
 
     private func save() {
-        guard let library = LibraryManager.shared.globalLibrary else { return }
+        guard let entityService else {
+            errorText = "This window has no library to create the entity in."
+            return
+        }
         isSaving = true
         errorText = nil
         let name = canonicalName.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -120,14 +132,14 @@ struct NewEntitySheet: View {
             do {
                 let result: Components.Schemas.KnowledgeEntity
                 if let editing = editing, let entityId = editing.id {
-                    result = try await library.entityService.patchEntity(
+                    result = try await entityService.patchEntity(
                         entityId,
                         canonicalName: name,
                         entityType: entityType,
                         aliases: aliases
                     )
                 } else {
-                    result = try await library.entityService.upsertEntity(
+                    result = try await entityService.upsertEntity(
                         name: name,
                         entityType: entityType,
                         aliases: aliases

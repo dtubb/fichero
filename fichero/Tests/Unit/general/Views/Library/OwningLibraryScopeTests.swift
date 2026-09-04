@@ -77,8 +77,15 @@ final class OwningLibraryScopeTests: XCTestCase {
     /// and matches by object identity so it cannot drift.
     ///
     /// A RATCHET, not a ban: the number may fall, never rise. Fix one, lower
-    /// the number in the same commit; the day it reaches zero, delete this
-    /// test and add the directory to `cleanedSurfaces`.
+    /// the number in the same commit.
+    ///
+    /// The FLOOR IS 2, not zero: `OntologyBrowser.swift`'s two remaining
+    /// matches after that point are `#Preview` scaffolding
+    /// (`.environment(LibraryManager.shared.globalLibrary!.claimStore)` and
+    /// its sibling), which is not a runtime path. When the number reaches 2,
+    /// change this to `== 2` with that reason, or teach the filter to skip
+    /// `#Preview` bodies — do not "fix" preview scaffolding to make a number
+    /// look better.
     func testTheOntologyBrowsersRemainingReadsDoNotGrow() throws {
         let root = try AppSource.root().appendingPathComponent(
             "Views/Library/ViewModes/Graph/Ontology"
@@ -94,7 +101,7 @@ final class OwningLibraryScopeTests: XCTestCase {
             total += Self.primaryReads(in: source).count
         }
         XCTAssertLessThanOrEqual(
-            total, 17,
+            total, 9,
             """
             A new primary `globalLibrary` read entered the Ontology browser. \
             That surface is per-library — its entities and claims live in the \
@@ -102,5 +109,48 @@ final class OwningLibraryScopeTests: XCTestCase {
             there reads, or writes, somebody else's graph.
             """
         )
+    }
+
+    /// Every mutating path reads the INJECTED service and carries no fallback
+    /// tail. The tail is the regression that matters: re-adding
+    /// `?? LibraryManager.shared.globalLibrary` to make a nil go away would
+    /// restore the bug while looking like a robustness fix.
+    func testTheMutatingPathsUseTheInjectedService() throws {
+        let paths = [
+            "Views/Library/ViewModes/Graph/Ontology/Entity/EntitySplitSheet.swift",
+            "Views/Library/ViewModes/Graph/Ontology/Entity/NewEntitySheet.swift",
+            "Views/Library/ViewModes/Graph/Ontology/Entity/EntitySourceGroupsView.swift",
+            "Views/Library/ViewModes/Graph/Ontology/Entity/EntityDetailView+Audit.swift",
+            "Views/Library/ViewModes/Graph/Ontology/Claim/ContradictionTriageSheet.swift",
+            "Views/Library/ViewModes/Graph/Ontology/OntologyBrowser+Toolbar.swift"
+        ]
+        for path in paths {
+            let source = try Self.appSource(path)
+            XCTAssertTrue(
+                Self.primaryReads(in: source).isEmpty,
+                "\(path) resolves the global library again"
+            )
+            XCTAssertFalse(
+                source.contains("?? LibraryManager.shared.globalLibrary"),
+                """
+                \(path) grew a global-library fallback. A surface that cannot \
+                name the library it is about to change must fail visibly, not \
+                guess one — the fallback IS the defect, wearing a fix's clothes.
+                """
+            )
+        }
+    }
+
+    /// A sheet that cannot name its library says so where the user is looking,
+    /// rather than returning silently and leaving a spinner or a dead button.
+    func testASheetWithNoServiceSaysSoRatherThanFailingSilently() throws {
+        let split = try Self.appSource(
+            "Views/Library/ViewModes/Graph/Ontology/Entity/EntitySplitSheet.swift"
+        )
+        let new = try Self.appSource(
+            "Views/Library/ViewModes/Graph/Ontology/Entity/NewEntitySheet.swift"
+        )
+        XCTAssertTrue(split.contains("errorText = \"This window has no library to split the entity in.\""))
+        XCTAssertTrue(new.contains("errorText = \"This window has no library to create the entity in.\""))
     }
 }

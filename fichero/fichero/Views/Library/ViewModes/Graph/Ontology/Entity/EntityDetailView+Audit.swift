@@ -118,22 +118,20 @@ extension EntityDetailView {
     }
 
     func loadAudits() async {
-        guard let library = LibraryManager.shared.globalLibrary else { return }
         isLoadingAudits = true
         defer { isLoadingAudits = false }
         do {
-            audits = try await library.entityService.listEntityAudits(entityId: entity.id, limit: 25)
+            audits = try await entityService.listEntityAudits(entityId: entity.id, limit: 25)
         } catch {
             audits = []
         }
     }
 
     func undoAudit(_ auditId: String) async {
-        guard let library = LibraryManager.shared.globalLibrary else { return }
         undoingAuditId = auditId
         defer { undoingAuditId = nil }
         do {
-            _ = try await library.entityService.undoEntityAudit(auditId)
+            _ = try await entityService.undoEntityAudit(auditId)
             auditStatusMessage = "Undo complete"
             await loadAudits()
         } catch {

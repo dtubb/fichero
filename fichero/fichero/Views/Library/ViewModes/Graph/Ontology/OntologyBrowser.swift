@@ -33,6 +33,16 @@ struct OntologyBrowser: View {
     @Environment(KGFocusState.self) var kgFocusState
     /// Observable claim store (#1862) — its `changeToken` drives detail-panel
     /// resync, replacing the retired `.ficheroClaim*` NotificationCenter bus.
+    /// THIS surface's entity service — the library the browser is IN.
+    ///
+    /// The toolbar's tools resolved `LibraryManager.shared.globalLibrary`,
+    /// which is not "the current library" but the one holding the
+    /// RESERVED id. The services were already injected per window
+    /// (`libraryServiceEnvironment`); this surface simply never read
+    /// them. Optional so a host that injects none fails VISIBLY rather
+    /// than running a tool against another library's graph
+    /// (#4306/#4461).
+    @Environment(EntityService.self) var entityService: EntityService?
     @Environment(ClaimStore.self) var claimStore
     @Environment(EntityStore.self) var entityStore
     /// Finder-style Open in New Tab / New Window for ontology rows (#1685).
