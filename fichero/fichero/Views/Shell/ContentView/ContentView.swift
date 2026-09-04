@@ -276,7 +276,14 @@ struct ContentView: View {
     /// SceneStorage nor a per-folder save has a value.
     @AppStorage("library.defaultViewDisplayMode")
     var defaultLibraryViewDisplayMode: ViewDisplayMode = .icon
-    @SceneStorage("currentLayoutMode") var currentLayoutMode: LayoutMode = .widescreen
+    /// Per-window, seeded from what the user last left (2026-09-04). The
+    /// literal default is the FIRST-RUN value now; `WorkspaceLayoutDefaults`
+    /// supplies it on every launch after that. See that type for why scene
+    /// state alone could not do this.
+    @SceneStorage("currentLayoutMode") var currentLayoutMode: LayoutMode =
+        LayoutMode(rawValue: WorkspaceLayoutDefaults.layoutModeRaw(
+            default: LayoutMode.widescreen.rawValue
+        )) ?? .widescreen
     @SceneStorage("sidebarMode") var sidebarMode: SidebarMode = .library
 
     // Column visibility persistence
@@ -288,16 +295,20 @@ struct ContentView: View {
     @AppStorage("pageContentPaneWidth") var pageContentPaneWidth: Double = 200
     @SceneStorage("showSidebar") var showSidebar: Bool = true
     @SceneStorage("showInspectorSidebar") var showInspectorSidebar: Bool = true
-    @SceneStorage("showDocumentGrid") var showDocumentGrid: Bool = true
+    @SceneStorage("showDocumentGrid") var showDocumentGrid: Bool =
+        WorkspaceLayoutDefaults.showDocumentGrid
     // Per-window visibility of the three middle panes (#1448). Each window
     // keeps its own choice via @SceneStorage (same pattern as the
     // sidebar/inspector toggles), so selection never remounts or hides panes.
-    @SceneStorage("showDocumentCanvas") var showDocumentCanvas: Bool = true
+    @SceneStorage("showDocumentCanvas") var showDocumentCanvas: Bool =
+        WorkspaceLayoutDefaults.showDocumentCanvas
     /// Chat pane visibility — DEFAULT ON (Daniel's pane ruling: a fresh
     /// window shows library+preview+reader+chat).
-    @SceneStorage("showChatPane") var showChatPane: Bool = true
+    @SceneStorage("showChatPane") var showChatPane: Bool =
+        WorkspaceLayoutDefaults.showChatPane
     @SceneStorage("chatPaneWidth") var chatPaneWidth: Double = 320
-    @SceneStorage("showReadingPane") var showReadingPane: Bool = true
+    @SceneStorage("showReadingPane") var showReadingPane: Bool =
+        WorkspaceLayoutDefaults.showReadingPane
     // Summoned search (#4521): the engine-search field in the library's mini
     // toolbar appears only while this is on — toggled by the toolbar's search
     // button, and turned on automatically when something fires a search
