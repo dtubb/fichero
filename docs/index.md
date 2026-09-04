@@ -88,6 +88,16 @@ video slot: short demo embed(s). Keep empty until there is one. -->
     See metadata, artifacts, entities, annotations, and edit history for
     whatever is selected.
 
+-   :material-graph: __Knowledge__
+
+    ---
+
+    Fichero reads names, places, and dates out of your documents and
+    turns them into simple statements — who did what, where, and when —
+    each tied to the exact words on the page it came from. Together they
+    build a knowledge graph of your archive you can browse as
+    biographies, maps, and timelines.
+
 -   :material-magnify: __Search__
 
     ---
