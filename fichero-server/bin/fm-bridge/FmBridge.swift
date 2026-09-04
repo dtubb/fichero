@@ -64,6 +64,7 @@
 
 import Foundation
 import FoundationModels
+import Translation
 
 struct SuccessResponse: Codable {
     let response: String
@@ -281,10 +282,154 @@ struct LocaleSupportResponse: Codable {
     let supported: Bool
 }
 
+
+// =============================================================================
+// Translation (`--translate`) — Apple's free on-device translator.
+//
+// A SEPARATE framework from FoundationModels: it needs no Apple Intelligence,
+// no model assets, and works on machines where the LLM path is unavailable.
+// So it dispatches BEFORE this bridge's Apple Intelligence availability
+// check, the way --probe and --supports-locale already do.
+//
+// Request (stdin):
+//   {"source": "es", "target": "en", "texts": ["…", "…"]}
+//
+// Response (stdout):
+//   {"source_language": "es", "target_language": "en",
+//    "translations": ["…", "…"], "model": "apple-translation"}
+//
+// `source` is REQUIRED. TranslationSession's headless initializer
+// (`installedSource:target:`) takes a concrete source language, and the
+// engine already knows the document's language (llm/lang_detect.py) — asking
+// the caller for the answer it already has beats guessing here.
+//
+// Error kinds (stderr), on top of the shared "json":
+//   - "not_installed"     the pair is supported but not downloaded. NAMES the
+//                         pair. Downloading needs the UI (a translationTask
+//                         presenting Apple's own sheet), which a CLI has no
+//                         way to show — so this refuses instead of silently
+//                         returning the source text as though it were a
+//                         translation.
+//   - "unsupported_pair"  Apple does not translate between these languages.
+//   - "translation"       anything else the framework raised.
+// =============================================================================
+
+struct TranslateSuccessResponse: Codable {
+    let source_language: String
+    let target_language: String
+    let translations: [String]
+    let model: String
+}
+
+/// Read the translate request, or exit with a "json" error naming what is
+/// missing. Split out so the shape of a valid request is stated in one place.
+func parseTranslateRequest(
+    _ raw: [String: Any]
+) -> (source: String, target: String, texts: [String]) {
+    guard let source = (raw["source"] as? String)?.trimmingCharacters(in: .whitespaces),
+          !source.isEmpty
+    else {
+        emitError(
+            "Missing 'source' language. The headless translator needs a concrete "
+            + "source language; detect it before calling.",
+            kind: "json"
+        )
+    }
+    guard let target = (raw["target"] as? String)?.trimmingCharacters(in: .whitespaces),
+          !target.isEmpty
+    else {
+        emitError("Missing 'target' language", kind: "json")
+    }
+    guard let texts = raw["texts"] as? [String], !texts.isEmpty else {
+        emitError("Missing or empty 'texts' array", kind: "json")
+    }
+    return (source, target, texts)
+}
+
+@available(macOS 26.0, *)
+func runTranslate(_ raw: [String: Any]) async {
+    let request = parseTranslateRequest(raw)
+    let source = Locale.Language(identifier: request.source)
+    let target = Locale.Language(identifier: request.target)
+
+    // Ask BEFORE translating. A pair that is merely `.supported` has no model
+    // on disk, and the framework's own error for that case does not say which
+    // pair to download — the caller cannot act on "internalError".
+    switch await LanguageAvailability().status(from: source, to: target) {
+    case .installed:
+        break
+    case .supported:
+        emitError(
+            "The \(request.source) → \(request.target) translation model is not "
+            + "downloaded on this Mac. Open Fichero and run the translation once "
+            + "so macOS can offer the download, or install it in System Settings › "
+            + "General › Language & Region › Translation Languages.",
+            kind: "not_installed"
+        )
+    case .unsupported:
+        emitError(
+            "macOS does not translate \(request.source) → \(request.target).",
+            kind: "unsupported_pair"
+        )
+    @unknown default:
+        emitError(
+            "Unknown translation availability for \(request.source) → "
+            + "\(request.target).",
+            kind: "translation"
+        )
+    }
+
+    let session = TranslationSession(installedSource: source, target: target)
+    do {
+        // `translations(from:)` returns the whole array in one call, and the
+        // framework keeps the order of the requests it was given. The
+        // clientIdentifier is the index so a future streaming variant can
+        // still reassemble; nothing here depends on it.
+        let responses = try await session.translations(
+            from: request.texts.enumerated().map { index, text in
+                TranslationSession.Request(sourceText: text, clientIdentifier: "\(index)")
+            }
+        )
+        let payload = TranslateSuccessResponse(
+            source_language: request.source,
+            target_language: request.target,
+            translations: responses.map(\.targetText),
+            model: "apple-translation"
+        )
+        FileHandle.standardOutput.write(try JSONEncoder().encode(payload))
+    } catch {
+        emitError("Translation failed: \(error)", kind: "translation")
+    }
+}
+
 @main
 struct FmBridge {
     static func main() async {
         let args = CommandLine.arguments
+
+        // Translation mode — a DIFFERENT framework, dispatched before the
+        // Apple Intelligence check below: on-device translation needs no LLM
+        // assets and works on machines where Apple Intelligence is off.
+        if args.contains("--translate") {
+            let inputData = FileHandle.standardInput.readDataToEndOfFile()
+            guard !inputData.isEmpty else {
+                emitError("Empty stdin", kind: "json")
+            }
+            guard let dict = try? JSONSerialization.jsonObject(with: inputData)
+                    as? [String: Any]
+            else {
+                emitError("Stdin JSON is not an object", kind: "json")
+            }
+            if #available(macOS 26.0, *) {
+                await runTranslate(dict)
+            } else {
+                emitError(
+                    "On-device translation requires macOS 26 or later.",
+                    kind: "unavailable"
+                )
+            }
+            return
+        }
 
         // Probe mode — availability check only, no generation. Runs in tens
         // of milliseconds; safe to call from the wizard's onAppear.
