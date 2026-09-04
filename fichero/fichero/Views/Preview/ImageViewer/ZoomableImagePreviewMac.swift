@@ -205,6 +205,14 @@ struct ZoomableImagePreview: View {
     /// difference between original, enhanced, and background removed"
     /// (Daniel, 2026-08-21). Cleared on document change.
     @State var renditionOverrideImage: NSImage?
+    /// The SVG markup of the rendition on screen, when the flip has landed on
+    /// an AI redraw (Daniel, 2026-09-04). Non-nil replaces the image canvas
+    /// with `WebContentCanvas` — a redraw's bytes are text, not pixels.
+    @State var svgRenditionMarkup: String?
+    /// Why an SVG rendition could not be shown. A malformed or missing redraw
+    /// says so on the canvas; it never leaves the previous page's pixels up
+    /// pretending the flip worked.
+    @State var svgRenditionError: String?
 
     @State var scale: CGFloat = 1.0
     /// S6 (Daniel, 2026-08-23): a sibling step resets to FIT-ALL — a tall

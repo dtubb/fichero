@@ -107,6 +107,12 @@ struct ReadingPaneView: View {
     @State var artifactCompareIds: [String] = []
     @State var artifactCompareColumns: [ReaderArtifactDiff.Column] = []
     @State var artifactCompareError: String?
+    /// A `.md` document's text, rendered as Markdown (Daniel, 2026-09-04).
+    /// nil = not a Markdown document. Rendered by `MarkdownText`, the app's
+    /// ONE Markdown renderer — the chat bubbles and the preview canvas already
+    /// use it, and a second implementation is a second answer to "what does
+    /// this heading look like".
+    @State var readerMarkdownText: String?
     /// A `.csv` document rendered as a real table (Daniel, 2026-09-04: "will
     /// a reader show csv? should our reader have a csv option, to render it
     /// properly?"). nil = not a CSV document, or its text is not honest CSV —
@@ -268,6 +274,7 @@ struct ReadingPaneView: View {
         .task(id: readerRepresentation) { await loadReaderTableExport() }
         .task(id: artifactCompareIds) { await loadArtifactComparison() }
         .task(id: effectiveDocument?.id) { await loadReaderCSVTable() }
+        .task(id: effectiveDocument?.id) { await loadReaderMarkdown() }
         // A comparison is about ONE document's artifacts; carrying it to the
         // next document would diff two texts that were never on screen together.
         .onChange(of: effectiveDocument?.id) { _, _ in stopComparingArtifacts() }

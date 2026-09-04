@@ -185,4 +185,25 @@ extension ReadingPaneView {
         else { return }
         readerCSVHTML = ReaderCSVTable.html(text, title: DocumentTitle.displayName(for: full))
     }
+
+    /// Load a `.md` document's text so the reader can render it as Markdown.
+    ///
+    /// Same shape as `loadReaderCSVTable` and for the same reason: the grid's
+    /// document row may carry no `page_content` — the list payload is lean —
+    /// so a lean row must not be read as "no text". Failure is silent because
+    /// the fallback IS the ordinary reader, showing the same bytes.
+    func loadReaderMarkdown() async {
+        readerMarkdownText = nil
+        guard let doc = effectiveDocument,
+              ReaderMarkdownDocument.isMarkdown(name: doc.name) else { return }
+        if let inline = doc.pageContent, !inline.isEmpty {
+            readerMarkdownText = inline
+            return
+        }
+        guard let full = try? await documentStore.documentService.getDocument(doc.id),
+              let text = full.pageContent, !text.isEmpty,
+              full.id == effectiveDocument?.id
+        else { return }
+        readerMarkdownText = text
+    }
 }

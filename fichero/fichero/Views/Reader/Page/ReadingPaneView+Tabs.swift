@@ -40,6 +40,18 @@ extension ReadingPaneView {
             // the most specific thing the user asked for, and it is dismissed
             // from the same menu that started it.
             artifactCompareContent
+        } else if let readerMarkdownText, readerRepresentation == nil, artifactLens == nil {
+            // A Markdown document reads as MARKDOWN (Daniel, 2026-09-04),
+            // through `MarkdownText` — the renderer the chat bubbles and the
+            // preview canvas already use. Rendering it as HTML here would be a
+            // second Markdown implementation, free to disagree with those two
+            // about what a heading or a list looks like.
+            ScrollView {
+                MarkdownText(readerMarkdownText)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(12)
+            }
         } else if let readerCSVHTML, readerRepresentation == nil, artifactLens == nil {
             // A CSV document reads as a TABLE (Daniel, 2026-09-04). Only over
             // the document's own content: pointing the pane at a
