@@ -68,8 +68,25 @@ def build_folder(
         for stem in stems:
             out_rel = f"{name}/{stem}.{suffix}"
             _write(folder / "assets" / stage / "documents" / out_rel, "img")
+            details: dict = {}
+            if stage == "crops":
+                # The real crop record: a detected box in the EXIF-rotated
+                # original frame, with both pixel sizes.
+                details = {
+                    "box": {"x1": 0, "y1": 62, "x2": 3107, "y2": 4796},
+                    "confidence": 0.806,
+                    "method": "yolo",
+                    "original_size": [3107, 4839],
+                    "cropped_size": [3107, 4734],
+                }
             lines.append(
-                json.dumps({"source": f"{name}/{stem}.JPG", "outputs": [out_rel]})
+                json.dumps(
+                    {
+                        "source": f"{name}/{stem}.JPG",
+                        "outputs": [out_rel],
+                        "details": details,
+                    }
+                )
             )
         _write(folder / "assets" / stage / manifest_name, "\n".join(lines) + "\n")
 
@@ -230,10 +247,10 @@ def test_reads_pages_renditions_text_and_catalogue(tmp_path: Path) -> None:
 
     assert len(entry.pages) == 3
     page = entry.pages[0]
-    assert set(page.images) == {
+    assert {image["role"] for image in page.images} == {
         "original", "crop", "rotated", "enhanced", "background_removed",
     }
-    assert Path(page.images["original"]).is_file()
+    assert all(Path(image["source_path"]).is_file() for image in page.images)
     assert page.text_path is not None and Path(page.text_path).is_file()
 
     assert entry.year == "1936"
@@ -243,7 +260,7 @@ def test_reads_pages_renditions_text_and_catalogue(tmp_path: Path) -> None:
     assert entry.catalogue_model == "gpt-4.1-mini"
     assert entry.transcription_model == "qwen-vl-max"
     assert entry.workflow == "00) default"
-    assert entry.segment_count == 9  # 3 pages × 3 bands
+    assert entry.segment_count == 3  # 3 pages × 1 recorded band
     assert entry.docx_count == 1
 
     names = {e["canonical_name"] for e in entry.entities}
@@ -282,8 +299,9 @@ def test_unreadable_stage_manifest_warns_rather_than_raising(tmp_path: Path) -> 
     )
     entry = legacy.read_document_folder(folder, archive="a", stage=None)
     assert any("unparseable" in w for w in entry.warnings)
-    assert "crop" not in entry.pages[0].images
-    assert "original" in entry.pages[0].images
+    roles = {image["role"] for image in entry.pages[0].images}
+    assert "crop" not in roles
+    assert "original" in roles
 
 
 # ---------------------------------------------------------------------------
@@ -463,7 +481,7 @@ def test_deferred_work_is_recorded_for_the_bbox_program(tmp_path: Path) -> None:
     folder_node = list(legacy.to_canonical_nodes(scan))[1]
 
     deferred = folder_node["metadata"]["legacy_deferred"]
-    assert deferred["segment_strips"] == 6
+    assert deferred["segment_strips"] == 2
     assert "background_removed" in deferred["segment_geometry"]
     assert deferred["docx"] == 1
 
@@ -518,3 +536,245 @@ def test_dry_run_report_names_what_is_not_imported(tmp_path: Path) -> None:
     assert "qwen-vl-max" in report
     assert "gpt-4.1-mini" in report
     assert "flattened to metadata" in report
+
+
+# ---------------------------------------------------------------------------
+# Renditions: real rows, chained frames, real geometry
+# ---------------------------------------------------------------------------
+
+
+def test_crop_transform_is_normalised_against_the_original_frame() -> None:
+    transform = legacy.crop_transform(
+        {
+            "box": {"x1": 0, "y1": 62, "x2": 3107, "y2": 4796},
+            "method": "yolo",
+            "original_size": [3107, 4839],
+            "cropped_size": [3107, 4734],
+        }
+    )
+    assert transform is not None
+    x, y, width, height = transform["rect"]
+    assert x == 0.0
+    assert y == pytest.approx(62 / 4839)
+    assert width == pytest.approx(1.0)
+    assert height == pytest.approx((4796 - 62) / 4839)
+    assert transform["space"] == "normalized"
+    assert transform["confidence"] == "measured"
+    assert transform["method"] == "fichero-1.0-yolo"
+
+
+def test_crop_transform_refuses_nonsense_rather_than_guessing() -> None:
+    assert legacy.crop_transform({}) is None
+    assert legacy.crop_transform({"box": {"x1": 0, "y1": 0, "x2": 10, "y2": 10}}) is None
+    assert legacy.crop_transform(
+        {"box": {"x1": 5, "y1": 0, "x2": 5, "y2": 10}, "original_size": [10, 10]}
+    ) is None
+
+
+def test_rendition_chain_is_recorded_stage_by_stage(tmp_path: Path) -> None:
+    """Frames CHAIN — each stage derives from the previous one that ran."""
+    build_folder(tmp_path / "A", name="1936-doc", pages=1)
+    scan = legacy.scan_archives([tmp_path / "A"], corpus_name="c")
+    page = [n for n in legacy.to_canonical_nodes(scan) if n["node_type"] == "page"][0]
+    by_role = {image["role"]: image for image in page["images"]}
+
+    assert "derived_from_role" not in by_role["original"]
+    assert by_role["crop"]["derived_from_role"] == "original"
+    assert by_role["rotated"]["derived_from_role"] == "crop"
+    assert by_role["enhanced"]["derived_from_role"] == "rotated"
+    assert by_role["background_removed"]["derived_from_role"] == "enhanced"
+    assert by_role["crop"]["transform"]["space"] == "normalized"
+    assert by_role["crop"]["pixel_width"] == 3107
+    assert by_role["original"]["pixel_width"] == 3107
+
+
+def test_plan_renditions_builds_linked_rows_with_geometry(tmp_path: Path) -> None:
+    from fichero_server.importers.manifest_renditions import plan_renditions
+    from fichero_server.models import Document, DocType
+
+    build_folder(tmp_path / "A", name="1936-doc", pages=1)
+    scan = legacy.scan_archives([tmp_path / "A"], corpus_name="c")
+    page = [n for n in legacy.to_canonical_nodes(scan) if n["node_type"] == "page"][0]
+    document = Document(
+        name=page["name"], doc_type=DocType.page, metadata={"images": page["images"]}
+    )
+
+    plan = plan_renditions(document)
+    assert plan.refused == []
+    by_role = {rendition.role: rendition for rendition in plan.renditions}
+    assert set(by_role) == {
+        "original", "crop", "rotated", "enhanced", "background_removed",
+    }
+    assert all(r.document_id == document.id for r in plan.renditions)
+
+    # Lineage resolves to real row ids, not role strings.
+    assert by_role["crop"].derived_from_rendition_id == by_role["original"].id
+    assert by_role["background_removed"].derived_from_rendition_id == (
+        by_role["enhanced"].id
+    )
+    assert by_role["original"].derived_from_rendition_id is None
+
+    crop = by_role["crop"]
+    assert crop.transform is not None
+    # A region must name the frame it was measured on.
+    assert crop.transform.rendition_id == by_role["original"].id
+    assert crop.producer_tool == "fichero-1.0/crops"
+    assert crop.pixel_width == 3107
+
+
+def test_plan_renditions_keeps_the_row_when_geometry_is_bad() -> None:
+    """Bad geometry costs the transform, never the pixels."""
+    from fichero_server.importers.manifest_renditions import plan_renditions
+    from fichero_server.models import Document, DocType
+
+    document = Document(
+        name="p",
+        doc_type=DocType.page,
+        metadata={
+            "images": [
+                {"role": "original", "source_path": "/tmp/a.jpg"},
+                {
+                    "role": "crop",
+                    "source_path": "/tmp/b.jpg",
+                    "derived_from_role": "original",
+                    "transform": {"rect": [0, 0, 9, 9], "space": "normalized"},
+                },
+            ]
+        },
+    )
+    plan = plan_renditions(document)
+    assert {r.role for r in plan.renditions} == {"original", "crop"}
+    crop = next(r for r in plan.renditions if r.role == "crop")
+    assert crop.transform is None
+    assert any("transform rejected" in why for why in plan.refused)
+
+
+def test_plan_renditions_refuses_and_says_why() -> None:
+    from fichero_server.importers.manifest_renditions import plan_renditions
+    from fichero_server.models import Document, DocType
+
+    document = Document(
+        name="p",
+        doc_type=DocType.page,
+        metadata={
+            "images": [
+                {"role": "original", "source_path": "/tmp/a.jpg"},
+                {"role": "original", "source_path": "/tmp/dup.jpg"},
+                {"role": "enhanced"},
+                {"source_path": "/tmp/c.jpg"},
+                {"role": "x", "source_path": "/tmp/x.jpg", "derived_from_role": "ghost"},
+            ]
+        },
+    )
+    plan = plan_renditions(document)
+    assert {r.role for r in plan.renditions} == {"original", "x"}
+    joined = " ".join(plan.refused)
+    assert "duplicate role" in joined
+    assert "no source_path" in joined
+    assert "has no role" in joined
+    assert "'ghost' not present" in joined
+
+
+def test_plan_renditions_is_empty_without_images() -> None:
+    from fichero_server.importers.manifest_renditions import plan_renditions
+    from fichero_server.models import Document, DocType
+
+    plan = plan_renditions(Document(name="p", doc_type=DocType.page, metadata={}))
+    assert plan.renditions == []
+
+
+# ---------------------------------------------------------------------------
+# Deferred segment bands ride verbatim (ruling 3)
+# ---------------------------------------------------------------------------
+
+
+def test_segment_bands_ride_verbatim_on_the_page(tmp_path: Path) -> None:
+    """Deferred is not discarded: the bbox program must not re-read 300 GB."""
+    build_folder(tmp_path / "A", name="1936-doc", pages=1)
+    scan = legacy.scan_archives([tmp_path / "A"], corpus_name="c")
+    page = [n for n in legacy.to_canonical_nodes(scan) if n["node_type"] == "page"][0]
+
+    deferred = page["metadata"]["legacy_deferred_segments"]
+    assert deferred["bands"] == [[0, 1521]]
+    assert deferred["space"] == "background_removed"
+    assert deferred["axis"] == "y"
+
+
+# ---------------------------------------------------------------------------
+# Overlaps resolve to the BETTER copy (Daniel's amendment)
+# ---------------------------------------------------------------------------
+
+
+def _strip_stage(folder: Path, stage: str, manifest_name: str) -> None:
+    """Make a copy look abandoned mid-pipeline, as the Big Files copies are."""
+    import shutil
+
+    shutil.rmtree(folder / "assets" / stage)
+    _ = manifest_name
+
+
+def test_the_more_complete_copy_wins(tmp_path: Path) -> None:
+    """A copy that was never transcribed loses to one that was."""
+    big, small = tmp_path / "Big", tmp_path / "Smaller"
+    abandoned = build_folder(big, name="1936-doc", sizes=[111, 222])
+    _strip_stage(abandoned, "transcriptions", "transcription_manifest.jsonl")
+    _strip_stage(abandoned, "llm_catalogue", "llm_process_manifest.jsonl")
+    build_folder(small, name="1936-doc", sizes=[111, 222])
+
+    scan = legacy.scan_archives([big, small], corpus_name="c")
+    assert len(scan.folders) == 1
+    winner = scan.folders[0]
+    assert winner.archive == "Smaller"
+    assert winner.transcribed_pages == 2
+    assert scan.duplicates[0].archive == "Big"
+
+
+def test_fewer_truncated_catalogue_steps_wins(tmp_path: Path) -> None:
+    """Same stages, same pages — the intact catalogue decides."""
+    a, b = tmp_path / "A", tmp_path / "B"
+    build_folder(a, name="1936-doc", sizes=[111, 222], truncated_step=True)
+    build_folder(b, name="1936-doc", sizes=[111, 222])
+
+    scan = legacy.scan_archives([a, b], corpus_name="c")
+    assert len(scan.folders) == 1
+    assert scan.folders[0].archive == "B"
+    assert scan.folders[0].salvaged_steps == []
+
+
+def test_the_winning_copy_is_recorded_in_provenance(tmp_path: Path) -> None:
+    big, small = tmp_path / "Big", tmp_path / "Smaller"
+    abandoned = build_folder(big, name="1936-doc", sizes=[111, 222])
+    _strip_stage(abandoned, "transcriptions", "transcription_manifest.jsonl")
+    build_folder(small, name="1936-doc", sizes=[111, 222])
+
+    scan = legacy.scan_archives([big, small], corpus_name="c")
+    folder_node = list(legacy.to_canonical_nodes(scan))[1]
+    chosen = folder_node["metadata"]["legacy_chosen_copy"]
+
+    assert chosen["won"] == "Smaller"
+    assert chosen["over"][0]["archive"] == "Big"
+    assert chosen["over"][0]["identical"] is False
+    assert "stages_completed" in chosen["ranking"]
+
+
+def test_identical_copies_are_reported_as_identical(tmp_path: Path) -> None:
+    a, b = tmp_path / "A", tmp_path / "B"
+    build_folder(a, name="1936-doc", sizes=[111, 222])
+    build_folder(b, name="1936-doc", sizes=[111, 222])
+
+    scan = legacy.scan_archives([a, b], corpus_name="c")
+    assert scan.overlap_tally == {"identical": 1}
+    assert "identical (later run kept)" in legacy.dry_run_report(scan)
+
+
+def test_dry_run_reports_the_overlap_tally(tmp_path: Path) -> None:
+    """Daniel sees the decision before the real run."""
+    big, small = tmp_path / "Big", tmp_path / "Smaller"
+    abandoned = build_folder(big, name="1936-doc", sizes=[111, 222])
+    _strip_stage(abandoned, "transcriptions", "transcription_manifest.jsonl")
+    build_folder(small, name="1936-doc", sizes=[111, 222])
+
+    scan = legacy.scan_archives([big, small], corpus_name="c")
+    report = legacy.dry_run_report(scan)
+    assert "Smaller wins" in report
+    assert "the BETTER copy is imported" in report

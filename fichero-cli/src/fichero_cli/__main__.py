@@ -1178,7 +1178,7 @@ def import_legacy_archive_command(
     Nothing is ever written to the archive. Segment strips and .docx outputs are
     counted and reported but not imported; their geometry is deferred.
     """
-    import tempfile
+    import time
 
     from fichero_server.importers import legacy_10_archive as legacy
 
@@ -1205,49 +1205,82 @@ def import_legacy_archive_command(
         )
         raise typer.Exit(code=1)
 
-    try:
-        manifest_path = Path(out).expanduser() if out else (
-            Path(tempfile.mkdtemp(prefix="fichero10-import-")) / "manifest.jsonl"
+    if len(roots) > 1:
+        # Choosing the better of two copies requires SEEING both in one scan.
+        # Importing archive A and then archive B cannot do that: B's copy has
+        # the same content fingerprint, so the importer skips it as already
+        # present — keeping A's copy even when B's ran further. Scanning a
+        # common parent is the honest way to get one decision.
+        typer.secho(
+            "--no-dry-run takes ONE root. Overlaps are resolved by picking the "
+            "better copy, which requires seeing both copies in a single scan — "
+            "importing one archive and then the other would keep whichever "
+            "arrived first, not the better one. Pass the folder that CONTAINS "
+            "both archives instead (the scan finds document folders by marker, "
+            "at any depth).",
+            fg=typer.colors.RED,
+            err=True,
         )
-        node_count = legacy.write_manifest(scan, manifest_path)
-    except Exception as exc:
-        typer.secho(f"Manifest write failed: {exc}", fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1) from exc
+        raise typer.Exit(code=1)
 
-    typer.echo("")
-    typer.echo(f"manifest: {manifest_path} ({node_count} nodes)")
+    if out is not None:
+        # Inspection only — the import below does its own conversion engine-side.
+        node_count = legacy.write_manifest(scan, Path(out).expanduser())
+        typer.echo(f"\nmanifest: {out} ({node_count} nodes)")
 
-    from fichero_server.importers.manifest_import import (
-        DEFAULT_API_BASE,
-        DEFAULT_TOKEN_FILE,
-        import_manifest_via_http,
-    )
-
+    # The import runs through POST /ingest/folder — the SAME path a drag-and-drop
+    # takes — because the two repairs that make a linked corpus usable happen
+    # engine-side, with the database in hand: stamping each page's source path
+    # (the routes rightly refuse a client-supplied absolute path, so an
+    # HTTP-only import leaves every page pathless and thumbnail-less) and
+    # writing the rendition rows. Converting here and POSTing a manifest would
+    # reproduce neither.
+    resolved_api = api or ctx.obj["base_url"] or "http://127.0.0.1:8765/api"
     try:
-        resolved_api = api or ctx.obj["base_url"] or DEFAULT_API_BASE
         with FicheroClient(
             base_url=resolved_api.removesuffix("/api"),
             library_path=str(library),
             token=ctx.obj["token"],
         ) as client:
-            summary = import_manifest_via_http(
-                manifest_path=manifest_path,
-                library_path=library,
-                api_base=api or DEFAULT_API_BASE,
-                token_file=token_file or DEFAULT_TOKEN_FILE,
-                ingest_mode=ingest or "link",
-                client=client,
+            started = client.request(
+                "POST",
+                "/api/ingest/folder",
+                json={
+                    "path": str(roots[0]),
+                    "mode": ingest or "link",
+                    "recursive": True,
+                    "extract_text": False,
+                    "auto_embed": False,
+                },
             )
+            task_id = started["task_id"]
+            typer.echo(f"\nimport task: {task_id}")
+            while True:
+                status = client.request("GET", f"/api/ingest/status/{task_id}")
+                state = status.get("status")
+                if state in ("completed", "failed", "cancelled"):
+                    break
+                typer.echo(
+                    f"  {status.get('processed', 0)}/{status.get('total', 0)}",
+                    nl=False,
+                )
+                typer.echo("\r", nl=False)
+                time.sleep(2)
     except Exception as exc:
         typer.secho(f"Legacy import failed: {exc}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
 
-    typer.echo(f"documents_created: {summary.documents_created}")
-    typer.echo(f"documents_skipped: {summary.documents_skipped}")
-    typer.echo(f"entities_created: {summary.entities_created}")
-    typer.echo(f"artifacts_created: {summary.artifacts_created}")
-    typer.echo(f"claims_created: {summary.claims_created}")
+    if state != "completed":
+        typer.secho(
+            f"Import {state}: {status.get('error') or 'no detail reported'}",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        raise typer.Exit(code=1)
 
+    typer.echo(f"documents: {len(status.get('document_ids') or [])}")
+    if status.get("failed"):
+        typer.secho(f"failures: {status['failed']}", fg=typer.colors.YELLOW, err=True)
 
 @app.command(name="import-iiif")
 def import_iiif_command(

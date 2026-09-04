@@ -237,11 +237,15 @@ class LegacyPage(BaseModel):
     stem: str
     sequence: int
     original_path: str
-    images: dict[str, str] = Field(default_factory=dict)
+    images: list[dict[str, Any]] = Field(default_factory=list)
     text_path: str | None = None
     size: int | None = None
     mtime: float | None = None
     segment_count: int = 0
+    #: ``[y_start, y_end]`` bands in the background-removed frame, VERBATIM.
+    #: Not imported (Daniel deferred the geometry) but carried so the bbox
+    #: program never has to re-read 300 GB to get them back.
+    segment_bands: list[list[int]] = Field(default_factory=list)
 
 
 class LegacyFolder(BaseModel):
@@ -250,6 +254,7 @@ class LegacyFolder(BaseModel):
     path: str
     archive: str
     stage: str | None = None
+    tiers: list[str] = Field(default_factory=list)
     title: str
     year: str | None = None
     fingerprint: str
@@ -267,10 +272,53 @@ class LegacyFolder(BaseModel):
     salvaged_steps: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     duplicate_of: str | None = None
+    #: Quality signals, used ONLY to choose between copies of the same content.
+    stages_completed: int = 0
+    catalogue_steps: int = 0
+    segment_text_count: int = 0
+    run_timestamp: float = 0.0
 
     @property
     def external_id(self) -> str:
         return f"fichero10:{self.fingerprint[:16]}"
+
+    @property
+    def transcribed_pages(self) -> int:
+        return sum(1 for page in self.pages if page.text_path)
+
+    @property
+    def quality(self) -> tuple[int, int, int, int, int]:
+        """How complete this copy is — Daniel: "use the better one".
+
+        The order is empirical, measured across the nine overlapping folders
+        the two archives actually hold (2026-09-04):
+
+        1. ``stages_completed`` decides two of the nine outright, and
+           decisively — a "Big Files" copy is often ABANDONED mid-pipeline
+           (6/12 stages, zero transcriptions) while its twin ran to 12/12.
+           Nothing else matters if one copy was never transcribed.
+        2. ``transcribed_pages`` — the page text is the point of the corpus.
+        3. INTACT catalogue steps (present minus truncated). One pair differs
+           only here: same 6 steps, but one copy's run truncated one of them.
+        4. ``segment_text_count`` — more strips transcribed, more text read
+           (pairs differ by 1-6 strips).
+        5. ``entities`` recovered.
+
+        Deliberately NOT a criterion: original resolution. Content identity is
+        page-sequence + byte size, so overlapping copies hold byte-identical
+        originals by construction — "higher resolution" cannot discriminate,
+        and pretending it can would be a criterion that never fires.
+
+        The run timestamp is the tiebreak, applied outside this tuple so that
+        "identical except for when it ran" is reportable as identical.
+        """
+        return (
+            self.stages_completed,
+            self.transcribed_pages,
+            self.catalogue_steps - len(self.salvaged_steps),
+            self.segment_text_count,
+            len(self.entities),
+        )
 
 
 class LegacyScan(BaseModel):
@@ -310,6 +358,28 @@ class LegacyScan(BaseModel):
     @property
     def docx_count(self) -> int:
         return sum(folder.docx_count for folder in self.folders)
+
+    @property
+    def overlap_tally(self) -> dict[str, int]:
+        """Which archive won each overlap — Daniel sees this before the run."""
+        tally: dict[str, int] = {}
+        for loser in self.duplicates:
+            winner = next(
+                (f for f in self.folders if f.fingerprint == loser.fingerprint), None
+            )
+            if winner is None:
+                continue
+            key = (
+                "identical"
+                if winner.quality == loser.quality
+                else (
+                    winner.archive
+                    if winner.archive != loser.archive
+                    else f"{winner.archive} (internal copy)"
+                )
+            )
+            tally[key] = tally.get(key, 0) + 1
+        return tally
 
 
 # ---------------------------------------------------------------------------
@@ -384,22 +454,90 @@ def _fingerprint(entries: list[tuple[int, int]]) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
-def _stage_outputs(folder: Path, stage: str) -> tuple[dict[str, str], list[str]]:
-    """Map ``page stem -> absolute output path`` for one pipeline stage."""
+def _size_fields(size: Any) -> dict[str, int]:
+    """``[w, h]`` from a 1.0 manifest as Rendition pixel fields, if sane."""
+    try:
+        width, height = int(size[0]), int(size[1])
+    except (TypeError, ValueError, IndexError):
+        return {}
+    if width <= 0 or height <= 0:
+        return {}
+    return {"pixel_width": width, "pixel_height": height}
+
+
+def _output_size(stage: str, details: dict[str, Any]) -> Any:
+    """The pixel size a stage recorded for its OUTPUT (each tool named it differently)."""
+    for key in ("cropped_size", "rotated_size", "output_size", "final_size"):
+        if details.get(key):
+            return details[key]
+    rotation = details.get("rotation") or {}
+    return rotation.get("final_dimensions")
+
+
+def _stage_outputs(
+    folder: Path, stage: str
+) -> tuple[dict[str, dict[str, Any]], list[str]]:
+    """Map ``page stem -> {"path", "details"}`` for one pipeline stage.
+
+    ``details`` is the stage's own record — for ``crops`` that is where the
+    detected box and the pixel sizes live, and reading it here is what lets a
+    rendition record its transform without opening a single image.
+    """
     stage_dir = folder / "assets" / stage
     manifest = stage_dir / STAGE_MANIFESTS[stage]
     if not manifest.is_file():
         return {}, []
     records, warnings = read_jsonl(manifest)
     documents_root = stage_dir / "documents"
-    outputs: dict[str, str] = {}
+    outputs: dict[str, dict[str, Any]] = {}
     for record in records:
         source = record.get("source")
         produced = record.get("outputs") or []
         if not source or not produced:
             continue
-        outputs[Path(str(source)).stem] = str(documents_root / str(produced[0]))
+        outputs[Path(str(source)).stem] = {
+            "path": str(documents_root / str(produced[0])),
+            "details": record.get("details") or {},
+        }
     return outputs, warnings
+
+
+def crop_transform(details: dict[str, Any]) -> dict[str, Any] | None:
+    """The crop box as a normalized ``NodeRegion`` payload, or ``None``.
+
+    1.0 recorded ``box`` in the pixel frame of the original *after EXIF
+    rotation was applied* — the ``rotation`` sub-dict says so explicitly — and
+    ``original_size`` is that same post-EXIF frame. Normalizing against it is
+    therefore exact, and the note records which frame it is so a later reader
+    does not have to re-derive that from the pipeline.
+    """
+    box = details.get("box") or {}
+    size = details.get("original_size") or []
+    try:
+        x1, y1, x2, y2 = (
+            float(box["x1"]), float(box["y1"]), float(box["x2"]), float(box["y2"])
+        )
+        width, height = float(size[0]), float(size[1])
+    except (KeyError, TypeError, ValueError, IndexError):
+        return None
+    if width <= 0 or height <= 0 or x2 <= x1 or y2 <= y1:
+        return None
+    rect = [x1 / width, y1 / height, (x2 - x1) / width, (y2 - y1) / height]
+    # Clamp: a padded box can overshoot the frame by a pixel or two, and the
+    # model rightly refuses a normalized rect outside 0..1.
+    rect = [min(max(value, 0.0), 1.0) for value in rect]
+    if rect[0] + rect[2] > 1.0:
+        rect[2] = 1.0 - rect[0]
+    if rect[1] + rect[3] > 1.0:
+        rect[3] = 1.0 - rect[1]
+    method = str(details.get("method") or "crop")
+    return {
+        "rect": rect,
+        "space": "normalized",
+        "confidence": "measured",
+        "method": f"fichero-1.0-{method}",
+        "note": "box measured on the EXIF-rotated original frame",
+    }
 
 
 def _read_catalogue(folder: Path) -> dict[str, Any]:
@@ -593,7 +731,7 @@ def read_document_folder(
     texts, text_warnings = _stage_outputs(folder, "transcriptions")
     warnings.extend(text_warnings)
 
-    segments_by_stem: dict[str, int] = {}
+    segments_by_stem: dict[str, list[list[int]]] = {}
     segment_manifest = folder / "assets" / "segmented" / STAGE_MANIFESTS["segmented"]
     if segment_manifest.is_file():
         seg_records, _ = read_jsonl(segment_manifest)
@@ -601,26 +739,62 @@ def read_document_folder(
             source = record.get("source")
             if not source:
                 continue
-            count = int((record.get("details") or {}).get("num_segments") or 0)
-            segments_by_stem[Path(str(source)).stem] = count
+            bands = []
+            for segment in (record.get("details") or {}).get("segments") or []:
+                box = segment.get("bounding_box")
+                if isinstance(box, list) and len(box) == 2:
+                    bands.append([int(box[0]), int(box[1])])
+            segments_by_stem[Path(str(source)).stem] = bands
 
     pages: list[LegacyPage] = []
     for stem, original in sorted(originals.items(), key=lambda kv: _page_sequence(kv[0])):
-        images = {"original": original["path"]}
+        crop = stage_outputs.get("crops", {}).get(stem) or {}
+        crop_details = crop.get("details") or {}
+        original_size = crop_details.get("original_size") or []
+
+        # The renditions CHAIN (models/anchors.py: "frames chain"): each stage
+        # was derived from the previous one that actually ran, so the rows can
+        # say so instead of all hanging off the original.
+        images: list[dict[str, Any]] = [
+            {
+                "role": "original",
+                "source_path": original["path"],
+                "producer_tool": "fichero-1.0",
+                **_size_fields(original_size),
+            }
+        ]
+        previous_role = "original"
         for stage_dir, role in STAGE_ROLES.items():
             produced = stage_outputs.get(stage_dir, {}).get(stem)
-            if produced:
-                images[role] = produced
+            if not produced:
+                continue
+            details = produced.get("details") or {}
+            image: dict[str, Any] = {
+                "role": role,
+                "source_path": produced["path"],
+                "derived_from_role": previous_role,
+                "producer_tool": f"fichero-1.0/{stage_dir}",
+                **_size_fields(_output_size(stage_dir, details)),
+            }
+            if role == "crop":
+                transform = crop_transform(details)
+                if transform is not None:
+                    image["transform"] = transform
+            images.append(image)
+            previous_role = role
+
+        bands = segments_by_stem.get(stem, [])
         pages.append(
             LegacyPage(
                 stem=stem,
                 sequence=_page_sequence(stem),
                 original_path=original["path"],
                 images=images,
-                text_path=texts.get(stem),
+                text_path=(texts.get(stem) or {}).get("path"),
                 size=original["size"] or None,
                 mtime=original["mtime"],
-                segment_count=segments_by_stem.get(stem, 0),
+                segment_count=len(bands),
+                segment_bands=bands,
             )
         )
     if not pages:
@@ -629,6 +803,38 @@ def read_document_folder(
     catalogue = _read_catalogue(folder)
     warnings.extend(catalogue["warnings"])
     catalogue_model, transcription_model = _read_models(folder)
+
+    # Quality signals — how far the 1.0 run actually got. Only ever used to
+    # choose between two copies of the SAME content.
+    stages_completed = sum(
+        1
+        for stage, manifest_name in STAGE_MANIFESTS.items()
+        if (folder / "assets" / stage / manifest_name).is_file()
+    )
+    for extra in ("recombined/recombine_manifest.jsonl",
+                  "word/convert_to_word_manifest.jsonl",
+                  "llm_catalogue/llm_process_manifest.jsonl",
+                  "llm_catalogue_word/json_to_word_manifest.jsonl",
+                  "segmented_transcriptions/segmented_transcription_manifest.jsonl"):
+        if (folder / "assets" / extra).is_file():
+            stages_completed += 1
+    segment_text = folder / "assets" / "segmented_transcriptions" / (
+        "segmented_transcription_manifest.jsonl"
+    )
+    segment_text_count = 0
+    if segment_text.is_file():
+        segment_records, _ = read_jsonl(segment_text)
+        segment_text_count = len(segment_records)
+    catalogue_steps = len(
+        list((folder / "assets" / "llm_catalogue" / "steps" / "documents").glob("*.json"))
+    ) if (folder / "assets" / "llm_catalogue" / "steps" / "documents").is_dir() else 0
+    run_timestamp = 0.0
+    if (folder / "logs").is_dir():
+        for log in (folder / "logs").glob("*.log"):
+            try:
+                run_timestamp = max(run_timestamp, log.stat().st_mtime)
+            except OSError:
+                continue
 
     title = folder.name.replace("-", " ").strip()
     year_match = _YEAR_RE.match(folder.name)
@@ -656,6 +862,10 @@ def read_document_folder(
         segment_count=sum(page.segment_count for page in pages),
         salvaged_steps=catalogue["salvaged"],
         warnings=warnings,
+        stages_completed=stages_completed,
+        catalogue_steps=catalogue_steps,
+        segment_text_count=segment_text_count,
+        run_timestamp=run_timestamp,
     )
 
 
@@ -664,18 +874,36 @@ def read_document_folder(
 # ---------------------------------------------------------------------------
 
 
-def _stage_of(folder: Path, root: Path) -> str | None:
-    """The curation tier a document folder sits under ("04 Checked", …).
-
-    Daniel's ruling: the tier FLATTENS to metadata. It is read here so it can
-    become a filterable field, not a folder node.
-    """
+def _tiers_of(folder: Path, root: Path) -> list[str]:
+    """The directory tiers between the scan root and a document folder."""
     try:
-        relative = folder.relative_to(root)
+        return list(folder.relative_to(root).parts[:-1])
     except ValueError:
-        return None
-    parts = relative.parts[:-1]
-    return parts[0] if parts else None
+        return []
+
+
+def archive_and_stage(tiers: list[str], root_name: str) -> tuple[str, str | None]:
+    """Which archive a folder belongs to, and its curation tier.
+
+    Both are read from the tier chain rather than from the scan root, because
+    the root is not always the archive: resolving an overlap by quality
+    requires seeing both copies in ONE scan, so the useful scan root is the
+    folder that CONTAINS both archives — and naming every document after that
+    parent made the overlap tally read "Historical Archives Portable wins 9",
+    which tells Daniel nothing.
+
+    With two or more tiers the first is the archive and the second the tier
+    ("Big Files" / "05 Posted"). With one, the root itself is the archive and
+    the tier is that single directory. With none, the root is a document folder.
+
+    Daniel's ruling: the tier FLATTENS to metadata — a filterable field, never
+    a folder node.
+    """
+    if len(tiers) >= 2:
+        return tiers[0], tiers[1]
+    if len(tiers) == 1:
+        return root_name, tiers[0]
+    return root_name, None
 
 
 def scan_archives(roots: list[Path], *, corpus_name: str) -> LegacyScan:
@@ -683,7 +911,7 @@ def scan_archives(roots: list[Path], *, corpus_name: str) -> LegacyScan:
     if not roots:
         raise ValidationError("No archive root given to scan.")
     scan = LegacyScan(corpus_name=corpus_name, roots=[str(r) for r in roots])
-    seen: dict[str, LegacyFolder] = {}
+    groups: dict[str, list[LegacyFolder]] = {}
 
     for root in roots:
         root = Path(root).expanduser()
@@ -692,16 +920,11 @@ def scan_archives(roots: list[Path], *, corpus_name: str) -> LegacyScan:
         found = False
         for folder in find_legacy_document_folders(root):
             found = True
-            entry = read_document_folder(
-                folder, archive=root.name, stage=_stage_of(folder, root)
-            )
-            first = seen.get(entry.fingerprint)
-            if first is not None:
-                entry.duplicate_of = first.path
-                scan.duplicates.append(entry)
-                continue
-            seen[entry.fingerprint] = entry
-            scan.folders.append(entry)
+            tiers = _tiers_of(folder, root)
+            archive, stage = archive_and_stage(tiers, root.name)
+            entry = read_document_folder(folder, archive=archive, stage=stage)
+            entry.tiers = tiers
+            groups.setdefault(entry.fingerprint, []).append(entry)
         if not found:
             scan.warnings.append(f"{root}: no Fichero 1.0 document folders found")
 
@@ -721,6 +944,18 @@ def scan_archives(roots: list[Path], *, corpus_name: str) -> LegacyScan:
             )
             if has_images:
                 scan.unprocessed.append(str(child))
+
+    # Daniel: "which is better, big or small? Use the better one." The copies
+    # hold identical originals, so the choice is about how far each RUN got —
+    # `LegacyFolder.quality` documents the ranking and where it came from.
+    for candidates in groups.values():
+        winner = max(candidates, key=lambda f: (f.quality, f.run_timestamp))
+        scan.folders.append(winner)
+        for loser in candidates:
+            if loser is winner:
+                continue
+            loser.duplicate_of = winner.path
+            scan.duplicates.append(loser)
 
     scan.folders.sort(key=lambda f: (f.year or "", f.title))
     return scan
@@ -745,21 +980,41 @@ def _folder_metadata(folder: LegacyFolder, scan: LegacyScan) -> dict[str, Any]:
     if folder.stage:
         # Ruling 2: the curation tier is a FIELD, not a folder.
         metadata["legacy_stage"] = folder.stage
+    if folder.tiers:
+        metadata["legacy_tiers"] = folder.tiers
     if folder.summary:
         metadata["resumen"] = folder.summary
     if folder.tags:
         metadata["tags"] = folder.tags
     if folder.salvaged_steps:
         metadata["legacy_truncated_steps"] = folder.salvaged_steps
-    duplicates = [d.path for d in scan.duplicates if d.fingerprint == folder.fingerprint]
-    if duplicates:
-        metadata["legacy_duplicate_paths"] = duplicates
+    losers = [d for d in scan.duplicates if d.fingerprint == folder.fingerprint]
+    if losers:
+        # Which copy won, and why — visible on the document, not just in a log.
+        metadata["legacy_chosen_copy"] = {
+            "won": folder.archive,
+            "quality": list(folder.quality),
+            "over": [
+                {
+                    "path": loser.path,
+                    "archive": loser.archive,
+                    "quality": list(loser.quality),
+                    "identical": loser.quality == folder.quality,
+                }
+                for loser in losers
+            ],
+            "ranking": (
+                "stages_completed, transcribed_pages, intact_catalogue_steps, "
+                "segment_texts, entities; run timestamp breaks ties"
+            ),
+        }
     # Ruling 3: say what was left behind, so the bbox program can find it
     # without re-deriving this scan.
     if folder.segment_count or folder.docx_count:
         metadata["legacy_deferred"] = {
             "segment_strips": folder.segment_count,
             "segment_geometry": "bands [y_start,y_end] in background_removed space",
+            "segment_bands_on": "each page node's metadata.legacy_deferred_segments",
             "docx": folder.docx_count,
             "reason": "deferred to the bbox program (Daniel, 2026-09-04)",
         }
@@ -836,16 +1091,27 @@ def to_canonical_nodes(scan: LegacyScan) -> Iterator[dict[str, Any]]:
                 "date": folder.year,
                 "language": "es",
                 "text": text,
-                "images": [
-                    {"role": role, "source_path": path}
-                    for role, path in page.images.items()
-                ],
+                "images": page.images,
                 "metadata": {
                     "legacy_source": "fichero-1.0",
                     "legacy_stem": page.stem,
                     "legacy_mtime": page.mtime,
                     "legacy_size": page.size,
-                    "legacy_segment_count": page.segment_count,
+                    # Deferred, not discarded: the bands ride VERBATIM so the
+                    # bbox program can attach them later without re-reading
+                    # 300 GB to recover a number the archive already knows.
+                    **(
+                        {
+                            "legacy_deferred_segments": {
+                                "count": page.segment_count,
+                                "space": "background_removed",
+                                "axis": "y",
+                                "bands": page.segment_bands,
+                            }
+                        }
+                        if page.segment_bands
+                        else {}
+                    ),
                 },
                 "provider": LEGACY_PROVIDER,
                 "model": folder.transcription_model,
@@ -886,8 +1152,11 @@ def dry_run_report(scan: LegacyScan) -> str:
     for root in scan.roots:
         lines.append(f"  root                  {root}")
     lines.append("")
+    archives = sorted({f.archive for f in scan.folders})
     stages = sorted({f.stage for f in scan.folders if f.stage})
     lines.append(f"  document folders  {len(scan.folders):>9,}")
+    if len(archives) > 1:
+        lines.append(f"  archives          {len(archives):>9,}   {', '.join(archives)}")
     if stages:
         lines.append(
             f"  curation stages   {len(stages):>9,}   "
@@ -895,9 +1164,12 @@ def dry_run_report(scan: LegacyScan) -> str:
         )
     if scan.duplicates:
         lines.append(
-            f"  duplicates        {len(scan.duplicates):>9,}   "
-            "same content in both archives — imported once"
+            f"  overlaps          {len(scan.duplicates):>9,}   "
+            "same content twice — the BETTER copy is imported"
         )
+        for who, count in sorted(scan.overlap_tally.items()):
+            label = "identical (later run kept)" if who == "identical" else f"{who} wins"
+            lines.append(f"    {label:<28}{count:>5,}")
     lines.append(f"  pages             {scan.page_count:>9,}")
     lines.append(
         f"  renditions        {scan.rendition_count:>9,}   "
@@ -908,11 +1180,26 @@ def dry_run_report(scan: LegacyScan) -> str:
         f"  transcriptions    {scan.transcription_count:>9,}   "
         f"{', '.join(models) or 'model not recorded'}"
     )
+    untranscribed = scan.page_count - scan.transcription_count
+    if untranscribed:
+        # Say it plainly: some 1.0 runs were abandoned before transcription,
+        # and those pages arrive as images with no text.
+        abandoned = sum(1 for f in scan.folders if not f.transcribed_pages)
+        lines.append(
+            f"    no page text    {untranscribed:>9,}   "
+            f"in {abandoned} folder(s) the 1.0 run never transcribed"
+        )
+    catalogued = sum(1 for f in scan.folders if f.catalogue_steps)
     cat_models = sorted({f.catalogue_model for f in scan.folders if f.catalogue_model})
     lines.append(
-        f"  catalogues        {len(scan.folders):>9,}   "
+        f"  catalogues        {catalogued:>9,}   "
         f"{', '.join(cat_models) or 'model not recorded'}"
     )
+    if catalogued < len(scan.folders):
+        lines.append(
+            f"    no catalogue    {len(scan.folders) - catalogued:>9,}   "
+            "folder(s) the 1.0 run never catalogued"
+        )
     lines.append(f"    entities        {scan.entity_count:>9,}")
     lines.append(f"    timeline claims {scan.timeline_count:>9,}")
     lines.append("")

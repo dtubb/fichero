@@ -375,6 +375,44 @@ def _import_manifest_folder(
             dated += 1
     if dated:
         logger.info("Manifest folder import: dated %d documents on arrival", dated)
+
+    # RENDITION ROWS. The importer speaks HTTP and there is no rendition write
+    # route, so a corpus import used to leave its variants as a metadata blob:
+    # one displayable path and nothing else — no swipe between renditions, no
+    # record of which tool made which pass, nowhere for a crop's geometry to
+    # live. This is the engine, holding the db, for the same reason the two
+    # blocks above are.
+    from fichero_server.importers.manifest_renditions import attach_renditions
+
+    rendition_count, _refusals = attach_renditions(docs, db)
+    if rendition_count:
+        logger.info(
+            "Manifest folder import: wrote %d rendition rows", rendition_count
+        )
+
+    # A LINKED page with no path renders no thumbnail and opens to nothing —
+    # an unshippable outcome, and one that has happened live (2026-08-18: every
+    # security-scoped bookmark for the source tree failed to resolve and all
+    # 153 stamps declined). Fail loudly, naming the cause, rather than handing
+    # back a library of blank pages. A re-drop repairs, so this is recoverable.
+    from fichero_server.models import DocType as _DocType
+
+    pathless = [
+        doc for doc in docs if doc.doc_type == _DocType.page and not doc.path
+    ]
+    if pathless:
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                f"Import left {len(pathless)} of {len(docs)} pages with no file "
+                "path, so they would render blank. The engine could not verify "
+                "the source files — usually the folder grant does not cover "
+                f"where the images actually live (e.g. {_first_image_hint(pathless[0])}). "
+                "Grant access to that location and drop the folder again; the "
+                "import is idempotent and will repair in place."
+            ),
+        )
+
     queue_derivatives(docs, library_path=package_path, db=db)
     logger.info(
         "Manifest folder import: %s -> %d documents, %d entities, %d skipped",
@@ -384,6 +422,15 @@ def _import_manifest_folder(
         summary.documents_skipped,
     )
     return docs
+
+
+def _first_image_hint(document) -> str:
+    """A concrete path from a pathless document, for the error message."""
+    from fichero_server.importers.manifest_import import preferred_image
+
+    images = (document.metadata or {}).get("images") or []
+    image = preferred_image({"images": images})
+    return str(image.get("source_path")) if image else "an unrecorded location"
 
 
 def _convert_legacy_10_archive(path: Path) -> Path | None:
