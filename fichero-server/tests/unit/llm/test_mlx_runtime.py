@@ -7,7 +7,7 @@ import time
 import pytest
 
 from fichero_server.llm.local_inference import LocalInferenceRuntimeMissingError, ManagedLocalInferenceProcess
-from fichero_server.llm.mlx_runtime import MLXRuntime, MLX_LM_VERSION
+from fichero_server.llm.mlx_runtime import MLXRuntime, MLX_LM_VERSION, MLX_VLM_VERSION
 
 
 def _touch_python(runtime_dir: Path) -> None:
@@ -25,14 +25,37 @@ def test_runtime_status_reflects_provisioned_and_unprovisioned(tmp_path: Path) -
 
     _touch_python(runtime.runtime_dir)
     (runtime.runtime_dir / "runtime.json").write_text(
-        '{"mlx_lm_version": "0.31.3"}',
+        '{"mlx_lm_version": "0.31.3", "mlx_vlm_version": "0.6.17"}',
         encoding="utf-8",
     )
     ready = runtime.status()
 
     assert ready["provisioned"] is True
     assert ready["mlx_lm_version"] == "0.31.3"
+    assert ready["mlx_vlm_version"] == "0.6.17"
     assert ready["python_path"] == str(runtime.runtime_dir / "bin" / "python")
+
+
+def test_runtime_with_only_mlx_lm_is_not_provisioned(tmp_path: Path) -> None:
+    """A pre-#4560 runtime has mlx-lm and no mlx-vlm, so it cannot read images.
+
+    Every model in the managed catalog is a vision model, and `mlx_lm server`
+    refuses image content outright. A runtime in that state reporting itself
+    ready is the failure #4504 already fixed once at a different layer: the
+    status has to describe what the runtime can actually DO.
+    """
+    runtime = MLXRuntime(tmp_path / "mlx-runtime")
+    _touch_python(runtime.runtime_dir)
+    (runtime.runtime_dir / "runtime.json").write_text(
+        '{"mlx_lm_version": "0.31.3"}',
+        encoding="utf-8",
+    )
+
+    status = runtime.status()
+    assert status["provisioned"] is False
+    assert status["mlx_vlm_version"] is None
+    with pytest.raises(RuntimeError, match="mlx-vlm"):
+        runtime.require_python_path()
 
 
 @pytest.mark.asyncio
@@ -57,7 +80,11 @@ async def test_provision_coalesces_and_installs_pinned_version(tmp_path: Path) -
     await runtime.wait_for_current_job()
 
     assert create_calls == [runtime.runtime_dir]
-    assert commands == [[str(runtime.runtime_dir / "bin" / "python"), "-m", "pip", "install", f"mlx-lm=={MLX_LM_VERSION}"]]
+    python = str(runtime.runtime_dir / "bin" / "python")
+    assert commands == [
+        [python, "-m", "pip", "install", f"mlx-lm=={MLX_LM_VERSION}"],
+        [python, "-m", "pip", "install", f"mlx-vlm=={MLX_VLM_VERSION}"],
+    ]
     assert runtime.status()["provisioned"] is True
 
 
@@ -135,3 +162,64 @@ def test_a_completed_provision_is_provisioned(tmp_path):
     assert runtime.status()["provisioned"] is True
     assert runtime.status()["mlx_lm_version"] == MLX_LM_VERSION
     assert runtime.require_python_path() == runtime.python_path()
+
+
+def _vision_profile(model_id: str):
+    from fichero_server.llm.local_inference import LocalProviderProfile
+
+    return LocalProviderProfile(
+        id="app-omlx",
+        name="App-managed oMLX",
+        provider_type="omlx",
+        model_id=model_id,
+        base_url="http://127.0.0.1:8000/v1",
+    )
+
+
+def test_vision_models_launch_the_vlm_server_not_mlx_lm() -> None:
+    """#4560: `mlx_lm server` cannot read an image, so an OCR model must not get it.
+
+    mlx-lm's `process_message_content` raises "Only 'text' content type is
+    supported." for every non-text part, and the server turns that into a 404.
+    Verified live: Qwen3-VL-8B-4bit loaded under `mlx_lm server` answered a
+    text prompt in 56s and refused an image outright. Since EVERY entry in
+    MANAGED_MLX_MODELS is a vision model, sending them to mlx-lm meant the
+    managed-MLX OCR path could never work at all.
+    """
+    from fichero_server.llm.mlx_model_store import MANAGED_MLX_MODELS
+
+    vision_ids = [
+        model_id
+        for model_id, spec in MANAGED_MLX_MODELS.items()
+        if "vision" in spec.capabilities
+    ]
+    assert vision_ids, "the managed catalog is supposed to hold vision models"
+
+    for model_id in vision_ids:
+        process = ManagedLocalInferenceProcess(_vision_profile(model_id))
+        assert process._command() == ["-m", "mlx_vlm.server"], model_id
+
+
+def test_unknown_models_still_get_the_text_server() -> None:
+    """A user-configured repo id is not in the catalog and is assumed text-only.
+
+    mlx-lm loads plain text models that mlx-vlm would refuse, so the fallback
+    has to stay mlx-lm rather than flipping everything to the VLM server.
+    """
+    process = ManagedLocalInferenceProcess(_vision_profile("some-user/never-heard-of-it"))
+    assert process._command() == ["-m", "mlx_lm", "server"]
+
+
+def test_an_explicit_command_override_still_wins() -> None:
+    """FICHERO_OMLX_COMMAND is the escape hatch; capability routing must not eat it."""
+    from fichero_server.llm.local_inference import LocalProviderProfile
+
+    profile = LocalProviderProfile(
+        id="app-omlx",
+        name="App-managed oMLX",
+        provider_type="omlx",
+        model_id="Chandra-OCR",
+        base_url="http://127.0.0.1:8000/v1",
+        command=["-m", "my_own_server"],
+    )
+    assert ManagedLocalInferenceProcess(profile)._command() == ["-m", "my_own_server"]

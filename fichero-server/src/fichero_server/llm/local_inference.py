@@ -549,7 +549,30 @@ class ManagedLocalInferenceProcess:
     def _command(self) -> list[str]:
         if self.profile.command:
             return list(self.profile.command)
+        # A vision model needs a server that can READ the image (#4560).
+        # `mlx_lm server` rejects every image_url content part outright --
+        # "Only 'text' content type is supported." -- so pointing it at an OCR
+        # VLM produced a sidecar that loaded 5 GB of weights and then 404'd the
+        # only request anyone wanted to make of it. mlx_vlm's server speaks the
+        # same OpenAI shape (`--model`, `--host`, `--port`, `GET /health`) and
+        # does decode images, so vision models get that one instead.
+        if self._model_is_vision():
+            return ["-m", "mlx_vlm.server"]
         return ["-m", "mlx_lm", "server"]
+
+    def _model_is_vision(self) -> bool:
+        """Whether the profile's model is a vision model per the managed catalog.
+
+        Unknown models (a user-configured repo id that is not in
+        MANAGED_MLX_MODELS) fall back to the text server, which is the
+        conservative answer: mlx-lm loads text models mlx-vlm would refuse.
+        """
+        try:
+            from fichero_server.llm.mlx_model_store import get_mlx_model_store
+
+            return "vision" in get_mlx_model_store().spec(self.profile.model_id).capabilities
+        except KeyError:
+            return False
 
     def _port(self) -> int:
         parsed = urlparse(str(self.profile.base_url))

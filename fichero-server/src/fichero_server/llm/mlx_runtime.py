@@ -16,6 +16,17 @@ import venv
 from fichero_server.db.paths import server_state_dir
 
 MLX_LM_VERSION = "0.31.3"
+#: mlx-lm's OpenAI server CANNOT accept images (#4560). Its
+#: ``process_message_content`` rejects every non-text content part with
+#: "Only 'text' content type is supported.", so a vision request to the
+#: managed sidecar came back 404 no matter which VLM was loaded -- verified
+#: live against Qwen3-VL-8B-4bit, which answered text prompts happily and
+#: refused the very image the model exists to read. Every model in
+#: MANAGED_MLX_MODELS is a vision/OCR VLM, so the whole managed-MLX OCR
+#: story was unreachable. mlx-vlm ships the OpenAI-compatible server that
+#: does decode ``image_url`` parts, so the runtime provisions BOTH: mlx-lm
+#: for text models, mlx-vlm for vision ones.
+MLX_VLM_VERSION = "0.6.17"
 _RUNTIME_DIRNAME = "mlx-runtime"
 _METADATA_FILENAME = "runtime.json"
 
@@ -73,13 +84,23 @@ class MLXRuntime:
         provision, so its presence is the honest signal, and it already records
         the version we installed.
         """
-        return self.python_path().exists() and bool(self._metadata().get("mlx_lm_version"))
+        metadata = self._metadata()
+        return (
+            self.python_path().exists()
+            and bool(metadata.get("mlx_lm_version"))
+            # A runtime provisioned before #4560 has mlx-lm and no mlx-vlm, and
+            # is therefore blind to images. Reporting it "provisioned" is the
+            # same lie #4504 fixed one layer up, so it reports unprovisioned
+            # and one Provision click installs the missing half.
+            and bool(metadata.get("mlx_vlm_version"))
+        )
 
     def status(self) -> dict[str, object]:
         python_path = self.python_path()
         return {
             "provisioned": self.is_provisioned(),
             "mlx_lm_version": self._metadata().get("mlx_lm_version"),
+            "mlx_vlm_version": self._metadata().get("mlx_vlm_version"),
             "disk_usage_bytes": self._disk_usage_bytes(),
             "python_path": str(python_path) if python_path.exists() else None,
             "runtime_dir": str(self.runtime_dir),
@@ -94,7 +115,7 @@ class MLXRuntime:
                 job_id=str(uuid.uuid4()),
                 state="running",
                 current=0,
-                total=3,
+                total=4,
                 message="Creating MLX runtime",
             )
             self._job = job
@@ -125,7 +146,8 @@ class MLXRuntime:
         if self.is_provisioned():
             return self.python_path()
         raise RuntimeError(
-            "MLX runtime is not provisioned. Call POST /api/local-inference/runtime/provision "
+            "MLX runtime is not provisioned (needs both mlx-lm and mlx-vlm). "
+            "Call POST /api/local-inference/runtime/provision "
             "or enable Local Models in Settings before starting oMLX."
         )
 
@@ -145,6 +167,12 @@ class MLXRuntime:
                 [str(self.python_path()), "-m", "pip", "install", f"mlx-lm=={MLX_LM_VERSION}"],
             )
             job.current = 3
+            job.message = f"Installing mlx-vlm=={MLX_VLM_VERSION}"
+            await asyncio.to_thread(
+                self._run_command,
+                [str(self.python_path()), "-m", "pip", "install", f"mlx-vlm=={MLX_VLM_VERSION}"],
+            )
+            job.current = 4
             job.message = "Writing runtime metadata"
             await asyncio.to_thread(self._write_metadata)
             job.state = "completed"
@@ -168,7 +196,11 @@ class MLXRuntime:
 
     def _write_metadata(self) -> None:
         (self.runtime_dir / _METADATA_FILENAME).write_text(
-            json.dumps({"mlx_lm_version": MLX_LM_VERSION}, indent=2, sort_keys=True),
+            json.dumps(
+                {"mlx_lm_version": MLX_LM_VERSION, "mlx_vlm_version": MLX_VLM_VERSION},
+                indent=2,
+                sort_keys=True,
+            ),
             encoding="utf-8",
         )
 
@@ -212,6 +244,7 @@ def get_mlx_runtime() -> MLXRuntime:
 __all__ = [
     "MLXRuntime",
     "MLX_LM_VERSION",
+    "MLX_VLM_VERSION",
     "RuntimeProvisionJob",
     "get_mlx_runtime",
     "mlx_runtime_dir",

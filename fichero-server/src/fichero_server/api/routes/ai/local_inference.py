@@ -75,6 +75,7 @@ class LocalInferenceRuntimeJobResponse(BaseModel):
 class LocalInferenceRuntimeStatusResponse(BaseModel):
     provisioned: bool
     mlx_lm_version: str | None = None
+    mlx_vlm_version: str | None = None
     disk_usage_bytes: int = Field(default=0, ge=0)
     python_path: str | None = None
     runtime_dir: str
@@ -182,6 +183,7 @@ def _runtime_status_response() -> LocalInferenceRuntimeStatusResponse:
     return LocalInferenceRuntimeStatusResponse(
         provisioned=bool(payload["provisioned"]),
         mlx_lm_version=payload.get("mlx_lm_version"),
+        mlx_vlm_version=payload.get("mlx_vlm_version"),
         disk_usage_bytes=int(payload.get("disk_usage_bytes", 0)),
         python_path=payload.get("python_path"),
         runtime_dir=str(payload["runtime_dir"]),

@@ -62,6 +62,14 @@ MANAGED_MLX_MODELS: dict[str, ManagedModelSpec] = {
         revision="defcdea7cc7a4b0858fea563cbbce171d328e457",
         display_name="Qwen3-VL 8B",
         download_size_bytes=6_500_000_000,
+        # NOTE (#4560): 16 GB is the floor for LOADING this model, not for
+        # using it as a VLM. Measured on a 16 GB M1: text prompts answered in
+        # ~56s, but a single-page vision prefill drove swap to 24 GB of 25 GB
+        # and had not produced a token after ten minutes. Raising the floor to
+        # 24 GB would be the honest gate, and would also drop the flagship
+        # model off every 16 GB Mac -- a product call for Daniel, not a
+        # silent change here. Left at 16 GB pending that ruling; prefer
+        # Qwen2.5-VL-3B on 16 GB machines until then.
         min_memory_bytes=16 * 1024**3,
         memory_class="needs 16 GB unified memory",
         capabilities=("text", "vision"),
@@ -78,12 +86,30 @@ MANAGED_MLX_MODELS: dict[str, ManagedModelSpec] = {
     ),
     "Chandra-OCR": ManagedModelSpec(
         model_id="Chandra-OCR",
-        repo_id="jwindle47/chandra-ocr-2-8bit-mlx",
-        revision="13039308ea7ac53b29559eb2d500e33217cfab06",
+        # mlx-community's own 4-bit conversion, not a one-off personal 8-bit
+        # repo (#4560): same model, 5.8 GB instead of 8.2 GB, and it comes from
+        # the org whose conversions the rest of this catalog already trusts.
+        repo_id="mlx-community/chandra-4bit",
+        revision="64c678e4b2c4083a2c738292e6a10107cb7f6b04",
         display_name="Chandra OCR",
-        download_size_bytes=8_200_000_000,
+        download_size_bytes=5_800_000_000,
         min_memory_bytes=16 * 1024**3,
         memory_class="needs 16 GB unified memory",
+        capabilities=("text", "vision"),
+    ),
+    # The small end of the catalog (#4560). Every other managed model is 5-8 GB
+    # of weights, and on a 16 GB Mac an 8B VLM's vision prefill drove swap to
+    # 24 GB and never returned a transcription -- measured, not predicted. A
+    # 3B 4-bit VLM is the entry that makes on-device OCR reachable on the
+    # machines most users actually have.
+    "Qwen2.5-VL-3B": ManagedModelSpec(
+        model_id="Qwen2.5-VL-3B",
+        repo_id="mlx-community/Qwen2.5-VL-3B-Instruct-4bit",
+        revision="46d4cf06a06ffc1a766c214174f9cbed2f45bcab",
+        display_name="Qwen2.5-VL 3B",
+        download_size_bytes=3_100_000_000,
+        min_memory_bytes=8 * 1024**3,
+        memory_class="needs 8 GB unified memory",
         capabilities=("text", "vision"),
     ),
 }
