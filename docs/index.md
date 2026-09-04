@@ -40,9 +40,8 @@ the default recommendation again.
 
 </div>
 
-## Releases
-
---8<-- "docs/_releases.md"
+Release notes live in the app's update prompts and on
+[GitHub Releases](https://github.com/dtubb/fichero/releases).
 
 [Changelog](https://github.com/dtubb/fichero/blob/main/CHANGELOG.md) — the full
 commit-level history.
