@@ -334,7 +334,7 @@ struct ReaderShowingMenuScopeTests {
 
     @Test("the lens loader prefers the pane's injected artifact service")
     func lensLoaderUsesPaneService() throws {
-        let lens = try appSource("Views/Reader/Page/ReadingPaneView+ArtifactLens.swift")
+        let lens = try appSource("Views/Reader/Page/Lenses/ReadingPaneView+ArtifactLens.swift")
         #expect(lens.contains("paneArtifactService ?? library?.artifactService"),
                 Comment(rawValue: "the app-global currentLibraryId pointer answered for the "
                 + "wrong library in a multi-library window — empty submenu"))

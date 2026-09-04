@@ -102,8 +102,9 @@ video slot: short demo embed(s). Keep empty until there is one. -->
 
     ---
 
-    Use semantic search across a whole library, or part of a collection,
-    with matches highlighted on the page.
+    Use keyword or semantic search across a library, a folder, or your
+    images, and see the relevant text with matched words highlighted in
+    the results.
 
 </div>
 

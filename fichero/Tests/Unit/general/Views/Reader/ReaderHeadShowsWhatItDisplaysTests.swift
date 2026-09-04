@@ -80,7 +80,7 @@ struct ReaderHeadShowsWhatItDisplaysTests {
         "fichero/fichero/Views/Reader/Page/ReadingPaneView.swift"
     }
     private var artifactLensPath: String {
-        "fichero/fichero/Views/Reader/Page/ReadingPaneView+ArtifactLens.swift"
+        "fichero/fichero/Views/Reader/Page/Lenses/ReadingPaneView+ArtifactLens.swift"
     }
     private var paneHeadPath: String {
         "fichero/fichero/Views/Shell/PaneHead/PaneHead.swift"
