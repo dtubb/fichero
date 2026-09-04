@@ -61,7 +61,18 @@ final class MiniToolbarOverflowTests: XCTestCase {
         // Menu (ellipsis.circle) as the fallback candidate — never a bar that
         // extends past the pane.
         XCTAssertTrue(source.contains("ViewThatFits(in: .horizontal)"))
-        XCTAssertTrue(source.contains("ellipsis.circle"))
+        // `ToolbarSymbols.overflowMenu`, not the raw "ellipsis.circle": the
+        // literal appears in this file ONLY inside comments, so the old
+        // assertion passed on prose and would have kept passing if the
+        // overflow menu were deleted outright (2026-09-04 sweep). The glyph
+        // itself is pinned where it is DEFINED, one assertion below.
+        XCTAssertTrue(
+            AppSource.codeOnly(source).contains("Image(systemName: ToolbarSymbols.overflowMenu)")
+        )
+        XCTAssertEqual(
+            ToolbarSymbols.overflowMenu, "ellipsis.circle",
+            "The overflow glyph is part of the toolbar's visual language."
+        )
         XCTAssertTrue(source.contains("overflowMenuButton"))
         // The tiering is derived from the pure policy, not hand-rolled in body.
         XCTAssertTrue(source.contains("MiniToolbarTierPolicy.inlineTiers"))

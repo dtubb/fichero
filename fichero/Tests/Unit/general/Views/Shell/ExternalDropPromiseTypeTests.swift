@@ -38,10 +38,15 @@ final class ExternalDropPromiseTypeTests: XCTestCase {
     func testExternalFileDropLoaderFallsBackToFileRepresentation() throws {
         let source = try Self.appSource("Services/ExternalFileDropLoader.swift")
         // The cheap path a Finder drag satisfies.
-        XCTAssertTrue(source.contains("canLoadObject(ofClass: URL.self)"))
+        XCTAssertTrue(AppSource.codeOnly(source).contains("canLoadObject(ofClass: URL.self)"))
         // The fallback a content-UTI-only provider (Mail/Safari/Downloads)
         // actually needs.
-        XCTAssertTrue(source.contains("loadFileRepresentation(forTypeIdentifier:"))
+        // The CALL, not the labelled API name: the label appears in this
+        // file only inside comments, so the old needle passed on prose
+        // (2026-09-04 sweep).
+        XCTAssertTrue(
+            AppSource.codeOnly(source).contains("provider.loadFileRepresentation(")
+        )
         XCTAssertTrue(source.contains("for identifier in utis"))
     }
 

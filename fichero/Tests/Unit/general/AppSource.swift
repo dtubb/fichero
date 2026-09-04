@@ -123,6 +123,51 @@ enum AppSource {
         )
     }
 
+    /// Source with `//` comment bodies removed, for a guard that must test what
+    /// the code DOES rather than what its comments say it used to do.
+    ///
+    /// ## The bug this replaces
+    ///
+    /// Twice in one night (2026-09-04), a source-scan guard failed on its own
+    /// explanation:
+    ///
+    /// - the reader's passage-anchor guard asserted the preview does not call
+    ///   `ReaderPassageFocus.consume`, and the doc comment beside
+    ///   `adoptLatchedPassageAnchor` names that symbol to explain why it is not
+    ///   called there;
+    /// - `ClaimSourceLandingTests` asserted `postOpenClaimSource` contains no
+    ///   `currentDocuments`, and that function opens with a comment explaining
+    ///   that it USED to gate on `documentStore.currentDocuments`. That one
+    ///   could never have passed: it shipped in the same commit as the comment.
+    ///
+    /// Both are the same shape. A guard describes a rule; the code that obeys
+    /// the rule tends to explain itself in a comment using the very words the
+    /// guard forbids. The better the comment, the more likely the guard fails.
+    ///
+    /// ## The direction that does NOT fail loudly
+    ///
+    /// A NEGATIVE assertion (`!contains`) breaks noisily, which is how both of
+    /// these were found. A POSITIVE one (`contains`) does the opposite: a
+    /// symbol mentioned only in a comment makes the guard PASS, so a guard can
+    /// stop guarding silently the day its call site is deleted and its comment
+    /// is not. Use this for both directions; the silent case is the one worth
+    /// the habit.
+    static func codeOnly(_ source: String) -> String {
+        source
+            .components(separatedBy: .newlines)
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+    }
+
+    /// `text(_:)` with the comments stripped — the one call a new source-scan
+    /// guard should reach for.
+    static func code(
+        _ relativePath: String,
+        from filePath: String = #filePath
+    ) throws -> String {
+        codeOnly(try text(relativePath, from: filePath))
+    }
+
     /// The text of an app source file, relative to the app target root.
     ///
     /// Failures are separated on purpose: a missing ROOT is `NotFound` above,
