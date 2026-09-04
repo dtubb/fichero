@@ -146,6 +146,10 @@ struct AnnotationMarkLayer: View {
     /// in the inspector said nothing about where on the page it was (Daniel,
     /// 2026-09-03). Same grammar, same accent ring.
     var selectedId: String?
+    /// Tap a NOTE mark to edit it inline at its anchor (Daniel, 2026-09-04:
+    /// notes are created and edited in place, not in a popover). nil in
+    /// hosts without the inline editor (PDF, headless).
+    var onNoteTap: ((String) -> Void)?
 
     var body: some View {
         GeometryReader { geo in
@@ -237,12 +241,18 @@ struct AnnotationMarkLayer: View {
                 .foregroundStyle(.primary)
                 .lineLimit(3)
                 .frame(width: max(rect.width, size.width * 0.11), alignment: .leading)
+                // Tap INSIDE the offset/position wrappers, on the leaf: a
+                // gesture outside them rides the frame-expanded wrapper and
+                // would claim the whole layer (the 2026-09-01 hit-claiming
+                // shape). Tap-to-edit lands the note's inline editor.
+                .onTapGesture { onNoteTap?(mark.id) }
                 .offset(x: rect.minX, y: rect.minY)
                 .help(mark.text)
         } else {
             Image(systemName: "note.text")
                 .font(.caption)
                 .foregroundStyle(Color.accentColor)
+                .onTapGesture { onNoteTap?(mark.id) }
                 .position(x: rect.minX + 8, y: rect.minY + 8)
                 .help(mark.text)
         }

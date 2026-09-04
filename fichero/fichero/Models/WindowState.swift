@@ -90,6 +90,26 @@ class WindowState {
         return tags
     }
 
+    /// A quiet, transient reason shown over the preview canvas when a markup
+    /// gesture is refused (Daniel, 2026-09-04: a drag over box-less canvas
+    /// "refuses with a quiet reason rather than minting an unanchored mark").
+    /// Honest refusal, not silence — and not a modal.
+    var markupNotice: String?
+    private var markupNoticeToken = 0
+
+    /// Show `reason` over the canvas for a few seconds, then clear — unless a
+    /// newer notice has replaced it in the meantime.
+    func showMarkupNotice(_ reason: String) {
+        markupNoticeToken += 1
+        let token = markupNoticeToken
+        markupNotice = reason
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(2.5))
+            guard let self, self.markupNoticeToken == token else { return }
+            self.markupNotice = nil
+        }
+    }
+
     init(libraryId: UUID) {
         self.libraryId = libraryId
     }

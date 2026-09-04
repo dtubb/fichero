@@ -229,11 +229,6 @@ struct PreviewMarkupToolsRow: View {
     /// saved highlight / underline / strikethrough / check.
     @State private var showTagPopover = false
 
-    /// The just-saved note annotation awaiting its text (ruling 3), and the
-    /// popover that asks for it.
-    @State private var pendingNoteId: String?
-    @State private var showNotePopover = false
-
     // Order ruled 2026-08-31 (Daniel): the three SELECTION tools first —
     // text, rectangular, words — then Draw Region, then the marks that put
     // something on the page (line, highlight, note, star, check), then the
@@ -390,12 +385,10 @@ struct PreviewMarkupToolsRow: View {
     }
 
     /// Text Note (Daniel, 2026-08-31: "text note doesn't work"). Arming the
-    /// tool and dragging a box saved a note-kind annotation with EMPTY text
-    /// and no way to type into it — a note that is not a note. The canvas now
-    /// announces the saved box on `.previewNoteTextEntry`; this popover asks
-    /// for the words. Enter (or Save) commits through
-    /// `AnnotationStore.updateText`; Esc / Cancel / an empty field DELETES
-    /// the blank annotation rather than leaving one behind.
+    /// tool and dragging a box saves a note-kind annotation; the canvas then
+    /// opens `InlineNoteEditor` AT the anchor (Daniel, 2026-09-04: notes are
+    /// typed in place like a margin note, not in a popover off this bar —
+    /// the popover that used to hang here moved onto the page).
     @ViewBuilder
     private var noteButton: some View {
         toolButton(
@@ -409,14 +402,6 @@ struct PreviewMarkupToolsRow: View {
             NotificationCenter.default.post(
                 name: .previewAnnotateTool, object: PreviewMarkupTool.note.rawValue
             )
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .previewNoteTextEntry)) { note in
-            guard let id = note.object as? String else { return }
-            pendingNoteId = id
-            showNotePopover = true
-        }
-        .popover(isPresented: $showNotePopover) {
-            MarkupNotePopover(annotationId: pendingNoteId)
         }
     }
 
@@ -588,73 +573,3 @@ struct PreviewHighlightStyleMenu: View {
 // v1, ruling 4) live in AnnotationBar.swift — the annotation bar is the one
 // home for markup verbs; both chevron menus here mount them.
 
-// MARK: - Text-note entry (Daniel, 2026-08-31, ruling 3)
-
-extension Notification.Name {
-    /// A note-kind annotation was just saved by a markup drag and has no text
-    /// yet. `object` is the annotation id. The markup row answers by opening
-    /// `MarkupNotePopover` for it; nothing else consumes this.
-    static let previewNoteTextEntry = Notification.Name("previewNoteTextEntry")
-}
-
-/// Types the text of a note the canvas just drew. Saves through the SAME
-/// `AnnotationStore` path the box came from (`updateText`), so there is one
-/// audited write per note; abandoning the entry deletes the empty box rather
-/// than leaving a blank note on the page.
-struct MarkupNotePopover: View {
-    let annotationId: String?
-
-    @Environment(AnnotationStore.self) private var annotationStore: AnnotationStore?
-    @Environment(\.dismiss) private var dismiss
-
-    @State private var text = ""
-    /// Set only by a successful commit — `onDisappear` deletes the annotation
-    /// when it is still false, which is how Esc, Cancel, and click-away all
-    /// mean the same thing without three code paths.
-    @State private var committed = false
-    @FocusState private var fieldFocused: Bool
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Note for this spot")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            // Single-line so Return COMMITS (an `axis: .vertical` field
-            // spends Return on a newline and the note could never be typed
-            // shut from the keyboard).
-            TextField("What belongs here?", text: $text)
-                .textFieldStyle(.roundedBorder)
-                .frame(width: 260)
-                .focused($fieldFocused)
-                .onSubmit(commit)
-                .accessibilityIdentifier("markupNoteField")
-            HStack {
-                Button("Cancel") { dismiss() }
-                    .keyboardShortcut(.cancelAction)
-                    .accessibilityIdentifier("markupNoteCancel")
-                Spacer()
-                Button("Save", action: commit)
-                    .keyboardShortcut(.defaultAction)
-                    .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    .accessibilityIdentifier("markupNoteSave")
-            }
-        }
-        .padding(12)
-        .onAppear { fieldFocused = true }
-        .onDisappear {
-            guard !committed, let annotationId, let annotationStore else { return }
-            Task { _ = await annotationStore.delete(id: annotationId) }
-        }
-    }
-
-    private func commit() {
-        let value = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !value.isEmpty, let annotationId, let annotationStore else {
-            dismiss()  // empty text is a cancel; onDisappear removes the box
-            return
-        }
-        committed = true
-        Task { _ = await annotationStore.updateText(id: annotationId, text: value) }
-        dismiss()
-    }
-}

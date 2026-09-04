@@ -71,7 +71,9 @@ extension ZoomableImagePreview {
                         // The inspector's annotation row lights its mark on
                         // the page (2026-09-03) — the annotation twin of
                         // `RegionSelection` driving the region overlay.
-                        selectedId: FocusedAnnotation.shared.id
+                        selectedId: FocusedAnnotation.shared.id,
+                        // Tap a note to edit it IN PLACE (Daniel, 2026-09-04).
+                        onNoteTap: { inlineNoteEditingId = $0 }
                     )
                 }
                 // The region-DRAW plumbing moved to the pointer feed
@@ -102,6 +104,11 @@ extension ZoomableImagePreview {
                 // for the few SELECTED boxes, so the one-Canvas perf fix
                 // stands.
                 regionInteractionLayer
+                // The note being typed, INLINE at its anchor (Daniel,
+                // 2026-09-04: "like a margin note on the page, not a
+                // popover"). Sits above the interaction layer so the field
+                // gets the clicks while it is up.
+                inlineNoteEntry
             }
             .frame(width: geometry.drawnFrame.width, height: geometry.drawnFrame.height)
             // Boxes never bleed past the drawn image into the letterbox or the
@@ -109,6 +116,30 @@ extension ZoomableImagePreview {
             // and sometimes into other views").
             .clipped()
             .offset(x: geometry.drawnFrame.minX, y: geometry.drawnFrame.minY)
+        }
+    }
+
+    /// The inline note field, positioned AT the note's anchor rect — just
+    /// under it, clamped so it never leaves the drawn image. Nothing renders
+    /// when no entry is armed or the armed id names a note this page is not
+    /// showing.
+    @ViewBuilder
+    private var inlineNoteEntry: some View {
+        if let noteId = inlineNoteEditingId,
+           let annotation = annotationStore.annotations.first(where: { $0.id == noteId }),
+           let box = annotation.regionRect,
+           let rect = BoundingBoxGeometry.viewRect(
+               normalized: box, in: geometry.drawnFrame.size, visible: geometry.visible
+           ) {
+            InlineNoteEditor(
+                annotationId: noteId,
+                initialText: annotation.text ?? "",
+                onDismiss: { inlineNoteEditingId = nil }
+            )
+            .offset(
+                x: max(0, min(rect.minX, geometry.drawnFrame.width - 192)),
+                y: max(0, min(rect.maxY + 2, geometry.drawnFrame.height - 28))
+            )
         }
     }
 }
@@ -260,6 +291,22 @@ extension ZoomableImagePreview {
             // from the bottom edge, so the cluster no longer needs to
             // dodge it).
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+        }
+        .overlay(alignment: .bottom) {
+            // The quiet refusal (Daniel, 2026-09-04): a box-gated mark that
+            // found no box says WHY, briefly, and goes away on its own.
+            if let notice = windowState?.markupNotice {
+                Text(notice)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(.regularMaterial, in: Capsule())
+                    .padding(.bottom, 14)
+                    .transition(.opacity)
+                    .allowsHitTesting(false)
+                    .accessibilityIdentifier("previewMarkupNotice")
+            }
         }
         .onHover { inside in
             hoveringCanvas = inside

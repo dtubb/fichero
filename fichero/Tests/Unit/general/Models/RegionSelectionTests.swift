@@ -85,6 +85,48 @@ final class RegionSelectionTests: XCTestCase {
         XCTAssertNil(hit)
     }
 
+    // MARK: - Check target (Daniel, 2026-09-04: the check is the FULL line)
+
+    func testCheckTargetPicksTheLineContainingTheClickHeight() {
+        let lines: [[Double]] = [
+            [0.2, 0.10, 0.6, 0.03],
+            [0.2, 0.15, 0.6, 0.03],
+            [0.2, 0.20, 0.6, 0.03]
+        ]
+        XCTAssertEqual(
+            RegionHitTesting.checkTarget(atNormalizedY: 0.16, lines: lines),
+            [0.2, 0.15, 0.6, 0.03],
+            "a click inside a line's vertical extent checks THAT whole line"
+        )
+    }
+
+    func testCheckTargetBetweenLinesIsAFullWidthBandOfMedianLineHeight() {
+        let lines: [[Double]] = [
+            [0.2, 0.10, 0.6, 0.02],
+            [0.2, 0.20, 0.6, 0.03],
+            [0.2, 0.30, 0.6, 0.04]
+        ]
+        let target = RegionHitTesting.checkTarget(atNormalizedY: 0.50, lines: lines)
+        XCTAssertEqual(target[0], 0, "the band spans the full page width")
+        XCTAssertEqual(target[2], 1, "the band spans the full page width")
+        XCTAssertEqual(target[3], 0.03, accuracy: 1e-9, "band height is the median line height")
+        XCTAssertEqual(target[1], 0.50 - 0.015, accuracy: 1e-9, "band is centred on the click height")
+    }
+
+    func testCheckTargetWithNoLinesIsAFullWidthBandNeverASquare() {
+        let target = RegionHitTesting.checkTarget(atNormalizedY: 0.5, lines: [])
+        XCTAssertEqual(target[0], 0)
+        XCTAssertEqual(target[2], 1)
+        XCTAssertEqual(target[3], 0.03, accuracy: 1e-9)
+    }
+
+    func testCheckTargetClampsAtThePageEdges() {
+        let top = RegionHitTesting.checkTarget(atNormalizedY: 0.0, lines: [])
+        XCTAssertEqual(top[1], 0, "a click at the very top keeps the band on the page")
+        let bottom = RegionHitTesting.checkTarget(atNormalizedY: 1.0, lines: [])
+        XCTAssertLessThanOrEqual(bottom[1] + bottom[3], 1.0 + 1e-9, "a click at the very bottom keeps the band on the page")
+    }
+
     // MARK: - Move math
 
     func testMovedTranslatesThroughVisibleWindow() {

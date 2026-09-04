@@ -42,6 +42,25 @@ enum AnnotationWordSnap {
         return runs.map(union).sorted { $0[1] != $1[1] ? $0[1] < $1[1] : $0[0] < $1[0] }
     }
 
+    /// BOX-GATED snap (Daniel, 2026-09-04): highlight / underline /
+    /// strikethrough / star anchor only to text that HAS a bounding box.
+    /// Words touched → the usual per-line strips; no words but LINE boxes
+    /// touched → those whole lines (a line is a bounding box too, and
+    /// lines-only geometries are common); nothing touched → EMPTY, and the
+    /// caller refuses with a quiet reason rather than minting a free-floating
+    /// mark nothing anchors.
+    static func gatedRects(
+        drag: [Double], words: [OCRGeometryBox], lines: [OCRGeometryBox]
+    ) -> [[Double]] {
+        guard drag.count >= 4 else { return [] }
+        if words.contains(where: { intersects(drag, $0.bbox) }) {
+            return snappedRects(drag: drag, words: words, lines: lines)
+        }
+        return lines.filter { intersects(drag, $0.bbox) }
+            .map(\.bbox)
+            .sorted { $0[1] != $1[1] ? $0[1] < $1[1] : $0[0] < $1[0] }
+    }
+
     static func intersects(_ lhs: [Double], _ rhs: [Double]) -> Bool {
         guard lhs.count >= 4, rhs.count >= 4 else { return false }
         return lhs[0] < rhs[0] + rhs[2] && rhs[0] < lhs[0] + lhs[2]
