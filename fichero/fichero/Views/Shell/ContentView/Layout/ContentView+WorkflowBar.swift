@@ -379,15 +379,22 @@ extension ContentView {
         let defaults = cachedAIDefaults
         return WorkflowBarPolicy.pinnableModels(
             providers: WorkflowRunProviderCache.shared.providers,
+            // Named in full rather than `.init(...)`: four positional
+            // shorthand literals in a row read as noise, and the type is the
+            // only thing that says what the tuple MEANS.
             tierDefaults: [
-                .init(tier: "Vision", provider: defaults.visionMediumProvider,
-                      model: defaults.visionMediumModel),
-                .init(tier: "Text", provider: defaults.mediumProvider,
-                      model: defaults.mediumModel),
-                .init(tier: "Large", provider: defaults.largeProvider,
-                      model: defaults.largeModel),
-                .init(tier: "Small", provider: defaults.smallProvider,
-                      model: defaults.smallModel)
+                WorkflowBarPolicy.TierDefault(
+                    tier: "Vision", provider: defaults.visionMediumProvider,
+                    model: defaults.visionMediumModel),
+                WorkflowBarPolicy.TierDefault(
+                    tier: "Text", provider: defaults.mediumProvider,
+                    model: defaults.mediumModel),
+                WorkflowBarPolicy.TierDefault(
+                    tier: "Large", provider: defaults.largeProvider,
+                    model: defaults.largeModel),
+                WorkflowBarPolicy.TierDefault(
+                    tier: "Small", provider: defaults.smallProvider,
+                    model: defaults.smallModel)
             ]
         )
     }

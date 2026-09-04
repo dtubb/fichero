@@ -30,7 +30,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     # would impose row selection and separators on content whose whole purpose
     # is to be read before choosing — and the expand gesture must not select.
     "Shell/Toolbar/WorkflowToolsPopover.swift#2d76b922c8": "2026-08-28 tools browser: searchable tool cards with expandable prompts, not selectable rows (re-pinned 2026-08-30 after card rework)",
-    "Shell/Toolbar/ModelChipToolbarItem.swift#e46b79020f": "2026-08-29 model picker popover (rehashed 2026-09-01 by the model-routing pass): logo+pricing+vision rows in a fixed-height popover; List chrome misbehaves in popovers and the concrete-row perf fix (333ms stall) depends on this structure",
+    "Shell/Toolbar/ModelChipToolbarItem.swift#26ffb0da37": "2026-08-29 model picker popover (rehashed 2026-09-01 by the model-routing pass, and 2026-09-04 by the pickable-model fix in 3ed311ca3): logo+pricing+vision rows in a fixed-height popover; List chrome misbehaves in popovers and the concrete-row perf fix (333ms stall) depends on this structure. Same block, same reasons — the signature moved, the sanction did not",
     "Reader/MultiSelectionReaderView.swift#59b0e99ae5": "2026-08-23 multi-selection reader: continuous transcript SECTIONS under pinned headers — prose, not a row collection; List would impose row selection and separators on reading text",
     "Activity/Overview/ActivityOverviewView+Cards.swift#d6f20143ab": "#1912 baseline (re-hashed by function_body extraction; same docStep grid)",
     "Library/ViewModes/Graph/Ontology/Entity/EntitySourceGroupsView.swift#c6a609c38d": "#1912 baseline",
