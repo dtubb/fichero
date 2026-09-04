@@ -219,6 +219,31 @@ def _progress_add(library: str, count: int) -> None:
     _arm_stall_watchdog(library)
 
 
+def _progress_expand(library: str, extra: int) -> None:
+    """Grow the total once a stage discovers how much work it REALLY is.
+
+    The queue is seeded with one unit per DOCUMENT, because that is all the
+    import path knows at queue time. For a 252-page book that made the bar a
+    two-state device: 0% for as long as the whole book took to embed, then
+    100%. The label said "pages", which made a truthful count of documents
+    read as a stuck count of pages — and a user watching 0% for twenty minutes
+    has no way to tell that from a hang (#4574 follow-up).
+
+    So the moment a stage knows its page count, it says so and the bar starts
+    moving through pages instead of sitting on the one document.
+    """
+    if extra <= 0:
+        return
+    with _progress_lock:
+        state = _progress.get(library)
+        if state is None:
+            return
+        state["total"] += extra
+        done, total = state["done"], state["total"]
+    _emit_queue_progress(library, done, total)
+    _arm_stall_watchdog(library)
+
+
 def _progress_tick(library: str) -> None:
     with _progress_lock:
         state = _progress.get(library)
@@ -241,10 +266,17 @@ def _progress_tick(library: str) -> None:
         _emit_queue_progress(library, done, total)
 
 
-def _embed_document_tree(doc: Document, db: "Database") -> str | None:
+def _embed_document_tree(
+    doc: Document, db: "Database", library: str | None = None
+) -> str | None:
     """Embed a document's text, and its PDF page children, off the import
     path. Returns an error summary (never raises) — an embed failure is
     recorded on the document, not allowed to strand it in ``pending``.
+
+    ``library`` opts this tree into PAGE-level progress: the count is declared
+    once the targets are known and ticked as each page lands, so a long book
+    reports "37 of 252" rather than holding the queue at one unfinished
+    document for its entire run.
     """
     import time as _time
 
@@ -260,6 +292,9 @@ def _embed_document_tree(doc: Document, db: "Database") -> str | None:
         except Exception as exc:
             return f"could not list pages: {type(exc).__name__}: {exc}"
         targets.extend(child for child in children if child.page_content)
+    # Declare the real size before the first page, not after the last.
+    if library is not None:
+        _progress_expand(library, len(targets))
     for target in targets:
         try:
             if not db.embed(target):
@@ -275,6 +310,13 @@ def _embed_document_tree(doc: Document, db: "Database") -> str | None:
             logger.warning(
                 "Deferred embed failed for %s: %s", target.id, exc
             )
+        # Outside the try/except on purpose: a page that FAILED to embed is
+        # still a page the queue is done with. Ticking only on success would
+        # leave the total unreachable and the bar stuck just short of the end
+        # — the same silence this whole change is removing, arrived at from
+        # the other side.
+        if library is not None:
+            _progress_tick(library)
     if targets:
         # chars + rss make the 951s-for-"1 target" case explicable at a
         # glance (the 2026-08-22 Air OOM: one target hid thousands of
@@ -515,7 +557,7 @@ def _embed_stage(doc_id: str, library: str) -> None:
         # with no file at all (a note, an extracted entry) is not a failure.
         # The probe belongs in the thumbnail stage, which is the one that
         # decodes, and therefore the one that can block.
-        embed_error = _embed_document_tree(doc, db)
+        embed_error = _embed_document_tree(doc, db, library)
 
         # RE-READ before writing (manifest-drop repro, 2026-08-20): embedding
         # takes seconds, and saving the copy read at stage START resurrected

@@ -15,8 +15,6 @@ import os
 import threading
 from pathlib import Path
 
-import pytest
-
 from fichero_server.importers import derivatives
 from fichero_server.models import Document, DocType, FileType, Status
 
@@ -195,3 +193,86 @@ class TestTheStalledFrameIsDistinguishable:
         sent.clear()
         derivatives._emit_queue_progress(str(test_package), 3, 12)
         assert sent[-1]["metadata"]["status"] == "running"
+
+
+class TestALongBookReportsPagesNotDocuments:
+    """The second, independent cause of "0%": the counter counted DOCUMENTS.
+
+    Daniel imported his own 252-page book and watched "Processing imported
+    pages — 0%". Nothing was wrong with the embedding: `queue_derivatives`
+    seeds one unit per DOCUMENT, so a single-PDF import has a total of 1, and
+    every page of the book embeds inside that one unfinished unit. The bar had
+    exactly two states — 0% and done — while the label said "pages". A
+    truthful count of documents read as a stuck count of pages, and twenty
+    minutes of 0% is indistinguishable from a hang.
+    """
+
+    def _book(self, db, pages: int) -> Document:
+        parent = Document(
+            name="book.pdf",
+            doc_type=DocType.file,
+            file_type=FileType.pdf,
+            status=Status.pending,
+        )
+        db.save(parent)
+        for number in range(1, pages + 1):
+            db.save(
+                Document(
+                    name=f"book.pdf - Page {number}",
+                    doc_type=DocType.page,
+                    parent_id=parent.id,
+                    sequence=number,
+                    page_content=f"page {number} text",
+                )
+            )
+        return parent
+
+    def test_the_bar_moves_through_the_pages(self, db, test_package, monkeypatch):
+        library = str(test_package)
+        monkeypatch.setattr(type(db), "embed", lambda self, doc: True)
+        book = self._book(db, 12)
+
+        frames: list[dict] = []
+        monkeypatch.setattr(
+            derivatives,
+            "_emit_queue_progress",
+            lambda lib, done, total, **kw: frames.append({"done": done, "total": total}),
+        )
+        derivatives._progress_add(library, 1)
+        derivatives._embed_stage(book.id, library)
+
+        # The total grew to include the pages, rather than staying at one
+        # document that is either unfinished or finished.
+        assert frames[-1]["total"] == 13, "pages never joined the total"
+        assert frames[-1]["done"] == frames[-1]["total"], "queue never completed"
+        # And it actually MOVED: more than the two states the old counter had.
+        distinct = {frame["done"] for frame in frames}
+        assert len(distinct) > 2, f"bar had only these states: {sorted(distinct)}"
+
+    def test_a_page_that_fails_to_embed_still_advances_the_bar(
+        self, db, test_package, monkeypatch
+    ):
+        """Ticking only on success leaves the total unreachable — the same
+        silence, reached from the other side."""
+        library = str(test_package)
+
+        def explode(self, doc):
+            if "Page 2" in doc.name:
+                raise RuntimeError("model said no")
+            return True
+
+        monkeypatch.setattr(type(db), "embed", explode)
+        book = self._book(db, 4)
+
+        frames: list[dict] = []
+        monkeypatch.setattr(
+            derivatives,
+            "_emit_queue_progress",
+            lambda lib, done, total, **kw: frames.append({"done": done, "total": total}),
+        )
+        derivatives._progress_add(library, 1)
+        derivatives._embed_stage(book.id, library)
+
+        assert frames[-1]["done"] == frames[-1]["total"] == 5
+        after = db.get(Document, book.id)
+        assert (after.metadata or {}).get("embedding_error"), "failure not recorded"
