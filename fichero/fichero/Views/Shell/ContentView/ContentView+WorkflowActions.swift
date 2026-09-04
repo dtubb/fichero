@@ -55,6 +55,8 @@ extension ContentView {
         if let picker = WorkflowBarPolicy.workflowStepPickerOverride(
             for: step,
             stagedCount: stagedCount,
+            tools: Array(workflowStore.toolRegistry.values),
+            textTier: workflowBarTextTierDefault,
             visionTier: workflowBarVisionTierDefault,
             selectionPrefersVision: selectionPrefersVisionModel
         ) {

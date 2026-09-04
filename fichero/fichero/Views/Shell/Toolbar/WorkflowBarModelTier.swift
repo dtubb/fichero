@@ -344,15 +344,34 @@ extension WorkflowBarPolicy {
     /// detect regions with apple local, but it seems to auto select
     /// google"). `implicitRunOverride` is deliberately tool-steps-only — a
     /// multi-node workflow must not have every node dragged onto one model —
-    /// but a preset run as the SINGLE staged step over a pixel-reading
-    /// selection is the toolbar's verb plus the picker's model, and ignoring
-    /// the picker made choosing a model a silent no-op. The engine refuses
-    /// loudly when a workflow's nodes cannot take an override (#3804), so an
-    /// unsuitable send SURFACES instead of silently running the preset's
-    /// embedded model.
+    /// but a preset run as the SINGLE staged step is the toolbar's verb plus
+    /// the picker's model, and ignoring the picker made choosing a model a
+    /// silent no-op.
+    ///
+    /// It sends the tier THIS preset resolves to, not the vision tier
+    /// (Daniel, 2026-09-04: "I think a lot of it is routing to Apple
+    /// Intelligence" — and, in the other direction, a Paleographer Review
+    /// that ran on gemini-flash-lite under a claude-opus-5 chip). The gate
+    /// used to be `requiresVision || selectionPrefersVision`, so a preset
+    /// doing TEXT work sent nothing at all: the engine then resolved the
+    /// preset's own embedded model, or the app's stored defaults, and the
+    /// user's explicit pick reached neither. Whichever tier the sentence
+    /// NAMES for this step is the one the run carries — display and
+    /// execution answer to `defaultChoice`, one function.
+    ///
+    /// Still one step only. Spreading a tier across a multi-step chain of
+    /// presets would drag each preset's deliberately-cheap nodes onto the
+    /// expensive tier, which is money the user did not ask to spend; the
+    /// engine's own per-node resolution stays in charge there.
+    ///
+    /// The engine refuses loudly when a workflow's nodes cannot take an
+    /// override (#3804), so an unsuitable send SURFACES instead of silently
+    /// running the preset's embedded model.
     static func workflowStepPickerOverride(
         for step: StagedWorkflowStep,
         stagedCount: Int,
+        tools: [ToolInfo] = [],
+        textTier: WorkflowBarModelChoice? = nil,
         visionTier: WorkflowBarModelChoice?,
         selectionPrefersVision: Bool
     ) -> WorkflowBarModelChoice? {
@@ -361,14 +380,16 @@ extension WorkflowBarPolicy {
               case .workflow(let item) = step.kind,
               // The item SAYS whether it takes overrides (false = pinned by
               // design; nil = unknown, engine enforces — fail open, #3804).
-              item.acceptsModelOverride != false,
-              // Vision presets take the vision pick; the engine's
-              // requires_vision is authoritative, with the selection's
-              // posture as the old-server fallback.
-              item.requiresVision || selectionPrefersVision,
-              let vision = visionTier,
-              !vision.model.isEmpty
+              item.acceptsModelOverride != false
         else { return nil }
-        return vision
+        let choice = defaultChoice(
+            for: step,
+            tools: tools,
+            textTier: textTier,
+            visionTier: visionTier,
+            selectionPrefersVision: selectionPrefersVision
+        )
+        guard let choice, !choice.model.isEmpty else { return nil }
+        return choice
     }
 }

@@ -273,7 +273,7 @@ struct WorkflowPickerReachesPresetTests {
         ) == nil)
     }
 
-    @Test("a text-only preset over a text selection stays off the vision picker")
+    @Test("a text-only preset stays off the VISION picker")
     func textPresetUntouched() {
         let step = StagedWorkflowStep(kind: .workflow(
             item(requiresVision: false)
@@ -282,7 +282,27 @@ struct WorkflowPickerReachesPresetTests {
             for: step, stagedCount: 1,
             visionTier: choice("apple", "apple-vision"),
             selectionPrefersVision: false
-        ) == nil)
+        ) == nil, "an OCR route must never be sent to do text work")
+    }
+
+    @Test("a text preset rides the TEXT tier — the pick must not be swallowed")
+    func textPresetTakesTheTextTier() {
+        let step = StagedWorkflowStep(kind: .workflow(
+            item(requiresVision: false)
+        ))
+        let picked = WorkflowBarPolicy.workflowStepPickerOverride(
+            for: step, stagedCount: 1,
+            textTier: choice("anthropic", "claude-opus-5"),
+            visionTier: choice("apple", "apple-vision"),
+            selectionPrefersVision: false
+        )
+        #expect(
+            picked?.model == "claude-opus-5",
+            "a text preset used to send NOTHING — the gate was requiresVision "
+                + "|| selectionPrefersVision — so the engine ran the preset's own "
+                + "embedded model and a Paleographer Review went to "
+                + "gemini-flash-lite under a claude-opus-5 chip (2026-09-04)"
+        )
     }
 }
 

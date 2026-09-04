@@ -55,14 +55,21 @@ enum WorkflowBarChainPersistence {
                 staticInputs[toolIconKey] = .string(icon)
                 staticInputs[toolUsesLLMKey] = .bool(usesLLM)
             }
+            // A stamp WINS over the raw pin (2026-09-04). The stamp is the
+            // run's resolution and it already contains the pin when the pin
+            // can serve the step; when it cannot, the engine would decline it
+            // and resolve the tier default anyway, so re-sending the pin here
+            // would put a model on the wire that the sentence is not showing.
+            // While merely staging there are no stamps and the pin rides
+            // alone, exactly as before.
             let stamped = modelOverrides[step.id]
             return ChainStep(
                 id: step.id.uuidString,
                 workflowId: workflowId,
                 name: step.name,
                 staticInputs: staticInputs,
-                providerOverride: step.providerOverride ?? stamped?.provider,
-                modelOverride: step.modelOverride ?? stamped?.model
+                providerOverride: stamped?.provider ?? step.providerOverride,
+                modelOverride: stamped?.model ?? step.modelOverride
             )
         }
     }

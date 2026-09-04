@@ -55,6 +55,45 @@ struct WorkflowBarChainPersistenceTests {
         #expect(steps[1].modelOverride == nil)
     }
 
+    @Test("a RUN's resolved model is what goes on the wire, pin or no pin")
+    func stampedModelWinsOverTheRawPin() {
+        // The engine chain path stamps what the bar's sentence promised. An
+        // unpinned preset used to ride with NOTHING — which is how a run
+        // under a claude-opus-5 chip ended up on the preset's own embedded
+        // model, or on the stored Apple default (Daniel, 2026-09-04).
+        let unpinned = workflowStep(id: "wf-1", name: "Paleographer Review")
+        let pinned = workflowStep(id: "wf-2", name: "Translate",
+                                  provider: "apple", model: "apple-vision")
+        let steps = WorkflowBarChainPersistence.chainSteps(
+            from: [unpinned, pinned],
+            modelOverrides: [
+                unpinned.id: WorkflowBarModelChoice(
+                    label: "claude-opus-5", provider: "anthropic", model: "claude-opus-5"
+                ),
+                pinned.id: WorkflowBarModelChoice(
+                    label: "claude-opus-5", provider: "anthropic", model: "claude-opus-5"
+                )
+            ]
+        )
+
+        #expect(steps[0].modelOverride == "claude-opus-5", "the run's choice must reach the wire")
+        #expect(
+            steps[1].modelOverride == "claude-opus-5",
+            "the stamp is the run's resolution and already contains a usable "
+                + "pin; re-sending an unusable one would put a model on the "
+                + "wire that the sentence is not showing"
+        )
+    }
+
+    @Test("staging alone never freezes today's Settings into the chain")
+    func stagingCarriesOnlyThePin() {
+        let staged = [workflowStep(id: "wf-1", name: "Transcribe")]
+        let steps = WorkflowBarChainPersistence.chainSteps(from: staged)
+
+        #expect(steps[0].modelOverride == nil)
+        #expect(steps[0].providerOverride == nil)
+    }
+
     @Test("a tool step rides its identity in static_inputs and takes a resolved workflow id")
     func toolStepPersists() {
         let tool = StagedWorkflowStep(

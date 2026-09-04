@@ -48,9 +48,25 @@ extension ContentView {
         var overrides: [UUID: WorkflowBarModelChoice] = [:]
         if stampResolvedModels {
             for step in stagedWorkflowChain {
-                if let implicit = workflowBarImplicitOverride(for: step) {
-                    overrides[step.id] = implicit
-                }
+                // The SAME resolution the sentence shows and the client
+                // fallback loop sends — pin, tier correction, or the picker's
+                // choice for a single staged preset (Daniel, 2026-09-04: "the
+                // model chosen is not the model used"). This path stamped the
+                // implicit tier correction ALONE, which is tool-steps-only:
+                // a staged preset therefore rode the engine chain carrying no
+                // model at all, and the engine fell back to the preset's own
+                // node models or the stored defaults. That is the
+                // "routing to Apple Intelligence" Daniel is seeing, and the
+                // Paleographer Review that ran on gemini under an opus chip.
+                let resolved = workflowBarRunOverrides(
+                    for: step, stagedCount: stagedWorkflowChain.count
+                )
+                guard let model = resolved.model, !model.isEmpty else { continue }
+                overrides[step.id] = WorkflowBarModelChoice(
+                    label: ModelChipToolbarItem.shorten(model),
+                    provider: resolved.provider ?? "",
+                    model: model
+                )
             }
         }
         let steps = WorkflowBarChainPersistence.chainSteps(
