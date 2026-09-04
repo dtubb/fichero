@@ -136,6 +136,21 @@ struct WorkflowBar: View {
         )
     }
 
+    /// What this step will REALLY run on: its pin when the pin can serve it,
+    /// otherwise the tier default — which is exactly what the engine does
+    /// with a choice it cannot honestly serve (R-11). Display and execution
+    /// read the same function, so the sentence cannot promise a model the run
+    /// will not use.
+    func effectiveChoice(for step: StagedWorkflowStep) -> WorkflowBarModelChoice? {
+        WorkflowBarPolicy.effectiveChoice(
+            for: step,
+            tools: tools,
+            textTier: textTierDefault,
+            visionTier: visionTierDefault,
+            selectionPrefersVision: prefersVisionModel
+        )
+    }
+
     /// The model name the sentence shows for an unpinned step.
     func resolvedDefaultModelLabel(for step: StagedWorkflowStep) -> String {
         guard let choice = defaultChoice(for: step), !choice.model.isEmpty else {
@@ -345,13 +360,30 @@ struct WorkflowBar: View {
         }
         if !modelChoices.isEmpty {
             Divider()
-            ForEach(modelChoices, id: \.model) { choice in
+            // EVERY configured model, marked rather than filtered (Daniel,
+            // 2026-09-04: "workflow not letting us see all models, just
+            // showing 2 — is it filtering by vision when it should use
+            // text?"). A model that cannot serve this step is disabled and
+            // says why in its tooltip; it is never absent, because an absent
+            // row cannot be argued with — the ruling the chip's picker
+            // settled on 2026-09-01, applied to the per-step menu too.
+            ForEach(modelChoices, id: \.label) { choice in
+                let reason = staged.indices.contains(index)
+                    ? WorkflowBarPolicy.modelUnsuitableReason(
+                        choice,
+                        for: staged[index],
+                        tools: tools,
+                        selectionPrefersVision: prefersVisionModel
+                    )
+                    : nil
                 Button(choice.label) {
                     guard staged.indices.contains(index) else { return }
                     staged[index].providerOverride = choice.provider
                     staged[index].modelOverride = choice.model
                     resetOutcome(at: index)
                 }
+                .disabled(reason != nil)
+                .help(reason ?? "\(choice.model) — \(choice.provider)")
             }
         }
     }

@@ -84,6 +84,21 @@ extension ContentView {
                 await syncStagedChainWithEngine()
             }
             .task {
+                // Warm the provider cache from the BAR's lifecycle, not the
+                // pin menu's: AppKit snapshots a menu at open, so a list
+                // loaded by the menu itself always renders one open stale
+                // (the same lesson the library's run menu learned on
+                // 2026-08-24). The pin list is every configured model now,
+                // so this fetch is what makes it more than the tiers.
+                let chatService = libraryManager
+                    .getLibrary(id: windowState.libraryId)?
+                    .chatService
+                    ?? libraryManager.globalLibrary?.chatService
+                await WorkflowRunProviderCache.shared.ensureLoaded(
+                    chatService: chatService
+                )
+            }
+            .task {
                 // Refresh when the bar appears rather than at launch: the menu
                 // is only consulted here, and a stale tier would offer a model
                 // the user has since changed.
@@ -351,40 +366,30 @@ extension ContentView {
         setPaneVisible(.reading, true)
     }
 
-    /// Models a chain step can be pinned to. Read from the configured tiers
-    /// rather than the full provider catalogue: these are the models the user
-    /// has actually set up, which is the useful shortlist beside a chip.
+    /// Models a chain step can be pinned to: EVERY configured model, tiers
+    /// first (Daniel, 2026-09-04: "workflow not letting us see all models,
+    /// just showing 2"). It used to be the four Settings tiers, which dedupe
+    /// to two on a normal install — so the menu offered two rows to a user
+    /// with a dozen models configured, and the model they wanted was not one
+    /// of them. Same provider cache the toolbar chip and the Run Workflow
+    /// menu read, so the three surfaces cannot disagree about what exists.
+    /// Nothing is filtered by capability here; the menu MARKS what a step
+    /// cannot use, with the reason.
     var workflowBarModelChoices: [WorkflowBarModelChoice] {
         let defaults = cachedAIDefaults
-        // A named triple, not a bare tuple: three positional Strings that all
-        // mean different things is exactly the shape a reader misreads.
-        struct TierCandidate {
-            let tier: String
-            let provider: String
-            let model: String
-        }
-        let candidates: [TierCandidate] = [
-            TierCandidate(tier: "Vision", provider: defaults.visionMediumProvider,
-                          model: defaults.visionMediumModel),
-            TierCandidate(tier: "Text", provider: defaults.mediumProvider,
-                          model: defaults.mediumModel),
-            TierCandidate(tier: "Large", provider: defaults.largeProvider,
-                          model: defaults.largeModel),
-            TierCandidate(tier: "Small", provider: defaults.smallProvider,
-                          model: defaults.smallModel)
-        ]
-        var seen = Set<String>()
-        return candidates.compactMap { candidate in
-            let model = candidate.model
-            guard !model.isEmpty, !seen.contains(model) else { return nil }
-            seen.insert(model)
-            let short = ModelChipToolbarItem.shorten(model)
-            return WorkflowBarModelChoice(
-                label: "\(short)  ·  \(candidate.tier)",
-                provider: candidate.provider,
-                model: model
-            )
-        }
+        return WorkflowBarPolicy.pinnableModels(
+            providers: WorkflowRunProviderCache.shared.providers,
+            tierDefaults: [
+                .init(tier: "Vision", provider: defaults.visionMediumProvider,
+                      model: defaults.visionMediumModel),
+                .init(tier: "Text", provider: defaults.mediumProvider,
+                      model: defaults.mediumModel),
+                .init(tier: "Large", provider: defaults.largeProvider,
+                      model: defaults.largeModel),
+                .init(tier: "Small", provider: defaults.smallProvider,
+                      model: defaults.smallModel)
+            ]
+        )
     }
 
     /// The configured Text default as a choice the tier rule can read.

@@ -27,6 +27,7 @@ import json
 import pytest
 
 from fichero_server.workflows.preset_manifest import PRESET_DIR
+from fichero_server.workflows.subworkflow import resolve_sub_workflow_ref
 from fichero_server.workflows.validation import (
     validate_run_eligibility,
     workflow_accepts_model_override,
@@ -131,12 +132,18 @@ def test_absent_config_is_runnable():
 
 
 def test_presets_without_llm_nodes_refuse_an_override():
-    """The 'Default and OpenRouter do the same thing' class of dead control."""
+    """The 'Default and OpenRouter do the same thing' class of dead control.
+
+    Scoped to presets that delegate to NOTHING: since R-11 a run-level choice
+    reaches a child's nodes, so "my own nodes call no model" is no longer the
+    same statement as "this override would change nothing".
+    """
     no_llm = [
         p
         for p in PRESETS
         if workflow_is_direct_runnable(p.get("config"))
         and not workflow_override_target_tools(p.get("nodes"))
+        and not workflow_sub_workflow_refs(p.get("nodes"))
     ]
     assert no_llm, "no override-less preset found — this test proves nothing"
 
@@ -175,26 +182,37 @@ def test_no_override_requested_is_never_refused():
 # =============================================================================
 
 
-def test_delegating_parent_names_the_child_it_delegates_to():
-    """Transcribe Spanish Script is vision work the parent cannot override.
+def test_delegating_parent_accepts_an_override_that_reaches_its_children():
+    """R-11 (Daniel, 2026-09-04): the chip must reach a child's nodes.
 
-    Its two nodes are `files` and `sub_workflow`; all three vision nodes live
-    in the child. The runner's override loop and the LLM preflight both stop
-    at the parent, so the menu offered text-only models for vision-only work
-    and the engine validated none of it. The refusal has to say WHY, or the
-    user just sees a workflow that refuses everything.
+    Catalogue's own nodes are `files` and six `sub_workflow` calls; every
+    model call happens in a child. Under the old rule the run was REFUSED as
+    unoverridable — and when the client sent no override instead, the children
+    resolved their own aliases and the run wrote artifacts stamped
+    `apple · apple-intelligence` while the chip said `claude-opus-5`.
+
+    The choice now rides the run state into the child, so the parent is a
+    legitimate target: what it delegates to is counted, not written off.
     """
     parents = [p for p in PRESETS if workflow_sub_workflow_refs(p.get("nodes"))]
     assert parents, "no delegating preset found — this test proves nothing"
 
-    for preset in parents:
-        if workflow_override_target_tools(preset.get("nodes")):
-            continue  # a parent that also does its own model work is fine
-        errors = _eligibility(preset, model_override="gpt-4o-mini")
-        assert errors
-        assert "sub-workflow" in errors[0]
-        for ref in workflow_sub_workflow_refs(preset.get("nodes")):
-            assert ref in errors[0], "the refusal must name the child"
+    delegating_only = [
+        p for p in parents if not workflow_override_target_tools(p.get("nodes"))
+    ]
+    assert delegating_only, "no purely delegating preset — this test proves nothing"
+
+    for preset in delegating_only:
+        # Shallow: the parent's own nodes call no model.
+        assert workflow_override_target_tools(preset.get("nodes")) == []
+        # Deep: the children do, so the override is not a dead control.
+        deep = workflow_override_target_tools(
+            preset.get("nodes"), workflow_resolver=resolve_sub_workflow_ref
+        )
+        assert deep, f"{preset['name']}'s children were not descended into"
+        assert _eligibility(preset, model_override="gpt-4o-mini") == [], (
+            f"{preset['name']} refused an override its children can honour"
+        )
 
 
 def test_no_llm_refusal_says_no_model_is_used():

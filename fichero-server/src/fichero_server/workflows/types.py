@@ -278,6 +278,11 @@ class State(TypedDict):
     lineage_path: str  # Ordered parent/node/child path for nested runs
     sub_workflow_depth: int  # Nested sub-workflow depth
     sub_workflows: dict[str, Any]  # Test/runtime injection map for child workflows
+    #: The run-level provider/model choice, as {"provider": ..., "model": ...}
+    #: (R-11). Declared as its own channel so LangGraph preserves it and every
+    #: sub-workflow child inherits it — the only way a deliberate choice can
+    #: reach nodes inside a child, whose graph is built fresh at run time.
+    run_model_override: dict[str, Any]
 
     # Library context (required for source tools)
     library_path: str  # Path to .fichero library package

@@ -10,7 +10,17 @@ extension WorkflowBar {
     /// The fan-out this bar could dispatch right now, or nil when comparing
     /// makes no sense (multi-step chain, non-LLM tool, fewer than two models).
     private var compareFanOut: [WorkflowCompareRun]? {
-        WorkflowComparePlanner.fanOut(staged: staged, choices: modelChoices)
+        // The CONFIGURED TIERS, not the whole catalog. The pin list became
+        // every configured model on 2026-09-04 (a two-row menu was hiding the
+        // models Daniel wanted), and compare reads the same array — so
+        // without this it would quietly grow from "run this twice" to one
+        // paid run per model in the catalog. Compare is a deliberate fan-out
+        // over the models the user has SET UP as defaults; the tier
+        // annotation is exactly that set.
+        let tiers = modelChoices.filter { $0.tier != nil }
+        return WorkflowComparePlanner.fanOut(
+            staged: staged, choices: tiers.isEmpty ? modelChoices : tiers
+        )
     }
 
     /// The "Compare models…" control. A fan-out is N paid calls, so the

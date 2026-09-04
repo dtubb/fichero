@@ -657,21 +657,223 @@ def node_uses_llm(node: object, tool_def: object | None = None) -> bool:
     return tool == "detect_regions" and _node_config(node).get("provider") == "vlm"
 
 
-def workflow_override_target_tools(nodes: list | None) -> list[str]:
+def workflow_override_target_tools(
+    nodes: list | None,
+    *,
+    workflow_resolver: Callable[[str], WorkflowDef | None] | None = None,
+) -> list[str]:
     """Tools a run-level provider/model override would actually change.
 
     Mirrors the filter the runner applies (``uses_llm`` only, so source and
-    transform nodes keep their configuration). Deliberately does NOT descend
-    into ``sub_workflow`` children: the runner cannot reach them either, and
-    this function's job is to report what the engine will really do, not what
-    would be nice. A delegating parent therefore reports zero targets, which
-    is what makes the refusal below correct.
+    transform nodes keep their configuration).
+
+    It DESCENDS into ``sub_workflow`` children when given a resolver (R-11,
+    2026-09-04). It deliberately did not, because the runner could not reach
+    them either — but that was the bug: a Catalogue folder run with
+    ``claude-opus-5`` on the chip produced artifacts stamped
+    ``apple · apple-intelligence``, because every model call happened inside
+    a child the choice never reached. The choice now rides the run state down
+    (``run_model_override``, applied in ``sub_workflow``), so this function
+    reports the children too — what the engine will really do, which is the
+    only thing it has ever been for.
+
+    Without a resolver it answers about the parent's own nodes alone: callers
+    that hold no library (the shipped-preset audits) get the shallow answer
+    rather than a silent DB hit.
     """
-    return [
+    tools = [
         tool
         for node in (nodes or [])
         if (tool := _node_tool(node)) and node_uses_llm(node)
     ]
+    if workflow_resolver is None:
+        return tools
+    visited: set[str] = set()
+
+    def descend(current_nodes: list | None) -> None:
+        for _label, ref in _sub_workflow_node_refs(current_nodes):
+            if ref in visited:
+                continue
+            visited.add(ref)
+            try:
+                child = workflow_resolver(ref)
+            except Exception as exc:
+                logger.debug("override targets could not resolve %r: %s", ref, exc)
+                continue
+            if child is None:
+                continue
+            visited.update(key for key in (child.id, child.name) if key)
+            tools.extend(
+                tool
+                for node in child.nodes
+                if (tool := _node_tool(node)) and node_uses_llm(node)
+            )
+            descend(child.nodes)
+
+    descend(nodes)
+    return tools
+
+
+# =============================================================================
+# The run-level model choice (R-11, Daniel 2026-09-04)
+#
+# "The model chosen is not the model used." The chip said claude-opus-5 while
+# a Paleographer Review ran on gemini-flash-lite, and a Catalogue folder run
+# stamped its artifacts apple - apple-intelligence. Two holes, one rule.
+#
+# ONE precedence, everywhere: step pin > run-level explicit choice > tier
+# default. "Capability-compatible" is the load-bearing qualifier and is what
+# keeps the 2026-09-01 fix intact: a vision choice spreads to vision steps, a
+# text choice to text steps, and an incompatible pairing falls to the tier
+# default rather than promising a run the engine is about to refuse. Spreading
+# the SELECTION's tier was wrong; spreading a DELIBERATE choice within a
+# capability class is right.
+# =============================================================================
+
+
+def node_required_capability(node: object, tool_def: object | None = None) -> str:
+    """What THIS node needs of a model: vision/audio/video/text.
+
+    Config-aware for the same reason :func:`node_uses_llm` is — detect_regions
+    in VLM mode is vision work even though its ToolDef registers otherwise.
+    """
+    tool = _node_tool(node)
+    td = tool_def if tool_def is not None else TOOL_DEFS.get(tool)
+    if tool == "detect_regions" and _node_config(node).get("provider") == "vlm":
+        return "vision"
+    if td is None:
+        return "text"
+    return _required_llm_capability(td)
+
+
+def model_can_serve_capability(provider: str, model: str, capability: str) -> bool:
+    """Whether provider/model can do ``capability`` — unknown counts as YES.
+
+    Absence of a catalog flag is not evidence that the model lacks the
+    capability; a model newer than the catalog is exactly what goes missing.
+    Only a POSITIVE "no" disqualifies a choice, which is the same rule the
+    client's picker follows when it greys a row instead of hiding it.
+    """
+    provider = (provider or "").strip()
+    model = (model or "").strip()
+    if not provider and not model:
+        return False
+    capability = (capability or "text").strip().lower()
+    try:
+        from fichero_server.llm import (
+            _model_has_capability,
+            is_recognition_only_vision_model,
+        )
+
+        # An OCR pass returns the page's own text and ignores the prompt, so
+        # it can serve vision RECOGNITION and nothing else (#4345).
+        if capability != "vision" and is_recognition_only_vision_model(provider, model):
+            return False
+        if capability == "vision":
+            from fichero_server.llm.providers import get_provider_info
+
+            info = get_provider_info(provider.lower())
+            if info is not None and not info.supports_vision:
+                return False
+        return _model_has_capability(provider, model, capability) is not False
+    except Exception as exc:
+        logger.debug(
+            "Override capability check failed for %s/%s (%s): %s",
+            provider,
+            model,
+            capability,
+            exc,
+        )
+        return True
+
+
+def run_override_reaches_node(
+    node: object,
+    provider_override: str,
+    model_override: str,
+    tool_def: object | None = None,
+) -> bool:
+    """Whether the run-level choice may serve THIS node.
+
+    False leaves the node alone, which means it resolves its own tier default
+    — the honest outcome for a text-only model landing on a vision step, and
+    the reason "never claim apple-vision will Translate" survives R-11.
+    """
+    td = tool_def if tool_def is not None else TOOL_DEFS.get(_node_tool(node))
+    if not node_uses_llm(node, td):
+        return False
+    if getattr(td, "requires_generative_model", False):
+        from fichero_server.llm import is_recognition_only_vision_model
+
+        if is_recognition_only_vision_model(provider_override, model_override):
+            return False
+    return model_can_serve_capability(
+        provider_override, model_override, node_required_capability(node, td)
+    )
+
+
+def apply_run_model_override(
+    nodes: list | None,
+    provider_override: str | None = "",
+    model_override: str | None = "",
+) -> list[str]:
+    """Stamp the run-level choice onto every node it can honestly serve.
+
+    Mutates stored node dicts (what the runner holds) or NodeDefs alike, and
+    returns the ids it reached so a caller can report the truth rather than
+    assume it. A node the choice cannot serve is left untouched.
+    """
+    provider = (provider_override or "").strip()
+    model = (model_override or "").strip()
+    if not provider and not model:
+        return []
+    reached: list[str] = []
+    for node in nodes or []:
+        if not run_override_reaches_node(node, provider, model):
+            continue
+        if isinstance(node, dict):
+            if provider:
+                node["provider_name"] = provider
+            if model:
+                node["model_name"] = model
+        else:
+            if provider:
+                node.provider_name = provider
+            if model:
+                node.model_name = model
+        reached.append(_node_id(node))
+    return reached
+
+
+def apply_run_model_override_to_def(
+    workflow_def: WorkflowDef | None,
+    provider_override: str | None = "",
+    model_override: str | None = "",
+) -> WorkflowDef | None:
+    """The same rule for a resolved CHILD workflow (the Catalogue case).
+
+    Returns a copy: a resolved child is cached and shared between parents, so
+    stamping one run's choice onto it in place would leak into the next run.
+    """
+    provider = (provider_override or "").strip()
+    model = (model_override or "").strip()
+    if workflow_def is None or not (provider or model):
+        return workflow_def
+    nodes = list(workflow_def.nodes or [])
+    changed = False
+    for index, node in enumerate(nodes):
+        if not run_override_reaches_node(node, provider, model):
+            continue
+        update: dict[str, str] = {}
+        if provider:
+            update["provider_name"] = provider
+        if model:
+            update["model_name"] = model
+        nodes[index] = node.model_copy(update=update)
+        changed = True
+    if not changed:
+        return workflow_def
+    return workflow_def.model_copy(update={"nodes": nodes})
 
 
 def _sub_workflow_node_refs(nodes: list | None) -> list[tuple[str, str]]:
@@ -851,9 +1053,20 @@ def workflow_requires_vision(
     return visit(nodes)
 
 
-def workflow_accepts_model_override(nodes: list | None) -> bool:
-    """True when a run-level provider/model override would change something."""
-    return bool(workflow_override_target_tools(nodes))
+def workflow_accepts_model_override(
+    nodes: list | None,
+    *,
+    workflow_resolver: Callable[[str], WorkflowDef | None] | None = None,
+) -> bool:
+    """True when a run-level provider/model override would change something.
+
+    Given a resolver it counts the children too, because since R-11 the choice
+    reaches them — a delegating parent that reported "no" is what made the
+    Catalogue chip a dead control.
+    """
+    return bool(
+        workflow_override_target_tools(nodes, workflow_resolver=workflow_resolver)
+    )
 
 
 def validate_run_eligibility(
@@ -863,6 +1076,7 @@ def validate_run_eligibility(
     nodes: list | None,
     provider_override: str | None = None,
     model_override: str | None = None,
+    workflow_resolver: Callable[[str], WorkflowDef | None] | None = None,
 ) -> list[str]:
     """Reject top-level runs the engine cannot honestly perform (#3804).
 
@@ -885,13 +1099,16 @@ def validate_run_eligibility(
         )
 
     wants_override = bool((provider_override or "").strip() or (model_override or "").strip())
-    if wants_override and not workflow_override_target_tools(nodes):
+    resolver = workflow_resolver or (lambda ref: resolve_sub_workflow_ref(ref))
+    if wants_override and not workflow_override_target_tools(
+        nodes, workflow_resolver=resolver
+    ):
         refs = workflow_sub_workflow_refs(nodes)
         if refs:
             delegates = ", ".join(f"'{ref}'" for ref in refs)
             reason = (
-                f"all of its model work happens inside sub-workflow {delegates}, "
-                "which a run-level override does not reach"
+                f"none of its nodes, nor any node of sub-workflow {delegates}, "
+                "uses a language or vision model"
             )
         else:
             reason = "none of its nodes use a language or vision model"
