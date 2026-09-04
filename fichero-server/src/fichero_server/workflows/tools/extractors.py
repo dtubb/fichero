@@ -2839,6 +2839,15 @@ def _write_kg_rows(
             claim_type=ctype or ClaimType.fact,
             metadata=meta,
             epistemic_status=epistemic,
+            # WHEN (#4667/#4670). The entity branch computed a temporal scope
+            # and then never forwarded it: only the DATE-claim branch above
+            # passed these through, so an event with a date on the page landed
+            # with `time_start` NULL and the timeline had nothing to plot it
+            # at. Caught by the events-preset test, which is why that test
+            # writes a dated event rather than asserting the helper.
+            time_start=t_start,
+            time_end=t_end,
+            time_precision=t_precision,
             # WHERE the claim happened (#4670). The extractor's own answer
             # first — "in New York" is the claim's scope even when its subject
             # is a person — falling back to the old rule that a location-typed

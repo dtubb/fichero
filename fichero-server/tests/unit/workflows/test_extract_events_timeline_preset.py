@@ -33,6 +33,7 @@ from fichero_server.workflows.preset_manifest import (
     load_manifest,
     load_shipped_presets,
 )
+from fichero_server.workflows.tools import extract_all
 from fichero_server.workflows.tools import extract_svo_only as svo
 from fichero_server.workflows.tools._entity_writer import upsert_entity
 from fichero_server.workflows.tools.extract_entities_only import _requested_sections
@@ -148,7 +149,13 @@ class TestEventsReachTheTimeline:
                 ],
             )
 
+        # Both bindings: the dates pass calls through `extract_svo_only`, the
+        # per-entity claim loop through `extract_all`. Patching one leaves the
+        # other reaching a real provider.
         monkeypatch.setattr(svo, "chat_structured_with_fallback", fake_structured)
+        monkeypatch.setattr(
+            extract_all, "chat_structured_with_fallback", fake_structured
+        )
         self._run(library_path, "events,dates")
 
         claims = [
@@ -192,7 +199,13 @@ class TestEventsReachTheTimeline:
                 ],
             )
 
+        # Both bindings: the dates pass calls through `extract_svo_only`, the
+        # per-entity claim loop through `extract_all`. Patching one leaves the
+        # other reaching a real provider.
         monkeypatch.setattr(svo, "chat_structured_with_fallback", fake_structured)
+        monkeypatch.setattr(
+            extract_all, "chat_structured_with_fallback", fake_structured
+        )
         self._run(library_path, "events,dates")
 
         claims = [
@@ -222,7 +235,13 @@ class TestEventsReachTheTimeline:
                 return schema(items=[])
             return schema(subject="x", claims=[])
 
+        # Both bindings: the dates pass calls through `extract_svo_only`, the
+        # per-entity claim loop through `extract_all`. Patching one leaves the
+        # other reaching a real provider.
         monkeypatch.setattr(svo, "chat_structured_with_fallback", fake_structured)
+        monkeypatch.setattr(
+            extract_all, "chat_structured_with_fallback", fake_structured
+        )
         result = self._run(library_path, "events,dates")
 
         # The person on the page is never asked about: that is what makes this

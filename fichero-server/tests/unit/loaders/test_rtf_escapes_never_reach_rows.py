@@ -62,8 +62,16 @@ class TestResidualEscapes:
         # pasted excerpt has none, and used to keep its escapes forever.
         assert to_plain_text("se\\'f1or de la tierra") == "señor de la tierra"
 
-    def test_multi_byte_runs_decode_as_one_character(self):
-        assert decode_rtf_hex_escapes("\\'c3\\'b1") == "ñ"
+    def test_the_declared_codepage_decides_what_a_byte_means(self):
+        # RTF defines \\'XX as a byte in the document's codepage. The same
+        # two bytes are "Ã±" in cp1252 and "ñ" in UTF-8, and sniffing would
+        # silently rewrite whichever document guessed wrong. The codepage is
+        # declared in the file; we honour it.
+        assert decode_rtf_hex_escapes("\\'c3\\'b1") == "Ã±"
+        assert decode_rtf_hex_escapes("\\'c3\\'b1", encoding="utf-8") == "ñ"
+
+    def test_an_unknown_codepage_falls_back_rather_than_failing(self):
+        assert decode_rtf_hex_escapes("\\'f1", encoding="cp99999") == "ñ"
 
     def test_plain_text_is_returned_untouched(self):
         for text in ("class of '92", "the '49ers", "señor", ""):

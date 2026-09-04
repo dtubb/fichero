@@ -209,7 +209,12 @@ def decode_rtf_hex_escapes(text: str, *, encoding: str = "cp1252") -> str:
 
     def _decode_run(match: "re.Match[str]") -> str:
         raw = bytes(int(value, 16) for value in _RTF_HEX_FULL_RE.findall(match.group()))
-        for candidate in (encoding, "utf-8", "cp1252"):
+        # The DECLARED codepage decides, not a guess. RTF defines \\'XX as a
+        # byte in the document's codepage, and cp1252 decodes nearly every
+        # byte — so "sniffing" UTF-8 first would silently re-read a genuine
+        # cp1252 pair as one character and change what the document says.
+        # cp1252 is the last resort only for a codepage Python does not know.
+        for candidate in (encoding, "cp1252"):
             try:
                 return raw.decode(candidate)
             except (LookupError, UnicodeDecodeError):
