@@ -235,6 +235,12 @@ dependencies = [
     # Core — these ship in the Briefcase bundle
     # Floors mirror [tool.briefcase.app.fichero_server].requires; see the
     # reason comments there. Security/resolution floors only, never `==`.
+    # pypdfium2 here as well as in briefcase requires (2026-09-04): the DEV
+    # VENV needs the wheel's libpdfium.dylib as the source for the
+    # place-beside-kreuzberg step — without it, a Dev Local engine's kreuzberg
+    # binding extracts a quarantined copy at runtime and Gatekeeper throws
+    # the "libpdfium.dylib Not Opened" dialog on every PDF import.
+    "pypdfium2",
     "python-dotenv",
     "aiofiles",
     "aiohttp>=3.14.1",  # PYSEC-2026-237, 2104-2113

@@ -81,6 +81,36 @@ def _strip_quarantine(path: Path) -> None:
         pass  # not quarantined / no libc — both fine
 
 
+def _place_from_pypdfium2(target: Path, logger=None) -> bool:
+    """Copy pypdfium2's wheel dylib beside kreuzberg's binding, dev-venv only.
+
+    Returns True when the file exists on exit. Refuses quietly when the
+    directory is not writable (a sealed bundle — the build step owns that
+    case) or pypdfium2 is absent (the dependency now pins it, but an old
+    venv may predate that).
+    """
+    try:
+        if not os.access(str(target.parent), os.W_OK):
+            return False
+        import pypdfium2_raw  # noqa: PLC0415 — resolve the wheel's dylib
+
+        source = Path(pypdfium2_raw.__file__).parent / "libpdfium.dylib"
+        if not source.exists():
+            return False
+        shutil.copy2(source, target)
+        _strip_quarantine(target)
+        if logger:
+            logger.info(
+                "pdfium: placed %s beside kreuzberg's binding (dev venv self-heal)",
+                source,
+            )
+        return True
+    except Exception as exc:
+        if logger:
+            logger.warning("pdfium: dev-venv placement failed: %s", exc)
+        return False
+
+
 def prepare_pdfium(logger=None) -> None:
     """Point kreuzberg's pdfium bind path at the SIGNED bundled dylib.
 
@@ -103,9 +133,24 @@ def prepare_pdfium(logger=None) -> None:
 
         bundled = Path(kreuzberg.__file__).parent / "libpdfium.dylib"
         if not bundled.exists():
-            if logger:
-                logger.warning("pdfium: wheel has no bundled libpdfium.dylib")
-            return
+            # DEV VENV self-heal (2026-09-04, Daniel's "libpdfium.dylib Not
+            # Opened" dialog): the kreuzberg wheel ships NO dylib — the
+            # build places pypdfium2's copy beside the binding in the BUNDLE
+            # (place_pdfium_for_kreuzberg.py), but a pip venv never ran that
+            # step, so the Rust binding extracted a quarantined copy at
+            # runtime and Gatekeeper refused it. When the site-packages dir
+            # is writable (every dev venv; never a sealed bundle, which has
+            # the file already), do the same placement here, sourcing from
+            # the pypdfium2 wheel this project now depends on.
+            placed = _place_from_pypdfium2(bundled, logger)
+            if not placed:
+                if logger:
+                    logger.warning(
+                        "pdfium: no bundled libpdfium.dylib and no pypdfium2 "
+                        "source to place — kreuzberg PDF extraction will fail "
+                        "closed to the fitz fallback"
+                    )
+                return
         tmpdir = Path(os.environ.get("TMPDIR", "/tmp"))
         target_dir = tmpdir / "kreuzberg-pdfium"
         target = target_dir / "libpdfium.dylib"

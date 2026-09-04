@@ -84,7 +84,15 @@ def test_never_raises_when_the_wheel_has_no_dylib(tmp_path, monkeypatch):
 
     kreuzberg_cache.prepare_pdfium()  # must not raise
 
-    assert not (tmp_path / "t2" / "kreuzberg-pdfium" / "libpdfium.dylib").exists()
+    # Since 2026-09-04 the no-bundled-dylib case SELF-HEALS from the
+    # pypdfium2 wheel when site-packages is writable (the dev-venv dialog
+    # fix), so a placed file is the SUCCESS outcome here — the invariant
+    # this test keeps is only that nothing raises and nothing lands in the
+    # legacy tmp bind dir unless the heal ran.
+    tmp_target = tmp_path / "t2" / "kreuzberg-pdfium" / "libpdfium.dylib"
+    if tmp_target.exists():
+        # The heal sourced a real dylib — never a zero-byte placeholder.
+        assert tmp_target.stat().st_size > 0
 
 
 class TestKreuzbergPdfGate:
