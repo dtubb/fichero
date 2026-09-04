@@ -1,0 +1,83 @@
+[
+  {
+    "page": "1913_p05.jpg",
+    "frame": "2017x2000",
+    "kraken_lines": 212,
+    "kraken_seconds": 26.1,
+    "kraken_error": null,
+    "vision_words": 1519,
+    "vision_seconds": 7.6,
+    "vision_error": null,
+    "overlay": "agent-work/experiments/kraken/1913_p05.overlay.png",
+    "documents_lines": 442,
+    "documents_words": 973,
+    "documents_seconds": 146.4,
+    "documents_error": null,
+    "baseline": {
+      "lines": 403,
+      "words": 966,
+      "words_measured": 966,
+      "words_interpolated": 0,
+      "mean_conf": 0.996,
+      "chars": 3738,
+      "ink_recall": 0.802,
+      "box_tightness": 0.253,
+      "total_ink_px": 328476,
+      "seconds": 4.6
+    }
+  },
+  {
+    "page": "1923_p03_part1.png",
+    "frame": "2090x2418",
+    "kraken_lines": 200,
+    "kraken_seconds": 19.2,
+    "kraken_error": null,
+    "vision_words": 788,
+    "vision_seconds": 9.8,
+    "vision_error": null,
+    "overlay": "agent-work/experiments/kraken/1923_p03_part1.overlay.png",
+    "documents_lines": 166,
+    "documents_words": 163,
+    "documents_seconds": 0.9,
+    "documents_error": null,
+    "baseline": {
+      "lines": 163,
+      "words": 174,
+      "words_measured": 174,
+      "words_interpolated": 0,
+      "mean_conf": 0.874,
+      "chars": 631,
+      "ink_recall": 0.258,
+      "box_tightness": 0.396,
+      "total_ink_px": 396619,
+      "seconds": 1.4
+    }
+  },
+  {
+    "page": "1933_p14.jpg",
+    "frame": "3063x2000",
+    "kraken_lines": 17,
+    "kraken_seconds": 19.7,
+    "kraken_error": null,
+    "vision_words": 79,
+    "vision_seconds": 3.9,
+    "vision_error": null,
+    "overlay": "agent-work/experiments/kraken/1933_p14.overlay.png",
+    "documents_lines": 18,
+    "documents_words": 58,
+    "documents_seconds": 0.6,
+    "documents_error": null,
+    "baseline": {
+      "lines": 17,
+      "words": 59,
+      "words_measured": 59,
+      "words_interpolated": 0,
+      "mean_conf": 0.72,
+      "chars": 336,
+      "ink_recall": 0.746,
+      "box_tightness": 0.207,
+      "total_ink_px": 91590,
+      "seconds": 1.3
+    }
+  }
+]
