@@ -395,3 +395,57 @@ def test_start_refuses_when_subprocesses_are_disabled(client, monkeypatch: pytes
 
     assert response.status_code == 409
     assert "not available on this device" in response.text
+
+
+@pytest.mark.asyncio
+async def test_downloaded_mlx_models_are_listable_without_a_running_server(monkeypatch) -> None:
+    """A model you DOWNLOADED must be pickable before the sidecar is up (#4560).
+
+    Model enumeration for oMLX used to be one call to the sidecar's
+    `GET /v1/models`, so with the server down the provider offered nothing --
+    including models sitting on disk that the user had explicitly downloaded.
+    And since the sidecar starts on demand FOR A RUN, there was no way to pick
+    the model that would have started it. The store is the honest source: it
+    knows what is installed, and what each model can do.
+    """
+    from fichero_server.api.routes.ai import provider_models
+    from fichero_server.llm.local_inference import LocalModelCatalogEntry, LocalModelSource
+    from fichero_server.llm.providers import ProviderType
+
+    installed = LocalModelCatalogEntry(
+        provider_type=ProviderType.omlx,
+        model_id="Chandra-OCR",
+        display_name="Chandra OCR",
+        capabilities=["text", "vision"],
+        installed=True,
+        source=LocalModelSource.app_cache,
+    )
+    not_installed = LocalModelCatalogEntry(
+        provider_type=ProviderType.omlx,
+        model_id="Nanonets-OCR",
+        display_name="Nanonets OCR",
+        capabilities=["text", "vision"],
+        installed=False,
+        source=LocalModelSource.remote_catalog,
+    )
+
+    class _Store:
+        def list_catalog_entries(self):
+            return [installed, not_installed]
+
+    monkeypatch.setattr(
+        "fichero_server.llm.mlx_model_store.get_mlx_model_store", lambda: _Store()
+    )
+
+    response = await provider_models.list_models_for_provider(
+        "omlx", search=None, vision_only=False, sort_by="name"
+    )
+    listed = {m.model_id: m for m in response.items}
+
+    assert "Chandra-OCR" in listed, "a downloaded model must be offered"
+    assert "Nanonets-OCR" not in listed, "an undownloaded model must NOT be offered"
+
+    entry = listed["Chandra-OCR"]
+    assert entry.supports_vision is True, "an OCR model must be pickable for page work"
+    assert entry.is_local is True
+    assert entry.input_cost_per_million == 0

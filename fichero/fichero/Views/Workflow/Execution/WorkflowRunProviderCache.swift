@@ -22,7 +22,10 @@ final class WorkflowRunProviderCache {
     /// The last load attempt threw (engine down, auth) — the menu renders a
     /// disabled explanatory row instead of silently offering only "Default".
     private(set) var lastLoadFailed = false
-    private var loaded = false
+    /// Whether a load has COMPLETED successfully. Read by the model chip to
+    /// tell "still loading" from "loaded, and there is nothing to show"
+    /// (#4560) — two states that used to render as the same spinner.
+    private(set) var loaded = false
 
     /// Total fetches performed — regression guard: menu re-opens with a warm
     /// cache must NOT refetch (tests assert this stays flat).

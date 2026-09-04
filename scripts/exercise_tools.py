@@ -356,7 +356,12 @@ async def main() -> int:
         print(f"\n{len(tools)} tools")
         return 0
 
-    local_providers = {"apple", "mlx", "ollama", "mock"}
+    # "omlx" is the ProviderType the engine actually uses for on-device MLX
+    # (llm/providers.py); "mlx" is not a provider id anywhere and matched
+    # nothing, so every local MLX call was counted as a CLOUD call and a sweep
+    # run with --max-cloud-calls 0 refused to make any. Local inference is
+    # free; the budget exists to stop spending money.
+    local_providers = {"apple", "omlx", "mlx", "lmstudio", "ollama", "mock"}
 
     def cloud_calls_so_far() -> int:
         return sum(

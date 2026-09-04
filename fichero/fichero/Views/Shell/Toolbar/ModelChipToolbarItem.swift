@@ -63,6 +63,32 @@ struct ModelChipToolbarItem: View {
         }
     }
 
+    /// What the popover says when it has no rows — THREE answers, not two
+    /// (#4560).
+    ///
+    /// `loadFailed` describes the AI-DEFAULTS fetch. The rows come from
+    /// `WorkflowRunProviderCache`, a separate load with its own outcome, and
+    /// this view never read it. So both "the provider list failed" and "the
+    /// provider list loaded and holds no models" rendered as `Loading
+    /// models…` — a spinner for work that had already finished. Daniel hit
+    /// exactly that (2026-09-03): the popover sat on "Loading models…"
+    /// indefinitely while the rest of the app stayed responsive, which is the
+    /// signature of a finished load being drawn as an unfinished one rather
+    /// than of anything actually hanging.
+    ///
+    /// A spinner is a PROMISE that something is still coming. It may only be
+    /// shown while that is true.
+    private var emptyState: (text: String, spinning: Bool) {
+        let cache = WorkflowRunProviderCache.shared
+        if loadFailed || cache.lastLoadFailed {
+            return ("The engine did not answer.", false)
+        }
+        if cache.loaded {
+            return ("No models available. Add a provider in AI Settings.", false)
+        }
+        return ("Loading models…", true)
+    }
+
     /// Why this row cannot be picked for the tier the chip resolves, or nil
     /// when it can. The ONLY gate, and it states itself.
     private func disabledReason(vision: Bool) -> String? {
@@ -153,12 +179,14 @@ struct ModelChipToolbarItem: View {
                         // stub popover that never grew when the models
                         // arrived (Daniel, 2026-08-29: "not full height").
                         VStack(spacing: 8) {
-                            if !loadFailed { ProgressView().controlSize(.small) }
-                            Text(loadFailed
-                                 ? "The engine did not answer."
-                                 : "Loading models…")
+                            if emptyState.spinning {
+                                ProgressView().controlSize(.small)
+                            }
+                            Text(emptyState.text)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 12)
                         }
                         .frame(maxWidth: .infinity, minHeight: 180)
                     }

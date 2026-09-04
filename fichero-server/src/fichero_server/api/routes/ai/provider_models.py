@@ -839,6 +839,41 @@ async def list_models_for_provider(
 
     # oMLX - local OpenAI-compatible MLX server
     elif provider_type == "omlx":
+        # Downloaded models are listed from the STORE first, not only from a
+        # running server (#4560). Asking `GET /v1/models` was the whole answer,
+        # which meant a model the user had explicitly downloaded was invisible
+        # in every picker until the sidecar happened to be up -- and the
+        # sidecar starts on demand FOR A RUN, so there was no way to pick the
+        # model that would have started it. Downloading a model is the user
+        # saying they want it; the catalog says so too, server or no server.
+        seen_model_ids: set[str] = set()
+        try:
+            from fichero_server.llm.mlx_model_store import get_mlx_model_store
+
+            for entry in get_mlx_model_store().list_catalog_entries():
+                if not entry.installed:
+                    continue
+                is_vision = "vision" in entry.capabilities
+                seen_model_ids.add(entry.model_id)
+                models.append(
+                    ModelResponse(
+                        model_id=entry.model_id,
+                        full_name=entry.display_name,
+                        input_cost_per_million=0,
+                        output_cost_per_million=0,
+                        supports_vision=is_vision,
+                        description=(
+                            "Downloaded MLX vision/OCR model. Runs locally, free."
+                            if is_vision
+                            else "Downloaded local MLX model. Runs locally, free."
+                        ),
+                        is_local=True,
+                        is_recommended=True,
+                        provider="omlx",
+                    )
+                )
+        except Exception as e:
+            logger.warning(f"Failed to read the local MLX model store: {e}")
         try:
             api_base = _configured_api_base("omlx", "http://localhost:8000/v1")
             headers = {}
@@ -859,6 +894,11 @@ async def list_models_for_provider(
                     }
                     for m in data.get("data", []):
                         model_id = m["id"]
+                        if model_id in seen_model_ids:
+                            # Already listed from the store; the store knows
+                            # its real display name and capabilities, and the
+                            # server reports a bare snapshot path.
+                            continue
                         curated = curated_models.get(model_id, {})
                         is_vision = bool(
                             curated.get("supports_vision")

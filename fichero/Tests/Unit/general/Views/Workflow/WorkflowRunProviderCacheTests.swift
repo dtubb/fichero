@@ -117,3 +117,56 @@ final class WorkflowRunProviderCacheTests: XCTestCase {
         )
     }
 }
+
+// MARK: - #4560: the cache must say WHICH of the three states it is in
+
+extension WorkflowRunProviderCacheTests {
+    /// A spinner is a promise that something is still coming. The model chip
+    /// showed one whenever it had no rows, including after the load had
+    /// finished — so a finished-and-empty list and a failed list both read as
+    /// "Loading models…" forever. `loaded` is what lets the chip tell the
+    /// difference; before #4560 it was private and the chip could not ask.
+    func testFreshCacheHasNotLoadedSoTheChipMaySpin() {
+        let cache = WorkflowRunProviderCache()
+
+        XCTAssertFalse(cache.loaded)
+        XCTAssertFalse(cache.lastLoadFailed)
+    }
+
+    func testLoadedButEmptyIsLoadedNotLoading() async {
+        let cache = WorkflowRunProviderCache()
+
+        await cache.ensureLoaded { [] }
+
+        // The load HAPPENED and produced nothing. Nothing further is coming,
+        // so the chip must stop promising that it is.
+        XCTAssertTrue(cache.loaded)
+        XCTAssertFalse(cache.lastLoadFailed)
+        XCTAssertTrue(cache.providers.isEmpty)
+    }
+
+    func testAFailedLoadIsReportedAsFailedNotAsStillLoading() async {
+        struct Boom: Error {}
+        let cache = WorkflowRunProviderCache()
+
+        await cache.ensureLoaded { throw Boom() }
+
+        XCTAssertTrue(cache.lastLoadFailed)
+        // Still not loaded, so the guard lets the next menu mount retry —
+        // but the chip reads `lastLoadFailed` first and says the engine did
+        // not answer rather than spinning on a load that already failed.
+        XCTAssertFalse(cache.loaded)
+    }
+
+    func testASuccessfulLoadAfterAFailureClearsTheFailure() async {
+        struct Boom: Error {}
+        let cache = WorkflowRunProviderCache()
+
+        await cache.ensureLoaded { throw Boom() }
+        await cache.ensureLoaded { [Self.provider("omlx", models: ["Chandra-OCR"])] }
+
+        XCTAssertTrue(cache.loaded)
+        XCTAssertFalse(cache.lastLoadFailed)
+        XCTAssertEqual(cache.providers.first?.models, ["Chandra-OCR"])
+    }
+}
