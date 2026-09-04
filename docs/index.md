@@ -120,22 +120,8 @@ and the [Contributor Guide](contributor/README.md).
 - **[User Guide](user/README.md)** for end users.
 - **[Contributor Guide](contributor/README.md)** for contributors.
 
-## Open source
-
-Fichero is developed at [github.com/dtubb/fichero](https://github.com/dtubb/fichero). It is coded
-(almost) entirely by AI, under the "Creative Direction" of Daniel Tubb, and other [contributors](https://github.com/dtubb/fichero/graphs/contributors). See
-[How It's Built](user/guide/12-appendix-b-how-fichero-is-built.md).
-
-Fichero is free and open source, released under the
-[GNU Affero General Public License, version 3.0 (AGPL-3.0)](https://www.gnu.org/licenses/agpl-3.0.html).
-That means anyone can read the code, use the app, modify it, and share it.
-Whoever distributes it, or runs a modified version as a service, must share
-their source code under the same license in turn. (Nobody can take Fichero
-closed-source). Contributors must agree to a
-[Contributor License Agreement](https://github.com/dtubb/fichero/blob/main/CLA.md),
-which lets Daniel Tubb, Fichero's maintainer, release Fichero under other
-terms (e.g. commercially, or where a channel like Apple's Mac and iOS App Stores has rules where the AGPL do not fit). See
-[LICENSING.md](https://github.com/dtubb/fichero/blob/main/LICENSING.md).
+Fichero is [open source](https://github.com/dtubb/fichero), released under the
+[AGPL-3.0](https://www.gnu.org/licenses/agpl-3.0.html).
 
 ---
 
