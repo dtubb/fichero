@@ -2,6 +2,22 @@
 
 *Full commit-level history, day by day, lives in [`CHANGELOG.md`](CHANGELOG.md).*
 
+## 2026.09.04.2
+
+The same-day follow-up that makes updating real.
+
+- **Fixed: the updater can install.** Build 1 and this morning's build
+  downloaded updates and then failed with "an error occurred while
+  launching the installer" — the sandboxed app was missing the entitlement
+  that lets it talk to its own installer. **Installs of earlier builds
+  need this one manual download; updates are automatic from here on.**
+- **The public build is now the Public Alpha.** Fichero.dmg turns on the
+  full proven feature set — including the Settings Models and Backend
+  tabs — while experimental surfaces stay in the Dev build. When alpha
+  features prove out they graduate to beta.
+- **Updates check, download, and install automatically by default**, and
+  Settings ▸ General ▸ Software Update is where to see or change that.
+
 ## 2026.09.04
 
 An overnight fix release built from one evening of live testing — nearly
