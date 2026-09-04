@@ -145,7 +145,7 @@ struct ReaderSearchPassageLandingTests {
             source.components(separatedBy: "func postSearchPassageAnchor(for doc: Document?) {")
                 .dropFirst().first
         )
-        let body = String(post.prefix(1600))
+        let body = String(post.prefix(6000))
         #expect(body.contains("ReaderPassageFocus.record(anchor)"))
         #expect(body.contains("ReaderPassageAnchor.kindKey"))
     }

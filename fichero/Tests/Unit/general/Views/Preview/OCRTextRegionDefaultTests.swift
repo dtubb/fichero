@@ -58,17 +58,19 @@ struct OCRTextRegionDefaultTests {
         )
     }
 
-    /// The geometry probe re-runs when the DOCUMENT or the TOGGLE changes —
-    /// never the page (2026-08-08, "changing page in PDF feels slow"):
-    /// `OCRGeometrySelection.load`'s only input is the document id, so a
-    /// page-keyed task re-fired the identical artifact queries on every flip.
-    @Test("the OCR geometry task is keyed on document+toggle, not the page")
-    func geometryTaskIsNotPageKeyed() throws {
+    /// The geometry probe re-runs when the GEOMETRY DOCUMENT changes — which
+    /// since 2026-09-04 (ff40b4f16) is the PAGE CHILD: ingest writes each
+    /// page's text_geometry on its own document, so per-page answers genuinely
+    /// differ and a page turn must reload. The 2026-08-08 "don't key on the
+    /// page" ruling was right on its old premise (one identical answer per
+    /// document); the premise changed, not the reasoning.
+    @Test("the OCR geometry task is keyed on the page's geometry document")
+    func geometryTaskFollowsTheGeometryDocument() throws {
         let source = try AppSource.text("Views/Preview/PDFViewer/PDFPageWithToolbar.swift")
-        #expect(source.contains(#".task(id: "\(effectiveDocumentId)|\(ocrBoxesEnabled)")"#))
+        #expect(source.contains(#".task(id: "\(effectiveGeometryDocumentId)|\(effectivePageIndex)|\(ocrBoxesEnabled)")"#))
         #expect(
-            !source.contains(#"\(effectiveDocumentId)|\(effectivePageIndex)|\(ocrBoxesEnabled)"#),
-            "page-keyed geometry probe is back — every page flip refetches the whole document's geometry"
+            !source.contains(#".task(id: "\(effectiveDocumentId)|\(ocrBoxesEnabled)")"#),
+            "the parent-keyed probe is back — a page turn would keep another page's boxes"
         )
     }
 

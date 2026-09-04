@@ -335,7 +335,10 @@ struct SearchPassageAnchorTests {
         #expect(events.contains("guard activeSearchQuery != nil"),
                 "the passage light must engage only while results show")
         #expect(events.contains(".readerTextSelection"))
-        #expect(events.contains("\"charStart\": Int(excerpt.anchor.charStart)"))
+        // Typed since 2026-09-03: the anchor rides ReaderPassageAnchor, and the
+        // dict the notification still carries is built FROM it.
+        #expect(events.contains("charStart: Int(excerpt.anchor.charStart)"))
+        #expect(events.contains("ReaderPassageFocus.record(anchor)"))
         // Wired from the ONE detail-change seam, so every selection path
         // (click, swipe, arrow) lights the passage.
         #expect(events.contains("postSearchPassageAnchor(for: newDoc)"))

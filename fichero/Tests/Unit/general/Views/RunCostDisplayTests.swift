@@ -42,7 +42,7 @@ final class RunCostDisplayTests: XCTestCase {
             partiallyPriced: true,
             unpricedModels: ["mystery-1"]
         )
-        XCTAssertEqual(usage.costText, "≥ $0.0100")
+        XCTAssertEqual(usage.costText, "≥ $0.01")
     }
 
     func testRunWithNoModelCallHasNothingToShow() {

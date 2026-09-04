@@ -6,7 +6,8 @@ import Foundation
 // ONE mapping (2026-09-03). There used to be three ways an annotation could
 // become a `DocumentAnnotation`:
 //
-//   1. `annotation(from: OpenAPIValueContainer)`, which serialized a loose
+//   1. an `annotation(from:)` overload taking the generated loose value
+//      container, which serialized a loose
 //      container back to JSON and ran it through the hand-written
 //      `DocumentAnnotation.init(from:)`. It had NO callers.
 //   2. `annotation(from: Components.Schemas.Annotation)`.
