@@ -75,7 +75,7 @@ extension WorkflowBar {
         if let onSelectScope, !scopeOptions.isEmpty {
             Menu {
                 ForEach(scopeOptions) { option in
-                    Button(option.label) { onSelectScope(option.scope) }
+                    scopeMenuRow(option, select: onSelectScope)
                 }
             } label: {
                 subjectLabel(label)

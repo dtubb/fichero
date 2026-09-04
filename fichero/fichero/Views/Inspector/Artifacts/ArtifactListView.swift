@@ -237,6 +237,7 @@ struct ArtifactListView: View {
             // ⌘/⇧ multi-select keeps working.
             .simultaneousGesture(plainSelectTap(artifact.id))
             .contextMenu {
+                runWorkflowMenuItem(artifact)
                 if let onOpenInWindow {
                     Button("Open in Window") {
                         focused.select(artifact.id, in: store.items)
@@ -270,6 +271,17 @@ struct ArtifactListView: View {
                 }
                 translateMenuItems()
             }
+    }
+
+    /// A door to the run the workflow bar already knows how to do (Daniel,
+    /// 2026-09-03: "even better, let me run a workflow on it") — NOT a second
+    /// run pipeline. Aiming the bar IS the whole action: the bar is still
+    /// where the workflow and its models get chosen, with the subject chip
+    /// now naming this artifact and what produced it.
+    private func runWorkflowMenuItem(_ artifact: Artifact) -> some View {
+        Button("Run Workflow on This") {
+            focused.pinForRun(artifact.id, documentId: artifact.documentId, in: store.items)
+        }
     }
 
     /// The "Translate Document" contextual submenu (#3426). Shared by the row

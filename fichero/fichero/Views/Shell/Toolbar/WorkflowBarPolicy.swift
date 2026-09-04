@@ -208,6 +208,10 @@ enum WorkflowBarPolicy {
         var artifactType: String?
         var artifactStepName: String?
         var artifactDocumentName: String?
+        /// The artifact was AIMED at from the inspector's "Run Workflow on
+        /// This", not merely selected — a deliberate choice that outranks the
+        /// multi-select guard below.
+        var artifactPinned = false
 
         /// The library browser's effective selection (live or preserved).
         var browserSelection: [String] = []
@@ -215,6 +219,14 @@ enum WorkflowBarPolicy {
         /// The previewed document — the last rung.
         var detailDocumentId: String?
         var detailDocumentName: String?
+
+        /// Every artifact the inspected document actually HAS, newest-first
+        /// is not required (the menu sorts), each carrying enough provenance
+        /// to tell one Detect Regions pass from another (Daniel, 2026-09-03:
+        /// "if there are multiple regions — which model produced it"). Empty
+        /// when the host has none loaded; the menu then falls back to the
+        /// by-TYPE rows, which still resolve at run time.
+        var detailArtifacts: [ArtifactChoice] = []
     }
 
     /// What a run would act on, resolved. Distinct from `Target` (which
@@ -304,7 +316,7 @@ enum WorkflowBarPolicy {
         if let artifactId = snapshot.artifactId,
            let documentId = snapshot.artifactDocumentId,
            documentId == snapshot.detailDocumentId,
-           snapshot.browserSelection.count <= 1 {
+           snapshot.browserSelection.count <= 1 || snapshot.artifactPinned {
             return .artifact(
                 documentId: documentId,
                 artifactId: artifactId,

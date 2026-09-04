@@ -35,10 +35,34 @@ extension ContentView {
             artifactType: artifactFocus.artifact?.artifactType,
             artifactStepName: artifactFocus.artifact?.stepName,
             artifactDocumentName: artifactFocus.documentName,
+            artifactPinned: artifactFocus.pinnedForRun,
             browserSelection: effectiveWorkflowRunSelection,
             detailDocumentId: detailDocument?.id,
-            detailDocumentName: detailDocument.map { DocumentTitle.displayName(for: $0) }
+            detailDocumentName: detailDocument.map { DocumentTitle.displayName(for: $0) },
+            detailArtifacts: detailArtifactChoices
         )
+    }
+
+    /// The inspected document's artifacts, as the menu's plain values. Read
+    /// off the ArtifactStore the inspector already loaded — the menu adds no
+    /// fetch of its own, and simply offers nothing extra when the store is
+    /// pointed somewhere else (the by-TYPE rows still work).
+    var detailArtifactChoices: [WorkflowBarPolicy.ArtifactChoice] {
+        guard let detailId = detailDocument?.id,
+              artifactStore.currentDocumentId == detailId else { return [] }
+        return artifactStore.items
+            .filter { $0.documentId == detailId }
+            .map {
+                WorkflowBarPolicy.ArtifactChoice(
+                    id: $0.id,
+                    artifactType: $0.artifactType,
+                    displayName: $0.artifactTypeDisplayName,
+                    provider: $0.provider,
+                    model: $0.model,
+                    stepName: $0.stepName,
+                    createdAt: $0.createdAt
+                )
+            }
     }
 
     /// The resolved scope — the ONE decision every bar consumer (chip label,

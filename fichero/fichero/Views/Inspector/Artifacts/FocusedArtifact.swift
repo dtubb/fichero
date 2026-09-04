@@ -44,6 +44,22 @@ final class FocusedArtifact {
     /// apart.
     var documentName: String?
 
+    /// The workflow bar has been AIMED at this artifact ("Run Workflow on
+    /// This"), not merely shown it. A deliberate aim outranks the ladder's
+    /// multi-select guard — the guard exists to stop a lingering selection
+    /// from stealing the bar, and an explicit aim is the opposite of
+    /// lingering. Cleared whenever the selection moves.
+    private(set) var pinnedForRun = false
+
+    /// Aim the workflow bar at `id` — select it AND pin it.
+    func pinForRun(
+        _ id: String, documentId: String? = nil,
+        documentName: String? = nil, in items: [Artifact]
+    ) {
+        select(id, documentId: documentId, documentName: documentName, in: items)
+        pinnedForRun = true
+    }
+
     init() {}
 
     /// Set the selection and resolve its snapshot against `items`. Called by
@@ -55,6 +71,7 @@ final class FocusedArtifact {
         documentName: String? = nil,
         in items: [Artifact]
     ) {
+        if id != self.id { pinnedForRun = false }
         if let documentId {
             self.documentId = documentId
         }
@@ -76,5 +93,6 @@ final class FocusedArtifact {
     func clear() {
         id = nil
         artifact = nil
+        pinnedForRun = false
     }
 }
