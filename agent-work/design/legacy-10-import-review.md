@@ -160,6 +160,9 @@ routes*. Its properties read like they were written for this job:
 * **`DEFAULT_INGEST_MODE = "link"`** (`manifest_import.py:61`) — bytes stay put.
 * `_is_safe_to_delete_source` (`:118`) refuses to delete anything under
   `/Volumes/` outright. The 300 GB is structurally safe.
+* Node `date` already lands on arrival: the drop path calls `apply_import_date`
+  (`core.py:369-380`) which stamps `date_meta["source"]="manifest"` and never
+  overwrites an existing date.
 * **Idempotent** — documents skipped by `canonical_external_id`, entities reused
   by canonical name, claims by `canonical_claim_external_id`, artifacts by
   `(doc_id, artifact_type)`.
@@ -197,7 +200,7 @@ importers keyed to named libraries, not a format reader.
 | Data kind | On disk in 1.0 | Imported today? | Maps to current model? | Link-safe? |
 |---|---|---|---|---|
 | Original page images | `documents/*.JPG` | as unrelated documents | ✗ no page/folder structure | ✓ link |
-| Renditions (crop/split/rotate/enhance/bg-removed) | `assets/<stage>/documents/*` | as *separate documents* | ✗ — should be `images[]` roles on one page | ✓ link |
+| Renditions (crop/split/rotate/enhance/bg-removed) | `assets/<stage>/documents/*` | as *separate documents* | ~ — as `metadata["images"]` only; **no `Rendition` rows** (see 2.4·4) | ✓ link |
 | Page transcription | `assets/transcriptions/documents/*.txt` | as `.txt` documents | ✗ — should be node `text` → `transcription` artifact | n/a |
 | Segment strips + text | `assets/segmented*/…segment_NNN.*` | as documents | ✗ — **no manifest field exists for regions** | ✓ link |
 | Segment geometry | `segment_manifest.jsonl` `[y0,y1]` | ✗ ignored | ✗ — needs the transform chain back to original pixels | n/a |
@@ -217,13 +220,32 @@ importers keyed to named libraries, not a format reader.
    `provider="fichero-1.0"` and `model="qwen-vl-max"` on the transcription,
    `"gpt-4.1-mini"` on the catalogue. Delta: let a node/artifact carry optional
    `provider`/`model`/`step_name`, defaulting to today's values.
-2. **No region concept in the manifest.** `rendition_sidecar.py` models
-   `region_on_original` properly, but it is keyed off a `<file>.renditions.json`
-   sidecar written *next to the image* — impossible here, the volume is
-   read-only and precious. Segment geometry needs either a node-level `regions`
-   field on the canonical manifest, or to be deferred.
+2. **No region concept in the *manifest*** — though the model has one.
+   `NodeRegion` (`models/anchors.py:133`) with `RegionConfidence`
+   (`measured | nominal | user`) is exactly the right home, reachable via
+   `Document.region_in_parent` or `Rendition.transform`. The gap is only the
+   interchange format: no manifest field carries a region.
+   `rendition_sidecar.py` does model `region_on_original`, but it is keyed off a
+   `<file>.renditions.json` sidecar written *next to the image* — impossible
+   here, the volume is read-only and precious. So: a node-level `regions` field
+   on the canonical manifest, or defer.
 3. **Drop detection is a single filename check.** `core.py:423` only knows
    `manifest.jsonl`. It needs a second recogniser for a 1.0 archive root.
+4. **The importer creates no `Rendition` rows.** Image variants ride only as
+   `metadata["images"]` + `metadata["preferred_image_role"]`. The `Rendition`
+   model already exists and fits this corpus exactly — `role`, `path`,
+   `derived_from_rendition_id`, `producer_tool`, `producer_model`, and a
+   `transform: NodeRegion` — and its `RENDITION_ROLE_PREFERENCE` is a near-mirror
+   of the importer's `IMAGE_ROLE_PREFERENCE` (it adds `deskewed`). So the five
+   1.0 stages *should* become five linked `Rendition` rows per page with the
+   crop box in `transform`, not five entries in a metadata blob. This is the
+   largest delta and the one that decides whether the renditions are real.
+5. **Link mode alone leaves documents pathless.** `document_payload` nulls any
+   client-supplied absolute path by design (the routes contract, `:295-302`);
+   the path is re-stamped afterwards *only* by the drop path
+   (`core.py:326-367`). `fichero import-manifest --ingest link` on its own
+   therefore produces pathless, thumbnail-less documents. The 1.0 import must
+   go through the drop path, or the converter's CLI must do the same stamping.
 
 ---
 
@@ -293,6 +315,10 @@ pure and engine-free:
 
 ### 3.4 Dry run first, always
 
+There is **no preflight or dry-run anywhere on the import path today** — the app
+cannot tell you what a folder holds before committing to importing it. This is
+new surface, and it is the part Daniel will actually look at first.
+
 `fichero import-legacy-archive <path> --dry-run` (default on) prints, without
 touching the library:
 
@@ -306,7 +332,7 @@ Fichero 1.0 archive: Compania Minera Smaller Files
   folder catalogues       120   gpt-4.1-mini
     entities              …     timeline claims  …
   UNMAPPED
-    segment strips    ~189,000  (geometry deferred — bbox program)
+    segment strips   ~213,000  (est. — geometry deferred to the bbox program)
     word documents          240
 ```
 
