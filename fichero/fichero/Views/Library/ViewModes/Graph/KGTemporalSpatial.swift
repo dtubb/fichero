@@ -89,16 +89,31 @@ enum KGTemporal {
 
 /// Spatial helpers — the place-provenance classifier.
 enum KGSpatial {
-    /// Classify how grounded a claim's *location* is. Asserted = a precise
-    /// geocoded fix; inferred = a coarse radius (`precisionM` > 50 km) or a
-    /// low-trust confidence origin. A claim with only `claimLocation` text
-    /// and no `claimGeo` is treated as inferred (it can't be mapped).
+    /// Classify how grounded a claim's *location* is. Asserted = a point the
+    /// source itself gives, or a person placed; inferred = a coarse radius
+    /// (`precisionM` > 50 km), a low-trust confidence origin, or a coordinate
+    /// a GEOCODER produced. A claim with only `claimLocation` text and no
+    /// `claimGeo` is treated as inferred (it can't be mapped).
     static func provenance(for claim: Components.Schemas.KnowledgeClaim) -> KGProvenance {
         guard let geo = claim.claimGeo else { return .inferred }
         if let precision = geo.precisionM, precision > 50_000 { return .inferred }
         let source = (claim.confidenceSource ?? "").lowercased()
         if source == "heuristic" || source == "default" { return .inferred }
+        // A gazetteer hit is not evidence from the manuscript — it is an
+        // inference about a NAME the manuscript contains, and the engine now
+        // says so on the place row rather than leaving the map to guess
+        // (#4668). Drawn solid, it would assert a precision the archive never
+        // had, and a reader has no way to discover the pin was a lookup.
+        if isGeocoded(claim) { return .inferred }
         return .asserted
+    }
+
+    /// Whether this claim's point came from a geocoder rather than the source.
+    static func isGeocoded(_ claim: Components.Schemas.KnowledgeClaim) -> Bool {
+        (claim.placeValues ?? []).contains { place in
+            place.lat != nil && place.basis == .inferred
+                && (place.createdBy ?? "").lowercased() == "geocoder"
+        }
     }
 }
 

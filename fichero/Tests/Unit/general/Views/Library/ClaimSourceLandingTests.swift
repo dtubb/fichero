@@ -128,3 +128,64 @@ struct ClaimSourceLandingTests {
         #expect(!String(function.prefix(1200)).contains("currentDocuments"))
     }
 }
+
+/// A geocoded pin is drawn as a guess, because that is what it is (#4668).
+///
+/// The engine now writes a coordinate onto extracted claims — which is what
+/// makes the map plot anything at all — and marks each one `inferred` with
+/// `created_by: "geocoder"`. Without the classifier reading that, every
+/// gazetteer hit would render as a solid pin: the archive asserting a
+/// precision it never had, with no way for a reader to tell.
+@MainActor
+struct ClaimGeoProvenanceTests {
+
+    private func place(
+        basis: Components.Schemas.EvidenceBasis,
+        createdBy: String?,
+        lat: Double? = 2.4448
+    ) -> Components.Schemas.EvidentialPlace {
+        var value = Components.Schemas.EvidentialPlace(label: "Popayán", basis: basis)
+        value.lat = lat
+        value.lon = -76.6147
+        value.createdBy = createdBy
+        return value
+    }
+
+    private func claim(
+        places: [Components.Schemas.EvidentialPlace]
+    ) -> Components.Schemas.KnowledgeClaim {
+        var row = Components.Schemas.KnowledgeClaim(id: "c1", text: "Pedro travelled to Popayán.")
+        row.claimGeo = Components.Schemas.GeoPoint(lat: 2.4448, lon: -76.6147)
+        row.placeValues = places
+        return row
+    }
+
+    @Test("a geocoded point renders as inferred")
+    func aGeocodedPointIsInferred() {
+        let row = claim(places: [place(basis: .inferred, createdBy: "geocoder")])
+        #expect(KGSpatial.isGeocoded(row))
+        #expect(KGSpatial.provenance(for: row) == .inferred)
+    }
+
+    @Test("a hand-placed point stays asserted")
+    func aHandPlacedPointIsAsserted() {
+        let row = claim(places: [place(basis: .asserted, createdBy: "extractor")])
+        #expect(!KGSpatial.isGeocoded(row))
+        #expect(KGSpatial.provenance(for: row) == .asserted)
+    }
+
+    @Test("a place row with no coordinate does not make the claim geocoded")
+    func aPlaceWithoutACoordinateIsNotAGeocode() {
+        // A source-anchored region ("the province of Popayán") is inferred and
+        // carries no point; it must not demote a real fix beside it.
+        let row = claim(places: [place(basis: .inferred, createdBy: "extractor", lat: nil)])
+        #expect(!KGSpatial.isGeocoded(row))
+    }
+
+    @Test("a claim with no coordinate at all is inferred and unplottable")
+    func aClaimWithNoPointIsInferred() {
+        var row = Components.Schemas.KnowledgeClaim(id: "c2", text: "Pedro travelled.")
+        row.claimGeo = nil
+        #expect(KGSpatial.provenance(for: row) == .inferred)
+    }
+}

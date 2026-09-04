@@ -838,6 +838,15 @@ def derive_evidential_dimensions(
     time_precision: Optional[str] = None,
     claim_location: Optional[str] = None,
     claim_geo: Optional[GeoPoint] = None,
+    # HOW the point was established (#4668). Defaults to `asserted`, which is
+    # right for the manual claim-create route: a person placing a pin IS the
+    # assertion. A GEOCODED point must arrive as `inferred` — a gazetteer hit
+    # is not evidence from the manuscript, it is an inference about a name the
+    # manuscript contains, and the map draws that difference (open pin vs
+    # solid). Defaulting it to asserted would let the archive claim a
+    # precision it never had.
+    claim_geo_basis: EvidenceBasis = EvidenceBasis.asserted,
+    claim_geo_source: Optional[str] = None,
     attribution_chain: Optional[list[AttributionStep | dict]] = None,
     speaker_name: Optional[str] = None,
     provider: Optional[str] = None,
@@ -896,11 +905,18 @@ def derive_evidential_dimensions(
                 lat=claim_geo.lat if claim_geo else None,
                 lon=claim_geo.lon if claim_geo else None,
                 precision_m=claim_geo.precision_m if claim_geo else None,
-                basis=EvidenceBasis.asserted,
+                basis=claim_geo_basis if claim_geo else EvidenceBasis.asserted,
                 confidence=confidence,
                 source_document_id=source_document_id,
                 source_page_label=source_page_label,
                 source_excerpt=source_excerpt,
+                rationale=claim_geo_source,
+                created_by=(
+                    "geocoder"
+                    if claim_geo is not None
+                    and claim_geo_basis == EvidenceBasis.inferred
+                    else "extractor"
+                ),
             )
         )
     if not place_values:
@@ -1023,6 +1039,127 @@ def _matches_claim_identity(
     from difflib import SequenceMatcher
 
     return SequenceMatcher(None, identity.get("text") or "", text).ratio() >= 0.9
+
+
+def attach_geocoded_places(
+    db: Database,
+    *,
+    document_ids: list[str],
+    points_by_name: dict[str, tuple[GeoPoint, str]],
+    online: bool = False,
+) -> dict[str, int]:
+    """Put a run's geocoded points onto the claims that run produced (#4668).
+
+    THE HOLE THIS FILLS. ``KnowledgeClaim.claim_geo`` is the field the map
+    plots, and until now the only caller that ever set it was the manual
+    claim-create route. ``extract_geo`` geocoded place names and returned the
+    points as TOOL OUTPUT — nothing consumed them — so ``claim_geo`` was null
+    for every extracted claim in every library, and MapKit surfaces that have
+    worked since #1267 plotted an empty map over a corpus full of places.
+
+    Two integrity rules, both non-negotiable for archival data:
+
+    * The point lands as ``inferred``, never ``asserted``. A gazetteer hit is
+      not evidence from the manuscript; it is an inference about a name the
+      manuscript contains. The map renders that distinction as an open pin
+      rather than a solid one, and a reader has no other way to discover that
+      a confident-looking pin was a guess.
+    * The row records WHICH geocoder resolved WHICH string. "Condoto" is
+      ambiguous across countries; a coordinate with no provenance cannot be
+      checked, corrected, or curated later.
+
+    A claim that already carries a point is LEFT ALONE: a person's placement,
+    or an earlier better-sourced one, outranks a fresh gazetteer lookup.
+
+    Matching is on the claim's own location text — ``claim_location`` (set by
+    the writer for location-typed subjects) or ``subject_canonical`` — folded
+    for case and accents so "Popayán" and "popayan" are the same place. No
+    fuzzy matching: a near-miss here pins a claim onto a different town.
+
+    Returns ``{"updated": n, "already_placed": n, "unmatched_names": n}``.
+    """
+    from fichero_server.models.knowledge import KnowledgeClaim
+
+    folded_points = {
+        _normalized_match_key(name): (name, point, source)
+        for name, (point, source) in points_by_name.items()
+        if _normalized_match_key(name)
+    }
+    if not folded_points or not document_ids:
+        return {"updated": 0, "already_placed": 0, "unmatched_names": len(points_by_name)}
+
+    matched_keys: set[str] = set()
+    updated = 0
+    already_placed = 0
+
+    for document_id in document_ids:
+        for claim in db.query(KnowledgeClaim, source_document_id=document_id):
+            key = _normalized_match_key(
+                claim.claim_location or claim.subject_canonical or ""
+            )
+            if not key or key not in folded_points:
+                continue
+            matched_keys.add(key)
+            if claim.claim_geo is not None:
+                # Already placed by someone who knew better than a lookup.
+                already_placed += 1
+                continue
+            queried, point, source = folded_points[key]
+            claim.claim_geo = point
+            claim.claim_location = claim.claim_location or queried
+            rationale = _geocode_rationale(queried, point, source, online=online)
+            claim.place_values = [
+                value
+                for value in (claim.place_values or [])
+                if _normalized_match_key(value.label) != key
+            ] + [
+                EvidentialPlace(
+                    label=queried,
+                    geometry_type=PlaceGeometryType.point,
+                    lat=point.lat,
+                    lon=point.lon,
+                    precision_m=point.precision_m,
+                    # INFERRED. See this function's docstring: the manuscript
+                    # named a place, it did not give a coordinate.
+                    basis=EvidenceBasis.inferred,
+                    confidence=0.5,
+                    source_document_id=document_id,
+                    source_page_label=claim.source_page_label,
+                    rationale=rationale,
+                    created_by="geocoder",
+                )
+            ]
+            db.save(claim)
+            updated += 1
+
+    return {
+        "updated": updated,
+        "already_placed": already_placed,
+        "unmatched_names": len(folded_points) - len(matched_keys),
+    }
+
+
+def _geocode_rationale(
+    queried: str, point: GeoPoint, source: str, *, online: bool
+) -> str:
+    """One sentence a reader can check the pin against.
+
+    Names the string that was looked up and the service that answered — and,
+    when the service returned its own label for the match, that label too:
+    "Condoto" resolving to "Condoto, Chocó, Colombia" is a different fact from
+    "Condoto" resolving to a Condoto somewhere else.
+    """
+    resolved = (point.place_name or "").strip()
+    detail = (
+        f' resolved to "{resolved}"'
+        if resolved and _normalized_match_key(resolved) != _normalized_match_key(queried)
+        else ""
+    )
+    return (
+        f'Geocoded from the place name "{queried}" by the {source}{detail}. '
+        "Not attested by the source; the manuscript names a place, not a "
+        "coordinate."
+    )
 
 
 def _record_additional_attribution(
@@ -1939,6 +2076,11 @@ def save_claim(
     confidence_origin: Optional[str] = None,
     claim_location: Optional[str] = None,
     claim_geo: Optional[GeoPoint] = None,
+    # A geocoded point is INFERRED and names its geocoder (#4668); the default
+    # keeps the manual claim-create route's meaning, where a person placing a
+    # pin IS the assertion.
+    claim_geo_basis: EvidenceBasis = EvidenceBasis.asserted,
+    claim_geo_source: Optional[str] = None,
     date_values: Optional[list[EvidentialDateRange | dict]] = None,
     place_values: Optional[list[EvidentialPlace | dict]] = None,
     attribution_chain: Optional[list[AttributionStep | dict]] = None,
@@ -2145,6 +2287,8 @@ def save_claim(
         time_precision=time_precision,
         claim_location=claim_location,
         claim_geo=claim_geo,
+        claim_geo_basis=claim_geo_basis,
+        claim_geo_source=claim_geo_source,
         attribution_chain=attribution_chain,
         speaker_name=speaker_name,
         provider=provider,

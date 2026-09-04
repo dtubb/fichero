@@ -81,6 +81,14 @@ _GAZETTEER: dict[str, tuple[float, float]] = {
 _cache: dict[str, GeoPoint | None] = {}
 
 
+#: Which tier resolved a name. A coordinate whose origin is unrecorded cannot
+#: be checked, corrected, or curated later — and "Condoto" is ambiguous across
+#: countries, so the difference between a curated gazetteer row and whatever
+#: Nominatim matched first is the difference between a fact and a lead.
+SOURCE_GAZETTEER = "offline gazetteer"
+SOURCE_NOMINATIM = "Nominatim (OpenStreetMap)"
+
+
 def geocode(
     name: str,
     *,
@@ -92,21 +100,42 @@ def geocode(
     Tries the offline gazetteer first. When ``online`` is set, missing names
     fall through to Nominatim. Results (including misses) are cached.
     """
+    return geocode_with_source(name, online=online, timeout=timeout)[0]
+
+
+def geocode_with_source(
+    name: str,
+    *,
+    online: bool = False,
+    timeout: float = 5.0,
+) -> tuple[GeoPoint | None, str | None]:
+    """``geocode``, plus WHICH tier resolved it (#4668).
+
+    The point alone cannot say whether a curated row or a first Nominatim hit
+    put it there, and a map pin that cannot be traced back is a number the
+    reader has to take on faith. Callers that persist a coordinate must
+    persist this alongside it.
+    """
     key = _normalize(name)
     if not key:
-        return None
+        return None, None
     if key in _cache:
-        return _cache[key]
+        cached = _cache[key]
+        if cached is None:
+            return None, None
+        return cached, (
+            SOURCE_GAZETTEER if key in _GAZETTEER else SOURCE_NOMINATIM
+        )
 
     hit = _GAZETTEER.get(key)
     if hit is not None:
         point = GeoPoint(lat=hit[0], lon=hit[1], place_name=name.strip())
         _cache[key] = point
-        return point
+        return point, SOURCE_GAZETTEER
 
     point = _geocode_online(name, timeout=timeout) if online else None
     _cache[key] = point
-    return point
+    return point, (SOURCE_NOMINATIM if point is not None else None)
 
 
 def geocode_places(
@@ -120,13 +149,28 @@ def geocode_places(
     Returns ``{original_name: GeoPoint}`` preserving the caller's spelling as
     the key. Duplicate names collapse to one entry.
     """
-    out: dict[str, GeoPoint] = {}
+    return {
+        name: point
+        for name, (point, _source) in geocode_places_with_source(
+            names, online=online, timeout=timeout
+        ).items()
+    }
+
+
+def geocode_places_with_source(
+    names: list[str],
+    *,
+    online: bool = False,
+    timeout: float = 5.0,
+) -> dict[str, tuple[GeoPoint, str]]:
+    """``geocode_places``, keeping each hit's resolving tier (#4668)."""
+    out: dict[str, tuple[GeoPoint, str]] = {}
     for name in names:
         if not name or name in out:
             continue
-        point = geocode(name, online=online, timeout=timeout)
-        if point is not None:
-            out[name] = point
+        point, source = geocode_with_source(name, online=online, timeout=timeout)
+        if point is not None and source is not None:
+            out[name] = (point, source)
     return out
 
 
@@ -166,6 +210,9 @@ def _demo() -> None:
     points = geocode_places(["Quito", "Madrid", "Quito", "???unknown???"])
     assert set(points) == {"Quito", "Madrid"}, points
     assert -90 <= points["Quito"].lat <= 90 and -180 <= points["Quito"].lon <= 180
+    sourced = geocode_places_with_source(["Quito", "???unknown???"])
+    assert sourced["Quito"][1] == SOURCE_GAZETTEER, sourced
+    assert "???unknown???" not in sourced
     print("geo._demo OK")
 
 

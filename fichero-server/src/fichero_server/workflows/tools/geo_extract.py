@@ -188,7 +188,8 @@ async def extract_geo(
     )
 
     names = _coerce_place_names(result.get("value"))
-    points = geo.geocode_places(names, online=online)
+    sourced = geo.geocode_places_with_source(names, online=online)
+    points = {name: point for name, (point, _src) in sourced.items()}
 
     geo_points = [
         {
@@ -196,12 +197,23 @@ async def extract_geo(
             "lat": point.lat,
             "lon": point.lon,
             "precision_m": point.precision_m,
+            # WHICH geocoder answered. Without it the number is unverifiable,
+            # and "Condoto" is ambiguous across countries (#4668).
+            "geocoded_by": sourced[name][1],
         }
         for name, point in points.items()
     ]
     unresolved = [n for n in names if n not in points]
     if unresolved:
         logger.info("extract_geo: %d place(s) did not geocode: %s", len(unresolved), unresolved)
+
+    # THE WRITE-BACK (#4668). Geocoding and returning the points as tool output
+    # left `claim_geo` null on every extracted claim in every library, so the
+    # map plotted nothing no matter how well the gazetteer covered the corpus.
+    # The points go onto this run's claims here — as INFERRED, with the
+    # geocoder named. An unresolved name stays unresolved: it is listed on the
+    # `unresolved` port and never approximated onto the map.
+    placement = _attach_points_to_claims(state, documents, sourced, online=online)
 
     return {
         "geo": geo_points,
@@ -213,5 +225,71 @@ async def extract_geo(
         "artifacts": result.get("artifacts", []),
         "places": names,
         "unresolved": unresolved,
+        "placed": placement,
         "error": result.get("error"),
     }
+
+
+def _claim_scope(db, documents: Any, state: State) -> list[str]:
+    """Every document whose claims this run could have written.
+
+    Page children are included: the KG writer scopes an extracted claim to the
+    PAGE it was read off (#1562), while a geo run is usually selected on the
+    parent file. Matching only the parent would place nothing.
+    """
+    from fichero_server.models import Document
+
+    roots: list[str] = [
+        str(d.get("id"))
+        for d in (documents or [])
+        if isinstance(d, dict) and d.get("id")
+    ]
+    roots += [str(doc_id) for doc_id in (state.get("selected_doc_ids") or [])]
+
+    seen: list[str] = []
+    for doc_id in roots:
+        if doc_id in seen:
+            continue
+        seen.append(doc_id)
+        try:
+            children = db.query(Document, parent_id=doc_id)
+        except Exception:  # noqa: BLE001 — a lookup miss must not end the run
+            continue
+        for child in children:
+            if child.id not in seen:
+                seen.append(child.id)
+    return seen
+
+
+def _attach_points_to_claims(
+    state: State, documents: Any, sourced: dict, *, online: bool
+) -> dict[str, int]:
+    """Best-effort write-back; a failure here must not lose the extraction."""
+    empty = {"updated": 0, "already_placed": 0, "unmatched_names": len(sourced)}
+    library_path = state.get("library_path") or ""
+    if not library_path or not sourced:
+        return empty
+    try:
+        from fichero_server.db import db_manager
+        from fichero_server.workflows.tools._entity_writer import (
+            attach_geocoded_places,
+        )
+
+        db = db_manager.get_database(library_path)
+        placement = attach_geocoded_places(
+            db,
+            document_ids=_claim_scope(db, documents, state),
+            points_by_name=sourced,
+            online=online,
+        )
+    except Exception as exc:  # noqa: BLE001 — the places are still returned
+        logger.warning("extract_geo: could not place points on claims: %s", exc)
+        return empty
+    logger.info(
+        "extract_geo: placed %d claim(s) on the map (%d already placed, "
+        "%d name(s) matched no claim)",
+        placement["updated"],
+        placement["already_placed"],
+        placement["unmatched_names"],
+    )
+    return placement
