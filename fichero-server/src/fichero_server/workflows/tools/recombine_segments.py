@@ -9,6 +9,10 @@ from typing import Any
 
 from fichero_server.llm import LLMConfig
 from fichero_server.workflows.registry import register_tool
+from fichero_server.workflows.tools.image_edit_chains import (
+    describe_no_effect,
+    persist_workflow_renditions,
+)
 from fichero_server.workflows.types import DataType, PortDef, State
 from fichero_server.media.image_flatten import flatten_for_opaque_format
 
@@ -182,6 +186,18 @@ def recombine_segment_files(
             required=True,
             description="Segment image files to recombine.",
         ),
+        PortDef(
+            id="documents",
+            name="Documents",
+            port_type="input",
+            data_type=DataType.JSON,
+            required=False,
+            description=(
+                "The page the segments came from. Without it the recombined "
+                "image cannot be attached to anything and the run has no "
+                "user-visible effect."
+            ),
+        ),
     ],
     output_ports=[
         PortDef(
@@ -217,11 +233,55 @@ async def recombine_segments(
         output_format=inputs.get("output_format", "png"),
         compression_quality=inputs.get("compression_quality", 90),
     )
+    # Persist it, or say why not (2026-09-03). This tool stitched real pixels
+    # into $TMPDIR and returned the path: no rendition, no document, nothing
+    # the library ever knew about — a green tick over a swept file, the same
+    # absence-read-as-success the other six image tools were fixed for on
+    # 2026-08-21 and this one was missed by.
+    #
+    # A recombination has MANY sources and one output, so it cannot be paired
+    # by source path the way its siblings are. It belongs to the page the
+    # segments were cut from — which is the document on the `documents` port.
+    # Exactly one: with none we cannot name a page, and with several we would
+    # be guessing which one the stitched image is, so both cases are reported
+    # rather than attached to a guess.
+    documents = inputs.get("documents") or []
+    if isinstance(documents, dict):
+        documents = [documents]
+    target_path = (
+        str(documents[0].get("path") or "")
+        if len(documents) == 1 and isinstance(documents[0], dict)
+        else ""
+    )
+    if target_path and result["output_files"]:
+        rendition_report = persist_workflow_renditions(
+            inputs,
+            state,
+            role="recombined",
+            results=[{"source": target_path, "outputs": result["output_files"]}],
+        )
+    else:
+        rendition_report = {
+            "renditions": [],
+            "unmatched_outputs": [str(path) for path in result["output_files"]],
+            "skipped_no_document": 0,
+            "skipped_reason": (
+                f"{len(documents)} document(s) on the input — a recombined image "
+                "belongs to exactly one page, and nothing names which"
+            ),
+        }
+    no_effect = describe_no_effect(list(files or []), result["output_files"], rendition_report)
+    if no_effect:
+        logger.warning("recombine_segments: %s", no_effect)
+
     return {
         "output_files": result["output_files"],
         "files": result["output_files"],
         "count": len(result["output_files"]),
         "results": [result],
         "details": result.get("details", {}),
+        "renditions": rendition_report["renditions"],
+        "rendition_report": rendition_report,
+        "no_effect": no_effect,
         "error": result.get("error"),
     }

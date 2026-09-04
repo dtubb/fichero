@@ -31,12 +31,16 @@ pytest.importorskip("PIL")
 
 from PIL import Image, ImageDraw  # noqa: E402
 
+# The /Image Editing folder exactly as it appears in the app (Daniel's
+# 2026-09-03 screenshot), plus Prepare for OCR — same family, same tools, and
+# the only other preset that edits pixels without a model.
 # name → (the tool the preset must run, does it append to the edit chain?)
 IMAGE_PRESETS = {
     "Enhance Images": ("enhance_images", True),
     "Fuzzy Clean Images": ("fuzzy_clean_images", True),
     "Remove Background Images": ("remove_background_images", True),
     "Rotate / Auto-Orient Images": ("rotate_images", True),
+    "Recombine Segments": ("recombine_segments", False),
     "Segment Images": ("segment_images", False),
     "Split Images": ("split_images", False),
     "Prepare Images for OCR": ("prepare_images", False),
@@ -174,3 +178,105 @@ def test_preset_needs_no_model(preset_name, tmp_path):
     tool_def = get_tool_def(tool_name)
     assert tool_def is not None, f"{tool_name} is not registered"
     assert tool_def.uses_llm is False
+
+
+def _segment_then_recombine_workflow():
+    """The pairing the two presets' own descriptions claim: cut a page into
+    segments, stitch them back. Built here because it is a CHAIN of two
+    presets, which is not itself a shipped preset."""
+    from fichero_server.models import Workflow
+    from fichero_server.workflows.runtime import to_workflow_def
+
+    return to_workflow_def(
+        Workflow(
+            id="segment-then-recombine-regression-harness",
+            name="Segment → Recombine",
+            description="",
+            nodes=[
+                {"id": "files-source", "tool": "files", "inputs": {}, "config": {}},
+                {
+                    "id": "segment_images",
+                    "tool": "segment_images",
+                    "inputs": {},
+                    "config": {"method": "foreground", "threshold": 28, "min_area": 100},
+                },
+                {
+                    "id": "recombine_segments",
+                    "tool": "recombine_segments",
+                    "inputs": {},
+                    "config": {"layout": "vertical", "output_format": "png"},
+                },
+            ],
+            edges=[
+                {
+                    "id": "e1", "source": "files-source", "target": "segment_images",
+                    "source_port": "files", "target_port": "files",
+                },
+                {
+                    "id": "e2", "source": "files-source", "target": "segment_images",
+                    "source_port": "documents", "target_port": "documents",
+                },
+                {
+                    "id": "e3", "source": "segment_images", "target": "recombine_segments",
+                    "source_port": "output_files", "target_port": "files",
+                },
+                # The page the segments came from — without it the stitched
+                # image has nothing to be a rendition OF.
+                {
+                    "id": "e4", "source": "files-source", "target": "recombine_segments",
+                    "source_port": "documents", "target_port": "documents",
+                },
+            ],
+            config={},
+            folder_path="/Image Editing",
+        )
+    )
+
+
+def test_segment_then_recombine_runs_as_one_chain(tmp_path):
+    """Segment cuts the page into children; Recombine stitches its output back
+    and attaches the result to the page it came from."""
+    library_path, db, doc = _scratch_library(tmp_path)
+    workflow = _segment_then_recombine_workflow()
+    state = build_initial_state(
+        {"selected_doc_ids": [doc.id]}, library_path=str(library_path)
+    )
+    state["workflow_id"] = workflow.id
+    state["task_id"] = "test-segment-then-recombine"
+
+    final_state = asyncio.run(build_graph(workflow, skip_cache=True).ainvoke(state))
+
+    assert final_state.get("error") in (None, ""), final_state.get("error")
+    completed = set(final_state.get("completed_nodes") or [])
+    assert {"segment_images", "recombine_segments"} <= completed, sorted(completed)
+
+    recombined = (final_state.get("outputs") or {}).get("recombine_segments") or {}
+    assert not recombined.get("no_effect"), recombined.get("no_effect")
+    # Segment's children AND the recombination both landed on the page.
+    children = [child for child in db.all(Document) if child.parent_id == doc.id]
+    assert children, "segment_images cut nothing"
+    roles = {row.role for row in db.query(Rendition, document_id=doc.id)}
+    assert "recombined" in roles, roles
+
+
+def test_recombination_without_a_named_page_says_so_instead_of_vanishing(tmp_path):
+    """The failure this tool used to hide: pixels written to $TMPDIR and a
+    green tick. With no document to attach to it must SAY nothing persisted."""
+    import asyncio as _asyncio
+
+    from fichero_server.llm import LLMConfig
+    from fichero_server.workflows.tools.recombine_segments import recombine_segments
+
+    library_path, _db, doc = _scratch_library(tmp_path)
+
+    result = _asyncio.run(
+        recombine_segments(
+            {"files": [doc.path], "documents": [], "output_dir": str(tmp_path / "out")},
+            {"library_path": str(library_path)},
+            LLMConfig(provider="test", model="test"),
+        )
+    )
+
+    assert result["output_files"], "nothing was stitched"
+    assert result["no_effect"], "a run that persisted nothing reported success"
+    assert not result["renditions"]

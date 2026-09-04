@@ -12,7 +12,7 @@
     "recombine"
   ],
   "config": {
-    "preset_version": 1,
+    "preset_version": 2,
     "tested": true
   },
   "nodes": [
@@ -48,6 +48,13 @@
       "target": "recombine_segments",
       "source_port": "files",
       "target_port": "files"
+    },
+    {
+      "id": "edge-documents-recombine-segments",
+      "source": "files-source",
+      "target": "recombine_segments",
+      "source_port": "documents",
+      "target_port": "documents"
     }
   ]
 }

@@ -112,8 +112,8 @@
   "sha256": "3c60e5cfa97c824c51d4028fb150ab6a3d9c10267c0827590ba678916f171ad6"
  },
  "recombine_segments.json": {
-  "preset_version": 1,
-  "sha256": "ff99641090d620de5c675418d3fda889becf516ccc41f5c25f7c05fe1da4002a"
+  "preset_version": 2,
+  "sha256": "179168cbc44380a8c33638f49d96be2124ee5a6be75e2ed651e43df59a437137"
  },
  "remove_background_images.json": {
   "preset_version": 1,
