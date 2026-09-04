@@ -191,3 +191,67 @@ def ungrounded_span(span: str, source_text: str | None) -> bool:
     IS on the page can be highlighted there when the historian clicks through.
     """
     return grounded_fraction(span, source_text) < MIN_GROUNDED_FRACTION
+
+
+# ---------------------------------------------------------------------------
+# First-person detection without a tagger (#4671)
+# ---------------------------------------------------------------------------
+#
+# The grammar gate convicts two things: a predicate that is not a verb, and a
+# first-person verb sitting under a bystander's name. The first needs a
+# part-of-speech tagger. The second does not — Spanish marks person in the
+# ending, and that is the half that caught 8 of the 16 bad rows in the
+# Caciques library.
+#
+# Measured 2026-09-04 against Apple's on-device NaturalLanguage, the
+# zero-download alternative: NLTagger exposes Language, Script, TokenType,
+# NameType, LexicalClass and Lemma for Spanish — and NO MORPHOLOGY. It cannot
+# answer "is this verb first person" at all, and it mis-tagged one of the
+# not-a-verb cases ("oy" as a Verb). So Apple's tagger cannot replace spaCy
+# for this gate; it can only do part of it.
+#
+# Which leaves the shipped app, where spaCy is not installed and the gate
+# therefore convicts nothing. These endings are the half that can be had for
+# nothing, in any build, so the shipped app is not left with no gate at all.
+# Deliberately narrow: a suffix table is not morphology, and it says so by
+# refusing anything it is not sure of.
+
+#: Spanish first-person-plural endings. Regular across all three conjugations,
+#: which is what makes the rule safe: "otorgamos", "dezimos", "tenemos".
+_ES_FIRST_PLURAL_SUFFIXES = ("amos", "emos", "imos", "íamos", "aríamos", "eríamos")
+
+#: The irregulars that carry no such ending, and the singular forms worth
+#: catching. Short on purpose — a long list is a dictionary badly reimplemented.
+_ES_FIRST_PERSON_IRREGULARS = frozenset(
+    {"somos", "estamos", "vamos", "hemos", "damos", "soy", "estoy", "voy", "he"}
+)
+
+#: English is not inflected for person in a way a suffix can see ("we sign"
+#: and "they sign" are identical), so this rule does not apply to it. A gate
+#: that cannot see must abstain rather than guess.
+_PERSON_LANGUAGES = frozenset({"es"})
+
+
+def is_first_person_verb(word: str, language: str = "es") -> bool | None:
+    """Whether ``word`` is a first-person verb form.
+
+    ``True`` / ``False`` when the ending settles it; ``None`` when this rule
+    has nothing to say — a language it does not cover, or a word too short to
+    carry a distinguishing ending. ``None`` is not ``False``: the caller must
+    be able to tell "not first person" from "I cannot tell".
+    """
+    if language not in _PERSON_LANGUAGES:
+        return None
+    folded = fold(word or "")
+    if not folded:
+        return None
+    if folded in _ES_FIRST_PERSON_IRREGULARS:
+        return True
+    if len(folded) < 5:
+        return None
+    for suffix in _ES_FIRST_PLURAL_SUFFIXES:
+        if folded.endswith(fold(suffix)):
+            return True
+    # A word long enough to have carried one of those endings and does not:
+    # that is evidence, not silence.
+    return False

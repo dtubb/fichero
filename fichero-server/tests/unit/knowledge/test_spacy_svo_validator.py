@@ -138,3 +138,88 @@ class TestProposerIsHonestAboutItself:
         assert rejected, "expected the pronoun subjects to be refused"
         assert any("pronoun" in reason for _, reason in rejected)
         assert all(not p.subject.islower() or True for p in kept)
+
+
+class TestTheGateWithoutSpacy:
+    """The shipped engine has no spaCy — it must not therefore have no gate.
+
+    spaCy is an optional `[kg]` extra, excluded from the embedded Mac engine
+    on purpose (it and pykeen pull hundreds of MB). So the build a user runs
+    is the build with no tagger, and until now that meant the grammar gate
+    convicted nothing at all.
+
+    Half of it needs no tagger. Spanish marks person in the ending, and that
+    half caught 8 of the 16 bad rows. Measured against Apple's on-device
+    NaturalLanguage — the zero-download alternative — NLTagger exposes no
+    morphology for Spanish whatsoever, so it cannot do even this half; the
+    endings are genuinely what a build without spaCy has.
+    """
+
+    PAGE = (
+        "Andres xptoval Hernandez Varela cañistin estantes en nuestro señor "
+        "y deste puerto de merida dezimos que nosotros somos a tomar la "
+        "confesion estamos oy del pleyto otorgamos que damos mostrando "
+        "tenemos cargo"
+    )
+
+    @pytest.fixture
+    def no_spacy(self, monkeypatch):
+        from fichero_server.knowledge import spacy_svo
+
+        spacy_svo._page_morphology.cache_clear()
+        monkeypatch.setattr(spacy_svo, "_pipeline", lambda language: None)
+        yield
+        spacy_svo._page_morphology.cache_clear()
+
+    @pytest.mark.parametrize(
+        "subject,verb", [("Andres", "otorgamos"), ("Corte", "estamos"), ("pleyto", "damos")]
+    )
+    def test_the_stamped_name_is_still_caught(self, no_spacy, subject, verb):
+        reason = predicate_problem(subject, verb, self.PAGE)
+        assert reason and "first-person" in reason
+
+    def test_the_speaker_may_still_say_we(self, no_spacy):
+        assert (
+            predicate_problem("nosotros", "otorgamos", self.PAGE, speaker="nosotros")
+            is None
+        )
+
+    def test_a_third_person_verb_still_passes(self, no_spacy):
+        assert predicate_problem("Andrés", "otorgó", self.PAGE) is None
+
+    def test_the_not_a_verb_half_stays_silent_rather_than_guessing(self, no_spacy):
+        # Deciding a part of speech needs a tagger. Without one this gate says
+        # nothing rather than inventing a verdict.
+        assert predicate_problem("Andres", "cañistin", self.PAGE) is None
+
+
+class TestFirstPersonEndings:
+    """The suffix rule on its own — it is not morphology and must say so."""
+
+    @pytest.mark.parametrize(
+        "word", ["otorgamos", "dezimos", "tenemos", "somos", "estamos", "damos", "fiamos"]
+    )
+    def test_first_person_plural_forms_are_recognised(self, word):
+        from fichero_server.knowledge.svo_quality import is_first_person_verb
+
+        assert is_first_person_verb(word) is True
+
+    @pytest.mark.parametrize("word", ["otorgó", "firmó", "cañistin", "estantes"])
+    def test_third_person_and_non_verbs_are_not(self, word):
+        from fichero_server.knowledge.svo_quality import is_first_person_verb
+
+        assert is_first_person_verb(word) is False
+
+    @pytest.mark.parametrize("word", ["dio", "oy", "a", ""])
+    def test_a_word_too_short_to_carry_an_ending_returns_unknown(self, word):
+        # None is not False: the caller must tell "not first person" from
+        # "I cannot tell", or a gate turns silence into acquittal.
+        from fichero_server.knowledge.svo_quality import is_first_person_verb
+
+        assert is_first_person_verb(word) is None
+
+    def test_english_is_out_of_scope_and_says_so(self):
+        # "we sign" and "they sign" are identical; a suffix cannot see person.
+        from fichero_server.knowledge.svo_quality import is_first_person_verb
+
+        assert is_first_person_verb("sign", "en") is None

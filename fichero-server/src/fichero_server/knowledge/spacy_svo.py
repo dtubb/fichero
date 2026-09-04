@@ -384,7 +384,14 @@ def predicate_problem(
         return None
     morphology = _page_morphology(page_text or "", language)
     if not morphology:
-        return None
+        # NO TAGGER — the shipped engine's normal state, since spaCy is an
+        # optional extra. Half the gate can still run: Spanish marks person in
+        # the ending, and that half convicted 8 of the 16 bad rows. Measured
+        # 2026-09-04, Apple's NLTagger cannot do even this — it exposes no
+        # morphology for Spanish at all — so the endings are what a build
+        # without spaCy has. The other half (is the predicate a verb?) needs a
+        # tagger and stays silent.
+        return _person_problem_without_tagger(subject, head[0], language, speaker)
     pos, person = morphology.get(head[0].casefold(), ("", ""))
     if not pos:
         # The word is not on the page. `svo_quality`'s grounding rule owns
@@ -402,3 +409,21 @@ def predicate_problem(
             f"{subject!r} — the page says 'we', and this row says {subject}"
         )
     return None
+
+
+def _person_problem_without_tagger(
+    subject: str, head: str, language: str, speaker: str
+) -> str | None:
+    """The first-person half of the gate, with no model installed."""
+    from fichero_server.knowledge.svo_quality import fold, is_first_person_verb
+
+    if not (subject or "").strip():
+        return None
+    if is_first_person_verb(head, language) is not True:
+        return None
+    if speaker and fold(speaker) == fold(subject):
+        return None
+    return (
+        f"first-person verb {head!r} under the third-party subject "
+        f"{subject!r} — the page says 'we', and this row says {subject}"
+    )
