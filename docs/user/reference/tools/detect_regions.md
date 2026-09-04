@@ -37,6 +37,8 @@ Finds WHERE the words are, on-device and free. Apple Vision reads the page local
 | Results (`results`) | `json` | — | Full results |
 | Records (`records`) | `array` | — | Per-document text records [{doc_id, text}, ...]. |
 | Artifacts (`artifacts`) | `json` | — | Artifact IDs |
+| Files (`files`) | `array` | — | The input files, untouched — this step annotates. |
+| Documents (`documents`) | `json` | — | The input documents, untouched — this step annotates. |
 
 ## Options
 

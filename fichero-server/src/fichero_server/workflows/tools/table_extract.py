@@ -8,6 +8,7 @@ Inherits from vision_base.py - returns structured table data.
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any
 
 from fichero_server.workflows.types import State
@@ -58,6 +59,123 @@ TABLE_CONFIG = {
         "description": "Detect header row",
     },
 }
+
+
+# =============================================================================
+# "There is no table here" — a first-class answer
+# =============================================================================
+
+# The sentinel the model is told to emit for a page with no table. Checked
+# case-insensitively against the whole (fence-stripped) reply, so a model that
+# answers with nothing else cannot be mistaken for one that answered with data.
+NO_TABLE_SENTINEL = "NO TABLE"
+
+_FENCE_RE = re.compile(r"^```[a-zA-Z0-9_-]*\s*\n(.*?)\n?```\s*$", re.DOTALL)
+
+# Instructions appended to every style prompt. Without them the prompt only
+# ever COMMANDS extraction, and a model handed a page with no table has no way
+# to say so — it answers the question it was asked, with whatever is closest to
+# a table on the page.
+_NO_TABLE_RULES = f"""
+If the image contains no table, output exactly {NO_TABLE_SENTINEL} and nothing
+else. That is a correct and complete answer — never invent rows to fill the
+reply.
+
+A table is data laid out in rows and columns as part of the DOCUMENT. It is not
+a measuring ruler or scale bar laid beside the page, a colour calibration
+chart, a strip of page or folio numbers, a margin, or any other photographic
+furniture that belongs to the act of scanning rather than to the document."""
+
+
+def with_no_table_rules(prompt: str) -> str:
+    """Append the "there may be no table" rules to any prompt, once.
+
+    Applied to a CUSTOM prompt too, not just the built-in ones. 'Accounts →
+    Spreadsheet (CSV)' ships its own paleographer-flavoured prompt and would
+    otherwise be the one table preset with no way to answer "nothing here" —
+    which is exactly the preset most likely to meet a page of prose. Same shape
+    as the translate fidelity block: a rule that must hold for every run rides
+    with every prompt rather than being remembered per preset.
+    """
+    text = (prompt or "").rstrip()
+    if NO_TABLE_SENTINEL in text:
+        return text
+    return f"{text}\n{_NO_TABLE_RULES}"
+
+
+def _strip_fence(text: str) -> str:
+    """Drop a whole-output code fence, which models add despite instructions."""
+    match = _FENCE_RE.match((text or "").strip())
+    return match.group(1).strip() if match else (text or "").strip()
+
+
+def _looks_like_a_measuring_scale(rows: list[str]) -> bool:
+    """True for a single column of consecutive integers — i.e. a ruler.
+
+    The failure this exists for (2026-09-04 local-model sweep): run Extract
+    Table on a manuscript page that has no table, with a centimetre ruler lying
+    in the scan margin, and the model returned a table of 0,1,2 … 30. It read
+    the ruler. The perception is reasonable; the output is fabricated data
+    entering an archive whose entire value is that its contents are attested.
+
+    ponytail: a deliberately narrow signature — one column, at least six rows,
+    every value an integer, each one greater than the last. A real one-column
+    tally (the Marshall dredge counts) is not consecutive and is not caught. If
+    fabrication shows up in a shape this misses, the answer is a better prompt
+    or a provenance check against the page's own text, not more arithmetic here.
+    """
+    if len(rows) < 6:
+        return False
+
+    values: list[int] = []
+    for row in rows:
+        cells = [cell.strip().strip('"') for cell in row.split(",")]
+        cells = [cell for cell in cells if cell]
+        if len(cells) != 1:
+            return False
+        try:
+            values.append(int(cells[0]))
+        except ValueError:
+            return False
+
+    return all(later == earlier + 1 for earlier, later in zip(values, values[1:]))
+
+
+def validate_extracted_table(text: str, output_style: str) -> str:
+    """Refuse to save a table the page does not have (#R-12).
+
+    Raises rather than returning empty, because `process_vision` treats a raise
+    from this hook as a per-file refusal WITH ITS REASON and saves nothing —
+    the same seam Convert uses to refuse malformed SVG (#4329). A folder where
+    three pages in ten carry tables therefore yields three tables and seven
+    recorded "no table here", instead of ten tables of which seven are fiction.
+    """
+    out = _strip_fence(text)
+
+    if not out:
+        raise ValueError(
+            "Extract Table produced no output for this page; refusing to save "
+            "an empty table."
+        )
+
+    if out.upper() == NO_TABLE_SENTINEL:
+        raise ValueError(
+            "No table on this page. Extract Table reads data laid out in rows "
+            "and columns; this page has none, so nothing was saved."
+        )
+
+    if output_style == "csv":
+        rows = [line for line in out.splitlines() if line.strip()]
+        if _looks_like_a_measuring_scale(rows):
+            raise ValueError(
+                "Extract Table returned a single column of consecutive numbers "
+                "— the signature of a measuring ruler or scale bar photographed "
+                "beside the document, not of a table in it. Refusing to save "
+                "fabricated rows. If this page really does hold a numbered "
+                "column, transcribe it instead."
+            )
+
+    return out
 
 
 # =============================================================================
@@ -134,7 +252,8 @@ Use proper Markdown table syntax:
 Return ONLY the Markdown table, no explanations.""",
     }
 
-    return style_instructions.get(output_style, style_instructions["json_rows"])
+    instruction = style_instructions.get(output_style, style_instructions["json_rows"])
+    return with_no_table_rules(instruction)
 
 
 def build_table_prompt(config: dict) -> str:
@@ -188,7 +307,10 @@ async def table_extract(
     output_style = inputs.get("output_style", "csv")
     include_headers = inputs.get("include_headers", True)
 
-    prompt = inputs.get("prompt") or _build_prompt(output_style, include_headers)
+    # A custom prompt gets the rules too — see with_no_table_rules.
+    prompt = with_no_table_rules(
+        inputs.get("prompt") or _build_prompt(output_style, include_headers)
+    )
 
     # Use text output for CSV/markdown, json for structured
     default_format = "text" if output_style in ("csv", "markdown") else "json"
@@ -214,4 +336,5 @@ async def table_extract(
         save_to_db=inputs.get("save_to_db", True),
         save_to_file_flag=inputs.get("save_to_file", False),
         metadata_field=inputs.get("metadata_field"),
+        postprocess_text=lambda t: validate_extracted_table(t, output_style),
     )

@@ -22,6 +22,7 @@ Stitch segment image files into one derived image.
 | Port | Type | Required | What it is |
 | --- | --- | --- | --- |
 | Segment Files (`files`) | `files` | yes | Segment image files to recombine. |
+| Documents (`documents`) | `json` | no | The page the segments came from. Without it the recombined image cannot be attached to anything and the run has no user-visible effect. |
 
 ## What it emits
 

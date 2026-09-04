@@ -86,6 +86,7 @@ What this step asks the model:
 Clean up the following text. Apply ONLY these fixes:
 
 - Correct obvious OCR misrecognitions (e.g. 'rn'→'m', '0'→'o', 'l'→'I') only when the intended word is unambiguous.
+- Rejoin lines that were hard-wrapped mid-sentence back into paragraphs. Keep tables, verse, lists and headings on their own lines.
 - Rejoin words split across line breaks by a trailing hyphen (e.g. 'exam-\nple' → 'example').
 - Normalize whitespace: collapse repeated spaces, trim trailing spaces, and reduce runs of blank lines to a single blank line. Keep paragraph breaks.
 - Remove text that is not part of the document body: running page headers/footers, standalone page numbers, and library or date stamps.

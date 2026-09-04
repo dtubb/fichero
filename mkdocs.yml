@@ -140,6 +140,7 @@ nav:
               - AI Convert to Markdown: user/reference/workflows/ai-convert-to-markdown.md
               - AI Redraw as SVG: user/reference/workflows/ai-redraw-as-svg.md
               - Accounts → Spreadsheet (CSV): user/reference/workflows/accounts-spreadsheet-csv.md
+              - Backfill Text Geometry: user/reference/workflows/backfill-text-geometry.md
               - Capture OCR + Transcribe: user/reference/workflows/capture-ocr-transcribe.md
               - Catalogue: user/reference/workflows/catalogue.md
               - Clean Up Text: user/reference/workflows/clean-up-text.md

@@ -59,6 +59,7 @@ Clean extracted or transcribed text: fix OCR noise, normalize whitespace and hyp
 | `provider_name` | string | — | LLM provider. One of: openai, anthropic, google, ollama, lmstudio, groq, together, deepseek, mistral, openrouter, dashscope, xai, perplexity, fireworks, deepl. |
 | `quality_gate` | boolean | yes | Stop the run if output is unreadable. |
 | `reference_values` | object | — | Known values to match. (Not shown in the editor.) |
+| `reflow_paragraphs` | boolean | yes | Join hard-wrapped lines back into paragraphs (book/OCR text). Tables, verse, lists and headings keep their own line structure. |
 | `save_to_db` | boolean | yes | Save to library. |
 | `save_to_file` | boolean | no | Export to file. |
 | `strip_artifacts` | boolean | yes | Remove page headers/footers, page numbers, and scanning stamps that are not part of the document body. |
@@ -73,6 +74,7 @@ This is what the tool asks a model, with every option left at its default. Chang
 Clean up the following text. Apply ONLY these fixes:
 
 - Correct obvious OCR misrecognitions (e.g. 'rn'→'m', '0'→'o', 'l'→'I') only when the intended word is unambiguous.
+- Rejoin lines that were hard-wrapped mid-sentence back into paragraphs. Keep tables, verse, lists and headings on their own lines.
 - Rejoin words split across line breaks by a trailing hyphen (e.g. 'exam-\nple' → 'example').
 - Normalize whitespace: collapse repeated spaces, trim trailing spaces, and reduce runs of blank lines to a single blank line. Keep paragraph breaks.
 - Remove text that is not part of the document body: running page headers/footers, standalone page numbers, and library or date stamps.

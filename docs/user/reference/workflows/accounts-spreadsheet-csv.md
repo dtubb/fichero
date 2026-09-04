@@ -51,4 +51,13 @@ Rules:
 - One row per line
 
 Return ONLY the CSV content, no code fences or explanations.
+
+If the image contains no table, output exactly NO TABLE and nothing
+else. That is a correct and complete answer — never invent rows to fill the
+reply.
+
+A table is data laid out in rows and columns as part of the DOCUMENT. It is not
+a measuring ruler or scale bar laid beside the page, a colour calibration
+chart, a strip of page or folio numbers, a margin, or any other photographic
+furniture that belongs to the act of scanning rather than to the document.
 ```
