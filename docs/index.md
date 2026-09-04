@@ -24,9 +24,6 @@ macOS 26+, Apple Silicon.
 
 </div>
 
-[Changelog](https://github.com/dtubb/fichero/blob/main/CHANGELOG.md) — the full
-commit-level history.
-
 <!-- screenshot slot: hero image of the main window -->
 <!-- <p align="center"><img src="assets/screenshot-library.png" alt="Fichero library" width="900"></p> -->
 
