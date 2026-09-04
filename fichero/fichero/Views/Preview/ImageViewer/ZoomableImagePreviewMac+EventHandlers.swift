@@ -127,11 +127,31 @@ extension ZoomableImagePreview {
     /// selection, or a geometry set measured on a different frame all clear —
     /// stale word lights are the same lie as a stale highlight band.
     func handleReaderTextSelection(_ note: Notification) {
+        applyLinkedSelection(
+            documentId: note.userInfo?["documentId"] as? String,
+            text: note.userInfo?["text"] as? String,
+            charStart: note.userInfo?["charStart"] as? Int,
+            charEnd: note.userInfo?["charEnd"] as? Int
+        )
+    }
+
+    /// Light this page's words for a selection, however it arrived.
+    ///
+    /// Extracted from the notification handler so the LATCH can drive it too
+    /// (`adoptLatchedPassageAnchor`). The notification is not enough on its
+    /// own: a search hit posts from the `detailDocument` change, and this
+    /// preview's `ocrGeometry` is still nil then — `loadOCRGeometry()` is
+    /// async — so the guard below fired, cleared, and nothing ever re-applied
+    /// once the geometry landed. The reader has had a latch for this since
+    /// 2026-09-03; the preview was the one surface reading the notification
+    /// and not the latch (Daniel, 2026-09-04: the boxes are there and the
+    /// matched words are not lit).
+    func applyLinkedSelection(
+        documentId docId: String?, text: String?, charStart: Int?, charEnd: Int?
+    ) {
         guard let geometry = ocrGeometry,
               geometryFrameMatchesDisplay(geometry),
-              let docId = note.userInfo?["documentId"] as? String,
-              let start = note.userInfo?["charStart"] as? Int,
-              let end = note.userInfo?["charEnd"] as? Int else {
+              let docId, let start = charStart, let end = charEnd else {
             if !linkedSelectionBoxes.isEmpty { linkedSelectionBoxes = [] }
             return
         }
@@ -143,12 +163,28 @@ extension ZoomableImagePreview {
         // preview shows its source PAGE. The selection's TEXT anchors it in
         // the page's own transcript; unfindable text clears rather than
         // guesses.
-        if let text = note.userInfo?["text"] as? String,
-           let range = geometryRange(of: text, in: geometry.text) {
+        if let text, let range = geometryRange(of: text, in: geometry.text) {
             linkedSelectionBoxes = wordBoxes(intersecting: range, in: geometry)
         } else if !linkedSelectionBoxes.isEmpty {
             linkedSelectionBoxes = []
         }
+    }
+
+    /// Re-apply the passage a search hit latched, now that this page's word
+    /// geometry exists.
+    ///
+    /// Deliberately does NOT consume the latch: the reader consumes it when
+    /// IT lands (`ReaderPassageFocus.consume`), and two surfaces are meant to
+    /// light the same passage — a preview that consumed it would decide which
+    /// of the two got the highlight by whichever loaded first.
+    func adoptLatchedPassageAnchor() {
+        guard let anchor = ReaderPassageFocus.latest else { return }
+        applyLinkedSelection(
+            documentId: anchor.documentId,
+            text: anchor.text,
+            charStart: anchor.charStart,
+            charEnd: anchor.charEnd
+        )
     }
 }
 

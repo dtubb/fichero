@@ -48,4 +48,28 @@ enum SearchHonestySummary {
         guard let value else { return nil }
         return "\(Int((value * 100).rounded()))%"
     }
+
+    /// Whether the results header should offer to load more.
+    ///
+    /// It used to ask the engine alone (`search_stats.has_more`), and that
+    /// flag describes the DOCUMENT leg only — `(offset + len(results)) <
+    /// total_count` over the content search. A query answered mostly by the
+    /// ENTITY or CLAIM legs therefore filled the grid to the page size and
+    /// reported no more, so the pager never appeared and the result set
+    /// looked like the whole truth at exactly 50 (Daniel, 2026-09-04: "why
+    /// not load all?"). Same defect class as #4403, where the count read one
+    /// leg and the grid showed four.
+    ///
+    /// A page that is exactly full is never proof of the end. Offering the
+    /// pager there can cost one request that returns nothing new; not
+    /// offering it silently caps the search, which is worse.
+    static func showsPager(hasMore: Bool, rows: Int, limit: Int) -> Bool {
+        hasMore || (limit > 0 && rows >= limit)
+    }
+
+    /// The pager's words. It names the SIZE of the next page, so the cap the
+    /// user just hit stops being invisible.
+    static func pagerLabel(pageSize: Int) -> String {
+        "Load \(pageSize) more"
+    }
 }

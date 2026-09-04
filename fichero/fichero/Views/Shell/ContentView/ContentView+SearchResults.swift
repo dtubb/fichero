@@ -118,6 +118,8 @@ extension ContentView {
         guard !query.isEmpty else { return }
         toolbarSearchText = query
         activeSearchQuery = query
+        libraryToolbarState.searchIsActive = true
+        libraryToolbarState.userChoseSortDuringSearch = false
         transientSearchLimit = Self.transientSearchPageSize
         // Saved searches are library-wide; never inherit a stale folder scope.
         transientSearchContextFolder = nil
@@ -399,6 +401,7 @@ extension ContentView {
         searchResultDocuments = []
         transientSearchRowHits = [:]
         libraryToolbarState.userChoseSortDuringSearch = false
+        libraryToolbarState.searchIsActive = false
         transientSearchLimit = Self.transientSearchPageSize
         transientSearchContextFolder = nil
         transientSearchScopeIsFolder = false

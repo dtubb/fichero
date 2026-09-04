@@ -275,7 +275,11 @@ struct ZoomableImagePreview: View {
             id: "\(documentId ?? "")|\(ocrBoxesEnabled)"
                 + "|\(executionObserver?.activeExecutions.count ?? 0)"
                 + "|\(FocusedArtifact.shared.id ?? "")"
-        ) { await loadOCRGeometry() }
+        ) {
+            await loadOCRGeometry()
+            // The geometry is what the search hit's passage was waiting for.
+            adoptLatchedPassageAnchor()
+        }
         .task(id: documentId) {
             await loadRenditions()
             publishHeadChrome()

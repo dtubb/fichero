@@ -67,9 +67,12 @@ struct LibraryPaneToggleModel: Equatable {
 struct LibrarySortMenuModel: Equatable {
     let selectedField: LibrarySortField
     let ascending: Bool
+    /// Whether search results are on screen. Relevance is a reading of a
+    /// RANKING: it is offered, and can be the selected field, only here.
+    var isSearching: Bool = false
 
     /// Fields offered by the menu, in declaration order.
-    var fields: [LibrarySortField] { LibrarySortField.allCases }
+    var fields: [LibrarySortField] { LibrarySortField.fields(isSearching: isSearching) }
 
     func isSelected(_ field: LibrarySortField) -> Bool { field == selectedField }
 
@@ -78,11 +81,13 @@ struct LibrarySortMenuModel: Equatable {
     /// direction has its own explicit Ascending/Descending pair, exactly like
     /// the View menu's Sort By section.
     func selecting(_ field: LibrarySortField) -> LibrarySortMenuModel {
-        LibrarySortMenuModel(selectedField: field, ascending: ascending)
+        LibrarySortMenuModel(selectedField: field, ascending: ascending, isSearching: isSearching)
     }
 
     func settingAscending(_ isAscending: Bool) -> LibrarySortMenuModel {
-        LibrarySortMenuModel(selectedField: selectedField, ascending: isAscending)
+        LibrarySortMenuModel(
+            selectedField: selectedField, ascending: isAscending, isSearching: isSearching
+        )
     }
 
     /// Toolbar label — the active field, so the current sort is legible without
@@ -128,7 +133,22 @@ struct LibraryFilterToggleModel: Equatable {
 extension LibraryToolbarState {
     /// The sort menu projected from the shared state.
     var sortMenuModel: LibrarySortMenuModel {
-        LibrarySortMenuModel(selectedField: sortField, ascending: sortAscending)
+        LibrarySortMenuModel(
+            selectedField: effectiveSortField,
+            ascending: sortAscending,
+            isSearching: searchIsActive
+        )
+    }
+
+    /// The field the rows are ACTUALLY in.
+    ///
+    /// While results are showing and the user has not picked a sort, the rows
+    /// are in the engine's ranking — `displayOrderedForCurrentContext` returns
+    /// them untouched. The menu went on showing the stored field ("Name"),
+    /// which is how a correctly-ranked list came to look name-sorted (Daniel,
+    /// 2026-09-04). One value for what the menu says and what the list is.
+    var effectiveSortField: LibrarySortField {
+        searchIsActive && !userChoseSortDuringSearch ? .relevance : sortField
     }
 
     /// Write a sort menu choice back into the shared state, touching only the
@@ -141,8 +161,12 @@ extension LibraryToolbarState {
             sortAscending = model.ascending
         }
         // apply() is only reachable from the sort MENU — an explicit choice.
-        // While a search is showing this overrides the relevance default (#11).
-        userChoseSortDuringSearch = true
+        // While a search is showing this overrides the relevance default (#11)
+        // — except when the choice IS relevance, which is a request to go back
+        // to the default rather than away from it. Without this, picking
+        // Relevance from the menu set the override and left the rows in
+        // whatever order the previous choice had put them.
+        userChoseSortDuringSearch = model.selectedField != .relevance
     }
 
     /// The ONE mutation path for filter-bar visibility from the toolbar. Hiding

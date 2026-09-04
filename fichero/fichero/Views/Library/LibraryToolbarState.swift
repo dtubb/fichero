@@ -26,6 +26,11 @@ final class LibraryToolbarState {
     /// (#11): search results default to the engine's relevance order, and
     /// only an explicit choice re-sorts them. Reset on every new search.
     var userChoseSortDuringSearch: Bool = false
+    /// Whether transient search results are the rows on screen. The sort menu
+    /// offers Relevance only here, and shows it as the selected field until
+    /// the user picks something else — which is what stops a correctly-ranked
+    /// list from reading as name-sorted (Daniel, 2026-09-04).
+    var searchIsActive: Bool = false
 
     /// Convenience typed accessor for the active sort field.
     var sortField: LibrarySortField {

@@ -109,6 +109,7 @@ extension ContentView {
         transientSearchLimit = Self.transientSearchPageSize
         // New query → relevance order until the user explicitly re-sorts (#11).
         libraryToolbarState.userChoseSortDuringSearch = false
+        libraryToolbarState.searchIsActive = true
         Task { @MainActor in
             // Explicit submit → in Ask mode (#4117) the LLM may compile a
             // sentence-like query into a structured search (#4116); Keyword
