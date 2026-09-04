@@ -48,7 +48,12 @@ final class OwningLibraryScopeTests: XCTestCase {
     private static let cleanedSurfaces = [
         "Views/Library/ViewModes/Graph/KGMapView.swift",
         "Views/Library/ViewModes/Graph/KGTimelineView.swift",
-        "Views/Library/ViewModes/Graph/Ontology/ForceDirectedGraphView.swift"
+        "Views/Library/ViewModes/Graph/Ontology/ForceDirectedGraphView.swift",
+        // Shapes B and C, 2026-09-04: the last runtime reads in the browser.
+        "Views/Library/ViewModes/Graph/Ontology/Claim/ClaimSummaryCard+Details.swift",
+        "Views/Library/ViewModes/Graph/Ontology/Entity/EntityMergeSheet.swift",
+        "Views/Library/ViewModes/Graph/Ontology/Entity/EntityDetailView+Biography.swift",
+        "Views/Library/ViewModes/Graph/Ontology/Entity/EntityDetailView+Metadata.swift"
     ]
 
     func testTheFixedSurfacesDoNotReacquireTheGlobalLibrary() throws {
@@ -76,17 +81,18 @@ final class OwningLibraryScopeTests: XCTestCase {
     /// `LibraryManager.library(owningService:)`, which exists for exactly this
     /// and matches by object identity so it cannot drift.
     ///
-    /// A RATCHET, not a ban: the number may fall, never rise. Fix one, lower
-    /// the number in the same commit.
-    ///
-    /// The FLOOR IS 2, not zero: `OntologyBrowser.swift`'s two remaining
-    /// matches after that point are `#Preview` scaffolding
+    /// AT THE FLOOR. Every runtime read is gone; the two that remain are
+    /// `#Preview` scaffolding in `OntologyBrowser.swift`
     /// (`.environment(LibraryManager.shared.globalLibrary!.claimStore)` and
-    /// its sibling), which is not a runtime path. When the number reaches 2,
-    /// change this to `== 2` with that reason, or teach the filter to skip
-    /// `#Preview` bodies — do not "fix" preview scaffolding to make a number
-    /// look better.
-    func testTheOntologyBrowsersRemainingReadsDoNotGrow() throws {
+    /// its sibling), which never runs in the app. They are deliberately NOT
+    /// "fixed": preview code wants a concrete library to build a preview
+    /// with, and changing it to make a number look better would be the number
+    /// leading the code.
+    ///
+    /// EQUALITY, not `<=`, now that it is exact: a drop to 1 or 0 means
+    /// somebody edited the previews, which is worth a failing test asking
+    /// why — and a rise means a runtime read came back.
+    func testTheOntologyBrowserHasNoRuntimeGlobalLibraryReadsLeft() throws {
         let root = try AppSource.root().appendingPathComponent(
             "Views/Library/ViewModes/Graph/Ontology"
         )
@@ -100,13 +106,15 @@ final class OwningLibraryScopeTests: XCTestCase {
             let source = try String(contentsOf: file, encoding: .utf8)
             total += Self.primaryReads(in: source).count
         }
-        XCTAssertLessThanOrEqual(
-            total, 9,
+        XCTAssertEqual(
+            total, 2,
             """
-            A new primary `globalLibrary` read entered the Ontology browser. \
-            That surface is per-library — its entities and claims live in the \
-            library's own database — so resolving the RESERVED-id library \
-            there reads, or writes, somebody else's graph.
+            The Ontology browser's runtime `globalLibrary` reads are all gone; \
+            the only two matches left are #Preview scaffolding. More than 2 \
+            means a runtime read came back — that surface is per-library, so \
+            resolving the RESERVED-id library there reads, or writes, \
+            somebody else's graph. Fewer than 2 means the previews changed, \
+            which is fine but should be deliberate.
             """
         )
     }
@@ -122,7 +130,8 @@ final class OwningLibraryScopeTests: XCTestCase {
             "Views/Library/ViewModes/Graph/Ontology/Entity/EntitySourceGroupsView.swift",
             "Views/Library/ViewModes/Graph/Ontology/Entity/EntityDetailView+Audit.swift",
             "Views/Library/ViewModes/Graph/Ontology/Claim/ContradictionTriageSheet.swift",
-            "Views/Library/ViewModes/Graph/Ontology/OntologyBrowser+Toolbar.swift"
+            "Views/Library/ViewModes/Graph/Ontology/OntologyBrowser+Toolbar.swift",
+            "Views/Library/ViewModes/Graph/Ontology/Entity/EntityMergeSheet.swift"
         ]
         for path in paths {
             let source = try Self.appSource(path)
@@ -152,5 +161,35 @@ final class OwningLibraryScopeTests: XCTestCase {
         )
         XCTAssertTrue(split.contains("errorText = \"This window has no library to split the entity in.\""))
         XCTAssertTrue(new.contains("errorText = \"This window has no library to create the entity in.\""))
+    }
+
+    /// MERGE is the verb Daniel's dedupe program is built on, and it is a
+    /// WRITE — the one path where the wrong library is not an empty view but
+    /// a change to somebody else's graph. It resolves the library by object
+    /// identity from the service it was handed, and says so when it cannot.
+    func testMergeNamesTheLibraryItIsAboutToChange() throws {
+        let merge = try Self.appSource(
+            "Views/Library/ViewModes/Graph/Ontology/Entity/EntityMergeSheet.swift"
+        )
+        XCTAssertTrue(merge.contains("LibraryManager.shared.library(owningService: $0)"))
+        XCTAssertTrue(
+            merge.contains("errorText = \"This window has no library to merge the entities in.\"")
+        )
+    }
+
+    /// The identity contract the whole fix rests on: a service the library
+    /// vended resolves to that library, and one it did not vend resolves to
+    /// NIL — never to a plausible other library. Asserted directly rather
+    /// than inferred from the surfaces that depend on it.
+    func testOwningServiceResolvesByIdentityAndFailsToNil() {
+        let stranger = EntitySearchState()
+        XCTAssertNil(
+            LibraryManager.shared.library(owningService: stranger),
+            """
+            An object no library vended must resolve to nil. Falling back to \
+            a library here is exactly the defect: the caller would proceed, \
+            confidently, against a graph it cannot name.
+            """
+        )
     }
 }

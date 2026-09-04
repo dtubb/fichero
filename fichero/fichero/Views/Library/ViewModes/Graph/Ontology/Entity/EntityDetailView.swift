@@ -5,6 +5,20 @@ import SwiftUI
 
 struct EntityDetailView: View {
     @Environment(EntityService.self) var entityService
+    /// The documents this entity is mentioned IN — from this window's library.
+    /// The biography's source map resolved `globalLibrary.documentStore`, so on
+    /// any other library every mention rendered without its document
+    /// (#4306/#4461). Optional: a host that injects none shows no names, which
+    /// is what it already did, rather than another library's.
+    @Environment(DocumentStore.self) var documentStore: DocumentStore?
+
+    /// The library this detail view is IN, resolved from the service it was
+    /// handed — by object IDENTITY, so it cannot drift the way two parallel
+    /// notions of "current library" can. nil means the view cannot NAME its
+    /// library, which callers must report rather than paper over.
+    var owningLibrary: LibraryManager.LibraryReference? {
+        LibraryManager.shared.library(owningService: entityService)
+    }
     @Environment(ClaimStore.self) var claimStore
     /// Entity rename routes through the store (#1862/#1865); the change-stream's
     /// `entity.updated` event fans the refresh, retiring `.ficheroEntityUpdated`.

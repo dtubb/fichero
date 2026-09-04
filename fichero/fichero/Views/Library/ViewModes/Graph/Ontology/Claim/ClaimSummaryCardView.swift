@@ -53,6 +53,16 @@ struct ClaimSummaryCard: View {
     /// the refresh back to every claim surface, retiring the `.ficheroClaim*`
     /// NotificationCenter posts this card used to make.
     @Environment(ClaimStore.self) var claimStore
+    /// THIS card's services — the library the claim is IN.
+    ///
+    /// Three reads resolved `LibraryManager.shared.globalLibrary`: the source
+    /// document's NAME, the contradictions/evidence-chain load, and the entity
+    /// lozenge lookup. All three were injected per window all along
+    /// (`libraryServiceEnvironment`) and simply never read — so on any
+    /// non-global library the source line silently showed nothing, and the
+    /// lozenge searched another graph's entities (#4306/#4461).
+    @Environment(EntityService.self) var entityService: EntityService?
+    @Environment(DocumentStore.self) var documentStore: DocumentStore?
     /// Finder-style Open in New Tab / New Window for claim cards (#1685).
     @Environment(\.openWindow) var openWindow
     @AppStorage("editor.fontSize") private var defaultFontSize: Double = 13

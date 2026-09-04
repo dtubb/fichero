@@ -38,8 +38,7 @@ extension ClaimSummaryCard {
     var sourceLine: some View {
         let docId = claim.sourceDocumentId
         let pageLabel = claim.sourcePageLabel?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let docName = LibraryManager.shared.globalLibrary?
-            .documentStore
+        let docName = documentStore?
             .currentDocuments
             .first(where: { $0.id == docId })?
             .name
@@ -193,12 +192,11 @@ extension ClaimSummaryCard {
     }
 
     func loadDetails() async {
-        guard let claimId = claim.id,
-              let library = LibraryManager.shared.globalLibrary else { return }
+        guard let claimId = claim.id, let entityService else { return }
         isLoadingDetails = true
         defer { isLoadingDetails = false }
-        async let contradictionsAsync = try? library.entityService.contradictions(claimId: claimId)
-        async let evidenceChainAsync = try? library.entityService.evidenceChain(claimId: claimId)
+        async let contradictionsAsync = try? entityService.contradictions(claimId: claimId)
+        async let evidenceChainAsync = try? entityService.evidenceChain(claimId: claimId)
         let cons = await contradictionsAsync ?? []
         let chain = await evidenceChainAsync
         contradictions = cons
@@ -211,12 +209,14 @@ extension ClaimSummaryCard {
     func focusEntityLozenge(named rawName: String) async {
         let name = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return }
-        guard let library = LibraryManager.shared.globalLibrary else {
+        guard let entityService else {
+            // No service to ask: fall back to the text search, which is what
+            // this path already does for a name that resolves to no entity.
             entitySearchState?.request(name: name, entityType: nil)
             return
         }
         do {
-            let results = try await library.entityService.listEntities(
+            let results = try await entityService.listEntities(
                 query: name,
                 limit: 25
             )

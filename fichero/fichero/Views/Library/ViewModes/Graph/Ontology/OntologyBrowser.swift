@@ -43,6 +43,12 @@ struct OntologyBrowser: View {
     /// than running a tool against another library's graph
     /// (#4306/#4461).
     @Environment(EntityService.self) var entityService: EntityService?
+
+    /// The library this browser is IN, resolved from the service it was handed
+    /// — by object identity, so it cannot drift.
+    var owningLibrary: LibraryManager.LibraryReference? {
+        entityService.flatMap { LibraryManager.shared.library(owningService: $0) }
+    }
     @Environment(ClaimStore.self) var claimStore
     @Environment(EntityStore.self) var entityStore
     /// Finder-style Open in New Tab / New Window for ontology rows (#1685).
@@ -363,7 +369,9 @@ extension OntologyBrowser {
         case .list:
             entityDetailPanel
         case .graph:
-            if let libraryPath = LibraryManager.shared.globalLibrary?.apiClient.currentLibraryPath,
+            // The graph pane must load THIS library's KG, not the reserved
+            // one's — the path is what scopes the whole WebKit surface.
+            if let libraryPath = owningLibrary?.apiClient.currentLibraryPath,
                !libraryPath.isEmpty {
                 DocumentKGWebPane(
                     documentId: DocumentKGPaneRoute.globalKGDocumentID,

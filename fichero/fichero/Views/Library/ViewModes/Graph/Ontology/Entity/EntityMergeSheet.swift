@@ -18,6 +18,14 @@ struct EntityMergeSheet: View {
     let onMerge: () -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(EntityService.self) private var entityService: EntityService?
+
+    /// The library this sheet is MUTATING, resolved from the service it was
+    /// handed, by object identity. See `merge()` for why it is the library and
+    /// not a service that is resolved here.
+    private var owningLibrary: LibraryManager.LibraryReference? {
+        entityService.flatMap { LibraryManager.shared.library(owningService: $0) }
+    }
     @State private var selectedIds: Set<String> = []
     @State private var mergedDescription: String = ""
     @State private var isSaving = false
@@ -100,8 +108,21 @@ struct EntityMergeSheet: View {
     }
 
     private func merge() {
-        guard let library = LibraryManager.shared.globalLibrary,
-              let absorberId = absorbingEntity.id else { return }
+        guard let absorberId = absorbingEntity.id else { return }
+        // MERGE is the verb Daniel's dedupe program is built on, and it ran
+        // against the RESERVED-id library: a merge is a write, so this was not
+        // an empty view but a change to a graph the user was not looking at.
+        // The library is resolved from the service this sheet was handed, by
+        // object identity — `actionsService` is deliberately not in
+        // `libraryServiceEnvironment` and nothing reads it from the
+        // environment, so going through the owning library is the route, and
+        // adding a 30th entry to that list for one call site is the worse
+        // trade. nil fails visibly: a sheet that cannot name the library it is
+        // about to change must not guess one (#4306/#4461).
+        guard let library = owningLibrary else {
+            errorText = "This window has no library to merge the entities in."
+            return
+        }
         isSaving = true
         errorText = nil
         Task {
