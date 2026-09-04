@@ -123,10 +123,34 @@ struct PDFPageWithToolbar: View {
         isPinned ? (pinnedDocumentId ?? documentId) : documentId
     }
 
-    /// Which document the overlay asks for geometry. The page child when the
-    /// caller supplied one, otherwise the rendered document.
+    /// Is this pane showing the page the HOST thinks it is?
+    ///
+    /// A secondary split pane and a pinned pane track their own
+    /// `localPageIndex` and never tell the host, so the host's idea of the
+    /// current page — and therefore the page document it hands down — can
+    /// describe a different page than this pane is rendering.
+    private var isShowingHostPage: Bool {
+        !(isSecondarySplitPane || isPinned) || localPageIndex == pageIndex
+    }
+
+    /// The page document this pane's geometry may come from, or `nil`.
+    ///
+    /// `nil` in a secondary or pinned pane that has flipped away from the
+    /// host's page: the host's page document does not describe what this pane
+    /// is showing, and the whole point of this change is that one page's boxes
+    /// must not be drawn on another. Deliberately NOT resolved per-pane here —
+    /// that would put a second page→document lookup in the view, and two paths
+    /// resolving the same question are how the answers drift apart.
+    private var paneGeometryDocumentId: String? {
+        isShowingHostPage ? geometryDocumentId : nil
+    }
+
+    /// Which document the overlay asks for geometry. The page child when this
+    /// pane is showing the host's page, otherwise the rendered document —
+    /// whose whole-document geometry is then filtered down to this pane's
+    /// page by `boxesForDisplayedPage`.
     var effectiveGeometryDocumentId: String {
-        geometryDocumentId ?? effectiveDocumentId
+        paneGeometryDocumentId ?? effectiveDocumentId
     }
 
     /// Which page to display: parent-driven for the primary unpinned pane,
@@ -212,7 +236,7 @@ struct PDFPageWithToolbar: View {
         return Self.boxesForDisplayedPage(
             level,
             pageIndex: effectivePageIndex,
-            isPageScoped: geometryDocumentId != nil
+            isPageScoped: paneGeometryDocumentId != nil
         )
     }
 
@@ -374,7 +398,12 @@ struct PDFPageWithToolbar: View {
         // DIFFERENT answer and a flip must fetch it. This keys on the page
         // document rather than the index, so the reload happens exactly when
         // the answer can differ and not once per flip within a page.
-        .task(id: "\(effectiveGeometryDocumentId)|\(ocrBoxesEnabled)") {
+        // `effectivePageIndex` is in the id for the panes the host cannot see:
+        // a secondary or pinned pane flips locally, so its geometry document
+        // falls back to the whole PDF and the reload must follow ITS page.
+        // For the primary pane the page document already changes on a flip, so
+        // this adds no extra fetch there.
+        .task(id: "\(effectiveGeometryDocumentId)|\(effectivePageIndex)|\(ocrBoxesEnabled)") {
             // AppKit only: the PDF box renderer draws PDFAnnotations through
             // PDFPageView+OCRBoxes, which is itself #if canImport(AppKit). iOS
             // has no PDF overlay yet (#4418 shipped the Mac half), so there is

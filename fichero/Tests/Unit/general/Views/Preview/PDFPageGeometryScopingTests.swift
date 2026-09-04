@@ -66,3 +66,54 @@ final class PDFPageGeometryScopingTests: XCTestCase {
         )
     }
 }
+
+/// A pane the host cannot see must not borrow the host's page (team-lead
+/// review, 2026-09-03). A secondary split pane and a pinned pane track their
+/// own page index and never tell the host, so the page document handed down
+/// can describe a different page than the pane is rendering.
+extension PDFPageGeometryScopingTests {
+
+    /// The rule the view applies: host-supplied geometry counts only while the
+    /// pane is showing the host's page.
+    private func paneGeometryApplies(
+        isSecondaryOrPinned: Bool, localPageIndex: Int, hostPageIndex: Int
+    ) -> Bool {
+        !isSecondaryOrPinned || localPageIndex == hostPageIndex
+    }
+
+    func testAPrimaryPaneAlwaysUsesTheHostPageDocument() {
+        XCTAssertTrue(
+            paneGeometryApplies(
+                isSecondaryOrPinned: false, localPageIndex: 4, hostPageIndex: 0
+            )
+        )
+    }
+
+    func testAPinnedPaneOnTheHostPageStillUsesIt() {
+        XCTAssertTrue(
+            paneGeometryApplies(
+                isSecondaryOrPinned: true, localPageIndex: 2, hostPageIndex: 2
+            )
+        )
+    }
+
+    func testAPaneFlippedAwayFromTheHostDoesNotBorrowItsGeometry() {
+        // The narrow case of the original bug: without this the pinned pane
+        // would draw page 2's boxes over page 7.
+        XCTAssertFalse(
+            paneGeometryApplies(
+                isSecondaryOrPinned: true, localPageIndex: 7, hostPageIndex: 2
+            )
+        )
+    }
+
+    func testFallingBackToWholeDocumentStillFiltersToThePaneItsOwnPage() {
+        // What a flipped pane gets instead: the rendered document's geometry,
+        // filtered to ITS page — never another page's boxes.
+        let boxes = [box("host page", page: 2), box("this pane", page: 7)]
+        let drawn = PDFPageWithToolbar.boxesForDisplayedPage(
+            boxes, pageIndex: 7, isPageScoped: false
+        )
+        XCTAssertEqual(drawn.map(\.text), ["this pane"])
+    }
+}

@@ -89,6 +89,24 @@ extension PDFPageWithToolbar {
     /// the image preview makes. Only the drawing differs between the two
     /// surfaces, because AppKit's `PDFView` has no coordinate space a SwiftUI
     /// overlay can lay out in; which artifact wins must not differ.
+    /// WHEN THE PAGE HAS NO GEOMETRY, NOTHING IS DRAWN — decided, not inherited.
+    ///
+    /// The loader asks the PAGE document, and if that page has no
+    /// geometry-bearing artifact the overlay stays empty. It does NOT fall
+    /// back to the parent PDF's own artifacts, and that is the point of the
+    /// change rather than an omission in it: a whole-document artifact carries
+    /// ONE page's boxes, and drawing them here would put them on whichever
+    /// page happens to be open — the exact defect this replaced, reintroduced
+    /// as a fallback.
+    ///
+    /// Empty is also the honest answer. A page with no geometry artifact has
+    /// not been processed; an artifact carrying zero boxes is the importer
+    /// saying "this page is a scan, geometry is unavailable" (#4418). Neither
+    /// is "here are some boxes from elsewhere in the book".
+    ///
+    /// The parent's geometry is still reachable — a pane the host cannot track
+    /// falls back to the rendered document — but only through
+    /// `boxesForDisplayedPage`, which drops every box naming another page.
     func loadOCRGeometry() async {
         ocrGeometry = nil
         guard ocrBoxesEnabled, let artifactService else { return }
