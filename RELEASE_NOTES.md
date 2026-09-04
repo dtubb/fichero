@@ -2,6 +2,85 @@
 
 *Full commit-level history, day by day, lives in [`CHANGELOG.md`](CHANGELOG.md).*
 
+## 2026.09.04
+
+An overnight fix release built from one evening of live testing — nearly
+fifty root-caused fixes. This is 2026.09.04 (2), and it is the first build
+delivered as a Sparkle update to 2026.09.03 installs.
+
+**Search finds, and shows you why:**
+- Fixed: Clicking a search result now opens the reader ON the matched
+  passage, highlighted — and the reader stays on the result instead of
+  snapping back to the containing folder's first page.
+- Fixed: Result badges say what really matched (entity, claim, text) —
+  "graph" only appears when the knowledge-graph leg actually ran.
+- Fixed: The search scope chip names the library you are actually in.
+- New: Search options are also on the toolbar's magnifying glass.
+
+**Markup follows your hand:**
+- Fixed: Marquee, word-select, and annotate land exactly under the
+  pointer — the drift that grew toward the corner was a hidden scale
+  error between the scroll view and its clip view.
+- Fixed: Regions you drew and saved can no longer be buried by a later
+  machine pass — human-curated geometry now outranks every machine run.
+- Fixed: Annotations remember which image variant they were drawn on.
+- Fixed: The inspector's edit-steps list shows the steps (two separate
+  editor models could not see each other's work).
+- New: Original ↔ edited flips with the same up/down swipe as any
+  rendition, and edited pages open showing their edited face.
+- Fixed: Thumbnails refresh immediately after an edit.
+
+**PDFs behave like documents:**
+- Fixed: Image editing on a PDF page works at all (every edit used to
+  fail with "source file not available").
+- Fixed: Text boxes on PDF pages are no longer sideways — and no longer
+  one page's boxes painted over every page.
+- Fixed: A big PDF import shows real per-page progress ("pages", counted
+  as pages) instead of sitting at 0% — and an import that cannot read
+  its source says so loudly instead of hanging silently.
+
+**Workflows that work:**
+- Changed: Catalogue is now literally the chain of its six numbered
+  stages — and stage 3 finally writes date claims, so timelines fill.
+- Fixed: Translation works — four independent causes down, including a
+  crash that killed every "Translate the Reviewed Transcription" run.
+- Changed: One Extract family — Extract Data folded in, Extract Table
+  and Extract Geo moved home.
+- Fixed: Recombine Segments saves its result into the library instead of
+  a temp folder the cleaner sweeps.
+- Fixed: A step that uses no model no longer claims one in the workflow
+  bar's sentence.
+- New: The artifact picker names each artifact by its model and time,
+  and any artifact row offers "Run Workflow on This".
+- Fixed: Table extraction can answer "no table" — it no longer invents a
+  table out of the ruler lying in the scan margin.
+- New: Clean Up Text has a real programmatic mode — dehyphenation,
+  paragraph reflow, page-header stripping — no AI required.
+
+**Local AI, actually local:**
+- Fixed: On-device OCR models work — vision models were being served by
+  a text-only server that rejected every image.
+- New: Whisper audio transcription runs in the managed MLX runtime; the
+  download buttons that could never work now work (or say why not).
+- Fixed: Downloaded models appear in the model pickers.
+- Fixed: The model picker no longer shows an eternal "Loading models…" —
+  loading, failed, and empty are three different, honest states.
+- New: The model catalog states each model's real size, memory floor,
+  and whether it has been verified on this app's own tasks.
+
+**Honest accounting:**
+- New: Every run records what it actually spent — provider-reported
+  tokens, priced per model — shown beside its duration in Activity.
+  On-device runs say "Free"; unknown models say "Unpriced", never $0.00.
+- New: Export what you are reading as Markdown or Word, from the File
+  menu or the reader itself.
+- Fixed: Whole-library exports no longer silently drop entities and
+  claims that have no source document.
+- New: DeepL is configured in Settings → Providers like every other
+  provider (the env variable remains as a fallback).
+- Fixed: The About box's license link says AGPL-3.0, like the license.
+- New: Help → Fichero User Manual.
+
 ## 2026.09.03
 
 **First public build.** Versioning starts fresh: the version is the date,
