@@ -254,6 +254,31 @@ def preferred_image(node: dict[str, Any]) -> dict[str, Any] | None:
     return images[0] if images else None
 
 
+def node_provenance(node: dict[str, Any], default_step: str) -> dict[str, Any]:
+    """Provenance for an artifact built from ``node``.
+
+    A node may name the tool that ACTUALLY produced its content — a converted
+    Fichero 1.0 corpus carries ``provider="fichero-1.0"`` with the model the old
+    pipeline recorded on disk (``qwen-vl-max`` for a page transcription,
+    ``gpt-4.1-mini`` for a folder catalogue: two different models in one
+    import, which is why this is per node and not per run). Without those
+    fields the artifact is stamped as this importer's own work, as before.
+    """
+    provider = node.get("provider")
+    model = node.get("model")
+    if not provider:
+        return {
+            "provider": "manifest-importer",
+            "model": CANONICAL_VERSION,
+            "step_name": default_step,
+        }
+    return {
+        "provider": str(provider),
+        "model": str(model) if model else None,
+        "step_name": str(node.get("step_name") or default_step),
+    }
+
+
 def _canonical_metadata(node: dict[str, Any]) -> dict[str, Any]:
     """Build the canonical metadata block shared by reference and copy modes."""
     image = preferred_image(node)
@@ -1012,9 +1037,7 @@ def import_manifest(
                             "page_label": node.get("page_label"),
                             "external_id": node.get("external_id"),
                         },
-                        "provider": "manifest-importer",
-                        "model": CANONICAL_VERSION,
-                        "step_name": "import_manifest",
+                        **node_provenance(node, "import_manifest"),
                         "confidence": 1.0,
                     }
                 )
@@ -1047,9 +1070,7 @@ def import_manifest(
                         "page_label": node.get("page_label"),
                         "external_id": node.get("external_id"),
                     },
-                    "provider": "manifest-importer",
-                    "model": CANONICAL_VERSION,
-                    "step_name": "import_manifest",
+                    **node_provenance(node, "import_manifest"),
                     "confidence": 1.0,
                 }
             )

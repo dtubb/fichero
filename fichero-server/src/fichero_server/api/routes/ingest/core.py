@@ -6,6 +6,7 @@ File and folder ingestion endpoints.
 
 import asyncio
 import logging
+import tempfile
 import time
 from pathlib import Path
 from typing import Literal, Optional
@@ -385,6 +386,39 @@ def _import_manifest_folder(
     return docs
 
 
+def _convert_legacy_10_archive(path: Path) -> Path | None:
+    """Convert a dropped Fichero 1.0 archive to a canonical manifest.
+
+    Returns the manifest path (in a temp dir — never inside the archive, which
+    holds the only copy of the corpus), or ``None`` when this is not a 1.0
+    archive. A conversion failure is logged and returns ``None`` so the drop
+    degrades to plain ingest rather than failing outright.
+    """
+    from fichero_server.importers import legacy_10_archive as legacy
+
+    try:
+        if not legacy.looks_like_legacy_archive(path):
+            return None
+        scan = legacy.scan_archives([path], corpus_name=path.name)
+        if not scan.folders:
+            return None
+        out = Path(tempfile.mkdtemp(prefix="fichero10-import-")) / "manifest.jsonl"
+        nodes = legacy.write_manifest(scan, out)
+    except Exception:
+        logger.exception("Fichero 1.0 conversion failed for %s", path)
+        return None
+    logger.info(
+        "Fichero 1.0 archive %s -> %d nodes (%d folders, %d pages, "
+        "%d segment strips deferred)",
+        path,
+        nodes,
+        len(scan.folders),
+        scan.page_count,
+        scan.segment_count,
+    )
+    return out
+
+
 def import_folder_impl(
     db: Database,
     request: IngestFolderRequest,
@@ -424,6 +458,18 @@ def import_folder_impl(
     if manifest_path.is_file():
         return _import_manifest_folder(
             db, manifest_path, request, package_path, on_progress=on_progress
+        )
+
+    # A dropped FICHERO 1.0 archive carries no manifest.jsonl — its manifests
+    # are `assets/manifests/documents_manifest.jsonl`, one per document folder,
+    # several levels down. Without this branch the drop falls through to plain
+    # file ingest, which would import every rendition copy and every .txt as a
+    # sibling document (~2,700 junk nodes per document folder). Convert to the
+    # canonical format first, then take the same path a corpus drop takes.
+    legacy_manifest = _convert_legacy_10_archive(path)
+    if legacy_manifest is not None:
+        return _import_manifest_folder(
+            db, legacy_manifest, request, package_path, on_progress=on_progress
         )
 
     mode = IngestMode(request.mode) if request.mode else (

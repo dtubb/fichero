@@ -1121,6 +1121,134 @@ def import_manifest_command(
     typer.echo(f"claims_skipped: {summary.claims_skipped}")
 
 
+@app.command(name="import-legacy-archive")
+def import_legacy_archive_command(
+    ctx: typer.Context,
+    archive: list[Path] = typer.Option(
+        ...,
+        "--archive",
+        help=(
+            "A Fichero 1.0 archive root. Repeat to merge several archives into "
+            "ONE corpus — identical document folders are deduped by content, "
+            "so a folder held by both archives is imported once."
+        ),
+    ),
+    corpus_name: str = typer.Option(
+        None,
+        "--corpus-name",
+        help="Name of the corpus root folder (default: the first archive's name).",
+    ),
+    library: Path = typer.Option(
+        None,
+        "--library",
+        help="Target .fichero package. Required unless --dry-run.",
+    ),
+    out: Path = typer.Option(
+        None,
+        "--out",
+        help=(
+            "Where to write the generated manifest.jsonl. Must be OUTSIDE the "
+            "archive (the archive is the only copy of the corpus). Defaults to "
+            "a temp directory."
+        ),
+    ),
+    dry_run: bool = typer.Option(
+        True,
+        "--dry-run/--no-dry-run",
+        help="Report what WOULD be imported without touching a library (default).",
+    ),
+    api: str = typer.Option(None, "--api", help="Engine API base URL."),
+    token_file: Path = typer.Option(None, "--token-file", help="Engine API key path."),
+    ingest: str = typer.Option(
+        None,
+        "--ingest",
+        help=(
+            "'link' (default — the originals stay on their volume and nothing "
+            "is copied), 'copy', or 'move'. A 300 GB archive wants link."
+        ),
+    ),
+) -> None:
+    """Import a Fichero 1.0 archive (dry run by default).
+
+    Reads the 1.0 on-disk layout — originals, the crop/rotate/enhance/
+    background-removed renditions, page transcriptions and the folder-level
+    LLM catalogue — converts it to a ``fichero-corpus-import-v1`` manifest, and
+    hands that to the same importer the app's drop path uses.
+
+    Nothing is ever written to the archive. Segment strips and .docx outputs are
+    counted and reported but not imported; their geometry is deferred.
+    """
+    import tempfile
+
+    from fichero_server.importers import legacy_10_archive as legacy
+
+    try:
+        roots = [Path(a).expanduser() for a in archive]
+        scan = legacy.scan_archives(roots, corpus_name=corpus_name or roots[0].name)
+    except Exception as exc:
+        typer.secho(f"Scan failed: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+
+    typer.echo(legacy.dry_run_report(scan))
+
+    if dry_run:
+        typer.echo("")
+        typer.secho(
+            "Dry run — nothing imported. Re-run with --no-dry-run --library <path>.",
+            fg=typer.colors.YELLOW,
+        )
+        return
+
+    if library is None:
+        typer.secho(
+            "--library is required with --no-dry-run.", fg=typer.colors.RED, err=True
+        )
+        raise typer.Exit(code=1)
+
+    try:
+        manifest_path = Path(out).expanduser() if out else (
+            Path(tempfile.mkdtemp(prefix="fichero10-import-")) / "manifest.jsonl"
+        )
+        node_count = legacy.write_manifest(scan, manifest_path)
+    except Exception as exc:
+        typer.secho(f"Manifest write failed: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+
+    typer.echo("")
+    typer.echo(f"manifest: {manifest_path} ({node_count} nodes)")
+
+    from fichero_server.importers.manifest_import import (
+        DEFAULT_API_BASE,
+        DEFAULT_TOKEN_FILE,
+        import_manifest_via_http,
+    )
+
+    try:
+        resolved_api = api or ctx.obj["base_url"] or DEFAULT_API_BASE
+        with FicheroClient(
+            base_url=resolved_api.removesuffix("/api"),
+            library_path=str(library),
+            token=ctx.obj["token"],
+        ) as client:
+            summary = import_manifest_via_http(
+                manifest_path=manifest_path,
+                library_path=library,
+                api_base=api or DEFAULT_API_BASE,
+                token_file=token_file or DEFAULT_TOKEN_FILE,
+                ingest_mode=ingest or "link",
+                client=client,
+            )
+    except Exception as exc:
+        typer.secho(f"Legacy import failed: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+
+    typer.echo(f"documents_created: {summary.documents_created}")
+    typer.echo(f"documents_skipped: {summary.documents_skipped}")
+    typer.echo(f"entities_created: {summary.entities_created}")
+    typer.echo(f"artifacts_created: {summary.artifacts_created}")
+    typer.echo(f"claims_created: {summary.claims_created}")
+
+
 @app.command(name="import-iiif")
 def import_iiif_command(
     ctx: typer.Context,
