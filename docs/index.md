@@ -8,7 +8,7 @@ hide:
   <img src="assets/icon.png" alt="Fichero icon" width="256">
 </p>
 
-# Fichero: AI for archives & research
+# Fichero: AI for archives
 
 What is Fichero? It's a Mac app to read archives and research material; to transcribe handwritten documents with AI models; to generate structured data from the results; and to navigate and search the results.
 
