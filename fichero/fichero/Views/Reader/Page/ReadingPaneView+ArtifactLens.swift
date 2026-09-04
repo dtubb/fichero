@@ -493,7 +493,7 @@ extension ReadingPaneView {
         // caches per document, so without this the submenu shows whatever the
         // document showed when it was FIRST opened, forever.
         guard let artifacts = try? await service.getArtifacts(
-            forDocumentId: doc.id, includeDescendants: true, forceRefresh: true
+            forDocumentId: doc.id, forceRefresh: true, includeDescendants: true
         ) else { return }
         readerRepresentationChoices = ReaderRepresentation.availableTypes(
             in: artifacts.map(\.artifactType)
