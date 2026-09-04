@@ -69,7 +69,8 @@ struct SchedulesMigrationTests {
         defer { SchedulesMockURLProtocol.requestHandler = nil }
         let client = makeClient { request in
             #expect(request.url?.path == "/api/schedules")
-            #expect((request.url?.query ?? "").contains("limit=100"))
+            let query = request.url?.query ?? ""
+            #expect(query.contains("limit=100"))
             let json = "{\"count\":1,\"items\":[\(Self.scheduleJSON)]}"
             let response = HTTPURLResponse(
                 url: request.url!, statusCode: 200, httpVersion: nil,

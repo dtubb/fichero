@@ -31,8 +31,10 @@ struct RenditionEditStatesTests {
             documentId: "doc-1", operationKinds: ["enhance"], existingCount: 0
         )
         #expect(states.map(\.role) == [DocumentRendition.originalRole, DocumentRendition.editedRole])
-        #expect(states.allSatisfy(\.isMaterialized))
-        #expect(states.allSatisfy(\.isEditState))
+        let allMaterialized = states.allSatisfy { $0.isMaterialized }
+        let allEditStates = states.allSatisfy { $0.isEditState }
+        #expect(allMaterialized)
+        #expect(allEditStates)
     }
 
     @Test("a page that already has staged renditions gains only the edited state")
