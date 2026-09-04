@@ -43,7 +43,10 @@ from pydantic import BaseModel, Field
 
 from fichero_server.db import Database
 from fichero_server.knowledge._common import parse_kwarg_repr
-from fichero_server.loaders.rtf_text import decode_rtf_hex_escapes
+from fichero_server.loaders.rtf_text import (
+    decode_bare_hex_in_word,
+    decode_rtf_hex_escapes,
+)
 from fichero_server.models.anchors import AnchorSpace, SourceAnchor
 from fichero_server.models.knowledge import (
     Annotation,
@@ -153,6 +156,26 @@ class RollbackResult:
     error_message: str | None = None
     started_at: datetime = field(default_factory=utc_now)
     completed_at: datetime | None = None
+
+
+def _repair_escapes(value: str) -> str:
+    """Both shapes of the #4666 corruption, in one pass.
+
+    The backslash form is what RTF writes; the BARE form is what actually
+    reached the knowledge graph, the backslash lost somewhere between the
+    model's answer and the stored row. A repair that knew only the first
+    walked past every real row in Daniel's library.
+
+    AN RTF DOCUMENT IS LEFT ALONE. Caught on the first live run against the
+    Caciques library: three artifacts ARE `{\\rtf...}` source, and decoding
+    their escapes in place would have rewritten valid cp1252 markup into
+    something no RTF reader can decode — repairing a display bug by corrupting
+    the document behind it. Extraction converts RTF at READ time now, so the
+    stored markup needs no repair and must not get one.
+    """
+    if value.lstrip().startswith("{\\rtf"):
+        return value
+    return decode_bare_hex_in_word(decode_rtf_hex_escapes(value))
 
 
 class MigrationRunner:
@@ -1315,9 +1338,9 @@ class MigrationRunner:
                     after: dict[str, str | None] = {}
                     for field_name in fields:
                         value = getattr(row, field_name, None)
-                        if not isinstance(value, str) or "\\'" not in value:
+                        if not isinstance(value, str) or "'" not in value:
                             continue
-                        repaired = decode_rtf_hex_escapes(value)
+                        repaired = _repair_escapes(value)
                         if repaired != value:
                             before[field_name] = value
                             after[field_name] = repaired
@@ -1328,9 +1351,7 @@ class MigrationRunner:
                     if isinstance(metadata, dict):
                         repaired_meta = {
                             key: (
-                                decode_rtf_hex_escapes(val)
-                                if isinstance(val, str)
-                                else val
+                                _repair_escapes(val) if isinstance(val, str) else val
                             )
                             for key, val in metadata.items()
                         }

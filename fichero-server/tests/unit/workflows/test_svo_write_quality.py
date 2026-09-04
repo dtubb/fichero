@@ -19,7 +19,9 @@ from fichero_server.models import Document, DocType
 from fichero_server.models.knowledge import KnowledgeClaim, KnowledgeEntity
 from fichero_server.workflows.tools.extractors import _SECTIONS, _write_kg_rows
 
-RTF_ESCAPE = re.compile(r"\\'[0-9a-fA-F]{2}")
+# BOTH shapes: RTF writes `\\'f1`, and what actually reached the knowledge
+# graph was the bare `'f1` inside a word, the backslash lost on the way.
+RTF_ESCAPE = re.compile(r"(?:\\'|(?<=[^\W\d_])')[0-9a-fA-F]{2}(?=[^\W\d_])")
 
 PEOPLE_SECTION = next(s for s in _SECTIONS if s.get("schema_key") == "people")
 

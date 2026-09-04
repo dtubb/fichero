@@ -194,6 +194,40 @@ def _strip_rtf(text: str) -> str:
 # difference between the archive holding the word and holding a byte code.
 
 
+#: The escape as it actually reaches the knowledge graph: ``ca'f1istin``, not
+#: ``ca\\'f1istin``. Something between the model's answer and the stored row
+#: drops the backslash — an invalid JSON escape being swallowed by a decoder is
+#: the likely culprit — so the rows in Daniel's library carry the BARE form and
+#: a repair that only knew the backslash form would have walked straight past
+#: every one of them (measured on Caciques Indios, 2026-09-04: 4 of 17 claims).
+#:
+#: Narrow on purpose. The bare form collides with ordinary apostrophes, which
+#: is why the RTF converter refuses to touch it — "class of '92" must survive.
+#: The boundary is what makes it safe here: a LETTER on both sides, so the
+#: sequence is inside a word. "se'f1or" matches; "of '92 was", "don't",
+#: "l'Étoile" do not.
+_BARE_HEX_IN_WORD_RE = re.compile(
+    r"(?<=[^\W\d_])'([0-9a-fA-F]{2})(?=[^\W\d_])", re.UNICODE
+)
+
+
+def decode_bare_hex_in_word(text: str, *, encoding: str = "cp1252") -> str:
+    """Decode a word-internal ``'XX`` byte escape that lost its backslash."""
+    if not text or "'" not in text:
+        return text
+
+    def _decode(match: "re.Match[str]") -> str:
+        raw = bytes([int(match.group(1), 16)])
+        for candidate in (encoding, "cp1252"):
+            try:
+                return raw.decode(candidate)
+            except (LookupError, UnicodeDecodeError):
+                continue
+        return match.group()
+
+    return _BARE_HEX_IN_WORD_RE.sub(_decode, text)
+
+
 def decode_rtf_hex_escapes(text: str, *, encoding: str = "cp1252") -> str:
     """Decode residual ``\\'XX`` RTF byte escapes anywhere in ``text``.
 
@@ -235,4 +269,6 @@ def to_plain_text(text: str) -> str:
     """
     if not text:
         return text
-    return unicodedata.normalize("NFC", decode_rtf_hex_escapes(_strip_rtf(text)))
+    return unicodedata.normalize(
+        "NFC", decode_bare_hex_in_word(decode_rtf_hex_escapes(_strip_rtf(text)))
+    )

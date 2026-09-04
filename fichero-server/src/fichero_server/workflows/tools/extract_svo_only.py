@@ -262,6 +262,11 @@ async def extract_svo_only(
             str(inputs.get("document_context") or "").strip()
             or (f"Written by {doc_meta['author']}." if doc_meta.get("author") else "")
         )
+        # WHO the page's first person is (#4671). A diary's "otorgamos"/"I"
+        # legitimately belongs to its diarist, so the grammar check must not
+        # reject a first-person verb when the subject IS that person — only
+        # when a nearby name has been stamped onto someone else's "we".
+        speaker = str(doc_meta.get("author") or "").strip()
         cache_key = (instruction_key, document_context)
         claim_instructions = instructions_by_language.get(cache_key)
         if claim_instructions is None:
@@ -345,6 +350,7 @@ async def extract_svo_only(
                     llm_config,
                     claim_instructions,
                     extraction_sem,
+                    speaker=speaker,
                 )
                 claims_extracted += len(claims)
                 if not claims:

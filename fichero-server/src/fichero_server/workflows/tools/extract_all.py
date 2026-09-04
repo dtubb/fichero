@@ -35,6 +35,7 @@ from fichero_server.llm import (
     chat_structured_with_fallback,
     resolve_model_alias,
 )
+from fichero_server.knowledge.spacy_svo import predicate_problem
 from fichero_server.knowledge.svo_quality import (
     MAX_OBJECT_WORDS,
     MAX_VERB_WORDS,
@@ -531,6 +532,7 @@ async def _extract_claims_for_entity(
     llm_config: LLMConfig,
     instructions: str,
     extraction_sem: asyncio.Semaphore,
+    speaker: str = "",
 ) -> list[dict]:
     """Stage 2: Extract grounded claims for a single entity."""
     entity_prompt = (
@@ -562,6 +564,16 @@ async def _extract_claims_for_entity(
             # Grounded against the CHUNK, not against the model's own quote: a
             # model that invents the claim will invent a quote to match it.
             rejection = claim_rejection(entity_name, verb, obj, chunk_text)
+            if rejection is None:
+                # GRAMMAR, once the words are known to be on the page (#4671).
+                # Grounding proves a span was READ; it cannot tell whether the
+                # row is a statement. Measured on the 17 rows a real run left
+                # in the Caciques library, grounding caught 2 and this caught
+                # 16 — together, all 17. Free, deterministic, 21 ms a page,
+                # and silent when spaCy is not installed.
+                rejection = predicate_problem(
+                    entity_name, verb, chunk_text, speaker=speaker
+                )
             if rejection:
                 logger.info(
                     "SVO claim rejected for %s: %s (verb=%r object=%r)",

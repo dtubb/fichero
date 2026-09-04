@@ -280,3 +280,125 @@ def filter_proposals(
             )
         )
     return kept, rejected
+
+
+# ---------------------------------------------------------------------------
+# The validator (#4671) — where spaCy actually earns its place
+# ---------------------------------------------------------------------------
+#
+# Measured on the 17 SVO rows a real Apple-Intelligence run left in the
+# Caciques Indios library (2026-09-04). As an EXTRACTOR spaCy was worse than
+# the model: four of five triples it proposed had a pronoun subject. As a
+# VALIDATOR of the model's rows it was right about every single one:
+#
+#     9 rows whose "verb" is not a verb — "cañistin" (PROPN), "estantes"
+#       (ADJ), "a" (ADP), "oy" (NOUN). An SVO row whose predicate is a proper
+#       noun is not a statement; it is three fragments in a row's shape.
+#     8 rows carrying a FIRST-PERSON PLURAL verb under a named third-party
+#       subject — "Andres otorgamos", "Corte estamos", "Puerto estamos". The
+#       page is a petition written in the first person ("nosotros ... somos a
+#       tomar la confesión"), and the extractor stamped whichever name was
+#       nearby onto every "we" verb. This is precisely what Daniel meant by
+#       "one name stamped onto unrelated predicates", and Spanish morphology
+#       settles it deterministically, in 21 ms, for free.
+#
+# The tagging is done ON THE PAGE, not on the extracted fragment: a word out
+# of context is a guess, and "estantes" alone tells you nothing. Everything
+# fails open — no spaCy, no model for the language, or a verb that does not
+# appear on the page at all, and the claim passes untouched. A validator that
+# cannot see must not condemn.
+
+#: Coarse tags a predicate's head word may legitimately carry.
+_VERBAL_POS = frozenset({"VERB", "AUX"})
+
+
+@lru_cache(maxsize=8)
+def _page_morphology(text: str, language: str) -> dict[str, tuple[str, str]]:
+    """``{lowercased word: (pos, person)}`` for one page, tagged in context.
+
+    Cached because a page is validated once per claim and there can be dozens.
+    First occurrence wins: a word used twice in one notarial page is the same
+    word, and the alternative — tagging per claim — would cost the parse we
+    are trying to make cheap.
+    """
+    nlp = _pipeline(language)
+    if nlp is None or not (text or "").strip():
+        return {}
+    out: dict[str, tuple[str, str]] = {}
+    for token in nlp(text):
+        key = token.text.casefold()
+        if key in out:
+            continue
+        person = token.morph.get("Person")
+        out[key] = (token.pos_, person[0] if person else "")
+    return out
+
+
+def model_language(page_text: str) -> str | None:
+    """Which spaCy model may judge this page, or ``None`` for none of them.
+
+    THE PAGE'S OWN LANGUAGE DECIDES, not the caller's default. Caught the
+    first time this gate ran across the whole suite: an ENGLISH fixture page
+    judged by the Spanish model, which tags "took" as a proper noun and
+    rejected a perfectly good claim. A validator running the wrong grammar is
+    not a stricter validator, it is a broken one — and it fails in the
+    direction that silently discards real statements.
+
+    Detection is the stdlib helper the write path already uses. A language we
+    have no model for returns ``None`` and the gate abstains: there are far
+    more languages in an archive than there are models on this machine.
+    """
+    if not (page_text or "").strip():
+        return None
+    try:
+        from fichero_server.llm.lang_detect import detect_language
+    except Exception:  # noqa: BLE001
+        return None
+    name = (detect_language(page_text[:2000], default="") or "").strip().casefold()
+    return {"spanish": "es", "english": "en"}.get(name)
+
+
+def predicate_problem(
+    subject: str,
+    verb: str,
+    page_text: str,
+    *,
+    language: str | None = None,
+    speaker: str = "",
+) -> str | None:
+    """Why this predicate cannot belong to this subject, or ``None``.
+
+    ``speaker`` is the person the document's first person refers to — a
+    diary's diarist, a petition's petitioner. When the subject IS the speaker,
+    a first-person verb is correct and is left alone; that is the whole reason
+    the extractor carries a document context at all.
+
+    ``language`` defaults to the page's own, detected. Pass one only when the
+    caller knows better than the detector.
+    """
+    head = (verb or "").strip().split()
+    if not head:
+        return None
+    language = language or model_language(page_text)
+    if language is None:
+        return None
+    morphology = _page_morphology(page_text or "", language)
+    if not morphology:
+        return None
+    pos, person = morphology.get(head[0].casefold(), ("", ""))
+    if not pos:
+        # The word is not on the page. `svo_quality`'s grounding rule owns
+        # that verdict; this one has nothing to say.
+        return None
+    if pos not in _VERBAL_POS:
+        return f"predicate {head[0]!r} is a {pos}, not a verb — this is not a statement"
+    if person == "1" and (subject or "").strip():
+        from fichero_server.knowledge.svo_quality import fold
+
+        if speaker and fold(speaker) == fold(subject):
+            return None
+        return (
+            f"first-person verb {head[0]!r} under the third-party subject "
+            f"{subject!r} — the page says 'we', and this row says {subject}"
+        )
+    return None
