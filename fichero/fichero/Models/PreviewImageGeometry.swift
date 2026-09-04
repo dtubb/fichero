@@ -44,3 +44,29 @@ struct PreviewImageGeometry: Equatable {
             && drawnFrame.width > 0 && drawnFrame.height > 0
     }
 }
+
+/// Pane point ↔ normalized image point, through ONE published geometry.
+///
+/// The pointer path maps clicks IN through this and the overlays map boxes
+/// OUT through `BoundingBoxGeometry.viewRect` with the same two rects — so
+/// "the click hits the box it visually covers" holds by construction rather
+/// than by two derivations happening to agree (2026-09-04, wrong-line
+/// select: the AppKit side re-derived the drawn rect at event time and the
+/// two mappings disagreed by a constant offset in the wild while every
+/// isolated round-trip test passed).
+enum PreviewPointerMapping {
+    /// `panePoint` is in the scroll view's top-left space — the space
+    /// `drawnFrame` is measured in. Returns nil until a layout pass has
+    /// measured; a nil is "drop the event", never "guess a frame".
+    static func normalized(
+        panePoint point: CGPoint, geometry: PreviewImageGeometry
+    ) -> CGPoint? {
+        guard geometry.isMeasured else { return nil }
+        let drawn = geometry.drawnFrame
+        let visible = geometry.visible
+        return CGPoint(
+            x: visible.minX + (point.x - drawn.minX) / drawn.width * visible.width,
+            y: visible.minY + (point.y - drawn.minY) / drawn.height * visible.height
+        )
+    }
+}

@@ -129,28 +129,6 @@ struct ImageWithCursorTracking: NSViewRepresentable {
                 self.loupeSize = newSize
             }
         }
-        // View point (bottom-left origin, letterbox-expanded frame) →
-        // normalized image point (top-left origin). The image is drawn at
-        // native size centred in the frame (`.scaleNone`), the same rule
-        // DrawnImageFrame.centeredNativeRect encodes for the overlays.
-        imageView.onPointer = { [weak imageView] phase, viewPoint, event in
-            guard let imageView, imageView.image != nil, let onPointer = self.onPointer else { return }
-            // ONE rule, shared with the overlay (2026-09-03): this used to
-            // call `centeredNativeRect` directly, so a non-`.scaleNone`
-            // image view would have mapped clicks through the centred-native
-            // rule while the overlay drew through the aspect-fit one.
-            let drawn = DrawnImageFrame.drawnRect(in: imageView)
-            guard drawn.width > 0, drawn.height > 0 else { return }
-            let normalized = CGPoint(
-                x: (viewPoint.x - drawn.minX) / drawn.width,
-                y: 1 - (viewPoint.y - drawn.minY) / drawn.height
-            )
-            onPointer(PreviewPointerEvent(
-                phase: phase, point: normalized,
-                shift: event.modifierFlags.contains(.shift),
-                clickCount: event.clickCount
-            ))
-        }
         imageView.loupeMagnification = loupeMagnification
         imageView.loupeSize = loupeSize
         return imageView
@@ -165,6 +143,7 @@ struct ImageWithCursorTracking: NSViewRepresentable {
         scrollView.documentView = imageView
         context.coordinator.scrollView = scrollView
         context.coordinator.imageView = imageView
+        wirePointer(imageView: imageView, scrollView: scrollView, coordinator: context.coordinator)
 
         // An override image is already decoded in memory — apply it synchronously.
         // A URL is decoded OFF the main thread (#3864); the placeholder (hidden
@@ -295,6 +274,90 @@ struct ImageWithCursorTracking: NSViewRepresentable {
 
         // Update visible rect
         context.coordinator.updateVisibleRect()
+    }
+
+    /// Clicks and drags for the region layer, normalized through the SAME
+    /// `PreviewImageGeometry` the overlays draw with (2026-09-04).
+    ///
+    /// This used to re-derive the drawn rect from `imageView` at event time
+    /// (`DrawnImageFrame.drawnRect` + a bottom-left→top-left flip). That is a
+    /// SECOND, independent derivation of the one mapping the overlay uses —
+    /// and in the wild the two disagreed by a constant offset while every
+    /// isolated round-trip test passed (Daniel, 2026-09-04: "I clicked first
+    /// line, it selected last"; the mis-landed marquees decode as line boxes
+    /// + exactly (0.185, 0.488) normalized). Mapping the pointer through the
+    /// coordinator's last PUBLISHED geometry makes click-vs-draw agreement
+    /// hold by construction: the layer's inverse mapping lands the point at
+    /// exactly `panePoint - drawnFrame.origin`, the overlay's own space.
+    ///
+    /// The old derivation is kept ONLY as a tripwire: on every mouse-down the
+    /// two are compared, and a divergence logs the full machine state under
+    /// `pointer-triage` — so if the environmental cause recurs it names
+    /// itself instead of moving a band.
+    private func wirePointer(
+        imageView: TrackingImageView,
+        scrollView: NSScrollView,
+        coordinator: Coordinator
+    ) {
+        imageView.onPointer = { [weak imageView, weak scrollView, weak coordinator] phase, viewPoint, event in
+            guard let imageView, let scrollView, let coordinator,
+                  imageView.image != nil, let onPointer = self.onPointer else { return }
+            // Fresh measurement first: the event may arrive before any
+            // boundsDidChange (first click after mount) or after a layout
+            // the notification did not cover.
+            if coordinator.lastGeometry?.isMeasured != true {
+                coordinator.updateVisibleRect()
+            }
+            guard let geometry = coordinator.lastGeometry,
+                  let normalized = PreviewPointerMapping.normalized(
+                      // The scroll view is flipped, so its space IS the
+                      // top-left pane space `drawnFrame` is measured in.
+                      panePoint: scrollView.convert(event.locationInWindow, from: nil),
+                      geometry: geometry
+                  ) else { return }
+            if phase == .pressed {
+                Self.tripwireCompare(
+                    normalized: normalized, viewPoint: viewPoint,
+                    imageView: imageView, scrollView: scrollView
+                )
+            }
+            onPointer(PreviewPointerEvent(
+                phase: phase, point: normalized,
+                shift: event.modifierFlags.contains(.shift),
+                clickCount: event.clickCount
+            ))
+        }
+    }
+
+    /// The retired image-view-space derivation, run on mouse-down purely to
+    /// DETECT divergence: agreement is silent; disagreement logs everything a
+    /// diagnosis needs. Filter Console on `pointer-triage`.
+    private static func tripwireCompare(
+        normalized: CGPoint, viewPoint: CGPoint,
+        imageView: NSImageView, scrollView: NSScrollView
+    ) {
+        let drawn = DrawnImageFrame.drawnRect(in: imageView)
+        guard drawn.width > 0, drawn.height > 0 else { return }
+        let legacy = CGPoint(
+            x: (viewPoint.x - drawn.minX) / drawn.width,
+            y: 1 - (viewPoint.y - drawn.minY) / drawn.height
+        )
+        guard abs(legacy.x - normalized.x) > 0.005 || abs(legacy.y - normalized.y) > 0.005 else { return }
+        Logger(subsystem: "app.fichero.fichero", category: "pointer-triage").fault(
+            """
+            pointer-triage divergence: published=(\(normalized.x, format: .fixed(precision: 4)), \
+            \(normalized.y, format: .fixed(precision: 4))) legacy=(\(legacy.x, format: .fixed(precision: 4)), \
+            \(legacy.y, format: .fixed(precision: 4))) viewPoint=(\(viewPoint.x, format: .fixed(precision: 1)), \
+            \(viewPoint.y, format: .fixed(precision: 1))) \
+            drawnDoc=\(String(describing: drawn), privacy: .public) \
+            imageBounds=\(String(describing: imageView.bounds), privacy: .public) \
+            imageSize=\(String(describing: imageView.image?.size), privacy: .public) \
+            alignment=\(imageView.imageAlignment.rawValue) scaling=\(imageView.imageScaling.rawValue) \
+            mag=\(scrollView.magnification, format: .fixed(precision: 4)) \
+            clipBounds=\(String(describing: scrollView.contentView.bounds), privacy: .public) \
+            flipped=(sv: \(scrollView.isFlipped), iv: \(imageView.isFlipped))
+            """
+        )
     }
 
     func makeCoordinator() -> Coordinator {

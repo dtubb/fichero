@@ -222,6 +222,118 @@ final class PreviewPointerRoundTripTests: XCTestCase {
         XCTAssertLessThanOrEqual(frame.height, content.height + 0.5)
     }
 
+    // MARK: - The published-geometry authority (2026-09-04)
+
+    /// The pointer normalizes through the SAME `PreviewImageGeometry` the
+    /// overlay draws with (`PreviewPointerMapping`), so a click must land in
+    /// the box it VISUALLY covers — the wrong-line-select regression: the
+    /// old image-view-space derivation could disagree with the drawn overlay
+    /// while this file's isolated round trips all passed.
+    @MainActor
+    private func assertClickHitsTheBoxItCovers(
+        _ harness: Harness,
+        _ label: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        guard let frame = DrawnImageFrame.compute(
+            scrollView: harness.scrollView, imageView: harness.imageView
+        ) else {
+            return XCTFail("\(label): no drawn frame", file: file, line: line)
+        }
+        let geometry = PreviewImageGeometry(visible: harness.normalizedVisible, drawnFrame: frame)
+        // Top row, middle, bottom row — the shape of a page of text lines.
+        let boxes: [[Double]] = [
+            [0.20, 0.05, 0.60, 0.04],
+            [0.20, 0.48, 0.60, 0.04],
+            [0.20, 0.91, 0.60, 0.04]
+        ]
+        for (index, box) in boxes.enumerated() {
+            guard let rect = BoundingBoxGeometry.viewRect(
+                normalized: box, in: frame.size, visible: geometry.visible
+            ) else { continue }
+            let paneCenter = CGPoint(x: frame.minX + rect.midX, y: frame.minY + rect.midY)
+            // Off-screen boxes (zoomed in) are not clickable — skip honestly.
+            guard paneCenter.x >= 0, paneCenter.y >= 0 else { continue }
+            guard let normalized = PreviewPointerMapping.normalized(
+                panePoint: paneCenter, geometry: geometry
+            ) else {
+                XCTFail("\(label): unmeasured geometry", file: file, line: line)
+                continue
+            }
+            // The region layer's inverse: normalized → overlay-local point.
+            let layerPoint = CGPoint(
+                x: (normalized.x - geometry.visible.minX) / geometry.visible.width * frame.width,
+                y: (normalized.y - geometry.visible.minY) / geometry.visible.height * frame.height
+            )
+            let picked = RegionHitTesting.pick(
+                at: layerPoint, boxes: boxes, in: frame.size, visible: geometry.visible
+            )
+            XCTAssertEqual(
+                picked, index,
+                "\(label): the click at box \(index)'s visual center must select box \(index)",
+                file: file, line: line
+            )
+        }
+    }
+
+    @MainActor
+    func testClickHitsTheBoxItVisuallyCovers() {
+        let cases = [
+            Layout(label: "letterboxed at fit", image: CGSize(width: 1000, height: 2000), magnification: 0.3),
+            Layout(label: "wide page at fit", image: CGSize(width: 2000, height: 1000), magnification: 0.4),
+            Layout(label: "zoomed to 1x", image: CGSize(width: 1000, height: 2000), magnification: 1.0)
+        ]
+        for style in [NSScroller.Style.legacy, .overlay] {
+            for layout in cases {
+                let harness = Harness(
+                    imageSize: layout.image, pane: CGSize(width: 800, height: 600),
+                    magnification: layout.magnification, scrollerStyle: style
+                )
+                assertClickHitsTheBoxItCovers(harness, "\(style.rawValue)/\(layout.label)")
+            }
+        }
+    }
+
+    @MainActor
+    func testClickHitsTheBoxItCoversWhenScrolledAndZoomed() {
+        let harness = Harness(
+            imageSize: CGSize(width: 2000, height: 3000), pane: CGSize(width: 800, height: 600),
+            magnification: 1.5, scrollerStyle: .legacy
+        )
+        harness.scroll(to: CGPoint(x: 600, y: 1300))
+        assertClickHitsTheBoxItCovers(harness, "scrolled+zoomed")
+    }
+
+    /// The retired image-view derivation and the published mapping agree in a
+    /// correctly laid-out harness — the baseline the runtime tripwire
+    /// (`pointer-triage`) measures divergence against.
+    @MainActor
+    func testPublishedMappingAgreesWithTheImageViewDerivation() {
+        for layout in [
+            Layout(label: "fit", image: CGSize(width: 1000, height: 2000), magnification: 0.3),
+            Layout(label: "zoomed", image: CGSize(width: 2000, height: 3000), magnification: 2.0)
+        ] {
+            let harness = Harness(
+                imageSize: layout.image, pane: CGSize(width: 800, height: 600),
+                magnification: layout.magnification, scrollerStyle: .legacy
+            )
+            guard let frame = DrawnImageFrame.compute(
+                scrollView: harness.scrollView, imageView: harness.imageView
+            ) else { return XCTFail("\(layout.label): no drawn frame") }
+            let geometry = PreviewImageGeometry(visible: harness.normalizedVisible, drawnFrame: frame)
+            for probe in Self.probes {
+                let inImageView = harness.imageView.convert(probe, from: harness.scrollView)
+                let legacy = harness.normalize(imageViewPoint: inImageView)
+                guard let published = PreviewPointerMapping.normalized(
+                    panePoint: probe, geometry: geometry
+                ) else { return XCTFail("\(layout.label): unmeasured") }
+                XCTAssertEqual(published.x, legacy.x, accuracy: 0.002, "\(layout.label) x for \(probe)")
+                XCTAssertEqual(published.y, legacy.y, accuracy: 0.002, "\(layout.label) y for \(probe)")
+            }
+        }
+    }
+
     // MARK: - The shared drawn-image rule
 
     /// `drawnRect` is the single rule both halves use; it must follow the

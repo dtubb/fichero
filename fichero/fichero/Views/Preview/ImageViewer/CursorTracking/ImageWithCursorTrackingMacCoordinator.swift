@@ -34,6 +34,17 @@ class ImageWithCursorTrackingMacCoordinator: NSObject, NSGestureRecognizerDelega
     /// every box in the wrong place. Two callbacks meant two independent
     /// `@MainActor` hops, and exactly that mismatch during a pinch.
     var onGeometryChanged: ((PreviewImageGeometry) -> Void)?
+    /// The most recent measurement, kept SYNCHRONOUSLY on the AppKit side.
+    ///
+    /// The pointer path reads THIS (2026-09-04, wrong-line select): clicks
+    /// used to re-derive the image's drawn rect from `imageView` state at
+    /// event time — a second, independent derivation of the one mapping the
+    /// overlay draws with, and the two disagreed in the wild by a constant
+    /// offset (Daniel: "I clicked first line, it selected last"; the two
+    /// mis-landed marquees decode as line boxes + exactly (0.185, 0.488)
+    /// normalized). One published mapping, both halves — a divergence is now
+    /// unrepresentable rather than merely untested.
+    var lastGeometry: PreviewImageGeometry?
     /// #596 (2nd attempt): fires once at gesture `.ended` with the final
     /// magnification. The owning `ImageWithCursorTracking` writes it
     /// back to its `@Binding var scale` so `updateNSView`'s sync-check
@@ -245,7 +256,9 @@ class ImageWithCursorTrackingMacCoordinator: NSObject, NSGestureRecognizerDelega
         guard let drawn = DrawnImageFrame.compute(scrollView: scrollView, imageView: imageView) else {
             return
         }
-        onGeometryChanged?(PreviewImageGeometry(visible: rect, drawnFrame: drawn))
+        let measured = PreviewImageGeometry(visible: rect, drawnFrame: drawn)
+        lastGeometry = measured
+        onGeometryChanged?(measured)
     }
 
     /// Calculate the scale needed to fit the image in the scroll view.
