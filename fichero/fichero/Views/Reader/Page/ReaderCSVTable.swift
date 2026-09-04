@@ -70,9 +70,13 @@ enum ReaderCSVTable {
                 inQuotes = true
             case separator:
                 endField()
-            case "\r":
-                continue
-            case "\n":
+            case let newline where newline.isNewline:
+                // `isNewline`, not a `"\r"` / `"\n"` pair: Swift's Character
+                // is an extended grapheme cluster, and CRLF is ONE of them —
+                // so a `"\r"` case never matched a Windows line ending and the
+                // whole `\r\n` fell through to `default`, landing inside the
+                // field. A CSV exported from Excel parsed as a single row
+                // whose cells carried their own line breaks.
                 endRow()
             default:
                 field.append(character)

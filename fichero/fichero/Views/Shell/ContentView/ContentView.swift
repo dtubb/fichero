@@ -380,11 +380,6 @@ struct ContentView: View {
     /// Real search parameters (#4112/S8), driven by the results-bar Options
     /// menu; saved searches apply their stored values. Sticky for the session.
     @State var transientSearchType = "hybrid"
-    /// The tier a SAVED search imposed on the toolbar, if one did (#4112/S8).
-    /// Non-nil only between running a saved search and the next fresh query or
-    /// dismissal — it is what lets `restoreDefaultRetrievalTier` tell a tier
-    /// nobody chose from one the user picked in the options menu.
-    @State var savedSearchAppliedTier: String?
     @State var transientSearchSortBy = "relevance"
     @State var transientSearchSortDirection = "desc"
     @State var navigationHistory = AppNavigationHistory()

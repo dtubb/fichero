@@ -127,7 +127,13 @@ final class SearchScopeAndOptionsMenuTests: XCTestCase {
         XCTAssertFalse(source.contains("Picker(\"Search Type\""))
         XCTAssertFalse(source.contains("Label(\"Save Search\""))
         // The count and its pager stay — they are information, not controls.
-        XCTAssertTrue(source.contains("Button(\"Load more\")"))
+        // Pinned by IDENTITY and ACTION rather than by the button's words: the
+        // label moved into `SearchHonestySummary.pagerLabel(pageSize:)` so it
+        // could name the page size ("Load 50 more") and be tested for it, and
+        // a literal-string assertion here would fail every time that sentence
+        // improved while proving nothing about the pager still existing.
+        XCTAssertTrue(source.contains("accessibilityIdentifier(\"library.search.loadMore\")"))
+        XCTAssertTrue(source.contains("loadMoreTransientResults()"))
     }
 
     /// The menu body is separable from the button that hosts it, so the same

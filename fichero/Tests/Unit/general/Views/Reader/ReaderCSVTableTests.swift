@@ -41,6 +41,23 @@ final class ReaderCSVTableTests: XCTestCase {
         XCTAssertEqual(ReaderCSVTable.parse("a,b\r\n1,2\r\n"), [["a", "b"], ["1", "2"]])
     }
 
+    /// CRLF is ONE extended grapheme cluster in Swift, so a `"\r"` case never
+    /// matched a Windows line ending — the whole `\r\n` fell through and landed
+    /// inside the field. A CSV exported from Excel parsed as a single row
+    /// whose cells carried their own line breaks.
+    func testACarriageReturnInsideAQuotedFieldIsKept() {
+        let rows = ReaderCSVTable.parse("a,b\r\n\"line one\r\nline two\",2\r\n")
+        XCTAssertEqual(rows?.count, 2)
+        XCTAssertEqual(
+            rows?[1][1], "2",
+            "The row still terminates at the CRLF outside the quotes."
+        )
+        XCTAssertTrue(
+            rows?[1][0].contains("line one") == true && rows?[1][0].contains("line two") == true,
+            "A quoted field keeps its own line break rather than being split on it."
+        )
+    }
+
     func testATrailingNewlineIsNotAnEmptyRow() {
         XCTAssertEqual(ReaderCSVTable.parse("a,b\n1,2\n")?.count, 2)
     }

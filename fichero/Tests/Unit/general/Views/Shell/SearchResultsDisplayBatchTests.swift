@@ -233,11 +233,15 @@ final class SearchResultsDisplayBatchTests: XCTestCase {
             "The geometry load is what the latched passage was waiting for."
         )
         XCTAssertFalse(
-            handlers.contains("ReaderPassageFocus.consume"),
+            handlers.contains("ReaderPassageFocus.consume(documentId:"),
             """
             The preview must NOT consume the latch: the reader consumes it \
             when it lands, and both surfaces are meant to light the same \
-            passage — consuming would make load order decide which one wins.
+            passage — consuming would make load order decide which one wins. \
+            Matched on the CALL, not the bare symbol: the doc comment beside \
+            `adoptLatchedPassageAnchor` names `ReaderPassageFocus.consume` to \
+            explain why it is not called here, and a scan for the word alone \
+            failed on its own explanation.
             """
         )
     }

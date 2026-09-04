@@ -133,7 +133,7 @@ extension ContentView {
         // `runToolbarSearch` and `clearTransientSearch` restore the default,
         // so the tier dies with the results it produced.
         transientSearchType = search.searchType
-        savedSearchAppliedTier = search.searchType
+        libraryToolbarState.savedSearchAppliedTier = search.searchType
         transientSearchSortBy = search.sortBy
         transientSearchSortDirection = search.sortDirection
         Task { @MainActor in
@@ -424,9 +424,10 @@ extension ContentView {
     @MainActor
     func restoreDefaultRetrievalTier() {
         let next = Self.retrievalTierAfterSavedSearch(
-            applied: savedSearchAppliedTier, current: transientSearchType
+            applied: libraryToolbarState.savedSearchAppliedTier,
+            current: transientSearchType
         )
-        savedSearchAppliedTier = nil
+        libraryToolbarState.savedSearchAppliedTier = nil
         transientSearchType = next
     }
 
