@@ -18,30 +18,11 @@ To learn more about how Fichero works, please read the [FAQ](user/guide/10-frequ
 
 <div style="text-align: center" markdown>
 
-[Download Fichero (Public Alpha) :material-apple:](https://github.com/dtubb/fichero/releases/latest/download/Fichero.dmg){ .md-button .md-button--primary }
-[Download Fichero Dev :material-flask-outline:](https://github.com/dtubb/fichero/releases/latest/download/Fichero-dev.dmg){ .md-button }
-[TestFlight](https://github.com/dtubb/fichero#testflight){ .md-button }
+[Download Fichero :material-apple:](https://github.com/dtubb/fichero/releases/latest/download/Fichero-dev.dmg){ .md-button .md-button--primary }
 
 macOS 26+, Apple Silicon.
 
-**Which one?** The **Public Alpha** is Fichero as we recommend it: the
-features that have proven themselves — reading, search, markup, workflows,
-local and cloud AI models. The **Dev** build is the kitchen sink: every
-experimental surface switched on (chat, agents, spatial canvas, unfinished
-tools), for people who want to see where Fichero is going and don't mind
-sharp edges. Both update themselves; each stays in its own lane.
-
-**Right now: download the Dev build.** The current release's public
-download predates the Alpha tier, so today the Dev build is the one with
-the full recommended feature set. The next release makes the Public Alpha
-the default recommendation again.
-
---8<-- "docs/_latest.md"
-
 </div>
-
-Release notes live in the app's update prompts and on
-[GitHub Releases](https://github.com/dtubb/fichero/releases).
 
 [Changelog](https://github.com/dtubb/fichero/blob/main/CHANGELOG.md) — the full
 commit-level history.
