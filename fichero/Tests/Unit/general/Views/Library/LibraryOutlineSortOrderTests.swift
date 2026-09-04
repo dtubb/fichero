@@ -121,6 +121,14 @@ final class LibraryOutlineSortOrderTests: XCTestCase {
 
     func testDocumentComparatorsRoundTripForAllFields() {
         for field in LibrarySortField.allCases {
+            // Relevance has no key path of its own: it is not a property of a
+            // document, it is the order the SEARCH produced, and the rows
+            // arrive already in it. It declares the Name comparator only so
+            // the AppKit sort-descriptor bridge always has a column that can
+            // resolve it (#4282) — and it is never written into
+            // `sortFieldRaw`, so it never reaches a Table's sortOrder binding
+            // in the first place.
+            guard field != .relevance else { continue }
             let keyPath = field.comparator(ascending: true)[0].keyPath
             XCTAssertEqual(
                 LibrarySortField.field(forDocumentKeyPath: keyPath), field,
