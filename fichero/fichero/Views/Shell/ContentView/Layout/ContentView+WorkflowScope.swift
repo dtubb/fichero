@@ -65,6 +65,20 @@ extension ContentView {
             }
     }
 
+    /// Keep the shared `ArtifactStore` pointed at the previewed document.
+    ///
+    /// Without this the subject menu's provenance rows depended on the
+    /// INSPECTOR having been opened — the Source strip and the Artifacts pane
+    /// are the only surfaces that scope the store — so with the inspector
+    /// closed the menu silently fell back to bare by-TYPE rows. `setScope` is
+    /// idempotent and unforced: when a pane has already loaded this document
+    /// it is a no-op, so the cost is one fetch per previewed document rather
+    /// than one per menu-open.
+    func scopeArtifactsToDetailDocument() async {
+        guard let detailId = detailDocument?.id else { return }
+        await artifactStore.setScope(documentId: detailId, includeDescendants: false)
+    }
+
     /// The resolved scope — the ONE decision every bar consumer (chip label,
     /// target count, run dispatch, vision preference) projects from. An
     /// explicit override from the subject chip's menu outranks the ladder

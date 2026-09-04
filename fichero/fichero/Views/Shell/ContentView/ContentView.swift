@@ -525,6 +525,11 @@ struct ContentView: View {
         .onChange(of: focusedPane) { _, newPane in
             if let newPane { paneFocusHint = newPane }
         }
+        // The workflow bar's subject menu names the previewed document's
+        // artifacts, so the store must be pointed at it whether or not the
+        // inspector is open. Idempotent — a pane that already loaded this
+        // document makes this a no-op.
+        .task(id: detailDocument?.id) { await scopeArtifactsToDetailDocument() }
         // VoiceOver hears every pane move (Daniel, 2026-08-10: "also for
         // voice over") — the fading ring is visual-only; the announcement is
         // its non-visual twin.
