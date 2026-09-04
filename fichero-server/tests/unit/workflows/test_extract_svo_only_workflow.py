@@ -32,8 +32,13 @@ def test_extract_svo_preset_persists_claims_and_is_idempotent(tmp_path: Path):
         llm_config,
         instructions: str,
         extraction_sem,
+        speaker: str = "",
     ) -> list[dict]:
-        del entity_type, llm_config, instructions, extraction_sem
+        # `speaker` is who the page's first person refers to (#4671) — the
+        # stub takes it so a real signature change fails HERE, at the seam,
+        # rather than mid-workflow with a TypeError wearing a systemic-error
+        # costume.
+        del entity_type, llm_config, instructions, extraction_sem, speaker
         assert FIXTURE_TEXT in chunk_text
         if entity_name == "Ada Mock":
             return [{
