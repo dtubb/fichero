@@ -114,7 +114,10 @@ struct GeneralSettingsView: View {
                         get: { SparkleUpdater.shared.automaticallyDownloadsUpdates },
                         set: { SparkleUpdater.shared.automaticallyDownloadsUpdates = $0 }
                     ))
-                    LabeledContent("Version", value: AboutInfo.versionText)
+                    LabeledContent("Version", value: AboutInfo.versionLine(
+                        shortVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
+                        build: Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
+                    ))
                     Button("Check Now…") { SparkleUpdater.shared.checkForUpdates() }
                 }
             }
