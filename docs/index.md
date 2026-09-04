@@ -75,7 +75,7 @@ libraries open at the same time.
     and columns; or extract data and browse them as datasets, timelines,
     and boards; or organize them visually on a 2D or 3D canvas.
 
--   :material-sitemap: __Workflow bar__
+-   :material-sitemap: __AI workflows__
 
     ---
 
@@ -88,8 +88,8 @@ libraries open at the same time.
     ---
 
     A powerful image, PDF, and document viewer: zoom, loupe, and magnify a
-    page; show word boxes over the scan; draw and save regions; flip
-    between renditions of a page.
+    page; show word boxes over the scan; draw and save regions; highlight
+    and annotate; flip between renditions of a page.
 
 -   :material-image-edit: __Edit__
 
@@ -105,12 +105,6 @@ libraries open at the same time.
     Read transcripts, translations, and other artifacts you write or
     generate, side by side with the original image.
 
--   :material-chat: __Chat__
-
-    ---
-
-    Ask questions of your sources, scoped to the documents you choose.
-
 -   :material-information: __Inspector__
 
     ---
@@ -124,12 +118,6 @@ libraries open at the same time.
 
     Use semantic search across a whole library, or part of a collection,
     with matches highlighted on the page.
-
--   :material-pencil: __Markup bar__
-
-    ---
-
-    Select, edit, highlight, and annotate your documents.
 
 </div>
 
