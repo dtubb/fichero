@@ -79,9 +79,11 @@ struct WorkflowBarChainPersistenceTests {
         #expect(steps[0].modelOverride == "claude-opus-5", "the run's choice must reach the wire")
         #expect(
             steps[1].modelOverride == "claude-opus-5",
-            "the stamp is the run's resolution and already contains a usable "
-                + "pin; re-sending an unusable one would put a model on the "
-                + "wire that the sentence is not showing"
+            """
+            the stamp is the run's resolution and already contains a usable \
+            pin; re-sending an unusable one would put a model on the \
+            wire that the sentence is not showing
+            """
         )
     }
 

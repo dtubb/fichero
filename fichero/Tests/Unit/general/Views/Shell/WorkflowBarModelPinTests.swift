@@ -105,8 +105,10 @@ struct WorkflowBarModelPinTests {
 
         #expect(
             choices.count == 4,
-            "the menu offered the deduped tier defaults — two rows for a user "
-                + "with four configured models (Daniel, 2026-09-04)"
+            """
+            the menu offered the deduped tier defaults — two rows for a user \
+            with four configured models (Daniel, 2026-09-04)
+            """
         )
         #expect(Set(choices.map(\.model)) == [
             "apple-vision", "claude-opus-5", "claude-haiku-5", "gemini-flash-lite"
@@ -154,8 +156,10 @@ struct WorkflowBarModelPinTests {
         #expect(reason != nil, "a text-only model must be marked on a vision step")
         #expect(
             reason?.contains("text-only-5") == true,
-            "the reason must name the model — a refusal that does not say which "
-                + "model it is about cannot be argued with"
+            """
+            the reason must name the model — a refusal that does not say which \
+            model it is about cannot be argued with
+            """
         )
     }
 
@@ -247,8 +251,10 @@ struct WorkflowBarModelPinTests {
         )
         #expect(
             resolved?.model == "claude-opus-5",
-            "the sentence promised a model the engine would decline to use — "
-                + "'the model chosen is not the model used' (Daniel, 2026-09-04)"
+            """
+            the sentence promised a model the engine would decline to use — \
+            'the model chosen is not the model used' (Daniel, 2026-09-04)
+            """
         )
     }
 
