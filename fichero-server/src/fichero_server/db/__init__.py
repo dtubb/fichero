@@ -693,6 +693,77 @@ def _bm25_scores(corpus: list[str], query_terms: list[str]) -> list[float]:
     return scores
 
 
+def _kg_leg_passage(
+    page_content: str,
+    surfaces: list[str],
+    claim_passages: list[tuple[str, int | None]],
+    *,
+    context_chars: int = 160,
+) -> tuple[str, int]:
+    """The part of the page a KG hit is ABOUT, and where it sits (#4669).
+
+    Daniel: "for library search, we should really be showing the RELEVANT
+    PARTS of the page, not just the keyword." A KG-leg row used to carry
+    ``page_content[:500]`` — the top of the page, which is where the match
+    is not — so an entity hit rendered the document's opening line, or the
+    entity's own name, and the reader had to open the page to find out why it
+    was returned at all. The claim leg has always shown a sentence; this
+    brings the entity leg to parity.
+
+    Evidence, best first:
+
+    1. A CLAIM'S VERBATIM QUOTE. Since the grounding contract (#4666) a
+       claim's ``source_text`` is a span of the page, recorded with the
+       character offset where it was found — so it is both the right sentence
+       and already anchored. Nothing to search for.
+    2. THE MENTION ITSELF. Failing that, locate the entity's surface form in
+       the transcript and take the text around it. Whole-word, accent-folded
+       (the same fold search matches with), so "Bazán" finds "bazan" and
+       "cat" does not find "cattle".
+    3. The page's opening, unchanged — the old behaviour, and honestly the
+       best available when neither the KG nor the transcript can say where
+       the match is.
+
+    Returns ``(passage, char_start)``. ``char_start`` is the passage's offset
+    in the document, which the row's excerpt anchor rides so click-through
+    lands on the passage rather than the top of the page.
+    """
+    for passage, char_start in claim_passages:
+        text = (passage or "").strip()
+        if not text:
+            continue
+        if isinstance(char_start, int) and char_start >= 0:
+            return text, char_start
+        # A quote with no recorded offset can still be located, and an
+        # anchored passage is worth the one scan.
+        found = page_content.find(text)
+        return text, max(0, found)
+
+    if page_content:
+        folded_page, index_map = _fold_with_index(page_content)
+        padded = f" {folded_page} "
+        for surface in surfaces:
+            folded_surface = _fold_for_search(surface or "")
+            if len(folded_surface) < 3:
+                continue
+            at = padded.find(f" {folded_surface} ")
+            if at < 0:
+                continue
+            # `padded` is one character ahead of `folded_page`; the +1 that
+            # skips the leading space is the same one that lands on the word.
+            folded_index = at
+            if folded_index >= len(index_map):
+                continue
+            start = index_map[folded_index]
+            end_folded = min(len(index_map) - 1, folded_index + len(folded_surface))
+            end = index_map[end_folded]
+            window_start = max(0, start - context_chars)
+            window_end = min(len(page_content), end + context_chars)
+            return page_content[window_start:window_end], window_start
+
+    return page_content[:500], 0
+
+
 def _build_transcript_excerpts(
     document_id: str,
     content: str,
@@ -4720,23 +4791,53 @@ class Database(DatabaseEmbeddingMixin):
             ranked_claim_ids = self.rank_claim_ids_by_query(
                 query, set(claim_by_id), limit
             )
+            # The best-ranked claims PER DOCUMENT, in rank order: their
+            # verbatim quotes are the passages this row is about (#4669).
+            passages_by_doc: dict[str, list[tuple[str, int | None]]] = {}
             for rank, claim_id in enumerate(ranked_claim_ids):
-                doc_id = claim_by_id[claim_id].source_document_id
-                if doc_id:
-                    weights[doc_id] += max(1, limit - rank)
+                claim = claim_by_id[claim_id]
+                doc_id = claim.source_document_id
+                if not doc_id:
+                    continue
+                weights[doc_id] += max(1, limit - rank)
+                quote = (claim.metadata or {}).get("source_text") or claim.source_excerpt
+                if quote:
+                    passages_by_doc.setdefault(doc_id, []).append(
+                        (str(quote), claim.source_char_start)
+                    )
+
+            surfaces_by_entity: list[str] = []
+            for entity_id in matched_entity_ids:
+                entity = self.get(KnowledgeEntity, entity_id)
+                if entity is None:
+                    continue
+                surfaces_by_entity.append(entity.canonical_name)
+                surfaces_by_entity.extend(entity.aliases or [])
 
             leg: list[dict[str, Any]] = []
             for doc_id, _weight in weights.most_common(limit):
                 doc = self.get(Document, doc_id)
                 if doc is None:
                     continue
+                # SHOW THE RELEVANT PART OF THE PAGE, not its opening line.
+                # This used to be `page_content[:500]` for every KG hit.
+                passage, passage_start = _kg_leg_passage(
+                    doc.page_content or "",
+                    surfaces_by_entity,
+                    passages_by_doc.get(doc_id, []),
+                )
                 leg.append(
                     {
                         "document_id": doc_id,
                         "score": 0.0,
-                        "content": (doc.page_content or "")[:500],
+                        "content": passage,
                         "metadata": {
                             "name": doc.name,
+                            # The passage's offset in the document, on the same
+                            # key a semantic hit uses — so the row's excerpt
+                            # anchors where the passage IS and click-through
+                            # lands on it rather than on char 0.
+                            "char_start": passage_start,
                             "doc_type": doc.doc_type.value
                             if hasattr(doc.doc_type, "value") else doc.doc_type,
                             "file_type": doc.file_type.value
