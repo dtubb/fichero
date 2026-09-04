@@ -25,6 +25,17 @@ struct KGMapView: View {
     @Binding var selectedEntityId: String?
     var sourceDocumentId: String?
 
+    /// THIS surface's entity service — the library the map is ABOUT.
+    ///
+    /// `load()` reached for `LibraryManager.shared.globalLibrary`, which is not
+    /// "the current library" but the one holding the reserved global id. Open a
+    /// map on any other library and it listed the GLOBAL library's claims: no
+    /// error, no pins, an empty map over a corpus full of places (Daniel,
+    /// 2026-09-04). Same wrong-scope defect as #4461, and the same one the
+    /// reader's Node Graph had this morning. The old lookup stays as the
+    /// fallback for hosts that inject no service.
+    @Environment(EntityService.self) private var entityService: EntityService?
+
     @State private var claims: [Components.Schemas.KnowledgeClaim] = []
     @State private var isLoading = false
     @State private var loadError: String?
@@ -89,8 +100,43 @@ struct KGMapView: View {
         } else if locatedClaims.isEmpty {
             emptyState
         } else {
-            map
+            HStack(spacing: 0) {
+                map
+                if !unplacedNames.isEmpty {
+                    Divider()
+                    unplacedPanel
+                }
+            }
         }
+    }
+
+    /// The places this map could NOT plot, listed rather than counted.
+    ///
+    /// They are never approximated onto the map. A pin is a claim about where
+    /// something was, and a manuscript reader has no way to discover that a
+    /// confident-looking one was a guess — the same rule the claim-source
+    /// highlight follows.
+    private var unplacedPanel: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Unplaced")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text("Named in the text, with no coordinate to plot")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
+            List(unplacedNames, id: \.self) { name in
+                Label(name, systemImage: "mappin.slash")
+                    .font(.callout)
+                    .lineLimit(1)
+                    .help(name)
+            }
+            .listStyle(.inset)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .frame(width: 200)
+        .accessibilityIdentifier("kgMap.unplaced")
     }
 
     private var emptyState: some View {
@@ -179,12 +225,25 @@ struct KGMapView: View {
     }
 
     /// In-scope claims that name a place but have no coordinate to map.
-    private var unmappedInScopeCount: Int {
-        claims.filter { claim in
-            guard isInScope(claim) else { return false }
-            guard claim.claimGeo == nil else { return false }
-            return (claim.claimLocation?.isEmpty == false)
-        }.count
+    private var unmappedInScopeCount: Int { unplacedNames.count }
+
+    /// The PLACES that could not be mapped, by name, newest-first duplicates
+    /// collapsed.
+    ///
+    /// A count alone said "8 unmapped" and left the reader to guess WHICH
+    /// eight (Daniel, 2026-09-04: unplaced places belong in an honest panel,
+    /// never guessed onto the map). Naming them is also the only way to see
+    /// that the gazetteer is missing "Condoto" rather than that the extraction
+    /// failed — two very different problems that an integer cannot tell apart.
+    private var unplacedNames: [String] {
+        var seen = Set<String>()
+        var names: [String] = []
+        for claim in claims where isInScope(claim) && claim.claimGeo == nil {
+            guard let place = claim.claimLocation?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !place.isEmpty, seen.insert(place).inserted else { continue }
+            names.append(place)
+        }
+        return names
     }
 
     private func isInScope(_ claim: Components.Schemas.KnowledgeClaim) -> Bool {
@@ -202,7 +261,8 @@ struct KGMapView: View {
 
     @MainActor
     private func load() async {
-        guard let library = LibraryManager.shared.globalLibrary else {
+        guard let service = entityService
+                ?? LibraryManager.shared.globalLibrary?.entityService else {
             loadError = "No library"
             return
         }
@@ -210,7 +270,7 @@ struct KGMapView: View {
         loadError = nil
         defer { isLoading = false }
         do {
-            claims = try await library.entityService.listClaims(
+            claims = try await service.listClaims(
                 sourceDocumentId: sourceDocumentId,
                 includeDescendants: sourceDocumentId != nil,
                 limit: 500

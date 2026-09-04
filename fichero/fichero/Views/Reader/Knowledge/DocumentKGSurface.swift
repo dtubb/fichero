@@ -343,16 +343,24 @@ struct DocumentKGSurface: View {
         case .timeline:
             // Native timeline (OntologyBrowser component): the document's
             // entities' dated claims on a time axis (#3503).
+            //
+            // SCOPED to this document (2026-09-04). Without `sourceDocumentId`
+            // both of these listed the whole library's claims capped at 500 —
+            // in a reader tab that is not "this document's timeline", it is
+            // the first 500 claims in the library, and the document being read
+            // may not be among them.
             KGTimelineView(
                 entities: documentEntities,
-                selectedEntityId: selectedEntityBinding
+                selectedEntityId: selectedEntityBinding,
+                sourceDocumentId: documentId
             )
         case .map:
             // Native map (OntologyBrowser component): the document's entities'
-            // geo-located claims (#3503).
+            // geo-located claims (#3503), scoped to this document — see above.
             KGMapView(
                 entities: documentEntities,
-                selectedEntityId: selectedEntityBinding
+                selectedEntityId: selectedEntityBinding,
+                sourceDocumentId: documentId
             )
         case .claims:
             // No outer ScrollView — KnowledgeGraphInspectorSection owns its own
