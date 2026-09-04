@@ -191,7 +191,7 @@ final class WorkflowBarScopeProvenanceTests: XCTestCase {
         XCTAssertTrue(regionLabels.contains { $0.hasSuffix(" · 8d4e7c") })
         // A row with no twin stays clean.
         XCTAssertEqual(
-            rows.first { $0.id == "artifact-solo" }.map { $0.contains(" · ") },
+            rows.first { $0.id == "artifact-solo" }.map { $0.label.contains(" · ") },
             false
         )
     }

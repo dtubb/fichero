@@ -58,15 +58,15 @@ enum PDFRegionGeometry {
     /// because PDFKit has already normalized it).
     static func unrotated(normalized box: [Double], rotation: Int) -> [Double] {
         guard box.count >= 4 else { return box }
-        let x = box[0], y = box[1], w = box[2], h = box[3]
+        let boxX = box[0], boxY = box[1], boxW = box[2], boxH = box[3]
         switch ((rotation % 360) + 360) % 360 {
         case 90:
             // display (x, y) came from unrotated (y, 1 - x - w) — invert it.
-            return [y, 1 - x - w, h, w]
+            return [boxY, 1 - boxX - boxW, boxH, boxW]
         case 180:
-            return [1 - x - w, 1 - y - h, w, h]
+            return [1 - boxX - boxW, 1 - boxY - boxH, boxW, boxH]
         case 270:
-            return [1 - y - h, x, h, w]
+            return [1 - boxY - boxH, boxX, boxH, boxW]
         default:
             return box
         }
