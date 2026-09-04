@@ -288,6 +288,95 @@ struct ReaderSearchPassageLandingTests {
         #expect(ContentView.readerActivePageNumber(for: zero) == 1)
     }
 
+    // MARK: - …and it lands on the PASSAGE (2026-09-04)
+
+    /// The reader's Page tab renders the PARENT's assembled transcript, so
+    /// the anchor's page-relative offsets address the wrong text there and
+    /// `scrollToSpan` would highlight a confidently wrong passage. The
+    /// landing goes through find-in-page instead, on a short phrase.
+    @Test("the anchor yields a short, findable phrase rather than the whole excerpt")
+    func anchorYieldsAFindablePhrase() {
+        let phrase = ReaderPassageAnchor.findPhrase(
+            from: "  el camino  real que va\na la villa de Bagadó y de alli adelante  "
+        )
+        #expect(phrase == "el camino real que va a la villa")
+        #expect(
+            !phrase.contains("\n"),
+            "The assembly re-flows line breaks, so a needle carrying one finds nothing."
+        )
+    }
+
+    @Test("the phrase respects the character cap without truncating mid-word")
+    func phraseRespectsTheCharacterCap() {
+        let phrase = ReaderPassageAnchor.findPhrase(
+            from: "uno dos tres cuatro cinco", characterLimit: 12
+        )
+        #expect(phrase == "uno dos tres")
+    }
+
+    @Test("one word longer than the cap is still the needle")
+    func oneOverlongWordIsStillTheNeedle() {
+        let phrase = ReaderPassageAnchor.findPhrase(from: "supercalifragilistic", characterLimit: 5)
+        #expect(phrase == "supercalifragilistic")
+    }
+
+    @Test("an empty passage yields no phrase")
+    func emptyPassageYieldsNoPhrase() {
+        #expect(ReaderPassageAnchor.findPhrase(from: "   ") == "")
+    }
+
+    @Test("the passage wins over the bare query terms for the document it names")
+    func passageWinsForItsOwnDocument() {
+        let anchor = ReaderPassageAnchor(
+            documentId: "page-7", text: "the road to Bagadó", charStart: 10, charEnd: 28
+        )
+        #expect(
+            ReadingPaneView.readerHighlightSeed(
+                anchor: anchor, documentId: "page-7", searchQuery: "road"
+            ) == "the road to Bagadó",
+            "The passage lands on the sentence; the bare term lights every road in the book."
+        )
+    }
+
+    @Test("an anchor for another document never describes this one")
+    func anchorForAnotherDocumentIsIgnored() {
+        let anchor = ReaderPassageAnchor(
+            documentId: "page-9", text: "somewhere else", charStart: 0, charEnd: 4
+        )
+        #expect(
+            ReadingPaneView.readerHighlightSeed(
+                anchor: anchor, documentId: "page-7", searchQuery: "road"
+            ) == "road"
+        )
+    }
+
+    @Test("with no anchor the library query's terms are still lit")
+    func noAnchorFallsBackToTheQuery() {
+        #expect(
+            ReadingPaneView.readerHighlightSeed(
+                anchor: nil, documentId: "page-7", searchQuery: "road"
+            ) == "road"
+        )
+        #expect(
+            ReadingPaneView.readerHighlightSeed(
+                anchor: nil, documentId: "page-7", searchQuery: ""
+            ) == "",
+            "No query and no anchor dismisses the find bar rather than leaving a stale one."
+        )
+    }
+
+    @Test("an anchor with no text falls back to the query rather than clearing it")
+    func anchorWithNoTextFallsBackToTheQuery() {
+        let anchor = ReaderPassageAnchor(
+            documentId: "page-7", text: "", charStart: 0, charEnd: 0
+        )
+        #expect(
+            ReadingPaneView.readerHighlightSeed(
+                anchor: anchor, documentId: "page-7", searchQuery: "road"
+            ) == "road"
+        )
+    }
+
     @Test("a non-page names no page, so the reader is never forced to scroll")
     func nonPageNamesNoPage() {
         let file = Document(id: "file-1", docType: .file, fileType: .pdf, name: "Doc.pdf")

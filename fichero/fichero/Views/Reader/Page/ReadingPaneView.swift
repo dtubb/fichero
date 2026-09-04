@@ -243,15 +243,14 @@ struct ReadingPaneView: View {
         // matched). One seed per distinct query — `seededSearchHighlight`
         // guards the re-render case so a query the user has since edited or
         // dismissed in the find bar is never re-imposed on them.
-        .onChange(of: searchHighlightQuery, initial: true) { _, query in
-            guard query != seededSearchHighlight else { return }
-            seededSearchHighlight = query
-            if query.isEmpty {
-                searchState.dismiss()
-            } else {
-                searchState.query = query
-                searchState.isActive = true
-            }
+        .onChange(of: searchHighlightQuery, initial: true) { _, _ in
+            seedReaderHighlight()
+        }
+        // …and again when the document arrives, because the passage anchor is
+        // latched at selection time and the pane is frequently built one frame
+        // later (the `ReaderPassageFocus` case the anchor exists for).
+        .onChange(of: effectiveDocument?.id, initial: true) { _, _ in
+            seedReaderHighlight()
         }
         // Mandate 1, consumer 1: ONE fetch brings the anchor's whole
         // neighbourhood — the crumb chain stops losing middle ancestors the
@@ -310,6 +309,51 @@ struct ReadingPaneView: View {
     /// transcript, which scrolls to the page anchor (#3226). There is no longer a
     /// source layout to switch: the source is Preview's job (#3765 Q4), and the
     /// reveal drives that pane separately via `.ficheroNavigateToPage`.
+    /// Seed the reader's find with the best available description of WHY this
+    /// document is on screen: the matched PASSAGE when a search anchor names
+    /// it, otherwise the library query's terms.
+    ///
+    /// The passage wins because it is more specific — "the road to Bagadó"
+    /// lands on the sentence, where the bare query terms light every
+    /// occurrence of a common word. It goes through find-in-page rather than
+    /// through `scrollToSpan`: the reader renders the parent's ASSEMBLED
+    /// transcript, so the anchor's page-relative offsets address the wrong
+    /// text there, and a confidently wrong highlight over a manuscript is
+    /// worse than none (`ReaderPassageAnchor.findPhrase`).
+    ///
+    /// `seededSearchHighlight` remembers what was seeded, so a re-render never
+    /// re-imposes something the user has since edited or dismissed.
+    private func seedReaderHighlight() {
+        let seed = Self.readerHighlightSeed(
+            anchor: ReaderPassageFocus.latest,
+            documentId: effectiveDocument?.id,
+            searchQuery: searchHighlightQuery
+        )
+        guard seed != seededSearchHighlight else { return }
+        seededSearchHighlight = seed
+        if seed.isEmpty {
+            searchState.dismiss()
+        } else {
+            searchState.query = seed
+            searchState.isActive = true
+        }
+    }
+
+    /// Pure: what the reader's find should hold. The anchor wins ONLY when it
+    /// names the document actually on screen — an anchor for another document
+    /// is not a description of this one.
+    static func readerHighlightSeed(
+        anchor: ReaderPassageAnchor?,
+        documentId: String?,
+        searchQuery: String
+    ) -> String {
+        if let anchor, let documentId, anchor.documentId == documentId {
+            let phrase = anchor.findPhrase
+            if !phrase.isEmpty { return phrase }
+        }
+        return searchQuery
+    }
+
     private func revealInTranscript() {
         if readerTab != .page { readerTabRaw = ReaderTab.page.rawValue }
     }

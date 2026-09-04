@@ -96,6 +96,12 @@ extension ContentView {
         sidebarMode = route.sidebarMode
         viewMode = route.viewMode
         activeSearchQuery = route.query
+        // A saved search's stored tier does not outlive its own results
+        // (Daniel, 2026-09-04). Running a saved fulltext search left the
+        // session on fulltext, so the next thing typed here was quietly
+        // keyword-only — a downgrade nobody chose. Restored BEFORE the
+        // request is built, so this submission runs on the default rung.
+        restoreDefaultRetrievalTier()
         // A new query owns the grid from the moment it is submitted — the
         // previous query's rows are cleared, not left standing under a bar
         // that says "Searching…" (Daniel, 2026-09-01).
