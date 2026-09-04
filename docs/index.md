@@ -99,23 +99,11 @@ libraries open at the same time.
 
 </div>
 
-## Under the hood
-
-- **SwiftUI**: A native Mac (and iPhone/iPad) app.
-- **FastAPI (Python)**: An embedded server inside the app; the app talks
-  to it over a typed, OpenAPI-generated client.
-- **DuckDB** and **LanceDB**: Provide the databases behind semantic search.
-- **LangChain & LangGraph**: Support model calls and the workflow graphs that  chain transcription, translation, extraction, and cataloguing.
-- **Apple Vision & vision LLMs**: Run local on device models, or use cloud models for structured extraction of data using AI models.
-
-More in [How It's Built](user/guide/12-appendix-b-how-fichero-is-built.md)
-and the [Contributor Guide](contributor/README.md).
-
 ## Documentation
 
 - **[FAQ](user/guide/10-frequently-asked-questions.md)**
-- **[User Guide](user/README.md)** for end users.
-- **[Contributor Guide](contributor/README.md)** for contributors.
+- **[User Guide](user/README.md)**
+- **[Contributor Guide](contributor/README.md)**
 
 Fichero is [open source](https://github.com/dtubb/fichero), released under the
 [AGPL-3.0](https://www.gnu.org/licenses/agpl-3.0.html).
