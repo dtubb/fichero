@@ -135,3 +135,43 @@ def test_page_with_an_unreadable_parent_pdf_says_so(client, db):
     response = client.get(f"/api/images/{page.id}/preview", params={"page": 1})
     assert response.status_code == 404
     assert page.id in response.json()["detail"]
+
+
+def test_editing_a_pdf_page_reaches_its_thumbnail_and_display(client, db, pdf_pages):
+    """The library must not keep showing the page the user just changed.
+
+    A PDF page's renditions are keyed on the SOURCE PDF's mtime, and editing a
+    page never touches the book on disk — so without the edit chain in the
+    cache identity the rotated page served its unrotated thumbnail for ever,
+    and the edit read as "didn't work".
+    """
+    from fichero_server.db.storage import ensure_display, ensure_thumbnail
+
+    _parent, pages = pdf_pages
+    page2 = pages[1]
+    package = db.path.parent
+
+    before_thumb = ensure_thumbnail(page2, package_path=package, db=db)
+    before_display = ensure_display(page2, package_path=package, db=db)
+    assert before_thumb and before_display
+    before_thumb_bytes = before_thumb.read_bytes()
+    before_display_bytes = before_display.read_bytes()
+
+    rotate = client.post(
+        f"/api/images/{page2.id}/operations/rotate",
+        json={"angle": 90, "expand": True, "page": 2},
+    )
+    assert rotate.status_code == 200, rotate.text
+
+    after_thumb = ensure_thumbnail(page2, package_path=package, db=db)
+    after_display = ensure_display(page2, package_path=package, db=db)
+    assert after_thumb and after_display
+    after_thumb_bytes = after_thumb.read_bytes()
+    after_display_bytes = after_display.read_bytes()
+    assert after_thumb_bytes != before_thumb_bytes, "thumbnail served stale"
+    assert after_display_bytes != before_display_bytes, "display served stale"
+
+    # Invalidation, not thrash: with nothing further changed the next call
+    # must return the SAME bytes rather than re-rendering the page each time.
+    assert ensure_thumbnail(page2, package_path=package, db=db).read_bytes() == after_thumb_bytes
+    assert ensure_display(page2, package_path=package, db=db).read_bytes() == after_display_bytes

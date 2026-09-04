@@ -379,7 +379,12 @@ def _resolve_thumbnail_cache_candidate(
 
     source_path = pdf_render[0] if pdf_render else source
     assert source_path is not None
-    source_mtime_ns = _source_mtime_ns(source_path)
+    # A PDF page's edits never touch the book on disk, so the chain's own
+    # version has to be part of the cache identity or the edit is invisible.
+    _ops, chain_ns = edit_chain_operations(
+        doc, db, page=(pdf_render[1] + 1) if pdf_render else 1
+    )
+    source_mtime_ns = max(_source_mtime_ns(source_path), chain_ns)
     cache_path = _thumbnail_cache_path(doc.id, size, source_mtime_ns, package_path)
 
     if cache_path.exists():
@@ -556,6 +561,29 @@ def resolve_source(
     return None
 
 
+def edit_chain_operations(
+    doc: "Document", db: "Database | None", *, page: int
+) -> tuple[list[dict], int]:
+    """Return a document's saved edits for one page, and their version in ns.
+
+    The version is what makes an edit VISIBLE in a cached rendition. A PDF
+    page's thumbnail and display image are keyed on the source PDF's mtime,
+    and editing a page does not touch the book on disk — so without mixing the
+    chain's own timestamp into that key, a rotated page keeps serving the
+    unrotated thumbnail for ever, and the edit reads as "didn't work".
+    """
+    if db is None:
+        return [], 0
+    from fichero_server.models import ImageEditChain
+
+    chains = list(db.query(ImageEditChain, document_id=doc.id))
+    if not chains:
+        return [], 0
+    chain = chains[0]
+    operations = [op for op in chain.operations if int(op.get("page", page)) == page]
+    return operations, int(chain.updated_at.timestamp() * 1_000_000_000)
+
+
 def resolve_edited_source(
     doc: "Document", db: "Database", *, page: int = 1
 ) -> Path | None:
@@ -696,14 +724,19 @@ def ensure_thumbnail(
             perf["cache_state"] = "missing_source"
             return None
 
-        source_mtime_ns = _source_mtime_ns(source_path)
+        operations, chain_ns = edit_chain_operations(
+            doc, db, page=(pdf_render[1] + 1) if pdf_render else 1
+        )
+        source_mtime_ns = max(_source_mtime_ns(source_path), chain_ns)
         cache_path = _thumbnail_cache_path(doc.id, settings.thumb_size, source_mtime_ns, package_path)
         perf["cache_state"] = "regenerated" if force else "miss"
         perf["source_mtime_ns"] = source_mtime_ns
 
         if pdf_render:
             pdf_path, page_index = pdf_render
-            result = _generate_pdf_image(pdf_path, page_index, cache_path, settings.thumb_size)
+            result = _generate_pdf_image(
+                pdf_path, page_index, cache_path, settings.thumb_size, operations
+            )
         else:
             result = _generate_image(source_path, cache_path, settings.thumb_size)
 
@@ -747,14 +780,22 @@ def ensure_display(
     if not source and not pdf_render:
         return None
 
+    operations, chain_ns = edit_chain_operations(
+        doc, db, page=(pdf_render[1] + 1) if pdf_render else 1
+    )
     if path.exists() and not force:
         source_mtime = pdf_render[0].stat().st_mtime if pdf_render else source.stat().st_mtime
+        # An edit is a newer revision of the page even though the file on disk
+        # is untouched; comparing the file alone serves a stale rendition.
+        source_mtime = max(source_mtime, chain_ns / 1_000_000_000)
         if source_mtime <= path.stat().st_mtime:
             return path
 
     if pdf_render:
         pdf_path, page_index = pdf_render
-        return _generate_pdf_image(pdf_path, page_index, path, settings.display_size)
+        return _generate_pdf_image(
+            pdf_path, page_index, path, settings.display_size, operations
+        )
 
     return _generate_image(source, path, settings.display_size)
 
@@ -764,8 +805,15 @@ def _generate_pdf_image(
     page_index: int,
     dest: Path,
     size: tuple[int, int],
+    operations: list[dict] | None = None,
 ) -> Path | None:
-    """Render a PDF page to a cached JPEG."""
+    """Render a PDF page to a cached JPEG, with its saved edits applied.
+
+    ``operations`` is the page's edit chain. Without it the editor and the
+    library disagreed about what a page looks like: rotating a PDF page
+    changed the editor's own preview and nothing else, because every other
+    rendition re-rendered straight from the book.
+    """
     _load_pil()
     if Image is None:
         return None
@@ -796,6 +844,12 @@ def _generate_pdf_image(
             scale = max(min(width_scale, height_scale), 0.1)
             pix = page.get_pixmap(matrix=fitz.Matrix(scale, scale), alpha=False)
             img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
+            if operations:
+                from fichero_server.media.image_ops import apply_operation
+
+                for operation in operations:
+                    img = apply_operation(img, operation)
+                img = img.convert("RGB")
             img.save(dest, "JPEG", quality=settings.quality)
 
         logger.info(
