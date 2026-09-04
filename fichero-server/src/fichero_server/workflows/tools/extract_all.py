@@ -18,6 +18,7 @@ workflow can move KG persistence into an explicit downstream `kg_writer` node.
 from __future__ import annotations
 
 import asyncio
+import re as _re
 import logging
 import time
 from collections import Counter
@@ -39,6 +40,7 @@ from fichero_server.knowledge.svo_quality import (
     MAX_VERB_WORDS,
     claim_rejection,
     trim_predicate,
+    ungrounded_span,
 )
 from fichero_server.loaders.rtf_text import to_plain_text
 from fichero_server.models import Artifact, Document, DocType, FileType
@@ -332,6 +334,15 @@ class _SVOClaim(BaseModel):
         default="",
         description="YYYY-MM-DD, YYYY-MM, YYYY or start/end range — only if the text states it.",
     )
+    # WHERE, when the text says so (#4670). Daniel: "John Smith was a movie
+    # star, in New York, in 1933" — a statement with no when and no where is a
+    # fact floating free of the page it came from, and the claim model has
+    # carried both scopes all along. Copied from the text like everything
+    # else: an inferred place is a guess the map would draw as a pin.
+    place: str = Field(
+        default="",
+        description="Place this claim happened, copied from the text — only if the text names one.",
+    )
 
 
 class _EntityClaims(BaseModel):
@@ -445,10 +456,14 @@ def _build_per_entity_claim_instructions(
         f"3. The exact source text where this claim appears, preserving any "
         f"   [ilegible] / [uncertain] markers and original accents exactly\n"
         f"4. The date, ONLY when the text itself states one for this claim: "
-        f"YYYY-MM-DD, YYYY-MM, YYYY, or 'start/end' for a span. Leave it "
-        f"empty otherwise — an inferred date is a guess wearing a fact's "
-        f"clothes, and it will be plotted on a timeline as though it were "
-        f"read off the page.\n\n"
+        f"YYYY-MM-DD, YYYY-MM, YYYY, or 'start/end' for a span.\n"
+        f"5. The place, ONLY when the text itself names where this claim "
+        f"happened — copied from the text, as it is written there.\n\n"
+        f"Leave a date or a place empty rather than working it out. An "
+        f"inferred scope is a guess wearing a fact's clothes: the timeline "
+        f"plots it as though it were read off the page, and the map draws it "
+        f"as a pin. A statement with no date is honest; a statement with the "
+        f"wrong one is not.\n\n"
         f"One assertion per claim: a sentence that says three things is three "
         f"claims, not one claim with three verbs. Write any commentary in "
         f"{output_language}; the verb and object stay in the source's "
@@ -485,6 +500,28 @@ async def _extract_entities_only(
     elapsed = time.monotonic() - call_start
     chunk_timings.append(elapsed)
     return extraction
+
+
+def _date_is_on_the_page(date: str, source_text: str | None) -> bool:
+    """Whether a claim's date was READ rather than reasoned (#4670).
+
+    A normalised date never appears verbatim — the page says "diez de abril de
+    mill e quinientos", the model returns "1560-04-10" — so the span rule that
+    governs verbs and objects cannot govern this. The checkable part is the
+    YEAR: four digits the transcription either contains or does not. A date
+    whose year is nowhere on the page was reasoned from context, and a
+    timeline draws a reasoned date exactly as it draws a read one.
+
+    Fail-open when there is no page text, and for a date with no four-digit
+    year to check (a bare "04" scopes nothing anyway).
+    """
+    if not source_text:
+        return True
+    years = _re.findall(r"\d{4}", date or "")
+    if not years:
+        return True
+    digits_on_page = _re.findall(r"\d{4}", source_text)
+    return any(year in digits_on_page for year in years)
 
 
 async def _extract_claims_for_entity(
@@ -531,6 +568,25 @@ async def _extract_claims_for_entity(
                     entity_name, rejection, verb, obj,
                 )
                 continue
+            # A SCOPE the page does not support is dropped, but the claim
+            # stays (#4670). The assertion is grounded; only its when/where
+            # was invented, and a fact without a date is honest where a fact
+            # with the wrong one is not. Dates are checked as digits, not as
+            # words: "1842" is on the page or it is not.
+            place = (claim.place or "").strip()
+            if place and ungrounded_span(place, chunk_text):
+                logger.info(
+                    "SVO scope dropped for %s: place %r is not on the page",
+                    entity_name, place,
+                )
+                place = ""
+            date = (claim.date or "").strip()
+            if date and not _date_is_on_the_page(date, chunk_text):
+                logger.info(
+                    "SVO scope dropped for %s: date %r is not on the page",
+                    entity_name, date,
+                )
+                date = ""
             kept.append({
                 "name": entity_name,
                 "verb": verb,
@@ -538,7 +594,8 @@ async def _extract_claims_for_entity(
                 "source_text": _annotate_pronoun_source(claim.source_text, entity_name),
                 "epistemic_status": claim.epistemic_status,
                 "claim_type": claim.claim_type,
-                "date_normalized": (claim.date or "").strip(),
+                "date_normalized": date,
+                "claim_location": place,
             })
         return kept
     except ProviderQuotaError:
@@ -1300,6 +1357,7 @@ def _build_entity_items_for_section(
                 "source_text": c.get("source_text", ""),
                 # The date is what makes an event a timeline row (#4667).
                 "date_normalized": c.get("date_normalized", ""),
+                "claim_location": c.get("claim_location", ""),
             }
             for c in claims
         ]
@@ -1312,6 +1370,7 @@ def _build_entity_items_for_section(
             "object": c.get("object", ""),
             "source_text": c.get("source_text", ""),
             "date_normalized": c.get("date_normalized", ""),
+            "claim_location": c.get("claim_location", ""),
         }
         for c in claims
     ]

@@ -2839,10 +2839,18 @@ def _write_kg_rows(
             claim_type=ctype or ClaimType.fact,
             metadata=meta,
             epistemic_status=epistemic,
+            # WHERE the claim happened (#4670). The extractor's own answer
+            # first — "in New York" is the claim's scope even when its subject
+            # is a person — falling back to the old rule that a location-typed
+            # subject IS its own place. This is also what the geocoder matches
+            # on, so a scoped statement becomes a pin.
             claim_location=(
-                canonical
-                if entity_type == EntityType.location and canonical
-                else None
+                clean_claim_text(item.get("claim_location") or "")
+                or (
+                    canonical
+                    if entity_type == EntityType.location and canonical
+                    else None
+                )
             ),
             # SVO promotion (#984): typed top-level fields. The
             # subject IS the entity, so subject_entity_id resolves
