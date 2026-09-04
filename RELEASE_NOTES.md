@@ -5,8 +5,16 @@
 ## 2026.09.04
 
 An overnight fix release built from one evening of live testing — nearly
-fifty root-caused fixes. This is 2026.09.04 (2), and it is the first build
-delivered as a Sparkle update to 2026.09.03 installs.
+fifty root-caused fixes.
+
+**Two downloads, from this release on.** **Fichero.dmg is the Public
+Alpha** — the recommended build: every feature that has proven itself
+(reading, search, markup, workflows, local and cloud AI models, the full
+Settings surface). **Fichero-dev.dmg is the Dev build** — the kitchen sink:
+all experimental surfaces on (chat, agents, spatial canvas, unfinished
+tools), sharp edges included. When alpha features prove out they graduate
+to beta; until then, Alpha is the public face. Both builds update
+themselves on their own channel.
 
 **Search finds, and shows you why:**
 - Fixed: Clicking a search result now opens the reader ON the matched
