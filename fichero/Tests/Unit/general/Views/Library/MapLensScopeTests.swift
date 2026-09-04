@@ -87,14 +87,22 @@ final class MapLensScopeTests: XCTestCase {
                 .appendingPathComponent("fichero-server/src/fichero_server/media/geo.py"),
             encoding: .utf8
         )
+        // An ENTRY, not a mention. This used to grep for the quoted token
+        // anywhere in the file, so a COMMENT explaining why provenance
+        // matters — "Condoto is ambiguous across countries" — failed the
+        // gate while the gazetteer was empty of it (2026-09-04). A guard
+        // that cries wolf on prose is a guard people learn to switch off,
+        // and this one protects a real refusal: no coordinate in that dict
+        // may come from a model's recollection.
         for place in ["condoto", "tamana", "andagoya", "istmina", "quibdo"] {
             XCTAssertFalse(
-                geo.lowercased().contains("\"\(place)\""),
+                geo.lowercased().contains("\"\(place)\":"),
                 """
-                \(place) entered the gazetteer. That is only correct if its \
-                coordinate came from a real gazetteer (GeoNames CO, Nominatim) \
-                rather than from a model's recollection — if it did, delete \
-                this assertion and record the source beside the entry.
+                \(place) entered the gazetteer as an entry. That is only \
+                correct if its coordinate came from a real gazetteer \
+                (GeoNames CO, Nominatim) rather than from a model's \
+                recollection — if it did, delete this assertion and record \
+                the source beside the entry.
                 """
             )
         }

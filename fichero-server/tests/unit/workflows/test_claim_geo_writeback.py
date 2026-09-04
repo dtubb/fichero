@@ -194,3 +194,49 @@ class TestGeocoderProvenance:
 
     def test_a_miss_is_absent_rather_than_guessed(self):
         assert geo.geocode_places_with_source(["???nowhere???"]) == {}
+
+
+class TestNoInventedCoordinates:
+    """Daniel's ruling: a coordinate may not come from a model's recollection.
+
+    The Swift guard (`MapLensScopeTests`) greps geo.py's source for these
+    names. That is a proxy, and on 2026-09-04 it convicted a COMMENT about
+    why provenance matters while the gazetteer held none of them. This checks
+    the DATA, which is what the rule is actually about and which no amount of
+    prose can trip.
+    """
+
+    #: The Chocó corpus's places — the obvious demo shortcut, and the one
+    #: place a plausible-looking wrong number would do the most damage: in
+    #: front of an audience, over real research data.
+    TEMPTING = (
+        "condoto", "tamana", "andagoya", "istmina", "quibdo",
+        "novita", "certegui", "opogodo", "bagado", "saija",
+    )
+
+    @pytest.mark.parametrize("place", TEMPTING)
+    def test_the_offline_gazetteer_holds_no_recalled_choco_coordinate(self, place):
+        from fichero_server.media.geo import _GAZETTEER
+
+        assert place not in _GAZETTEER, (
+            f"{place!r} has a coordinate in the offline gazetteer. That is "
+            "correct ONLY if it came from a real gazetteer (GeoNames CO, "
+            "Nominatim) and the source is recorded beside it — otherwise it "
+            "is a plausible number that will pin a claim into the wrong "
+            "river valley and look exactly as confident as a right one."
+        )
+
+    def test_an_unresolvable_name_returns_nothing_rather_than_a_guess(self):
+        from fichero_server.media.geo import geocode
+
+        # Offline: no network, no fallback, no approximation.
+        assert geocode("Condoto") is None
+        assert geocode("Opogodó") is None
+
+    def test_every_gazetteer_entry_is_a_real_lat_lon(self):
+        # A curated list stays checkable: bounds, and no placeholder zeros.
+        from fichero_server.media.geo import _GAZETTEER
+
+        for name, (lat, lon) in _GAZETTEER.items():
+            assert -90 <= lat <= 90 and -180 <= lon <= 180, name
+            assert (lat, lon) != (0.0, 0.0), f"{name} sits at Null Island"
