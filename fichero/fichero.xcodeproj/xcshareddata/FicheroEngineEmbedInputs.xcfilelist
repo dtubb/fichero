@@ -256,6 +256,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/llm/prompts.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/provider_validation.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/providers.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/usage.py
+$(SRCROOT)/../fichero-server/src/fichero_server/llm/whisper_runtime.py
 $(SRCROOT)/../fichero-server/src/fichero_server/loaders/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/loaders/base.py
 $(SRCROOT)/../fichero-server/src/fichero_server/loaders/docling_loader.py
@@ -296,6 +297,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/resources/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/bin/.gitignore
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/bin/fm-bridge
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/__init__.py
+$(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/backfill_text_geometry.json
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/capture_ocr_transcribe.json
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/catalogue.json
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/catalogue_stage_1_import_artifacts.json
@@ -353,6 +355,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/resources/prompts/catalogue/narr
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/resources/server.icns
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/resources/server.png
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/workflow_folders.json
+$(SRCROOT)/../fichero-server/src/fichero_server/resources/workflow_meta/preset_name_ledger.json
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/workflow_meta/preset_version_manifest.json
 $(SRCROOT)/../fichero-server/src/fichero_server/retrieval/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/retrieval/graph_rag.py
@@ -508,6 +511,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/summarize.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/table_extract.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/tags.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/text_cleaning.py
+$(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/text_passes.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/text_reflow.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/text_translate.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/tools/text_translate_review.py
