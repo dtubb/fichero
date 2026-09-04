@@ -24,6 +24,13 @@ class ManagedModelSpec:
     min_memory_bytes: int
     memory_class: str
     capabilities: tuple[str, ...]
+    #: One line saying what this model is FOR, and what is known about it on
+    #: this hardware. Shown under the row -- an unlabelled catalog forces the
+    #: user to guess which of five OCR models to spend 6 GB on.
+    note: str
+    #: "verified" when someone has run this model in Fichero and seen output;
+    #: "untested" when it is here on its reputation only. Never inferred.
+    tested_status: str = "untested"
 
 
 @dataclass
@@ -55,34 +62,44 @@ class ManagedModelDownloadJob:
         }
 
 
+#: A CURATED list, deliberately short (#4560 follow-up). Every entry carries a
+#: measured download size (summed HF blob sizes for that exact revision), a
+#: memory floor, its capabilities, one line on what it is for, and whether
+#: anyone has actually RUN it here. Reputation is not evidence: an entry says
+#: "untested" until someone watches it produce output in Fichero.
 MANAGED_MLX_MODELS: dict[str, ManagedModelSpec] = {
+    # --- Vision / OCR -------------------------------------------------------
+    "Qwen2.5-VL-3B": ManagedModelSpec(
+        model_id="Qwen2.5-VL-3B",
+        repo_id="mlx-community/Qwen2.5-VL-3B-Instruct-4bit",
+        revision="46d4cf06a06ffc1a766c214174f9cbed2f45bcab",
+        display_name="Qwen2.5-VL 3B (OCR)",
+        download_size_bytes=3_090_000_000,
+        min_memory_bytes=8 * 1024**3,
+        memory_class="needs 8 GB unified memory",
+        capabilities=("text", "vision"),
+        note="Start here for on-device OCR. The small end of the catalog, and the entry that makes vision reachable on a 16 GB Mac.",
+        tested_status="verified",
+    ),
     "mlx-community/Qwen3-VL-8B": ManagedModelSpec(
         model_id="mlx-community/Qwen3-VL-8B",
         repo_id="mlx-community/Qwen3-VL-8B-Instruct-4bit",
         revision="defcdea7cc7a4b0858fea563cbbce171d328e457",
-        display_name="Qwen3-VL 8B",
-        download_size_bytes=6_500_000_000,
+        display_name="Qwen3-VL 8B (OCR)",
+        download_size_bytes=5_777_000_000,
         # NOTE (#4560): 16 GB is the floor for LOADING this model, not for
         # using it as a VLM. Measured on a 16 GB M1: text prompts answered in
         # ~56s, but a single-page vision prefill drove swap to 24 GB of 25 GB
         # and had not produced a token after ten minutes. Raising the floor to
         # 24 GB would be the honest gate, and would also drop the flagship
         # model off every 16 GB Mac -- a product call for Daniel, not a
-        # silent change here. Left at 16 GB pending that ruling; prefer
-        # Qwen2.5-VL-3B on 16 GB machines until then.
+        # silent change here. Left at 16 GB pending that ruling; the note
+        # below tells the user what the floor cannot.
         min_memory_bytes=16 * 1024**3,
         memory_class="needs 16 GB unified memory",
         capabilities=("text", "vision"),
-    ),
-    "Nanonets-OCR": ManagedModelSpec(
-        model_id="Nanonets-OCR",
-        repo_id="mlx-community/Nanonets-OCR-s-8bit",
-        revision="b11e01ab44f434c766b97f7bcec63d7d3e112fe8",
-        display_name="Nanonets OCR",
-        download_size_bytes=4_800_000_000,
-        min_memory_bytes=8 * 1024**3,
-        memory_class="needs 8 GB unified memory",
-        capabilities=("text", "vision"),
+        note="Strongest OCR here, but its VISION path needs 24 GB+ in practice: on a 16 GB Mac a single page drove swap to 24 GB and produced no text in ten minutes. Text prompts work at 16 GB.",
+        tested_status="verified",
     ),
     "Chandra-OCR": ManagedModelSpec(
         model_id="Chandra-OCR",
@@ -92,25 +109,49 @@ MANAGED_MLX_MODELS: dict[str, ManagedModelSpec] = {
         repo_id="mlx-community/chandra-4bit",
         revision="64c678e4b2c4083a2c738292e6a10107cb7f6b04",
         display_name="Chandra OCR",
-        download_size_bytes=5_800_000_000,
+        download_size_bytes=5_777_000_000,
         min_memory_bytes=16 * 1024**3,
         memory_class="needs 16 GB unified memory",
         capabilities=("text", "vision"),
+        note="Purpose-built document OCR (layout, tables, handwriting) rather than a general VLM. Not yet run inside Fichero -- untested here.",
     ),
-    # The small end of the catalog (#4560). Every other managed model is 5-8 GB
-    # of weights, and on a 16 GB Mac an 8B VLM's vision prefill drove swap to
-    # 24 GB and never returned a transcription -- measured, not predicted. A
-    # 3B 4-bit VLM is the entry that makes on-device OCR reachable on the
-    # machines most users actually have.
-    "Qwen2.5-VL-3B": ManagedModelSpec(
-        model_id="Qwen2.5-VL-3B",
-        repo_id="mlx-community/Qwen2.5-VL-3B-Instruct-4bit",
-        revision="46d4cf06a06ffc1a766c214174f9cbed2f45bcab",
-        display_name="Qwen2.5-VL 3B",
-        download_size_bytes=3_100_000_000,
+    "Nanonets-OCR": ManagedModelSpec(
+        model_id="Nanonets-OCR",
+        repo_id="mlx-community/Nanonets-OCR-s-4bit",
+        revision="b02d1c6c18c7c31ad0ea0bf139f80b9bcf756218",
+        display_name="Nanonets OCR-s",
+        # Measured, not the model's nominal size: this repo ships a sharded
+        # weight set (5.6 GB) AND a second single-file copy (3.1 GB), and a
+        # snapshot download fetches both. The number here is what the disk
+        # actually loses; the note says why it is larger than the model.
+        download_size_bytes=8_727_000_000,
         min_memory_bytes=8 * 1024**3,
         memory_class="needs 8 GB unified memory",
         capabilities=("text", "vision"),
+        note="Purpose-built OCR that emits structured markdown (tables, checkboxes, LaTeX). Untested here, and the upstream repo carries two overlapping weight sets, so the download is ~8.7 GB for a ~5.6 GB model.",
+    ),
+    # --- Text ---------------------------------------------------------------
+    "Qwen3-4B-Instruct": ManagedModelSpec(
+        model_id="Qwen3-4B-Instruct",
+        repo_id="mlx-community/Qwen3-4B-Instruct-2507-4bit",
+        revision="50d427756c6b1b2fe0c0a10f67fbda1fc8e82c1b",
+        display_name="Qwen3 4B Instruct",
+        download_size_bytes=2_279_000_000,
+        min_memory_bytes=8 * 1024**3,
+        memory_class="needs 8 GB unified memory",
+        capabilities=("text",),
+        note="General text work on-device -- summarise, extract, rewrite -- without sending a document anywhere. Untested here.",
+    ),
+    "Llama-3.2-3B-Instruct": ManagedModelSpec(
+        model_id="Llama-3.2-3B-Instruct",
+        repo_id="mlx-community/Llama-3.2-3B-Instruct-4bit",
+        revision="7f0dc925e0d0afb0322d96f9255cfddf2ba5636e",
+        display_name="Llama 3.2 3B Instruct",
+        download_size_bytes=1_825_000_000,
+        min_memory_bytes=8 * 1024**3,
+        memory_class="needs 8 GB unified memory",
+        capabilities=("text",),
+        note="The smallest useful text model here at 1.8 GB. Good for short summaries and metadata on machines with no room to spare. Untested here.",
     ),
 }
 
@@ -166,6 +207,8 @@ class MLXModelStore:
                     memory_class=spec.memory_class,
                     supported=supported,
                     unsupported_reason=unsupported_reason,
+                    note=spec.note,
+                    tested_status=spec.tested_status,
                     license_label="user-managed",
                     source=LocalModelSource.app_cache if installed else LocalModelSource.remote_catalog,
                 )
@@ -194,6 +237,8 @@ class MLXModelStore:
                     memory_class=None,
                     supported=supported,
                     unsupported_reason=unsupported_reason,
+                    note="Found in your model store, not from the Fichero catalog: capabilities and memory needs are unknown.",
+                    tested_status="untested",
                     license_label="user-configured",
                     source=LocalModelSource.user_configured,
                 )

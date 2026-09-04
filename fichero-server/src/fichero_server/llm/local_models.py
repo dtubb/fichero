@@ -26,6 +26,16 @@ from fichero_server.db.embeddings import (
     SUPPORTED_EMBEDDING_SPACES,
 )
 from fichero_server.db.paths import server_state_dir
+from fichero_server.llm.whisper_runtime import (
+    WHISPER_MLX_MODELS,
+    audio_runtime_status,
+    delete_whisper_model as _delete_whisper_snapshot,
+    download_state,
+    download_whisper_model as _download_whisper_snapshot,
+    installed_bytes as _whisper_installed_bytes,
+    snapshot_path as _whisper_snapshot_path,
+    total_disk_usage_bytes as _whisper_total_bytes,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -44,13 +54,20 @@ MODELS_BASE = server_state_dir() / "models"
 # Model Catalogs
 # =============================================================================
 
+#: Derived from the ONE Whisper catalog (``whisper_runtime``), which owns the
+#: repos, revisions, measured sizes and the one-line "why" for each model. This
+#: mapping stays only because callers and tests read it by name; it is no
+#: longer a second, drifting source of truth.
 WHISPER_MODELS: dict[str, dict] = {
-    "tiny": {"params": "39M", "disk_mb": 75, "speed": "~10x realtime"},
-    "base": {"params": "74M", "disk_mb": 142, "speed": "~7x realtime"},
-    "small": {"params": "244M", "disk_mb": 466, "speed": "~4x realtime"},
-    "medium": {"params": "769M", "disk_mb": 1500, "speed": "~2x realtime"},
-    "large-v3": {"params": "1550M", "disk_mb": 2900, "speed": "1x realtime"},
-    "turbo": {"params": "809M", "disk_mb": 1500, "speed": "~8x realtime"},
+    model_id: {
+        "params": model_spec.params,
+        "disk_mb": round(model_spec.download_size_bytes / 1_000_000),
+        "speed": model_spec.speed,
+        "repo_id": model_spec.repo_id,
+        "note": model_spec.note,
+        "runtime": "mlx-whisper",
+    }
+    for model_id, model_spec in WHISPER_MLX_MODELS.items()
 }
 
 
@@ -177,6 +194,15 @@ class LocalModelInfo:
     expected_size_mb: int
     path: str | None
     metadata: dict = field(default_factory=dict)
+    #: What this model is FOR, in one line -- shown under the row.
+    note: str | None = None
+    #: False when the row cannot act: no transcriber runtime, unsupported Mac.
+    available: bool = True
+    unavailable_reason: str | None = None
+    #: idle | downloading | failed | installed. A background download that
+    #: failed used to disappear silently; now the row says so.
+    download_state: str = "idle"
+    download_error: str | None = None
 
     def to_dict(self) -> dict:
         """Convert to serializable dict."""
@@ -189,6 +215,11 @@ class LocalModelInfo:
             "expected_size_mb": self.expected_size_mb,
             "path": self.path,
             "metadata": self.metadata,
+            "note": self.note,
+            "available": self.available,
+            "unavailable_reason": self.unavailable_reason,
+            "download_state": self.download_state,
+            "download_error": self.download_error,
         }
 
 
@@ -221,52 +252,50 @@ class LocalModelManager:
     # =========================================================================
 
     def list_whisper_models(self) -> list[LocalModelInfo]:
-        """List all Whisper models (available and downloaded)."""
-        results = []
-        for name, info in WHISPER_MODELS.items():
-            # Whisper stores models as {name}.pt
-            model_file = self.whisper_path / f"{name}.pt"
-            is_downloaded = model_file.exists()
-            size = model_file.stat().st_size if is_downloaded else 0
+        """List all Whisper models, and say honestly which ones can act.
 
+        Every row used to offer a Download button that could not work: the
+        download called ``whisper.load_model`` in an env with no
+        openai-whisper. The models now come from the MLX runtime, so a runtime
+        without a transcriber makes each row say why it is inert instead of
+        failing silently in a background task.
+        """
+        runtime = audio_runtime_status()
+        runtime_ready = bool(runtime["ready"])
+        runtime_reason = runtime["reason"]
+        results = []
+        for name, model_spec in WHISPER_MLX_MODELS.items():
+            snapshot = _whisper_snapshot_path(model_spec)
+            is_downloaded = snapshot.exists()
+            state, error = download_state(name)
             results.append(
                 LocalModelInfo(
                     model_id=name,
                     model_type=ModelType.WHISPER.value,
-                    display_name=f"Whisper {name} ({info['params']} params)",
-                    size_bytes=size,
+                    display_name=f"{model_spec.display_name} ({model_spec.params} params)",
+                    size_bytes=_whisper_installed_bytes(name) if is_downloaded else 0,
                     is_downloaded=is_downloaded,
-                    expected_size_mb=info["disk_mb"],
-                    path=str(model_file) if is_downloaded else None,
-                    metadata=info,
+                    expected_size_mb=round(model_spec.download_size_bytes / 1_000_000),
+                    path=str(snapshot) if is_downloaded else None,
+                    metadata=WHISPER_MODELS[name],
+                    note=f"{model_spec.note} ({model_spec.speed})",
+                    # A downloaded model stays actionable (it can be deleted)
+                    # even when the runtime is missing its transcriber.
+                    available=runtime_ready or is_downloaded,
+                    unavailable_reason=None if runtime_ready else str(runtime_reason),
+                    download_state="installed" if is_downloaded else state,
+                    download_error=error,
                 )
             )
         return results
 
     def download_whisper_model(self, model_size: str) -> None:
-        """Download a Whisper model to managed storage.
+        """Download a Whisper model into the shared store via the MLX runtime.
 
         Args:
             model_size: One of: tiny, base, small, medium, large-v3, turbo
         """
-        if model_size not in WHISPER_MODELS:
-            raise ValueError(
-                f"Unknown Whisper model: {model_size}. "
-                f"Available: {', '.join(WHISPER_MODELS.keys())}"
-            )
-
-        try:
-            import whisper
-        except ImportError:
-            raise ImportError(
-                "openai-whisper is not installed. "
-                "Install with: pip install openai-whisper"
-            )
-
-        download_root = str(self.whisper_path)
-        logger.info(f"Downloading Whisper model '{model_size}' to {download_root}")
-        whisper.load_model(model_size, download_root=download_root)
-        logger.info(f"Whisper model '{model_size}' downloaded successfully")
+        _download_whisper_snapshot(model_size)
 
     def delete_whisper_model(self, model_size: str) -> int:
         """Delete a downloaded Whisper model.
@@ -277,13 +306,7 @@ class LocalModelManager:
         Returns:
             Number of bytes freed
         """
-        model_file = self.whisper_path / f"{model_size}.pt"
-        if model_file.exists():
-            size = model_file.stat().st_size
-            model_file.unlink()
-            logger.info(f"Deleted Whisper model '{model_size}' ({size} bytes)")
-            return size
-        return 0
+        return _delete_whisper_snapshot(model_size)
 
     # =========================================================================
     # Embeddings Models (FastEmbed)
@@ -396,7 +419,7 @@ class LocalModelManager:
         Returns:
             Dict with whisper, embeddings, and total byte counts.
         """
-        whisper_bytes = sum(m.size_bytes for m in self.list_whisper_models())
+        whisper_bytes = _whisper_total_bytes()
         embeddings_bytes = sum(m.size_bytes for m in self.list_embeddings_models())
         return {
             "whisper": whisper_bytes,

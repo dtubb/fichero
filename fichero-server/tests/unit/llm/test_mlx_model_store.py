@@ -208,3 +208,40 @@ def test_catalog_marks_unsupported_when_memory_floor_is_missed(tmp_path: Path, m
 
     assert entries["mlx-community/Qwen3-VL-8B"].supported is False
     assert "16 GB unified memory" in entries["mlx-community/Qwen3-VL-8B"].unsupported_reason
+
+
+def test_the_catalog_is_curated_and_labels_every_entry_honestly() -> None:
+    """A model list without labels makes the user guess which 6 GB to spend.
+
+    Every managed entry must carry the three facts that decide the download:
+    what it is for, what it costs in memory, and whether anyone has actually
+    run it here. "untested" is the default on purpose -- a model's reputation
+    is not evidence that it works in Fichero.
+    """
+    assert len(MANAGED_MLX_MODELS) <= 8, "the catalog is curated, not a mirror of mlx-community"
+    for model_id, spec in MANAGED_MLX_MODELS.items():
+        assert spec.model_id == model_id
+        assert len(spec.revision) == 40, f"{model_id} must pin a commit, not a moving branch"
+        assert spec.capabilities, f"{model_id} must say what it can do"
+        assert set(spec.capabilities) <= {"text", "vision", "audio"}
+        assert spec.note.strip(), f"{model_id} must say what it is for"
+        assert spec.tested_status in {"verified", "untested"}
+        assert spec.memory_class.startswith("needs ")
+        assert spec.download_size_bytes > 0
+
+
+def test_the_catalog_covers_both_a_vision_tier_and_a_text_tier() -> None:
+    capabilities = {cap for spec in MANAGED_MLX_MODELS.values() for cap in spec.capabilities}
+    assert {"text", "vision"} <= capabilities
+    text_only = [s for s in MANAGED_MLX_MODELS.values() if s.capabilities == ("text",)]
+    assert text_only, "a text-only tier exists so text work is not run on an OCR VLM"
+
+
+def test_the_8b_vision_entry_warns_that_its_floor_is_not_its_working_memory() -> None:
+    """Measured on a 16 GB M1: vision prefill swapped to 24 GB and never returned.
+
+    The floor stays at 16 GB pending a product call, so the LABEL is the only
+    thing standing between a 16 GB user and a ten-minute hang.
+    """
+    spec = MANAGED_MLX_MODELS["mlx-community/Qwen3-VL-8B"]
+    assert "24 GB" in spec.note

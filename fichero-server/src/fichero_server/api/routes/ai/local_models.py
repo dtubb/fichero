@@ -79,6 +79,14 @@ def download_model(
                 status_code=400,
                 detail=f"Unknown Whisper model: {model_id}. Available: {', '.join(WHISPER_MODELS.keys())}",
             )
+        # Refuse NOW rather than queueing work that cannot run. The download
+        # happens in a BackgroundTask, so a runtime with no transcriber used to
+        # answer 200 "downloading" and then fail where no one could see it.
+        from fichero_server.llm.whisper_runtime import audio_runtime_status
+
+        runtime = audio_runtime_status()
+        if not runtime["ready"]:
+            raise HTTPException(status_code=409, detail=str(runtime["reason"]))
     elif model_type == "embeddings":
         if model_id not in EMBEDDINGS_MODELS:
             raise HTTPException(

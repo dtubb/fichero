@@ -71,7 +71,23 @@ struct LocalInferenceSettingsView: View {
             }
 
             if let version = runtime?.mlxLmVersion, !version.isEmpty {
-                LabeledContent("mlx-lm", value: version)
+                LabeledContent("mlx-lm (text)", value: version)
+            }
+            if let version = runtime?.mlxVlmVersion, !version.isEmpty {
+                LabeledContent("mlx-vlm (vision)", value: version)
+            }
+            // Audio is its own capability: a runtime can serve every text and
+            // vision model in the catalog with no transcriber installed, so it
+            // is not "unprovisioned" — it just cannot transcribe, and says so
+            // here rather than failing when someone runs a Whisper workflow.
+            if let version = runtime?.mlxWhisperVersion, !version.isEmpty {
+                LabeledContent("mlx-whisper (audio)", value: version)
+            } else if runtime?.provisioned == true {
+                LabeledContent("mlx-whisper (audio)") {
+                    Text("Not installed — Provision again to add transcription")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
             if let bytes = runtime?.diskUsageBytes, bytes > 0 {
                 LabeledContent("Disk usage", value: Self.formatBytes(bytes))
@@ -119,17 +135,35 @@ struct LocalInferenceSettingsView: View {
             installed: entry.installed
         )
         HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(entry.displayName)
-                    .font(.body)
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    Text(entry.displayName)
+                        .font(.body)
+                    ForEach(entry.capabilities ?? [], id: \.self) { capability in
+                        CapabilityChip(capability: capability)
+                    }
+                    if entry.testedStatus == "untested" {
+                        // Never claim a model works here on its reputation.
+                        Text("untested")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .help("Nobody has run this model inside Fichero yet.")
+                    }
+                }
+                // Size and memory floor together: the two numbers that decide
+                // whether a download is worth starting on THIS Mac.
+                Text(Self.subtitle(for: entry))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 if row.disabled, let reason = row.unsupportedReason {
                     Text(reason)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                } else if let size = entry.downloadSizeBytes ?? entry.diskUsageBytes, size > 0 {
-                    Text(Self.formatBytes(size))
+                } else if let note = entry.note, !note.isEmpty {
+                    Text(note)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
             Spacer()
@@ -224,10 +258,56 @@ struct LocalInferenceSettingsView: View {
         }
     }
 
+    /// "5.8 GB · needs 16 GB unified memory" — the mapping itself lives in
+    /// `LocalInferenceDisplay` so it can be tested without the generated type.
+    static func subtitle(for entry: Components.Schemas.LocalModelCatalogEntry) -> String {
+        LocalInferenceDisplay.subtitle(
+            downloadSizeBytes: entry.downloadSizeBytes,
+            diskUsageBytes: entry.diskUsageBytes,
+            memoryClass: entry.memoryClass,
+            format: formatBytes
+        )
+    }
+
     static func formatBytes(_ bytes: Int) -> String {
         let formatter = ByteCountFormatter()
         formatter.countStyle = .file
         return formatter.string(fromByteCount: Int64(bytes))
+    }
+}
+
+// MARK: - Capability Chip
+
+/// What a model can actually DO, said on the row instead of left to the name.
+/// A catalog of five OCR-looking names with no capability marks makes the user
+/// guess which one reads an image and which one only takes text.
+struct CapabilityChip: View {
+    let capability: String
+
+    var body: some View {
+        Label(label, systemImage: symbol)
+            .font(.caption2)
+            .labelStyle(.titleAndIcon)
+            .foregroundStyle(.secondary)
+            .help(help)
+    }
+
+    private var label: String { LocalInferenceDisplay.capabilityLabel(capability) }
+
+    private var symbol: String {
+        switch capability {
+        case "vision": return "eye"
+        case "audio": return "waveform"
+        default: return "text.alignleft"
+        }
+    }
+
+    private var help: String {
+        switch capability {
+        case "vision": return "Reads images and page scans."
+        case "audio": return "Transcribes audio."
+        default: return "Reads and writes text."
+        }
     }
 }
 

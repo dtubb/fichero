@@ -119,3 +119,89 @@ final class LocalInferenceDisplayTests: XCTestCase {
         XCTAssertEqual(LocalInferenceDisplay.progressFraction(current: nil, total: nil, percent: -10), 0)
     }
 }
+
+// MARK: - Catalog labels (#4560 follow-up)
+
+/// The catalog used to render five OCR-looking names with a byte count and
+/// nothing else: no capability, no memory floor, no reason to pick one. These
+/// pin the labels that make a 6 GB download a decision rather than a gamble.
+final class LocalInferenceCatalogLabelTests: XCTestCase {
+
+    private func bytes(_ value: Int) -> String { "\(value) B" }
+
+    func testSubtitleJoinsSizeAndMemoryFloor() {
+        let subtitle = LocalInferenceDisplay.subtitle(
+            downloadSizeBytes: 42,
+            diskUsageBytes: nil,
+            memoryClass: "needs 16 GB unified memory",
+            format: bytes
+        )
+        XCTAssertEqual(subtitle, "42 B · needs 16 GB unified memory")
+    }
+
+    func testSubtitleFallsBackToDiskUsageForInstalledModels() {
+        let subtitle = LocalInferenceDisplay.subtitle(
+            downloadSizeBytes: nil,
+            diskUsageBytes: 7,
+            memoryClass: nil,
+            format: bytes
+        )
+        XCTAssertEqual(subtitle, "7 B")
+    }
+
+    func testSubtitleOmitsWhatTheBackendDidNotState() {
+        // A user-configured model in the store has neither a published size
+        // nor a floor. Inventing either would be worse than saying nothing.
+        XCTAssertEqual(
+            LocalInferenceDisplay.subtitle(downloadSizeBytes: nil, diskUsageBytes: 0, memoryClass: "", format: bytes),
+            ""
+        )
+    }
+
+    func testCapabilityLabels() {
+        XCTAssertEqual(LocalInferenceDisplay.capabilityLabel("vision"), "OCR / vision")
+        XCTAssertEqual(LocalInferenceDisplay.capabilityLabel("audio"), "audio")
+        XCTAssertEqual(LocalInferenceDisplay.capabilityLabel("text"), "text")
+    }
+
+    func testAnUnknownCapabilityReadsAsTextRatherThanBlank() {
+        XCTAssertEqual(LocalInferenceDisplay.capabilityLabel("telepathy"), "text")
+    }
+}
+
+/// The Whisper rows decode the honesty fields the backend now sends. An older
+/// engine omits them entirely, and the row must still decode with safe
+/// defaults rather than failing the whole Settings pane.
+final class LocalModelStatusDecodingTests: XCTestCase {
+
+    private func decode(_ json: String) throws -> LocalModelStatus {
+        try JSONDecoder().decode(LocalModelStatus.self, from: Data(json.utf8))
+    }
+
+    func testDecodesTheUnavailableReasonAndNote() throws {
+        let model = try decode("""
+        {"model_id": "tiny", "model_type": "whisper", "display_name": "Whisper tiny",
+         "size_bytes": 0, "is_downloaded": false, "expected_size_mb": 74, "path": null,
+         "note": "Fastest and least accurate.", "available": false,
+         "unavailable_reason": "The MLX runtime has no transcriber yet.",
+         "download_state": "failed", "download_error": "RepositoryNotFoundError"}
+        """)
+
+        XCTAssertEqual(model.available, false)
+        XCTAssertEqual(model.unavailableReason, "The MLX runtime has no transcriber yet.")
+        XCTAssertEqual(model.note, "Fastest and least accurate.")
+        XCTAssertEqual(model.downloadState, "failed")
+        XCTAssertEqual(model.downloadError, "RepositoryNotFoundError")
+    }
+
+    func testAnOlderEngineWithoutTheHonestyFieldsStillDecodes() throws {
+        let model = try decode("""
+        {"model_id": "base", "model_type": "whisper", "display_name": "Whisper base",
+         "size_bytes": 0, "is_downloaded": false, "expected_size_mb": 144, "path": null}
+        """)
+
+        XCTAssertNil(model.available, "absent means 'no opinion', which the row reads as available")
+        XCTAssertNil(model.unavailableReason)
+        XCTAssertNil(model.downloadState)
+    }
+}

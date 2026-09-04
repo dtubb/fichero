@@ -30,6 +30,15 @@ struct LocalModelsSettingsView: View {
                 }
             } else {
                 Section("Whisper (Audio Transcription)") {
+                    // One header line for a whole-section fact: with no
+                    // transcriber in the MLX runtime, every Download below is
+                    // inert. It used to look identical to a working button and
+                    // failed invisibly in a background task.
+                    if let reason = whisperModels.compactMap(\.unavailableReason).first {
+                        Label(reason, systemImage: "exclamationmark.triangle")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                     ForEach(whisperModels) { model in
                         localModelRow(model: model, type: "whisper")
                     }
@@ -74,18 +83,26 @@ struct LocalModelsSettingsView: View {
 
     @ViewBuilder
     private func localModelRow(model: LocalModelStatus, type: String) -> some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(model.displayName)
                     .font(.body)
-                if model.isDownloaded {
-                    Text(formatBytes(model.sizeBytes))
+                Text(model.isDownloaded ? formatBytes(model.sizeBytes) : "~\(model.expectedSizeMb) MB")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if let note = model.note, !note.isEmpty {
+                    Text(note)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                } else {
-                    Text("~\(model.expectedSizeMb) MB")
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                // A background download that failed used to leave the row
+                // unchanged forever. Now it says what happened.
+                if model.downloadState == "failed", let failure = model.downloadError {
+                    Text(failure)
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.red)
+                        .textSelection(.enabled)
                 }
             }
 
@@ -99,13 +116,20 @@ struct LocalModelsSettingsView: View {
                 }
                 .buttonStyle(.borderless)
                 .foregroundStyle(.red)
+            } else if model.downloadState == "downloading" {
+                ProgressView().controlSize(.small)
             } else {
                 Button("Download") {
                     Task { await downloadModel(type: type, modelId: model.modelId) }
                 }
                 .buttonStyle(.borderless)
+                // Disabled rather than failing silently: the section header
+                // above says what to do about it.
+                .disabled(!(model.available ?? true))
+                .help(model.unavailableReason ?? "")
             }
         }
+        .opacity((model.available ?? true) ? 1 : 0.5)
     }
 
     private func loadModels() async {
@@ -139,11 +163,29 @@ struct LocalModelsSettingsView: View {
             switch response {
             case .ok:
                 await loadModels()
+                await followDownload(type: type, modelId: modelId)
             case .unprocessableContent, .undocumented:
                 errorMessage = "Download failed"
             }
         } catch {
             errorMessage = "Download failed: \(error.localizedDescription)"
+        }
+    }
+
+    /// The download endpoint returns the moment the work is QUEUED — the model
+    /// arrives (or fails) minutes later in a background task. Without this the
+    /// row sat at "Download" until the user navigated away and back, which is
+    /// exactly how the old broken Whisper downloads stayed invisible.
+    private func followDownload(type: String, modelId: String) async {
+        // Only Whisper rows report a download state today; polling a row that
+        // can never change it would be a silent 30-minute spin.
+        guard type == "whisper" else { return }
+        for _ in 0..<900 {
+            guard !Task.isCancelled else { return }
+            let state = whisperModels.first { $0.modelId == modelId }?.downloadState
+            guard state == "downloading" || state == "idle" else { return }
+            try? await Task.sleep(for: .seconds(2))
+            await loadModels()
         }
     }
 
@@ -175,7 +217,12 @@ struct LocalModelsSettingsView: View {
                     sizeBytes: model.sizeBytes,
                     isDownloaded: model.isDownloaded,
                     expectedSizeMb: model.expectedSizeMb,
-                    path: model.path
+                    path: model.path,
+                    note: model.note,
+                    available: model.available,
+                    unavailableReason: model.unavailableReason,
+                    downloadState: model.downloadState,
+                    downloadError: model.downloadError
                 )
             }
         case .unprocessableContent:
@@ -231,6 +278,16 @@ struct LocalModelStatus: Codable, Identifiable {
     let isDownloaded: Bool
     let expectedSizeMb: Int
     let path: String?
+    /// What the model is for, in one line.
+    var note: String?
+    /// Whether this row's buttons can actually do anything right now.
+    /// Optional, not defaulted: Swift's synthesized decoder throws on a
+    /// missing non-optional key, and an older engine sends none of these.
+    var available: Bool?
+    var unavailableReason: String?
+    /// idle | downloading | failed | installed.
+    var downloadState: String?
+    var downloadError: String?
 
     var id: String { "\(modelType)/\(modelId)" }
 
@@ -242,6 +299,11 @@ struct LocalModelStatus: Codable, Identifiable {
         case isDownloaded = "is_downloaded"
         case expectedSizeMb = "expected_size_mb"
         case path
+        case note
+        case available
+        case unavailableReason = "unavailable_reason"
+        case downloadState = "download_state"
+        case downloadError = "download_error"
     }
 }
 

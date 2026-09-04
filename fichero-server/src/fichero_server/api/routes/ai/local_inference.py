@@ -74,8 +74,14 @@ class LocalInferenceRuntimeJobResponse(BaseModel):
 
 class LocalInferenceRuntimeStatusResponse(BaseModel):
     provisioned: bool
+    #: Audio is reported separately from `provisioned`: a runtime with mlx-lm
+    #: and mlx-vlm can serve every text and vision model in the catalog even
+    #: with no transcriber installed, so it is not "unprovisioned" -- it just
+    #: cannot do audio, and says so.
+    audio_ready: bool = False
     mlx_lm_version: str | None = None
     mlx_vlm_version: str | None = None
+    mlx_whisper_version: str | None = None
     disk_usage_bytes: int = Field(default=0, ge=0)
     python_path: str | None = None
     runtime_dir: str

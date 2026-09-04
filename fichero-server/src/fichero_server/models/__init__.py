@@ -2040,6 +2040,15 @@ class LocalModelInfoResponse(BaseModel):
     expected_size_mb: int
     path: str | None
     metadata: dict[str, Any]
+    #: One line on what the model is for and what it costs in time.
+    note: str | None = None
+    #: False when this row's buttons cannot act -- e.g. no transcriber runtime.
+    #: The row says why instead of offering a Download that silently fails.
+    available: bool = True
+    unavailable_reason: str | None = None
+    #: idle | downloading | failed | installed.
+    download_state: str = "idle"
+    download_error: str | None = None
 
 
 class LocalModelListResponse(BaseModel):

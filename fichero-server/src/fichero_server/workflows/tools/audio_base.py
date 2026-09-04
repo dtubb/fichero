@@ -7,7 +7,7 @@ All audio tools inherit from here.
 Provides:
 - AUDIO_INPUT_PORTS (inherits BASE + adds files)
 - AUDIO_CONFIG_SCHEMA (inherits BASE + adds audio_mode, language, whisper_model_size)
-- Local Whisper transcription (openai-whisper)
+- Local Whisper transcription (mlx-whisper, in the managed MLX runtime venv)
 - Apple Speech Recognition (macOS SFSpeechRecognizer)
 - Remote transcription (via LiteLLM/provider APIs)
 - process_audio() - shared processing for all audio tools
@@ -27,6 +27,7 @@ from typing import Any
 
 from fichero_server.llm import LLMConfig, audio_transcription
 from fichero_server.db.paths import server_state_dir
+from fichero_server.llm.whisper_runtime import transcribe_sync
 
 from fichero_server.workflows.types import PortDef, DataType
 
@@ -51,14 +52,9 @@ logger = logging.getLogger(__name__)
 # a per-library, scattered, or stale-bundle-id path. Canonical: local_models.py.
 MODELS_BASE = server_state_dir() / "models"
 
-# Process-global Whisper cache, keyed by the model identity and runtime target.
-#
-# Whisper models are large and expensive to load. The audio tools create a new
-# transcription task per file, so constructing the model inside the sync helper
-# reloaded it on every call. Cache the loaded object here so all callers in the
-# process share one copy per (model_size, download_root, device).
-_WHISPER_MODEL_CACHE: dict[tuple[str, str, str | None], Any] = {}
-_WHISPER_MODEL_CACHE_LOCK = threading.Lock()
+# The process-global Whisper model cache is gone with the in-process torch
+# model: mlx-whisper runs in the managed runtime venv as a subprocess, so
+# there is no Python object left in THIS process to keep alive.
 
 
 # =============================================================================
@@ -134,74 +130,30 @@ def transcribe_with_whisper_sync(
     model_size: str = "base",
     language: str = "en",
 ) -> str:
-    """Transcribe audio using local Whisper model.
+    """Transcribe audio with mlx-whisper inside the managed MLX runtime.
 
-    Models are stored in the shared models folder (server_state_dir()/models/whisper/,
-    i.e. ~/Library/Application Support/Fichero/models/whisper/) to avoid macOS
-    auto-cleanup of ~/.cache/ and to share one folder with embeddings/spaCy (#2269).
+    This used to ``import whisper`` in the engine process, where
+    openai-whisper is undeclared and torch is deliberately absent, so every
+    local_whisper run died with an ImportError. The transcriber now lives in
+    the same isolated runtime venv the app provisions for MLX, and the weights
+    live in the ONE shared models folder (``server_state_dir()/models/whisper``,
+    #2269) -- never ~/.cache, which macOS auto-cleans.
 
     Args:
         file_path: Path to audio file
-        model_size: Whisper model size (tiny, base, small, medium, large, large-v3, turbo)
-        language: Language code for transcription
+        model_size: tiny, base, small, medium, large, large-v3, turbo
+        language: Language code, or "auto" to let Whisper detect it
 
     Returns:
         Transcribed text
+
+    Raises:
+        MLXAudioRuntimeMissingError: the runtime holds no transcriber yet
+        WhisperModelNotInstalledError: those weights are not downloaded
+        WhisperTranscriptionError: the transcriber ran and failed
     """
-    download_root = str(MODELS_BASE / "whisper")
-    Path(download_root).mkdir(parents=True, exist_ok=True)
-
-    model = _get_shared_whisper_model(model_size, download_root, device=None)
-
-    logger.info(f"Transcribing: {Path(file_path).name}")
-    result = model.transcribe(
-        str(file_path),
-        language=language if language != "auto" else None,
-    )
-
-    return result["text"].strip()
-
-
-def _get_shared_whisper_model(
-    model_size: str,
-    download_root: str,
-    device: str | None,
-) -> Any:
-    """Return the process-global Whisper model for one identity, loading once."""
-    cache_key = (model_size, download_root, device)
-    model = _WHISPER_MODEL_CACHE.get(cache_key)
-    if model is not None:
-        return model
-
-    with _WHISPER_MODEL_CACHE_LOCK:
-        model = _WHISPER_MODEL_CACHE.get(cache_key)
-        if model is None:
-            try:
-                import whisper
-            except ImportError as exc:
-                raise ImportError(
-                    "openai-whisper is not installed. Install with: pip install openai-whisper"
-                ) from exc
-
-            if device is None:
-                model = whisper.load_model(
-                    model_size,
-                    download_root=download_root,
-                )
-            else:
-                model = whisper.load_model(
-                    model_size,
-                    download_root=download_root,
-                    device=device,
-                )
-            _WHISPER_MODEL_CACHE[cache_key] = model
-            logger.info(
-                "Loaded Whisper model (process-global): %s @ %s device=%s",
-                model_size,
-                download_root,
-                device,
-            )
-        return model
+    logger.info("Transcribing: %s", Path(file_path).name)
+    return transcribe_sync(file_path, model_id=model_size, language=language)
 
 
 async def transcribe_with_whisper(

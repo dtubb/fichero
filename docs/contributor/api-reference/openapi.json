@@ -51806,10 +51806,25 @@
             "type": "boolean",
             "title": "Provisioned"
           },
+          "audio_ready": {
+            "type": "boolean",
+            "title": "Audio Ready",
+            "default": false
+          },
           "mlx_lm_version": {
             "type": "string",
             "nullable": true,
             "title": "Mlx Lm Version"
+          },
+          "mlx_vlm_version": {
+            "type": "string",
+            "nullable": true,
+            "title": "Mlx Vlm Version"
+          },
+          "mlx_whisper_version": {
+            "type": "string",
+            "nullable": true,
+            "title": "Mlx Whisper Version"
           },
           "disk_usage_bytes": {
             "type": "integer",
@@ -52000,6 +52015,16 @@
             "nullable": true,
             "title": "Unsupported Reason"
           },
+          "note": {
+            "type": "string",
+            "nullable": true,
+            "title": "Note"
+          },
+          "tested_status": {
+            "type": "string",
+            "title": "Tested Status",
+            "default": "untested"
+          },
           "license_label": {
             "type": "string",
             "nullable": true,
@@ -52054,6 +52079,31 @@
             "additionalProperties": true,
             "type": "object",
             "title": "Metadata"
+          },
+          "note": {
+            "type": "string",
+            "nullable": true,
+            "title": "Note"
+          },
+          "available": {
+            "type": "boolean",
+            "title": "Available",
+            "default": true
+          },
+          "unavailable_reason": {
+            "type": "string",
+            "nullable": true,
+            "title": "Unavailable Reason"
+          },
+          "download_state": {
+            "type": "string",
+            "title": "Download State",
+            "default": "idle"
+          },
+          "download_error": {
+            "type": "string",
+            "nullable": true,
+            "title": "Download Error"
           }
         },
         "type": "object",

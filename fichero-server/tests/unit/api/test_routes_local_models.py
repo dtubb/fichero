@@ -97,13 +97,41 @@ class TestDiskUsage:
 # ---------------------------------------------------------------------------
 
 
+def _audio_runtime(ready: bool) -> dict:
+    return {
+        "ready": ready,
+        "mlx_whisper_version": "0.4.3" if ready else None,
+        "reason": None if ready else "The MLX runtime has no transcriber yet. Provision it in Settings.",
+    }
+
+
 class TestDownloadModel:
     def test_download_valid_whisper_model(self, client):
         with patch("fichero_server.llm.local_models.LocalModelManager"):
             with patch("fichero_server.llm.local_models.WHISPER_MODELS", {"base": {}}):
-                r = client.post("/api/local-models/download/whisper/base")
+                with patch(
+                    "fichero_server.llm.whisper_runtime.audio_runtime_status",
+                    return_value=_audio_runtime(True),
+                ):
+                    r = client.post("/api/local-models/download/whisper/base")
         assert r.status_code == 200
         assert r.json()["status"] == "downloading"
+
+    def test_whisper_download_is_refused_when_no_transcriber_is_installed(self, client):
+        """Queueing work that cannot run is how this surface failed silently.
+
+        The download happens in a BackgroundTask, so an unprovisioned runtime
+        used to get a 200 "downloading" and a failure nobody ever saw.
+        """
+        with patch("fichero_server.llm.local_models.LocalModelManager"):
+            with patch("fichero_server.llm.local_models.WHISPER_MODELS", {"base": {}}):
+                with patch(
+                    "fichero_server.llm.whisper_runtime.audio_runtime_status",
+                    return_value=_audio_runtime(False),
+                ):
+                    r = client.post("/api/local-models/download/whisper/base")
+        assert r.status_code == 409
+        assert "Provision" in r.json()["detail"]
 
     def test_download_invalid_model_type_returns_400(self, client):
         r = client.post("/api/local-models/download/unknown-type/model-id")

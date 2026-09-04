@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from fichero_server.llm import LLMConfig
@@ -9,34 +11,41 @@ from fichero_server.llm import LLMConfig
 from fichero_server.workflows.tools import audio_base
 
 
-class _Model:
-    def __init__(self):
-        self.calls = []
+def test_local_transcription_runs_in_the_managed_mlx_runtime(monkeypatch):
+    """The transcriber is no longer imported into the engine process.
 
-    def transcribe(self, path, *, language):
-        self.calls.append((path, language))
-        return {"text": "  hello world  "}
+    ``import whisper`` here always failed: openai-whisper is undeclared in the
+    engine env and torch is deliberately kept out of it, so every
+    ``local_whisper`` run died at the import. The audio path now delegates to
+    the mlx-whisper transcriber inside the managed MLX runtime venv, and the
+    engine process loads no model of its own.
+    """
+    calls = []
 
+    def fake_transcribe(file_path, model_id, language):
+        calls.append((file_path, model_id, language))
+        return "hello world"
 
-def test_whisper_model_cache_loads_once_and_sync_transcription_normalizes(monkeypatch, tmp_path):
-    loaded = []
-    model = _Model()
-
-    class Whisper:
-        @staticmethod
-        def load_model(*args, **kwargs):
-            loaded.append((args, kwargs))
-            return model
-
-    monkeypatch.setitem(__import__("sys").modules, "whisper", Whisper)
-    monkeypatch.setattr(audio_base, "MODELS_BASE", tmp_path)
-    audio_base._WHISPER_MODEL_CACHE.clear()
+    monkeypatch.setattr(
+        audio_base,
+        "transcribe_sync",
+        lambda file_path, model_id, language: fake_transcribe(file_path, model_id, language),
+    )
 
     assert audio_base.transcribe_with_whisper_sync("clip.wav", "tiny", "auto") == "hello world"
-    assert audio_base.transcribe_with_whisper_sync("clip.wav", "tiny", "auto") == "hello world"
-    assert len(loaded) == 1
-    assert loaded[0][0] == ("tiny",)
-    assert model.calls == [("clip.wav", None), ("clip.wav", None)]
+
+    assert calls == [("clip.wav", "tiny", "auto")]
+
+
+def test_the_engine_process_never_imports_openai_whisper():
+    """A regression guard with teeth: the import is the bug, not the symptom."""
+    lines = [
+        line.strip()
+        for line in Path(audio_base.__file__).read_text(encoding="utf-8").splitlines()
+    ]
+
+    # Statements only -- the module's prose explains the old import on purpose.
+    assert not [line for line in lines if line.startswith(("import whisper", "from whisper"))]
 
 
 @pytest.mark.asyncio

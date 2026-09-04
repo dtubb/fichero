@@ -311,6 +311,31 @@ enum LocalInferenceDisplay {
         )
     }
 
+    /// The two numbers that decide whether a download is worth starting on
+    /// THIS Mac — its size and its memory floor — joined into one caption.
+    /// Whichever the backend could not state is omitted rather than guessed.
+    static func subtitle(downloadSizeBytes: Int?, diskUsageBytes: Int?, memoryClass: String?, format: (Int) -> String) -> String {
+        var parts: [String] = []
+        if let size = downloadSizeBytes ?? diskUsageBytes, size > 0 {
+            parts.append(format(size))
+        }
+        if let memoryClass, !memoryClass.isEmpty {
+            parts.append(memoryClass)
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    /// What a capability string means to a reader. An unknown capability reads
+    /// as text — the conservative answer, and the one the backend's own
+    /// server-selection uses for models it does not recognise.
+    static func capabilityLabel(_ capability: String) -> String {
+        switch capability {
+        case "vision": return "OCR / vision"
+        case "audio": return "audio"
+        default: return "text"
+        }
+    }
+
     /// Download progress as 0...1, or nil when total is unknown (indeterminate bar).
     static func progressFraction(current: Int?, total: Int?, percent: Double?) -> Double? {
         if let percent { return min(max(percent / 100, 0), 1) }

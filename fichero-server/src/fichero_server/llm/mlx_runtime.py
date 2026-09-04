@@ -27,8 +27,30 @@ MLX_LM_VERSION = "0.31.3"
 #: does decode ``image_url`` parts, so the runtime provisions BOTH: mlx-lm
 #: for text models, mlx-vlm for vision ones.
 MLX_VLM_VERSION = "0.6.17"
+#: Audio is the third capability the catalog advertises, and it was the one
+#: nothing could serve: the Whisper rows called ``import whisper`` inside the
+#: shipped engine env, where openai-whisper is undeclared and torch is
+#: deliberately absent. mlx-whisper is the MLX-native transcriber, and its
+#: INFERENCE path is torch-free -- ``torch`` appears only in
+#: ``mlx_whisper/torch_whisper.py``, the original-checkpoint conversion module
+#: that ``transcribe`` never imports (verified by reading the 0.4.3 wheel).
+#: The package still DECLARES torch, so it is installed with ``--no-deps``
+#: alongside the deps the transcribe path actually uses; that keeps ~1.5 GB of
+#: unused CUDA-era wheels out of the runtime venv.
+MLX_WHISPER_VERSION = "0.4.3"
+MLX_WHISPER_DEPENDENCIES = (
+    "numba",
+    "scipy",
+    "tiktoken",
+    "more-itertools",
+    "tqdm",
+)
 _RUNTIME_DIRNAME = "mlx-runtime"
 _METADATA_FILENAME = "runtime.json"
+
+
+class MLXAudioRuntimeMissingError(RuntimeError):
+    """Raised when the MLX runtime exists but holds no transcriber."""
 
 
 @dataclass
@@ -95,12 +117,28 @@ class MLXRuntime:
             and bool(metadata.get("mlx_vlm_version"))
         )
 
+    def has_audio(self) -> bool:
+        """Whether this runtime can transcribe audio.
+
+        Deliberately NOT folded into ``is_provisioned()``. A runtime holding
+        mlx-lm and mlx-vlm genuinely CAN serve every text and vision model in
+        the catalog, so calling it unprovisioned because it lacks a
+        transcriber would be the same kind of lie #4504 and #4560 removed,
+        pointed the other way. Audio is reported as its own capability, and
+        one Provision click installs whatever half is missing because
+        ``_provision`` installs all three every time.
+        """
+        metadata = self._metadata()
+        return self.python_path().exists() and bool(metadata.get("mlx_whisper_version"))
+
     def status(self) -> dict[str, object]:
         python_path = self.python_path()
         return {
             "provisioned": self.is_provisioned(),
+            "audio_ready": self.has_audio(),
             "mlx_lm_version": self._metadata().get("mlx_lm_version"),
             "mlx_vlm_version": self._metadata().get("mlx_vlm_version"),
+            "mlx_whisper_version": self._metadata().get("mlx_whisper_version"),
             "disk_usage_bytes": self._disk_usage_bytes(),
             "python_path": str(python_path) if python_path.exists() else None,
             "runtime_dir": str(self.runtime_dir),
@@ -115,7 +153,7 @@ class MLXRuntime:
                 job_id=str(uuid.uuid4()),
                 state="running",
                 current=0,
-                total=4,
+                total=6,
                 message="Creating MLX runtime",
             )
             self._job = job
@@ -151,6 +189,16 @@ class MLXRuntime:
             "or enable Local Models in Settings before starting oMLX."
         )
 
+    def require_audio_python_path(self) -> Path:
+        """Interpreter that can run mlx-whisper, or a typed refusal saying so."""
+        if self.has_audio():
+            return self.python_path()
+        raise MLXAudioRuntimeMissingError(
+            "The MLX runtime cannot transcribe audio yet (mlx-whisper is not "
+            "installed). Provision the MLX runtime in Settings -> AI -> Local "
+            "Inference, or POST /api/local-inference/runtime/provision."
+        )
+
     def python_path(self) -> Path:
         return self.runtime_dir / "bin" / "python"
 
@@ -173,6 +221,25 @@ class MLXRuntime:
                 [str(self.python_path()), "-m", "pip", "install", f"mlx-vlm=={MLX_VLM_VERSION}"],
             )
             job.current = 4
+            job.message = f"Installing mlx-whisper=={MLX_WHISPER_VERSION}"
+            await asyncio.to_thread(
+                self._run_command,
+                [
+                    str(self.python_path()),
+                    "-m",
+                    "pip",
+                    "install",
+                    "--no-deps",
+                    f"mlx-whisper=={MLX_WHISPER_VERSION}",
+                ],
+            )
+            job.current = 5
+            job.message = "Installing transcription dependencies"
+            await asyncio.to_thread(
+                self._run_command,
+                [str(self.python_path()), "-m", "pip", "install", *MLX_WHISPER_DEPENDENCIES],
+            )
+            job.current = 6
             job.message = "Writing runtime metadata"
             await asyncio.to_thread(self._write_metadata)
             job.state = "completed"
@@ -197,7 +264,11 @@ class MLXRuntime:
     def _write_metadata(self) -> None:
         (self.runtime_dir / _METADATA_FILENAME).write_text(
             json.dumps(
-                {"mlx_lm_version": MLX_LM_VERSION, "mlx_vlm_version": MLX_VLM_VERSION},
+                {
+                    "mlx_lm_version": MLX_LM_VERSION,
+                    "mlx_vlm_version": MLX_VLM_VERSION,
+                    "mlx_whisper_version": MLX_WHISPER_VERSION,
+                },
                 indent=2,
                 sort_keys=True,
             ),
@@ -242,7 +313,10 @@ def get_mlx_runtime() -> MLXRuntime:
 
 
 __all__ = [
+    "MLXAudioRuntimeMissingError",
     "MLXRuntime",
+    "MLX_WHISPER_DEPENDENCIES",
+    "MLX_WHISPER_VERSION",
     "MLX_LM_VERSION",
     "MLX_VLM_VERSION",
     "RuntimeProvisionJob",
