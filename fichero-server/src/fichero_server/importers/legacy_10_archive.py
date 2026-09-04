@@ -107,7 +107,6 @@ ENTITY_KINDS: dict[str, str] = {
     "minas": "location",
     "propiedades": "location",
     "eventos_clave": "event",
-    "fechas": "event",
     "dragas": "concept",
     "animales": "concept",
     "plantas": "concept",
@@ -116,6 +115,14 @@ ENTITY_KINDS: dict[str, str] = {
     "terminos_legales": "concept",
     "legales": "concept",
 }
+
+#: Buckets that are NOT entities. ``fechas`` entries are bare dates
+#: ("1937-01-01") with the meaning in their ``contexto``; naming an entity
+#: after one produces a name with no letters, which the entities route rightly
+#: refuses (422, every single one, measured on the sample import). They are
+#: dates, and they ride as folder metadata instead of being mangled into
+#: entities.
+_NON_ENTITY_BUCKETS = {"fechas"}
 
 #: The name key an entity object might use, in order of preference.
 _NAME_KEYS = ("nombre", "evento", "fecha_normalizada", "fecha", "termino", "titulo")
@@ -261,6 +268,7 @@ class LegacyFolder(BaseModel):
     pages: list[LegacyPage] = Field(default_factory=list)
     summary: str | None = None
     tags: list[str] = Field(default_factory=list)
+    dates: list[dict[str, Any]] = Field(default_factory=list)
     entities: list[dict[str, Any]] = Field(default_factory=list)
     timeline: list[dict[str, Any]] = Field(default_factory=list)
     catalogue_model: str | None = None
@@ -548,6 +556,7 @@ def _read_catalogue(folder: Path) -> dict[str, Any]:
         "timeline": [],
         "summary": None,
         "tags": [],
+        "dates": [],
         "salvaged": [],
         "warnings": [],
         "source_folder": None,
@@ -599,6 +608,18 @@ def _read_catalogue(folder: Path) -> dict[str, Any]:
                     out["tags"] = [str(t).strip() for t in value if str(t).strip()]
                 continue
             if not isinstance(value, list):
+                continue
+            if key in _NON_ENTITY_BUCKETS:
+                for item in value:
+                    if isinstance(item, dict):
+                        out["dates"].append(
+                            {
+                                "fecha": item.get("fecha"),
+                                "fecha_normalizada": item.get("fecha_normalizada"),
+                                "contexto": str(item.get("contexto") or "").strip()
+                                or None,
+                            }
+                        )
                 continue
             entity_type = ENTITY_KINDS.get(key, "concept")
             for item in value:
@@ -852,6 +873,7 @@ def read_document_folder(
         pages=pages,
         summary=catalogue["summary"],
         tags=catalogue["tags"],
+        dates=catalogue["dates"],
         entities=catalogue["entities"],
         timeline=catalogue["timeline"],
         catalogue_model=catalogue_model,
@@ -986,6 +1008,15 @@ def _folder_metadata(folder: LegacyFolder, scan: LegacyScan) -> dict[str, Any]:
         metadata["resumen"] = folder.summary
     if folder.tags:
         metadata["tags"] = folder.tags
+    if folder.dates:
+        metadata["legacy_dates"] = folder.dates
+    if folder.timeline:
+        # ALSO as metadata, not only as claims: /api/claims is tier-gated and a
+        # release-tier engine does not expose it, so the claims phase skips with
+        # a warning (measured: every timeline event silently dropped). The
+        # claims still land wherever the surface exists; this is the copy that
+        # always survives.
+        metadata["legacy_timeline"] = folder.timeline
     if folder.salvaged_steps:
         metadata["legacy_truncated_steps"] = folder.salvaged_steps
     losers = [d for d in scan.duplicates if d.fingerprint == folder.fingerprint]
@@ -1023,18 +1054,24 @@ def _folder_metadata(folder: LegacyFolder, scan: LegacyScan) -> dict[str, Any]:
 
 def to_canonical_nodes(scan: LegacyScan) -> Iterator[dict[str, Any]]:
     """Emit ``fichero-corpus-import-v1`` nodes, parent before child."""
-    corpus_id = f"fichero10:corpus:{scan.corpus_name}"
-    yield {
-        "canonical_version": CANONICAL_VERSION,
-        "external_id": corpus_id,
-        "node_type": "folder",
-        "name": scan.corpus_name,
-        "corpus": scan.corpus_name,
-        "metadata": {
-            "legacy_source": "fichero-1.0",
-            "legacy_roots": scan.roots,
-        },
-    }
+    # Dropping a single document folder should not produce a wrapper folder of
+    # the same name around it (measured on the sample import: 10 folder rows
+    # for 5 documents). A corpus root earns its place only when it groups.
+    single = len(scan.folders) == 1 and scan.folders[0].path in scan.roots
+    corpus_id: str | None = None
+    if not single:
+        corpus_id = f"fichero10:corpus:{scan.corpus_name}"
+        yield {
+            "canonical_version": CANONICAL_VERSION,
+            "external_id": corpus_id,
+            "node_type": "folder",
+            "name": scan.corpus_name,
+            "corpus": scan.corpus_name,
+            "metadata": {
+                "legacy_source": "fichero-1.0",
+                "legacy_roots": scan.roots,
+            },
+        }
 
     for folder in scan.folders:
         folder_id = folder.external_id

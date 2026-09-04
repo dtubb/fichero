@@ -203,6 +203,14 @@ def build_folder(
     return folder
 
 
+def _document_folder_node(scan) -> dict:
+    """The DOCUMENT folder node, not the corpus root that groups them."""
+    return next(
+        n
+        for n in legacy.to_canonical_nodes(scan)
+        if n["node_type"] == "folder" and n.get("parent_external_id")
+    )
+
 # ---------------------------------------------------------------------------
 # Discovery
 # ---------------------------------------------------------------------------
@@ -778,3 +786,88 @@ def test_dry_run_reports_the_overlap_tally(tmp_path: Path) -> None:
     report = legacy.dry_run_report(scan)
     assert "Smaller wins" in report
     assert "the BETTER copy is imported" in report
+
+
+# ---------------------------------------------------------------------------
+# Defects the SAMPLE IMPORT found (2026-09-04) — real data, real routes
+# ---------------------------------------------------------------------------
+
+
+def test_bare_dates_never_become_entities(tmp_path: Path) -> None:
+    """`fechas` holds dates, not names.
+
+    Naming an entity "1937-01-01" produces a name with no letters, which the
+    entities route rightly refuses — 422 on every one, measured live.
+    """
+    folder = build_folder(tmp_path / "A", name="1936-doc")
+    steps = (
+        folder / "assets" / "llm_catalogue" / "steps" / "documents"
+    )
+    _write(
+        steps / "extraer_entidades_fechas_legales_rios.json",
+        json.dumps(
+            {
+                "source": "/old",
+                "step": "extraer_entidades_fechas_legales_rios",
+                "result": {
+                    "fechas": [
+                        {
+                            "fecha": "20 de noviembre de 1891",
+                            "fecha_normalizada": "1891-11-20",
+                            "contexto": "La ley 10 de 1891 comenzó a regir.",
+                        }
+                    ],
+                    "rios": [{"nombre": "RÍO OPOGODÓ", "contexto": "Afluente."}],
+                },
+            },
+            ensure_ascii=False,
+        ),
+    )
+    entry = legacy.read_document_folder(folder, archive="a", stage=None)
+
+    names = {e["canonical_name"] for e in entry.entities}
+    assert "1891-11-20" not in names
+    assert "20 de noviembre de 1891" not in names
+    assert all(any(ch.isalpha() for ch in name) for name in names)
+    # The river IS an entity, and a location.
+    assert "RÍO OPOGODÓ" in names
+    # The date is not lost — it rides as folder metadata.
+    assert entry.dates and entry.dates[0]["fecha_normalizada"] == "1891-11-20"
+
+    scan = legacy.scan_archives([tmp_path / "A"], corpus_name="c")
+    folder_node = _document_folder_node(scan)
+    assert folder_node["metadata"]["legacy_dates"][0]["contexto"].startswith("La ley")
+
+
+def test_timeline_survives_a_tier_that_hides_claims(tmp_path: Path) -> None:
+    """`/api/claims` is tier-gated; a release engine drops the claims phase.
+
+    The timeline is Daniel's data, so it must not depend on the engine's tier.
+    """
+    build_folder(tmp_path / "A", name="1936-doc")
+    scan = legacy.scan_archives([tmp_path / "A"], corpus_name="c")
+    folder_node = _document_folder_node(scan)
+
+    assert folder_node["claims"]
+    timeline = folder_node["metadata"]["legacy_timeline"]
+    assert timeline == [{"fecha": "1919-12-10", "evento": "Smith comenzó a trabajar."}]
+
+
+def test_a_single_dropped_folder_gets_no_wrapper(tmp_path: Path) -> None:
+    """Dropping one document folder must not wrap it in a folder of one."""
+    folder = build_folder(tmp_path, name="1936-doc")
+    scan = legacy.scan_archives([folder], corpus_name="1936-doc")
+    nodes = list(legacy.to_canonical_nodes(scan))
+
+    assert [n["node_type"] for n in nodes].count("folder") == 1
+    assert nodes[0]["parent_external_id"] is None
+
+
+def test_a_multi_folder_archive_still_gets_its_corpus_root(tmp_path: Path) -> None:
+    build_folder(tmp_path / "A", name="1936-doc")
+    build_folder(tmp_path / "A", name="1947-otro", sizes=[5, 6])
+    scan = legacy.scan_archives([tmp_path / "A"], corpus_name="Corpus")
+    nodes = list(legacy.to_canonical_nodes(scan))
+
+    assert nodes[0]["name"] == "Corpus"
+    assert [n["node_type"] for n in nodes].count("folder") == 3
