@@ -130,12 +130,28 @@ def queue_derivatives(
 _progress_lock = threading.Lock()
 _progress: dict[str, dict[str, int]] = {}
 
+#: How long the queue may go without completing anything before the status
+#: island is told it has STALLED. A page takes ~1.3s to embed, so a minute of
+#: total silence is not slowness — it is a pool with nothing moving through it.
+STALL_SECONDS = 60.0
+_stall_timer: threading.Timer | None = None
 
-def _emit_queue_progress(library: str, done: int, total: int) -> None:
+
+def _emit_queue_progress(
+    library: str, done: int, total: int, *, stalled: bool = False
+) -> None:
     from fichero_server.api.change_stream import emit_change
 
     finished = done >= total
     percent = 100.0 if finished else (done * 100.0 / total if total else 0.0)
+    if stalled:
+        message = (
+            f"Stalled at {done} of {total} — nothing has finished for "
+            f"{STALL_SECONDS:.0f}s. A source on a network volume or one still "
+            "copying from another Mac can block this queue."
+        )
+    else:
+        message = f"{done} of {total} pages embedded"
     try:
         emit_change(
             library,
@@ -145,8 +161,8 @@ def _emit_queue_progress(library: str, done: int, total: int) -> None:
             metadata={
                 "task_type": "derivatives",
                 "task_name": "Processing imported pages",
-                "status": "completed" if finished else "running",
-                "message": f"{done} of {total} pages embedded",
+                "status": "completed" if finished else ("stalled" if stalled else "running"),
+                "message": message,
                 "current": str(done),
                 "total": str(total),
                 "percent": f"{percent:.1f}",
@@ -156,12 +172,51 @@ def _emit_queue_progress(library: str, done: int, total: int) -> None:
         logger.warning("derivatives: progress emit failed", exc_info=True)
 
 
+def _arm_stall_watchdog(library: str) -> None:
+    """Say so when the queue stops moving (#4574 follow-up).
+
+    A bar sitting at 0% is indistinguishable from a bar about to move, and
+    that ambiguity is the whole bug: an import that could never finish looked
+    exactly like one that had just started. The probe in the stages catches a
+    source that FAILS to read; this catches the rest — a read blocked in the
+    kernel, a pool wedged on something nobody predicted — and turns silence
+    into a sentence.
+    """
+    global _stall_timer
+    if _stall_timer is not None:
+        _stall_timer.cancel()
+
+    def report() -> None:
+        with _progress_lock:
+            state = _progress.get(library)
+            if state is None:
+                return
+            done, total = state["done"], state["total"]
+        logger.error(
+            "derivatives: queue stalled for %s at %d of %d — no completion in %.0fs",
+            library, done, total, STALL_SECONDS,
+        )
+        _emit_queue_progress(library, done, total, stalled=True)
+
+    _stall_timer = threading.Timer(STALL_SECONDS, report)
+    _stall_timer.daemon = True
+    _stall_timer.start()
+
+
+def _disarm_stall_watchdog() -> None:
+    global _stall_timer
+    if _stall_timer is not None:
+        _stall_timer.cancel()
+        _stall_timer = None
+
+
 def _progress_add(library: str, count: int) -> None:
     with _progress_lock:
         state = _progress.setdefault(library, {"done": 0, "total": 0})
         state["total"] += count
         done, total = state["done"], state["total"]
     _emit_queue_progress(library, done, total)
+    _arm_stall_watchdog(library)
 
 
 def _progress_tick(library: str) -> None:
@@ -174,6 +229,12 @@ def _progress_tick(library: str) -> None:
         finished = done >= total
         if finished:
             del _progress[library]
+    # Something moved, so the queue is not stalled: push the deadline out, or
+    # stand the watchdog down when there is nothing left to watch.
+    if finished:
+        _disarm_stall_watchdog()
+    else:
+        _arm_stall_watchdog(library)
     # Every 5th completion plus the final one — enough for a live percent
     # without an event per page on top of each page's document.updated.
     if finished or done % 5 == 0:
@@ -244,6 +305,116 @@ def _current_rss_mb() -> int:
         return -1
 
 
+#: How long a worker waits for a single byte of a document's source before it
+#: declares the file unreadable. A local disk answers in microseconds; a
+#: healthy SMB mount in milliseconds. A mount whose credentials have expired
+#: (the macOS Kerberos prompt) or a file promise that never materialised
+#: answers never — and THAT is the case this bounds, because a blocked read
+#: holds one of only two pool workers and two of them stop the queue dead.
+SOURCE_READ_DEADLINE_SECONDS = 10.0
+
+
+def _probe_source_readable(path: Path) -> str | None:
+    """Read one byte of ``path`` under a deadline. Error string, or None.
+
+    ``exists()`` is not readability. A file on a network volume can stat fine
+    and then block for ever on the first read; an un-materialised file promise
+    (the shape a drag from another Mac produces) is a path with no bytes
+    behind it yet. Both looked identical to a local file right up to the point
+    where the import stopped moving.
+
+    The probe runs on a throwaway daemon thread so the DEADLINE is real: a
+    read blocked in the kernel cannot be cancelled, so the thread may stay
+    stuck, but the worker returns and the queue keeps draining. One leaked
+    thread is a far better outcome than a wedged pool and a bar at 0%.
+    """
+    outcome: list[str | None] = []
+
+    def read_one_byte() -> None:
+        try:
+            with path.open("rb") as handle:
+                handle.read(1)
+            outcome.append(None)
+        except OSError as exc:
+            outcome.append(f"{type(exc).__name__}: {exc}")
+
+    probe = threading.Thread(target=read_one_byte, daemon=True, name="source-probe")
+    probe.start()
+    probe.join(SOURCE_READ_DEADLINE_SECONDS)
+    if probe.is_alive():
+        return (
+            f"source unreadable: {path} did not return a byte within "
+            f"{SOURCE_READ_DEADLINE_SECONDS:.0f}s. If it lives on a network "
+            "volume, the mount may need re-authenticating; if it was dragged "
+            "from another Mac, the file may not have finished copying."
+        )
+    if outcome and outcome[0] is not None:
+        return f"source unreadable: {path} — {outcome[0]}"
+    return None
+
+
+def _source_error(doc: Document, db: "Database", library: str) -> str | None:
+    """Why this document's bytes cannot be read right now, or None.
+
+    Only documents that ARE expected to have bytes are judged. Plenty of rows
+    legitimately have none — an extracted entry, a workflow node, a note whose
+    whole content is its text — and calling those "unreadable" would fail
+    documents that are perfectly fine. Expecting bytes means: an image or PDF
+    file, or a page child that renders from its parent PDF.
+    """
+    from fichero_server.db.storage import resolve_pdf_render_source, resolve_source
+
+    package = Path(library)
+    pdf_render = resolve_pdf_render_source(doc, db=db, library_root=package)
+    expects_bytes = pdf_render is not None or doc.file_type in DERIVATIVE_FILE_TYPES
+    if not expects_bytes:
+        return None
+    path = pdf_render[0] if pdf_render else resolve_source(doc, library_root=package)
+    if path is None:
+        # A page child whose parent PDF is gone, or a row whose file moved.
+        # Named, not silent: "no source" is an answer; a stalled bar is not.
+        return f"source not found for {doc.name!r}"
+    return _probe_source_readable(path)
+
+
+def _record_source_failure(
+    db: "Database", doc_id: str, library: str, error: str
+) -> None:
+    """Record WHY a document's bytes could not be read, and say so live.
+
+    Uses ``derivative_error`` — the existing key a retry selects on (#4225) —
+    so an unreadable source joins the same recorded-failure model as a decode
+    that failed, rather than inventing a second one nothing queries. The
+    status stays ``pending`` for the same reason: this document has not been
+    processed and still could be, once the volume is back.
+
+    What must NOT happen is silence. The caller returns immediately after
+    this, so the stage stops instead of blocking a pool worker — and the embed
+    stage's ``finally`` still ticks the queue, so the bar keeps moving instead
+    of sitting at 0% while the user waits for something that is never coming.
+    """
+    from fichero_server.api.change_stream import emit_change
+
+    logger.error("Derivative stage: %s (%s)", error, doc_id)
+    doc = db.get(Document, doc_id)
+    if doc is None or getattr(doc, "deleted_at", None) is not None:
+        return
+    metadata = dict(doc.metadata or {})
+    metadata["derivative_error"] = error
+    doc.metadata = metadata
+    try:
+        db.save(doc)
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.error("Could not persist source failure for %s: %s", doc_id, exc)
+        return
+    emit_change(
+        library,
+        type="document.updated",
+        document_ids=[doc_id],
+        actor="derivatives",
+    )
+
+
 def _open_stage_db(library: str, doc_id: str) -> "tuple[Database, Document] | None":
     """Worker-thread database handle + the queued document, or None (logged)."""
     from fichero_server.db.manager import db_manager
@@ -278,6 +449,12 @@ def _thumbnail_stage(doc_id: str, library: str) -> Path | None:
     thumb: Path | None = None
     error: str | None = None
     if needs_derivative(doc):
+        # Before the decode, not after: an unreadable source blocks INSIDE the
+        # renderer, and this pool has two workers. Two blocked reads and the
+        # queue stops dead with the progress bar at 0% (#4574 follow-up).
+        if source_error := _source_error(doc, db, library):
+            _record_source_failure(db, doc_id, library, source_error)
+            return None
         try:
             thumb = ensure_thumbnail(doc, package_path=Path(library), db=db)
             if thumb is None:
@@ -332,6 +509,12 @@ def _embed_stage(doc_id: str, library: str) -> None:
             return
         db, doc = opened
 
+        # No source probe here, deliberately: this stage embeds TEXT, which it
+        # reads from the database. It needs no bytes, so an unreadable file
+        # must not stop a document's text from being embedded — and a document
+        # with no file at all (a note, an extracted entry) is not a failure.
+        # The probe belongs in the thumbnail stage, which is the one that
+        # decodes, and therefore the one that can block.
         embed_error = _embed_document_tree(doc, db)
 
         # RE-READ before writing (manifest-drop repro, 2026-08-20): embedding
@@ -388,6 +571,7 @@ def generate_derivative(doc_id: str, library_path: str | Path) -> Path | None:
 def shutdown(wait: bool = True) -> None:
     """Stop the derivative pool (engine shutdown, and between test modules)."""
     global _executor
+    _disarm_stall_watchdog()
     with _executor_lock:
         executor, _executor = _executor, None
     if executor is not None:
