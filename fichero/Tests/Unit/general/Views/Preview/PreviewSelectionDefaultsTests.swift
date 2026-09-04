@@ -298,10 +298,12 @@ struct WorkflowPickerReachesPresetTests {
         )
         #expect(
             picked?.model == "claude-opus-5",
-            "a text preset used to send NOTHING — the gate was requiresVision "
-                + "|| selectionPrefersVision — so the engine ran the preset's own "
-                + "embedded model and a Paleographer Review went to "
-                + "gemini-flash-lite under a claude-opus-5 chip (2026-09-04)"
+            """
+            a text preset used to send NOTHING — the gate was requiresVision \
+            || selectionPrefersVision — so the engine ran the preset's own \
+            embedded model and a Paleographer Review went to \
+            gemini-flash-lite under a claude-opus-5 chip (2026-09-04)
+            """
         )
     }
 }

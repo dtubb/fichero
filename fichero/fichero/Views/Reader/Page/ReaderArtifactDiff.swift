@@ -111,34 +111,34 @@ enum ReaderArtifactDiff {
     where Token: CustomStringConvertible {
         let table = lcsTable(base, variant)
         var segments: [ReaderDiffSegment] = []
-        var i = 0
-        var j = 0
-        while i < base.count && j < variant.count {
-            if base[i] == variant[j] {
-                segments.append(.same(base[i].description))
-                i += 1
-                j += 1
-            } else if table[i + 1][j] >= table[i][j + 1] {
-                segments.append(.removed(base[i].description))
-                i += 1
+        var basePos = 0
+        var variantPos = 0
+        while basePos < base.count && variantPos < variant.count {
+            if base[basePos] == variant[variantPos] {
+                segments.append(.same(base[basePos].description))
+                basePos += 1
+                variantPos += 1
+            } else if table[basePos + 1][variantPos] >= table[basePos][variantPos + 1] {
+                segments.append(.removed(base[basePos].description))
+                basePos += 1
             } else {
-                segments.append(.inserted(variant[j].description))
-                j += 1
+                segments.append(.inserted(variant[variantPos].description))
+                variantPos += 1
             }
         }
-        while i < base.count {
-            segments.append(.removed(base[i].description))
-            i += 1
+        while basePos < base.count {
+            segments.append(.removed(base[basePos].description))
+            basePos += 1
         }
-        while j < variant.count {
-            segments.append(.inserted(variant[j].description))
-            j += 1
+        while variantPos < variant.count {
+            segments.append(.inserted(variant[variantPos].description))
+            variantPos += 1
         }
         return segments
     }
 
-    /// `table[i][j]` = length of the longest common subsequence of the
-    /// suffixes `base[i...]` and `variant[j...]`.
+    /// `table[basePos][variantPos]` = length of the longest common subsequence
+    /// of the suffixes `base[basePos...]` and `variant[variantPos...]`.
     private static func lcsTable<Token: Equatable>(
         _ base: [Token], _ variant: [Token]
     ) -> [[Int]] {
@@ -147,11 +147,11 @@ enum ReaderArtifactDiff {
             count: base.count + 1
         )
         guard !base.isEmpty, !variant.isEmpty else { return table }
-        for i in stride(from: base.count - 1, through: 0, by: -1) {
-            for j in stride(from: variant.count - 1, through: 0, by: -1) {
-                table[i][j] = base[i] == variant[j]
-                    ? table[i + 1][j + 1] + 1
-                    : max(table[i + 1][j], table[i][j + 1])
+        for basePos in stride(from: base.count - 1, through: 0, by: -1) {
+            for variantPos in stride(from: variant.count - 1, through: 0, by: -1) {
+                table[basePos][variantPos] = base[basePos] == variant[variantPos]
+                    ? table[basePos + 1][variantPos + 1] + 1
+                    : max(table[basePos + 1][variantPos], table[basePos][variantPos + 1])
             }
         }
         return table
@@ -168,12 +168,12 @@ enum ReaderArtifactDiff {
                 continue
             }
             switch (last, segment) {
-            case (.same(let a), .same(let b)):
-                merged[merged.count - 1] = .same(a + separator + b)
-            case (.inserted(let a), .inserted(let b)):
-                merged[merged.count - 1] = .inserted(a + separator + b)
-            case (.removed(let a), .removed(let b)):
-                merged[merged.count - 1] = .removed(a + separator + b)
+            case (.same(let lhs), .same(let rhs)):
+                merged[merged.count - 1] = .same(lhs + separator + rhs)
+            case (.inserted(let lhs), .inserted(let rhs)):
+                merged[merged.count - 1] = .inserted(lhs + separator + rhs)
+            case (.removed(let lhs), .removed(let rhs)):
+                merged[merged.count - 1] = .removed(lhs + separator + rhs)
             default:
                 merged.append(segment)
             }
