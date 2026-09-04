@@ -54,6 +54,60 @@
     }
   },
   {
+    "page": "1923_p10.jpg",
+    "frame": "3132x2000",
+    "kraken_lines": 28,
+    "kraken_seconds": 26.7,
+    "kraken_error": null,
+    "vision_words": 134,
+    "vision_seconds": 12.8,
+    "vision_error": null,
+    "overlay": "agent-work/experiments/kraken/1923_p10.overlay.png",
+    "documents_lines": 29,
+    "documents_words": 115,
+    "documents_seconds": 38.9,
+    "documents_error": null,
+    "baseline": {
+      "lines": 30,
+      "words": 114,
+      "words_measured": 114,
+      "words_interpolated": 0,
+      "mean_conf": 0.978,
+      "chars": 626,
+      "ink_recall": 0.899,
+      "box_tightness": 0.089,
+      "total_ink_px": 110995,
+      "seconds": 1.2
+    }
+  },
+  {
+    "page": "1927_p02_part2.png",
+    "frame": "1994x2338",
+    "kraken_lines": 12,
+    "kraken_seconds": 11.2,
+    "kraken_error": null,
+    "vision_words": 59,
+    "vision_seconds": 8.2,
+    "vision_error": null,
+    "overlay": "agent-work/experiments/kraken/1927_p02_part2.overlay.png",
+    "documents_lines": 1,
+    "documents_words": 2,
+    "documents_seconds": 0.4,
+    "documents_error": null,
+    "baseline": {
+      "lines": 13,
+      "words": 40,
+      "words_measured": 40,
+      "words_interpolated": 0,
+      "mean_conf": 1.0,
+      "chars": 202,
+      "ink_recall": 0.694,
+      "box_tightness": 0.139,
+      "total_ink_px": 110498,
+      "seconds": 0.9
+    }
+  },
+  {
     "page": "1933_p14.jpg",
     "frame": "3063x2000",
     "kraken_lines": 17,
@@ -79,5 +133,21 @@
       "total_ink_px": 91590,
       "seconds": 1.3
     }
+  },
+  {
+    "page": "caciques_533r.jpg",
+    "frame": "929x1346",
+    "kraken_lines": 33,
+    "kraken_seconds": 13.4,
+    "kraken_error": null,
+    "vision_words": 45,
+    "vision_seconds": 8.1,
+    "vision_error": null,
+    "overlay": "agent-work/experiments/kraken/caciques_533r.overlay.png",
+    "documents_lines": 6,
+    "documents_words": 7,
+    "documents_seconds": 168.1,
+    "documents_error": null,
+    "baseline": null
   }
 ]

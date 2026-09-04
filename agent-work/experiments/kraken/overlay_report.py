@@ -284,7 +284,10 @@ def main() -> int:
         print(f"wrote {target}", flush=True)
 
     (OUT_DIR / "verdict.json").write_text(json.dumps(rows, indent=2), encoding="utf-8")
-    (OUT_DIR / "verdict.md").write_text(_verdict_markdown(rows), encoding="utf-8")
+    # verdict_table.md, NOT verdict.md: the generated table is an input to the
+    # hand-written verdict, and a re-render must never silently overwrite the
+    # analysis a human wrote around it.
+    (OUT_DIR / "verdict_table.md").write_text(_verdict_markdown(rows), encoding="utf-8")
     print(json.dumps(rows, indent=2))
     return 0
 
