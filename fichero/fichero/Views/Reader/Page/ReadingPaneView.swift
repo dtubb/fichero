@@ -366,6 +366,11 @@ struct ReadingPaneView: View {
         // the menu prefers the preview's actions and falls back to these.
         return head
             .focusedSceneValue(\.readerLens, publishedReaderLens)
+            // What File ▸ Export ▸ Markdown/Word act on (Daniel, 2026-09-03).
+            // Published from the pane, so the commands are live exactly when a
+            // reader is — and they name the documents the pane is SHOWING,
+            // per the visible-surface selection ruling.
+            .focusedSceneValue(\.readerExportTargets, readerExportTargets)
             .focusedSceneValue(\.readerZoomActions, ImageZoomActions(
                 zoomIn: { webZoom = min(3.0, webZoom + 0.1) },
                 zoomOut: { webZoom = max(0.5, webZoom - 0.1) },
@@ -382,6 +387,11 @@ struct ReadingPaneView: View {
                         openInNewTab: { openThisDocumentInNewWindow(docId, asTab: true) },
                         openInNewWindow: { openThisDocumentInNewWindow(docId, asTab: false) }
                     )
+                    Divider()
+                    // Export what you are reading, where you are reading it —
+                    // the same two commands the File menu carries, so there is
+                    // one implementation and two doors to it.
+                    ReaderExportMenuItems()
                 }
             }
     }

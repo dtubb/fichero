@@ -173,6 +173,15 @@ struct FileMenuCommands: View {
 
             // Export section (#2088)
             Menu {
+                // What you are READING, first (Daniel, 2026-09-03: "for
+                // export, we want a way to easily export to Word or MD file —
+                // say, from the reader view"). Both items disable themselves
+                // when no reader is focused, so the library-wide exports below
+                // are never confused for them.
+                ReaderExportMenuItems()
+
+                Divider()
+
                 Button {
                     Task { await exportBibtex() }
                 } label: {

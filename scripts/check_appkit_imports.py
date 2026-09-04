@@ -52,6 +52,11 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     # whether a text view owns the undo IS an NSTextView/first-responder
     # question, and SwiftUI exposes no equivalent. AppKit here is the feature,
     # not a shortcut around cross-platform code.
+    # 2026-09-03: the save/folder panels, the failure alert and reveal-in-Finder
+    # that EVERY export shares. NSSavePanel/NSOpenPanel/NSAlert/NSWorkspace have
+    # no SwiftUI equivalent that returns a chosen URL; concentrating them in one
+    # file is what let FileMenuCommands+Export drop its own AppKit import.
+    "App/Menus/ExportPresentation.swift": "2026-09-03 — shared export save/folder panels + alert + reveal (macOS-only by nature)",
     "App/Menus/UndoRouting.swift": "#4354 — first-responder probe for editor-scoped undo (macOS-only by nature)",
     # #4359: the auth sheet renders the running app's own icon, which comes
     # from NSApplication/UIApplication; the platform image type is unavoidable.
@@ -97,7 +102,6 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Views/Preview/ImageViewer/CursorTracking/ImageWithCursorTrackingMacCoordinator.swift": "#2713 — macOS NSView coordinator #if canImport (split); #2101",
     "Views/Preview/ImageViewer/CursorTracking/DrawnImageFrame.swift": "2026-08-12 — pure NSScrollView geometry helper (drawn-image rect for box overlays), extracted from the Mac coordinator for file_length",
     "Views/Preview/ImageViewer/CursorTracking/PreviewSwapAnimation.swift": "2026-08-21 — CATransition on the NSImageView layer for page/rendition swap animation; macOS-only file (#if os(macOS))",
-    "App/Menus/FileMenuCommands+Export.swift": "2026-08-22 — save/open panels + Finder reveal for exports, split from FileMenuCommands for file_length; AppKit use is os(macOS)-guarded",
     "Views/Library/ViewModes/Canvas/3D/CanvasSpaceView+Gestures.swift": "2026-08-22 — NSEvent modifier checks for ⌥-drag/⇧⌥-marquee, canImport-guarded; split for file_length",
     "Views/Preview/ImageViewer/CursorTracking/ImageWithCursorTrackingMacCoordinator+Magnify.swift": "2026-08-22 — NSMagnificationGestureRecognizer handling, macOS-only file; split for file_length",
     "Views/Preview/ImageViewer/CursorTracking/ImageWithCursorTrackingIOS.swift": "#2713 — iOS UIView cursor/zoom bridge #if canImport (split); #2101",

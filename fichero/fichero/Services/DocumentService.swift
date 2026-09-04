@@ -247,6 +247,48 @@ extension DocumentService {
         }
     }
 
+    /// Export the library (or one document/folder) as a Word `.docx` file
+    /// (Daniel, 2026-09-03: "export to Word or MD file — say, from the reader
+    /// view"). Routed through the generated, tokened client with typed errors
+    /// — the .docx writer lives in the engine's `export_service`, and this is
+    /// the app's only door to it.
+    /// - Parameters:
+    ///   - outputPath: Destination `.docx` path.
+    ///   - targetId: Document/folder to export; nil exports the whole library.
+    ///   - overwrite: Replace an existing file. Callers that already showed a
+    ///     save panel pass `true` — the panel asked, and a 409 here would ask
+    ///     the same question again and lose the answer.
+    func exportWord(
+        outputPath: String,
+        targetId: String? = nil,
+        recursive: Bool = true,
+        overwrite: Bool = false,
+        includeKnowledgeGraph: Bool = false
+    ) async throws -> Components.Schemas.WordExportResponse {
+        logger.info("Exporting Word document to: \(outputPath)")
+
+        let request = Components.Schemas.WordExportRequest(
+            outputPath: outputPath,
+            targetId: targetId,
+            recursive: recursive,
+            overwrite: overwrite,
+            includeKnowledgeGraph: includeKnowledgeGraph
+        )
+        let response = try await client.api.exportWordRouteApiExportWordPost(
+            .init(body: .json(request))
+        )
+
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw DocumentServiceError.serverError(detail?.detail?.description ?? "Validation error")
+        default:
+            throw DocumentServiceError.unexpectedResponse
+        }
+    }
+
     /// Get children of a document/collection
     ///
     /// - Parameters:

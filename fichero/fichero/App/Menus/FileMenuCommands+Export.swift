@@ -1,6 +1,3 @@
-#if canImport(AppKit)
-import AppKit
-#endif
 import FicheroAPIClient
 import OSLog
 import SwiftUI
@@ -62,17 +59,9 @@ extension FileMenuCommands {
 
     #if os(macOS)
     func presentDirectoryPanel() async -> URL? {
-        await withCheckedContinuation { continuation in
-            let panel = NSOpenPanel()
-            panel.canChooseDirectories = true
-            panel.canChooseFiles = false
-            panel.canCreateDirectories = true
-            panel.prompt = "Export Here"
-            panel.message = "Choose a folder for the exported markdown static site"
-            panel.begin { result in
-                continuation.resume(returning: result == .OK ? panel.url : nil)
-            }
-        }
+        await ExportPresentation.directoryPanel(
+            message: "Choose a folder for the exported markdown static site"
+        )
     }
     #endif
 
@@ -101,29 +90,16 @@ extension FileMenuCommands {
 
     #if os(macOS)
     func presentBibtexSavePanel() async -> URL? {
-        await withCheckedContinuation { continuation in
-            let savePanel = NSSavePanel()
-            savePanel.nameFieldStringValue = "bibliography.bib"
-            if let bibType = UTType(filenameExtension: "bib") {
-                savePanel.allowedContentTypes = [bibType]
-            }
-            savePanel.allowsOtherFileTypes = false
-            savePanel.canCreateDirectories = true
-
-            savePanel.begin { result in
-                continuation.resume(returning: result == .OK ? savePanel.url : nil)
-            }
-        }
+        await ExportPresentation.savePanel(
+            suggestedName: "bibliography.bib",
+            contentType: UTType(filenameExtension: "bib")
+        )
     }
     #endif
 
     #if os(macOS)
     func presentExportError(_ error: Error, title: String) {
-        let alert = NSAlert()
-        alert.messageText = title
-        alert.informativeText = error.localizedDescription
-        alert.alertStyle = .warning
-        alert.runModal()
+        ExportPresentation.showError(error, title: title)
     }
     #endif
 
@@ -131,7 +107,7 @@ extension FileMenuCommands {
     /// Reveal the exported file/folder in Finder so a successful export isn't
     /// silent (#3305). macOS-only — the callers live in os(macOS) branches.
     func revealInFinder(_ url: URL) {
-        NSWorkspace.shared.activateFileViewerSelecting([url])
+        ExportPresentation.revealInFinder(url)
     }
     #endif
 }

@@ -615,3 +615,46 @@ def test_export_eleventy_site_renders_unsourced_entity_without_page_link(db, tmp
     assert entity_pages, "unsourced entity page missing from the 11ty export"
     body = Path(entity_pages[0]).read_text(encoding="utf-8")
     assert "library-level (no source page)" in body
+
+
+def test_export_word_docx_for_one_document_carries_only_that_page(db, tmp_path):
+    """The contract the Reader's "Export as Word..." depends on (2026-09-03):
+    a single-document `target_id` writes ONE .docx holding that page's reading
+    text, and nothing from its siblings. The reader exports what you are
+    reading, so a sibling folio leaking into the file would be the export
+    quietly disagreeing with the pane."""
+    _seed_export_library(db)
+    output = tmp_path / "folio-1.docx"
+
+    result = export_word_docx(
+        db, output, target_id="page-1", include_knowledge_graph=False
+    )
+
+    assert result.document_count == 1
+    assert Path(result.output_path) == output
+    assert output.exists()
+    assert result.bytes_written > 0
+
+    # A .docx is a zip of Office Open XML; read the body back rather than
+    # trusting the byte count.
+    import zipfile
+
+    with zipfile.ZipFile(output) as package:
+        body = package.read("word/document.xml").decode("utf-8")
+    assert "Pedro signed the petition." in body
+    assert "Maria witnessed the signature." not in body
+
+
+def test_export_word_docx_overwrites_when_the_save_panel_already_asked(db, tmp_path):
+    """`overwrite=True` is how the app carries the save panel's answer through:
+    without it a second export to the same path raises FileExistsError and the
+    user is asked to confirm a replacement they already confirmed."""
+    _seed_export_library(db)
+    output = tmp_path / "folio-1.docx"
+    export_word_docx(db, output, target_id="page-1")
+
+    with pytest.raises(FileExistsError):
+        export_word_docx(db, output, target_id="page-1")
+
+    result = export_word_docx(db, output, target_id="page-1", overwrite=True)
+    assert result.document_count == 1
