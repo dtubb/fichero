@@ -13,6 +13,7 @@ import XCTest
 /// These tests pin the three halves of the convergence: the frame goes out on
 /// write, comes back on read, and gates drawing through the SAME matrix the
 /// region overlay uses.
+@MainActor
 final class AnnotationFrameIdentityTests: XCTestCase {
 
     // MARK: - Write: the anchor names the frame
