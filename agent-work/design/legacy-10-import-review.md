@@ -370,3 +370,137 @@ an idempotent `db_migrations.py` step — never a nuke.
    would keep both.
 3. **Segment geometry** — worth the transform-chain work now, or genuinely fine
    to leave to the bbox program?
+
+---
+
+# Built — 2026-09-04
+
+Daniel ruled on the three open questions and added a fourth; the converter
+implements all four. Everything below is measured from a **read-only** scan of
+both real archives.
+
+## The corpus, as the converter sees it
+
+```
+document folders        111        (120 found, 9 overlaps resolved)
+archives                  2        Big Files, Smaller Files
+curation stages           4        02 In-Progress, 04 Checked, 05 Posted, 05 posted
+pages                 6,866
+renditions           40,842        link mode — 0 bytes copied
+transcriptions        5,197        qwen-vl-max
+  no page text        1,669        in 15 folders the 1.0 run never transcribed
+catalogues               96        gpt-4.1-mini
+  no catalogue           15        folders the 1.0 run never catalogued
+  entities            6,862
+  timeline claims       900
+NOT IMPORTED
+  segment strips     20,143        geometry deferred; bands carried verbatim
+  word documents         96        no non-image rendition role
+  unprocessed             6        folders 1.0 never ran — loose scans
+RECOVERED: 22 folders had catalogue steps the 1.0 run truncated mid-JSON
+```
+
+Note the two honest subtotals: **1,669 pages have no text at all** and **15
+folders were never catalogued**, because those 1.0 runs were abandoned partway.
+An earlier draft of the report claimed a catalogue for all 111 folders; running
+it against the real archive is what caught that.
+
+## Ruling 1 — one library, deduped by content, resolved by quality
+
+Content identity is **page sequence + byte size** from the 1.0 manifest, not a
+hash of 21 GB of pixels and *not* the page stem (stems embed the folder name, so
+`doc` and `doc-1` — which the archive really does hold side by side — would
+never have matched).
+
+Daniel's amendment: *"which is better, big or small? Use the better one."* The
+ranking below is empirical, measured across the nine overlapping folders the
+archives actually hold:
+
+| # | signal | why it ranks here |
+|---|---|---|
+| 1 | stages completed | decides 2 of 9 outright and decisively — an abandoned copy has 6/12 stages and **zero** transcriptions |
+| 2 | transcribed pages | the page text is the point of the corpus |
+| 3 | intact catalogue steps (present − truncated) | one pair differs only here |
+| 4 | segment transcriptions | more strips read = more text |
+| 5 | entities recovered | last real signal |
+| — | run timestamp | tiebreak only, so "identical except when it ran" stays reportable as identical |
+
+**Deliberately not a criterion: original resolution.** Content identity is
+sequence + byte size, so overlapping copies hold byte-identical originals by
+construction. A "higher resolution wins" rule could never fire, and writing one
+would be theatre.
+
+The tally lands in the dry run before the real run:
+
+```
+overlaps                  9   same content twice — the BETTER copy is imported
+  Compania Minera Smaller Files wins                  2
+  Compania Minera Smaller Files (internal copy) wins  4
+  Compañía Minera Big Files wins                      2
+  Compañía Minera Big Files (internal copy) wins      1
+```
+
+Each winner records `metadata["legacy_chosen_copy"]` — which archive won, both
+quality tuples, the losing paths, and the ranking used. The decision is
+auditable on the document, not buried in a log.
+
+> **One judgement call for Daniel.** Ranking segment coverage above entity count
+> means two folders won with *fewer* entities than the copy they beat
+> (1939-Reglamento: 18 segment texts / 28 entities beat 12 / 43). Entity counts
+> vary with LLM nondeterminism, segment coverage does not — but if you would
+> rather rank entities higher, it is one tuple in `LegacyFolder.quality`.
+
+## Ruling 2 — curation tiers flatten
+
+No node is named for a tier. `metadata["legacy_stage"]` carries it as a
+filterable field, with the full chain in `legacy_tiers`.
+
+Archive and stage are derived from the **tier chain**, not the scan root — the
+first real run reported every document's archive as "Historical Archives
+Portable" and made the tally useless, because resolving an overlap by quality
+requires seeing both copies in one scan, so the useful root is the folder that
+*contains* both archives.
+
+## Ruling 3 — segment geometry deferred, bands carried
+
+The `[y_start, y_end]` bands ride **verbatim** on each page node as
+`metadata["legacy_deferred_segments"]` (`count`, `space: background_removed`,
+`axis: y`, `bands`). The bbox program can attach them without re-reading 300 GB
+to recover numbers the archive already knows.
+
+## Ruling 4 (amendment) — renditions are REAL rows
+
+The five 1.0 stages become five linked `Rendition` rows per page, not a metadata
+blob: `role`, `path`, `pixel_width/height`, `producer_tool`,
+`derived_from_rendition_id` chaining original → crop → rotated → enhanced →
+background_removed, and the crop's detected box as a `NodeRegion` transform
+normalized against the original frame — naming that frame via
+`transform.rendition_id`, because a region without its frame is meaningless.
+
+The rows are written engine-side (`_import_manifest_folder`), because renditions
+have **no HTTP write route** and the drop path is already where a manifest
+import holds the database to stamp paths and dates. `manifest_renditions.py`
+keeps the pure `plan_renditions` / applying split that `rendition_sidecar.py`
+established, so refusals are testable. Measured on the real archive: **40,842
+rows planned, zero refusals.** This fixes the gap for *every* corpus import, not
+only 1.0.
+
+## The pathless trap, closed
+
+`document_payload` nulls client-supplied absolute paths by contract, and only
+the drop path re-stamps them — so an HTTP-only `--ingest link` import yields
+pathless, thumbnail-less pages. Two changes:
+
+* The import **self-checks**: any page left without a path raises, naming the
+  count and the likely cause (a folder grant that does not cover where the
+  images actually live) and pointing at a concrete path. The import is
+  idempotent, so a re-drop repairs.
+* `fichero import-legacy-archive --no-dry-run` runs through `POST /ingest/folder`
+  — the same path a drag-and-drop takes — rather than POSTing a manifest,
+  because that is what earns the stamping and the rendition rows.
+
+`--no-dry-run` takes **one** root: choosing the better of two copies requires
+seeing both in a single scan, so importing one archive and then the other would
+keep whichever arrived first rather than the better one. Passing the parent of
+both is the honest way to get one decision, and the CLI refuses the alternative
+rather than silently doing the wrong thing.

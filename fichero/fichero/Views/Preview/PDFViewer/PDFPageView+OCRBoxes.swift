@@ -70,7 +70,24 @@ extension PDFPageView.Coordinator {
             let annotation = PDFAnnotation(bounds: placed, forType: .square, withProperties: nil)
             // Outline only. A filled box would obscure the very glyphs it
             // is describing, and these exist to be read against.
-            annotation.color = NSColor.systemTeal
+            //
+            // …and how sure the machine is about WHERE the word is shows here
+            // too (2026-09-04). The image overlay and this one draw the same
+            // geometry; a box that reads as a guess on one surface and as an
+            // assertion on the other is the two disagreeing about the same
+            // fact. PDFKit gives a border its own dash style, so the axis is
+            // spelled the same way: recessive colour plus a dash.
+            let uncertain = OCRBoxConfidence.isUncertain(box)
+            annotation.color = uncertain
+                ? NSColor.systemTeal.withAlphaComponent(0.35)
+                : NSColor.systemTeal
+            if uncertain {
+                let border = PDFBorder()
+                border.lineWidth = 1
+                border.style = .dashed
+                border.dashPattern = [3, 2]
+                annotation.border = border
+            }
             annotation.userName = Self.ocrBoxAnnotationName
             page.addAnnotation(annotation)
         }

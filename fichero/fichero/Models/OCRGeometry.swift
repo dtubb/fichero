@@ -15,6 +15,10 @@ struct OCRGeometryBox: Codable, Hashable, Identifiable {
     var bbox: [Double]
     /// "line", "word", "block", "page", or "region".
     var level: String
+    /// How sure the producer is about WHERE this box is — not about what it
+    /// says. Absent when the producer does not report one (the alignment pass
+    /// writes none), which is silence, not doubt: `OCRBoxConfidence` is the
+    /// one place that distinction is decided.
     var confidence: Double?
     var pageIndex: Int?
     var charStart: Int?
