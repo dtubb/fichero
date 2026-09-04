@@ -29,7 +29,7 @@
   notes: Grid, list, table, and map views in the library.
 - key: libraryIconZoomControls
   name: Library icon zoom controls
-  tier: dev
+  tier: alpha
   swift_flag: fichero.features.library_icon_zoom_controls
   routes: []
   ux_group: Core
@@ -60,7 +60,7 @@
   notes: Visual workflow editor and execution surface.
 - key: workflowEditorAdvancedViews
   name: Workflow editor advanced views
-  tier: dev
+  tier: alpha
   swift_flag: fichero.features.workflow_editor_advanced_views
   routes: []
   ux_group: Processing
@@ -75,7 +75,7 @@
   notes: Multi-step composed workflow pipelines.
 - key: workflowImportExport
   name: Workflow import and export
-  tier: dev
+  tier: alpha
   swift_flag: fichero.features.workflow_import_export
   routes: []
   ux_group: Processing
@@ -89,7 +89,7 @@
   notes: Run the active workflow on the selected documents from the library contextual menu.
 - key: workflowLangGraphPreview
   name: Workflow LangGraph preview
-  tier: dev
+  tier: alpha
   swift_flag: fichero.features.workflow_langgraph_preview
   routes: []
   ux_group: Processing
@@ -137,7 +137,7 @@
   notes: Local and cloud model providers plus model catalog.
 - key: modelComparison
   name: Model comparison
-  tier: dev
+  tier: alpha
   swift_flag: null
   routes:
     - /api/model-comparison
@@ -145,14 +145,14 @@
   notes: Compare model behavior and metadata in-app.
 - key: cli
   name: CLI
-  tier: dev
+  tier: alpha
   swift_flag: null
   routes: []
   ux_group: Clients
   notes: Typed CLI over the same HTTP API surface.
 - key: mcpServer
   name: MCP server
-  tier: dev
+  tier: alpha
   swift_flag: null
   routes:
     - /api/mcp
@@ -233,7 +233,7 @@
   notes: Transform workflow tools still under review.
 - key: workflowToolsConvert
   name: Workflow tools convert
-  tier: dev
+  tier: alpha
   swift_flag: fichero.features.workflow_tools_convert
   routes: []
   ux_group: Processing
@@ -254,7 +254,7 @@
   notes: Output workflow tools still under review.
 - key: workflowToolsAudio
   name: Workflow tools audio
-  tier: dev
+  tier: alpha
   swift_flag: fichero.features.workflow_tools_audio
   routes: []
   ux_group: Processing
@@ -282,7 +282,7 @@
   notes: Agent-backed workflow tools still under review.
 - key: providersExtended
   name: Extended provider catalog
-  tier: dev
+  tier: alpha
   swift_flag: fichero.features.providers_extended
   routes: []
   ux_group: Models
@@ -303,28 +303,28 @@
   notes: Model configuration panel.
 - key: libraryFilterToolbar
   name: Library filter toolbar
-  tier: dev
+  tier: alpha
   swift_flag: fichero.features.library_filter_toolbar
   routes: []
   ux_group: Core
   notes: Advanced filter toolbar in the library.
 - key: librarySearchSplitLayouts
   name: Library and search split layouts
-  tier: dev
+  tier: alpha
   swift_flag: fichero.features.library_search_split_layouts
   routes: []
   ux_group: Core
   notes: Split layouts for library and search.
 - key: claimHighlightSync
   name: Claim highlight sync
-  tier: dev
+  tier: alpha
   swift_flag: fichero.features.claim_highlight_sync
   routes: []
   ux_group: Knowledge
   notes: Bidirectional claim highlight sync across panes.
 - key: pdfScrollGridSync
   name: PDF scroll grid sync
-  tier: dev
+  tier: alpha
   swift_flag: fichero.features.pdf_scroll_grid_sync
   routes: []
   ux_group: Core

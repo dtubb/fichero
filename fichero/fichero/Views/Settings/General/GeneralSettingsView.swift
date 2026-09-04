@@ -96,6 +96,30 @@ struct GeneralSettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
+            // Software Update (Daniel, 2026-09-04: "automatically download and
+            // install should default on; we need a settings pane for this").
+            // Bindings pass straight through to Sparkle's own persisted
+            // preferences — the section exists so the defaults are VISIBLE
+            // and reversible, not to add state. Hidden entirely on builds
+            // with no Sparkle feed (MAS, Xcode runs): dead toggles are worse
+            // than no toggles.
+            #if os(macOS)
+            if SparkleUpdater.shared.isAvailable {
+                Section("Software Update") {
+                    Toggle("Check for updates automatically", isOn: Binding(
+                        get: { SparkleUpdater.shared.automaticallyChecksForUpdates },
+                        set: { SparkleUpdater.shared.automaticallyChecksForUpdates = $0 }
+                    ))
+                    Toggle("Download and install automatically", isOn: Binding(
+                        get: { SparkleUpdater.shared.automaticallyDownloadsUpdates },
+                        set: { SparkleUpdater.shared.automaticallyDownloadsUpdates = $0 }
+                    ))
+                    LabeledContent("Version", value: AboutInfo.versionText)
+                    Button("Check Now…") { SparkleUpdater.shared.checkForUpdates() }
+                }
+            }
+            #endif
+
             Section("Notifications") {
                 Toggle("Notify when a workflow finishes", isOn: $notificationsEnabled)
                 Text("Shows a system notification when a workflow run completes or fails.")

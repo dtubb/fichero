@@ -111,7 +111,7 @@ enum FeatureTiers {
         ),
         .libraryIconZoomControls: .init(
             name: "Library icon zoom controls",
-            tier: .dev,
+            tier: .alpha,
             swiftFlag: "fichero.features.library_icon_zoom_controls",
             uxGroup: "Core",
             notes: "Zoom controls for icon-based library layouts."
@@ -139,7 +139,7 @@ enum FeatureTiers {
         ),
         .workflowEditorAdvancedViews: .init(
             name: "Workflow editor advanced views",
-            tier: .dev,
+            tier: .alpha,
             swiftFlag: "fichero.features.workflow_editor_advanced_views",
             uxGroup: "Processing",
             notes: "Extra presentation modes in the workflow editor."
@@ -153,7 +153,7 @@ enum FeatureTiers {
         ),
         .workflowImportExport: .init(
             name: "Workflow import and export",
-            tier: .dev,
+            tier: .alpha,
             swiftFlag: "fichero.features.workflow_import_export",
             uxGroup: "Processing",
             notes: "Import and export workflow definitions."
@@ -167,7 +167,7 @@ enum FeatureTiers {
         ),
         .workflowLangGraphPreview: .init(
             name: "Workflow LangGraph preview",
-            tier: .dev,
+            tier: .alpha,
             swiftFlag: "fichero.features.workflow_langgraph_preview",
             uxGroup: "Processing",
             notes: "Inspect the compiled LangGraph form of a workflow."
@@ -209,21 +209,21 @@ enum FeatureTiers {
         ),
         .modelComparison: .init(
             name: "Model comparison",
-            tier: .dev,
+            tier: .alpha,
             swiftFlag: nil,
             uxGroup: "Models",
             notes: "Compare model behavior and metadata in-app."
         ),
         .cli: .init(
             name: "CLI",
-            tier: .dev,
+            tier: .alpha,
             swiftFlag: nil,
             uxGroup: "Clients",
             notes: "Typed CLI over the same HTTP API surface."
         ),
         .mcpServer: .init(
             name: "MCP server",
-            tier: .dev,
+            tier: .alpha,
             swiftFlag: nil,
             uxGroup: "Clients",
             notes: "MCP server surface backed by the engine."
@@ -300,7 +300,7 @@ enum FeatureTiers {
         ),
         .workflowToolsConvert: .init(
             name: "Workflow tools convert",
-            tier: .dev,
+            tier: .alpha,
             swiftFlag: "fichero.features.workflow_tools_convert",
             uxGroup: "Processing",
             notes: "Convert workflow tools still under review."
@@ -321,7 +321,7 @@ enum FeatureTiers {
         ),
         .workflowToolsAudio: .init(
             name: "Workflow tools audio",
-            tier: .dev,
+            tier: .alpha,
             swiftFlag: "fichero.features.workflow_tools_audio",
             uxGroup: "Processing",
             notes: "Audio workflow tools still under review."
@@ -349,7 +349,7 @@ enum FeatureTiers {
         ),
         .providersExtended: .init(
             name: "Extended provider catalog",
-            tier: .dev,
+            tier: .alpha,
             swiftFlag: "fichero.features.providers_extended",
             uxGroup: "Models",
             notes: "Expanded provider and model catalog beyond the shipped baseline."
@@ -370,28 +370,28 @@ enum FeatureTiers {
         ),
         .libraryFilterToolbar: .init(
             name: "Library filter toolbar",
-            tier: .dev,
+            tier: .alpha,
             swiftFlag: "fichero.features.library_filter_toolbar",
             uxGroup: "Core",
             notes: "Advanced filter toolbar in the library."
         ),
         .librarySearchSplitLayouts: .init(
             name: "Library and search split layouts",
-            tier: .dev,
+            tier: .alpha,
             swiftFlag: "fichero.features.library_search_split_layouts",
             uxGroup: "Core",
             notes: "Split layouts for library and search."
         ),
         .claimHighlightSync: .init(
             name: "Claim highlight sync",
-            tier: .dev,
+            tier: .alpha,
             swiftFlag: "fichero.features.claim_highlight_sync",
             uxGroup: "Knowledge",
             notes: "Bidirectional claim highlight sync across panes."
         ),
         .pdfScrollGridSync: .init(
             name: "PDF scroll grid sync",
-            tier: .dev,
+            tier: .alpha,
             swiftFlag: "fichero.features.pdf_scroll_grid_sync",
             uxGroup: "Core",
             notes: "Live PDF scroll synchronization into other panes."

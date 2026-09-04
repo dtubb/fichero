@@ -12,7 +12,7 @@ set -euo pipefail
 #                          [--mac-only | --ios-only] [--github] [--draft]
 #                          [--dev | --tier <release|beta|alpha|dev>]
 # Default (no --dev/--tier): the DMG lane builds BOTH tiers per release —
-# Fichero.dmg (beta, the public download) and Fichero-dev.dmg (dev, ALL
+# Fichero.dmg (alpha, the public download) and Fichero-dev.dmg (dev, ALL
 # features) — and TestFlight archives the dev surface (internal-only, #3365).
 # --dev / --tier narrow the run to that single tier: `--dev` bakes ALL dev
 # features (Dev Embedded mac config + dev FICHERO_FEATURE_TIER on iOS);
@@ -23,7 +23,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RELEASE_DIR="$ROOT_DIR/build/releases"
-# Fichero.dmg = beta (the public download), Fichero-dev.dmg = dev (all
+# Fichero.dmg = alpha (the public download), Fichero-dev.dmg = dev (all
 # features). Daniel's 2026-08-25 ruling: every release ships BOTH.
 DMG_PATH="$RELEASE_DIR/Fichero.dmg"
 DEV_DMG_PATH="$RELEASE_DIR/Fichero-dev.dmg"
@@ -218,13 +218,16 @@ while [ $# -gt 0 ]; do
 done
 
 # DMG tiers for this run. Default (no --dev/--tier): BOTH DMGs — dev first,
-# beta LAST so dmg-stage/ and Fichero.dmg hold the beta artifacts for the size
-# ratchet and the GitHub step's staged-app checks. An explicit --dev/--tier
-# builds only that tier (one-off runs keep their old meaning).
+# alpha LAST so dmg-stage/ and Fichero.dmg hold the public artifacts for the
+# size ratchet and the GitHub step's staged-app checks. An explicit
+# --dev/--tier builds only that tier (one-off runs keep their old meaning).
+# PUBLIC TIER = ALPHA (Daniel, 2026-09-04: "it's a public alpha after all") —
+# beta is where alpha features graduate once they're proven, not a tier we
+# ship today.
 if [ -n "${FICHERO_RELEASE_TIER:-}" ]; then
   DMG_TIERS=("$FICHERO_RELEASE_TIER")
 else
-  DMG_TIERS=(dev beta)
+  DMG_TIERS=(dev alpha)
   # TestFlight is internal-only, so in dual mode it archives the dev surface.
   FICHERO_RELEASE_TIER=dev
 fi

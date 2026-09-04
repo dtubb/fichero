@@ -30,5 +30,19 @@
 	<true/>
 	<key>com.apple.security.files.bookmarks.document-scope</key>
 	<true/>
+	<!--
+	  Sparkle 2 under the sandbox (2026-09-04): a sandboxed app talks to its
+	  own Installer.xpc/status services over mach lookups named
+	  <bundle-id>-spks / <bundle-id>-spki. Without these exceptions the
+	  update DOWNLOADS fine and then dies at "An error occurred while
+	  launching the installer" — Daniel's first real Sparkle update, build 1
+	  to build 2. LITERAL bundle id, not $(PRODUCT_BUNDLE_IDENTIFIER): the
+	  DMG lane re-signs with this raw file and codesign substitutes nothing.
+	-->
+	<key>com.apple.security.temporary-exception.mach-lookup.global-name</key>
+	<array>
+		<string>app.fichero.fichero-spks</string>
+		<string>app.fichero.fichero-spki</string>
+	</array>
 </dict>
 </plist>

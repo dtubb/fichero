@@ -37,6 +37,64 @@ final class SparkleUpdater {
             updaterDelegate: channelDelegate,
             userDriverDelegate: nil
         )
+        // Automatic download-and-install defaults ON (Daniel, 2026-09-04):
+        // an archive tool's updates carry fixes to the data path, and waiting
+        // for a manual check is how a known bug stays on a machine for weeks.
+        // FIRST LAUNCH ONLY — Sparkle persists both flags in UserDefaults
+        // (SUEnableAutomaticChecks / SUAutomaticallyUpdate), so seed the
+        // default solely while the user has never touched it; a deliberate
+        // opt-out in Settings then sticks forever.
+        let defaults = UserDefaults.standard
+        if defaults.object(forKey: "SUAutomaticallyUpdate") == nil {
+            updaterController.updater.automaticallyDownloadsUpdates = true
+        }
+        if defaults.object(forKey: "SUEnableAutomaticChecks") == nil {
+            updaterController.updater.automaticallyChecksForUpdates = true
+        }
+        #endif
+    }
+
+    /// Settings seam (General ▸ Software Update). Straight passthroughs to
+    /// Sparkle's own persisted preferences — no shadow copy to drift.
+    var automaticallyChecksForUpdates: Bool {
+        get {
+            #if canImport(Sparkle)
+            return updaterController.updater.automaticallyChecksForUpdates
+            #else
+            return false
+            #endif
+        }
+        set {
+            #if canImport(Sparkle)
+            updaterController.updater.automaticallyChecksForUpdates = newValue
+            #endif
+        }
+    }
+
+    var automaticallyDownloadsUpdates: Bool {
+        get {
+            #if canImport(Sparkle)
+            return updaterController.updater.automaticallyDownloadsUpdates
+            #else
+            return false
+            #endif
+        }
+        set {
+            #if canImport(Sparkle)
+            updaterController.updater.automaticallyDownloadsUpdates = newValue
+            #endif
+        }
+    }
+
+    /// True when this build carries Sparkle at all (DMG channel; MAS and dev
+    /// Xcode runs do not) — Settings hides the section rather than showing
+    /// dead toggles.
+    var isAvailable: Bool {
+        #if canImport(Sparkle)
+        return (Bundle.main.object(forInfoDictionaryKey: "SUFeedURL") as? String)
+            .map { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty } ?? false
+        #else
+        return false
         #endif
     }
 

@@ -31,36 +31,36 @@ Build-tier visibility uses a maturity floor:
 | Workflow tools files | `beta` | `fichero.features.workflow_tools_files` | - | Processing | File and collection tools enabled in shipped workflows. |
 | Workflows | `beta` | `fichero.features.workflows` | `/api/workflows`, `/api/workflow-execution` | Processing | Visual workflow editor and execution surface. |
 | Settings general tab | `beta` | `fichero.features.settings_general_tab` | - | Settings | General settings panel. |
+| CLI | `alpha` | - | - | Clients | Typed CLI over the same HTTP API surface. |
 | Integrations | `alpha` | `fichero.features.integrations` | `/api/integrations` | Clients | External integrations surface still in the rawest stage. |
+| MCP server | `alpha` | - | `/api/mcp` | Clients | MCP server surface backed by the engine. |
 | MCP servers UI | `alpha` | `fichero.features.mcp` | `/api/mcp-servers` | Clients | UI for managing MCP server connections. |
+| Library and search split layouts | `alpha` | `fichero.features.library_search_split_layouts` | - | Core | Split layouts for library and search. |
+| Library filter toolbar | `alpha` | `fichero.features.library_filter_toolbar` | - | Core | Advanced filter toolbar in the library. |
+| Library icon zoom controls | `alpha` | `fichero.features.library_icon_zoom_controls` | - | Core | Zoom controls for icon-based library layouts. |
+| PDF scroll grid sync | `alpha` | `fichero.features.pdf_scroll_grid_sync` | - | Core | Live PDF scroll synchronization into other panes. |
+| Claim highlight sync | `alpha` | `fichero.features.claim_highlight_sync` | - | Knowledge | Bidirectional claim highlight sync across panes. |
+| Extended provider catalog | `alpha` | `fichero.features.providers_extended` | - | Models | Expanded provider and model catalog beyond the shipped baseline. |
+| Model comparison | `alpha` | - | `/api/model-comparison` | Models | Compare model behavior and metadata in-app. |
+| Workflow editor advanced views | `alpha` | `fichero.features.workflow_editor_advanced_views` | - | Processing | Extra presentation modes in the workflow editor. |
+| Workflow import and export | `alpha` | `fichero.features.workflow_import_export` | - | Processing | Import and export workflow definitions. |
+| Workflow LangGraph preview | `alpha` | `fichero.features.workflow_langgraph_preview` | - | Processing | Inspect the compiled LangGraph form of a workflow. |
+| Workflow tools audio | `alpha` | `fichero.features.workflow_tools_audio` | - | Processing | Audio workflow tools still under review. |
+| Workflow tools convert | `alpha` | `fichero.features.workflow_tools_convert` | - | Processing | Convert workflow tools still under review. |
 | Settings backend tab | `alpha` | `fichero.features.settings_backend_tab` | - | Settings | Backend configuration panel. |
 | Settings capture tab | `alpha` | `fichero.features.settings_capture_tab` | - | Settings | Capture and intake settings panel. |
 | Settings engine tab | `alpha` | `fichero.features.settings_engine_tab` | - | Settings | Engine settings panel. |
 | Settings models tab | `alpha` | `fichero.features.settings_models_tab` | - | Settings | Model configuration panel. |
 | Settings share tab | `alpha` | `fichero.features.settings_share_tab` | - | Settings | Sharing and collaboration settings panel. |
 | Settings users tab | `alpha` | `fichero.features.settings_users_tab` | - | Settings | Multi-user settings panel. |
-| CLI | `dev` | - | - | Clients | Typed CLI over the same HTTP API surface. |
-| MCP server | `dev` | - | `/api/mcp` | Clients | MCP server surface backed by the engine. |
 | Spatial mode | `dev` | `fichero.features.spatial_mode` | - | Clients | Spatial library presentation mode. |
 | Workspace mode | `dev` | `fichero.features.workspace_mode` | - | Clients | Alternate workspace-oriented shell mode. |
 | IIIF | `dev` | - | `/api/iiif` | Core | IIIF image and annotation server interoperability. |
-| Library and search split layouts | `dev` | `fichero.features.library_search_split_layouts` | - | Core | Split layouts for library and search. |
-| Library filter toolbar | `dev` | `fichero.features.library_filter_toolbar` | - | Core | Advanced filter toolbar in the library. |
-| Library icon zoom controls | `dev` | `fichero.features.library_icon_zoom_controls` | - | Core | Zoom controls for icon-based library layouts. |
-| PDF scroll grid sync | `dev` | `fichero.features.pdf_scroll_grid_sync` | - | Core | Live PDF scroll synchronization into other panes. |
 | Agents | `dev` | `fichero.features.agents` | - | Knowledge | In-app agent surface still in the rawest stage. |
 | Chat | `dev` | `fichero.features.chat` | `/api/chat` | Knowledge | RAG conversation over the active library. |
-| Claim highlight sync | `dev` | `fichero.features.claim_highlight_sync` | - | Knowledge | Bidirectional claim highlight sync across panes. |
 | Research | `dev` | `fichero.features.research` | `/api/research` | Knowledge | KG-backed research workflows and answer surface. |
-| Extended provider catalog | `dev` | `fichero.features.providers_extended` | - | Models | Expanded provider and model catalog beyond the shipped baseline. |
-| Model comparison | `dev` | - | `/api/model-comparison` | Models | Compare model behavior and metadata in-app. |
 | Automation | `dev` | `fichero.features.automation` | `/api/schedules`, `/api/triggers` | Processing | Schedules, triggers, and automated flows. |
-| Workflow editor advanced views | `dev` | `fichero.features.workflow_editor_advanced_views` | - | Processing | Extra presentation modes in the workflow editor. |
-| Workflow import and export | `dev` | `fichero.features.workflow_import_export` | - | Processing | Import and export workflow definitions. |
-| Workflow LangGraph preview | `dev` | `fichero.features.workflow_langgraph_preview` | - | Processing | Inspect the compiled LangGraph form of a workflow. |
 | Workflow tools agents | `dev` | `fichero.features.workflow_tools_agents` | - | Processing | Agent-backed workflow tools still under review. |
-| Workflow tools audio | `dev` | `fichero.features.workflow_tools_audio` | - | Processing | Audio workflow tools still under review. |
-| Workflow tools convert | `dev` | `fichero.features.workflow_tools_convert` | - | Processing | Convert workflow tools still under review. |
 | Workflow tools logic | `dev` | `fichero.features.workflow_tools_logic` | - | Processing | Logic workflow tools still under review. |
 | Workflow tools MCP | `dev` | `fichero.features.workflow_tools_mcp` | - | Processing | MCP-backed workflow tools still under review. |
 | Workflow tools outputs | `dev` | `fichero.features.workflow_tools_outputs` | - | Processing | Output workflow tools still under review. |

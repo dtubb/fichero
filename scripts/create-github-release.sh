@@ -16,7 +16,7 @@ set -euo pipefail
 # Usage: scripts/create-github-release.sh [--draft] [--prerelease] [--dry-run|-n]
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-# Fichero.dmg = beta (default Sparkle channel, the public download);
+# Fichero.dmg = alpha (default Sparkle channel, the public download);
 # Fichero-dev.dmg = dev (<sparkle:channel>dev</sparkle:channel> — only dev
 # builds see it, via SparkleChannelDelegate). Both ship per release.
 DMG_PATH="$ROOT_DIR/build/releases/Fichero.dmg"
@@ -76,7 +76,7 @@ if [ "$DRY_RUN" = false ]; then
     HAVE_DEV_DMG=true
   else
     HAVE_DEV_DMG=false
-    echo "warning: no dev DMG at $DEV_DMG_PATH — releasing the beta DMG only." >&2
+    echo "warning: no dev DMG at $DEV_DMG_PATH — releasing the public DMG only." >&2
     echo "         (the dual-DMG default of release-all.sh builds both)" >&2
   fi
 
@@ -239,7 +239,7 @@ if [ "$DRY_RUN" = false ]; then
     echo "error: sign_update did not produce a signature" >&2
     exit 1
   fi
-  echo "  beta signature: ${ED_SIGNATURE:0:20}…"
+  echo "  public signature: ${ED_SIGNATURE:0:20}…"
   DEV_ED_SIGNATURE=""
   if [ "$HAVE_DEV_DMG" = true ]; then
     DEV_ED_SIGNATURE=$(sparkle_sign "$DEV_DMG_PATH")
@@ -344,7 +344,7 @@ echo "[3/5] Update appcast.xml"
 if [ "$DRY_RUN" = false ]; then
   # Ensure the channel skeleton exists, then insert this release's <item>(s)
   # as the first children — one insert path for seed and update alike. The
-  # beta item is channel-less (every install sees it); the dev item carries
+  # public (alpha) item is channel-less (every install sees it); the dev item carries
   # <sparkle:channel>dev</sparkle:channel>, which only dev builds accept
   # (SparkleChannelDelegate).
   if ! grep -q "<channel>" "$APPCAST_PATH" 2>/dev/null; then
@@ -449,7 +449,7 @@ echo "[5/5] Done"
 echo
 echo "Release:  https://github.com/$RELEASE_REPO/releases/tag/$TAG"
 echo "Appcast:  $APPCAST_URL"
-echo "DMG (beta): $DMG_PATH ($DMG_SIZE_HUMAN)"
+echo "DMG (alpha): $DMG_PATH ($DMG_SIZE_HUMAN)"
 if [ "$HAVE_DEV_DMG" = true ]; then
   echo "DMG (dev):  $DEV_DMG_PATH ($DEV_DMG_SIZE_HUMAN)"
 fi
