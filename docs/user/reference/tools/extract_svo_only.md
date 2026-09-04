@@ -36,6 +36,7 @@ Extract and persist SVO KnowledgeClaim rows only from existing entities and tran
 | Option | Type | Default | What it does |
 | --- | --- | --- | --- |
 | `document_context` | string | — | Corpus framing the text cannot supply, e.g. 'The personal diary of N.C. Marshall, an American engineer in Colombia.' First-person statements are attributed to the author named here. Blank = derived from each document's author metadata when present. |
+| `entity_types` | string | all | Comma-separated sections to extract: people, places, organizations, events, dates. Blank or 'all' extracts every section. 'events,dates' is the timeline shape. |
 
 ## The prompt it sends
 

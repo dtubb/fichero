@@ -323,6 +323,15 @@ class _SVOClaim(BaseModel):
     source_text: str = Field(description="Verbatim quote from source.")
     epistemic_status: str = Field(default="tentative", description="confirmed/tentative/rejected")
     claim_type: str = Field(default="fact", description="fact/analysis/interpretation/argument")
+    # WHEN, when the text says so (#4667). An event without a date cannot be
+    # plotted, and the `_Event` schema's own `date` field never survived the
+    # two-stage rewrite — so "Extract Events" produced entities no timeline
+    # could show. Defaulted, so the Apple grammar stays permissive and a claim
+    # about an undated fact still validates.
+    date: str = Field(
+        default="",
+        description="YYYY-MM-DD, YYYY-MM, YYYY or start/end range — only if the text states it.",
+    )
 
 
 class _EntityClaims(BaseModel):
@@ -434,7 +443,12 @@ def _build_per_entity_claim_instructions(
         f"'alcalde of Popayán', 'cañistin'). Never a whole clause, never a "
         f"copied sentence, never your own paraphrase.\n"
         f"3. The exact source text where this claim appears, preserving any "
-        f"   [ilegible] / [uncertain] markers and original accents exactly\n\n"
+        f"   [ilegible] / [uncertain] markers and original accents exactly\n"
+        f"4. The date, ONLY when the text itself states one for this claim: "
+        f"YYYY-MM-DD, YYYY-MM, YYYY, or 'start/end' for a span. Leave it "
+        f"empty otherwise — an inferred date is a guess wearing a fact's "
+        f"clothes, and it will be plotted on a timeline as though it were "
+        f"read off the page.\n\n"
         f"One assertion per claim: a sentence that says three things is three "
         f"claims, not one claim with three verbs. Write any commentary in "
         f"{output_language}; the verb and object stay in the source's "
@@ -524,6 +538,7 @@ async def _extract_claims_for_entity(
                 "source_text": _annotate_pronoun_source(claim.source_text, entity_name),
                 "epistemic_status": claim.epistemic_status,
                 "claim_type": claim.claim_type,
+                "date_normalized": (claim.date or "").strip(),
             })
         return kept
     except ProviderQuotaError:
@@ -1283,6 +1298,8 @@ def _build_entity_items_for_section(
                 "verb": c.get("verb", ""),
                 "object": c.get("object", ""),
                 "source_text": c.get("source_text", ""),
+                # The date is what makes an event a timeline row (#4667).
+                "date_normalized": c.get("date_normalized", ""),
             }
             for c in claims
         ]
@@ -1294,6 +1311,7 @@ def _build_entity_items_for_section(
             "verb": c.get("verb", ""),
             "object": c.get("object", ""),
             "source_text": c.get("source_text", ""),
+            "date_normalized": c.get("date_normalized", ""),
         }
         for c in claims
     ]

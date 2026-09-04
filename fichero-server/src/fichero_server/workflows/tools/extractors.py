@@ -2020,6 +2020,42 @@ def _write_citation_usage_rows(
     )
 
 
+def _temporal_scope(
+    normalized: str,
+    t_start: str | None,
+    t_end: str | None,
+    t_precision: str | None,
+) -> tuple[str | None, str | None, str | None]:
+    """Turn a normalised date string into a claim's temporal scope.
+
+    ONE implementation, because two would drift and a timeline that plots
+    date claims correctly and event claims a year off is worse than one that
+    plots neither. An explicit ``time_start``/``time_end`` from the model
+    always wins; this only fills an absence.
+
+    Accepts "YYYY", "YYYY-MM", "YYYY-MM-DD" and the "start/end" range form,
+    and reports the precision it actually has rather than padding to a day it
+    was never told.
+    """
+    if not normalized or t_start or t_end:
+        return t_start, t_end, t_precision
+    if "/" in normalized:
+        start_raw, end_raw = normalized.split("/", 1)
+        return (
+            start_raw.strip() or None,
+            end_raw.strip() or None,
+            t_precision or "range",
+        )
+    if not t_precision:
+        if len(normalized) == 4:
+            t_precision = "year"
+        elif len(normalized) == 7:
+            t_precision = "month"
+        elif len(normalized) >= 10:
+            t_precision = "day"
+    return normalized, normalized, t_precision
+
+
 def _write_kg_rows(
     db,
     section: dict[str, Any],
@@ -2594,22 +2630,9 @@ def _write_kg_rows(
                 or ""
             )
             normalized = str(normalized).strip()
-            if normalized and not t_start and not t_end:
-                if "/" in normalized:
-                    start_raw, end_raw = normalized.split("/", 1)
-                    t_start = start_raw.strip() or None
-                    t_end = end_raw.strip() or None
-                    t_precision = t_precision or "range"
-                else:
-                    t_start = normalized
-                    t_end = normalized
-                    if not t_precision:
-                        if len(normalized) == 4:
-                            t_precision = "year"
-                        elif len(normalized) == 7:
-                            t_precision = "month"
-                        elif len(normalized) >= 10:
-                            t_precision = "day"
+            t_start, t_end, t_precision = _temporal_scope(
+                normalized, t_start, t_end, t_precision
+            )
             stem = normalized or date_text
             # Avoid double-period when predicate already ends in
             # terminal punctuation (#1113 polish).
@@ -2681,6 +2704,20 @@ def _write_kg_rows(
                 if claim is not None:
                     claims_to_embed.append(claim)
             continue
+
+        # A DATED entity claim is a timeline row (#4667). Events, above all:
+        # `_Event` has carried a `date` field all along and the writer dropped
+        # it, so "Extract Events" produced entities nothing could plot. Same
+        # helper as the date-claim branch below, so an event and a date claim
+        # cannot disagree about what "1560-04-10" means.
+        item_date = str(
+            item.get("date_normalized") or item.get("fecha_normalizada") or ""
+        ).strip()
+        if item_date and entity_type is not None:
+            t_start, t_end, t_precision = _temporal_scope(
+                item_date, t_start, t_end, t_precision
+            )
+            meta.setdefault("date_normalized", item_date)
 
         # Entity-bearing section.
         if not canonical:

@@ -4,7 +4,7 @@
 
 > 🤖 *AI Drafted (Not reviewed)*
 
-Fichero ships these workflows in every new library. You can run them as they are, or duplicate one and change its steps. Each page lists the steps in run order with the prompt each one sends. There are 52 of them.
+Fichero ships these workflows in every new library. You can run them as they are, or duplicate one and change its steps. Each page lists the steps in run order with the prompt each one sends. There are 53 of them.
 
 | Workflow | Folder | Steps | What it is for |
 | --- | --- | --- | --- |
@@ -29,6 +29,7 @@ Fichero ships these workflows in every new library. You can run them as they are
 | [English Secretary Hand (16th–17th C.)](workflows/english-secretary-hand-16th17th-c.md) | /Transcribe | 2 | Use this when: you have English secretary hand — depositions, indentures, wills, parish and court records of the 16th–17th centuries. One careful whole-page pass; run Paleographer Review afterwards to refine. |
 | [Enhance Images](workflows/enhance-images.md) | /Image Editing | 2 | Create contrast, sharpness, and light denoise image derivatives without modifying the originals. Useful for low-contrast scanned documents before OCR or transcription. |
 | [Export to Desktop (MD + DOCX + XLSX)](workflows/export-to-desktop-md-docx-xlsx.md) | /Export | 2 | Export the selected folder or whole library to the Desktop as a Markdown folder, a Word .docx, and an Excel .xlsx. No LLM required — runs entirely on the local export service. |
+| [Extract Events (Timeline)](workflows/extract-events-timeline.md) | /Extract | 4 | Extracts only what a timeline can show: dated events and the dates themselves. Transcribe each page (reusing any existing text layer), name the events, then read each event's claim and the date the text gives it. Every claim lands as a KnowledgeClaim with time_start / time_end, which is what the KG Timeline plots — no places, no organizations, no per-person loop over pages the timeline will never show. Verbs and objects are copied from the source, so clicking a point on the timeline lands on the words that put it there. |
 | [Extract Geo](workflows/extract-geo.md) | /Extract | 3 | Transcribe each page (reusing any existing text layer), then extract every place name and geocode it to lat/lon. Feeds the 2D world-map and 3D globe representations. Offline geocoding by default; enable online geocoding on the Extract Geo node to resolve places the built-in gazetteer misses. |
 | [Extract Table](workflows/extract-table.md) | /Extract | 2 | Detect and extract tabular data from each image/page using vision, emitting CSV you can paste into a spreadsheet. Feeds the spreadsheet (Table) representation in the document viewer. The output style and header handling are editable on the Table node. |
 | [Fuzzy Clean Images](workflows/fuzzy-clean-images.md) | /Image Editing | 2 | Despeckle and clean uneven scan background into derived image files without modifying the originals. Useful for noisy scanned documents before OCR or transcription. |
