@@ -154,19 +154,26 @@ extension LibraryToolbarState {
     /// Write a sort menu choice back into the shared state, touching only the
     /// values that actually changed so observers don't re-render wholesale.
     func apply(_ model: LibrarySortMenuModel) {
-        if sortFieldRaw != model.selectedField.rawValue {
-            sortFieldRaw = model.selectedField.rawValue
-        }
         if sortAscending != model.ascending {
             sortAscending = model.ascending
         }
-        // apply() is only reachable from the sort MENU — an explicit choice.
-        // While a search is showing this overrides the relevance default (#11)
-        // — except when the choice IS relevance, which is a request to go back
-        // to the default rather than away from it. Without this, picking
-        // Relevance from the menu set the override and left the rows in
-        // whatever order the previous choice had put them.
-        userChoseSortDuringSearch = model.selectedField != .relevance
+        // Relevance is a MODE, not a stored preference: it means "the order
+        // the search produced", which the folder you browse next has none of.
+        // Storing it would leave the per-folder sort naming a ranking that no
+        // longer exists, and the menu — which offers the row only during a
+        // search — would show nothing checked at all. So it clears the
+        // override and leaves the stored field alone: picking Relevance is a
+        // request to go BACK to the default, not away from it.
+        guard model.selectedField != .relevance else {
+            userChoseSortDuringSearch = false
+            return
+        }
+        if sortFieldRaw != model.selectedField.rawValue {
+            sortFieldRaw = model.selectedField.rawValue
+        }
+        // apply() is only reachable from a sort MENU — an explicit choice.
+        // While a search is showing this overrides the relevance default (#11).
+        userChoseSortDuringSearch = true
     }
 
     /// The ONE mutation path for filter-bar visibility from the toolbar. Hiding

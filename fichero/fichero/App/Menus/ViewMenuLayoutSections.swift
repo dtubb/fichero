@@ -156,11 +156,11 @@ struct SortSection: View {
     var body: some View {
         if shouldShow {
             Section("Sort By") {
-                // Relevance is offered by the library's own sort menu, which
-                // knows whether search results are showing; this menu does
-                // not, and a "Relevance" row over a browsed folder would be a
-                // reading of a ranking that does not exist.
-                ForEach(LibrarySortField.fields(isSearching: false)) { field in
+                // The focused value carries the search context now, so this
+                // menu offers Relevance exactly when the toolbar's does — and
+                // never over a browsed folder, where it would name a ranking
+                // that does not exist.
+                ForEach(LibrarySortField.fields(isSearching: sortField?.isSearching ?? false)) { field in
                     Button {
                         sortField?.set(field.rawValue)
                     } label: {

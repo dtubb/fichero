@@ -158,6 +158,55 @@ final class SearchResultsDisplayBatchTests: XCTestCase {
         XCTAssertEqual(state.effectiveSortField, .relevance)
     }
 
+    func testRelevanceIsNeverStoredAsAFolderSortPreference() {
+        let state = LibraryToolbarState()
+        state.sortFieldRaw = LibrarySortField.createdAt.rawValue
+        state.searchIsActive = true
+        state.apply(LibrarySortMenuModel(selectedField: .relevance, ascending: true, isSearching: true))
+        XCTAssertEqual(
+            state.sortFieldRaw, LibrarySortField.createdAt.rawValue,
+            """
+            Relevance means "the order the search produced", which the folder \
+            you browse next has none of. Storing it would leave the per-folder \
+            sort naming a ranking that no longer exists.
+            """
+        )
+        state.searchIsActive = false
+        XCTAssertEqual(state.effectiveSortField, .createdAt)
+    }
+
+    func testTheViewMenuIsHandedTheEffectiveFieldAndTheSearchContext() throws {
+        let publish = try Self.appSource("Views/Library/LibraryView+KeyboardShortcuts.swift")
+        let menu = try Self.appSource("App/Menus/ViewMenuLayoutSections.swift")
+        XCTAssertTrue(publish.contains("value: libraryToolbar.effectiveSortField.rawValue"))
+        XCTAssertTrue(publish.contains("isSearching: libraryToolbar.searchIsActive"))
+        XCTAssertTrue(
+            publish.contains("libraryToolbar.apply("),
+            """
+            The View menu's choice must route through `apply`, which decides \
+            whether a mid-search pick overrides relevance. Writing the raw \
+            field left the override unset, so picking Name checked Name and \
+            changed nothing.
+            """
+        )
+        XCTAssertTrue(
+            menu.contains("LibrarySortField.fields(isSearching: sortField?.isSearching ?? false)"),
+            "The menu offers Relevance exactly when the toolbar's sort menu does."
+        )
+    }
+
+    func testTheFocusedSortValueChangesWhenTheSearchContextDoes() {
+        let browsing = FocusedSortField(value: "Name", set: { _ in }, isSearching: false)
+        let searching = FocusedSortField(value: "Name", set: { _ in }, isSearching: true)
+        XCTAssertNotEqual(
+            browsing, searching,
+            """
+            Equality gates the focus refresh: if the search context did not \
+            count, the menu would keep the row list it was built with.
+            """
+        )
+    }
+
     func testOutsideASearchTheStoredFieldStillDecides() {
         let state = LibraryToolbarState()
         state.searchIsActive = false
