@@ -246,15 +246,37 @@ references are a suffix match in `cache.py` and a `_skip_sections` list inside
 `extract_all.py`. The `<type>_clean` folder artifacts they wrote are recorded in
 the catalogue lane's report as **intentionally dropped by Daniel's ruling**.
 
-*Recommendation:* **RETIRE**, in one commit, after a live-caller sweep (the
-`find_dead_code` import-graph is blind to `@register_tool`, so verify by direct
-reference search, not the tool). Keep `citations_extract` under review — the
-catalogue restructure noted citations as a capability that was dropped and may
-need a home.
+*Recommendation:* **RETIRE the cleanup half; JUDGE the extract half on
+usefulness.** Daniel's correction to this lane's first draft is the right one:
+*unshipped is fine — the questions are does it WORK, and is it USEFUL for
+Fichero.* Reference count is evidence, not a verdict. Applying that:
 
-*Risk:* a user-authored workflow in an existing library could reference one.
-Retirement should leave the tool resolvable-with-a-message rather than crashing
-an old graph.
+- The twelve **`<type>_page_cleanup` / `<type>_folder_cleanup`** tools are
+  machinery, not capabilities. They deduplicated candidate lists *within* the
+  monolith's own pipeline; stage 4 (Merge / Dedup) now does that job against
+  persisted KG rows, which is strictly better because it is re-runnable and
+  reviewable. **Superseded — retire.**
+- The **`<type>_extract` section tools** are a different question, and the
+  interesting one. "Pull every direct quote out of this page" is a real
+  archival-research act, independent of whether a catalogue is being built.
+  The open design question — Daniel's — is whether they should attach to the
+  **diary-entry structure** the Catalogue chain produces rather than emitting
+  flat per-document results. A quote that knows it belongs to *Tuesday 9
+  January 1923* is worth considerably more to a historian than a quote that
+  knows only which page it was on. **Judge per family; see the usefulness
+  table below.** `quotes_extract` and two or three siblings are queued for a
+  live Apple/MLX sample run (free) at the all-clear; until then their "works?"
+  column is honestly marked untested.
+- `citations_extract` stays under review regardless — the catalogue
+  restructure recorded citations as a capability that was *dropped*, so it may
+  need a home rather than a retirement.
+
+*Sequencing:* verify by direct reference search, never by `find_dead_code` —
+its import graph is blind to `@register_tool`.
+
+*Risk:* a user-authored workflow in an existing library could reference a
+retired tool. Retirement should leave it resolvable-with-a-message rather than
+crashing an old graph.
 
 ### R-2 · RETIRE: `/api/chains/presets/paleography` (GET + POST)
 
@@ -288,9 +310,16 @@ rejoining columns). So this is a duplication argument, not a correctness one —
 but it means tonight's two data-destruction fixes to `text_passes` did not, and
 could not, reach the other two implementations.
 
-*Recommendation:* **MERGE** — keep `clean_text` as the one text-cleanup tool;
-either retire the other two or reduce them to thin wrappers over `text_passes`
-so a fix lands once. 432 LOC of parallel regex goes away.
+*Recommendation:* **MERGE — and treat this as a correctness exposure, not
+tidiness.** The two data-destruction fixes landed this week (prose deletion
+`b240664df`, tally-number deletion) went into `text_passes`. `text_reflow` and
+`ocr_cleanup` import nothing from it, so **those fixes cannot reach them**.
+Today that costs nothing because no preset routes through either tool — but the
+palette offers both, so a user-authored workflow can pick up the unhardened
+copy of logic we have already had to fix twice. Keep `clean_text` as the one
+text-cleanup tool; either retire the other two or reduce them to thin wrappers
+over `text_passes` so the next fix lands once. 432 LOC of parallel regex goes
+away with them.
 
 ### R-4 · FIX (small, UX): the vision-tier trap
 
@@ -325,9 +354,48 @@ typescript, manuscript, HTR and paleography prompts (measured similarity
 prompt. Tonight's two prompt tunes (`49bdad4eb`, `6a1ca277a`) each had to be
 applied in more than one place, and the review prompt has *already* drifted.
 
-*Recommendation:* either a shared prompt fragment resolved at seed time, or a
-guard test pinning "the auto-detect copy equals its source preset's prompt" so
-drift fails the gate instead of shipping quietly.
+**SHIPPED tonight (`51f36479f`):** the guardrail —
+`test_auto_detect_prompts_match_sources.py` pins each of the four copies to its
+source, with a synthetic fixture proving it fires on a one-sided tune. Drift now
+fails the gate. The fifth embedded prompt (the paleography review pass) has
+*already* diverged from Paleographer Review's first pass and is deliberately
+different — it folds three passes into one — so it is not pinned.
+
+**The structural fix, specced not shipped.** Daniel's instinct is right —
+*"those should be chained in there, no? or we should be able to embed other
+prompts?"* — and there are two ways to do it:
+
+- **(a) A prompt reference in the preset format.** The format already has a
+  reference syntax, but only for *data flow*: a node's `inputs` can say
+  `"$.nodes.files-source.documents"`. Config values have no equivalent. Adding
+  `"prompt_ref": "transcribe_htr.json#transcribe"`, resolved in
+  `_load_preset_files()` (the single choke point every loader goes through),
+  is about fifteen lines and produces a seeded row byte-identical to today's —
+  so no `preset_version` bump and no behaviour change at all. What makes it
+  *not* a fifteen-line change is that **four other things read the preset JSON
+  raw**: `preset_manifest.py` (hashes the bytes, so the manifest must be
+  refreshed), `scripts/generate_capability_reference.py` (would document a
+  preset with no prompt), `scripts/verify_workflows.py`, and several tests.
+  All four need to resolve refs too, or the reference leaks into the docs.
+- **(b) Auto-Detect as a router over the real presets** — Daniel's other
+  suggestion, and the better one. The preset already routes by
+  `route_map: {"typescript": "transcribe-ts", …}`; if a `sub_workflow` node is
+  a legal route target, those four branches become sub-workflow nodes naming
+  *Transcribe Typescript*, *Transcribe Manuscript*, *Transcribe HTR* and
+  *Transcribe Paleography*, and the prompts stop existing in this file. This is
+  exactly the pattern `catalogue.json` v6 uses for its six stages. It is the
+  right shape and it removes the duplication at the source rather than policing
+  it.
+
+  The honest catch: the HTR and paleography branches currently do more than the
+  standalone presets — each runs a reference `search` and a `transcribe_review`
+  pass afterwards. Routing to the plain presets would silently drop that
+  two-pass review; routing to *Transcribe + Review (Pipeline)* changes which
+  review runs. So (b) is a **behaviour change that needs live verification on
+  real pages**, which this lane cannot run tonight. Recommended as the next
+  preset-lane task, with the guardrail holding the line until it lands (the
+  test says in its own docstring to delete itself when the restructure
+  arrives).
 
 ### R-7 · RULING NEEDED: the five translate-shaped presets across two folders
 
@@ -349,9 +417,15 @@ name to `_DEPRECATED_PRESET_NAMES` and every existing library shows **two rows
 forever**. The history is currently clean (59 historical names, 0 orphans) — by
 discipline alone.
 
-*Recommendation:* a gate test that reads the shipped names and a committed
-`retired_preset_names.json`, and fails when a name disappears from the shipped
-set without appearing in the retired set.
+**SHIPPED tonight (`51f36479f`):**
+`resources/workflow_meta/preset_name_ledger.json` records every name ever
+shipped (70: 52 current + 18 retired) and
+`test_preset_names_never_stranded.py` pins it in both directions — every ledger
+name must be shipped or retired, and every shipped name must be in the ledger,
+so the ledger cannot go stale and start passing by knowing less. A synthetic
+fixture proves the guard fires on a rename that forgets to retire. The failure
+message names the file to edit and says explicitly *not* to fix it by deleting
+the name from the ledger.
 
 ### R-9 · The `tested` flag is dead metadata
 
@@ -372,20 +446,98 @@ field. A flag that is false for 96% of rows teaches readers to ignore it.
   auto_crop_border). Working local tools with no preset. Cheap win: one
   "Clean Up Scans" preset would surface all four.
 
-### Summary table
+### R-11 · SPEC: an explicit model choice should flow to every vision step
 
-| Item | Verdict | One line |
-|---|---|---|
-| 24 `*_extract` / `*_cleanup` section tools | **RETIRE** | orphans of the retired Catalogue monolith; no preset, no caller |
-| `/api/chains/presets/paleography` | **RETIRE** | rebuilds an ensemble Daniel retired; no hand-written caller |
-| `text_reflow`, `ocr_cleanup` | **MERGE** into `clean_text` | 432 LOC duplicating the hardened `text_passes` |
-| 4 language paleography presets | **MERGE** (ruling) | one preset + `script_family` enum, or keep for discoverability |
-| Auto-Detect's 4 embedded prompt copies | **FIX** | share the fragment or guard the copy |
-| 3 paleo derivations in /Extract | **MOVE** (ruling) | they are readings; /Paleography is their home |
-| 16 palette stubs | **DECIDE** | implement the 5 logic nodes or take them out of the palette |
-| 10 agent/research/AV tools | **KEEP, prove** | real code, zero evidence |
-| 4 unpresented image ops | **KEEP, surface** | one "Clean Up Scans" preset |
-| `tested` field | **FIX or DELETE** | true for 6 of 142 |
+Daniel: *"when I transcribe but have chosen a fancy model, use that to do
+regions too."*
+
+**Current behaviour, precisely** (read from the code, not assumed):
+
+- A chain step's model is a **per-step** property — `provider_override` /
+  `model_override` ride on each `ChainStep` through `/api/chains` and are
+  applied per step by the runner.
+- An **unpinned** step does *not* inherit anything from its neighbours. It
+  resolves its own **tier** from what its tool declares it needs (`category`,
+  `requires_generative_model`, a workflow's `requires_vision`) and then takes
+  the Settings default for that tier — `WorkflowBarModelTier`.
+- That is deliberate, and it fixed a real bug on 2026-09-01: previously every
+  step inherited the **selection's** tier, so the bar promised "use apple-vision
+  to Detect Regions → then use apple-vision to Transcribe → then use
+  apple-vision to Accounts→Spreadsheet (CSV) → then use apple-vision to
+  Translate", and the last two steps could not possibly work.
+- A run-level override **does** reach a Detect Regions node in VLM mode:
+  `node_uses_llm()` is config-aware and returns true for
+  `detect_regions` with `provider == "vlm"`, precisely so the model picker,
+  the runner and `requires_vision` cannot disagree (Daniel, 2026-08-27).
+- A run-level override **cannot** reach nodes inside a `sub_workflow`, and the
+  engine refuses such a run out loud rather than dropping the override
+  silently: *"all of its model work happens inside sub-workflow X, which a
+  run-level override does not reach."*
+
+**So the gap Daniel is describing is real and specific:** pin a capable VLM on
+the Transcribe step, and an unpinned *Detect Regions (VLM)* step in the same
+chain still resolves `$vision_medium` from Settings — usually Apple Vision —
+and refuses (see R-4). The user made an explicit choice and it stopped at one
+chip.
+
+**Proposed rule:** an explicit user model choice on any step becomes the
+default for every **capability-compatible** step in the same run, unless that
+step is individually pinned. Precedence: *step pin > run-level explicit choice >
+tier default from Settings.* "Capability-compatible" is the load-bearing
+qualifier and is what keeps the 2026-09-01 fix intact — a vision choice flows
+to vision steps only, never to a text step, which is exactly the failure that
+fix removed. Spreading the *selection's* tier was wrong; spreading a
+*deliberate* choice within a capability class is right.
+
+**Why this is a spec and not a patch:** it changes run semantics across the
+workflow bar, the chain runner and the per-node resolver at once, and its whole
+value is in what the user sees before they spend money. The honesty rule holds
+either way and already works: the bar names the model **per step**, so an
+inherited choice must render as the inherited model on every step it reaches —
+if the sentence cannot show it truthfully, the inheritance should not ship.
+
+### R-12 · FIX: a table tool that cannot say "there is no table"
+
+`table_extract` on a table-less manuscript page returned a table of `0,1,2…30`
+— it had read the **centimetre ruler** placed beside the document in the scan.
+Nothing in the tool guards against a fabricated table.
+
+This is the same family as the silent no-ops fixed this week, but worse in
+kind: those returned *nothing* while claiming success; this one returns
+*invented data* while claiming success, into an archive whose entire value is
+that its contents are attested. A scanning ruler is present in a large share of
+archival images, so this is not an exotic input.
+
+*Recommendation:* the tool must be able to return "no table present" as a
+first-class outcome (a `no_effect` result, as several tools already do) and
+should refuse output it cannot tie to page text. Small, and it belongs to the
+tools lane rather than to a preset.
+
+### The KEEP / MERGE / RETIRE table
+
+Judged on Daniel's axis: **(a) does it work when exercised, (b) is it genuinely
+useful for an archival-research app, (c) is it superseded?** Reference count is
+evidence in the last column, never the verdict.
+
+| Tool / group | Works? | Useful for Fichero? | Verdict |
+|---|---|---|---|
+| `clean_text` (+ `text_passes`) | yes, hardened twice this week | yes — the one text cleanup | **KEEP** |
+| `text_reflow`, `ocr_cleanup` | yes, non-destructive on real pages | duplicates `clean_text`'s toggles | **MERGE** — and the hardening cannot reach them (R-3) |
+| `handwriting` | **no** — ALL-CAPS, lines repeated verbatim, violates its own no-repeat rule | superseded by `transcribe` + an HTR prompt, which is better on the same page | **RETIRE** (or merge into `transcribe`) |
+| `table_extract` | works — **and fabricates** (R-12) | yes, tables are real archival data | **KEEP + GUARD** |
+| 12 `<type>_page_cleanup` / `<type>_folder_cleanup` | untested since the restructure | machinery of a retired pipeline; stage 4 does it better and re-runnably | **RETIRE** |
+| `<type>_extract` section family (quotes, people, dates, events, keywords, …) | **untested — queued for a free live sample** | plausibly yes *as standalone acts*; much more so if wired to diary entries | **HOLD — decide after the sample run** (R-1) |
+| `citations_extract` | untested | citations were dropped by the restructure and never rehomed | **HOLD — may need a home, not a retirement** |
+| 4 language paleography presets | yes, all green on two providers | yes, but they are one preset plus an enum | **MERGE (ruling)** — or keep for discoverability |
+| 3 paleo derivations in /Extract | yes | yes — but they are *readings*, not extraction | **MOVE (ruling)** to a /Paleography family |
+| Auto-Detect's 4 embedded prompts | n/a | n/a | **FIXED tonight** (guarded); structural fix specced (R-6) |
+| 16 palette stubs | **no — not executable** | `if`/`loop`/`filter`/`merge` are a visible promise the engine does not keep | **DECIDE** — implement the 5 logic nodes or take them out of the palette |
+| 5 agent tools, 3 research tools, audio/video | untested | unclear — no archival use case has been articulated | **KEEP, PROVE** — one exercise pass, then judge |
+| 4 unpresented image ops (denoise, deskew, binarize, auto-crop) | yes | yes — scan hygiene is daily work here | **KEEP + SURFACE** — one "Clean Up Scans" preset |
+| `tested` field on ToolDef | true for 6 of 142 | a flag nobody maintains teaches readers to ignore it | **POPULATE or DELETE** (R-9) |
+| `/api/chains/presets/paleography` | untested | rebuilds an approach Daniel retired | **RETIRE** (R-2) |
+| Preset name stranding | n/a | n/a | **FIXED tonight** — ledger + guard (R-8) |
+
 
 ---
 
@@ -465,30 +617,48 @@ Two things worth recording from the code, because both were bugs Daniel felt:
 
 ## 8 · MLX, honestly
 
-The local column moved twice in two days and the report should say where it
-landed.
+The local column moved twice in two days, and an earlier draft of this report
+got its verdict wrong. Correcting that on the record.
 
-- **2026-09-02:** local MLX vision was *impossible*. The provisioned runtime
-  was `mlx_lm server` 0.31.3, which rejects image content ("Only 'text' content
-  type is supported"). Every vision workflow on provider `omlx` failed
-  regardless of the VL model name. Local text workflows (Clean Up Text LLM,
-  Translate, Diary Entries, NER) worked fine.
-- **2026-09-03/04:** the sidecar now runs `mlx_vlm.server`, and vision **does**
-  work: Qwen2.5-VL-3B transcribed a real Spanish manuscript page, and
-  `analyze` / `caption` / `classify` / `classify_script` all returned genuine
-  image-grounded answers.
-- **But the sidecar dies.** In the tool sweep, the first four vision tools
-  answered and then every subsequent tool returned
-  `local inference process exited 3` in 0.1–0.3s. That is a sidecar crash
-  mid-sweep, not a capability refusal — the tools were never given a chance to
-  fail on their own merits. On a 16 GB Mac the 8B profile swap-deaths outright;
-  the 3B survives longer but not a full pass.
+- **2026-09-02:** local MLX vision was *impossible*, and had never been
+  possible. Every model in `MANAGED_MLX_MODELS` is a vision/OCR VLM and every
+  one was served by `mlx_lm server`, whose `process_message_content` rejects
+  any non-text content part. Verified live rather than inferred: Qwen3-VL-8B
+  answered a text prompt in 56s and returned
+  `404 {"error": "Only 'text' content type is supported."}` for the very image
+  the model exists to read. Local *text* workflows (Clean Up Text LLM,
+  Translate, Diary Entries, NER) worked fine throughout.
+- **2026-09-03/04:** the MLX provider lane fixed four separate breaks — the
+  runtime now provisions **mlx-vlm** and vision models launch `mlx_vlm.server`;
+  installed models are listed from the store rather than from a sidecar that
+  only starts on demand for a run; managed models go over the wire as the
+  resolved **snapshot path** instead of our catalog id (which sent the sidecar
+  to Hugging Face for a model already loaded in the process being asked); and
+  the cold-start budget went to 300s, because `mlx_vlm.server` preloads the
+  model *before* uvicorn binds, so the port refuses connections for the entire
+  load and a probe cannot tell that from nothing being there.
+- **The `local inference process exited 3` cascade I recorded in an earlier
+  draft was those breaks, not a crash under memory pressure.** After the fixes,
+  a clean sweep on Qwen2.5-VL-3B produced **ten greens and one honest refusal**.
 
-**Verdict for the MLX column: LOCAL VISION WORKS, THE SIDECAR DOES NOT STAY
-UP.** Until a run can complete a full pass without the process exiting, the
-local-first vision story is *demonstrable* but not *dependable*. That is the
-single highest-value MLX ticket, and it is bigger than this lane: it is memory
-headroom and process lifetime, not a preset bug.
+**Verdict for the MLX column: LOCAL VISION WORKS.** On real 17th-century
+colonial Spanish secretary hand, Qwen2.5-VL-3B gives a genuine diplomatic
+transcription; `classify_script` returns `htr` at 0.9 confidence with
+"16th–19th century", which is both correct and well calibrated. The remaining
+MLX caveats are speed (236s for a page, against ~27s for cloud Sonnet) and
+memory headroom (the 8B profile swap-deaths a 16 GB M1), not capability.
+
+Two tool-level defects the local sweep exposed — worth having, because a free
+local model is the cheapest way to run this kind of sweep at all:
+
+- **`handwriting` produced ALL-CAPS output with verbatim repeated lines**,
+  worse than `transcribe` on the same page, and violating its own prompt's
+  no-repeat rule. See the usefulness table: this tool is superseded.
+- **`table_extract` FABRICATED a table** (`0,1,2…30`) on a page that has none,
+  by reading the **centimetre ruler** lying in the scan margin. The perception
+  is understandable; the output is invention, and **nothing guards it**. A
+  table tool that cannot say "there is no table here" will quietly manufacture
+  data in an archive. That is the most serious single finding of the sweep.
 
 Five oMLX defects were found and fixed during this program and are worth
 recording because they were all invisible to CI:
@@ -511,7 +681,9 @@ match real granularity.
 
 | Ticket | Size | Detail |
 |---|---|---|
-| **oMLX sidecar exits mid-run** | large | `local inference process exited 3` after a few vision calls; blocks the entire local-vision story |
+| **`table_extract` fabricates tables** | small | Returned `0,1,2…30` on a table-less page by reading the scan's centimetre ruler. Invented data claiming success, into an archive. Needs "no table present" as a first-class outcome (R-12). |
+| **`handwriting` is worse than `transcribe`** | small | ALL-CAPS with verbatim repeated lines on a page `transcribe` reads correctly, violating its own no-repeat rule. Retire or merge (see the usefulness table). |
+| **MLX speed and memory headroom** | medium | Local vision now *works* (10 greens on Qwen2.5-VL-3B). What it is not is fast — 236s a page against ~27s for cloud Sonnet — and the 8B profile swap-deaths a 16 GB M1. Capability is no longer the blocker; throughput is. |
 | **Fresh-install defaults cannot run a third of the presets** | medium | With pure Apple defaults, Auto-Detect, Describe, Extract Table, Detect Regions (VLM), the three AI Converts and Group Same Documents all refuse — *correctly and with excellent messages*, but the out-of-box experience still fails. Options: route classify/describe-class steps to Apple Intelligence where it can serve, or surface the preflight verdict in the workflow list **before** run time. |
 | **`error_kind` is embedded in error STRINGS** | small | `[kind]` prefixes and classified wrappers, not a structured field on the thread status. A machine-tracked matrix cannot record it as a column. |
 | **`builder` lets a plain edge target a `_process` node** | medium | The shipped-preset guard keeps the presets out of the trap; user-authored workflows can still draw the mixed fan-out/chain shape. The builder should reject or join it. |
