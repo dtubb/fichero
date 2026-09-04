@@ -79,3 +79,63 @@ a model is missing.
 - The 3-page spot-check (Translation vs the LLM translate step) — real pages,
   both paths, side-by-side table. Model-invoking; needs a slot.
 - Compiling any new fm-bridge subcommand (`swiftc`, seconds, but a build).
+
+## MLX in the Foundation Models API — partly real, and not for macOS 26
+
+Claim under test (WWDC26 session 232, "Run local agentic AI on the Mac using
+MLX"): mlx-community models drop into the Foundation Models API. Verified
+against the same swiftinterface, plus the SDK's framework list.
+
+**There is no MLX in the SDK.** 331 frameworks under
+`MacOSX.sdk/System/Library/Frameworks`, none of them MLX; no private MLX
+framework either. Nothing in FoundationModels loads weights: no
+safetensors/GGUF path, no Hugging Face hub type, no "custom model" loader.
+`SystemLanguageModel.Adapter` is the LoRA-adapter mechanism (Background
+Assets `AssetPack`, `compatibleAdapterIdentifiers`) — a fine-tune ON the
+system model, not arbitrary community weights.
+
+**What is actually there is an extensibility seam**, and it is the real story:
+
+```swift
+public protocol LanguageModel: Sendable {            // macOS 27.0
+  associatedtype Executor: LanguageModelExecutor where Self == Self.Executor.Model
+  var capabilities: LanguageModelCapabilities { get }
+  var executorConfiguration: Self.Executor.Configuration { get }
+}
+public protocol LanguageModelExecutor: Sendable {    // macOS 27.0
+  func respond(to: LanguageModelExecutorGenerationRequest,
+               model: Self.Model,
+               streamingInto: LanguageModelExecutorGenerationChannel) async throws
+}
+```
+
+`LanguageModelSession` has `init(model: some LanguageModel, …)`, so a model
+backed by mlx-swift genuinely CAN become a Foundation Models session with the
+same `Transcript` / tool / streaming shape. That is the unlock: **bring your
+own executor**, not Apple shipping MLX.
+
+Three things that do NOT come for free — the part a blog post drops:
+
+1. **`@available(macOS 27.0)` on both protocols.** Our
+   `MACOSX_DEPLOYMENT_TARGET` is `26.0`. Same gate as Private Cloud Compute.
+   (`LanguageModelSession` itself is macOS 26, so today's fm-bridge is
+   unaffected; only the extensibility is future-OS.)
+2. **Guided generation is handed to you, not done for you.** The executor
+   receives `schema: GenerationSchema?` and `enabledToolDefinitions` in its
+   request and must HONOUR them. Constrained decoding and tool-calling are the
+   executor's job. mlx can do it (logit processors / grammars), but it is work
+   — it is not the decoder-level guarantee we get from
+   `SystemLanguageModel`, which is the entire reason we route structured
+   extraction to Apple today.
+3. **Capabilities are self-declared.** `LanguageModelCapabilities` (`.vision`,
+   `.guidedGeneration`, `.reasoning`, `.toolCalling`) is a statement the model
+   makes about itself, enforced by nobody — the same shape as the
+   `apple-intelligence` row that claimed vision it did not have.
+
+**Recommendation: do not converge the MLX path onto this.** mlx-swift is a
+separate SPM package and our MLX serving is Python (`mlx_vlm`, the managed
+server). Writing a `LanguageModelExecutor` would mean re-implementing MLX
+serving in Swift — a SECOND serving surface, not a smaller one — for an API
+we cannot call on our deployment target. Revisit if the target ever moves to
+macOS 27, and coordinate with lane-mlx-catalog then; nothing about it changes
+what the Apple provider rows do today.
