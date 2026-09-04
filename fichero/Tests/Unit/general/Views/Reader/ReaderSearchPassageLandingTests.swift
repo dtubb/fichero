@@ -238,4 +238,60 @@ struct ReaderSearchPassageLandingTests {
         )
         #expect(selection == "page-7")
     }
+
+    // MARK: - …and it actually SCROLLS there (Daniel, 2026-09-04)
+
+    /// The half the selection fix did not cover. The reader's transcript
+    /// scrolls only when it is handed an `activePageNumber`, and that value
+    /// used to be gated on `detailPDFDocumentId` — i.e. on the PDF canvas,
+    /// which `CanvasDocumentPolicy.shouldUsePDFCanvas` refuses for an image
+    /// page. A library of scanned JPG pages therefore got no active page, no
+    /// scroll, and the transcript opened at the top of the containing file:
+    /// "still showing location based on original file, not location based on
+    /// library search results."
+    @Test("an IMAGE page still names the page the reader must scroll to")
+    func imagePageStillNamesItsPage() {
+        let imagePage = Document(
+            id: "page-7", parentId: "file-1", docType: .page, fileType: .image,
+            name: "7_Hoja_533_Recto.JPG", path: nil, sequence: 7
+        )
+        #expect(
+            CanvasDocumentPolicy.shouldUsePDFCanvas(for: imagePage) == false,
+            "The premise: an image page never uses the PDF canvas."
+        )
+        #expect(
+            ContentView.readerActivePageNumber(for: imagePage) == 7,
+            "Which canvas renders the SOURCE is not a fact about which page the reader is on."
+        )
+    }
+
+    @Test("a PDF page names its page too")
+    func pdfPageNamesItsPage() {
+        let pdfPage = Document(
+            id: "page-3", parentId: "pdf-1", docType: .page, fileType: .pdf,
+            name: "3", path: nil, sequence: 3
+        )
+        #expect(ContentView.readerActivePageNumber(for: pdfPage) == 3)
+    }
+
+    @Test("a page with no recorded sequence falls back to the first, never below it")
+    func pageWithoutSequenceFallsBackToOne() {
+        let unsequenced = Document(
+            id: "page-x", parentId: "file-1", docType: .page, fileType: .image,
+            name: "x", path: nil, sequence: nil
+        )
+        #expect(ContentView.readerActivePageNumber(for: unsequenced) == 1)
+        let zero = Document(
+            id: "page-0", parentId: "file-1", docType: .page, fileType: .image,
+            name: "0", path: nil, sequence: 0
+        )
+        #expect(ContentView.readerActivePageNumber(for: zero) == 1)
+    }
+
+    @Test("a non-page names no page, so the reader is never forced to scroll")
+    func nonPageNamesNoPage() {
+        let file = Document(id: "file-1", docType: .file, fileType: .pdf, name: "Doc.pdf")
+        #expect(ContentView.readerActivePageNumber(for: file) == nil)
+        #expect(ContentView.readerActivePageNumber(for: nil) == nil)
+    }
 }
