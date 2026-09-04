@@ -165,13 +165,30 @@ private struct DocumentInspectorImageEditsTab: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .task(id: document.id) {
-            await model.configure(apiClient: apiClient, documentId: document.id)
             // Evict the storage-display cache after each edit so the Preview
             // canvas re-fetches the edited bytes (#3593) — same hook the
-            // Preview-hosted editor uses (ImageEditorView).
+            // Preview-hosted editor uses (ImageEditorView). Set BEFORE the
+            // configure so an edit committed during the first load still
+            // evicts.
             model.onEditApplied = { [storageService] id in
                 storageService.invalidateImageCache(for: id)
             }
+            await model.configure(
+                apiClient: apiClient,
+                documentId: document.id,
+                epoch: storageService.imageEpoch(for: document.id),
+                // This facet draws the STEP LIST, never the picture — the
+                // canvas beside it owns the pixels.
+                loadsPreviews: false
+            )
+        }
+        // An edit committed on the CANVAS (the toolbar's rotate, crop, enhance)
+        // never touched this model, so the step list sat empty while the image
+        // changed under it (Daniel, 2026-09-03). The storage epoch is the one
+        // signal both models share; a bump means "somebody edited this
+        // document" and the list re-fetches.
+        .onChange(of: storageService.imageEpoch(for: document.id)) { _, epoch in
+            Task { await model.syncIfExternallyEdited(epoch: epoch) }
         }
     }
 }

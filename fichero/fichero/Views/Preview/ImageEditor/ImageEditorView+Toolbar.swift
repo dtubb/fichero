@@ -231,7 +231,8 @@ extension ImageEditorView {
         await model.configure(
             apiClient: apiClient,
             documentId: neighbour.id,
-            page: currentPage(for: neighbour)
+            page: currentPage(for: neighbour),
+            epoch: storageService.imageEpoch(for: neighbour.id)
         )
     }
 

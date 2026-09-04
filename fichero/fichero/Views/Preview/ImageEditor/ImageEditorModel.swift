@@ -40,6 +40,19 @@ final class ImageEditorModel {
     /// The inspector highlights this step; the canvas could show an overlay handle.
     var selectedStepIndex: Int?
 
+    /// The `StorageService` image epoch this model has already accounted for.
+    ///
+    /// Two `ImageEditorModel`s are alive whenever the editor is open — the
+    /// Preview canvas owns one, the Inspector's Edits facet owns the other —
+    /// and neither could see the other's work: applying a rotate from the
+    /// canvas toolbar left the Inspector's step list empty, and applying an
+    /// Enhance from the Inspector left the canvas showing the pre-edit pixels
+    /// (Daniel, 2026-09-03: "image steps not really showing the steps").
+    /// Every successful op already bumps `StorageService.imageEpoch` for the
+    /// document, so that counter is the one signal both models can watch —
+    /// the same fix shape as `LibraryImageView`'s load key.
+    private(set) var seenEpoch: Int = 0
+
     /// Called after every successful edit or reset so the caller can evict
     /// stale storage-display caches for the affected document. Set from
     /// `ImageEditorView` once the view is configured.
@@ -67,12 +80,25 @@ final class ImageEditorModel {
 
     /// Bind to a document. Safe to call repeatedly (e.g. on prev/next nav) —
     /// rebuilds state for the new document and reloads chain + preview.
-    func configure(apiClient: APIClient, documentId: String, page: Int = 1) async {
+    ///
+    /// `loadsPreviews: false` is for a host that renders the CHAIN and no
+    /// pixels — the Inspector's Edits facet. It showed a step list and then
+    /// downloaded two full renders of the image nobody was looking at, on
+    /// every open and every external edit.
+    func configure(
+        apiClient: APIClient,
+        documentId: String,
+        page: Int = 1,
+        epoch: Int = 0,
+        loadsPreviews: Bool = true
+    ) async {
         if service == nil {
             service = ImageEditingService(apiClient: apiClient)
         }
         self.documentId = documentId
         self.page = page
+        self.seenEpoch = epoch
+        self.loadsPreviews = loadsPreviews
         self.chain = ImageEditChain(documentId: documentId, operations: [], updatedAt: nil)
         self.preview = nil
         self.originalPreview = nil
@@ -116,11 +142,27 @@ final class ImageEditorModel {
         preview = showEdited ? editedPreview : originalPreview
     }
 
+    /// Adopt an edit somebody ELSE committed to this document.
+    ///
+    /// Called by the host on every `StorageService` epoch change. A change the
+    /// model made itself was already accounted for in `runOp`/`resetAll`, so
+    /// this no-ops on it and costs nothing — only a genuinely external edit
+    /// (the other panel, a workflow, a batch apply) re-fetches.
+    func syncIfExternallyEdited(epoch: Int) async {
+        guard epoch != seenEpoch, !documentId.isEmpty else { return }
+        seenEpoch = epoch
+        await loadChain()
+        await reloadPreviews(forceOriginalReload: false, forceEditedReload: true)
+    }
+
     /// Reload both the chain and the current preview.
     func reload() async {
         await loadChain()
         await reloadPreviews(forceOriginalReload: true, forceEditedReload: true)
     }
+
+    /// False for a chain-only host (see `configure(loadsPreviews:)`).
+    private var loadsPreviews = true
 
     private func loadChain() async {
         guard let service, !documentId.isEmpty else { return }
@@ -146,7 +188,7 @@ final class ImageEditorModel {
         forceOriginalReload: Bool = false,
         forceEditedReload: Bool = true
     ) async {
-        guard !documentId.isEmpty else { return }
+        guard !documentId.isEmpty, loadsPreviews else { return }
         let shouldLoadOriginal = forceOriginalReload || originalPreview == nil
         let shouldLoadEdited = forceEditedReload || editedPreview == nil
         guard shouldLoadOriginal || shouldLoadEdited else {
@@ -380,7 +422,10 @@ final class ImageEditorModel {
         for id in documentIds {
             do {
                 try await operation(service, id)
-                onEditApplied?(id)
+                // The active document's own bump is accounted for, so the
+                // host's epoch observer stays quiet for it; siblings still
+                // get their caches evicted so their rows repaint.
+                if id == documentId { noteLocalEdit() } else { onEditApplied?(id) }
             } catch {
                 failures += 1
                 logger.error("batch op failed for \(id): \(error.localizedDescription)")
@@ -399,11 +444,23 @@ final class ImageEditorModel {
         do {
             try await service.resetChain(documentId: documentId)
             chain = ImageEditChain(documentId: documentId, operations: [], updatedAt: nil)
-            onEditApplied?(documentId)
+            noteLocalEdit()
             await reloadPreviews(forceOriginalReload: false, forceEditedReload: true)
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    /// Record an edit this model just committed: evict the host's caches and
+    /// move `seenEpoch` past the bump `invalidateImageCache` makes, so the
+    /// host's epoch observer does not re-fetch what we already have.
+    ///
+    /// `invalidateImageCache` increments by exactly one per call and each
+    /// successful op calls it exactly once for this document, so `+ 1` is the
+    /// value the host is about to publish.
+    private func noteLocalEdit() {
+        onEditApplied?(documentId)
+        seenEpoch += 1
     }
 
     /// Shared op runner: set busy, run, adopt the returned chain, re-render the
@@ -415,7 +472,7 @@ final class ImageEditorModel {
         defer { isBusy = false }
         do {
             chain = try await body(service)
-            onEditApplied?(documentId)
+            noteLocalEdit()
             showEdited = true
             await reloadPreviews(forceOriginalReload: false, forceEditedReload: true)
         } catch {

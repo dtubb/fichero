@@ -12,7 +12,11 @@ func preferredRenditionIndex(in renditions: [DocumentRendition], stickyRole: Str
        let idx = renditions.firstIndex(where: { $0.role == stickyRole }) {
         return idx
     }
-    for role in ["background_removed", "enhanced"] {
+    // "edited" leads the ranking: it is the user's OWN saved chain on this
+    // page (Daniel, 2026-09-03), and a page opening on anything else would
+    // show work that has already been committed as if it had not been. The
+    // staged-pipeline ranking follows underneath, unchanged.
+    for role in [DocumentRendition.editedRole, "background_removed", "enhanced"] {
         if let idx = renditions.firstIndex(where: { $0.role == role }) {
             return idx
         }

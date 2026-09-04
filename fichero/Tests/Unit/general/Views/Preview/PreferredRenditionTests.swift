@@ -29,6 +29,16 @@ struct PreferredRenditionTests {
         #expect(preferredRenditionIndex(in: noBg, stickyRole: nil) == 1)
     }
 
+    @Test("the page's own saved edits outrank every staged rendition")
+    func editedLeadsTheRanking() {
+        // Daniel, 2026-09-03: the edited state is a rendition so original and
+        // edited are one swipe apart — and a page with edits opens on them.
+        let list = [rendition("original"), rendition("background_removed"), rendition("edited")]
+        #expect(preferredRenditionIndex(in: list, stickyRole: nil) == 2)
+        // Sticky still wins: a reader parked on background-removed stays there.
+        #expect(preferredRenditionIndex(in: list, stickyRole: "background_removed") == 1)
+    }
+
     @Test("a sticky kind the page lacks falls back to the ranking, then engine order")
     func stickyFallback() {
         let list = [rendition("original"), rendition("enhanced")]

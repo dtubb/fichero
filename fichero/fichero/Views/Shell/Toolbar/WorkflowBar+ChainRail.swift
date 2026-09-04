@@ -43,13 +43,23 @@ extension WorkflowBar {
                 .foregroundStyle(.secondary)
                 .padding(.leading, -5)
             ForEach(Array(staged.enumerated()), id: \.element.id) { index, step in
-                Text(index == 0 ? "use" : "then use")
-                    .font(WorkflowBar.chainConnectiveFont)
-                    .foregroundStyle(.secondary)
-                modelToken(for: step, at: index)
-                Text("to")
-                    .font(WorkflowBar.chainConnectiveFont)
-                    .foregroundStyle(.secondary)
+                // "use [model] to X" only when there IS a model. An image
+                // step reads "…, Rotate Images, then Remove Background"
+                // (Daniel, 2026-09-03) — the sentence keeps its connectives
+                // and drops the claim it cannot make.
+                if stepTakesModel(step) {
+                    Text(index == 0 ? "use" : "then use")
+                        .font(WorkflowBar.chainConnectiveFont)
+                        .foregroundStyle(.secondary)
+                    modelToken(for: step, at: index)
+                    Text("to")
+                        .font(WorkflowBar.chainConnectiveFont)
+                        .foregroundStyle(.secondary)
+                } else if index > 0 {
+                    Text("then")
+                        .font(WorkflowBar.chainConnectiveFont)
+                        .foregroundStyle(.secondary)
+                }
                 chainChip(step, at: index)
             }
         }
@@ -252,7 +262,9 @@ extension WorkflowBar {
     /// What the chip promises on hover — including HOW to open it, which
     /// differs by state and would otherwise be undiscoverable.
     private func chipHelp(for step: StagedWorkflowStep, index: Int) -> String {
-        let base = "Step \(index + 1): \(step.displayName) — \(step.modelDescription)"
+        let base = stepTakesModel(step)
+            ? "Step \(index + 1): \(step.displayName) — \(step.modelDescription)"
+            : "Step \(index + 1): \(step.displayName) — runs no model"
         switch step.state {
         case .running:   return "\(base). Click to watch it run."
         case .succeeded: return "\(base). Double-click to see what it produced."

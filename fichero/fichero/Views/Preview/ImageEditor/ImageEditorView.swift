@@ -142,7 +142,8 @@ struct ImageEditorView: View {
             await model.configure(
                 apiClient: apiClient,
                 documentId: document.id,
-                page: currentPage(for: document)
+                page: currentPage(for: document),
+                epoch: storageService.imageEpoch(for: document.id)
             )
             // Invalidate every derived-pixel cache after each successful edit,
             // not just on the way out.
@@ -164,6 +165,15 @@ struct ImageEditorView: View {
         .onChange(of: model.chain.operations.count) { _, _ in
             // An op changed the rendered image — a stale region would mismap.
             marqueeSelection = nil
+        }
+        // The Inspector's Edits facet drives a SECOND ImageEditorModel over
+        // the same document (Add Step, Update Step, Revert). Applying one of
+        // those left this canvas showing the pre-edit pixels, because nothing
+        // told it the recipe had changed (Daniel, 2026-09-03). The storage
+        // epoch is that signal; an edit this model made itself is already
+        // accounted for, so this only fires for the other panel's work.
+        .onChange(of: storageService.imageEpoch(for: activeDocumentID)) { _, epoch in
+            Task { await model.syncIfExternallyEdited(epoch: epoch) }
         }
         .alert(
             "Image edit failed",

@@ -108,6 +108,13 @@ struct WorkflowBar: View {
         )
     }
 
+    /// Whether this step uses a model at all — a rotate/enhance/background
+    /// removal step does not, and the sentence must not claim one for it
+    /// (Daniel, 2026-09-03).
+    func stepTakesModel(_ step: StagedWorkflowStep) -> Bool {
+        WorkflowBarPolicy.stepTakesModel(step, tools: tools)
+    }
+
     /// That tier's name, for the tooltip: "why THIS model?" is a fair
     /// question of a sentence about a paid run, and the tier is the answer.
     func defaultTierName(for step: StagedWorkflowStep) -> String {
@@ -314,6 +321,17 @@ struct WorkflowBar: View {
     /// then count entities in its output with something cheap.
     @ViewBuilder
     func modelMenu(forStepAt index: Int) -> some View {
+        // A step that calls no model has nothing to pin, and a menu full of
+        // models implies otherwise (Daniel, 2026-09-03). Say so instead.
+        if staged.indices.contains(index), !stepTakesModel(staged[index]) {
+            Text("\(staged[index].displayName) runs no model")
+        } else {
+            modelPinMenu(forStepAt: index)
+        }
+    }
+
+    @ViewBuilder
+    private func modelPinMenu(forStepAt index: Int) -> some View {
         // The default this STEP would take, named — which is not the same
         // model for every step of a chain (2026-09-01).
         let stepDefault = staged.indices.contains(index)

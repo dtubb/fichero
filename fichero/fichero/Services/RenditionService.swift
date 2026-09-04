@@ -65,7 +65,9 @@ enum RenditionServiceError: Error {
 @MainActor
 @Observable
 final class RenditionService {
-    private let client: FicheroClient
+    /// Internal, not private: `RenditionService+EditStates` renders the
+    /// original↔edited flip through the same generated client.
+    let client: FicheroClient
 
     private(set) var renditionsByDocument: [String: [DocumentRendition]] = [:]
     private(set) var loadingDocuments: Set<String> = []
@@ -106,7 +108,12 @@ final class RenditionService {
             switch response {
             case .ok(let okResponse):
                 let list = try okResponse.body.json
-                let items = list.items.map(Self.convert)
+                // A saved edit chain is two more ways this page looks, so it
+                // joins the flip sequence (Daniel, 2026-09-03).
+                let items = await appendingEditStates(
+                    to: list.items.map(Self.convert),
+                    documentId: documentId
+                )
                 renditionsByDocument[documentId] = items
                 return items
             case .notFound:
@@ -164,6 +171,13 @@ final class RenditionService {
 
     func contentData(documentId: String, renditionId: String) async throws -> Data {
         if let cached = contentCache[renditionId] { return cached }
+        // An edit STATE has no row and no stored bytes — the engine renders it
+        // from the chain. Named by its id, never guessed at.
+        if let role = DocumentRendition.editStateRole(of: renditionId) {
+            let data = try await editStateContent(documentId: documentId, role: role)
+            contentCache[renditionId] = data
+            return data
+        }
         let response = try await client.api
             .getRenditionContentApiDocumentsDocumentIdRenditionsRenditionIdContentGet(
                 .init(path: .init(documentId: documentId, renditionId: renditionId))

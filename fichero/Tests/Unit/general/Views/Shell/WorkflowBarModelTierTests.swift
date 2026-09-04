@@ -289,3 +289,127 @@ struct WorkflowBarModelTierTests {
         #expect(override == nil)
     }
 }
+
+/// A step that calls NO model must not have one named for it (Daniel,
+/// 2026-09-03): an image-editing chain — rotate, enhance, remove background —
+/// is arithmetic on pixels, and the bar's sentence printed a model lozenge per
+/// step anyway, claiming a cost and a dependency the run does not have.
+struct WorkflowBarModelClaimTests {
+    private func tool(_ name: String, usesLLM: Bool) -> ToolInfo {
+        ToolInfo(
+            name: name,
+            displayName: name.capitalized,
+            description: "",
+            category: usesLLM ? "llm" : "image",
+            icon: "wrench",
+            color: "blue",
+            inputPorts: [],
+            outputPorts: [],
+            usesLLM: usesLLM,
+            supportsBatch: true,
+            supportsStreaming: false,
+            supportsStructuredOutput: false,
+            sortOrder: 0,
+            requiresGenerativeModel: false
+        )
+    }
+
+    private func toolStep(_ name: String, usesLLM: Bool) -> StagedWorkflowStep {
+        StagedWorkflowStep(
+            kind: .tool(name: name, displayName: name, icon: "wrench", usesLLM: usesLLM)
+        )
+    }
+
+    private var registry: [ToolInfo] {
+        [tool("rotate_image", usesLLM: false),
+         tool("enhance_image", usesLLM: false),
+         tool("transcribe", usesLLM: true)]
+    }
+
+    @Test("an image-editing step claims no model")
+    func imageStepsAreModelLess() {
+        #expect(
+            !WorkflowBarPolicy.stepTakesModel(
+                toolStep("rotate_image", usesLLM: false), tools: registry
+            )
+        )
+        #expect(
+            !WorkflowBarPolicy.stepTakesModel(
+                toolStep("enhance_image", usesLLM: false), tools: registry
+            )
+        )
+    }
+
+    @Test("an LLM step keeps its model token")
+    func llmStepsKeepTheirModel() {
+        #expect(
+            WorkflowBarPolicy.stepTakesModel(
+                toolStep("transcribe", usesLLM: true), tools: registry
+            )
+        )
+    }
+
+    @Test("a restored chain's missing flag is confirmed against the registry, not believed")
+    func restoreDefaultIsNotEvidence() {
+        // WorkflowBarChainPersistence reads `usesLLM = false` for a chain
+        // saved before the key existed. Believing it would silently strip the
+        // model from a transcription step — a run that DOES cost.
+        #expect(
+            WorkflowBarPolicy.stepTakesModel(
+                toolStep("transcribe", usesLLM: false), tools: registry
+            )
+        )
+    }
+
+    @Test("a tool the registry cannot name keeps its token — absence is not evidence")
+    func unknownToolFailsOpen() {
+        #expect(
+            WorkflowBarPolicy.stepTakesModel(
+                toolStep("some_new_tool", usesLLM: false), tools: registry
+            )
+        )
+        #expect(WorkflowBarPolicy.stepTakesModel(toolStep("rotate_image", usesLLM: false), tools: []))
+    }
+
+    @Test("a workflow step follows the engine's accepts_model_override")
+    func workflowStepsFollowTheEngine() {
+        func workflowStep(_ accepts: Bool) -> StagedWorkflowStep {
+            StagedWorkflowStep(
+                kind: .workflow(
+                    WorkflowSidebarItem(name: "Enhance Images", acceptsModelOverride: accepts)
+                )
+            )
+        }
+        // "Enhance Images" pins nothing and honours no override: no node in it
+        // would use a model.
+        #expect(!WorkflowBarPolicy.stepTakesModel(workflowStep(false), tools: registry))
+        #expect(WorkflowBarPolicy.stepTakesModel(workflowStep(true), tools: registry))
+    }
+}
+
+/// The sentence itself: a model-less step reads "…, then Rotate Images", with
+/// no "use [model] to" and no lozenge. Pinned against the source because the
+/// rail is a SwiftUI view the test process cannot instantiate.
+struct WorkflowBarSentenceShapeTests {
+    @Test("the rail only says 'use … to' for a step that takes a model")
+    func railGuardsTheModelPhrase() throws {
+        let url = try AppSource.root()
+            .appendingPathComponent("Views/Shell/Toolbar/WorkflowBar+ChainRail.swift")
+        let rail = try String(contentsOf: url, encoding: .utf8)
+        #expect(rail.contains("if stepTakesModel(step) {"))
+        #expect(rail.contains("modelToken(for: step, at: index)"))
+        // The connective survives without the claim.
+        #expect(rail.contains("} else if index > 0 {"))
+        // Exactly one model token in the sentence, inside that guard.
+        #expect(rail.components(separatedBy: "modelToken(for: step").count == 2)
+    }
+
+    @Test("the per-step menu offers no models for a step that runs none")
+    func menuDoesNotImplyAModel() throws {
+        let url = try AppSource.root()
+            .appendingPathComponent("Views/Shell/Toolbar/WorkflowBar.swift")
+        let bar = try String(contentsOf: url, encoding: .utf8)
+        #expect(bar.contains("!stepTakesModel(staged[index])"))
+        #expect(bar.contains("runs no model"))
+    }
+}

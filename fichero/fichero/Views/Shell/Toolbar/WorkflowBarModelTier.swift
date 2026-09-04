@@ -114,6 +114,36 @@ extension WorkflowBarPolicy {
         return !info.requiresGenerativeModel
     }
 
+    /// Whether this step USES a model at all.
+    ///
+    /// The bug (Daniel, 2026-09-03): an image-editing chain — rotate, enhance,
+    /// remove background — is arithmetic on pixels with no model anywhere in
+    /// it, and the bar's sentence still printed a model lozenge per step. A
+    /// sentence about a paid run that names a model for a step that will never
+    /// call one is not a small cosmetic slip: it is the bar claiming a cost
+    /// and a dependency that do not exist.
+    ///
+    /// Both halves are the ENGINE's own declarations, never re-derived here:
+    /// a tool says `uses_llm`, a workflow says `accepts_model_override`
+    /// (false = no node in it, or in a child, would honour an override).
+    ///
+    /// Unknown fails OPEN — a tool the registry cannot name, or an older
+    /// engine that sends no `accepts_model_override`, keeps its token. Absence
+    /// of the flag is not evidence the step is model-less, and hiding a model
+    /// we merely failed to confirm would understate a run that does cost.
+    static func stepTakesModel(_ step: StagedWorkflowStep, tools: [ToolInfo]) -> Bool {
+        if let workflow = step.workflow { return workflow.canOverrideModel }
+        guard case .tool(_, _, _, let usesLLM) = step.kind else { return true }
+        if usesLLM { return true }
+        // The staged step's own flag can be a RESTORE default rather than a
+        // statement — `WorkflowBarChainPersistence` reads `false` for a chain
+        // saved before the key existed — so a false is confirmed against the
+        // registry before the sentence acts on it, and a tool the registry
+        // cannot name keeps its token.
+        guard let info = toolInfo(for: step, tools: tools) else { return true }
+        return info.usesLLM
+    }
+
     /// The tier an unpinned step resolves to.
     ///
     /// Two rules, in order:
