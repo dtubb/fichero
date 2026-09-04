@@ -112,7 +112,7 @@ def test_a_page_whose_line_structure_disagrees_is_refused():
         "\n".join(f"linea numero {n} del documento" for n in range(12)), measured
     )
     assert outcome.refused
-    assert "line counts disagree" in outcome.reason
+    assert "more lines than the page was measured to hold" in outcome.reason
     assert outcome.result is None
 
 
@@ -151,3 +151,99 @@ def test_word_only_geometry_recovers_its_lines():
     )
     assert not outcome.refused, outcome.reason
     assert outcome.lines_matched == 2
+
+
+def test_a_page_with_more_measured_lines_than_transcript_still_merges():
+    """The ordinary printed-diary case, and it used to be refused.
+
+    A Marshall diary page carries preprinted furniture the transcript does not
+    transcribe — the day header, the folio number, fragments of the ruled
+    lines — so Vision legitimately reports several times as many lines as the
+    reviewed text has. Measured 2026-09-03: a symmetric count guard refused
+    five of six real pages whose alignment, inspected line by line, was
+    perfect. Extra measured lines are unused candidates, not a broken skeleton.
+    """
+    rows = [[_word(f"furniture{n}", 0.6, 0.05 + n * 0.02)] for n in range(9)]
+    measured = _vision(
+        [_word("Don", 0.10, 0.10), _word("Pedro", 0.20, 0.10)],
+        [_word("mstruia", 0.10, 0.20), _word("Popayan", 0.22, 0.20)],
+        *rows,
+    )
+    outcome = merge_reviewed_text_onto_geometry(
+        "Don Pedro\ninstruía Popayán", measured
+    )
+    assert not outcome.refused, outcome.reason
+    assert outcome.lines_matched == 2
+    by_text = {b.text: b for b in outcome.result.boxes}
+    assert by_text["Popayán"].metadata["provenance"] == MEASURED
+
+
+def test_a_page_carried_by_weak_pairings_alone_is_refused():
+    """Coverage counts pairings; it cannot tell evidence from coincidence.
+
+    `MIN_LINE_SCORE` is deliberately low so a badly-read line can still find
+    its own transcription. A page of short repetitive lines — a printed
+    calendar's numerals — fills its coverage with matches at that floor and
+    produced a visibly scattered overlay. The strong-match floor is what
+    catches it now that the count guard is directional.
+    """
+    measured = _vision(
+        *[[_word(f"1{n} 2{n}", 0.1, 0.05 + n * 0.03)] for n in range(8)]
+    )
+    outcome = merge_reviewed_text_onto_geometry(
+        "\n".join(f"3{n} 4{n}" for n in range(8)), measured
+    )
+    assert outcome.refused
+    assert "strongly" in outcome.reason
+    assert outcome.result is None
+
+
+def test_a_strongly_aligned_page_passes_the_strong_match_floor():
+    """The floor must not eat the pages it was measured against.
+
+    Five of the six Marshall samples paired 78–100% of their reviewed lines at
+    or above 0.60 similarity even where Vision read `Cesse Arrega hue ou way`
+    for `Came Assiga here on way` — the date headers and proper nouns carry it.
+    """
+    measured = _vision(
+        [_word("SATURDAY,", 0.2, 0.05), _word("FEBRUARY", 0.3, 0.05)],
+        [_word("Cesse", 0.1, 0.10), _word("Arrega", 0.2, 0.10)],
+        [_word("SUNDAY,", 0.2, 0.20), _word("FEBRUARY", 0.3, 0.20)],
+    )
+    outcome = merge_reviewed_text_onto_geometry(
+        "SATURDAY, FEBRUARY\nCame Arrega\nSUNDAY, FEBRUARY", measured
+    )
+    assert not outcome.refused, outcome.reason
+    assert outcome.lines_matched == 3
+
+
+def test_merged_geometry_does_not_report_itself_as_the_ocr_engine():
+    """A backfilled page must be distinguishable from a measured one.
+
+    The whole point of recording provenance per box is that measured and
+    interpolated are not interchangeable. If the artifact as a whole claimed
+    `apple_vision`, every consumer that ranks or trusts geometry by provider
+    would read a page whose text came from a person and whose boxes are part
+    guesswork as an OCR pass over the pixels.
+    """
+    outcome = merge_reviewed_text_onto_geometry(
+        "Don Pedro\ninstruía Popayán",
+        _vision(
+            [_word("Don", 0.10, 0.10), _word("Pedro", 0.20, 0.10)],
+            [_word("mstruia", 0.10, 0.20), _word("Popayan", 0.22, 0.20)],
+        ),
+    )
+    assert outcome.result is not None
+    assert outcome.result.provider == "aligned:apple"
+    assert all(b.provider == "aligned:apple" for b in outcome.result.boxes)
+    # Not "user": alignment is a machine pass and must never outrank a person's
+    # own regions in the authority ladder.
+    assert outcome.result.provider.lower() != "user"
+
+
+def test_re_merging_an_already_aligned_page_does_not_stack_the_prefix():
+    from fichero_server.media.geometry_merge import aligned_provider
+
+    assert aligned_provider("aligned:apple") == "aligned:apple"
+    assert aligned_provider(None) == "aligned:unknown"
+    assert aligned_provider("") == "aligned:unknown"

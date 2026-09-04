@@ -21,7 +21,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fichero_server.workflows.types import State
+from fichero_server.workflows.types import DataType, PortDef, State
 from fichero_server.workflows.registry import register_tool
 from fichero_server.workflows.tools.llm_base import BASE_OUTPUT_PORTS
 from fichero_server.workflows.tools.vision_base import (
@@ -82,7 +82,22 @@ DETECT_REGIONS_CONFIG = {
     uses_llm=False,
     supports_batch=True,
     input_ports=VISION_INPUT_PORTS,
-    output_ports=BASE_OUTPUT_PORTS,
+    # The pass-through outputs the body already returns. Without the port
+    # DECLARATIONS a preset cannot draw the edge the docstring describes:
+    # "Edge references unknown source port 'documents'" is a validation error,
+    # so a chain that annotates and then consumes the annotation could not be
+    # shipped as a preset at all.
+    output_ports=BASE_OUTPUT_PORTS + [
+        PortDef(
+            id="files", name="Files", port_type="output", data_type=DataType.ARRAY,
+            description="The input files, untouched — this step annotates.",
+        ),
+        PortDef(
+            id="documents", name="Documents", port_type="output",
+            data_type=DataType.JSON,
+            description="The input documents, untouched — this step annotates.",
+        ),
+    ],
     config_schema=DETECT_REGIONS_CONFIG,
     config_defaults={"language": "en"},
     sort_order=4,

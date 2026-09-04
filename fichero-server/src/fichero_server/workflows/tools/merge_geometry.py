@@ -173,7 +173,12 @@ async def merge_geometry_tool(
             artifact_type=MERGED_ARTIFACT_TYPE,
             content=reviewed_text,
             ocr_geometry=outcome.result,
-            provider=measured.provider,
+            # NOT the OCR provider: `aligned:<engine>` says a person's (or a
+            # stronger model's) text was placed on that engine's boxes, part
+            # measured and part interpolated. A backfilled page that reported
+            # itself as `apple_vision` would be indistinguishable from a
+            # measured one for every consumer that ranks or trusts geometry.
+            provider=outcome.result.provider,
             model=measured.model,
             source_artifact_id=text_rows[-1].id,
             source_document_id=doc_id,

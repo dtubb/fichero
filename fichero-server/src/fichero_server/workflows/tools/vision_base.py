@@ -588,6 +588,80 @@ def _is_duplicate_line(candidate: Any, kept: list[Any]) -> bool:
     return False
 
 
+def _overlaps_existing_area(candidate: Any, kept: list[Any], share: float) -> bool:
+    """Whether `share` of the candidate's rect already lies under some kept line.
+
+    `_is_duplicate_line` asks whether this is the SAME line read again, which
+    it answers on text — right for a crop pass, which only ever reads places
+    the page had nothing. A whole-page second opinion re-reads everything, and
+    a re-reading that disagrees by one character is not the same text, so the
+    text test calls it new and the page ends up with both readings of every
+    line. On a dense manuscript that tripled the transcription and sent
+    character error from 0.40 to 1.16 (measured 2026-09-03 against the
+    paleography gold page). Area is the honest question for that pass: has
+    this part of the page already been read at all?
+    """
+    cx, cy, cw, ch = candidate.bbox
+    area = cw * ch
+    if area <= 0:
+        return True
+    for line in kept:
+        lx, ly, lw, lh = line.bbox
+        wide = min(cx + cw, lx + lw) - max(cx, lx)
+        tall = min(cy + ch, ly + lh) - max(cy, ly)
+        if wide > 0 and tall > 0 and (wide * tall) >= share * area:
+            return True
+    return False
+
+
+def _fold_unseen_lines(
+    base: "VisionOCRResult",
+    extra: "VisionOCRResult",
+    *,
+    only_uncovered_area: float | None = None,
+) -> tuple["VisionOCRResult", int]:
+    """Add the lines `extra` found that `base` does not already hold.
+
+    ADDITIVE by construction, which is the whole safety argument for running a
+    second pass over a page that already has an answer: a line `base` holds is
+    dropped, never replaced, so a second opinion can only widen coverage and
+    can never move a box the first pass measured. A folded-in line brings the
+    word boxes inside its own char span, and the result is re-sorted into
+    reading order so char-span consumers stay coherent.
+
+    `only_uncovered_area` additionally rejects any candidate that already lies
+    under an existing line by that share of its own rect. Pass it whenever the
+    second pass covered the WHOLE page rather than a place the page had
+    nothing: without it, a re-reading that disagrees by one character is not
+    "the same text" and both readings end up in the transcription.
+
+    Returns the merged result and how many lines were folded in; when nothing
+    was, `base` comes back unchanged rather than rebuilt.
+    """
+    lines = list(base.line_boxes)
+    words = list(base.word_boxes)
+    recovered = 0
+    for line in extra.line_boxes:
+        if _is_duplicate_line(line, lines):
+            continue
+        if only_uncovered_area is not None and _overlaps_existing_area(
+            line, lines, only_uncovered_area
+        ):
+            continue
+        lines.append(line)
+        start, end = line.char_start, line.char_end
+        if start is not None and end is not None:
+            words.extend(
+                box for box in extra.word_boxes
+                if box.char_start is not None and start <= box.char_start < end
+            )
+        recovered += 1
+    if not recovered:
+        return base, 0
+    text, lines, words = _rebase_geometry_reading_order(lines, words)
+    return VisionOCRResult(text=text, line_boxes=lines, word_boxes=words), recovered
+
+
 def _rebase_geometry_reading_order(
     line_boxes: list["VisionOCRBox"],
     word_boxes: list["VisionOCRBox"],
@@ -638,17 +712,46 @@ def _rebase_geometry_reading_order(
 
 
 def _owning_line(word: "VisionOCRBox", lines: list["VisionOCRBox"]) -> "VisionOCRBox | None":
-    """The line whose char span contains this word's — spans, not geometry,
-    because the interpolated fallback derives word rects FROM line rects and
-    a geometric test would be circular."""
+    """The line this word belongs to: by char span, disambiguated by position.
+
+    Span first, because the interpolated fallback derives word rects FROM line
+    rects and a purely geometric test would be circular.
+
+    But spans alone are not unique on an escalated page. A line recovered from
+    a CROP carries the crop's own offsets — its first line starts at 0, exactly
+    like the page's first line — so several lines can contain the same
+    `char_start`, and taking the first match assigned escalated words to
+    whatever line happened to be earlier in the list. Rebasing then moved those
+    words' spans relative to the wrong line, and every char-span consumer (span
+    → region resolution, entry matching, clicking a word in the transcript)
+    inherited the error. Measured 2026-09-03 on a Marshall page: three word
+    boxes at opposite ends of the page all claiming `char_start` 0.
+
+    When the span is ambiguous, vertical position settles it — and for a word
+    derived from its own line's rect that is not circular, it is agreement.
+    """
     if word.char_start is None:
         return None
-    for line in lines:
-        if line.char_start is None or line.char_end is None:
-            continue
-        if line.char_start <= word.char_start < line.char_end:
-            return line
-    return None
+    candidates = [
+        line for line in lines
+        if line.char_start is not None and line.char_end is not None
+        and line.char_start <= word.char_start < line.char_end
+    ]
+    if len(candidates) <= 1:
+        return candidates[0] if candidates else None
+    if not word.bbox or len(word.bbox) != 4:
+        return candidates[0]
+    center = word.bbox[1] + word.bbox[3] / 2
+
+    def _distance(line: "VisionOCRBox") -> float:
+        if not line.bbox or len(line.bbox) != 4:
+            return float("inf")
+        top, height = line.bbox[1], line.bbox[3]
+        if top <= center <= top + height:
+            return 0.0
+        return min(abs(center - top), abs(center - (top + height)))
+
+    return min(candidates, key=_distance)
 
 
 def _vision_text_range(start: int, length: int) -> Any:
@@ -1117,6 +1220,12 @@ _VISION_MAX_DIMENSION = 4096
 # reports (measured 2026-09-03 — see `_escalate_second_detector`). Skipped
 # when this OS does not offer it.
 _VISION_SECOND_DETECTOR_REVISION = 1
+
+# How much of a second-detector line must be NEW page for it to be kept: a
+# candidate already covered by this share of its own rect is a re-reading of
+# text the page has, not a discovery. Whole-page second opinions need an area
+# test, not just the text test the crop passes use.
+_VISION_SECOND_DETECTOR_MIN_NEW_AREA = 0.30
 
 # Floor for a return_boxes reply: the transcription, again as one box per
 # line, plus JSON scaffolding — and any thinking the node asked for shares
@@ -1642,6 +1751,19 @@ def _vision_ocr_cgimage_with_geometry(
             for line in band.line_boxes:
                 if _is_duplicate_line(line, lines):
                     continue
+                # The text test above only catches a band re-reading a line
+                # IDENTICALLY. The systematic strips cover the whole page, so
+                # on a dense hand they re-read lines the page already has and
+                # disagree by a character or two — not "the same text", so
+                # both readings landed in the transcription. Measured
+                # 2026-09-03: the paleography gold page intermittently scored
+                # 0.88 character error against a 0.40 baseline, and the
+                # doubled text was the cause. A band may only contribute where
+                # the page has not been read.
+                if _overlaps_existing_area(
+                    line, lines, _VISION_SECOND_DETECTOR_MIN_NEW_AREA
+                ):
+                    continue
                 lines.append(line)
                 start, end = line.char_start, line.char_end
                 if start is not None and end is not None:
@@ -1695,28 +1817,15 @@ def _vision_ocr_cgimage_with_geometry(
         if not results:
             return base
         second = _vision_geometry_from_results(results, page_index=page_index)
-        lines = list(base.line_boxes)
-        words = list(base.word_boxes)
-        recovered = 0
-        for line in second.line_boxes:
-            if _is_duplicate_line(line, lines):
-                continue
-            lines.append(line)
-            start, end = line.char_start, line.char_end
-            if start is not None and end is not None:
-                words.extend(
-                    box for box in second.word_boxes
-                    if box.char_start is not None and start <= box.char_start < end
-                )
-            recovered += 1
-        if not recovered:
-            return base
-        logger.info(
-            "Second-detector (revision %d) recovered %d line(s)",
-            _VISION_SECOND_DETECTOR_REVISION, recovered,
+        merged, recovered = _fold_unseen_lines(
+            base, second, only_uncovered_area=_VISION_SECOND_DETECTOR_MIN_NEW_AREA
         )
-        text, lines, words = _rebase_geometry_reading_order(lines, words)
-        return VisionOCRResult(text=text, line_boxes=lines, word_boxes=words)
+        if recovered:
+            logger.info(
+                "Second-detector (revision %d) recovered %d line(s)",
+                _VISION_SECOND_DETECTOR_REVISION, recovered,
+            )
+        return merged
 
     def _escalate_ink_residue(base: VisionOCRResult) -> VisionOCRResult:
         """Re-OCR the RECTS still holding ink no word box covers.

@@ -44,16 +44,57 @@ from fichero_server.media.ocr_geometry import (
 #: numerals, its proper nouns and its length.
 MIN_LINE_SCORE = 0.30
 
-#: Refuse when the two line counts differ by more than this factor. A page
-#: where Vision merged two columns, or read a rúbrica as a line, produces a
-#: wrong skeleton, and everything derived from it inherits the error silently.
+#: Refuse when the reviewed text has more than this many lines per measured
+#: line. A page where Vision merged two columns, or read a rúbrica as a line,
+#: produces a wrong skeleton, and everything derived from it inherits the error
+#: silently.
+#:
+#: Directional on purpose (measured 2026-09-03 on six Marshall diary pages).
+#: The two imbalances are not the same defect. Reviewed ≫ measured means Vision
+#: did not see most of the page, so the skeleton is missing — refuse. Measured
+#: ≫ reviewed means Vision saw MORE than the transcript covers, which is the
+#: ordinary case on a printed diary: the page carries preprinted furniture
+#: (day headers, folio numbers, ruled-line fragments) that no transcript
+#: transcribes. Those extra lines are unused candidates the monotonic
+#: alignment simply skips, not evidence of a bad skeleton — and a symmetric
+#: guard refused five of six real pages that align perfectly.
 MAX_LINE_COUNT_RATIO = 2.5
 
 #: Refuse when fewer than this fraction of reviewed lines found a partner.
 MIN_LINE_COVERAGE = 0.5
 
+#: A pairing at or above this similarity is STRONG evidence, not merely an
+#: admissible one. `MIN_LINE_SCORE` is deliberately low so a badly-read line
+#: can still find its own transcription; that tolerance is what a page of
+#: short repetitive lines exploits.
+MIN_STRONG_LINE_SCORE = 0.60
+
+#: Refuse when fewer than this fraction of reviewed lines are STRONGLY paired.
+#: With the count guard directional, this is what stands between a real
+#: alignment and a plausible-looking accident. Measured: on a 1923 calendar
+#: page — 40 numeric lines against 485 measured ones — 82% of lines found a
+#: partner and the overlay was scattered nonsense, but only 25% of lines were
+#: strongly paired. The five prose pages ran 78–100%.
+MIN_STRONG_LINE_COVERAGE = 0.5
+
 MEASURED = "measured"
 DERIVED = "derived"
+
+#: Provider prefix for geometry this module produced. A merged page is NOT an
+#: OCR result: its text came from a person or a stronger model, its anchored
+#: boxes were measured by the OCR engine named after the colon, and the rest
+#: were interpolated between those anchors. Reporting it as the OCR provider
+#: would let a backfilled page pass for a measured one, and the whole point of
+#: recording provenance per box is that the two are not interchangeable.
+ALIGNED_PROVIDER = "aligned"
+
+
+def aligned_provider(measured_provider: str | None) -> str:
+    """`aligned:<engine>` — names the alignment AND what it was aligned to."""
+    engine = (measured_provider or "unknown").strip() or "unknown"
+    if engine.startswith(f"{ALIGNED_PROVIDER}:"):
+        return engine
+    return f"{ALIGNED_PROVIDER}:{engine}"
 
 
 @dataclass(slots=True)
@@ -249,6 +290,8 @@ def merge_reviewed_text_onto_geometry(
     min_line_score: float = MIN_LINE_SCORE,
     max_line_count_ratio: float = MAX_LINE_COUNT_RATIO,
     min_line_coverage: float = MIN_LINE_COVERAGE,
+    min_strong_line_score: float = MIN_STRONG_LINE_SCORE,
+    min_strong_line_coverage: float = MIN_STRONG_LINE_COVERAGE,
 ) -> GeometryMergeOutcome:
     """Place the reviewed text's words on the measured page.
 
@@ -268,18 +311,17 @@ def merge_reviewed_text_onto_geometry(
             refused=True, reason="measured geometry has no line or word boxes"
         )
 
-    ratio = max(len(reviewed_lines), len(measured_lines)) / min(
-        len(reviewed_lines), len(measured_lines)
-    )
+    # Only the missing-skeleton direction is a defect: see MAX_LINE_COUNT_RATIO.
+    ratio = len(reviewed_lines) / len(measured_lines)
     if ratio > max_line_count_ratio:
         return GeometryMergeOutcome(
             refused=True,
             lines_total=len(reviewed_lines),
             reason=(
-                f"line counts disagree by {ratio:.1f}× "
-                f"({len(reviewed_lines)} reviewed vs {len(measured_lines)} "
-                "measured) — the measured line structure cannot be trusted "
-                "as a skeleton for this page"
+                f"the reviewed text has {ratio:.1f}× more lines than the page "
+                f"was measured to hold ({len(reviewed_lines)} reviewed vs "
+                f"{len(measured_lines)} measured) — Vision did not see enough "
+                "of this page for its line structure to be a skeleton"
             ),
         )
 
@@ -296,6 +338,35 @@ def merge_reviewed_text_onto_geometry(
                 f"measured partner ({coverage:.0%}); below the "
                 f"{min_line_coverage:.0%} floor this is a failed alignment, not "
                 "a partial one"
+            ),
+        )
+
+    # Coverage alone counts pairings; it cannot tell a pairing that is evidenced
+    # from one the low `min_line_score` floor let through. A page of short
+    # repetitive lines (a printed calendar's numerals) fills its coverage with
+    # weak matches and produces a scattered overlay that every downstream
+    # consumer would read as authoritative.
+    strong = sum(
+        1
+        for index, partner in enumerate(pairing)
+        if partner is not None
+        and _similarity(
+            reviewed_lines[index].key, _normalize(measured_lines[partner].text)
+        )
+        >= min_strong_line_score
+    )
+    strong_coverage = strong / len(reviewed_lines)
+    if strong_coverage < min_strong_line_coverage:
+        return GeometryMergeOutcome(
+            refused=True,
+            lines_matched=matched,
+            lines_total=len(reviewed_lines),
+            reason=(
+                f"only {strong} of {len(reviewed_lines)} reviewed lines matched "
+                f"their measured partner strongly ({strong_coverage:.0%} at or "
+                f"above {min_strong_line_score:.2f} similarity); the "
+                f"{matched} pairings this page found are weak enough to be "
+                "coincidence, not an alignment"
             ),
         )
 
@@ -356,7 +427,7 @@ def merge_reviewed_text_onto_geometry(
                     char_start=word.start,
                     char_end=word.end,
                     page_index=line_box.page_index,
-                    provider=measured.provider,
+                    provider=aligned_provider(measured.provider),
                     source="geometry_merge",
                     metadata={
                         "provenance": provenance,
@@ -368,7 +439,7 @@ def merge_reviewed_text_onto_geometry(
 
     result = OCRGeometryResult(
         text=reviewed_text,
-        provider=measured.provider,
+        provider=aligned_provider(measured.provider),
         model=measured.model,
         boxes=boxes,
         source="geometry_merge",
