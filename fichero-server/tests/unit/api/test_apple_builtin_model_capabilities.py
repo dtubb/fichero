@@ -13,6 +13,15 @@ it — so the vision claim was false, and a false vision claim is precisely how
 a vision step ends up pointed at a text-only on-device model. Daniel,
 2026-09-04: "I think a lot of it is routing to Apple Intelligence."
 
+The general shape is worth naming, because it will recur: **a capability claim
+is enforced by nobody.** Nothing checks that a row advertising vision can
+actually see — not the catalog, not the provider, and not Apple. The same hole
+sits in `FoundationModels.LanguageModelCapabilities` (`.vision`,
+`.guidedGeneration`, `.reasoning`, `.toolCalling`), which any third-party
+`LanguageModel` declares about ITSELF; if the macOS-27 extensibility seam is
+ever taken up, whatever declares those capabilities needs a test of this shape
+too. A claim nothing verifies is a claim that drifts.
+
 One fixture per rule, so the rule FIRES when someone adds the next Apple row.
 """
 
