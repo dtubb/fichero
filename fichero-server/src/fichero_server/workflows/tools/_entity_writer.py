@@ -21,6 +21,7 @@ from typing import Optional
 
 from fichero_server.db import Database
 from fichero_server.knowledge._common import is_bare_is_a_copula
+from fichero_server.knowledge.svo_quality import is_pronoun_subject
 from fichero_server.models.anchors import SourceAnchor
 from fichero_server.models.knowledge import (
     AttributionRole,
@@ -1386,6 +1387,19 @@ def upsert_entity(
     Returns the entity ID. Idempotent on the exact path; the fuzzy
     paths preserve surface-form evidence via the aliases list.
     """
+    # A pronoun is not an entity (#4666). Stage-1 NER emits "they" / "ellos" /
+    # "nosotros" from pages it cannot read, and an entity row by that name
+    # matches every document, anchors nothing, and shows up as the subject of
+    # nearly every statement in the browser. Rejected here, at the single door
+    # every extractor writes through, rather than in each of them.
+    if is_pronoun_subject(canonical_name):
+        logger.info(
+            "upsert_entity: rejected pronoun entity %r (%s) — names no one (#4666)",
+            canonical_name,
+            entity_type,
+        )
+        return None
+
     resolved = _apply_entity_resolution_rules(db, canonical_name, entity_type)
     if resolved is None:
         return None

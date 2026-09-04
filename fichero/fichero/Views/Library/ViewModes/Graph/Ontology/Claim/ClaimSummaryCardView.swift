@@ -178,16 +178,26 @@ struct ClaimSummaryCard: View {
             .background(Color(.windowBackgroundColor))
             .clipShape(RoundedRectangle(cornerRadius: 6))
             .onTapGesture {
-                // Cmd-click opens in a new tab, Finder-style (#1685);
-                // plain click focuses the claim in place.
+                // Cmd-click opens in a new tab, Finder-style (#1685); plain
+                // click GOES TO THE SOURCE (#4666).
+                //
+                // It used to call `focusClaim()` alone, which assigns four
+                // properties on a shared focus object and navigates nowhere.
+                // Clicking a statement therefore did nothing visible, and the
+                // one field that makes a statement checkable — the page it was
+                // read off — stayed one click further away than the claim
+                // itself. A statement you cannot follow back to the manuscript
+                // is an assertion, not evidence.
                 #if os(macOS)
                 if NSApp.currentEvent?.modifierFlags.contains(.command) ?? false {
                     openClaimInNewWindow(asTab: true)
                 } else {
                     focusClaim()
+                    navigateToSource()
                 }
                 #else
                 focusClaim()
+                navigateToSource()
                 #endif
             }
             .onTapGesture(count: 2) { isInlineEditing = true }

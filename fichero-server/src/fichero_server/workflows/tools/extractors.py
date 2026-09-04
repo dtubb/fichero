@@ -45,6 +45,8 @@ from fichero_server.llm import (
     ProviderQuotaError,
     chat_structured_with_fallback,
 )
+from fichero_server.knowledge.svo_quality import is_pronoun_subject
+from fichero_server.loaders.rtf_text import to_plain_text
 from fichero_server.models import Artifact
 from fichero_server.workflows.tools._workflow_change_emit import (
     emit_workflow_artifact_changes,
@@ -2319,14 +2321,27 @@ def _write_kg_rows(
     )
     invariant_violations: list[str] = []
 
+    # Pronoun subjects (#4666). The local set here used to be eight words, so
+    # "we" / "nosotros" / "them" walked straight through and became entities,
+    # and any pronoun with no antecedent in scope became an entity too — which
+    # is how a browser ends up showing "they" as the subject of nearly every
+    # statement. The vocabulary now lives in one place, and an unresolvable
+    # pronoun is DROPPED rather than canonicalised: a row that names nobody is
+    # worse than no row.
     antecedent: str | None = None
-    pronouns = {"he", "she", "it", "they", "él", "ella", "ellos", "ellas"}
 
     def clean_claim_text(value: Any) -> str:
         text = str(value or "")
         text = text.replace("\\\\r\\\\n", " ").replace("\\\\n", " ").replace("\\\\r", " ")
         text = text.replace('\\\\"', '"')
         text = _re.sub(r"\[deleted:\s*[^\]]*\]", "", text, flags=_re.IGNORECASE)
+        # Last line of defence for #4666. The extraction boundary now hands
+        # models prose rather than RTF source, but a cached artifact, a
+        # hand-authored item, or a model that has seen markup elsewhere can
+        # still deliver an escape. Nothing that reaches a KG row should carry
+        # "se\\'f1or" where the manuscript says "señor", so decode here and
+        # NFC-normalise, and let the guard test hold the line.
+        text = to_plain_text(text)
         return " ".join(text.split())
 
     for item in items:
@@ -2345,7 +2360,7 @@ def _write_kg_rows(
         # Field names vary per section: name (most), event (events),
         # date (dates). Try English first, then legacy Spanish keys, so
         # both new and old artifacts produce a sensible canonical_name.
-        canonical = (
+        canonical = clean_claim_text(
             item.get("name")
             or item.get("event")
             or item.get("date")
@@ -2354,8 +2369,19 @@ def _write_kg_rows(
             or item.get("fecha")
             or ""
         )
-        if canonical.casefold() in pronouns and antecedent:
-            canonical = antecedent
+        if is_pronoun_subject(canonical):
+            if antecedent:
+                canonical = antecedent
+            else:
+                invariant_violations.append(
+                    "pronoun subject with no antecedent — item dropped"
+                )
+                logger.info(
+                    "_write_kg_rows: dropped pronoun-subject item %r on %s "
+                    "(no antecedent to resolve it against, #4666)",
+                    canonical, container_id,
+                )
+                continue
         elif canonical:
             antecedent = canonical
         # SVO predicate (new schema). `verb` + `object` compose the
@@ -2428,7 +2454,11 @@ def _write_kg_rows(
         # The substring test below already decided verbatim-ness in order to
         # place the anchor; it now also decides whether this is a quote at
         # all. Same single check, no second rule to drift.
-        raw_source_text = (item.get("source_text") or "").strip()
+        # `to_plain_text`, NOT `clean_claim_text`: a quote keeps its line
+        # breaks, or the verbatim substring test below stops finding it on the
+        # page and every multi-line quote loses its anchor. Only the escape
+        # decode + NFC pass applies here (#4666).
+        raw_source_text = to_plain_text(str(item.get("source_text") or "")).strip()
 
         # Sub-page anchor (#913): when source_text appears verbatim
         # inside the page chunk, record the character offset so the

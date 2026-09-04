@@ -276,18 +276,26 @@ extension ClaimSummaryCard {
     }
 
     func postOpenClaimSource(for claim: Components.Schemas.KnowledgeClaim) {
+        // The claim's source page does NOT have to be in the folder you are
+        // looking at (#4666). This used to require the source document to be
+        // present in `documentStore.currentDocuments`, so following a
+        // statement worked only when its page happened to be in the current
+        // listing — which, for a claim read off page 533 of a bundle while you
+        // browse the entity list, it never is. The request is resolved against
+        // the engine (`revealResolvedSource`, which walks a page child to its
+        // parent file), so the listing has no business gating it: the guard
+        // turned "go to the source" into silence.
         let docId = claim.sourceDocumentId ?? ""
         guard !docId.isEmpty,
-              LibraryManager.shared.globalLibrary?
-                .documentStore
-                .currentDocuments
-                .contains(where: { $0.id == docId }) == true,
               let request = Self.openClaimSourceRequest(for: claim)
         else { return }
         claimSourceNavigationState?.request(request)
     }
 
-    private func navigateToSource() {
+    // Internal, not `private`: `ClaimSummaryCard` spans two files, and Swift's
+    // `private` is file-scoped — see this file's header. The tap handler in
+    // ClaimSummaryCardView.swift calls it.
+    func navigateToSource() {
         if let onNavigateToSource {
             onNavigateToSource(claim)
         } else {

@@ -21,6 +21,7 @@ from typing import Any, Iterator
 from fichero_server.db import db_manager
 from fichero_server.models.knowledge import KnowledgeEntity
 from fichero_server.llm import LLMConfig, chat_structured_with_fallback
+from fichero_server.loaders.rtf_text import to_plain_text
 from fichero_server.llm.language_policy import (
     UNKNOWN,
     configured_policy,
@@ -72,13 +73,28 @@ def _normalize_raw_documents(raw_documents: Any) -> list[Any]:
 
 
 def _transcription_text(document: Document, db) -> str:
+    """The document's transcription as PROSE — never as markup (#4666).
+
+    A transcription edited in the app is stored as inline RTF source whenever
+    the user applied any formatting (``ArtifactRichTextCodec``'s storage
+    contract), and the reader strips that at display time
+    (``api/routes/system/views.py``). Extraction did not: it read the same
+    field raw, so a 17th-century Spanish page reached the model as
+
+        {\\rtf1\\ansi\\ansicpg1252 … \\cf0 … se\\'f1or y deste puerto …
+
+    The model dutifully echoed the escapes back, and "se\\'f1or" was persisted
+    into the knowledge graph as the archive's own word for "señor". Every
+    caller of this helper hands its result to an LLM, so the conversion belongs
+    here, at the one boundary they share, rather than in each of them.
+    """
     metadata = dict(document.metadata or {})
     raw_transcription = metadata.get("transcription")
     if isinstance(raw_transcription, str) and raw_transcription.strip():
-        return raw_transcription.strip()
+        return to_plain_text(raw_transcription).strip()
 
     if isinstance(document.page_content, str) and document.page_content.strip():
-        return document.page_content.strip()
+        return to_plain_text(document.page_content).strip()
 
     for artifact in db.query(
         Artifact,
@@ -86,7 +102,7 @@ def _transcription_text(document: Document, db) -> str:
         artifact_type=_TRANSCRIPTION_ARTIFACT,
     ):
         if isinstance(artifact.content, str) and artifact.content.strip():
-            return artifact.content.strip()
+            return to_plain_text(artifact.content).strip()
     return ""
 
 

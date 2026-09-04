@@ -34,6 +34,13 @@ from fichero_server.llm import (
     chat_structured_with_fallback,
     resolve_model_alias,
 )
+from fichero_server.knowledge.svo_quality import (
+    MAX_OBJECT_WORDS,
+    MAX_VERB_WORDS,
+    claim_rejection,
+    trim_predicate,
+)
+from fichero_server.loaders.rtf_text import to_plain_text
 from fichero_server.models import Artifact, Document, DocType, FileType
 from fichero_server.workflows.node_context import artifact_provenance
 from fichero_server.workflows.registry import register_tool
@@ -406,13 +413,25 @@ def _build_per_entity_claim_instructions(
     return (
         f"{context_block}"
         f"You are extracting facts about a specific entity from a document. "
-        f"Extract specific SVO (Subject-Verb-Object) claims about this entity. "
+        f"Extract specific SVO (Subject-Verb-Object) claims about this entity.\n\n"
+        f"The subject of every claim is the named entity you were given. Never "
+        f"answer with a pronoun ('they', 'ellos', 'we', 'nosotros', 'he') — if "
+        f"you cannot tell which named person or place a sentence is about, omit "
+        f"the claim rather than guessing a subject.\n\n"
         f"For each claim, provide:\n"
-        f"1. The predicate verb (e.g., 'served as', 'located in', 'wrote')\n"
-        f"2. The object/complement (e.g., 'alcalde of Popayán', 'a mining region')\n"
+        f"1. The predicate verb — the MINIMAL verb phrase, at most "
+        f"{MAX_VERB_WORDS} words (e.g., 'served as', 'located in', 'wrote', "
+        f"'otorgó'). Never a chain of verbs lifted from a formulaic passage.\n"
+        f"2. The object/complement — the MINIMAL noun phrase completing the "
+        f"claim, at most {MAX_OBJECT_WORDS} words (e.g., 'alcalde of Popayán', "
+        f"'a mining region'). Never a whole clause or a copied sentence.\n"
         f"3. The exact source text where this claim appears, preserving any "
-        f"   [ilegible] / [uncertain] markers and original accents exactly\n"
-        f"Write in {output_language}. Only include facts directly supported by the text."
+        f"   [ilegible] / [uncertain] markers and original accents exactly\n\n"
+        f"One assertion per claim: a sentence that says three things is three "
+        f"claims, not one claim with three verbs. Keep verb and object in the "
+        f"language of the source text — do not translate the manuscript's own "
+        f"words. Write any commentary in {output_language}. Only include facts "
+        f"directly supported by the text."
     )
 
 
@@ -474,17 +493,30 @@ async def _extract_claims_for_entity(
                 include_schema_in_prompt=False,
                 permissive_guardrails=True,
             )
-        return [
-            {
+        # Quality gate (#4666). The model is asked for minimal spans; when it
+        # returns a clause dump anyway we repair what is repairable (a run-on
+        # verb's overflow becomes object text — nothing is discarded) and
+        # reject what is not, naming the reason in the log rather than writing
+        # a row that reads as a statement but is not one.
+        kept: list[dict] = []
+        for claim in result.claims:
+            verb, obj = trim_predicate(claim.verb, claim.object)
+            rejection = claim_rejection(entity_name, verb, obj)
+            if rejection:
+                logger.info(
+                    "SVO claim rejected for %s: %s (verb=%r object=%r)",
+                    entity_name, rejection, verb, obj,
+                )
+                continue
+            kept.append({
                 "name": entity_name,
-                "verb": claim.verb,
-                "object": claim.object,
+                "verb": verb,
+                "object": obj,
                 "source_text": _annotate_pronoun_source(claim.source_text, entity_name),
                 "epistemic_status": claim.epistemic_status,
                 "claim_type": claim.claim_type,
-            }
-            for claim in result.claims
-        ]
+            })
+        return kept
     except ProviderQuotaError:
         raise
     except Exception as exc:
@@ -857,7 +889,10 @@ def _record_text(record: Any) -> str:
     if not isinstance(record, dict):
         return ""
     text = record.get("text")
-    return text.strip() if isinstance(text, str) else ""
+    # Upstream nodes can hand us an app-edited transcription verbatim, i.e.
+    # inline RTF source. Convert at the boundary so no extractor ever sees
+    # markup (#4666).
+    return to_plain_text(text).strip() if isinstance(text, str) else ""
 
 
 def _normalize_records(records: Any) -> list[dict[str, Any]]:
@@ -923,7 +958,11 @@ def _records_from_selected_documents(state: State) -> list[dict[str, Any]]:
                     doc.id,
                     exc,
                 )
-        text = (
+        # Prose, not markup (#4666): an app-edited transcription is stored as
+        # inline RTF source, and a model handed RTF echoes its escapes back
+        # into the knowledge graph. Same conversion as
+        # `extract_entities_only._transcription_text`.
+        text = to_plain_text(
             raw_transcription
             if isinstance(raw_transcription, str) and raw_transcription.strip()
             else doc.page_content or ""
