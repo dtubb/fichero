@@ -31,6 +31,11 @@ experimental surface switched on (chat, agents, spatial canvas, unfinished
 tools), for people who want to see where Fichero is going and don't mind
 sharp edges. Both update themselves; each stays in its own lane.
 
+**Right now: download the Dev build.** The current release's public
+download predates the Alpha tier, so today the Dev build is the one with
+the full recommended feature set. The next release makes the Public Alpha
+the default recommendation again.
+
 --8<-- "docs/_latest.md"
 
 </div>
