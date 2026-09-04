@@ -134,8 +134,7 @@ extension RenditionService {
             // answers it with an empty chain, so anything thrown here is a
             // real fault worth naming — not a state to guess at.
             logger.error(
-                "Edit chain unavailable for \(documentId); flipping original↔edited is off: "
-                + String(describing: error)
+                "Edit chain unavailable for \(documentId); flipping original↔edited is off: \(String(describing: error))"
             )
             return []
         }
