@@ -387,3 +387,156 @@ field. A flag that is false for 96% of rows teaches readers to ignore it.
 | 4 unpresented image ops | **KEEP, surface** | one "Clean Up Scans" preset |
 | `tested` field | **FIX or DELETE** | true for 6 of 142 |
 
+---
+
+## 6 · Translation, end to end
+
+Daniel on build 1: *"I tried to run translation and it never worked."* He was
+right, and there were **four** independent reasons, all fixed in the last
+24 hours and all present in this tree (verified: every SHA below is an
+ancestor of HEAD).
+
+| # | Root cause | Fix | Symptom Daniel saw |
+|---|---|---|---|
+| 1 | The translate node never received `documents`, so the save step had "nothing to attach the result to" — **every** run failed at the end | `5739e05d8` | ran, then failed |
+| 2 | The node cache returned a `CacheEntry` wrapper into `parallel_results`; the aggregator's `isinstance(result, dict)` missed every field, so a cache hit completed with `text=""` and the next node died with "No text provided" | `11e2ab27d` | **every second run** failed |
+| 3 | *Translate the Reviewed Transcription* crashed before its first LLM call — the state-size probe used strict `json.dumps` and `artifacts_source` outputs carry `created_at` datetimes | `1f04651b7` | that preset never ran at all |
+| 4 | *Translate (DeepL)* 403'd on every run and blamed **billing**: the free host was the unconditional default (wrong for a PRO key) and `_is_quota_error` matched the bare substring "403" | `43d9ad63d` + `170323d3d` (key moved into Settings) | "top up your account" on a paid account |
+
+Plus a quality tune: Apple Intelligence ended every translated line in a
+trailing double-space (markdown hard breaks). `6a1ca277a` puts the plain-text
+rule in `text_translate`'s always-present fidelity block.
+
+**Static re-verification on current code (this lane):** I checked the
+`documents` port on every doc-persisting text node in all 52 shipped presets.
+All five translate-family presets receive it — four by edge, *Translate +
+Double-Check*'s review node by static inputs mapping (correct, per the
+single-inbound-edge rule #837). The only node without it is `6 · Catalogue`,
+which writes to the container rather than per-document and ran green on all
+three providers.
+
+**Live results already on the board** (text-workflows lane, on this code):
+Translate ✓ Apple 34s / flash-lite 52s / Sonnet 27s; Translate + Double-Check
+✓ 115s; Translate the Reviewed Transcription ✓ 58s; Translate to English
+(Historical) ✓ 241s Apple, ✓ flash-lite; Modernización ✓; Regesto ✓.
+**Translate (DeepL) cannot be verified live: the DEEPL_API_KEY in the shell is
+dead** — probed directly, 403 on *both* hosts. The wiring was verified
+separately; what remains is a working key, not a code change.
+
+> Verdict: **the translate family works on current code.** Every path Daniel
+> would have tried on build 1 had a real defect; all four are fixed with
+> regression tests. The one path still unproven end-to-end is DeepL, and it is
+> blocked on a credential, not on Fichero.
+
+---
+
+## 7 · Drag-and-drop PDF import
+
+The gesture needs the app; the pipeline it triggers does not. What a Finder
+drag actually lands on:
+
+```
+Finder drag → SidebarItemRow+DropHandlers / LibraryItemDropDelegate
+            → ImportService.importFiles(urls:)
+                 file      → importFile      → POST /api/ingest/file
+                 directory → startFolderImport → POST /api/ingest/folder  (task + poll)
+            → ingest/core.py: import_file_impl / import_folder_impl
+            → post-ingest: queue_derivatives → pages, thumbnails, text layer, geometry
+```
+
+Two things worth recording from the code, because both were bugs Daniel felt:
+
+- `importFiles` passes `extractText`/`autoEmbed` as `nil` and **omits** them, so
+  the engine's documented defaults apply. They used to default to `false` in
+  Swift, silently overriding the engine's `True` on every drag-drop — the
+  first-run "search returns nothing because nothing is indexed" trap (#3276).
+  This is the clients-render-server-decides rule in miniature.
+- Tonight's two fixes both target the **0%-forever** import:
+  `4ce243dbc` makes an unreadable source loud (`exists()` is not readability —
+  a read against a network volume with expired Kerberos credentials *blocks
+  uncancellably*, and two of those stop the two-worker derivative pool dead),
+  and `ef5f50f89` makes the progress bar count **pages, not documents**
+  (a single 252-page PDF had `total=1`, so the bar's only states were 0% and
+  done, while its label said "pages" — six minutes of honest work reading as
+  a hang). 33 tests across `test_import_stall_is_loud` +
+  `test_post_ingest_derivatives`, verified by the manager.
+
+---
+
+## 8 · MLX, honestly
+
+The local column moved twice in two days and the report should say where it
+landed.
+
+- **2026-09-02:** local MLX vision was *impossible*. The provisioned runtime
+  was `mlx_lm server` 0.31.3, which rejects image content ("Only 'text' content
+  type is supported"). Every vision workflow on provider `omlx` failed
+  regardless of the VL model name. Local text workflows (Clean Up Text LLM,
+  Translate, Diary Entries, NER) worked fine.
+- **2026-09-03/04:** the sidecar now runs `mlx_vlm.server`, and vision **does**
+  work: Qwen2.5-VL-3B transcribed a real Spanish manuscript page, and
+  `analyze` / `caption` / `classify` / `classify_script` all returned genuine
+  image-grounded answers.
+- **But the sidecar dies.** In the tool sweep, the first four vision tools
+  answered and then every subsequent tool returned
+  `local inference process exited 3` in 0.1–0.3s. That is a sidecar crash
+  mid-sweep, not a capability refusal — the tools were never given a chance to
+  fail on their own merits. On a 16 GB Mac the 8B profile swap-deaths outright;
+  the 3B survives longer but not a full pass.
+
+**Verdict for the MLX column: LOCAL VISION WORKS, THE SIDECAR DOES NOT STAY
+UP.** Until a run can complete a full pass without the process exiting, the
+local-first vision story is *demonstrable* but not *dependable*. That is the
+single highest-value MLX ticket, and it is bigger than this lane: it is memory
+headroom and process lifetime, not a preset bug.
+
+Five oMLX defects were found and fixed during this program and are worth
+recording because they were all invisible to CI:
+
+| Fix | What was wrong | Why CI was green |
+|---|---|---|
+| `f84302ba9` | `/health` was joined UNDER `/v1` → `/v1/health`, which the real server 404s | the unit fake accepted both URLs |
+| `7f1b5bfbd` | the real server answers `{"status": "ok"}`; the rich-shape parser defaulted `model_loaded=False`, so a ready runtime sat permanently "degraded" | the fake spoke a richer dialect than the real server |
+| `ddf4232b7` | `stop()` 500'd across event loops — the subprocess handle belongs to the loop that spawned it | never exercised cross-loop |
+| `ce36b9969` | the 5s **per-probe** timeout doubled as the whole **cold-start** deadline, so every on-demand start failed its triggering run and succeeded on manual retry | no test loaded a real 8B model |
+| `49bdad4eb` | the cleanup prompt made the local model emit markdown hard breaks on every line | no test read the output as text |
+
+The pattern is one thing said five ways: **a fake that is more generous than
+the real server turns an integration bug into a green build.** The fakes now
+match real granularity.
+
+---
+
+## 9 · What is still broken, as tickets
+
+| Ticket | Size | Detail |
+|---|---|---|
+| **oMLX sidecar exits mid-run** | large | `local inference process exited 3` after a few vision calls; blocks the entire local-vision story |
+| **Fresh-install defaults cannot run a third of the presets** | medium | With pure Apple defaults, Auto-Detect, Describe, Extract Table, Detect Regions (VLM), the three AI Converts and Group Same Documents all refuse — *correctly and with excellent messages*, but the out-of-box experience still fails. Options: route classify/describe-class steps to Apple Intelligence where it can serve, or surface the preflight verdict in the workflow list **before** run time. |
+| **`error_kind` is embedded in error STRINGS** | small | `[kind]` prefixes and classified wrappers, not a structured field on the thread status. A machine-tracked matrix cannot record it as a column. |
+| **`builder` lets a plain edge target a `_process` node** | medium | The shipped-preset guard keeps the presets out of the trap; user-authored workflows can still draw the mixed fan-out/chain shape. The builder should reject or join it. |
+| **CLI accepts a short doc id and then fails obscurely** | small | `workflow run` with `b0dd8e2f` → "0 processable files … ids=['b0dd8e2f']". Either resolve short ids like `docs get` does, or say "pass the full document id". |
+| **Node-cache rows poisoned before the skip-if-done fix persist** | small | The fix stops new poisoning; it does not scrub existing rows (scratch libraries only, as far as is known). |
+| **`output_language: auto` on sparse claim context** | small | ~50 chars of entity context produced a **Spanish** narrative for an English cover page. Resolve language from the document's metadata, not the prompt text. |
+| **Apple Intelligence transient `GenerationError`** | small | FoundationModels code -1 / ModelManagerError 1013 failed one run and passed identical inputs 30 min later. A retry ladder if it recurs. |
+| **`perf_baseline.json` keys stale test ids** | small | The Convert rename left `…[Convert to Markdown]` entries behind. |
+
+---
+
+## Sources
+
+Every verdict in the matrix traces to one of these, all in
+`agent-work/design/`:
+
+- `workflow-exercise-report.md` — the overnight four-config preset sweep (8 fixes)
+- `text-workflows-report.md` — transcribe / clean up / translate / describe (5 fixes)
+- `extract-organize-report.md` — extract / organize / books, and the Extract-Data merge (4 fixes)
+- `convert-export-tools-report.md` — the Convert re-scope, the export matrix, the 126-tool sweep (2 fixes)
+- `catalogue-chain-report.md` — Catalogue as the 1–6 chain, three providers (2 fixes)
+- `vision-region-experiments.md` — Apple Vision regions, the text→boxes backfill (7 changes)
+- Raw rows: `agent-work/design/workflow-exercise/*.json`
+- MLX harness + sweep: `/tmp/mlx-lane/` (scratch, deliberately not in the repo)
+
+Static analysis in this report (preset/tool inventories, the prompt-similarity
+diffs, the historical-name audit, the `documents`-port sweep, the text-cleanup
+tool comparison) was produced directly against this worktree.
