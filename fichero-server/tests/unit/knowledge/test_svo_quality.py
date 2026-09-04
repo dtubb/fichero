@@ -14,8 +14,18 @@ from fichero_server.knowledge.svo_quality import (
     MAX_OBJECT_WORDS,
     MAX_VERB_WORDS,
     claim_rejection,
+    grounded_fraction,
     is_pronoun_subject,
     trim_predicate,
+    ungrounded_span,
+)
+
+# The page the defects were found on, as it reads once the RTF is converted.
+CACIQUES_PAGE = (
+    "muy poderosos]\n[Sello]\n00533\n"
+    "Andres xptoval Hernandez Varela cañistin\n"
+    "estantes en nuestro señor y deste puerto de merida\n"
+    "dezimos que nosotros somos a tomar la confesion\n"
 )
 
 
@@ -101,3 +111,47 @@ class TestClaimRejection:
         # The writer synthesises an object from a verb-only claim; that is a
         # documented path, not a rejection.
         assert claim_rejection("Andres", "compareció", "") is None
+
+
+class TestGrounding:
+    """Daniel, 2026-09-04: the output "seemed to do weird bad Spanish".
+
+    A model asked for facts about a notarial page writes modern Spanish it
+    composed itself — grammatical, plausible, and not what the manuscript
+    says. The words ARE the evidence.
+    """
+
+    def test_a_span_copied_from_the_page_is_grounded(self):
+        assert not ungrounded_span("cañistin", CACIQUES_PAGE)
+        assert not ungrounded_span("puerto de merida", CACIQUES_PAGE)
+
+    def test_a_fluent_paraphrase_is_rejected(self):
+        # Perfectly good Spanish. Not on the page.
+        assert ungrounded_span("fue nombrado gobernador de la provincia", CACIQUES_PAGE)
+
+    def test_accents_do_not_decide_grounding(self):
+        # "merida" on the page, "Mérida" from the model — the same word.
+        assert not ungrounded_span("Puerto de Mérida", CACIQUES_PAGE)
+
+    def test_one_inflected_token_in_three_still_grounds(self):
+        assert grounded_fraction("tomar la confesión judicial", CACIQUES_PAGE) >= 2 / 3
+        assert not ungrounded_span("tomar la confesión judicial", CACIQUES_PAGE)
+
+    def test_a_single_invented_word_is_not_grounded(self):
+        assert ungrounded_span("gobernador", CACIQUES_PAGE)
+
+    def test_the_check_fails_open_when_it_cannot_run(self):
+        # No page text to compare against is not evidence of invention.
+        assert not ungrounded_span("anything at all", None)
+        assert not ungrounded_span("anything at all", "")
+        # A span of nothing but function words has nothing to ground.
+        assert not ungrounded_span("de la", CACIQUES_PAGE)
+
+    def test_rejection_names_the_ungrounded_side(self):
+        reason = claim_rejection(
+            "Andres", "otorgó", "fue nombrado gobernador", CACIQUES_PAGE
+        )
+        assert reason and "not on the page" in reason
+
+    def test_a_grounded_claim_from_the_real_page_passes(self):
+        assert claim_rejection("Andres", "somos", "a tomar la confesion", CACIQUES_PAGE) is None

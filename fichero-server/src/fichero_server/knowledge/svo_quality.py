@@ -65,6 +65,23 @@ MAX_VERB_WORDS = 4
 # An object longer than this is a paragraph the model declined to segment.
 MAX_OBJECT_WORDS = 25
 
+# How much of a span must actually appear in the source before we will call it
+# a reading of that source. Two thirds, which makes a one-token span
+# all-or-nothing and lets a three-token span carry one inflected form.
+MIN_GROUNDED_FRACTION = 2 / 3
+
+# Function words carry no evidence, so they neither ground a span nor condemn
+# it. Spanish first, since that is the corpus that exposed this.
+_GROUNDING_STOPWORDS = frozenset(
+    {
+        "de", "del", "la", "el", "los", "las", "un", "una", "unos", "unas",
+        "y", "e", "o", "u", "que", "en", "por", "para", "con", "sin", "al",
+        "se", "su", "sus", "lo", "es", "son", "fue", "era", "ser", "como",
+        "the", "a", "an", "of", "to", "in", "on", "for", "with", "and", "or",
+        "is", "was", "as", "at", "by", "from", "that", "which",
+    }
+)
+
 
 def fold(text: str) -> str:
     """Case- and accent-folded form used for every comparison here."""
@@ -103,10 +120,17 @@ def trim_predicate(verb: str, obj: str) -> tuple[str, str]:
     return head.strip(), tail.strip()
 
 
-def claim_rejection(subject: str | None, verb: str | None, obj: str | None) -> str | None:
+def claim_rejection(
+    subject: str | None,
+    verb: str | None,
+    obj: str | None,
+    source_text: str | None = None,
+) -> str | None:
     """Why this SVO triple must not be written, or ``None`` when it may be.
 
     The string is a reason a person can read in a log, not an error code.
+    ``source_text`` is the page the claim was read off; when given, the verb
+    and object must be found in it.
     """
     if is_pronoun_subject(subject):
         return f"pronoun subject {subject!r} — names no entity"
@@ -119,4 +143,51 @@ def claim_rejection(subject: str | None, verb: str | None, obj: str | None) -> s
             f"object is {len(obj_text.split())} words — a clause dump, "
             f"not an object (cap {MAX_OBJECT_WORDS})"
         )
+    if ungrounded_span(obj_text, source_text):
+        return f"object {obj_text!r} is not on the page — a paraphrase, not a reading"
+    if ungrounded_span(verb_text, source_text):
+        return f"verb {verb_text!r} is not on the page — a paraphrase, not a reading"
     return None
+
+
+def _content_tokens(span: str) -> list[str]:
+    """The tokens of ``span`` that could carry evidence, folded for comparison."""
+    cleaned = "".join(ch if ch.isalnum() or ch.isspace() else " " for ch in fold(span))
+    return [
+        token
+        for token in cleaned.split()
+        if len(token) > 2 and token not in _GROUNDING_STOPWORDS
+    ]
+
+
+def grounded_fraction(span: str, source_text: str | None) -> float:
+    """How much of ``span`` is actually present in ``source_text``.
+
+    ``1.0`` when there is nothing to check — no source text to compare
+    against, or a span with no content tokens. Fail-open is deliberate: a
+    check that cannot run must not condemn.
+    """
+    if not source_text or not span:
+        return 1.0
+    tokens = _content_tokens(span)
+    if not tokens:
+        return 1.0
+    haystack = fold(source_text)
+    return sum(1 for token in tokens if token in haystack) / len(tokens)
+
+
+def ungrounded_span(span: str, source_text: str | None) -> bool:
+    """Whether ``span`` reads as a paraphrase rather than as the source's words.
+
+    Daniel, 2026-09-04: the SVO output "seemed to do weird bad Spanish". A
+    model asked for facts about a 17th-century notarial page, in Spanish,
+    writes modern Spanish it composed itself — grammatical, plausible, and not
+    what the manuscript says. The words are the evidence; a claim whose verb
+    and object cannot be found on the page is the model's reading of the page,
+    not the page.
+
+    This also does the work three other rules were reaching for: a span copied
+    from the source cannot be a clause dump of invented text, and a span that
+    IS on the page can be highlighted there when the historian clicks through.
+    """
+    return grounded_fraction(span, source_text) < MIN_GROUNDED_FRACTION

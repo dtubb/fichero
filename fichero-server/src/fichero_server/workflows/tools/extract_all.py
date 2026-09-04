@@ -418,20 +418,27 @@ def _build_per_entity_claim_instructions(
         f"answer with a pronoun ('they', 'ellos', 'we', 'nosotros', 'he') — if "
         f"you cannot tell which named person or place a sentence is about, omit "
         f"the claim rather than guessing a subject.\n\n"
+        f"COPY, DO NOT COMPOSE. The verb and the object must be spans you can "
+        f"find in the document text, word for word, in the document's own "
+        f"language and spelling — including archaic and irregular forms. Do "
+        f"not translate them, do not modernise them, do not correct the "
+        f"grammar, and do not write a smoother sentence than the one on the "
+        f"page. If you cannot quote it, do not claim it.\n\n"
         f"For each claim, provide:\n"
-        f"1. The predicate verb — the MINIMAL verb phrase, at most "
-        f"{MAX_VERB_WORDS} words (e.g., 'served as', 'located in', 'wrote', "
-        f"'otorgó'). Never a chain of verbs lifted from a formulaic passage.\n"
-        f"2. The object/complement — the MINIMAL noun phrase completing the "
-        f"claim, at most {MAX_OBJECT_WORDS} words (e.g., 'alcalde of Popayán', "
-        f"'a mining region'). Never a whole clause or a copied sentence.\n"
+        f"1. The predicate verb — the MINIMAL verb phrase copied from the "
+        f"text, at most {MAX_VERB_WORDS} words (e.g., 'served as', 'located "
+        f"in', 'otorgó'). Never a chain of verbs swept out of a formulaic "
+        f"passage.\n"
+        f"2. The object/complement — the MINIMAL noun phrase from the text "
+        f"that completes the claim, at most {MAX_OBJECT_WORDS} words (e.g., "
+        f"'alcalde of Popayán', 'cañistin'). Never a whole clause, never a "
+        f"copied sentence, never your own paraphrase.\n"
         f"3. The exact source text where this claim appears, preserving any "
         f"   [ilegible] / [uncertain] markers and original accents exactly\n\n"
         f"One assertion per claim: a sentence that says three things is three "
-        f"claims, not one claim with three verbs. Keep verb and object in the "
-        f"language of the source text — do not translate the manuscript's own "
-        f"words. Write any commentary in {output_language}. Only include facts "
-        f"directly supported by the text."
+        f"claims, not one claim with three verbs. Write any commentary in "
+        f"{output_language}; the verb and object stay in the source's "
+        f"language. Only include facts directly supported by the text."
     )
 
 
@@ -501,7 +508,9 @@ async def _extract_claims_for_entity(
         kept: list[dict] = []
         for claim in result.claims:
             verb, obj = trim_predicate(claim.verb, claim.object)
-            rejection = claim_rejection(entity_name, verb, obj)
+            # Grounded against the CHUNK, not against the model's own quote: a
+            # model that invents the claim will invent a quote to match it.
+            rejection = claim_rejection(entity_name, verb, obj, chunk_text)
             if rejection:
                 logger.info(
                     "SVO claim rejected for %s: %s (verb=%r object=%r)",

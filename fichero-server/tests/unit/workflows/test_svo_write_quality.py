@@ -153,3 +153,73 @@ class TestPronounSubjectsNeverLand:
             source_excerpt="…",
         )
         assert "El Cerrito" in {e.canonical_name for e in db.query(KnowledgeEntity)}
+
+
+class TestNoDuplicateStatements:
+    """Daniel, 2026-09-04: "NO DUPLICATES; right now it's not so good."
+
+    `save_claim` has deduped by SVO identity since #1803, but behind two gates
+    that let the same statement through anyway: it skipped any prior row whose
+    provider/model differed, and it only looked at all when the caller knew a
+    page label.
+    """
+
+    def _write(self, db, page, *, model, items=None):
+        _write_kg_rows(
+            db,
+            PEOPLE_SECTION,
+            items
+            or [{"name": "Andres", "verb": "otorgó", "object": "poder al cacique"}],
+            page.id,
+            page_label="533r",
+            source_excerpt="Andres otorgó poder al cacique",
+            provider="apple",
+            model=model,
+        )
+
+    def test_the_same_page_run_twice_writes_one_statement(
+        self, db, test_package, page
+    ):
+        self._write(db, page, model="afm")
+        self._write(db, page, model="afm")
+        assert len(_claims_for(db, page.id)) == 1
+
+    def test_a_second_model_corroborates_rather_than_duplicating(
+        self, db, test_package, page
+    ):
+        self._write(db, page, model="afm")
+        self._write(db, page, model="qwen3")
+        claims = _claims_for(db, page.id)
+        assert len(claims) == 1, "a second model must not mean a second row"
+        # Attribution is kept, not thrown away — that was the reason the old
+        # code duplicated instead of merging.
+        assert "apple/qwen3" in (claims[0].metadata.get("also_extracted_by") or [])
+        assert claims[0].mention_count >= 2
+
+    def test_a_whole_document_extraction_also_dedupes(self, db, test_package, page):
+        # No page label: the non-paginated path, which used to skip the dedup
+        # check entirely and re-write its rows on every pass.
+        for _ in range(2):
+            _write_kg_rows(
+                db,
+                PEOPLE_SECTION,
+                [{"name": "Andres", "verb": "otorgó", "object": "poder al cacique"}],
+                page.id,
+                page_label=None,
+                source_excerpt="Andres otorgó poder al cacique",
+                provider="apple",
+                model="afm",
+            )
+        assert len(_claims_for(db, page.id)) == 1
+
+    def test_a_genuinely_different_statement_still_lands(
+        self, db, test_package, page
+    ):
+        self._write(db, page, model="afm")
+        self._write(
+            db,
+            page,
+            model="afm",
+            items=[{"name": "Andres", "verb": "firmó", "object": "la carta"}],
+        )
+        assert len(_claims_for(db, page.id)) == 2

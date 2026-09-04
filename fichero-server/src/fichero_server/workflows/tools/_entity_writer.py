@@ -1025,6 +1025,30 @@ def _matches_claim_identity(
     return SequenceMatcher(None, identity.get("text") or "", text).ratio() >= 0.9
 
 
+def _record_additional_attribution(
+    claim: KnowledgeClaim, provider: str | None, model: str | None
+) -> None:
+    """Name a second extractor that produced the same statement.
+
+    The claim's own ``provider``/``model`` fields describe ONE run and cannot
+    honestly describe two, which is why dedup used to refuse to merge across
+    them — at the cost of a duplicate row per model. The list keeps the fact
+    that both produced it without lying about which one the row came from.
+
+    Idempotent: re-running the same model adds nothing.
+    """
+    label = "/".join(part for part in ((provider or "").strip(), (model or "").strip()) if part)
+    if not label or (claim.provider, claim.model) == (provider, model):
+        return
+    metadata = dict(claim.metadata or {})
+    also = list(metadata.get("also_extracted_by") or [])
+    if label in also:
+        return
+    also.append(label)
+    metadata["also_extracted_by"] = sorted(also)
+    claim.metadata = metadata
+
+
 def _same_claim_identity(
     prior: KnowledgeClaim,
     *,
@@ -1971,15 +1995,26 @@ def save_claim(
     incoming_svo_verb = svo_verb if svo_verb is not None else pred_canonical
     incoming_svo_object = svo_object if svo_object is not None else so
 
-    if source_page_label and source_document_id:
-        existing = db.query(
-            KnowledgeClaim,
-            source_document_id=source_document_id,
-            source_page_label=source_page_label,
-        )
+    if source_document_id:
+        # Page-scoped when the caller knows the page, document-scoped when it
+        # does not (#4666). The `source_page_label and ...` gate meant a
+        # whole-document extraction — every non-paginated run — deduped against
+        # nothing at all and re-wrote its rows on every pass.
+        if source_page_label:
+            existing = db.query(
+                KnowledgeClaim,
+                source_document_id=source_document_id,
+                source_page_label=source_page_label,
+            )
+        else:
+            existing = [
+                prior
+                for prior in db.query(
+                    KnowledgeClaim, source_document_id=source_document_id
+                )
+                if not prior.source_page_label
+            ]
         for prior in existing:
-            if prior.provider != provider or prior.model != model:
-                continue
             if _same_claim_identity(
                 prior,
                 entity_ids=entity_ids_set,
@@ -1994,6 +2029,14 @@ def save_claim(
                 from fichero_server.workflows.curation_guard import clear_conflict
 
                 clear_conflict(prior)
+                # Attribution is RECORDED, not used as a licence to duplicate
+                # (#4666). This loop used to `continue` past any row whose
+                # provider/model differed, so re-running the same page on a
+                # different model — or the same model with our heuristic SVO
+                # label appended — wrote the statement again. Daniel saw the
+                # result as "no duplicates" failing. One row now, with every
+                # model that produced it named on it.
+                _record_additional_attribution(prior, provider, model)
                 prior.mention_count += 1
                 db.save(prior)
                 return prior.id
@@ -2181,12 +2224,14 @@ def save_claim(
                 prior
                 for prior in existing
                 if prior.source_document_id == source_document_id
-                and prior.provider == provider
-                and prior.model == model
             ),
             None,
         )
         if canonical:
+            # Same document, same subject-verb-object. A second model reading
+            # the same page is corroboration to record on the row, not a
+            # second row (#4666).
+            _record_additional_attribution(canonical, provider, model)
             canonical.mention_count += 1
             _merge_corroborating_claim(db, canonical, claim)
             return canonical.id
