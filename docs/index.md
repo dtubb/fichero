@@ -39,17 +39,15 @@ video slot: short demo embed(s). Keep empty until there is one. -->
 
 ## Features
 
-Your documents are stored in a library, which can contain folders,
-documents, workflows, and saved searches. Fichero can have multiple
-libraries open at the same time.
-
 <div class="grid cards" markdown>
 
 -   :material-folder-multiple: __Library__
 
     ---
 
-    Import and organize your sources; browse them as lists, icons, tables,
+    Your documents are stored in a library, which can contain folders,
+    documents, workflows, and saved searches. Fichero can have multiple
+    libraries open at the same time. Browse them as lists, icons, tables,
     and columns; or extract data and browse them as datasets, timelines,
     and boards; or organize them visually on a 2D or 3D canvas.
 
