@@ -203,35 +203,10 @@ extension ClaimSummaryCard {
         evidenceChain = chain
     }
 
-    /// Resolve a lozenge label to an entity and focus its KG neighborhood.
-    /// Falls back to the existing text-search event when no exact entity
-    /// match exists in the library.
-    func focusEntityLozenge(named rawName: String) async {
-        let name = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty else { return }
-        guard let entityService else {
-            // No service to ask: fall back to the text search, which is what
-            // this path already does for a name that resolves to no entity.
-            entitySearchState?.request(name: name, entityType: nil)
-            return
-        }
-        do {
-            let results = try await entityService.listEntities(
-                query: name,
-                limit: 25
-            )
-            let exact = results.first { entity in
-                entity.canonicalName.compare(name, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
-            }
-            if let exact {
-                kgFocusState.focusEntity(entityId: exact.id)
-                return
-            }
-        } catch {
-            // Fallback to text search below.
-        }
-        entitySearchState?.request(name: name, entityType: nil)
-    }
+    // `focusEntityLozenge(named:)` deleted 2026-09-04: its last caller went
+    // away and it had been dead since — a resolve-name-to-entity path nothing
+    // reached. The live name→entity affordances are the header links (#882)
+    // and EntityLozenge's scoped search.
 
     /// Route the explicit source-line button through the typed source-open state.
     func openClaimSource() {

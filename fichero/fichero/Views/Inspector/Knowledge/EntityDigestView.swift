@@ -235,6 +235,13 @@ struct EntityDigestContent: View {
     @Environment(ClaimSourceNavigationState.self)
     private var claimSourceNavigationState: ClaimSourceNavigationState?
 
+    /// Per-window entity-search bus (#3437) — the digest's name, like the
+    /// detail panel's (#882), leads to every source that mentions the entity
+    /// (Daniel, 2026-09-04: "see all sources related to a particular
+    /// person"). Optional → safe no-op without a host.
+    @Environment(EntitySearchState.self)
+    private var entitySearchState: EntitySearchState?
+
     /// Optional on purpose: the digest renders in panes that may not carry
     /// the service (missing @Environment of a non-optional traps, #4513).
     @Environment(DocumentService.self) private var documentService: DocumentService?
@@ -274,9 +281,21 @@ struct EntityDigestContent: View {
     private var headerSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 12) {
-                Text(entity.canonicalName)
-                    .font(.title)
-                    .fontWeight(.bold)
+                // Same contract as the detail panel's header (#882): the name
+                // is the door to every source that mentions this entity — a
+                // scoped search (people:"Name"), not a plain text match.
+                Button {
+                    entitySearchState?.request(
+                        name: entity.canonicalName,
+                        entityType: EntityKind(apiType: entity.entityType)?.searchScope
+                    )
+                } label: {
+                    Text(entity.canonicalName)
+                        .font(.title)
+                        .fontWeight(.bold)
+                }
+                .buttonStyle(.plain)
+                .help("Find every source that mentions \"\(entity.canonicalName)\"")
 
                 if let type = entity.entityType {
                     Text(type.rawValue.capitalized)
@@ -312,13 +331,60 @@ struct EntityDigestContent: View {
                     .foregroundStyle(.secondary)
                     .italic()
             } else {
-                Text(composedBiography)
+                // Each sentence IS a claim, and a claim knows its page — so
+                // each sentence is a door (Daniel, 2026-09-04: "click on an
+                // SVO statement in the biography and be taken to the source
+                // … with the relevant passage highlighted"). Rendered as one
+                // prose run with per-sentence links so the paragraph still
+                // reads as a biography, not a list.
+                Text(biographyAttributed)
                     .font(.body)
                     .lineSpacing(6)
                     .textSelection(.enabled)
+                    .environment(\.openURL, OpenURLAction { url in
+                        guard url.scheme == Self.claimLinkScheme,
+                              let claimId = url.host ?? url.pathComponents.dropFirst().first,
+                              let claim = claims.first(where: { $0.id == claimId }),
+                              let request = ClaimSourceRequest.request(for: claim)
+                        else { return .discarded }
+                        claimSourceNavigationState?.request(request)
+                        return .handled
+                    })
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// Custom scheme for in-prose claim links; never leaves the view.
+    static let claimLinkScheme = "fichero-claim"
+
+    /// The biography prose with each sentence carrying a link to its claim.
+    /// A claim with no id stays plain text — a link that goes nowhere is
+    /// worse than no link.
+    private var biographyAttributed: AttributedString {
+        let pairs = Self.biographySentences(
+            entityName: entity.canonicalName, claims: claims
+        )
+        guard !pairs.isEmpty else {
+            return AttributedString("No biography data available.")
+        }
+        var prose = AttributedString()
+        var first = true
+        for (sentence, claim) in pairs {
+            if !first { prose += AttributedString(" ") }
+            first = false
+            var run = AttributedString(sentence)
+            if let claimId = claim.id,
+               let url = URL(string: "\(Self.claimLinkScheme)://\(claimId)") {
+                run.link = url
+                // Prose, not a wall of hyperlink-blue: keep body color and
+                // mark tappability with a subtle underline.
+                run.foregroundColor = .primary
+                run.underlineStyle = .single
+            }
+            prose += run
+        }
+        return prose
     }
 
     private var appearsInSection: some View {
@@ -517,13 +583,18 @@ struct EntityDigestContent: View {
         }
     }
 
-    private var composedBiography: String {
+    /// The per-sentence pairing behind the prose — static so the mapping is
+    /// testable without mounting the view. One sentence per claim that has a
+    /// verb or object; claims with neither are skipped, not padded.
+    static func biographySentences(
+        entityName: String,
+        claims: [Components.Schemas.KnowledgeClaim]
+    ) -> [(sentence: String, claim: Components.Schemas.KnowledgeClaim)] {
         var first = true
-        var sentences: [String] = []
-
+        var pairs: [(String, Components.Schemas.KnowledgeClaim)] = []
         for claim in claims {
             // Basic SVO extraction
-            let subject = first ? entity.canonicalName : "they"
+            let subject = first ? entityName : "they"
             first = false
 
             let verb = claim.predicateVerb ?? ""
@@ -537,10 +608,15 @@ struct EntityDigestContent: View {
             // that document was not loaded — a citation that changes depending
             // on what else is on screen is worse than none. Provenance belongs
             // on the row, where it can be navigated to.
-            let sentence = "\(subject) \(verb) \(object)."
-            sentences.append(sentence)
+            pairs.append(("\(subject) \(verb) \(object).", claim))
         }
+        return pairs
+    }
 
+    private var composedBiography: String {
+        let sentences = Self.biographySentences(
+            entityName: entity.canonicalName, claims: claims
+        ).map(\.sentence)
         return sentences.isEmpty ? "No biography data available." : sentences.joined(separator: " ")
     }
 

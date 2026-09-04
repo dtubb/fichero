@@ -85,7 +85,7 @@ extension ClaimSummaryCard {
                 .buttonStyle(.plain)
                 .help("Show the source claim")
 
-                // Verb chip — reveal the underlying claim in place.
+                // Verb chip — edit the statement in place.
                 Button(action: {
                     beginInlineEditing()
                 }, label: {
@@ -99,9 +99,14 @@ extension ClaimSummaryCard {
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                 })
                 .buttonStyle(.plain)
-                .help("Show the source claim")
+                // Tooltips tell the truth about what each chip DOES today
+                // (they all claimed "Show the source claim" while two of the
+                // three edit). The one-rule redesign — nouns navigate, verbs
+                // edit, the sentence goes to the page — awaits a ruling; see
+                // agent-work/design/entity-clickthrough-fabel-review.md.
+                .help("Edit this statement")
 
-                // Object chip — reveal the underlying claim in place.
+                // Object chip — edit the statement in place.
                 Button(action: {
                     beginInlineEditing()
                 }, label: {
@@ -115,7 +120,7 @@ extension ClaimSummaryCard {
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                 })
                 .buttonStyle(.plain)
-                .help("Show the source claim")
+                .help("Edit this statement")
             }
             .padding(.vertical, 4)
         } else if let excerpt = cleanedDisplayText(claim.sourceExcerpt) {

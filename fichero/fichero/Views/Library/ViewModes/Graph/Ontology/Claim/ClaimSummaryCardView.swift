@@ -22,9 +22,10 @@ struct ClaimSummaryCard: View {
     var focusedEntityId: String?
     var onNavigateToSource: ((Components.Schemas.KnowledgeClaim) -> Void)?
 
-    /// Per-window request buses (#3437); optional → safe no-op when a host
-    /// hasn't injected them. Read in the +Details.swift extension's handlers.
-    @Environment(EntitySearchState.self) var entitySearchState: EntitySearchState?
+    /// Per-window request bus (#3437); optional → safe no-op when a host
+    /// hasn't injected it. Read in the +Details.swift extension's handlers.
+    /// (The EntitySearchState sibling left with `focusEntityLozenge` — its
+    /// last reader — 2026-09-04.)
     @Environment(ClaimSourceNavigationState.self) var claimSourceNavigationState: ClaimSourceNavigationState?
     /// For the source-region crop popover (#2105/#3449); optional so hosts that
     /// don't inject it degrade gracefully.

@@ -88,7 +88,13 @@ extension EntityKindRow {
 
             claimContextText(context: context)
 
-            claimExcerptButton(sourceExcerpt: sourceExcerpt, context: context)
+            claimExcerptButton(
+                claimId: claimId,
+                sourceDocumentId: sourceDocumentId,
+                sourcePageLabel: sourcePageLabel,
+                sourceExcerpt: sourceExcerpt,
+                context: context
+            )
 
             // Inline S/V/O editor (#3463): "Edit S/V/O…" expands the row in place
             // into editable subject / verb / object fields (reusing the shared
@@ -300,14 +306,35 @@ extension EntityKindRow {
     }
 
     @ViewBuilder
-    private func claimExcerptButton(sourceExcerpt: String?, context: String) -> some View {
+    private func claimExcerptButton(
+        claimId: String,
+        sourceDocumentId: String?,
+        sourcePageLabel: String?,
+        sourceExcerpt: String?,
+        context: String
+    ) -> some View {
         if showExcerpt,
            let excerpt = sourceExcerpt,
            !excerpt.isEmpty,
            excerpt != context,
            excerpt != item.displayName {
+            // The quote is a DOOR, not a query (Daniel, 2026-09-04). This used
+            // to fire a library text-search for the quote's own words — click
+            // a statement's quote, get dumped into a search for a 200-char
+            // string. It now opens the source page with the passage lit,
+            // through the same cursor every other provenance surface posts to.
+            // Copy-then-search stays available via text selection.
             Button {
-                entitySearchState?.request(name: excerpt, entityType: nil)
+                if let sourceDocumentId,
+                   let request = sourceNavigationRequest(
+                       claimId: claimId,
+                       claim: claimById[claimId],
+                       sourceDocumentId: sourceDocumentId,
+                       sourcePageLabel: sourcePageLabel,
+                       sourceExcerpt: excerpt
+                   ) {
+                    claimSourceNavigationState?.request(request)
+                }
             } label: {
                 Text("\u{201C}\(excerpt)\u{201D}")
                     .font(secondaryTextFont)
@@ -317,7 +344,7 @@ extension EntityKindRow {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .buttonStyle(.plain)
-            .help("Search the library for this quote")
+            .help("Open the source page and highlight this passage")
         }
     }
 

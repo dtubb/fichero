@@ -51,6 +51,13 @@ struct OntologyBrowser: View {
     }
     @Environment(ClaimStore.self) var claimStore
     @Environment(EntityStore.self) var entityStore
+    /// The shared source cursor (#2105/#4393) — the same bus the inspector's
+    /// provenance rows and the claim cards post to. The detail panel's
+    /// navigate-to-source closure must reach it, or clicking a statement in
+    /// THIS browser focuses a shared object and navigates nowhere — the #4666
+    /// defect surviving as an injected override. Optional: no host, no-op.
+    @Environment(ClaimSourceNavigationState.self)
+    var claimSourceNavigationState: ClaimSourceNavigationState?
     /// Finder-style Open in New Tab / New Window for ontology rows (#1685).
     @Environment(\.openWindow) var openWindow
     /// Compact width (iPhone) collapses the list|detail split into a push flow (#3011).
