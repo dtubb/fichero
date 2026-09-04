@@ -508,10 +508,32 @@ kind: those returned *nothing* while claiming success; this one returns
 that its contents are attested. A scanning ruler is present in a large share of
 archival images, so this is not an exotic input.
 
-*Recommendation:* the tool must be able to return "no table present" as a
-first-class outcome (a `no_effect` result, as several tools already do) and
-should refuse output it cannot tie to page text. Small, and it belongs to the
-tools lane rather than to a preset.
+**SHIPPED (`9722ccecb`).** Two halves:
+
+- **The prompt now offers a way to say no.** `NO TABLE` is documented as a
+  correct and complete answer, and the rules name the furniture that caused
+  this — rulers, scale bars, colour charts, folio strips — as belonging to the
+  act of scanning rather than to the document. The rules ride with **every**
+  prompt including a custom one, because *Accounts → Spreadsheet (CSV)* ships
+  its own and is the preset most likely to meet a page of prose. Appending is
+  idempotent.
+- **The reply is validated before it is saved**, through the same
+  `postprocess_text` seam Convert uses to refuse malformed SVG (#4329). An
+  empty answer, the sentinel, or a single column of six-or-more consecutive
+  integers refuses the save *with its reason* and persists nothing. A folder
+  where three pages in ten carry tables now yields three tables and seven
+  recorded "no table here", instead of ten tables of which seven are fiction.
+
+The ruler signature is deliberately narrow: Marshall's one-column dredge
+tallies are not consecutive and are not caught, nor is a short numbered column,
+nor numeric data with a second column. 14 tests, all four refusals and all
+four keeps pinned.
+
+Worth recording how this was found: **the free local model caught it.** A 3B
+model running on Daniel's own machine, costing nothing, surfaced the most
+serious defect in a sweep that also spent real money on two cloud providers.
+That is the argument for keeping the local column in the matrix even while it
+is the slowest one.
 
 ### The KEEP / MERGE / RETIRE table
 
@@ -524,7 +546,7 @@ evidence in the last column, never the verdict.
 | `clean_text` (+ `text_passes`) | yes, hardened twice this week | yes — the one text cleanup | **KEEP** |
 | `text_reflow`, `ocr_cleanup` | yes, non-destructive on real pages | duplicates `clean_text`'s toggles | **MERGE** — and the hardening cannot reach them (R-3) |
 | `handwriting` | **no** — ALL-CAPS, lines repeated verbatim, violates its own no-repeat rule | superseded by `transcribe` + an HTR prompt, which is better on the same page | **RETIRE** (or merge into `transcribe`) |
-| `table_extract` | works — **and fabricates** (R-12) | yes, tables are real archival data | **KEEP + GUARD** |
+| `table_extract` | works — fabrication now refused (R-12) | yes, tables are real archival data | **KEEP** — guarded `9722ccecb` |
 | 12 `<type>_page_cleanup` / `<type>_folder_cleanup` | untested since the restructure | machinery of a retired pipeline; stage 4 does it better and re-runnably | **RETIRE** |
 | `<type>_extract` section family (quotes, people, dates, events, keywords, …) | **untested — queued for a free live sample** | plausibly yes *as standalone acts*; much more so if wired to diary entries | **HOLD — decide after the sample run** (R-1) |
 | `citations_extract` | untested | citations were dropped by the restructure and never rehomed | **HOLD — may need a home, not a retirement** |
@@ -681,7 +703,7 @@ match real granularity.
 
 | Ticket | Size | Detail |
 |---|---|---|
-| **`table_extract` fabricates tables** | small | Returned `0,1,2…30` on a table-less page by reading the scan's centimetre ruler. Invented data claiming success, into an archive. Needs "no table present" as a first-class outcome (R-12). |
+| ~~**`table_extract` fabricates tables**~~ | — | **FIXED `9722ccecb`** — "no table" is now a first-class answer and the save is refused with a reason (R-12). |
 | **`handwriting` is worse than `transcribe`** | small | ALL-CAPS with verbatim repeated lines on a page `transcribe` reads correctly, violating its own no-repeat rule. Retire or merge (see the usefulness table). |
 | **MLX speed and memory headroom** | medium | Local vision now *works* (10 greens on Qwen2.5-VL-3B). What it is not is fast — 236s a page against ~27s for cloud Sonnet — and the 8B profile swap-deaths a 16 GB M1. Capability is no longer the blocker; throughput is. |
 | **Fresh-install defaults cannot run a third of the presets** | medium | With pure Apple defaults, Auto-Detect, Describe, Extract Table, Detect Regions (VLM), the three AI Converts and Group Same Documents all refuse — *correctly and with excellent messages*, but the out-of-box experience still fails. Options: route classify/describe-class steps to Apple Intelligence where it can serve, or surface the preflight verdict in the workflow list **before** run time. |
