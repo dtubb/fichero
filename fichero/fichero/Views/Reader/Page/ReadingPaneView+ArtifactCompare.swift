@@ -16,10 +16,11 @@ import WebKit
 // The diff itself lives in `ReaderArtifactDiff` and is pure; this file is the
 // pane's state, the fetch, and the WebKit host.
 
-/// The WebKit host for a rendered comparison. A plain HTML string in a web
-/// view — no engine route, because the comparison is computed on the client
-/// from artifacts the client already has.
-struct ReaderDiffWebView {
+/// The reader's host for CLIENT-rendered HTML: a plain string in a web view,
+/// no engine route. The comparison below is one such rendering; the CSV table
+/// (`ReaderCSVTable`) is the other. Both are computed from bytes the client
+/// already holds, so neither needs a round trip to draw.
+struct ReaderHTMLPane {
     let html: String
 
     func makeWebView() -> WKWebView {
@@ -33,7 +34,7 @@ struct ReaderDiffWebView {
 }
 
 #if os(macOS)
-extension ReaderDiffWebView: NSViewRepresentable {
+extension ReaderHTMLPane: NSViewRepresentable {
     func makeNSView(context: Context) -> WKWebView { makeWebView() }
 
     func updateNSView(_ webView: WKWebView, context: Context) {
@@ -42,10 +43,10 @@ extension ReaderDiffWebView: NSViewRepresentable {
         webView.loadHTMLString(html, baseURL: nil)
     }
 
-    func makeCoordinator() -> ReaderDiffWebViewCoordinator { ReaderDiffWebViewCoordinator() }
+    func makeCoordinator() -> ReaderHTMLPaneCoordinator { ReaderHTMLPaneCoordinator() }
 }
 #else
-extension ReaderDiffWebView: UIViewRepresentable {
+extension ReaderHTMLPane: UIViewRepresentable {
     func makeUIView(context: Context) -> WKWebView { makeWebView() }
 
     func updateUIView(_ webView: WKWebView, context: Context) {
@@ -54,13 +55,13 @@ extension ReaderDiffWebView: UIViewRepresentable {
         webView.loadHTMLString(html, baseURL: nil)
     }
 
-    func makeCoordinator() -> ReaderDiffWebViewCoordinator { ReaderDiffWebViewCoordinator() }
+    func makeCoordinator() -> ReaderHTMLPaneCoordinator { ReaderHTMLPaneCoordinator() }
 }
 #endif
 
 /// Remembers the HTML already loaded, so an unrelated re-render does not
 /// reload the web view and throw away the reader's scroll position.
-final class ReaderDiffWebViewCoordinator {
+final class ReaderHTMLPaneCoordinator {
     var lastHTML: String?
 }
 
@@ -82,7 +83,7 @@ extension ReadingPaneView {
                 description: Text(artifactCompareError)
             )
         } else if artifactCompareColumns.count >= 2 {
-            ReaderDiffWebView(html: ReaderArtifactDiff.html(columns: artifactCompareColumns))
+            ReaderHTMLPane(html: ReaderArtifactDiff.html(columns: artifactCompareColumns))
         } else {
             ProgressView()
                 .controlSize(.small)
@@ -160,5 +161,28 @@ extension ReadingPaneView {
             }
         }
         artifactCompareColumns = columns
+    }
+
+    /// Render a `.csv` document as a table, or leave `nil` so the ordinary
+    /// reader shows the text.
+    ///
+    /// The document row the grid carries may not include `page_content` — the
+    /// list payload is deliberately lean — so this asks for the full document
+    /// rather than concluding "no text" from a lean row. Failure is silent by
+    /// design: the fallback IS the ordinary reader, which shows the same
+    /// bytes, so there is nothing the user needs to be told.
+    func loadReaderCSVTable() async {
+        readerCSVHTML = nil
+        guard let doc = effectiveDocument, doc.fileType == .csv else { return }
+        if let inline = doc.pageContent, !inline.isEmpty {
+            readerCSVHTML = ReaderCSVTable.html(inline, title: DocumentTitle.displayName(for: doc))
+            return
+        }
+        guard let full = try? await documentStore.documentService.getDocument(doc.id),
+              let text = full.pageContent, !text.isEmpty,
+              // The document may have changed under a slow fetch.
+              full.id == effectiveDocument?.id
+        else { return }
+        readerCSVHTML = ReaderCSVTable.html(text, title: DocumentTitle.displayName(for: full))
     }
 }

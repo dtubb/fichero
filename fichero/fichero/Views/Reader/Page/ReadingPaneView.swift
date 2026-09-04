@@ -107,6 +107,11 @@ struct ReadingPaneView: View {
     @State var artifactCompareIds: [String] = []
     @State var artifactCompareColumns: [ReaderArtifactDiff.Column] = []
     @State var artifactCompareError: String?
+    /// A `.csv` document rendered as a real table (Daniel, 2026-09-04: "will
+    /// a reader show csv? should our reader have a csv option, to render it
+    /// properly?"). nil = not a CSV document, or its text is not honest CSV —
+    /// in which case the ordinary reader shows the text, which is still true.
+    @State var readerCSVHTML: String?
     /// The CSV behind the shown table representation, ready to drag out as a
     /// real file or save via the exporter (Daniel, 2026-08-29 bedtime).
     /// Non-nil only while a table representation is on screen and loaded.
@@ -263,6 +268,7 @@ struct ReadingPaneView: View {
         // loadArtifactLensChoices (readerRepresentation returns to nil).
         .task(id: readerRepresentation) { await loadReaderTableExport() }
         .task(id: artifactCompareIds) { await loadArtifactComparison() }
+        .task(id: effectiveDocument?.id) { await loadReaderCSVTable() }
         // A comparison is about ONE document's artifacts; carrying it to the
         // next document would diff two texts that were never on screen together.
         .onChange(of: effectiveDocument?.id) { _, _ in stopComparingArtifacts() }

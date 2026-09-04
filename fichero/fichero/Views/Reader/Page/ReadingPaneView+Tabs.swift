@@ -40,6 +40,12 @@ extension ReadingPaneView {
             // the most specific thing the user asked for, and it is dismissed
             // from the same menu that started it.
             artifactCompareContent
+        } else if let readerCSVHTML, readerRepresentation == nil, artifactLens == nil {
+            // A CSV document reads as a TABLE (Daniel, 2026-09-04). Only over
+            // the document's own content: pointing the pane at a
+            // representation or a named artifact is a request for THAT, and a
+            // table drawn over it would be answering a different question.
+            ReaderHTMLPane(html: readerCSVHTML)
         } else if let doc = effectiveDocument, doc.isWorkflowNode {
             // A workflow node cannot HAVE a transcript (Daniel, 2026-08-29):
             // the engine view's generic empty says one isn't available "yet",
