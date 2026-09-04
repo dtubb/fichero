@@ -1,4 +1,8 @@
 {
+ "backfill_text_geometry.json": {
+  "preset_version": 1,
+  "sha256": "5bc5c6c0e81d1cd8b4c0bb13136f445438959c9dcdd0a6ea541f839ba23e74fe"
+ },
  "capture_ocr_transcribe.json": {
   "preset_version": 2,
   "sha256": "0b67751fe6c93d759acff68214621189951ac0fbef2c1692de47e775c0873645"
