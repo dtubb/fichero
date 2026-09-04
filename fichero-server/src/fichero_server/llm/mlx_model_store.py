@@ -182,12 +182,10 @@ from huggingface_hub import snapshot_download
 import os, sys
 repo_id, revision, models_path = sys.argv[1], sys.argv[2], sys.argv[3]
 ignore_patterns = sys.argv[4:] or None
-snapshot_download(
-    repo_id=repo_id,
-    revision=revision,
-    cache_dir=models_path,
-    ignore_patterns=ignore_patterns,
-)
+# One line on purpose: the shared-folder guardrail reads per LINE, so a call
+# split across lines hides `models_path` from the check that exists to prove
+# every download lands under server_state_dir()/"models" (#6b).
+snapshot_download(repo_id=repo_id, revision=revision, cache_dir=models_path, ignore_patterns=ignore_patterns)
 """
 
 
