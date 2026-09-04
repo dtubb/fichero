@@ -94,14 +94,14 @@ extension PDFPageWithToolbar {
         guard ocrBoxesEnabled, let artifactService else { return }
         do {
             ocrGeometry = try await OCRGeometrySelection.load(
-                documentId: effectiveDocumentId,
+                documentId: effectiveGeometryDocumentId,
                 using: artifactService
             )
         } catch {
             // Render nothing and say so in the log rather than silently — no
             // boxes must not be indistinguishable from a failed fetch (#4418).
             ocrBoxesLogger.error(
-                "OCR geometry load failed for \(effectiveDocumentId): \(String(describing: error))"
+                "OCR geometry load failed for \(effectiveGeometryDocumentId): \(String(describing: error))"
             )
         }
     }

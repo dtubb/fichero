@@ -304,25 +304,43 @@ def pdf_rect_to_display(
     x1: float,
     y1: float,
 ) -> tuple[float, float, float, float]:
-    """Map an UNROTATED PDF text-layer rect into the page's DISPLAY space.
+    """Map an UNROTATED PDF rect into the page's DISPLAY space.
 
-    PyMuPDF hands back two coordinate systems on the same page and never says
-    so: ``page.rect`` (and every pixmap rendered from the page) is the ROTATED
-    view, while ``page.get_text("words")`` returns rectangles in the page's
-    UNROTATED space. Normalising the second by the first is what put every
-    overlay box on a ``/Rotate 90`` page ninety degrees out of true, sideways
-    against the bitmap the user is looking at.
+    THE CONTRACT, not one library's quirk. A PDF page has two coordinate
+    systems and the format does not make you choose between them: content —
+    text rectangles, annotation rects, the MediaBox — is authored in
+    UNROTATED page space, while ``/Rotate`` says how that page is to be
+    PRESENTED. Every renderer honours ``/Rotate``, so the bitmap a reader
+    looks at is the rotated one, and its dimensions are the unrotated page's
+    swapped on a quarter turn. Geometry normalised against one and drawn on
+    the other lands ninety degrees out of true — boxes sideways across the
+    text they describe.
 
-    ``display_width``/``display_height`` are ``page.rect``'s. Rotation is the
-    page's ``/Rotate``, normalised to one of 0/90/180/270 — anything else is a
-    malformed page and raises rather than silently landing boxes at the wrong
+    Fichero normalises geometry in DISPLAY space, because that is the frame
+    every rendition of a page shares: the thumbnail, the display image, the
+    editor preview and the reader all show the page the way it is meant to be
+    read. So a producer reading content coordinates must pass them through
+    here first, and a consumer that draws in unrotated page space (PDFKit
+    annotations are the one that matters) undoes it on the way out.
+
+    This is why the signature takes numbers rather than a page object: it
+    holds for any PDF library. PyMuPDF is today's worked example —
+    ``page.rect`` and ``get_pixmap`` are the rotated view while
+    ``get_text("words")`` is unrotated — and the pypdfium2/pypdf stack the
+    engine is migrating to splits the same way (pdfium renders honouring
+    ``/Rotate``; pypdf hands back the authored boxes). The migration replaces
+    the CALLERS of this function, never the function.
+
+    ``display_width``/``display_height`` are the RENDERED page's dimensions.
+    ``rotation`` is ``/Rotate``: 0/90/180/270. Anything else is a malformed
+    page and raises, rather than silently landing every box at a guessed
     angle.
     """
     rotation %= 360
     if rotation == 0:
         return x0, y0, x1, y1
     if rotation == 90:
-        # (x, y) -> (W - y, x); the min/max keeps the result a normalised rect.
+        # Point map: (x, y) -> (W - y, x). Swapping the y pair keeps x0<x1.
         return display_width - y1, x0, display_width - y0, x1
     if rotation == 180:
         return display_width - x1, display_height - y1, display_width - x0, display_height - y0

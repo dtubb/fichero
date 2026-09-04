@@ -18,6 +18,20 @@ struct PDFPageWithToolbar: View {
     /// Called when the user taps the × close button. Omit to hide the button.
     /// `= nil` is load-bearing: 3 call sites omit this arg.
     var onClose: (() -> Void)? = nil // swiftlint:disable:this implicit_optional_initialization
+    /// The document whose GEOMETRY this overlay should show — the PDF PAGE
+    /// child, when the caller knows it (#4418 follow-up).
+    ///
+    /// `documentId` is the parent PDF, because that is what PDFKit renders
+    /// from. But the importer writes each page's `text_geometry` artifact on
+    /// that page's own child document, so asking the parent for geometry
+    /// found nothing on a normally-imported PDF — and where some whole-doc run
+    /// HAD left an artifact on the parent, one page's boxes were painted over
+    /// every page. Both read to a user as "the boxes are wrong".
+    ///
+    /// `= nil` is load-bearing: call sites that have no page document omit it
+    /// and fall back to the rendered document, which is correct for a
+    /// single-page PDF and for the image surfaces.
+    var geometryDocumentId: String? = nil // swiftlint:disable:this implicit_optional_initialization
 
     // `zoom`/`pageNav` promoted private -> internal (2026-08-29): read from
     // PDFPageWithToolbar+HeadChrome.swift, and `private` is FILE-scoped.
@@ -109,6 +123,12 @@ struct PDFPageWithToolbar: View {
         isPinned ? (pinnedDocumentId ?? documentId) : documentId
     }
 
+    /// Which document the overlay asks for geometry. The page child when the
+    /// caller supplied one, otherwise the rendered document.
+    var effectiveGeometryDocumentId: String {
+        geometryDocumentId ?? effectiveDocumentId
+    }
+
     /// Which page to display: parent-driven for the primary unpinned pane,
     /// locally tracked for every secondary pane or any pinned pane.
     private var effectivePageIndex: Int {
@@ -188,7 +208,31 @@ struct PDFPageWithToolbar: View {
     private var drawableOCRBoxes: [OCRGeometryBox] {
         guard ocrBoxesEnabled, let ocrGeometry else { return [] }
         let words = ocrGeometry.wordBoxes
-        return words.isEmpty ? ocrGeometry.lineBoxes : words
+        let level = words.isEmpty ? ocrGeometry.lineBoxes : words
+        return Self.boxesForDisplayedPage(
+            level,
+            pageIndex: effectivePageIndex,
+            isPageScoped: geometryDocumentId != nil
+        )
+    }
+
+    /// Keep one page's boxes off every other page.
+    ///
+    /// When the geometry came from the PAGE CHILD it is already this page's,
+    /// and every box is drawn — a page-scoped producer is free to leave
+    /// `pageIndex` unset or to number it from its own origin, and second-
+    /// guessing it here would blank a correct overlay. Only geometry read from
+    /// the WHOLE PDF needs filtering, and there a box that names a different
+    /// page is the exact defect this guards: it belongs to a page the reader
+    /// is not looking at. A box with no page index is kept either way —
+    /// absence of the field is not evidence of the wrong page.
+    static func boxesForDisplayedPage(
+        _ boxes: [OCRGeometryBox],
+        pageIndex: Int,
+        isPageScoped: Bool
+    ) -> [OCRGeometryBox] {
+        if isPageScoped { return boxes }
+        return boxes.filter { $0.pageIndex == nil || $0.pageIndex == pageIndex }
     }
 
     private func persistRegion(_ box: [Double]?, tool: ReaderAnnotationTool) {
@@ -320,13 +364,17 @@ struct PDFPageWithToolbar: View {
                 activeSurfaceState?.registerUnpinned(surfaceId)
             }
         }
-        // #4418: re-probe when the document or the toggle changes. NOT the
-        // page (2026-08-08, "changing page in PDF feels slow"): the loader's
-        // only input is the document id — `OCRGeometrySelection.load` fires
-        // one artifact query per geometry-bearing type, none of which see a
-        // page index — so keying on the page re-ran the identical network
-        // round-trips on EVERY flip and threw the identical answer away.
-        .task(id: "\(effectiveDocumentId)|\(ocrBoxesEnabled)") {
+        // #4418: re-probe when the geometry document or the toggle changes.
+        //
+        // Keying on the PAGE INDEX was rejected in 2026-08-08 ("changing page
+        // in PDF feels slow") and that was right at the time: the loader's
+        // only input was the parent PDF's id, so a flip re-ran identical
+        // round-trips and threw the identical answer away. The premise has
+        // changed — geometry lives on the PAGE CHILD, so each page has a
+        // DIFFERENT answer and a flip must fetch it. This keys on the page
+        // document rather than the index, so the reload happens exactly when
+        // the answer can differ and not once per flip within a page.
+        .task(id: "\(effectiveGeometryDocumentId)|\(ocrBoxesEnabled)") {
             // AppKit only: the PDF box renderer draws PDFAnnotations through
             // PDFPageView+OCRBoxes, which is itself #if canImport(AppKit). iOS
             // has no PDF overlay yet (#4418 shipped the Mac half), so there is

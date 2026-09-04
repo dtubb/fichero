@@ -90,7 +90,10 @@ extension ContentView {
                     syncGridSelectionToPDFPage(index: index)
                 },
                 documentTitle: detailDocument?.name,
-                onClose: { setPaneVisible(.canvas, false) }
+                onClose: { setPaneVisible(.canvas, false) },
+                // Geometry lives on the PAGE child, not the parent PDF this
+                // pane renders from (#4418 follow-up).
+                geometryDocumentId: pageGeometryDocumentId
             )
             .frame(minWidth: ContentView.pdfCanvasMinWidth, maxWidth: .infinity)
             .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview })

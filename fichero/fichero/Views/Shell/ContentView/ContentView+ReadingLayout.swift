@@ -267,6 +267,19 @@ extension ContentView {
         return parentId
     }
 
+    /// The page child whose geometry the PDF overlay should show, or `nil`
+    /// when the reader is rooted on the PDF itself.
+    ///
+    /// The same document the reader already tracks for paging — geometry has
+    /// no business resolving it differently, or the boxes would describe a
+    /// page other than the one on screen (#4418 follow-up).
+    var pageGeometryDocumentId: String? {
+        guard let doc = pageFocusDocument ?? detailDocument, doc.docType == .page else {
+            return nil
+        }
+        return doc.id
+    }
+
     /// Current PDF page index. Prefers pageFocusDocument (set by scroll/flip)
     /// over detailDocument so the PDF viewer tracks scrolling without
     /// re-rooting the active container (#1463).

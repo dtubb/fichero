@@ -18,6 +18,16 @@ struct PDFReadingView: View {
     /// #2368 iPad reading-surface crash class). (#3013)
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
+    /// The page child whose geometry the overlay should show, when the
+    /// reader is rooted on one. `document` is already the page node here —
+    /// the reader is handed `pageFocusDocument ?? detailDocument` — so this
+    /// costs no lookup. `nil` for a PDF viewed whole: then the rendered
+    /// document is also the geometry document.
+    private var pageGeometryDocumentId: String? {
+        guard let document, document.docType == .page else { return nil }
+        return document.id
+    }
+
     var body: some View {
         if ContentView.shouldUseCompactNavigationFlow(horizontalSizeClass: horizontalSizeClass) {
             // Compact PDF: just the page, full width, touch paging. No fixed
@@ -25,7 +35,8 @@ struct PDFReadingView: View {
             PDFPageWithToolbar(
                 documentId: pdfDocumentId,
                 pageIndex: pageIndex,
-                onPageIndexChange: onPageIndexChange
+                onPageIndexChange: onPageIndexChange,
+                geometryDocumentId: pageGeometryDocumentId
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
@@ -33,7 +44,8 @@ struct PDFReadingView: View {
                 PDFPageWithToolbar(
                     documentId: pdfDocumentId,
                     pageIndex: pageIndex,
-                    onPageIndexChange: onPageIndexChange
+                    onPageIndexChange: onPageIndexChange,
+                    geometryDocumentId: pageGeometryDocumentId
                 )
                 .frame(maxWidth: .infinity)
 
