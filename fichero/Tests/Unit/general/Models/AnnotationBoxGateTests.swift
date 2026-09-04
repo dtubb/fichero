@@ -33,8 +33,14 @@ struct AnnotationBoxGateTests {
             drag: [0.19, 0.09, 0.30, 0.05], words: words, lines: lines
         )
         #expect(strips.count == 1, "a one-line drag yields one strip")
-        #expect(strips[0][0] == 0.20, "the strip hugs the touched words")
-        #expect(strips[0][0] + strips[0][2] == 0.42, "the strip hugs the touched words")
+        // Normalized geometry is Double, and the strip's width is computed as
+        // maxX - minX, so `minX + width` is a subtract-then-add round trip:
+        // 0.20 + 0.22000000000000003, which is not 0.42 on any machine. The
+        // SNAP is exact — the strip really does end at the second word's right
+        // edge — the equality was not. Compared within a tolerance far tighter
+        // than a pixel at any zoom, so a real drift still fails.
+        #expect(abs(strips[0][0] - 0.20) < 1e-9, "the strip hugs the touched words")
+        #expect(abs((strips[0][0] + strips[0][2]) - 0.42) < 1e-9, "the strip hugs the touched words")
     }
 
     @Test("a lines-only geometry still anchors: the touched LINE boxes win")

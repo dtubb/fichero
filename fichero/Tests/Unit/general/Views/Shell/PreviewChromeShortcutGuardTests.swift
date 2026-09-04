@@ -180,22 +180,42 @@ struct PreviewMarkupSelectionVerbGuardTests {
         )
     }
 
-    @Test("a saved note asks for its text, and an abandoned one is deleted")
+    /// The CONTRACT, not the mechanism that used to carry it.
+    ///
+    /// This pinned a notification seam — `.previewNoteTextEntry` posted by the
+    /// canvas, a popover on the markup bar subscribing with `publisher(for:)`.
+    /// `InlineNoteEditor` replaced all of it on 2026-09-04 (Daniel: "adding a
+    /// note should create/edit it inline at the anchor, like a margin note on
+    /// the page, not open a popover"), so the guard was scanning for plumbing
+    /// that was deliberately removed — and the thing it was protecting is
+    /// still true, and truer: the editor also keeps an EXISTING note's words
+    /// on cancel, which the popover could not.
+    ///
+    /// So it is rewritten against the invariants rather than deleted: a note
+    /// with words commits them through the one audited write, and a note that
+    /// never got words is removed instead of being left blank on the page.
+    @Test("a saved note keeps its text, and a note that never got words is deleted")
     func noteTextEntryIsWired() throws {
-        let head = try source("Views/Shell/PaneHead/PreviewHeadControls.swift")
-        let canvas = try source(
-            "Views/Preview/ImageViewer/Regions/ZoomableImagePreviewMac+Annotations.swift"
-        )
-        // Canvas end: the note box announces itself once saved.
-        #expect(canvas.contains("name: .previewNoteTextEntry, object: firstSavedId"))
-        // Row end: the popover opens on that seam and commits through the
-        // SAME annotation path the box came from.
-        #expect(head.contains("static let previewNoteTextEntry"))
-        #expect(head.contains("publisher(for: .previewNoteTextEntry)"))
-        #expect(head.contains("annotationStore.updateText(id: annotationId, text: value)"))
-        // Cancel/Esc/click-away must not leave a blank note on the page.
-        #expect(head.contains("guard !committed, let annotationId, let annotationStore"))
-        #expect(head.contains("annotationStore.delete(id: annotationId)"))
+        let editor = try source("Views/Preview/ImageViewer/InlineNoteEditor.swift")
+
+        // Committed text goes through the SAME audited annotation write.
+        #expect(editor.contains("annotationStore.updateText(id: id, text: value)"))
+        // Return commits; Esc cancels; losing focus behaves like Return.
+        #expect(editor.contains(".onSubmit(commit)"))
+        #expect(editor.contains(".onExitCommand(perform: cancel)"))
+        #expect(editor.contains("if !focused, !finished { commit() }"))
+        // A note that never had words is not a note — and one that DID keeps
+        // them, which is the half the popover never got right.
+        #expect(editor.contains("guard initialText.isEmpty, let annotationStore else { return }"))
+        #expect(editor.contains("annotationStore.delete(id: id)"))
+        // Committing twice (Return, then the focus loss it causes) must write
+        // once.
+        #expect(editor.contains("guard !finished else { return }"))
+
+        // And the editor is actually MOUNTED — a contract nothing renders is
+        // the same dead end the retired popover became.
+        let overlays = try source("Views/Preview/ImageViewer/ZoomableImagePreviewMac+Overlays.swift")
+        #expect(overlays.contains("InlineNoteEditor("))
     }
 
     @Test("Check and Highlight act on the selection before falling back")

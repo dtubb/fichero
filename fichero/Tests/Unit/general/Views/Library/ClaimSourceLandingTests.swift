@@ -113,6 +113,15 @@ struct ClaimSourceLandingTests {
         #expect(String(tap.prefix(1500)).contains("navigateToSource()"))
     }
 
+    /// Source with `//` comment bodies removed, so a guard tests what the code
+    /// DOES rather than what its comments say it used to do.
+    static func codeOnly(_ source: String) -> String {
+        source
+            .components(separatedBy: .newlines)
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+    }
+
     /// The source page does not have to be in the folder you are looking at.
     @Test("following a claim does not require its page to be in the listing")
     func theListingDoesNotGateTheSourceOpen() throws {
@@ -126,7 +135,12 @@ struct ClaimSourceLandingTests {
         let function = try #require(
             source.components(separatedBy: "func postOpenClaimSource(").dropFirst().first
         )
-        #expect(!String(function.prefix(1200)).contains("currentDocuments"))
+        // CODE only. The function's body opens with a comment explaining that
+        // it used to gate on `documentStore.currentDocuments` — so a raw scan
+        // matched the very sentence describing the fix, and this assertion
+        // could never have passed as written. Same class as the reader's
+        // passage-anchor guard, which failed on its own explanation.
+        #expect(!Self.codeOnly(String(function.prefix(1200))).contains("currentDocuments"))
     }
 }
 
