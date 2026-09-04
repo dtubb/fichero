@@ -31,6 +31,12 @@ class ManagedModelSpec:
     #: "verified" when someone has run this model in Fichero and seen output;
     #: "untested" when it is here on its reputation only. Never inferred.
     tested_status: str = "untested"
+    #: Files to leave on the Hub. A snapshot download takes EVERY file in the
+    #: repo, and mlx's loader then globs every ``*.safetensors`` it finds, so a
+    #: repo that ships two overlapping weight sets costs double the disk and
+    #: hands the loader a mixture. Empty for a clean repo; see Nanonets below
+    #: for the one that is not.
+    ignore_patterns: tuple[str, ...] = ()
 
 
 @dataclass
@@ -120,15 +126,30 @@ MANAGED_MLX_MODELS: dict[str, ManagedModelSpec] = {
         repo_id="mlx-community/Nanonets-OCR-s-4bit",
         revision="b02d1c6c18c7c31ad0ea0bf139f80b9bcf756218",
         display_name="Nanonets OCR-s",
-        # Measured, not the model's nominal size: this repo ships a sharded
-        # weight set (5.6 GB) AND a second single-file copy (3.1 GB), and a
-        # snapshot download fetches both. The number here is what the disk
-        # actually loses; the note says why it is larger than the model.
-        download_size_bytes=8_727_000_000,
+        # This repo ships TWO complete weight sets: a sharded pair (5.6 GB,
+        # the one `model.safetensors.index.json` points at) and a single
+        # `model.safetensors` (3.1 GB). A plain snapshot takes both -- 8.7 GB
+        # of disk -- and mlx's loader globs every *.safetensors in the folder,
+        # so it would then load a MIXTURE of the two.
+        #
+        # The single file is the set this repo's own config describes. Read
+        # from the Hub without downloading either (safetensors header range
+        # requests, 2026-09-03): config.json declares
+        # `quantization: {bits: 4, group_size: 64}`; the single file carries
+        # 253 `.scales`/`.biases` tensors over U32-packed weights and is
+        # 3.07 GB, which is the size of the known-good 4-bit conversion of
+        # this same 3B architecture (Qwen2.5-VL-3B-Instruct-4bit is 3.09 GB).
+        # The sharded set is quantized too but 5.6 GB -- a coarser precision
+        # than the config claims. So the shards and their index stay on the
+        # Hub, and the download is 3.1 GB of the weights config.json is
+        # actually written for. If it turns out not to load, the fix is to
+        # invert this list, not to fetch 8.7 GB.
+        ignore_patterns=("model-*-of-*.safetensors", "model.safetensors.index.json"),
+        download_size_bytes=3_120_000_000,
         min_memory_bytes=8 * 1024**3,
         memory_class="needs 8 GB unified memory",
         capabilities=("text", "vision"),
-        note="Purpose-built OCR that emits structured markdown (tables, checkboxes, LaTeX). Untested here, and the upstream repo carries two overlapping weight sets, so the download is ~8.7 GB for a ~5.6 GB model.",
+        note="Purpose-built OCR that emits structured markdown (tables, checkboxes, LaTeX). Untested here.",
     ),
     # --- Text ---------------------------------------------------------------
     "Qwen3-4B-Instruct": ManagedModelSpec(
@@ -155,11 +176,18 @@ MANAGED_MLX_MODELS: dict[str, ManagedModelSpec] = {
     ),
 }
 
+#: Argv 4 and beyond are glob patterns to skip -- see ManagedModelSpec.
 _DEFAULT_PYTHON_DOWNLOAD = """
 from huggingface_hub import snapshot_download
 import os, sys
 repo_id, revision, models_path = sys.argv[1], sys.argv[2], sys.argv[3]
-snapshot_download(repo_id=repo_id, revision=revision, cache_dir=models_path)
+ignore_patterns = sys.argv[4:] or None
+snapshot_download(
+    repo_id=repo_id,
+    revision=revision,
+    cache_dir=models_path,
+    ignore_patterns=ignore_patterns,
+)
 """
 
 
@@ -352,6 +380,7 @@ class MLXModelStore:
             spec.repo_id,
             spec.revision,
             str(self.cache_dir),
+            *spec.ignore_patterns,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             env=self.env(),
