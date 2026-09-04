@@ -35,7 +35,12 @@ extension ReadingPaneView {
     /// TWO PANES — Reader + Preview — not an embedded source view.
     @ViewBuilder
     private var pageTabContent: some View {
-        if let doc = effectiveDocument, doc.isWorkflowNode {
+        if isComparingArtifacts {
+            // The compare lens outranks every other reading of the page: it is
+            // the most specific thing the user asked for, and it is dismissed
+            // from the same menu that started it.
+            artifactCompareContent
+        } else if let doc = effectiveDocument, doc.isWorkflowNode {
             // A workflow node cannot HAVE a transcript (Daniel, 2026-08-29):
             // the engine view's generic empty says one isn't available "yet",
             // which promises what cannot arrive. State the impossibility

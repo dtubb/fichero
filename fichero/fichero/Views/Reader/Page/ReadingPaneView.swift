@@ -40,6 +40,12 @@ struct ReadingPaneView: View {
     /// store's run target record (#4295) plus the live page content it splices
     /// in mid-run (#4318). No second notion of "this document is working".
     @Environment(DocumentStore.self) var documentStore: DocumentStore
+    /// Run names for the artifact submenu's run headers, and the live
+    /// completion counters that tell the menu a new run just wrote. Both
+    /// optional: detached reader scenes may inject neither, and a submenu
+    /// headed "Workflow Run" is degraded, not wrong.
+    @Environment(WorkflowStore.self) var workflowStore: WorkflowStore?
+    @Environment(WorkflowExecutionObserver.self) var executionObserver: WorkflowExecutionObserver?
     @Environment(KGFocusState.self) var kgFocusState
     @Environment(ClaimFocusState.self) var claimFocusState
     @Environment(AnnotationStore.self) var annotationStore
@@ -81,7 +87,11 @@ struct ReadingPaneView: View {
     /// pane to one artifact's text instead of the live transcript. Per-pane
     /// state, so split readers compare two artifacts side by side.
     @State var artifactLens: ReaderArtifactLens?
-    @State var artifactLensChoices: [ReaderArtifactLens] = []
+    /// The shown document's artifacts, grouped BY RUN, newest run first
+    /// (Daniel, 2026-09-04). Replaces the flat newest-first list: the flat one
+    /// could not say which pass a row came from, and three reviews from one
+    /// run read as three unrelated rows.
+    @State var artifactLensGroups: [ReaderArtifactLensGroup] = []
     /// The representation the Page lens reads (Daniel, 2026-08-29): nil = the
     /// live content; a value = re-request the SAME WebKit page with
     /// `?representation=` (transcription, translation, …). Per-pane, so split
@@ -91,6 +101,12 @@ struct ReadingPaneView: View {
     /// artifact types present on the document or its pages. The switcher
     /// renders only these: a lens that goes nowhere is the menu lying.
     @State var readerRepresentationChoices: [String] = []
+    /// The artifacts being COMPARED (Daniel, 2026-09-04). Two or more ids,
+    /// the first being the baseline every other column is measured against.
+    /// Empty = not comparing. Per-pane, like every other reader lens.
+    @State var artifactCompareIds: [String] = []
+    @State var artifactCompareColumns: [ReaderArtifactDiff.Column] = []
+    @State var artifactCompareError: String?
     /// The CSV behind the shown table representation, ready to drag out as a
     /// real file or save via the exporter (Daniel, 2026-08-29 bedtime).
     /// Non-nil only while a table representation is on screen and loaded.
@@ -246,6 +262,21 @@ struct ReadingPaneView: View {
         // clears the chip. Doc changes re-fire via the reset in
         // loadArtifactLensChoices (readerRepresentation returns to nil).
         .task(id: readerRepresentation) { await loadReaderTableExport() }
+        .task(id: artifactCompareIds) { await loadArtifactComparison() }
+        // A comparison is about ONE document's artifacts; carrying it to the
+        // next document would diff two texts that were never on screen together.
+        .onChange(of: effectiveDocument?.id) { _, _ in stopComparingArtifacts() }
+        // The artifact submenu REFRESHES when artifacts change (Daniel,
+        // 2026-09-04: three transcription reviews from seconds earlier were
+        // in the artifacts panel and missing from this menu). Same signal the
+        // Artifacts inspector already reloads on, so the two surfaces cannot
+        // disagree about what exists; the reader's current lens survives.
+        .onChange(of: executionObserver?.fileCompletedCount) { _, _ in
+            Task { await loadArtifactLensChoices(resetSelection: false) }
+        }
+        .onChange(of: executionObserver?.workflowCompletedCount) { _, _ in
+            Task { await loadArtifactLensChoices(resetSelection: false) }
+        }
         // Click rung for the CSV chip (sandbox-proof beside the drag): a
         // plain SwiftUI file exporter writing the same Transferable.
         .fileExporter(

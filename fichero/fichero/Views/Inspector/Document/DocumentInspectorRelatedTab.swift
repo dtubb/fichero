@@ -15,6 +15,14 @@ struct DocumentInspectorRelatedTab: View {
     var onNavigateToSource: ((String) -> Void)?
 
     @Environment(DocumentStore.self) private var documentStore
+    /// The live "a run just wrote something" counters (Daniel, 2026-09-04:
+    /// this pane "is not updated"). Relatedness is computed from entities and
+    /// embeddings, both of which a workflow writes WHILE this pane is open —
+    /// and the pane asked exactly once per document, so it showed whatever was
+    /// true when the document was selected, forever. Optional: a detached host
+    /// that injects none still gets the per-document load.
+    @Environment(WorkflowExecutionObserver.self)
+    private var executionObserver: WorkflowExecutionObserver?
 
     /// Keyboard-navigable selection (#4483).
     ///
@@ -82,6 +90,15 @@ struct DocumentInspectorRelatedTab: View {
         }
         .task(id: document.id) {
             await load()
+        }
+        // Re-ask when the library changes underneath the pane — the same
+        // signal the Artifacts inspector reloads on, so the two never disagree
+        // about what this document is related to.
+        .onChange(of: executionObserver?.fileCompletedCount) { _, _ in
+            Task { await load() }
+        }
+        .onChange(of: executionObserver?.workflowCompletedCount) { _, _ in
+            Task { await load() }
         }
     }
 

@@ -96,4 +96,39 @@ enum ClaimSourceRequest {
         }
         return request
     }
+
+    /// The same request from the FLATTENED payload the inspector's claim rows
+    /// hand their `onClaimSelect` callback (claimId, text, source document,
+    /// page label, char span).
+    ///
+    /// The reader's Claims tab had the payload and threw half of it away — it
+    /// called `kgFocusState.focusClaim`, which carries no text and no offsets,
+    /// so a claim clicked inside the reader focused the graph and left the
+    /// page unhighlighted, while the very same rows clicked in the INSPECTOR
+    /// landed correctly (Daniel, 2026-09-04: "clicking through to reader
+    /// should open the right page and highlight relevant text"). One producer,
+    /// one precision rule: a zero-length or missing span still navigates to
+    /// the page, and still draws nothing.
+    static func request(
+        claimId: String,
+        claimText: String?,
+        sourceDocumentId: String?,
+        pageLabel: String?,
+        charStart: Int?,
+        charEnd: Int?
+    ) -> ClaimSourceNavigationRequest? {
+        guard let documentId = sourceDocumentId,
+              !documentId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else { return nil }
+        var request = ClaimSourceNavigationRequest(documentId: documentId)
+        request.claimId = claimId
+        request.claimText = claimText
+        request.pageLabel = pageLabel
+        request.destination = .reader
+        if let charStart, let charEnd, charEnd > charStart {
+            request.charStart = charStart
+            request.charEnd = charEnd
+        }
+        return request
+    }
 }

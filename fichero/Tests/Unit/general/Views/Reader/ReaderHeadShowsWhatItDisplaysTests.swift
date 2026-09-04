@@ -126,11 +126,35 @@ struct ReaderHeadShowsWhatItDisplaysTests {
         #expect(lens.contains("func readerShowingMenu() -> AnyView"))
         // Every row the two retired head menus offered survives here.
         #expect(lens.contains("Section(\"Representations\")"))
-        #expect(lens.contains("Section(\"Artifacts\")"))
+        // Artifacts are sectioned BY RUN now (Daniel, 2026-09-04) — one
+        // section per producing pass, not one flat "Artifacts" wall.
+        #expect(lens.contains("ForEach(artifactLensGroups) { group in"))
+        #expect(lens.contains("Section(group.header)"))
         #expect(
-            lens.contains("readerRepresentationChoices") && lens.contains("artifactLensChoices"),
+            lens.contains("readerRepresentationChoices") && lens.contains("artifactLensGroups"),
             "The submenu must read the SAME choice lists the retired menus read."
         )
+    }
+
+    @Test("the Showing submenu can start and stop an artifact comparison")
+    func showingSubmenuDrivesTheCompareLens() throws {
+        let lens = try source(artifactLensPath)
+        #expect(lens.contains("Menu(isComparingArtifacts ? \"Add to Comparison\" : \"Compare With\")"))
+        #expect(
+            lens.contains("Button(\"Stop Comparing\") { stopComparingArtifacts() }"),
+            "A lens you can enter and not leave is a trap."
+        )
+        #expect(
+            lens.contains("return \"Comparing \\(artifactCompareIds.count) artifacts\""),
+            "The head SAYS what it is showing — a comparison included."
+        )
+    }
+
+    @Test("the compare lens outranks every other reading of the page")
+    func compareLensOutranksTheOtherLenses() throws {
+        let tabs = try source("fichero/fichero/Views/Reader/Page/ReadingPaneView+Tabs.swift")
+        #expect(tabs.contains("if isComparingArtifacts {"))
+        #expect(tabs.contains("artifactCompareContent"))
     }
 
     @Test("the Showing submenu is absent when there is nothing to point the pane at")
@@ -138,7 +162,7 @@ struct ReaderHeadShowsWhatItDisplaysTests {
         let lens = try source(artifactLensPath)
         #expect(
             lens.contains(
-                "guard !readerRepresentationChoices.isEmpty || !artifactLensChoices.isEmpty"
+                "guard !readerRepresentationChoices.isEmpty || !artifactLensGroups.isEmpty"
             ),
             """
             A submenu whose only row is the state you are already in is the \

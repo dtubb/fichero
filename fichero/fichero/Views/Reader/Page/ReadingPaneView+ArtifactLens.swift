@@ -40,6 +40,121 @@ struct ReaderArtifactLens: Equatable {
     }
 }
 
+/// One RUN's worth of artifact rows in the reader's "Showing" submenu
+/// (Daniel, 2026-09-04: "sub-artifacts ought to be by RUN, no?"). The flat
+/// list read as five interchangeable rows — three reviews from the same pass
+/// were indistinguishable from three separate passes, and nothing said which
+/// was newest.
+struct ReaderArtifactLensGroup: Identifiable, Equatable {
+    /// The producing run id, or "earlier" for the ungrouped trailing section.
+    let id: String
+    /// "Paleographer Review", or "Earlier" for the ungrouped section.
+    let title: String
+    /// When the run last wrote — empty for the "Earlier" section, which spans
+    /// no single moment.
+    let time: String
+    /// True for the newest run: the submenu has to make the pass you just ran
+    /// obvious, which is the whole complaint.
+    let isLatest: Bool
+    let choices: [ReaderArtifactLens]
+
+    /// The section header the menu prints: the run, when it ran, and — for the
+    /// newest one — that it IS the newest.
+    var header: String {
+        var text = title
+        if !time.isEmpty { text += " — \(time)" }
+        if isLatest { text += " (latest)" }
+        return text
+    }
+}
+
+/// How the reader's artifact submenu is BUILT — pure, so the grouping and the
+/// labels are testable without a view.
+///
+/// Both halves are borrowed rather than re-derived, deliberately:
+/// `ArtifactRunGrouping` (#4319) already groups the inspector's artifact
+/// browser by run in pipeline order, and `WorkflowBarPolicy.artifactLabels`
+/// already names an artifact the way tonight's scope menu names it. Two menus
+/// listing the same artifacts under two different naming rules is exactly the
+/// disagreement this reuse forecloses.
+enum ReaderArtifactMenu {
+    /// Beyond this many runs the submenu is a wall, not a menu. The rest stay
+    /// reachable in the Artifacts inspector, which is the full browser.
+    static let maxRuns = 8
+
+    static func groups(
+        from artifacts: [Artifact],
+        workflowName: (String) -> String? = { _ in nil },
+        now: Date = Date()
+    ) -> [ReaderArtifactLensGroup] {
+        // ONE label vocabulary with the scope menu, including its
+        // collision-breaking tail for cached re-runs that mint identical rows.
+        let labels = WorkflowBarPolicy.artifactLabels(
+            artifacts.map(choice(for:)), now: now
+        )
+        let runs = ArtifactRunGrouping.groups(from: artifacts).prefix(maxRuns)
+        var newestRunSeen = false
+        return runs.map { group in
+            let isLatest = !group.isEarlier && !newestRunSeen
+            if isLatest { newestRunSeen = true }
+            return ReaderArtifactLensGroup(
+                id: group.id,
+                title: title(for: group, workflowName: workflowName),
+                time: group.isEarlier
+                    ? ""
+                    : WorkflowBarPolicy.provenanceTime(group.latestCreatedAt, now: now),
+                isLatest: isLatest,
+                choices: group.artifacts.map { artifact in
+                    ReaderArtifactLens(
+                        artifactId: artifact.id,
+                        label: labels[artifact.id]
+                            ?? WorkflowBarPolicy.artifactChoiceLabel(
+                                choice(for: artifact), now: now
+                            )
+                    )
+                }
+            )
+        }
+    }
+
+    /// The run's name: its workflow's, where the store knows it; else the step
+    /// that wrote it; else an honest generic. Never a guess at a nicer name.
+    static func title(
+        for group: ArtifactRunGroup,
+        workflowName: (String) -> String?
+    ) -> String {
+        if group.isEarlier { return "Earlier" }
+        if let workflowId = group.workflowId,
+           let name = workflowName(workflowId),
+           !name.trimmingCharacters(in: .whitespaces).isEmpty {
+            return name
+        }
+        if let step = group.artifacts.compactMap(\.stepName).first,
+           !step.trimmingCharacters(in: .whitespaces).isEmpty {
+            return step
+        }
+        return "Workflow Run"
+    }
+
+    static func choice(for artifact: Artifact) -> WorkflowBarPolicy.ArtifactChoice {
+        WorkflowBarPolicy.ArtifactChoice(
+            id: artifact.id,
+            artifactType: artifact.artifactType,
+            displayName: nil,
+            provider: artifact.provider,
+            model: artifact.model,
+            stepName: artifact.stepName,
+            createdAt: artifact.createdAt
+        )
+    }
+
+    /// Every row, flattened — what the pane keeps so a lens can be re-resolved
+    /// (or dropped) after a refresh without re-walking the groups.
+    static func flattened(_ groups: [ReaderArtifactLensGroup]) -> [ReaderArtifactLens] {
+        groups.flatMap(\.choices)
+    }
+}
+
 /// The artifact types the reader can read a document THROUGH — the text
 /// representations (Daniel, 2026-08-29: Content / Transcript / Translate…).
 /// A closed display list over the types that actually exist; structural
@@ -214,6 +329,9 @@ extension ReadingPaneView {
     /// the representation switcher, which outranks the live content.
     var readerShownLabel: String {
         guard readerTab == .page else { return readerLensBinding.wrappedValue.title }
+        if isComparingArtifacts {
+            return "Comparing \(artifactCompareIds.count) artifacts"
+        }
         if let artifactLens { return artifactLens.label }
         if let readerRepresentation {
             return ReaderRepresentation.title(for: readerRepresentation)
@@ -234,12 +352,13 @@ extension ReadingPaneView {
     /// artifacts: a submenu whose only row is the state you are already in is
     /// the menu lying (dead-simple-UX).
     func readerShowingMenu() -> AnyView {
-        guard !readerRepresentationChoices.isEmpty || !artifactLensChoices.isEmpty else {
+        guard !readerRepresentationChoices.isEmpty || !artifactLensGroups.isEmpty else {
             return AnyView(EmptyView())
         }
         return AnyView(
             Menu {
                 Button {
+                    stopComparingArtifacts()
                     readerRepresentation = nil
                     artifactLens = nil
                 } label: {
@@ -249,41 +368,83 @@ extension ReadingPaneView {
                         icon: "doc.text"
                     )
                 }
-                if !readerRepresentationChoices.isEmpty {
-                    Section("Representations") {
-                        ForEach(readerRepresentationChoices, id: \.self) { type in
-                            Button {
-                                artifactLens = nil
-                                readerRepresentation = type
-                            } label: {
-                                Self.showingRow(
-                                    title: ReaderRepresentation.title(for: type),
-                                    isCurrent: artifactLens == nil && readerRepresentation == type,
-                                    icon: "text.alignleft"
-                                )
-                            }
-                        }
-                    }
-                }
-                if !artifactLensChoices.isEmpty {
-                    Section("Artifacts") {
-                        ForEach(artifactLensChoices, id: \.artifactId) { choice in
-                            Button {
-                                artifactLens = choice
-                            } label: {
-                                Self.showingRow(
-                                    title: choice.label,
-                                    isCurrent: artifactLens == choice,
-                                    icon: "doc.on.doc"
-                                )
-                            }
-                        }
-                    }
-                }
+                showingRepresentationsSection
+                showingCompareSection
+                showingArtifactSections
             } label: {
                 Label("Showing: \(readerShownLabel)", systemImage: "eye")
             }
         )
+    }
+
+    /// The representation rows. Extracted for the SAME reason `showingRow` is:
+    /// this file's menu builder has collapsed the type checker before, and it
+    /// now carries four sections instead of two. Bounded sub-expressions are
+    /// the LibraryWindow.body rule applied here.
+    @ViewBuilder
+    var showingRepresentationsSection: some View {
+        if !readerRepresentationChoices.isEmpty {
+            Section("Representations") {
+                ForEach(readerRepresentationChoices, id: \.self) { type in
+                    Button {
+                        stopComparingArtifacts()
+                        artifactLens = nil
+                        readerRepresentation = type
+                    } label: {
+                        Self.showingRow(
+                            title: ReaderRepresentation.title(for: type),
+                            isCurrent: artifactLens == nil && readerRepresentation == type,
+                            icon: "text.alignleft"
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    /// Starting, widening and leaving a comparison (Daniel, 2026-09-04). The
+    /// pane must already be pointed at one artifact — that one is the baseline
+    /// — and the rows are offered only while there is something left to add: a
+    /// compare menu over a document with one result is the menu lying.
+    @ViewBuilder
+    var showingCompareSection: some View {
+        if isComparingArtifacts {
+            Section("Comparing") {
+                Button("Stop Comparing") { stopComparingArtifacts() }
+            }
+        }
+        if artifactLens != nil, !artifactCompareCandidates.isEmpty,
+           artifactCompareIds.count < Self.maxCompareColumns {
+            Menu(isComparingArtifacts ? "Add to Comparison" : "Compare With") {
+                ForEach(artifactCompareCandidates, id: \.artifactId) { choice in
+                    Button(choice.label) { compareArtifact(with: choice) }
+                }
+            }
+        }
+    }
+
+    /// The artifact rows, BY RUN (Daniel, 2026-09-04), newest run first: one
+    /// section per producing pass, each headed by the workflow's name and when
+    /// it ran, so three reviews from tonight's run read as tonight's run rather
+    /// than as three loose rows with no timestamps.
+    @ViewBuilder
+    var showingArtifactSections: some View {
+        ForEach(artifactLensGroups) { group in
+            Section(group.header) {
+                ForEach(group.choices, id: \.artifactId) { choice in
+                    Button {
+                        stopComparingArtifacts()
+                        artifactLens = choice
+                    } label: {
+                        Self.showingRow(
+                            title: choice.label,
+                            isCurrent: artifactLens == choice,
+                            icon: "doc.on.doc"
+                        )
+                    }
+                }
+            }
+        }
     }
 
     /// One checkmarked row. Extracted and explicitly typed: the inline
@@ -298,12 +459,20 @@ extension ReadingPaneView {
         }
     }
 
-    /// Load the artifact choices for the shown document. Newest first, labeled
-    /// "type · model · date" the way the inspector's list reads.
-    func loadArtifactLensChoices() async {
-        artifactLens = nil
-        artifactLensChoices = []
-        readerRepresentation = nil
+    /// Load the artifact choices for the shown document, grouped BY RUN.
+    ///
+    /// `resetSelection` is false on a REFRESH (a run finished while the same
+    /// document is open): clearing the lens there would yank the artifact the
+    /// user is reading out from under them every time a background pass lands.
+    /// The lens is instead re-resolved against the fresh rows and dropped only
+    /// if its artifact is genuinely gone.
+    func loadArtifactLensChoices(resetSelection: Bool = true) async {
+        let previousLens = artifactLens
+        if resetSelection {
+            artifactLens = nil
+            readerRepresentation = nil
+        }
+        artifactLensGroups = []
         readerRepresentationChoices = []
         guard let doc = effectiveDocument else { return }
         // The pane's OWN injected service first (2026-09-02): the
@@ -319,8 +488,12 @@ extension ReadingPaneView {
         // ONE fetch answers both head controls: the whole scope's artifacts
         // (pages included) drive the representation switcher; the document's
         // OWN artifacts drive the per-artifact lens, as before.
+        // forceRefresh (Daniel, 2026-09-04: three reviews finished seconds ago
+        // were in the artifacts panel and absent from this menu). The service
+        // caches per document, so without this the submenu shows whatever the
+        // document showed when it was FIRST opened, forever.
         guard let artifacts = try? await service.getArtifacts(
-            forDocumentId: doc.id, includeDescendants: true
+            forDocumentId: doc.id, includeDescendants: true, forceRefresh: true
         ) else { return }
         readerRepresentationChoices = ReaderRepresentation.availableTypes(
             in: artifacts.map(\.artifactType)
@@ -337,23 +510,19 @@ extension ReadingPaneView {
         ) {
             readerRepresentationChoices.append(ReaderRepresentation.annotationsType)
         }
-        let formatter = RelativeDateTimeFormatter()
-        artifactLensChoices = artifacts
-            .filter { $0.documentId == doc.id }
-            .sorted { $0.createdAt > $1.createdAt }
-            .prefix(12)
-            .map { artifact in
-                ReaderArtifactLens(
-                    artifactId: artifact.id,
-                    label: ReaderArtifactLens.label(
-                        type: artifact.artifactType,
-                        model: artifact.model,
-                        relativeDate: formatter.localizedString(
-                            for: artifact.createdAt, relativeTo: Date()
-                        )
-                    )
-                )
+        artifactLensGroups = ReaderArtifactMenu.groups(
+            from: artifacts.filter { $0.documentId == doc.id },
+            workflowName: { id in
+                workflowStore?.workflows.first { $0.id == id }?.name
             }
+        )
+        // A refresh keeps the reader pinned to what it was reading — unless
+        // that artifact is gone, in which case the pane says so by falling
+        // back to the live content rather than showing a lens to nothing.
+        if !resetSelection, let previousLens {
+            let rows = ReaderArtifactMenu.flattened(artifactLensGroups)
+            artifactLens = rows.first { $0.artifactId == previousLens.artifactId }
+        }
     }
 
     /// Whether the reader scope carries ANY annotation (ruling 5's gate for

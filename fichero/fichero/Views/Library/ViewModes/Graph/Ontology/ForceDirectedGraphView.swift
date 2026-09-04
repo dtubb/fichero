@@ -16,6 +16,17 @@ struct ForceDirectedGraphView: View {
     let entities: [Components.Schemas.KnowledgeEntity]
     @Binding var selectedEntityId: String?
     @Environment(KGFocusState.self) var kgFocusState
+    /// THIS surface's entity service — the library the drawn entities actually
+    /// came from. The neighborhood fetch used to reach for
+    /// `LibraryManager.shared.globalLibrary`, which is not "the current
+    /// library" but the ONE library holding the reserved global id: opening
+    /// the reader's Node Graph on a document in any other library asked the
+    /// Global database for an entity it has never held, and the route answered
+    /// honestly — "Unexpected response from the server (status 404)" (Daniel,
+    /// 2026-09-04). Same wrong-scope defect as #4461 in the KG web pane.
+    /// Optional, with the old lookup kept as the fallback for hosts that
+    /// inject no service.
+    @Environment(EntityService.self) private var entityService: EntityService?
 
     // Simulation state lives in a plain (non-observed) reference type so
     // the per-frame physics writes inside the Canvas render closure don't
@@ -274,12 +285,13 @@ struct ForceDirectedGraphView: View {
             graphRevision += 1
             return
         }
-        guard let library = LibraryManager.shared.globalLibrary else {
+        guard let service = entityService
+                ?? LibraryManager.shared.globalLibrary?.entityService else {
             loadError = "No library"
             return
         }
         do {
-            let response = try await library.entityService.fetchNeighborhood(
+            let response = try await service.fetchNeighborhood(
                 entityId: focusId,
                 hops: hops,
                 limit: neighborLimit,
