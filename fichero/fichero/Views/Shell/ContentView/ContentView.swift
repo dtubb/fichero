@@ -372,21 +372,21 @@ struct ContentView: View {
     /// Whether the active search is scoped to the context folder (true) or
     /// the whole library (false, the default).
     @State var transientSearchScopeIsFolder = false
-    /// The DISPLAY NAME of the library the showing results actually came
-    /// from (Daniel, 2026-09-01: the chrome named a different library than
+    // The DISPLAY NAME of the library the showing results actually came
+    // from (Daniel, 2026-09-01: the chrome named a different library than
     /// the results). `runTransientSearch` resolves its library with a
-    /// `?? globalLibrary` fallback, while the toolbar island named
-    /// `windowState.library` with no fallback — when the window's libraryId
-    /// does not resolve those are two DIFFERENT libraries, and the chrome
-    /// named the one that was not searched. Recorded at request time so the
-    /// chrome reads the same value the request used. `nil` outside a search.
+    // `?? globalLibrary` fallback, while the toolbar island named
+    // `windowState.library` with no fallback — when the window's libraryId
+    // does not resolve those are two DIFFERENT libraries, and the chrome
+    // named the one that was not searched. Recorded at request time so the
+    // chrome reads the same value the request used. `nil` outside a search.
     // resultsLibraryName lives on `chromeUX` (WindowChromeUXState) — the
     // ContentView value-size ceiling (ViewValueSizeTests) forbids new @State here.
-    /// The terms the reader should light up (Daniel, 2026-09-01): a result
-    /// you select must show you WHERE it matched, not just the document.
-    /// Written by `runTransientSearch`, read by `ReadingPaneView`, which
-    /// feeds it to the existing find-in-page highlighter (#4338). Empty
-    /// outside a search — the reader's own find bar owns the field then.
+    // The terms the reader should light up (Daniel, 2026-09-01): a result
+    // you select must show you WHERE it matched, not just the document.
+    // Written by `runTransientSearch`, read by `ReadingPaneView`, which
+    // feeds it to the existing find-in-page highlighter (#4338). Empty
+    // outside a search — the reader's own find bar owns the field then.
     // readerFindQuery lives on `chromeUX` for the same reason.
     /// Real search parameters (#4112/S8), driven by the results-bar Options
     /// menu; saved searches apply their stored values. Sticky for the session.

@@ -242,7 +242,7 @@ extension ContentView {
                 "charEnd": anchor.charEnd ?? 0,
                 // "Land here", not "here is a selection" — the reader is a
                 // publisher on this seam too, and must not answer itself.
-                ReaderPassageAnchor.kindKey: ReaderPassageAnchor.searchPassageKind,
+                ReaderPassageAnchor.kindKey: ReaderPassageAnchor.searchPassageKind
             ]
         )
     }

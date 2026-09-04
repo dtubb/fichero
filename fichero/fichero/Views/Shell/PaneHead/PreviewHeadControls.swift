@@ -572,4 +572,3 @@ struct PreviewHighlightStyleMenu: View {
 // The tag-entry structs (`MarkupTagMenuEntries` / `MarkupTagPopover`, coding
 // v1, ruling 4) live in AnnotationBar.swift — the annotation bar is the one
 // home for markup verbs; both chevron menus here mount them.
-

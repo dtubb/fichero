@@ -128,4 +128,3 @@ enum ReaderMarkdownDocument {
         return extensions.contains(String(ext))
     }
 }
-
