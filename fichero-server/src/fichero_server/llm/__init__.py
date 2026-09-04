@@ -4278,6 +4278,22 @@ def _build_langchain_model(config: LLMConfig) -> Any:
     # that through makes the provider API see "openrouter/openrouter/…" —
     # every vision-alias call failed this way (Daniel, 2026-08-27).
     model_name = config.model.removeprefix(f"{provider}/")
+    # A managed MLX model's catalog id is OURS, not Hugging Face's (#4560).
+    # "Qwen2.5-VL-3B" and "Chandra-OCR" name rows in MANAGED_MLX_MODELS; the
+    # sidecar is launched with the resolved snapshot PATH and, on seeing an
+    # unfamiliar `model` field, tries to fetch that name from the Hub and
+    # fails 401 "Repository Not Found" -- over a model already installed and
+    # already loaded in the very process being asked. Send the identifier the
+    # server was started with, so the request names the weights in memory.
+    if provider == "omlx":
+        try:
+            from fichero_server.llm.mlx_model_store import get_mlx_model_store
+
+            model_name = get_mlx_model_store().resolve_model_path(model_name)
+        except (KeyError, FileNotFoundError):
+            # Not a managed model (a user-configured repo id, or one not
+            # installed): pass the name through and let the server answer.
+            pass
     api_key = _resolve_api_key(config)
 
     # Common parameters. max_retries=10 bumps LangChain's default 6 so

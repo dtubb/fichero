@@ -90,7 +90,18 @@ class LocalProviderProfile(BaseModel):
     #: start fail its triggering workflow run ("health check unavailable
     #: during startup"), which then succeeded on manual retry once the model
     #: finished loading (2026-09-02, live on the Marshall exercise).
-    startup_timeout_seconds: float = Field(default=120.0, ge=0)
+    #: 300, not 120 (#4560). The 120s budget was measured against
+    #: `mlx_lm server`, which binds its port and THEN loads. `mlx_vlm.server`
+    #: — the one every vision model now uses, because mlx-lm cannot read an
+    #: image — preloads the model and processor BEFORE uvicorn listens, so the
+    #: port simply refuses connections for the whole load and the probe sees
+    #: "All connection attempts failed" rather than an unhealthy server.
+    #: Measured: a 3B 4-bit VLM on a memory-pressured 16 GB M1 needed longer
+    #: than 145s to bind, and the run that triggered it failed with a startup
+    #: timeout over a model that was loading perfectly well. The ceiling costs
+    #: nothing when it is not reached — health is polled, so a fast start
+    #: still returns fast.
+    startup_timeout_seconds: float = Field(default=300.0, ge=0)
     max_concurrency: int = Field(default=1, ge=1)
     visible_in_ui: bool = True
     supported: bool = True
@@ -134,6 +145,11 @@ class LocalModelCatalogEntry(BaseModel):
     memory_class: str | None = None
     supported: bool = True
     unsupported_reason: str | None = None
+    #: One line on what the model is for, and what is known about it here.
+    note: str | None = None
+    #: "verified" once someone has run it in Fichero, "untested" otherwise.
+    #: Never inferred from a model's reputation.
+    tested_status: str = "untested"
     license_label: str | None = None
     source: LocalModelSource = LocalModelSource.user_configured
 

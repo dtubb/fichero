@@ -731,10 +731,17 @@ async def test_managed_stop_falls_back_to_signals_across_loops(tmp_path) -> None
 
 @pytest.mark.asyncio
 async def test_cold_start_deadline_uses_startup_timeout_not_probe_timeout(monkeypatch) -> None:
-    """Loading an 8B MLX model takes ~30-60s; the 5s health-PROBE timeout
-    must not double as the cold-start deadline (2026-09-02: every on-demand
-    cold start failed its triggering run, then succeeded on manual retry)."""
-    assert profile().startup_timeout_seconds == 120.0
+    """Loading an MLX model takes minutes; the 5s health-PROBE timeout must
+    not double as the cold-start deadline (2026-09-02: every on-demand cold
+    start failed its triggering run, then succeeded on manual retry).
+
+    Raised to 300s for #4560: vision models are served by `mlx_vlm.server`,
+    which preloads the model BEFORE it binds its port, so the probe gets
+    connection-refused for the entire load. Measured: a 3B 4-bit VLM on a
+    memory-pressured 16 GB M1 took longer than 145s to bind, and the run
+    died on a startup timeout over a model that was loading fine.
+    """
+    assert profile().startup_timeout_seconds == 300.0
 
     process = FakeProcess()
     # 3 transient failures, then healthy — keeps polling under the startup

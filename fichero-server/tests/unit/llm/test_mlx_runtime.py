@@ -7,7 +7,14 @@ import time
 import pytest
 
 from fichero_server.llm.local_inference import LocalInferenceRuntimeMissingError, ManagedLocalInferenceProcess
-from fichero_server.llm.mlx_runtime import MLXRuntime, MLX_LM_VERSION, MLX_VLM_VERSION
+from fichero_server.llm.mlx_runtime import (
+    MLXAudioRuntimeMissingError,
+    MLXRuntime,
+    MLX_LM_VERSION,
+    MLX_VLM_VERSION,
+    MLX_WHISPER_DEPENDENCIES,
+    MLX_WHISPER_VERSION,
+)
 
 
 def _touch_python(runtime_dir: Path) -> None:
@@ -84,8 +91,43 @@ async def test_provision_coalesces_and_installs_pinned_version(tmp_path: Path) -
     assert commands == [
         [python, "-m", "pip", "install", f"mlx-lm=={MLX_LM_VERSION}"],
         [python, "-m", "pip", "install", f"mlx-vlm=={MLX_VLM_VERSION}"],
+        # --no-deps on purpose: mlx-whisper DECLARES torch, but only its
+        # checkpoint-conversion module imports it. Installing the declared
+        # dependency set would drag ~1.5 GB of unused wheels into the runtime.
+        [python, "-m", "pip", "install", "--no-deps", f"mlx-whisper=={MLX_WHISPER_VERSION}"],
+        [python, "-m", "pip", "install", *MLX_WHISPER_DEPENDENCIES],
     ]
-    assert runtime.status()["provisioned"] is True
+    status = runtime.status()
+    assert status["provisioned"] is True
+    assert status["audio_ready"] is True
+    assert status["mlx_whisper_version"] == MLX_WHISPER_VERSION
+
+
+def test_a_runtime_without_a_transcriber_serves_models_but_refuses_audio(tmp_path: Path) -> None:
+    """Audio is its own capability, not a reason to call the runtime broken.
+
+    A runtime holding mlx-lm and mlx-vlm can serve every text and vision model
+    in the catalog. Reporting it "not provisioned" because it cannot transcribe
+    would push the user to reinstall a runtime that works; reporting audio as
+    ready when nothing can transcribe is the lie #4504 removed. So it reports
+    provisioned AND audio_ready=False, and the audio path refuses with an
+    error that says exactly what to click.
+    """
+    runtime = MLXRuntime(tmp_path / "mlx-runtime")
+    _touch_python(runtime.runtime_dir)
+    (runtime.runtime_dir / "runtime.json").write_text(
+        '{"mlx_lm_version": "0.31.3", "mlx_vlm_version": "0.6.17"}',
+        encoding="utf-8",
+    )
+
+    status = runtime.status()
+    assert status["provisioned"] is True
+    assert status["audio_ready"] is False
+    assert status["mlx_whisper_version"] is None
+    # The vision/text path is untouched by the missing transcriber.
+    assert runtime.require_python_path() == runtime.python_path()
+    with pytest.raises(MLXAudioRuntimeMissingError, match="Provision the MLX runtime"):
+        runtime.require_audio_python_path()
 
 
 def test_remove_only_cleans_runtime_prefix(tmp_path: Path) -> None:
@@ -223,3 +265,49 @@ def test_an_explicit_command_override_still_wins() -> None:
         command=["-m", "my_own_server"],
     )
     assert ManagedLocalInferenceProcess(profile)._command() == ["-m", "my_own_server"]
+
+
+def test_a_managed_model_goes_over_the_wire_as_its_local_path(tmp_path, monkeypatch) -> None:
+    """The catalog id is OURS; the sidecar only knows paths and Hub repos (#4560).
+
+    "Qwen2.5-VL-3B" names a row in MANAGED_MLX_MODELS. Sent as the OpenAI
+    `model` field it made mlx_vlm's server try to FETCH that name from
+    Hugging Face, which 401'd "Repository Not Found" -- over a model already
+    installed and already loaded in the very process being asked. Measured
+    live before the fix; after it the same run transcribed the page.
+    """
+    import fichero_server.llm as llm
+    from fichero_server.llm import LLMConfig, mlx_model_store
+
+    snapshot = tmp_path / "snap"
+    snapshot.mkdir()
+
+    class _Store:
+        def resolve_model_path(self, model_id: str) -> str:
+            if model_id == "Qwen2.5-VL-3B":
+                return str(snapshot)
+            raise KeyError(model_id)
+
+    monkeypatch.setattr(mlx_model_store, "get_mlx_model_store", lambda: _Store())
+
+    # ChatOpenAI is imported INSIDE the builder, so patch it at its source.
+    import langchain_openai
+
+    captured: dict[str, object] = {}
+
+    class _FakeChatOpenAI:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+    monkeypatch.setattr(langchain_openai, "ChatOpenAI", _FakeChatOpenAI)
+
+    llm._build_langchain_model(LLMConfig(provider="omlx", model="Qwen2.5-VL-3B"))
+    assert captured.get("model") == str(snapshot), (
+        "a managed model must be named by the path the sidecar was launched with"
+    )
+
+    captured.clear()
+    llm._build_langchain_model(LLMConfig(provider="omlx", model="some-user/byo-repo"))
+    assert captured.get("model") == "some-user/byo-repo", (
+        "an unmanaged repo id passes through untouched"
+    )
