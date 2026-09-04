@@ -52,20 +52,14 @@ from typing import AsyncIterator, Any, Literal as _Literal
 
 from pydantic import BaseModel
 
-# Eager, deliberate: bind the openai SDK's class hierarchy to the REAL httpx
-# classes at import time. `openai._base_client` defines
-# `DefaultAsyncHttpxClient(httpx.AsyncClient)` when the module is FIRST
-# imported — if that first import happens while something has monkeypatched
-# `httpx.AsyncClient` (several test suites patch it to fake the network), the
-# fake becomes a permanent base class and every later default-client
-# ChatOpenAI construction dies with "Invalid `http_client` argument; Expected
-# an instance of `httpx.AsyncClient` but got …_AsyncHttpxClientWrapper" for
-# the rest of the process (reproduced 2026-09-03: gate-only Stage 1 chunk
-# failures in extract_all). Importing here — before any caller can patch —
-# makes the lazy `langchain_openai` imports inside `_build_langchain_model`
-# safe regardless of patch timing. Costs ~0.8s once at engine boot.
-import openai  # noqa: F401  (import for side effect: real httpx base classes)
-
+# NO eager `import openai` here (2026-09-04, reverting half of 08b2c490a's
+# fix): the httpx-poisoning it guarded against — a test monkeypatching
+# `httpx.AsyncClient` before openai's first import, freezing the fake into
+# `DefaultAsyncHttpxClient`'s bases for the rest of the process — can only
+# happen under pytest, but the eager import made every REAL engine boot pay
+# ~0.8s and put httpx back on the boot path that #3985 spent five deferrals
+# clearing (caught by test_lazy_engine_imports). The eager import now lives
+# in tests/conftest.py, where the patching it defends against exists.
 from fichero_server.llm.model_types import (  # noqa: F401 (re-exported)
     estimate_cost,
     get_model_cost,

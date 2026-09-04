@@ -14,6 +14,19 @@ from pathlib import Path
 import pytest
 from unittest.mock import MagicMock
 
+# Eager, deliberate, TEST-ONLY (moved here from llm/__init__ 2026-09-04):
+# bind the openai SDK's class hierarchy to the REAL httpx classes before any
+# suite can monkeypatch `httpx.AsyncClient`. openai._base_client defines
+# `DefaultAsyncHttpxClient(httpx.AsyncClient)` at FIRST import — import it
+# while a fake is patched in and the fake becomes a permanent base class:
+# every later default-client ChatOpenAI construction dies with "Invalid
+# `http_client` argument …" for the rest of the process (reproduced
+# 2026-09-03: gate-only Stage 1 chunk failures in extract_all). Production
+# boot must NOT pay this import — httpx off the boot path is #3985, guarded
+# by test_lazy_engine_imports — but under pytest the patchers exist, so the
+# defense lives where the threat does.
+import openai  # noqa: F401  (side effect: freeze real httpx base classes)
+
 # #4227 split fichero-cli/ and fichero-mcp/ out of the server package. Their
 # tests still live in this tree, and every gate sets only
 # PYTHONPATH=fichero-server/src — add the sibling products' src dirs here so

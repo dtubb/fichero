@@ -16,7 +16,7 @@ api/main.py::lifespan._start_bonjour 1
 api/main.py::lifespan._warm_workflow_stack 1
 api/main.py::prefetch_library_caches 2
 api/routes/ai/provider_models.py::_configured_api_base 1
-api/routes/ai/provider_models.py::list_models_for_provider 4
+api/routes/ai/provider_models.py::list_models_for_provider 5
 api/routes/citation/rendering.py::_metadata_for_document 2
 api/routes/document/artifacts.py::_action_translate 1
 api/routes/document/artifacts.py::_delete_artifact_impl 2

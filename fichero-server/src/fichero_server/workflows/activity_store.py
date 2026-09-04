@@ -717,15 +717,16 @@ class ActivityStore:
             except Exception:
                 pass  # Column already exists
 
-            try:
-                # What the run actually SPENT (2026-09-03): provider-reported
-                # tokens and the cost computed from them, per run. Without it
-                # Activity could show a run's duration to the millisecond and
-                # not a cent of its cost — the numbers existed in the engine
-                # log and died there.
-                conn.execute("ALTER TABLE workflow_runs ADD COLUMN run_usage JSON")
-            except Exception:
-                pass  # Column already exists
+            # What the run actually SPENT (2026-09-03): provider-reported
+            # tokens and the cost computed from them, per run. Without it
+            # Activity could show a run's duration to the millisecond and
+            # not a cent of its cost — the numbers existed in the engine
+            # log and died there. IF NOT EXISTS rather than the sibling
+            # try/except idiom: the swallowed-exception seam is at its
+            # baseline, and DuckDB can say idempotent without a swallow.
+            conn.execute(
+                "ALTER TABLE workflow_runs ADD COLUMN IF NOT EXISTS run_usage JSON"
+            )
 
             # Indexes for efficient queries
             conn.execute("""
