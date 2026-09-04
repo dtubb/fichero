@@ -311,3 +311,48 @@ def test_a_managed_model_goes_over_the_wire_as_its_local_path(tmp_path, monkeypa
     assert captured.get("model") == "some-user/byo-repo", (
         "an unmanaged repo id passes through untouched"
     )
+
+
+def test_a_crash_report_names_the_cause_not_the_farewell() -> None:
+    """uvicorn's last word is always its goodbye, so the last line is not the reason.
+
+    Observed live (#4560): a sidecar that could not bind its port because
+    another copy already held it was reported as "local inference process
+    exited 3: INFO: Application shutdown complete." — which says nothing, and
+    sent the reader looking for a crash that had not happened. The line that
+    explained it was three lines up in the same buffer.
+    """
+    from collections import deque
+
+    process = ManagedLocalInferenceProcess(_vision_profile("Chandra-OCR"))
+    process._recent_stderr = deque([
+        "INFO:     Started server process [123]",
+        "ERROR:    [Errno 48] Address already in use",
+        "INFO:     Waiting for application shutdown.",
+        "INFO:     Application shutdown complete.",
+    ])
+
+    class _Exited:
+        returncode = 3
+
+    process._process = _Exited()
+    process._update_last_error()
+
+    assert "Address already in use" in process.last_error
+    assert "Application shutdown complete" not in process.last_error
+
+
+def test_a_crash_report_falls_back_to_the_last_line_when_nothing_looks_causal() -> None:
+    """No hint matched is not a reason to report nothing at all."""
+    from collections import deque
+
+    process = ManagedLocalInferenceProcess(_vision_profile("Chandra-OCR"))
+    process._recent_stderr = deque(["something unusual happened", ""])
+
+    class _Exited:
+        returncode = 9
+
+    process._process = _Exited()
+    process._update_last_error()
+
+    assert "something unusual happened" in process.last_error

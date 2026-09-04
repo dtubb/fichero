@@ -608,12 +608,42 @@ class ManagedLocalInferenceProcess:
             pass
         return env
 
+    #: Lines that look like a CAUSE rather than a farewell. uvicorn's last word
+    #: on any failed start is "INFO:     Application shutdown complete.", so
+    #: taking the final line verbatim reported that as the reason a sidecar
+    #: died -- observed live (#4560): a server that could not bind its port
+    #: because another copy already held it was reported as
+    #: "local inference process exited 3: INFO: Application shutdown complete."
+    #: The real line, "[Errno 48] Address already in use", was sitting three
+    #: lines up in the same buffer.
+    _ERROR_HINTS = (
+        "error",
+        "errno",
+        "exception",
+        "traceback",
+        "already in use",
+        "not found",
+        "no module named",
+        "failed",
+        "refused",
+        "permission denied",
+    )
+
+    @classmethod
+    def _most_informative(cls, lines: deque[str]) -> str | None:
+        """The last line that names a cause, else the last non-empty line."""
+        for line in reversed(lines):
+            if line and any(hint in line.lower() for hint in cls._ERROR_HINTS):
+                return line
+        return next((line for line in reversed(lines) if line), None)
+
     def _update_last_error(self) -> None:
         if self._process is None or self._process.returncode in {None, 0}:
             return
-        excerpt = next(
-            (line for line in reversed(self._recent_stderr) if line),
-            next((line for line in reversed(self._recent_stdout) if line), ""),
+        excerpt = (
+            self._most_informative(self._recent_stderr)
+            or self._most_informative(self._recent_stdout)
+            or ""
         )
         suffix = f": {excerpt}" if excerpt else ""
         self.last_error = f"local inference process exited {self._process.returncode}{suffix}"
