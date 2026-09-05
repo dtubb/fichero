@@ -1067,3 +1067,130 @@ def test_a_folder_with_only_entities_still_gets_a_ficha(tmp_path: Path) -> None:
     assert len(artifacts) == 1
     assert "## Resumen" not in artifacts[0]["content"]
     assert "## Personas" in artifacts[0]["content"]
+
+
+# ---------------------------------------------------------------------------
+# Alias resolution and merge PROPOSALS (Daniel, 2026-09-05)
+# ---------------------------------------------------------------------------
+
+
+def test_alias_index_maps_variants_to_the_canonical() -> None:
+    from fichero_server.importers.manifest_import import build_alias_index
+
+    nodes = [
+        {
+            "entities": [
+                {
+                    "canonical_name": "FRANK E. SMITH",
+                    "entity_type": "person",
+                    "aliases": ["Frank Smith", "Frank E Smith"],
+                }
+            ]
+        }
+    ]
+    index, ambiguous = build_alias_index([], nodes)
+    assert index["frank smith"] == "FRANK E. SMITH"
+    assert index["frank e smith"] == "FRANK E. SMITH"
+    assert ambiguous == []
+
+
+def test_an_alias_claimed_by_two_canonicals_is_refused_not_guessed() -> None:
+    """Real case: 'Luis E. Bernat' is claimed by two different men. Picking a
+    winner would fuse distinct people in a corpus about litigants."""
+    from fichero_server.importers.manifest_import import build_alias_index
+
+    nodes = [
+        {
+            "entities": [
+                {"canonical_name": "LUIS ENRIQUE BERNAT", "entity_type": "person",
+                 "aliases": ["Luis E. Bernat"]},
+                {"canonical_name": "LUIS E. VALEC G.", "entity_type": "person",
+                 "aliases": ["Luis E. Bernat"]},
+            ]
+        }
+    ]
+    index, ambiguous = build_alias_index([], nodes)
+    assert "luis e. bernat" not in index
+    assert ambiguous and ambiguous[0]["alias"] == "luis e. bernat"
+    assert len(ambiguous[0]["canonicals"]) == 2
+
+
+def test_alias_index_reads_entities_already_in_the_library() -> None:
+    from fichero_server.importers.manifest_import import build_alias_index
+
+    existing = [{"id": "e1", "canonical_name": "RÍO SAN JUAN",
+                 "entity_type": "location", "aliases": ["San Juan"]}]
+    index, _ = build_alias_index(existing, [])
+    assert index["san juan"] == "RÍO SAN JUAN"
+
+
+def test_merge_proposals_are_proposals_and_name_both_sides() -> None:
+    from fichero_server.importers.manifest_import import (
+        build_alias_index,
+        plan_alias_merges,
+    )
+
+    existing = [
+        {"id": "e1", "canonical_name": "RÍO SAN JUAN", "entity_type": "location",
+         "aliases": ["San Juan"]},
+        {"id": "e2", "canonical_name": "San Juan", "entity_type": "location"},
+    ]
+    index, _ = build_alias_index(existing, [])
+    proposals = plan_alias_merges(existing, index)
+    assert len(proposals) == 1
+    p = proposals[0]
+    assert p["absorbed_entity_id"] == "e2"
+    assert p["absorber_entity_id"] == "e1"
+    assert p["basis"] == "alias"
+    # Reserved for the review pass — nothing has judged it yet.
+    assert p["verdict"] is None and p["verdict_by"] is None
+
+
+def test_merge_proposals_never_cross_entity_types() -> None:
+    from fichero_server.importers.manifest_import import (
+        build_alias_index,
+        plan_alias_merges,
+    )
+
+    existing = [
+        {"id": "e1", "canonical_name": "ANDAGOYA", "entity_type": "location",
+         "aliases": ["Andagoya S.A."]},
+        {"id": "e2", "canonical_name": "Andagoya S.A.", "entity_type": "organization"},
+    ]
+    index, _ = build_alias_index(existing, [])
+    assert plan_alias_merges(existing, index) == []
+
+
+def test_alias_resolution_does_not_mint_a_variant_row(
+    client, db, test_package, tmp_path
+) -> None:
+    """The safe half: a mention matching an alias reuses the canonical entity."""
+    from fichero_server.importers.manifest_import import import_manifest
+    from fichero_server.models import KnowledgeEntity
+
+    from .test_manifest_import import _TestClientAdapter
+
+    manifest = tmp_path / "manifest.jsonl"
+    nodes = [
+        {"canonical_version": legacy.CANONICAL_VERSION, "external_id": "f1",
+         "node_type": "folder", "name": "F1",
+         "entities": [{"canonical_name": "FRANK E. SMITH", "entity_type": "person",
+                       "aliases": ["Frank Smith"]}]},
+        {"canonical_version": legacy.CANONICAL_VERSION, "external_id": "f2",
+         "node_type": "folder", "name": "F2",
+         "entities": [{"canonical_name": "Frank Smith", "entity_type": "person"}]},
+    ]
+    manifest.write_text(
+        "\n".join(json.dumps(n, ensure_ascii=False) for n in nodes) + "\n",
+        encoding="utf-8",
+    )
+
+    import_manifest(_TestClientAdapter(client), manifest, str(test_package))
+    people = [
+        e for e in db.query(KnowledgeEntity)
+        if e.entity_type == "person" and e.merged_into_id is None
+    ]
+    names = {e.canonical_name for e in people}
+    assert names == {"FRANK E. SMITH"}, (
+        f"the variant should resolve onto the canonical, got {names}"
+    )

@@ -159,6 +159,11 @@ class ImportSummary:
     artifacts_created: int = 0
     artifacts_skipped: int = 0
     claims_failed: int = 0
+    #: Entities already in the library that an alias says are one entity.
+    #: PROPOSALS — nothing is merged by an import.
+    alias_merge_proposals: list[dict[str, Any]] = field(default_factory=list)
+    #: Aliases claimed by more than one canonical; refused, never guessed.
+    alias_ambiguous: list[dict[str, Any]] = field(default_factory=list)
     claims_created: int = 0
     claims_skipped: int = 0
     warnings: list[str] = field(default_factory=list)
@@ -186,6 +191,8 @@ class ImportSummary:
             "artifacts_created": self.artifacts_created,
             "artifacts_skipped": self.artifacts_skipped,
             "claims_failed": self.claims_failed,
+            "alias_merge_proposals": len(self.alias_merge_proposals),
+            "alias_ambiguous": len(self.alias_ambiguous),
             "claims_created": self.claims_created,
             "claims_skipped": self.claims_skipped,
             "warnings": self.warnings,
@@ -279,6 +286,98 @@ def node_provenance(node: dict[str, Any], default_step: str) -> dict[str, Any]:
         "model": str(model) if model else None,
         "step_name": str(node.get("step_name") or default_step),
     }
+
+
+def _norm(name: str) -> str:
+    return " ".join(str(name).strip().lower().split())
+
+
+def build_alias_index(
+    existing_entities: list[dict[str, Any]], nodes: list[dict[str, Any]]
+) -> tuple[dict[str, str], list[dict[str, Any]]]:
+    """Map an alias to the ONE canonical name that claims it.
+
+    A converted corpus can carry the resolution work its own pipeline already
+    did — Fichero 1.0 recorded ``ortografias_alternativas`` per entity — and
+    without this every spelling variant mints its own row.
+
+    Returns ``(alias -> canonical, ambiguous)``. An alias claimed by more than
+    one canonical is DROPPED from the index and reported instead: those are
+    real collisions ("Luis E. Bernat" claimed by two different men), and
+    silently picking a winner would fuse distinct people in a historical
+    corpus. The caller decides what to do with the ambiguous list; this
+    function refuses to guess.
+    """
+    claims: dict[str, set[str]] = {}
+
+    def record(canonical: str, aliases: Any) -> None:
+        canonical_norm = _norm(canonical)
+        if not canonical_norm:
+            return
+        for alias in aliases or []:
+            alias_norm = _norm(alias)
+            if alias_norm and alias_norm != canonical_norm:
+                claims.setdefault(alias_norm, set()).add(canonical)
+
+    for existing in existing_entities:
+        record(existing.get("canonical_name") or "", existing.get("aliases"))
+    for node in nodes:
+        for entity in node.get("entities") or []:
+            record(entity.get("canonical_name") or "", entity.get("aliases"))
+
+    index: dict[str, str] = {}
+    ambiguous: list[dict[str, Any]] = []
+    for alias, canonicals in claims.items():
+        if len(canonicals) == 1:
+            index[alias] = next(iter(canonicals))
+        else:
+            ambiguous.append({"alias": alias, "canonicals": sorted(canonicals)})
+    return index, ambiguous
+
+
+def plan_alias_merges(
+    existing_entities: list[dict[str, Any]], alias_index: dict[str, str]
+) -> list[dict[str, Any]]:
+    """Entities ALREADY in the library that an alias says are one entity.
+
+    Proposals only. Merging is destructive in a way that is expensive to undo
+    by hand, the alias lists are model output that contains real errors, and
+    the person who knows the archive is the one who can tell a correct merge
+    from a wrong one — so this returns rows for review and applies nothing.
+    """
+    by_name = {
+        _norm(e.get("canonical_name") or ""): e
+        for e in existing_entities
+        if e.get("canonical_name")
+    }
+    proposals: list[dict[str, Any]] = []
+    for name_norm, entity in by_name.items():
+        target = alias_index.get(name_norm)
+        if not target:
+            continue
+        target_norm = _norm(target)
+        if target_norm == name_norm or target_norm not in by_name:
+            continue
+        absorber = by_name[target_norm]
+        if absorber.get("entity_type") != entity.get("entity_type"):
+            continue
+        proposals.append(
+            {
+                "absorbed_entity_id": entity.get("id"),
+                "absorbed_name": entity.get("canonical_name"),
+                "absorber_entity_id": absorber.get("id"),
+                "absorber_name": absorber.get("canonical_name"),
+                "entity_type": entity.get("entity_type"),
+                "basis": "alias",
+                "source": "fichero-1.0 ortografias_alternativas",
+                # Reserved for the review pass — a checker annotates the
+                # proposal, a human still applies it.
+                "verdict": None,
+                "verdict_reason": None,
+                "verdict_by": None,
+            }
+        )
+    return proposals
 
 
 def _canonical_metadata(node: dict[str, Any]) -> dict[str, Any]:
@@ -850,6 +949,22 @@ def import_manifest(
             entity_id_by_key[str(name)] = str(existing["id"])
             existing_entity_by_name[str(name)] = existing
 
+    alias_index, alias_ambiguous = build_alias_index(
+        list(existing_entity_by_name.values()), nodes
+    )
+    summary.alias_merge_proposals = plan_alias_merges(
+        list(existing_entity_by_name.values()), alias_index
+    )
+    summary.alias_ambiguous = alias_ambiguous
+    if alias_index:
+        logger.info(
+            "manifest import: %d alias(es) resolve to a canonical; "
+            "%d ambiguous refused; %d existing entities proposed for merge",
+            len(alias_index),
+            len(alias_ambiguous),
+            len(summary.alias_merge_proposals),
+        )
+
     # PASS 1 (in-memory): dedupe every entity reference across the corpus.
     # One request per (entity, page) pair took a 1,713-reference diary to
     # ~2,500 sequential POSTs (30+ min live, 2026-08-18) — and every minute
@@ -871,6 +986,11 @@ def import_manifest(
             name = entity.get("canonical_name")
             if not name:
                 continue
+            # Resolve a spelling variant onto the canonical the archive already
+            # chose, so the import stops minting a row per variant.
+            resolved = alias_index.get(_norm(name))
+            if resolved and _norm(resolved) != _norm(name):
+                name = resolved
             entry = unique.setdefault(
                 name,
                 {"entity": entity, "node": node, "sources": set(), "exts": set()},
