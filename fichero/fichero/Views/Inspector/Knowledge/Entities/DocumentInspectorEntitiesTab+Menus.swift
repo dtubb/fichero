@@ -242,14 +242,22 @@ extension DocumentInspectorEntitiesTab {
         .disabled(isApplyingBulkAction || targetEntities.isEmpty)
     }
 
-    // `internal`: called from `entityRow` in `+Rows.swift`.
-    /// Single-click selects (native List); double-click opens the entity. (Finder-style.)
+    // `internal`: called from `entityRow` in `+Rows.swift` and the "Open"
+    // context-menu item.
+    /// Single-click selects + focuses the row (native List →
+    /// `routeSelectionToInspector`); OPENING an entity traces it to source.
+    ///
+    /// An entity is a NAME, not a page — tracing a name to source means "show
+    /// me everywhere it is mentioned", not a jump to one arbitrary claim's page
+    /// (Daniel, 2026-09-05, option A; the #4672 intent, same as the digest
+    /// header and "Find in Library"). The scoped mention search IS that answer,
+    /// and clicking any result then lands on its exact page through the claim
+    /// source cursor (`openClaim` → ClaimSourceNavigationState). Was
+    /// `onEntitySelect?(id)` alone, which only focused the graph and navigated
+    /// nowhere — the entity half of "clicking a KG row doesn't reach the source".
+    /// `postSearch` keys on `canonicalName`, so it works with or without an id.
     func openEntity(_ entity: Components.Schemas.KnowledgeEntity) {
-        if let id = entity.id {
-            onEntitySelect?(id)
-        } else {
-            postSearch(for: entity, kind: EntityKind(apiType: entity.entityType) ?? .other)
-        }
+        postSearch(for: entity, kind: EntityKind(apiType: entity.entityType) ?? .other)
     }
 
     // `private`: only `entityContextMenu` (same file) uses this.

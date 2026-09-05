@@ -268,4 +268,24 @@ struct EntityClickthroughTests {
         #expect(body.contains("claimSourceNavigationState.request(request)"))
         #expect(body.contains("sourceNavigationRequest("))
     }
+
+    /// The ENTITY half (Daniel, 2026-09-05, option A): a name is not one page,
+    /// so opening an entity traces it to source the only way a name can be —
+    /// the scoped search across every mention. Was `onEntitySelect?(id)` alone,
+    /// which focused the graph and navigated nowhere.
+    @Test("opening an entity fires the scoped mention search, not a dead focus")
+    func entityOpenFiresTheScopedMentionSearch() throws {
+        let menus = try AppSource.code(
+            "Views/Inspector/Knowledge/Entities/DocumentInspectorEntitiesTab+Menus.swift"
+        )
+        let openEntity = try #require(
+            menus.components(separatedBy: "func openEntity(").dropFirst().first
+        )
+        let body = String(openEntity.prefix(600))
+        // The mention search across all sources — the same path "Find in
+        // Library" and the digest header use (postSearch → entitySearchState).
+        #expect(body.contains("postSearch("))
+        // It must not degrade back to focus-only, which navigated nowhere.
+        #expect(!body.contains("onEntitySelect?(id)"))
+    }
 }
