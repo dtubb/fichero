@@ -374,8 +374,13 @@ struct EntityDigestContent: View {
             if !first { prose += AttributedString(" ") }
             first = false
             var run = AttributedString(sentence)
-            if let claimId = claim.id,
-               let url = URL(string: "\(Self.claimLinkScheme)://\(claimId)") {
+            // URLComponents, not a string-built URL: this is an INTERNAL link
+            // scheme for tappable prose, and the raw-networking guards ban
+            // string URL construction outright rather than guessing intent.
+            var linkParts = URLComponents()
+            linkParts.scheme = Self.claimLinkScheme
+            linkParts.host = claim.id
+            if claim.id != nil, let url = linkParts.url {
                 run.link = url
                 // Prose, not a wall of hyperlink-blue: keep body color and
                 // mark tappability with a subtle underline.
