@@ -257,6 +257,29 @@ class _Quote(BaseModel):
     source_text: str = Field(default="", description="short exact source phrase")
 
 
+class _ExtraGroup(BaseModel):
+    """One custom entity type and the names found for it.
+
+    A LIST OF GROUPS, not a `dict[str, list[str]]`, because Apple's
+    DynamicGenerationSchema has fixed named properties and no "any key" shape
+    (measured by lane-model-routing, 99cdc0e39). The open map converted to
+    `{"type": "object", "properties": []}` — a grammar that can express
+    nothing but `{}` — so on the Apple path this field was structurally
+    guaranteed empty, on every call, with nothing raised. A field that cannot
+    work is worse than a field that is missing: the run reports success and
+    the library's custom types quietly never populate.
+
+    The list shape says the same thing and IS expressible. Internally it is
+    still folded back to a dict at the boundary below, so every consumer
+    downstream is untouched.
+    """
+
+    key: str = Field(default="", description="Registry type key, e.g. 'crops'.")
+    values: list[str] = Field(
+        default_factory=list, description="Entity names found for that type."
+    )
+
+
 class _Extraction(BaseModel):
     """Schema for the combined extract_all call. Maps 1:1 onto the six
     section keys downstream tools (folder_cleanup, catalogue) expect."""
@@ -274,11 +297,12 @@ class _Extraction(BaseModel):
         default_factory=list,
         description="book-index terms",
     )
-    additional_entities: dict[str, list[str]] = Field(
-        default_factory=dict,
+    additional_entities: list[_ExtraGroup] = Field(
+        default_factory=list,
         description=(
-            "Custom entity types from the library registry. "
-            "Keys are the registry type keys, values are lists of extracted names."
+            "Custom entity types from the library registry: one group per "
+            "type, each naming the registry type key and the entity names "
+            "found for it in the text."
         ),
     )
 
@@ -896,8 +920,9 @@ def _build_instructions(output_language: str, custom_entity_types: list[str] | N
         custom_lines = "\n".join(f"- {t}" for t in custom_entity_types)
         base += (
             f"\n\nThis library has custom entity types. "
-            f"Extract them into the 'additional_entities' field as a mapping "
-            f"of type key → list of entity names found in the text:\n{custom_lines}\n"
+            f"Extract them into the 'additional_entities' field as one group "
+            f"per type — each group carrying the type key and the names found "
+            f"for it in the text:\n{custom_lines}\n"
             f"Only include names clearly present in the source text."
         )
     return base
@@ -2090,7 +2115,14 @@ async def extract_all(
             "events": [e.model_dump(mode="json") for e in extraction.events],
             "quotes": [q.model_dump(mode="json") for q in extraction.quotes],
             "keywords": list(extraction.keywords),
-            "additional_entities": dict(extraction.additional_entities),
+            # Back to the map every consumer already speaks. The GROUPS are a
+            # constraint of the grammar we ask the model to fill, not a shape
+            # the rest of the pipeline should have to learn.
+            "additional_entities": {
+                group.key.strip(): list(group.values)
+                for group in extraction.additional_entities
+                if group.key and group.key.strip()
+            },
         }
 
     chunk_results: list[dict[str, list]] = await asyncio.gather(

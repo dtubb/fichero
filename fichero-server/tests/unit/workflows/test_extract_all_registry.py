@@ -231,12 +231,16 @@ class TestCustomEntityPerChildScope:
         # which custom entity comes back, mirroring a real per-page extraction.
         async def fake_extract(**kwargs):
             prompt = kwargs.get("prompt", "")
+            # A LIST of groups, not a map: Apple's DynamicGenerationSchema has
+            # no "any key" shape, so the open dict was a grammar that could
+            # emit nothing but `{}` (99cdc0e39). The stub speaks the shape the
+            # real model is now asked for.
             if "WHEAT" in prompt:
-                additional = {"crops": ["wheat"]}
+                additional = [{"key": "crops", "values": ["wheat"]}]
             elif "SILVER" in prompt:
-                additional = {"minerals": ["silver"]}
+                additional = [{"key": "minerals", "values": ["silver"]}]
             else:
-                additional = {}
+                additional = []
             return extract_all_module._Extraction(
                 people=[],
                 places=[],
@@ -311,3 +315,52 @@ class TestCustomEntityPerChildScope:
 
         assert entities_for(page1_scope) == {"wheat"}
         assert entities_for(folder_scope) == {"wheat", "silver"}
+
+
+class TestAdditionalEntitiesIsExpressibleOnDevice:
+    """The open map could never work on the Apple path (#4671).
+
+    `dict[str, list[str]]` converted to `{"type": "object", "properties": []}`
+    — Apple's DynamicGenerationSchema has fixed named properties and no
+    "any key" shape, so the grammar could express nothing but `{}`. The field
+    was structurally guaranteed empty on every Apple call, forever, with
+    nothing raised: the run reported success and the library's custom types
+    quietly never populated. A field that cannot work is worse than one that
+    is missing.
+    """
+
+    def test_the_field_survives_conversion_with_its_shape_intact(self):
+        from fichero_server.llm import _pydantic_to_apple_schema
+        from fichero_server.workflows.tools.extract_all import _Extraction
+
+        schema = _pydantic_to_apple_schema(_Extraction)
+        field = next(
+            p for p in schema["properties"] if p["name"] == "additional_entities"
+        )
+        assert field["schema"]["type"] == "array"
+        item_properties = [p["name"] for p in field["schema"]["items"]["properties"]]
+        # The empty list here was the whole defect.
+        assert item_properties == ["key", "values"]
+
+    def test_groups_fold_back_to_the_map_consumers_speak(self):
+        # The list is a constraint of the grammar we ask the model to fill,
+        # not a shape the rest of the pipeline should have to learn.
+        from fichero_server.workflows.tools.extract_all import _Extraction
+
+        extraction = _Extraction(
+            additional_entities=[
+                {"key": "crops", "values": ["wheat"]},
+                {"key": "  ", "values": ["dropped"]},
+            ]
+        )
+        folded = {
+            group.key.strip(): list(group.values)
+            for group in extraction.additional_entities
+            if group.key and group.key.strip()
+        }
+        assert folded == {"crops": ["wheat"]}
+
+    def test_an_extraction_with_no_custom_types_is_still_valid(self):
+        from fichero_server.workflows.tools.extract_all import _Extraction
+
+        assert _Extraction().additional_entities == []
