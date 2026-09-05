@@ -413,6 +413,17 @@ def _import_manifest_folder(
             ),
         )
 
+    # Entity-merge PROPOSALS, written where they can be reviewed. Alias data
+    # says some entities already in the library are one entity; nothing merges
+    # on an import, so the rows land as an artifact on the corpus root for a
+    # person (or a later checker) to judge. Strictly additive and isolated:
+    # a failure here must never cost a completed import.
+    if summary.alias_merge_proposals or summary.alias_ambiguous:
+        try:
+            _write_merge_proposals(db, docs, summary)
+        except Exception:
+            logger.exception("Could not write entity-merge proposals")
+
     queue_derivatives(docs, library_path=package_path, db=db)
     logger.info(
         "Manifest folder import: %s -> %d documents, %d entities, %d skipped",
@@ -464,6 +475,73 @@ def _convert_legacy_10_archive(path: Path) -> Path | None:
         scan.segment_count,
     )
     return out
+
+
+def _write_merge_proposals(db: Database, docs: list, summary) -> None:
+    """Put the merge proposals on the corpus root as a reviewable artifact."""
+    from fichero_server.models import Artifact, DocType
+
+    root = next(
+        (d for d in docs if d.doc_type == DocType.folder and d.parent_id is None),
+        None,
+    ) or next((d for d in docs if d.doc_type == DocType.folder), None)
+    if root is None:
+        return
+    proposals = summary.alias_merge_proposals
+    ambiguous = summary.alias_ambiguous
+    lines = [
+        f"# Entity merge proposals ({len(proposals)})",
+        "",
+        "Proposed from aliases the source archive recorded. NOTHING HAS BEEN "
+        "MERGED — each row needs a decision.",
+        "",
+    ]
+    for row in proposals[:500]:
+        lines.append(
+            f"- **{row['absorbed_name']}** -> **{row['absorber_name']}** "
+            f"({row['entity_type']}, basis: {row['basis']})"
+        )
+    if ambiguous:
+        lines += [
+            "",
+            f"## Ambiguous, refused ({len(ambiguous)})",
+            "",
+            "An alias claimed by more than one canonical. Merging these needs a "
+            "human choice; the importer will not guess.",
+            "",
+        ]
+        for row in ambiguous[:200]:
+            lines.append(
+                f"- `{row['alias']}` claimed by {', '.join(row['canonicals'])}"
+            )
+    content = "\n".join(lines) + "\n"
+    data = {
+        "proposals": proposals,
+        "ambiguous": ambiguous,
+        "applied": False,
+        "source": "alias",
+    }
+    existing = [
+        a
+        for a in db.query(Artifact, document_id=root.id)
+        if a.artifact_type == "entity_merge_proposals"
+    ]
+    if existing:
+        artifact = existing[0]
+        artifact.content = content
+        artifact.data = data
+        db.save(artifact)
+        return
+    db.save(
+        Artifact(
+            document_id=root.id,
+            artifact_type="entity_merge_proposals",
+            content=content,
+            data=data,
+            provider="manifest-importer",
+            step_name="alias_resolution",
+        )
+    )
 
 
 def import_folder_impl(
