@@ -40,6 +40,18 @@ extension ReadingPaneView {
             // the most specific thing the user asked for, and it is dismissed
             // from the same menu that started it.
             artifactCompareContent
+        } else if let doc = effectiveDocument,
+                  let proxy = folderProxy(for: doc),
+                  artifactLens == nil, readerRepresentation == nil {
+            // A selected FOLDER reads as ITSELF (Daniel, 2026-09-05), not as
+            // the assembled transcript of its descendants — a folder-of-folders
+            // has no "page 1" to assemble, so that path went blank. The proxy
+            // shows the folder's name + icon and its own ficha; the head's
+            // breadcrumb already names the folder you are working on. Pointing
+            // the pane at one of the folder's artifacts (artifactLens) or a
+            // representation still falls through to the shared renderer below —
+            // that is an explicit request for THAT, not a substitution.
+            folderProxyContent(proxy)
         } else if let readerMarkdownText, readerRepresentation == nil, artifactLens == nil {
             // A Markdown document reads as MARKDOWN (Daniel, 2026-09-04),
             // through `MarkdownText` — the renderer the chat bubbles and the
