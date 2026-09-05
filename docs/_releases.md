@@ -1,3 +1,135 @@
+### 2026.09.05
+
+An overnight release from a full evening of live testing — ninety-plus
+commits, every fix root-caused and tested.
+
+**Updating works now.** The in-app updater could fail at the install step
+on macOS; the missing installer permissions ship in this build (install
+this one manually; updates take care of themselves from here). Auto-check
+and auto-download default on, and Settings ▸ General gains a Software
+Update section.
+
+**Statements got honest.** Extracted statements (who did what, where,
+when) are now gated twice before they're stored: every quote must be a
+real span of the page, and the grammar must actually support the subject —
+a first-person verb can no longer be stamped with a bystander's name.
+The garbled-text bug (`ca'f1istin`) is fixed at extraction and a repair
+heals existing rows. spaCy ships built in as the free grammar layer.
+
+<details markdown>
+<summary>Show more releases</summary>
+
+**Statements lead somewhere.** Click a statement and you land on its
+source page with the passage highlighted — in the reader and the preview.
+Click a name and you get every source that mentions it. A statement
+attested in several places shows them all, each one visitable. One chip
+rule everywhere: nouns navigate, verbs edit, the sentence goes to the page.
+
+**The reader compares properly.** Diff up to five artifacts as columns
+you read across, aligned on the one you were reading. CSV files from
+Excel render as tables. Artifacts group by run, newest first, labeled
+"(latest)". Related documents update live and joined the reader's lenses.
+
+**PDFs transcribe at image speed.** A PDF's pages were paying for the
+whole document over and over — text extracted once per page instead of
+once per document, pages uploaded as multi-megabyte PNGs instead of
+JPEGs, and files still in iCloud silently stalling the run. All fixed;
+an unavailable file now says exactly what's wrong and which file.
+
+**The little things.** Pane layout survives quit and relaunch. Knowledge
+surfaces read the library you're looking at (merges can no longer write
+to a graph you weren't). Search tier menus show their checkmarks, and
+results excerpt the sentence that matched. Word boxes the engine wasn't
+sure of draw dashed; geocoded map pins draw open with their source named
+— the app stopped drawing guesses as though they were measurements.
+
+### 2026.09.04
+
+An overnight fix release built from one evening of live testing — nearly
+fifty root-caused fixes.
+
+**Two downloads, from this release on.** **Fichero.dmg is the Public
+Alpha** — the recommended build: every feature that has proven itself
+(reading, search, markup, workflows, local and cloud AI models, the full
+Settings surface). **Fichero-dev.dmg is the Dev build** — the kitchen sink:
+all experimental surfaces on (chat, agents, spatial canvas, unfinished
+tools), sharp edges included. When alpha features prove out they graduate
+to beta; until then, Alpha is the public face. Both builds update
+themselves on their own channel.
+
+**Search finds, and shows you why:**
+- Fixed: Clicking a search result now opens the reader ON the matched
+  passage, highlighted — and the reader stays on the result instead of
+  snapping back to the containing folder's first page.
+- Fixed: Result badges say what really matched (entity, claim, text) —
+  "graph" only appears when the knowledge-graph leg actually ran.
+- Fixed: The search scope chip names the library you are actually in.
+- New: Search options are also on the toolbar's magnifying glass.
+
+**Markup follows your hand:**
+- Fixed: Marquee, word-select, and annotate land exactly under the
+  pointer — the drift that grew toward the corner was a hidden scale
+  error between the scroll view and its clip view.
+- Fixed: Regions you drew and saved can no longer be buried by a later
+  machine pass — human-curated geometry now outranks every machine run.
+- Fixed: Annotations remember which image variant they were drawn on.
+- Fixed: The inspector's edit-steps list shows the steps (two separate
+  editor models could not see each other's work).
+- New: Original ↔ edited flips with the same up/down swipe as any
+  rendition, and edited pages open showing their edited face.
+- Fixed: Thumbnails refresh immediately after an edit.
+
+**PDFs behave like documents:**
+- Fixed: Image editing on a PDF page works at all (every edit used to
+  fail with "source file not available").
+- Fixed: Text boxes on PDF pages are no longer sideways — and no longer
+  one page's boxes painted over every page.
+- Fixed: A big PDF import shows real per-page progress ("pages", counted
+  as pages) instead of sitting at 0% — and an import that cannot read
+  its source says so loudly instead of hanging silently.
+
+**Workflows that work:**
+- Changed: Catalogue is now literally the chain of its six numbered
+  stages — and stage 3 finally writes date claims, so timelines fill.
+- Fixed: Translation works — four independent causes down, including a
+  crash that killed every "Translate the Reviewed Transcription" run.
+- Changed: One Extract family — Extract Data folded in, Extract Table
+  and Extract Geo moved home.
+- Fixed: Recombine Segments saves its result into the library instead of
+  a temp folder the cleaner sweeps.
+- Fixed: A step that uses no model no longer claims one in the workflow
+  bar's sentence.
+- New: The artifact picker names each artifact by its model and time,
+  and any artifact row offers "Run Workflow on This".
+- Fixed: Table extraction can answer "no table" — it no longer invents a
+  table out of the ruler lying in the scan margin.
+- New: Clean Up Text has a real programmatic mode — dehyphenation,
+  paragraph reflow, page-header stripping — no AI required.
+
+**Local AI, actually local:**
+- Fixed: On-device OCR models work — vision models were being served by
+  a text-only server that rejected every image.
+- New: Whisper audio transcription runs in the managed MLX runtime; the
+  download buttons that could never work now work (or say why not).
+- Fixed: Downloaded models appear in the model pickers.
+- Fixed: The model picker no longer shows an eternal "Loading models…" —
+  loading, failed, and empty are three different, honest states.
+- New: The model catalog states each model's real size, memory floor,
+  and whether it has been verified on this app's own tasks.
+
+**Honest accounting:**
+- New: Every run records what it actually spent — provider-reported
+  tokens, priced per model — shown beside its duration in Activity.
+  On-device runs say "Free"; unknown models say "Unpriced", never $0.00.
+- New: Export what you are reading as Markdown or Word, from the File
+  menu or the reader itself.
+- Fixed: Whole-library exports no longer silently drop entities and
+  claims that have no source document.
+- New: DeepL is configured in Settings → Providers like every other
+  provider (the env variable remains as a fallback).
+- Fixed: The About box's license link says AGPL-3.0, like the license.
+- New: Help → Fichero User Manual.
+
 ### 2026.09.03
 
 **First public build.** Versioning starts fresh: the version is the date,
@@ -17,9 +149,6 @@ the build is a plain counter — this is 2026.09.03 (1).
   clean views of the same page.
 - Loupe: parks where you leave it; ⌥-move or ⌥-click moves it; scroll over
   it zooms it.
-
-<details markdown>
-<summary>Show more releases</summary>
 
 **Library:**
 - Bug: ⌘A selects all in every view mode, including lists.
