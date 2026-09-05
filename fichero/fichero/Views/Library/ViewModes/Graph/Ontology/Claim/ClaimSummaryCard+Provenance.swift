@@ -22,8 +22,21 @@ extension ClaimSummaryCard {
             createdByBadge(for: claim),
             quotationKindBadge(from: metadata),
             confidenceSourceBadge(for: claim, metadata: metadata),
-            corroborationBadge(from: metadata)
+            corroborationBadge(from: metadata),
+            multiSourceBadge(for: claim)
         ].compactMap { $0 }
+    }
+
+    /// "N places" when the multi-source layer holds more than the primary
+    /// attestation (#4672) — visible collapsed, so a statement attested in
+    /// two places says so before anyone opens the drawer. The drawer's
+    /// attestation list is where each place becomes a door.
+    private static func multiSourceBadge(
+        for claim: Components.Schemas.KnowledgeClaim
+    ) -> ProvenanceBadge? {
+        let count = attestations(for: claim).count
+        guard count > 1 else { return nil }
+        return ProvenanceBadge(label: "\(count) places", tint: .indigo)
     }
 
     private static func createdByBadge(

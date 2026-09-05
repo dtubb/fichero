@@ -9,24 +9,112 @@ private struct ClaimDeleteActionParams: Encodable {
     }
 }
 
+// MARK: - Attestations (#4672)
+
+/// One place a statement is attested. The backend has carried the
+/// multi-source layer all along (`source_ids` + `source_page_labels`,
+/// "pages per source") — the client schema decodes it and, until tonight,
+/// nothing read it. Daniel: "if a statement happens in two places … it's an
+/// ontological layer. not all of it is hooked up."
+///
+/// Only the PRIMARY attestation carries a verbatim quote and char offsets —
+/// the model stores one anchor per claim — so additional rows navigate to
+/// their page without a highlight rather than faking one. (The per-row
+/// anchor for corroborating extractions is a server gap: `also_extracted_by`
+/// keeps provider labels only, the second run's anchor is discarded at
+/// write time.)
+struct ClaimAttestation: Equatable, Identifiable {
+    let documentId: String
+    let pageLabel: String?
+    /// Verbatim source quote — primary attestation only.
+    let quote: String?
+    let charStart: Int?
+    let charEnd: Int?
+    let bbox: [Double]?
+    let isPrimary: Bool
+
+    var id: String { "\(documentId)::\(pageLabel ?? "")::\(isPrimary)" }
+}
+
 // MARK: - ClaimSummaryCard Detail Views + Actions
 
 extension ClaimSummaryCard {
+
+    /// Every place this statement is attested, primary first. Additional
+    /// sources come from the multi-source fields, zipped index-wise with
+    /// their page labels; a missing label is nil, never invented. A source id
+    /// that repeats the primary (or an earlier row) is dropped — re-imports
+    /// have produced doubled ids and a list that shows the same page twice
+    /// reads as two attestations when it is one.
+    static func attestations(
+        for claim: Components.Schemas.KnowledgeClaim
+    ) -> [ClaimAttestation] {
+        var rows: [ClaimAttestation] = []
+        var seen: Set<String> = []
+        let primaryId = (claim.sourceDocumentId ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if !primaryId.isEmpty {
+            seen.insert(primaryId)
+            rows.append(ClaimAttestation(
+                documentId: primaryId,
+                pageLabel: cleanedOptional(claim.sourcePageLabel),
+                quote: cleanedOptional(claim.sourceExcerpt),
+                charStart: claim.sourceCharStart,
+                charEnd: claim.sourceCharEnd,
+                bbox: claim.sourceAnchor?.rect,
+                isPrimary: true
+            ))
+        }
+        let ids = claim.sourceIds ?? []
+        let labels = claim.sourcePageLabels ?? []
+        for (index, rawId) in ids.enumerated() {
+            let docId = rawId.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !docId.isEmpty, seen.insert(docId).inserted else { continue }
+            rows.append(ClaimAttestation(
+                documentId: docId,
+                pageLabel: index < labels.count ? cleanedOptional(labels[index]) : nil,
+                quote: nil,
+                charStart: nil,
+                charEnd: nil,
+                bbox: nil,
+                isPrimary: false
+            ))
+        }
+        return rows
+    }
+
+    private static func cleanedOptional(_ value: String?) -> String? {
+        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (trimmed?.isEmpty ?? true) ? nil : trimmed
+    }
     @ViewBuilder
     var provenanceBadges: some View {
         let badges = Self.provenanceBadges(for: claim)
         if !badges.isEmpty {
-            HStack(spacing: 6) {
-                ForEach(Array(badges.enumerated()), id: \.offset) { _, badge in
-                    Text(badge.label)
-                        .font(tertiaryTextFont)
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 3)
-                        .background(badge.tint.opacity(0.14), in: Capsule())
-                        .foregroundStyle(badge.tint)
+            // The badges are the door to the evidence they summarize: tapping
+            // the row expands the drawer, where "N places" becomes the
+            // attestation list and "Nx corroborated" its attribution footer
+            // (#4672). A summary you cannot open is a count, not evidence.
+            Button {
+                guard !isExpanded else { return }
+                isExpanded = true
+                Task { await loadDetails() }
+            } label: {
+                HStack(spacing: 6) {
+                    ForEach(Array(badges.enumerated()), id: \.offset) { _, badge in
+                        Text(badge.label)
+                            .font(tertiaryTextFont)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 3)
+                            .background(badge.tint.opacity(0.14), in: Capsule())
+                            .foregroundStyle(badge.tint)
+                    }
+                    Spacer(minLength: 0)
                 }
-                Spacer(minLength: 0)
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .help("Show this statement's evidence — sources, contradictions, attribution")
         }
     }
 
@@ -113,8 +201,13 @@ extension ClaimSummaryCard {
         }
         // Verbatim source quote — moved into the expanded drawer so the
         // collapsed card stays tight. Tapping the quote opens the source
-        // page and highlights the annotation span.
-        if let excerpt = cleanedDisplayText(claim.sourceExcerpt),
+        // page and highlights the annotation span. When the statement is
+        // attested in MORE THAN ONE place, the quote becomes the primary row
+        // of the attestation list instead, so one statement never renders
+        // its evidence in two competing shapes.
+        if attestationRows.count > 1 {
+            attestationList
+        } else if let excerpt = cleanedDisplayText(claim.sourceExcerpt),
            excerpt != claim.text {
             Button {
                 openClaimSource()
@@ -178,6 +271,106 @@ extension ClaimSummaryCard {
                 }
             }
         }
+    }
+
+    var attestationRows: [ClaimAttestation] {
+        Self.attestations(for: claim)
+    }
+
+    /// Every place this statement is attested, each row a door to ITS page.
+    /// The primary row carries the verbatim quote and lands with the passage
+    /// lit; additional rows navigate without a highlight — the model stores
+    /// one anchor, and drawing a guess would claim precision the row does
+    /// not have. Extractor attribution renders as a footer: the labels in
+    /// `also_extracted_by` name who else produced this statement, but carry
+    /// no anchor of their own (server gap), so they are attribution, not
+    /// navigation.
+    @ViewBuilder
+    var attestationList: some View {
+        let rows = attestationRows
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Attested in \(rows.count) places")
+                .font(tertiaryTextFont)
+                .fontWeight(.semibold)
+                .foregroundStyle(.secondary)
+            ForEach(rows) { attestation in
+                Button {
+                    if let request = Self.openClaimSourceRequest(
+                        documentId: attestation.documentId,
+                        pageLabel: attestation.pageLabel,
+                        charStart: attestation.charStart,
+                        charEnd: attestation.charEnd,
+                        claimId: claim.id,
+                        excerpt: attestation.quote,
+                        bbox: attestation.bbox
+                    ) {
+                        claimSourceNavigationState?.request(request)
+                    }
+                } label: {
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Image(systemName: "doc.text")
+                            .font(tertiaryTextFont)
+                            .foregroundStyle(Color.accentColor)
+                        VStack(alignment: .leading, spacing: 1) {
+                            HStack(spacing: 4) {
+                                Text(attestationDocName(attestation.documentId))
+                                    .font(tertiaryTextFont)
+                                    .foregroundStyle(Color.accentColor)
+                                    .underline()
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                                if let pageLabel = attestation.pageLabel {
+                                    Text("p. \(pageLabel)")
+                                        .font(tertiaryTextFont)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            if let quote = attestation.quote.flatMap(cleanedDisplayText) {
+                                Text("\"\(quote)\"")
+                                    .font(tertiaryTextFont)
+                                    .italic()
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(2)
+                            }
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help(attestation.quote == nil
+                    ? "Open this source page"
+                    : "Open this source page and highlight the passage")
+            }
+            if let also = Self.alsoExtractedBy(claim), !also.isEmpty {
+                Text("Also extracted by \(also.joined(separator: ", "))")
+                    .font(tertiaryTextFont)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+    }
+
+    /// Doc name for an attestation row — the owning-library stores, same
+    /// resolution the digest uses (#4461); the raw id only when the document
+    /// is genuinely absent everywhere.
+    func attestationDocName(_ docId: String) -> String {
+        let all = (documentStore?.currentDocuments ?? [])
+            + (documentStore?.collections ?? [])
+            + (documentStore?.sidebarDocuments ?? [])
+        return all.first(where: { $0.id == docId })?.name ?? docId
+    }
+
+    /// Provider/model labels of OTHER runs that produced this same statement.
+    /// Labels only — their anchors were discarded at write time (server gap,
+    /// #4672), so this is attribution, not navigation.
+    static func alsoExtractedBy(
+        _ claim: Components.Schemas.KnowledgeClaim
+    ) -> [String]? {
+        guard let metadata = claim.metadata?.additionalProperties.value,
+              let raw = metadata["also_extracted_by"] as? [Any]
+        else { return nil }
+        let labels = raw.compactMap { $0 as? String }.filter { !$0.isEmpty }
+        return labels.isEmpty ? nil : labels
     }
 
     func cleanedDisplayText(_ value: String?) -> String? {
