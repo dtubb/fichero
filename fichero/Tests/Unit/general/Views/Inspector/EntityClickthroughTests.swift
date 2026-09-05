@@ -248,4 +248,24 @@ struct EntityClickthroughTests {
         // words. Comment-stripped scan, so this line can't re-trip on prose.
         #expect(!body.contains("entitySearchState?.request("))
     }
+
+    /// The FOURTH surface in this class (Daniel, 2026-09-05): double-clicking a
+    /// claim row — or its "Open Source" menu — went through `openClaim`, which
+    /// only focused the claim and called `onNavigateToSource`. That host handler
+    /// (`navigateToSourcePage`) re-selects the source FILE in the library, so
+    /// the reader landed on page 1 of the file, not the page the claim came
+    /// from, with nothing lit. It must post the same source cursor the quote and
+    /// the Ontology browser do.
+    @Test("opening a claim row posts the source cursor, not just a file re-select")
+    func claimRowOpenPostsTheSourceRequest() throws {
+        let actions = try AppSource.code("Views/Inspector/Knowledge/EntityKindRow+Actions.swift")
+        let openClaim = try #require(
+            actions.components(separatedBy: "func openClaim(").dropFirst().first
+        )
+        let body = String(openClaim.prefix(1600))
+        // The complete "trace to source" cursor — the reader opens the exact
+        // page and lights the passage via handleOpenClaimSource.
+        #expect(body.contains("claimSourceNavigationState.request(request)"))
+        #expect(body.contains("sourceNavigationRequest("))
+    }
 }

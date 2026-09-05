@@ -30,9 +30,38 @@ extension EntityKindRow {
         )
     }
 
-    /// Double-click "open": focus the claim and navigate the reading view
-    /// to its source document/page when a source is known. (#1864)
+    /// Double-click / "Open Source": take the reader to the EXACT page the
+    /// claim came from, with the passage highlighted (#1864/#4393/#4666).
+    ///
+    /// This used to focus the claim and then call `onNavigateToSource`, whose
+    /// host handler (`navigateToSourcePage`) only re-selects the source FILE in
+    /// the library/preview — no page, no highlight — so a claim you opened
+    /// landed on page 1 of the file, not where it was actually stated. The
+    /// complete "trace to source" cursor (`ClaimSourceNavigationState` →
+    /// `handleOpenClaimSource`) already resolves the page-child to its parent,
+    /// scrolls the reader to the page and lights the span; it is the SAME
+    /// cursor the claim quote-excerpt and the Ontology browser (#4666) post to.
+    /// Route through it here so every claim surface traces back the one way.
+    ///
+    /// `onClaimTap`, when a host wired it (the reader's own Claims tab), already
+    /// owns claim opening — so defer to the legacy path there rather than
+    /// double-navigating.
     func openClaim(claimId: String, sourceDocumentId: String?) {
+        if onClaimTap == nil,
+           let sourceDocumentId,
+           let claimSourceNavigationState,
+           let request = sourceNavigationRequest(
+               claimId: claimId,
+               claim: claimById[claimId],
+               sourceDocumentId: sourceDocumentId,
+               sourcePageLabel: claimById[claimId]?.sourcePageLabel ?? item.sourcePageLabel,
+               sourceExcerpt: nil
+           ) {
+            claimSourceNavigationState.request(request)
+            return
+        }
+        // Fallback: no source cursor available (or a host owns claim taps) —
+        // keep the previous behavior so nothing regresses.
         if let claim = claimById[claimId] {
             handleClaimTap(claim)
         } else {
