@@ -47,7 +47,7 @@ extension ContentView {
                 isRunning: isRunningStagedChain,
                 runningStepIndex: runningStagedStepIndex,
                 onOpenStep: { openStagedStepResult($0) },
-                costCeiling: stagedChainCostCeiling,
+                chainCost: stagedChainCost,
                 tools: Array(workflowStore.toolRegistry.values),
                 // ⓘ goes to the node editor — the existing .workflow content
                 // mode, not a new surface: graph, steps, prompt preview.
@@ -298,28 +298,33 @@ extension ContentView {
     @MainActor
     func refreshChainCostCeiling() async {
         guard !stagedWorkflowChain.isEmpty, workflowBarTargetCount > 0 else {
-            stagedChainCostCeiling = nil
+            stagedChainCost = nil
             chromeUX.stagedCompareCostCeiling = nil
             return
         }
-        var total = 0.0
-        var priced = false
+        // ONE line per staged step, in order — the breakdown Daniel asked the
+        // chip to expand into, and the routing truth he reads before a paid
+        // run. A step the engine cannot price is kept as an UNPRICED line, not
+        // dropped: a tool step (no workflow until the run makes one) and a
+        // step whose model the registry cannot price both belong in the
+        // breakdown, marked as such, so the tail is honest about what the
+        // total leaves out.
+        var lines: [StagedChainCost.Line] = []
         for step in stagedWorkflowChain {
-            // Only stored workflows can be priced; a tool step has no
-            // workflow until the run makes one, so it is left unpriced rather
-            // than guessed at.
-            guard let workflowId = step.workflow?.id else { continue }
-            if let cost = await workflowStore.estimateStepCost(
-                workflowId: workflowId,
-                fileCount: workflowBarTargetCount,
-                provider: step.providerOverride,
-                model: step.modelOverride
-            ) {
-                total += cost
-                priced = true
+            let estimate: Double?
+            if let workflowId = step.workflow?.id {
+                estimate = await workflowStore.estimateStepCost(
+                    workflowId: workflowId,
+                    fileCount: workflowBarTargetCount,
+                    provider: step.providerOverride,
+                    model: step.modelOverride
+                )
+            } else {
+                estimate = nil
             }
+            lines.append(StagedChainCost.Line(id: step.id, estimate: estimate))
         }
-        stagedChainCostCeiling = priced ? total : nil
+        stagedChainCost = StagedChainCost(lines: lines)
         await refreshCompareCostCeiling()
     }
 

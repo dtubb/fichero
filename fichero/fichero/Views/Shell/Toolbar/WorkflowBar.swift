@@ -50,9 +50,11 @@ struct WorkflowBar: View {
     /// Opens what a step produced — its run trace, or the document it
     /// wrote. nil disables the gesture rather than pretending.
     var onOpenStep: ((StagedWorkflowStep) -> Void)?
-    /// Upper bound on what running this chain would cost. nil = unpriced,
-    /// which is shown as such rather than as free.
-    var costCeiling: Double?
+    /// What running this chain would cost — a per-step breakdown plus the
+    /// aggregate. nil while there is nothing to price. A price MISS travels as
+    /// an unpriced line, never as zero, so the chip can say "unpriced" or
+    /// "≥ $X" rather than reading a miss as a US$0.00 charge.
+    var chainCost: StagedChainCost?
     /// Every registered tool, for the Tools browser.
     var tools: [ToolInfo] = []
     /// Opens a workflow in the node editor (the popovers' ⓘ). nil hides it.
@@ -202,6 +204,10 @@ struct WorkflowBar: View {
     /// Which failed compare capsule has its reason open. One at a time: the
     /// row is a summary, and two popovers over a 28pt strip is not one.
     @State var expandedCompareModel: String?
+    /// Whether the cost chip's per-step breakdown popover is open. The chip is
+    /// a summary; expanding it names each step's model and its own estimate —
+    /// the routing truth read before a paid run (Daniel, 2026-09-05).
+    @State var showsCostBreakdown = false
 
     private var families: [WorkflowBarPolicy.VerbFamily] {
         WorkflowBarPolicy.families(from: workflows, target: target, folders: folders)

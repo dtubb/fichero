@@ -243,9 +243,12 @@ struct ContentView: View {
     /// 2026-08-29). Outranks the automatic ladder while what it names is
     /// still visible; nil (the menu's "Automatic") follows the ladder.
     @State var workflowScopeOverride: WorkflowBarPolicy.RunScope?
-    /// Upper-bound cost of the staged chain, or nil when nothing can be
-    /// priced — never 0, which would read as free.
-    @State var stagedChainCostCeiling: Double?
+    /// Cost of the staged chain — a per-step breakdown plus the aggregate the
+    /// chip states. nil while there is nothing to price (no chain, or no
+    /// targets). A step that cannot be priced travels as an unpriced line, so
+    /// the chip can say "unpriced" or "≥ $X" rather than ever reading a miss
+    /// as a US$0.00 charge.
+    @State var stagedChainCost: StagedChainCost?
     /// AI defaults, cached for the bar's per-step model menu. Nothing holds
     /// these in a shared observable, so the window keeps its own copy and
     /// refreshes it when the bar appears.

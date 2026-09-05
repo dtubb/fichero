@@ -104,19 +104,8 @@ extension WorkflowBar {
                 // run control, just one that fans out.
                 compareItem
             }
-            if let costCeiling {
-                // A CEILING, said as one: "≤" is the difference between a
-                // promise that can be kept and a guess.
-                Text("est. ≤ \(costCeiling, format: .currency(code: "USD"))")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
-                    .help(
-                        "Estimated upper bound for this chain over "
-                        + "\(staged.count) step(s), priced from the live "
-                        + "model registry. Steps whose model cannot be "
-                        + "priced are not counted."
-                    )
+            if let chainCost, !chainCost.lines.isEmpty {
+                chainCostChip(chainCost)
             }
             Text(staged.count == 1 ? "1 step" : "\(staged.count) steps")
                 .font(.caption2)
