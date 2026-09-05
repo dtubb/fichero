@@ -232,14 +232,22 @@ struct PreviewModeSection: View {
             //   .standard   → list above, preview below       → "Show Bottom Preview"
             //   .none       → list only, no preview           → "Hide Preview"
             // (This is the PREVIEW position; the list's own column layout —
-            // Icons/List/Column/Map — is LibraryLayoutSection ⌘1-4, not here.)
+            // Icons/List/Table/Canvas/Space/Columns — is LibraryLayoutSection
+            // ⌘1-6, not here.)
+            //
+            // Shortcuts are ⌃⌘ + letter (Daniel, 2026-09-05), NOT ⌘-numbers:
+            // the layout section already owns ⌘1-6, and both sections render in
+            // Library/Search mode, so ⌘5/⌘6 meant BOTH "as Space"/"as Columns"
+            // AND "Show Side"/"Show Bottom" — a live collision. ⌃⌘ is the pane
+            // family (the inspector toggle is ⌃⌘I); sidebar MODES take ⌃⌘
+            // NUMBERS, so ⌃⌘ letters here don't collide with those either.
             Section("Preview") {
                 if availablePreviewModes.contains(.widescreen) {
                     PreviewModeButton(
                         mode: .widescreen,
                         label: "Show Side Preview",
                         icon: "rectangle.split.2x1",
-                        shortcut: "5",
+                        shortcut: "s",
                         current: viewSettings.previewMode
                     ) {
                         viewSettings.previewMode = .widescreen
@@ -251,7 +259,7 @@ struct PreviewModeSection: View {
                         mode: .standard,
                         label: "Show Bottom Preview",
                         icon: "rectangle.split.1x2",
-                        shortcut: "6",
+                        shortcut: "b",
                         current: viewSettings.previewMode
                     ) {
                         viewSettings.previewMode = .standard
@@ -263,7 +271,7 @@ struct PreviewModeSection: View {
                         mode: .none,
                         label: "Hide Preview",
                         icon: "square",
-                        shortcut: "7",
+                        shortcut: "h",
                         current: viewSettings.previewMode
                     ) {
                         viewSettings.previewMode = .none
@@ -295,9 +303,12 @@ struct PreviewModeButton: View {
                 Text(label)
             }
         }
+        // ⌃⌘ (control+command), NOT plain ⌘: the plain ⌘-number range belongs to
+        // the library layouts (⌘1-6), which render in the same mode — see the
+        // collision note in PreviewModeSection.
         .keyboardShortcut(
             KeyEquivalent(Character(shortcut)),
-            modifiers: [.command]
+            modifiers: [.command, .control]
         )
     }
 }

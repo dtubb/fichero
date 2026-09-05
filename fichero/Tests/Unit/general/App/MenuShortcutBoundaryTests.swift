@@ -114,6 +114,47 @@ final class MenuShortcutBoundaryTests: XCTestCase {
         XCTAssertTrue(source.contains("UndoLastActionButton()"))
     }
 
+    /// The preview arrangements collided with the library layouts (Daniel,
+    /// 2026-09-05). Both `PreviewModeSection` and `LibraryLayoutSection` render
+    /// in Library/Search mode; layouts own ⌘1-6, and the preview arrangements
+    /// sat on ⌘5/⌘6/⌘7 — so ⌘5 fired BOTH "as Space" and "Show Side Preview",
+    /// and ⌘6 both "as Columns" and "Show Bottom Preview". The arrangements are
+    /// now ⌃⌘ letters: a DIFFERENT modifier set AND off the ⌘-number range, so
+    /// the two menus can't share a chord. Sidebar MODES take ⌃⌘ numbers, so the
+    /// ⌃⌘ letters here don't collide with those either.
+    func testPreviewArrangementsDoNotCollideWithLibraryLayoutNumbers() throws {
+        let source = try Self.appSource("App/Menus/ViewMenuLayoutSections.swift")
+
+        // Layouts keep their ⌘-number chords (muscle memory): ⌘1-6.
+        XCTAssertTrue(source.contains("shortcut: \"1\""))   // as Icons
+        XCTAssertTrue(source.contains("shortcut: \"5\""))   // as Space
+        XCTAssertTrue(source.contains("shortcut: \"6\""))   // as Columns
+
+        // Preview arrangements moved OFF the ⌘-number range onto ⌃⌘ letters.
+        XCTAssertTrue(source.contains("shortcut: \"s\""))   // Show Side
+        XCTAssertTrue(source.contains("shortcut: \"b\""))   // Show Bottom
+        XCTAssertTrue(source.contains("shortcut: \"h\""))   // Hide
+        XCTAssertFalse(
+            source.contains("shortcut: \"7\""),
+            "The preview arrangements were on ⌘5/⌘6/⌘7 and collided with the layout "
+                + "⌘-numbers; they are ⌃⌘ letters now."
+        )
+
+        // The two reusable buttons use DIFFERENT modifier sets, so their key
+        // spaces are disjoint even where a character/number would otherwise clash.
+        let previewButton = try XCTUnwrap(
+            source.components(separatedBy: "struct PreviewModeButton").dropFirst().first
+        )
+        XCTAssertTrue(
+            String(previewButton.prefix(1000)).contains("modifiers: [.command, .control]"),
+            "Preview arrangements must be ⌃⌘, not plain ⌘, to stay off the layout number range."
+        )
+        let layoutButton = try XCTUnwrap(
+            source.components(separatedBy: "struct LibraryLayoutButton").dropFirst().first
+        )
+        XCTAssertTrue(String(layoutButton.prefix(1000)).contains("modifiers: [.command]"))
+    }
+
     /// Every `.swift` path under the app target, relative to `fichero/fichero/`.
     private static func appSwiftFiles() throws -> [String] {
         let root = try Self.appRoot().standardizedFileURL
