@@ -1362,6 +1362,28 @@ def _try_pdf_text_layer(
 
 
 @lru_cache(maxsize=8)
+def _try_pdf_text_layer_cached(pdf_path: str) -> tuple[str, ...] | None:
+    """Per-PDF cache over :func:`_try_pdf_text_layer` for page fan-out.
+
+    The exact twin of :func:`_pdf_text_layer_geometry_cached`, and it exists
+    for the exact reason that one gives: "a per-page fan-out calls into the
+    same parent PDF once per page; without this the word extraction would be
+    re-run O(N) times per document."
+
+    That reasoning was written, and then applied to the geometry variant only.
+    The TEXT variant kept being called straight from `_process_file` — once per
+    page child — and each call opens the document with PyMuPDF and extracts
+    text from EVERY page. Seven pages meant seven opens and forty-nine page
+    extractions, on the one path a loose image never touches, before a single
+    character reached the caller.
+
+    Returns a tuple so the cache cannot hand two callers the same mutable list.
+    """
+    result = _try_pdf_text_layer(pdf_path)
+    return tuple(result) if result is not None else None
+
+
+@lru_cache(maxsize=8)
 def _pdf_text_layer_geometry_cached(
     pdf_path: str,
 ) -> tuple[OCRGeometryResult | None, ...] | None:
@@ -3545,7 +3567,7 @@ async def process_vision(
                     file_path = str(files[index])
                     page_index = _page_index_from_document(doc, metadata)
                     if file_path.lower().endswith(".pdf") and page_index is not None:
-                        page_texts = _try_pdf_text_layer(file_path)
+                        page_texts = _try_pdf_text_layer_cached(file_path)
                         if page_texts and page_index < len(page_texts):
                             layer_text = page_texts[page_index]
                             logger.info(
@@ -3953,7 +3975,7 @@ async def process_vision(
                 and vision_mode != "llm"  # LLM mode must render+call LLM, not use text layer
                 and file_path.lower().endswith(".pdf")
             ):
-                layer = _try_pdf_text_layer(file_path)
+                layer = _try_pdf_text_layer_cached(file_path)
                 if layer is not None:
                     if (
                         requested_page_index is not None
@@ -3961,19 +3983,21 @@ async def process_vision(
                     ):
                         per_page_texts = [layer[requested_page_index]]
                     else:
-                        per_page_texts = layer
+                        # list(): callers downstream expect a list, and a
+                        # cached tuple must never be handed out directly.
+                        per_page_texts = list(layer)
                     pdf_layer_used = True
                     # #4309: the text layer's word boxes ride along with the
                     # text — PyMuPDF localizes every word it extracts, so
                     # geometry is captured on this first pass too. Degrades to
                     # text-only (None) when the layer has no usable boxes.
-                    _layer_geoms = _pdf_text_layer_geometry(file_path)
+                    _layer_geoms = _pdf_text_layer_geometry_cached(file_path)
                     if _layer_geoms:
                         if requested_page_index is not None:
                             if 0 <= requested_page_index < len(_layer_geoms):
                                 page_geometry = _layer_geoms[requested_page_index]
                         else:
-                            per_page_geometries = _layer_geoms
+                            per_page_geometries = list(_layer_geoms)
                     logger.info(
                         "PDF text layer present — skipped vision OCR "
                         "for %s (%s)",
