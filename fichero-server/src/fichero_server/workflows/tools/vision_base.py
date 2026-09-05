@@ -1511,6 +1511,49 @@ def apple_vision_ocr(image_path: str, language: str = "en") -> str:
     return apple_vision_ocr_with_geometry(image_path, language).text
 
 
+#: The dataless-file flag macOS sets on an iCloud placeholder.
+_SF_DATALESS = 0x40000000
+
+
+def assert_source_readable(path: str) -> None:
+    """Refuse a source file we cannot actually read, and say why.
+
+    Four checks, in the order that a file fails them. They were written for the
+    Apple Vision path and lived only there — which put them on the FREE, local
+    route while the paid cloud route had none of them. That asymmetry was
+    exactly backwards, and it produced a beta report of two symptoms with one
+    cause: "Showing thumbnail — original unavailable", and a transcription that
+    took forty-five minutes.
+
+    A dataless iCloud file does not fail when opened. It BLOCKS while macOS
+    materializes it from the network — no timeout, no progress, no message, and
+    (until 29538e0c7) on the event loop. An unbounded silent download is not a
+    read; it is a hang wearing a read's clothes. Better to refuse it by name.
+
+    The same lesson as last night's import stall (4ce243dbc), on a path that
+    had not learned it: `exists()` is not readability.
+
+    Raises:
+        ValueError: naming the file and the reason, for the caller to surface.
+    """
+    if not os.path.exists(path):
+        raise ValueError(f"File not found: {path}")
+    if not os.access(path, os.R_OK):
+        raise ValueError(f"File not readable: {path}")
+
+    try:
+        stat_info = os.stat(path)
+    except OSError:
+        # An unstattable path is the filesystem's problem, not ours to
+        # diagnose; the open below will fail with something specific.
+        return
+
+    if hasattr(stat_info, "st_flags") and (stat_info.st_flags & _SF_DATALESS):
+        raise ValueError(f"File is stored in iCloud and not downloaded locally: {path}")
+    if stat_info.st_blocks == 0 and stat_info.st_size > 0:
+        raise ValueError(f"File appears to be a cloud placeholder: {path}")
+
+
 def apple_vision_ocr_with_geometry(
     image_path: str,
     language: str = "en",
@@ -1533,25 +1576,7 @@ def apple_vision_ocr_with_geometry(
         )
         from Foundation import NSURL
 
-        # Verify file exists and is readable
-        if not os.path.exists(image_path):
-            raise ValueError(f"File not found: {image_path}")
-        if not os.access(image_path, os.R_OK):
-            raise ValueError(f"File not readable: {image_path}")
-
-        # Check for iCloud/cloud storage dataless files
-        try:
-            stat_info = os.stat(image_path)
-            if hasattr(stat_info, "st_flags") and (stat_info.st_flags & 0x40000000):
-                raise ValueError(
-                    f"File is stored in iCloud and not downloaded locally: {image_path}"
-                )
-            if stat_info.st_blocks == 0 and stat_info.st_size > 0:
-                raise ValueError(
-                    f"File appears to be a cloud placeholder: {image_path}"
-                )
-        except OSError:
-            pass
+        assert_source_readable(image_path)
 
         is_pdf = image_path.lower().endswith(".pdf")
 
@@ -2904,6 +2929,8 @@ def file_to_data_uri(file_path: str, max_dimension: int = 2048) -> str:
     """
     from PIL import Image, ImageOps
 
+    assert_source_readable(file_path)
+
     path = Path(file_path)
     suffix = path.suffix.lower()
     source_mime = _PROVIDER_SAFE_MIME.get(suffix)
@@ -2983,6 +3010,8 @@ def _pdf_page_to_data_uri(file_path: str, page_index: int = 0, max_dimension: in
     Raises:
         ValueError: If the page cannot be rendered.
     """
+    assert_source_readable(file_path)
+
     try:
         # Primary path: reuse the cached batch render for the source PDF.
         #

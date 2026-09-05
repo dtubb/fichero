@@ -106,13 +106,14 @@ def test_apple_ocr_batch_render_error_returns_empty_list():
     assert result == [], "A failed batch render must return an empty list, not raise"
 
 
-def test_pdf_page_to_data_uri_reuses_one_batch_render_for_multiple_pages():
+def test_pdf_page_to_data_uri_reuses_one_batch_render_for_multiple_pages(tmp_path):
     """#2622: two per-page PDF renders must reuse the same batch open.
 
     The page fan-out path calls _pdf_page_to_data_uri once per page task. After
     the cache fix, those calls should reuse the same opened PDF instead of
     reopening it for every page.
     """
+    import pathlib
     import sys
 
     from fichero_server.workflows.tools.vision_base import (
@@ -137,6 +138,12 @@ def test_pdf_page_to_data_uri_reuses_one_batch_render_for_multiple_pages():
         size=SimpleNamespace(width=1, height=1)
     )
     quartz.CGColorSpaceCreateWithName = lambda _name: object()
+    # A real file on disk: _pdf_page_to_data_uri now refuses a source it
+    # cannot read before it renders anything, so a path that never existed no
+    # longer reaches the renderer this test is about.
+    pdf_path = str(tmp_path / "doc.pdf")
+    pathlib.Path(pdf_path).write_bytes(b"%PDF-1.4 stub")
+
     quartz.CGBitmapContextCreate = lambda *args, **kwargs: object()
     quartz.CGContextSetRGBFillColor = lambda *args, **kwargs: None
     quartz.CGContextFillRect = lambda *args, **kwargs: None
@@ -159,10 +166,10 @@ def test_pdf_page_to_data_uri_reuses_one_batch_render_for_multiple_pages():
                 side_effect=lambda cg_image, max_dimension=2048: f"data:{cg_image.name}",
             ),
         ):
-            first = _pdf_page_to_data_uri("/fake/path/doc.pdf", page_index=0)
-            second = _pdf_page_to_data_uri("/fake/path/doc.pdf", page_index=1)
+            first = _pdf_page_to_data_uri(pdf_path, page_index=0)
+            second = _pdf_page_to_data_uri(pdf_path, page_index=1)
 
-        assert open_calls == ["/fake/path/doc.pdf"], (
+        assert open_calls == [pdf_path], (
             "#2622: the source PDF should be opened once and reused for each page task"
         )
         assert first == "data:cg0"

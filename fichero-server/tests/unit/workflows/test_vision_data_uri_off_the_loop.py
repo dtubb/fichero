@@ -138,7 +138,9 @@ async def test_a_render_failure_still_propagates(monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
-async def test_concurrent_pages_rasterize_the_document_only_once(monkeypatch) -> None:
+async def test_concurrent_pages_rasterize_the_document_only_once(
+    monkeypatch, tmp_path
+) -> None:
     """N pages of one PDF must not each rasterize the whole document.
 
     `lru_cache` deduplicates RESULTS; it does not serialize COMPUTATION. Once
@@ -150,6 +152,9 @@ async def test_concurrent_pages_rasterize_the_document_only_once(monkeypatch) ->
     the work off the loop removes, which is why the lock is explicit now — and
     why this test exists rather than being assumed from the cache.
     """
+    pdf = tmp_path / "same.pdf"
+    pdf.write_bytes(b"%PDF-1.4 stub")  # the readability guard runs for real here
+
     renders = 0
     renders_lock = threading.Lock()
 
@@ -175,7 +180,7 @@ async def test_concurrent_pages_rasterize_the_document_only_once(monkeypatch) ->
 
     results = await asyncio.gather(
         *(
-            vision_base._pdf_page_to_data_uri_async("/same.pdf", page, 2048)
+            vision_base._pdf_page_to_data_uri_async(str(pdf), page, 2048)
             for page in range(7)
         )
     )
@@ -188,7 +193,9 @@ async def test_concurrent_pages_rasterize_the_document_only_once(monkeypatch) ->
 
 
 @pytest.mark.asyncio
-async def test_without_the_lock_the_stampede_really_happens(monkeypatch) -> None:
+async def test_without_the_lock_the_stampede_really_happens(
+    monkeypatch, tmp_path
+) -> None:
     """Proof that the LOCK is what prevents it, not the cache alone.
 
     Same setup as the test above with the lock replaced by a no-op. If this
@@ -196,6 +203,9 @@ async def test_without_the_lock_the_stampede_really_happens(monkeypatch) -> None
     not guarding what it claims to guard.
     """
     import contextlib
+
+    pdf = tmp_path / "same.pdf"
+    pdf.write_bytes(b"%PDF-1.4 stub")
 
     renders = 0
     renders_lock = threading.Lock()
@@ -218,7 +228,7 @@ async def test_without_the_lock_the_stampede_really_happens(monkeypatch) -> None
 
     await asyncio.gather(
         *(
-            vision_base._pdf_page_to_data_uri_async("/same.pdf", page, 2048)
+            vision_base._pdf_page_to_data_uri_async(str(pdf), page, 2048)
             for page in range(7)
         )
     )
