@@ -689,6 +689,33 @@ class ChainExecutor:
         # Get input files from previous step
         input_files = previous_result.output_files or initial_files
 
+        # Per-step model routing (workflow-bar chains). ChainStep has carried
+        # provider_override/model_override since 2026-08-30, but nothing here
+        # ever applied them: the step ran its workflow's OWN node models, so a
+        # preset node's tier alias ($small → the free-local default) won no
+        # matter what the bar sent. That is Daniel's 90-page "Extract Entities"
+        # run — Sonnet selected, every call to apple-intelligence (2026-09-05).
+        # Stamp the choice onto the nodes it can honestly serve, exactly as the
+        # single-run path does (runner apply_run_model_override); an
+        # incompatible node is left to resolve its own tier.
+        if step.provider_override or step.model_override:
+            from fichero_server.workflows.validation import (  # noqa: PLC0415
+                apply_run_model_override,
+            )
+
+            reached = apply_run_model_override(
+                workflow.nodes,
+                step.provider_override or "",
+                step.model_override or "",
+            )
+            logger.info(
+                "Chain step '%s': applied model override %s/%s to %d node(s)",
+                step.name or step.id,
+                step.provider_override or "",
+                step.model_override or "",
+                len(reached),
+            )
+
         try:
             # Create executor for this workflow
             executor = WorkflowExecutor(workflow)

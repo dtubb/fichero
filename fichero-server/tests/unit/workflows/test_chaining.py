@@ -394,6 +394,87 @@ class TestChainExecutor:
             assert result.step_results[0].status == ChainStepStatus.COMPLETED
 
     @pytest.mark.asyncio
+    async def test_step_model_override_is_applied_to_the_workflow(
+        self, mock_loader, mock_workflow
+    ):
+        """A chain step's model override reaches the workflow's nodes.
+
+        The bug: ChainStep carried provider_override/model_override since
+        2026-08-30 but nothing applied them, so a step ran its preset's own node
+        models — a $small alias resolving to the free-local default — no matter
+        what the workflow bar sent. That is Daniel's 90-page "Extract Entities"
+        run, Sonnet selected, every call to apple-intelligence (2026-09-05).
+        This asserts the override is stamped onto the nodes before the run; it
+        FAILS on the old code, which never called the stamp.
+        """
+        mock_workflow.nodes = [
+            NodeDef(
+                id="n1",
+                tool="extract_entities_only",
+                config={},
+                provider_name="$small",
+                model_name="$small",
+            )
+        ]
+        chain = WorkflowChain(
+            name="Override Chain",
+            steps=[
+                ChainStep(
+                    id="s1",
+                    workflow_id="wf-test",
+                    provider_override="anthropic",
+                    model_override="claude-sonnet-4-6",
+                )
+            ],
+        )
+        final_state = {"outputs": {}, "output_files": [], "error": None}
+        with patch(
+            "fichero_server.execution.chaining.WorkflowExecutor"
+        ) as MockExecutor, patch(
+            "fichero_server.workflows.validation.apply_run_model_override"
+        ) as mock_apply:
+            mock_apply.return_value = ["n1"]
+            mock_executor = MagicMock()
+            mock_executor.execute = AsyncMock(return_value=final_state)
+            MockExecutor.return_value = mock_executor
+
+            executor = ChainExecutor(workflow_loader=mock_loader)
+            await executor.execute(chain, initial_inputs={})
+
+        mock_apply.assert_called_once()
+        nodes_arg, provider_arg, model_arg = mock_apply.call_args.args[:3]
+        assert nodes_arg is mock_workflow.nodes
+        assert provider_arg == "anthropic"
+        assert model_arg == "claude-sonnet-4-6"
+
+    @pytest.mark.asyncio
+    async def test_step_without_override_does_not_touch_models(
+        self, mock_loader, mock_workflow
+    ):
+        """An unpinned step stamps nothing — the workflow resolves its own tier.
+        The application is skipped entirely, not called with empty strings.
+        """
+        mock_workflow.nodes = []
+        chain = WorkflowChain(
+            name="Plain Chain",
+            steps=[ChainStep(id="s1", workflow_id="wf-test")],
+        )
+        final_state = {"outputs": {}, "output_files": [], "error": None}
+        with patch(
+            "fichero_server.execution.chaining.WorkflowExecutor"
+        ) as MockExecutor, patch(
+            "fichero_server.workflows.validation.apply_run_model_override"
+        ) as mock_apply:
+            mock_executor = MagicMock()
+            mock_executor.execute = AsyncMock(return_value=final_state)
+            MockExecutor.return_value = mock_executor
+
+            executor = ChainExecutor(workflow_loader=mock_loader)
+            await executor.execute(chain, initial_inputs={})
+
+        mock_apply.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_execute_first_step_preserves_initial_selection_inputs(
         self, mock_loader, mock_workflow
     ):
