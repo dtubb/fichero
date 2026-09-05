@@ -33,8 +33,31 @@ struct OntologyBrowser: View {
     @Environment(KGFocusState.self) var kgFocusState
     /// Observable claim store (#1862) — its `changeToken` drives detail-panel
     /// resync, replacing the retired `.ficheroClaim*` NotificationCenter bus.
+    /// THIS surface's entity service — the library the browser is IN.
+    ///
+    /// The toolbar's tools resolved `LibraryManager.shared.globalLibrary`,
+    /// which is not "the current library" but the one holding the
+    /// RESERVED id. The services were already injected per window
+    /// (`libraryServiceEnvironment`); this surface simply never read
+    /// them. Optional so a host that injects none fails VISIBLY rather
+    /// than running a tool against another library's graph
+    /// (#4306/#4461).
+    @Environment(EntityService.self) var entityService: EntityService?
+
+    /// The library this browser is IN, resolved from the service it was handed
+    /// — by object identity, so it cannot drift.
+    var owningLibrary: LibraryManager.LibraryReference? {
+        entityService.flatMap { LibraryManager.shared.library(owningService: $0) }
+    }
     @Environment(ClaimStore.self) var claimStore
     @Environment(EntityStore.self) var entityStore
+    /// The shared source cursor (#2105/#4393) — the same bus the inspector's
+    /// provenance rows and the claim cards post to. The detail panel's
+    /// navigate-to-source closure must reach it, or clicking a statement in
+    /// THIS browser focuses a shared object and navigates nowhere — the #4666
+    /// defect surviving as an injected override. Optional: no host, no-op.
+    @Environment(ClaimSourceNavigationState.self)
+    var claimSourceNavigationState: ClaimSourceNavigationState?
     /// Finder-style Open in New Tab / New Window for ontology rows (#1685).
     @Environment(\.openWindow) var openWindow
     /// Compact width (iPhone) collapses the list|detail split into a push flow (#3011).
@@ -353,7 +376,9 @@ extension OntologyBrowser {
         case .list:
             entityDetailPanel
         case .graph:
-            if let libraryPath = LibraryManager.shared.globalLibrary?.apiClient.currentLibraryPath,
+            // The graph pane must load THIS library's KG, not the reserved
+            // one's — the path is what scopes the whole WebKit surface.
+            if let libraryPath = owningLibrary?.apiClient.currentLibraryPath,
                !libraryPath.isEmpty {
                 DocumentKGWebPane(
                     documentId: DocumentKGPaneRoute.globalKGDocumentID,

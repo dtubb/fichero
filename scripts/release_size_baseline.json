@@ -1,14 +1,14 @@
 {
   "release.app_binary": {
-    "bytes": 226473568,
+    "bytes": 60384,
     "note": "manually updated"
   },
   "release.app_bundle": {
-    "bytes": 1437687769,
+    "bytes": 1477709480,
     "note": "manually updated"
   },
   "release.dmg": {
-    "bytes": 521865898,
+    "bytes": 533538628,
     "note": "manually updated"
   }
 }

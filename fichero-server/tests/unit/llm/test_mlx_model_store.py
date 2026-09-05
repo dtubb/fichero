@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from pathlib import Path
 
 import pytest
@@ -16,9 +17,17 @@ from fichero_server.llm.mlx_model_store import MLXModelStore, MANAGED_MLX_MODELS
 
 
 def _write_snapshot(root: Path, repo_id: str, revision: str, *, size: int = 4) -> Path:
+    """A COMPLETE snapshot: config plus weights.
+
+    The weights matter (2026-09-04). This helper used to write config.json
+    alone, which encoded the old rule that a snapshot DIRECTORY means an
+    installed model — the rule an interrupted Chandra download disproved by
+    reporting "already installed" for 151 MB of tokenizer files.
+    """
     snapshot = root / "hub" / f"models--{repo_id.replace('/', '--')}" / "snapshots" / revision
     snapshot.mkdir(parents=True, exist_ok=True)
     (snapshot / "config.json").write_bytes(b"x" * size)
+    (snapshot / "model.safetensors").write_bytes(b"w" * size)
     return snapshot
 
 
@@ -59,7 +68,9 @@ def test_catalog_install_state_from_store_layout(tmp_path: Path) -> None:
         entries = {entry.model_id: entry for entry in store.list_catalog_entries()}
 
     assert entries["mlx-community/Qwen3-VL-8B"].installed is True
-    assert entries["mlx-community/Qwen3-VL-8B"].disk_usage_bytes == 8
+    # config + weights, both `size` bytes: a complete snapshot now needs a
+    # weight file, so the fixture footprint is twice its `size`.
+    assert entries["mlx-community/Qwen3-VL-8B"].disk_usage_bytes == 16
     assert entries["mlx-community/Qwen3-VL-8B"].source == "app_cache"
     assert entries["mlx-community/Qwen3-VL-8B"].supported is True
     assert entries["user/custom-model"].installed is True
@@ -296,3 +307,119 @@ def test_the_advertised_download_size_matches_what_is_actually_fetched() -> None
     # 3.1 GB (the single 4-bit file this repo's config.json describes), not
     # the 8.7 GB a whole-repo snapshot would cost.
     assert nanonets.download_size_bytes < 4_000_000_000
+
+
+def _partial_snapshot(root: Path, spec, *, weights: bool, incomplete: bool, index: dict | None = None) -> Path:
+    """Build a cache directory in one of the states a real download passes through."""
+    snapshot = root / "hub" / f"models--{spec.repo_id.replace('/', '--')}" / "snapshots" / spec.revision
+    snapshot.mkdir(parents=True, exist_ok=True)
+    (snapshot / "config.json").write_text("{}", encoding="utf-8")
+    (snapshot / "tokenizer.json").write_text("{}", encoding="utf-8")
+    if weights:
+        (snapshot / "model.safetensors").write_bytes(b"w" * 16)
+    if index is not None:
+        (snapshot / "model.safetensors.index.json").write_text(json.dumps(index), encoding="utf-8")
+    blobs = snapshot.parent.parent / "blobs"
+    blobs.mkdir(parents=True, exist_ok=True)
+    if incomplete:
+        (blobs / "abc123.0d0d.incomplete").write_bytes(b"partial")
+    return snapshot
+
+
+def test_an_interrupted_download_is_not_installed(tmp_path: Path) -> None:
+    """Measured 2026-09-04: a Chandra pull killed at 151 MB left a snapshot
+    directory holding config and tokenizer files, and the store answered
+    "Model already installed", state=completed, for a model whose 5.6 GB of
+    weights were absent. The sidecar would then fail to load something the
+    catalog called ready — a green tick over an empty box.
+    """
+    store = MLXModelStore(tmp_path / "mlx")
+    spec = MANAGED_MLX_MODELS["Chandra-OCR"]
+    _partial_snapshot(tmp_path / "mlx", spec, weights=False, incomplete=True)
+
+    assert store.snapshot_path(spec).exists() is True, "the directory DOES exist — that is the trap"
+    assert store.is_complete(spec) is False
+
+
+def test_a_stale_incomplete_blob_does_not_condemn_a_finished_model(tmp_path: Path) -> None:
+    """`*.incomplete` markers SURVIVE a completed download.
+
+    Measured 2026-09-04: after Chandra finished — 5.78 GB, both shards, exactly
+    its advertised size — two .incomplete blobs from the earlier killed attempt
+    were still sitting in the cache. An earlier version of this check tested
+    them and called the finished model broken, which would have condemned any
+    model whose download had ever been interrupted, permanently.
+    """
+    store = MLXModelStore(tmp_path / "mlx")
+    spec = MANAGED_MLX_MODELS["Chandra-OCR"]
+    _partial_snapshot(tmp_path / "mlx", spec, weights=True, incomplete=True)
+
+    assert store.is_complete(spec) is True
+
+
+def test_a_half_downloaded_shard_set_is_not_installed(tmp_path: Path) -> None:
+    """A shard names its own series: 1-of-2 present means 2-of-2 must be too.
+
+    Read off the FILENAME rather than the repo's index, because indexes lie —
+    see the next test.
+    """
+    store = MLXModelStore(tmp_path / "mlx")
+    spec = MANAGED_MLX_MODELS["Chandra-OCR"]
+    snapshot = _partial_snapshot(tmp_path / "mlx", spec, weights=False, incomplete=False)
+    (snapshot / "model-00001-of-00002.safetensors").write_bytes(b"w" * 8)
+
+    assert store.is_complete(spec) is False
+
+    (snapshot / "model-00002-of-00002.safetensors").write_bytes(b"w" * 8)
+    assert store.is_complete(spec) is True
+
+
+def test_a_stale_index_naming_a_different_layout_is_ignored(tmp_path: Path) -> None:
+    """mlx-community/Qwen3-VL-8B-Instruct-4bit ships TWO shards and an index
+    naming FOUR — a manifest left over from an earlier release. mlx globs
+    *.safetensors and never reads it, and the model works; an earlier version
+    of this check trusted the index and marked a working model incomplete.
+    """
+    store = MLXModelStore(tmp_path / "mlx")
+    spec = MANAGED_MLX_MODELS["mlx-community/Qwen3-VL-8B"]
+    snapshot = _partial_snapshot(
+        tmp_path / "mlx",
+        spec,
+        weights=False,
+        incomplete=False,
+        index={"weight_map": {f"t{i}": f"model-0000{i}-of-00004.safetensors" for i in range(1, 5)}},
+    )
+    (snapshot / "model-00001-of-00002.safetensors").write_bytes(b"w" * 8)
+    (snapshot / "model-00002-of-00002.safetensors").write_bytes(b"w" * 8)
+
+    assert store.is_complete(spec) is True
+
+
+def test_a_finished_download_is_installed(tmp_path: Path) -> None:
+    store = MLXModelStore(tmp_path / "mlx")
+    spec = MANAGED_MLX_MODELS["Nanonets-OCR"]
+    _partial_snapshot(tmp_path / "mlx", spec, weights=True, incomplete=False)
+
+    assert store.is_complete(spec) is True
+
+
+def test_resolve_refuses_a_partial_snapshot_rather_than_handing_it_to_the_sidecar(
+    tmp_path: Path,
+) -> None:
+    """A loader crash about a missing shard reads as a broken model; the
+    honest failure is "not downloaded yet"."""
+    store = MLXModelStore(tmp_path / "mlx")
+    spec = MANAGED_MLX_MODELS["Chandra-OCR"]
+    _partial_snapshot(tmp_path / "mlx", spec, weights=False, incomplete=True)
+
+    with pytest.raises(FileNotFoundError, match="not installed"):
+        store.resolve_model_path("Chandra-OCR")
+
+
+def test_the_catalog_does_not_advertise_a_partial_model_as_installed(tmp_path: Path) -> None:
+    store = MLXModelStore(tmp_path / "mlx")
+    _partial_snapshot(tmp_path / "mlx", MANAGED_MLX_MODELS["Chandra-OCR"], weights=False, incomplete=True)
+
+    entries = {entry.model_id: entry for entry in store.list_catalog_entries()}
+
+    assert entries["Chandra-OCR"].installed is False

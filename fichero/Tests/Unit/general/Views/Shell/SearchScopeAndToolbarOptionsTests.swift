@@ -148,4 +148,62 @@ struct SearchScopeAndToolbarOptionsTests {
         // grid from disagreeing about which list the user is in.
         #expect(String(stream.prefix(300)).contains("selectedDocuments.filter"))
     }
+
+    // MARK: - A saved search's tier dies with its results (Daniel, 2026-09-04)
+
+    /// `runSavedSearch` applies the saved search's stored `searchType`, and it
+    /// used to leave it there: run a saved FULLTEXT search once and every
+    /// query typed afterwards was quietly keyword-only. That is exactly the
+    /// "is it doing keyword by default, not semantic?" experience — a
+    /// downgrade nobody chose, on a default the toolbar otherwise seeds to
+    /// hybrid.
+    @Test("a tier a saved search imposed returns to the default")
+    func savedSearchTierReturnsToTheDefault() {
+        #expect(
+            ContentView.retrievalTierAfterSavedSearch(
+                applied: "fulltext", current: "fulltext"
+            ) == SearchRetrievalTier.defaultTier.requestValue
+        )
+    }
+
+    /// The distinction the whole fix turns on. A tier the user picked in the
+    /// options menu is a deliberate choice; resetting it on the next query
+    /// would be a second bug wearing the first one's clothes.
+    @Test("a tier the user chose is left alone")
+    func userChosenTierSurvives() {
+        #expect(
+            ContentView.retrievalTierAfterSavedSearch(
+                applied: nil, current: "hybrid_graph"
+            ) == "hybrid_graph"
+        )
+    }
+
+    /// The user re-chose after the saved search ran: theirs wins.
+    @Test("a tier changed since the saved search applied it is the user's")
+    func aChangedTierBelongsToTheUser() {
+        #expect(
+            ContentView.retrievalTierAfterSavedSearch(
+                applied: "fulltext", current: "hybrid_graph"
+            ) == "hybrid_graph"
+        )
+    }
+
+    @Test("both moments that end a saved search's results restore the tier")
+    func bothEndingsRestoreTheTier() throws {
+        let results = try Self.appSource(
+            "Views/Shell/ContentView/ContentView+SearchResults.swift"
+        )
+        let submit = try Self.appSource(
+            "Views/Shell/ContentView/Actions/ContentView+ActionsImport.swift"
+        )
+        #expect(results.contains("savedSearchAppliedTier = search.searchType"))
+        #expect(
+            results.contains("restoreDefaultRetrievalTier()"),
+            "Dismissing the results ends the tier they were produced with."
+        )
+        #expect(
+            submit.contains("restoreDefaultRetrievalTier()"),
+            "So does submitting a new query — that is the moment Daniel hit."
+        )
+    }
 }

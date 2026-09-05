@@ -43,6 +43,10 @@ from pydantic import BaseModel, Field
 
 from fichero_server.db import Database
 from fichero_server.knowledge._common import parse_kwarg_repr
+from fichero_server.loaders.rtf_text import (
+    decode_bare_hex_in_word,
+    decode_rtf_hex_escapes,
+)
 from fichero_server.models.anchors import AnchorSpace, SourceAnchor
 from fichero_server.models.knowledge import (
     Annotation,
@@ -54,7 +58,7 @@ from fichero_server.models.knowledge import (
     MutationLog,
     MutationOperationType,
 )
-from fichero_server.models import Document, Rendition
+from fichero_server.models import Artifact, Document, Rendition
 
 logger = logging.getLogger(__name__)
 T = TypeVar("T")
@@ -152,6 +156,26 @@ class RollbackResult:
     error_message: str | None = None
     started_at: datetime = field(default_factory=utc_now)
     completed_at: datetime | None = None
+
+
+def _repair_escapes(value: str) -> str:
+    """Both shapes of the #4666 corruption, in one pass.
+
+    The backslash form is what RTF writes; the BARE form is what actually
+    reached the knowledge graph, the backslash lost somewhere between the
+    model's answer and the stored row. A repair that knew only the first
+    walked past every real row in Daniel's library.
+
+    AN RTF DOCUMENT IS LEFT ALONE. Caught on the first live run against the
+    Caciques library: three artifacts ARE `{\\rtf...}` source, and decoding
+    their escapes in place would have rewritten valid cp1252 markup into
+    something no RTF reader can decode — repairing a display bug by corrupting
+    the document behind it. Extraction converts RTF at READ time now, so the
+    stored markup needs no repair and must not get one.
+    """
+    if value.lstrip().startswith("{\\rtf"):
+        return value
+    return decode_bare_hex_in_word(decode_rtf_hex_escapes(value))
 
 
 class MigrationRunner:
@@ -1245,6 +1269,131 @@ class MigrationRunner:
             result.error_message = str(exc)
             result.completed_at = utc_now()
             logger.exception("migrate_legacy_notes_to_annotations failed")
+            return result
+
+
+    def repair_rtf_escapes(
+        self,
+        dry_run: bool = False,
+        limit: int | None = None,
+    ) -> MigrationResult:
+        """Decode RTF hex escapes left in existing KG rows and artifacts (#4666).
+
+        WHAT WENT WRONG. A transcription edited in the app is stored as inline
+        RTF source whenever the user applied any formatting — that is
+        ``ArtifactRichTextCodec``'s storage contract, and the reader strips the
+        markup at display time so nobody sees it. Extraction did not strip it:
+        it read the same field raw and handed ``\\'f1`` to the model, which
+        echoed the escape back. The knowledge graph then recorded
+        "se\\'f1or" as the archive's own word for "señor", in claim text,
+        object phrases, subjects, and quotes alike.
+
+        The extraction boundary now converts to prose, so no NEW row can carry
+        an escape. This repairs the rows already written.
+
+        IDEMPOTENT BY CONSTRUCTION: the repair is "decode any ``\\'XX``
+        sequence", and decoded text contains none, so a second run finds
+        nothing to do and says so. Nothing is deleted; every change is logged
+        to the mutation trail with its before-state, so a row can be restored.
+
+        A byte that does not decode is LEFT AS IT IS rather than replaced —
+        showing an escape is bad, silently substituting the wrong character
+        for a manuscript's word is worse.
+        """
+        result = MigrationResult(
+            migration_name="repair_rtf_escapes",
+            status=MigrationStatus.running,
+            dry_run=dry_run,
+        )
+
+        # Which text fields on which models can hold a transcription's words.
+        targets: list[tuple[type, tuple[str, ...]]] = [
+            (
+                KnowledgeClaim,
+                (
+                    "text",
+                    "subject_canonical",
+                    "predicate_verb",
+                    "object_phrase",
+                    "svo_subject",
+                    "svo_object",
+                    "source_excerpt",
+                ),
+            ),
+            (KnowledgeEntity, ("canonical_name", "description")),
+            (Artifact, ("content",)),
+        ]
+
+        try:
+            run_id = f"repair_rtf_{uuid4().hex[:8]}"
+            processed = 0
+
+            for model, fields in targets:
+                for row in self.db.all(model):
+                    if limit and processed >= limit:
+                        break
+                    processed += 1
+
+                    before: dict[str, str | None] = {}
+                    after: dict[str, str | None] = {}
+                    for field_name in fields:
+                        value = getattr(row, field_name, None)
+                        if not isinstance(value, str) or "'" not in value:
+                            continue
+                        repaired = _repair_escapes(value)
+                        if repaired != value:
+                            before[field_name] = value
+                            after[field_name] = repaired
+
+                    # `metadata` holds the verbatim quote (`source_text`) and
+                    # the date strings; a dict field needs its own walk.
+                    metadata = getattr(row, "metadata", None)
+                    if isinstance(metadata, dict):
+                        repaired_meta = {
+                            key: (
+                                _repair_escapes(val) if isinstance(val, str) else val
+                            )
+                            for key, val in metadata.items()
+                        }
+                        if repaired_meta != metadata:
+                            before["metadata"] = dict(metadata)
+                            after["metadata"] = repaired_meta
+
+                    if not after:
+                        result.skipped += 1
+                        continue
+
+                    if dry_run:
+                        result.migrated += 1
+                        continue
+
+                    for field_name, value in after.items():
+                        setattr(row, field_name, value)
+                    self.db.save(row)
+                    self._log_mutation(
+                        entity_type=model.__name__,
+                        entity_id=row.id,
+                        operation=MutationOperationType.update,
+                        before_state=before,
+                        after_state=after,
+                        changed_fields=sorted(after),
+                        run_id=run_id,
+                    )
+                    if not result.audit_id:
+                        result.audit_id = run_id
+                    result.migrated += 1
+
+            result.status = MigrationStatus.completed
+            result.completed_at = utc_now()
+            result.details["run_id"] = run_id
+            if not result.migrated:
+                result.details["reason"] = "no RTF escapes found in stored rows"
+            return result
+        except Exception as exc:  # noqa: BLE001 - migration boundary
+            result.status = MigrationStatus.failed
+            result.error_message = str(exc)
+            result.completed_at = utc_now()
+            logger.exception("repair_rtf_escapes failed")
             return result
 
 

@@ -18,6 +18,7 @@ workflow can move KG persistence into an explicit downstream `kg_writer` node.
 from __future__ import annotations
 
 import asyncio
+import re as _re
 import logging
 import time
 from collections import Counter
@@ -34,6 +35,15 @@ from fichero_server.llm import (
     chat_structured_with_fallback,
     resolve_model_alias,
 )
+from fichero_server.knowledge.spacy_svo import predicate_problem
+from fichero_server.knowledge.svo_quality import (
+    MAX_OBJECT_WORDS,
+    MAX_VERB_WORDS,
+    claim_rejection,
+    trim_predicate,
+    ungrounded_span,
+)
+from fichero_server.loaders.rtf_text import to_plain_text
 from fichero_server.models import Artifact, Document, DocType, FileType
 from fichero_server.workflows.node_context import artifact_provenance
 from fichero_server.workflows.registry import register_tool
@@ -247,6 +257,29 @@ class _Quote(BaseModel):
     source_text: str = Field(default="", description="short exact source phrase")
 
 
+class _ExtraGroup(BaseModel):
+    """One custom entity type and the names found for it.
+
+    A LIST OF GROUPS, not a `dict[str, list[str]]`, because Apple's
+    DynamicGenerationSchema has fixed named properties and no "any key" shape
+    (measured by lane-model-routing, 99cdc0e39). The open map converted to
+    `{"type": "object", "properties": []}` — a grammar that can express
+    nothing but `{}` — so on the Apple path this field was structurally
+    guaranteed empty, on every call, with nothing raised. A field that cannot
+    work is worse than a field that is missing: the run reports success and
+    the library's custom types quietly never populate.
+
+    The list shape says the same thing and IS expressible. Internally it is
+    still folded back to a dict at the boundary below, so every consumer
+    downstream is untouched.
+    """
+
+    key: str = Field(default="", description="Registry type key, e.g. 'crops'.")
+    values: list[str] = Field(
+        default_factory=list, description="Entity names found for that type."
+    )
+
+
 class _Extraction(BaseModel):
     """Schema for the combined extract_all call. Maps 1:1 onto the six
     section keys downstream tools (folder_cleanup, catalogue) expect."""
@@ -264,11 +297,12 @@ class _Extraction(BaseModel):
         default_factory=list,
         description="book-index terms",
     )
-    additional_entities: dict[str, list[str]] = Field(
-        default_factory=dict,
+    additional_entities: list[_ExtraGroup] = Field(
+        default_factory=list,
         description=(
-            "Custom entity types from the library registry. "
-            "Keys are the registry type keys, values are lists of extracted names."
+            "Custom entity types from the library registry: one group per "
+            "type, each naming the registry type key and the entity names "
+            "found for it in the text."
         ),
     )
 
@@ -316,6 +350,24 @@ class _SVOClaim(BaseModel):
     source_text: str = Field(description="Verbatim quote from source.")
     epistemic_status: str = Field(default="tentative", description="confirmed/tentative/rejected")
     claim_type: str = Field(default="fact", description="fact/analysis/interpretation/argument")
+    # WHEN, when the text says so (#4667). An event without a date cannot be
+    # plotted, and the `_Event` schema's own `date` field never survived the
+    # two-stage rewrite — so "Extract Events" produced entities no timeline
+    # could show. Defaulted, so the Apple grammar stays permissive and a claim
+    # about an undated fact still validates.
+    date: str = Field(
+        default="",
+        description="YYYY-MM-DD, YYYY-MM, YYYY or start/end range — only if the text states it.",
+    )
+    # WHERE, when the text says so (#4670). Daniel: "John Smith was a movie
+    # star, in New York, in 1933" — a statement with no when and no where is a
+    # fact floating free of the page it came from, and the claim model has
+    # carried both scopes all along. Copied from the text like everything
+    # else: an inferred place is a guess the map would draw as a pin.
+    place: str = Field(
+        default="",
+        description="Place this claim happened, copied from the text — only if the text names one.",
+    )
 
 
 class _EntityClaims(BaseModel):
@@ -406,13 +458,41 @@ def _build_per_entity_claim_instructions(
     return (
         f"{context_block}"
         f"You are extracting facts about a specific entity from a document. "
-        f"Extract specific SVO (Subject-Verb-Object) claims about this entity. "
+        f"Extract specific SVO (Subject-Verb-Object) claims about this entity.\n\n"
+        f"The subject of every claim is the named entity you were given. Never "
+        f"answer with a pronoun ('they', 'ellos', 'we', 'nosotros', 'he') — if "
+        f"you cannot tell which named person or place a sentence is about, omit "
+        f"the claim rather than guessing a subject.\n\n"
+        f"COPY, DO NOT COMPOSE. The verb and the object must be spans you can "
+        f"find in the document text, word for word, in the document's own "
+        f"language and spelling — including archaic and irregular forms. Do "
+        f"not translate them, do not modernise them, do not correct the "
+        f"grammar, and do not write a smoother sentence than the one on the "
+        f"page. If you cannot quote it, do not claim it.\n\n"
         f"For each claim, provide:\n"
-        f"1. The predicate verb (e.g., 'served as', 'located in', 'wrote')\n"
-        f"2. The object/complement (e.g., 'alcalde of Popayán', 'a mining region')\n"
+        f"1. The predicate verb — the MINIMAL verb phrase copied from the "
+        f"text, at most {MAX_VERB_WORDS} words (e.g., 'served as', 'located "
+        f"in', 'otorgó'). Never a chain of verbs swept out of a formulaic "
+        f"passage.\n"
+        f"2. The object/complement — the MINIMAL noun phrase from the text "
+        f"that completes the claim, at most {MAX_OBJECT_WORDS} words (e.g., "
+        f"'alcalde of Popayán', 'cañistin'). Never a whole clause, never a "
+        f"copied sentence, never your own paraphrase.\n"
         f"3. The exact source text where this claim appears, preserving any "
         f"   [ilegible] / [uncertain] markers and original accents exactly\n"
-        f"Write in {output_language}. Only include facts directly supported by the text."
+        f"4. The date, ONLY when the text itself states one for this claim: "
+        f"YYYY-MM-DD, YYYY-MM, YYYY, or 'start/end' for a span.\n"
+        f"5. The place, ONLY when the text itself names where this claim "
+        f"happened — copied from the text, as it is written there.\n\n"
+        f"Leave a date or a place empty rather than working it out. An "
+        f"inferred scope is a guess wearing a fact's clothes: the timeline "
+        f"plots it as though it were read off the page, and the map draws it "
+        f"as a pin. A statement with no date is honest; a statement with the "
+        f"wrong one is not.\n\n"
+        f"One assertion per claim: a sentence that says three things is three "
+        f"claims, not one claim with three verbs. Write any commentary in "
+        f"{output_language}; the verb and object stay in the source's "
+        f"language. Only include facts directly supported by the text."
     )
 
 
@@ -447,6 +527,28 @@ async def _extract_entities_only(
     return extraction
 
 
+def _date_is_on_the_page(date: str, source_text: str | None) -> bool:
+    """Whether a claim's date was READ rather than reasoned (#4670).
+
+    A normalised date never appears verbatim — the page says "diez de abril de
+    mill e quinientos", the model returns "1560-04-10" — so the span rule that
+    governs verbs and objects cannot govern this. The checkable part is the
+    YEAR: four digits the transcription either contains or does not. A date
+    whose year is nowhere on the page was reasoned from context, and a
+    timeline draws a reasoned date exactly as it draws a read one.
+
+    Fail-open when there is no page text, and for a date with no four-digit
+    year to check (a bare "04" scopes nothing anyway).
+    """
+    if not source_text:
+        return True
+    years = _re.findall(r"\d{4}", date or "")
+    if not years:
+        return True
+    digits_on_page = _re.findall(r"\d{4}", source_text)
+    return any(year in digits_on_page for year in years)
+
+
 async def _extract_claims_for_entity(
     chunk_text: str,
     entity_name: str,
@@ -454,6 +556,7 @@ async def _extract_claims_for_entity(
     llm_config: LLMConfig,
     instructions: str,
     extraction_sem: asyncio.Semaphore,
+    speaker: str = "",
 ) -> list[dict]:
     """Stage 2: Extract grounded claims for a single entity."""
     entity_prompt = (
@@ -474,17 +577,63 @@ async def _extract_claims_for_entity(
                 include_schema_in_prompt=False,
                 permissive_guardrails=True,
             )
-        return [
-            {
+        # Quality gate (#4666). The model is asked for minimal spans; when it
+        # returns a clause dump anyway we repair what is repairable (a run-on
+        # verb's overflow becomes object text — nothing is discarded) and
+        # reject what is not, naming the reason in the log rather than writing
+        # a row that reads as a statement but is not one.
+        kept: list[dict] = []
+        for claim in result.claims:
+            verb, obj = trim_predicate(claim.verb, claim.object)
+            # Grounded against the CHUNK, not against the model's own quote: a
+            # model that invents the claim will invent a quote to match it.
+            rejection = claim_rejection(entity_name, verb, obj, chunk_text)
+            if rejection is None:
+                # GRAMMAR, once the words are known to be on the page (#4671).
+                # Grounding proves a span was READ; it cannot tell whether the
+                # row is a statement. Measured on the 17 rows a real run left
+                # in the Caciques library, grounding caught 2 and this caught
+                # 16 — together, all 17. Free, deterministic, 21 ms a page,
+                # and silent when spaCy is not installed.
+                rejection = predicate_problem(
+                    entity_name, verb, chunk_text, speaker=speaker
+                )
+            if rejection:
+                logger.info(
+                    "SVO claim rejected for %s: %s (verb=%r object=%r)",
+                    entity_name, rejection, verb, obj,
+                )
+                continue
+            # A SCOPE the page does not support is dropped, but the claim
+            # stays (#4670). The assertion is grounded; only its when/where
+            # was invented, and a fact without a date is honest where a fact
+            # with the wrong one is not. Dates are checked as digits, not as
+            # words: "1842" is on the page or it is not.
+            place = (claim.place or "").strip()
+            if place and ungrounded_span(place, chunk_text):
+                logger.info(
+                    "SVO scope dropped for %s: place %r is not on the page",
+                    entity_name, place,
+                )
+                place = ""
+            date = (claim.date or "").strip()
+            if date and not _date_is_on_the_page(date, chunk_text):
+                logger.info(
+                    "SVO scope dropped for %s: date %r is not on the page",
+                    entity_name, date,
+                )
+                date = ""
+            kept.append({
                 "name": entity_name,
-                "verb": claim.verb,
-                "object": claim.object,
+                "verb": verb,
+                "object": obj,
                 "source_text": _annotate_pronoun_source(claim.source_text, entity_name),
                 "epistemic_status": claim.epistemic_status,
                 "claim_type": claim.claim_type,
-            }
-            for claim in result.claims
-        ]
+                "date_normalized": date,
+                "claim_location": place,
+            })
+        return kept
     except ProviderQuotaError:
         raise
     except Exception as exc:
@@ -771,8 +920,9 @@ def _build_instructions(output_language: str, custom_entity_types: list[str] | N
         custom_lines = "\n".join(f"- {t}" for t in custom_entity_types)
         base += (
             f"\n\nThis library has custom entity types. "
-            f"Extract them into the 'additional_entities' field as a mapping "
-            f"of type key → list of entity names found in the text:\n{custom_lines}\n"
+            f"Extract them into the 'additional_entities' field as one group "
+            f"per type — each group carrying the type key and the names found "
+            f"for it in the text:\n{custom_lines}\n"
             f"Only include names clearly present in the source text."
         )
     return base
@@ -857,7 +1007,10 @@ def _record_text(record: Any) -> str:
     if not isinstance(record, dict):
         return ""
     text = record.get("text")
-    return text.strip() if isinstance(text, str) else ""
+    # Upstream nodes can hand us an app-edited transcription verbatim, i.e.
+    # inline RTF source. Convert at the boundary so no extractor ever sees
+    # markup (#4666).
+    return to_plain_text(text).strip() if isinstance(text, str) else ""
 
 
 def _normalize_records(records: Any) -> list[dict[str, Any]]:
@@ -923,7 +1076,11 @@ def _records_from_selected_documents(state: State) -> list[dict[str, Any]]:
                     doc.id,
                     exc,
                 )
-        text = (
+        # Prose, not markup (#4666): an app-edited transcription is stored as
+        # inline RTF source, and a model handed RTF echoes its escapes back
+        # into the knowledge graph. Same conversion as
+        # `extract_entities_only._transcription_text`.
+        text = to_plain_text(
             raw_transcription
             if isinstance(raw_transcription, str) and raw_transcription.strip()
             else doc.page_content or ""
@@ -1235,6 +1392,9 @@ def _build_entity_items_for_section(
                 "verb": c.get("verb", ""),
                 "object": c.get("object", ""),
                 "source_text": c.get("source_text", ""),
+                # The date is what makes an event a timeline row (#4667).
+                "date_normalized": c.get("date_normalized", ""),
+                "claim_location": c.get("claim_location", ""),
             }
             for c in claims
         ]
@@ -1246,6 +1406,8 @@ def _build_entity_items_for_section(
             "verb": c.get("verb", ""),
             "object": c.get("object", ""),
             "source_text": c.get("source_text", ""),
+            "date_normalized": c.get("date_normalized", ""),
+            "claim_location": c.get("claim_location", ""),
         }
         for c in claims
     ]
@@ -1953,7 +2115,14 @@ async def extract_all(
             "events": [e.model_dump(mode="json") for e in extraction.events],
             "quotes": [q.model_dump(mode="json") for q in extraction.quotes],
             "keywords": list(extraction.keywords),
-            "additional_entities": dict(extraction.additional_entities),
+            # Back to the map every consumer already speaks. The GROUPS are a
+            # constraint of the grammar we ask the model to fill, not a shape
+            # the rest of the pipeline should have to learn.
+            "additional_entities": {
+                group.key.strip(): list(group.values)
+                for group in extraction.additional_entities
+                if group.key and group.key.strip()
+            },
         }
 
     chunk_results: list[dict[str, list]] = await asyncio.gather(

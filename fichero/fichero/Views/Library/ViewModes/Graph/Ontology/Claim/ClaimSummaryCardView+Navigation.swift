@@ -50,11 +50,9 @@ extension ClaimSummaryCard {
         WindowOpener.open(libraryId: libraryId, asTab: asTab, using: openWindow)
     }
 
-    func revealSourceClaimInline() {
-        isExpanded = true
-        Task { await loadDetails() }
-        focusClaim()
-    }
+    // `revealSourceClaimInline()` deleted 2026-09-04 with the chip ruling:
+    // the subject chip was its last caller, and the expand chevron already
+    // owns in-place reveal.
 
     func beginInlineEditing() {
         isInlineEditing = true
@@ -69,9 +67,15 @@ extension ClaimSummaryCard {
     var claimSentence: some View {
         if let svo {
             HStack(spacing: 6) {
-                // Subject chip — reveal the underlying claim in place.
+                // THE CHIP RULE (Daniel, ratified 2026-09-04): nouns NAVIGATE
+                // — subject and object chips lead to that name's all-sources
+                // view (the scoped search, same contract as the #882 header) —
+                // verbs EDIT, and the sentence (the card's tap) goes to the
+                // page. One rule, three chips, no tooltip lying.
+
+                // Subject chip — every source that mentions this name.
                 Button(action: {
-                    revealSourceClaimInline()
+                    entitySearchState?.request(name: svo.subject, entityType: nil)
                 }, label: {
                     Text(svo.subject)
                         .font(bodyTextFont)
@@ -83,9 +87,9 @@ extension ClaimSummaryCard {
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                 })
                 .buttonStyle(.plain)
-                .help("Show the source claim")
+                .help("Find every source mentioning \"\(svo.subject)\"")
 
-                // Verb chip — reveal the underlying claim in place.
+                // Verb chip — edit the statement in place.
                 Button(action: {
                     beginInlineEditing()
                 }, label: {
@@ -99,11 +103,13 @@ extension ClaimSummaryCard {
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                 })
                 .buttonStyle(.plain)
-                .help("Show the source claim")
+                .help("Edit this statement")
 
-                // Object chip — reveal the underlying claim in place.
+                // Object chip — a noun, so it navigates (often a phrase, not
+                // an entity; the free-text search is the honest fallback and
+                // the scoped pipeline handles both).
                 Button(action: {
-                    beginInlineEditing()
+                    entitySearchState?.request(name: svo.object, entityType: nil)
                 }, label: {
                     Text(svo.object)
                         .font(bodyTextFont)
@@ -115,7 +121,7 @@ extension ClaimSummaryCard {
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                 })
                 .buttonStyle(.plain)
-                .help("Show the source claim")
+                .help("Find every source mentioning \"\(svo.object)\"")
             }
             .padding(.vertical, 4)
         } else if let excerpt = cleanedDisplayText(claim.sourceExcerpt) {

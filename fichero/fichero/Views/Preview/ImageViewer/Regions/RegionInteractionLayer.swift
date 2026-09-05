@@ -498,32 +498,19 @@ struct RegionInteractionLayer: View {
 }
 
 extension RegionInteractionLayer {
-    /// The line at this click's height (x ignored so a margin click counts),
-    /// else a small square at the click. Cycles the saved check: none → ✓ →
-    /// ✓✓ → ✓✓✓ → none, persisted as the rating annotation kind.
+    /// The ENTIRE line at this click's height (Daniel, 2026-09-04: the check
+    /// applies to the full line box, one gesture; x ignored so a margin
+    /// click counts) — and on a page with no recognised line, a full-width
+    /// band one line tall, never a private 16pt square. Cycles the saved
+    /// check: none → ✓ → ✓✓ → ✓✓✓ → none, persisted as the rating kind.
     func handleCheckTap(at point: CGPoint, in size: CGSize) {
-        guard let annotationStore, let windowState else { return }
-        let lines = allBoxes.filter { $0.level == "line" }
-        var target: [Double]?
-        for line in lines {
-            if let rect = BoundingBoxGeometry.viewRect(
-                normalized: line.bbox, in: size, visible: visible
-            ), point.y >= rect.minY, point.y <= rect.maxY {
-                target = line.bbox
-                break
-            }
-        }
-        if target == nil, size.width > 0, size.height > 0 {
-            // No recognised line at that height: a small check box AT the
-            // click, so unrecognised pages are checkable too.
-            let normalized = BoundingBoxGeometry.normalizedBox(
-                from: CGPoint(x: max(0, point.x - 8), y: max(0, point.y - 8)),
-                to: CGPoint(x: point.x + 8, y: point.y + 8),
-                in: size, visible: visible
-            )
-            target = normalized
-        }
-        guard let bbox = target else { return }
+        guard let annotationStore, let windowState,
+              size.height > 0, visible.height > 0 else { return }
+        let normalizedY = visible.minY + Double(point.y / size.height) * visible.height
+        let bbox = RegionHitTesting.checkTarget(
+            atNormalizedY: normalizedY,
+            lines: allBoxes.filter { $0.level == "line" }.map(\.bbox)
+        )
         let docId = documentId
         let frame = renditionId
         Task { @MainActor in

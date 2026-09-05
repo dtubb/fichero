@@ -4,7 +4,7 @@
 
 > 🤖 *AI Drafted (Not reviewed)*
 
-This part of the manual is generated from the app itself, so it says what Fichero actually does rather than what someone remembered it doing. It covers 52 shipped workflows and 126 tools.
+This part of the manual is generated from the app itself, so it says what Fichero actually does rather than what someone remembered it doing. It covers 53 shipped workflows and 126 tools.
 
 - [Every workflow](workflows/index.md) — the presets, step by step.
 - [Every tool](tools/index.md) — the single steps a workflow is built from.
@@ -64,6 +64,7 @@ Workflows are grouped into folders that follow the route work takes: prepare the
 
 - [Accounts → Spreadsheet (CSV)](workflows/accounts-spreadsheet-csv.md) — Use this when: a page (or each page of a document) holds historical accounts — cuentas, tithe books, tribute rolls, expense lists — and you want spreadsheet rows out. Reads amounts as a paleographer (roman numerals, the U thousands mark, maravedís/pesos/reales), keeps the original text, and normalizes amounts to numbers where certain. One CSV artifact per page; open or export from the artifact.
 - [Diary Entries](workflows/diary-entries.md) — Transcribe each diary page (reusing any existing text layer), then split every page into per-day entry nodes: one child per dated entry, carrying a date attribute (diary_entry document type, date role) and the day's bounding box on the page. The entries render immediately in the library's Data view — timeline and calendar. Pages with several dates become several entries; a page that IS one day's entry becomes one. Unreadable dates are kept as undated entries named by the date text on the page, never guessed. The splitter uses the $small model alias — set your default small model in Settings → AI Defaults.
+- [Extract Events (Timeline)](workflows/extract-events-timeline.md) — Extracts only what a timeline can show: dated events and the dates themselves. Transcribe each page (reusing any existing text layer), name the events, then read each event's claim and the date the text gives it. Every claim lands as a KnowledgeClaim with time_start / time_end, which is what the KG Timeline plots — no places, no organizations, no per-person loop over pages the timeline will never show. Verbs and objects are copied from the source, so clicking a point on the timeline lands on the words that put it there.
 - [Extract Geo](workflows/extract-geo.md) — Transcribe each page (reusing any existing text layer), then extract every place name and geocode it to lat/lon. Feeds the 2D world-map and 3D globe representations. Offline geocoding by default; enable online geocoding on the Extract Geo node to resolve places the built-in gazetteer misses.
 - [Extract Table](workflows/extract-table.md) — Detect and extract tabular data from each image/page using vision, emitting CSV you can paste into a spreadsheet. Feeds the spreadsheet (Table) representation in the document viewer. The output style and header handling are editable on the Table node.
 - [Modernización (Spanish)](workflows/modernizacion-spanish.md) — Use this when: you want the document's text in modern Spanish orthography — same words, modern spelling, expanded abbreviations — beside the diplomatic transcription. Writes an analysis artifact; the original transcription is untouched.

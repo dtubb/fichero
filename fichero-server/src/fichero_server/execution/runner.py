@@ -1105,22 +1105,30 @@ async def _run_workflow_in_background(
             )
         )
 
-        # Optional run-level provider/model override from UI context menus (#797).
-        # Applied only to LLM-using nodes so source/logic nodes remain unchanged.
-        if request.provider_override or request.model_override:
-            provider_override = (request.provider_override or "").strip()
-            model_override = (request.model_override or "").strip()
-            from fichero_server.workflows.validation import node_uses_llm
+        # The run-level provider/model choice (#797, reshaped by R-11 on
+        # 2026-09-04). Applied only to nodes it can HONESTLY serve: a text
+        # model never lands on a vision step and a recognition-only OCR route
+        # never lands on a step that parses a prompt — an incompatible node is
+        # left alone and resolves its own tier default. Precedence, run-wide:
+        # step pin > this choice > tier default.
+        #
+        # Daniel, 2026-09-04: "the model chosen is not the model used." The
+        # old loop stamped every uses_llm node unconditionally and reached no
+        # sub-workflow child at all, which is why a Catalogue run under a
+        # claude-opus-5 chip wrote artifacts stamped apple-intelligence.
+        provider_override = (request.provider_override or "").strip()
+        model_override = (request.model_override or "").strip()
+        if provider_override or model_override:
+            from fichero_server.workflows.validation import apply_run_model_override
 
-            for node in workflow.nodes:
-                # Config-aware: detect_regions in VLM mode takes the override
-                # even though its ToolDef registers uses_llm=False.
-                if not node_uses_llm(node):
-                    continue
-                if provider_override:
-                    node["provider_name"] = provider_override
-                if model_override:
-                    node["model_name"] = model_override
+            reached = apply_run_model_override(
+                workflow.nodes, provider_override, model_override
+            )
+            await log_execution(
+                f"Run model override {provider_override}/{model_override} applied to "
+                f"{len(reached)} node(s); capability-incompatible nodes keep their "
+                "configured default"
+            )
 
         # Build workflow using the shared runtime conversion path.
         workflow_def = to_workflow_def(workflow)
@@ -1444,6 +1452,16 @@ async def _run_workflow_in_background(
         # payloads already propagate it — so every artifact a live run
         # produces is traceable via GET /threads/{id}/run.run_artifacts.
         initial_state["task_id"] = thread_id
+        # The choice must reach nodes inside a sub_workflow too, and a child
+        # graph is built FRESH at execution time from a separately resolved
+        # WorkflowDef — so the choice travels in the state the child inherits
+        # (`sub_workflow` copies the parent state), which also carries it to
+        # grandchildren without a second mechanism (R-11).
+        if provider_override or model_override:
+            initial_state["run_model_override"] = {
+                "provider": provider_override,
+                "model": model_override,
+            }
 
         # Identify exit nodes (nodes with no outgoing edges). Workflow edges
         # use raw node IDs, but LangGraph events use the display label when one

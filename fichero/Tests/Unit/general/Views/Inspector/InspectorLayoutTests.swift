@@ -488,10 +488,10 @@ struct PageContentPaneEditStateTests {
 
 struct KGSurfaceTabTests {
 
-    @Test("KGSurfaceTab has transcript, digest, graph, claims, timeline, map, entities in order")
+    @Test("KGSurfaceTab has transcript, digest, graph, claims, timeline, map, entities, related in order")
     func orderingAndCount() {
         // Order drives the native toolbar's left-to-right button layout.
-        #expect(KGSurfaceTab.allCases == [.transcript, .digest, .graph, .claims, .timeline, .map, .entities])
+        #expect(KGSurfaceTab.allCases == [.transcript, .digest, .graph, .claims, .timeline, .map, .entities, .related])
     }
 
     @Test("KGSurfaceTab rawValues match the JS tab ids in document_view.html")

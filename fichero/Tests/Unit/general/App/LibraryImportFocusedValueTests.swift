@@ -22,7 +22,7 @@ final class LibraryImportFocusedValueTests: XCTestCase {
     }
 
     func testLibraryImportActionKeyIsNarrowNotSidebarActions() throws {
-        let source = try Self.appSource("App/Menus/FocusedCommandButtons+FocusedValues.swift")
+        let source = try Self.appSource("App/Menus/FocusedCommands/FocusedCommandButtons+FocusedValues.swift")
         XCTAssertTrue(source.contains("struct LibraryImportActionKey: FocusedValueKey"))
         // The Value is the Equatable wrapper, NEVER a raw closure (Daniel,
         // 2026-08-29): a raw `(IngestMode) -> Void` re-published every body
@@ -59,7 +59,7 @@ final class LibraryImportFocusedValueTests: XCTestCase {
     }
 
     func testDataMenuImportPrefersSidebarThenFallsBackToLibraryNeverAStub() throws {
-        let source = try Self.appSource("App/Menus/FocusedCommandButtons+SidebarActions.swift")
+        let source = try Self.appSource("App/Menus/FocusedCommands/FocusedCommandButtons+SidebarActions.swift")
         XCTAssertTrue(source.contains("@FocusedValue(\\.libraryImportAction) private var libraryImportAction"))
         XCTAssertTrue(source.contains("sidebarActions?.importFiles ?? libraryImportAction"))
         // Disabled state tracks the SAME merged action the buttons call —

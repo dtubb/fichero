@@ -93,27 +93,51 @@ struct SearchFieldOptionsMenu: View {
         }
     }
 
-    /// One rung. Checked when it is the tier the next request will use — read
-    /// through `SearchRetrievalTier(requestValue:)` so a saved search carrying
-    /// the legacy pure-vector `"semantic"` still shows a checked row.
+    /// One rung, as a TOGGLE.
+    ///
+    /// It was a `Button` whose label carried a `checkmark` systemImage, and
+    /// in the shipped menu the three rungs rendered with no mark at all
+    /// (Daniel, 2026-09-04: the Search Type submenu "shows NO current
+    /// selection") — this menu drops item images, as its own "Save Search"
+    /// row does too. Drawing selection with an image the host may not draw is
+    /// a state that exists only in the code.
+    ///
+    /// A menu `Toggle` is the native answer: AppKit draws the state marker
+    /// itself, so it cannot be dropped, and unlike a `Picker` row a Toggle
+    /// still takes `.disabled` + `.help` — which the graph rung needs, since
+    /// it goes dead with a sentence explaining why. Turning a rung OFF is a
+    /// no-op: this is a radio group, and a retrieval tier is never "none".
+    ///
+    /// Selection is read through `SearchRetrievalTier(requestValue:)` so a
+    /// saved search carrying the legacy pure-vector `"semantic"` still shows
+    /// a checked row.
     @ViewBuilder
     private func retrievalTierRow(_ tier: SearchRetrievalTier) -> some View {
-        let isSelected = SearchRetrievalTier(requestValue: searchType) == tier
         let isAvailable = tier != .semanticGraph
             || SearchRetrievalTier.graphTierAvailable(reviewedEntities: reviewedEntityCount)
-        Button {
-            searchType = tier.requestValue
-        } label: {
-            if isSelected {
-                Label(tier.title, systemImage: "checkmark")
-            } else {
-                Text(tier.title)
-            }
+        Toggle(isOn: Self.tierBinding(tier, searchType: $searchType)) {
+            Text(tier.title)
         }
         .disabled(!isAvailable)
         // A dead row that does not say why it is dead is the defect this
         // whole change exists to remove.
         .help(isAvailable ? tier.help : SearchRetrievalTier.noGraphHelp)
+    }
+
+    /// The radio binding behind one rung: on when it IS the active tier,
+    /// selecting it when switched on, and ignoring an attempt to switch it
+    /// off. Static and explicit so the rule is testable and so the closure
+    /// does not re-capture the view.
+    static func tierBinding(
+        _ tier: SearchRetrievalTier, searchType: Binding<String>
+    ) -> Binding<Bool> {
+        Binding(
+            get: { SearchRetrievalTier(requestValue: searchType.wrappedValue) == tier },
+            set: { isOn in
+                guard isOn else { return }
+                searchType.wrappedValue = tier.requestValue
+            }
+        )
     }
 }
 

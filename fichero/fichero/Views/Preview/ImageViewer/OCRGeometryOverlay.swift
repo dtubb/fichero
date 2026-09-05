@@ -47,7 +47,6 @@ struct OCRGeometryOverlay: View {
                 // hover readout still speaks individual words, and the layer
                 // carries a summary instead.
                 Canvas { context, size in
-                    let stroke = Color.accentColor.opacity(0.8)
                     let wash = Color.accentColor.opacity(0.08)
                     // Inline text needs GROUND to read against (Daniel,
                     // 2026-08-31: "you need to fade, or make the word
@@ -63,17 +62,37 @@ struct OCRGeometryOverlay: View {
                             normalized: box.bbox, in: size, visible: visible
                         ) else { continue }
                         let path = Path(roundedRect: rect, cornerRadius: 1.5)
-                        if inlineTextEnabled, !box.text.isEmpty {
+                        // How sure the machine is about WHERE this word is
+                        // (2026-09-04). `confidence` had been decoded and read
+                        // by nothing, so a 0.30 box was drawn exactly as
+                        // firmly as a 1.0 one — over a library where most
+                        // boxes are the former. Recessive stroke plus a dash,
+                        // so an uncertain box is still findable and no longer
+                        // an assertion. Opacity and dash are THIS axis;
+                        // provenance (measured / aligned / interpolated) is a
+                        // different one and keeps the channels it has left.
+                        let uncertain = OCRBoxConfidence.isUncertain(box)
+                        let stroke = Color.accentColor
+                            .opacity(OCRBoxConfidence.strokeOpacity(box.confidence))
+                        let drawsText = inlineTextEnabled && !box.text.isEmpty
+                            && OCRBoxConfidence.drawsInlineText(box.confidence)
+                        if drawsText {
                             context.fill(path, with: .color(plate))
                         } else {
                             context.fill(path, with: .color(wash))
                         }
-                        context.stroke(path, with: .color(stroke), lineWidth: 1)
+                        context.stroke(
+                            path,
+                            with: .color(stroke),
+                            style: StrokeStyle(
+                                lineWidth: 1, dash: uncertain ? [3, 2] : []
+                            )
+                        )
                         // Inline text rides the SAME Canvas pass — the whole
                         // point of the 2026-08-28 one-Canvas fix was that a
                         // dense page must not become hundreds of laid-out
                         // views, and a per-word `Text` view would undo it.
-                        if inlineTextEnabled, !box.text.isEmpty {
+                        if drawsText {
                             // FILL the box (Daniel, 2026-09-01). A fixed
                             // `.caption` overflowed a short box and rattled
                             // around in a tall one; the word should look like
@@ -89,7 +108,7 @@ struct OCRGeometryOverlay: View {
                 .frame(width: geo.size.width, height: geo.size.height)
                 .allowsHitTesting(false)
                 .accessibilityHidden(boxes.isEmpty)
-                .accessibilityLabel("^[\(boxes.count) recognized text region](inflect: true)")
+                .accessibilityLabel(Self.accessibilitySummary(for: boxes))
 
                 // Hover-only tracking (2026-08-12: "no way to see what the
                 // text is in each bbox"). AppKit tracking areas deliver
@@ -136,6 +155,16 @@ struct OCRGeometryOverlay: View {
             }
         }
         return nil
+    }
+
+    /// What the layer says to VoiceOver. The per-box nodes went away with the
+    /// one-Canvas fix (2026-08-28), so this ONE label is the whole layer's
+    /// account of itself — and a count that hides how much of it is guesswork
+    /// is the same omission the uniform stroke was.
+    static func accessibilitySummary(for boxes: [OCRGeometryBox]) -> String {
+        let base = "^[\(boxes.count) recognized text region](inflect: true)"
+        guard let doubt = OCRBoxConfidence.summary(for: boxes) else { return base }
+        return "\(base), \(doubt)"
     }
 }
 

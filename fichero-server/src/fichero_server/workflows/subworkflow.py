@@ -411,6 +411,23 @@ async def sub_workflow(
     if child is None:
         raise RuntimeError(f"Sub-workflow '{config.workflow_ref}' could not be resolved")
 
+    # The run-level model choice reaches the CHILD's nodes (R-11, 2026-09-04).
+    # A child graph is built fresh here, so nothing the runner stamped on the
+    # parent's nodes was ever visible to it — which is why a Catalogue run
+    # under a claude-opus-5 chip produced apple-intelligence artifacts. The
+    # choice rides the state down and is applied by the same
+    # capability-compatibility rule the parent's nodes get: a node it cannot
+    # serve keeps its own tier default.
+    run_override = state.get("run_model_override")  # type: ignore[typeddict-item]
+    if isinstance(run_override, Mapping):
+        from fichero_server.workflows.validation import apply_run_model_override_to_def
+
+        child = apply_run_model_override_to_def(
+            child,
+            str(run_override.get("provider") or ""),
+            str(run_override.get("model") or ""),
+        )
+
     child_task_id = f"{parent_task_id or 'run'}:{parent_node_id}:{uuid.uuid4().hex[:8]}"
     parent_lineage = str(state.get("lineage_path", "") or parent_task_id or parent_workflow_id)
     lineage_path = "/".join(

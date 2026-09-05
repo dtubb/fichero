@@ -276,7 +276,14 @@ struct ContentView: View {
     /// SceneStorage nor a per-folder save has a value.
     @AppStorage("library.defaultViewDisplayMode")
     var defaultLibraryViewDisplayMode: ViewDisplayMode = .icon
-    @SceneStorage("currentLayoutMode") var currentLayoutMode: LayoutMode = .widescreen
+    /// Per-window, seeded from what the user last left (2026-09-04). The
+    /// literal default is the FIRST-RUN value now; `WorkspaceLayoutDefaults`
+    /// supplies it on every launch after that. See that type for why scene
+    /// state alone could not do this.
+    @SceneStorage("currentLayoutMode") var currentLayoutMode: LayoutMode =
+        LayoutMode(rawValue: WorkspaceLayoutDefaults.layoutModeRaw(
+            default: LayoutMode.widescreen.rawValue
+        )) ?? .widescreen
     @SceneStorage("sidebarMode") var sidebarMode: SidebarMode = .library
 
     // Column visibility persistence
@@ -288,16 +295,20 @@ struct ContentView: View {
     @AppStorage("pageContentPaneWidth") var pageContentPaneWidth: Double = 200
     @SceneStorage("showSidebar") var showSidebar: Bool = true
     @SceneStorage("showInspectorSidebar") var showInspectorSidebar: Bool = true
-    @SceneStorage("showDocumentGrid") var showDocumentGrid: Bool = true
+    @SceneStorage("showDocumentGrid") var showDocumentGrid: Bool =
+        WorkspaceLayoutDefaults.showDocumentGrid
     // Per-window visibility of the three middle panes (#1448). Each window
     // keeps its own choice via @SceneStorage (same pattern as the
     // sidebar/inspector toggles), so selection never remounts or hides panes.
-    @SceneStorage("showDocumentCanvas") var showDocumentCanvas: Bool = true
+    @SceneStorage("showDocumentCanvas") var showDocumentCanvas: Bool =
+        WorkspaceLayoutDefaults.showDocumentCanvas
     /// Chat pane visibility — DEFAULT ON (Daniel's pane ruling: a fresh
     /// window shows library+preview+reader+chat).
-    @SceneStorage("showChatPane") var showChatPane: Bool = true
+    @SceneStorage("showChatPane") var showChatPane: Bool =
+        WorkspaceLayoutDefaults.showChatPane
     @SceneStorage("chatPaneWidth") var chatPaneWidth: Double = 320
-    @SceneStorage("showReadingPane") var showReadingPane: Bool = true
+    @SceneStorage("showReadingPane") var showReadingPane: Bool =
+        WorkspaceLayoutDefaults.showReadingPane
     // Summoned search (#4521): the engine-search field in the library's mini
     // toolbar appears only while this is on — toggled by the toolbar's search
     // button, and turned on automatically when something fires a search
@@ -361,21 +372,21 @@ struct ContentView: View {
     /// Whether the active search is scoped to the context folder (true) or
     /// the whole library (false, the default).
     @State var transientSearchScopeIsFolder = false
-    /// The DISPLAY NAME of the library the showing results actually came
-    /// from (Daniel, 2026-09-01: the chrome named a different library than
+    // The DISPLAY NAME of the library the showing results actually came
+    // from (Daniel, 2026-09-01: the chrome named a different library than
     /// the results). `runTransientSearch` resolves its library with a
-    /// `?? globalLibrary` fallback, while the toolbar island named
-    /// `windowState.library` with no fallback — when the window's libraryId
-    /// does not resolve those are two DIFFERENT libraries, and the chrome
-    /// named the one that was not searched. Recorded at request time so the
-    /// chrome reads the same value the request used. `nil` outside a search.
+    // `?? globalLibrary` fallback, while the toolbar island named
+    // `windowState.library` with no fallback — when the window's libraryId
+    // does not resolve those are two DIFFERENT libraries, and the chrome
+    // named the one that was not searched. Recorded at request time so the
+    // chrome reads the same value the request used. `nil` outside a search.
     // resultsLibraryName lives on `chromeUX` (WindowChromeUXState) — the
     // ContentView value-size ceiling (ViewValueSizeTests) forbids new @State here.
-    /// The terms the reader should light up (Daniel, 2026-09-01): a result
-    /// you select must show you WHERE it matched, not just the document.
-    /// Written by `runTransientSearch`, read by `ReadingPaneView`, which
-    /// feeds it to the existing find-in-page highlighter (#4338). Empty
-    /// outside a search — the reader's own find bar owns the field then.
+    // The terms the reader should light up (Daniel, 2026-09-01): a result
+    // you select must show you WHERE it matched, not just the document.
+    // Written by `runTransientSearch`, read by `ReadingPaneView`, which
+    // feeds it to the existing find-in-page highlighter (#4338). Empty
+    // outside a search — the reader's own find bar owns the field then.
     // readerFindQuery lives on `chromeUX` for the same reason.
     /// Real search parameters (#4112/S8), driven by the results-bar Options
     /// menu; saved searches apply their stored values. Sticky for the session.

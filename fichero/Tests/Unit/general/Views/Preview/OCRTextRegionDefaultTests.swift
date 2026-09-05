@@ -113,7 +113,14 @@ struct OCRTextRegionDefaultTests {
     @Test("the overlay names its boxes to VoiceOver as a summary")
     func boxesKeepTheirAccessibilityLabel() throws {
         let source = try AppSource.text("Views/Preview/ImageViewer/OCRGeometryOverlay.swift")
-        #expect(source.contains("accessibilityLabel(\"^[\\(boxes.count) recognized text region](inflect: true)\")"))
+        // The literal moved into `accessibilitySummary(for:)` on 2026-09-04:
+        // the layer's ONE label now also carries how many of its boxes are
+        // drawn as guesses, because a count that hides that is the same
+        // omission the uniform stroke was. The inflected sentence is still the
+        // base — pinned where it now lives, and pinned as being USED here.
+        #expect(source.contains(".accessibilityLabel(Self.accessibilitySummary(for: boxes))"))
+        #expect(source.contains("^[\\(boxes.count) recognized text region](inflect: true)"))
+        #expect(source.contains("OCRBoxConfidence.summary(for: boxes)"))
         #expect(source.contains(".accessibilityHidden(boxes.isEmpty)"))
     }
 

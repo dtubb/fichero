@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 import os
+import re
 from pathlib import Path
 import shutil
 from typing import Any
@@ -182,12 +183,10 @@ from huggingface_hub import snapshot_download
 import os, sys
 repo_id, revision, models_path = sys.argv[1], sys.argv[2], sys.argv[3]
 ignore_patterns = sys.argv[4:] or None
-snapshot_download(
-    repo_id=repo_id,
-    revision=revision,
-    cache_dir=models_path,
-    ignore_patterns=ignore_patterns,
-)
+# One line on purpose: the shared-folder guardrail reads per LINE, so a call
+# split across lines hides `models_path` from the check that exists to prove
+# every download lands under server_state_dir()/"models" (#6b).
+snapshot_download(repo_id=repo_id, revision=revision, cache_dir=models_path, ignore_patterns=ignore_patterns)
 """
 
 
@@ -217,7 +216,7 @@ class MLXModelStore:
         seen_repo_ids: set[str] = set()
         for spec in MANAGED_MLX_MODELS.values():
             snapshot = self.snapshot_path(spec)
-            installed = snapshot.exists()
+            installed = self.is_complete(spec)
             supported, unsupported_reason = check_local_model_hardware(
                 display_name=spec.display_name,
                 min_memory_bytes=spec.min_memory_bytes,
@@ -281,7 +280,7 @@ class MLXModelStore:
             existing = self._jobs[existing_id]
             if existing.state in {"queued", "running"}:
                 return existing
-        if self.snapshot_path(spec).exists():
+        if self.is_complete(spec):
             job = ManagedModelDownloadJob(
                 job_id=f"mlx-{len(self._jobs) + 1}",
                 model_id=model_id,
@@ -340,7 +339,10 @@ class MLXModelStore:
     def resolve_model_path(self, model_id: str) -> str:
         spec = self.spec(model_id)
         snapshot = self.snapshot_path(spec)
-        if snapshot.exists():
+        # `is_complete`, not `exists`: handing a partial snapshot to the
+        # sidecar produces a loader crash about a missing shard, which reads
+        # as a broken model rather than an unfinished download.
+        if self.is_complete(spec):
             return str(snapshot)
         raise FileNotFoundError(
             f"Local model {model_id} is not installed. Download it from /api/local-inference/models/{model_id}/download before starting oMLX."
@@ -363,6 +365,60 @@ class MLXModelStore:
 
     def snapshot_path(self, spec: ManagedModelSpec) -> Path:
         return self.cache_dir / f"models--{spec.repo_id.replace('/', '--')}" / "snapshots" / spec.revision
+
+    def is_complete(self, spec: ManagedModelSpec) -> bool:
+        """Whether this model is DOWNLOADED, not merely started.
+
+        The snapshot directory is created early and fills as blobs land, so
+        `snapshot.exists()` is true from the first small file onward. An
+        interrupted download therefore looked installed: measured 2026-09-04,
+        a Chandra pull killed at 151 MB left a directory of config and
+        tokenizer files, and the store answered "Model already installed",
+        state=completed, for a model whose 5.6 GB of weights were absent.
+
+        The rule is derived from the FILES PRESENT, deliberately, because two
+        other signals look authoritative and are not:
+
+        * ``*.incomplete`` blobs are not evidence of an unfinished model. They
+          survive a completed download — the finished Chandra snapshot still
+          had two, left by the killed attempt — so testing them called a good
+          model broken forever.
+        * The repo's own ``model.safetensors.index.json`` is not reliable
+          either. mlx-community/Qwen3-VL-8B-Instruct-4bit ships two shards and
+          an index naming FOUR, a stale manifest from an earlier layout; mlx
+          globs ``*.safetensors`` and never reads it. Trusting it marked a
+          working model incomplete.
+
+        What holds: huggingface_hub links a blob into ``snapshots/`` only once
+        that blob is whole, so a file's presence there IS the completeness
+        signal. A model needs at least one weight file, and a sharded set must
+        have every member of its own series — ``model-00001-of-00002`` implies
+        ``model-00002-of-00002``, read off the filename rather than a manifest
+        that may describe a different release.
+        """
+        snapshot = self.snapshot_path(spec)
+        if not snapshot.exists():
+            return False
+        weights = [
+            path
+            for pattern in ("*.safetensors", "*.npz", "*.bin", "*.gguf")
+            for path in snapshot.glob(pattern)
+        ]
+        if not weights:
+            return False
+        for path in weights:
+            match = re.match(r"^(?P<stem>.+)-(?P<index>\d+)-of-(?P<total>\d+)(?P<ext>\..+)$", path.name)
+            if not match:
+                continue
+            total = int(match.group("total"))
+            for shard in range(1, total + 1):
+                sibling = (
+                    f"{match.group('stem')}-{shard:0{len(match.group('index'))}d}"
+                    f"-of-{match.group('total')}{match.group('ext')}"
+                )
+                if not (snapshot / sibling).exists():
+                    return False
+        return True
 
     async def _run_download(self, job: ManagedModelDownloadJob, spec: ManagedModelSpec) -> None:
         job.state = "running"

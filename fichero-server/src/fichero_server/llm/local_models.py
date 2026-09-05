@@ -71,6 +71,63 @@ WHISPER_MODELS: dict[str, dict] = {
 }
 
 
+# =============================================================================
+# spaCy models (#4671)
+# =============================================================================
+#
+# The SVO grammar gate reads a page's part-of-speech and morphology to convict
+# rows the model got wrong — a "verb" that is a proper noun, a first-person
+# verb stamped with a bystander's name. Measured on a real Caciques page it
+# refused 16 of 17 bad rows, and Apple's on-device NLTagger cannot replace it
+# (no morphology for Spanish at all).
+#
+# `ModelType.SPACY` and a reserved directory have been here since this module
+# was written, marked "future". This is that future: the models are real rows
+# now, with honest installed-state, so Settings can show what is present and
+# what a page's language would need.
+#
+# UNLIKE Whisper and FastEmbed, spaCy models are pip PACKAGES, not files we
+# place in `MODELS_BASE`. So installed-state is asked of the runtime rather
+# than measured off disk, and there is no directory of ours to delete.
+
+SPACY_MODELS: dict[str, dict] = {
+    "es_core_news_sm": {
+        "language": "es",
+        "disk_mb": 16,
+        "note": "Spanish — the SVO grammar gate. Small is enough: the gate "
+                "reads part-of-speech and person, not word vectors.",
+    },
+    "en_core_web_sm": {
+        "language": "en",
+        "disk_mb": 15,
+        "note": "English — the same gate, for English-language material.",
+    },
+    "es_core_news_lg": {
+        "language": "es",
+        "disk_mb": 568,
+        "note": "Spanish, large. Carries word vectors this gate does not use, "
+                "and its benefit for 16th-century orthography is UNMEASURED — "
+                "install it to test that, not on the assumption it is better.",
+    },
+}
+
+
+def _spacy_installed_models() -> set[str]:
+    """Which spaCy models this interpreter can actually load."""
+    try:
+        import spacy.util
+
+        return set(spacy.util.get_installed_models())
+    except Exception:  # noqa: BLE001 — spaCy is an optional extra
+        return set()
+
+
+def _spacy_runtime_available() -> bool:
+    import importlib.util
+
+    return importlib.util.find_spec("spacy") is not None
+
+
 def _embedding_metadata(
     *,
     dimensions: int,
@@ -409,9 +466,78 @@ class LocalModelManager:
     # Unified Operations
     # =========================================================================
 
+    def list_spacy_models(self) -> list[LocalModelInfo]:
+        """List the spaCy models the grammar gate can use.
+
+        Installed-state comes from the RUNTIME, not from disk: these are pip
+        packages, so a directory under `MODELS_BASE` would be a fiction. When
+        spaCy itself is absent — the shipped engine's normal state, since it is
+        an optional `[kg]` extra — every row reports why it cannot act rather
+        than silently listing models nothing can load.
+        """
+        runtime = _spacy_runtime_available()
+        installed = _spacy_installed_models() if runtime else set()
+        results = []
+        for model_id, info in SPACY_MODELS.items():
+            is_downloaded = model_id in installed
+            results.append(
+                LocalModelInfo(
+                    model_id=model_id,
+                    model_type=ModelType.SPACY.value,
+                    display_name=model_id,
+                    # Package size is not measurable without walking
+                    # site-packages per model; the catalog's figure is the
+                    # honest one and it is labelled as expected, not actual.
+                    size_bytes=info["disk_mb"] * 1_000_000 if is_downloaded else 0,
+                    is_downloaded=is_downloaded,
+                    expected_size_mb=info["disk_mb"],
+                    path=None,
+                    metadata=info,
+                    note=info["note"],
+                    available=runtime,
+                    unavailable_reason=(
+                        None
+                        if runtime
+                        else "spaCy is not installed in this engine "
+                        '(pip install -e ".[kg]")'
+                    ),
+                    download_state="installed" if is_downloaded else "idle",
+                )
+            )
+        return results
+
+    def download_spacy_model(self, model_id: str) -> None:
+        """Install a spaCy model package.
+
+        Raises rather than half-succeeding: without the runtime there is
+        nothing to install INTO, and a download that quietly does nothing is
+        the shape a user reads as "it worked".
+        """
+        if model_id not in SPACY_MODELS:
+            raise ValueError(f"Unknown spaCy model: {model_id}")
+        if not _spacy_runtime_available():
+            raise RuntimeError(
+                "spaCy is not installed in this engine, so its models have "
+                'nowhere to go. Install the extra first: pip install -e ".[kg]"'
+            )
+        from spacy.cli import download as spacy_download
+
+        spacy_download(model_id)
+
+    def delete_spacy_model(self, model_id: str) -> int:
+        """Not ours to delete — say so instead of pretending."""
+        raise RuntimeError(
+            f"{model_id} is a pip package, not a file in this app's model "
+            f"store. Remove it with: pip uninstall {model_id}"
+        )
+
     def list_all(self) -> list[LocalModelInfo]:
         """List all models across all types."""
-        return self.list_whisper_models() + self.list_embeddings_models()
+        return (
+            self.list_whisper_models()
+            + self.list_embeddings_models()
+            + self.list_spacy_models()
+        )
 
     def total_disk_usage(self) -> dict[str, int]:
         """Get total disk usage by model type.
@@ -421,6 +547,9 @@ class LocalModelManager:
         """
         whisper_bytes = _whisper_total_bytes()
         embeddings_bytes = sum(m.size_bytes for m in self.list_embeddings_models())
+        # spaCy models are pip packages, not files in our store, so they
+        # are listed but deliberately NOT counted here: this number answers
+        # "how much disk can this app free", and it cannot free those.
         return {
             "whisper": whisper_bytes,
             "embeddings": embeddings_bytes,
@@ -438,6 +567,8 @@ class LocalModelManager:
             self.download_whisper_model(model_id)
         elif model_type == ModelType.EMBEDDINGS.value:
             self.download_embeddings_model(model_id)
+        elif model_type == ModelType.SPACY.value:
+            self.download_spacy_model(model_id)
         else:
             raise ValueError(f"Unknown model type: {model_type}")
 
@@ -455,5 +586,7 @@ class LocalModelManager:
             return self.delete_whisper_model(model_id)
         elif model_type == ModelType.EMBEDDINGS.value:
             return self.delete_embeddings_model(model_id)
+        elif model_type == ModelType.SPACY.value:
+            return self.delete_spacy_model(model_id)
         else:
             raise ValueError(f"Unknown model type: {model_type}")

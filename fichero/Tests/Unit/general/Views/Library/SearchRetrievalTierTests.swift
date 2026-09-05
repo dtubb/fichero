@@ -115,21 +115,36 @@ final class SearchRetrievalTierTests: XCTestCase {
         XCTAssertFalse(source.contains("Text(\"Hybrid\").tag(\"hybrid\")"))
     }
 
-    /// Radio-style: the selected rung draws a checkmark, and the rung is read
-    /// through the ladder rather than compared to a raw string.
+    /// Radio-style: the selected rung is MARKED, and the rung is read through
+    /// the ladder rather than compared to a raw string.
+    ///
+    /// It used to assert `Label(tier.title, systemImage: "checkmark")`. That
+    /// mechanism never drew: this menu drops item images — its own "Save
+    /// Search" row renders iconless — so the three rungs shipped with no mark
+    /// at all (Daniel, 2026-09-04: the Search Type submenu "shows NO current
+    /// selection"). The assertion was pinning a state that existed only in the
+    /// source. A menu `Toggle` has AppKit draw the marker itself, so it cannot
+    /// be dropped, and unlike a `Picker` row it still takes `.disabled` +
+    /// `.help`, which the graph rung needs.
     func testTheSelectedRungIsChecked() throws {
         let source = try Self.appSource(Self.menuSource)
 
-        XCTAssertTrue(source.contains("SearchRetrievalTier(requestValue: searchType) == tier"))
-        XCTAssertTrue(source.contains("Label(tier.title, systemImage: \"checkmark\")"))
+        XCTAssertTrue(source.contains("SearchRetrievalTier(requestValue: searchType.wrappedValue) == tier"))
+        XCTAssertTrue(source.contains("Toggle(isOn: Self.tierBinding("))
+        XCTAssertFalse(
+            source.contains("Label(tier.title, systemImage: \"checkmark\")"),
+            "Selection drawn as an image is selection this menu may not draw at all."
+        )
     }
 
     /// Picking a rung writes the value the next request carries — one source
-    /// of truth for what ran.
+    /// of truth for what ran. It rides the Toggle's binding now; switching a
+    /// rung OFF is a no-op, because a retrieval tier is never "none".
     func testPickingARungWritesTheRequestValue() throws {
         let source = try Self.appSource(Self.menuSource)
 
-        XCTAssertTrue(source.contains("searchType = tier.requestValue"))
+        XCTAssertTrue(source.contains("searchType.wrappedValue = tier.requestValue"))
+        XCTAssertTrue(source.contains("guard isOn else { return }"))
     }
 
     func testTheGraphRungGoesDeadWithItsExplanation() throws {

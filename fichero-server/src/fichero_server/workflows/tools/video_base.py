@@ -53,7 +53,7 @@ from fichero_server.workflows.tools.llm_base import (
 from fichero_server.workflows.tools.audio_base import transcribe_with_whisper
 
 # Import vision utilities for frame analysis
-from fichero_server.workflows.tools.vision_base import file_to_data_uri
+from fichero_server.workflows.tools.vision_base import file_to_data_uri_async
 
 logger = logging.getLogger(__name__)
 
@@ -294,8 +294,11 @@ async def describe_frames(
         return ""
 
     # Convert frames to data URIs
+    # Off the event loop — see similarity.py; a video's frame list is the
+    # longest instance of this in the codebase.
     image_uris = [
-        file_to_data_uri(fp, max_dimension=max_image_dimension) for fp in frame_paths
+        await file_to_data_uri_async(fp, max_dimension=max_image_dimension)
+        for fp in frame_paths
     ]
 
     logger.info(f"Describing {len(image_uris)} frames with vision LLM")

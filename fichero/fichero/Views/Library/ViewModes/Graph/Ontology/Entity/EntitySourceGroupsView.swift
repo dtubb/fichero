@@ -9,6 +9,15 @@ import SwiftUI
 /// be made tappable for PDF jump-to. Backed by the entity inspector
 /// endpoint (#1183).
 struct EntitySourceGroupsView: View {
+    /// THIS surface's entity service — the library the browser is IN.
+    ///
+    /// It resolved `LibraryManager.shared.globalLibrary`, which is not
+    /// "the current library" but the one holding the RESERVED id. The
+    /// services were already injected per window (`libraryServiceEnvironment`);
+    /// this surface simply never read them. Optional so a host that
+    /// injects none fails VISIBLY rather than operating on another
+    /// library's graph (#4306/#4461).
+    @Environment(EntityService.self) private var entityService: EntityService?
     let entityId: String
 
     @State private var inspectorData: Components.Schemas.EntityInspectorResponse?
@@ -204,11 +213,14 @@ struct EntitySourceGroupsView: View {
     // MARK: - Load
 
     private func loadInspector() async {
-        guard let library = LibraryManager.shared.globalLibrary else { return }
+        guard let entityService else {
+            loadError = "This window has no library to read the entity from."
+            return
+        }
         isLoading = true
         loadError = nil
         do {
-            inspectorData = try await library.entityService.getEntityInspector(entityId)
+            inspectorData = try await entityService.getEntityInspector(entityId)
         } catch {
             loadError = error.localizedDescription
         }

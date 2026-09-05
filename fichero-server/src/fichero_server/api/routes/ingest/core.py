@@ -6,6 +6,7 @@ File and folder ingestion endpoints.
 
 import asyncio
 import logging
+import tempfile
 import time
 from pathlib import Path
 from typing import Literal, Optional
@@ -374,6 +375,44 @@ def _import_manifest_folder(
             dated += 1
     if dated:
         logger.info("Manifest folder import: dated %d documents on arrival", dated)
+
+    # RENDITION ROWS. The importer speaks HTTP and there is no rendition write
+    # route, so a corpus import used to leave its variants as a metadata blob:
+    # one displayable path and nothing else — no swipe between renditions, no
+    # record of which tool made which pass, nowhere for a crop's geometry to
+    # live. This is the engine, holding the db, for the same reason the two
+    # blocks above are.
+    from fichero_server.importers.manifest_renditions import attach_renditions
+
+    rendition_count, _refusals = attach_renditions(docs, db)
+    if rendition_count:
+        logger.info(
+            "Manifest folder import: wrote %d rendition rows", rendition_count
+        )
+
+    # A LINKED page with no path renders no thumbnail and opens to nothing —
+    # an unshippable outcome, and one that has happened live (2026-08-18: every
+    # security-scoped bookmark for the source tree failed to resolve and all
+    # 153 stamps declined). Fail loudly, naming the cause, rather than handing
+    # back a library of blank pages. A re-drop repairs, so this is recoverable.
+    from fichero_server.models import DocType as _DocType
+
+    pathless = [
+        doc for doc in docs if doc.doc_type == _DocType.page and not doc.path
+    ]
+    if pathless:
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                f"Import left {len(pathless)} of {len(docs)} pages with no file "
+                "path, so they would render blank. The engine could not verify "
+                "the source files — usually the folder grant does not cover "
+                f"where the images actually live (e.g. {_first_image_hint(pathless[0])}). "
+                "Grant access to that location and drop the folder again; the "
+                "import is idempotent and will repair in place."
+            ),
+        )
+
     queue_derivatives(docs, library_path=package_path, db=db)
     logger.info(
         "Manifest folder import: %s -> %d documents, %d entities, %d skipped",
@@ -383,6 +422,48 @@ def _import_manifest_folder(
         summary.documents_skipped,
     )
     return docs
+
+
+def _first_image_hint(document) -> str:
+    """A concrete path from a pathless document, for the error message."""
+    from fichero_server.importers.manifest_import import preferred_image
+
+    images = (document.metadata or {}).get("images") or []
+    image = preferred_image({"images": images})
+    return str(image.get("source_path")) if image else "an unrecorded location"
+
+
+def _convert_legacy_10_archive(path: Path) -> Path | None:
+    """Convert a dropped Fichero 1.0 archive to a canonical manifest.
+
+    Returns the manifest path (in a temp dir — never inside the archive, which
+    holds the only copy of the corpus), or ``None`` when this is not a 1.0
+    archive. A conversion failure is logged and returns ``None`` so the drop
+    degrades to plain ingest rather than failing outright.
+    """
+    from fichero_server.importers import legacy_10_archive as legacy
+
+    try:
+        if not legacy.looks_like_legacy_archive(path):
+            return None
+        scan = legacy.scan_archives([path], corpus_name=path.name)
+        if not scan.folders:
+            return None
+        out = Path(tempfile.mkdtemp(prefix="fichero10-import-")) / "manifest.jsonl"
+        nodes = legacy.write_manifest(scan, out)
+    except Exception:
+        logger.exception("Fichero 1.0 conversion failed for %s", path)
+        return None
+    logger.info(
+        "Fichero 1.0 archive %s -> %d nodes (%d folders, %d pages, "
+        "%d segment strips deferred)",
+        path,
+        nodes,
+        len(scan.folders),
+        scan.page_count,
+        scan.segment_count,
+    )
+    return out
 
 
 def import_folder_impl(
@@ -424,6 +505,18 @@ def import_folder_impl(
     if manifest_path.is_file():
         return _import_manifest_folder(
             db, manifest_path, request, package_path, on_progress=on_progress
+        )
+
+    # A dropped FICHERO 1.0 archive carries no manifest.jsonl — its manifests
+    # are `assets/manifests/documents_manifest.jsonl`, one per document folder,
+    # several levels down. Without this branch the drop falls through to plain
+    # file ingest, which would import every rendition copy and every .txt as a
+    # sibling document (~2,700 junk nodes per document folder). Convert to the
+    # canonical format first, then take the same path a corpus drop takes.
+    legacy_manifest = _convert_legacy_10_archive(path)
+    if legacy_manifest is not None:
+        return _import_manifest_folder(
+            db, legacy_manifest, request, package_path, on_progress=on_progress
         )
 
     mode = IngestMode(request.mode) if request.mode else (

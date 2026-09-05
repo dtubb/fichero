@@ -40,6 +40,8 @@ enum ReaderLens: String, CaseIterable, Identifiable, Sendable {
     case graph
     case timeline
     case map
+    /// The document's automatic see-also, previously inspector-only.
+    case related
     case notes
 
     var id: String { rawValue }
@@ -53,6 +55,7 @@ enum ReaderLens: String, CaseIterable, Identifiable, Sendable {
         case .graph: "Node Graph"
         case .timeline: "Timeline"
         case .map: "Map"
+        case .related: "Related"
         case .notes: "Notes"
         }
     }
@@ -66,6 +69,7 @@ enum ReaderLens: String, CaseIterable, Identifiable, Sendable {
         case .graph: "point.3.connected.trianglepath.dotted"
         case .timeline: "calendar.badge.clock"
         case .map: "map"
+        case .related: "doc.on.doc"
         case .notes: "note.text"
         }
     }
@@ -75,7 +79,7 @@ enum ReaderLens: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .page: .page
         case .notes: .notes
-        case .statements, .entities, .claims, .graph, .timeline, .map: .knowledge
+        case .statements, .entities, .claims, .graph, .timeline, .map, .related: .knowledge
         }
     }
 
@@ -90,6 +94,7 @@ enum ReaderLens: String, CaseIterable, Identifiable, Sendable {
         case .graph: .graph
         case .timeline: .timeline
         case .map: .map
+        case .related: .related
         }
     }
 

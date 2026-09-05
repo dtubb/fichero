@@ -9,8 +9,15 @@ enum ContentPane: CaseIterable {
 /// Visibility of the three middle content panes as ONE value, so the
 /// "at least one pane visible" invariant lives in a single, unit-testable place
 /// (#1696). This does **not** own the state: the per-window storage stays as the
-/// three `@SceneStorage` bools on `ContentView`, so each window still remembers
-/// its own pane layout across relaunch (Option A — no persistence regression).
+/// three `@SceneStorage` bools on `ContentView`, so each window keeps its own
+/// pane layout.
+///
+/// It did NOT survive relaunch, though this comment claimed it did until
+/// 2026-09-04 — and a comment asserting the very thing that was not happening
+/// is a good part of why the bug lived so long. Scene state is restored by
+/// macOS window restoration, which a quit does not guarantee; what carries a
+/// layout across launches is `WorkspaceLayoutDefaults`, which seeds these
+/// bools from the last deliberate choice.
 struct PaneVisibility: Equatable {
     var grid: Bool
     var canvas: Bool
@@ -69,6 +76,12 @@ extension ContentView {
         if next.grid != showDocumentGrid { showDocumentGrid = next.grid }
         if next.canvas != showDocumentCanvas { showDocumentCanvas = next.canvas }
         if next.reading != showReadingPane { showReadingPane = next.reading }
+        // …and remember it for the next window and the next launch
+        // (Daniel, 2026-09-04: "panes reset each time"). This is the ONE
+        // deliberate mutation path, which is exactly what makes the layout safe
+        // to record here: the programmatic reveals that also move the sidebar
+        // and inspector are deliberately not mirrored.
+        WorkspaceLayoutDefaults.remember(next, chat: showChatPane)
     }
 
     /// A `Bool` binding for `pane` whose setter routes through the invariant —

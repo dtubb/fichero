@@ -287,6 +287,35 @@ extension ContentView {
         Self.pdfPageIndex(for: pageFocusDocument ?? detailDocument)
     }
 
+    /// Pure: the 1-based page the READER should be showing, or `nil` when
+    /// nothing on screen names a page.
+    ///
+    /// The reader used to be handed `detailPDFDocumentId == nil ? nil :
+    /// selectedPageIndex + 1`, which gates the reader's page on the PDF
+    /// CANVAS — and `CanvasDocumentPolicy.shouldUsePDFCanvas` deliberately
+    /// answers false for an image page (`docType == .page && fileType ==
+    /// .image`). So for a library of scanned JPG pages — the Marshall
+    /// corpus — the reader received no active page at all: `syncActivePage`
+    /// sent no scroll, the assembled transcript stayed at the top, and
+    /// picking a search hit showed the containing FILE from its first page
+    /// rather than the matched one (Daniel, 2026-09-04: "still showing
+    /// location based on original file, not location based on library search
+    /// results").
+    ///
+    /// Which canvas renders the SOURCE is not a fact about which page the
+    /// reader is on. The page focus is.
+    static func readerActivePageNumber(for doc: Document?) -> Int? {
+        guard let doc, doc.docType == .page else { return nil }
+        return max(1, doc.sequence ?? 1)
+    }
+
+    /// The reader's active page for THIS window's focus cursor — the same
+    /// `pageFocusDocument ?? detailDocument` value paging and geometry already
+    /// resolve through, so the three cannot name different pages.
+    var readerActivePageNumber: Int? {
+        Self.readerActivePageNumber(for: pageFocusDocument ?? detailDocument)
+    }
+
     /// Number of page-child documents for the previewed PDF (#3866). The reading
     /// pane needs only the COUNT, so this skips the O(n log n) filter+sort +
     /// array allocation that the old `pdfDocPages` accessor cost — read twice per

@@ -158,6 +158,7 @@ class ImportSummary:
     entities_reused: int = 0
     artifacts_created: int = 0
     artifacts_skipped: int = 0
+    claims_failed: int = 0
     claims_created: int = 0
     claims_skipped: int = 0
     warnings: list[str] = field(default_factory=list)
@@ -184,6 +185,7 @@ class ImportSummary:
             "entities_reused": self.entities_reused,
             "artifacts_created": self.artifacts_created,
             "artifacts_skipped": self.artifacts_skipped,
+            "claims_failed": self.claims_failed,
             "claims_created": self.claims_created,
             "claims_skipped": self.claims_skipped,
             "warnings": self.warnings,
@@ -252,6 +254,31 @@ def preferred_image(node: dict[str, Any]) -> dict[str, Any] | None:
             if image.get("role") == role:
                 return image
     return images[0] if images else None
+
+
+def node_provenance(node: dict[str, Any], default_step: str) -> dict[str, Any]:
+    """Provenance for an artifact built from ``node``.
+
+    A node may name the tool that ACTUALLY produced its content — a converted
+    Fichero 1.0 corpus carries ``provider="fichero-1.0"`` with the model the old
+    pipeline recorded on disk (``qwen-vl-max`` for a page transcription,
+    ``gpt-4.1-mini`` for a folder catalogue: two different models in one
+    import, which is why this is per node and not per run). Without those
+    fields the artifact is stamped as this importer's own work, as before.
+    """
+    provider = node.get("provider")
+    model = node.get("model")
+    if not provider:
+        return {
+            "provider": "manifest-importer",
+            "model": CANONICAL_VERSION,
+            "step_name": default_step,
+        }
+    return {
+        "provider": str(provider),
+        "model": str(model) if model else None,
+        "step_name": str(node.get("step_name") or default_step),
+    }
 
 
 def _canonical_metadata(node: dict[str, Any]) -> dict[str, Any]:
@@ -1012,9 +1039,7 @@ def import_manifest(
                             "page_label": node.get("page_label"),
                             "external_id": node.get("external_id"),
                         },
-                        "provider": "manifest-importer",
-                        "model": CANONICAL_VERSION,
-                        "step_name": "import_manifest",
+                        **node_provenance(node, "import_manifest"),
                         "confidence": 1.0,
                     }
                 )
@@ -1047,9 +1072,7 @@ def import_manifest(
                         "page_label": node.get("page_label"),
                         "external_id": node.get("external_id"),
                     },
-                    "provider": "manifest-importer",
-                    "model": CANONICAL_VERSION,
-                    "step_name": "import_manifest",
+                    **node_provenance(node, "import_manifest"),
                     "confidence": 1.0,
                 }
             )
@@ -1123,11 +1146,26 @@ def import_manifest(
                     f"Claim {ext or claim.get('text', '')[:40]!r} references "
                     f"unknown entities: {missing}"
                 )
-            client.request(
-                "POST",
-                "/claims",
-                claim_payload(claim, node, source_document_id, entity_ids),
-            )
+            # A single rejected claim must not destroy the run. Claims are the
+            # LAST phase: every document, entity and artifact is already
+            # committed, so aborting here throws away the summary without
+            # undoing any of the work (live 2026-09-04: one invalid claim_type
+            # killed a 6,866-page import at the finish line). Loud and counted,
+            # never silent — the warning names the claim and the reason.
+            try:
+                client.request(
+                    "POST",
+                    "/claims",
+                    claim_payload(claim, node, source_document_id, entity_ids),
+                )
+            except Exception as exc:
+                summary.claims_failed += 1
+                if len(summary.warnings) < 200:
+                    summary.warnings.append(
+                        f"Claim {ext or claim.get('text', '')[:40]!r} refused: "
+                        f"{str(exc)[:200]}"
+                    )
+                continue
             if ext:
                 existing_claim_externals.add(ext)
             summary.claims_created += 1

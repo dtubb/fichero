@@ -9,24 +9,165 @@ private struct ClaimDeleteActionParams: Encodable {
     }
 }
 
+// MARK: - Attestations (#4672)
+
+/// One place a statement is attested. The backend has carried the
+/// multi-source layer all along (`source_ids` + `source_page_labels`,
+/// "pages per source") — the client schema decodes it and, until tonight,
+/// nothing read it. Daniel: "if a statement happens in two places … it's an
+/// ontological layer. not all of it is hooked up."
+///
+/// Only the PRIMARY attestation carries a verbatim quote and char offsets —
+/// the model stores one anchor per claim — so additional rows navigate to
+/// their page without a highlight rather than faking one. (The per-row
+/// anchor for corroborating extractions is a server gap: `also_extracted_by`
+/// keeps provider labels only, the second run's anchor is discarded at
+/// write time.)
+struct ClaimAttestation: Equatable, Identifiable {
+    let documentId: String
+    let pageLabel: String?
+    /// Verbatim source quote — primary attestation only.
+    let quote: String?
+    let charStart: Int?
+    let charEnd: Int?
+    let bbox: [Double]?
+    let isPrimary: Bool
+
+    var id: String { "\(documentId)::\(pageLabel ?? "")::\(isPrimary)" }
+}
+
+/// One corroborating extraction — another run that produced this same
+/// statement, WITH its own anchor when the run recorded one
+/// (`metadata.corroborations`, 0f6feeccc). Legacy rows predate the anchor
+/// and carry a label only; they render as attribution, not navigation.
+/// The same model legitimately appears more than once with different page
+/// labels — the same statement read on two pages of one document is the
+/// commonest corroboration of all — so rows are never collapsed per model.
+struct ClaimCorroboration: Equatable, Identifiable {
+    let label: String
+    let documentId: String?
+    let pageLabel: String?
+    let charStart: Int?
+    let charEnd: Int?
+
+    var isNavigable: Bool { !(documentId ?? "").isEmpty }
+    var id: String { "\(label)::\(documentId ?? "")::\(pageLabel ?? "")::\(charStart ?? -1)" }
+}
+
 // MARK: - ClaimSummaryCard Detail Views + Actions
 
 extension ClaimSummaryCard {
+
+    /// Corroborating runs, anchors and all. `metadata.corroborations` rows
+    /// (each `{provider, model, document_id, page_label, char_start,
+    /// char_end}`) come first; legacy `also_extracted_by` labels that no
+    /// corroborations row already accounts for follow as label-only rows —
+    /// old rows are not backfillable, and pretending otherwise would invent
+    /// anchors.
+    static func corroborations(
+        for claim: Components.Schemas.KnowledgeClaim
+    ) -> [ClaimCorroboration] {
+        let metadata = claim.metadata?.additionalProperties.value ?? [:]
+        var rows: [ClaimCorroboration] = []
+        for raw in (metadata["corroborations"] as? [Any]) ?? [] {
+            guard let dict = raw as? [String: Any] else { continue }
+            let provider = (dict["provider"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let model = (dict["model"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let label = [provider, model].filter { !$0.isEmpty }.joined(separator: "/")
+            guard !label.isEmpty else { continue }
+            rows.append(ClaimCorroboration(
+                label: label,
+                documentId: cleanedOptional(dict["document_id"] as? String),
+                pageLabel: cleanedOptional(dict["page_label"] as? String),
+                charStart: dict["char_start"] as? Int,
+                charEnd: dict["char_end"] as? Int
+            ))
+        }
+        let coveredLabels = Set(rows.map(\.label))
+        for label in alsoExtractedBy(claim) ?? [] where !coveredLabels.contains(label) {
+            rows.append(ClaimCorroboration(
+                label: label, documentId: nil, pageLabel: nil,
+                charStart: nil, charEnd: nil
+            ))
+        }
+        return rows
+    }
+
+    /// Every place this statement is attested, primary first. Additional
+    /// sources come from the multi-source fields, zipped index-wise with
+    /// their page labels; a missing label is nil, never invented. A source id
+    /// that repeats the primary (or an earlier row) is dropped — re-imports
+    /// have produced doubled ids and a list that shows the same page twice
+    /// reads as two attestations when it is one.
+    static func attestations(
+        for claim: Components.Schemas.KnowledgeClaim
+    ) -> [ClaimAttestation] {
+        var rows: [ClaimAttestation] = []
+        var seen: Set<String> = []
+        let primaryId = (claim.sourceDocumentId ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if !primaryId.isEmpty {
+            seen.insert(primaryId)
+            rows.append(ClaimAttestation(
+                documentId: primaryId,
+                pageLabel: cleanedOptional(claim.sourcePageLabel),
+                quote: cleanedOptional(claim.sourceExcerpt),
+                charStart: claim.sourceCharStart,
+                charEnd: claim.sourceCharEnd,
+                bbox: claim.sourceAnchor?.rect,
+                isPrimary: true
+            ))
+        }
+        let ids = claim.sourceIds ?? []
+        let labels = claim.sourcePageLabels ?? []
+        for (index, rawId) in ids.enumerated() {
+            let docId = rawId.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !docId.isEmpty, seen.insert(docId).inserted else { continue }
+            rows.append(ClaimAttestation(
+                documentId: docId,
+                pageLabel: index < labels.count ? cleanedOptional(labels[index]) : nil,
+                quote: nil,
+                charStart: nil,
+                charEnd: nil,
+                bbox: nil,
+                isPrimary: false
+            ))
+        }
+        return rows
+    }
+
+    private static func cleanedOptional(_ value: String?) -> String? {
+        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (trimmed?.isEmpty ?? true) ? nil : trimmed
+    }
     @ViewBuilder
     var provenanceBadges: some View {
         let badges = Self.provenanceBadges(for: claim)
         if !badges.isEmpty {
-            HStack(spacing: 6) {
-                ForEach(Array(badges.enumerated()), id: \.offset) { _, badge in
-                    Text(badge.label)
-                        .font(tertiaryTextFont)
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 3)
-                        .background(badge.tint.opacity(0.14), in: Capsule())
-                        .foregroundStyle(badge.tint)
+            // The badges are the door to the evidence they summarize: tapping
+            // the row expands the drawer, where "N places" becomes the
+            // attestation list and "Nx corroborated" its attribution footer
+            // (#4672). A summary you cannot open is a count, not evidence.
+            Button {
+                guard !isExpanded else { return }
+                isExpanded = true
+                Task { await loadDetails() }
+            } label: {
+                HStack(spacing: 6) {
+                    ForEach(Array(badges.enumerated()), id: \.offset) { _, badge in
+                        Text(badge.label)
+                            .font(tertiaryTextFont)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 3)
+                            .background(badge.tint.opacity(0.14), in: Capsule())
+                            .foregroundStyle(badge.tint)
+                    }
+                    Spacer(minLength: 0)
                 }
-                Spacer(minLength: 0)
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .help("Show this statement's evidence — sources, contradictions, attribution")
         }
     }
 
@@ -38,8 +179,7 @@ extension ClaimSummaryCard {
     var sourceLine: some View {
         let docId = claim.sourceDocumentId
         let pageLabel = claim.sourcePageLabel?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let docName = LibraryManager.shared.globalLibrary?
-            .documentStore
+        let docName = documentStore?
             .currentDocuments
             .first(where: { $0.id == docId })?
             .name
@@ -114,8 +254,13 @@ extension ClaimSummaryCard {
         }
         // Verbatim source quote — moved into the expanded drawer so the
         // collapsed card stays tight. Tapping the quote opens the source
-        // page and highlights the annotation span.
-        if let excerpt = cleanedDisplayText(claim.sourceExcerpt),
+        // page and highlights the annotation span. When the statement is
+        // attested in MORE THAN ONE place, the quote becomes the primary row
+        // of the attestation list instead, so one statement never renders
+        // its evidence in two competing shapes.
+        if attestationRows.count > 1 {
+            attestationList
+        } else if let excerpt = cleanedDisplayText(claim.sourceExcerpt),
            excerpt != claim.text {
             Button {
                 openClaimSource()
@@ -130,6 +275,7 @@ extension ClaimSummaryCard {
             .buttonStyle(.plain)
             .help("Open the source page and highlight this annotation")
         }
+        corroborationSection
         // Source-region quick-look (#2105/#3449): the cropped evidence + verbatim
         // span + attribution in a popover, and a Reveal that drives the Preview
         // pane to the page/bbox. Only when we can build a source anchor.
@@ -181,6 +327,154 @@ extension ClaimSummaryCard {
         }
     }
 
+    var attestationRows: [ClaimAttestation] {
+        Self.attestations(for: claim)
+    }
+
+    /// Every place this statement is attested, each row a door to ITS page.
+    /// The primary row carries the verbatim quote and lands with the passage
+    /// lit; additional rows navigate without a highlight — the model stores
+    /// one anchor, and drawing a guess would claim precision the row does
+    /// not have. Extractor attribution renders as a footer: the labels in
+    /// `also_extracted_by` name who else produced this statement, but carry
+    /// no anchor of their own (server gap), so they are attribution, not
+    /// navigation.
+    @ViewBuilder
+    var attestationList: some View {
+        let rows = attestationRows
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Attested in \(rows.count) places")
+                .font(tertiaryTextFont)
+                .fontWeight(.semibold)
+                .foregroundStyle(.secondary)
+            ForEach(rows) { attestation in
+                Button {
+                    if let request = Self.openClaimSourceRequest(
+                        documentId: attestation.documentId,
+                        pageLabel: attestation.pageLabel,
+                        charStart: attestation.charStart,
+                        charEnd: attestation.charEnd,
+                        claimId: claim.id,
+                        excerpt: attestation.quote,
+                        bbox: attestation.bbox
+                    ) {
+                        claimSourceNavigationState?.request(request)
+                    }
+                } label: {
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Image(systemName: "doc.text")
+                            .font(tertiaryTextFont)
+                            .foregroundStyle(Color.accentColor)
+                        VStack(alignment: .leading, spacing: 1) {
+                            HStack(spacing: 4) {
+                                Text(attestationDocName(attestation.documentId))
+                                    .font(tertiaryTextFont)
+                                    .foregroundStyle(Color.accentColor)
+                                    .underline()
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                                if let pageLabel = attestation.pageLabel {
+                                    Text("p. \(pageLabel)")
+                                        .font(tertiaryTextFont)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            if let quote = attestation.quote.flatMap(cleanedDisplayText) {
+                                Text("\"\(quote)\"")
+                                    .font(tertiaryTextFont)
+                                    .italic()
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(2)
+                            }
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help(attestation.quote == nil
+                    ? "Open this source page"
+                    : "Open this source page and highlight the passage")
+            }
+        }
+    }
+
+    /// Corroborating extractions — "also found by …" — rendered wherever
+    /// they exist, whether or not the statement is multi-place. Rows with an
+    /// anchor are doors to their page (0f6feeccc); legacy label-only rows
+    /// render as plain attribution, because their anchors were never
+    /// recorded and cannot be invented.
+    @ViewBuilder
+    var corroborationSection: some View {
+        let rows = Self.corroborations(for: claim)
+        if !rows.isEmpty {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Also found by")
+                    .font(tertiaryTextFont)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.secondary)
+                ForEach(rows) { corroboration in
+                    if corroboration.isNavigable, let docId = corroboration.documentId {
+                        Button {
+                            if let request = Self.openClaimSourceRequest(
+                                documentId: docId,
+                                pageLabel: corroboration.pageLabel,
+                                charStart: corroboration.charStart,
+                                charEnd: corroboration.charEnd,
+                                claimId: claim.id
+                            ) {
+                                claimSourceNavigationState?.request(request)
+                            }
+                        } label: {
+                            HStack(spacing: 4) {
+                                Text(corroboration.label)
+                                    .font(tertiaryTextFont)
+                                    .foregroundStyle(Color.accentColor)
+                                    .underline()
+                                if let pageLabel = corroboration.pageLabel {
+                                    Text("p. \(pageLabel)")
+                                        .font(tertiaryTextFont)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .help("Open the page where this run found the statement")
+                    } else {
+                        Text(corroboration.label)
+                            .font(tertiaryTextFont)
+                            .foregroundStyle(.tertiary)
+                            .help("Recorded before corroborations carried anchors — attribution only")
+                    }
+                }
+            }
+        }
+    }
+
+    /// Doc name for an attestation row — the owning-library stores, same
+    /// resolution the digest uses (#4461); the raw id only when the document
+    /// is genuinely absent everywhere.
+    func attestationDocName(_ docId: String) -> String {
+        let all = (documentStore?.currentDocuments ?? [])
+            + (documentStore?.collections ?? [])
+            + (documentStore?.sidebarDocuments ?? [])
+        return all.first(where: { $0.id == docId })?.name ?? docId
+    }
+
+    /// Provider/model labels of OTHER runs that produced this same statement.
+    /// Labels only — their anchors were discarded at write time (server gap,
+    /// #4672), so this is attribution, not navigation.
+    static func alsoExtractedBy(
+        _ claim: Components.Schemas.KnowledgeClaim
+    ) -> [String]? {
+        guard let metadata = claim.metadata?.additionalProperties.value,
+              let raw = metadata["also_extracted_by"] as? [Any]
+        else { return nil }
+        let labels = raw.compactMap { $0 as? String }.filter { !$0.isEmpty }
+        return labels.isEmpty ? nil : labels
+    }
+
     func cleanedDisplayText(_ value: String?) -> String? {
         guard let raw = value?.trimmingCharacters(in: .whitespacesAndNewlines),
               !raw.isEmpty else { return nil }
@@ -193,45 +487,21 @@ extension ClaimSummaryCard {
     }
 
     func loadDetails() async {
-        guard let claimId = claim.id,
-              let library = LibraryManager.shared.globalLibrary else { return }
+        guard let claimId = claim.id, let entityService else { return }
         isLoadingDetails = true
         defer { isLoadingDetails = false }
-        async let contradictionsAsync = try? library.entityService.contradictions(claimId: claimId)
-        async let evidenceChainAsync = try? library.entityService.evidenceChain(claimId: claimId)
+        async let contradictionsAsync = try? entityService.contradictions(claimId: claimId)
+        async let evidenceChainAsync = try? entityService.evidenceChain(claimId: claimId)
         let cons = await contradictionsAsync ?? []
         let chain = await evidenceChainAsync
         contradictions = cons
         evidenceChain = chain
     }
 
-    /// Resolve a lozenge label to an entity and focus its KG neighborhood.
-    /// Falls back to the existing text-search event when no exact entity
-    /// match exists in the library.
-    func focusEntityLozenge(named rawName: String) async {
-        let name = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty else { return }
-        guard let library = LibraryManager.shared.globalLibrary else {
-            entitySearchState?.request(name: name, entityType: nil)
-            return
-        }
-        do {
-            let results = try await library.entityService.listEntities(
-                query: name,
-                limit: 25
-            )
-            let exact = results.first { entity in
-                entity.canonicalName.compare(name, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
-            }
-            if let exact {
-                kgFocusState.focusEntity(entityId: exact.id)
-                return
-            }
-        } catch {
-            // Fallback to text search below.
-        }
-        entitySearchState?.request(name: name, entityType: nil)
-    }
+    // `focusEntityLozenge(named:)` deleted 2026-09-04: its last caller went
+    // away and it had been dead since — a resolve-name-to-entity path nothing
+    // reached. The live name→entity affordances are the header links (#882)
+    // and EntityLozenge's scoped search.
 
     /// Route the explicit source-line button through the typed source-open state.
     func openClaimSource() {
@@ -276,18 +546,26 @@ extension ClaimSummaryCard {
     }
 
     func postOpenClaimSource(for claim: Components.Schemas.KnowledgeClaim) {
+        // The claim's source page does NOT have to be in the folder you are
+        // looking at (#4666). This used to require the source document to be
+        // present in `documentStore.currentDocuments`, so following a
+        // statement worked only when its page happened to be in the current
+        // listing — which, for a claim read off page 533 of a bundle while you
+        // browse the entity list, it never is. The request is resolved against
+        // the engine (`revealResolvedSource`, which walks a page child to its
+        // parent file), so the listing has no business gating it: the guard
+        // turned "go to the source" into silence.
         let docId = claim.sourceDocumentId ?? ""
         guard !docId.isEmpty,
-              LibraryManager.shared.globalLibrary?
-                .documentStore
-                .currentDocuments
-                .contains(where: { $0.id == docId }) == true,
               let request = Self.openClaimSourceRequest(for: claim)
         else { return }
         claimSourceNavigationState?.request(request)
     }
 
-    private func navigateToSource() {
+    // Internal, not `private`: `ClaimSummaryCard` spans two files, and Swift's
+    // `private` is file-scoped — see this file's header. The tap handler in
+    // ClaimSummaryCardView.swift calls it.
+    func navigateToSource() {
         if let onNavigateToSource {
             onNavigateToSource(claim)
         } else {

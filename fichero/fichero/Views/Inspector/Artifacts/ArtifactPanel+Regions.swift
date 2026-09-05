@@ -43,6 +43,19 @@ struct ArtifactRegionsSection: View {
                         Text("Regions")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                        // How much of this geometry is a guess (2026-09-04).
+                        // The overlay draws low-confidence boxes recessive and
+                        // dashed; the number belongs somewhere countable too,
+                        // because "some of them look faint" is not something a
+                        // reader can act on.
+                        if let doubt = OCRBoxConfidence.summary(for: rows.map(\.box)) {
+                            Text(doubt)
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                                .lineLimit(1)
+                                .help("These boxes are drawn dashed and dimmed: the machine is unsure where the word is")
+                                .accessibilityIdentifier("regions.confidenceSummary")
+                        }
                         Spacer(minLength: 0)
                         if selection.artifactId == artifactId, selection.count >= 2 {
                             Button("Combine") { combineSelected() }

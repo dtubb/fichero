@@ -42,7 +42,9 @@ from fichero_server.workflows.tools.extract_all import (
 )
 from fichero_server.workflows.tools.extract_entities_only import (
     _ENTITY_TYPES,
+    _ENTITY_TYPES_CONFIG,
     _records_for_documents,
+    _requested_sections,
 )
 from fichero_server.workflows.tools.extractors import (
     _SECTION_SCHEMAS,
@@ -154,6 +156,7 @@ def _entities_for_records(records: list[dict[str, Any]], db) -> dict[str, dict[s
     ],
     sort_order=37,
     config_schema={
+        **_ENTITY_TYPES_CONFIG,
         "document_context": {
             "type": "string",
             "title": "Document Context",
@@ -225,6 +228,7 @@ async def extract_svo_only(
     # ("Write in auto.") and the library's language policy had no effect on SVO
     # extraction at all. Resolved PER DOCUMENT now, which is what makes
     # "language of the document" mean something on a mixed corpus.
+    requested_sections = _requested_sections(inputs.get("entity_types"))
     policy = configured_policy()
     instructions_by_language: dict[tuple[str, str], str] = {}
     languages_used: dict[str, int] = defaultdict(int)
@@ -258,6 +262,11 @@ async def extract_svo_only(
             str(inputs.get("document_context") or "").strip()
             or (f"Written by {doc_meta['author']}." if doc_meta.get("author") else "")
         )
+        # WHO the page's first person is (#4671). A diary's "otorgamos"/"I"
+        # legitimately belongs to its diarist, so the grammar check must not
+        # reject a first-person verb when the subject IS that person — only
+        # when a nearby name has been stamped onto someone else's "we".
+        speaker = str(doc_meta.get("author") or "").strip()
         cache_key = (instruction_key, document_context)
         claim_instructions = instructions_by_language.get(cache_key)
         if claim_instructions is None:
@@ -282,7 +291,11 @@ async def extract_svo_only(
         # so the timeline probe contract (#1470: time_start/time_end/
         # date_values on date claims) survives the Catalogue chain (2026-09-03).
         dates_section = _SECTION_BY_KEY.get("dates")
-        if dates_section is not None and (record["text"] or "").strip():
+        if (
+            dates_section is not None
+            and "dates" in requested_sections
+            and (record["text"] or "").strip()
+        ):
             try:
                 async with extraction_sem:
                     dates_result = await chat_structured_with_fallback(
@@ -326,7 +339,7 @@ async def extract_svo_only(
 
         for section_key, entities in page_entities.items():
             section = _SECTION_BY_KEY.get(section_key)
-            if section is None:
+            if section is None or section_key not in requested_sections:
                 continue
             for entity in entities:
                 entities_processed += 1
@@ -337,6 +350,7 @@ async def extract_svo_only(
                     llm_config,
                     claim_instructions,
                     extraction_sem,
+                    speaker=speaker,
                 )
                 claims_extracted += len(claims)
                 if not claims:

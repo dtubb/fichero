@@ -99,7 +99,61 @@ extension WorkflowBar {
             Image(systemName: "scope")
         }
         .labelStyle(ChainTokenLabelStyle())
-        .chainTokenLozenge(tint: Color.accentColor.opacity(0.12))
+        // BLUE for the subject (Daniel, 2026-09-04: "blue lozenges for
+        // selection"). Named blue rather than the accent: the accent is
+        // whatever the user set system-wide, and the point of this tint is
+        // that WHAT THE RUN ACTS ON is a different kind of token from the
+        // verbs — a distinction that disappears when the accent happens to
+        // be graphite. The ONE-lozenge rule holds: only the tint differs.
+        .chainTokenLozenge(tint: Color.blue.opacity(0.16))
+    }
+
+    /// The model this step will REALLY run on — its pin when the pin can
+    /// serve it, otherwise the tier default (R-11, 2026-09-04). The engine
+    /// declines to stamp a choice it cannot honestly serve, so a sentence
+    /// that kept showing the pin would name a model the run does not use.
+    private func effectiveModelLabel(for step: StagedWorkflowStep) -> String {
+        guard let choice = effectiveChoice(for: step), !choice.model.isEmpty else {
+            return resolvedDefaultModelLabel(for: step)
+        }
+        return ModelChipToolbarItem.shorten(choice.model)
+    }
+
+    private func effectiveModelId(for step: StagedWorkflowStep) -> String {
+        guard let choice = effectiveChoice(for: step), !choice.model.isEmpty else {
+            return resolvedDefaultModelId(for: step)
+        }
+        return choice.model
+    }
+
+    private func effectiveModelProvider(for step: StagedWorkflowStep) -> String {
+        guard let choice = effectiveChoice(for: step), !choice.provider.isEmpty else {
+            return resolvedDefaultModelProvider(for: step)
+        }
+        return choice.provider
+    }
+
+    /// True when the step's pin is the model that will actually run.
+    private func pinIsHonored(_ step: StagedWorkflowStep) -> Bool {
+        step.hasModelOverride && effectiveChoice(for: step)?.model == step.modelOverride
+    }
+
+    /// The tooltip names the model AND, when a pin was overruled, says so —
+    /// silently substituting a different model is the failure this whole
+    /// feature exists to prevent.
+    private func modelTokenHelp(for step: StagedWorkflowStep) -> String {
+        let running = effectiveModelLabel(for: step)
+        if pinIsHonored(step) {
+            return "This step is pinned to \(running) — click to change it"
+        }
+        if step.hasModelOverride {
+            return "\(step.modelDescription) cannot do what \(step.displayName) "
+                + "needs, so this step runs on \(running), the configured "
+                + "\(defaultTierName(for: step)) default — click to pin another model"
+        }
+        return "This step runs on \(running), the configured "
+            + "\(defaultTierName(for: step)) default for what this step does — "
+            + "click to pin a different model"
     }
 
     /// The step's model as a clickable token in the sentence. The same menu
@@ -128,33 +182,27 @@ extension WorkflowBar {
         // 12pt side finally holds. The text stays the click target.
         HStack(spacing: 3) {
             ModelFamilyMark(
-                model: step.modelOverride ?? resolvedDefaultModelId(for: step),
-                provider: step.providerOverride ?? resolvedDefaultModelProvider(for: step),
+                model: effectiveModelId(for: step),
+                provider: effectiveModelProvider(for: step),
                 side: 12
             )
             Menu {
                 modelMenu(forStepAt: index)
             } label: {
-                Text(step.hasModelOverride
-                     ? step.modelDescription
-                     : resolvedDefaultModelLabel(for: step))
+                Text(effectiveModelLabel(for: step))
             }
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
             .fixedSize()
         }
-        .foregroundStyle(step.hasModelOverride ? Color.primary : Color.secondary)
+        .foregroundStyle(pinIsHonored(step) ? Color.primary : Color.secondary)
         .chainTokenLozenge(tint: Color.accentColor.opacity(0.10))
         .disabled(isRunning)
-        .help(step.hasModelOverride
-              ? "This step is pinned to \(step.modelDescription) — click to change it"
-              : "This step runs on \(resolvedDefaultModelLabel(for: step)), the "
-              + "configured \(defaultTierName(for: step)) default for what this "
-              + "step does — click to pin a different model")
+        .help(modelTokenHelp(for: step))
         .accessibilityLabel(
-            step.hasModelOverride
-                ? "Model: \(step.modelDescription)"
-                : "Model: \(resolvedDefaultModelLabel(for: step)) (default)"
+            pinIsHonored(step)
+                ? "Model: \(effectiveModelLabel(for: step))"
+                : "Model: \(effectiveModelLabel(for: step)) (default)"
         )
     }
 
@@ -196,16 +244,22 @@ extension WorkflowBar {
             ))
             .font(WorkflowBar.chainTokenFont)
 
-            if showsLabels {
-                // The SAME type as the subject and model tokens (Daniel,
-                // 2026-09-01: "render each part as a lozenge with the same
-                // text style"). The step used to be a size-10 regular next to
-                // two size-10 mediums, which read as a caption dropped into a
-                // sentence rather than as its verb.
-                Text(step.name)
-                    .font(WorkflowBar.chainTokenFont)
-                    .lineLimit(1)
-            }
+            // ALWAYS spelled out (Daniel, 2026-09-04: "spell out each step
+            // in the bar, not just icon"). The label toggle governs the VERB
+            // ROW above — a dense icon rail of things you might do. This row
+            // is a sentence about a paid run that is about to happen, and a
+            // sentence whose verbs are icons is a rebus: "With 5 pages, use
+            // claude-opus-5 to ▦, then use gemini to ◫" tells nobody what
+            // they are about to spend money on.
+            //
+            // The SAME type as the subject and model tokens (Daniel,
+            // 2026-09-01: "render each part as a lozenge with the same text
+            // style"). The step used to be a size-10 regular next to two
+            // size-10 mediums, which read as a caption dropped into a
+            // sentence rather than as its verb.
+            Text(step.name)
+                .font(WorkflowBar.chainTokenFont)
+                .lineLimit(1)
             if let symbol = chipSymbol(for: step) {
                 Image(systemName: symbol)
                     .font(.system(size: 8))

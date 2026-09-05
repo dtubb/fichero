@@ -224,15 +224,20 @@ def _workflow_direct_runnable(wf) -> bool:
     return workflow_is_direct_runnable(getattr(wf, "config", None))
 
 
-def _workflow_accepts_model_override(wf) -> bool:
+def _workflow_accepts_model_override(wf, workflow_resolver=None) -> bool:
     """True when a run-level provider/model override would change something.
 
     Same function the execute path uses to decide whether to refuse the run
     (#3804), so what the menu offers and what the engine honours cannot drift.
+    Descends into children with the resolver the response already holds: since
+    R-11 the choice reaches them, and a delegating parent that answered "no"
+    is what greyed out the Catalogue chip while the run ignored the pick.
     """
     from fichero_server.workflows.validation import workflow_accepts_model_override
 
-    return workflow_accepts_model_override(getattr(wf, "nodes", None))
+    return workflow_accepts_model_override(
+        getattr(wf, "nodes", None), workflow_resolver=workflow_resolver
+    )
 
 
 def _workflow_input_kinds(wf, workflow_resolver) -> list[str]:
@@ -717,7 +722,9 @@ def _workflow_to_response(
         sort_order=workflow.sort_order,
         untested=_workflow_untested(workflow),
         direct_runnable=_workflow_direct_runnable(workflow),
-        accepts_model_override=_workflow_accepts_model_override(workflow),
+        accepts_model_override=_workflow_accepts_model_override(
+            workflow, workflow_resolver
+        ),
         requires_vision=_workflow_requires_vision(workflow, workflow_resolver),
         accepted_inputs=_workflow_input_kinds(workflow, workflow_resolver),
         is_system=bool(getattr(workflow, "is_system", False)),

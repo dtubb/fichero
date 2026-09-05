@@ -1,0 +1,113 @@
+{
+  "name": "Extract Events (Timeline)",
+  "description": "Extracts only what a timeline can show: dated events and the dates themselves. Transcribe each page (reusing any existing text layer), name the events, then read each event's claim and the date the text gives it. Every claim lands as a KnowledgeClaim with time_start / time_end, which is what the KG Timeline plots — no places, no organizations, no per-person loop over pages the timeline will never show. Verbs and objects are copied from the source, so clicking a point on the timeline lands on the words that put it there.",
+  "format": "nodes",
+  "is_template": true,
+  "is_system": true,
+  "folder_path": "/Extract",
+  "tags": [
+    "preset",
+    "events",
+    "timeline",
+    "dates",
+    "extract",
+    "representation"
+  ],
+  "config": {
+    "preset_version": 1
+  },
+  "nodes": [
+    {
+      "id": "files-source",
+      "tool": "files",
+      "label": "Files",
+      "position_x": 80,
+      "position_y": 200,
+      "inputs": {},
+      "config": {}
+    },
+    {
+      "id": "transcribe",
+      "tool": "transcribe",
+      "label": "Transcribe each file",
+      "position_x": 320,
+      "position_y": 200,
+      "inputs": {},
+      "config": {
+        "vision_mode": "auto",
+        "language": "auto",
+        "update_page_content": true
+      }
+    },
+    {
+      "id": "extract-events",
+      "tool": "extract_entities_only",
+      "label": "Name the events",
+      "position_x": 560,
+      "position_y": 200,
+      "inputs": {},
+      "config": {
+        "entity_types": "events",
+        "output_language": "auto",
+        "provider_name": "$small"
+      }
+    },
+    {
+      "id": "extract-event-claims",
+      "tool": "extract_svo_only",
+      "label": "Date the events",
+      "position_x": 800,
+      "position_y": 200,
+      "inputs": {},
+      "config": {
+        "entity_types": "events,dates",
+        "output_language": "auto",
+        "provider_name": "$small"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-files-transcribe-files",
+      "source": "files-source",
+      "target": "transcribe",
+      "source_port": "files",
+      "target_port": "files"
+    },
+    {
+      "id": "e-files-transcribe-documents",
+      "source": "files-source",
+      "target": "transcribe",
+      "source_port": "documents",
+      "target_port": "documents"
+    },
+    {
+      "id": "e-files-events-documents",
+      "source": "files-source",
+      "target": "extract-events",
+      "source_port": "documents",
+      "target_port": "documents"
+    },
+    {
+      "id": "e-transcribe-events-barrier",
+      "source": "transcribe",
+      "target": "extract-events",
+      "source_port": "text",
+      "target_port": "barrier"
+    },
+    {
+      "id": "e-files-event-claims-documents",
+      "source": "files-source",
+      "target": "extract-event-claims",
+      "source_port": "documents",
+      "target_port": "documents"
+    },
+    {
+      "id": "e-events-event-claims-barrier",
+      "source": "extract-events",
+      "target": "extract-event-claims",
+      "source_port": "summary",
+      "target_port": "barrier"
+    }
+  ]
+}

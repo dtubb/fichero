@@ -19,7 +19,7 @@ final class MenuShortcutBoundaryTests: XCTestCase {
     /// policy, silently reverts an unrelated move/delete/workflow result while
     /// the user is typing.
     func testOnlyUndoCommandRegistersCommandZAndItDefersToTheResponderChain() throws {
-        let owner = "App/Menus/FocusedCommandButtons+UndoNavigation.swift"
+        let owner = "App/Menus/FocusedCommands/FocusedCommandButtons+UndoNavigation.swift"
         var offenders: [String] = []
         for path in try Self.appSwiftFiles() where path != owner {
             let source = try Self.appSource(path)
@@ -55,7 +55,7 @@ final class MenuShortcutBoundaryTests: XCTestCase {
     /// case (`ChatInspector+Header.swift`'s second ⌘A) was removed
     /// 2026-09-02; the chord has one owner everywhere now.
     func testOnlySelectAllCommandRegistersCommandAInTheMenus() throws {
-        let owner = "App/Menus/FocusedCommandButtons+SelectAll.swift"
+        let owner = "App/Menus/FocusedCommands/FocusedCommandButtons+SelectAll.swift"
         var offenders: [String] = []
         for path in try Self.appSwiftFiles()
         where path != owner && path.hasPrefix("App/Menus/") {

@@ -233,11 +233,18 @@ extension ContentView {
             // away from it: the number you are reading is the reason you want
             // more of them. `.borderless`, not `.link` — LinkButtonStyle is
             // macOS-only and this bar is multiplatform chrome.
-            if store.searchStats?.hasMore == true {
-                Button("Load more") { loadMoreTransientResults() }
-                    .buttonStyle(.borderless)
-                    .font(.callout)
-                    .fixedSize()
+            if SearchHonestySummary.showsPager(
+                hasMore: store.searchStats?.hasMore == true,
+                rows: total,
+                limit: transientSearchLimit
+            ) {
+                Button(SearchHonestySummary.pagerLabel(pageSize: Self.transientSearchPageSize)) {
+                    loadMoreTransientResults()
+                }
+                .buttonStyle(.borderless)
+                .font(.callout)
+                .fixedSize()
+                .accessibilityIdentifier("library.search.loadMore")
             }
         }
     }

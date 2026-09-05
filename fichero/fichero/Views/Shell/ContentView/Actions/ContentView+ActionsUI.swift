@@ -72,6 +72,8 @@ extension ContentView {
 
         viewSettings.previewMode = normalizedPreviewMode(previewMode)
         currentLayoutMode = requestedMode
+        // A layout mode is a deliberate choice, so the next window opens in it.
+        WorkspaceLayoutDefaults.setLayoutModeRaw(requestedMode.rawValue)
 
         // Legacy-recovery net: a window persisted with all panes hidden (before
         // the #1696 invariant existed) gets a pane back on entering widescreen.
@@ -107,6 +109,7 @@ extension ContentView {
             viewSettings.previewMode = .widescreen
         }
         showChatPane = isVisible
+        WorkspaceLayoutDefaults.remember(paneVisibility, chat: isVisible)
     }
 
     /// Show/hide the library list pane beside the reader (#4288). Unlike the

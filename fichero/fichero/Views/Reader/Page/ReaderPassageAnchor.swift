@@ -99,6 +99,46 @@ struct ReaderPassageAnchor: Equatable, Sendable {
         return info
     }
 
+    /// A phrase from the matched passage that the reader can FIND.
+    ///
+    /// The reader's Page tab renders the parent's ASSEMBLED transcript
+    /// (`kgDocumentId` maps a page to its parent), so this anchor's offsets —
+    /// which the engine measured against the PAGE — address the wrong text
+    /// there. `scrollToSpan(page, …)` declares a page parameter for exactly
+    /// this, but `document_view.html` ignores it and slices
+    /// `documentTranscript`, so handing it page offsets would highlight a
+    /// confidently wrong passage. Over a manuscript that is worse than none,
+    /// because the reader cannot tell.
+    ///
+    /// So the landing goes through TEXT instead, on the find-in-page path
+    /// that already works over an assembled transcript (#4338). The whole
+    /// excerpt is a poor needle — it spans line breaks the assembly
+    /// re-flows — so this takes a short, whitespace-normalized head of it:
+    /// long enough to be the passage rather than a common word, short enough
+    /// to survive re-wrapping.
+    ///
+    /// Empty when there is nothing findable, which the caller reads as "leave
+    /// the find bar alone".
+    static func findPhrase(from text: String, wordLimit: Int = 8, characterLimit: Int = 80) -> String {
+        let words = text
+            .split(whereSeparator: \.isWhitespace)
+            .prefix(wordLimit)
+            .map(String.init)
+        guard !words.isEmpty else { return "" }
+        var phrase = ""
+        for word in words {
+            let candidate = phrase.isEmpty ? word : phrase + " " + word
+            if candidate.count > characterLimit { break }
+            phrase = candidate
+        }
+        // A single word longer than the cap is still the best needle there is
+        // — truncating mid-word would find nothing at all.
+        return phrase.isEmpty ? words[0] : phrase
+    }
+
+    /// This anchor's findable phrase.
+    var findPhrase: String { Self.findPhrase(from: text) }
+
     private static func intValue(_ value: Any?) -> Int? {
         if let int = value as? Int { return int }
         if let number = value as? NSNumber { return number.intValue }

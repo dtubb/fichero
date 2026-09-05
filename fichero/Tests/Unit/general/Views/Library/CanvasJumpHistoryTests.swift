@@ -211,7 +211,7 @@ struct CanvasCameraCommandGuardTests {
     func equatableComparesFlagsOnly() throws {
         // The ×31 "FocusedValue update tried to update multiple times per
         // frame" fault in the 2026-08-19 log came from exactly this.
-        let source = try appSource("App/Menus/FocusedCommandButtons+FocusedValues.swift")
+        let source = try appSource("App/Menus/FocusedCommands/FocusedCommandButtons+FocusedValues.swift")
         // Anchor on the DECLARATION, not a prefix of it: "struct
         // CanvasViewActions" also matches "struct CanvasViewActionsKey", so
         // `.last` handed back the KEY's body — which contains no `==` at all

@@ -8,7 +8,12 @@ import SwiftUI
 /// see that as I go left and right") — then the quality ranking, then the
 /// engine's order (index 0, primary first). File scope so tests run off-main.
 func preferredRenditionIndex(in renditions: [DocumentRendition], stickyRole: String?) -> Int {
-    if let stickyRole,
+    // A redraw is never the landing rendition, sticky or not (2026-09-04).
+    // The sticky role means "keep showing me this KIND as I step through
+    // pages", which is right for background-removed and wrong for an AI
+    // redrawing: it would open every page on a model's interpretation of it
+    // before the reader had seen the page. It stays one flip away.
+    if let stickyRole, stickyRole != DocumentRendition.svgRole,
        let idx = renditions.firstIndex(where: { $0.role == stickyRole }) {
         return idx
     }
@@ -58,12 +63,22 @@ extension ZoomableImagePreview {
         renditions = []
         renditionIndex = 0
         renditionOverrideImage = nil
+        svgRenditionMarkup = nil
+        svgRenditionError = nil
         guard let documentId, let renditionService else { return }
         // Only renditions whose bytes are expected to exist: a
         // referenced-but-absent staging entry is a knowable state in the
         // model, but it should never become a step in a flip sequence.
         await renditionService.load(documentId: documentId)
-        renditions = renditionService.displayable(documentId: documentId)
+        // An AI redraw of this page is another way it LOOKS, so it joins the
+        // same up/down flip (Daniel, 2026-09-04) — appended last, because the
+        // sequence runs from the page as scanned toward the most interpreted
+        // view of it, and nobody opening a page wants the redrawing first.
+        renditions = await renditionService.appendingSVGRenditions(
+            to: renditionService.displayable(documentId: documentId),
+            documentId: documentId,
+            artifactService: artifactService
+        )
         // Land on the preferred rendition, not blindly on engine-index 0: the
         // reader's current KIND is sticky across sibling steps, and a fresh
         // page opens on the best available (background removed > enhanced >
@@ -142,6 +157,13 @@ extension ZoomableImagePreview {
               renditions.indices.contains(targetIndex),
               targetIndex != renditionIndex else { return }
         let target = renditions[targetIndex]
+        guard !target.isSVGArtifact else {
+            flipToSVGRendition(target, index: targetIndex, recordSticky: recordSticky)
+            return
+        }
+        // Leaving a redraw returns the canvas to pixels.
+        svgRenditionMarkup = nil
+        svgRenditionError = nil
         if recordSticky {
             UserDefaults.standard.set(target.role, forKey: Self.stickyRenditionRoleKey)
             // Only a user flip parks the flip animation; the automatic landing
@@ -170,6 +192,50 @@ extension ZoomableImagePreview {
                 Self.logger.error(
                     "Rendition flip to \(target.id) failed: \(String(describing: error))"
                 )
+            }
+        }
+    }
+
+    /// Land on an SVG redraw: fetch its markup and hand it to WebKit.
+    ///
+    /// Deliberately NOT folded into `flipRendition`'s image path. That path
+    /// ends in `NSImage(data:)`, and an SVG is not something `NSImage` decodes
+    /// — it would fail silently and leave the previous page's pixels up, which
+    /// reads exactly like a dead chevron. This branch has its own failure
+    /// state instead, and the canvas says so.
+    func flipToSVGRendition(
+        _ target: DocumentRendition, index targetIndex: Int, recordSticky: Bool
+    ) {
+        if recordSticky {
+            UserDefaults.standard.set(target.role, forKey: Self.stickyRenditionRoleKey)
+            PreviewSwapAnimation.park(.renditionFlip(forward: targetIndex > renditionIndex))
+        }
+        renditionIndex = targetIndex
+        // The pixels go now, not when the markup lands: leaving them up would
+        // show the scanned page under a strip that says "SVG".
+        renditionOverrideImage = nil
+        svgRenditionMarkup = nil
+        svgRenditionError = nil
+        Task {
+            do {
+                let markup = try await renditionService?.svgArtifactMarkup(
+                    renditionId: target.id, artifactService: artifactService
+                )
+                guard self.renditionIndex == targetIndex else { return }  // a newer flip won
+                guard let markup else {
+                    self.svgRenditionError = "This window has no library to read the redraw from."
+                    return
+                }
+                self.svgRenditionMarkup = markup
+            } catch {
+                guard self.renditionIndex == targetIndex else { return }
+                // Never swallowed (the rule this whole file already follows):
+                // a redraw whose markup is missing or malformed says so.
+                Self.logger.error(
+                    "SVG rendition \(target.id) unavailable: \(String(describing: error))"
+                )
+                self.svgRenditionError =
+                    "The redraw could not be read. It may still be generating, or its markup is incomplete."
             }
         }
     }

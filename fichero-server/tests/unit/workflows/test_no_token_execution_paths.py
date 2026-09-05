@@ -531,8 +531,10 @@ def test_catalogue_full_pipeline_runs_from_folder_with_stubs(
         llm_config,
         instructions: str,
         extraction_sem,
+        speaker: str = "",
     ) -> list[dict]:
         del chunk_text, entity_type, llm_config, instructions, extraction_sem
+        del speaker
         if entity_name == "Ada Mock":
             return [
                 {

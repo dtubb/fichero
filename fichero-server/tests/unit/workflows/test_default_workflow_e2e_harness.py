@@ -41,8 +41,16 @@ import fichero_server.workflows.tools.cleanup as cleanup_module
 import fichero_server.workflows.tools.extract_all as extract_all_module
 
 
+# The fixture page must SAY what the stubbed extractions claim it says
+# (#4666). It used to be one sentence, while the stubs returned "hosted the
+# fixture signing" and "dated the fixture deed" — phrases nowhere on it. That
+# was the harness modelling exactly the failure the grounding contract exists
+# to catch: a model composing fluent prose about a page instead of reading it.
+# With the gate in place those claims are now rejected, correctly, so the page
+# gained the sentence that supports them.
 FIXTURE_TEXT = (
-    "Regression Person signed the fixture deed in Regression Place in 1842."
+    "Regression Person signed the fixture deed in Regression Place in 1842. "
+    "Regression Place hosted the fixture signing, dated 1842."
 )
 
 _TRANSCRIBE_TERMINALS = {
@@ -951,9 +959,13 @@ def _install_twostage_stubs(monkeypatch: pytest.MonkeyPatch) -> None:
             doc_id = str(doc.get("id") or "")
             if not doc_id:
                 continue
+            # Says what the Stage-2 stub below claims it says (#4666): the
+            # claim's object is "the fixture deed", and a page that does not
+            # contain that phrase is a page the claim was invented about —
+            # which the grounding gate now rejects, correctly.
             text = (
-                f"Regression Person signed fixture page {index + 1} "
-                f"in Regression Place in 1842."
+                f"Regression Person signed the fixture deed on page "
+                f"{index + 1} in Regression Place in 1842."
             )
             records.append({"doc_id": doc_id, "text": text})
             texts.append(text)

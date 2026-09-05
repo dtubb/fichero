@@ -33,7 +33,9 @@ Extract and persist entity rows only from existing transcription artifacts
 
 ## Options
 
-This tool has no options.
+| Option | Type | Default | What it does |
+| --- | --- | --- | --- |
+| `entity_types` | string | all | Comma-separated sections to extract: people, places, organizations, events, dates. Blank or 'all' extracts every section. 'events,dates' is the timeline shape. |
 
 ## The prompt it sends
 

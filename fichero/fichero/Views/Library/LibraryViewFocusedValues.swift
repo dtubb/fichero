@@ -85,9 +85,18 @@ struct FocusedSortField: Equatable {
     let value: String
     /// Update the sort field to a new raw value.
     let set: (String) -> Void
+    /// Whether transient search results are the rows on screen — so the menu
+    /// can offer the Relevance row, which means nothing outside a search.
+    ///
+    /// The View menu had no way to know (Daniel, 2026-09-04), and `value`
+    /// carried the STORED field, so it drew a checkmark beside "Name" over a
+    /// list that was in the engine's ranking. It now carries the EFFECTIVE
+    /// field — the same one the toolbar's sort menu shows — so the two menus
+    /// and the list cannot disagree about what the order is.
+    var isSearching: Bool = false
 
     static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.value == rhs.value
+        lhs.value == rhs.value && lhs.isSearching == rhs.isSearching
     }
 }
 

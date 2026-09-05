@@ -64,6 +64,14 @@
 
 import Foundation
 import FoundationModels
+import Translation
+// Vision joins for --recognize-documents. fm-bridge is not "the Foundation
+// Models binary", it is the Swift side of frameworks the Python engine cannot
+// call (lane-model-routing, 2026-09-04) — a sibling binary would mean a second
+// build, a second staging step, a second thing to notarize, and a second path
+// for the engine to fail to find. System framework, dynamically linked, loaded
+// lazily: the Apple Intelligence and Translation paths pay nothing for it.
+import Vision
 
 struct SuccessResponse: Codable {
     let response: String
@@ -281,10 +289,377 @@ struct LocaleSupportResponse: Codable {
     let supported: Bool
 }
 
+
+// =============================================================================
+// Translation (`--translate`) — Apple's free on-device translator.
+//
+// A SEPARATE framework from FoundationModels: it needs no Apple Intelligence,
+// no model assets, and works on machines where the LLM path is unavailable.
+// So it dispatches BEFORE this bridge's Apple Intelligence availability
+// check, the way --probe and --supports-locale already do.
+//
+// Request (stdin):
+//   {"source": "es", "target": "en", "texts": ["…", "…"]}
+//
+// Response (stdout):
+//   {"source_language": "es", "target_language": "en",
+//    "translations": ["…", "…"], "model": "apple-translation"}
+//
+// `source` is REQUIRED. TranslationSession's headless initializer
+// (`installedSource:target:`) takes a concrete source language, and the
+// engine already knows the document's language (llm/lang_detect.py) — asking
+// the caller for the answer it already has beats guessing here.
+//
+// Error kinds (stderr), on top of the shared "json":
+//   - "not_installed"     the pair is supported but not downloaded. NAMES the
+//                         pair. Downloading needs the UI (a translationTask
+//                         presenting Apple's own sheet), which a CLI has no
+//                         way to show — so this refuses instead of silently
+//                         returning the source text as though it were a
+//                         translation.
+//   - "unsupported_pair"  Apple does not translate between these languages.
+//   - "translation"       anything else the framework raised.
+// =============================================================================
+
+struct TranslateSuccessResponse: Codable {
+    let source_language: String
+    let target_language: String
+    let translations: [String]
+    let model: String
+}
+
+/// Read the translate request, or exit with a "json" error naming what is
+/// missing. Split out so the shape of a valid request is stated in one place.
+func parseTranslateRequest(
+    _ raw: [String: Any]
+) -> (source: String, target: String, texts: [String]) {
+    guard let source = (raw["source"] as? String)?.trimmingCharacters(in: .whitespaces),
+          !source.isEmpty
+    else {
+        emitError(
+            "Missing 'source' language. The headless translator needs a concrete "
+            + "source language; detect it before calling.",
+            kind: "json"
+        )
+    }
+    guard let target = (raw["target"] as? String)?.trimmingCharacters(in: .whitespaces),
+          !target.isEmpty
+    else {
+        emitError("Missing 'target' language", kind: "json")
+    }
+    guard let texts = raw["texts"] as? [String], !texts.isEmpty else {
+        emitError("Missing or empty 'texts' array", kind: "json")
+    }
+    return (source, target, texts)
+}
+
+@available(macOS 26.0, *)
+func runTranslate(_ raw: [String: Any]) async {
+    let request = parseTranslateRequest(raw)
+    let source = Locale.Language(identifier: request.source)
+    let target = Locale.Language(identifier: request.target)
+
+    // Ask BEFORE translating. A pair that is merely `.supported` has no model
+    // on disk, and the framework's own error for that case does not say which
+    // pair to download — the caller cannot act on "internalError".
+    switch await LanguageAvailability().status(from: source, to: target) {
+    case .installed:
+        break
+    case .supported:
+        emitError(
+            "The \(request.source) → \(request.target) translation model is not "
+            + "downloaded on this Mac. Open Fichero and run the translation once "
+            + "so macOS can offer the download, or install it in System Settings › "
+            + "General › Language & Region › Translation Languages.",
+            kind: "not_installed"
+        )
+    case .unsupported:
+        emitError(
+            "macOS does not translate \(request.source) → \(request.target).",
+            kind: "unsupported_pair"
+        )
+    @unknown default:
+        emitError(
+            "Unknown translation availability for \(request.source) → "
+            + "\(request.target).",
+            kind: "translation"
+        )
+    }
+
+    let session = TranslationSession(installedSource: source, target: target)
+    do {
+        // `translations(from:)` returns the whole array in one call, and the
+        // framework keeps the order of the requests it was given. The
+        // clientIdentifier is the index so a future streaming variant can
+        // still reassemble; nothing here depends on it.
+        let responses = try await session.translations(
+            from: request.texts.enumerated().map { index, text in
+                TranslationSession.Request(sourceText: text, clientIdentifier: "\(index)")
+            }
+        )
+        let payload = TranslateSuccessResponse(
+            source_language: request.source,
+            target_language: request.target,
+            translations: responses.map(\.targetText),
+            model: "apple-translation"
+        )
+        FileHandle.standardOutput.write(try JSONEncoder().encode(payload))
+    } catch {
+        emitError("Translation failed: \(error)", kind: "translation")
+    }
+}
+
+// MARK: - Document recognition (Vision, macOS 26+)
+
+struct RecognizedRegion: Codable {
+    let index: Int
+    let text: String
+    /// Normalized 0..1, TOP-LEFT origin, flipped here at the boundary — the
+    /// same place `_vision_flip_bbox_to_top_left` flips on the Python side.
+    /// A flip deferred to the consumer is a half-page offset that reads as a
+    /// bad model rather than a bad convention.
+    let polygon: [[Double]]
+    let bbox: [Double]
+}
+
+/// The warm-up answers a DIFFERENT question from --probe, so it gets its own
+/// shape. Reusing ProbeResponse made `available` mean "Apple Intelligence is
+/// usable" in one subcommand and "the warm-up completed" in another — one
+/// field, two meanings, one binary (lane-model-routing review, 2026-09-04).
+struct WarmDocumentsResponse: Codable {
+    let warmed: Bool
+    /// Reported because the falsifiable prediction depends on it: on a COLD
+    /// machine this should itself take ~45s, since it is paying the one-time
+    /// cost. A prediction the caller cannot see is a prediction nobody checks.
+    let elapsed_ms: Int
+    let reason: String?
+}
+
+struct RecognizeDocumentsResponse: Codable {
+    let engine: String
+    /// WHICH PICTURE these fractions describe. Vision normalizes against the
+    /// image it was handed, so a result that does not name its frame cannot be
+    /// placed on a page that has more than one rendition.
+    let pixel_frame: [String: Int]
+    /// Elapsed time, because a 168s cold start and a 0.7s warm call on the same
+    /// page are indistinguishable to the caller otherwise — this is how Python
+    /// tells "cold" from "something is wrong".
+    let elapsed_ms: Int
+    let line_count: Int
+    let word_count: Int
+    let lines: [RecognizedRegion]
+    let words: [RecognizedRegion]
+}
+
+func flippedPolygon(_ points: [simd_float2]) -> [[Double]] {
+    points.map { [Double($0.x), 1.0 - Double($0.y)] }
+}
+
+func polygonBBox(_ polygon: [[Double]]) -> [Double] {
+    guard let first = polygon.first else { return [0, 0, 0, 0] }
+    var minX = first[0], maxX = first[0], minY = first[1], maxY = first[1]
+    for point in polygon {
+        minX = min(minX, point[0]); maxX = max(maxX, point[0])
+        minY = min(minY, point[1]); maxY = max(maxY, point[1])
+    }
+    return [minX, minY, maxX - minX, maxY - minY]
+}
+
+@available(macOS 26.0, *)
+func recognizedRegion(_ observation: RecognizedTextObservation, index: Int) -> RecognizedRegion {
+    let polygon = flippedPolygon(observation.boundingRegion.normalizedPoints)
+    return RecognizedRegion(
+        index: index,
+        text: String(observation.transcript),
+        polygon: polygon,
+        bbox: polygonBBox(polygon)
+    )
+}
+
+func pixelSize(ofImageAt path: String) -> (Int, Int)? {
+    guard let source = CGImageSourceCreateWithURL(URL(fileURLWithPath: path) as CFURL, nil),
+          let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+          let width = properties[kCGImagePropertyPixelWidth] as? Int,
+          let height = properties[kCGImagePropertyPixelHeight] as? Int
+    else { return nil }
+    return (width, height)
+}
+
+@available(macOS 26.0, *)
+func runRecognizeDocuments(_ payload: [String: Any]) async {
+    guard let path = payload["image_path"] as? String, !path.isEmpty else {
+        emitError("Missing 'image_path' in request payload", kind: "json")
+    }
+    guard FileManager.default.isReadableFile(atPath: path) else {
+        emitError("Image not found or unreadable: \(path)", kind: "not_found")
+    }
+    guard let (width, height) = pixelSize(ofImageAt: path) else {
+        emitError("Could not read image dimensions: \(path)", kind: "not_found")
+    }
+
+    let began = Date()
+    var lines: [RecognizedRegion] = []
+    var words: [RecognizedRegion] = []
+    do {
+        let request = RecognizeDocumentsRequest()
+        let observations = try await request.perform(on: URL(fileURLWithPath: path))
+        for observation in observations {
+            let text = observation.document.text
+            for (index, line) in text.lines.enumerated() {
+                lines.append(recognizedRegion(line, index: index))
+            }
+            for (index, word) in (text.words ?? []).enumerated() {
+                words.append(recognizedRegion(word, index: index))
+            }
+        }
+    } catch {
+        // Never an empty result where a failure occurred: a page with no text
+        // and a page that failed must not look alike.
+        emitError("Document recognition failed: \(error)", kind: "vision")
+    }
+
+    let response = RecognizeDocumentsResponse(
+        engine: "vision-recognize-documents",
+        pixel_frame: ["width": width, "height": height],
+        elapsed_ms: Int(Date().timeIntervalSince(began) * 1000),
+        line_count: lines.count,
+        word_count: words.count,
+        lines: lines,
+        words: words
+    )
+    // Encode failure must NOT exit 0 with empty stdout: silence that looks
+    // like a clean run is requirement 4 inverted at the last line of the
+    // function.
+    do {
+        FileHandle.standardOutput.write(try JSONEncoder().encode(response))
+    } catch {
+        emitError("Could not encode recognition result: \(error)", kind: "vision")
+    }
+}
+
+/// Pay the one-time, system-wide Vision warm-up somewhere nobody is waiting on
+/// a page. Measured cold: 168s on a 929x1346 scan, 45s on a blank image; warm:
+/// ~0.3s. Fire-and-forget from the caller, never awaited on the engine boot
+/// path, and never fatal — a warm-up that fails is a slow first page, not a
+/// dead engine.
+///
+/// It warms through a temporary FILE, not an in-memory CGImage, because those
+/// are different code paths and only the file one is what recognition uses.
+/// Measured 2026-09-04: a CGImage warm-up returned success and left the next
+/// real page paying 48.6s anyway. A warm-up that does not warm the path in
+/// question is worse than none — it reports success and changes nothing.
+@available(macOS 26.0, *)
+func runWarmDocuments() async {
+    let began = Date()
+    var succeeded = false
+    let url = FileManager.default.temporaryDirectory
+        .appendingPathComponent("fm-bridge-warm-\(UUID().uuidString).png")
+    defer { try? FileManager.default.removeItem(at: url) }
+
+    let colorSpace = CGColorSpaceCreateDeviceGray()
+    if let context = CGContext(
+        data: nil, width: 64, height: 64, bitsPerComponent: 8, bytesPerRow: 64,
+        space: colorSpace, bitmapInfo: CGImageAlphaInfo.none.rawValue
+    ) {
+        context.setFillColor(gray: 1.0, alpha: 1.0)
+        context.fill(CGRect(x: 0, y: 0, width: 64, height: 64))
+        if let cgImage = context.makeImage(),
+           let destination = CGImageDestinationCreateWithURL(
+               url as CFURL, "public.png" as CFString, 1, nil
+           ) {
+            CGImageDestinationAddImage(destination, cgImage, nil)
+            if CGImageDestinationFinalize(destination) {
+                let request = RecognizeDocumentsRequest()
+                succeeded = ((try? await request.perform(on: url)) != nil)
+            }
+        }
+    }
+
+    let response = WarmDocumentsResponse(
+        warmed: succeeded,
+        elapsed_ms: Int(Date().timeIntervalSince(began) * 1000),
+        reason: succeeded ? nil : "Vision warm-up did not complete; the first real page will pay the cost."
+    )
+    // RETURN, never exit(): Swift `defer` does not run when the process is
+    // terminated by exit(), so exiting here would leak the temp PNG on every
+    // engine start and the defer above would make the leak invisible to the
+    // next reader (lane-model-routing review, 2026-09-04).
+    //
+    // A failed warm-up still must not fail engine startup, so this reports
+    // warmed:false and returns normally rather than erroring.
+    do {
+        FileHandle.standardOutput.write(try JSONEncoder().encode(response))
+    } catch {
+        FileHandle.standardError.write(Data("warm-up encode failed: \(error)\n".utf8))
+    }
+}
+
 @main
 struct FmBridge {
     static func main() async {
         let args = CommandLine.arguments
+
+        // Translation mode — a DIFFERENT framework, dispatched before the
+        // Apple Intelligence check below: on-device translation needs no LLM
+        // assets and works on machines where Apple Intelligence is off.
+        if args.contains("--translate") {
+            let inputData = FileHandle.standardInput.readDataToEndOfFile()
+            guard !inputData.isEmpty else {
+                emitError("Empty stdin", kind: "json")
+            }
+            guard let dict = try? JSONSerialization.jsonObject(with: inputData)
+                    as? [String: Any]
+            else {
+                emitError("Stdin JSON is not an object", kind: "json")
+            }
+            if #available(macOS 26.0, *) {
+                await runTranslate(dict)
+            } else {
+                emitError(
+                    "On-device translation requires macOS 26 or later.",
+                    kind: "unavailable"
+                )
+            }
+            return
+        }
+
+        // Document recognition — Vision, not Foundation Models. Dispatched
+        // beside --translate and before the Apple Intelligence check for the
+        // same reason: it must work on machines with Apple Intelligence off.
+        if args.contains("--recognize-documents") {
+            let inputData = FileHandle.standardInput.readDataToEndOfFile()
+            guard !inputData.isEmpty else {
+                emitError("Empty stdin", kind: "json")
+            }
+            guard let dict = try? JSONSerialization.jsonObject(with: inputData)
+                    as? [String: Any]
+            else {
+                emitError("Stdin JSON is not an object", kind: "json")
+            }
+            if #available(macOS 26.0, *) {
+                await runRecognizeDocuments(dict)
+            } else {
+                emitError(
+                    "Document recognition requires macOS 26 or later.",
+                    kind: "unavailable"
+                )
+            }
+            return
+        }
+
+        // Warm the Vision document model. No stdin, no page, no failure mode
+        // that matters — see runWarmDocuments.
+        if args.contains("--warm-documents") {
+            if #available(macOS 26.0, *) {
+                await runWarmDocuments()
+            } else {
+                emitError(
+                    "Document recognition requires macOS 26 or later.",
+                    kind: "unavailable"
+                )
+            }
+            return
+        }
 
         // Probe mode — availability check only, no generation. Runs in tens
         // of milliseconds; safe to call from the wizard's onAppear.

@@ -238,4 +238,149 @@ struct ReaderSearchPassageLandingTests {
         )
         #expect(selection == "page-7")
     }
+
+    // MARK: - …and it actually SCROLLS there (Daniel, 2026-09-04)
+
+    /// The half the selection fix did not cover. The reader's transcript
+    /// scrolls only when it is handed an `activePageNumber`, and that value
+    /// used to be gated on `detailPDFDocumentId` — i.e. on the PDF canvas,
+    /// which `CanvasDocumentPolicy.shouldUsePDFCanvas` refuses for an image
+    /// page. A library of scanned JPG pages therefore got no active page, no
+    /// scroll, and the transcript opened at the top of the containing file:
+    /// "still showing location based on original file, not location based on
+    /// library search results."
+    @Test("an IMAGE page still names the page the reader must scroll to")
+    func imagePageStillNamesItsPage() {
+        let imagePage = Document(
+            id: "page-7", parentId: "file-1", docType: .page, fileType: .image,
+            name: "7_Hoja_533_Recto.JPG", path: nil, sequence: 7
+        )
+        #expect(
+            CanvasDocumentPolicy.shouldUsePDFCanvas(for: imagePage) == false,
+            "The premise: an image page never uses the PDF canvas."
+        )
+        #expect(
+            ContentView.readerActivePageNumber(for: imagePage) == 7,
+            "Which canvas renders the SOURCE is not a fact about which page the reader is on."
+        )
+    }
+
+    @Test("a PDF page names its page too")
+    func pdfPageNamesItsPage() {
+        let pdfPage = Document(
+            id: "page-3", parentId: "pdf-1", docType: .page, fileType: .pdf,
+            name: "3", path: nil, sequence: 3
+        )
+        #expect(ContentView.readerActivePageNumber(for: pdfPage) == 3)
+    }
+
+    @Test("a page with no recorded sequence falls back to the first, never below it")
+    func pageWithoutSequenceFallsBackToOne() {
+        let unsequenced = Document(
+            id: "page-x", parentId: "file-1", docType: .page, fileType: .image,
+            name: "x", path: nil, sequence: nil
+        )
+        #expect(ContentView.readerActivePageNumber(for: unsequenced) == 1)
+        let zero = Document(
+            id: "page-0", parentId: "file-1", docType: .page, fileType: .image,
+            name: "0", path: nil, sequence: 0
+        )
+        #expect(ContentView.readerActivePageNumber(for: zero) == 1)
+    }
+
+    // MARK: - …and it lands on the PASSAGE (2026-09-04)
+
+    /// The reader's Page tab renders the PARENT's assembled transcript, so
+    /// the anchor's page-relative offsets address the wrong text there and
+    /// `scrollToSpan` would highlight a confidently wrong passage. The
+    /// landing goes through find-in-page instead, on a short phrase.
+    @Test("the anchor yields a short, findable phrase rather than the whole excerpt")
+    func anchorYieldsAFindablePhrase() {
+        let phrase = ReaderPassageAnchor.findPhrase(
+            from: "  el camino  real que va\na la villa de Bagadó y de alli adelante  "
+        )
+        #expect(phrase == "el camino real que va a la villa")
+        #expect(
+            !phrase.contains("\n"),
+            "The assembly re-flows line breaks, so a needle carrying one finds nothing."
+        )
+    }
+
+    @Test("the phrase respects the character cap without truncating mid-word")
+    func phraseRespectsTheCharacterCap() {
+        let phrase = ReaderPassageAnchor.findPhrase(
+            from: "uno dos tres cuatro cinco", characterLimit: 12
+        )
+        #expect(phrase == "uno dos tres")
+    }
+
+    @Test("one word longer than the cap is still the needle")
+    func oneOverlongWordIsStillTheNeedle() {
+        let phrase = ReaderPassageAnchor.findPhrase(from: "supercalifragilistic", characterLimit: 5)
+        #expect(phrase == "supercalifragilistic")
+    }
+
+    @Test("an empty passage yields no phrase")
+    func emptyPassageYieldsNoPhrase() {
+        #expect(ReaderPassageAnchor.findPhrase(from: "   ") == "")
+    }
+
+    @Test("the passage wins over the bare query terms for the document it names")
+    func passageWinsForItsOwnDocument() {
+        let anchor = ReaderPassageAnchor(
+            documentId: "page-7", text: "the road to Bagadó", charStart: 10, charEnd: 28
+        )
+        #expect(
+            ReadingPaneView.readerHighlightSeed(
+                anchor: anchor, documentId: "page-7", searchQuery: "road"
+            ) == "the road to Bagadó",
+            "The passage lands on the sentence; the bare term lights every road in the book."
+        )
+    }
+
+    @Test("an anchor for another document never describes this one")
+    func anchorForAnotherDocumentIsIgnored() {
+        let anchor = ReaderPassageAnchor(
+            documentId: "page-9", text: "somewhere else", charStart: 0, charEnd: 4
+        )
+        #expect(
+            ReadingPaneView.readerHighlightSeed(
+                anchor: anchor, documentId: "page-7", searchQuery: "road"
+            ) == "road"
+        )
+    }
+
+    @Test("with no anchor the library query's terms are still lit")
+    func noAnchorFallsBackToTheQuery() {
+        #expect(
+            ReadingPaneView.readerHighlightSeed(
+                anchor: nil, documentId: "page-7", searchQuery: "road"
+            ) == "road"
+        )
+        #expect(
+            ReadingPaneView.readerHighlightSeed(
+                anchor: nil, documentId: "page-7", searchQuery: ""
+            ) == "",
+            "No query and no anchor dismisses the find bar rather than leaving a stale one."
+        )
+    }
+
+    @Test("an anchor with no text falls back to the query rather than clearing it")
+    func anchorWithNoTextFallsBackToTheQuery() {
+        let anchor = ReaderPassageAnchor(
+            documentId: "page-7", text: "", charStart: 0, charEnd: 0
+        )
+        #expect(
+            ReadingPaneView.readerHighlightSeed(
+                anchor: anchor, documentId: "page-7", searchQuery: "road"
+            ) == "road"
+        )
+    }
+
+    @Test("a non-page names no page, so the reader is never forced to scroll")
+    func nonPageNamesNoPage() {
+        let file = Document(id: "file-1", docType: .file, fileType: .pdf, name: "Doc.pdf")
+        #expect(ContentView.readerActivePageNumber(for: file) == nil)
+        #expect(ContentView.readerActivePageNumber(for: nil) == nil)
+    }
 }

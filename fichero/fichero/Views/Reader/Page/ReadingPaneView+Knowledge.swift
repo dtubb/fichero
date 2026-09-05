@@ -24,7 +24,7 @@ extension ReadingPaneView {
     /// The KG exploration sub-modes in the Knowledge tab. Transcript is a Page
     /// concern; Digest is a separate section (below). Entities/Claims are native
     /// lists; Graph/Timeline/Map are the WebKit visualization views (#3503).
-    static let knowledgeVizModes: [KGSurfaceTab] = [.entities, .claims, .graph, .timeline, .map]
+    static let knowledgeVizModes: [KGSurfaceTab] = [.entities, .claims, .graph, .timeline, .map, .related]
 
     /// The KG tab actually shown: a valid viz sub-mode or the digest section;
     /// anything else (e.g. a stale `.transcript`) falls back to Entities.

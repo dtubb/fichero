@@ -31,7 +31,20 @@ extension ContentView {
         for step: StagedWorkflowStep,
         stagedCount: Int = 1
     ) -> (provider: String?, model: String?) {
-        if step.hasModelOverride {
+        // A pin the step's tool cannot use is NOT sent (R-11, 2026-09-04):
+        // the engine would decline to stamp it and the node would resolve its
+        // tier default anyway, so sending it would only make the bar's
+        // sentence and the run disagree. Same predicate the sentence reads.
+        if step.hasModelOverride, WorkflowBarPolicy.modelUnsuitableReason(
+            WorkflowBarModelChoice(
+                label: step.modelDescription,
+                provider: step.providerOverride ?? "",
+                model: step.modelOverride ?? ""
+            ),
+            for: step,
+            tools: Array(workflowStore.toolRegistry.values),
+            selectionPrefersVision: selectionPrefersVisionModel
+        ) == nil {
             return (step.providerOverride, step.modelOverride)
         }
         if let implicit = workflowBarImplicitOverride(for: step) {
@@ -42,12 +55,17 @@ extension ContentView {
         if let picker = WorkflowBarPolicy.workflowStepPickerOverride(
             for: step,
             stagedCount: stagedCount,
+            tools: Array(workflowStore.toolRegistry.values),
+            textTier: workflowBarTextTierDefault,
             visionTier: workflowBarVisionTierDefault,
             selectionPrefersVision: selectionPrefersVisionModel
         ) {
             return (picker.provider, picker.model)
         }
-        return (step.providerOverride, step.modelOverride)
+        // Unpinned, or pinned to a model this step cannot use: send nothing
+        // and let the engine resolve the tier default — the model the
+        // sentence is already showing.
+        return step.hasModelOverride ? (nil, nil) : (step.providerOverride, step.modelOverride)
     }
 
     // MARK: - Workflow Actions

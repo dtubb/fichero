@@ -169,14 +169,18 @@ extension LibraryView {
     /// ranking. The sort menu still applies if the user chooses one
     /// mid-search; only the default stops fighting the engine.
     private func displayOrderedForCurrentContext(_ docs: [Document]) -> [Document] {
-        if activeSearchQuery != nil, !libraryToolbar.userChoseSortDuringSearch {
-            return docs
-        }
-        return LibrarySortField.orderedForDisplay(
-            docs,
-            field: LibrarySortField(rawValue: sortFieldRaw) ?? .name,
-            using: sortOrder
-        )
+        // ONE value decides the order and names it (2026-09-04):
+        // `effectiveSortField` is `.relevance` while results are showing and
+        // the user has not picked a sort, and `.relevance` preserves the given
+        // order — so this reads as the sort menu reads, rather than the two
+        // agreeing by coincidence.
+        let field: LibrarySortField = {
+            if activeSearchQuery != nil, !libraryToolbar.userChoseSortDuringSearch {
+                return .relevance
+            }
+            return LibrarySortField(rawValue: sortFieldRaw) ?? .name
+        }()
+        return LibrarySortField.orderedForDisplay(docs, field: field, using: sortOrder)
     }
 
     func rebuildDocumentSearchKeys() {

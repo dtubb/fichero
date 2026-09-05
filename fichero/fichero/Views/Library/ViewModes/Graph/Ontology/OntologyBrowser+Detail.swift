@@ -19,6 +19,15 @@ extension OntologyBrowser {
                             sourceDocumentId: claim.sourceDocumentId,
                             sourcePageLabel: claim.sourcePageLabel
                         )
+                        // Focus alone assigns properties on a shared object
+                        // and navigates NOWHERE — the #4666 defect, which
+                        // survived here as an injected override preempting
+                        // the card's own fixed path. Post the real source
+                        // request so a statement clicked in this browser
+                        // lands on its page with the passage lit.
+                        if let request = ClaimSummaryCard.openClaimSourceRequest(for: claim) {
+                            claimSourceNavigationState?.request(request)
+                        }
                     }
                 )
                 // `.task(id: entityId)` re-keys on selection change so

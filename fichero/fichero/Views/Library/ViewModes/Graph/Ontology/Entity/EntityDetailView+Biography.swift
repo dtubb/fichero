@@ -68,8 +68,7 @@ extension EntityDetailView {
     var sourceDocumentsById: [String: Document] {
         Dictionary(
             uniqueKeysWithValues: (
-                LibraryManager.shared.globalLibrary?
-                    .documentStore
+                documentStore?
                     .currentDocuments
                     .map { ($0.id, $0) }
             ) ?? []

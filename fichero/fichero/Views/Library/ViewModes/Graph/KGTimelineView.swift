@@ -23,6 +23,12 @@ import SwiftUI
 struct KGTimelineView: View {
     let entities: [Components.Schemas.KnowledgeEntity]
     @Binding var selectedEntityId: String?
+    /// THIS surface's entity service. `load()` reached for
+    /// `LibraryManager.shared.globalLibrary` — the reserved-id library, not the
+    /// current one — so a timeline opened on any other library listed the
+    /// GLOBAL library's claims and came back empty. Same wrong-scope defect as
+    /// the map beside it (#4461 class, 2026-09-04).
+    @Environment(EntityService.self) private var entityService: EntityService?
     var sourceDocumentId: String?
 
     @State private var claims: [Components.Schemas.KnowledgeClaim] = []
@@ -257,7 +263,8 @@ struct KGTimelineView: View {
 
     @MainActor
     private func load() async {
-        guard let library = LibraryManager.shared.globalLibrary else {
+        guard let service = entityService
+                ?? LibraryManager.shared.globalLibrary?.entityService else {
             loadError = "No library"
             return
         }
@@ -265,7 +272,7 @@ struct KGTimelineView: View {
         loadError = nil
         defer { isLoading = false }
         do {
-            claims = try await library.entityService.listClaims(
+            claims = try await service.listClaims(
                 sourceDocumentId: sourceDocumentId,
                 includeDescendants: sourceDocumentId != nil,
                 limit: 500

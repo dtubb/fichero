@@ -46,6 +46,19 @@ fi
 mkdir -p "$(dirname "$FM_BRIDGE_DEST")"
 # -O                 release-optimized
 # -parse-as-library   required for @main alongside top-level Codable structs
-swiftc -O -parse-as-library -o "$FM_BRIDGE_DEST" "$FM_BRIDGE_SOURCE"
+# -target            REQUIRED: without it the binary's minimum OS is the BUILD
+#                    host's — a bridge built on macOS 27 refuses to launch on
+#                    the macOS 26 Macs we ship to (minos 27.0 was found staged
+#                    in a release app, 2026-09-04), silently killing every
+#                    Apple Intelligence call there.
+swiftc -O -parse-as-library -target arm64-apple-macos26.0 \
+  -o "$FM_BRIDGE_DEST" "$FM_BRIDGE_SOURCE"
 chmod 755 "$FM_BRIDGE_DEST"
-echo "  Built fm-bridge: $FM_BRIDGE_DEST"
+MINOS="$(otool -l "$FM_BRIDGE_DEST" | grep -m1 minos | awk '{print $2}')"
+if [ "$MINOS" != "26.0" ]; then
+  echo "error: fm-bridge minos is $MINOS, not 26.0 — this binary would refuse" >&2
+  echo "       to launch on the macOS 26 Macs we ship to. Refusing to stage it." >&2
+  rm -f "$FM_BRIDGE_DEST"
+  exit 1
+fi
+echo "  Built fm-bridge: $FM_BRIDGE_DEST (minos $MINOS)"

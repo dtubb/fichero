@@ -120,4 +120,15 @@ struct WorkflowBarModelChoice: Equatable {
     let label: String
     let provider: String
     let model: String
+    /// Whether the catalog says this model reads images. `nil` means the
+    /// catalog does not say — which is NOT a "no" (Daniel, 2026-09-01): a
+    /// model newer than the catalog has no flag, and hiding it made a
+    /// metadata gap indistinguishable from a provider that ships no such
+    /// model. Only a definite `false` may grey a row, and never remove it.
+    var supportsVision: Bool?
+    /// The Settings tier this model is the default for ("Vision", "Text",
+    /// "Large", "Small"), when it is one. Annotation only — the pin list is
+    /// every configured model, not the four tiers (Daniel, 2026-09-04:
+    /// "workflow not letting us see all models, just showing 2").
+    var tier: String?
 }

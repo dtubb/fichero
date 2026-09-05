@@ -5,11 +5,24 @@ Handles: DOCX, XLSX, PPTX, EPUB, RTF, ODT, ODS, ODP
 """
 
 import logging
-import re
 from pathlib import Path
 
 from fichero_server.loaders import kreuzberg_cache  # noqa: F401 — env-var side effect
 from fichero_server.loaders.base import MediaContent, MediaLoader
+# RTF → text conversion lives in `rtf_text` so callers that only need the
+# converter do not import Kreuzberg/pdfium with it (#4666). Re-exported here
+# because importers, the views route, and the loader tests already name it.
+from fichero_server.loaders.rtf_text import (  # noqa: F401
+    _RTF_HEX_FULL_RE,
+    _RTF_HEX_RUN_RE,
+    _RTF_SKIP_GROUP_WORDS,
+    _RTF_UNICODE_RE,
+    _decode_rtf_hex_byte,
+    _looks_like_text,
+    _strip_rtf,
+    decode_rtf_hex_escapes,
+    to_plain_text,
+)
 
 # Bind pdfium and pre-import kreuzberg's FFI-callback dependencies before any
 # extraction in this module can reach the Rust pipeline. Module scope on
@@ -46,163 +59,6 @@ TEXT_FORMATS = {
 }
 
 ALL_DOCUMENT_FORMATS = OFFICE_FORMATS | EBOOK_FORMATS | TEXT_FORMATS
-
-# RTF header groups whose content should be discarded (they're tables/metadata,
-# not body text).  Keys must be lowercase control words.
-_RTF_SKIP_GROUP_WORDS = frozenset(
-    {
-        "fonttbl", "colortbl", "stylesheet", "info", "pict", "shppict",
-        "wshad", "filetbl", "listtable", "listoverridetable",
-    }
-)
-
-# Matches RTF hex-escape sequences: \'XX where XX are two hex digits.
-_RTF_HEX_FULL_RE = re.compile(r"\\'([0-9a-fA-F]{2})")
-_RTF_HEX_RUN_RE = re.compile(r"(?:\\'[0-9a-fA-F]{2})+")
-_RTF_UNICODE_RE = re.compile(r"\\u(-?\d+)\?")
-
-
-def _looks_like_text(text: str, *, min_printable_ratio: float = 0.9) -> bool:
-    """Whether a converter's output is prose rather than echoed binary.
-
-    macOS ``textutil`` treats input it cannot parse as plain text and echoes
-    the raw bytes, so a corrupt .doc "succeeds" with a screenful of NULs
-    (#4215). Accepting that would substitute garbage for a real failure.
-    """
-    if not text or "\x00" in text:
-        return False
-    printable = sum(1 for ch in text if ch.isprintable() or ch in "\n\r\t")
-    return printable / len(text) >= min_printable_ratio
-
-
-def _decode_rtf_hex_byte(m: "re.Match[str]") -> str:
-    """Decode a single RTF \'XX byte via cp1252 (Windows-1252 / Latin-1 superset)."""
-    try:
-        return bytes([int(m.group(1), 16)]).decode("cp1252")
-    except (UnicodeDecodeError, ValueError):
-        return m.group(0)
-
-
-def _strip_rtf(text: str) -> str:
-    """Convert raw RTF markup to plain text.
-
-    Uses a character-by-character state machine so nested groups ({\fonttbl
-    {\f0 Arial;}}) are handled correctly without a new dependency.  Returns
-    the string unchanged when it doesn't look like RTF.
-    """
-    stripped = text.lstrip()
-    if not stripped.startswith("{\\rtf"):
-        return text
-
-    # Decode \'XX hex escapes BEFORE the state machine strips control chars.
-    # Without this, \'f3 (ó) becomes bare "f3" because the state machine
-    # consumes ' as an unknown control symbol and outputs the hex digits as
-    # plain text.  Only the full \'XX form is decoded; the bare 'XX form
-    # (no backslash) is NOT decoded because it matches legitimate apostrophes
-    # in plain text ("class of '92", "the '49ers") and corrupts them. (#2505)
-    def _decode_unicode(match: "re.Match[str]") -> str:
-        value = int(match.group(1))
-        return chr(value if value >= 0 else value + 65536)
-
-    stripped = _RTF_UNICODE_RE.sub(_decode_unicode, stripped)
-    codepage = re.search(r"\\ansicpg(\d+)", stripped)
-    encoding = f"cp{codepage.group(1)}" if codepage else "cp1252"
-
-    def _decode_hex_run(match: "re.Match[str]") -> str:
-        raw = bytes(int(value, 16) for value in _RTF_HEX_FULL_RE.findall(match.group()))
-        try:
-            return raw.decode(encoding)
-        except LookupError:
-            return raw.decode("cp1252", errors="replace")
-        except UnicodeDecodeError:
-            return raw.decode(encoding, errors="replace")
-
-    stripped = _RTF_HEX_RUN_RE.sub(_decode_hex_run, stripped)
-
-    output: list[str] = []
-    # skip_until_depth > 0: skip content until depth drops below this value.
-    # Set when a header-group control word (\fonttbl etc.) is encountered;
-    # cleared when the matching closing } brings depth back below that level.
-    skip_until_depth = 0
-    depth = 0
-    i = 0
-    n = len(stripped)
-
-    while i < n:
-        ch = stripped[i]
-
-        if ch == "{":
-            depth += 1
-            i += 1
-
-        elif ch == "}":
-            depth -= 1
-            if skip_until_depth and depth < skip_until_depth:
-                skip_until_depth = 0
-            i += 1
-
-        elif ch == "\\":
-            i += 1
-            if i >= n:
-                break
-
-            if stripped[i].isalpha():
-                # Control word: \word[-N][ ]
-                j = i
-                while j < n and stripped[j].isalpha():
-                    j += 1
-                word = stripped[i:j].lower()
-                i = j
-                # Skip optional numeric parameter
-                if i < n and (stripped[i].isdigit() or stripped[i] == "-"):
-                    while i < n and stripped[i] in "0123456789-":
-                        i += 1
-                # Skip optional single space delimiter
-                if i < n and stripped[i] == " ":
-                    i += 1
-
-                if skip_until_depth:
-                    continue
-
-                if word in _RTF_SKIP_GROUP_WORDS:
-                    # depth already incremented by the preceding {;
-                    # skip everything until depth drops below current level.
-                    skip_until_depth = depth
-                elif word in ("par", "pard", "sect", "page"):
-                    output.append("\n")
-                elif word == "line":
-                    output.append("\n")
-                elif word == "tab":
-                    output.append("\t")
-                # All other control words (font, size, bold…) are formatting — skip.
-
-            else:
-                # Control symbol (\\, \{, \}, \~, \-, …)
-                sym = stripped[i]
-                i += 1
-                if not skip_until_depth:
-                    if sym == "\\":
-                        output.append("\\")
-                    elif sym == "{":
-                        output.append("{")
-                    elif sym == "}":
-                        output.append("}")
-                    elif sym == "~":
-                        output.append(" ")  # non-breaking space
-                    elif sym == "-":
-                        output.append("­")  # soft hyphen
-                    # Other control symbols are ignored
-
-        else:
-            if not skip_until_depth and depth >= 1:
-                output.append(ch)
-            i += 1
-
-    result = "".join(output)
-    result = re.sub(r" {2,}", " ", result)
-    result = re.sub(r"\n{3,}", "\n\n", result)
-    return result.strip()
-
 
 class DocumentLoader(MediaLoader):
     """

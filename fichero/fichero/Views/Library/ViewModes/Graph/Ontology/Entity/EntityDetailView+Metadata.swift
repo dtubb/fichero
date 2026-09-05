@@ -8,8 +8,11 @@ extension EntityDetailView {
     func saveMetadataJSON() async {
         isSavingMetadata = true
         defer { isSavingMetadata = false }
-        guard LibraryManager.shared.globalLibrary != nil else {
-            metadataSaveMessage = "No library"
+        // Can this view NAME the library it is about to write to? The check
+        // asked whether the GLOBAL library existed, which is true in every
+        // session and says nothing about this surface's scope.
+        guard owningLibrary != nil else {
+            metadataSaveMessage = "This window has no library to save the entity in."
             return
         }
         guard let entityId = entity.id else {

@@ -177,7 +177,10 @@ extension ContentView {
             // AnyView stays load-bearing (#4331).
             AnyView(ReadingPaneView(
                 liveDocument: readerDocument,
-                liveActivePageNumber: detailPDFDocumentId == nil ? nil : selectedPageIndex + 1,
+                // NOT gated on the PDF canvas (Daniel, 2026-09-04): an image
+                // page never uses that canvas, so the reader was handed no
+                // active page and never scrolled to a search hit.
+                liveActivePageNumber: readerActivePageNumber,
                 livePageCount: pageCount == 0 ? nil : pageCount,
                 scrollSync: documentScrollSync,
                 onPageSelected: { index in syncGridSelectionToPDFPage(index: index) },

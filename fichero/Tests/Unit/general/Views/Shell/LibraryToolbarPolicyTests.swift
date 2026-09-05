@@ -111,7 +111,10 @@ final class LibraryToolbarPolicyTests: XCTestCase {
         state.sortFieldRaw = LibrarySortField.fileType.rawValue
 
         let model = state.sortMenuModel
-        XCTAssertEqual(model.fields, LibrarySortField.allCases)
+        // Relevance is not among them while browsing: it names the order a
+        // SEARCH produced, and this folder has none.
+        XCTAssertEqual(model.fields, LibrarySortField.fields(isSearching: false))
+        XCTAssertFalse(model.fields.contains(.relevance))
         XCTAssertEqual(model.fields.filter { model.isSelected($0) }, [.fileType])
     }
 

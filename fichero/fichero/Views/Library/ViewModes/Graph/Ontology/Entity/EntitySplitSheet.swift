@@ -12,6 +12,15 @@ struct EntitySplitSheet: View {
     let onSplit: () -> Void
 
     @Environment(\.dismiss) private var dismiss
+    /// THIS sheet's entity service — the library it is MUTATING.
+    ///
+    /// It resolved `LibraryManager.shared.globalLibrary`, the library
+    /// holding the RESERVED id rather than the one on screen, so the
+    /// write landed in a graph the user was not looking at. Optional so
+    /// a host that injects none fails VISIBLY: a sheet that cannot name
+    /// the library it is about to change must not guess one
+    /// (#4306/#4461).
+    @Environment(EntityService.self) private var entityService: EntityService?
     @State private var selectedSplitIds: Set<String> = []
     @State private var selectedAliases: Set<String> = []
     @State private var isSaving = false
@@ -105,13 +114,16 @@ struct EntitySplitSheet: View {
     }
 
     private func split() {
-        guard let library = LibraryManager.shared.globalLibrary,
-              let primaryId = primaryEntity.id else { return }
+        guard let primaryId = primaryEntity.id else { return }
+        guard let entityService else {
+            errorText = "This window has no library to split the entity in."
+            return
+        }
         isSaving = true
         errorText = nil
         Task {
             do {
-                _ = try await library.entityService.splitEntity(
+                _ = try await entityService.splitEntity(
                     primaryEntityId: primaryId,
                     splitOffEntityIds: Array(selectedSplitIds),
                     aliasesToMove: Array(selectedAliases)

@@ -118,12 +118,22 @@ extension ContentView {
         guard !query.isEmpty else { return }
         toolbarSearchText = query
         activeSearchQuery = query
+        libraryToolbarState.searchIsActive = true
+        libraryToolbarState.userChoseSortDuringSearch = false
         transientSearchLimit = Self.transientSearchPageSize
         // Saved searches are library-wide; never inherit a stale folder scope.
         transientSearchContextFolder = nil
         transientSearchScopeIsFolder = false
-        // Apply the search's stored parameters (#4112/S8).
+        // Apply the search's stored parameters (#4112/S8) — for THIS run and
+        // the re-runs that belong to it (Load More, an options change, a
+        // re-sort), never beyond them. A saved fulltext search used to leave
+        // the session's retrieval tier on fulltext: the next thing typed in
+        // the toolbar was silently keyword-only, which is exactly the "is it
+        // doing keyword by default?" experience Daniel reported (2026-09-04).
+        // `runToolbarSearch` and `clearTransientSearch` restore the default,
+        // so the tier dies with the results it produced.
         transientSearchType = search.searchType
+        libraryToolbarState.savedSearchAppliedTier = search.searchType
         transientSearchSortBy = search.sortBy
         transientSearchSortDirection = search.sortDirection
         Task { @MainActor in
@@ -391,11 +401,47 @@ extension ContentView {
         searchResultDocuments = []
         transientSearchRowHits = [:]
         libraryToolbarState.userChoseSortDuringSearch = false
+        libraryToolbarState.searchIsActive = false
         transientSearchLimit = Self.transientSearchPageSize
         transientSearchContextFolder = nil
         transientSearchScopeIsFolder = false
         chromeUX.readerFindQuery = ""
         chromeUX.resultsLibraryName = nil
+        restoreDefaultRetrievalTier()
+    }
+
+    /// Put the retrieval tier back on the default rung — but ONLY when a
+    /// saved search is what moved it, and only while that is still the value
+    /// showing.
+    ///
+    /// The distinction is the whole point. A tier the user picked in the
+    /// options menu is a deliberate choice and must survive the next query;
+    /// resetting it would be a second bug wearing the first one's clothes. A
+    /// tier a saved search imposed was never chosen at all, and outliving the
+    /// results it produced is what made the next thing typed silently
+    /// keyword-only (Daniel, 2026-09-04). If the value has since changed, the
+    /// user re-chose in between and theirs wins.
+    @MainActor
+    func restoreDefaultRetrievalTier() {
+        let next = Self.retrievalTierAfterSavedSearch(
+            applied: libraryToolbarState.savedSearchAppliedTier,
+            current: transientSearchType
+        )
+        libraryToolbarState.savedSearchAppliedTier = nil
+        transientSearchType = next
+    }
+
+    /// Pure: the tier the next fresh query should run on.
+    ///
+    /// `applied` is the tier a saved search imposed (nil = none did), `current`
+    /// what the toolbar holds now. Extracted so the rule is testable without a
+    /// ContentView — it is three cases and every one of them has been a bug in
+    /// some search UI.
+    static func retrievalTierAfterSavedSearch(
+        applied: String?, current: String
+    ) -> String {
+        guard let applied, applied == current else { return current }
+        return SearchRetrievalTier.defaultTier.requestValue
     }
 
     /// What the chrome calls the library while results are showing: the one

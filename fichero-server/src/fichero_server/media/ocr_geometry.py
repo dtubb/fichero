@@ -170,6 +170,22 @@ GEOMETRY_STATUS_KEY = "geometry_status"
 #: Key carrying the human-readable reason behind a non-``captured`` status.
 GEOMETRY_REASON_KEY = "geometry_reason"
 
+#: Key marking a result whose boxes are real but implausibly few for the page.
+GEOMETRY_SPARSE_KEY = "geometry_sparse"
+
+#: Key recording what the sparse judgement was measured against.
+GEOMETRY_SPARSE_REFERENCE_KEY = "geometry_sparse_reference"
+
+#: Below this share of a reference engine's units, a result is called sparse.
+#:
+#: Measured, not guessed (2026-09-04, three engines over six pages). macOS 26's
+#: RecognizeDocumentsRequest returned 7 words where Apple's older API found 45
+#: on Caciques 533r (0.16) and 2 against 59 on a 1927 diary page (0.03), while
+#: on pages it handles well it returned 0.73-1.0 of the reference. A quarter
+#: separates those two collapses from every page that worked, with room on
+#: both sides; a tighter threshold would start calling working pages sparse.
+SPARSE_GEOMETRY_RATIO = 0.25
+
 
 class OCRGeometryStatus(StrEnum):
     """Why a page's geometry looks the way it does.
@@ -228,6 +244,51 @@ def geometry_unavailable(
         source=source,
         metadata={GEOMETRY_STATUS_KEY: str(status), GEOMETRY_REASON_KEY: reason},
     )
+
+
+def flag_sparse_geometry(
+    result: OCRGeometryResult,
+    *,
+    reference_count: int,
+    reference_provider: str,
+    ratio: float = SPARSE_GEOMETRY_RATIO,
+) -> OCRGeometryResult:
+    """Mark a result whose boxes are real but far too few to be the page.
+
+    ``CAPTURED`` is true of a result with six boxes on a thirty-line page, and
+    saying only that is how an engine's failure becomes a claim about the
+    document. Measured on Caciques 533r: macOS 26's document request found six
+    lines where the page has about thirty, and every one of them sat on the
+    archival stamp or the signature. A reader shown "6 lines" with no further
+    signal concludes the page holds six lines.
+
+    So the boxes are kept — they are real — and the result additionally says it
+    is implausibly sparse relative to a reference engine that saw the same
+    pixels. Sparse is NOT a status: the status stays honest at ``CAPTURED``,
+    because boxes genuinely were captured. Consumers that care can refuse to
+    treat a sparse result as a page description; consumers that do not care
+    are unaffected, which is why this rides in metadata rather than widening
+    the enum every existing reader switches on.
+    """
+    if reference_count <= 0:
+        return result
+    found = len(result.boxes)
+    if found >= reference_count * ratio:
+        return result
+    updated = result.model_copy(deep=True)
+    updated.metadata[GEOMETRY_SPARSE_KEY] = True
+    updated.metadata[GEOMETRY_SPARSE_REFERENCE_KEY] = (
+        f"{found} boxes against {reference_count} from {reference_provider} "
+        f"on the same image ({found / reference_count:.0%})"
+    )
+    return updated
+
+
+def is_sparse_geometry(result: OCRGeometryResult | None) -> bool:
+    """Whether this result admitted it is too thin to describe the page."""
+    if result is None:
+        return False
+    return bool(result.metadata.get(GEOMETRY_SPARSE_KEY))
 
 
 def geometry_status(result: OCRGeometryResult | None) -> OCRGeometryStatus:

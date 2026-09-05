@@ -38,6 +38,7 @@ class MigrationCommand(str, Enum):
     backfill_claim_source_metadata = "backfill_claim_source_metadata"
     repair_orphaned_claim_links = "repair_orphaned_claim_links"
     repair_kg_svo_repr_leak = "repair_kg_svo_repr_leak"
+    repair_rtf_escapes = "repair_rtf_escapes"
 
 
 class MigrationRunRequest(BaseModel):
@@ -164,6 +165,15 @@ AVAILABLE_MIGRATIONS = [
         type="repair",
         idempotent=True,
     ),
+    MigrationInfo(
+        name="repair_rtf_escapes",
+        description=(
+            "Decode RTF hex escapes stored verbatim in claims, entities and "
+            "artifacts — \\'f1 where the manuscript says ñ (#4666)"
+        ),
+        type="repair",
+        idempotent=True,
+    ),
 ]
 
 
@@ -248,6 +258,11 @@ async def run_migration(
         elif request.command == MigrationCommand.repair_kg_svo_repr_leak:
             result = runner.repair_kg_svo_repr_leak(
                 dry_run=request.dry_run,
+            )
+        elif request.command == MigrationCommand.repair_rtf_escapes:
+            result = runner.repair_rtf_escapes(
+                dry_run=request.dry_run,
+                limit=request.limit,
             )
         else:
             raise HTTPException(

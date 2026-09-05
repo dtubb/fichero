@@ -24,33 +24,45 @@ extension ZoomableImagePreview {
                 // 2026-08-21: "wrong color… it should be behind words").
                 // Where it lands is the anchor DATA's problem (Step-4
                 // re-anchor); how it reads is this layer's.
-                ForEach(Array(highlightBoxes.enumerated()), id: \.offset) { _, box in
-                    if let rect = BoundingBoxGeometry.viewRect(
-                        normalized: box,
-                        in: geometry.drawnFrame.size,
-                        visible: geometry.visible
-                    ) {
-                        RoundedRectangle(cornerRadius: 3)
-                            .fill(Color.yellow.opacity(0.22))
-                            .frame(width: rect.width, height: rect.height)
-                            .offset(x: rect.minX, y: rect.minY)
-                            .allowsHitTesting(false)
+                // FRAME GATE at DRAW time (2026-09-04 audit): the entry
+                // highlight is anchored on the page's OWN image, so a flip
+                // to a re-framing rendition (crop/deskew/split) must blank
+                // it — the wash was gated nowhere and rode every frame.
+                if annotationFrameMatchesDisplay(nil) {
+                    ForEach(Array(highlightBoxes.enumerated()), id: \.offset) { _, box in
+                        if let rect = BoundingBoxGeometry.viewRect(
+                            normalized: box,
+                            in: geometry.drawnFrame.size,
+                            visible: geometry.visible
+                        ) {
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(Color.yellow.opacity(0.22))
+                                .frame(width: rect.width, height: rect.height)
+                                .offset(x: rect.minX, y: rect.minY)
+                                .allowsHitTesting(false)
+                        }
                     }
                 }
                 // Words lit by the READER's text selection (2026-08-23
                 // linking) — sharper than the entry wash so the specific
-                // words read against it.
-                ForEach(Array(linkedSelectionBoxes.enumerated()), id: \.offset) { _, box in
-                    if let rect = BoundingBoxGeometry.viewRect(
-                        normalized: box,
-                        in: geometry.drawnFrame.size,
-                        visible: geometry.visible
-                    ) {
-                        RoundedRectangle(cornerRadius: 2)
-                            .fill(Color.accentColor.opacity(0.28))
-                            .frame(width: rect.width, height: rect.height)
-                            .offset(x: rect.minX, y: rect.minY)
-                            .allowsHitTesting(false)
+                // words read against it. Gated LIVE against the geometry
+                // they were measured on (2026-09-04 audit): the write-time
+                // gate in `applyLinkedSelection` cannot see a rendition
+                // flip that happens after the words were lit, and the lit
+                // boxes are bare rects that remember no frame of their own.
+                if let ocrGeometry, geometryFrameMatchesDisplay(ocrGeometry) {
+                    ForEach(Array(linkedSelectionBoxes.enumerated()), id: \.offset) { _, box in
+                        if let rect = BoundingBoxGeometry.viewRect(
+                            normalized: box,
+                            in: geometry.drawnFrame.size,
+                            visible: geometry.visible
+                        ) {
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(Color.accentColor.opacity(0.28))
+                                .frame(width: rect.width, height: rect.height)
+                                .offset(x: rect.minX, y: rect.minY)
+                                .allowsHitTesting(false)
+                        }
                     }
                 }
                 // Saved annotations, rendered BY KIND (Daniel, 2026-08-30:
@@ -71,7 +83,9 @@ extension ZoomableImagePreview {
                         // The inspector's annotation row lights its mark on
                         // the page (2026-09-03) — the annotation twin of
                         // `RegionSelection` driving the region overlay.
-                        selectedId: FocusedAnnotation.shared.id
+                        selectedId: FocusedAnnotation.shared.id,
+                        // Tap a note to edit it IN PLACE (Daniel, 2026-09-04).
+                        onNoteTap: { inlineNoteEditingId = $0 }
                     )
                 }
                 // The region-DRAW plumbing moved to the pointer feed
@@ -102,6 +116,11 @@ extension ZoomableImagePreview {
                 // for the few SELECTED boxes, so the one-Canvas perf fix
                 // stands.
                 regionInteractionLayer
+                // The note being typed, INLINE at its anchor (Daniel,
+                // 2026-09-04: "like a margin note on the page, not a
+                // popover"). Sits above the interaction layer so the field
+                // gets the clicks while it is up.
+                inlineNoteEntry
             }
             .frame(width: geometry.drawnFrame.width, height: geometry.drawnFrame.height)
             // Boxes never bleed past the drawn image into the letterbox or the
@@ -109,6 +128,30 @@ extension ZoomableImagePreview {
             // and sometimes into other views").
             .clipped()
             .offset(x: geometry.drawnFrame.minX, y: geometry.drawnFrame.minY)
+        }
+    }
+
+    /// The inline note field, positioned AT the note's anchor rect — just
+    /// under it, clamped so it never leaves the drawn image. Nothing renders
+    /// when no entry is armed or the armed id names a note this page is not
+    /// showing.
+    @ViewBuilder
+    private var inlineNoteEntry: some View {
+        if let noteId = inlineNoteEditingId,
+           let annotation = annotationStore.annotations.first(where: { $0.id == noteId }),
+           let box = annotation.regionRect,
+           let rect = BoundingBoxGeometry.viewRect(
+               normalized: box, in: geometry.drawnFrame.size, visible: geometry.visible
+           ) {
+            InlineNoteEditor(
+                annotationId: noteId,
+                initialText: annotation.text ?? "",
+                onDismiss: { inlineNoteEditingId = nil }
+            )
+            .offset(
+                x: max(0, min(rect.minX, geometry.drawnFrame.width - 192)),
+                y: max(0, min(rect.maxY + 2, geometry.drawnFrame.height - 28))
+            )
         }
     }
 }
@@ -151,7 +194,22 @@ extension ZoomableImagePreview {
         // one identical, persistent bar.
         ZStack(alignment: .bottomTrailing) {
             VStack(spacing: 0) {
-                if renderedImage != nil || url != nil {
+                // An AI redraw is TEXT, so it renders in WebKit rather than
+                // through the image canvas (#4329's `WebContentCanvas`, which
+                // already draws sanitized SVG with scripts disabled). It has
+                // its own frame, so no OCR box or region overlay is drawn over
+                // it — `overlayFrameMatches` skips them, which is the honest
+                // answer for a picture that never had those coordinates.
+                if let svgRenditionMarkup {
+                    WebContentCanvas(content: svgRenditionMarkup, kind: .svg)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if let svgRenditionError {
+                    ContentUnavailableView(
+                        "Couldn't show this redraw",
+                        systemImage: "exclamationmark.triangle",
+                        description: Text(svgRenditionError)
+                    )
+                } else if renderedImage != nil || url != nil {
                     ImageWithCursorTracking(
                         url: url,
                         // A backend-rendered rendition WINS over the
@@ -260,6 +318,22 @@ extension ZoomableImagePreview {
             // from the bottom edge, so the cluster no longer needs to
             // dodge it).
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+        }
+        .overlay(alignment: .bottom) {
+            // The quiet refusal (Daniel, 2026-09-04): a box-gated mark that
+            // found no box says WHY, briefly, and goes away on its own.
+            if let notice = windowState?.markupNotice {
+                Text(notice)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(.regularMaterial, in: Capsule())
+                    .padding(.bottom, 14)
+                    .transition(.opacity)
+                    .allowsHitTesting(false)
+                    .accessibilityIdentifier("previewMarkupNotice")
+            }
         }
         .onHover { inside in
             hoveringCanvas = inside

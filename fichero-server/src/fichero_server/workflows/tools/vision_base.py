@@ -18,6 +18,7 @@ import asyncio
 from contextvars import ContextVar
 import os
 import tempfile
+import threading
 import base64
 import dataclasses
 from functools import lru_cache
@@ -1361,6 +1362,28 @@ def _try_pdf_text_layer(
 
 
 @lru_cache(maxsize=8)
+def _try_pdf_text_layer_cached(pdf_path: str) -> tuple[str, ...] | None:
+    """Per-PDF cache over :func:`_try_pdf_text_layer` for page fan-out.
+
+    The exact twin of :func:`_pdf_text_layer_geometry_cached`, and it exists
+    for the exact reason that one gives: "a per-page fan-out calls into the
+    same parent PDF once per page; without this the word extraction would be
+    re-run O(N) times per document."
+
+    That reasoning was written, and then applied to the geometry variant only.
+    The TEXT variant kept being called straight from `_process_file` — once per
+    page child — and each call opens the document with PyMuPDF and extracts
+    text from EVERY page. Seven pages meant seven opens and forty-nine page
+    extractions, on the one path a loose image never touches, before a single
+    character reached the caller.
+
+    Returns a tuple so the cache cannot hand two callers the same mutable list.
+    """
+    result = _try_pdf_text_layer(pdf_path)
+    return tuple(result) if result is not None else None
+
+
+@lru_cache(maxsize=8)
 def _pdf_text_layer_geometry_cached(
     pdf_path: str,
 ) -> tuple[OCRGeometryResult | None, ...] | None:
@@ -1488,6 +1511,49 @@ def apple_vision_ocr(image_path: str, language: str = "en") -> str:
     return apple_vision_ocr_with_geometry(image_path, language).text
 
 
+#: The dataless-file flag macOS sets on an iCloud placeholder.
+_SF_DATALESS = 0x40000000
+
+
+def assert_source_readable(path: str) -> None:
+    """Refuse a source file we cannot actually read, and say why.
+
+    Four checks, in the order that a file fails them. They were written for the
+    Apple Vision path and lived only there — which put them on the FREE, local
+    route while the paid cloud route had none of them. That asymmetry was
+    exactly backwards, and it produced a beta report of two symptoms with one
+    cause: "Showing thumbnail — original unavailable", and a transcription that
+    took forty-five minutes.
+
+    A dataless iCloud file does not fail when opened. It BLOCKS while macOS
+    materializes it from the network — no timeout, no progress, no message, and
+    (until 29538e0c7) on the event loop. An unbounded silent download is not a
+    read; it is a hang wearing a read's clothes. Better to refuse it by name.
+
+    The same lesson as last night's import stall (4ce243dbc), on a path that
+    had not learned it: `exists()` is not readability.
+
+    Raises:
+        ValueError: naming the file and the reason, for the caller to surface.
+    """
+    if not os.path.exists(path):
+        raise ValueError(f"File not found: {path}")
+    if not os.access(path, os.R_OK):
+        raise ValueError(f"File not readable: {path}")
+
+    try:
+        stat_info = os.stat(path)
+    except OSError:
+        # An unstattable path is the filesystem's problem, not ours to
+        # diagnose; the open below will fail with something specific.
+        return
+
+    if hasattr(stat_info, "st_flags") and (stat_info.st_flags & _SF_DATALESS):
+        raise ValueError(f"File is stored in iCloud and not downloaded locally: {path}")
+    if stat_info.st_blocks == 0 and stat_info.st_size > 0:
+        raise ValueError(f"File appears to be a cloud placeholder: {path}")
+
+
 def apple_vision_ocr_with_geometry(
     image_path: str,
     language: str = "en",
@@ -1510,25 +1576,7 @@ def apple_vision_ocr_with_geometry(
         )
         from Foundation import NSURL
 
-        # Verify file exists and is readable
-        if not os.path.exists(image_path):
-            raise ValueError(f"File not found: {image_path}")
-        if not os.access(image_path, os.R_OK):
-            raise ValueError(f"File not readable: {image_path}")
-
-        # Check for iCloud/cloud storage dataless files
-        try:
-            stat_info = os.stat(image_path)
-            if hasattr(stat_info, "st_flags") and (stat_info.st_flags & 0x40000000):
-                raise ValueError(
-                    f"File is stored in iCloud and not downloaded locally: {image_path}"
-                )
-            if stat_info.st_blocks == 0 and stat_info.st_size > 0:
-                raise ValueError(
-                    f"File appears to be a cloud placeholder: {image_path}"
-                )
-        except OSError:
-            pass
+        assert_source_readable(image_path)
 
         is_pdf = image_path.lower().endswith(".pdf")
 
@@ -1949,6 +1997,13 @@ def _vision_ocr_cgimage_with_geometry(
 async def apple_vision_ocr_async(image_path: str, language: str = "en") -> str:
     """Async wrapper for Apple Vision OCR."""
     return await asyncio.to_thread(apple_vision_ocr, image_path, language)
+
+
+#: Serializes whole-document rasterization. See the note at its use site in
+#: `_pdf_page_to_data_uri`: `lru_cache` deduplicates RESULTS, never concurrent
+#: COMPUTATION, and this render is now reached from several worker threads at
+#: once.
+_PDF_RENDER_LOCK = threading.Lock()
 
 
 @lru_cache(maxsize=4)
@@ -2874,6 +2929,8 @@ def file_to_data_uri(file_path: str, max_dimension: int = 2048) -> str:
     """
     from PIL import Image, ImageOps
 
+    assert_source_readable(file_path)
+
     path = Path(file_path)
     suffix = path.suffix.lower()
     source_mime = _PROVIDER_SAFE_MIME.get(suffix)
@@ -2948,18 +3005,36 @@ def _pdf_page_to_data_uri(file_path: str, page_index: int = 0, max_dimension: in
         max_dimension: Max width/height for the output image (0 = no resize).
 
     Returns:
-        A ``data:image/png;base64,...`` URI for the rendered page.
+        A ``data:image/jpeg;base64,...`` URI for the rendered page.
 
     Raises:
         ValueError: If the page cannot be rendered.
     """
+    assert_source_readable(file_path)
+
     try:
         # Primary path: reuse the cached batch render for the source PDF.
-        cg_images, _ = _batch_render_pdf_pages_to_cgimages(file_path)
+        #
+        # The lock is load-bearing, and only became so when this function
+        # started running on worker threads. `lru_cache` does not serialize
+        # computation of a missing key: N page tasks that all miss together
+        # each rasterize the WHOLE document, so a 7-page PDF renders 7 times
+        # over instead of once. While this ran inline on the event loop, the
+        # blocking call was an accidental mutex — the first task populated the
+        # cache before any other could look. Moving the work off the loop
+        # removes that accident, so the mutual exclusion has to be said out
+        # loud.
+        #
+        # ponytail: one global lock, not one per path — two DIFFERENT PDFs
+        # rendering at once is exactly what happened before (the event loop
+        # serialized them anyway), so this loses nothing that existed. Go
+        # per-path if multi-document render throughput ever matters.
+        with _PDF_RENDER_LOCK:
+            cg_images, _ = _batch_render_pdf_pages_to_cgimages(file_path)
         cg_image = cg_images[page_index]
         if cg_image is None:
             raise ValueError(f"PDF page {page_index + 1} not found in: {file_path}")
-        return _cgimage_to_png_data_uri(cg_image, max_dimension=max_dimension)
+        return _cgimage_to_data_uri(cg_image, max_dimension=max_dimension)
 
     except Exception as quartz_err:
         # Non-macOS host (CI / Linux): Quartz not available.
@@ -2975,9 +3050,12 @@ def _pdf_page_to_data_uri(file_path: str, page_index: int = 0, max_dimension: in
             from PIL import Image
             img = Image.open(file_path)
             buf = io.BytesIO()
-            img.save(buf, format="PNG")
+            # JPEG here too: this fallback feeds the same provider call as the
+            # Quartz path, so it must not quietly be the one that still sends a
+            # multi-megabyte PNG on a host without Quartz.
+            flatten_for_opaque_format(img).save(buf, format="JPEG", quality=95)
             data = base64.b64encode(buf.getvalue()).decode("utf-8")
-            return f"data:image/png;base64,{data}"
+            return f"data:image/jpeg;base64,{data}"
         except Exception as pil_err:
             raise ValueError(
                 f"Cannot render PDF page {page_index} to image: "
@@ -2985,8 +3063,65 @@ def _pdf_page_to_data_uri(file_path: str, page_index: int = 0, max_dimension: in
             ) from pil_err
 
 
-def _cgimage_to_png_data_uri(cg_image, max_dimension: int = 2048) -> str:
-    """Convert a Quartz CGImage into a PNG data URI."""
+async def _pdf_page_to_data_uri_async(
+    file_path: str, page_index: int = 0, max_dimension: int = 2048
+) -> str:
+    """Render a PDF page to a data URI WITHOUT blocking the event loop.
+
+    The sync version is CPU-bound twice over: on a cache miss it rasterizes
+    every page of the document at 300 dpi through Quartz, and it then
+    PNG-encodes the requested page through PIL. Called inline from the per-file
+    fan-out (`asyncio.gather`, concurrency `VISION_FAN_OUT_CONCURRENCY`), that
+    work runs ON the event loop — so the first page of a PDF to arrive stops
+    every other task in the process until the whole document has been
+    rasterized, and nothing anywhere reports the stall.
+
+    The render itself is not made cheaper here and is not meant to be: the
+    `lru_cache` still means one rasterization per document. This only stops it
+    happening on the thread that is supposed to be handing out work.
+    """
+    # Keyword args preserved deliberately: the shipped tests pin this call's
+    # SHAPE, and a thread hop is not a licence to change a contract.
+    return await asyncio.to_thread(
+        _pdf_page_to_data_uri,
+        file_path,
+        page_index=page_index,
+        max_dimension=max_dimension,
+    )
+
+
+async def file_to_data_uri_async(file_path: str, max_dimension: int = 2048) -> str:
+    """Encode an image file to a data URI WITHOUT blocking the event loop.
+
+    Same reason as :func:`_pdf_page_to_data_uri_async`: PIL decode, resize and
+    re-encode are CPU-bound, and the vision fan-out awaits them inline.
+    """
+    return await asyncio.to_thread(
+        file_to_data_uri, file_path, max_dimension=max_dimension
+    )
+
+
+def _cgimage_to_data_uri(cg_image, max_dimension: int = 2048) -> str:
+    """Convert a Quartz CGImage into a JPEG data URI.
+
+    JPEG, matching what the loose-image path already does for a JPEG source
+    (`file_to_data_uri`, quality 95). This used to emit PNG unconditionally,
+    which meant the SAME scanned page went to the provider as lossless PNG when
+    it came from a PDF and as JPEG when it came from a file — at identical
+    pixel dimensions, since both paths bound to `max_dimension`.
+
+    PNG is built for flat graphics. A scan of a handwritten page is
+    photographic — grain, paper texture, ink gradients — which is the case PNG
+    handles worst: roughly 5-12MB where JPEG is 0.5-1.5MB, and base64 then adds
+    a third on top. That was a 5-10x upload per page, on every page of every
+    PDF, and nothing in the logs said so (Daniel, 2026-09-04: "it could be the
+    pdf embedded or something other than the actual sending of the page").
+
+    The alpha channel is dropped through `flatten_for_opaque_format` rather than
+    a bare `convert("RGB")`: the Quartz buffer is RGBA, and dropping the channel
+    without compositing puts the page on a BLACK ground. The renderer fills
+    white before drawing the page, so flattening is faithful to what was drawn.
+    """
     from Quartz import CGImageGetWidth, CGImageGetHeight
     from PIL import Image
 
@@ -3021,9 +3156,10 @@ def _cgimage_to_png_data_uri(cg_image, max_dimension: int = 2048) -> str:
         img.thumbnail((max_dimension, max_dimension), Image.Resampling.LANCZOS)
 
     buf = io.BytesIO()
-    img.save(buf, format="PNG")
+    img = flatten_for_opaque_format(img)
+    img.save(buf, format="JPEG", quality=95)
     data = base64.b64encode(buf.getvalue()).decode("utf-8")
-    return f"data:image/png;base64,{data}"
+    return f"data:image/jpeg;base64,{data}"
 
 
 # =============================================================================
@@ -3483,7 +3619,7 @@ async def process_vision(
                     file_path = str(files[index])
                     page_index = _page_index_from_document(doc, metadata)
                     if file_path.lower().endswith(".pdf") and page_index is not None:
-                        page_texts = _try_pdf_text_layer(file_path)
+                        page_texts = _try_pdf_text_layer_cached(file_path)
                         if page_texts and page_index < len(page_texts):
                             layer_text = page_texts[page_index]
                             logger.info(
@@ -3891,7 +4027,7 @@ async def process_vision(
                 and vision_mode != "llm"  # LLM mode must render+call LLM, not use text layer
                 and file_path.lower().endswith(".pdf")
             ):
-                layer = _try_pdf_text_layer(file_path)
+                layer = _try_pdf_text_layer_cached(file_path)
                 if layer is not None:
                     if (
                         requested_page_index is not None
@@ -3899,19 +4035,21 @@ async def process_vision(
                     ):
                         per_page_texts = [layer[requested_page_index]]
                     else:
-                        per_page_texts = layer
+                        # list(): callers downstream expect a list, and a
+                        # cached tuple must never be handed out directly.
+                        per_page_texts = list(layer)
                     pdf_layer_used = True
                     # #4309: the text layer's word boxes ride along with the
                     # text — PyMuPDF localizes every word it extracts, so
                     # geometry is captured on this first pass too. Degrades to
                     # text-only (None) when the layer has no usable boxes.
-                    _layer_geoms = _pdf_text_layer_geometry(file_path)
+                    _layer_geoms = _pdf_text_layer_geometry_cached(file_path)
                     if _layer_geoms:
                         if requested_page_index is not None:
                             if 0 <= requested_page_index < len(_layer_geoms):
                                 page_geometry = _layer_geoms[requested_page_index]
                         else:
-                            per_page_geometries = _layer_geoms
+                            per_page_geometries = list(_layer_geoms)
                     logger.info(
                         "PDF text layer present — skipped vision OCR "
                         "for %s (%s)",
@@ -4108,7 +4246,7 @@ async def process_vision(
                     _llm_page_thinking: list[str | None] = []
                     for _page_idx in range(_llm_num_pages):
                         try:
-                            _page_uri = _pdf_page_to_data_uri(
+                            _page_uri = await _pdf_page_to_data_uri_async(
                                 file_path,
                                 page_index=_page_idx,
                                 max_dimension=max_image_dimension,
@@ -4232,13 +4370,13 @@ async def process_vision(
                             _pdf_page_idx,
                             Path(file_path).name,
                         )
-                        image_uri = _pdf_page_to_data_uri(
+                        image_uri = await _pdf_page_to_data_uri_async(
                             file_path,
                             page_index=_pdf_page_idx,
                             max_dimension=max_image_dimension,
                         )
                     else:
-                        image_uri = file_to_data_uri(
+                        image_uri = await file_to_data_uri_async(
                             file_path, max_dimension=max_image_dimension
                         )
 

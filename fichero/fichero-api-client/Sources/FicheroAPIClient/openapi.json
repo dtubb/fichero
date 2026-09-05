@@ -52206,7 +52206,7 @@
             "type": "number",
             "minimum": 0.0,
             "title": "Startup Timeout Seconds",
-            "default": 120.0
+            "default": 300.0
           },
           "max_concurrency": {
             "type": "integer",
@@ -52917,7 +52917,8 @@
           "migrate_claims_to_multi_source",
           "backfill_claim_source_metadata",
           "repair_orphaned_claim_links",
-          "repair_kg_svo_repr_leak"
+          "repair_kg_svo_repr_leak",
+          "repair_rtf_escapes"
         ],
         "title": "MigrationCommand",
         "description": "Available migration commands."
@@ -57085,6 +57086,11 @@
             "type": "boolean",
             "title": "Is Builtin"
           },
+          "supports_chat": {
+            "type": "boolean",
+            "title": "Supports Chat",
+            "default": true
+          },
           "supports_vision": {
             "type": "boolean",
             "title": "Supports Vision"
@@ -57439,6 +57445,7 @@
         "enum": [
           "apple",
           "mock",
+          "spacy",
           "ollama",
           "lmstudio",
           "omlx",

@@ -245,6 +245,10 @@ class ProviderCatalogResponse(BaseModel):
     api_key_url: Optional[str]
     is_local: bool
     is_builtin: bool  # True if built into macOS (no config needed)
+    # False for a provider that answers no prompts — spaCy, Kraken. A model
+    # picker for a chat or transcription step must filter on this, or it
+    # offers a tagger as a choice of language model (#4671).
+    supports_chat: bool = True
     supports_vision: bool
     supports_embeddings: bool
     supports_streaming: bool
@@ -685,6 +689,70 @@ class ModelCreate(BaseModel):
 # =============================================================================
 
 
+# =============================================================================
+# The built-in Apple rows (#935/#937), as DATA.
+#
+# One statement per model of what it can do — and it has to agree with
+# `_CANONICAL_APPLE_CAPABILITIES` in providers.py, which is what a saved row
+# carries and what every capability check reads. The two had drifted:
+# `apple-intelligence` was served here with supports_vision=True while its
+# canonical capabilities are ["text"] — and FoundationModels takes no image
+# input at all (fm-bridge opens a SystemLanguageModel session; there is no
+# image path in it). A row that claims a capability the framework does not
+# have is exactly how a vision step ends up pointed at a text-only on-device
+# model.
+#
+# Hoisted out of the route so a test can hold the two sources side by side —
+# a rule with no fixture proving it fires is not a rule.
+# =============================================================================
+APPLE_BUILTIN_MODELS: list[ModelResponse] = [
+    ModelResponse(
+        model_id="apple-vision",
+        full_name="Apple Vision (OCR)",
+        input_cost_per_million=0,
+        output_cost_per_million=0,
+        supports_vision=True,
+        description=(
+            "On-device text recognition using Vision Framework (macOS 10.15+). "
+            "Fast, private, works offline."
+        ),
+        is_local=True,
+        is_recommended=True,
+        mode="chat",
+    ),
+    ModelResponse(
+        model_id="apple-speech",
+        full_name="Apple Speech (Transcription)",
+        input_cost_per_million=0,
+        output_cost_per_million=0,
+        supports_audio_input=True,
+        description=(
+            "On-device audio transcription using Speech Framework (macOS 10.15+). "
+            "Supports streaming."
+        ),
+        is_local=True,
+        is_recommended=True,
+        mode="audio_transcription",
+    ),
+    ModelResponse(
+        model_id="apple-intelligence",
+        full_name="Apple Intelligence (Foundation Models)",
+        input_cost_per_million=0,
+        output_cost_per_million=0,
+        # TEXT ONLY. Guided generation with a schema-constrained decoder
+        # (DynamicGenerationSchema via fm-bridge), no image input — see above.
+        supports_vision=False,
+        description=(
+            "On-device text LLM using Apple Foundation Models (macOS 26+). "
+            "Schema-constrained structured output, private, free, offline."
+        ),
+        is_local=True,
+        is_recommended=True,
+        mode="chat",
+    ),
+]
+
+
 @router.get("/models/{provider_type}", response_model=ModelListResponse)
 async def list_models_for_provider(
     provider_type: str,
@@ -710,41 +778,7 @@ async def list_models_for_provider(
 
     # Apple - built-in macOS frameworks (Vision, Speech, Intelligence)
     if provider_type == "apple":
-        models = [
-            ModelResponse(
-                model_id="apple-vision",
-                full_name="Apple Vision (OCR)",
-                input_cost_per_million=0,
-                output_cost_per_million=0,
-                supports_vision=True,
-                description="On-device text recognition using Vision Framework (macOS 10.15+). Fast, private, works offline.",
-                is_local=True,
-                is_recommended=True,
-                mode="chat",
-            ),
-            ModelResponse(
-                model_id="apple-speech",
-                full_name="Apple Speech (Transcription)",
-                input_cost_per_million=0,
-                output_cost_per_million=0,
-                supports_audio_input=True,
-                description="On-device audio transcription using Speech Framework (macOS 10.15+). Supports streaming.",
-                is_local=True,
-                is_recommended=True,
-                mode="audio_transcription",
-            ),
-            ModelResponse(
-                model_id="apple-intelligence",
-                full_name="Apple Intelligence",
-                input_cost_per_million=0,
-                output_cost_per_million=0,
-                supports_vision=True,
-                description="On-device AI using Apple Intelligence (macOS 15+ required). Private, fast, no cloud.",
-                is_local=True,
-                is_recommended=True,
-                mode="chat",
-            ),
-        ]
+        models = list(APPLE_BUILTIN_MODELS)
 
     # Ollama - query local server
     elif provider_type == "ollama":

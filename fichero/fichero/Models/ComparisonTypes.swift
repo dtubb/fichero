@@ -43,7 +43,6 @@ enum CostDisplay {
     static func isKnown(_ value: Double?) -> Bool { value != nil }
 }
 
-
 struct ComparisonHistoryResponse: Codable {
     let history: [ComparisonSummary]
 }

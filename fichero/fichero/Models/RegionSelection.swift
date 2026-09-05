@@ -111,6 +111,29 @@ enum RegionHitTesting {
         return best?.index
     }
 
+    /// The CHECK tool's target at a click height (Daniel, 2026-09-04: "the
+    /// check tool applies to the full line box — one gesture"). The line
+    /// whose vertical extent contains the click wins, x ignored so a margin
+    /// click counts. On a page (or height) with no recognised line, the
+    /// honest "entire line" is a FULL-WIDTH band at the click's height, one
+    /// typical line tall — never a private 16pt square that reads as a
+    /// misplaced mark (the 2026-09-04 fallback squares at x≈0.96).
+    ///
+    /// - Parameters:
+    ///   - normalizedY: the click's y in normalized image space (0…1).
+    ///   - lines: the geometry's line-level boxes.
+    /// - Returns: normalized `[x, y, w, h]`.
+    static func checkTarget(atNormalizedY normalizedY: Double, lines: [[Double]]) -> [Double] {
+        for line in lines where line.count >= 4
+            && normalizedY >= line[1] && normalizedY <= line[1] + line[3] {
+            return line
+        }
+        let heights = lines.compactMap { $0.count >= 4 && $0[3] > 0 ? $0[3] : nil }.sorted()
+        let height = heights.isEmpty ? 0.03 : heights[heights.count / 2]
+        let top = min(max(normalizedY - height / 2, 0), max(1 - height, 0))
+        return [0, top, 1, height]
+    }
+
     /// A drag's translation applied to a normalized box: the delta converts
     /// through the visible window (a 10pt drag while zoomed-in is a smaller
     /// normalized move), and the box is clamped to stay entirely on the page

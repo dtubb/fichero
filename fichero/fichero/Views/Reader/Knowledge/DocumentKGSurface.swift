@@ -58,6 +58,11 @@ enum KGSurfaceTab: String, CaseIterable, Identifiable {
     case timeline
     case map
     case entities
+    /// The document's automatic see-also (#4120) — shared entities and
+    /// embedding neighbours. It was an INSPECTOR tab only; Daniel, 2026-09-04:
+    /// related documents "should be a reader option". It reads the same
+    /// endpoint through the same view, so the two surfaces cannot drift.
+    case related
 
     var id: String { rawValue }
 
@@ -71,6 +76,7 @@ enum KGSurfaceTab: String, CaseIterable, Identifiable {
         case .timeline: return "Timeline"
         case .map: return "Map"
         case .entities: return "Entities"
+        case .related: return "Related"
         }
     }
 
@@ -84,6 +90,7 @@ enum KGSurfaceTab: String, CaseIterable, Identifiable {
         case .timeline: return "calendar.badge.clock"
         case .map: return "map"
         case .entities: return "circle.grid.2x2"
+        case .related: return "doc.on.doc"
         }
     }
 
@@ -99,6 +106,9 @@ enum KGSurfaceTab: String, CaseIterable, Identifiable {
         case .timeline: return "Timeline — dated entities and events in chronological order"
         case .map: return "Map — entities laid out on a visual canvas"
         case .entities: return "Entities — the people, places, and things named in the document"
+        case .related:
+            return "Related — other documents sharing this one's entities, "
+            + "or nearest by meaning"
         }
     }
 
@@ -114,6 +124,7 @@ enum KGSurfaceTab: String, CaseIterable, Identifiable {
         case .timeline: return "5"
         case .map: return "6"
         case .entities: return "7"
+        case .related: return "8"
         }
     }
 
@@ -124,7 +135,7 @@ enum KGSurfaceTab: String, CaseIterable, Identifiable {
     var usesWebKit: Bool {
         switch self {
         case .transcript, .digest: return true
-        case .claims, .entities, .graph, .timeline, .map: return false
+        case .claims, .entities, .graph, .timeline, .map, .related: return false
         }
     }
 }
@@ -202,6 +213,10 @@ struct DocumentKGSurface: View {
     @State private var hasAppeared = false
     @State private var everShownWebKit = false
     @Environment(KGFocusState.self) private var kgFocusState
+    /// The per-window source-navigation cursor (#3437). Optional: a host that
+    /// has not injected one safely no-ops, and the KG focus above still fires.
+    @Environment(ClaimSourceNavigationState.self)
+    private var claimSourceNavigationState: ClaimSourceNavigationState?
     @Environment(EntityService.self) private var entityService
     @Environment(ArtifactService.self) private var artifactService
     @Environment(KGCurationService.self) private var kgCurationService
@@ -328,16 +343,24 @@ struct DocumentKGSurface: View {
         case .timeline:
             // Native timeline (OntologyBrowser component): the document's
             // entities' dated claims on a time axis (#3503).
+            //
+            // SCOPED to this document (2026-09-04). Without `sourceDocumentId`
+            // both of these listed the whole library's claims capped at 500 —
+            // in a reader tab that is not "this document's timeline", it is
+            // the first 500 claims in the library, and the document being read
+            // may not be among them.
             KGTimelineView(
                 entities: documentEntities,
-                selectedEntityId: selectedEntityBinding
+                selectedEntityId: selectedEntityBinding,
+                sourceDocumentId: documentId
             )
         case .map:
             // Native map (OntologyBrowser component): the document's entities'
-            // geo-located claims (#3503).
+            // geo-located claims (#3503), scoped to this document — see above.
             KGMapView(
                 entities: documentEntities,
-                selectedEntityId: selectedEntityBinding
+                selectedEntityId: selectedEntityBinding,
+                sourceDocumentId: documentId
             )
         case .claims:
             // No outer ScrollView — KnowledgeGraphInspectorSection owns its own
@@ -348,12 +371,30 @@ struct DocumentKGSurface: View {
                 entityService: entityService,
                 artifactService: artifactService,
                 kgCurationService: kgCurationService,
-                onClaimSelect: { claimId, _, sourceDocId, pageLabel, _, _ in
+                onClaimSelect: { claimId, claimText, sourceDocId, pageLabel, charStart, charEnd in
                     kgFocusState.focusClaim(
                         claimId: claimId,
                         sourceDocumentId: sourceDocId,
                         sourcePageLabel: pageLabel
                     )
+                    // …and LAND (Daniel, 2026-09-04). KG focus moves the graph
+                    // and nothing else: it carries no claim text and no char
+                    // span, so a claim clicked here left the page unhighlighted
+                    // while the identical row clicked in the inspector landed.
+                    // The source-navigation cursor is the path that already
+                    // resolves the page, fills `ClaimFocusState` with the whole
+                    // payload, and posts `.ficheroNavigateToPage` for the
+                    // preview — four dropped arguments were the entire bug.
+                    if let request = ClaimSourceRequest.request(
+                        claimId: claimId,
+                        claimText: claimText,
+                        sourceDocumentId: sourceDocId,
+                        pageLabel: pageLabel,
+                        charStart: charStart,
+                        charEnd: charEnd
+                    ) {
+                        claimSourceNavigationState?.request(request)
+                    }
                 }
             )
         case .entities:
@@ -369,6 +410,27 @@ struct DocumentKGSurface: View {
                 )
             } else {
                 Text("Select a document to see its entities.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        case .related:
+            // The SAME view the inspector's Related tab renders (Daniel,
+            // 2026-09-04: related documents "should be a reader option"). A
+            // second implementation would be a second answer to "what is this
+            // related to" — opening a row routes through the source-navigation
+            // cursor, exactly as the inspector's copy does.
+            if let doc = document ?? documentStore.currentDocuments.first(where: { $0.id == documentId }) {
+                DocumentInspectorRelatedTab(
+                    document: doc,
+                    onNavigateToSource: { relatedId in
+                        claimSourceNavigationState?.request(
+                            ClaimSourceNavigationRequest(documentId: relatedId)
+                        )
+                    }
+                )
+            } else {
+                Text("Select a document to see related documents.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)

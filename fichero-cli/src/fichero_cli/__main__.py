@@ -1121,6 +1121,167 @@ def import_manifest_command(
     typer.echo(f"claims_skipped: {summary.claims_skipped}")
 
 
+@app.command(name="import-legacy-archive")
+def import_legacy_archive_command(
+    ctx: typer.Context,
+    archive: list[Path] = typer.Option(
+        ...,
+        "--archive",
+        help=(
+            "A Fichero 1.0 archive root. Repeat to merge several archives into "
+            "ONE corpus — identical document folders are deduped by content, "
+            "so a folder held by both archives is imported once."
+        ),
+    ),
+    corpus_name: str = typer.Option(
+        None,
+        "--corpus-name",
+        help="Name of the corpus root folder (default: the first archive's name).",
+    ),
+    library: Path = typer.Option(
+        None,
+        "--library",
+        help="Target .fichero package. Required unless --dry-run.",
+    ),
+    out: Path = typer.Option(
+        None,
+        "--out",
+        help=(
+            "Where to write the generated manifest.jsonl. Must be OUTSIDE the "
+            "archive (the archive is the only copy of the corpus). Defaults to "
+            "a temp directory."
+        ),
+    ),
+    dry_run: bool = typer.Option(
+        True,
+        "--dry-run/--no-dry-run",
+        help="Report what WOULD be imported without touching a library (default).",
+    ),
+    api: str = typer.Option(None, "--api", help="Engine API base URL."),
+    token_file: Path = typer.Option(None, "--token-file", help="Engine API key path."),
+    ingest: str = typer.Option(
+        None,
+        "--ingest",
+        help=(
+            "'link' (default — the originals stay on their volume and nothing "
+            "is copied), 'copy', or 'move'. A 300 GB archive wants link."
+        ),
+    ),
+) -> None:
+    """Import a Fichero 1.0 archive (dry run by default).
+
+    Reads the 1.0 on-disk layout — originals, the crop/rotate/enhance/
+    background-removed renditions, page transcriptions and the folder-level
+    LLM catalogue — converts it to a ``fichero-corpus-import-v1`` manifest, and
+    hands that to the same importer the app's drop path uses.
+
+    Nothing is ever written to the archive. Segment strips and .docx outputs are
+    counted and reported but not imported; their geometry is deferred.
+    """
+    import time
+
+    from fichero_server.importers import legacy_10_archive as legacy
+
+    try:
+        roots = [Path(a).expanduser() for a in archive]
+        scan = legacy.scan_archives(roots, corpus_name=corpus_name or roots[0].name)
+    except Exception as exc:
+        typer.secho(f"Scan failed: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+
+    typer.echo(legacy.dry_run_report(scan))
+
+    if dry_run:
+        typer.echo("")
+        typer.secho(
+            "Dry run — nothing imported. Re-run with --no-dry-run --library <path>.",
+            fg=typer.colors.YELLOW,
+        )
+        return
+
+    if library is None:
+        typer.secho(
+            "--library is required with --no-dry-run.", fg=typer.colors.RED, err=True
+        )
+        raise typer.Exit(code=1)
+
+    if len(roots) > 1:
+        # Choosing the better of two copies requires SEEING both in one scan.
+        # Importing archive A and then archive B cannot do that: B's copy has
+        # the same content fingerprint, so the importer skips it as already
+        # present — keeping A's copy even when B's ran further. Scanning a
+        # common parent is the honest way to get one decision.
+        typer.secho(
+            "--no-dry-run takes ONE root. Overlaps are resolved by picking the "
+            "better copy, which requires seeing both copies in a single scan — "
+            "importing one archive and then the other would keep whichever "
+            "arrived first, not the better one. Pass the folder that CONTAINS "
+            "both archives instead (the scan finds document folders by marker, "
+            "at any depth).",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        raise typer.Exit(code=1)
+
+    if out is not None:
+        # Inspection only — the import below does its own conversion engine-side.
+        node_count = legacy.write_manifest(scan, Path(out).expanduser())
+        typer.echo(f"\nmanifest: {out} ({node_count} nodes)")
+
+    # The import runs through POST /ingest/folder — the SAME path a drag-and-drop
+    # takes — because the two repairs that make a linked corpus usable happen
+    # engine-side, with the database in hand: stamping each page's source path
+    # (the routes rightly refuse a client-supplied absolute path, so an
+    # HTTP-only import leaves every page pathless and thumbnail-less) and
+    # writing the rendition rows. Converting here and POSTing a manifest would
+    # reproduce neither.
+    resolved_api = api or ctx.obj["base_url"] or "http://127.0.0.1:8765/api"
+    try:
+        with FicheroClient(
+            base_url=resolved_api.removesuffix("/api"),
+            library_path=str(library),
+            token=ctx.obj["token"],
+        ) as client:
+            started = client.request(
+                "POST",
+                "/api/ingest/folder",
+                json={
+                    "path": str(roots[0]),
+                    "mode": ingest or "link",
+                    "recursive": True,
+                    "extract_text": False,
+                    "auto_embed": False,
+                },
+            )
+            task_id = started["task_id"]
+            typer.echo(f"\nimport task: {task_id}")
+            while True:
+                status = client.request("GET", f"/api/ingest/status/{task_id}")
+                state = status.get("status")
+                if state in ("completed", "failed", "cancelled"):
+                    break
+                typer.echo(
+                    f"  {status.get('processed', 0)}/{status.get('total', 0)}",
+                    nl=False,
+                )
+                typer.echo("\r", nl=False)
+                time.sleep(2)
+    except Exception as exc:
+        typer.secho(f"Legacy import failed: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+
+    if state != "completed":
+        typer.secho(
+            f"Import {state}: {status.get('error') or 'no detail reported'}",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        raise typer.Exit(code=1)
+
+    typer.echo(f"documents: {len(status.get('document_ids') or [])}")
+    if status.get("failed"):
+        typer.secho(f"failures: {status['failed']}", fg=typer.colors.YELLOW, err=True)
+
 @app.command(name="import-iiif")
 def import_iiif_command(
     ctx: typer.Context,

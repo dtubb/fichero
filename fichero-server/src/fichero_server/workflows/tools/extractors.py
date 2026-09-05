@@ -45,6 +45,8 @@ from fichero_server.llm import (
     ProviderQuotaError,
     chat_structured_with_fallback,
 )
+from fichero_server.knowledge.svo_quality import is_pronoun_subject
+from fichero_server.loaders.rtf_text import to_plain_text
 from fichero_server.models import Artifact
 from fichero_server.workflows.tools._workflow_change_emit import (
     emit_workflow_artifact_changes,
@@ -2018,6 +2020,42 @@ def _write_citation_usage_rows(
     )
 
 
+def _temporal_scope(
+    normalized: str,
+    t_start: str | None,
+    t_end: str | None,
+    t_precision: str | None,
+) -> tuple[str | None, str | None, str | None]:
+    """Turn a normalised date string into a claim's temporal scope.
+
+    ONE implementation, because two would drift and a timeline that plots
+    date claims correctly and event claims a year off is worse than one that
+    plots neither. An explicit ``time_start``/``time_end`` from the model
+    always wins; this only fills an absence.
+
+    Accepts "YYYY", "YYYY-MM", "YYYY-MM-DD" and the "start/end" range form,
+    and reports the precision it actually has rather than padding to a day it
+    was never told.
+    """
+    if not normalized or t_start or t_end:
+        return t_start, t_end, t_precision
+    if "/" in normalized:
+        start_raw, end_raw = normalized.split("/", 1)
+        return (
+            start_raw.strip() or None,
+            end_raw.strip() or None,
+            t_precision or "range",
+        )
+    if not t_precision:
+        if len(normalized) == 4:
+            t_precision = "year"
+        elif len(normalized) == 7:
+            t_precision = "month"
+        elif len(normalized) >= 10:
+            t_precision = "day"
+    return normalized, normalized, t_precision
+
+
 def _write_kg_rows(
     db,
     section: dict[str, Any],
@@ -2319,14 +2357,27 @@ def _write_kg_rows(
     )
     invariant_violations: list[str] = []
 
+    # Pronoun subjects (#4666). The local set here used to be eight words, so
+    # "we" / "nosotros" / "them" walked straight through and became entities,
+    # and any pronoun with no antecedent in scope became an entity too — which
+    # is how a browser ends up showing "they" as the subject of nearly every
+    # statement. The vocabulary now lives in one place, and an unresolvable
+    # pronoun is DROPPED rather than canonicalised: a row that names nobody is
+    # worse than no row.
     antecedent: str | None = None
-    pronouns = {"he", "she", "it", "they", "él", "ella", "ellos", "ellas"}
 
     def clean_claim_text(value: Any) -> str:
         text = str(value or "")
         text = text.replace("\\\\r\\\\n", " ").replace("\\\\n", " ").replace("\\\\r", " ")
         text = text.replace('\\\\"', '"')
         text = _re.sub(r"\[deleted:\s*[^\]]*\]", "", text, flags=_re.IGNORECASE)
+        # Last line of defence for #4666. The extraction boundary now hands
+        # models prose rather than RTF source, but a cached artifact, a
+        # hand-authored item, or a model that has seen markup elsewhere can
+        # still deliver an escape. Nothing that reaches a KG row should carry
+        # "se\\'f1or" where the manuscript says "señor", so decode here and
+        # NFC-normalise, and let the guard test hold the line.
+        text = to_plain_text(text)
         return " ".join(text.split())
 
     for item in items:
@@ -2345,7 +2396,7 @@ def _write_kg_rows(
         # Field names vary per section: name (most), event (events),
         # date (dates). Try English first, then legacy Spanish keys, so
         # both new and old artifacts produce a sensible canonical_name.
-        canonical = (
+        canonical = clean_claim_text(
             item.get("name")
             or item.get("event")
             or item.get("date")
@@ -2354,8 +2405,19 @@ def _write_kg_rows(
             or item.get("fecha")
             or ""
         )
-        if canonical.casefold() in pronouns and antecedent:
-            canonical = antecedent
+        if is_pronoun_subject(canonical):
+            if antecedent:
+                canonical = antecedent
+            else:
+                invariant_violations.append(
+                    "pronoun subject with no antecedent — item dropped"
+                )
+                logger.info(
+                    "_write_kg_rows: dropped pronoun-subject item %r on %s "
+                    "(no antecedent to resolve it against, #4666)",
+                    canonical, container_id,
+                )
+                continue
         elif canonical:
             antecedent = canonical
         # SVO predicate (new schema). `verb` + `object` compose the
@@ -2428,7 +2490,11 @@ def _write_kg_rows(
         # The substring test below already decided verbatim-ness in order to
         # place the anchor; it now also decides whether this is a quote at
         # all. Same single check, no second rule to drift.
-        raw_source_text = (item.get("source_text") or "").strip()
+        # `to_plain_text`, NOT `clean_claim_text`: a quote keeps its line
+        # breaks, or the verbatim substring test below stops finding it on the
+        # page and every multi-line quote loses its anchor. Only the escape
+        # decode + NFC pass applies here (#4666).
+        raw_source_text = to_plain_text(str(item.get("source_text") or "")).strip()
 
         # Sub-page anchor (#913): when source_text appears verbatim
         # inside the page chunk, record the character offset so the
@@ -2564,22 +2630,9 @@ def _write_kg_rows(
                 or ""
             )
             normalized = str(normalized).strip()
-            if normalized and not t_start and not t_end:
-                if "/" in normalized:
-                    start_raw, end_raw = normalized.split("/", 1)
-                    t_start = start_raw.strip() or None
-                    t_end = end_raw.strip() or None
-                    t_precision = t_precision or "range"
-                else:
-                    t_start = normalized
-                    t_end = normalized
-                    if not t_precision:
-                        if len(normalized) == 4:
-                            t_precision = "year"
-                        elif len(normalized) == 7:
-                            t_precision = "month"
-                        elif len(normalized) >= 10:
-                            t_precision = "day"
+            t_start, t_end, t_precision = _temporal_scope(
+                normalized, t_start, t_end, t_precision
+            )
             stem = normalized or date_text
             # Avoid double-period when predicate already ends in
             # terminal punctuation (#1113 polish).
@@ -2651,6 +2704,20 @@ def _write_kg_rows(
                 if claim is not None:
                     claims_to_embed.append(claim)
             continue
+
+        # A DATED entity claim is a timeline row (#4667). Events, above all:
+        # `_Event` has carried a `date` field all along and the writer dropped
+        # it, so "Extract Events" produced entities nothing could plot. Same
+        # helper as the date-claim branch below, so an event and a date claim
+        # cannot disagree about what "1560-04-10" means.
+        item_date = str(
+            item.get("date_normalized") or item.get("fecha_normalizada") or ""
+        ).strip()
+        if item_date and entity_type is not None:
+            t_start, t_end, t_precision = _temporal_scope(
+                item_date, t_start, t_end, t_precision
+            )
+            meta.setdefault("date_normalized", item_date)
 
         # Entity-bearing section.
         if not canonical:
@@ -2772,10 +2839,27 @@ def _write_kg_rows(
             claim_type=ctype or ClaimType.fact,
             metadata=meta,
             epistemic_status=epistemic,
+            # WHEN (#4667/#4670). The entity branch computed a temporal scope
+            # and then never forwarded it: only the DATE-claim branch above
+            # passed these through, so an event with a date on the page landed
+            # with `time_start` NULL and the timeline had nothing to plot it
+            # at. Caught by the events-preset test, which is why that test
+            # writes a dated event rather than asserting the helper.
+            time_start=t_start,
+            time_end=t_end,
+            time_precision=t_precision,
+            # WHERE the claim happened (#4670). The extractor's own answer
+            # first — "in New York" is the claim's scope even when its subject
+            # is a person — falling back to the old rule that a location-typed
+            # subject IS its own place. This is also what the geocoder matches
+            # on, so a scoped statement becomes a pin.
             claim_location=(
-                canonical
-                if entity_type == EntityType.location and canonical
-                else None
+                clean_claim_text(item.get("claim_location") or "")
+                or (
+                    canonical
+                    if entity_type == EntityType.location and canonical
+                    else None
+                )
             ),
             # SVO promotion (#984): typed top-level fields. The
             # subject IS the entity, so subject_entity_id resolves

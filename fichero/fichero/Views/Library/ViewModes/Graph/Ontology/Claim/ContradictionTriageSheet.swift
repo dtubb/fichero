@@ -7,6 +7,15 @@ struct ContradictionTriageSheet: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(ClaimStore.self) private var claimStore
+    /// THIS sheet's entity service — the library it is MUTATING.
+    ///
+    /// It resolved `LibraryManager.shared.globalLibrary`, the library
+    /// holding the RESERVED id rather than the one on screen, so the
+    /// write landed in a graph the user was not looking at. Optional so
+    /// a host that injects none fails VISIBLY: a sheet that cannot name
+    /// the library it is about to change must not guess one
+    /// (#4306/#4461).
+    @Environment(EntityService.self) private var entityService: EntityService?
     @State private var pairs: [Pair] = []
     @State private var isLoading = false
     @State private var selectedGroupId: String?
@@ -242,7 +251,7 @@ struct ContradictionTriageSheet: View {
     }
 
     private func load() async {
-        guard let library = LibraryManager.shared.globalLibrary else { return }
+        guard let entityService else { return }
         isLoading = true
         defer { isLoading = false }
 
@@ -253,7 +262,7 @@ struct ContradictionTriageSheet: View {
                 let key = groupKey(for: claim)
                 group.addTask {
                     do {
-                        let contradictions = try await library.entityService.contradictions(claimId: claimId)
+                        let contradictions = try await entityService.contradictions(claimId: claimId)
                         return contradictions.map { contradiction in
                             Pair(
                                 id: "\(claimId):\(contradiction.contradictingClaimId)",

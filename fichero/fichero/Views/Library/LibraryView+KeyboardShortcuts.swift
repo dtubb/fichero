@@ -283,8 +283,22 @@ extension LibraryView {
             .focusedSceneValue(
                 \.librarySortField,
                 FocusedSortField(
-                    value: libraryToolbar.sortFieldRaw,
-                    set: { libraryToolbar.sortFieldRaw = $0 }
+                    // The EFFECTIVE field, not the stored one: while results
+                    // are showing unsorted, the rows are in the engine's
+                    // ranking and this menu must say so.
+                    value: libraryToolbar.effectiveSortField.rawValue,
+                    // …and route the choice through `apply`, which is what
+                    // decides whether a mid-search pick overrides relevance.
+                    // Writing `sortFieldRaw` directly left the override unset,
+                    // so picking Name here checked Name and changed nothing —
+                    // the same disagreement in the other direction.
+                    set: { raw in
+                        libraryToolbar.apply(
+                            libraryToolbar.sortMenuModel
+                                .selecting(LibrarySortField(rawValue: raw) ?? .name)
+                        )
+                    },
+                    isSearching: libraryToolbar.searchIsActive
                 )
             )
             .focusedSceneValue(

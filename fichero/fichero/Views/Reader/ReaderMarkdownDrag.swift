@@ -105,3 +105,26 @@ enum ReaderMarkdownDrag {
         return provider
     }
 }
+
+// MARK: - Reading a Markdown DOCUMENT (Daniel, 2026-09-04)
+
+/// Which documents the reader should render as Markdown rather than as plain
+/// text.
+///
+/// There is no `FileType.markdown`: the engine's text extractor treats `.md`
+/// alongside `.txt` and every other text type (`document_loader.py:54`), so
+/// the file's own NAME is what distinguishes them. Pure and static so the rule
+/// is testable without a document store.
+enum ReaderMarkdownDocument {
+    /// The extensions that mean Markdown. Deliberately short — `.mdx` and
+    /// friends are supersets this renderer does not implement, and claiming
+    /// them would render their extra syntax as literal text under a heading
+    /// that says "Markdown".
+    static let extensions: Set<String> = ["md", "markdown"]
+
+    static func isMarkdown(name: String) -> Bool {
+        guard let dot = name.lastIndex(of: ".") else { return false }
+        let ext = name[name.index(after: dot)...].lowercased()
+        return extensions.contains(String(ext))
+    }
+}

@@ -40,6 +40,12 @@ struct ReadingPaneView: View {
     /// store's run target record (#4295) plus the live page content it splices
     /// in mid-run (#4318). No second notion of "this document is working".
     @Environment(DocumentStore.self) var documentStore: DocumentStore
+    /// Run names for the artifact submenu's run headers, and the live
+    /// completion counters that tell the menu a new run just wrote. Both
+    /// optional: detached reader scenes may inject neither, and a submenu
+    /// headed "Workflow Run" is degraded, not wrong.
+    @Environment(WorkflowStore.self) var workflowStore: WorkflowStore?
+    @Environment(WorkflowExecutionObserver.self) var executionObserver: WorkflowExecutionObserver?
     @Environment(KGFocusState.self) var kgFocusState
     @Environment(ClaimFocusState.self) var claimFocusState
     @Environment(AnnotationStore.self) var annotationStore
@@ -81,7 +87,11 @@ struct ReadingPaneView: View {
     /// pane to one artifact's text instead of the live transcript. Per-pane
     /// state, so split readers compare two artifacts side by side.
     @State var artifactLens: ReaderArtifactLens?
-    @State var artifactLensChoices: [ReaderArtifactLens] = []
+    /// The shown document's artifacts, grouped BY RUN, newest run first
+    /// (Daniel, 2026-09-04). Replaces the flat newest-first list: the flat one
+    /// could not say which pass a row came from, and three reviews from one
+    /// run read as three unrelated rows.
+    @State var artifactLensGroups: [ReaderArtifactLensGroup] = []
     /// The representation the Page lens reads (Daniel, 2026-08-29): nil = the
     /// live content; a value = re-request the SAME WebKit page with
     /// `?representation=` (transcription, translation, …). Per-pane, so split
@@ -91,6 +101,23 @@ struct ReadingPaneView: View {
     /// artifact types present on the document or its pages. The switcher
     /// renders only these: a lens that goes nowhere is the menu lying.
     @State var readerRepresentationChoices: [String] = []
+    /// The artifacts being COMPARED (Daniel, 2026-09-04). Two or more ids,
+    /// the first being the baseline every other column is measured against.
+    /// Empty = not comparing. Per-pane, like every other reader lens.
+    @State var artifactCompareIds: [String] = []
+    @State var artifactCompareColumns: [ReaderArtifactDiff.Column] = []
+    @State var artifactCompareError: String?
+    /// A `.md` document's text, rendered as Markdown (Daniel, 2026-09-04).
+    /// nil = not a Markdown document. Rendered by `MarkdownText`, the app's
+    /// ONE Markdown renderer — the chat bubbles and the preview canvas already
+    /// use it, and a second implementation is a second answer to "what does
+    /// this heading look like".
+    @State var readerMarkdownText: String?
+    /// A `.csv` document rendered as a real table (Daniel, 2026-09-04: "will
+    /// a reader show csv? should our reader have a csv option, to render it
+    /// properly?"). nil = not a CSV document, or its text is not honest CSV —
+    /// in which case the ordinary reader shows the text, which is still true.
+    @State var readerCSVHTML: String?
     /// The CSV behind the shown table representation, ready to drag out as a
     /// real file or save via the exporter (Daniel, 2026-08-29 bedtime).
     /// Non-nil only while a table representation is on screen and loaded.
@@ -222,15 +249,14 @@ struct ReadingPaneView: View {
         // matched). One seed per distinct query — `seededSearchHighlight`
         // guards the re-render case so a query the user has since edited or
         // dismissed in the find bar is never re-imposed on them.
-        .onChange(of: searchHighlightQuery, initial: true) { _, query in
-            guard query != seededSearchHighlight else { return }
-            seededSearchHighlight = query
-            if query.isEmpty {
-                searchState.dismiss()
-            } else {
-                searchState.query = query
-                searchState.isActive = true
-            }
+        .onChange(of: searchHighlightQuery, initial: true) { _, _ in
+            seedReaderHighlight()
+        }
+        // …and again when the document arrives, because the passage anchor is
+        // latched at selection time and the pane is frequently built one frame
+        // later (the `ReaderPassageFocus` case the anchor exists for).
+        .onChange(of: effectiveDocument?.id, initial: true) { _, _ in
+            seedReaderHighlight()
         }
         // Mandate 1, consumer 1: ONE fetch brings the anchor's whole
         // neighbourhood — the crumb chain stops losing middle ancestors the
@@ -246,6 +272,23 @@ struct ReadingPaneView: View {
         // clears the chip. Doc changes re-fire via the reset in
         // loadArtifactLensChoices (readerRepresentation returns to nil).
         .task(id: readerRepresentation) { await loadReaderTableExport() }
+        .task(id: artifactCompareIds) { await loadArtifactComparison() }
+        .task(id: effectiveDocument?.id) { await loadReaderCSVTable() }
+        .task(id: effectiveDocument?.id) { await loadReaderMarkdown() }
+        // A comparison is about ONE document's artifacts; carrying it to the
+        // next document would diff two texts that were never on screen together.
+        .onChange(of: effectiveDocument?.id) { _, _ in stopComparingArtifacts() }
+        // The artifact submenu REFRESHES when artifacts change (Daniel,
+        // 2026-09-04: three transcription reviews from seconds earlier were
+        // in the artifacts panel and missing from this menu). Same signal the
+        // Artifacts inspector already reloads on, so the two surfaces cannot
+        // disagree about what exists; the reader's current lens survives.
+        .onChange(of: executionObserver?.fileCompletedCount) { _, _ in
+            Task { await loadArtifactLensChoices(resetSelection: false) }
+        }
+        .onChange(of: executionObserver?.workflowCompletedCount) { _, _ in
+            Task { await loadArtifactLensChoices(resetSelection: false) }
+        }
         // Click rung for the CSV chip (sandbox-proof beside the drag): a
         // plain SwiftUI file exporter writing the same Transferable.
         .fileExporter(
@@ -273,6 +316,51 @@ struct ReadingPaneView: View {
     /// transcript, which scrolls to the page anchor (#3226). There is no longer a
     /// source layout to switch: the source is Preview's job (#3765 Q4), and the
     /// reveal drives that pane separately via `.ficheroNavigateToPage`.
+    /// Seed the reader's find with the best available description of WHY this
+    /// document is on screen: the matched PASSAGE when a search anchor names
+    /// it, otherwise the library query's terms.
+    ///
+    /// The passage wins because it is more specific — "the road to Bagadó"
+    /// lands on the sentence, where the bare query terms light every
+    /// occurrence of a common word. It goes through find-in-page rather than
+    /// through `scrollToSpan`: the reader renders the parent's ASSEMBLED
+    /// transcript, so the anchor's page-relative offsets address the wrong
+    /// text there, and a confidently wrong highlight over a manuscript is
+    /// worse than none (`ReaderPassageAnchor.findPhrase`).
+    ///
+    /// `seededSearchHighlight` remembers what was seeded, so a re-render never
+    /// re-imposes something the user has since edited or dismissed.
+    private func seedReaderHighlight() {
+        let seed = Self.readerHighlightSeed(
+            anchor: ReaderPassageFocus.latest,
+            documentId: effectiveDocument?.id,
+            searchQuery: searchHighlightQuery
+        )
+        guard seed != seededSearchHighlight else { return }
+        seededSearchHighlight = seed
+        if seed.isEmpty {
+            searchState.dismiss()
+        } else {
+            searchState.query = seed
+            searchState.isActive = true
+        }
+    }
+
+    /// Pure: what the reader's find should hold. The anchor wins ONLY when it
+    /// names the document actually on screen — an anchor for another document
+    /// is not a description of this one.
+    static func readerHighlightSeed(
+        anchor: ReaderPassageAnchor?,
+        documentId: String?,
+        searchQuery: String
+    ) -> String {
+        if let anchor, let documentId, anchor.documentId == documentId {
+            let phrase = anchor.findPhrase
+            if !phrase.isEmpty { return phrase }
+        }
+        return searchQuery
+    }
+
     private func revealInTranscript() {
         if readerTab != .page { readerTabRaw = ReaderTab.page.rawValue }
     }

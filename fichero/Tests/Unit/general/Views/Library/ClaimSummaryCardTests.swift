@@ -86,7 +86,11 @@ final class ClaimSummaryCardTests: XCTestCase {
         XCTAssertNil(highlight)
     }
 
-    func testSvoChipActionsRevealInlineSourceClaim() throws {
+    // PREMISE CHANGE (Daniel, ratified 2026-09-04): the chip rule is now
+    // "nouns navigate, verbs edit, the sentence goes to the page". The two
+    // guards below used to pin the OLD behavior (subject chip revealed the
+    // claim inline; object chip edited); they now pin the ruling.
+    func testSvoChipRuleNounsNavigate() throws {
         // claimSentence moved to +Navigation in the Aug 2 split.
         let source = try Self.appSource(
             "Views/Library/ViewModes/Graph/Ontology/Claim/ClaimSummaryCardView+Navigation.swift")
@@ -98,23 +102,28 @@ final class ClaimSummaryCardTests: XCTestCase {
         }
 
         let svoRenderer = String(source[sentenceStart.lowerBound..<fallbackStart.lowerBound])
-        XCTAssertTrue(svoRenderer.contains("revealSourceClaimInline()"))
+        // Both noun chips fire the all-sources scoped search.
+        XCTAssertTrue(svoRenderer.contains("entitySearchState?.request(name: svo.subject"))
+        XCTAssertTrue(svoRenderer.contains("entitySearchState?.request(name: svo.object"))
+        // The subject chip no longer merely expands the card.
+        XCTAssertFalse(svoRenderer.contains("revealSourceClaimInline"))
         XCTAssertFalse(svoRenderer.contains("focusEntityLozenge"))
         XCTAssertFalse(svoRenderer.contains("ficheroEntitySearchRequested"))
     }
 
-    func testVerbAndObjectChipsEnterInlineEditing() throws {
-        // 3582595b6 (Aug 2) split the card: the chips and inline-editing
-        // entry live in ClaimSummaryCardView+Navigation.swift now, and
-        // beginInlineEditing is internal because the split calls it across
-        // files.
+    func testSvoChipRuleVerbEditsAndOnlyTheVerb() throws {
         let source = try Self.appSource(
             "Views/Library/ViewModes/Graph/Ontology/Claim/ClaimSummaryCardView+Navigation.swift")
 
         XCTAssertTrue(source.contains("func beginInlineEditing()"))
         XCTAssertTrue(source.contains("Text(svo.verb)"))
         XCTAssertTrue(source.contains("Text(svo.object)"))
-        XCTAssertTrue(source.contains("beginInlineEditing()"))
+        // Exactly ONE chip edits: the verb. A second beginInlineEditing call
+        // in the renderer means a noun chip regressed to editing.
+        let chipRenderer = source.components(separatedBy: "var claimSentence: some View")
+            .dropFirst().joined()
+        let editCalls = chipRenderer.components(separatedBy: "beginInlineEditing()").count - 1
+        XCTAssertEqual(editCalls, 1, "the verb chip edits; nouns navigate (2026-09-04 ruling)")
     }
 
     func testExpandedDetailsShowSourceClaimText() throws {

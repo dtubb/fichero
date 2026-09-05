@@ -156,7 +156,11 @@ struct SortSection: View {
     var body: some View {
         if shouldShow {
             Section("Sort By") {
-                ForEach(LibrarySortField.allCases) { field in
+                // The focused value carries the search context now, so this
+                // menu offers Relevance exactly when the toolbar's does — and
+                // never over a browsed folder, where it would name a ranking
+                // that does not exist.
+                ForEach(LibrarySortField.fields(isSearching: sortField?.isSearching ?? false)) { field in
                     Button {
                         sortField?.set(field.rawValue)
                     } label: {

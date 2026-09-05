@@ -149,9 +149,25 @@ class TestPeopleExtractorKG:
     async def test_different_model_rerun_dedups_entity_appends_claim(
         self, db, test_package, container_doc, llm_config
     ):
-        """Different provider/model bypasses the artifact cache. Entity
-        dedup still works (one entity row by canonical_name); claims
-        accumulate as a provenance trail of two extraction runs."""
+        """Different provider/model bypasses the artifact cache. Entity dedup
+        still works (one entity row by canonical_name), and so does CLAIM
+        dedup — a second model reading the same page is corroboration, not a
+        second row.
+
+        THIS TEST USED TO ASSERT THE OPPOSITE, and it was right about the
+        mechanism and wrong about the goal. Two runs produced two identical
+        rows ("Juan Pérez is a person." twice), described here as "a
+        provenance trail". Daniel, 2026-09-04, looking at a real library: "we
+        want CLEARER statements done properly, and NO DUPLICATES; right now
+        it's not so good." A trail of identical assertions IS the duplication,
+        and re-running a corpus on a new model multiplied every statement in
+        it.
+
+        What the trail was protecting — knowing which models produced a
+        reading — is kept, on the row rather than as extra rows:
+        `metadata.also_extracted_by` names each additional provider/model and
+        `mention_count` counts the runs. (#4666)
+        """
         from fichero_server.workflows.tools.extractors import _run_extractor, _SECTIONS
 
         people_section = next(s for s in _SECTIONS if s["name"] == "people_extract")
@@ -173,8 +189,17 @@ class TestPeopleExtractorKG:
         assert len(people) == 1, "entity dedup spans providers"
 
         claims = db.query(KnowledgeClaim, source_document_id=container_doc.id)
-        assert len(claims) == 2
-        assert all(people[0].id in c.entity_ids for c in claims)
+        assert len(claims) == 1, "a second model must not mean a second row"
+        claim = claims[0]
+        assert people[0].id in claim.entity_ids
+        # The second run is recorded ON the surviving row, so nothing about
+        # who read what is lost by not duplicating it.
+        also = claim.metadata.get("also_extracted_by") or []
+        # The label keeps the `+heuristic-svo` suffix when our own fallback
+        # composed the verb/object — which model produced a reading and HOW
+        # it produced it are both worth keeping on the row.
+        assert any(entry.startswith("anthropic/claude-sonnet-4-6") for entry in also), also
+        assert claim.mention_count >= 2
 
 
 class TestDatesExtractorKG:

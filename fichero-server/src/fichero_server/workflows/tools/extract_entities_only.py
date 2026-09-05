@@ -21,6 +21,7 @@ from typing import Any, Iterator
 from fichero_server.db import db_manager
 from fichero_server.models.knowledge import KnowledgeEntity
 from fichero_server.llm import LLMConfig, chat_structured_with_fallback
+from fichero_server.loaders.rtf_text import to_plain_text
 from fichero_server.llm.language_policy import (
     UNKNOWN,
     configured_policy,
@@ -55,6 +56,52 @@ _ENTITY_TYPES = {
 }
 
 
+# Which sections a run is asked for (#4667). Default: everything, i.e. what
+# every existing preset already gets. A preset that wants a timeline asks for
+# "events,dates" and gets a run that is both faster and quieter — no places,
+# no organizations, no per-person claim loop over a page it will never plot.
+#
+# Named explicitly rather than inferred: "extract just events" that silently
+# also wrote date claims would be a surprise, and "extract just events" that
+# silently did NOT would produce a timeline with no time axis.
+_ALL_SECTION_KEYS = ("people", "places", "organizations", "events", "dates")
+
+
+def _requested_sections(raw: object) -> set[str]:
+    """Parse the ``entity_types`` config into a set of section keys.
+
+    Empty, missing, or "all" means every section. Unknown names are ignored
+    rather than raising: a preset naming a section we retired should run the
+    ones we still have, not fail the whole stage.
+    """
+    if raw is None:
+        return set(_ALL_SECTION_KEYS)
+    if isinstance(raw, str):
+        parts = [part.strip().casefold() for part in raw.replace(";", ",").split(",")]
+    elif isinstance(raw, (list, tuple, set)):
+        parts = [str(part).strip().casefold() for part in raw]
+    else:
+        return set(_ALL_SECTION_KEYS)
+    names = {part for part in parts if part}
+    if not names or "all" in names:
+        return set(_ALL_SECTION_KEYS)
+    return {name for name in names if name in _ALL_SECTION_KEYS} or set(_ALL_SECTION_KEYS)
+
+
+_ENTITY_TYPES_CONFIG = {
+    "entity_types": {
+        "type": "string",
+        "title": "Sections",
+        "description": (
+            "Comma-separated sections to extract: people, places, "
+            "organizations, events, dates. Blank or 'all' extracts every "
+            "section. 'events,dates' is the timeline shape."
+        ),
+        "default": "all",
+    }
+}
+
+
 def _normalize_raw_documents(raw_documents: Any) -> list[Any]:
     """Coerce workflow payloads into the list shape _coerce_documents expects.
 
@@ -72,13 +119,28 @@ def _normalize_raw_documents(raw_documents: Any) -> list[Any]:
 
 
 def _transcription_text(document: Document, db) -> str:
+    """The document's transcription as PROSE — never as markup (#4666).
+
+    A transcription edited in the app is stored as inline RTF source whenever
+    the user applied any formatting (``ArtifactRichTextCodec``'s storage
+    contract), and the reader strips that at display time
+    (``api/routes/system/views.py``). Extraction did not: it read the same
+    field raw, so a 17th-century Spanish page reached the model as
+
+        {\\rtf1\\ansi\\ansicpg1252 … \\cf0 … se\\'f1or y deste puerto …
+
+    The model dutifully echoed the escapes back, and "se\\'f1or" was persisted
+    into the knowledge graph as the archive's own word for "señor". Every
+    caller of this helper hands its result to an LLM, so the conversion belongs
+    here, at the one boundary they share, rather than in each of them.
+    """
     metadata = dict(document.metadata or {})
     raw_transcription = metadata.get("transcription")
     if isinstance(raw_transcription, str) and raw_transcription.strip():
-        return raw_transcription.strip()
+        return to_plain_text(raw_transcription).strip()
 
     if isinstance(document.page_content, str) and document.page_content.strip():
-        return document.page_content.strip()
+        return to_plain_text(document.page_content).strip()
 
     for artifact in db.query(
         Artifact,
@@ -86,7 +148,7 @@ def _transcription_text(document: Document, db) -> str:
         artifact_type=_TRANSCRIPTION_ARTIFACT,
     ):
         if isinstance(artifact.content, str) and artifact.content.strip():
-            return artifact.content.strip()
+            return to_plain_text(artifact.content).strip()
     return ""
 
 
@@ -183,6 +245,7 @@ def _records_for_documents(documents: list[Document], db) -> list[dict[str, Any]
         ),
     ],
     sort_order=36,
+    config_schema=_ENTITY_TYPES_CONFIG,
 )
 async def extract_entities_only(
     inputs: dict[str, Any],
@@ -245,6 +308,7 @@ async def extract_entities_only(
     # auto." into the system prompt and the library's language policy never
     # reached entity extraction. Resolved per document; instructions are cached
     # per language so a single-language corpus still builds one string.
+    requested_sections = _requested_sections(inputs.get("entity_types"))
     policy = configured_policy()
     instructions_by_language: dict[str, str] = {}
     languages_used: dict[str, int] = defaultdict(int)
@@ -309,6 +373,8 @@ async def extract_entities_only(
 
         written_entity_ids: list[str] = []
         for section_key, entity_type in _ENTITY_TYPES.items():
+            if section_key not in requested_sections:
+                continue
             for entity in getattr(extraction, section_key, []):
                 canonical_name = str(entity.name or "").strip()
                 if not canonical_name:

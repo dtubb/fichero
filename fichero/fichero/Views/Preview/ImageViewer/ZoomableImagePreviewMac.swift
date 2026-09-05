@@ -128,6 +128,10 @@ struct ZoomableImagePreview: View {
     // Bounding-box annotation state (#2458). `isDrawingRegion` arms the overlay
     // drag; `pendingAnnotationTool` carries the tool kind into the saved box.
     @State var isDrawingRegion = false
+    /// The note being typed/edited INLINE at its anchor (Daniel, 2026-09-04:
+    /// no popover). Set by the canvas's save path and by tapping a note mark;
+    /// cleared when the inline field commits or cancels.
+    @State var inlineNoteEditingId: String?
     @State var pendingAnnotationTool: ReaderAnnotationTool = .highlight
 
     /// The pane head's chrome seam (Daniel, 2026-08-29): paging + renditions
@@ -201,6 +205,14 @@ struct ZoomableImagePreview: View {
     /// difference between original, enhanced, and background removed"
     /// (Daniel, 2026-08-21). Cleared on document change.
     @State var renditionOverrideImage: NSImage?
+    /// The SVG markup of the rendition on screen, when the flip has landed on
+    /// an AI redraw (Daniel, 2026-09-04). Non-nil replaces the image canvas
+    /// with `WebContentCanvas` — a redraw's bytes are text, not pixels.
+    @State var svgRenditionMarkup: String?
+    /// Why an SVG rendition could not be shown. A malformed or missing redraw
+    /// says so on the canvas; it never leaves the previous page's pixels up
+    /// pretending the flip worked.
+    @State var svgRenditionError: String?
 
     @State var scale: CGFloat = 1.0
     /// S6 (Daniel, 2026-08-23): a sibling step resets to FIT-ALL — a tall
@@ -275,7 +287,11 @@ struct ZoomableImagePreview: View {
             id: "\(documentId ?? "")|\(ocrBoxesEnabled)"
                 + "|\(executionObserver?.activeExecutions.count ?? 0)"
                 + "|\(FocusedArtifact.shared.id ?? "")"
-        ) { await loadOCRGeometry() }
+        ) {
+            await loadOCRGeometry()
+            // The geometry is what the search hit's passage was waiting for.
+            adoptLatchedPassageAnchor()
+        }
         .task(id: documentId) {
             await loadRenditions()
             publishHeadChrome()

@@ -259,19 +259,119 @@ extension WorkflowBarPolicy {
         return text
     }
 
+    /// Why a configured model cannot serve THIS step, or nil when it can.
+    ///
+    /// A reason, never a filter (Daniel, 2026-09-04: "workflow not letting us
+    /// see all models, just showing 2 — is it filtering by vision when it
+    /// should use text?"). The chip's picker settled this on 2026-09-01: a
+    /// greyed row with a reason can be argued with, an absent row cannot, and
+    /// a missing capability flag is a metadata gap rather than a statement
+    /// about the model. The per-step menu kept its own shortlist and so
+    /// offered two models where the user had configured a dozen.
+    ///
+    /// This is also the client half of the engine's compatibility rule
+    /// (R-11): the same pairing the engine would decline to stamp on a node
+    /// is the pairing this refuses to pin, so display and execution agree.
+    static func modelUnsuitableReason(
+        _ choice: WorkflowBarModelChoice,
+        for step: StagedWorkflowStep,
+        tools: [ToolInfo],
+        selectionPrefersVision: Bool
+    ) -> String? {
+        let name = ModelChipToolbarItem.shorten(choice.model)
+        let readsPixels = stepReadsPixels(
+            step, tools: tools, selectionPrefersVision: selectionPrefersVision
+        )
+        // Only a DEFINITE no. `nil` — the catalog does not say — stays
+        // pickable, which is what keeps a model newer than the catalog usable.
+        if readsPixels, choice.supportsVision == false {
+            return "\(step.displayName) reads the page as an image, and the "
+                + "catalog does not list image input for \(name)."
+        }
+        guard isRecognitionOnlyVisionModel(
+            provider: choice.provider, model: choice.model
+        ) else { return nil }
+        if !readsPixels {
+            return "\(name) performs OCR on an image and returns the text it "
+                + "recognizes. \(step.displayName) works on text, not pixels."
+        }
+        if stepRequiresGenerativeModel(step, tools: tools) {
+            return "\(name) performs OCR and ignores the prompt, and "
+                + "\(step.displayName) needs a model that answers one."
+        }
+        return nil
+    }
+
+    /// The provider/model this step will REALLY run on.
+    ///
+    /// The pin when the pin can serve the step; otherwise the tier default —
+    /// because that is what the engine will do with it (R-11: a choice it
+    /// cannot honestly serve is not stamped on the node, which leaves the
+    /// node on its tier default). The bar's sentence reads this, so the token
+    /// names what will really run rather than what was clicked.
+    static func effectiveChoice(
+        for step: StagedWorkflowStep,
+        tools: [ToolInfo],
+        textTier: WorkflowBarModelChoice?,
+        visionTier: WorkflowBarModelChoice?,
+        selectionPrefersVision: Bool
+    ) -> WorkflowBarModelChoice? {
+        let fallback = defaultChoice(
+            for: step,
+            tools: tools,
+            textTier: textTier,
+            visionTier: visionTier,
+            selectionPrefersVision: selectionPrefersVision
+        )
+        guard step.hasModelOverride, let model = step.modelOverride else {
+            return fallback
+        }
+        let pinned = WorkflowBarModelChoice(
+            label: ModelChipToolbarItem.shorten(model),
+            provider: step.providerOverride ?? "",
+            model: model
+        )
+        let unsuitable = modelUnsuitableReason(
+            pinned,
+            for: step,
+            tools: tools,
+            selectionPrefersVision: selectionPrefersVision
+        ) != nil
+        return unsuitable ? fallback : pinned
+    }
+
     /// The PICKER reaches a staged PRESET too (Daniel, 2026-09-02: "I tried
     /// detect regions with apple local, but it seems to auto select
     /// google"). `implicitRunOverride` is deliberately tool-steps-only — a
     /// multi-node workflow must not have every node dragged onto one model —
-    /// but a preset run as the SINGLE staged step over a pixel-reading
-    /// selection is the toolbar's verb plus the picker's model, and ignoring
-    /// the picker made choosing a model a silent no-op. The engine refuses
-    /// loudly when a workflow's nodes cannot take an override (#3804), so an
-    /// unsuitable send SURFACES instead of silently running the preset's
-    /// embedded model.
+    /// but a preset run as the SINGLE staged step is the toolbar's verb plus
+    /// the picker's model, and ignoring the picker made choosing a model a
+    /// silent no-op.
+    ///
+    /// It sends the tier THIS preset resolves to, not the vision tier
+    /// (Daniel, 2026-09-04: "I think a lot of it is routing to Apple
+    /// Intelligence" — and, in the other direction, a Paleographer Review
+    /// that ran on gemini-flash-lite under a claude-opus-5 chip). The gate
+    /// used to be `requiresVision || selectionPrefersVision`, so a preset
+    /// doing TEXT work sent nothing at all: the engine then resolved the
+    /// preset's own embedded model, or the app's stored defaults, and the
+    /// user's explicit pick reached neither. Whichever tier the sentence
+    /// NAMES for this step is the one the run carries — display and
+    /// execution answer to `defaultChoice`, one function.
+    ///
+    /// Still one step only. Spreading a tier across a multi-step chain of
+    /// presets would drag each preset's deliberately-cheap nodes onto the
+    /// expensive tier, which is money the user did not ask to spend; the
+    /// engine's own per-node resolution stays in charge there.
+    ///
+    /// The engine refuses loudly when a workflow's nodes cannot take an
+    /// override (#3804), so an unsuitable send SURFACES instead of silently
+    /// running the preset's embedded model.
     static func workflowStepPickerOverride(
         for step: StagedWorkflowStep,
         stagedCount: Int,
+        tools: [ToolInfo] = [],
+        textTier: WorkflowBarModelChoice? = nil,
         visionTier: WorkflowBarModelChoice?,
         selectionPrefersVision: Bool
     ) -> WorkflowBarModelChoice? {
@@ -280,14 +380,16 @@ extension WorkflowBarPolicy {
               case .workflow(let item) = step.kind,
               // The item SAYS whether it takes overrides (false = pinned by
               // design; nil = unknown, engine enforces — fail open, #3804).
-              item.acceptsModelOverride != false,
-              // Vision presets take the vision pick; the engine's
-              // requires_vision is authoritative, with the selection's
-              // posture as the old-server fallback.
-              item.requiresVision || selectionPrefersVision,
-              let vision = visionTier,
-              !vision.model.isEmpty
+              item.acceptsModelOverride != false
         else { return nil }
-        return vision
+        let choice = defaultChoice(
+            for: step,
+            tools: tools,
+            textTier: textTier,
+            visionTier: visionTier,
+            selectionPrefersVision: selectionPrefersVision
+        )
+        guard let choice, !choice.model.isEmpty else { return nil }
+        return choice
     }
 }

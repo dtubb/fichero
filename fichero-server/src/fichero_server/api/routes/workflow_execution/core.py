@@ -159,6 +159,10 @@ def _validate_workflow_for_execution(
             nodes=workflow.nodes,
             provider_override=getattr(request, "provider_override", None),
             model_override=getattr(request, "model_override", None),
+            # Same resolver the preflight uses: since R-11 the choice reaches
+            # a child's nodes, so the refusal must count them or it refuses a
+            # run the engine can now honestly perform.
+            workflow_resolver=resolver,
         ),
     ]
 

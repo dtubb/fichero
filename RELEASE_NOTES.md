@@ -2,21 +2,47 @@
 
 *Full commit-level history, day by day, lives in [`CHANGELOG.md`](CHANGELOG.md).*
 
-## 2026.09.04.2
+## 2026.09.05
 
-The same-day follow-up that makes updating real.
+An overnight release from a full evening of live testing — ninety-plus
+commits, every fix root-caused and tested.
 
-- **Fixed: the updater can install.** Build 1 and this morning's build
-  downloaded updates and then failed with "an error occurred while
-  launching the installer" — the sandboxed app was missing the entitlement
-  that lets it talk to its own installer. **Installs of earlier builds
-  need this one manual download; updates are automatic from here on.**
-- **The public build is now the Public Alpha.** Fichero.dmg turns on the
-  full proven feature set — including the Settings Models and Backend
-  tabs — while experimental surfaces stay in the Dev build. When alpha
-  features prove out they graduate to beta.
-- **Updates check, download, and install automatically by default**, and
-  Settings ▸ General ▸ Software Update is where to see or change that.
+**Updating works now.** The in-app updater could fail at the install step
+on macOS; the missing installer permissions ship in this build (install
+this one manually; updates take care of themselves from here). Auto-check
+and auto-download default on, and Settings ▸ General gains a Software
+Update section.
+
+**Statements got honest.** Extracted statements (who did what, where,
+when) are now gated twice before they're stored: every quote must be a
+real span of the page, and the grammar must actually support the subject —
+a first-person verb can no longer be stamped with a bystander's name.
+The garbled-text bug (`ca'f1istin`) is fixed at extraction and a repair
+heals existing rows. spaCy ships built in as the free grammar layer.
+
+**Statements lead somewhere.** Click a statement and you land on its
+source page with the passage highlighted — in the reader and the preview.
+Click a name and you get every source that mentions it. A statement
+attested in several places shows them all, each one visitable. One chip
+rule everywhere: nouns navigate, verbs edit, the sentence goes to the page.
+
+**The reader compares properly.** Diff up to five artifacts as columns
+you read across, aligned on the one you were reading. CSV files from
+Excel render as tables. Artifacts group by run, newest first, labeled
+"(latest)". Related documents update live and joined the reader's lenses.
+
+**PDFs transcribe at image speed.** A PDF's pages were paying for the
+whole document over and over — text extracted once per page instead of
+once per document, pages uploaded as multi-megabyte PNGs instead of
+JPEGs, and files still in iCloud silently stalling the run. All fixed;
+an unavailable file now says exactly what's wrong and which file.
+
+**The little things.** Pane layout survives quit and relaunch. Knowledge
+surfaces read the library you're looking at (merges can no longer write
+to a graph you weren't). Search tier menus show their checkmarks, and
+results excerpt the sentence that matched. Word boxes the engine wasn't
+sure of draw dashed; geocoded map pins draw open with their source named
+— the app stopped drawing guesses as though they were measurements.
 
 ## 2026.09.04
 

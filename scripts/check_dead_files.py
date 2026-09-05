@@ -82,7 +82,6 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Services/WorkflowService+Conversions.swift": "#2955 — split from WorkflowService by file_length (2026-08-30); DerivedFlags is a private mapper helper used by the same-file conversion extension; scanner misses same-file wiring",
     # (WorkflowSuggestionPolicy now referenced directly — entry dropped 2026-08-31)
     # "Models/WorkflowSuggestionPolicy.swift": "2026-08-30 — suggestion glyphs left the toolbar (Daniel's ruling) so the policy is momentarily unreferenced; the suggestions-row-INSIDE-the-bar lane is APPROVED and rewires it. Do not let this entry outlive that lane.",
-    "Views/Shell/ContentView/Layout/ContentView+WorkflowBar.swift": "#2955 — extension file driving the workflow bar from ContentView; TierCandidate is its private AI-defaults retry carrier; scanner misses same-file extension wiring",
     "Services/ChainService+StepExecution.swift": "2026-08-30 chains lane — extension file; WireRequest is its private request carrier; scanner misses same-file extension wiring",
     "Views/Shell/ContentView/Layout/ContentView+WorkflowChainEngine.swift": "2026-08-30 chains lane — extension file driving engine-run chains from ContentView; EngineChainLaunch is its private launch carrier; scanner misses same-file extension wiring",
     "Views/Library/ViewModes/List/LibraryView+ListView.swift": "2026-09-01 — ListRowChrome is the per-pass row-settings carrier threaded into the same-file documentRow/mailRow builders (list-scroll perf); scanner misses same-file wiring",

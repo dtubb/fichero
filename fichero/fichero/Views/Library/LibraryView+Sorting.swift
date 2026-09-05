@@ -4,6 +4,17 @@ import SwiftUI
 
 /// Sortable fields for library documents
 enum LibrarySortField: String, CaseIterable, Identifiable {
+    /// The ENGINE's ranking — the default while search results are showing,
+    /// and, until 2026-09-04, unreachable.
+    ///
+    /// The order was already right: `displayOrderedForCurrentContext` returns
+    /// search rows untouched until the user picks a sort. But the sort menu
+    /// had no row for it, so it showed "Name" checked over a list that was in
+    /// relevance order (Daniel: results "appear ordered by NAME not
+    /// relevance" — the MENU was the thing saying so), and picking any sort
+    /// mid-search was a one-way door: nothing could put the ranking back
+    /// short of running the search again.
+    case relevance = "Relevance"
     case name = "Name"
     case createdAt = "Date Created"
     case updatedAt = "Date Modified"
@@ -18,6 +29,7 @@ enum LibrarySortField: String, CaseIterable, Identifiable {
 
     var icon: String {
         switch self {
+        case .relevance: return "sparkle.magnifyingglass"
         case .name: return "textformat"
         case .createdAt: return "calendar.badge.plus"
         case .updatedAt: return "calendar.badge.clock"
@@ -46,6 +58,26 @@ enum LibrarySortField: String, CaseIterable, Identifiable {
         self == .documentDate
     }
 
+    /// Whether the rows arrive already in the order they must be shown in, so
+    /// the client must not sort them.
+    ///
+    /// Two fields, for two different reasons. `documentDate` is ordered by the
+    /// ENGINE'S listing query (see above). `relevance` is ordered by the
+    /// SEARCH's fused ranking — re-sorting it client-side would discard the
+    /// fusion entirely while still producing a plausible-looking list, which
+    /// is the same failure in a different costume.
+    var preservesGivenOrder: Bool {
+        ordersOnServer || self == .relevance
+    }
+
+    /// The fields a sort menu may offer. Relevance is a reading of SEARCH
+    /// RESULTS: outside a search there is no ranking for it to mean, and a row
+    /// that silently means "the stored order" under the word "Relevance" is
+    /// the menu lying.
+    static func fields(isSearching: Bool) -> [LibrarySortField] {
+        isSearching ? allCases : allCases.filter { $0 != .relevance }
+    }
+
     /// The `sort_by` value for the listing routes, or nil when the client
     /// orders this field itself. Absent `sort_by` is the pre-existing
     /// behaviour (the stored `sort_order` position), so nil is a real answer
@@ -71,7 +103,11 @@ enum LibrarySortField: String, CaseIterable, Identifiable {
         field: LibrarySortField,
         using comparators: [KeyPathComparator<Document>]
     ) -> [Document] {
-        guard !field.ordersOnServer else { return groupingUndatedLast(documents) }
+        guard !field.preservesGivenOrder else {
+            // Relevance is already the order it arrived in; only the engine's
+            // date listing wants the undated rows moved to the end.
+            return field.ordersOnServer ? groupingUndatedLast(documents) : documents
+        }
         return documents.sorted(using: comparators)
     }
 
@@ -128,6 +164,12 @@ enum LibrarySortField: String, CaseIterable, Identifiable {
     func comparator(ascending: Bool) -> [KeyPathComparator<Document>] {
         let order: SortOrder = ascending ? .forward : .reverse
         switch self {
+        // Header binding only, like `documentDate` below: `orderedForDisplay`
+        // never applies it, because relevance is not a property of a document
+        // — it is the ranking the search produced, and the rows already carry
+        // it as their order. Name keeps the Table's sort-descriptor bridge
+        // resolvable (#4282).
+        case .relevance: return [.init(\.name, order: order)]
         case .name: return [.init(\.name, order: order)]
         case .createdAt: return [.init(\.createdAt, order: order)]
         case .updatedAt: return [.init(\.updatedAt, order: order)]
@@ -187,7 +229,10 @@ enum LibrarySortField: String, CaseIterable, Identifiable {
         // The Date column IS sortable, so it must declare a comparator the
         // bridge can resolve (#4282). It drives the header only.
         case .documentDate: return .init(\.document.dateHeaderSortKey, order: order)
-        case .updatedAt, .fileType: return nil
+        // Relevance has no column and no key path of its own — the rows
+        // arrive ranked. A nil comparator is the honest answer, and the same
+        // one `updatedAt`/`fileType` give.
+        case .relevance, .updatedAt, .fileType: return nil
         }
     }
 }

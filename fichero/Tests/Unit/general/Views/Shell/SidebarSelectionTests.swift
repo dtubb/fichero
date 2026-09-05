@@ -221,7 +221,7 @@ struct SidebarSelectionTests {
 
     @Test("#4062 NewLibraryActionKey docstring reflects in-place create, not new window")
     func newLibraryActionKeyDocstringReflectsInPlace() throws {
-        let source = try appSource("App/Menus/FocusedCommandButtons+FocusedValues.swift")
+        let source = try appSource("App/Menus/FocusedCommands/FocusedCommandButtons+FocusedValues.swift")
         let keyStart = try #require(source.range(of: "struct NewLibraryActionKey: FocusedValueKey {"))
         // The docstring block sits immediately above the struct declaration.
         let sliceThroughKey = String(source[source.startIndex..<keyStart.upperBound])
@@ -337,7 +337,7 @@ struct SidebarSelectionTests {
         // `typealias Value = () -> Void` key is byte-compared by AttributeGraph
         // and re-invalidates every body pass (RunWorkflowOnSelectionKey was the
         // one outlier; keep it at zero).
-        let focusedValuesSource = try appSource("App/Menus/FocusedCommandButtons+FocusedValues.swift")
+        let focusedValuesSource = try appSource("App/Menus/FocusedCommands/FocusedCommandButtons+FocusedValues.swift")
         #expect(!focusedValuesSource.contains("typealias Value = () -> Void"))
         #expect(!focusedValuesSource.contains("typealias Value = (() -> Void)"))
     }

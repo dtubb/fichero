@@ -193,7 +193,10 @@ extension OntologyBrowser {
     }
 
     func runHeuristicPredictions() async {
-        guard let library = LibraryManager.shared.globalLibrary else { return }
+        guard let entityService else {
+            toolStatus = "No library"
+            return
+        }
         toolStatus = "Generating suggestions…"
         defer {
             Task {
@@ -202,7 +205,7 @@ extension OntologyBrowser {
             }
         }
         do {
-            let res = try await library.entityService.generateHeuristicPredictions(topK: 10)
+            let res = try await entityService.generateHeuristicPredictions(topK: 10)
             if res.predictions.isEmpty {
                 toolStatus = "No new suggestions"
                 pendingPredictions = nil
@@ -219,10 +222,13 @@ extension OntologyBrowser {
         label: String,
         action: @escaping (EntityService) async throws -> String
     ) async {
-        guard let library = LibraryManager.shared.globalLibrary else { return }
+        guard let entityService else {
+            toolStatus = "No library"
+            return
+        }
         toolStatus = "\(label)…"
         do {
-            let result = try await action(library.entityService)
+            let result = try await action(entityService)
             toolStatus = result
         } catch {
             toolStatus = "Failed: \(error.localizedDescription)"

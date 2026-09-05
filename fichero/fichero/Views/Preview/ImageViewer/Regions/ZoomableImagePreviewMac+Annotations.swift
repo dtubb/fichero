@@ -66,7 +66,33 @@ extension ZoomableImagePreview {
                 rawValue: UserDefaults.standard.string(forKey: PreviewHighlightStyle.storageKey) ?? ""
             )?.persistedColor
             : nil
-        let rects = snappedRects(for: box, kind: kind)
+        // Box-gated marking (Daniel, 2026-09-04): highlight / underline /
+        // strikethrough / star anchor only to text that HAS a bounding box.
+        // A drag over box-less canvas refuses with a quiet reason — an
+        // unanchored mark is a mark that will drift the moment anything
+        // about the page's geometry changes.
+        let gatedKinds: Set<AnnotationKind> = [.highlight, .underline, .strikethrough, .bookmark]
+        let rects: [[Double]?]
+        if gatedKinds.contains(kind) {
+            guard let box else { return }
+            let anchored = AnnotationWordSnap.gatedRects(
+                drag: box,
+                words: frameMatchedGeometryBoxes.filter { $0.level == "word" },
+                lines: frameMatchedGeometryBoxes.filter { $0.level == "line" }
+            )
+            guard !anchored.isEmpty else {
+                windowState?.showMarkupNotice(
+                    frameMatchedGeometryBoxes.isEmpty
+                        ? "No recognized text on this page to anchor the mark to"
+                        : "No text box under the drag — mark not added"
+                )
+                return
+            }
+            // A star marks ONE place: the top-most anchored box.
+            rects = kind == .bookmark ? [anchored[0]] : anchored
+        } else {
+            rects = [box]
+        }
         // Coding v1 (Daniel, 2026-08-30, ruling 4): pending tags ride the
         // next highlight-family save — every strip of this ONE gesture.
         let tagKinds: Set<AnnotationKind> = [.highlight, .underline, .strikethrough]
@@ -90,34 +116,14 @@ extension ZoomableImagePreview {
                 if firstSavedId == nil { firstSavedId = saved?.id }
             }
             // A NOTE without words is not a note (Daniel, 2026-08-31: "text
-            // note doesn't work"). The box is saved — now ask for its text;
-            // the markup row's popover commits via `updateText` or deletes
-            // the empty annotation on cancel.
+            // note doesn't work"). The box is saved — now ask for its text,
+            // INLINE at the anchor (Daniel, 2026-09-04: like a margin note
+            // on the page, not a popover). The inline field commits via
+            // `updateText` or deletes the still-blank annotation on cancel.
             if kind == .note, let firstSavedId {
-                NotificationCenter.default.post(
-                    name: .previewNoteTextEntry, object: firstSavedId
-                )
+                inlineNoteEditingId = firstSavedId
             }
         }
-    }
-
-    /// Word-boundary snap (Daniel, 2026-08-30): highlight/underline/
-    /// strikethrough hug the recognised words the drag touched — one strip
-    /// per line. Free-form kinds (note, line) keep the drawn rect.
-    ///
-    /// The snap reads the FRAME-MATCHED geometry (2026-09-03), the same set
-    /// the region overlay draws and selects from. Reading raw `ocrGeometry`
-    /// let a highlight snap to word boxes measured on a rendition that was
-    /// not the one on screen — the wrong-frame defect the region layer has
-    /// been gated against since 2026-08-23, arriving by the annotation door.
-    func snappedRects(for box: [Double]?, kind: AnnotationKind) -> [[Double]?] {
-        let snapKinds: Set<AnnotationKind> = [.highlight, .underline, .strikethrough]
-        guard let box, snapKinds.contains(kind),
-              !frameMatchedGeometryBoxes.isEmpty,
-              let geometry = ocrGeometry else { return [box] }
-        return AnnotationWordSnap.snappedRects(
-            drag: box, words: geometry.wordBoxes, lines: geometry.lineBoxes
-        )
     }
 
     // MARK: - Marks over the SELECTION (Daniel, 2026-08-31, rulings 4 & 5)

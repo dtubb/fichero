@@ -17,6 +17,11 @@ struct EntityKindRow: View {
     /// Per-window entity-search bus (#3437); optional → safe no-op if a host
     /// hasn't injected it.
     @Environment(EntitySearchState.self) var entitySearchState: EntitySearchState?
+    /// The shared source cursor (#2105/#4393) — the quote under a claim opens
+    /// the source page with the passage lit (Daniel, 2026-09-04: the quote is
+    /// a door, not a query). Optional → safe no-op without a host.
+    @Environment(ClaimSourceNavigationState.self)
+    var claimSourceNavigationState: ClaimSourceNavigationState?
     let item: GroupedItem
     let kind: EntityKind
     var claimById: [String: Components.Schemas.KnowledgeClaim] = [:]

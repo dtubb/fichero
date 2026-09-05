@@ -23,7 +23,8 @@ struct ClaimSummaryCard: View {
     var onNavigateToSource: ((Components.Schemas.KnowledgeClaim) -> Void)?
 
     /// Per-window request buses (#3437); optional → safe no-op when a host
-    /// hasn't injected them. Read in the +Details.swift extension's handlers.
+    /// hasn't injected them. The search bus serves the chip rule (nouns
+    /// navigate — ratified 2026-09-04); the source bus serves the sentence.
     @Environment(EntitySearchState.self) var entitySearchState: EntitySearchState?
     @Environment(ClaimSourceNavigationState.self) var claimSourceNavigationState: ClaimSourceNavigationState?
     /// For the source-region crop popover (#2105/#3449); optional so hosts that
@@ -53,6 +54,16 @@ struct ClaimSummaryCard: View {
     /// the refresh back to every claim surface, retiring the `.ficheroClaim*`
     /// NotificationCenter posts this card used to make.
     @Environment(ClaimStore.self) var claimStore
+    /// THIS card's services — the library the claim is IN.
+    ///
+    /// Three reads resolved `LibraryManager.shared.globalLibrary`: the source
+    /// document's NAME, the contradictions/evidence-chain load, and the entity
+    /// lozenge lookup. All three were injected per window all along
+    /// (`libraryServiceEnvironment`) and simply never read — so on any
+    /// non-global library the source line silently showed nothing, and the
+    /// lozenge searched another graph's entities (#4306/#4461).
+    @Environment(EntityService.self) var entityService: EntityService?
+    @Environment(DocumentStore.self) var documentStore: DocumentStore?
     /// Finder-style Open in New Tab / New Window for claim cards (#1685).
     @Environment(\.openWindow) var openWindow
     @AppStorage("editor.fontSize") private var defaultFontSize: Double = 13
@@ -178,16 +189,26 @@ struct ClaimSummaryCard: View {
             .background(Color(.windowBackgroundColor))
             .clipShape(RoundedRectangle(cornerRadius: 6))
             .onTapGesture {
-                // Cmd-click opens in a new tab, Finder-style (#1685);
-                // plain click focuses the claim in place.
+                // Cmd-click opens in a new tab, Finder-style (#1685); plain
+                // click GOES TO THE SOURCE (#4666).
+                //
+                // It used to call `focusClaim()` alone, which assigns four
+                // properties on a shared focus object and navigates nowhere.
+                // Clicking a statement therefore did nothing visible, and the
+                // one field that makes a statement checkable — the page it was
+                // read off — stayed one click further away than the claim
+                // itself. A statement you cannot follow back to the manuscript
+                // is an assertion, not evidence.
                 #if os(macOS)
                 if NSApp.currentEvent?.modifierFlags.contains(.command) ?? false {
                     openClaimInNewWindow(asTab: true)
                 } else {
                     focusClaim()
+                    navigateToSource()
                 }
                 #else
                 focusClaim()
+                navigateToSource()
                 #endif
             }
             .onTapGesture(count: 2) { isInlineEditing = true }
