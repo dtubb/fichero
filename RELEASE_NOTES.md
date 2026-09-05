@@ -2,6 +2,15 @@
 
 *Full commit-level history, day by day, lives in [`CHANGELOG.md`](CHANGELOG.md).*
 
+## 2026.09.05.2
+
+The same release as this morning's, rebuilt properly: a crash report
+revealed that shipped builds had been carrying Xcode's debug layout —
+a 296MB debug library and fully unoptimized code. This build is compiled
+with real optimizations for the first time. The app is dramatically
+smaller and faster; if Fichero ever felt sluggish, this is why. Nothing
+else changed.
+
 ## 2026.09.05
 
 An overnight release from a full evening of live testing — ninety-plus
