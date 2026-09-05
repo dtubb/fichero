@@ -88,6 +88,22 @@ struct EntityClickthroughTests {
         #expect(String(closure.prefix(900)).contains("claimSourceNavigationState?.request("))
     }
 
+    // MARK: - Corroboration reaches the prose
+
+    @Test("corroboration count reads both key spellings and both types")
+    func corroborationCountReads() throws {
+        var row = Components.Schemas.KnowledgeClaim(id: "c", text: "t")
+        #expect(EntityDigestView.corroborationCount(of: row) == nil)
+        row.metadata = .init(additionalProperties: try .init(
+            unvalidatedValue: ["corroboration_count": 2]
+        ))
+        #expect(EntityDigestView.corroborationCount(of: row) == 2)
+        row.metadata = .init(additionalProperties: try .init(
+            unvalidatedValue: ["corroborationCount": "3"]
+        ))
+        #expect(EntityDigestView.corroborationCount(of: row) == 3)
+    }
+
     @Test("the inspector quote is a door, not a query")
     func inspectorQuoteOpensTheSource() throws {
         let block = try AppSource.code("Views/Inspector/Knowledge/EntityKindRow+ClaimBlock.swift")

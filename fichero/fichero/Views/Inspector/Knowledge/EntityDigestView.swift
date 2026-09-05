@@ -383,8 +383,31 @@ struct EntityDigestContent: View {
                 run.underlineStyle = .single
             }
             prose += run
+            // A sentence more than one extraction agrees on says so, in the
+            // prose, quietly — corroboration is stored on the claim and was
+            // shown nowhere the biography reader could see it (#4672).
+            if let count = Self.corroborationCount(of: claim), count > 0 {
+                // Same number the provenance badge shows ("\(count)x
+                // corroborated") — two surfaces, one figure.
+                var marker = AttributedString(" ×\(count)")
+                marker.foregroundColor = .secondary
+                prose += marker
+            }
         }
         return prose
+    }
+
+    /// How many OTHER extractions corroborate this claim (`also_extracted_by`
+    /// rows counted at write time). Mirrors the provenance badge's read so
+    /// the two surfaces cannot disagree about the same number.
+    static func corroborationCount(
+        of claim: Components.Schemas.KnowledgeClaim
+    ) -> Int? {
+        guard let metadata = claim.metadata?.additionalProperties.value else { return nil }
+        return metadata["corroboration_count"] as? Int
+            ?? Int(metadata["corroboration_count"] as? String ?? "")
+            ?? metadata["corroborationCount"] as? Int
+            ?? Int(metadata["corroborationCount"] as? String ?? "")
     }
 
     private var appearsInSection: some View {
