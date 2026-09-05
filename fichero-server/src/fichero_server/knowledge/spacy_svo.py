@@ -248,13 +248,42 @@ def propose_formulaic(
     return out
 
 
+def dedupe_proposals(
+    proposals: list[ProposedTriple],
+) -> tuple[list[ProposedTriple], list[tuple[ProposedTriple, str]]]:
+    """Fold exact and near-duplicate triples down to one, first-seen winning.
+
+    This is where the parser's habit of emitting one row per object child of a
+    verb — an ``obj`` AND an ``obl`` become two rows that differ only by a
+    trailing phrase — is turned back into the single statement it always was.
+    Identity is `svo_quality.statement_key`/`near_duplicate`, the SAME standard
+    the LLM tier's cleanup answers to, so "too much repetition" is measured one
+    way across both extractors. Returns ``(unique, [(dropped, reason)])``.
+    """
+    from fichero_server.knowledge.svo_quality import near_duplicate, statement_key
+
+    unique: list[ProposedTriple] = []
+    dropped: list[tuple[ProposedTriple, str]] = []
+    keys: list[tuple[str, str]] = []
+    for proposal in proposals:
+        key = statement_key(proposal.subject, proposal.verb, proposal.object)
+        if any(near_duplicate(key, seen) for seen in keys):
+            dropped.append((proposal, "duplicate of an earlier statement"))
+            continue
+        keys.append(key)
+        unique.append(proposal)
+    return unique, dropped
+
+
 def filter_proposals(
     proposals: list[ProposedTriple], text: str
 ) -> tuple[list[ProposedTriple], list[tuple[ProposedTriple, str]]]:
     """Apply the SHARED quality gates and say what each rejection was for.
 
     The same `svo_quality` rules the LLM tier answers to, so the accuracy
-    table compares two extractors under one standard rather than two.
+    table compares two extractors under one standard rather than two. After the
+    per-row gates, identical and near-identical survivors are folded to one so
+    the tier does not hand the writer the repetition beta testers flagged.
     Returns ``(kept, [(rejected, reason)])``.
     """
     from fichero_server.knowledge.svo_quality import claim_rejection, trim_predicate
@@ -279,6 +308,8 @@ def filter_proposals(
                 meta=proposal.meta,
             )
         )
+    kept, duplicates = dedupe_proposals(kept)
+    rejected.extend(duplicates)
     return kept, rejected
 
 

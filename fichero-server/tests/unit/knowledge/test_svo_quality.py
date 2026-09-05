@@ -16,6 +16,8 @@ from fichero_server.knowledge.svo_quality import (
     claim_rejection,
     grounded_fraction,
     is_pronoun_subject,
+    near_duplicate,
+    statement_key,
     trim_predicate,
     ungrounded_span,
 )
@@ -155,3 +157,74 @@ class TestGrounding:
 
     def test_a_grounded_claim_from_the_real_page_passes(self):
         assert claim_rejection("Andres", "somos", "a tomar la confesion", CACIQUES_PAGE) is None
+
+
+class TestMalformedPredicate:
+    """A "verb" of pure punctuation or digits is not a predicate (beta 2026-09).
+
+    The page number "00533" and the stray "]" both appear verbatim on the
+    Caciques page, so the grounding rule waves them through; the first-person
+    rule sees no ending; nothing else looks. The row reads as a statement and
+    is not one.
+    """
+
+    @pytest.mark.parametrize("verb", ["00533", "]", "- -", "1560", "..."])
+    def test_a_predicate_with_no_letters_is_rejected(self, verb):
+        # No source text: the alpha rule must convict on the predicate alone,
+        # before grounding gets a say.
+        reason = claim_rejection("Andres", verb, "poder")
+        assert reason and "not a word" in reason
+
+    def test_a_real_verb_with_a_number_in_it_survives(self):
+        # A letter anywhere clears the gate; this rule only catches the
+        # letter-less case, not "año 1560".
+        assert claim_rejection("Andres", "otorgó", "poder en 1560") is None
+
+
+class TestSelfReference:
+    def test_object_that_only_restates_the_subject_is_rejected(self):
+        reason = claim_rejection("Andres", "es", "Andres")
+        assert reason and "restates the subject" in reason
+
+    def test_self_reference_is_accent_and_case_folded(self):
+        assert claim_rejection("Mérida", "es", "merida")
+
+    def test_object_that_extends_the_subject_is_not_self_reference(self):
+        # "Andres … Andres Hernández" says more than the subject does.
+        assert claim_rejection("Andres", "es", "Andres Hernández Varela") is None
+
+
+class TestStatementIdentity:
+    """Recognising the same statement written twice (beta: "too much repetition")."""
+
+    def test_punctuation_and_case_do_not_hide_a_duplicate(self):
+        assert statement_key("Andres", "otorgó", "poder.") == statement_key(
+            "ANDRES", "otorgó", "poder"
+        )
+
+    def test_a_leading_repeat_of_the_subject_in_the_object_is_dropped(self):
+        assert statement_key("Andres", "otorgó", "Andres poder") == statement_key(
+            "Andres", "otorgó", "poder"
+        )
+
+    def test_same_subject_and_predicate_are_near_duplicates(self):
+        a = statement_key("Andres", "otorgó", "poder")
+        b = statement_key("Andres", "otorgó", "poder.")
+        assert near_duplicate(a, b)
+
+    def test_a_predicate_that_subsumes_another_is_a_duplicate(self):
+        # The parser's obj/obl double-emit: same subject and verb, one object a
+        # longer form of the other.
+        short = statement_key("Andres", "otorgó", "poder")
+        long = statement_key("Andres", "otorgó", "poder cumplido a Juan")
+        assert near_duplicate(short, long)
+
+    def test_different_subjects_are_never_duplicates(self):
+        a = statement_key("Andres", "otorgó", "poder")
+        b = statement_key("Juan", "otorgó", "poder")
+        assert not near_duplicate(a, b)
+
+    def test_different_statements_about_one_subject_survive(self):
+        a = statement_key("Andres", "otorgó", "poder al cacique")
+        b = statement_key("Andres", "firmó", "la carta ante el escribano")
+        assert not near_duplicate(a, b)

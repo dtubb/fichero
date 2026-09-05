@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from difflib import SequenceMatcher
 
 # Pronouns and bare determiners that are never a legitimate KG subject, across
 # the languages this corpus actually holds. Matched case- and accent-folded, so
@@ -90,6 +91,80 @@ def fold(text: str) -> str:
     return " ".join(stripped.casefold().split())
 
 
+def _has_letter(text: str) -> bool:
+    """Whether ``text`` contains at least one alphabetic character.
+
+    A predicate of pure punctuation or digits is not a word; this is the
+    cheapest way to say so, and it treats accented letters as letters.
+    """
+    return any(ch.isalpha() for ch in text or "")
+
+
+# ---------------------------------------------------------------------------
+# Statement identity — "too much repetition" (beta feedback, 2026-09)
+# ---------------------------------------------------------------------------
+#
+# Two rows are the same statement when they name the same subject and say the
+# same thing about it, whatever incidental punctuation or article separates
+# them. The parser is the worst offender: it emits one row per object child of
+# a verb, so a verb with both an ``obj`` and an ``obl`` becomes two rows that
+# differ only by a trailing phrase. Folding those back to one is what the
+# tester meant by "better quality statements", and it is checkable without a
+# model.
+#
+# Deliberately conservative on the subject: two statements about DIFFERENT
+# people are never duplicates, so the subject is compared whole and must match
+# exactly (folded). Only the predicate side is fuzzed.
+
+#: A predicate this similar to another under the same subject is the same
+#: statement written twice. Matches the display-tier threshold's intent
+#: (``svo_cleanup``) while staying independent of it.
+NEAR_DUPLICATE_RATIO = 0.90
+
+
+def _normalized_words(text: str) -> list[str]:
+    """Folded, punctuation-free tokens — the unit statement identity compares."""
+    cleaned = "".join(ch if ch.isalnum() or ch.isspace() else " " for ch in fold(text))
+    return cleaned.split()
+
+
+def statement_key(
+    subject: str | None, verb: str | None, obj: str | None
+) -> tuple[str, str]:
+    """A ``(subject, predicate)`` identity for recognising the same triple twice.
+
+    Folded and stripped of punctuation so surface noise does not hide a
+    duplicate. A leading copy of the subject inside the object is dropped, so
+    "Andres | otorgó Andres poder" and "Andres | otorgó poder" share a key.
+    """
+    subj_words = _normalized_words(subject or "")
+    obj_words = _normalized_words(obj or "")
+    if subj_words and obj_words[: len(subj_words)] == subj_words:
+        obj_words = obj_words[len(subj_words) :]
+    predicate = " ".join(_normalized_words(verb or "") + obj_words)
+    return " ".join(subj_words), predicate
+
+
+def near_duplicate(
+    a: tuple[str, str], b: tuple[str, str], *, ratio: float = NEAR_DUPLICATE_RATIO
+) -> bool:
+    """Whether two :func:`statement_key` tuples name the same statement.
+
+    Different subjects are never duplicates. Under one subject, a predicate
+    that contains the other (the parser's obj/obl double-emit) or is textually
+    at least ``ratio`` similar counts as the same statement.
+    """
+    subj_a, pred_a = a
+    subj_b, pred_b = b
+    if subj_a != subj_b:
+        return False
+    if not pred_a or not pred_b:
+        return pred_a == pred_b
+    if pred_a == pred_b or pred_a in pred_b or pred_b in pred_a:
+        return True
+    return SequenceMatcher(None, pred_a, pred_b).ratio() >= ratio
+
+
 def is_pronoun_subject(subject: str | None) -> bool:
     """Whether ``subject`` names nobody.
 
@@ -138,6 +213,16 @@ def claim_rejection(
     obj_text = (obj or "").strip()
     if not verb_text and not obj_text:
         return "empty predicate — no verb and no object"
+    # A verb made only of punctuation or digits — a stray "]" or a page number
+    # like "00533" welded into the verb field — is not a predicate. It slips the
+    # grounding rule (a bracket has no content token to look for) and the
+    # first-person rule (a number carries no ending), so it must be named here.
+    if verb_text and not _has_letter(verb_text):
+        return f"predicate {verb_text!r} is not a word — no letters, not a verb"
+    # "Andres … Andres": an object that only restates the subject asserts
+    # nothing that can be joined or read. Folded so "Mérida"/"merida" match.
+    if obj_text and subject and fold(obj_text) == fold(subject):
+        return f"object {obj_text!r} only restates the subject — not a statement"
     if len(obj_text.split()) > MAX_OBJECT_WORDS:
         return (
             f"object is {len(obj_text.split())} words — a clause dump, "
