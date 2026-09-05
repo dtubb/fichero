@@ -93,6 +93,37 @@ class TestExtractEntities:
         assert spacy_ner.extract_entities("   ") == []
 
 
+class TestReadableSurfaceForm:
+    """Dotted paleographic surface forms must read naturally (Daniel, 2026-09).
+
+    Page text layers export "." where the word space belongs, and NER carried
+    that through verbatim — "Antonio.de.guzman.vezino.dela.cibdad.de.uitoria".
+    """
+
+    def test_the_reported_names_read_naturally(self):
+        assert spacy_ner.readable_surface_form(
+            "Antonio.de.guzman.vezino.dela.cibdad.de.uitoria"
+        ) == "Antonio de guzman vezino dela cibdad de uitoria"
+        assert spacy_ner.readable_surface_form(
+            "el.capitan.galarza.vz.detuniça"
+        ) == "el capitan galarza vz detuniça"
+        assert spacy_ner.readable_surface_form("la.cibdad.de.uitoria") == "la cibdad de uitoria"
+
+    def test_an_initial_keeps_its_period(self):
+        # "C." is followed by a space, so the period is not a separator.
+        assert spacy_ner.readable_surface_form("Laura C. Hall") == "Laura C. Hall"
+
+    def test_a_decimal_is_left_alone(self):
+        # A period between digits is not a word separator.
+        assert spacy_ner.readable_surface_form("3.5 varas") == "3.5 varas"
+
+    def test_a_clean_name_passes_through(self):
+        assert spacy_ner.readable_surface_form("Juan Pérez") == "Juan Pérez"
+
+    def test_empty_is_returned_unchanged(self):
+        assert spacy_ner.readable_surface_form("") == ""
+
+
 class TestClusterAliases:
     def test_substring_variants_cluster_under_longest(self):
         """Davidson + Davidson [Deibinson] should cluster under the

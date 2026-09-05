@@ -51,6 +51,51 @@ def test_spacy_provider_clusters_aliases_and_sets_metadata(monkeypatch):
     assert "Davidson" in records[0].aliases
 
 
+def test_spacy_provider_cleans_dotted_surface_form(monkeypatch):
+    # A dotted paleographic span must reach the record as a readable name.
+    provider = SpacyNERProvider(model_name="es_core_news_sm")
+    spans = [
+        spacy_ner.EntitySpan(
+            text="Antonio.de.guzman.vezino.dela.cibdad.de.uitoria",
+            fichero_type="person",
+            start=0,
+            end=47,
+            label="PER",
+        ),
+    ]
+    monkeypatch.setattr(spacy_ner, "extract_entities", lambda text, language=None: spans)
+
+    records = asyncio.run(provider.extract("…"))
+    assert records[0].name == "Antonio de guzman vezino dela cibdad de uitoria"
+
+
+def test_llm_provider_cleans_dotted_name_and_aliases(monkeypatch):
+    provider = LLMNERProvider(model_name="gpt-4o-mini")
+
+    async def fake_extract_entities(inputs, state, llm_config):
+        return {
+            "entities": {
+                "locations": [
+                    {"name": "la.cibdad.de.uitoria", "aliases": ["cibdad.de.uitoria"]}
+                ],
+            }
+        }
+
+    monkeypatch.setattr(
+        "fichero_server.workflows.tools.entities.extract_entities",
+        fake_extract_entities,
+    )
+    records = asyncio.run(
+        provider.extract(
+            "…",
+            state={},
+            llm_config=SimpleNamespace(provider="openai", model="gpt-4o-mini"),
+        )
+    )
+    assert records[0].name == "la cibdad de uitoria"
+    assert records[0].aliases == ["cibdad de uitoria"]
+
+
 def test_llm_provider_flattens_entity_payload(monkeypatch):
     provider = LLMNERProvider(model_name="gpt-4o-mini")
 

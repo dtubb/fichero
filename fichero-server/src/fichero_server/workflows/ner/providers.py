@@ -44,14 +44,17 @@ def _record(
     aliases: Iterable[str] | None = None,
     metadata: dict[str, Any] | None = None,
 ) -> ExtractedEntity:
+    # One choke point for every provider: a dotted paleographic surface form
+    # ("Antonio.de.guzman") becomes a readable display name. Offsets are
+    # untouched, so the source anchor still points at the original span.
     return ExtractedEntity(
-        name=name,
+        name=spacy_ner.readable_surface_form(name),
         type=_normalise_entity_type(entity_type),
         confidence=confidence,
         source_offsets=source_offsets,
         provider_name=provider_name,
         model_name=model_name,
-        aliases=list(aliases or []),
+        aliases=[spacy_ner.readable_surface_form(a) for a in (aliases or [])],
         metadata=dict(metadata or {}),
     )
 

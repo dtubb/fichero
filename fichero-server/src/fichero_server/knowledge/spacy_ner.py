@@ -31,6 +31,7 @@ don't catalogue).
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -65,6 +66,32 @@ _SPACY_TO_FICHERO_ES = {
     "LOC": "location",
     "MISC": "concept",
 }
+
+
+# A period used as a WORD SEPARATOR — sitting directly between two letters
+# with no space on either side. Paleographic PDFs export their text layer this
+# way ("Antonio.de.guzman.vezino" for "Antonio de guzman vezino"), and NER
+# carries the surface form through verbatim, so entity display names come out
+# dotted. A period after an initial ("Laura C. Hall" — a space follows) or
+# between digits ("3.5") is NOT a separator and is left alone. ``\w`` minus
+# digit and underscore is "a letter" (Unicode-aware for str patterns).
+_SEPARATOR_DOT = re.compile(r"(?<=[^\W\d_])\.(?=[^\W\d_])")
+
+
+def readable_surface_form(text: str) -> str:
+    """An entity display name with separator-dots turned back into spaces.
+
+    Turns ``Antonio.de.guzman.vezino.dela.cibdad.de.uitoria`` into
+    ``Antonio de guzman vezino dela cibdad de uitoria`` — the dots that stood
+    in for spaces become spaces; a space that was lost outright ("de la"→"dela")
+    cannot be recovered here and is left as it is. Whitespace is then collapsed.
+
+    This normalises the DISPLAY string only. Callers keep character offsets
+    pointing at the original span, so a highlight still lands on the page.
+    """
+    if not text:
+        return text
+    return " ".join(_SEPARATOR_DOT.sub(" ", text).split())
 
 
 @dataclass(frozen=True)
@@ -176,14 +203,19 @@ def extract_entities(text: str, language: str | None = None) -> list[EntitySpan]
         fichero_type = label_map.get(ent.label_)
         if not fichero_type:
             continue
-        key = (ent.text, fichero_type)
+        # Display surface form: dotted paleographic text ("Antonio.de.guzman")
+        # reads naturally. Offsets stay on the original span so a highlight
+        # still lands; the cleaned form also drives dedup, so a dotted and a
+        # spaced mention of the same name collapse.
+        name = readable_surface_form(ent.text)
+        key = (name, fichero_type)
         if key in seen:
             # Keep the earliest occurrence — the LLM later sees this
             # one span and can include the parenthetical variants
             # via alternative_spellings.
             continue
         seen[key] = EntitySpan(
-            text=ent.text,
+            text=name,
             fichero_type=fichero_type,
             start=ent.start_char,
             end=ent.end_char,
