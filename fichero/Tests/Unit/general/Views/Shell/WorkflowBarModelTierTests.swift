@@ -97,6 +97,26 @@ struct WorkflowBarModelTierTests {
         #expect(tier(toolStep("translate")) == .text)
     }
 
+    @Test("an unpinned step resolves the shown model — what the chain now stamps")
+    func unpinnedStepCarriesTheShownModel() {
+        // The chain stamps `effectiveChoice` on every step (chainStepRunChoice),
+        // superseding R-11's "unpinned sends nothing." So an unpinned step must
+        // resolve a REAL model, not nil — otherwise the preset node falls to its
+        // own $small alias and routes to Apple, the bar reading Sonnet all the
+        // while (Daniel, 2026-09-05). A text step takes the Text tier even under
+        // an image selection, so the stamp carries that model, not the Vision
+        // default.
+        let step = workflowStep("Extract Entities", requiresVision: false)
+        let choice = WorkflowBarPolicy.effectiveChoice(
+            for: step,
+            tools: registry,
+            textTier: Self.claude,
+            visionTier: Self.appleVision,
+            selectionPrefersVision: true  // 90 images selected — the bug's state
+        )
+        #expect(choice?.model == Self.claude.model)
+    }
+
     @Test("an OCR-capable vision tool keeps the Vision default")
     func visionToolKeepsVisionTier() {
         #expect(tier(toolStep("transcribe")) == .vision)

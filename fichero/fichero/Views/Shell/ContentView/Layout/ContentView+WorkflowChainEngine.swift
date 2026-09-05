@@ -47,26 +47,21 @@ extension ContentView {
         // still follows whatever Settings say then.
         var overrides: [UUID: WorkflowBarModelChoice] = [:]
         if stampResolvedModels {
+            // Stamp the model the SENTENCE SHOWS on every staged step, via the
+            // one resolution display and both run paths share
+            // (`chainStepRunChoice` → `effectiveChoice`). This supersedes R-11's
+            // "an unpinned step sends nothing, the engine resolves the same
+            // tier the sentence shows": that premise was factually broken — the
+            // preset node's own tier (`$small`) is NOT the tier the bar
+            // displays, so the engine resolved `$small` → Apple while the bar
+            // read Sonnet (Daniel, 2026-09-05). Making model-shown = model-sent
+            // literally true fixes both the pinned and unpinned cases; the
+            // engine is now capability-aware, so a node that cannot take the
+            // model is still left on its own tier.
             for step in stagedWorkflowChain {
-                // The SAME resolution the sentence shows and the client
-                // fallback loop sends — pin, tier correction, or the picker's
-                // choice for a single staged preset (Daniel, 2026-09-04: "the
-                // model chosen is not the model used"). This path stamped the
-                // implicit tier correction ALONE, which is tool-steps-only:
-                // a staged preset therefore rode the engine chain carrying no
-                // model at all, and the engine fell back to the preset's own
-                // node models or the stored defaults. That is the
-                // "routing to Apple Intelligence" Daniel is seeing, and the
-                // Paleographer Review that ran on gemini under an opus chip.
-                let resolved = workflowBarRunOverrides(
-                    for: step, stagedCount: stagedWorkflowChain.count
-                )
-                guard let model = resolved.model, !model.isEmpty else { continue }
-                overrides[step.id] = WorkflowBarModelChoice(
-                    label: ModelChipToolbarItem.shorten(model),
-                    provider: resolved.provider ?? "",
-                    model: model
-                )
+                if let choice = chainStepRunChoice(for: step) {
+                    overrides[step.id] = choice
+                }
             }
         }
         let steps = WorkflowBarChainPersistence.chainSteps(

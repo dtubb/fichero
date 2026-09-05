@@ -24,6 +24,34 @@ extension ContentView {
         )
     }
 
+    /// The model a staged step rides into the run with: the one the SENTENCE
+    /// SHOWS. Display and execution read the ONE function `effectiveChoice`
+    /// (pin when the pin can serve the step, otherwise the tier default), so
+    /// "model shown = model sent" is an invariant — not a hope that the engine
+    /// resolves the same tier the sentence named. It does not: a preset node's
+    /// `$small` alias seeds to Apple, which is how a chain reading "Sonnet"
+    /// ran entirely on apple-intelligence (Daniel, 2026-09-05).
+    ///
+    /// nil for a preset that declares it refuses overrides (#3804) — its
+    /// internal models are fixed by design and the run must not force one — and
+    /// for a step with no model to name. Used by BOTH chain-run paths (the
+    /// engine chain persist-and-stamp, and the client fallback loop) so they
+    /// cannot disagree about what a step runs.
+    @MainActor
+    func chainStepRunChoice(for step: StagedWorkflowStep) -> WorkflowBarModelChoice? {
+        if case .workflow(let item) = step.kind, item.acceptsModelOverride == false {
+            return nil
+        }
+        guard let choice = WorkflowBarPolicy.effectiveChoice(
+            for: step,
+            tools: Array(workflowStore.toolRegistry.values),
+            textTier: workflowBarTextTierDefault,
+            visionTier: workflowBarVisionTierDefault,
+            selectionPrefersVision: selectionPrefersVisionModel
+        ), !choice.model.isEmpty else { return nil }
+        return choice
+    }
+
     /// The overrides one staged step rides into the run with: its pin, or the
     /// implicit tier correction, or nothing.
     @MainActor

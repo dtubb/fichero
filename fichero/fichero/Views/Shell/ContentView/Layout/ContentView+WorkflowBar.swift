@@ -192,18 +192,17 @@ extension ContentView {
                 update(step.id) { $0.state = .failed }
                 break
             }
-            // The model the SENTENCE named for this step — its pin, or the
-            // tier its tool actually needs (2026-09-01). Display and
-            // execution answer to one rule.
-            let overrides = workflowBarRunOverrides(
-                for: step, stagedCount: stagedWorkflowChain.count
-            )
+            // The model the SENTENCE shows for this step — the SAME resolution
+            // the engine chain path stamps, so the two run paths cannot
+            // disagree about what a step runs (2026-09-05). nil for a preset
+            // that refuses overrides, which then keeps its own models.
+            let choice = chainStepRunChoice(for: step)
             let threadId = await awaitWorkflowExecution(
                 workflowId: workflowId,
                 workflowName: step.name,
                 docIds: targets,
-                providerOverride: overrides.provider,
-                modelOverride: overrides.model,
+                providerOverride: choice?.provider,
+                modelOverride: choice?.model,
                 artifactTypeHint: artifactTypeHint,
                 artifactStepNameHint: artifactStepNameHint,
                 onThreadId: { threadId in
