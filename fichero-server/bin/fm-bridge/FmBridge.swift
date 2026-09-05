@@ -65,6 +65,13 @@
 import Foundation
 import FoundationModels
 import Translation
+// Vision joins for --recognize-documents. fm-bridge is not "the Foundation
+// Models binary", it is the Swift side of frameworks the Python engine cannot
+// call (lane-model-routing, 2026-09-04) — a sibling binary would mean a second
+// build, a second staging step, a second thing to notarize, and a second path
+// for the engine to fail to find. System framework, dynamically linked, loaded
+// lazily: the Apple Intelligence and Translation paths pay nothing for it.
+import Vision
 
 struct SuccessResponse: Codable {
     let response: String
@@ -402,6 +409,165 @@ func runTranslate(_ raw: [String: Any]) async {
     }
 }
 
+// MARK: - Document recognition (Vision, macOS 26+)
+
+struct RecognizedRegion: Codable {
+    let index: Int
+    let text: String
+    /// Normalized 0..1, TOP-LEFT origin, flipped here at the boundary — the
+    /// same place `_vision_flip_bbox_to_top_left` flips on the Python side.
+    /// A flip deferred to the consumer is a half-page offset that reads as a
+    /// bad model rather than a bad convention.
+    let polygon: [[Double]]
+    let bbox: [Double]
+}
+
+struct RecognizeDocumentsResponse: Codable {
+    let engine: String
+    /// WHICH PICTURE these fractions describe. Vision normalizes against the
+    /// image it was handed, so a result that does not name its frame cannot be
+    /// placed on a page that has more than one rendition.
+    let pixel_frame: [String: Int]
+    /// Elapsed time, because a 168s cold start and a 0.7s warm call on the same
+    /// page are indistinguishable to the caller otherwise — this is how Python
+    /// tells "cold" from "something is wrong".
+    let elapsed_ms: Int
+    let line_count: Int
+    let word_count: Int
+    let lines: [RecognizedRegion]
+    let words: [RecognizedRegion]
+}
+
+func flippedPolygon(_ points: [simd_float2]) -> [[Double]] {
+    points.map { [Double($0.x), 1.0 - Double($0.y)] }
+}
+
+func polygonBBox(_ polygon: [[Double]]) -> [Double] {
+    guard let first = polygon.first else { return [0, 0, 0, 0] }
+    var minX = first[0], maxX = first[0], minY = first[1], maxY = first[1]
+    for point in polygon {
+        minX = min(minX, point[0]); maxX = max(maxX, point[0])
+        minY = min(minY, point[1]); maxY = max(maxY, point[1])
+    }
+    return [minX, minY, maxX - minX, maxY - minY]
+}
+
+@available(macOS 26.0, *)
+func recognizedRegion(_ observation: RecognizedTextObservation, index: Int) -> RecognizedRegion {
+    let polygon = flippedPolygon(observation.boundingRegion.normalizedPoints)
+    return RecognizedRegion(
+        index: index,
+        text: String(observation.transcript),
+        polygon: polygon,
+        bbox: polygonBBox(polygon)
+    )
+}
+
+func pixelSize(ofImageAt path: String) -> (Int, Int)? {
+    guard let source = CGImageSourceCreateWithURL(URL(fileURLWithPath: path) as CFURL, nil),
+          let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+          let width = properties[kCGImagePropertyPixelWidth] as? Int,
+          let height = properties[kCGImagePropertyPixelHeight] as? Int
+    else { return nil }
+    return (width, height)
+}
+
+@available(macOS 26.0, *)
+func runRecognizeDocuments(_ payload: [String: Any]) async {
+    guard let path = payload["image_path"] as? String, !path.isEmpty else {
+        emitError("Missing 'image_path' in request payload", kind: "json")
+    }
+    guard FileManager.default.isReadableFile(atPath: path) else {
+        emitError("Image not found or unreadable: \(path)", kind: "not_found")
+    }
+    guard let (width, height) = pixelSize(ofImageAt: path) else {
+        emitError("Could not read image dimensions: \(path)", kind: "not_found")
+    }
+
+    let began = Date()
+    var lines: [RecognizedRegion] = []
+    var words: [RecognizedRegion] = []
+    do {
+        let request = RecognizeDocumentsRequest()
+        let observations = try await request.perform(on: URL(fileURLWithPath: path))
+        for observation in observations {
+            let text = observation.document.text
+            for (index, line) in text.lines.enumerated() {
+                lines.append(recognizedRegion(line, index: index))
+            }
+            for (index, word) in (text.words ?? []).enumerated() {
+                words.append(recognizedRegion(word, index: index))
+            }
+        }
+    } catch {
+        // Never an empty result where a failure occurred: a page with no text
+        // and a page that failed must not look alike.
+        emitError("Document recognition failed: \(error)", kind: "vision")
+    }
+
+    let payload = RecognizeDocumentsResponse(
+        engine: "vision-recognize-documents",
+        pixel_frame: ["width": width, "height": height],
+        elapsed_ms: Int(Date().timeIntervalSince(began) * 1000),
+        line_count: lines.count,
+        word_count: words.count,
+        lines: lines,
+        words: words
+    )
+    if let data = try? JSONEncoder().encode(payload) {
+        FileHandle.standardOutput.write(data)
+    }
+    exit(0)
+}
+
+/// Pay the one-time, system-wide Vision warm-up somewhere nobody is waiting on
+/// a page. Measured cold: 168s on a 929x1346 scan, 45s on a blank image; warm:
+/// ~0.3s. Fire-and-forget from the caller, never awaited on the engine boot
+/// path, and never fatal — a warm-up that fails is a slow first page, not a
+/// dead engine.
+///
+/// It warms through a temporary FILE, not an in-memory CGImage, because those
+/// are different code paths and only the file one is what recognition uses.
+/// Measured 2026-09-04: a CGImage warm-up returned success and left the next
+/// real page paying 48.6s anyway. A warm-up that does not warm the path in
+/// question is worse than none — it reports success and changes nothing.
+@available(macOS 26.0, *)
+func runWarmDocuments() async {
+    var succeeded = false
+    let url = FileManager.default.temporaryDirectory
+        .appendingPathComponent("fm-bridge-warm-\(UUID().uuidString).png")
+    defer { try? FileManager.default.removeItem(at: url) }
+
+    let colorSpace = CGColorSpaceCreateDeviceGray()
+    if let context = CGContext(
+        data: nil, width: 64, height: 64, bitsPerComponent: 8, bytesPerRow: 64,
+        space: colorSpace, bitmapInfo: CGImageAlphaInfo.none.rawValue
+    ) {
+        context.setFillColor(gray: 1.0, alpha: 1.0)
+        context.fill(CGRect(x: 0, y: 0, width: 64, height: 64))
+        if let cgImage = context.makeImage(),
+           let destination = CGImageDestinationCreateWithURL(
+               url as CFURL, "public.png" as CFString, 1, nil
+           ) {
+            CGImageDestinationAddImage(destination, cgImage, nil)
+            if CGImageDestinationFinalize(destination) {
+                let request = RecognizeDocumentsRequest()
+                succeeded = ((try? await request.perform(on: url)) != nil)
+            }
+        }
+    }
+
+    let payload = ProbeResponse(
+        available: succeeded,
+        reason: succeeded ? nil : "Vision warm-up did not complete; the first real page will pay the cost."
+    )
+    if let data = try? JSONEncoder().encode(payload) {
+        FileHandle.standardOutput.write(data)
+    }
+    // Exit 0 either way: a failed warm-up must never fail engine startup.
+    exit(0)
+}
+
 @main
 struct FmBridge {
     static func main() async {
@@ -425,6 +591,44 @@ struct FmBridge {
             } else {
                 emitError(
                     "On-device translation requires macOS 26 or later.",
+                    kind: "unavailable"
+                )
+            }
+            return
+        }
+
+        // Document recognition — Vision, not Foundation Models. Dispatched
+        // beside --translate and before the Apple Intelligence check for the
+        // same reason: it must work on machines with Apple Intelligence off.
+        if args.contains("--recognize-documents") {
+            let inputData = FileHandle.standardInput.readDataToEndOfFile()
+            guard !inputData.isEmpty else {
+                emitError("Empty stdin", kind: "json")
+            }
+            guard let dict = try? JSONSerialization.jsonObject(with: inputData)
+                    as? [String: Any]
+            else {
+                emitError("Stdin JSON is not an object", kind: "json")
+            }
+            if #available(macOS 26.0, *) {
+                await runRecognizeDocuments(dict)
+            } else {
+                emitError(
+                    "Document recognition requires macOS 26 or later.",
+                    kind: "unavailable"
+                )
+            }
+            return
+        }
+
+        // Warm the Vision document model. No stdin, no page, no failure mode
+        // that matters — see runWarmDocuments.
+        if args.contains("--warm-documents") {
+            if #available(macOS 26.0, *) {
+                await runWarmDocuments()
+            } else {
+                emitError(
+                    "Document recognition requires macOS 26 or later.",
                     kind: "unavailable"
                 )
             }

@@ -1,7 +1,8 @@
 # fm-bridge `--recognize-documents` — spec
 
-Status: PROPOSED, awaiting lane-model-routing (protocol owner) and a build
-window. Written 2026-09-04 by lane-mlx-catalog.
+Status: ACCEPTED by lane-model-routing (protocol owner) 2026-09-04, written to
+their four requirements; implemented in `fichero-server/bin/fm-bridge/FmBridge.swift`,
+compile-verified, awaiting their diff review and a build window.
 
 ## Why this subcommand exists
 
@@ -65,6 +66,35 @@ a different framework and works on machines with Apple Intelligence off.
 Guard with `if #available(macOS 26.0, *)` and emit
 `kind: "unavailable"` below that.
 
+## Protocol requirements (lane-model-routing, as owner)
+
+1. **Error kinds reuse the existing vocabulary.** `json` for a bad payload,
+   `unavailable` for pre-macOS-26, `not_found` for a missing or unreadable
+   image, `vision` for anything the framework raises. The Python side maps
+   kind → typed exception and an unknown kind degrades to a generic
+   RuntimeError, so inventing a kind is a silent downgrade rather than a new
+   behaviour.
+2. **`elapsed_ms` in every success payload.** With 168s cold and 0.7s warm on
+   the same page, elapsed time is the only way the caller can tell a cold start
+   from something being wrong.
+3. **`image_path` is bridge-internal.** Fine between engine and subprocess on
+   one machine; it must NEVER surface in an API request. The engine may be
+   remote from the client, and a path that leaks outward is a path that
+   resolves on the wrong machine.
+4. **Never an empty result where a failure occurred.** A page with no text and
+   a page that failed must not look alike. This is the property the whole
+   bridge is built on.
+
+**Timeouts are not this spec's business.** `_compute_timeout(config, kind)`
+already takes a typed kind, and recognition gets its own rather than borrowing
+the chat budget. The requirement is only: generous first call, seconds
+thereafter. The number belongs in that function.
+
+**Non-determinism is caller-facing.** The same page returned 973 words cold and
+964 warm. Nothing may cache or diff on word count, and any artifact provenance
+recording "N words" is a this-run-only fact. Two runs of one page differing is
+not an OCR regression.
+
 ## The one operational hazard: cold start
 
 Measured 2026-09-04 across six pages:
@@ -81,10 +111,24 @@ not recur. But the first call on a cold machine can take **almost three
 minutes**, and a per-page subprocess timeout sized for the warm case (seconds)
 would kill it and report a Vision failure that is really a stopwatch failure.
 
-Required of the caller: a generous first-call budget, or a `--warm-documents`
-no-op invocation at engine start whose cost is paid once where nobody is
-waiting on a page. Recommend the latter; it is three lines and makes every
-subsequent timeout honest.
+`--warm-documents` exists for this, and the caller owns it
+(lane-model-routing): fire-and-forget, NEVER awaited on the engine boot path —
+a 168s blocking start is worse than the bug it fixes — and never fatal. On an
+already-warm machine it costs ~0.3s, so running it every start is fine.
+
+**The warm-up must go through a temporary FILE, not an in-memory CGImage.**
+Measured 2026-09-04: a CGImage warm-up returned `available: true` in 0.4s and
+left the next real page paying 48.6s anyway. `perform(on: CGImage)` and
+`perform(on: URL)` are different paths and only the second is what recognition
+uses. A warm-up that does not warm the path in question is worse than none,
+because it reports success and changes nothing.
+
+**Unverified on a cold machine, and stated as such.** The file-based warm-up
+returns in 0.47s on an already-warm system, which proves nothing either way —
+the cold state could not be reset to retest tonight. The falsifiable
+prediction: on a cold machine `--warm-documents` should ITSELF take ~45s,
+because it is paying the cost. If it returns instantly on a cold machine, it is
+still not warming and this needs another look.
 
 Also observed: 973 words cold vs 964 warm on the same page. The API is not
 bit-deterministic across runs, so nothing downstream may assume stable counts.
