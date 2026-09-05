@@ -205,14 +205,40 @@ extension ActivityLogView {
     /// run says so in words, with the models that have no price in its help.
     @ViewBuilder
     private func runCostLabel(_ run: WorkflowRunResponse) -> some View {
+        // The estimate recorded at start, paired with the actual as
+        // "est $X → actual" — the calibration Daniel asked to keep. A single
+        // per-run figure, labelled "run total" in the tooltip since cost is
+        // recorded per run, not per artifact.
+        let estText = run.estimatedCostUsd.map { String(format: "est $%.4f", $0) }
         if let usage = run.runUsage, usage.hasUsage {
-            Text(usage.costText)
+            HStack(spacing: 3) {
+                if let estText {
+                    Text("\(estText) →")
+                        .foregroundStyle(.tertiary)
+                        .monospacedDigit()
+                }
+                Text(usage.costText)
+                    .foregroundStyle(usage.priced ? .secondary : Color.orange)
+            }
+            .font(.caption)
+            .help(([estText.map { "\($0) estimated (run total)" }, usage.tokensText,
+                    usage.unpricedNotice])
+                .compactMap { $0 }
+                .joined(separator: " — "))
+            .accessibilityLabel(
+                estText.map { "\($0) estimated, actual \(usage.costText)" }
+                ?? "Run cost: \(usage.costText). \(usage.tokensText)"
+            )
+        } else if let estText {
+            // Estimated, but nothing spent has been recorded (a run that made
+            // no model call, or one still in flight). The estimate alone, never
+            // a $0.00 that would claim the run was free.
+            Text(estText)
                 .font(.caption)
-                .foregroundStyle(usage.priced ? .secondary : Color.orange)
-                .help([usage.tokensText, usage.unpricedNotice]
-                    .compactMap { $0 }
-                    .joined(separator: " — "))
-                .accessibilityLabel("Run cost: \(usage.costText). \(usage.tokensText)")
+                .foregroundStyle(.tertiary)
+                .monospacedDigit()
+                .help("Estimated cost for this run (run total). No spend recorded.")
+                .accessibilityLabel("Estimated run cost \(estText)")
         }
     }
 

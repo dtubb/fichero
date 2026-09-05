@@ -37,7 +37,35 @@ extension ActivityService {
             progressTimeline: progressTimeline,
             diagramMermaid: response.diagramMermaid,
             runArtifacts: (response.runArtifacts ?? []).map(Self.runArtifact(from:)),
-            steps: (response.steps ?? []).map(Self.runStep(from:))
+            steps: (response.steps ?? []).map(Self.runStep(from:)),
+            // What the run SPENT and what it was ESTIMATED to spend — the pair
+            // the chip and Activity read as "est → actual". runUsage was
+            // decoded on the raw-JSON path but never mapped on THIS generated
+            // path, so a run fetched by thread id reported no cost; both are
+            // carried through now.
+            runUsage: response.runUsage.map(Self.runUsage(from:)),
+            estimatedCostUsd: response.estimatedCostUsd
+        )
+    }
+
+    /// The generated run-usage payload → the app's `RunUsage`. Every field is
+    /// optional in the schema (no `required` list), so each nil-coalesces to
+    /// the same default the raw-JSON decoder uses — costUsd stays nil (unpriced
+    /// is not zero), the flags default false.
+    nonisolated static func runUsage(
+        from usage: Components.Schemas.RunUsageResponse
+    ) -> RunUsage {
+        RunUsage(
+            modelCalls: usage.modelCalls ?? 0,
+            inputTokens: usage.inputTokens ?? 0,
+            outputTokens: usage.outputTokens ?? 0,
+            totalTokens: usage.totalTokens ?? 0,
+            cacheReadTokens: usage.cacheReadTokens ?? 0,
+            costUsd: usage.costUsd,
+            priced: usage.priced ?? false,
+            partiallyPriced: usage.partiallyPriced ?? false,
+            estimatedTokens: usage.estimatedTokens ?? false,
+            unpricedModels: usage.unpricedModels ?? []
         )
     }
 

@@ -32,6 +32,10 @@ struct WorkflowRunResponse: Codable {
     /// the same as a run that cost nothing, so nil renders as nothing at all
     /// rather than as "$0.00".
     let runUsage: RunUsage?
+    /// What the run was ESTIMATED to cost at start — a single per-run figure,
+    /// paired with `runUsage.costUsd` as "est → actual". Nil when unpriced at
+    /// estimate time or for a legacy run; never a stand-in zero.
+    let estimatedCostUsd: Double?
 
     enum CodingKeys: String, CodingKey {
         case threadId = "thread_id"
@@ -51,6 +55,7 @@ struct WorkflowRunResponse: Codable {
         case runArtifacts = "run_artifacts"
         case steps
         case runUsage = "run_usage"
+        case estimatedCostUsd = "estimated_cost_usd"
     }
 
     init(from decoder: Decoder) throws {
@@ -89,6 +94,7 @@ struct WorkflowRunResponse: Codable {
             [WorkflowRunStep].self, forKey: .steps
         ) ?? []
         runUsage = try container.decodeIfPresent(RunUsage.self, forKey: .runUsage)
+        estimatedCostUsd = try container.decodeIfPresent(Double.self, forKey: .estimatedCostUsd)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -115,6 +121,7 @@ struct WorkflowRunResponse: Codable {
         try container.encode(runArtifacts, forKey: .runArtifacts)
         try container.encode(steps, forKey: .steps)
         try container.encodeIfPresent(runUsage, forKey: .runUsage)
+        try container.encodeIfPresent(estimatedCostUsd, forKey: .estimatedCostUsd)
     }
 
     init(
@@ -134,7 +141,8 @@ struct WorkflowRunResponse: Codable {
         diagramMermaid: String? = nil,
         runArtifacts: [WorkflowRunArtifact] = [],
         steps: [WorkflowRunStep] = [],
-        runUsage: RunUsage? = nil
+        runUsage: RunUsage? = nil,
+        estimatedCostUsd: Double? = nil
     ) {
         self.threadId = threadId
         self.workflowId = workflowId
@@ -153,6 +161,7 @@ struct WorkflowRunResponse: Codable {
         self.runArtifacts = runArtifacts
         self.steps = steps
         self.runUsage = runUsage
+        self.estimatedCostUsd = estimatedCostUsd
     }
 }
 
