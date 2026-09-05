@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-import json
 import os
+import re
 from pathlib import Path
 import shutil
 from typing import Any
@@ -372,22 +372,32 @@ class MLXModelStore:
         The snapshot directory is created early and fills as blobs land, so
         `snapshot.exists()` is true from the first small file onward. An
         interrupted download therefore looked installed: measured 2026-09-04,
-        a Chandra pull killed at 151 MB left a directory holding config and
+        a Chandra pull killed at 151 MB left a directory of config and
         tokenizer files, and the store answered "Model already installed",
-        state=completed, for a model whose 5.6 GB of weights were absent. The
-        sidecar would then have failed to load something the catalog said was
-        ready — a green tick over an empty box, the same shape as #4504.
+        state=completed, for a model whose 5.6 GB of weights were absent.
 
-        Three local checks, no network:
-        * huggingface_hub leaves ``*.incomplete`` blobs behind mid-download;
-        * a model with no weight file at all is not a model;
-        * and when the repo ships an index, every shard it names must be here.
+        The rule is derived from the FILES PRESENT, deliberately, because two
+        other signals look authoritative and are not:
+
+        * ``*.incomplete`` blobs are not evidence of an unfinished model. They
+          survive a completed download — the finished Chandra snapshot still
+          had two, left by the killed attempt — so testing them called a good
+          model broken forever.
+        * The repo's own ``model.safetensors.index.json`` is not reliable
+          either. mlx-community/Qwen3-VL-8B-Instruct-4bit ships two shards and
+          an index naming FOUR, a stale manifest from an earlier layout; mlx
+          globs ``*.safetensors`` and never reads it. Trusting it marked a
+          working model incomplete.
+
+        What holds: huggingface_hub links a blob into ``snapshots/`` only once
+        that blob is whole, so a file's presence there IS the completeness
+        signal. A model needs at least one weight file, and a sharded set must
+        have every member of its own series — ``model-00001-of-00002`` implies
+        ``model-00002-of-00002``, read off the filename rather than a manifest
+        that may describe a different release.
         """
         snapshot = self.snapshot_path(spec)
         if not snapshot.exists():
-            return False
-        blobs = snapshot.parent.parent / "blobs"
-        if blobs.exists() and any(blobs.glob("*.incomplete")):
             return False
         weights = [
             path
@@ -396,14 +406,17 @@ class MLXModelStore:
         ]
         if not weights:
             return False
-        index = snapshot / "model.safetensors.index.json"
-        if index.exists():
-            try:
-                weight_map = json.loads(index.read_text(encoding="utf-8")).get("weight_map", {})
-            except Exception:
-                return False
-            for filename in set(weight_map.values()):
-                if not (snapshot / filename).exists():
+        for path in weights:
+            match = re.match(r"^(?P<stem>.+)-(?P<index>\d+)-of-(?P<total>\d+)(?P<ext>\..+)$", path.name)
+            if not match:
+                continue
+            total = int(match.group("total"))
+            for shard in range(1, total + 1):
+                sibling = (
+                    f"{match.group('stem')}-{shard:0{len(match.group('index'))}d}"
+                    f"-of-{match.group('total')}{match.group('ext')}"
+                )
+                if not (snapshot / sibling).exists():
                     return False
         return True
 

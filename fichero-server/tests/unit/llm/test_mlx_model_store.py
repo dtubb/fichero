@@ -341,28 +341,58 @@ def test_an_interrupted_download_is_not_installed(tmp_path: Path) -> None:
     assert store.is_complete(spec) is False
 
 
-def test_a_leftover_incomplete_blob_blocks_installed_even_with_weights(tmp_path: Path) -> None:
-    """huggingface_hub writes *.incomplete while a blob is still arriving."""
+def test_a_stale_incomplete_blob_does_not_condemn_a_finished_model(tmp_path: Path) -> None:
+    """`*.incomplete` markers SURVIVE a completed download.
+
+    Measured 2026-09-04: after Chandra finished — 5.78 GB, both shards, exactly
+    its advertised size — two .incomplete blobs from the earlier killed attempt
+    were still sitting in the cache. An earlier version of this check tested
+    them and called the finished model broken, which would have condemned any
+    model whose download had ever been interrupted, permanently.
+    """
     store = MLXModelStore(tmp_path / "mlx")
     spec = MANAGED_MLX_MODELS["Chandra-OCR"]
     _partial_snapshot(tmp_path / "mlx", spec, weights=True, incomplete=True)
 
-    assert store.is_complete(spec) is False
+    assert store.is_complete(spec) is True
 
 
-def test_a_repo_missing_a_shard_its_own_index_names_is_not_installed(tmp_path: Path) -> None:
-    """The repo's manifest is the authority on what "all of it" means."""
+def test_a_half_downloaded_shard_set_is_not_installed(tmp_path: Path) -> None:
+    """A shard names its own series: 1-of-2 present means 2-of-2 must be too.
+
+    Read off the FILENAME rather than the repo's index, because indexes lie —
+    see the next test.
+    """
     store = MLXModelStore(tmp_path / "mlx")
     spec = MANAGED_MLX_MODELS["Chandra-OCR"]
-    _partial_snapshot(
-        tmp_path / "mlx",
-        spec,
-        weights=True,
-        incomplete=False,
-        index={"weight_map": {"a": "model-00001-of-00002.safetensors", "b": "model-00002-of-00002.safetensors"}},
-    )
+    snapshot = _partial_snapshot(tmp_path / "mlx", spec, weights=False, incomplete=False)
+    (snapshot / "model-00001-of-00002.safetensors").write_bytes(b"w" * 8)
 
     assert store.is_complete(spec) is False
+
+    (snapshot / "model-00002-of-00002.safetensors").write_bytes(b"w" * 8)
+    assert store.is_complete(spec) is True
+
+
+def test_a_stale_index_naming_a_different_layout_is_ignored(tmp_path: Path) -> None:
+    """mlx-community/Qwen3-VL-8B-Instruct-4bit ships TWO shards and an index
+    naming FOUR — a manifest left over from an earlier release. mlx globs
+    *.safetensors and never reads it, and the model works; an earlier version
+    of this check trusted the index and marked a working model incomplete.
+    """
+    store = MLXModelStore(tmp_path / "mlx")
+    spec = MANAGED_MLX_MODELS["mlx-community/Qwen3-VL-8B"]
+    snapshot = _partial_snapshot(
+        tmp_path / "mlx",
+        spec,
+        weights=False,
+        incomplete=False,
+        index={"weight_map": {f"t{i}": f"model-0000{i}-of-00004.safetensors" for i in range(1, 5)}},
+    )
+    (snapshot / "model-00001-of-00002.safetensors").write_bytes(b"w" * 8)
+    (snapshot / "model-00002-of-00002.safetensors").write_bytes(b"w" * 8)
+
+    assert store.is_complete(spec) is True
 
 
 def test_a_finished_download_is_installed(tmp_path: Path) -> None:
