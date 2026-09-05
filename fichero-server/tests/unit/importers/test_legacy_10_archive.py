@@ -896,4 +896,7 @@ def test_claim_payload_from_a_legacy_node_validates(tmp_path: Path) -> None:
     node = _document_folder_node(scan)
 
     body = claim_payload(node["claims"][0], node, "doc-1", [])
-    ClaimCreateRequest.model_validate(body)
+    validated = ClaimCreateRequest.model_validate(body)
+    # The enum mapping IS the regression this test exists for: attempt 1 of
+    # the full import died on claim_type="timeline_event" (not a member).
+    assert validated.claim_type == "fact"

@@ -59,7 +59,9 @@ def test_a_readable_file_passes(tmp_path) -> None:
     real = tmp_path / "page.jpg"
     real.write_bytes(b"not really a jpeg, but it is readable")
 
-    vision_base.assert_source_readable(str(real))  # must not raise
+    # The not-raising IS the behavior; make it an assertion the vacuous-test
+    # guard can see rather than a comment only a human can.
+    assert vision_base.assert_source_readable(str(real)) is None
 
 
 def test_a_missing_file_is_named(tmp_path) -> None:

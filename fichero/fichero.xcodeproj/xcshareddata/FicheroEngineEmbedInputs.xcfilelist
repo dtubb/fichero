@@ -243,7 +243,9 @@ $(SRCROOT)/../fichero-server/src/fichero_server/knowledge/svo_quality.py
 $(SRCROOT)/../fichero-server/src/fichero_server/knowledge/triangulation.py
 $(SRCROOT)/../fichero-server/src/fichero_server/knowledge/triples.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/__init__.py
+$(SRCROOT)/../fichero-server/src/fichero_server/llm/apple_guided_schemas.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/apple_translation.py
+$(SRCROOT)/../fichero-server/src/fichero_server/llm/kraken_runtime.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/lang_detect.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/language_coverage.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/language_policy.py
