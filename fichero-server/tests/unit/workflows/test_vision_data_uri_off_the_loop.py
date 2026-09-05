@@ -170,7 +170,7 @@ async def test_concurrent_pages_rasterize_the_document_only_once(monkeypatch) ->
         vision_base, "_batch_render_pdf_pages_to_cgimages", counting_render
     )
     monkeypatch.setattr(
-        vision_base, "_cgimage_to_png_data_uri", lambda img, max_dimension=2048: "data:,x"
+        vision_base, "_cgimage_to_data_uri", lambda img, max_dimension=2048: "data:,x"
     )
 
     results = await asyncio.gather(
@@ -212,7 +212,7 @@ async def test_without_the_lock_the_stampede_really_happens(monkeypatch) -> None
         vision_base, "_batch_render_pdf_pages_to_cgimages", counting_render
     )
     monkeypatch.setattr(
-        vision_base, "_cgimage_to_png_data_uri", lambda img, max_dimension=2048: "data:,x"
+        vision_base, "_cgimage_to_data_uri", lambda img, max_dimension=2048: "data:,x"
     )
     monkeypatch.setattr(vision_base, "_PDF_RENDER_LOCK", contextlib.nullcontext())
 

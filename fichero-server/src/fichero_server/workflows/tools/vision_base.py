@@ -2978,7 +2978,7 @@ def _pdf_page_to_data_uri(file_path: str, page_index: int = 0, max_dimension: in
         max_dimension: Max width/height for the output image (0 = no resize).
 
     Returns:
-        A ``data:image/png;base64,...`` URI for the rendered page.
+        A ``data:image/jpeg;base64,...`` URI for the rendered page.
 
     Raises:
         ValueError: If the page cannot be rendered.
@@ -3005,7 +3005,7 @@ def _pdf_page_to_data_uri(file_path: str, page_index: int = 0, max_dimension: in
         cg_image = cg_images[page_index]
         if cg_image is None:
             raise ValueError(f"PDF page {page_index + 1} not found in: {file_path}")
-        return _cgimage_to_png_data_uri(cg_image, max_dimension=max_dimension)
+        return _cgimage_to_data_uri(cg_image, max_dimension=max_dimension)
 
     except Exception as quartz_err:
         # Non-macOS host (CI / Linux): Quartz not available.
@@ -3021,9 +3021,12 @@ def _pdf_page_to_data_uri(file_path: str, page_index: int = 0, max_dimension: in
             from PIL import Image
             img = Image.open(file_path)
             buf = io.BytesIO()
-            img.save(buf, format="PNG")
+            # JPEG here too: this fallback feeds the same provider call as the
+            # Quartz path, so it must not quietly be the one that still sends a
+            # multi-megabyte PNG on a host without Quartz.
+            flatten_for_opaque_format(img).save(buf, format="JPEG", quality=95)
             data = base64.b64encode(buf.getvalue()).decode("utf-8")
-            return f"data:image/png;base64,{data}"
+            return f"data:image/jpeg;base64,{data}"
         except Exception as pil_err:
             raise ValueError(
                 f"Cannot render PDF page {page_index} to image: "
@@ -3069,8 +3072,27 @@ async def file_to_data_uri_async(file_path: str, max_dimension: int = 2048) -> s
     )
 
 
-def _cgimage_to_png_data_uri(cg_image, max_dimension: int = 2048) -> str:
-    """Convert a Quartz CGImage into a PNG data URI."""
+def _cgimage_to_data_uri(cg_image, max_dimension: int = 2048) -> str:
+    """Convert a Quartz CGImage into a JPEG data URI.
+
+    JPEG, matching what the loose-image path already does for a JPEG source
+    (`file_to_data_uri`, quality 95). This used to emit PNG unconditionally,
+    which meant the SAME scanned page went to the provider as lossless PNG when
+    it came from a PDF and as JPEG when it came from a file — at identical
+    pixel dimensions, since both paths bound to `max_dimension`.
+
+    PNG is built for flat graphics. A scan of a handwritten page is
+    photographic — grain, paper texture, ink gradients — which is the case PNG
+    handles worst: roughly 5-12MB where JPEG is 0.5-1.5MB, and base64 then adds
+    a third on top. That was a 5-10x upload per page, on every page of every
+    PDF, and nothing in the logs said so (Daniel, 2026-09-04: "it could be the
+    pdf embedded or something other than the actual sending of the page").
+
+    The alpha channel is dropped through `flatten_for_opaque_format` rather than
+    a bare `convert("RGB")`: the Quartz buffer is RGBA, and dropping the channel
+    without compositing puts the page on a BLACK ground. The renderer fills
+    white before drawing the page, so flattening is faithful to what was drawn.
+    """
     from Quartz import CGImageGetWidth, CGImageGetHeight
     from PIL import Image
 
@@ -3105,9 +3127,10 @@ def _cgimage_to_png_data_uri(cg_image, max_dimension: int = 2048) -> str:
         img.thumbnail((max_dimension, max_dimension), Image.Resampling.LANCZOS)
 
     buf = io.BytesIO()
-    img.save(buf, format="PNG")
+    img = flatten_for_opaque_format(img)
+    img.save(buf, format="JPEG", quality=95)
     data = base64.b64encode(buf.getvalue()).decode("utf-8")
-    return f"data:image/png;base64,{data}"
+    return f"data:image/jpeg;base64,{data}"
 
 
 # =============================================================================

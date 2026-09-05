@@ -155,7 +155,7 @@ def test_pdf_page_to_data_uri_reuses_one_batch_render_for_multiple_pages():
         with (
             patch.dict(sys.modules, {"Quartz": quartz, "Foundation": foundation}),
             patch(
-                "fichero_server.workflows.tools.vision_base._cgimage_to_png_data_uri",
+                "fichero_server.workflows.tools.vision_base._cgimage_to_data_uri",
                 side_effect=lambda cg_image, max_dimension=2048: f"data:{cg_image.name}",
             ),
         ):
