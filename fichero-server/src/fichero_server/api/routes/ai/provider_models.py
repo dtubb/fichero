@@ -245,6 +245,10 @@ class ProviderCatalogResponse(BaseModel):
     api_key_url: Optional[str]
     is_local: bool
     is_builtin: bool  # True if built into macOS (no config needed)
+    # False for a provider that answers no prompts — spaCy, Kraken. A model
+    # picker for a chat or transcription step must filter on this, or it
+    # offers a tagger as a choice of language model (#4671).
+    supports_chat: bool = True
     supports_vision: bool
     supports_embeddings: bool
     supports_streaming: bool

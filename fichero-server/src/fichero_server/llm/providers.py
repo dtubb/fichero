@@ -36,6 +36,8 @@ class ProviderType(str, Enum):
     apple = "apple"
     # Built-in deterministic debug provider (no LLM, no cost) — #1566
     mock = "mock"
+    # Local NLP runtimes — models, but not language models (#4671)
+    spacy = "spacy"
     # Local servers
     ollama = "ollama"
     lmstudio = "lmstudio"
@@ -73,6 +75,18 @@ class ProviderInfo:
     api_key_url: str | None  # Where to get API key
     is_local: bool = False  # True if runs locally (no API key needed)
     is_builtin: bool = False  # True if built into macOS (no config needed at all)
+    # Does this provider answer PROMPTS at all? (#4671)
+    #
+    # Every other capability here refines what an LLM can do; this one says
+    # whether the row is an LLM. spaCy is a part-of-speech tagger and Kraken
+    # is a line segmenter — real providers with real models that belong in
+    # Settings, and that must never appear in a model picker for a chat or
+    # transcription step, because there is nothing there to pick.
+    #
+    # Defaulted True so every existing row keeps its meaning untouched: the
+    # field adds a way to say NO, it does not ask 20 providers to re-declare
+    # yes.
+    supports_chat: bool = True
     supports_vision: bool = False
     supports_embeddings: bool = False
     supports_streaming: bool = True
@@ -385,6 +399,32 @@ PROVIDERS: dict[ProviderType, ProviderInfo] = {
         logo_asset="Providers/Fireworks",
         color="red",
         sort_order=17,
+    ),
+    # ==========================================================================
+    # Local NLP runtimes — sort_order 5, beside the other local engines
+    # ==========================================================================
+    ProviderType.spacy: ProviderInfo(
+        type=ProviderType.spacy,
+        name="spaCy (local NLP)",
+        description=(
+            "On-device grammar and named entities. Judges extracted "
+            "statements — a predicate that is not a verb, a first-person verb "
+            "under someone else's name — and answers no prompts."
+        ),
+        api_key_env=None,
+        api_key_url=None,
+        is_local=True,
+        # NOT builtin: an optional Python extra, so a build may not have it.
+        # Saying otherwise would promise Settings a runtime that is absent.
+        is_builtin=False,
+        supports_chat=False,
+        supports_vision=False,
+        supports_embeddings=False,
+        supports_streaming=False,
+        default_model="es_core_news_sm",
+        icon="text.magnifyingglass",
+        color="teal",
+        sort_order=5,
     ),
     ProviderType.deepl: ProviderInfo(
         type=ProviderType.deepl,
