@@ -894,12 +894,29 @@ async def _run_workflow_in_background(
     # already spent. A run that was cancelled after three paid nodes cost
     # money, and a record that omits it says otherwise (2026-09-03).
     usage_bucket: list[dict[str, Any]] = []
+    # Model SUBSTITUTIONS this run performed (Daniel, 2026-09-05). Declared
+    # beside the usage bucket and for the same reason: a fact the run
+    # produced that used to exist only in a log line nobody reads. A
+    # fallback is allowed to happen silently in the code and must never
+    # happen silently in the RECORD — that visibility is the entire price of
+    # the exemption from never-substitute.
+    fallback_bucket: list[dict[str, Any]] = []
 
     def _run_usage_totals() -> "UsageTotals":
         """Everything the run spent so far, across every node."""
         from fichero_server.llm.usage import aggregate_usage
 
         return aggregate_usage(usage_bucket)
+
+    def _run_fallback_record() -> list[dict[str, Any]] | None:
+        """The substitutions this run made, or None when it made none.
+
+        None rather than [] for the same reason `_run_usage_record` returns
+        None for a run that called no model: an empty list reads as a claim
+        that something was checked and found absent, and the column showing
+        nothing is the honest shape when nothing happened.
+        """
+        return list(fallback_bucket) or None
 
     def _run_usage_record() -> dict[str, Any] | None:
         """The persisted `run_usage` payload, or None when nothing ran.
@@ -1522,9 +1539,15 @@ async def _run_workflow_in_background(
         # One collector for the run, with a cursor per node: entries appended
         # since the last node completion belong to that node. ContextVars flow
         # into the graph's tasks, so parallel fan-out lands in the same bucket.
-        from fichero_server.llm import begin_usage_collection, end_usage_collection
+        from fichero_server.llm import (
+            begin_fallback_collection,
+            begin_usage_collection,
+            end_fallback_collection,
+            end_usage_collection,
+        )
 
         _, usage_token = begin_usage_collection(usage_bucket)
+        _, fallback_token = begin_fallback_collection(fallback_bucket)
         usage_cursor = 0
 
         def _usage_since_last_node() -> dict[str, Any]:
@@ -2026,6 +2049,19 @@ async def _run_workflow_in_background(
             f"Workflow completed successfully in {total_duration_ms:.0f}ms"
         )
 
+        # A substitution the run performed is part of what the run SAYS
+        # (Daniel, 2026-09-05). Written into the execution log, which the run
+        # detail already shows, so "Apple declined this content → ran on
+        # claude-sonnet-latest" reaches the person who is about to wonder why
+        # the output does not look like the model they picked. The structured
+        # entries stay in `fallback_bucket` for a column when one exists;
+        # this is the surface that needs no migration to be seen tonight.
+        if fallback_bucket:
+            from fichero_server.llm import model_fallback_summary
+
+            if summary := model_fallback_summary(fallback_bucket):
+                await log_execution(f"Model fallback — {summary}")
+
         # Save execution log and progress timeline to workflow run
         execution_log = "\n".join(execution_log_lines)
         complete_data: dict = {
@@ -2217,6 +2253,7 @@ async def _run_workflow_in_background(
         # that fails a run.
         try:
             end_usage_collection(usage_token)
+            end_fallback_collection(fallback_token)
         except (NameError, UnboundLocalError):
             pass
         # Drop the shared cancellation event — but ONLY when the run actually

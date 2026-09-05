@@ -98,6 +98,24 @@ _usage_collector: contextvars.ContextVar[list[dict[str, Any]] | None] = (
     contextvars.ContextVar("fichero_llm_usage", default=None)
 )
 
+# A model FALLBACK is a fact about the run, not a log line (Daniel,
+# 2026-09-05: "if it's sensitive content, that's not a failure — that's a
+# thing to surface, so the user can try a different model, or you can try the
+# large model by default").
+#
+# So the never-silently-substitute rule bends here, and ONLY here, because he
+# ruled it — which makes visibility the whole price of the exemption. A
+# substitution nobody can see is the defect; a substitution recorded, named
+# and attributable is a service. This collector is what the run record and
+# Activity read so the run can say "Apple declined this content → ran on
+# claude-sonnet-latest" instead of quietly returning someone else's answer.
+#
+# Mirrors `_usage_collector` deliberately: same contextvar shape, same
+# nesting behaviour, same task inheritance. One pattern, learned once.
+_fallback_collector: contextvars.ContextVar[list[dict[str, Any]] | None] = (
+    contextvars.ContextVar("fichero_llm_fallbacks", default=None)
+)
+
 _DEFAULT_MAX_INFLIGHT_LLM = 6
 _LANGCHAIN_MODEL_CACHE_SIZE = 16
 
@@ -249,6 +267,118 @@ def end_usage_collection(token: Any) -> None:
         # Reset from a different context than the set — nothing to undo, and
         # failing a run over accounting bookkeeping would be absurd.
         pass
+
+
+@contextlib.contextmanager
+def collect_model_fallbacks() -> Any:
+    """Collect the model substitutions performed inside this block.
+
+    Each entry: ``from_provider``, ``from_model``, ``to_provider``,
+    ``to_model``, ``reason`` (a sentence for a person), ``condition``
+    (``"content_policy"`` | ``"system_unavailable"`` | ``"other"``), and
+    ``kind`` (``"chat"`` | ``"structured"``).
+    """
+    bucket: list[dict[str, Any]] = []
+    token = _fallback_collector.set(bucket)
+    try:
+        yield bucket
+    finally:
+        _fallback_collector.reset(token)
+
+
+def begin_fallback_collection(
+    bucket: list[dict[str, Any]] | None = None,
+) -> tuple[list[dict[str, Any]], Any]:
+    """Explicit form of :func:`collect_model_fallbacks`, for callers whose
+    scope is not a ``with`` block — the workflow runner, as with usage."""
+    if bucket is None:
+        bucket = []
+    return bucket, _fallback_collector.set(bucket)
+
+
+def end_fallback_collection(token: Any) -> None:
+    """Stop collecting; safe to call twice or after an error."""
+    try:
+        _fallback_collector.reset(token)
+    except (ValueError, RuntimeError):
+        pass
+
+
+def fallback_condition_for(error: Exception) -> str:
+    """Which KIND of condition this was — the distinction Daniel asked for.
+
+    A content refusal and a broken OS asset are not the same event and must
+    not read alike: one is a judgement about the material (colonial legal
+    records describing violence will trip it, legitimately) and the other is
+    the operating system being broken. The user's next move differs, so the
+    label does.
+    """
+    if isinstance(error, GuardrailViolationError):
+        return "content_policy"
+    if isinstance(error, AppleUnavailableError):
+        return "system_unavailable"
+    return "other"
+
+
+def _record_model_fallback(
+    *,
+    from_config: "LLMConfig",
+    to_config: "LLMConfig",
+    error: Exception,
+    kind: str,
+) -> None:
+    """Record one substitution, and say it out loud in the log as well.
+
+    Called only where a fallback SUCCEEDED: an attempt that failed changes
+    nothing about which model produced the answer, and recording it would
+    make the provenance list models that contributed nothing.
+    """
+    condition = fallback_condition_for(error)
+    if condition == "content_policy":
+        reason = (
+            f"{from_config.provider} declined this content (its safety policy, "
+            "not an error in the document)"
+        )
+    elif condition == "system_unavailable":
+        reason = f"{from_config.provider} was unavailable: {error}"
+    else:
+        reason = f"{from_config.provider} could not complete the request: {error}"
+
+    entry = {
+        "from_provider": from_config.provider,
+        "from_model": from_config.model,
+        "to_provider": to_config.provider,
+        "to_model": to_config.model,
+        "condition": condition,
+        "reason": reason,
+        "kind": kind,
+    }
+    bucket = _fallback_collector.get()
+    if bucket is not None:
+        bucket.append(entry)
+    logger.warning(
+        "Model fallback (%s): %s/%s -> %s/%s — %s",
+        condition,
+        from_config.provider,
+        from_config.model,
+        to_config.provider,
+        to_config.model,
+        reason,
+    )
+
+
+def model_fallback_summary(entries: list[dict[str, Any]]) -> str | None:
+    """One sentence naming what happened, for a run/step's provenance.
+
+    None when nothing was substituted — an absent line beats a line saying
+    nothing happened.
+    """
+    if not entries:
+        return None
+    return "; ".join(
+        f"{entry['reason']} → ran on {entry['to_provider']}/{entry['to_model']}"
+        for entry in entries
+    )
 
 
 def _record_usage(
@@ -1804,6 +1934,12 @@ async def chat_with_fallback(
                 tier,
                 fallback_config.provider,
                 fallback_config.model,
+            )
+            _record_model_fallback(
+                from_config=config,
+                to_config=fallback_config,
+                error=apple_exc,
+                kind="chat",
             )
             return result
 
@@ -3532,6 +3668,15 @@ async def chat_structured_with_fallback(
                 tier,
                 fallback_config.provider,
                 fallback_config.model,
+            )
+            # Recorded, not merely logged: the substitution is now part of
+            # what the run REPORTS, so the answer can be attributed to the
+            # model that actually produced it (Daniel, 2026-09-05).
+            _record_model_fallback(
+                from_config=config,
+                to_config=fallback_config,
+                error=apple_exc,
+                kind="structured",
             )
             return result
 
