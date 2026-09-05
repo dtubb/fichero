@@ -108,39 +108,37 @@ nav:
   - Home: index.md
   - User Guide:
       - Overview: user/README.md
-      # User-guide chapters grouped into Daniel's binder parts (Preparation,
-      # Workflows, Reading, Knowledge Graph, Search, Appendixes). HAND-MAINTAINED:
-      # scripts/sync_manuscript.py is retired (Daniel, 2026-08-30) — the
-      # docs/user/guide/*.md pages are the masters, so edit this block directly.
-      # The "Editing" part (7th in the About) arrives at the Scrivener→mkdocs
-      # cutover when its chapter exists; until then the published nav shows 6 parts.
-      # Front matter — Daniel's authored intro pages (relocated verbatim from
-      # the Scrivener binder; propose-only, no AI note).
-      - Philosophy of Fichero: user/guide/philosophy-of-fichero.md
-      - What Is Fichero?: user/guide/what-is-fichero.md
-      - Who Is Fichero For?: user/guide/who-is-fichero-for.md
-      - How Does Fichero Work?: user/guide/how-fichero-works.md
-      - About This Manual: user/guide/about-this-manual.md
-      - A Few Conventions: user/guide/a-few-conventions.md
+      # User guide organized as FOLDERS = PARTS (docs/user/guide/<part>/…), the
+      # layout Daniel edits in Typora. HAND-MAINTAINED, explicit nav (offline-safe,
+      # no awesome-pages). Part names/order follow the About. Front-matter pages in
+      # 1-introduction are Daniel's authored prose (verbatim, no AI note). The
+      # "Editing" part (7th in the About) is omitted until its chapter exists.
+      - Introduction:
+          - Philosophy of Fichero: user/guide/1-introduction/1-philosophy-of-fichero.md
+          - What Is Fichero?: user/guide/1-introduction/2-what-is-fichero.md
+          - Who Is Fichero For?: user/guide/1-introduction/3-who-is-fichero-for.md
+          - How Does Fichero Work?: user/guide/1-introduction/4-how-does-fichero-work.md
+          - About This Manual: user/guide/1-introduction/5-about-this-manual.md
+          - A Few Conventions: user/guide/1-introduction/6-a-few-conventions.md
       - Preparation:
-          - Installing and Updating: user/guide/02-installing-and-updating.md
-          - The Fichero Window: user/guide/03-the-fichero-window.md
-          - Managing Your Library: user/guide/04-managing-your-library.md
-      - Workflows:
-          - Workflows: user/guide/06-workflows.md
-          - AI and Privacy: user/guide/09-ai-and-privacy.md
+          - Installing and Updating: user/guide/2-preparation/1-installing-and-updating.md
+          - The Fichero Window: user/guide/2-preparation/2-the-fichero-window.md
+          - Managing Your Library: user/guide/2-preparation/3-managing-your-library.md
+      - Transcribing & Workflows:
+          - Workflows: user/guide/3-transcribing-and-workflows/1-workflows.md
+          - AI and Privacy: user/guide/3-transcribing-and-workflows/2-ai-and-privacy.md
       - Reading:
-          - Reading, Transcribing, and Annotating: user/guide/05-reading-transcribing-and-annotating.md
-      - Knowledge Graph:
-          - The Knowledge Graph: user/guide/08-the-knowledge-graph.md
+          - Reading, Transcribing, and Annotating: user/guide/4-reading/1-reading-transcribing-and-annotating.md
+      - Entities & Knowledge Graph:
+          - The Knowledge Graph: user/guide/5-knowledge-graph/1-the-knowledge-graph.md
       - Search:
-          - Searching: user/guide/07-searching.md
+          - Searching: user/guide/6-search/1-searching.md
       - Appendixes:
-          - Frequently Asked Questions: user/guide/10-frequently-asked-questions.md
-          - "Appendix A: Supported File Types": user/guide/11-appendix-a-supported-file-types.md
-          - "Appendix B: How Fichero Is Built": user/guide/12-appendix-b-how-fichero-is-built.md
-          - "Appendix C: Keyboard Shortcuts": user/guide/13-appendix-c-keyboard-shortcuts.md
-          - "Appendix D: Glossary": user/guide/14-appendix-d-glossary.md
+          - Frequently Asked Questions: user/guide/8-appendixes/1-frequently-asked-questions.md
+          - "Appendix A: Supported File Types": user/guide/8-appendixes/2-appendix-a-supported-file-types.md
+          - "Appendix B: How Fichero Is Built": user/guide/8-appendixes/3-appendix-b-how-fichero-is-built.md
+          - "Appendix C: Keyboard Shortcuts": user/guide/8-appendixes/4-appendix-c-keyboard-shortcuts.md
+          - "Appendix D: Glossary": user/guide/8-appendixes/5-appendix-d-glossary.md
       - Feature Matrix: user/features.md
       # BEGIN generated capability reference nav — scripts/generate_capability_reference.py
       - Reference:
