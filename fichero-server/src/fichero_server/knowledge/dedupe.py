@@ -25,6 +25,7 @@ from difflib import SequenceMatcher
 from typing import Iterable, Sequence
 
 from fichero_server.knowledge.svo_cleanup import _comparison_key
+from fichero_server.knowledge.svo_quality import same_statement
 from fichero_server.models.knowledge import (
     ClaimCurationState,
     EntityCurationState,
@@ -234,9 +235,11 @@ def plan_claim_dedupe(
 
     Exact tier: identical ``(subject, normalized verb+object)`` — the same
     normalization the display path (`svo_cleanup`) already trusts. The
-    near-duplicate tier (opt-in) additionally requires the identical token set,
-    mirroring ``clean_svo_claims``, so word-order/punctuation variants collapse
-    but genuinely different statements never do.
+    near-duplicate tier (opt-in) collapses statements the shared
+    ``svo_quality.same_statement`` standard judges equal — word-order and
+    inflection variants, and filler/determiner insertions ("the deed" vs "the
+    said deed") — while a different object head or a different date/number never
+    collapses.
     """
     live = [
         c
@@ -268,10 +271,8 @@ def plan_claim_dedupe(
                 for b in indices[pos + 1 :]:
                     if uf.find(a) == uf.find(b):
                         continue
-                    if set(keys[a].split()) != set(keys[b].split()):
-                        continue
-                    ratio = SequenceMatcher(None, keys[a], keys[b]).ratio()
-                    if ratio >= near_duplicate_threshold:
+                    if same_statement(keys[a], keys[b], ratio=near_duplicate_threshold):
+                        ratio = SequenceMatcher(None, keys[a], keys[b]).ratio()
                         uf.union(a, b, BASIS_SIMILARITY, ratio)
 
     clusters: dict[int, list[int]] = {}

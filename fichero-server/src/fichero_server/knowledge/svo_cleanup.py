@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from difflib import SequenceMatcher
 import re
 from typing import Iterable, Protocol
+
+from fichero_server.knowledge.svo_quality import same_statement
 
 NEAR_DUPLICATE_THRESHOLD = 0.86
 _DEHYPHENATE = re.compile(r"(?<!\d)([^\W\d_])-\s+([^\W\d_])(?!\d)")
@@ -53,10 +54,11 @@ def clean_svo_claims(
         key = _comparison_key(verb, object_phrase)
         for index, existing in enumerate(cleaned):
             existing_key = _comparison_key(existing.predicate_verb, existing.object_phrase)
-            if key == existing_key or (
-                SequenceMatcher(None, key, existing_key).ratio() >= near_duplicate_threshold
-                and set(key.split()) == set(existing_key.split())
-            ):
+            # One shared standard (svo_quality.same_statement): exact, or same
+            # content tokens bar filler/determiners ("signed the deed" vs
+            # "signed the said deed"), or the old ratio+token-set rule. A
+            # different object head or a different number never collapses.
+            if same_statement(key, existing_key, ratio=near_duplicate_threshold):
                 cleaned[index] = CleanedClause(existing.predicate_verb, existing.object_phrase, existing.source_claim_ids + (claim.id,), existing.transforms + ("dedup",))
                 break
         else:

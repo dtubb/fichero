@@ -27,3 +27,30 @@ def test_dedup_preserves_sources_but_keeps_distinct_facts():
 def test_strips_only_leading_repeated_subject():
     clause = clean_svo_claims([_claim("a", "Ana", "said", "Ana: Pedro met Ana")])[0]
     assert clause.object_phrase == "Pedro met Ana"
+
+
+def test_filler_determiner_insertion_collapses():
+    # The gap beta testers hit: an inserted "said"/"the" left near-duplicates
+    # standing because the old rule demanded an identical token SET.
+    clauses = clean_svo_claims([
+        _claim("a", "Ana", "signed", "the deed"),
+        _claim("b", "Ana", "signed", "the said deed"),
+    ])
+    assert len(clauses) == 1
+    assert clauses[0].source_claim_ids == ("a", "b")
+
+
+def test_a_different_number_is_kept_distinct():
+    clauses = clean_svo_claims([
+        _claim("a", "Ana", "paid", "3 pesos"),
+        _claim("b", "Ana", "paid", "5 pesos"),
+    ])
+    assert len(clauses) == 2
+
+
+def test_an_added_date_is_kept_distinct():
+    clauses = clean_svo_claims([
+        _claim("a", "Ana", "held", "the office"),
+        _claim("b", "Ana", "held", "the office in 1830"),
+    ])
+    assert len(clauses) == 2

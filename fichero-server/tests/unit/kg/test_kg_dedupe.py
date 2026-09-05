@@ -216,6 +216,21 @@ class TestPlanClaimDedupe:
         c = _claim("t", predicate_verb="gave", object_phrase="the deed to Pablo")
         assert plan_claim_dedupe([a, c], near_duplicate_threshold=0.6) == []
 
+    def test_near_duplicate_tier_collapses_filler_insertion(self):
+        # An inserted determiner/legalese "said" is the same statement — the
+        # shared svo_quality.same_statement standard now collapses it where the
+        # old identical-token-set gate let both rows survive.
+        a = _claim("t", predicate_verb="signed", object_phrase="the deed")
+        b = _claim("t", predicate_verb="signed", object_phrase="the said deed")
+        assert plan_claim_dedupe([a, b]) == []  # still opt-in
+        groups = plan_claim_dedupe([a, b], near_duplicate_threshold=0.86)
+        assert len(groups) == 1
+
+    def test_near_duplicate_tier_keeps_a_different_number_distinct(self):
+        a = _claim("t", predicate_verb="paid", object_phrase="3 pesos")
+        b = _claim("t", predicate_verb="paid", object_phrase="5 pesos")
+        assert plan_claim_dedupe([a, b], near_duplicate_threshold=0.86) == []
+
     def test_rejected_and_reviewed_gates(self):
         survivor = _claim(
             "s",

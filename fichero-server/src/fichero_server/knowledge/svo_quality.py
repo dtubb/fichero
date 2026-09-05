@@ -128,6 +128,62 @@ def _normalized_words(text: str) -> list[str]:
     return cleaned.split()
 
 
+#: Determiners, articles and legalese filler a near-duplicate may differ by
+#: without being a different statement: "signed the deed" and "signed the said
+#: deed" are one fact — "said"/"dicho" is notarial "the aforementioned".
+#: Deliberately short: a content word wrongly listed here would merge
+#: statements that differ, so nouns, verbs, names, prepositions and — above all
+#: — numbers stay off the list. A different object head or a different
+#: date/number therefore always survives as its own statement.
+_FILLER_WORDS = frozenset(
+    {
+        "the", "a", "an", "said", "same", "aforesaid", "aforementioned",
+        "el", "la", "los", "las", "un", "una", "unos", "unas",
+        "dicho", "dicha", "dichos", "dichas",
+        "mismo", "misma", "mismos", "mismas", "mesmo", "mesma",
+    }
+)
+
+
+def _content_sequence(predicate: str) -> list[str]:
+    """``predicate``'s tokens with filler removed, order kept.
+
+    Order is kept on purpose: "Pedro met Ana" and "Ana met Pedro" have the same
+    words and are not the same statement.
+    """
+    return [w for w in _normalized_words(predicate) if w not in _FILLER_WORDS]
+
+
+def same_statement(pred_a: str, pred_b: str, *, ratio: float = NEAR_DUPLICATE_RATIO) -> bool:
+    """Whether two predicate strings say the same thing (one shared standard).
+
+    Used by the spaCy tier, the display cleanup (``svo_cleanup``) and the batch
+    planner (``dedupe``) so "too much repetition" is judged one way everywhere.
+    Conservative, in three widening steps:
+
+    1. identical once folded and de-punctuated;
+    2. identical CONTENT tokens in order — the same words bar determiners,
+       articles and notarial "said"/"dicho"; this is what collapses "signed the
+       deed" and "signed the said deed";
+    3. at least ``ratio`` similar AND the same token set — word-order and
+       inflection variants, the pre-existing rule these callers already trusted.
+
+    Numbers are never filler, so "gave 3 pesos" / "gave 5 pesos" and "the deed"
+    / "the deed in 1830" are different statements at every step.
+    """
+    a = _normalized_words(pred_a)
+    b = _normalized_words(pred_b)
+    if a == b:
+        return True
+    content_a = _content_sequence(pred_a)
+    if content_a and content_a == _content_sequence(pred_b):
+        return True
+    return (
+        SequenceMatcher(None, " ".join(a), " ".join(b)).ratio() >= ratio
+        and set(a) == set(b)
+    )
+
+
 def statement_key(
     subject: str | None, verb: str | None, obj: str | None
 ) -> tuple[str, str]:
@@ -160,9 +216,12 @@ def near_duplicate(
         return False
     if not pred_a or not pred_b:
         return pred_a == pred_b
-    if pred_a == pred_b or pred_a in pred_b or pred_b in pred_a:
+    # The parser's obj/obl double-emit leaves one predicate a prefix-extension
+    # of the other ("otorgó poder" ⊂ "otorgó poder cumplido a Juan"); that is a
+    # duplicate here even though the two say different amounts.
+    if pred_a in pred_b or pred_b in pred_a:
         return True
-    return SequenceMatcher(None, pred_a, pred_b).ratio() >= ratio
+    return same_statement(pred_a, pred_b, ratio=ratio)
 
 
 def is_pronoun_subject(subject: str | None) -> bool:

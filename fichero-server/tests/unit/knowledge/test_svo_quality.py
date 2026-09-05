@@ -17,6 +17,7 @@ from fichero_server.knowledge.svo_quality import (
     grounded_fraction,
     is_pronoun_subject,
     near_duplicate,
+    same_statement,
     statement_key,
     trim_predicate,
     ungrounded_span,
@@ -228,3 +229,31 @@ class TestStatementIdentity:
         a = statement_key("Andres", "otorgó", "poder al cacique")
         b = statement_key("Andres", "firmó", "la carta ante el escribano")
         assert not near_duplicate(a, b)
+
+
+class TestSameStatement:
+    """One shared predicate-identity standard for every dedup path."""
+
+    def test_filler_and_determiner_insertion_is_the_same_statement(self):
+        # The case svo_cleanup's token-set rule missed: an inserted "said"/"the".
+        assert same_statement("signed the deed", "signed the said deed")
+        assert same_statement("held the office", "held office")
+
+    def test_a_different_number_is_a_different_statement(self):
+        # Numbers are never filler — this must survive as two statements.
+        assert not same_statement("paid 3 pesos", "paid 5 pesos")
+
+    def test_an_added_date_is_a_different_statement(self):
+        assert not same_statement("held the office", "held the office in 1830")
+
+    def test_a_different_object_head_is_a_different_statement(self):
+        assert not same_statement("gave the house to Pedro", "gave the farm to Pedro")
+
+    def test_punctuation_and_case_noise_still_collapse(self):
+        # The folded-equality step: surface noise never splits a statement.
+        assert same_statement("arrived at Quibdo", "arrived at Quibdo.")
+        assert same_statement("served as alcalde", "Served as  alcalde")
+
+    def test_reordered_content_words_are_not_the_same(self):
+        # Same words, opposite roles: order carries the meaning.
+        assert not same_statement("Pedro met Ana", "Ana met Pedro")
