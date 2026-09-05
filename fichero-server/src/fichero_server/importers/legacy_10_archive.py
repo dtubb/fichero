@@ -1052,32 +1052,143 @@ def _folder_metadata(folder: LegacyFolder, scan: LegacyScan) -> dict[str, Any]:
     return {k: v for k, v in metadata.items() if v not in (None, [], {})}
 
 
-def _catalogue_artifacts(folder: LegacyFolder) -> list[dict[str, Any]]:
-    """The 1.0 ficha as a ``catalogue`` artifact — the surface the app reads.
+#: Section order and headings, taken from the 1.0 Word ficha so the imported
+#: catalogue reads the way the archive's own document did.
+_FICHA_SECTIONS: tuple[tuple[str, str], ...] = (
+    ("personas", "Personas"),
+    ("personas_clave", "Personas Clave"),
+    ("organizaciones", "Organizaciones"),
+    ("ubicaciones", "Ubicaciones"),
+    ("eventos_clave", "Eventos Clave"),
+    ("minas", "Minas"),
+    ("propiedades", "Propiedades"),
+    ("dragas", "Dragas"),
+    ("rios", "Ríos"),
+    ("plantas", "Plantas"),
+    ("animales", "Animales"),
+    ("armas", "Armas"),
+    ("lesiones", "Lesiones"),
+    ("terminos_legales", "Términos Legales"),
+    ("legales", "Términos Legales"),
+)
 
-    The resumen is the catalogue: the prose the old pipeline wrote per folder.
-    It was landing in ``metadata["resumen"]``, which no view reads, so it was
-    present and invisible (Daniel, 2026-09-05: "I see Events, Keywords — but
-    not the catalogue"). ``artifact_type="catalogue"`` is what ArtifactPanel
-    already renders and what today's catalogue workflow writes.
 
-    The tags ride in the same artifact's ``data`` rather than becoming their own
-    artifact: they are the ficha's own keyword line, and folding them in adds no
-    new machinery. ``legacy_dates`` and ``legacy_stage`` deliberately stay in
-    metadata — they are structured fields, not prose, and where they belong in
-    the UI is a separate decision.
+def catalogue_markdown(folder: LegacyFolder) -> str:
+    """Assemble the folder's ficha as markdown — the whole catalogue, not a field.
+
+    Daniel asked for "the catalogue content", pointing at ``assets/llm_catalogue``.
+    Reading it settled what that is: ``documents_summary.json`` holds exactly the
+    six step results and no extra prose, and the ``-catalogue.docx`` is those
+    results RENDERED as a document — Resumen, Palabras Clave, Personas Clave,
+    Eventos Clave, the specialised buckets, Línea Temporal. The resumen alone is
+    ~1 KB of an ~8.7 KB ficha, so shipping it as the catalogue delivered about an
+    eighth of the document.
+
+    This rebuilds that document from the parsed data. It is deliberately
+    markdown: the reader renders it, and it stays greppable and diffable, unlike
+    the .docx it replaces.
+
+    Worth knowing: this is FULLER than the archive's own Word file. The 1.0
+    renderer silently dropped the two entity steps whose JSON its own run had
+    truncated, so the shipped .docx for this folder carries no Personas,
+    Organizaciones, Ubicaciones or Ríos at all. The salvage recovers them, so
+    the imported ficha restores sections the 1.0 document lost.
     """
-    if not folder.summary:
+    lines: list[str] = [f"# {folder.title}", ""]
+    if folder.summary:
+        lines += ["## Resumen", "", folder.summary, ""]
+    if folder.tags:
+        lines += ["## Palabras Clave", "", "; ".join(folder.tags), ""]
+
+    by_bucket: dict[str, list[dict[str, Any]]] = {}
+    for entity in folder.entities:
+        for bucket in entity.get("metadata", {}).get("legacy_buckets") or []:
+            by_bucket.setdefault(bucket, []).append(entity)
+
+    rendered: set[str] = set()
+    for bucket, heading in _FICHA_SECTIONS:
+        items = by_bucket.get(bucket)
+        if not items or bucket in rendered:
+            continue
+        rendered.add(bucket)
+        lines += [f"## {heading}", ""]
+        for entity in items:
+            name = entity["canonical_name"]
+            aliases = entity.get("aliases") or []
+            description = entity.get("description")
+            line = f"- **{name}**"
+            if aliases:
+                line += f" ({', '.join(aliases)})"
+            if description:
+                line += f" — {description}"
+            lines.append(line)
+        lines.append("")
+
+    # Any bucket the 1.0 prompts invented that the section list does not name:
+    # render it rather than drop it, under its own raw key.
+    for bucket, items in sorted(by_bucket.items()):
+        if bucket in rendered:
+            continue
+        lines += [f"## {bucket}", ""]
+        for entity in items:
+            description = entity.get("description")
+            lines.append(
+                f"- **{entity['canonical_name']}**"
+                + (f" — {description}" if description else "")
+            )
+        lines.append("")
+
+    if folder.timeline:
+        lines += ["## Línea Temporal", ""]
+        for event in folder.timeline:
+            fecha = event.get("fecha") or "s.f."
+            lines.append(f"- **{fecha}** — {event['evento']}")
+        lines.append("")
+
+    if folder.dates:
+        lines += ["## Fechas", ""]
+        for date in folder.dates:
+            shown = date.get("fecha_normalizada") or date.get("fecha") or "s.f."
+            context = date.get("contexto")
+            lines.append(f"- **{shown}**" + (f" — {context}" if context else ""))
+        lines.append("")
+
+    return "\n".join(lines).strip() + "\n"
+
+
+def _catalogue_artifacts(folder: LegacyFolder) -> list[dict[str, Any]]:
+    """The 1.0 ficha as a ``catalogue`` artifact — the surface the app renders.
+
+    ``content`` is the whole assembled ficha in markdown (see
+    ``catalogue_markdown``); ``data`` keeps the structured pieces so a consumer
+    does not have to re-parse prose. ArtifactPanel already renders
+    ``artifact_type="catalogue"``, which is where Daniel was looking.
+
+    ``legacy_dates`` and ``legacy_stage`` also remain in folder metadata: they
+    are structured fields, and where they belong in the UI is a separate
+    decision from this one.
+    """
+    if not (folder.summary or folder.entities or folder.timeline):
         return []
     return [
         {
             "artifact_type": "catalogue",
-            "content": folder.summary,
+            "content": catalogue_markdown(folder),
             "data": {
                 "source": "fichero-1.0",
+                "format": "markdown",
+                "resumen": folder.summary,
                 "tags": folder.tags,
+                "timeline": folder.timeline,
+                "dates": folder.dates,
                 "legacy_path": folder.path,
-                "legacy_steps": ["resumen", "personas_clave_y_etiquetas"],
+                "legacy_steps": [
+                    "resumen",
+                    "personas_clave_y_etiquetas",
+                    "linea_temporal",
+                    "extraer_entidades_*",
+                ],
+                "salvaged_steps": folder.salvaged_steps,
             },
             "provider": LEGACY_PROVIDER,
             "model": folder.catalogue_model,

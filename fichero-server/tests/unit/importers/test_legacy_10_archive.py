@@ -918,7 +918,14 @@ def test_the_resumen_becomes_a_catalogue_artifact(tmp_path: Path) -> None:
     assert len(artifacts) == 1
     catalogue = artifacts[0]
     assert catalogue["artifact_type"] == "catalogue"
-    assert catalogue["content"] == "Un juicio laboral."
+    # The whole ficha, not just the resumen field.
+    content = catalogue["content"]
+    assert content.startswith("# 1936 doc")
+    assert "## Resumen" in content and "Un juicio laboral." in content
+    assert "## Palabras Clave" in content
+    assert "## Línea Temporal" in content
+    assert catalogue["data"]["format"] == "markdown"
+    assert catalogue["data"]["resumen"] == "Un juicio laboral."
     # Provenance names the 1.0 pipeline and the model that actually wrote it.
     assert catalogue["provider"] == "fichero-1.0"
     assert catalogue["model"] == "gpt-4.1-mini"
@@ -993,7 +1000,8 @@ def test_catalogue_artifact_lands_once_through_the_drop_path(
     artifact = catalogues[0]
     owner = db.get(Document, artifact.document_id)
     assert owner.doc_type == DocType.folder, "the ficha is folder-scoped"
-    assert artifact.content == "Un juicio laboral."
+    assert "## Resumen" in artifact.content
+    assert "Un juicio laboral." in artifact.content
     assert artifact.provider == "fichero-1.0"
     assert artifact.model == "gpt-4.1-mini"
     assert artifact.data["tags"] == ["juicio ejecutivo", "cesantía"]
@@ -1003,3 +1011,59 @@ def test_catalogue_artifact_lands_once_through_the_drop_path(
     assert len(again) == 1, "a re-drop must repair, never duplicate"
     pages = [d for d in db.query(Document) if d.doc_type == DocType.page]
     assert len(pages) == 4, "a re-drop must not double the pages either"
+
+
+def test_the_ficha_is_the_whole_catalogue_not_one_field(tmp_path: Path) -> None:
+    """The archive's own .docx renders Resumen, Palabras Clave, the entity
+    sections and the Línea Temporal. The artifact must carry all of it — the
+    resumen alone was ~1 KB of an ~8.7 KB document."""
+    folder = build_folder(tmp_path / "A", name="1936-doc")
+    entry = legacy.read_document_folder(folder, archive="a", stage=None)
+    ficha = legacy.catalogue_markdown(entry)
+
+    for heading in ("## Resumen", "## Palabras Clave", "## Línea Temporal"):
+        assert heading in ficha
+    # Entities appear under their 1.0 bucket headings, with their context.
+    assert "## Personas" in ficha
+    assert "FRANK E. SMITH" in ficha
+    assert "Demandante." in ficha
+    assert "## Organizaciones" in ficha
+    assert "## Ubicaciones" in ficha
+    # A dated event reads as a line, not a bare date.
+    assert "**1919-12-10** — Smith comenzó a trabajar." in ficha
+    assert len(ficha) > len(entry.summary or "") * 3
+
+
+def test_an_unlisted_bucket_is_rendered_not_dropped(tmp_path: Path) -> None:
+    """The 1.0 prompts invented buckets freely; an unknown one still shows."""
+    folder = build_folder(tmp_path / "A", name="1936-doc")
+    steps = folder / "assets" / "llm_catalogue" / "steps" / "documents"
+    _write(
+        steps / "extraer_entidades_especializadas.json",
+        json.dumps(
+            {
+                "source": "/old",
+                "step": "extraer_entidades_especializadas",
+                "result": {"cosas_raras": [{"nombre": "COSA", "contexto": "Rara."}]},
+            },
+            ensure_ascii=False,
+        ),
+    )
+    entry = legacy.read_document_folder(folder, archive="a", stage=None)
+    ficha = legacy.catalogue_markdown(entry)
+    assert "## cosas_raras" in ficha
+    assert "**COSA** — Rara." in ficha
+
+
+def test_a_folder_with_only_entities_still_gets_a_ficha(tmp_path: Path) -> None:
+    """No resumen is not the same as no catalogue."""
+    folder = build_folder(tmp_path / "A", name="1936-doc")
+    (folder / "assets" / "llm_catalogue" / "steps" / "documents" / "resumen.json").unlink()
+    entry = legacy.read_document_folder(folder, archive="a", stage=None)
+    assert entry.summary is None
+    assert entry.entities
+    scan = legacy.scan_archives([tmp_path / "A"], corpus_name="c")
+    artifacts = _document_folder_node(scan)["artifacts"]
+    assert len(artifacts) == 1
+    assert "## Resumen" not in artifacts[0]["content"]
+    assert "## Personas" in artifacts[0]["content"]
