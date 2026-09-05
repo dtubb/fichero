@@ -85,8 +85,8 @@ video slot: short demo embed(s). Keep empty until there is one. -->
 
     ---
 
-    See metadata, artifacts, entities, annotations, and edit history for
-    whatever is selected.
+    See and edit metadata, artifacts, entities, annotations, and edit
+    history for whatever is selected.
 
 -   :material-graph: __Knowledge__
 
