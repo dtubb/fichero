@@ -123,12 +123,34 @@ left the next real page paying 48.6s anyway. `perform(on: CGImage)` and
 uses. A warm-up that does not warm the path in question is worse than none,
 because it reports success and changes nothing.
 
-**Unverified on a cold machine, and stated as such.** The file-based warm-up
-returns in 0.47s on an already-warm system, which proves nothing either way —
-the cold state could not be reset to retest tonight. The falsifiable
-prediction: on a cold machine `--warm-documents` should ITSELF take ~45s,
-because it is paying the cost. If it returns instantly on a cold machine, it is
-still not warming and this needs another look.
+**The prediction was tested, and the warm-up FAILED ITS PURPOSE.** Later the
+same night the machine went cold again and the sequence was measured directly:
+
+    --warm-documents           45,530 ms   (it DID pay the cold cost)
+    --recognize-documents      51,310 ms   (the next real page paid it AGAIN)
+    --recognize-documents         572 ms   (same page, now warm)
+    --recognize-documents         387 ms
+
+So the file-based warm-up is a genuine improvement over the CGImage one — that
+returned in 0.4s while cold, proving it never touched the expensive path, while
+this one pays 45s exactly as predicted. But paying it did not spare the next
+page, which is the entire point. Warming is evidently NOT global across images:
+something per-image — dimensions or an internal model variant is the obvious
+suspect, and neither is confirmed — is re-paid on the first call for a page
+unlike the warm-up's 64x64 PNG.
+
+**Consequence: as specified, `--warm-documents` is the worst of both worlds** —
+it costs 45s on a cold machine and still leaves the first real page paying full
+price. It must NOT be wired as-is. Options, none yet measured:
+
+1. Warm with an image the size of a real page rather than 64x64, and re-measure
+   the same four-step sequence.
+2. Abandon warming and give recognition a first-call timeout generous enough to
+   absorb ~170s, treating cold start as a cost rather than a thing to hide.
+
+Option 2 is honest and cheap and needs no new code; option 1 is better if it
+works, and one measurement settles it. The subcommand stays in the binary
+(dormant, no consumer) so that measurement is possible without another build.
 
 Also observed: 973 words cold vs 964 warm on the same page. The API is not
 bit-deterministic across runs, so nothing downstream may assume stable counts.

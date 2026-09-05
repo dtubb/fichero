@@ -422,6 +422,19 @@ struct RecognizedRegion: Codable {
     let bbox: [Double]
 }
 
+/// The warm-up answers a DIFFERENT question from --probe, so it gets its own
+/// shape. Reusing ProbeResponse made `available` mean "Apple Intelligence is
+/// usable" in one subcommand and "the warm-up completed" in another — one
+/// field, two meanings, one binary (lane-model-routing review, 2026-09-04).
+struct WarmDocumentsResponse: Codable {
+    let warmed: Bool
+    /// Reported because the falsifiable prediction depends on it: on a COLD
+    /// machine this should itself take ~45s, since it is paying the one-time
+    /// cost. A prediction the caller cannot see is a prediction nobody checks.
+    let elapsed_ms: Int
+    let reason: String?
+}
+
 struct RecognizeDocumentsResponse: Codable {
     let engine: String
     /// WHICH PICTURE these fractions describe. Vision normalizes against the
@@ -505,7 +518,7 @@ func runRecognizeDocuments(_ payload: [String: Any]) async {
         emitError("Document recognition failed: \(error)", kind: "vision")
     }
 
-    let payload = RecognizeDocumentsResponse(
+    let response = RecognizeDocumentsResponse(
         engine: "vision-recognize-documents",
         pixel_frame: ["width": width, "height": height],
         elapsed_ms: Int(Date().timeIntervalSince(began) * 1000),
@@ -514,10 +527,14 @@ func runRecognizeDocuments(_ payload: [String: Any]) async {
         lines: lines,
         words: words
     )
-    if let data = try? JSONEncoder().encode(payload) {
-        FileHandle.standardOutput.write(data)
+    // Encode failure must NOT exit 0 with empty stdout: silence that looks
+    // like a clean run is requirement 4 inverted at the last line of the
+    // function.
+    do {
+        FileHandle.standardOutput.write(try JSONEncoder().encode(response))
+    } catch {
+        emitError("Could not encode recognition result: \(error)", kind: "vision")
     }
-    exit(0)
 }
 
 /// Pay the one-time, system-wide Vision warm-up somewhere nobody is waiting on
@@ -533,6 +550,7 @@ func runRecognizeDocuments(_ payload: [String: Any]) async {
 /// question is worse than none — it reports success and changes nothing.
 @available(macOS 26.0, *)
 func runWarmDocuments() async {
+    let began = Date()
     var succeeded = false
     let url = FileManager.default.temporaryDirectory
         .appendingPathComponent("fm-bridge-warm-\(UUID().uuidString).png")
@@ -557,15 +575,23 @@ func runWarmDocuments() async {
         }
     }
 
-    let payload = ProbeResponse(
-        available: succeeded,
+    let response = WarmDocumentsResponse(
+        warmed: succeeded,
+        elapsed_ms: Int(Date().timeIntervalSince(began) * 1000),
         reason: succeeded ? nil : "Vision warm-up did not complete; the first real page will pay the cost."
     )
-    if let data = try? JSONEncoder().encode(payload) {
-        FileHandle.standardOutput.write(data)
+    // RETURN, never exit(): Swift `defer` does not run when the process is
+    // terminated by exit(), so exiting here would leak the temp PNG on every
+    // engine start and the defer above would make the leak invisible to the
+    // next reader (lane-model-routing review, 2026-09-04).
+    //
+    // A failed warm-up still must not fail engine startup, so this reports
+    // warmed:false and returns normally rather than erroring.
+    do {
+        FileHandle.standardOutput.write(try JSONEncoder().encode(response))
+    } catch {
+        FileHandle.standardError.write(Data("warm-up encode failed: \(error)\n".utf8))
     }
-    // Exit 0 either way: a failed warm-up must never fail engine startup.
-    exit(0)
 }
 
 @main
