@@ -13958,6 +13958,7 @@ def register_generated_openapi_commands(
         file_count: Optional[int] = typer.Option(None, "--file-count", help="Request field: file_count."),
         model: Optional[str] = typer.Option(None, "--model", help="Request field: model."),
         provider: Optional[str] = typer.Option(None, "--provider", help="Request field: provider."),
+        selected_doc_ids: Optional[str] = typer.Option(None, "--selected-doc-ids", help="Request field: selected_doc_ids."),
     ) -> None:
         """Estimate Workflow Cost (POST /api/workflows/{workflow_id}/estimate-cost)."""
         def op_call(client: FicheroClient) -> Any:
@@ -13969,12 +13970,14 @@ def register_generated_openapi_commands(
                 "file_count": file_count,
                 "model": model,
                 "provider": provider,
+                "selected_doc_ids": selected_doc_ids,
             }, {
                 "estimated_input_tokens_per_file": {'type': 'integer', 'title': 'Estimated Input Tokens Per File', 'default': 1200, 'x-cli-required': False},
                 "estimated_output_tokens_per_file": {'type': 'integer', 'title': 'Estimated Output Tokens Per File', 'default': 300, 'x-cli-required': False},
                 "file_count": {'type': 'integer', 'title': 'File Count', 'default': 1, 'x-cli-required': False},
                 "model": {'type': 'string', 'nullable': True, 'title': 'Model', 'x-cli-required': False},
                 "provider": {'type': 'string', 'nullable': True, 'title': 'Provider', 'x-cli-required': False},
+                "selected_doc_ids": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Selected Doc Ids', 'x-cli-required': False},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)

@@ -319,6 +319,11 @@ extension ContentView {
         // step whose model the registry cannot price both belong in the
         // breakdown, marked as such, so the tail is honest about what the
         // total leaves out.
+        // The SELECTED ids, so the engine can expand a folder/PDF to its true
+        // page count rather than pricing it as one file (Daniel's 90-page
+        // case). workflowBarTargetCount stays the fallback the server uses when
+        // nothing resolves.
+        let selectedDocIds = workflowBarRunScope.documentIds
         var lines: [StagedChainCost.Line] = []
         for step in stagedWorkflowChain {
             let estimate: Double?
@@ -327,7 +332,8 @@ extension ContentView {
                     workflowId: workflowId,
                     fileCount: workflowBarTargetCount,
                     provider: step.providerOverride,
-                    model: step.modelOverride
+                    model: step.modelOverride,
+                    selectedDocIds: selectedDocIds
                 )
             } else {
                 estimate = nil

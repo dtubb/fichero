@@ -307,6 +307,14 @@ class WorkflowCostEstimateRequest(BaseModel):
     estimated_output_tokens_per_file: int = 300
     provider: str | None = None
     model: str | None = None
+    # The SELECTION, so the estimate can price what the run will actually touch
+    # rather than what the client happened to send. A folder or a PDF is one
+    # id but many units of work; counting the selection verbatim priced a
+    # 90-page folder as a single file (Daniel, 2026-09-05). When present, the
+    # engine's own scope resolver expands these to their leaf count and that
+    # becomes the effective file_count — file_count above stays the fallback for
+    # a caller that already knows the resolved number.
+    selected_doc_ids: list[str] | None = None
 
 
 class WorkflowCostEstimateResponse(BaseModel):
@@ -1123,6 +1131,22 @@ async def estimate_workflow_cost(
         )
 
     file_count = max(1, int(request.file_count))
+    # The engine expands a selection to the leaves it will really process — a
+    # folder to its files/pages, a PDF to its pages — so pricing counts units of
+    # work, not the handful of ids the client selected. Same resolver the run
+    # records its scope with, so the estimate and the run agree on "how many".
+    # Falls back to the client's file_count when nothing resolves (an id the
+    # library does not know, or an empty selection).
+    if request.selected_doc_ids:
+        from fichero_server.workflows.run_scope import (  # noqa: PLC0415
+            resolve_run_scope,
+        )
+
+        resolved_count = resolve_run_scope(db, request.selected_doc_ids).get(
+            "resolved_count", 0
+        )
+        if resolved_count > 0:
+            file_count = resolved_count
     input_tokens_per_file = max(1, int(request.estimated_input_tokens_per_file))
     output_tokens_per_file = max(1, int(request.estimated_output_tokens_per_file))
 

@@ -65396,6 +65396,14 @@
             "type": "string",
             "nullable": true,
             "title": "Model"
+          },
+          "selected_doc_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Selected Doc Ids"
           }
         },
         "type": "object",

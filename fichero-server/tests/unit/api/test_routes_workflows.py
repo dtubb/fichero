@@ -670,6 +670,85 @@ class TestEstimateWorkflowCost:
         # 2000 input tokens @ $1/M + 400 output tokens @ $2/M.
         assert data["estimated_cost_usd"] == pytest.approx(0.0028, rel=1e-9)
 
+    def test_estimate_cost_expands_selection_to_resolved_page_count(
+        self, client, db, monkeypatch
+    ):
+        """The estimate prices what the run will TOUCH, not what the client
+        selected. A folder or PDF is one id but many units of work; the engine's
+        scope resolver expands it, and that leaf count becomes file_count — so a
+        90-page folder no longer prices as a single file (Daniel, 2026-09-05).
+        """
+        wf = Workflow(
+            name="Folder Workflow",
+            description="",
+            format="nodes",
+            steps=[],
+            provider="openai",
+            model="gpt-4o-mini",
+        )
+        db.save(wf)
+        monkeypatch.setattr(
+            "fichero_server.api.routes.workflow.workflows.get_model_cost",
+            lambda name: (
+                {"input_cost_per_token": 1e-6, "output_cost_per_token": 2e-6}
+                if "gpt-4o-mini" in name
+                else None
+            ),
+        )
+        # The selection is one folder id; the resolver expands it to 90 pages.
+        monkeypatch.setattr(
+            "fichero_server.workflows.run_scope.resolve_run_scope",
+            lambda _db, ids: {"resolved_count": 90, "resolved_ids": []},
+        )
+
+        r = client.post(
+            f"/api/workflows/{wf.id}/estimate-cost",
+            json={
+                "file_count": 1,  # the client's naive count …
+                "selected_doc_ids": ["folder-1"],  # … which the resolver overrides
+                "estimated_input_tokens_per_file": 1000,
+                "estimated_output_tokens_per_file": 200,
+            },
+        )
+        assert r.status_code == 200
+        data = r.json()
+        # Priced over 90 pages, not 1: file_count and the token totals expanded.
+        assert data["file_count"] == 90
+        assert data["estimated_input_tokens"] == 90_000
+        assert data["estimated_output_tokens"] == 18_000
+        assert data["pricing_available"] is True
+
+    def test_estimate_cost_unresolvable_selection_falls_back_to_file_count(
+        self, client, db, monkeypatch
+    ):
+        """An id the library does not know resolves to nothing. Rather than
+        price zero files, the estimate falls back to the client's file_count.
+        """
+        wf = Workflow(
+            name="Fallback Workflow",
+            description="",
+            format="nodes",
+            steps=[],
+            provider="openai",
+            model="gpt-4o-mini",
+        )
+        db.save(wf)
+        monkeypatch.setattr(
+            "fichero_server.api.routes.workflow.workflows.get_model_cost",
+            lambda name: {"input_cost_per_token": 1e-6, "output_cost_per_token": 2e-6},
+        )
+        monkeypatch.setattr(
+            "fichero_server.workflows.run_scope.resolve_run_scope",
+            lambda _db, ids: {"resolved_count": 0, "resolved_ids": []},
+        )
+
+        r = client.post(
+            f"/api/workflows/{wf.id}/estimate-cost",
+            json={"file_count": 3, "selected_doc_ids": ["ghost-id"]},
+        )
+        assert r.status_code == 200
+        assert r.json()["file_count"] == 3
+
     def test_estimate_cost_unconfigured_alias_is_unpriced_not_error(
         self, client, db, monkeypatch
     ):

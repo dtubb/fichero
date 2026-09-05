@@ -176,7 +176,8 @@ extension WorkflowStore {
         workflowId: String,
         fileCount: Int,
         provider: String?,
-        model: String?
+        model: String?,
+        selectedDocIds: [String]? = nil
     ) async -> Double? {
         // `try?` collapses a thrown error and a nil (unpriced) result into the
         // same Optional<Optional>; flatten so both mean "no figure".
@@ -184,7 +185,8 @@ extension WorkflowStore {
             workflowId: workflowId,
             fileCount: fileCount,
             provider: provider,
-            model: model
+            model: model,
+            selectedDocIds: selectedDocIds
         )) ?? nil
     }
 

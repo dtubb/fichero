@@ -246,15 +246,22 @@ class WorkflowService {
         workflowId: String,
         fileCount: Int,
         provider: String?,
-        model: String?
+        model: String?,
+        selectedDocIds: [String]? = nil
     ) async throws -> Double? {
         let response = try await client.api
             .estimateWorkflowCostApiWorkflowsWorkflowIdEstimateCostPost(.init(
                 path: .init(workflowId: workflowId),
+                // The SELECTION rides along so the engine prices what the run
+                // will actually touch: a folder or PDF is one id but many
+                // pages, and `fileCount` (the id count) under-estimates it.
+                // The server expands these to their leaf count; fileCount is
+                // the fallback when nothing resolves.
                 body: .json(.init(
                     fileCount: fileCount,
                     provider: provider,
-                    model: model
+                    model: model,
+                    selectedDocIds: selectedDocIds
                 ))
             ))
         switch response {
