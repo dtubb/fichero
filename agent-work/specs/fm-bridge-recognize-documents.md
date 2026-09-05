@@ -105,11 +105,27 @@ Measured 2026-09-04 across six pages:
 | 1913_p05 (2017x2000) | 146.4s | 2.0s |
 | blank 1000x1400 probe | 45.0s | 0.4s → 0.3s |
 
-The multi-minute cost is a **one-time, system-wide** warm-up — not per-process
-(a fresh process is fast once the system is warm), not per-page, and it does
-not recur. But the first call on a cold machine can take **almost three
-minutes**, and a per-page subprocess timeout sized for the warm case (seconds)
-would kill it and report a Vision failure that is really a stopwatch failure.
+The multi-minute cost is **session-scoped and time-decaying**, and beyond that
+WE DO NOT KNOW WHAT IT KEYS ON. What is measured:
+
+* It is not per-process: a fresh process is fast once the system is warm.
+* It is not per-image-size. Two images at dimensions Vision had never seen this
+  session (1234x1678, 1501x903) cost 1237 ms, 428 ms and 309 ms on a warm
+  system — a novel size pays nothing.
+* It IS re-paid after the machine sits idle: the same page went 168s, then
+  0.7s, then hours later 45s again.
+* And a warm-up in a separate short-lived process does NOT reliably hand the
+  warm state to the process that follows it — measured below.
+
+An earlier draft of this spec called it "one-time, system-wide … not per-page".
+The second half was disproved the same night and is corrected here, because a
+reader who designs against it will build the warm-up that has already failed
+twice.
+
+The practical consequence stands regardless of mechanism: the first call on a
+cold machine can take **almost three minutes**, and a per-page subprocess
+timeout sized for the warm case (seconds) would kill it and report a Vision
+failure that is really a stopwatch failure.
 
 `--warm-documents` exists for this, and the caller owns it
 (lane-model-routing): fire-and-forget, NEVER awaited on the engine boot path —
@@ -148,9 +164,28 @@ price. It must NOT be wired as-is. Options, none yet measured:
 2. Abandon warming and give recognition a first-call timeout generous enough to
    absorb ~170s, treating cold start as a cost rather than a thing to hide.
 
-Option 2 is honest and cheap and needs no new code; option 1 is better if it
-works, and one measurement settles it. The subcommand stays in the binary
-(dormant, no consumer) so that measurement is possible without another build.
+**Option 1's premise is now weak too.** It assumed the warm-up failed because
+its 64x64 probe was unlike a real page; the novel-dimension result above shows
+size is not what the cost keys on, so a page-sized probe has no particular
+reason to work either. What actually failed is the handoff BETWEEN processes:
+the warm-up paid 45.5s and the next process paid 51.3s, while a third call a
+minute later cost 572 ms. That is consistent with the warm state becoming
+available slightly after the warming process exits, though the mechanism is
+unconfirmed.
+
+**Recommendation: option 2.** Absorb the cost in an honest first-call timeout.
+It needs no code, cannot silently stop working, and surfaces in `elapsed_ms`
+where someone can see it. A warm-up is machinery whose only job is to be
+invisible, which is precisely why nobody notices when it stops working — this
+one has now failed twice in one night, in two different ways, and both times it
+reported success.
+
+The definitive experiment, if anyone wants to reopen it, is lane-model-routing's:
+on a COLD machine run page A, then page B at different dimensions, then page A
+again. The warm-session variant above rules out per-size; only the cold run can
+show whether the first real call warms the session for everything that follows.
+The subcommand stays in the binary (dormant, no consumer) so that measurement
+needs no new build.
 
 Also observed: 973 words cold vs 964 warm on the same page. The API is not
 bit-deterministic across runs, so nothing downstream may assume stable counts.
