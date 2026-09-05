@@ -871,3 +871,29 @@ def test_a_multi_folder_archive_still_gets_its_corpus_root(tmp_path: Path) -> No
 
     assert nodes[0]["name"] == "Corpus"
     assert [n["node_type"] for n in nodes].count("folder") == 3
+
+
+def test_timeline_claims_use_a_real_claim_type(tmp_path: Path) -> None:
+    """ClaimType is an enum; "timeline_event" 422s and aborted a full import."""
+    from fichero_server.models.knowledge import ClaimType
+
+    build_folder(tmp_path / "A", name="1936-doc")
+    scan = legacy.scan_archives([tmp_path / "A"], corpus_name="c")
+    claim = _document_folder_node(scan)["claims"][0]
+
+    assert claim["claim_type"] in {member.value for member in ClaimType}
+    # The finer 1.0 label survives as provenance rather than as a bad enum.
+    assert claim["metadata"]["legacy_claim_kind"] == "timeline_event"
+
+
+def test_claim_payload_from_a_legacy_node_validates(tmp_path: Path) -> None:
+    """Build the real request body and let the route's own model judge it."""
+    from fichero_server.api.routes.claim.claims import ClaimCreateRequest
+    from fichero_server.importers.manifest_import import claim_payload
+
+    build_folder(tmp_path / "A", name="1936-doc")
+    scan = legacy.scan_archives([tmp_path / "A"], corpus_name="c")
+    node = _document_folder_node(scan)
+
+    body = claim_payload(node["claims"][0], node, "doc-1", [])
+    ClaimCreateRequest.model_validate(body)

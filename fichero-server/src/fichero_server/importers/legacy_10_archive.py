@@ -1090,12 +1090,18 @@ def to_canonical_nodes(scan: LegacyScan) -> Iterator[dict[str, Any]]:
                 {
                     "text": event["evento"],
                     "external_id": f"{folder_id}#timeline:{index}",
-                    "claim_type": "timeline_event",
+                    # ClaimType is an ENUM (fact/analysis/interpretation/
+                    # argument/historiography/theory). "timeline_event" is not
+                    # a member, and the route rightly 422s on it — which
+                    # aborted a 6,866-page import at the claims phase. A dated
+                    # event read off the page IS a fact; the 1.0 provenance
+                    # keeps the finer label.
+                    "claim_type": "fact",
                     "language": "es",
-                    "confidence": None,
                     "metadata": {
                         "fecha": event.get("fecha"),
                         "legacy_step": "linea_temporal",
+                        "legacy_claim_kind": "timeline_event",
                     },
                 }
                 for index, event in enumerate(folder.timeline)

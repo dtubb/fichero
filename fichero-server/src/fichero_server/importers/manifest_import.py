@@ -158,6 +158,7 @@ class ImportSummary:
     entities_reused: int = 0
     artifacts_created: int = 0
     artifacts_skipped: int = 0
+    claims_failed: int = 0
     claims_created: int = 0
     claims_skipped: int = 0
     warnings: list[str] = field(default_factory=list)
@@ -184,6 +185,7 @@ class ImportSummary:
             "entities_reused": self.entities_reused,
             "artifacts_created": self.artifacts_created,
             "artifacts_skipped": self.artifacts_skipped,
+            "claims_failed": self.claims_failed,
             "claims_created": self.claims_created,
             "claims_skipped": self.claims_skipped,
             "warnings": self.warnings,
@@ -1144,11 +1146,26 @@ def import_manifest(
                     f"Claim {ext or claim.get('text', '')[:40]!r} references "
                     f"unknown entities: {missing}"
                 )
-            client.request(
-                "POST",
-                "/claims",
-                claim_payload(claim, node, source_document_id, entity_ids),
-            )
+            # A single rejected claim must not destroy the run. Claims are the
+            # LAST phase: every document, entity and artifact is already
+            # committed, so aborting here throws away the summary without
+            # undoing any of the work (live 2026-09-04: one invalid claim_type
+            # killed a 6,866-page import at the finish line). Loud and counted,
+            # never silent — the warning names the claim and the reason.
+            try:
+                client.request(
+                    "POST",
+                    "/claims",
+                    claim_payload(claim, node, source_document_id, entity_ids),
+                )
+            except Exception as exc:
+                summary.claims_failed += 1
+                if len(summary.warnings) < 200:
+                    summary.warnings.append(
+                        f"Claim {ext or claim.get('text', '')[:40]!r} refused: "
+                        f"{str(exc)[:200]}"
+                    )
+                continue
             if ext:
                 existing_claim_externals.add(ext)
             summary.claims_created += 1
