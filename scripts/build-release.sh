@@ -92,6 +92,13 @@ fi
 echo "[2/4] Xcode Release build"
 echo "  Sparkle feed: $SPARKLE_FEED_URL"
 cd "$ROOT_DIR"
+# RELEASE-GRADE OVERRIDES (2026-09-05). The tier configurations ("Dev
+# Embedded", "Alpha Embedded", …) double as the ⌘R debug configs, so they
+# carry -Onone and the debug dylib — and every DMG built from them SHIPPED
+# that way: a 296MB Fichero.debug.dylib, __preview.dylib, and fully
+# unoptimized Swift ("feels sluggish" was real). Found via a crash report
+# listing the loaded images. The overrides live HERE, on the one command
+# that builds shipping artifacts, so daily ⌘R keeps its debug settings.
 run_or_dry xcodebuild \
   -project "$PROJECT" \
   -scheme "$SCHEME" \
@@ -99,7 +106,18 @@ run_or_dry xcodebuild \
   -derivedDataPath "$DERIVED_DATA" \
   -skipPackagePluginValidation \
   SPARKLE_FEED_URL="$SPARKLE_FEED_URL" \
+  ENABLE_DEBUG_DYLIB=NO \
+  ENABLE_PREVIEWS=NO \
+  SWIFT_OPTIMIZATION_LEVEL=-O \
+  SWIFT_COMPILATION_MODE=wholemodule \
+  GCC_OPTIMIZATION_LEVEL=s \
   build
+
+if [ "$DRY_RUN" = false ] && [ -f "$APP_PATH/Contents/MacOS/Fichero.debug.dylib" ]; then
+  echo "error: built app still contains Fichero.debug.dylib — the release" >&2
+  echo "       overrides did not take; refusing to package a debug layout." >&2
+  exit 1
+fi
 
 if [ "$DRY_RUN" = false ] && [ ! -d "$APP_PATH" ]; then
   echo "error: built app not found at $APP_PATH" >&2
