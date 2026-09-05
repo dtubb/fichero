@@ -3910,6 +3910,28 @@ def _pydantic_to_apple_schema(model: type[BaseModel]) -> dict[str, Any]:
             if type_ == "object":
                 required = set(node.get("required", []))
                 properties = node.get("properties", {})
+                # A free-form mapping (`dict[str, T]`) is an object with
+                # `additionalProperties` and NO `properties`. Apple's
+                # DynamicGenerationSchema has fixed, named properties only —
+                # there is no "any key" shape — so this converted to an object
+                # with zero properties and the decoder could then produce
+                # nothing but `{}`. The field was structurally guaranteed to
+                # come back empty, on every call, with no error anywhere
+                # (verified 2026-09-04 on `dict[str, list[str]]`).
+                #
+                # That is the exact failure this converter's contract exists
+                # to prevent — the same reason `format` keywords fail loud
+                # rather than being dropped. Decompose the mapping into a list
+                # of {key, values} objects, which IS expressible.
+                if not properties and "additionalProperties" in node:
+                    _fail(
+                        field_path,
+                        "free-form mapping (dict[str, …]) has no Apple "
+                        "DynamicGenerationSchema equivalent — it would convert "
+                        "to an object with no properties, so the decoder could "
+                        "only ever emit {}. Decompose into a list of "
+                        "{key, values} objects",
+                    )
                 props_out: list[dict[str, Any]] = []
                 for pname, psub in properties.items():
                     child_path = (
