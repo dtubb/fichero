@@ -616,14 +616,16 @@ struct EntityDigestContent: View {
         var first = true
         var pairs: [(String, Components.Schemas.KnowledgeClaim)] = []
         for claim in claims {
-            // Basic SVO extraction
-            let subject = first ? entityName : "they"
-            first = false
-
             let verb = claim.predicateVerb ?? ""
             let object = claim.objectPhrase ?? ""
 
+            // Skip BEFORE spending the "first sentence names the entity"
+            // slot — a claim that renders nothing must not demote the first
+            // real sentence to "they".
             if verb.isEmpty && object.isEmpty { continue }
+
+            let subject = first ? entityName : "they"
+            first = false
 
             // No bracketed citation (#4393). It was built from the STORAGE
             // filename and looked up only in `currentDocuments`, so it printed

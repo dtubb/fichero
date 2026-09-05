@@ -145,7 +145,7 @@ struct PaneHeadWiringGuardTests {
 
         // Equatable on the VALUE only — comparing the setter republishes every
         // body pass (the ×31 fault).
-        let values = try code(at: "App/Menus/FocusedCommandButtons+FocusedValues.swift")
+        let values = try code(at: "App/Menus/FocusedCommands/FocusedCommandButtons+FocusedValues.swift")
         let tail = try #require(values.components(separatedBy: "struct FocusedReaderLens").last)
         let body = try #require(tail.components(separatedBy: "\nstruct ").first)
         #expect(body.contains("lhs.value == rhs.value"))

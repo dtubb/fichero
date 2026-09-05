@@ -116,7 +116,7 @@ struct SidebarOpenAffordanceTests {
 
     @Test("selection-open commands use the ⌘⌥O family and disable without a selection")
     func selectionOpenCommandsShortcutsAndDisabling() throws {
-        let source = try appSource("App/Menus/FocusedCommandButtons+SidebarActions.swift")
+        let source = try appSource("App/Menus/FocusedCommands/FocusedCommandButtons+SidebarActions.swift")
         // ⌘O is Open Library; selection-opens must stay on the ⌘⌥O family.
         #expect(source.contains(#".keyboardShortcut("o", modifiers: [.command, .option])"#))
         #expect(source.contains(#".keyboardShortcut("o", modifiers: [.command, .option, .shift])"#))

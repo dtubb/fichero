@@ -45,7 +45,7 @@ struct SelectAllVisibleSurfaceTests {
     func oneChordOneOwner() throws {
         // The canvas used to handle ⌘A itself, over every node in scope. Which
         // answer the user got depended on where focus happened to be.
-        let button = try code(at: "App/Menus/FocusedCommandButtons+SelectAll.swift")
+        let button = try code(at: "App/Menus/FocusedCommands/FocusedCommandButtons+SelectAll.swift")
         #expect(button.contains("struct SelectAllButton"))
         #expect(button.contains(".keyboardShortcut(\"a\", modifiers: .command)"))
 
@@ -66,7 +66,7 @@ struct SelectAllVisibleSurfaceTests {
         #expect(policy.contains("enum SelectAllRoutingPolicy"))
         #expect(policy.contains("return .none"))
 
-        let button = try code(at: "App/Menus/FocusedCommandButtons+SelectAll.swift")
+        let button = try code(at: "App/Menus/FocusedCommands/FocusedCommandButtons+SelectAll.swift")
         #expect(button.contains(".disabled(route == .none)"))
     }
 
@@ -133,7 +133,7 @@ struct SelectAllVisibleSurfaceTests {
         // a library pane is on screen — including while the inspector has
         // focus. Deciding by "who published" would hand every ⌘A to the
         // library forever.
-        let button = try code(at: "App/Menus/FocusedCommandButtons+SelectAll.swift")
+        let button = try code(at: "App/Menus/FocusedCommands/FocusedCommandButtons+SelectAll.swift")
         #expect(button.contains("@FocusedValue(\\.focusedPaneKind)"))
         #expect(button.contains("private var focusedSurface: SelectAllSurface?"))
         #expect(button.contains("case .inspector:"))
@@ -147,7 +147,7 @@ struct SelectAllVisibleSurfaceTests {
     func libraryRemainsTheDefault() throws {
         // The widening must not change a plain library window's behaviour: no
         // hint at all still routes to the library.
-        let button = try code(at: "App/Menus/FocusedCommandButtons+SelectAll.swift")
+        let button = try code(at: "App/Menus/FocusedCommands/FocusedCommandButtons+SelectAll.swift")
         let tail = try #require(button.components(separatedBy: "private var focusedSurface").last)
         let body = try #require(tail.components(separatedBy: "\n    }").first)
         #expect(body.contains("default:"))
@@ -201,7 +201,7 @@ struct SelectAllVisibleSurfaceTests {
         // It routed correctly before only because the library's enablement
         // happened to be false — an accident, not a decision. Now `.reading`
         // returns nil in its own branch, with the reason at the site.
-        let button = try code(at: "App/Menus/FocusedCommandButtons+SelectAll.swift")
+        let button = try code(at: "App/Menus/FocusedCommands/FocusedCommandButtons+SelectAll.swift")
         let tail = try #require(button.components(separatedBy: "case .reading:").last)
         let branch = try #require(tail.components(separatedBy: "default:").first)
         #expect(branch.contains("return nil"))
