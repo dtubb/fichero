@@ -278,9 +278,7 @@ struct WorkflowBarModelPinTests {
             )
             #expect(
                 sent?.model == "claude-sonnet-latest",
-                "step '\(step.name)' sent \(sent?.model ?? "NOTHING") — a step "
-                    + "that sends nothing resolves its own $small alias and "
-                    + "lands on Apple against an explicit cloud choice"
+                "step '\(step.name)' sent \(sent?.model ?? "NOTHING") — a step that sends nothing resolves its own $small alias and lands on Apple against an explicit cloud choice"
             )
         }
     }
