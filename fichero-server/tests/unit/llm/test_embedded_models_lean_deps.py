@@ -9,6 +9,13 @@ The "without heavy deps" half was previously enforced only by comments in
 pyproject.toml. These tests make it executable: if a future change adds a
 torch-class dependency to a *shipped* list, this fails loudly instead of
 silently bloating the bundle by hundreds of MB.
+
+AMENDED 2026-09-04: spaCy ships, by ruling. The guard was right to fire on it
+and its premise was wrong — the rule is about the hundreds-of-MB class, and
+spaCy's whole tier is ~54 MB measured. The exemption is a NAMED list of three
+packages, not a category, and the heavy exclusions it sits beside are now
+asserted by name so this amendment cannot be read as a general relaxation.
+See `_ALLOWED_BY_RULING`.
 """
 
 from __future__ import annotations
@@ -22,6 +29,11 @@ import pytest
 # Heavy ML stacks that must never enter the shipped engine. MLX is the light
 # Apple-Silicon path and runs as its own mlx-lm *server* process (HTTP), so
 # even mlx-lm/mlx-vlm must not be imported into the engine.
+#
+# THE RULE IS ABOUT SIZE, NOT ABOUT THE WORD "ML". Every name here costs
+# hundreds of megabytes — torch and its dependents, pykeen (which is torch),
+# OpenCV. That is the class #2615 was written to keep out, and those
+# exclusions are unchanged and asserted below.
 _FORBIDDEN_SHIPPED = {
     "torch",
     "torchvision",
@@ -29,12 +41,32 @@ _FORBIDDEN_SHIPPED = {
     "sentence-transformers",
     "accelerate",
     "pykeen",
-    "spacy",
     "mlx",
     "mlx-lm",
     "mlx-vlm",
     "opencv-python",
     "opencv-python-headless",
+}
+
+# PREMISE CHANGED 2026-09-04, by ruling, not by erosion.
+#
+# spaCy was on the forbidden list on the assumption that it belonged to the
+# same size class. It does not: measured, the runtime is 38 MB and each small
+# model 15-16 MB — ~54 MB for the whole tier, an order of magnitude under
+# pykeen/torch. And it earns its place: it is the SVO grammar gate, which
+# convicts a predicate that is not a verb and a first-person verb stamped with
+# a bystander's name — 16 of the 17 rows a real extraction left in a test
+# library. Apple's on-device NLTagger cannot replace it (it exposes no
+# morphology for Spanish at all), so without the bundle the shipped app ran
+# that gate on half power, silently.
+#
+# Daniel ruled it in. This list is the ONLY thing that may enter the bundle on
+# that ruling — named exactly, versions and all, so "spaCy is allowed" cannot
+# quietly become "spaCy plus whatever else someone adds next".
+_ALLOWED_BY_RULING = {
+    "spacy",
+    "es_core_news_sm",
+    "en_core_web_sm",
 }
 
 
@@ -76,6 +108,40 @@ def test_shipped_deps_have_no_heavy_ml(list_name):
         "Apple FM (subprocess) and MLX (separate mlx-lm server over HTTP) to "
         "stay out of the engine bundle. Move it to optional-dependencies."
     )
+
+
+def test_the_heavy_class_is_still_excluded_by_name():
+    """The premise change must not have relaxed the rule it sits inside.
+
+    spaCy entering the bundle is a ruling about ~54 MB. It is not a precedent
+    for the hundreds-of-MB class, and the easiest way for that to erode is for
+    someone to read "the leanness guard allows an ML package now" and stop
+    there. These names stay forbidden, explicitly.
+    """
+    for heavy in ("torch", "pykeen", "transformers", "opencv-python-headless"):
+        assert heavy in _FORBIDDEN_SHIPPED, heavy
+    assert not (_FORBIDDEN_SHIPPED & _ALLOWED_BY_RULING), (
+        "a package cannot be both forbidden and allowed by ruling"
+    )
+
+
+def test_only_the_ruled_in_packages_use_the_exemption():
+    """Nothing rides in beside spaCy.
+
+    The exemption is a named list, not a category. `es_core_news_lg` (568 MB)
+    is deliberately absent from it: it carries word vectors this gate does not
+    use, and its benefit for 16th-century orthography is unmeasured, so it
+    stays a catalog row someone downloads rather than weight everyone carries.
+    """
+    shipped = {
+        _base_name(r)
+        for values in _shipped_lists().values()
+        for r in values
+    }
+    assert "es_core_news_lg" not in shipped
+    # Every exemption is USED. An entry nobody ships is a permission sitting
+    # unspent, and the next person to need one finds it already granted.
+    assert _ALLOWED_BY_RULING <= shipped, sorted(_ALLOWED_BY_RULING - shipped)
 
 
 def test_apple_and_mlx_providers_are_registered_local():
