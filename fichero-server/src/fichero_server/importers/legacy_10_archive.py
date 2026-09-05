@@ -1052,6 +1052,40 @@ def _folder_metadata(folder: LegacyFolder, scan: LegacyScan) -> dict[str, Any]:
     return {k: v for k, v in metadata.items() if v not in (None, [], {})}
 
 
+def _catalogue_artifacts(folder: LegacyFolder) -> list[dict[str, Any]]:
+    """The 1.0 ficha as a ``catalogue`` artifact — the surface the app reads.
+
+    The resumen is the catalogue: the prose the old pipeline wrote per folder.
+    It was landing in ``metadata["resumen"]``, which no view reads, so it was
+    present and invisible (Daniel, 2026-09-05: "I see Events, Keywords — but
+    not the catalogue"). ``artifact_type="catalogue"`` is what ArtifactPanel
+    already renders and what today's catalogue workflow writes.
+
+    The tags ride in the same artifact's ``data`` rather than becoming their own
+    artifact: they are the ficha's own keyword line, and folding them in adds no
+    new machinery. ``legacy_dates`` and ``legacy_stage`` deliberately stay in
+    metadata — they are structured fields, not prose, and where they belong in
+    the UI is a separate decision.
+    """
+    if not folder.summary:
+        return []
+    return [
+        {
+            "artifact_type": "catalogue",
+            "content": folder.summary,
+            "data": {
+                "source": "fichero-1.0",
+                "tags": folder.tags,
+                "legacy_path": folder.path,
+                "legacy_steps": ["resumen", "personas_clave_y_etiquetas"],
+            },
+            "provider": LEGACY_PROVIDER,
+            "model": folder.catalogue_model,
+            "step_name": "catalogue_folder",
+        }
+    ]
+
+
 def to_canonical_nodes(scan: LegacyScan) -> Iterator[dict[str, Any]]:
     """Emit ``fichero-corpus-import-v1`` nodes, parent before child."""
     # Dropping a single document folder should not produce a wrapper folder of
@@ -1111,6 +1145,7 @@ def to_canonical_nodes(scan: LegacyScan) -> Iterator[dict[str, Any]]:
             "provider": LEGACY_PROVIDER,
             "model": folder.catalogue_model,
             "step_name": "catalogue_folder",
+            "artifacts": _catalogue_artifacts(folder),
         }
 
         for page in folder.pages:

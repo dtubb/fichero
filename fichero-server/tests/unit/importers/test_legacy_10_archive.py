@@ -900,3 +900,106 @@ def test_claim_payload_from_a_legacy_node_validates(tmp_path: Path) -> None:
     # The enum mapping IS the regression this test exists for: attempt 1 of
     # the full import died on claim_type="timeline_event" (not a member).
     assert validated.claim_type == "fact"
+
+
+# ---------------------------------------------------------------------------
+# The catalogue itself — the ficha Daniel could not find (2026-09-05)
+# ---------------------------------------------------------------------------
+
+
+def test_the_resumen_becomes_a_catalogue_artifact(tmp_path: Path) -> None:
+    """The prose ficha must reach artifact_type "catalogue" — the surface the
+    app already renders — not metadata that no view reads."""
+    build_folder(tmp_path / "A", name="1936-doc")
+    scan = legacy.scan_archives([tmp_path / "A"], corpus_name="c")
+    folder_node = _document_folder_node(scan)
+
+    artifacts = folder_node["artifacts"]
+    assert len(artifacts) == 1
+    catalogue = artifacts[0]
+    assert catalogue["artifact_type"] == "catalogue"
+    assert catalogue["content"] == "Un juicio laboral."
+    # Provenance names the 1.0 pipeline and the model that actually wrote it.
+    assert catalogue["provider"] == "fichero-1.0"
+    assert catalogue["model"] == "gpt-4.1-mini"
+    assert catalogue["step_name"] == "catalogue_folder"
+    # Tags ride with the ficha rather than becoming new machinery.
+    assert catalogue["data"]["tags"] == ["juicio ejecutivo", "cesantía"]
+
+
+def test_a_folder_without_a_resumen_emits_no_catalogue(tmp_path: Path) -> None:
+    """15 folders were never catalogued by 1.0 — they must not get an empty one."""
+    build_folder(tmp_path / "A", name="1936-doc", catalogue=False)
+    scan = legacy.scan_archives([tmp_path / "A"], corpus_name="c")
+    assert _document_folder_node(scan)["artifacts"] == []
+
+
+def test_pages_carry_no_catalogue_artifact(tmp_path: Path) -> None:
+    """The ficha is folder-scoped; it must not be stamped on every page."""
+    build_folder(tmp_path / "A", name="1936-doc", pages=3)
+    scan = legacy.scan_archives([tmp_path / "A"], corpus_name="c")
+    for node in legacy.to_canonical_nodes(scan):
+        if node["node_type"] == "page":
+            assert not node.get("artifacts")
+
+
+def test_manifest_importer_passes_declared_artifacts_through(tmp_path: Path) -> None:
+    """The importer previously built artifacts ONLY from text and entities."""
+    from fichero_server.importers.manifest_import import node_provenance
+
+    build_folder(tmp_path / "A", name="1936-doc")
+    scan = legacy.scan_archives([tmp_path / "A"], corpus_name="c")
+    node = _document_folder_node(scan)
+
+    # The shape the importer consumes, asserted explicitly so a rename breaks
+    # here rather than silently dropping the ficha again.
+    artifact = node["artifacts"][0]
+    assert set(artifact) >= {
+        "artifact_type", "content", "data", "provider", "model", "step_name",
+    }
+    # An artifact WITHOUT its own provider falls back to the node's.
+    assert node_provenance(node, "import_manifest")["provider"] == "fichero-1.0"
+
+
+def test_catalogue_artifact_lands_once_through_the_drop_path(
+    client, db, test_package, tmp_path
+) -> None:
+    """End-to-end through the real routes: the ficha arrives, and a re-drop
+    adds nothing.
+
+    Verified live against the Compañía Minera corpus 2026-09-05 before this
+    test existed; encoded here so the idempotency cannot regress silently.
+    """
+    from fichero_server.api.routes.ingest.core import (
+        IngestFolderRequest,
+        import_folder_impl,
+    )
+    import fichero_server.api.routes.ingest.core as core
+    from fichero_server.models import Artifact, DocType, Document
+
+    from .test_manifest_import import _TestClientAdapter
+
+    source = tmp_path / "archive"
+    build_folder(source, name="1936-doc")
+    build_folder(source, name="1950-nocat", sizes=[7, 8], catalogue=False)
+    core._InProcessManifestClient = lambda _lib: _TestClientAdapter(client)
+
+    request = IngestFolderRequest(path=str(source), mode="link")
+    import_folder_impl(db, request, Path(test_package))
+
+    catalogues = [a for a in db.query(Artifact) if a.artifact_type == "catalogue"]
+    # One folder has a resumen, the other never was catalogued by 1.0.
+    assert len(catalogues) == 1
+    artifact = catalogues[0]
+    owner = db.get(Document, artifact.document_id)
+    assert owner.doc_type == DocType.folder, "the ficha is folder-scoped"
+    assert artifact.content == "Un juicio laboral."
+    assert artifact.provider == "fichero-1.0"
+    assert artifact.model == "gpt-4.1-mini"
+    assert artifact.data["tags"] == ["juicio ejecutivo", "cesantía"]
+
+    import_folder_impl(db, request, Path(test_package))
+    again = [a for a in db.query(Artifact) if a.artifact_type == "catalogue"]
+    assert len(again) == 1, "a re-drop must repair, never duplicate"
+    pages = [d for d in db.query(Document) if d.doc_type == DocType.page]
+    assert len(pages) == 4, "a re-drop must not double the pages either"

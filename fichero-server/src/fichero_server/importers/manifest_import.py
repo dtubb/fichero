@@ -1078,6 +1078,52 @@ def import_manifest(
             )
             existing_artifact_keys.add(key)
 
+        # Artifacts the manifest states OUTRIGHT, rather than ones derived from
+        # `text` or `entities`. A converted corpus carries records that are
+        # neither a transcription nor an entity list — the Fichero 1.0 ficha is
+        # prose the old pipeline wrote per folder — and without this a node had
+        # no way to say "this document has an artifact of type X". Same
+        # (document_id, artifact_type) idempotency as everything above, so a
+        # re-drop adds nothing.
+        for artifact in node.get("artifacts") or []:
+            if not isinstance(artifact, dict):
+                continue
+            artifact_type = str(artifact.get("artifact_type") or "").strip()
+            content = artifact.get("content")
+            if not artifact_type:
+                summary.warnings.append(
+                    f"Node {node['external_id']}: artifact without artifact_type, skipped"
+                )
+                continue
+            if not content and not artifact.get("data"):
+                continue
+            key = (doc_id, artifact_type)
+            if key in existing_artifact_keys:
+                summary.artifacts_skipped += 1
+                continue
+            provenance = node_provenance(node, "import_manifest")
+            if artifact.get("provider"):
+                provenance = {
+                    "provider": str(artifact["provider"]),
+                    "model": (
+                        str(artifact["model"]) if artifact.get("model") else None
+                    ),
+                    "step_name": str(
+                        artifact.get("step_name") or provenance["step_name"]
+                    ),
+                }
+            pending_artifacts.append(
+                {
+                    "document_id": doc_id,
+                    "artifact_type": artifact_type,
+                    "content": content,
+                    "data": artifact.get("data") or {},
+                    **provenance,
+                    "confidence": artifact.get("confidence", 1.0),
+                }
+            )
+            existing_artifact_keys.add(key)
+
     # Send everything collected above — bulk first, per-item fallback for
     # engines without /artifacts/bulk.
     if pending_artifacts:
