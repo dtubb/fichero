@@ -28,7 +28,7 @@ struct EntityClickthroughTests {
 
     @Test("each biography sentence keeps hold of the claim it renders")
     func sentencesCarryTheirClaims() {
-        let pairs = EntityDigestView.biographySentences(
+        let pairs = EntityDigestContent.biographySentences(
             entityName: "Andrés",
             claims: [claim(id: "a"), claim(id: "b", verb: "compareció", object: "ante mí")]
         )
@@ -42,7 +42,7 @@ struct EntityClickthroughTests {
 
     @Test("a claim with neither verb nor object produces no sentence")
     func emptyClaimsAreSkippedNotPadded() {
-        let pairs = EntityDigestView.biographySentences(
+        let pairs = EntityDigestContent.biographySentences(
             entityName: "Andrés",
             claims: [claim(verb: nil, object: nil), claim(id: "real")]
         )
@@ -225,15 +225,15 @@ struct EntityClickthroughTests {
     @Test("corroboration count reads both key spellings and both types")
     func corroborationCountReads() throws {
         var row = Components.Schemas.KnowledgeClaim(id: "c", text: "t")
-        #expect(EntityDigestView.corroborationCount(of: row) == nil)
+        #expect(EntityDigestContent.corroborationCount(of: row) == nil)
         row.metadata = .init(additionalProperties: try .init(
             unvalidatedValue: ["corroboration_count": 2]
         ))
-        #expect(EntityDigestView.corroborationCount(of: row) == 2)
+        #expect(EntityDigestContent.corroborationCount(of: row) == 2)
         row.metadata = .init(additionalProperties: try .init(
             unvalidatedValue: ["corroborationCount": "3"]
         ))
-        #expect(EntityDigestView.corroborationCount(of: row) == 3)
+        #expect(EntityDigestContent.corroborationCount(of: row) == 3)
     }
 
     @Test("the inspector quote is a door, not a query")
