@@ -36,6 +36,7 @@ import asyncio
 import base64
 import contextlib
 import contextvars
+import dataclasses
 import hashlib
 import inspect
 import json
@@ -114,6 +115,23 @@ _usage_collector: contextvars.ContextVar[list[dict[str, Any]] | None] = (
 # nesting behaviour, same task inheritance. One pattern, learned once.
 _fallback_collector: contextvars.ContextVar[list[dict[str, Any]] | None] = (
     contextvars.ContextVar("fichero_llm_fallbacks", default=None)
+)
+
+# The RUN's explicit model choice, for the fallback ladder to prefer.
+#
+# I argued this could not arise after the routing fix — if the bar's choice
+# reaches every step, a step only runs Apple when Apple was chosen. Wrong on
+# two paths (team-lead, 2026-09-05): a preset that declares
+# `accepts_model_override == false` keeps its pinned Apple node while the run
+# carries a cloud choice, and a step whose capability disqualifies the run's
+# choice resolves its own tier, which can be Apple. In both, a refusal happens
+# while the user HAS named a model — and their choice is the strongest
+# statement of intent-to-spend available, so it outranks the configured tier.
+#
+# Set by the runner for the life of one run; a contextvar so nested tasks and
+# fan-out children inherit it, exactly like usage and fallback collection.
+_run_model_choice: contextvars.ContextVar[tuple[str, str] | None] = (
+    contextvars.ContextVar("fichero_run_model_choice", default=None)
 )
 
 _DEFAULT_MAX_INFLIGHT_LLM = 6
@@ -302,6 +320,66 @@ def end_fallback_collection(token: Any) -> None:
         _fallback_collector.reset(token)
     except (ValueError, RuntimeError):
         pass
+
+
+def set_run_model_choice(provider: str, model: str) -> Any:
+    """Declare the run's explicit provider/model. Returns a reset token."""
+    provider = (provider or "").strip()
+    model = (model or "").strip()
+    return _run_model_choice.set((provider, model) if (provider or model) else None)
+
+
+def clear_run_model_choice(token: Any) -> None:
+    """Drop the run's choice; safe to call twice or after an error."""
+    try:
+        _run_model_choice.reset(token)
+    except (ValueError, RuntimeError):
+        pass
+
+
+def run_model_choice() -> tuple[str, str] | None:
+    """The run's explicit choice, or None when the run made none."""
+    return _run_model_choice.get()
+
+
+def _run_choice_fallback_config(failed: "LLMConfig") -> "LLMConfig | None":
+    """The run's chosen model as a fallback target, when it can serve.
+
+    Precedence, the same ladder resolution itself walks: the user's explicit
+    choice first, the configured tier after. Two guards keep it honest —
+
+    - it must not be the model that just failed, or the "fallback" is a retry
+      into the same refusal;
+    - it must be capability-compatible, because a choice that cannot do the
+      work is not a rescue. A text-only pick cannot save a vision step, and a
+      recognition-only route (apple-vision) cannot answer a prompt.
+
+    The capability asked for here is "text", and that is an inference with
+    evidence rather than an assumption: every caller of the two fallback
+    functions is a text tool (extractors, cleanup, citations, catalogue,
+    book_index, svo, entities) — the vision path does not route through them
+    at all.
+    """
+    choice = _run_model_choice.get()
+    if not choice:
+        return None
+    provider, model = choice
+    if not model:
+        return None
+    if (provider or "").lower() == (failed.provider or "").lower() and (
+        model.lower() == (failed.model or "").lower()
+    ):
+        return None
+    try:
+        from fichero_server.workflows.validation import model_can_serve_capability
+
+        if not model_can_serve_capability(provider, model, "text"):
+            return None
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.debug("Run-choice fallback capability check failed: %s", exc)
+    # A dataclass, not a pydantic model — and a copy rather than a mutation,
+    # so the failing config stays intact for the record that names it.
+    return dataclasses.replace(failed, provider=provider, model=model)
 
 
 def fallback_condition_for(error: Exception) -> str:
@@ -1897,6 +1975,24 @@ async def chat_with_fallback(
     except AppleUnavailableError as apple_exc:
         last_failure: Exception | None = None
         attempted = False
+
+        # The run's own choice first — see the structured path for why.
+        if (run_choice := _run_choice_fallback_config(config)) is not None:
+            attempted = True
+            try:
+                result = await chat(
+                    prompt, run_choice, system=system,
+                    permissive_guardrails=permissive_guardrails,
+                )
+            except (AppleUnavailableError, ProviderQuotaError) as exc:
+                last_failure = exc
+            else:
+                _record_model_fallback(
+                    from_config=config, to_config=run_choice,
+                    error=apple_exc, kind="chat",
+                )
+                return result
+
         for tier, fallback_config, fallback_is_local in _iter_fallback_configs(
             config,
             original_config=config,
@@ -3627,6 +3723,30 @@ async def chat_structured_with_fallback(
 
         last_failure: Exception | None = None
         attempted = False
+
+        # The run's OWN choice first (team-lead, 2026-09-05): when the user
+        # named a model, that is a stronger statement of what they mean to
+        # spend than any configured tier. Reached on the two paths the
+        # routing fix leaves open — a preset pinned to Apple that refuses
+        # overrides, and a step whose capability disqualified the run choice
+        # and so resolved its own tier.
+        if (run_choice := _run_choice_fallback_config(config)) is not None:
+            attempted = True
+            try:
+                result = await chat_structured(
+                    prompt, schema, run_choice, system=system,
+                    use_case=use_case,
+                    permissive_guardrails=permissive_guardrails,
+                )
+            except (ProviderQuotaError, AppleUnavailableError) as exc:
+                last_failure = exc
+            else:
+                _record_model_fallback(
+                    from_config=config, to_config=run_choice,
+                    error=apple_exc, kind="structured",
+                )
+                return result
+
         for tier, fallback_config, fallback_is_local in _iter_fallback_configs(
             config,
             original_config=config,

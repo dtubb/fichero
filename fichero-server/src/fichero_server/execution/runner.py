@@ -901,6 +901,11 @@ async def _run_workflow_in_background(
     # happen silently in the RECORD — that visibility is the entire price of
     # the exemption from never-substitute.
     fallback_bucket: list[dict[str, Any]] = []
+    # Declared out here, not beside its assignment: the `finally` that clears
+    # it runs for every exit path, including one that fails before the run
+    # choice is set, and a NameError in a cleanup block would mask the real
+    # failure with an accounting one.
+    run_choice_token: Any = None
 
     def _run_usage_totals() -> "UsageTotals":
         """Everything the run spent so far, across every node."""
@@ -1479,6 +1484,17 @@ async def _run_workflow_in_background(
                 "provider": provider_override,
                 "model": model_override,
             }
+            # Also visible to the FALLBACK ladder (2026-09-05): if a step
+            # ends up on Apple anyway — a preset that refuses overrides, or a
+            # capability mismatch that sent it to its own tier — and Apple
+            # then declines, the user's named model is a better target than
+            # any configured default. Same precedence as resolution: explicit
+            # choice, then tier.
+            from fichero_server.llm import set_run_model_choice
+
+            run_choice_token = set_run_model_choice(
+                provider_override, model_override
+            )
 
         # Identify exit nodes (nodes with no outgoing edges). Workflow edges
         # use raw node IDs, but LangGraph events use the display label when one
@@ -2254,6 +2270,10 @@ async def _run_workflow_in_background(
         try:
             end_usage_collection(usage_token)
             end_fallback_collection(fallback_token)
+            if run_choice_token is not None:
+                from fichero_server.llm import clear_run_model_choice
+
+                clear_run_model_choice(run_choice_token)
         except (NameError, UnboundLocalError):
             pass
         # Drop the shared cancellation event — but ONLY when the run actually

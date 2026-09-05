@@ -148,3 +148,98 @@ def test_recording_outside_a_collector_is_harmless():
         from_config=APPLE, to_config=SONNET,
         error=GuardrailViolationError("declined"), kind="chat",
     )
+
+
+# =============================================================================
+# The fallback walks the SAME ladder resolution does (team-lead, 2026-09-05)
+#
+# I argued this case could not arise: if the bar's choice reaches every step,
+# a step only runs Apple when Apple was chosen. Wrong on two paths — a preset
+# that declares accepts_model_override == false keeps its pinned Apple node
+# while the run carries a cloud choice, and a step whose capability
+# disqualifies the run's choice resolves its own tier, which can be Apple. In
+# both, a refusal happens while the user HAS named a model.
+# =============================================================================
+
+
+def test_the_runs_choice_is_preferred_over_a_configured_tier():
+    from fichero_server.llm import (
+        _run_choice_fallback_config,
+        clear_run_model_choice,
+        set_run_model_choice,
+    )
+
+    token = set_run_model_choice("anthropic", "claude-sonnet-latest")
+    try:
+        target = _run_choice_fallback_config(APPLE)
+    finally:
+        clear_run_model_choice(token)
+
+    assert target is not None
+    assert target.provider == "anthropic"
+    assert target.model == "claude-sonnet-latest"
+
+
+def test_no_run_choice_means_the_tier_walk_is_untouched():
+    from fichero_server.llm import _run_choice_fallback_config
+
+    assert _run_choice_fallback_config(APPLE) is None
+
+
+def test_the_run_choice_is_not_a_retry_into_the_model_that_just_failed():
+    """A 'fallback' to the failing model is a retry into the same refusal."""
+    from fichero_server.llm import (
+        _run_choice_fallback_config,
+        clear_run_model_choice,
+        set_run_model_choice,
+    )
+
+    token = set_run_model_choice("apple", "apple-intelligence")
+    try:
+        assert _run_choice_fallback_config(APPLE) is None
+    finally:
+        clear_run_model_choice(token)
+
+
+def test_a_choice_that_cannot_do_the_work_is_not_a_rescue():
+    """apple-vision is a recognition route: it returns the page's own text and
+    ignores the prompt, so it can no more rescue a text step than serve one."""
+    from fichero_server.llm import (
+        _run_choice_fallback_config,
+        clear_run_model_choice,
+        set_run_model_choice,
+    )
+
+    token = set_run_model_choice("apple", "apple-vision")
+    try:
+        assert _run_choice_fallback_config(APPLE) is None
+    finally:
+        clear_run_model_choice(token)
+
+
+def test_the_choice_does_not_outlive_its_run():
+    """One run's choice must never steer another run's fallback."""
+    from fichero_server.llm import (
+        clear_run_model_choice,
+        run_model_choice,
+        set_run_model_choice,
+    )
+
+    token = set_run_model_choice("anthropic", "claude-sonnet-latest")
+    assert run_model_choice() == ("anthropic", "claude-sonnet-latest")
+    clear_run_model_choice(token)
+    assert run_model_choice() is None
+
+
+def test_an_empty_choice_is_no_choice():
+    from fichero_server.llm import (
+        clear_run_model_choice,
+        run_model_choice,
+        set_run_model_choice,
+    )
+
+    token = set_run_model_choice("", "  ")
+    try:
+        assert run_model_choice() is None
+    finally:
+        clear_run_model_choice(token)
