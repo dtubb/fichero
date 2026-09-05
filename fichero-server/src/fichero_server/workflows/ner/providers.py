@@ -45,11 +45,17 @@ def _record(
     metadata: dict[str, Any] | None = None,
 ) -> ExtractedEntity:
     # One choke point for every provider: a dotted paleographic surface form
-    # ("Antonio.de.guzman") becomes a readable display name. Offsets are
-    # untouched, so the source anchor still points at the original span.
+    # ("Antonio.de.guzman") becomes a readable display name, and a PERSON whose
+    # span ran on into a trailing descriptor ("… vecino de la ciudad de …") is
+    # cut back to the name. Offsets are untouched, so the source anchor still
+    # points at the original span.
+    normalized_type = _normalise_entity_type(entity_type)
+    display_name = spacy_ner.readable_surface_form(name)
+    if normalized_type == "person":
+        display_name = spacy_ner.trim_person_name(display_name)
     return ExtractedEntity(
-        name=spacy_ner.readable_surface_form(name),
-        type=_normalise_entity_type(entity_type),
+        name=display_name,
+        type=normalized_type,
         confidence=confidence,
         source_offsets=source_offsets,
         provider_name=provider_name,

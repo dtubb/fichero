@@ -124,6 +124,51 @@ class TestReadableSurfaceForm:
         assert spacy_ner.readable_surface_form("") == ""
 
 
+class TestTrimPersonName:
+    """A PERSON span must stop at the name, not swallow a trailing descriptor.
+
+    Daniel, 2026-09: "Antonio de Guzman vezino de la cibdad de uitoria" is a
+    run-on — the person is "Antonio de Guzman"; the rest is "resident of the
+    city of Vitoria", an appositive that corrupts identity and fragments the
+    graph.
+    """
+
+    def test_the_run_on_is_cut_at_the_residence_descriptor(self):
+        assert spacy_ner.trim_person_name(
+            "Antonio de Guzman vezino de la cibdad de uitoria"
+        ) == "Antonio de Guzman"
+
+    @pytest.mark.parametrize(
+        "descriptor", ["vecino", "morador", "natural", "difunto", "alcalde", "cacique"]
+    )
+    def test_common_descriptors_all_cut(self, descriptor):
+        assert spacy_ner.trim_person_name(f"Juan Pérez {descriptor} de Popayán") == "Juan Pérez"
+
+    def test_a_kinship_descriptor_is_cut(self):
+        assert spacy_ner.trim_person_name("María muger de Pedro") == "María"
+
+    def test_a_leading_title_is_kept_only_the_trailing_descriptor_is_cut(self):
+        # Titles precede the name; only the trailing "vz de Tunja" is a descriptor.
+        assert spacy_ner.trim_person_name("el capitan Galarza vz de Tunja") == "el capitan Galarza"
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "Antonio de Guzman",
+            "Juan de la Cruz",
+            "Eugenio Córdoba",
+            "Nuestra Señora de la Candelaria",
+        ],
+    )
+    def test_real_multiword_names_are_not_trimmed(self, name):
+        assert spacy_ner.trim_person_name(name) == name
+
+    def test_a_span_that_is_only_a_descriptor_is_left_alone(self):
+        # The cut fires from the second word on, so a lone descriptor is never
+        # emptied — it just isn't a valid person, which the caller handles.
+        assert spacy_ner.trim_person_name("vecino") == "vecino"
+
+
 class TestClusterAliases:
     def test_substring_variants_cluster_under_longest(self):
         """Davidson + Davidson [Deibinson] should cluster under the

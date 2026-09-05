@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import logging
 import re
+import unicodedata
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -92,6 +93,54 @@ def readable_surface_form(text: str) -> str:
     if not text:
         return text
     return " ".join(_SEPARATOR_DOT.sub(" ", text).split())
+
+
+# Residence, role and kinship nouns that, following a personal name, begin a
+# trailing DESCRIPTOR rather than continuing the name: "Antonio de Guzman
+# vecino de la ciudad de Vitoria" — the person is "Antonio de Guzman", the rest
+# is an appositive. spaCy (given the dotted, spaceless page text) swallows the
+# whole run-on into one PERSON span; cutting at the first of these restores the
+# name and lets its mentions cluster as one entity.
+#
+# Deliberately EXCLUDES leading titles that PRECEDE a name (don, doña, fray,
+# capitán, licenciado): those are not trailing descriptors, and cutting at them
+# would behead the name. Kept short and role-specific — a personal name that
+# genuinely contains one of these is vanishingly rare in this corpus.
+_PERSON_DESCRIPTOR_STOPWORDS = frozenset(
+    {
+        "vecino", "vezino", "vecina", "vezina", "vzo", "vza", "vz",
+        "morador", "moradora", "natural", "naturales", "residente",
+        "estante", "estantes", "difunto", "difunta", "difuntos",
+        "hijo", "hija", "hijos", "hijas", "mujer", "muger", "esposa",
+        "esposo", "viuda", "viudo", "padre", "madre", "hermano", "hermana",
+        "escribano", "escrivano", "alcalde", "gobernador", "governador",
+        "cacique", "principal", "indio", "india", "indios", "indias",
+        "regidor", "alguacil", "corregidor", "encomendero", "criado", "criada",
+    }
+)
+
+
+def _fold_word(word: str) -> str:
+    """Accent-, case- and edge-punctuation-folded single word, for lookup."""
+    decomposed = unicodedata.normalize("NFKD", word)
+    stripped = "".join(c for c in decomposed if not unicodedata.combining(c))
+    return stripped.casefold().strip(".,;:()[]\"'")
+
+
+def trim_person_name(name: str) -> str:
+    """Cut a PERSON name at the first trailing descriptor, or return it whole.
+
+    "Antonio de Guzman vezino de la cibdad de uitoria" → "Antonio de Guzman".
+    The cut only fires from the SECOND word on, so a span is never emptied and
+    a name that opens with a title ("el capitan Galarza vz de Tunja") keeps the
+    title and loses only the trailing "vz de Tunja". Names with no descriptor
+    token ("Antonio de Guzman", "Juan de la Cruz") are returned unchanged.
+    """
+    words = name.split()
+    for i in range(1, len(words)):
+        if _fold_word(words[i]) in _PERSON_DESCRIPTOR_STOPWORDS:
+            return " ".join(words[:i]).strip(" ,;:")
+    return name
 
 
 @dataclass(frozen=True)
@@ -208,6 +257,10 @@ def extract_entities(text: str, language: str | None = None) -> list[EntitySpan]
         # still lands; the cleaned form also drives dedup, so a dotted and a
         # spaced mention of the same name collapse.
         name = readable_surface_form(ent.text)
+        if fichero_type == "person":
+            # Stop the name at a trailing residence/role descriptor so the same
+            # person's mentions collapse to one entity instead of fragmenting.
+            name = trim_person_name(name)
         key = (name, fichero_type)
         if key in seen:
             # Keep the earliest occurrence — the LLM later sees this
