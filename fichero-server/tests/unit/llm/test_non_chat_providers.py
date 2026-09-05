@@ -53,11 +53,23 @@ class TestTheSpacyRow:
         assert spacy.supports_embeddings is False
         assert spacy.supports_streaming is False
 
-    def test_it_is_local_but_not_builtin(self, spacy):
-        # An optional Python extra, so a build may simply not have it.
-        # Claiming builtin would promise Settings a runtime that is absent.
+    def test_it_is_local_and_ships_with_the_app(self, spacy):
+        # Daniel ruled the ~54 MB in (2026-09-04), so the gate works on first
+        # launch, offline, with nothing to configure — which is what
+        # `is_builtin` means to Settings.
         assert spacy.is_local is True
-        assert spacy.is_builtin is False
+        assert spacy.is_builtin is True
+
+    def test_the_model_rows_carry_what_the_provider_row_cannot(self):
+        # A dev checkout without the `[kg]` extra has no runtime, and a static
+        # provider row cannot know that. It does not have to: the MODEL rows
+        # ask the runtime. Provider says "no configuration needed"; models say
+        # "here is what is actually installed".
+        from fichero_server.llm.local_models import LocalModelManager
+
+        rows = LocalModelManager().list_spacy_models()
+        assert rows
+        assert all(hasattr(r, "available") and hasattr(r, "unavailable_reason") for r in rows)
 
     def test_it_needs_no_api_key(self, spacy):
         assert spacy.api_key_env is None

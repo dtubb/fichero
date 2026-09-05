@@ -98,3 +98,46 @@ class TestWritesRefuseRatherThanPretend:
         usage = manager.total_disk_usage()
         assert set(usage) == {"whisper", "embeddings", "total"}
         assert usage["total"] == usage["whisper"] + usage["embeddings"]
+
+
+class TestItActuallyShips:
+    """The gate is only free if the runtime is there (#4671).
+
+    Daniel ruled the ~54 MB into the bundle on 2026-09-04 precisely so the
+    shipped app stops running this gate on half power. Everything in the code
+    degrades gracefully when spaCy is absent — which is right, and which is
+    also exactly what would let a future "trim the bundle" pass remove it
+    without a single test going red. This is that test.
+    """
+
+    @staticmethod
+    def _briefcase_requires() -> list[str]:
+        import tomllib
+        from pathlib import Path as _Path
+
+        root = _Path(__file__).resolve().parents[3]
+        data = tomllib.loads((root / "pyproject.toml").read_text())
+        return data["tool"]["briefcase"]["app"]["fichero_server"]["requires"]
+
+    def test_the_runtime_is_bundled(self):
+        assert "spacy" in self._briefcase_requires()
+
+    @pytest.mark.parametrize("model", ["es_core_news_sm", "en_core_web_sm"])
+    def test_both_small_models_are_bundled(self, model):
+        # Bundled, not downloaded: the gate must work on first launch,
+        # offline, with nothing to configure.
+        assert any(r.startswith(f"{model} @ ") for r in self._briefcase_requires()), model
+
+    def test_the_large_model_is_not_bundled(self):
+        # 568 MB for word vectors this gate does not use, and an unmeasured
+        # benefit. It stays a catalog row someone can choose.
+        assert not any(
+            r.startswith("es_core_news_lg") for r in self._briefcase_requires()
+        )
+
+    def test_the_expensive_neighbours_stay_out(self):
+        # spaCy shipping is not a precedent for pykeen (torch) or OpenCV —
+        # an order of magnitude more, each.
+        requires = " ".join(self._briefcase_requires())
+        assert "pykeen" not in requires
+        assert "opencv" not in requires

@@ -414,9 +414,19 @@ PROVIDERS: dict[ProviderType, ProviderInfo] = {
         api_key_env=None,
         api_key_url=None,
         is_local=True,
-        # NOT builtin: an optional Python extra, so a build may not have it.
-        # Saying otherwise would promise Settings a runtime that is absent.
-        is_builtin=False,
+        # BUILTIN as of Daniel's 2026-09-04 ruling: spaCy and both small
+        # models ship inside the app (~54 MB), so the grammar gate works on
+        # first launch, offline, with nothing to configure. That is what this
+        # flag means to Settings — no setup — and it is now true of the
+        # shipped build.
+        #
+        # A dev checkout without the `[kg]` extra still has no runtime, and
+        # this static row cannot know that. It does not have to: the MODEL
+        # rows carry the truth about what is actually present
+        # (`local_models.list_spacy_models` asks the runtime and reports
+        # `available` / `unavailable_reason`). The provider says "no
+        # configuration needed"; the models say "here is what is installed".
+        is_builtin=True,
         supports_chat=False,
         supports_vision=False,
         supports_embeddings=False,

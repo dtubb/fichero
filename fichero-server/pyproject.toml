@@ -137,14 +137,28 @@ requires = [
     "anyascii",
     "convertdate",
     "jdcal",
-    # Optional KG/NER/image extras are deliberately not shipped in the
-    # embedded Mac engine. They pull hundreds of MB into the tester app:
-    # pykeen -> torch, spacy -> model/runtime stack, rdflib -> SPARQL stack,
-    # opencv-python-headless -> cv2. Install extras locally when working on
-    # those features instead.
+    # spaCy SHIPS (Daniel, 2026-09-04). It is the SVO grammar gate: it convicts
+    # a predicate that is not a verb, and a first-person verb stamped with a
+    # bystander's name — 16 of the 17 rows a real run left in a test library.
+    # Apple's on-device NLTagger cannot replace it (no morphology for Spanish
+    # at all), and without it the shipped app ran that gate on half power,
+    # silently. Measured cost of the whole tier: ~38 MB runtime + 16 MB (es) +
+    # 15 MB (en) = ~54 MB, which is why this one is affordable and the
+    # neighbours below still are not.
+    "spacy",
+    # The two small models, pinned to the spaCy 3.8 line they were built for.
+    # Bundled rather than downloaded so the gate works with zero setup, on
+    # first launch, offline. `es_core_news_lg` (568 MB) stays a download row in
+    # the model catalog — it carries word vectors this gate does not use and
+    # its benefit for 16th-century orthography is unmeasured.
+    "es_core_news_sm @ https://github.com/explosion/spacy-models/releases/download/es_core_news_sm-3.8.0/es_core_news_sm-3.8.0-py3-none-any.whl",
+    "en_core_web_sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl",
+    # The rest of the optional KG/NER/image extras are still deliberately NOT
+    # shipped: pykeen -> torch and opencv-python-headless -> cv2 are hundreds
+    # of MB each, an order of magnitude past what spaCy costs. Install those
+    # locally when working on them.
     # "pykeen",
     # "rdflib",
-    # "spacy",
     # "opencv-python-headless",
     # Document Processing
     "PyMuPDF",
@@ -280,11 +294,13 @@ dependencies = [
     "watchdog",
     "kreuzberg",
     "fastembed",
-    # Optional KG/NER/image extras are intentionally out of core so Briefcase
-    # does not bundle pykeen/torch, rdflib, spacy, or OpenCV into every app.
+    # The remaining KG/image extras stay out of core so Briefcase does not
+    # bundle pykeen/torch or OpenCV into every app — hundreds of MB each.
+    # spaCy moved INTO the bundle (see the briefcase requires above): the SVO
+    # grammar gate needs it, and ~54 MB with both small models is an order of
+    # magnitude less than these.
     # "pykeen",
     # "rdflib",
-    # "spacy",
     # "opencv-python-headless",
     # Historical-text stack (#3319/#3322): all four are small pure-Python.
     "ftfy",         # mojibake repair before parsing OCR'd text
