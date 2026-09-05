@@ -24,7 +24,7 @@ from fichero_server.workflows.tools.vision_base import (
     VISION_INPUT_PORTS,
     VISION_CONFIG_SCHEMA,
     VisionToolConfig,
-    file_to_data_uri,
+    file_to_data_uri_async,
 )
 from fichero_server.llm import vision, LLMConfig
 
@@ -169,7 +169,9 @@ async def compare(
         # Convert all images and send together
         image_uris = []
         for file_path in files:
-            uri = file_to_data_uri(file_path, max_dimension=max_image_dimension)
+            uri = await file_to_data_uri_async(
+                file_path, max_dimension=max_image_dimension
+            )
             image_uris.append(uri)
 
         # Call vision with multiple images

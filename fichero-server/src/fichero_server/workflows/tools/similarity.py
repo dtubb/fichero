@@ -31,7 +31,7 @@ from fichero_server.workflows.tools.vision_base import (
     VISION_INPUT_PORTS,
     VISION_CONFIG_SCHEMA,
     VisionToolConfig,
-    file_to_data_uri,
+    file_to_data_uri_async,
 )
 from fichero_server.llm import vision, LLMConfig
 
@@ -318,8 +318,11 @@ async def similarity(
             max_tokens=max_tokens if max_tokens is not None else llm_config.max_tokens,
         )
 
+    # Encoded off the event loop, and one file at a time: N blocking PIL
+    # decodes in a comprehension stalled the loop for the whole batch.
     image_uris = [
-        file_to_data_uri(f, max_dimension=max_image_dimension) for f in files
+        await file_to_data_uri_async(f, max_dimension=max_image_dimension)
+        for f in files
     ]
     if not image_uris:
         raise ValueError("Similarity clustering requires image inputs")
