@@ -8380,10 +8380,10 @@ def register_generated_openapi_commands(
                 "max_concurrency": {'type': 'integer', 'minimum': 1.0, 'title': 'Max Concurrency', 'default': 1, 'x-cli-required': False},
                 "model_id": {'type': 'string', 'title': 'Model Id', 'x-cli-required': True},
                 "name": {'type': 'string', 'title': 'Name', 'x-cli-required': True},
-                "provider_type": {'type': 'string', 'enum': ['apple', 'mock', 'ollama', 'lmstudio', 'omlx', 'huggingface', 'openrouter', 'openai', 'anthropic', 'google', 'groq', 'together', 'deepseek', 'mistral', 'cohere', 'dashscope', 'xai', 'perplexity', 'fireworks', 'deepl', 'azure', 'bedrock'], 'title': 'ProviderType', 'description': 'Supported LLM provider types.', 'x-cli-required': True},
+                "provider_type": {'type': 'string', 'enum': ['apple', 'mock', 'spacy', 'ollama', 'lmstudio', 'omlx', 'huggingface', 'openrouter', 'openai', 'anthropic', 'google', 'groq', 'together', 'deepseek', 'mistral', 'cohere', 'dashscope', 'xai', 'perplexity', 'fireworks', 'deepl', 'azure', 'bedrock'], 'title': 'ProviderType', 'description': 'Supported LLM provider types.', 'x-cli-required': True},
                 "python_executable": {'type': 'string', 'nullable': True, 'title': 'Python Executable', 'x-cli-required': False},
                 "startup_policy": {'type': 'string', 'enum': ['on_demand', 'eager', 'manual'], 'title': 'LocalProviderStartupPolicy', 'description': 'When the app should start a managed local provider.', 'x-cli-required': False},
-                "startup_timeout_seconds": {'type': 'number', 'minimum': 0.0, 'title': 'Startup Timeout Seconds', 'default': 120.0, 'x-cli-required': False},
+                "startup_timeout_seconds": {'type': 'number', 'minimum': 0.0, 'title': 'Startup Timeout Seconds', 'default': 300.0, 'x-cli-required': False},
                 "supported": {'type': 'boolean', 'title': 'Supported', 'default': True, 'x-cli-required': False},
                 "timeout_seconds": {'type': 'number', 'minimum': 0.0, 'title': 'Timeout Seconds', 'default': 5.0, 'x-cli-required': False},
                 "unsupported_reason": {'type': 'string', 'nullable': True, 'title': 'Unsupported Reason', 'x-cli-required': False},
@@ -9021,7 +9021,7 @@ def register_generated_openapi_commands(
                 "limit": limit,
             }, {
                 "batch_size": {'type': 'integer', 'minimum': 1.0, 'nullable': True, 'title': 'Batch Size', 'description': 'Process in batches', 'x-cli-required': False},
-                "command": {'type': 'string', 'enum': ['migrate_claims_to_multi_source', 'backfill_claim_source_metadata', 'repair_orphaned_claim_links', 'repair_kg_svo_repr_leak'], 'title': 'MigrationCommand', 'description': 'Available migration commands.', 'x-cli-required': True},
+                "command": {'type': 'string', 'enum': ['migrate_claims_to_multi_source', 'backfill_claim_source_metadata', 'repair_orphaned_claim_links', 'repair_kg_svo_repr_leak', 'repair_rtf_escapes'], 'title': 'MigrationCommand', 'description': 'Available migration commands.', 'x-cli-required': True},
                 "dry_run": {'type': 'boolean', 'title': 'Dry Run', 'description': 'Validate without making changes', 'default': False, 'x-cli-required': False},
                 "limit": {'type': 'integer', 'minimum': 1.0, 'nullable': True, 'title': 'Limit', 'description': 'Maximum items to process', 'x-cli-required': False},
             }, required=True)
@@ -9054,7 +9054,7 @@ def register_generated_openapi_commands(
                 "command": command,
                 "sample_size": sample_size,
             }, {
-                "command": {'type': 'string', 'enum': ['migrate_claims_to_multi_source', 'backfill_claim_source_metadata', 'repair_orphaned_claim_links', 'repair_kg_svo_repr_leak'], 'title': 'MigrationCommand', 'description': 'Available migration commands.', 'x-cli-required': True},
+                "command": {'type': 'string', 'enum': ['migrate_claims_to_multi_source', 'backfill_claim_source_metadata', 'repair_orphaned_claim_links', 'repair_kg_svo_repr_leak', 'repair_rtf_escapes'], 'title': 'MigrationCommand', 'description': 'Available migration commands.', 'x-cli-required': True},
                 "sample_size": {'type': 'integer', 'maximum': 1000.0, 'minimum': 1.0, 'title': 'Sample Size', 'default': 100, 'x-cli-required': False},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
