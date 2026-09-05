@@ -166,6 +166,60 @@ struct EntityClickthroughTests {
         #expect(String(badges.prefix(1200)).contains("isExpanded = true"))
     }
 
+    // MARK: - Corroborating runs are evidence, not a log (0f6feeccc)
+
+    @Test("the same model on two pages is two corroborations, never collapsed")
+    func corroborationsKeepEveryRow() throws {
+        var row = Components.Schemas.KnowledgeClaim(id: "c5", text: "t")
+        row.metadata = .init(additionalProperties: try .init(unvalidatedValue: [
+            "corroborations": [
+                ["provider": "apple", "model": "apple-intelligence",
+                 "document_id": "doc-a", "page_label": "533r",
+                 "char_start": 10, "char_end": 40],
+                ["provider": "apple", "model": "apple-intelligence",
+                 "document_id": "doc-a", "page_label": "534v"],
+            ],
+            "also_extracted_by": ["apple/apple-intelligence", "openrouter/gemini-flash-lite"],
+        ]))
+        let rows = ClaimSummaryCard.corroborations(for: row)
+        // Two anchored rows for the same model — the commonest corroboration
+        // of all — plus ONE legacy label the anchored rows don't cover. The
+        // covered label must not double-render as a third apple row.
+        #expect(rows.count == 3)
+        #expect(rows[0].pageLabel == "533r")
+        #expect(rows[0].charStart == 10)
+        #expect(rows[0].isNavigable)
+        #expect(rows[1].pageLabel == "534v")
+        #expect(rows[1].charStart == nil)
+        #expect(rows[2].label == "openrouter/gemini-flash-lite")
+        #expect(!rows[2].isNavigable)
+    }
+
+    @Test("legacy claims degrade to attribution, not fake doors")
+    func legacyCorroborationsAreLabelOnly() throws {
+        var row = Components.Schemas.KnowledgeClaim(id: "c6", text: "t")
+        row.metadata = .init(additionalProperties: try .init(
+            unvalidatedValue: ["also_extracted_by": ["mlx/qwen-vl"]]
+        ))
+        let rows = ClaimSummaryCard.corroborations(for: row)
+        #expect(rows.count == 1)
+        #expect(rows[0].label == "mlx/qwen-vl")
+        #expect(!rows[0].isNavigable)
+    }
+
+    @Test("a navigable corroboration opens ITS page through the cursor")
+    func corroborationRowsNavigate() throws {
+        let details = try AppSource.code(
+            "Views/Library/ViewModes/Graph/Ontology/Claim/ClaimSummaryCard+Details.swift"
+        )
+        let section = try #require(
+            details.components(separatedBy: "var corroborationSection: some View").dropFirst().first
+        )
+        let body = String(section.prefix(2200))
+        #expect(body.contains("pageLabel: corroboration.pageLabel"))
+        #expect(body.contains("claimSourceNavigationState?.request(request)"))
+    }
+
     // MARK: - Corroboration reaches the prose
 
     @Test("corroboration count reads both key spellings and both types")

@@ -36,9 +36,62 @@ struct ClaimAttestation: Equatable, Identifiable {
     var id: String { "\(documentId)::\(pageLabel ?? "")::\(isPrimary)" }
 }
 
+/// One corroborating extraction — another run that produced this same
+/// statement, WITH its own anchor when the run recorded one
+/// (`metadata.corroborations`, 0f6feeccc). Legacy rows predate the anchor
+/// and carry a label only; they render as attribution, not navigation.
+/// The same model legitimately appears more than once with different page
+/// labels — the same statement read on two pages of one document is the
+/// commonest corroboration of all — so rows are never collapsed per model.
+struct ClaimCorroboration: Equatable, Identifiable {
+    let label: String
+    let documentId: String?
+    let pageLabel: String?
+    let charStart: Int?
+    let charEnd: Int?
+
+    var isNavigable: Bool { !(documentId ?? "").isEmpty }
+    var id: String { "\(label)::\(documentId ?? "")::\(pageLabel ?? "")::\(charStart ?? -1)" }
+}
+
 // MARK: - ClaimSummaryCard Detail Views + Actions
 
 extension ClaimSummaryCard {
+
+    /// Corroborating runs, anchors and all. `metadata.corroborations` rows
+    /// (each `{provider, model, document_id, page_label, char_start,
+    /// char_end}`) come first; legacy `also_extracted_by` labels that no
+    /// corroborations row already accounts for follow as label-only rows —
+    /// old rows are not backfillable, and pretending otherwise would invent
+    /// anchors.
+    static func corroborations(
+        for claim: Components.Schemas.KnowledgeClaim
+    ) -> [ClaimCorroboration] {
+        let metadata = claim.metadata?.additionalProperties.value ?? [:]
+        var rows: [ClaimCorroboration] = []
+        for raw in (metadata["corroborations"] as? [Any]) ?? [] {
+            guard let dict = raw as? [String: Any] else { continue }
+            let provider = (dict["provider"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let model = (dict["model"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let label = [provider, model].filter { !$0.isEmpty }.joined(separator: "/")
+            guard !label.isEmpty else { continue }
+            rows.append(ClaimCorroboration(
+                label: label,
+                documentId: cleanedOptional(dict["document_id"] as? String),
+                pageLabel: cleanedOptional(dict["page_label"] as? String),
+                charStart: dict["char_start"] as? Int,
+                charEnd: dict["char_end"] as? Int
+            ))
+        }
+        let coveredLabels = Set(rows.map(\.label))
+        for label in alsoExtractedBy(claim) ?? [] where !coveredLabels.contains(label) {
+            rows.append(ClaimCorroboration(
+                label: label, documentId: nil, pageLabel: nil,
+                charStart: nil, charEnd: nil
+            ))
+        }
+        return rows
+    }
 
     /// Every place this statement is attested, primary first. Additional
     /// sources come from the multi-source fields, zipped index-wise with
@@ -222,6 +275,7 @@ extension ClaimSummaryCard {
             .buttonStyle(.plain)
             .help("Open the source page and highlight this annotation")
         }
+        corroborationSection
         // Source-region quick-look (#2105/#3449): the cropped evidence + verbatim
         // span + attribution in a popover, and a Reveal that drives the Preview
         // pane to the page/bbox. Only when we can build a source anchor.
@@ -342,10 +396,58 @@ extension ClaimSummaryCard {
                     ? "Open this source page"
                     : "Open this source page and highlight the passage")
             }
-            if let also = Self.alsoExtractedBy(claim), !also.isEmpty {
-                Text("Also extracted by \(also.joined(separator: ", "))")
+        }
+    }
+
+    /// Corroborating extractions — "also found by …" — rendered wherever
+    /// they exist, whether or not the statement is multi-place. Rows with an
+    /// anchor are doors to their page (0f6feeccc); legacy label-only rows
+    /// render as plain attribution, because their anchors were never
+    /// recorded and cannot be invented.
+    @ViewBuilder
+    var corroborationSection: some View {
+        let rows = Self.corroborations(for: claim)
+        if !rows.isEmpty {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Also found by")
                     .font(tertiaryTextFont)
-                    .foregroundStyle(.tertiary)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.secondary)
+                ForEach(rows) { corroboration in
+                    if corroboration.isNavigable, let docId = corroboration.documentId {
+                        Button {
+                            if let request = Self.openClaimSourceRequest(
+                                documentId: docId,
+                                pageLabel: corroboration.pageLabel,
+                                charStart: corroboration.charStart,
+                                charEnd: corroboration.charEnd,
+                                claimId: claim.id
+                            ) {
+                                claimSourceNavigationState?.request(request)
+                            }
+                        } label: {
+                            HStack(spacing: 4) {
+                                Text(corroboration.label)
+                                    .font(tertiaryTextFont)
+                                    .foregroundStyle(Color.accentColor)
+                                    .underline()
+                                if let pageLabel = corroboration.pageLabel {
+                                    Text("p. \(pageLabel)")
+                                        .font(tertiaryTextFont)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .help("Open the page where this run found the statement")
+                    } else {
+                        Text(corroboration.label)
+                            .font(tertiaryTextFont)
+                            .foregroundStyle(.tertiary)
+                            .help("Recorded before corroborations carried anchors — attribution only")
+                    }
+                }
             }
         }
     }
