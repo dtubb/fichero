@@ -190,6 +190,12 @@ class WorkflowRun:
     # could not be priced records `cost_usd: null` with `priced: false`
     # rather than a $0.00 that reads as a fact.
     run_usage: dict[str, Any] | None = None
+    # What the run was ESTIMATED to cost at start (2026-09-05), a single
+    # per-run figure anchored on the run's first paid model and the resolved
+    # page count. Paired with `run_usage.cost_usd` it is the "est → actual"
+    # calibration. None means unpriced at estimate time (an unpriceable model)
+    # or a legacy run — never a stand-in zero.
+    estimated_cost: float | None = None
 
 
 @dataclass

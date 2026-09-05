@@ -66200,6 +66200,11 @@
           "run_usage": {
             "$ref": "#/components/schemas/RunUsageResponse",
             "nullable": true
+          },
+          "estimated_cost_usd": {
+            "type": "number",
+            "nullable": true,
+            "title": "Estimated Cost Usd"
           }
         },
         "type": "object",

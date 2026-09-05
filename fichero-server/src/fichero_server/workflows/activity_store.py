@@ -58,6 +58,7 @@ _WORKFLOW_RUNS_COLUMNS = (
     "diagram_mermaid",
     "resolved_scope",
     "run_usage",
+    "estimated_cost",
 )
 
 # Secondary indexes on workflow_runs that must be recreated after a rebuild.
@@ -728,6 +729,18 @@ class ActivityStore:
                 "ALTER TABLE workflow_runs ADD COLUMN IF NOT EXISTS run_usage JSON"
             )
 
+            # What the run was ESTIMATED to cost, computed at start from the
+            # resolved model and page count (2026-09-05). Stored beside
+            # run_usage so a run row carries "est → actual" as one fact and
+            # Activity can show the estimate against the bill — the calibration
+            # Daniel asked to keep. NULL = unpriced at estimate time (an
+            # unpriceable model), kept distinct from a real zero (a free model);
+            # a single per-run figure, anchored on the run's first paid model.
+            conn.execute(
+                "ALTER TABLE workflow_runs ADD COLUMN IF NOT EXISTS "
+                "estimated_cost DOUBLE"
+            )
+
             # Indexes for efficient queries
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_activities_timestamp
@@ -1029,6 +1042,7 @@ class ActivityStore:
         started_at: Optional[datetime] = None,
         status: str = "running",
         resolved_scope: Optional[dict] = None,
+        estimated_cost: Optional[float] = None,
     ) -> None:
         """Save a new workflow run record.
 
@@ -1061,8 +1075,9 @@ class ActivityStore:
                     INSERT INTO workflow_runs
                     (thread_id, workflow_id, workflow_name, python_code, execution_log,
                      workflow_snapshot, node_name_map, progress_timeline,
-                     diagram_mermaid, status, started_at, resolved_scope)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     diagram_mermaid, status, started_at, resolved_scope,
+                     estimated_cost)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT (thread_id) DO UPDATE SET
                         python_code = COALESCE(EXCLUDED.python_code, workflow_runs.python_code),
                         execution_log = COALESCE(EXCLUDED.execution_log, workflow_runs.execution_log),
@@ -1071,6 +1086,7 @@ class ActivityStore:
                         progress_timeline = COALESCE(EXCLUDED.progress_timeline, workflow_runs.progress_timeline),
                         diagram_mermaid = COALESCE(EXCLUDED.diagram_mermaid, workflow_runs.diagram_mermaid),
                         resolved_scope = COALESCE(EXCLUDED.resolved_scope, workflow_runs.resolved_scope),
+                        estimated_cost = COALESCE(EXCLUDED.estimated_cost, workflow_runs.estimated_cost),
                         status = EXCLUDED.status,
                         workflow_name = EXCLUDED.workflow_name
                 """,
@@ -1087,6 +1103,7 @@ class ActivityStore:
                         status,
                         started_at or datetime.now(timezone.utc),
                         resolved_scope_json,
+                        estimated_cost,
                     ],
                 )
             finally:
@@ -1211,6 +1228,10 @@ class ActivityStore:
             # below. None for runs recorded before the column existed, which
             # is not the same as a run that cost nothing.
             run_usage=json.loads(row[15]) if len(row) > 15 and row[15] else None,
+            # Index 16 — estimated_cost trails run_usage in every SELECT. None
+            # for a legacy run or one whose model could not be priced at start
+            # (unpriced), which is not the same as a run estimated to be free.
+            estimated_cost=row[16] if len(row) > 16 else None,
         )
 
     async def get_workflow_run(self, thread_id: str) -> Optional[WorkflowRun]:
@@ -1225,7 +1246,7 @@ class ActivityStore:
                            execution_log, status, started_at, completed_at,
                            duration_ms, error, workflow_snapshot, node_name_map,
                            progress_timeline, diagram_mermaid, resolved_scope,
-                           run_usage
+                           run_usage, estimated_cost
                     FROM workflow_runs
                     WHERE thread_id = ?
                 """,
@@ -1280,7 +1301,7 @@ class ActivityStore:
                                execution_log, status, started_at, completed_at,
                                duration_ms, error, workflow_snapshot, node_name_map,
                                progress_timeline, diagram_mermaid, resolved_scope,
-                               run_usage
+                               run_usage, estimated_cost
                         FROM workflow_runs
                         WHERE workflow_id = ?
                         ORDER BY started_at DESC
@@ -1295,7 +1316,7 @@ class ActivityStore:
                                execution_log, status, started_at, completed_at,
                                duration_ms, error, workflow_snapshot, node_name_map,
                                progress_timeline, diagram_mermaid, resolved_scope,
-                               run_usage
+                               run_usage, estimated_cost
                         FROM workflow_runs
                         ORDER BY started_at DESC
                         LIMIT ?

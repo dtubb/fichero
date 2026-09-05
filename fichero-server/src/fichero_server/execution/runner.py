@@ -364,6 +364,71 @@ def _classify_provider_error(error_text: str) -> dict[str, str]:
     }
 
 
+# Per-file token assumptions for the pre-flight estimate — the SAME defaults the
+# estimate-cost route prices with (WorkflowCostEstimateRequest), so the figure
+# stored at run start is the estimate the bar showed, now paired with the actual.
+_ESTIMATE_INPUT_TOKENS_PER_FILE = 1200
+_ESTIMATE_OUTPUT_TOKENS_PER_FILE = 300
+
+
+def _estimate_run_cost(workflow: Workflow, resolved_count: int) -> float | None:
+    """A single per-run cost estimate, computed at run START.
+
+    Anchored on the run's FIRST paid model — the nodes here already carry the
+    run-level override, so this is the model the run will really call — priced
+    over the RESOLVED page count with the estimate route's per-file token
+    assumptions. Stored beside ``run_usage`` so the run row carries
+    "est → actual" as one fact.
+
+    None when the anchor model cannot be priced (unpriced) — never a stand-in
+    zero. Never raises: a run must not fail because its cost could not be
+    estimated.
+    """
+    try:
+        from fichero_server.llm import resolve_model_alias_for_capability
+        from fichero_server.workflows.model_comparison import estimate_cost
+        from fichero_server.workflows.validation import node_uses_llm
+
+        count = max(1, int(resolved_count or 0))
+        for node in getattr(workflow, "nodes", None) or []:
+            if not node_uses_llm(node):
+                continue
+            config = node.get("config") if isinstance(node, dict) else {}
+            config = config if isinstance(config, dict) else {}
+            provider = (
+                node.get("provider_name")
+                or config.get("provider_name")
+                or workflow.provider
+            )
+            model = (
+                node.get("model_name")
+                or config.get("model_name")
+                or workflow.model
+            )
+            try:
+                resolved_provider, resolved_model = (
+                    resolve_model_alias_for_capability(
+                        str(provider or ""),
+                        str(model or ""),
+                        required_capability=None,
+                    )
+                )
+            except Exception:
+                # An unconfigured tier is a real answer: try the next node
+                # rather than guessing a model the run would not use.
+                continue
+            if not resolved_model:
+                continue
+            return estimate_cost(
+                resolved_model,
+                count * _ESTIMATE_INPUT_TOKENS_PER_FILE,
+                count * _ESTIMATE_OUTPUT_TOKENS_PER_FILE,
+            )
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.warning("run cost estimate failed: %s", exc)
+    return None
+
+
 def _systemic_failure_message(e: "SystemicErrorDetected") -> tuple[str, dict[str, str]]:
     """Build a user-facing workflow failure message from a systemic error.
 
@@ -1256,6 +1321,14 @@ async def _run_workflow_in_background(
             logger.warning("could not resolve run scope for %s: %s", thread_id, scope_exc)
             resolved_scope = {"resolution_error": str(scope_exc)}
 
+        # Estimate the cost NOW, at start, from the model the run will really
+        # call (nodes carry the run-level override by here) and the page count
+        # the scope just resolved — the same estimate the bar showed, stored so
+        # the run row can later read "est → actual" as one fact.
+        estimated_cost = _estimate_run_cost(
+            workflow, resolved_scope.get("resolved_count", 0)
+        )
+
         # Save workflow run with all metadata
         await activity_tracker.store.save_workflow_run(
             thread_id=thread_id,
@@ -1267,6 +1340,7 @@ async def _run_workflow_in_background(
             diagram_mermaid=diagram_mermaid,
             started_at=start_time,
             resolved_scope=resolved_scope,
+            estimated_cost=estimated_cost,
         )
         await log_execution("Saved workflow run record with snapshot")
 

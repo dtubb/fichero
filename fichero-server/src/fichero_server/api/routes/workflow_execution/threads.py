@@ -151,6 +151,11 @@ class WorkflowRunResponse(BaseModel):
     #: or one recorded before usage accounting existed — which is not the
     #: same as a run that cost nothing.
     run_usage: RunUsageResponse | None = None
+    #: What the run was ESTIMATED to cost at start, a single per-run figure
+    #: (anchored on the first paid model, priced over the resolved page count).
+    #: Paired with run_usage.cost_usd it is the "est → actual" calibration.
+    #: None means unpriced at estimate time or a legacy run — never a zero.
+    estimated_cost_usd: float | None = None
 
 
 class WorkflowPlannedStepResponse(BaseModel):
@@ -1155,6 +1160,7 @@ async def get_workflow_run(
                 if isinstance(run.run_usage, dict) and run.run_usage
                 else None
             ),
+            estimated_cost_usd=run.estimated_cost,
         )
 
     except HTTPException:
