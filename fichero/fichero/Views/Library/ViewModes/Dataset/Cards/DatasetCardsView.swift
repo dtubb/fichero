@@ -49,6 +49,13 @@ struct DatasetCardsView: View {
         // ponytail: ↑/↓ step ±1 like ←/→ — the adaptive grid's column count
         // is layout-dependent; per-row jumps arrive with a measured layout.
         .focusable()
+        // Suppress the native container ring (Daniel, 2026-09-05: a blue focus
+        // ring framed the ENTIRE library pane up to the window top). macOS 14+
+        // makes a focusable ScrollView keyboard-focusable AND rings it; the
+        // arrow-key nav above needs the focus, not the ring. Same pairing every
+        // other view mode uses (list/icon/columns) — panes draw no focus ring
+        // of their own (ruling 2026-08-31).
+        .focusEffectDisabled()
         .onKeyPress(keys: [.leftArrow, .rightArrow, .upArrow, .downArrow], phases: .down) { press in
             handleArrow(press)
         }
