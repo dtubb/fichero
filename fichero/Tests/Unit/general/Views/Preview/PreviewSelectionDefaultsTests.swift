@@ -241,14 +241,22 @@ struct WorkflowPickerReachesPresetTests {
         #expect(picked?.provider == "apple")
     }
 
-    @Test("a multi-step chain never gets a run-wide preset override")
-    func chainStaysUntouched() {
+    @Test("a multi-step chain gets the bar's model on every step")
+    func chainStepsTakeThePicker() {
+        // REVERSED 2026-09-05, deliberately. This used to assert that a
+        // multi-step chain got no run-wide override, to keep a preset's
+        // cheap internal nodes off an expensive tier. Daniel's five-step
+        // chain then ran "Extract entities" on Apple Intelligence while the
+        // bar read claude-sonnet-latest: with nothing sent, the preset's
+        // `$small` size-class alias resolved against the app defaults and
+        // picked its own model. A step that chooses for itself is the bug;
+        // the cost concern is the lesser one.
         let step = StagedWorkflowStep(kind: .workflow(item()))
         #expect(WorkflowBarPolicy.workflowStepPickerOverride(
             for: step, stagedCount: 2,
             visionTier: choice("apple", "apple-vision"),
             selectionPrefersVision: true
-        ) == nil)
+        )?.provider == "apple")
     }
 
     @Test("a preset that refuses overrides is never overridden")

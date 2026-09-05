@@ -219,3 +219,64 @@ class TestStructuredDecodeKind:
                     prompt="p", schema=_MiniSchema, config=_apple_config(),
                 )
         assert mock_structured.await_count == 2  # original + one retry
+
+
+# =============================================================================
+# A broken SYSTEM model asset is not a generation failure (2026-09-05)
+# =============================================================================
+
+
+def test_system_model_missing_is_typed_and_routes_to_the_fallback():
+    """Daniel's run reported: "Apple Intelligence (generation): Generation
+    failed: …com.apple.SensitiveContentAnalysisML error 15… ModelManagerError
+    error 1013". Every word true, none of it usable — it names no fault, no
+    remedy, and sends the reader to inspect a prompt that was never the
+    problem. The content sanitizer FoundationModels runs alongside the LLM was
+    missing on that macOS beta, so the text never reached a model.
+
+    Typed as an AppleUnavailableError so the existing fallback routes the step
+    to the configured cloud model, and NOT retried on Apple: a second attempt
+    meets the same absent asset."""
+    import json as _json
+
+    from fichero_server.llm import (
+        AppleSystemModelMissingError,
+        AppleUnavailableError,
+        _raise_from_bridge_stderr,
+    )
+
+    stderr = _json.dumps(
+        {
+            "kind": "system_model_missing",
+            "error": (
+                "Apple Intelligence is unavailable on this system: a required "
+                "macOS model asset is missing or broken"
+            ),
+        }
+    ).encode()
+
+    with pytest.raises(AppleSystemModelMissingError) as caught:
+        _raise_from_bridge_stderr(stderr, 1)
+
+    assert isinstance(caught.value, AppleUnavailableError), (
+        "it must route to the configured fallback like any other "
+        "Apple-unavailable condition"
+    )
+    message = str(caught.value)
+    assert "missing or broken" in message
+    assert "SensitiveContentAnalysisML" not in message, (
+        "the readable message is the point — the raw domain chain belongs in "
+        "the bridge's 'Underlying:' tail, not as the whole explanation"
+    )
+
+
+def test_an_ordinary_generation_error_is_still_generic():
+    """The new kind must not swallow real generation failures."""
+    import json as _json
+
+    from fichero_server.llm import AppleUnavailableError, _raise_from_bridge_stderr
+
+    stderr = _json.dumps({"kind": "generation", "error": "boom"}).encode()
+    with pytest.raises(RuntimeError) as caught:
+        _raise_from_bridge_stderr(stderr, 1)
+    assert not isinstance(caught.value, AppleUnavailableError)

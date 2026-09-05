@@ -436,6 +436,22 @@ class LocalModelHardwareError(LocalModelUnavailableError):
     """Managed local inference cannot run on current hardware."""
 
 
+class AppleSystemModelMissingError(AppleUnavailableError):
+    """A macOS model asset FoundationModels depends on is missing or broken.
+
+    Distinct from `assetsUnavailable` (Apple Intelligence off, or the LLM's
+    own assets evicted): here the OS's companion models — the content
+    sanitizer, on Daniel's 2026-09-05 run — are absent, so the request never
+    reached a model at all. The bridge reported it as
+    "Generation failed: …com.apple.SensitiveContentAnalysisML error 15…
+    ModelManagerError error 1013", every word true and none of it usable.
+
+    An AppleUnavailableError so the existing fallback routes the step to the
+    user's configured cloud model. It must NOT be retried on Apple: nothing
+    about the prompt caused it and nothing about the prompt will fix it.
+    """
+
+
 class GuardrailViolationError(AppleUnavailableError):
     """Raised when Apple Intelligence's on-device safety filter refuses a
     generation. The Foundation Models error surface gives us a structured
@@ -2092,6 +2108,12 @@ def _raise_from_bridge_stderr(stderr_bytes: bytes, returncode: int) -> None:
         raise GuardrailViolationError(
             f"Apple Intelligence ({kind}): {message}"
         )
+
+    if kind == "system_model_missing":
+        # The OS is broken, not the request. Route to the configured
+        # fallback exactly as an unavailable Apple Intelligence would, and
+        # never retry on Apple — a second attempt hits the same absent asset.
+        raise AppleSystemModelMissingError(message)
 
     if kind == "unsupported_language":
         # Apple's per-OS locale matrix doesn't cover all Spanish variants

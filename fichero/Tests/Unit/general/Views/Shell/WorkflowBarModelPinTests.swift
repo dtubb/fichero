@@ -226,6 +226,108 @@ struct WorkflowBarModelPinTests {
         )
     }
 
+    // MARK: - A CHAIN's steps take the bar's model too (Daniel, 2026-09-05)
+
+    private func preset(
+        _ name: String, requiresVision: Bool = false, accepts: Bool = true
+    ) -> StagedWorkflowStep {
+        StagedWorkflowStep(
+            kind: .workflow(WorkflowSidebarItem(
+                id: name, name: name, description: nil,
+                nodeCount: 1, edgeCount: 0, isEnabled: true,
+                folderPath: "/Extract", sortOrder: 10, isSystem: true,
+                isUntested: false, isDirectlyRunnable: true,
+                acceptsModelOverride: accepts,
+                createdAt: Date(), updatedAt: Date(),
+                requiresVision: requiresVision
+            ))
+        )
+    }
+
+    @Test("every step of a five-step chain runs the model the bar names")
+    func everyChainStepTakesTheBarsModel() {
+        // Daniel, 2026-09-05, on the released build: a five-workflow chain
+        // over a 90-image folder with the bar reading claude-sonnet-latest,
+        // and "Step 'Extract entities' failed: Apple Intelligence". The bar
+        // said one model; a step ran another.
+        //
+        // The mechanism is in the presets: twelve shipped nodes carry
+        // `provider_name: "$small"`, a SIZE-CLASS alias. With no run-level
+        // choice on the request those nodes resolve $small from the app's
+        // defaults — which seed to Apple — so the step picks its own model
+        // exactly as Daniel suspected ("not choosing its own based on
+        // defaults or large, small"). The choice never left the app because
+        // the override was restricted to a chain of ONE.
+        let chain = [
+            preset("Detect Regions", requiresVision: true),
+            preset("Transcribe", requiresVision: true),
+            preset("Extract entities"),
+            preset("Extract SVO"),
+            preset("Catalogue")
+        ]
+        let sonnet = choice("claude-sonnet-latest", provider: "anthropic", vision: true)
+
+        for step in chain {
+            let sent = WorkflowBarPolicy.workflowStepPickerOverride(
+                for: step,
+                stagedCount: chain.count,
+                tools: registry,
+                textTier: sonnet,
+                visionTier: sonnet,
+                selectionPrefersVision: true
+            )
+            #expect(
+                sent?.model == "claude-sonnet-latest",
+                "step '\(step.name)' sent \(sent?.model ?? "NOTHING") — a step "
+                    + "that sends nothing resolves its own $small alias and "
+                    + "lands on Apple against an explicit cloud choice"
+            )
+        }
+    }
+
+    @Test("a vision step in a mixed chain still takes the VISION tier")
+    func aChainRespectsPerStepCapability() {
+        // The 2026-09-01 rule survives the fix: spreading a DELIBERATE choice
+        // across a chain is right, spreading one tier over every step is not.
+        let visionTier = choice("apple-vision", provider: "apple", vision: true)
+        let textTier = choice("claude-sonnet-latest", provider: "anthropic", vision: true)
+
+        let readsPixels = WorkflowBarPolicy.workflowStepPickerOverride(
+            for: preset("Transcribe", requiresVision: true),
+            stagedCount: 3,
+            tools: registry,
+            textTier: textTier,
+            visionTier: visionTier,
+            selectionPrefersVision: true
+        )
+        let readsText = WorkflowBarPolicy.workflowStepPickerOverride(
+            for: preset("Extract entities"),
+            stagedCount: 3,
+            tools: registry,
+            textTier: textTier,
+            visionTier: visionTier,
+            selectionPrefersVision: true
+        )
+
+        #expect(readsPixels?.model == "apple-vision")
+        #expect(
+            readsText?.model == "claude-sonnet-latest",
+            "an OCR route must never be sent to do entity extraction"
+        )
+    }
+
+    @Test("a preset that refuses overrides is still never overridden in a chain")
+    func aDeclaredPinSurvivesTheChainFix() {
+        #expect(WorkflowBarPolicy.workflowStepPickerOverride(
+            for: preset("Locked", accepts: false),
+            stagedCount: 5,
+            tools: registry,
+            textTier: choice("claude-sonnet-latest", provider: "anthropic"),
+            visionTier: choice("claude-sonnet-latest", provider: "anthropic"),
+            selectionPrefersVision: false
+        ) == nil)
+    }
+
     // MARK: - The sentence names what will REALLY run
 
     @Test("A usable pin is what the sentence shows")

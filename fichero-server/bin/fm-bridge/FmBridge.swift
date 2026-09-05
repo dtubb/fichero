@@ -42,6 +42,10 @@
 //   - "unsupported_language" Prompt language isn't supported by the model
 //   - "assets"             Model assets unavailable (e.g. Apple Intelligence
 //                          off or assets evicted)
+//   - "system_model_missing" A macOS model asset FoundationModels depends on
+//                          (e.g. the content sanitizer) is missing or broken.
+//                          The request never reached a model; the text is not
+//                          at fault and retrying on Apple will not help.
 //   - "generation"         Anything else from the model
 //
 // Schema tree shape (#799/#819) — minimal subset of JSON-Schema mapped
@@ -191,6 +195,38 @@ func buildDynamicSchema(_ json: [String: Any]) throws -> DynamicGenerationSchema
 /// Map a thrown error from session.respond(...) to (errorKind, message)
 /// using the typed `GenerationError` enum cases. Falls back to "generation"
 /// for unknown errors. Replaces fragile string-matching in Python (#843).
+/// A missing or broken SYSTEM model asset, as distinct from anything about
+/// the prompt (Daniel, 2026-09-05, macOS 27.0 beta). A run reported:
+///
+///     Apple Intelligence (generation): Generation failed:
+///     …com.apple.SensitiveContentAnalysisML error 15…
+///     ModelManagerError error 1013
+///
+/// Every word of that is true and none of it is usable: nothing in it says
+/// the fault is the OS's, that the prompt was fine, or what to do next. The
+/// content-sanitizer model FoundationModels runs alongside the LLM is absent
+/// or broken on that build — the user's text never reached a model at all.
+///
+/// Matched on the whole NSError chain rather than the top frame, because the
+/// interesting domain is two levels down under the generic wrapper.
+func systemModelAssetFailure(_ error: Error) -> Bool {
+    var chain: [NSError] = [error as NSError]
+    var seen = 0
+    var descriptions: [String] = []
+    while seen < chain.count, seen < 8 {
+        let current = chain[seen]
+        seen += 1
+        descriptions.append("\(current.domain)|\(current.code)|\(current)")
+        if let underlying = current.userInfo[NSUnderlyingErrorKey] as? NSError {
+            chain.append(underlying)
+        }
+        chain.append(contentsOf: current.underlyingErrors.map { $0 as NSError })
+    }
+    let haystack = descriptions.joined(separator: " ")
+    return haystack.contains("SensitiveContentAnalysis")
+        || haystack.contains("ModelManagerError")
+}
+
 func classifyGenerationError(_ error: Error) -> (kind: String, message: String) {
     if let gen = error as? LanguageModelSession.GenerationError {
         switch gen {
@@ -218,6 +254,18 @@ func classifyGenerationError(_ error: Error) -> (kind: String, message: String) 
         @unknown default:
             return ("generation", "Apple Intelligence generation error: \(gen.localizedDescription)")
         }
+    }
+    // A broken system model asset is not a generation problem, and saying
+    // "generation failed" about it sends the reader to look at their prompt.
+    if systemModelAssetFailure(error) {
+        return (
+            "system_model_missing",
+            "Apple Intelligence is unavailable on this system: a required "
+            + "macOS model asset is missing or broken, so the request never "
+            + "reached a model. This is an operating-system fault, not a "
+            + "problem with the text — run this step on a different model. "
+            + "Underlying: \(error)"
+        )
     }
     return ("generation", "Generation failed: \(error)")
 }

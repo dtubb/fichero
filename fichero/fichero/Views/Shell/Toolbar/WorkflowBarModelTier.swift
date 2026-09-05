@@ -359,24 +359,42 @@ extension WorkflowBarPolicy {
     /// NAMES for this step is the one the run carries — display and
     /// execution answer to `defaultChoice`, one function.
     ///
-    /// Still one step only. Spreading a tier across a multi-step chain of
-    /// presets would drag each preset's deliberately-cheap nodes onto the
-    /// expensive tier, which is money the user did not ask to spend; the
-    /// engine's own per-node resolution stays in charge there.
+    /// It reaches EVERY staged step, not only a lone one (Daniel,
+    /// 2026-09-05). This was restricted to a single step to protect each
+    /// preset's deliberately-cheap internal nodes from being dragged onto an
+    /// expensive tier. That caution cost more than it saved: on a five-step
+    /// chain over 90 images, with the bar reading `claude-sonnet-latest`,
+    /// "Extract entities" ran on Apple Intelligence and failed. Twelve
+    /// shipped preset nodes carry `provider_name: "$small"` — a SIZE-CLASS
+    /// alias — and with no choice on the request those nodes resolve $small
+    /// against the app's defaults, which seed to Apple. The step picked its
+    /// own model, which is precisely what Daniel ruled against: every step
+    /// runs the model the bar names, never one of its own from a size class.
+    ///
+    /// The cost worry was real but is the wrong trade. A user who picks a
+    /// model has said what they mean to spend, and a run that silently
+    /// substitutes a CHEAPER model is the same defect as one that silently
+    /// substitutes a dearer one — both make the sentence a lie. Per-step
+    /// capability still holds: the choice resolves through `defaultChoice`,
+    /// so a vision step takes the vision tier and a text step the text tier,
+    /// and the 2026-09-01 rule ("never claim apple-vision will Translate")
+    /// is untouched.
     ///
     /// The engine refuses loudly when a workflow's nodes cannot take an
     /// override (#3804), so an unsuitable send SURFACES instead of silently
     /// running the preset's embedded model.
     static func workflowStepPickerOverride(
         for step: StagedWorkflowStep,
-        stagedCount: Int,
+        // Kept in the signature although the rule no longer branches on it:
+        // every call site already knows the chain length, and a later rule
+        // that needs it (a cost ceiling, say) should not have to re-thread it.
+        stagedCount: Int = 1,
         tools: [ToolInfo] = [],
         textTier: WorkflowBarModelChoice? = nil,
         visionTier: WorkflowBarModelChoice?,
         selectionPrefersVision: Bool
     ) -> WorkflowBarModelChoice? {
-        guard stagedCount == 1,
-              !step.hasModelOverride,
+        guard !step.hasModelOverride,
               case .workflow(let item) = step.kind,
               // The item SAYS whether it takes overrides (false = pinned by
               // design; nil = unknown, engine enforces — fail open, #3804).
