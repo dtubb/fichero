@@ -61,6 +61,17 @@ def get_model_cost(*args, **kwargs):
     return _impl(*args, **kwargs)
 
 
+def resolve_model_alias(*args, **kwargs):
+    """Passthrough to fichero_server.llm.resolve_model_alias (#3950 pattern).
+
+    Same test-surface contract as ``get_model_cost``: patchable module global,
+    langchain kept off the engine startup path via a first-call import.
+    """
+    from fichero_server.llm import resolve_model_alias as _impl  # noqa: PLC0415
+
+    return _impl(*args, **kwargs)
+
+
 router = APIRouter()
 
 
@@ -485,6 +496,18 @@ def _model_pricing_per_million(provider: str, model: str) -> tuple[float, float]
     about price; not knowing is a different fact and has to travel as one.
     """
     if not provider or not model:
+        return None
+
+    # Resolve a tier ALIAS ($small, $vision_medium, …) to the concrete
+    # provider/model the run would use, with the SAME resolver the runner and
+    # R-11 walk — BEFORE the price lookup, which keys concrete ids only. A
+    # step pinned to an alias, or a preset whose node carries one, otherwise
+    # reached the registry as the literal "$small", missed, and was reported
+    # unpriced when it is in fact priceable. An unconfigured alias raises; that
+    # is a genuine "cannot price this" and travels as None, not a guess.
+    try:
+        provider, model = resolve_model_alias(provider, model)
+    except Exception:
         return None
 
     app_db = get_app_db()

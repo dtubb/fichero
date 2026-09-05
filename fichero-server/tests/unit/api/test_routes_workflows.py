@@ -579,6 +579,129 @@ class TestEstimateWorkflowCost:
         )
         assert r.status_code == 404
 
+    def test_estimate_cost_unknown_model_is_unpriced_never_zero_charge(
+        self, client, db, monkeypatch
+    ):
+        """A price MISS reports pricing_available False — the client's cue to
+        say "unpriced" — and NEVER surfaces as a priced US$0.00.
+
+        Daniel screenshotted "est. ≤ US$0.00" for a real 90-image chain whose
+        model was "claude-sonnet-latest": the vendored table keys concrete
+        dated ids, a "latest" alias is not one, the lookup missed, and the miss
+        rendered as free. The contract the bar depends on: a miss is unpriced,
+        not zero.
+        """
+        wf = Workflow(
+            name="Latest-alias Workflow",
+            description="",
+            format="nodes",
+            steps=[],
+            provider="anthropic",
+            model="claude-sonnet-latest",
+        )
+        db.save(wf)
+        # Not a $-tier alias, so resolution returns the pair unchanged …
+        monkeypatch.setattr(
+            "fichero_server.api.routes.workflow.workflows.resolve_model_alias",
+            lambda p, m: (p, m),
+        )
+        # … and the registry has no key for a "latest" alias, so it misses.
+        monkeypatch.setattr(
+            "fichero_server.api.routes.workflow.workflows.get_model_cost",
+            lambda *_: None,
+        )
+
+        r = client.post(
+            f"/api/workflows/{wf.id}/estimate-cost",
+            json={"file_count": 90},
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert data["pricing_available"] is False
+        # A miss carries no price. The client shows "unpriced" off the flag; it
+        # must never read the accompanying zero as a US$0.00 charge.
+        assert data["estimated_cost_usd"] == 0.0
+        assert data["input_cost_per_million"] == 0.0
+        assert data["output_cost_per_million"] == 0.0
+
+    def test_estimate_cost_resolves_tier_alias_before_pricing(
+        self, client, db, monkeypatch
+    ):
+        """A step carrying a tier alias ($small) is priced by resolving it to
+        the concrete configured model FIRST — the same resolver R-11 and the
+        runner walk — rather than looking "$small" up in a table that keys
+        concrete ids only.
+        """
+        wf = Workflow(
+            name="Tier-alias Workflow",
+            description="",
+            format="nodes",
+            steps=[],
+            provider="",
+            model="",
+        )
+        db.save(wf)
+        monkeypatch.setattr(
+            "fichero_server.api.routes.workflow.workflows.resolve_model_alias",
+            lambda p, m: ("openai", "gpt-4o-mini") if m == "$small" else (p, m),
+        )
+        monkeypatch.setattr(
+            "fichero_server.api.routes.workflow.workflows.get_model_cost",
+            lambda name: (
+                {"input_cost_per_token": 1e-6, "output_cost_per_token": 2e-6}
+                if "gpt-4o-mini" in name
+                else None
+            ),
+        )
+
+        r = client.post(
+            f"/api/workflows/{wf.id}/estimate-cost",
+            json={
+                "file_count": 2,
+                "provider": "openai",
+                "model": "$small",
+                "estimated_input_tokens_per_file": 1000,
+                "estimated_output_tokens_per_file": 200,
+            },
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert data["pricing_available"] is True
+        # 2000 input tokens @ $1/M + 400 output tokens @ $2/M.
+        assert data["estimated_cost_usd"] == pytest.approx(0.0028, rel=1e-9)
+
+    def test_estimate_cost_unconfigured_alias_is_unpriced_not_error(
+        self, client, db, monkeypatch
+    ):
+        """An alias whose tier has no configured default cannot be priced. The
+        resolver RAISES; pricing swallows it as "unpriced" rather than 500-ing
+        a pre-flight estimate. Still never a priced zero.
+        """
+        wf = Workflow(
+            name="Unconfigured-alias Workflow",
+            description="",
+            format="nodes",
+            steps=[],
+            provider="",
+            model="",
+        )
+        db.save(wf)
+
+        def _raise(_provider, _model):
+            raise ValueError("no Default small model is configured")
+
+        monkeypatch.setattr(
+            "fichero_server.api.routes.workflow.workflows.resolve_model_alias",
+            _raise,
+        )
+
+        r = client.post(
+            f"/api/workflows/{wf.id}/estimate-cost",
+            json={"file_count": 5, "provider": "anthropic", "model": "$small"},
+        )
+        assert r.status_code == 200
+        assert r.json()["pricing_available"] is False
+
 
 # ---------------------------------------------------------------------------
 # GET /api/workflows/tools
