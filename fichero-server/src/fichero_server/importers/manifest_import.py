@@ -1144,7 +1144,12 @@ def import_manifest(
                 existing_artifact_keys.add(key)
 
         text = (node.get("text") or "").strip()
-        if text and write_transcript_artifacts:
+        # Only a PAGE's text is a transcription. A container may now carry
+        # content of its own (a corpus ficha written onto its folder), and
+        # stamping that as a "transcription" artifact would both mislabel it
+        # and duplicate the artifact the manifest already declares for it.
+        is_page = node.get("node_type") == "page"
+        if text and write_transcript_artifacts and is_page:
             key = (doc_id, "transcription")
             if key in existing_artifact_keys:
                 summary.artifacts_skipped += 1

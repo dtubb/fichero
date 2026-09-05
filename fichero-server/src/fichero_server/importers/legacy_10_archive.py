@@ -1197,6 +1197,12 @@ def _catalogue_artifacts(folder: LegacyFolder) -> list[dict[str, Any]]:
     ]
 
 
+def _catalogue_text(folder: LegacyFolder) -> str | None:
+    """The ficha markdown, or None when the 1.0 run catalogued nothing."""
+    artifacts = _catalogue_artifacts(folder)
+    return artifacts[0]["content"] if artifacts else None
+
+
 def to_canonical_nodes(scan: LegacyScan) -> Iterator[dict[str, Any]]:
     """Emit ``fichero-corpus-import-v1`` nodes, parent before child."""
     # Dropping a single document folder should not produce a wrapper folder of
@@ -1230,6 +1236,10 @@ def to_canonical_nodes(scan: LegacyScan) -> Iterator[dict[str, Any]]:
             "date": folder.year,
             "language": "es",
             "metadata": _folder_metadata(folder, scan),
+            # The ficha is the folder's CONTENT as well as its artifact
+            # (Daniel, 2026-09-05: "the catalogue should be the content for the
+            # folders"). Same markdown, so the two can never drift.
+            "text": _catalogue_text(folder),
             "entities": folder.entities,
             "claims": [
                 {

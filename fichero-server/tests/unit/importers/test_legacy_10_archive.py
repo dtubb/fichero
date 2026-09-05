@@ -1194,3 +1194,69 @@ def test_alias_resolution_does_not_mint_a_variant_row(
     assert names == {"FRANK E. SMITH"}, (
         f"the variant should resolve onto the canonical, got {names}"
     )
+
+
+def test_the_ficha_is_also_the_folders_content(tmp_path: Path) -> None:
+    """Daniel: "the catalogue should be the content for the folders"."""
+    build_folder(tmp_path / "A", name="1936-doc")
+    scan = legacy.scan_archives([tmp_path / "A"], corpus_name="c")
+    node = _document_folder_node(scan)
+
+    assert node["text"], "the folder node must carry the ficha as content"
+    assert "## Resumen" in node["text"]
+    # Content and artifact are the SAME markdown, so they cannot drift.
+    assert node["text"] == node["artifacts"][0]["content"]
+
+
+def test_an_uncatalogued_folder_carries_no_content(tmp_path: Path) -> None:
+    build_folder(tmp_path / "A", name="1936-doc", catalogue=False)
+    scan = legacy.scan_archives([tmp_path / "A"], corpus_name="c")
+    node = _document_folder_node(scan)
+    assert node["text"] is None
+    assert node["artifacts"] == []
+
+
+def test_a_containers_text_is_not_stamped_as_a_transcription(
+    client, db, test_package, tmp_path
+) -> None:
+    """A folder's ficha is content, not a transcription of anything.
+
+    Without this the importer would mint a bogus `transcription` artifact
+    duplicating the ficha the manifest already declares.
+    """
+    from fichero_server.importers.manifest_import import import_manifest
+    from fichero_server.models import Artifact, DocType, Document
+
+    from .test_manifest_import import _TestClientAdapter
+
+    manifest = tmp_path / "manifest.jsonl"
+    nodes = [
+        {"canonical_version": legacy.CANONICAL_VERSION, "external_id": "f1",
+         "node_type": "folder", "name": "Corpus", "text": "# Ficha\n\nprose"},
+        {"canonical_version": legacy.CANONICAL_VERSION, "external_id": "p1",
+         "parent_external_id": "f1", "node_type": "page", "name": "page_001",
+         "text": "page words"},
+    ]
+    manifest.write_text(
+        "\n".join(json.dumps(n) for n in nodes) + "\n", encoding="utf-8"
+    )
+    import_manifest(_TestClientAdapter(client), manifest, str(test_package))
+
+    docs = {d.name: d for d in db.query(Document)}
+    folder = docs["Corpus"]
+    assert folder.doc_type == DocType.folder
+    assert folder.page_content and "Ficha" in folder.page_content, (
+        "the folder's content must land in page_content"
+    )
+
+    arts = db.query(Artifact)
+    folder_transcripts = [
+        a for a in arts
+        if a.document_id == folder.id and a.artifact_type == "transcription"
+    ]
+    assert folder_transcripts == [], "a container's text is not a transcription"
+    page_transcripts = [
+        a for a in arts
+        if a.document_id == docs["page_001"].id and a.artifact_type == "transcription"
+    ]
+    assert len(page_transcripts) == 1, "a page's text still is one"
