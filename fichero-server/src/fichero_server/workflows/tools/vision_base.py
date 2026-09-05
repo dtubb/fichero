@@ -18,6 +18,7 @@ import asyncio
 from contextvars import ContextVar
 import os
 import tempfile
+import threading
 import base64
 import dataclasses
 from functools import lru_cache
@@ -1951,6 +1952,13 @@ async def apple_vision_ocr_async(image_path: str, language: str = "en") -> str:
     return await asyncio.to_thread(apple_vision_ocr, image_path, language)
 
 
+#: Serializes whole-document rasterization. See the note at its use site in
+#: `_pdf_page_to_data_uri`: `lru_cache` deduplicates RESULTS, never concurrent
+#: COMPUTATION, and this render is now reached from several worker threads at
+#: once.
+_PDF_RENDER_LOCK = threading.Lock()
+
+
 @lru_cache(maxsize=4)
 def _batch_render_pdf_pages_to_cgimages(pdf_path: str, dpi: int = 300):
     """Open a PDF document ONCE and render all pages to CGImages. (#2247)
@@ -2955,7 +2963,23 @@ def _pdf_page_to_data_uri(file_path: str, page_index: int = 0, max_dimension: in
     """
     try:
         # Primary path: reuse the cached batch render for the source PDF.
-        cg_images, _ = _batch_render_pdf_pages_to_cgimages(file_path)
+        #
+        # The lock is load-bearing, and only became so when this function
+        # started running on worker threads. `lru_cache` does not serialize
+        # computation of a missing key: N page tasks that all miss together
+        # each rasterize the WHOLE document, so a 7-page PDF renders 7 times
+        # over instead of once. While this ran inline on the event loop, the
+        # blocking call was an accidental mutex — the first task populated the
+        # cache before any other could look. Moving the work off the loop
+        # removes that accident, so the mutual exclusion has to be said out
+        # loud.
+        #
+        # ponytail: one global lock, not one per path — two DIFFERENT PDFs
+        # rendering at once is exactly what happened before (the event loop
+        # serialized them anyway), so this loses nothing that existed. Go
+        # per-path if multi-document render throughput ever matters.
+        with _PDF_RENDER_LOCK:
+            cg_images, _ = _batch_render_pdf_pages_to_cgimages(file_path)
         cg_image = cg_images[page_index]
         if cg_image is None:
             raise ValueError(f"PDF page {page_index + 1} not found in: {file_path}")
@@ -2983,6 +3007,44 @@ def _pdf_page_to_data_uri(file_path: str, page_index: int = 0, max_dimension: in
                 f"Cannot render PDF page {page_index} to image: "
                 f"Quartz error: {quartz_err}; PIL error: {pil_err}"
             ) from pil_err
+
+
+async def _pdf_page_to_data_uri_async(
+    file_path: str, page_index: int = 0, max_dimension: int = 2048
+) -> str:
+    """Render a PDF page to a data URI WITHOUT blocking the event loop.
+
+    The sync version is CPU-bound twice over: on a cache miss it rasterizes
+    every page of the document at 300 dpi through Quartz, and it then
+    PNG-encodes the requested page through PIL. Called inline from the per-file
+    fan-out (`asyncio.gather`, concurrency `VISION_FAN_OUT_CONCURRENCY`), that
+    work runs ON the event loop — so the first page of a PDF to arrive stops
+    every other task in the process until the whole document has been
+    rasterized, and nothing anywhere reports the stall.
+
+    The render itself is not made cheaper here and is not meant to be: the
+    `lru_cache` still means one rasterization per document. This only stops it
+    happening on the thread that is supposed to be handing out work.
+    """
+    # Keyword args preserved deliberately: the shipped tests pin this call's
+    # SHAPE, and a thread hop is not a licence to change a contract.
+    return await asyncio.to_thread(
+        _pdf_page_to_data_uri,
+        file_path,
+        page_index=page_index,
+        max_dimension=max_dimension,
+    )
+
+
+async def file_to_data_uri_async(file_path: str, max_dimension: int = 2048) -> str:
+    """Encode an image file to a data URI WITHOUT blocking the event loop.
+
+    Same reason as :func:`_pdf_page_to_data_uri_async`: PIL decode, resize and
+    re-encode are CPU-bound, and the vision fan-out awaits them inline.
+    """
+    return await asyncio.to_thread(
+        file_to_data_uri, file_path, max_dimension=max_dimension
+    )
 
 
 def _cgimage_to_png_data_uri(cg_image, max_dimension: int = 2048) -> str:
@@ -4108,7 +4170,7 @@ async def process_vision(
                     _llm_page_thinking: list[str | None] = []
                     for _page_idx in range(_llm_num_pages):
                         try:
-                            _page_uri = _pdf_page_to_data_uri(
+                            _page_uri = await _pdf_page_to_data_uri_async(
                                 file_path,
                                 page_index=_page_idx,
                                 max_dimension=max_image_dimension,
@@ -4232,13 +4294,13 @@ async def process_vision(
                             _pdf_page_idx,
                             Path(file_path).name,
                         )
-                        image_uri = _pdf_page_to_data_uri(
+                        image_uri = await _pdf_page_to_data_uri_async(
                             file_path,
                             page_index=_pdf_page_idx,
                             max_dimension=max_image_dimension,
                         )
                     else:
-                        image_uri = file_to_data_uri(
+                        image_uri = await file_to_data_uri_async(
                             file_path, max_dimension=max_image_dimension
                         )
 
