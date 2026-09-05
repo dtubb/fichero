@@ -1,7 +1,6 @@
 # Appendix C: Keyboard Shortcuts
 
-> 🤖 *AI Drafted (Not reviewed)*
-
+*Drafted by AI.*
 
 The shortcuts that exist today. The list will grow; menus show the current shortcut next to each command.
 

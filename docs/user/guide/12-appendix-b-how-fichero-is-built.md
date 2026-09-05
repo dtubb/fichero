@@ -1,5 +1,6 @@
 # Appendix B: How Fichero Is Built
 
+*Drafted by AI.*
 
 Fichero is built openly with the help of AI coding agents, under review gates and verification steps documented in the repository. The project is transparent about its construction for the same reason the app treats AI as an instrument, not an interlocutor: you should be able to see what the machine actually did.
 

@@ -114,7 +114,14 @@ nav:
       # docs/user/guide/*.md pages are the masters, so edit this block directly.
       # The "Editing" part (7th in the About) arrives at the Scrivener→mkdocs
       # cutover when its chapter exists; until then the published nav shows 6 parts.
-      - Introducing Fichero: user/guide/01-introducing-fichero.md
+      # Front matter — Daniel's authored intro pages (relocated verbatim from
+      # the Scrivener binder; propose-only, no AI note).
+      - Philosophy of Fichero: user/guide/philosophy-of-fichero.md
+      - What Is Fichero?: user/guide/what-is-fichero.md
+      - Who Is Fichero For?: user/guide/who-is-fichero-for.md
+      - How Does Fichero Work?: user/guide/how-fichero-works.md
+      - About This Manual: user/guide/about-this-manual.md
+      - A Few Conventions: user/guide/a-few-conventions.md
       - Preparation:
           - Installing and Updating: user/guide/02-installing-and-updating.md
           - The Fichero Window: user/guide/03-the-fichero-window.md

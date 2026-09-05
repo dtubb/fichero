@@ -10,7 +10,7 @@ application, the SwiftUI client, and the Python engine.
 
 ## Where to start?
 
-- **[What Fichero Is](user/guide/01-introducing-fichero.md)**
+- **[What Fichero Is](user/guide/what-is-fichero.md)**
 - **[FAQ](user/guide/10-frequently-asked-questions.md)** — common questions, answered.
 - **[User Guide](user/README.md)** — using Fichero. Install, import, read, search, run workflows.
 - **[Contributor Guide](contributor/README.md)** — contributing to the Fichero project and its architecture.

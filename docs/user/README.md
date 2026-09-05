@@ -3,7 +3,7 @@
 The User Guide is written as one manual, grouped into parts that follow the
 order a real research project unfolds:
 
-[Introducing Fichero](guide/01-introducing-fichero.md) — start here.
+Start with the front matter — [Philosophy of Fichero](guide/philosophy-of-fichero.md), [What Is Fichero?](guide/what-is-fichero.md), [Who Is Fichero For?](guide/who-is-fichero-for.md), [How Does Fichero Work?](guide/how-fichero-works.md), [About This Manual](guide/about-this-manual.md), and [A Few Conventions](guide/a-few-conventions.md).
 
 **Preparation**
 

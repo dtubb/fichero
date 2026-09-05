@@ -1,5 +1,6 @@
 # Chapter 6. Workflows
 
+*Drafted by AI.*
 
 ### About Workflows
 
@@ -13,11 +14,11 @@ Fichero ships with roughly fifty ready-made workflow presets, including transcri
 
 Workflows can be run from several places:
 
-- 
-- 
-- 
+- toolbar run actions
+- the workflow’s own view
+- the right-click context menu on selected items in the library
 
-toolbar run actionsthe workflow’s own viewthe right-click context menu on selected items in the libraryThe library browser passes your entire multi-selection into the run, which matters for catalogue-style workflows that need the whole selected set rather than one file at a time. To run a workflow: select documents in Library mode, then choose the workflow from the run menu or the context menu.
+The library browser passes your entire multi-selection into the run, which matters for catalogue-style workflows that need the whole selected set rather than one file at a time. To run a workflow: select documents in Library mode, then choose the workflow from the run menu or the context menu.
 
 ### Building Workflows in the Visual Editor
 

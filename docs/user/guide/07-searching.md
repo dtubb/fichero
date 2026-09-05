@@ -1,5 +1,6 @@
 # Chapter 7. Searching
 
+*Drafted by AI.*
 
 ### About Search
 
@@ -11,14 +12,14 @@ As you type, Fichero re-runs the query with a short debounce; you can also submi
 
 The search field understands scoped queries for entity types:
 
-- 
-- 
-- 
-- 
-- 
-- 
+- `people:` — e.g. `people:Asprilla`
+- `places:` — e.g. `places:"Quibdó"`
+- `organizations:`
+- `dates:`
+- `events:`
+- `keywords:` — e.g. `keywords:"social license"`
 
-`people:` — e.g. `people:Asprilla``places:` — e.g. `places:"Quibdó"``organizations:``dates:``events:``keywords:` — e.g. `keywords:"social license"`Two semantic scopes search the knowledge graph itself: `entities:` and `claims:` (singular forms work too). `entities:Asprilla` finds entities semantically; `claims:mine` finds claims. Clicking an entity name or lozenge elsewhere in the app can launch a scoped search of this kind for you.
+Two semantic scopes search the knowledge graph itself: `entities:` and `claims:` (singular forms work too). `entities:Asprilla` finds entities semantically; `claims:mine` finds claims. Clicking an entity name or lozenge elsewhere in the app can launch a scoped search of this kind for you.
 
 ### Saved Searches
 

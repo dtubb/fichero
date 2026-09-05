@@ -1,5 +1,6 @@
 # Chapter 4. Managing Your Library
 
+*Drafted by AI.*
 
 ### About Libraries
 
@@ -13,11 +14,11 @@ You can create another library or open an existing `.fichero` package from the *
 
 You bring material into a library by dragging files and folders onto the window, or with the import commands in the toolbar’s add menu:
 
-- 
-- 
-- 
+- **Link Files…** — keep the original file where it lives and add it to the library.
+- **Copy Files…** — import a copy into library-managed storage.
+- **Move Files…** — import the file into library-managed storage and remove the original. Use this when the library should take ownership of the file.
 
-**Link Files…** — keep the original file where it lives and add it to the library.**Copy Files…** — import a copy into library-managed storage.**Move Files…** — import the file into library-managed storage and remove the original. Use this when the library should take ownership of the file.You can also create a new folder first, then import into it. Imported files can be text-extracted and embedded for search as part of ingest.
+You can also create a new folder first, then import into it. Imported files can be text-extracted and embedded for search as part of ingest.
 
 #### Importing folders
 
@@ -33,7 +34,7 @@ Fichero recognizes 61 file extensions. In summary:
 
 | Category | Examples |
 |----|----|
-| Images and scans (incl. RAW) | JPEG, PNG, TIFF, HEIC, JPEG 2000, DNG, CR2/CR3, NEF |
+| Images and scans (incl. RAW) | JPEG, PNG, TIFF, HEIC, JPEG 2000, DNG, CR2/CR3, NEF |
 | PDF |  |
 | Text and markup | TXT, Markdown, RTF, HTML, XML, subtitle files |
 | Word processing | DOC, DOCX, ODT |
@@ -49,11 +50,11 @@ Text extraction for search indexing is implemented for PDFs, word-processing fil
 
 A few behaviors matter early:
 
-- 
-- 
-- 
-- 
+- Changing the sidebar selection changes the document set in the browser.
+- Changing the browser selection updates the Reader and the inspector.
+- The app remembers window state such as visible panes, layout, and some sort settings.
+- Search starts from the toolbar while you are in Library mode; results render into the Library view.
 
-### Changing the sidebar selection changes the document set in the browser.Changing the browser selection updates the Reader and the inspector.The app remembers window state such as visible panes, layout, and some sort settings.Search starts from the toolbar while you are in Library mode; results render into the Library view.Sharing a Library
+### Sharing a Library
 
 A library can be shared with other people, each with their own user account. Sharing is off by default; when enabled, members are managed in Settings, and each member has a role that controls what they can see and change. Access can be granted at the library level and refined per folder. Remote access for another device or person runs over your private Tailscale network (see Chapter 9) — never over the open internet. Sharing is an early feature in active development.

@@ -1,5 +1,6 @@
 # Chapter 10. Frequently Asked Questions
 
+*Drafted by AI.*
 
 **What AI models does Fichero support?** Fichero is model-agnostic. The backend talks to providers through LangChain integrations, and the app includes model-management surfaces. Local options include Apple Foundation Models, MLX, LM Studio, and Ollama; cloud providers include services such as OpenAI, Anthropic, and Google.
 

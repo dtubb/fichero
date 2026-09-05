@@ -1,5 +1,6 @@
 # Chapter 5. Reading, Transcribing, and Annotating
 
+*Drafted by AI.*
 
 ### About Reading in Fichero
 
@@ -21,15 +22,15 @@ Annotations are markings tied to a page, a text span, or a highlighted region. T
 
 You can:
 
-- 
-- 
-- 
-- 
-- 
-- 
-- 
+- add a quick note annotation from the add bar
+- search existing annotations by text, tags, or claim
+- click an annotation to reveal its source page or region
+- edit annotation text
+- copy cropped content from region- or span-based annotations
+- promote an annotation into a claim
+- delete an annotation
 
-add a quick note annotation from the add barsearch existing annotations by text, tags, or claimclick an annotation to reveal its source page or regionedit annotation textcopy cropped content from region- or span-based annotationspromote an annotation into a claimdelete an annotationIf there are no annotations yet, the empty state points you toward adding a note or highlighting a region on the page.
+If there are no annotations yet, the empty state points you toward adding a note or highlighting a region on the page.
 
 ### Notes
 

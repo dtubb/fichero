@@ -1,5 +1,6 @@
 # Appendix A: Supported File Types
 
+*Drafted by AI.*
 
 Fichero’s import system maps 61 file extensions to a file type.
 

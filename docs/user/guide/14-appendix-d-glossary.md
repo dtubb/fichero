@@ -1,7 +1,6 @@
 # Appendix D: Glossary
 
-> 🤖 *AI Drafted (Not reviewed)*
-
+*Drafted by AI.*
 
 **Library.** A .fichero package on disk holding your documents and everything Fichero knows about them. One window works with one library.
 
