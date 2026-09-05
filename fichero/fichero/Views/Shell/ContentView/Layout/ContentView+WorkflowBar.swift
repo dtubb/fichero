@@ -48,6 +48,7 @@ extension ContentView {
                 runningStepIndex: runningStagedStepIndex,
                 onOpenStep: { openStagedStepResult($0) },
                 chainCost: stagedChainCost,
+                chainActualCost: stagedChainActualCost,
                 tools: Array(workflowStore.toolRegistry.values),
                 // ⓘ goes to the node editor — the existing .workflow content
                 // mode, not a new surface: graph, steps, prompt preview.
@@ -224,6 +225,10 @@ extension ContentView {
             // chips pending so the rail shows exactly where it stopped.
             if !stepSucceeded { break }
         }
+        // Whatever the chain settled to — all green, or stopped early — read
+        // each step's recorded cost so the chip states what the run actually
+        // spent, the same source of truth as the engine path.
+        await refreshChainActualCost()
     }
 
     /// The workflow a step runs.
@@ -297,6 +302,11 @@ extension ContentView {
     /// counted as zero, and the total is marked approximate.
     @MainActor
     func refreshChainCostCeiling() async {
+        // The chain's STRUCTURE, models or targets changed (this runs keyed on
+        // chainCostKey), so any actuals from a prior run describe a plan that no
+        // longer exists — drop them before re-pricing, or the chip would pair a
+        // fresh estimate with last run's measured cost.
+        stagedChainActualCost = nil
         guard !stagedWorkflowChain.isEmpty, workflowBarTargetCount > 0 else {
             stagedChainCost = nil
             chromeUX.stagedCompareCostCeiling = nil

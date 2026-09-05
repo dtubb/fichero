@@ -159,6 +159,11 @@ extension ContentView {
     @MainActor
     func runStagedChain() async {
         guard !stagedWorkflowChain.isEmpty, !isRunningStagedChain else { return }
+        // A fresh press supersedes the last run's actuals — the chip shows the
+        // estimate again until THIS run records what it spent. Without this a
+        // re-run on the unchanged chain (chainCostKey never moved, so the
+        // structure-change reset did not fire) would keep last time's numbers.
+        stagedChainActualCost = nil
         if await runStagedChainViaEngine() { return }
         await runStagedChainClientSide()
     }
@@ -210,6 +215,9 @@ extension ContentView {
                 }
             }
             await followEngineChainExecution(execution, service: service)
+            // The run is settled: read what each step actually SPENT so the
+            // chip flips from "est." to the measured cost (Daniel, 2026-09-05).
+            await refreshChainActualCost()
             // Un-stamp: the resolved models were this RUN's, not pins the
             // user made. Left behind, a chain restored next week would come
             // back pinned to models Settings has since moved on from.

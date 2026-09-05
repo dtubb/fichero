@@ -12,46 +12,49 @@ import SwiftUI
 ///   • some steps unpriceable  → "est. ≥ $X · N unpriced"   (a FLOOR)
 ///   • every step priced       → "est. ≤ $X"                (a CEILING)
 ///
+/// Once the chain has RUN, `chainActualCost` is present and the chip flips from
+/// the estimate to what the run actually SPENT — read from each step's run
+/// accounting, the same number Activity shows — pairing the two as
+/// "est $X → $Y" so the estimate can be judged against the bill.
+///
 /// Expanding it lists one line per step, each naming the model that step will
-/// really run on beside its own estimate — the routing truth read before a
-/// paid run, so "which model, at what cost" is answerable pre-flight.
+/// really run on beside its own estimate (and its actual, after the run) — the
+/// routing truth read before a paid run, so "which model, at what cost" is
+/// answerable pre-flight.
 extension WorkflowBar {
 
     @ViewBuilder
-    func chainCostChip(_ cost: StagedChainCost) -> some View {
+    func chainCostChip(_ estimate: StagedChainCost) -> some View {
         Button {
             showsCostBreakdown.toggle()
         } label: {
-            chainCostSummary(cost)
+            chainCostSummary(estimate)
         }
         .buttonStyle(.plain)
-        .help(chainCostHelp(cost))
-        .accessibilityLabel(chainCostAccessibility(cost))
+        .help(chainCostHelp(estimate))
+        .accessibilityLabel(chainCostAccessibility(estimate))
         .popover(isPresented: $showsCostBreakdown, arrowEdge: .bottom) {
-            costBreakdown(cost)
+            costBreakdown(estimate)
         }
     }
 
+    /// The chip face: the estimate before a run, and "est $X → $Y" (the actual
+    /// leading) once the run has recorded what it spent.
     @ViewBuilder
-    private func chainCostSummary(_ cost: StagedChainCost) -> some View {
+    private func chainCostSummary(_ estimate: StagedChainCost) -> some View {
         HStack(spacing: 3) {
-            if !cost.hasPricedStep {
-                // A price MISS is a QUESTION, not a zero. "unpriced" is the
-                // honest word; "US$0.00" told the user a paid run was free.
-                Text("est. unpriced")
-            } else if cost.isCompletePricing {
-                // A CEILING — every step priced, so the sum is an upper bound
-                // the run can be held to.
-                Text("est. ≤ \(cost.pricedTotal, format: .currency(code: "USD"))")
-                    .monospacedDigit()
+            if let actual = chainActualCost {
+                // Calibration: the estimate, quietly, then what it actually
+                // cost. The estimate is only shown when it HAD a figure — an
+                // unpriced estimate has nothing to calibrate against.
+                if estimate.hasPricedStep {
+                    Text("est \(estimate.pricedTotal, format: .currency(code: "USD")) →")
+                        .foregroundStyle(.tertiary)
+                        .monospacedDigit()
+                }
+                amountPhrase(actual, prefix: nil)
             } else {
-                // A FLOOR — the priced steps are a lower bound on a total whose
-                // unpriced tail is unknown. "≥", with the tail named, so the
-                // number is never mistaken for the whole bill.
-                Text("est. ≥ \(cost.pricedTotal, format: .currency(code: "USD"))")
-                    .monospacedDigit()
-                Text("· \(cost.unpricedCount) unpriced")
-                    .foregroundStyle(.tertiary)
+                amountPhrase(estimate, prefix: "est.")
             }
             Image(systemName: "chevron.down")
                 .font(.system(size: 7))
@@ -61,12 +64,39 @@ extension WorkflowBar {
         .foregroundStyle(.secondary)
     }
 
-    /// The expanded breakdown: one line per step, each naming the model it will
-    /// really run on and its own estimate — routing truth, read before the run.
+    /// The ≤/≥/unpriced phrase for one cost, with an optional leading word
+    /// ("est." for the estimate; nil for the measured actual). Shared so an
+    /// estimate and an actual read in the same grammar.
     @ViewBuilder
-    private func costBreakdown(_ cost: StagedChainCost) -> some View {
+    private func amountPhrase(_ cost: StagedChainCost, prefix: String?) -> some View {
+        let lead = prefix.map { "\($0) " } ?? ""
+        if !cost.hasPricedStep {
+            // A price MISS is a QUESTION, not a zero. "unpriced" is the honest
+            // word; "US$0.00" told the user a paid run was free.
+            Text("\(lead)unpriced")
+        } else if cost.isCompletePricing {
+            // A CEILING (estimate) or the settled total (actual): every step
+            // priced, so the sum is the whole figure.
+            Text("\(lead)≤ \(cost.pricedTotal, format: .currency(code: "USD"))")
+                .monospacedDigit()
+        } else {
+            // A FLOOR — priced steps are a lower bound on a total whose unpriced
+            // tail is unknown. "≥", with the tail named.
+            Text("\(lead)≥ \(cost.pricedTotal, format: .currency(code: "USD"))")
+                .monospacedDigit()
+            Text("· \(cost.unpricedCount) unpriced")
+                .foregroundStyle(.tertiary)
+        }
+    }
+
+    /// The expanded breakdown: one line per step, each naming the model it will
+    /// really run on and its estimate — and, after the run, its actual too.
+    @ViewBuilder
+    private func costBreakdown(_ estimate: StagedChainCost) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Estimated cost per step")
+            Text(chainActualCost == nil
+                 ? "Estimated cost per step"
+                 : "Cost per step — est → actual (run total)")
                 .font(.caption.weight(.semibold))
             ForEach(Array(staged.enumerated()), id: \.element.id) { index, step in
                 HStack(spacing: 6) {
@@ -82,55 +112,76 @@ extension WorkflowBar {
                             .lineLimit(1)
                     }
                     Spacer(minLength: 12)
-                    breakdownAmount(for: step, in: cost)
+                    breakdownAmounts(for: step, estimate: estimate)
                 }
                 .font(.caption)
             }
             Divider()
-            chainCostTotalLine(cost)
+            chainCostTotalLine(estimate)
         }
         .padding(12)
-        .frame(minWidth: 260, maxWidth: 360, alignment: .leading)
+        .frame(minWidth: 280, maxWidth: 380, alignment: .leading)
     }
 
-    /// One step's amount in the breakdown — its price, "free" for a real zero,
-    /// or "unpriced" for a miss. The three are kept distinct on purpose.
+    /// One step's amount(s): the estimate, and after a run "→ actual". Free,
+    /// priced and unpriced are kept distinct in each.
     @ViewBuilder
-    private func breakdownAmount(
-        for step: StagedWorkflowStep, in cost: StagedChainCost
+    private func breakdownAmounts(
+        for step: StagedWorkflowStep, estimate: StagedChainCost
     ) -> some View {
-        if let line = cost.line(forStepId: step.id), let estimate = line.estimate {
-            if estimate == 0 {
-                Text("free").foregroundStyle(.secondary).monospacedDigit()
+        HStack(spacing: 4) {
+            amountText(estimate.line(forStepId: step.id)?.estimate)
+                .foregroundStyle(chainActualCost == nil ? .primary : .secondary)
+            if let actual = chainActualCost {
+                Text("→").foregroundStyle(.quaternary)
+                amountText(actual.line(forStepId: step.id)?.estimate)
+            }
+        }
+        .monospacedDigit()
+    }
+
+    /// A single amount cell: the price, "free" for a real zero, "—" for a miss
+    /// or a step with no line yet (optional chaining flattens both to nil).
+    @ViewBuilder
+    private func amountText(_ amount: Double?) -> some View {
+        if let value = amount {
+            if value == 0 {
+                Text("free").foregroundStyle(.secondary)
             } else {
-                Text(estimate, format: .currency(code: "USD"))
-                    .monospacedDigit()
+                Text(value, format: .currency(code: "USD"))
             }
         } else {
-            Text("unpriced").foregroundStyle(.tertiary)
+            Text("—").foregroundStyle(.tertiary)
         }
     }
 
-    /// The breakdown's footer: the same sentence the chip states, spelled out.
+    /// The breakdown's footer: the aggregate, estimate and (after a run) actual.
     @ViewBuilder
-    private func chainCostTotalLine(_ cost: StagedChainCost) -> some View {
+    private func chainCostTotalLine(_ estimate: StagedChainCost) -> some View {
         HStack {
-            if !cost.hasPricedStep {
-                Text("No step could be priced")
-                    .foregroundStyle(.secondary)
-            } else if cost.isCompletePricing {
-                Text("Upper bound")
-                Spacer()
-                Text(cost.pricedTotal, format: .currency(code: "USD"))
+            Text(totalLabel(for: chainActualCost ?? estimate))
+            Spacer()
+            if chainActualCost != nil, estimate.hasPricedStep {
+                Text("est \(estimate.pricedTotal, format: .currency(code: "USD"))")
+                    .foregroundStyle(.tertiary)
+                    .monospacedDigit()
+            }
+            if let total = (chainActualCost ?? estimate).pricedTotalOrNil {
+                Text(total, format: .currency(code: "USD"))
                     .monospacedDigit()
             } else {
-                Text("At least (\(cost.unpricedCount) unpriced)")
-                Spacer()
-                Text(cost.pricedTotal, format: .currency(code: "USD"))
-                    .monospacedDigit()
+                Text("unpriced").foregroundStyle(.secondary)
             }
         }
         .font(.caption.weight(.medium))
+    }
+
+    private func totalLabel(for cost: StagedChainCost) -> String {
+        if !cost.hasPricedStep { return "No step could be priced" }
+        if cost.isCompletePricing {
+            return chainActualCost == nil ? "Upper bound" : "Run total"
+        }
+        return "At least (\(cost.unpricedCount) unpriced)"
     }
 
     /// The model a breakdown line names — the SAME resolution the sentence's
@@ -143,6 +194,11 @@ extension WorkflowBar {
     }
 
     private func chainCostHelp(_ cost: StagedChainCost) -> String {
+        if chainActualCost != nil {
+            return "What this chain actually spent, per step, read from the run "
+                + "accounting (the same figure Activity shows). Click for the "
+                + "per-step est → actual breakdown."
+        }
         if !cost.hasPricedStep {
             return "No step in this chain could be priced from the model "
                 + "registry. Click for the per-step breakdown."
@@ -157,10 +213,20 @@ extension WorkflowBar {
             + "the per-step breakdown."
     }
 
-    private func chainCostAccessibility(_ cost: StagedChainCost) -> String {
-        if !cost.hasPricedStep { return "Estimated cost: unpriced" }
-        let amount = cost.pricedTotal.formatted(.currency(code: "USD"))
-        if cost.isCompletePricing { return "Estimated cost at most \(amount)" }
-        return "Estimated cost at least \(amount), \(cost.unpricedCount) unpriced"
+    private func chainCostAccessibility(_ estimate: StagedChainCost) -> String {
+        if let actual = chainActualCost {
+            guard actual.hasPricedStep else { return "Actual cost: unpriced" }
+            return "Actual cost \(actual.pricedTotal.formatted(.currency(code: "USD")))"
+        }
+        if !estimate.hasPricedStep { return "Estimated cost: unpriced" }
+        let amount = estimate.pricedTotal.formatted(.currency(code: "USD"))
+        if estimate.isCompletePricing { return "Estimated cost at most \(amount)" }
+        return "Estimated cost at least \(amount), \(estimate.unpricedCount) unpriced"
     }
+}
+
+extension StagedChainCost {
+    /// The priced total, or nil when nothing priced — so a footer can say
+    /// "unpriced" instead of rendering a bare US$0.00.
+    var pricedTotalOrNil: Double? { hasPricedStep ? pricedTotal : nil }
 }

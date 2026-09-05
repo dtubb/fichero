@@ -55,6 +55,10 @@ struct WorkflowBar: View {
     /// an unpriced line, never as zero, so the chip can say "unpriced" or
     /// "≥ $X" rather than reading a miss as a US$0.00 charge.
     var chainCost: StagedChainCost?
+    /// What the chain ACTUALLY spent once it has run — same shape, read from
+    /// the run accounting. nil before a run; present, the chip states the
+    /// measured cost and pairs it with the estimate as "est $X → $Y".
+    var chainActualCost: StagedChainCost?
     /// Every registered tool, for the Tools browser.
     var tools: [ToolInfo] = []
     /// Opens a workflow in the node editor (the popovers' ⓘ). nil hides it.

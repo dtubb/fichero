@@ -92,4 +92,32 @@ struct StagedChainCostTests {
         #expect(cost.line(forStepId: missed)?.isPriced == false)
         #expect(cost.line(forStepId: UUID()) == nil)
     }
+
+    // MARK: - Estimate → actual (the same struct carries measured costs)
+
+    @Test func actualTotalEqualsTheSumOfRecordedPerStepCosts() {
+        // The chip's ACTUAL is the sum of each step's recorded run cost
+        // (RunUsage.costUsd). Building actuals as StagedChainCost lines and
+        // summing must reproduce that number exactly — one source of truth.
+        let recorded: [Double] = [0.0123, 0.0456, 0.0001]
+        let actual = lines(recorded.map { Optional($0) })
+        #expect(actual.pricedTotal == recorded.reduce(0, +))
+        #expect(actual.isCompletePricing)
+    }
+
+    @Test func aRunWithUnpricedModelsIsAFloorNotAZero() {
+        // A step whose models the registry could not price records costUsd nil.
+        // The actual chip must read that as a FLOOR (≥) with the tail named —
+        // never fold the unpriced step in as a zero.
+        let actual = lines([0.02, nil, 0.03])
+        #expect(actual.hasPricedStep)
+        #expect(actual.isCompletePricing == false)
+        #expect(actual.pricedTotal == 0.05)
+        #expect(actual.unpricedCount == 1)
+    }
+
+    @Test func pricedTotalOrNilGuardsTheFooterFromZeroDollars() {
+        #expect(lines([nil, nil]).pricedTotalOrNil == nil)
+        #expect(lines([0.10, nil]).pricedTotalOrNil == 0.10)
+    }
 }

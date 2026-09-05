@@ -249,6 +249,12 @@ struct ContentView: View {
     /// the chip can say "unpriced" or "≥ $X" rather than ever reading a miss
     /// as a US$0.00 charge.
     @State var stagedChainCost: StagedChainCost?
+    /// The chain's ACTUAL cost once it has run — one line per step, read from
+    /// each step's recorded run accounting (`RunUsage.costUsd`, the same number
+    /// Activity shows). nil before a run, and cleared the moment the chain's
+    /// structure changes so a re-plan can never wear the last run's actuals.
+    /// Present alongside `stagedChainCost`, the chip shows "est $X → $Y".
+    @State var stagedChainActualCost: StagedChainCost?
     /// AI defaults, cached for the bar's per-step model menu. Nothing holds
     /// these in a shared observable, so the window keeps its own copy and
     /// refreshes it when the bar appears.
