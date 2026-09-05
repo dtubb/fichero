@@ -101,8 +101,117 @@ final class ReaderArtifactDiffTests: XCTestCase {
             .init(title: "Review 2", text: "uno tres")
         ])
         XCTAssertTrue(html.contains("Compared against <strong>Review 1</strong>"))
-        XCTAssertTrue(html.contains("<del>dos</del>"))
+        XCTAssertTrue(html.contains("<th>Review 1</th><th>Review 2</th>"))
         XCTAssertTrue(html.contains("<ins>tres</ins>"))
+    }
+
+    // MARK: - Aligned columns (Daniel, 2026-09-05)
+
+    /// The question three reviews are opened to settle is "which of these
+    /// disagrees HERE", and that is answered by reading ACROSS a row. The old
+    /// rendering — one section per variant — could only answer "how far is
+    /// this one from the baseline".
+    func testEachRowSaysWhatEveryArtifactHasInOnePlace() {
+        let rows = ReaderArtifactDiff.aligned(columns: [
+            .init(title: "Base", text: "uno dos tres"),
+            .init(title: "A", text: "uno dos tres"),
+            .init(title: "B", text: "uno DOS tres")
+        ])
+        let changed = rows.filter(\.isChange)
+        XCTAssertEqual(changed.count, 1, "one disagreement, one band")
+        XCTAssertEqual(changed.first?.baseline, "dos")
+        XCTAssertEqual(
+            changed.first?.cells, ["dos", "DOS"],
+            "A agrees, B does not — visible along ONE row."
+        )
+    }
+
+    /// The band must not grow past the words actually in dispute. A
+    /// replacement is a removal followed by an insertion, and attaching that
+    /// insertion to the NEXT baseline position made the following word look
+    /// changed as well — an accusation against a word nobody touched.
+    func testAReplacementDoesNotAccuseTheWordAfterIt() {
+        let rows = ReaderArtifactDiff.aligned(columns: [
+            .init(title: "Base", text: "uno dos tres"),
+            .init(title: "B", text: "uno DOS tres")
+        ])
+        XCTAssertEqual(rows.map(\.baseline), ["uno", "dos", "tres"])
+        XCTAssertEqual(rows.map(\.isChange), [false, true, false])
+    }
+
+    func testADroppedWordIsAnEmptyCellRatherThanAMissingRow() {
+        let rows = ReaderArtifactDiff.aligned(columns: [
+            .init(title: "Base", text: "uno dos tres"),
+            .init(title: "A", text: "uno tres")
+        ])
+        let dropped = rows.first { $0.baseline == "dos" }
+        XCTAssertEqual(
+            dropped?.cells, [""],
+            "The variant has nothing here, and the row must still exist to say so."
+        )
+        XCTAssertEqual(dropped?.isChange, true)
+    }
+
+    func testTextAppendedPastTheBaselineStillGetsARow() {
+        let rows = ReaderArtifactDiff.aligned(columns: [
+            .init(title: "Base", text: "uno"),
+            .init(title: "A", text: "uno dos")
+        ])
+        XCTAssertEqual(
+            rows.last?.cells, ["dos"],
+            "Text nobody has a baseline place for is still text somebody wrote."
+        )
+        XCTAssertEqual(rows.last?.baseline, "")
+    }
+
+    func testAgreeingBandsCollapseSoAPageIsNotFourHundredRows() {
+        let long = (0..<50).map { "w\($0)" }.joined(separator: " ")
+        let rows = ReaderArtifactDiff.aligned(columns: [
+            .init(title: "Base", text: long),
+            .init(title: "A", text: long)
+        ])
+        XCTAssertEqual(rows.count, 1, "Fifty identical words are one band, not fifty rows.")
+        XCTAssertFalse(rows[0].isChange)
+    }
+
+    func testAgreementIsShownRatherThanElided() {
+        let html = ReaderArtifactDiff.html(columns: [
+            .init(title: "Base", text: "uno dos"),
+            .init(title: "A", text: "uno tres")
+        ])
+        XCTAssertTrue(
+            html.contains("uno"),
+            """
+            A comparison that hides what the artifacts AGREE on cannot be \
+            checked against the page — the reader has no way to see the diff \
+            lined up with the text it is about.
+            """
+        )
+    }
+
+    func testFiveArtifactsGetFiveColumns() {
+        let columns = (0..<5).map {
+            ReaderArtifactDiff.Column(title: "R\($0)", text: "uno w\($0)")
+        }
+        let html = ReaderArtifactDiff.html(columns: columns)
+        for index in 0..<5 {
+            XCTAssertTrue(html.contains("<th>R\(index)</th>"))
+        }
+        let rows = ReaderArtifactDiff.aligned(columns: columns)
+        XCTAssertTrue(
+            rows.allSatisfy { $0.cells.count == 4 },
+            "Every row carries one cell per VARIANT — the baseline is its own column."
+        )
+    }
+
+    func testTheTableIsATableSoItCanBeReadAcross() {
+        let html = ReaderArtifactDiff.html(columns: [
+            .init(title: "A", text: "x"), .init(title: "B", text: "y")
+        ])
+        XCTAssertTrue(
+            html.contains("<table class=\"cols\">") && html.contains("<thead>"),
+            "Table semantics are what a screen reader needs to read across a row."
+        )
     }
 
     func testEveryVariantIsComparedAgainstTheSameBaseline() {
