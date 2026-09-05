@@ -1163,26 +1163,74 @@ def _geocode_rationale(
 
 
 def _record_additional_attribution(
-    claim: KnowledgeClaim, provider: str | None, model: str | None
+    claim: KnowledgeClaim,
+    provider: str | None,
+    model: str | None,
+    *,
+    source_document_id: str | None = None,
+    source_page_label: str | None = None,
+    source_char_start: int | None = None,
+    source_char_end: int | None = None,
 ) -> None:
-    """Name a second extractor that produced the same statement.
+    """Name a second extractor that produced the same statement, AND where.
 
     The claim's own ``provider``/``model`` fields describe ONE run and cannot
     honestly describe two, which is why dedup used to refuse to merge across
     them — at the cost of a duplicate row per model. The list keeps the fact
     that both produced it without lying about which one the row came from.
 
-    Idempotent: re-running the same model adds nothing.
+    IT ALSO KEEPS THE ANCHOR (#4672). The first version recorded only a
+    "provider/model" label, so a corroborating run's page and character span
+    were discarded at the moment of merging: the row could say two models
+    agreed and could not say where the second one read it. A corroboration you
+    cannot follow back to a page is a count, not evidence — and this is the
+    one field of the ontological layer that CANNOT be backfilled, because the
+    anchor is gone the instant the merge drops it. Every run between the merge
+    landing and this fix lost them permanently, which is why it is not waiting
+    for the larger build.
+
+    Idempotent on the label: re-running the same model adds nothing.
     """
     label = "/".join(part for part in ((provider or "").strip(), (model or "").strip()) if part)
-    if not label or (claim.provider, claim.model) == (provider, model):
+    same_attribution = (claim.provider, claim.model) == (provider, model)
+    # A run that agrees with the row in BOTH who and where has nothing to add;
+    # that is the ordinary idempotent re-extraction. But the same model reading
+    # the same statement on ANOTHER page is a second attestation, and the old
+    # early-out discarded it on the strength of the label alone — which is how
+    # a page-scoped miss that falls through to the document-scoped merge lost
+    # its anchor without anyone noticing.
+    same_place = (
+        claim.source_document_id == source_document_id
+        and claim.source_page_label == source_page_label
+    )
+    if same_attribution and same_place:
         return
     metadata = dict(claim.metadata or {})
-    also = list(metadata.get("also_extracted_by") or [])
-    if label in also:
-        return
-    also.append(label)
-    metadata["also_extracted_by"] = sorted(also)
+    if label and not same_attribution:
+        also = list(metadata.get("also_extracted_by") or [])
+        if label not in also:
+            also.append(label)
+            metadata["also_extracted_by"] = sorted(also)
+
+    corroboration = {
+        key: value
+        for key, value in (
+            ("provider", (provider or "").strip() or None),
+            ("model", (model or "").strip() or None),
+            ("document_id", source_document_id),
+            ("page_label", source_page_label),
+            ("char_start", source_char_start),
+            ("char_end", source_char_end),
+        )
+        if value is not None
+    }
+    corroborations = list(metadata.get("corroborations") or [])
+    # Keyed on the whole record, not on the label: the SAME model reading the
+    # same statement on a DIFFERENT page is a second attestation and the row
+    # should say so, which a label-keyed list could never express.
+    if corroboration not in corroborations:
+        corroborations.append(corroboration)
+        metadata["corroborations"] = corroborations
     claim.metadata = metadata
 
 
@@ -2178,7 +2226,15 @@ def save_claim(
                 # label appended — wrote the statement again. Daniel saw the
                 # result as "no duplicates" failing. One row now, with every
                 # model that produced it named on it.
-                _record_additional_attribution(prior, provider, model)
+                _record_additional_attribution(
+                    prior,
+                    provider,
+                    model,
+                    source_document_id=source_document_id,
+                    source_page_label=source_page_label,
+                    source_char_start=source_char_start,
+                    source_char_end=source_char_end,
+                )
                 prior.mention_count += 1
                 db.save(prior)
                 return prior.id
@@ -2375,7 +2431,15 @@ def save_claim(
             # Same document, same subject-verb-object. A second model reading
             # the same page is corroboration to record on the row, not a
             # second row (#4666).
-            _record_additional_attribution(canonical, provider, model)
+            _record_additional_attribution(
+                canonical,
+                provider,
+                model,
+                source_document_id=source_document_id,
+                source_page_label=source_page_label,
+                source_char_start=source_char_start,
+                source_char_end=source_char_end,
+            )
             canonical.mention_count += 1
             _merge_corroborating_claim(db, canonical, claim)
             return canonical.id

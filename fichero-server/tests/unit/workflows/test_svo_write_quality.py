@@ -198,6 +198,68 @@ class TestNoDuplicateStatements:
         assert "apple/qwen3" in (claims[0].metadata.get("also_extracted_by") or [])
         assert claims[0].mention_count >= 2
 
+    def test_the_corroborating_run_keeps_its_anchor(self, db, test_package, page):
+        """A corroboration you cannot follow back to a page is a count (#4672).
+
+        The first version of the merge recorded a "provider/model" label and
+        dropped the second run's page and character span on the floor — so the
+        row could say two models agreed and could not say where the second one
+        read it. This is the one field of the ontological layer that CANNOT be
+        backfilled: the anchor is gone the moment the merge discards it.
+        """
+        self._write(db, page, model="afm")
+        self._write(db, page, model="qwen3")
+        claim = _claims_for(db, page.id)[0]
+
+        corroborations = claim.metadata.get("corroborations") or []
+        assert corroborations, "the corroborating run left no anchor"
+        second = corroborations[0]
+        assert second["model"] == "qwen3"
+        assert second["provider"] == "apple"
+        assert second["document_id"] == page.id
+        assert second["page_label"] == "533r"
+
+    def test_the_same_model_on_another_page_still_leaves_an_anchor(
+        self, db, test_package, page
+    ):
+        """The page-scoped miss that falls through to the document merge.
+
+        Dedup tries the page first and, missing, matches on exact SVO within
+        the document — so a statement repeated on another page of the same
+        document MERGES. The old early-out skipped recording anything when the
+        provider and model were unchanged, so that second page's anchor was
+        discarded on the strength of the label alone. One model reading the
+        same thing twice is two attestations, and the row must be able to say
+        where the second one was.
+        """
+        item = [{"name": "Andres", "verb": "otorgó", "object": "poder al cacique"}]
+        for label in ("533r", "534r"):
+            _write_kg_rows(
+                db,
+                PEOPLE_SECTION,
+                item,
+                page.id,
+                page_label=label,
+                source_excerpt="Andres otorgó poder al cacique",
+                provider="apple",
+                model="afm",
+            )
+        claim = _claims_for(db, page.id)[0]
+        pages = {
+            row.get("page_label")
+            for row in (claim.metadata.get("corroborations") or [])
+        }
+        assert "534r" in pages, claim.metadata
+
+    def test_an_identical_re_run_records_nothing(self, db, test_package, page):
+        # Same model, same page: the ordinary idempotent re-extraction has
+        # nothing to add, and a corroboration list that grows on every re-run
+        # is a log, not evidence.
+        self._write(db, page, model="afm")
+        self._write(db, page, model="afm")
+        claim = _claims_for(db, page.id)[0]
+        assert not claim.metadata.get("corroborations")
+
     def test_a_whole_document_extraction_also_dedupes(self, db, test_package, page):
         # No page label: the non-paginated path, which used to skip the dedup
         # check entirely and re-write its rows on every pass.
