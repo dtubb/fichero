@@ -3,43 +3,24 @@ import SwiftUI
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "NodeProviderModelSelector")
 
-/// Sentinel provider ID for Apple Vision (on-device OCR)
-let appleVisionProviderId = "apple_vision"
-
-/// Capability-tier model aliases (#810/#814). When selected, the node's
-/// providerName is persisted as the literal alias;
-/// the workflow runtime's resolve_model_alias() looks up the concrete
-/// provider+model from the user's AIDefaults at execution time.
-let smallAliasProviderId = "$small"
-let largeAliasProviderId = "$large"
-let visionSmallAliasProviderId = "$vision_small"
-let visionMediumAliasProviderId = "$vision_medium"
-let visionLargeAliasProviderId = "$vision_large"
-
-func isModelAliasProviderId(_ providerId: String) -> Bool {
-    [
-        smallAliasProviderId,
-        largeAliasProviderId,
-        visionSmallAliasProviderId,
-        visionMediumAliasProviderId,
-        visionLargeAliasProviderId
-    ].contains(providerId)
-}
+// The provider-id sentinels (appleVisionProviderId, the $-aliases,
+// isModelAliasProviderId) now live on the shared ModelPicker, since the picker
+// is what renders those entries. This node-specific reader stays here.
 
 func configuredNodeProviderId(_ node: WorkflowNode) -> String? {
     node.providerName ?? node.config?["provider_name"]?.stringValue
 }
 
-/// Provider and model selection component for workflow nodes
+/// Provider and model selection for workflow nodes — a thin WRAPPER around the
+/// shared `ModelPicker` (the one picker used across the node popover, AI Settings
+/// and the workflow bar). The picker is pure UI over the two bindings; this
+/// wrapper owns the NODE side effects — mapping a provider/model selection onto
+/// `WorkflowNode`'s config/providerName/modelName/usesLLM — via `.onChange`.
 struct NodeProviderModelSelector: View {
-    struct ProviderOption: Identifiable, Hashable {
-        let id: String
-        let name: String
-        let providerType: String
-        let available: Bool
-        let supportsVision: Bool
-        let models: [String]
-    }
+    /// Kept as an alias so existing call sites (`NodePopover`) that name
+    /// `NodeProviderModelSelector.ProviderOption` keep compiling; the type now
+    /// lives on the shared `ModelPicker`.
+    typealias ProviderOption = ModelPicker.ProviderOption
 
     @Binding var node: WorkflowNode
     @Binding var selectedProviderId: String
@@ -52,188 +33,70 @@ struct NodeProviderModelSelector: View {
     let toolSupportsAppleVision: Bool
     let onLoadProviders: () async -> Void
 
-    /// Whether Apple Vision is currently selected
-    private var isAppleVisionSelected: Bool {
-        selectedProviderId == appleVisionProviderId
-    }
-
-    /// Whether a model alias is currently selected — model
-    /// picker hides when so, the runtime resolver fills both fields.
-    private var isAliasSelected: Bool {
-        isModelAliasProviderId(selectedProviderId)
-    }
-
-    /// Whether no explicit provider is set — node uses the workflow/system default.
-    private var isDefaultSelected: Bool {
-        selectedProviderId.isEmpty
-    }
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Provider picker
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Provider")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-
-                if isLoadingProviders {
-                    ProgressView()
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                } else if providers.isEmpty && !toolSupportsAppleVision {
-                    Text("No providers configured")
-                        .font(.caption)
-                        .foregroundColor(.orange)
-                } else {
-                    providerPicker
-                }
-            }
-
-            // Model picker hidden when Default / Apple Vision / tier alias —
-            // runtime fills both fields in all three cases.
-            if !isDefaultSelected && !isAppleVisionSelected && !isAliasSelected {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Model")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-
-                    modelPicker
-                }
-            }
+        ModelPicker(
+            providers: providers,
+            selectedProviderId: $selectedProviderId,
+            selectedModelId: $selectedModelId,
+            isLoading: isLoadingProviders,
+            showDefault: true,
+            showAliases: true,
+            showAppleVision: toolSupportsAppleVision,
+            requiresVision: toolRequiresVision
+        )
+        // Side effects live here, at the call site — the picker only moves the
+        // bindings. This is the exact provider→node mapping that used to sit
+        // inside the picker's onChange; behavior is unchanged.
+        .onChange(of: selectedProviderId) { _, newValue in
+            applyProviderSelection(newValue)
+        }
+        .onChange(of: selectedModelId) { _, newValue in
+            guard !newValue.isEmpty else { return }
+            node.modelName = newValue
+            logger.info("Model selected: \(newValue)")
         }
     }
 
-    private var providerPicker: some View {
-        let availableProviders = providers.filter { provider in
-            guard provider.available else { return false }
-            // Hide the catalog Apple Intelligence row when the tool offers
-            // explicit Apple Vision, to avoid duplicate Apple choices. Uses
-            // typed providerType instead of brittle name matching (#768).
-            if toolSupportsAppleVision {
-                if provider.providerType == "apple" {
-                    return false
-                }
-            }
-            if toolRequiresVision {
-                return provider.supportsVision
-            }
-            return true
+    private func applyProviderSelection(_ newValue: String) {
+        node.config?.removeValue(forKey: "provider_name")
+        if newValue.isEmpty {
+            // Default selected — clear explicit provider/model so the runtime uses its default
+            node.config?.removeValue(forKey: "vision_mode")
+            node.providerName = nil
+            node.modelName = nil
+            node.usesLLM = false
+            selectedModelId = ""
+            return
         }
 
-        return Group {
-            if availableProviders.isEmpty && !toolSupportsAppleVision {
-                if toolRequiresVision {
-                    Text("No vision-capable providers available")
-                        .font(.caption)
-                        .foregroundColor(.orange)
-                } else {
-                    Text("No providers available")
-                        .font(.caption)
-                        .foregroundColor(.orange)
-                }
-            } else {
-                Picker("Provider", selection: $selectedProviderId) {
-                    Text("Default").tag("")
-
-                    // Apple Vision as first option for tools that support it
-                    if toolSupportsAppleVision {
-                        Label("Apple Vision (On-Device)", systemImage: "apple.logo")
-                            .tag(appleVisionProviderId)
-                    }
-
-                    // Model aliases (#810/#814). Selecting an alias persists
-                    // it as the provider and the
-                    // workflow runtime resolves to the user's configured
-                    // Default Small / Default Large model from Settings.
-                    Label("$small (default small model)", systemImage: "leaf")
-                        .tag(smallAliasProviderId)
-                    Label("$large (default large model)", systemImage: "sparkles")
-                        .tag(largeAliasProviderId)
-                    if toolRequiresVision {
-                        Label("$vision_small (default small vision model)", systemImage: "eye")
-                            .tag(visionSmallAliasProviderId)
-                        Label("$vision_medium (default vision model)", systemImage: "eye.circle")
-                            .tag(visionMediumAliasProviderId)
-                        Label("$vision_large (default large vision model)", systemImage: "eye.fill")
-                            .tag(visionLargeAliasProviderId)
-                    }
-
-                    ForEach(availableProviders) { provider in
-                        Text(provider.name).tag(provider.id)
-                    }
-                }
-                .pickerStyle(.menu)
-                .onChange(of: selectedProviderId) { _, newValue in
-                    node.config?.removeValue(forKey: "provider_name")
-                    if newValue.isEmpty {
-                        // Default selected — clear explicit provider/model so the runtime uses its default
-                        node.config?.removeValue(forKey: "vision_mode")
-                        node.providerName = nil
-                        node.modelName = nil
-                        node.usesLLM = false
-                        selectedModelId = ""
-                        return
-                    }
-
-                    if newValue == appleVisionProviderId {
-                        // Apple Vision selected — set vision_mode, clear LLM provider/model
-                        if node.config == nil { node.config = [:] }
-                        node.config?["vision_mode"] = .string("apple")
-                        node.providerName = nil
-                        node.modelName = nil
-                        node.usesLLM = false
-                        selectedModelId = ""
-                        logger.info("Apple Vision selected for node \(node.id)")
-                    } else if isModelAliasProviderId(newValue) {
-                        // Tier alias — runtime fills provider+model. Model
-                        // picker is hidden via isAliasSelected.
-                        node.config?.removeValue(forKey: "vision_mode")
-                        node.providerName = newValue
-                        node.modelName = nil
-                        node.usesLLM = true
-                        selectedModelId = ""
-                        logger.info(
-                            "Alias \(newValue) selected for node \(node.id)"
-                        )
-                    } else {
-                        // LLM provider selected
-                        if node.config == nil { node.config = [:] }
-                        node.config?["vision_mode"] = .string("llm")
-                        node.providerName = newValue
-                        node.usesLLM = true
-                        logger.info("Provider selected: id=\(newValue)")
-                        if let provider = providers.first(where: { $0.id == newValue }),
-                           let firstModel = provider.models.first {
-                            selectedModelId = firstModel
-                            node.modelName = firstModel
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private var modelPicker: some View {
-        let selectedProvider = providers.first { $0.id == selectedProviderId }
-        let models = selectedProvider?.models ?? []
-
-        return Group {
-            if models.isEmpty {
-                Text("Select a provider first")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            } else {
-                Picker("Model", selection: $selectedModelId) {
-                    Text("Select model...").tag("")
-                    ForEach(models, id: \.self) { model in
-                        Text(model).tag(model)
-                    }
-                }
-                .pickerStyle(.menu)
-                .onChange(of: selectedModelId) { _, newValue in
-                    guard !newValue.isEmpty else { return }
-                    node.modelName = newValue
-                    logger.info("Model selected: \(newValue)")
-                }
+        if newValue == appleVisionProviderId {
+            // Apple Vision selected — set vision_mode, clear LLM provider/model
+            if node.config == nil { node.config = [:] }
+            node.config?["vision_mode"] = .string("apple")
+            node.providerName = nil
+            node.modelName = nil
+            node.usesLLM = false
+            selectedModelId = ""
+            logger.info("Apple Vision selected for node \(node.id)")
+        } else if isModelAliasProviderId(newValue) {
+            // Tier alias — runtime fills provider+model. Model picker hides.
+            node.config?.removeValue(forKey: "vision_mode")
+            node.providerName = newValue
+            node.modelName = nil
+            node.usesLLM = true
+            selectedModelId = ""
+            logger.info("Alias \(newValue) selected for node \(node.id)")
+        } else {
+            // LLM provider selected
+            if node.config == nil { node.config = [:] }
+            node.config?["vision_mode"] = .string("llm")
+            node.providerName = newValue
+            node.usesLLM = true
+            logger.info("Provider selected: id=\(newValue)")
+            if let provider = providers.first(where: { $0.id == newValue }),
+               let firstModel = provider.models.first {
+                selectedModelId = firstModel
+                node.modelName = firstModel
             }
         }
     }
