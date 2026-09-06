@@ -552,11 +552,21 @@ def _build_knowledge_graph(
     doc_claims: list[KnowledgeClaim],
     include_children: bool,
     catalogue: list[Artifact],
+    linked_entities: list[KnowledgeEntity] | None = None,
+    scope_doc_ids: set[str] | None = None,
 ) -> DocumentKnowledgeGraphResponse:
     """Group/dedup/merge-resolve a claim set into kind buckets.
 
     Shared by the leaf-document path and the include_children
     parent-PDF aggregation path.
+
+    ``linked_entities`` are entities that reference a scoped document through
+    ``source_document_ids`` WITHOUT (yet) a page-anchored claim — Extract
+    Entities creates the entity/page link before the SVO workflow creates
+    claims. Without folding these in, ``document_kg(page)`` reads 0 right after
+    Extract Entities even though the entity lists the page (Daniel's page-level
+    concern). They are surfaced as claim-less rows, deduped against entities
+    already reached via a claim.
     """
     # entity-id -> resolved canonical entity (cache: merge chains repeat).
     canonical_cache: dict[str, KnowledgeEntity | None] = {}
@@ -610,6 +620,40 @@ def _build_knowledge_graph(
             source_document_id=claim.source_document_id,
             source_page_label=claim.source_page_label,
             source_excerpt=(claim.source_excerpt or "").strip() or None,
+        )
+
+    # Fold in entities linked to a scoped document via source_document_ids that
+    # NO claim reached (Extract Entities before SVO). Resolved to canonical and
+    # deduped against the claim-surfaced rows so an entity never appears twice.
+    scope = scope_doc_ids or {document_id}
+    for linked in linked_entities or []:
+        canonical = _resolve_canonical(db, linked.id) or linked
+        kind = (
+            canonical.entity_type.value
+            if isinstance(canonical.entity_type, EntityType)
+            else str(canonical.entity_type)
+        )
+        if kind not in _KIND_LABELS:
+            kind = "other"
+        kind_bucket = buckets.setdefault(kind, {})
+        if canonical.canonical_name in kind_bucket:
+            continue  # already surfaced via a claim
+        # The representative page for click-to-page: a scoped page this entity
+        # references (the requested page when scope is a single page).
+        page_id = next(
+            (d for d in (canonical.source_document_ids or []) if d in scope),
+            next((d for d in (linked.source_document_ids or []) if d in scope), None),
+        )
+        kind_bucket[canonical.canonical_name] = KGEntityItem(
+            entity_id=canonical.id,
+            canonical_name=canonical.canonical_name,
+            entity_type=kind,
+            description=(canonical.description or "").strip() or None,
+            aliases=canonical.aliases or [],
+            claim_ids=[],
+            source_document_id=page_id,
+            source_page_label=None,
+            source_excerpt=None,
         )
 
     groups: list[KGEntityGroup] = []
@@ -678,10 +722,18 @@ async def knowledge_graph(
         c for c in db.query(KnowledgeClaim)
         if c.source_document_id in doc_ids
     ]
+    # Entities linked to a scoped document via source_document_ids — surfaced
+    # even without a claim, so a page shows its entities right after Extract
+    # Entities (before the SVO workflow writes claims). #page-level-entities.
+    linked_entities = [
+        e for e in db.query(KnowledgeEntity)
+        if doc_ids & set(e.source_document_ids or [])
+    ]
     # Catalogue artifacts live on the inspected document itself (the
     # container), never its page children — so this is queried on
     # document_id directly, independent of include_children.
     catalogue = _catalogue_artifacts(db, document_id)
     return _build_knowledge_graph(
-        db, document_id, doc_claims, should_include_children, catalogue
+        db, document_id, doc_claims, should_include_children, catalogue,
+        linked_entities=linked_entities, scope_doc_ids=doc_ids,
     )
