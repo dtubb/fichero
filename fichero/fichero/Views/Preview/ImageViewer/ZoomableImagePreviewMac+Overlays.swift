@@ -288,11 +288,18 @@ extension ZoomableImagePreview {
 
             // The magnification family, TOP-right (Daniel, 2026-08-30 —
             // moved up from the bottom corner): mini-map on top, zoom pill
-            // under it, loupe + magnifier-bar toggles below. The map keeps
-            // its #771 guard — it appears only when zoomed in (or the loupe
-            // is up); without it the cluster collapses to the pill + toggles.
-            let isActuallyZoomed = geometry.isMeasured
-                && (geometry.visible.width < 0.99 || geometry.visible.height < 0.99)
+            // under it, loupe + magnifier-bar toggles below.
+            //
+            // The map follows the user's EXPLICIT open/close — the cluster's
+            // chevron (`miniMapVisible`) — not the zoom level (Daniel,
+            // 2026-09-06: "if the map is open keep it open as we swipe left
+            // and right or up and down"). The old `isActuallyZoomed ||
+            // loupeIsOn` content gate hid the map on every swipe, because a
+            // sibling step re-fits the image to whole-window (`pendingFitOn-
+            // NextImage`) so `visible` widens back to ~1 and the page no
+            // longer reads as "actually zoomed". #771's auto-hide yields to
+            // the explicit user-open; the chevron (persisted) is how the map
+            // is dismissed.
             PreviewZoomMapCluster(
                 scalePercent: Int(scale * 100),
                 zoomIn: zoomIn,
@@ -302,7 +309,7 @@ extension ZoomableImagePreview {
                 loupeEnabled: $loupeEnabled,
                 magnifierEnabled: $magnifierEnabled,
                 map: {
-                if let img = image, isActuallyZoomed || loupeIsOn {
+                if let img = image {
                     NavigatorMiniMap(
                         image: img,
                         visibleRect: geometry.visible,
