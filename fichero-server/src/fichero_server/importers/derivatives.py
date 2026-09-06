@@ -118,7 +118,9 @@ def queue_derivatives(
 
     def submit() -> None:
         executor = _get_executor()
-        _progress_add(library, len(queued))
+        _progress_add(
+            library, len(queued), db_path=str(db.path) if db is not None else None
+        )
         # Thumbnails FIRST, embeds after (user, live 2026-08-19): on one shared
         # FIFO pool, interleaving them made every later page's thumbnail wait
         # behind ~1.3s embeds of earlier pages. Submitting the whole thumbnail
@@ -144,6 +146,42 @@ def queue_derivatives(
 # ---------------------------------------------------------------------------
 _progress_lock = threading.Lock()
 _progress: dict[str, dict[str, int]] = {}
+#: library -> the library DB path, so the queue's COALESCED tracker activities
+#: (started / completed / stalled) reach that library's ActivityTracker. Kept
+#: beside _progress rather than inside it so the int-valued progress map stays
+#: the shape background_jobs_snapshot reads.
+_queue_db_paths: dict[str, str] = {}
+
+
+def _emit_queue_activity(
+    db_path: str | None, *, warning: bool, message: str, done: int, total: int
+) -> None:
+    """Emit ONE coalesced Activity for the derivative/embed queue to the full
+    Activity viewer (which reads the tracker, not the live change-stream).
+
+    Called at queue START, COMPLETE, and STALL only — never per doc. Per-doc
+    tracker writes would be the same flood the per-doc document.updated was
+    (34s folder clicks). Best-effort: a status write must never fail the queue.
+    """
+    if not db_path:
+        return
+    try:
+        from fichero_server.workflows.activity import get_activity_tracker
+        from fichero_server.workflows.activity_types import ActivityLevel, ActivityType
+
+        get_activity_tracker(db_path).log(
+            type=ActivityType.SYSTEM_WARNING if warning else ActivityType.SYSTEM_INFO,
+            level=ActivityLevel.WARNING if warning else ActivityLevel.INFO,
+            message=message,
+            metadata={
+                "task_type": "derivatives",
+                "task_name": "Processing imported pages",
+                "current": str(done),
+                "total": str(total),
+            },
+        )
+    except Exception:  # never fail a stage over a status frame
+        logger.debug("derivatives: queue activity emit failed", exc_info=True)
 
 #: How long the queue may go without completing anything before the status
 #: island is told it has STALLED. A page takes ~1.3s to embed, so a minute of
@@ -246,11 +284,19 @@ def _arm_stall_watchdog(library: str) -> None:
             if state is None:
                 return
             done, total = state["done"], state["total"]
+            tracker_path = _queue_db_paths.get(library)
         logger.error(
             "derivatives: queue stalled for %s at %d of %d — no completion in %.0fs",
             library, done, total, STALL_SECONDS,
         )
         _emit_queue_progress(library, done, total, stalled=True)
+        _emit_queue_activity(
+            tracker_path,
+            warning=True,
+            message=f"Processing imported pages stalled at {done} of {total}",
+            done=done,
+            total=total,
+        )
 
     _stall_timer = threading.Timer(STALL_SECONDS, report)
     _stall_timer.daemon = True
@@ -264,13 +310,25 @@ def _disarm_stall_watchdog() -> None:
         _stall_timer = None
 
 
-def _progress_add(library: str, count: int) -> None:
+def _progress_add(library: str, count: int, db_path: str | None = None) -> None:
     with _progress_lock:
+        newly_created = library not in _progress
         state = _progress.setdefault(library, {"done": 0, "total": 0})
         state["total"] += count
         done, total = state["done"], state["total"]
+        if db_path and library not in _queue_db_paths:
+            _queue_db_paths[library] = db_path
+        tracker_path = _queue_db_paths.get(library)
     _emit_queue_progress(library, done, total)
     _arm_stall_watchdog(library)
+    if newly_created:
+        _emit_queue_activity(
+            tracker_path,
+            warning=False,
+            message="Processing imported pages started",
+            done=done,
+            total=total,
+        )
 
 
 def _progress_expand(library: str, extra: int) -> None:
@@ -306,8 +364,10 @@ def _progress_tick(library: str) -> None:
         state["done"] += 1
         done, total = state["done"], state["total"]
         finished = done >= total
+        tracker_path = _queue_db_paths.get(library)
         if finished:
             del _progress[library]
+            _queue_db_paths.pop(library, None)
     # Something moved, so the queue is not stalled: push the deadline out, or
     # stand the watchdog down when there is nothing left to watch.
     if finished:
@@ -318,6 +378,15 @@ def _progress_tick(library: str) -> None:
     # without an event per page on top of each page's document.updated.
     if finished or done % 5 == 0:
         _emit_queue_progress(library, done, total)
+    if finished:
+        # ONE coalesced completion Activity for the full viewer (not per doc).
+        _emit_queue_activity(
+            tracker_path,
+            warning=False,
+            message=f"Processing imported pages completed ({total} pages)",
+            done=total,
+            total=total,
+        )
 
 
 def _embed_document_tree(

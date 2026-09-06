@@ -456,3 +456,60 @@ class TestEmbedResumeSkipsAlreadyEmbedded:
         derivatives._embed_stage(note.id, str(test_package))
 
         assert note.id in embed_calls, "a page with no vector must be embedded"
+
+
+class TestQueueEmitsCoalescedTrackerActivity:
+    """Embedding/importing must appear in the FULL Activity viewer (which reads
+    the tracker), but as a COALESCED summary — one 'started' + one 'completed'
+    per queue, NEVER per doc. Per-doc tracker writes would be the flood the
+    per-doc document.updated was ([[user-machine-always-useful]] FIX 3(a))."""
+
+    def test_started_and_completed_only_not_per_doc(self, monkeypatch):
+        from fichero_server.importers import derivatives
+
+        logged: list[dict] = []
+
+        class _FakeTracker:
+            def log(self, **kwargs):
+                logged.append(kwargs)
+
+        monkeypatch.setattr(
+            "fichero_server.workflows.activity.get_activity_tracker",
+            lambda db_path: _FakeTracker(),
+        )
+        monkeypatch.setattr(derivatives, "_progress", {})
+        monkeypatch.setattr(derivatives, "_queue_db_paths", {})
+        monkeypatch.setattr(
+            "fichero_server.api.change_stream.emit_change", lambda *a, **k: None
+        )
+
+        library = "/lib/A.fichero"
+        derivatives._progress_add(library, 3, db_path=f"{library}/fichero.duckdb")
+        for _ in range(3):  # three docs drain the queue
+            derivatives._progress_tick(library)
+
+        messages = [entry["message"] for entry in logged]
+        assert sum("started" in m for m in messages) == 1
+        assert sum("completed" in m for m in messages) == 1
+        # Exactly two — the queue lifecycle, not one-per-doc.
+        assert len(logged) == 2, f"expected coalesced start+complete, got {messages}"
+
+    def test_no_activity_without_a_db_path(self, monkeypatch):
+        # The direct (non-DB) submit path has no library DB — emit nothing rather
+        # than guess a tracker.
+        from fichero_server.importers import derivatives
+
+        logged: list[dict] = []
+        monkeypatch.setattr(
+            "fichero_server.workflows.activity.get_activity_tracker",
+            lambda db_path: (_ for _ in ()).throw(AssertionError("should not be called")),
+        )
+        monkeypatch.setattr(derivatives, "_progress", {})
+        monkeypatch.setattr(derivatives, "_queue_db_paths", {})
+        monkeypatch.setattr(
+            "fichero_server.api.change_stream.emit_change", lambda *a, **k: None
+        )
+
+        derivatives._progress_add("/lib/B.fichero", 1, db_path=None)
+        derivatives._progress_tick("/lib/B.fichero")
+        assert logged == []
