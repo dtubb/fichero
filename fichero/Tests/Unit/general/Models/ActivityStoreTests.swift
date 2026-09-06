@@ -181,6 +181,32 @@ struct ActivityStoreTests {
         #expect(store.refreshToken == before)  // neither routed nor a run reload
     }
 
+    /// PERF (2026-09-06): bulk embedding folds a `document.updated` onto the
+    /// activity stream PER DOC — 30+ back-to-back frames hit the folded-change
+    /// branch on the main actor during an image-folder expand. On a LOCAL host
+    /// (changeRouter == nil) each one used to reconstruct a full `ChangeEvent`
+    /// (its init JSON-decodes up to five id lists) and log, only to discard it.
+    /// The branch must now detect the frame by its cheap `change_type` key and
+    /// build the ChangeEvent ONLY when a router exists. Structural, matching the
+    /// house pattern (`activityEventsRouteThroughTheDebouncer`): a live
+    /// per-event cost is what regressed, and a behavioral test cannot see an
+    /// object that is no longer built.
+    @Test("local folded change is detected cheaply; ChangeEvent built only with a router")
+    func foldedChangeIsCheapDroppedOnLocal() throws {
+        let url = try AppSource.root().appendingPathComponent("Models/ActivityStore.swift")
+        let source = try String(contentsOf: url, encoding: .utf8)
+        let body = source
+            .components(separatedBy: "func applyActivityEvent(")[1]
+            .components(separatedBy: "\n    private func")[0]
+        // The discriminator is the cheap dict lookup, not a full reconstruction.
+        let guardAt = try #require(body.range(of: #"metadata["change_type"]"#))
+        let buildAt = try #require(body.range(of: "ChangeEvent(activityMetadata:"))
+        #expect(guardAt.lowerBound < buildAt.lowerBound)
+        // And the reconstruction is gated on the router being present.
+        let routerGateAt = try #require(body.range(of: "if let route = changeRouter"))
+        #expect(routerGateAt.lowerBound < buildAt.lowerBound)
+    }
+
     // MARK: resync()
 
     @Test("resync increments refreshToken")

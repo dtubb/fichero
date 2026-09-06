@@ -212,13 +212,26 @@ final class ActivityStore: ChangeEventConsumer {
         // reconstruct the ChangeEvent and fan it to the domain stores instead of
         // treating it as a run update. It must NOT bump `refreshToken` — that
         // would reload the whole run list on every mutation (no-wholesale
-        // re-render). `changeRouter` is nil on local hosts (those changes arrive
-        // on the dedicated stream), so a folded frame is simply dropped there.
+        // re-render).
+        //
+        // CHEAP-DROP ON LOCAL (2026-09-06): `changeRouter` is nil on local hosts
+        // — the same mutations already arrive on the dedicated /changes/stream,
+        // so the folded copy is pure waste there. Detect the folded frame by its
+        // `change_type` key (one dict lookup, the same guard ChangeEvent's init
+        // uses) and, when there is no router, drop it WITHOUT reconstructing the
+        // ChangeEvent — whose init JSON-decodes up to five id lists per frame —
+        // and WITHOUT the per-frame log. Bulk embedding fires a `document.updated`
+        // per doc; that flooded this branch 30+ times back-to-back on the main
+        // actor (Daniel's Xcode console during an image-folder expand), each time
+        // building an event nothing consumed. Still `return` in both cases: a
+        // folded change must never fall through to the refresh burst below and
+        // reload the run list.
         if let metadata = activity.metadataStrings,
-           let change = ChangeEvent(activityMetadata: metadata) {
-            changeRouter?(change)
-            let routed = self.changeRouter != nil
-            log.debug("ActivityStore: folded change \(change.type, privacy: .public) routed=\(routed, privacy: .public)")
+           let changeType = metadata["change_type"], !changeType.isEmpty {
+            if let route = changeRouter, let change = ChangeEvent(activityMetadata: metadata) {
+                route(change)
+                log.debug("ActivityStore: folded change \(change.type, privacy: .public) routed")
+            }
             return
         }
         // Debounced (perf audit 2026-08-19): a running workflow emits several
