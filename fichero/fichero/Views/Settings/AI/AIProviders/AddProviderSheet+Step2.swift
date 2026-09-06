@@ -32,7 +32,12 @@ extension AddProviderSheet {
             // Configuration form
             VStack(alignment: .leading, spacing: 16) {
                 if let entry = selectedEntry {
-                    if entry.isLocal && !entry.isBuiltin {
+                    // External local servers the USER hosts (ollama, lmstudio):
+                    // a real, required Server URL. Managed-local runtimes
+                    // (MLX/spaCy/Kraken/Whisper) are excluded — they add
+                    // directly in step 1 and never reach here; this guard keeps
+                    // the URL/key dialog off them even if one ever did.
+                    if entry.isLocal && !entry.isBuiltin && !ManagedLocalRuntime.contains(entry.providerType) {
                         // Local servers (not built-in): optional server URL
                         VStack(alignment: .leading, spacing: 6) {
                             Text("Server URL (optional)")
@@ -45,21 +50,6 @@ extension AddProviderSheet {
                             Text("Leave empty to use default: \(defaultServerUrl(for: entry.providerType))")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
-                        }
-
-                        if entry.providerType == "omlx" {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("API Key (optional)")
-                                    .font(.subheadline)
-                                    .fontWeight(.medium)
-
-                                SecureField("Any local key", text: $apiKey)
-                                    .textFieldStyle(.roundedBorder)
-
-                                Text("oMLX accepts an arbitrary local key; it does not need an OpenAI sk- key.")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
                         }
                     } else if !entry.isLocal {
                         // Cloud providers: API key optional (can add later)

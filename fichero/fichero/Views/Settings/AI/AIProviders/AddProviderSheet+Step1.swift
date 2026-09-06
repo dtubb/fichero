@@ -65,16 +65,18 @@ extension AddProviderSheet {
                 .keyboardShortcut(.cancelAction)
                 .disabled(isFirstLaunch && catalog.isEmpty)
 
-                Button(selectedEntry?.isBuiltin == true ? "Add" : "Continue") {
+                Button(addsDirectly(selectedEntry) ? "Add" : "Continue") {
                     let providerType = selectedEntry?.providerType ?? "nil"
-                    let isBuiltin = selectedEntry?.isBuiltin ?? false
-                    addProviderLogger.info("Button tapped, selectedEntry=\(providerType), isBuiltin=\(isBuiltin)")
-                    // For built-in providers, add directly without config step
-                    if let entry = selectedEntry, entry.isBuiltin {
-                        addProviderLogger.info("isBuiltin=true, calling addProvider()")
+                    addProviderLogger.info("Button tapped, selectedEntry=\(providerType)")
+                    // Built-in AND managed-local runtimes (MLX/spaCy/Kraken/
+                    // Whisper) add directly — they need no Server URL or API key;
+                    // their setup lives in the provider row. Only genuinely
+                    // external providers go to the configure step.
+                    if let entry = selectedEntry, addsDirectly(entry) {
+                        addProviderLogger.info("adds directly, calling addProvider()")
                         addProvider()
                     } else {
-                        addProviderLogger.info("isBuiltin=false, going to step 2")
+                        addProviderLogger.info("needs config, going to step 2")
                         step = 2
                     }
                 }

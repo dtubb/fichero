@@ -4,6 +4,16 @@ import SwiftUI
 // MARK: - Helpers
 
 extension AddProviderSheet {
+    /// Whether this provider is added straight from the picker with no configure
+    /// step. True for built-in providers AND the app's managed-local runtimes
+    /// (MLX/spaCy/Kraken/Whisper), which need no Server URL or API key — their
+    /// setup happens inside the provider row. External providers return false and
+    /// go to step 2.
+    func addsDirectly(_ entry: Components.Schemas.ProviderCatalogResponse?) -> Bool {
+        guard let entry else { return false }
+        return entry.isBuiltin || ManagedLocalRuntime.contains(entry.providerType)
+    }
+
     func defaultServerUrl(for type: String) -> String {
         switch type {
         case "ollama": return "http://localhost:11434"
@@ -61,9 +71,16 @@ extension AddProviderSheet {
                 await onAdd()
                 isAdding = false
 
-                // Store the added provider and go to model browser
-                addedProvider = result
-                step = 3
+                // Managed-local runtimes have no reference-model browser (their
+                // installable models live in the provider row's On-Device
+                // section) — dismiss instead of landing on an empty step-3.
+                // External providers go to the model browser as before.
+                if ManagedLocalRuntime.contains(type) {
+                    dismiss()
+                } else {
+                    addedProvider = result
+                    step = 3
+                }
             } catch {
                 addProviderLogger.error("Add failed: \(String(describing: error))")
                 isAdding = false

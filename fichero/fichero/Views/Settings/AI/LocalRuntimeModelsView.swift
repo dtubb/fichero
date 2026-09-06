@@ -1,6 +1,28 @@
 import FicheroAPIClient
 import SwiftUI
 
+// MARK: - Managed-local runtimes
+
+/// The app's OWN bundled/managed local runtimes — installed and run in-process
+/// or via the app-provisioned MLX sidecar, NOT external servers the user hosts.
+/// They need no Server URL and no API key (the app owns the connection), so the
+/// add/config flow skips that dialog for them and adds them directly; their
+/// setup — provision / download — happens inside the provider row instead
+/// (Daniel, 2026-09-05: "our MLX … should be the one inside the app").
+///
+/// External local servers (ollama, lmstudio) are deliberately NOT here: the user
+/// runs those, so their Server URL is a real, required input.
+///
+/// ponytail: an explicit set — add the next bundled runtime here. A backend
+/// catalog flag would remove the list, but four names beat a schema round-trip.
+enum ManagedLocalRuntime {
+    static let providerTypes: Set<String> = ["omlx", "spacy", "kraken", "whisper"]
+
+    static func contains(_ providerType: String) -> Bool {
+        providerTypes.contains(providerType)
+    }
+}
+
 // MARK: - Local Runtime Models (shared)
 
 /// The installable-model catalog for an on-device runtime, plus (for MLX) the
