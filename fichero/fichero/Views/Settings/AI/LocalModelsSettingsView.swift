@@ -6,12 +6,14 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Setting
 
 // MARK: - Local Models Settings
 
-/// Local model management (Whisper, Embeddings)
+/// Embeddings (search) model management. Whisper/spaCy/Kraken downloads moved
+/// INTO their provider rows on Models & Providers (Daniel, 2026-09-05: downloads
+/// live in the row); this tab is the slim home for embeddings, which are a
+/// search concept with no provider row of their own (yet).
 struct LocalModelsSettingsView: View {
     @Environment(AppState.self) var appState
     @Environment(LibraryManager.self) var libraryManager
 
-    @State private var whisperModels: [LocalModelStatus] = []
     @State private var embeddingsModels: [LocalModelStatus] = []
     @State private var diskUsage: DiskUsageInfo?
     @State private var isLoading = true
@@ -29,21 +31,6 @@ struct LocalModelsSettingsView: View {
                     ProgressView("Loading models...")
                 }
             } else {
-                Section("Whisper (Audio Transcription)") {
-                    // One header line for a whole-section fact: with no
-                    // transcriber in the MLX runtime, every Download below is
-                    // inert. It used to look identical to a working button and
-                    // failed invisibly in a background task.
-                    if let reason = whisperModels.compactMap(\.unavailableReason).first {
-                        Label(reason, systemImage: "exclamationmark.triangle")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    ForEach(whisperModels) { model in
-                        localModelRow(model: model, type: "whisper")
-                    }
-                }
-
                 Section("Embeddings (Search)") {
                     ForEach(embeddingsModels) { model in
                         localModelRow(model: model, type: "embeddings")
@@ -52,15 +39,8 @@ struct LocalModelsSettingsView: View {
 
                 if let usage = diskUsage {
                     Section("Disk Usage") {
-                        LabeledContent("Whisper") {
-                            Text(formatBytes(usage.whisper))
-                        }
                         LabeledContent("Embeddings") {
                             Text(formatBytes(usage.embeddings))
-                        }
-                        LabeledContent("Total") {
-                            Text(formatBytes(usage.total))
-                                .bold()
                         }
                     }
                 }
@@ -138,7 +118,6 @@ struct LocalModelsSettingsView: View {
 
         do {
             let modelsData = try await fetchLocalModels()
-            whisperModels = modelsData.filter { $0.modelType == "whisper" }
             embeddingsModels = modelsData.filter { $0.modelType == "embeddings" }
             diskUsage = try await fetchDiskUsage()
         } catch {
@@ -163,29 +142,11 @@ struct LocalModelsSettingsView: View {
             switch response {
             case .ok:
                 await loadModels()
-                await followDownload(type: type, modelId: modelId)
             case .unprocessableContent, .undocumented:
                 errorMessage = "Download failed"
             }
         } catch {
             errorMessage = "Download failed: \(error.localizedDescription)"
-        }
-    }
-
-    /// The download endpoint returns the moment the work is QUEUED — the model
-    /// arrives (or fails) minutes later in a background task. Without this the
-    /// row sat at "Download" until the user navigated away and back, which is
-    /// exactly how the old broken Whisper downloads stayed invisible.
-    private func followDownload(type: String, modelId: String) async {
-        // Only Whisper rows report a download state today; polling a row that
-        // can never change it would be a silent 30-minute spin.
-        guard type == "whisper" else { return }
-        for _ in 0..<900 {
-            guard !Task.isCancelled else { return }
-            let state = whisperModels.first { $0.modelId == modelId }?.downloadState
-            guard state == "downloading" || state == "idle" else { return }
-            try? await Task.sleep(for: .seconds(2))
-            await loadModels()
         }
     }
 
