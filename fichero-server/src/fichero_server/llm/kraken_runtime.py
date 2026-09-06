@@ -62,6 +62,10 @@ KRAKEN_SCIPY_OVERRIDE = "scipy>=1.16"
 
 _RUNTIME_DIRNAME = "kraken-runtime"
 _METADATA_FILENAME = "runtime.json"
+#: The import that must succeed for the runtime to count as installed. Both
+#: modules dlopen scipy transitively, so this is what actually proves the scipy
+#: override took and the PROPACK dlopen failure is gone (not just that pip ran).
+_RUNTIME_VERIFY_SCRIPT = "import scipy; from kraken import blla, vgsl"
 _PROVIDER = "kraken"
 _MODEL = "blla"
 
@@ -238,14 +242,27 @@ def download_recognition_model(
     # the environment routes the download into our tree.
     prior = os.environ.get("XDG_DATA_HOME")
     os.environ["XDG_DATA_HOME"] = str(data_home)
+    # TOLERATE a non-zero exit from `kraken get` (same failure mode as install):
+    # the fetch can land the .mlmodel and then trip kraken's scipy dlopen on a
+    # post-fetch import, exiting non-zero after the model is already on disk. The
+    # material result is the file; record the marker when it landed, and fail
+    # loud only when it truly did not (never write a marker for a missing model).
+    get_error: Exception | None = None
     try:
         runner([str(interpreter), "get", str(spec["doi"])])
+    except Exception as exc:  # noqa: BLE001 — presence of the .mlmodel is the gate
+        get_error = exc
     finally:
         if prior is None:
             os.environ.pop("XDG_DATA_HOME", None)
         else:
             os.environ["XDG_DATA_HOME"] = prior
     model_path = _locate_downloaded_mlmodel(data_home)
+    if not model_path:
+        raise RuntimeError(
+            f"kraken get produced no .mlmodel for {model_id} (DOI {spec['doi']})"
+            + (f": {get_error}" if get_error else "")
+        )
     marker_dir = recognition_model_dir(home)
     marker_dir.mkdir(parents=True, exist_ok=True)
     _marker_path(model_id, home).write_text(
@@ -344,10 +361,38 @@ def install(home: Path | None = None, run_command=None, create_venv=None) -> dic
     target.parent.mkdir(parents=True, exist_ok=True)
     builder(target)
     interpreter = str(python_path(home))
-    runner([interpreter, "-m", "pip", "install", f"kraken=={KRAKEN_VERSION}"])
-    # AFTER kraken, deliberately: kraken pulls its own pinned scipy first and
-    # this replaces it. Doing it before would let kraken's pin win.
+    # Step 2 — install kraken. TOLERATE a non-zero exit here: kraken pins
+    # scipy~=1.15.3, whose PROPACK extension fails to dlopen on macOS 26
+    # (Darwin 27), and kraken's own post-install import trips that at the END of
+    # this step — the packages land (~1 GB on disk), but pip exits non-zero. The
+    # scipy override immediately below is EXACTLY the fix, so this failure must
+    # not skip it (the install job used to die here, leaving a venv that reports
+    # installed:false forever, 2026-09-06). A genuine kraken-install failure is
+    # not lost: the verification step below imports kraken and fails loud.
+    kraken_error: Exception | None = None
+    try:
+        runner([interpreter, "-m", "pip", "install", f"kraken=={KRAKEN_VERSION}"])
+    except Exception as exc:  # noqa: BLE001 — verification is the real gate
+        kraken_error = exc
+    # Step 3 — replace kraken's broken scipy pin. AFTER kraken, deliberately
+    # (kraken pulls its own pinned scipy first and this replaces it), and it MUST
+    # run even when step 2 reported a failure, because that failure IS the broken
+    # pin being replaced here.
     runner([interpreter, "-m", "pip", "install", "--upgrade", KRAKEN_SCIPY_OVERRIDE])
+    # Verify the runtime actually imports BEFORE recording it as installed.
+    # runtime.json is the is_installed() signal, so writing it for a half-built
+    # venv is what let a broken runtime read as "ready". This confirms a working
+    # runtime or fails loud — it never half-succeeds.
+    try:
+        runner([interpreter, "-c", _RUNTIME_VERIFY_SCRIPT])
+    except Exception as exc:
+        raise RuntimeError(
+            "Kraken runtime did not import after install "
+            f"(scipy override {KRAKEN_SCIPY_OVERRIDE})"
+            + (f"; the kraken step also errored: {kraken_error}" if kraken_error else "")
+            + f": {exc}"
+        ) from exc
+    # Step 4 — record the runtime as installed. Only now, after verification.
     (target / _METADATA_FILENAME).write_text(
         json.dumps(
             {"kraken_version": KRAKEN_VERSION, "scipy_override": KRAKEN_SCIPY_OVERRIDE},
@@ -769,14 +814,19 @@ class KrakenRuntimeManager:
             self._create_venv(target)
 
         def bump_run(argv: list[str]) -> None:
-            # The two pip calls, named as they run: kraken first, then the
-            # scipy override that replaces kraken's broken pin.
-            if job.current < 2:
+            # The install commands, named by what they are rather than a counter,
+            # so the runtime-import verification (a third call) reads correctly
+            # instead of duplicating the scipy message.
+            joined = " ".join(argv)
+            if f"kraken=={KRAKEN_VERSION}" in joined:
                 job.current = 2
                 job.message = f"Installing kraken=={KRAKEN_VERSION}"
-            else:
+            elif KRAKEN_SCIPY_OVERRIDE in joined:
                 job.current = 3
                 job.message = f"Overriding scipy pin ({KRAKEN_SCIPY_OVERRIDE})"
+            else:
+                job.current = 3
+                job.message = "Verifying Kraken runtime"
             self._run_command(argv)
 
         try:

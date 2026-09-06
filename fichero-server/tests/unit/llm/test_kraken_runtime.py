@@ -125,6 +125,65 @@ def test_install_overrides_the_scipy_pin_after_kraken_not_before(runtime_home: P
     assert kraken_runtime.runtime_status()["scipy_override"] == KRAKEN_SCIPY_OVERRIDE
 
 
+def _fake_venv(target: Path) -> None:
+    (target / "bin").mkdir(parents=True, exist_ok=True)
+    (target / "bin" / "python").write_text("#!/usr/bin/env python3\n", encoding="utf-8")
+
+
+def test_the_kraken_step_exiting_nonzero_still_runs_scipy_override_and_completes(
+    runtime_home: Path,
+) -> None:
+    """The install bug: kraken's own post-install import of its pinned scipy
+    trips the macOS-26 PROPACK dlopen and the kraken pip step exits non-zero —
+    even though the packages landed. That must NOT abort the install: the scipy
+    override (the fix) still runs, the runtime verifies, and it is recorded
+    installed. Half-succeeding (venv on disk, installed:false forever) was the
+    bug (2026-09-06)."""
+    commands: list[list[str]] = []
+
+    def runner(argv: list[str]) -> None:
+        commands.append(argv)
+        # The kraken pip step exits non-zero (its post-install scipy dlopen).
+        if f"kraken=={KRAKEN_VERSION}" in " ".join(argv):
+            raise subprocess.CalledProcessError(1, argv, stderr="PROPACK dlopen failed")
+        # scipy override + the verify import both succeed here.
+
+    kraken_runtime.install(run_command=runner, create_venv=_fake_venv)
+
+    ran = [" ".join(c) for c in commands]
+    assert any(KRAKEN_SCIPY_OVERRIDE in r for r in ran), "scipy override was skipped"
+    assert any("blla" in r for r in ran), "runtime verify was skipped"
+    assert kraken_runtime.is_installed() is True
+
+
+def test_install_does_not_record_a_runtime_that_fails_to_import(runtime_home: Path) -> None:
+    """The verification gate: if kraken still won't import after the override,
+    runtime.json is NOT written — a broken venv must read as installed:false,
+    not fake readiness."""
+
+    def runner(argv: list[str]) -> None:
+        # scipy override "runs" fine, but the verification import fails.
+        if "import scipy" in " ".join(argv):
+            raise subprocess.CalledProcessError(1, argv, stderr="still broken")
+
+    with pytest.raises(RuntimeError, match="did not import after install"):
+        kraken_runtime.install(run_command=runner, create_venv=_fake_venv)
+
+    assert kraken_runtime.is_installed() is False
+
+
+def test_download_fails_loud_when_no_model_lands(runtime_home: Path) -> None:
+    """`kraken get` exiting without producing a .mlmodel must raise, never write
+    an installed marker for a model that isn't there."""
+    _mark_installed(runtime_home)
+
+    with pytest.raises(RuntimeError, match="produced no .mlmodel"):
+        kraken_runtime.download_recognition_model(
+            "kraken-mccatmus", run_command=lambda a: None
+        )
+    assert kraken_runtime.is_recognition_model_installed("kraken-mccatmus") is False
+
+
 # --- installable in the background, with status -----------------------------
 
 
@@ -223,12 +282,24 @@ def test_recognition_download_needs_the_runtime_first(runtime_home: Path) -> Non
         kraken_runtime.download_recognition_model("kraken-mccatmus")
 
 
+def _land_mlmodel() -> None:
+    """Simulate `kraken get` writing the model under XDG_DATA_HOME (our tree)."""
+    model_dir = kraken_runtime.recognition_data_home() / "htrmopo" / "uuid-abc"
+    model_dir.mkdir(parents=True, exist_ok=True)
+    (model_dir / "McCATMuS.mlmodel").write_bytes(b"weights")
+
+
 def test_recognition_download_runs_kraken_get_and_marks_installed(runtime_home: Path) -> None:
     _mark_installed(runtime_home)
     commands: list[list[str]] = []
 
+    def fake_get(argv: list[str]) -> str:
+        commands.append(argv)
+        _land_mlmodel()
+        return ""
+
     assert kraken_runtime.is_recognition_model_installed("kraken-mccatmus") is False
-    kraken_runtime.download_recognition_model("kraken-mccatmus", run_command=commands.append)
+    kraken_runtime.download_recognition_model("kraken-mccatmus", run_command=fake_get)
 
     assert commands[0][-2:] == ["get", "10.5281/zenodo.13788177"]
     assert commands[0][0].endswith("/bin/kraken")
@@ -243,7 +314,9 @@ def test_unknown_recognition_model_is_rejected(runtime_home: Path) -> None:
 
 def test_removing_a_recognition_model_drops_its_marker(runtime_home: Path) -> None:
     _mark_installed(runtime_home)
-    kraken_runtime.download_recognition_model("kraken-mccatmus", run_command=lambda a: None)
+    kraken_runtime.download_recognition_model(
+        "kraken-mccatmus", run_command=lambda a: _land_mlmodel()
+    )
     assert kraken_runtime.is_recognition_model_installed("kraken-mccatmus") is True
 
     kraken_runtime.remove_recognition_model("kraken-mccatmus")
