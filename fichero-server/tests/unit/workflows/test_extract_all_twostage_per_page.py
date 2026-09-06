@@ -31,22 +31,27 @@ async def test_two_stage_writes_kg_rows_to_page_docs_not_folder(db, test_package
             events=[],
         )
 
-    async def fake_claims_for_entity(*args, **kwargs):
-        return [
-            {
-                "verb": "signed",
-                "object": "the ledger",
-                "source_text": "Ada signed the ledger",
-            }
-        ]
+    async def fake_page_claims_by_entity(page_text, sections, **kwargs):
+        # Page-at-a-time: one call per page returns claims keyed by their own
+        # correct subject. Ada is the agent on every page.
+        return {
+            "Ada": [
+                {
+                    "name": "Ada",
+                    "verb": "signed",
+                    "object": "the ledger",
+                    "source_text": "Ada signed the ledger",
+                }
+            ]
+        }
 
     monkeypatch.setattr(
         "fichero_server.workflows.tools.extract_all.chat_structured_with_fallback",
         fake_stage1,
     )
     monkeypatch.setattr(
-        "fichero_server.workflows.tools.extract_all._extract_claims_for_entity",
-        fake_claims_for_entity,
+        "fichero_server.workflows.tools.extract_all._extract_page_claims_by_entity",
+        fake_page_claims_by_entity,
     )
 
     state = {
@@ -80,11 +85,18 @@ async def test_two_stage_writes_kg_rows_to_page_docs_not_folder(db, test_package
 
 
 @pytest.mark.asyncio
-async def test_two_stage_extracts_entity_claims_concurrently_with_same_output(
+async def test_two_stage_runs_page_passes_concurrently_preserving_order(
     db, test_package, monkeypatch
 ):
-    page = Document(name="p", path="/tmp/p.png", doc_type=DocType.page)
-    db.save(page)
+    # Page-at-a-time changes the concurrency UNIT from entity to PAGE: the
+    # per-page SVO calls run concurrently, and the returned entity order follows
+    # the Stage-1 entity list regardless of which page finished first.
+    pages = [
+        Document(name=f"p{i}", path=f"/tmp/p{i}.png", doc_type=DocType.page)
+        for i in range(3)
+    ]
+    for page in pages:
+        db.save(page)
 
     async def fake_stage1(**kwargs):
         schema = kwargs.get("schema")
@@ -100,74 +112,68 @@ async def test_two_stage_extracts_entity_claims_concurrently_with_same_output(
 
     active = 0
     max_active = 0
-    call_order: list[str] = []
 
-    async def fake_claims_for_entity(
-        _context, entity_name, _entity_type, _llm_config, _instructions, extraction_sem
-    ):
+    async def fake_page_claims_by_entity(page_text, sections, **kwargs):
         nonlocal active, max_active
-        async with extraction_sem:
-            call_order.append(entity_name)
-            active += 1
-            max_active = max(max_active, active)
-            await extract_all_module.asyncio.sleep(0)
-            active -= 1
-        return [
-            {
-                "verb": "signed",
-                "object": f"{entity_name} ledger",
-                "source_text": f"{entity_name} signed the ledger",
-            }
-        ]
+        active += 1
+        max_active = max(max_active, active)
+        await asyncio.sleep(0.01)
+        active -= 1
+        name = "Ada" if "Ada" in page_text else "Bert" if "Bert" in page_text else "Cy"
+        return {
+            name: [
+                {
+                    "name": name,
+                    "verb": "signed",
+                    "object": f"{name} ledger",
+                    "source_text": f"{name} signed the ledger",
+                }
+            ]
+        }
 
     monkeypatch.setattr(
         "fichero_server.workflows.tools.extract_all.chat_structured_with_fallback",
         fake_stage1,
     )
     monkeypatch.setattr(
-        "fichero_server.workflows.tools.extract_all._extract_claims_for_entity",
-        fake_claims_for_entity,
+        "fichero_server.workflows.tools.extract_all._extract_page_claims_by_entity",
+        fake_page_claims_by_entity,
     )
 
     result = await extract_all_module._run_two_stage(
         text="Ada signed the ledger. Bert signed the ledger. Cy signed the ledger.",
-        recovered_records=[{"doc_id": page.id, "text": "Ada signed the ledger."}],
-        state={"library_path": str(test_package), "selected_doc_ids": [page.id]},
+        recovered_records=[
+            {"doc_id": pages[0].id, "text": "Ada signed the ledger."},
+            {"doc_id": pages[1].id, "text": "Bert signed the ledger."},
+            {"doc_id": pages[2].id, "text": "Cy signed the ledger."},
+        ],
+        state={"library_path": str(test_package), "selected_doc_ids": [p.id for p in pages]},
         llm_config=LLMConfig(provider="openai", model="gpt-4o-mini"),
         output_language="English",
         inputs={"persist_kg": False},
     )
 
+    # Pages ran concurrently, and entity order follows Stage 1 (Ada, Bert, Cy).
     assert max_active > 1
-    assert call_order == ["Ada", "Bert", "Cy"]
-    assert result["value"]["people"] == [
-        {
-            "name": "Ada",
-            "verb": "signed",
-            "object": "Ada ledger",
-            "source_text": "Ada signed the ledger",
-        },
-        {
-            "name": "Bert",
-            "verb": "signed",
-            "object": "Bert ledger",
-            "source_text": "Bert signed the ledger",
-        },
-        {
-            "name": "Cy",
-            "verb": "signed",
-            "object": "Cy ledger",
-            "source_text": "Cy signed the ledger",
-        },
+    assert [person["name"] for person in result["value"]["people"]] == [
+        "Ada",
+        "Bert",
+        "Cy",
     ]
 
 
 @pytest.mark.asyncio
-async def test_two_stage_preserves_entity_order_when_claim_tasks_finish_out_of_order(
+async def test_two_stage_preserves_entity_order_when_page_passes_finish_out_of_order(
     db, test_package, monkeypatch
 ):
-    page = Document(name="p", path="/tmp/p.png", doc_type=DocType.page)
-    db.save(page)
+    # Even when page passes complete out of order, the returned entity order
+    # follows the Stage-1 entity list (Ada, Bert, Cy), not completion order.
+    pages = [
+        Document(name=f"p{i}", path=f"/tmp/p{i}.png", doc_type=DocType.page)
+        for i in range(3)
+    ]
+    for page in pages:
+        db.save(page)
 
     async def fake_stage1(**kwargs):
         schema = kwargs.get("schema")
@@ -184,33 +190,38 @@ async def test_two_stage_preserves_entity_order_when_claim_tasks_finish_out_of_o
     completion_order: list[str] = []
     delays = {"Ada": 0.03, "Bert": 0.01, "Cy": 0.0}
 
-    async def fake_claims_for_entity(
-        _context, entity_name, _entity_type, _llm_config, _instructions, extraction_sem
-    ):
-        async with extraction_sem:
-            await asyncio.sleep(delays[entity_name])
-            completion_order.append(entity_name)
-        return [
-            {
-                "verb": "signed",
-                "object": f"{entity_name} ledger",
-                "source_text": f"{entity_name} signed the ledger",
-            }
-        ]
+    async def fake_page_claims_by_entity(page_text, sections, **kwargs):
+        name = "Ada" if "Ada" in page_text else "Bert" if "Bert" in page_text else "Cy"
+        await asyncio.sleep(delays[name])
+        completion_order.append(name)
+        return {
+            name: [
+                {
+                    "name": name,
+                    "verb": "signed",
+                    "object": f"{name} ledger",
+                    "source_text": f"{name} signed the ledger",
+                }
+            ]
+        }
 
     monkeypatch.setattr(
         "fichero_server.workflows.tools.extract_all.chat_structured_with_fallback",
         fake_stage1,
     )
     monkeypatch.setattr(
-        "fichero_server.workflows.tools.extract_all._extract_claims_for_entity",
-        fake_claims_for_entity,
+        "fichero_server.workflows.tools.extract_all._extract_page_claims_by_entity",
+        fake_page_claims_by_entity,
     )
 
     result = await extract_all_module._run_two_stage(
         text="Ada signed the ledger. Bert signed the ledger. Cy signed the ledger.",
-        recovered_records=[{"doc_id": page.id, "text": "Ada signed the ledger."}],
-        state={"library_path": str(test_package), "selected_doc_ids": [page.id]},
+        recovered_records=[
+            {"doc_id": pages[0].id, "text": "Ada signed the ledger."},
+            {"doc_id": pages[1].id, "text": "Bert signed the ledger."},
+            {"doc_id": pages[2].id, "text": "Cy signed the ledger."},
+        ],
+        state={"library_path": str(test_package), "selected_doc_ids": [p.id for p in pages]},
         llm_config=LLMConfig(provider="openai", model="gpt-4o-mini"),
         output_language="English",
         inputs={"persist_kg": False},
@@ -225,53 +236,66 @@ async def test_two_stage_preserves_entity_order_when_claim_tasks_finish_out_of_o
 
 
 @pytest.mark.asyncio
-async def test_two_stage_entity_claim_failures_stay_local_to_the_failed_entity(
+async def test_two_stage_page_failures_stay_local_to_the_failed_page(
     db, test_package, monkeypatch
 ):
-    page = Document(name="p", path="/tmp/p.png", doc_type=DocType.page)
-    db.save(page)
+    # Page-at-a-time changes the isolation UNIT from entity to PAGE: one page's
+    # SVO call failing loses only that page's claims; other pages still land.
+    page_ada = Document(name="pa", path="/tmp/pa.png", doc_type=DocType.page)
+    page_bert = Document(name="pb", path="/tmp/pb.png", doc_type=DocType.page)
+    db.save(page_ada)
+    db.save(page_bert)
 
-    async def fake_chat_structured_with_fallback(**kwargs):
+    async def fake_stage1(**kwargs):
         schema = kwargs.get("schema")
-        if schema is extract_all_module._EntitiesOnly:
-            return extract_all_module._EntitiesOnly(
-                people=[
-                    extract_all_module._EntityOnly(name="Ada", entity_type="person"),
-                    extract_all_module._EntityOnly(name="Bert", entity_type="person"),
-                ],
-            )
-        if schema is extract_all_module._EntityClaims:
-            prompt = kwargs.get("prompt", "")
-            if "Entity: Bert" in prompt:
-                raise RuntimeError("malformed entity claims")
-            if "Entity: Ada" in prompt:
-                return extract_all_module._EntityClaims(
-                    subject="Ada",
-                    claims=[
-                        extract_all_module._SVOClaim(
-                            subject="Ada",
-                            verb="signed",
-                            object="the ledger",
-                            source_text="Ada signed the ledger",
-                        )
-                    ]
-                )
-        raise AssertionError(f"unexpected schema/prompt: {schema!r} {kwargs.get('prompt')!r}")
+        if schema is not extract_all_module._EntitiesOnly:
+            raise AssertionError(f"unexpected schema: {schema!r}")
+        return extract_all_module._EntitiesOnly(
+            people=[
+                extract_all_module._EntityOnly(name="Ada", entity_type="person"),
+                extract_all_module._EntityOnly(name="Bert", entity_type="person"),
+            ],
+        )
+
+    async def fake_page_claims_by_entity(page_text, sections, **kwargs):
+        if "Bert" in page_text:
+            raise RuntimeError("malformed page claims")
+        return {
+            "Ada": [
+                {
+                    "name": "Ada",
+                    "verb": "signed",
+                    "object": "the ledger",
+                    "source_text": "Ada signed the ledger",
+                }
+            ]
+        }
 
     monkeypatch.setattr(
         "fichero_server.workflows.tools.extract_all.chat_structured_with_fallback",
-        fake_chat_structured_with_fallback,
+        fake_stage1,
+    )
+    monkeypatch.setattr(
+        "fichero_server.workflows.tools.extract_all._extract_page_claims_by_entity",
+        fake_page_claims_by_entity,
     )
 
     result = await extract_all_module._run_two_stage(
         text="Ada signed the ledger. Bert signed the ledger.",
-        recovered_records=[{"doc_id": page.id, "text": "Ada signed the ledger. Bert signed the ledger."}],
-        state={"library_path": str(test_package), "selected_doc_ids": [page.id]},
+        recovered_records=[
+            {"doc_id": page_ada.id, "text": "Ada signed the ledger."},
+            {"doc_id": page_bert.id, "text": "Bert signed the ledger."},
+        ],
+        state={
+            "library_path": str(test_package),
+            "selected_doc_ids": [page_ada.id, page_bert.id],
+        },
         llm_config=LLMConfig(provider="openai", model="gpt-4o-mini"),
         output_language="English",
         inputs={"persist_kg": False},
     )
 
+    # Ada's page survived the Bert page's failure.
     assert result["value"]["people"] == [
         {
             "name": "Ada",
@@ -404,16 +428,16 @@ class TestEntitySchemaInPrompt:
                 people=[extract_all_module._EntityOnly(name="Ada", entity_type="person")],
             )
 
-        async def fake_claims_for_entity(*args, **kwargs):
-            return []
+        async def fake_page_claims_noop(*args, **kwargs):
+            return {}
 
         monkeypatch.setattr(
             "fichero_server.workflows.tools.extract_all.chat_structured_with_fallback",
             fake_stage1,
         )
         monkeypatch.setattr(
-            "fichero_server.workflows.tools.extract_all._extract_claims_for_entity",
-            fake_claims_for_entity,
+            "fichero_server.workflows.tools.extract_all._extract_page_claims_by_entity",
+            fake_page_claims_noop,
         )
 
         await extract_all_module._run_two_stage(
@@ -445,16 +469,16 @@ class TestEntitySchemaInPrompt:
                 people=[extract_all_module._EntityOnly(name="Ada", entity_type="person")],
             )
 
-        async def fake_claims_for_entity(*args, **kwargs):
-            return []
+        async def fake_page_claims_noop(*args, **kwargs):
+            return {}
 
         monkeypatch.setattr(
             "fichero_server.workflows.tools.extract_all.chat_structured_with_fallback",
             fake_stage1,
         )
         monkeypatch.setattr(
-            "fichero_server.workflows.tools.extract_all._extract_claims_for_entity",
-            fake_claims_for_entity,
+            "fichero_server.workflows.tools.extract_all._extract_page_claims_by_entity",
+            fake_page_claims_noop,
         )
 
         await extract_all_module._run_two_stage(

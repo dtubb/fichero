@@ -35,6 +35,7 @@ from fichero_server.llm import (
     chat_structured_with_fallback,
     resolve_model_alias,
 )
+from fichero_server.knowledge.dedupe import normalize_name
 from fichero_server.knowledge.spacy_svo import predicate_problem
 from fichero_server.knowledge.svo_cleanup import collapse_near_duplicate_claims
 from fichero_server.knowledge.svo_quality import (
@@ -657,6 +658,201 @@ async def _extract_claims_for_entity(
     except Exception as exc:
         logger.warning(f"Stage 2 claim extraction failed for {entity_name}: {exc}")
         return []
+
+
+class _PageClaimItem(BaseModel):
+    """One SVO claim from the page-level pass — the subject is CHOSEN, not given."""
+
+    subject: str = Field(
+        default="",
+        description=(
+            "The AGENT of the action — the entity that performs or owns it. "
+            "Must be one of the entities listed in the instructions, copied as "
+            "written. A person performs actions; a place is a location, never "
+            "the agent of a person's action; an organization owns/operates."
+        ),
+    )
+    subject_type: str = Field(
+        default="", description="person | place | organization | river | event | mine"
+    )
+    verb: str = Field(
+        default="",
+        description=(
+            "Predicate verb/verb phrase copied from the page (include "
+            "prepositions); the subject is implicit — do not repeat it."
+        ),
+    )
+    object: str = Field(
+        default="",
+        description="Rest of the predicate — a minimal noun phrase copied from the page.",
+    )
+    source_text: str = Field(
+        default="", description="The exact span from the page this claim is read from."
+    )
+    epistemic_status: str = Field(default="tentative")
+    claim_type: str = Field(default="")
+    date: str = Field(
+        default="",
+        description="YYYY-MM-DD / YYYY-MM / YYYY, ONLY when the page states one for this claim.",
+    )
+    place: str = Field(
+        default="",
+        description="Where it happened, copied from the page, ONLY when the page names it.",
+    )
+
+
+class _PageClaims(BaseModel):
+    items: list[_PageClaimItem] = Field(default_factory=list)
+
+
+def _build_page_claim_instructions(
+    output_language: str,
+    entities_by_section: dict[str, list["_EntityOnly"]],
+    document_context: str | None = None,
+) -> str:
+    """Instructions for ONE page-level SVO pass over the whole page.
+
+    Replaces the per-entity loop, which asked for claims about each entity
+    separately and so copied a sentence's predicate onto every nearby entity — a
+    cross-product of duplicates with wrong subjects (a place cast as the agent of
+    a person's verb). Here the model reads the page once and, for each fact,
+    picks the single correct AGENT from the known entities.
+    """
+    context_block = ""
+    if document_context and document_context.strip():
+        context_block = (
+            f"Document context: {document_context.strip()}\n"
+            "First-person statements ('I', 'me', 'my') refer to the document's "
+            "author named in the context above — never to another entity "
+            "mentioned nearby.\n\n"
+        )
+    lines = []
+    for section_key, entities in entities_by_section.items():
+        names = sorted({e.name for e in entities if e.name})
+        if names:
+            lines.append(f"  {section_key.rstrip('s')}: " + "; ".join(names))
+    entity_block = "\n".join(lines) or "  (none identified)"
+    return (
+        f"{context_block}"
+        f"Read the whole page and extract subject-verb-object claims — one row "
+        f"per distinct fact.\n\n"
+        f"THE SUBJECT IS THE AGENT. For each fact the subject is the ONE entity "
+        f"that performs or owns the action. A person performs actions; a place "
+        f"is where something happens, NEVER the agent of a person's action; an "
+        f"organization owns or operates things. Do NOT attach the same predicate "
+        f"to more than one entity — if a sentence says a person works a mine in "
+        f"a town, the PERSON is the subject, not the town and not the mine's "
+        f"owner.\n\n"
+        f"The subject MUST be one of these already-identified entities, copied "
+        f"as written:\n{entity_block}\n\n"
+        f"If a fact's true agent is not in this list, omit the fact rather than "
+        f"forcing a wrong subject. Never use a pronoun as a subject.\n\n"
+        f"COPY, DO NOT COMPOSE. The verb and object must be spans found on the "
+        f"page word for word, in the source's language and spelling — no "
+        f"translation, no modernisation, no smoothing. The verb is the MINIMAL "
+        f"verb phrase (at most {MAX_VERB_WORDS} words); the object is the "
+        f"minimal completing noun phrase, never a whole clause.\n\n"
+        f"One assertion per claim, and DO NOT repeat a claim. Write any "
+        f"commentary in {output_language}; the verb and object stay in the "
+        f"source's language. Only include facts directly supported by the page."
+    )
+
+
+async def _extract_page_claims(
+    page_text: str,
+    llm_config: LLMConfig,
+    instructions: str,
+    extraction_sem: asyncio.Semaphore,
+) -> list[dict]:
+    """ONE page-level SVO pass → claim dicts each carrying its own subject."""
+    if not (page_text or "").strip():
+        return []
+    try:
+        async with extraction_sem:
+            result = await chat_structured_with_fallback(
+                prompt=page_text,
+                schema=_PageClaims,
+                config=llm_config,
+                system=instructions,
+                include_schema_in_prompt=False,
+                permissive_guardrails=True,
+            )
+        return [item.model_dump() for item in (getattr(result, "items", None) or [])]
+    except ProviderQuotaError:
+        raise
+    except Exception as exc:
+        logger.warning("extract page SVO extraction failed: %s", exc)
+        return []
+
+
+async def _extract_page_claims_by_entity(
+    page_text: str,
+    entities_by_section: dict[str, list["_EntityOnly"]],
+    *,
+    output_language: str,
+    document_context: str | None,
+    speaker: str,
+    llm_config: LLMConfig,
+    extraction_sem: asyncio.Semaphore,
+) -> dict[str, list[dict]]:
+    """Page-at-a-time SVO: ONE model call for the whole page, each claim routed
+    to its correct subject entity.
+
+    Returns ``{entity_name: [gated + collapsed claim dicts]}``. Replaces the
+    per-entity Stage-2 loop that copied a sentence's predicate onto every nearby
+    entity (cross-product + duplicates). A triple whose subject matches no
+    identified entity is dropped (a hallucinated / cross-product subject). Each
+    surviving claim goes through the SAME per-claim gate as the old path
+    (trim_predicate + page-grounded claim_rejection + predicate_problem), scope
+    kept only when grounded, then near-dups are collapsed per subject.
+    """
+    entity_by_norm: dict[str, _EntityOnly] = {}
+    for entities in entities_by_section.values():
+        for entity in entities:
+            if entity.name:
+                entity_by_norm.setdefault(normalize_name(entity.name), entity)
+    if not entity_by_norm or not (page_text or "").strip():
+        return {}
+    instructions = _build_page_claim_instructions(
+        output_language, entities_by_section, document_context
+    )
+    page_claims = await _extract_page_claims(
+        page_text, llm_config, instructions, extraction_sem
+    )
+    by_entity: dict[str, list[dict]] = {}
+    for page_claim in page_claims:
+        entity = entity_by_norm.get(normalize_name(page_claim.get("subject", "")))
+        if entity is None:
+            continue
+        verb, obj = trim_predicate(page_claim.get("verb", ""), page_claim.get("object", ""))
+        if claim_rejection(entity.name, verb, obj, page_text) is not None:
+            continue
+        if predicate_problem(entity.name, verb, page_text, speaker=speaker):
+            continue
+        place = (page_claim.get("place") or "").strip()
+        if place and ungrounded_span(place, page_text):
+            place = ""
+        date = (page_claim.get("date") or "").strip()
+        if date and not _date_is_on_the_page(date, page_text):
+            date = ""
+        by_entity.setdefault(entity.name, []).append(
+            {
+                "name": entity.name,
+                "verb": verb,
+                "object": obj,
+                "source_text": _annotate_pronoun_source(
+                    page_claim.get("source_text", ""), entity.name
+                ),
+                "epistemic_status": page_claim.get("epistemic_status", ""),
+                "claim_type": page_claim.get("claim_type", ""),
+                "date_normalized": date,
+                "claim_location": place,
+            }
+        )
+    return {
+        name: collapse_near_duplicate_claims(name, claims)
+        for name, claims in by_entity.items()
+    }
 
 
 def _convert_entities_to_extraction(
@@ -1471,7 +1667,6 @@ async def _run_two_stage(
 
     _ = any(pid for pid in page_doc_ids)  # is_per_page info not needed in Stage 2
     entity_instructions = _build_entity_only_instructions(output_language)
-    claim_instructions = _build_per_entity_claim_instructions(output_language)
 
     import os
     max_in_flight = int(os.environ.get("FICHERO_EXTRACT_MAX_IN_FLIGHT", "3"))
@@ -1615,11 +1810,16 @@ async def _run_two_stage(
                     all_entities[key].append(entity)
                 entity_chunk_indices.setdefault(entity.name, set()).add(chunk_idx)
 
-    # Stage 2: Extract claims for each entity using only the chunks it appeared in.
-    # This avoids passing the full concatenated document and caps context to what
-    # is actually relevant, giving the model the right page text for each entity.
+    # Stage 2: page-at-a-time SVO. ONE model call per chunk (page) returns
+    # subject-verb-object triples that each carry their own correct AGENT as the
+    # subject — replacing the old per-entity loop, which asked "claims about
+    # entity X" once per entity and so copied a sentence's predicate onto every
+    # nearby entity (a cross-product of duplicates with wrong subjects, e.g. a
+    # place or an owner cast as the agent of a person's verb).
     total_entities = sum(len(v) for v in all_entities.values())
-    logger.info(f"Stage 2: Extracting claims for {total_entities} entities")
+    logger.info(
+        "Stage 2 (page-at-a-time): %d chunk(s), %d entities", len(chunks), total_entities
+    )
 
     persist_kg = inputs.get("persist_kg", True)
     kg_payload: list[dict[str, Any]] = []
@@ -1628,8 +1828,13 @@ async def _run_two_stage(
     written_document_ids: set[str] = set()
     _skip_sections = {"rivers_extract", "mines_extract", "properties_extract", "legal_references_extract"}
     _section_by_key = {s["schema_key"]: s for s in _SECTIONS}
+    _skip_section_keys = {
+        section_key
+        for section_key, section in _section_by_key.items()
+        if section and section["name"] in _skip_sections
+    }
 
-    # Open DB once for incremental per-entity writes (#1263).
+    # Open DB once for incremental per-page writes (#1263).
     db = None
     if container and library_path:
         try:
@@ -1637,142 +1842,132 @@ async def _run_two_stage(
         except Exception as exc:
             logger.error("extract_all (two-stage): cannot open DB for KG writes: %s", exc)
 
-    all_claims: dict[str, list[dict]] = {}
-    entity_jobs: list[dict[str, Any]] = []
-    entity_done = 0
+    document_context = str(inputs.get("document_context") or "").strip() or None
+
+    # chunk index → {section_key: [entities appearing in that chunk]}. An entity
+    # with no recorded chunk falls back to chunk 0 so it still gets a pass.
+    chunk_sections: dict[int, dict[str, list[_EntityOnly]]] = {}
     for section_key, entities in all_entities.items():
-        section = _section_by_key.get(section_key)
+        if section_key in _skip_section_keys:
+            continue
         for entity in entities:
-            await emit_progress_event(
-                progress_callback,
-                "file_start",
-                "",
-                f"Stage 2 entity {entity_done + 1}/{total_entities}",
-                entity_done + 1,
-                total_entities,
-                message=(
-                    f"Stage 2 extracting claims for {section_key} "
-                    f"'{entity.name}' ({entity_done + 1}/{total_entities})"
-                ),
-            )
-            relevant_indices = sorted(entity_chunk_indices.get(entity.name, set()))
-            if relevant_indices:
-                entity_context = "\n\n".join(chunks[i] for i in relevant_indices)
-            else:
-                entity_context = text
-            async def _claims_unless_breaker_open(
-                entity_context: str = entity_context,
-                entity_name: str = entity.name,
-                entity_type: str = section_key.rstrip("s"),
-            ) -> list[dict]:
-                # A breaker opened by Stage 1 (provider down, auth broken,
-                # budget-truncated on every chunk) means every Stage 2 call
-                # fails the same way — skip instead of paying for it
-                # per-entity. Claims come back empty; the run's systemic
-                # classification and Stage 1 chunk errors carry the cause.
-                if breaker.open:
-                    return []
-                return await _extract_claims_for_entity(
-                    entity_context,
-                    entity_name,
-                    entity_type,
-                    llm_config,
-                    claim_instructions,
-                    extraction_sem,
-                )
+            for chunk_idx in entity_chunk_indices.get(entity.name) or {0}:
+                if chunk_idx < len(chunks):
+                    chunk_sections.setdefault(chunk_idx, {}).setdefault(
+                        section_key, []
+                    ).append(entity)
 
-            entity_jobs.append({
-                "section_key": section_key,
-                "section": section,
-                "entity": entity,
-                "relevant_indices": relevant_indices,
-                "entity_context": entity_context,
-                "claims_task": _claims_unless_breaker_open(),
-            })
-
-    claim_results = await asyncio.gather(*(job["claims_task"] for job in entity_jobs))
-
-    for job, claims in zip(entity_jobs, claim_results, strict=True):
-        section_key = job["section_key"]
-        section = job["section"]
-        entity = job["entity"]
-        relevant_indices = job["relevant_indices"]
-        entity_context = job["entity_context"]
-        all_claims[entity.name] = claims
-        entity_done += 1
+    async def _page_pass(chunk_idx: int) -> tuple[int, dict[str, list[dict]]]:
+        # Breaker opened in Stage 1 (provider down, auth broken) → skip the page
+        # call instead of paying for it; the run's Stage 1 errors carry the cause.
+        if breaker.open:
+            return chunk_idx, {}
+        sections = chunk_sections.get(chunk_idx)
+        if not sections:
+            return chunk_idx, {}
         await emit_progress_event(
             progress_callback,
-            "file_complete",
+            "file_start",
             "",
-            f"Stage 2 entity {entity_done}/{total_entities}",
-            entity_done,
-            total_entities,
-            message=(
-                f"Stage 2 completed {section_key} '{entity.name}': "
-                f"{len(claims)} claims"
-            ),
+            f"Stage 2 page {chunk_idx + 1}/{len(chunks)}",
+            chunk_idx + 1,
+            len(chunks),
+            message=f"Stage 2 extracting SVO claims from page {chunk_idx + 1}/{len(chunks)}",
         )
-        logger.info(
-            "Stage 2: %s/%s — %s '%s': %d claims",
-            entity_done, total_entities, section_key, entity.name, len(claims),
-        )
+        try:
+            by_entity = await _extract_page_claims_by_entity(
+                chunks[chunk_idx],
+                sections,
+                output_language=output_language,
+                document_context=document_context,
+                speaker="",
+                llm_config=llm_config,
+                extraction_sem=extraction_sem,
+            )
+        except ProviderQuotaError:
+            raise
+        except Exception as exc:
+            # One page's failure stays local to that page (mirrors the old
+            # per-entity soft-fail); other pages still produce claims.
+            logger.warning(
+                "extract_all (two-stage): page %d SVO extraction failed: %s",
+                chunk_idx, exc,
+            )
+            return chunk_idx, {}
+        return chunk_idx, by_entity
 
-        # Write this entity's KG rows immediately — partial runs leave
-        # partial KG instead of nothing (#1263 incremental resilience).
-        # Guard on `container` (needed for container.id), not `db`: db is
-        # only required for the optional inline write. When db=None the
-        # payload is still built so the downstream kg_writer node can
-        # persist it with its own connection (#1285).
-        if section and section["name"] not in _skip_sections and claims and container:
-            items = _build_entity_items_for_section(entity, section_key, claims)
-            if items:
-                target_indices = relevant_indices or [0]
-                for page_idx in target_indices:
-                    page_doc_id = (
-                        page_doc_ids[page_idx]
-                        if page_idx < len(page_doc_ids)
-                        else None
-                    )
-                    target_doc_id = page_doc_id or container.id
-                    page_label = (
-                        f"Page {page_idx + 1}"
-                        if len(chunks) > 1
-                        else None
-                    )
-                    page_text = chunks[page_idx] if page_idx < len(chunks) else entity_context
+    page_results = await asyncio.gather(*(_page_pass(ci) for ci in range(len(chunks))))
 
-                    kg_payload.append({
-                        "section_name": section["name"],
-                        "section_key": section_key,
-                        "items": items,
-                        "target_doc_id": target_doc_id,
-                        "page_label": page_label,
-                        "source_excerpt": page_text[:500] if page_text else None,
-                        "provider": getattr(llm_config, "provider", None),
-                        "model": getattr(llm_config, "model", None),
-                        "grounding_text": page_text,
-                    })
-                    if persist_kg and db:
-                        try:
-                            entity_ids, claim_ids = _write_kg_rows(
-                                db, section, items, target_doc_id,
-                                page_label=page_label,
-                                source_excerpt=page_text[:500] if page_text else None,
-                                provider=getattr(llm_config, "provider", None),
-                                model=getattr(llm_config, "model", None),
-                                grounding_text=page_text,
-                            )
-                            written_entity_ids.extend(entity_ids)
-                            written_claim_ids.extend(claim_ids)
-                            written_document_ids.add(target_doc_id)
-                        except Exception as exc:
-                            logger.error(
-                                "extract_all (two-stage): KG write failed for %s '%s' on %s: %s",
-                                section_key,
-                                entity.name,
-                                target_doc_id,
-                                exc,
-                            )
+    # Merge claims per entity for the return payload. Order comes from the
+    # Stage-1 entity lists (below in `combined_entities`), so it is stable
+    # regardless of which page's call finished first.
+    all_claims: dict[str, list[dict]] = {}
+    for _chunk_idx, by_entity in page_results:
+        for entity_name, claims in by_entity.items():
+            all_claims.setdefault(entity_name, []).extend(claims)
+    entity_done = len(all_claims)
+
+    # Resolve each entity name to its (section_key, entity) once.
+    _entity_by_name: dict[str, tuple[str, _EntityOnly]] = {}
+    for section_key, entities in all_entities.items():
+        for entity in entities:
+            _entity_by_name.setdefault(entity.name, (section_key, entity))
+
+    # Write each PAGE's claims to THAT page's doc — page anchoring (#4667/#1263).
+    # Guard on `container` (needed for container.id) not `db`: when db=None the
+    # payload is still built so the downstream kg_writer node persists it (#1285).
+    if container:
+        for chunk_idx, by_entity in page_results:
+            if not by_entity:
+                continue
+            page_doc_id = (
+                page_doc_ids[chunk_idx] if chunk_idx < len(page_doc_ids) else None
+            )
+            target_doc_id = page_doc_id or container.id
+            page_label = f"Page {chunk_idx + 1}" if len(chunks) > 1 else None
+            page_text = chunks[chunk_idx]
+            for entity_name, claims in by_entity.items():
+                if not claims:
+                    continue
+                hit = _entity_by_name.get(entity_name)
+                if hit is None:
+                    continue
+                section_key, entity = hit
+                section = _section_by_key.get(section_key)
+                if not section or section["name"] in _skip_sections:
+                    continue
+                items = _build_entity_items_for_section(entity, section_key, claims)
+                if not items:
+                    continue
+                kg_payload.append({
+                    "section_name": section["name"],
+                    "section_key": section_key,
+                    "items": items,
+                    "target_doc_id": target_doc_id,
+                    "page_label": page_label,
+                    "source_excerpt": page_text[:500] if page_text else None,
+                    "provider": getattr(llm_config, "provider", None),
+                    "model": getattr(llm_config, "model", None),
+                    "grounding_text": page_text,
+                })
+                if persist_kg and db:
+                    try:
+                        entity_ids, claim_ids = _write_kg_rows(
+                            db, section, items, target_doc_id,
+                            page_label=page_label,
+                            source_excerpt=page_text[:500] if page_text else None,
+                            provider=getattr(llm_config, "provider", None),
+                            model=getattr(llm_config, "model", None),
+                            grounding_text=page_text,
+                        )
+                        written_entity_ids.extend(entity_ids)
+                        written_claim_ids.extend(claim_ids)
+                        written_document_ids.add(target_doc_id)
+                    except Exception as exc:
+                        logger.error(
+                            "extract_all (two-stage): KG write failed for %s '%s' on %s: %s",
+                            section_key, entity_name, target_doc_id, exc,
+                        )
 
     # Convert to extraction format for the return value.
     combined_entities = _EntitiesOnly(

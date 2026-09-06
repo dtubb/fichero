@@ -165,13 +165,13 @@ class TestTwoStageCircuitBreaker:
         async def stage2_counts(*_args, **_kwargs):
             nonlocal stage2_calls
             stage2_calls += 1
-            return []
+            return {}
 
         monkeypatch.setenv("FICHERO_EXTRACT_MAX_IN_FLIGHT", "1")
         monkeypatch.setattr(
             module, "chat_structured_with_fallback", stage1_always_fails
         )
-        monkeypatch.setattr(module, "_extract_claims_for_entity", stage2_counts)
+        monkeypatch.setattr(module, "_extract_page_claims_by_entity", stage2_counts)
         monkeypatch.setattr(
             module, "_resolve_write_target", lambda *_: SimpleNamespace(id="doc-1")
         )
@@ -210,17 +210,20 @@ class TestTwoStageCircuitBreaker:
             )
 
         async def stage2(*_args, **_kwargs):
-            return [
-                {
-                    "verb": "signed",
-                    "object": "the ledger",
-                    "source_text": "Ana signed the ledger",
-                }
-            ]
+            return {
+                "Ana": [
+                    {
+                        "name": "Ana",
+                        "verb": "signed",
+                        "object": "the ledger",
+                        "source_text": "Ana signed the ledger",
+                    }
+                ]
+            }
 
         monkeypatch.setenv("FICHERO_EXTRACT_MAX_IN_FLIGHT", "1")
         monkeypatch.setattr(module, "chat_structured_with_fallback", flaky_stage1)
-        monkeypatch.setattr(module, "_extract_claims_for_entity", stage2)
+        monkeypatch.setattr(module, "_extract_page_claims_by_entity", stage2)
         monkeypatch.setattr(
             module, "_resolve_write_target", lambda *_: SimpleNamespace(id="doc-1")
         )

@@ -690,7 +690,7 @@ class TestTwoStageKGWrite:
         self, db, test_package, folder_doc
     ):
         from fichero_server.workflows.tools.extract_all import (
-            _EntitiesOnly, _EntityOnly, _EntityClaims, _SVOClaim,
+            _EntitiesOnly, _EntityOnly, _PageClaims, _PageClaimItem,
         )
         from fichero_server.llm import LLMConfig
 
@@ -703,11 +703,13 @@ class TestTwoStageKGWrite:
             dates=[],
             events=[],
         )
-        stage2_result = _EntityClaims(
-            subject="María Josefa",
-            claims=[
-                _SVOClaim(
+        # Stage 2 is now the page-at-a-time SVO pass: one call returns triples
+        # each carrying their own correct subject.
+        stage2_result = _PageClaims(
+            items=[
+                _PageClaimItem(
                     subject="María Josefa",
+                    subject_type="person",
                     verb="signed",
                     object="the deed",
                     source_text="María Josefa signed the deed in 1842.",

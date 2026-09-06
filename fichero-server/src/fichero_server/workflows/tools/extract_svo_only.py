@@ -19,8 +19,6 @@ import os
 from collections import defaultdict
 from typing import Any
 
-from pydantic import BaseModel, Field
-
 from fichero_server.db import db_manager
 from fichero_server.knowledge.dedupe import normalize_name
 from fichero_server.knowledge.spacy_svo import predicate_problem
@@ -29,7 +27,6 @@ from fichero_server.knowledge.svo_cleanup import (
     collapse_near_duplicate_claims,
 )
 from fichero_server.knowledge.svo_quality import (
-    MAX_VERB_WORDS,
     claim_rejection,
     trim_predicate,
     ungrounded_span,
@@ -52,7 +49,9 @@ from fichero_server.workflows.tools.extract_all import (
     _EntityOnly,
     _annotate_pronoun_source,
     _build_entity_items_for_section,
+    _build_page_claim_instructions,
     _date_is_on_the_page,
+    _extract_page_claims,
 )
 from fichero_server.workflows.tools.extract_entities_only import (
     _ENTITY_TYPES,
@@ -85,131 +84,6 @@ _SECTION_BY_KEY = {
 _SECTION_KEY_BY_ENTITY_TYPE = {
     entity_type: section_key for section_key, entity_type in _ENTITY_TYPES.items()
 }
-
-
-class _PageClaimItem(BaseModel):
-    """One SVO claim from the page-level pass — the subject is CHOSEN, not given."""
-
-    subject: str = Field(
-        default="",
-        description=(
-            "The AGENT of the action — the entity that performs or owns it. "
-            "Must be one of the entities listed in the instructions, copied as "
-            "written. A person performs actions; a place is a location, never "
-            "the agent of a person's action; an organization owns/operates."
-        ),
-    )
-    subject_type: str = Field(
-        default="", description="person | place | organization | river | event | mine"
-    )
-    verb: str = Field(
-        default="",
-        description=(
-            "Predicate verb/verb phrase copied from the page (include "
-            "prepositions); the subject is implicit — do not repeat it."
-        ),
-    )
-    object: str = Field(
-        default="",
-        description="Rest of the predicate — a minimal noun phrase copied from the page.",
-    )
-    source_text: str = Field(
-        default="", description="The exact span from the page this claim is read from."
-    )
-    epistemic_status: str = Field(default="tentative")
-    claim_type: str = Field(default="")
-    date: str = Field(
-        default="",
-        description="YYYY-MM-DD / YYYY-MM / YYYY, ONLY when the page states one for this claim.",
-    )
-    place: str = Field(
-        default="",
-        description="Where it happened, copied from the page, ONLY when the page names it.",
-    )
-
-
-class _PageClaims(BaseModel):
-    items: list[_PageClaimItem] = Field(default_factory=list)
-
-
-def _build_page_claim_instructions(
-    output_language: str,
-    entities_by_section: dict[str, list[_EntityOnly]],
-    document_context: str | None = None,
-) -> str:
-    """Instructions for ONE page-level SVO pass over the whole page.
-
-    Replaces the per-entity Stage-2 loop, which asked for claims about each
-    entity separately and so copied a sentence's predicate onto every nearby
-    entity — a cross-product of duplicates with wrong subjects (a place cast as
-    the agent of a person's verb). Here the model reads the page once and, for
-    each fact, picks the single correct AGENT from the known entities.
-    """
-    context_block = ""
-    if document_context and document_context.strip():
-        context_block = (
-            f"Document context: {document_context.strip()}\n"
-            "First-person statements ('I', 'me', 'my') refer to the document's "
-            "author named in the context above — never to another entity "
-            "mentioned nearby.\n\n"
-        )
-    lines = []
-    for section_key, entities in entities_by_section.items():
-        names = sorted({e.name for e in entities if e.name})
-        if names:
-            lines.append(f"  {section_key.rstrip('s')}: " + "; ".join(names))
-    entity_block = "\n".join(lines) or "  (none identified)"
-    return (
-        f"{context_block}"
-        f"Read the whole page and extract subject-verb-object claims — one row "
-        f"per distinct fact.\n\n"
-        f"THE SUBJECT IS THE AGENT. For each fact the subject is the ONE entity "
-        f"that performs or owns the action. A person performs actions; a place "
-        f"is where something happens, NEVER the agent of a person's action; an "
-        f"organization owns or operates things. Do NOT attach the same predicate "
-        f"to more than one entity — if a sentence says a person works a mine in "
-        f"a town, the PERSON is the subject, not the town and not the mine's "
-        f"owner.\n\n"
-        f"The subject MUST be one of these already-identified entities, copied "
-        f"as written:\n{entity_block}\n\n"
-        f"If a fact's true agent is not in this list, omit the fact rather than "
-        f"forcing a wrong subject. Never use a pronoun as a subject.\n\n"
-        f"COPY, DO NOT COMPOSE. The verb and object must be spans found on the "
-        f"page word for word, in the source's language and spelling — no "
-        f"translation, no modernisation, no smoothing. The verb is the MINIMAL "
-        f"verb phrase (at most {MAX_VERB_WORDS} words); the object is the "
-        f"minimal completing noun phrase, never a whole clause.\n\n"
-        f"One assertion per claim, and DO NOT repeat a claim. Write any "
-        f"commentary in {output_language}; the verb and object stay in the "
-        f"source's language. Only include facts directly supported by the page."
-    )
-
-
-async def _extract_page_claims(
-    page_text: str,
-    llm_config: LLMConfig,
-    instructions: str,
-    extraction_sem: asyncio.Semaphore,
-) -> list[dict]:
-    """ONE page-level SVO pass → claim dicts each carrying its own subject."""
-    if not (page_text or "").strip():
-        return []
-    try:
-        async with extraction_sem:
-            result = await chat_structured_with_fallback(
-                prompt=page_text,
-                schema=_PageClaims,
-                config=llm_config,
-                system=instructions,
-                include_schema_in_prompt=False,
-                permissive_guardrails=True,
-            )
-        return [item.model_dump() for item in (getattr(result, "items", None) or [])]
-    except ProviderQuotaError:
-        raise
-    except Exception as exc:
-        logger.warning("extract_svo_only: page SVO extraction failed: %s", exc)
-        return []
 
 
 def _page_label(document: Document) -> str | None:

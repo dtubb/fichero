@@ -39,7 +39,6 @@ import fichero_server.workflows.tools  # noqa: F401
 import fichero_server.workflows.tools.citations_extract as citations_module
 import fichero_server.workflows.tools.cleanup as cleanup_module
 import fichero_server.workflows.tools.extract_all as extract_all_module
-import fichero_server.workflows.tools.extract_svo_only as extract_svo_only_module
 
 
 # The fixture page must SAY what the stubbed extractions claim it says
@@ -431,13 +430,13 @@ def _install_deterministic_workflow_stubs(
                     }
                 ]
             )
-        if schema is extract_svo_only_module._PageClaims:
+        if schema is extract_all_module._PageClaims:
             # Stage 3's page-at-a-time SVO pass: one call per page returning
             # triples that each carry their own correct subject (replaces the
             # per-entity calls). Subjects must match the Stage-1 entities above.
-            return extract_svo_only_module._PageClaims(
+            return extract_all_module._PageClaims(
                 items=[
-                    extract_svo_only_module._PageClaimItem(
+                    extract_all_module._PageClaimItem(
                         subject="Regression Person",
                         subject_type="person",
                         verb="signed",
@@ -446,7 +445,7 @@ def _install_deterministic_workflow_stubs(
                         epistemic_status="established",
                         claim_type="action",
                     ),
-                    extract_svo_only_module._PageClaimItem(
+                    extract_all_module._PageClaimItem(
                         subject="Regression Place",
                         subject_type="place",
                         verb="hosted",
@@ -952,20 +951,31 @@ def _install_twostage_stubs(monkeypatch: pytest.MonkeyPatch) -> None:
                 organizations=[],
                 events=[],
             )
-        if schema is extract_all_module._EntityClaims:
-            # Stage 2: per-entity SVO claim pass
-            return extract_all_module._EntityClaims(
-                subject="Regression Person",
-                claims=[
-                    extract_all_module._SVOClaim(
+        if schema is extract_all_module._PageClaims:
+            # Stage 2: page-at-a-time SVO pass — one call per page returning
+            # triples that each carry their own correct subject (person AND
+            # place, so both entities land, as the old per-entity path produced).
+            return extract_all_module._PageClaims(
+                items=[
+                    extract_all_module._PageClaimItem(
                         subject="Regression Person",
+                        subject_type="person",
                         verb="signed",
                         object="the fixture deed",
                         source_text="Regression Person signed the fixture deed",
                         epistemic_status="established",
                         claim_type="action",
-                    )
-                ],
+                    ),
+                    extract_all_module._PageClaimItem(
+                        subject="Regression Place",
+                        subject_type="place",
+                        verb="hosted",
+                        object="the fixture signing",
+                        source_text="in Regression Place",
+                        epistemic_status="established",
+                        claim_type="action",
+                    ),
+                ]
             )
         raise AssertionError(f"unexpected schema in twostage stub: {schema!r}")
 
@@ -1015,10 +1025,42 @@ def _install_twostage_stubs(monkeypatch: pytest.MonkeyPatch) -> None:
             return ("fake", "fake-model")
         return (provider, model)
 
+    async def fake_page_claims_by_entity(page_text, sections, **kwargs):
+        # Page-at-a-time Stage 2, stubbed at the routing seam so the payload is
+        # deterministic regardless of the fixture page text (grounding itself is
+        # covered by the dedicated svo tests). Person AND place both get a claim,
+        # so both entities land — as the old per-entity path produced.
+        return {
+            "Regression Person": [
+                {
+                    "name": "Regression Person",
+                    "verb": "signed",
+                    "object": "the fixture deed",
+                    "source_text": "Regression Person signed the fixture deed",
+                    "epistemic_status": "established",
+                    "claim_type": "action",
+                }
+            ],
+            "Regression Place": [
+                {
+                    "name": "Regression Place",
+                    "verb": "hosted",
+                    "object": "the fixture signing",
+                    "source_text": "Regression Place hosted the fixture signing",
+                    "epistemic_status": "established",
+                    "claim_type": "action",
+                }
+            ],
+        }
+
     monkeypatch.setattr("fichero_server.llm.resolve_model_alias", resolve_alias)
     monkeypatch.setattr(
         "fichero_server.workflows.tools.extract_all.chat_structured_with_fallback",
         fake_twostage_structured,
+    )
+    monkeypatch.setattr(
+        "fichero_server.workflows.tools.extract_all._extract_page_claims_by_entity",
+        fake_page_claims_by_entity,
     )
     monkeypatch.setattr(
         "fichero_server.workflows.tools.catalogue._generate_resumen",
@@ -1178,14 +1220,19 @@ def test_catalogue_twostage_folder_uses_page_records_for_page_scoped_kg(
             events=[],
         )
 
-    async def fake_stage2_claims(*args, **kwargs):
-        return [
-            {
-                "verb": "signed",
-                "object": "the fixture ledger",
-                "source_text": "Regression Person signed the fixture ledger",
-            }
-        ]
+    async def fake_stage2_claims(page_text, sections, **kwargs):
+        # Page-at-a-time: one call per page returns claims keyed by their own
+        # correct subject. Regression Person is the agent on every page.
+        return {
+            "Regression Person": [
+                {
+                    "name": "Regression Person",
+                    "verb": "signed",
+                    "object": "the fixture ledger",
+                    "source_text": "Regression Person signed the fixture ledger",
+                }
+            ]
+        }
 
     async def fake_resumen(*args, **kwargs):
         return ("Catalogue narrative for the regression fixture.", [])
@@ -1224,7 +1271,7 @@ def test_catalogue_twostage_folder_uses_page_records_for_page_scoped_kg(
         fake_stage1,
     )
     monkeypatch.setattr(
-        "fichero_server.workflows.tools.extract_all._extract_claims_for_entity",
+        "fichero_server.workflows.tools.extract_all._extract_page_claims_by_entity",
         fake_stage2_claims,
     )
     monkeypatch.setattr("fichero_server.llm.resolve_model_alias", lambda p, m: ("fake", "fake-model"))

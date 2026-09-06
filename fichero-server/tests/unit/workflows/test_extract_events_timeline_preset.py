@@ -138,9 +138,9 @@ class TestEventsReachTheTimeline:
                 return schema(items=[])
             # The page-at-a-time SVO pass: one call returning triples that each
             # carry their own subject + scope (date).
-            return svo._PageClaims(
+            return extract_all._PageClaims(
                 items=[
-                    svo._PageClaimItem(
+                    extract_all._PageClaimItem(
                         subject="The signing of the fixture deed",
                         subject_type="event",
                         verb="took place",
@@ -188,9 +188,9 @@ class TestEventsReachTheTimeline:
             schema = kwargs["schema"]
             if getattr(schema, "__name__", "") == "_Section_Dates":
                 return schema(items=[])
-            return svo._PageClaims(
+            return extract_all._PageClaims(
                 items=[
-                    svo._PageClaimItem(
+                    extract_all._PageClaimItem(
                         subject="The signing of the fixture deed",
                         subject_type="event",
                         verb="took place",
