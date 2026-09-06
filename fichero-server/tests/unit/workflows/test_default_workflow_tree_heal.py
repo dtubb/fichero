@@ -161,3 +161,47 @@ def test_heal_restores_is_system_on_homed_legacy_rows(temp_db):
     assert temp_db.get(Workflow, workflow.id).is_system is True
     # Second pass is a no-op — the flag stays healed.
     assert heal_default_workflow_tree(temp_db) == 0
+
+
+def test_heal_restores_is_system_when_folder_drifted_but_id_matches(temp_db):
+    # The gate hole svo-quality's audit surfaced: a seeded preset that lost
+    # BOTH flags AND whose folder_path drifted from the preset's current value
+    # (a preset that moved folders in a later release) was skipped by the
+    # folder-only gate, so its is_system was never restored — and #4450's
+    # cross-library merge then offered ZERO defaults. Its deterministic id
+    # still identifies it; heal must restore the flag.
+    from fichero_server.workflows.default_workflows import preset_workflow_id
+
+    preset = _first_foldered_preset()
+    workflow = Workflow(
+        id=preset_workflow_id(preset["name"]),
+        name=preset["name"],
+        is_template=False,
+        is_system=False,
+        folder_path="/moved-elsewhere",  # drifted — no longer the preset's folder
+    )
+    temp_db.save(workflow)
+
+    healed = heal_default_workflow_tree(temp_db)
+
+    assert healed == 1
+    assert temp_db.get(Workflow, workflow.id).is_system is True
+
+
+def test_heal_still_skips_user_workflow_with_drifted_folder(temp_db):
+    # Guard the fix doesn't over-reach: a user's own same-named workflow has a
+    # RANDOM id (not the deterministic preset id) and its own folder, so it is
+    # still skipped even after the id-identity signal was added.
+    preset = _first_foldered_preset()
+    workflow = Workflow(
+        name=preset["name"],
+        is_template=False,
+        is_system=False,
+        folder_path="/my-own-folder",
+    )
+    temp_db.save(workflow)
+    before = temp_db.get(Document, workflow.id).parent_id
+
+    assert heal_default_workflow_tree(temp_db) == 0
+    assert temp_db.get(Workflow, workflow.id).is_system is False
+    assert temp_db.get(Document, workflow.id).parent_id == before

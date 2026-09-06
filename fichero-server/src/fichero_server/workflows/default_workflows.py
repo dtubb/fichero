@@ -306,8 +306,18 @@ def heal_default_workflow_tree(db: "Database") -> int:
         # folder_path) is never touched.
         preset = preset_by_name[workflow.name]
         flagged = getattr(workflow, "is_template", False) or getattr(workflow, "is_system", False)
-        looks_seeded = (getattr(workflow, "folder_path", None) or "/") == (
-            preset.get("folder_path") or "/"
+        # A row is a seeded preset when its folder_path matches the preset's OR
+        # its id is the deterministic preset id. The id closes the gate hole the
+        # folder-only check left open: a preset that lost BOTH flags AND whose
+        # folder_path drifted from the preset's current value (a preset that
+        # moved folders in a later release) was skipped, so its is_system was
+        # never restored — and #4450's cross-library merge then offered ZERO
+        # defaults. The deterministic id is minted only by the seeder, so a
+        # user's same-named workflow (random id, own folder) is still skipped.
+        looks_seeded = (
+            getattr(workflow, "id", None) == preset_workflow_id(workflow.name)
+            or (getattr(workflow, "folder_path", None) or "/")
+            == (preset.get("folder_path") or "/")
         )
         if not (flagged or looks_seeded):
             continue
