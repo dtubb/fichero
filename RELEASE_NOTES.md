@@ -2,14 +2,64 @@
 
 *Full commit-level history, day by day, lives in [`CHANGELOG.md`](CHANGELOG.md).*
 
-## 2026.09.05.2
+## 2026.09.06
 
-The same release as this morning's, rebuilt properly: a crash report
-revealed that shipped builds had been carrying Xcode's debug layout —
-a 296MB debug library and fully unoptimized code. This build is compiled
-with real optimizations for the first time. The app is dramatically
-smaller and faster; if Fichero ever felt sluggish, this is why. Nothing
-else changed.
+Two builds in one day. An earlier rebuild fixed a packaging regression —
+shipped builds had been carrying Xcode's debug layout (a 296MB debug
+library, unoptimized code); the app is now compiled with real
+optimizations, dramatically smaller and faster. Then a full night of live
+testing turned up a punch-list, every item root-caused and fixed.
+
+**The reader opens the page you picked.** Clicking a search result — or
+any page — now scrolls the reader to that exact page and lands find on
+it, every match highlighted and counted. Manifest-imported image pages
+(which carry no page number of their own) used to strand the reader on the
+folder's first page; it now finds the page by its own identity.
+
+**Everything busy shows in Activity.** Embedding, importing, and Kraken
+segmentation now appear in both the toolbar Activity popover and the full
+Activity viewer, with progress, live CPU%, and — when something fails — a
+clear Failed state naming the cause. A job that didn't take is obvious
+instead of silently missing.
+
+**The machine stays yours while it works.** Bulk embedding no longer pegs
+the CPU: it runs background-nice on spare cores and yields to whatever
+you're doing. Folder clicks that took 34 seconds during a big import are
+back to a fraction of a second, and embedding resumes exactly where it
+left off after a quit.
+
+**Workflows run on what you meant.** "This folder" runs on the folder
+itself, not silently on every file inside it; you can stop a running
+chain; and the bar spells out folder-versus-children scope. A second
+spaCy pass started while one is running now waits its turn instead of
+failing.
+
+**Selection stays visible.** An active selection is no longer hidden in
+the status island by continuous background work — that work has its own
+Activity indicator, so the island shows what you have selected.
+
+**Image navigation is smoother.** Descending into a folder no longer
+flashes an empty frame, page-to-page slides are snappier, and every
+rendition — including each redraw — is its own clearly-labeled row in the
+rendition menu.
+
+**Paleography.** Kraken can detect regions (baselines and boxes) and run
+per-line handwriting recognition tied to those lines; a new step aligns an
+existing transcript to the detected lines, and the overlay appears on its
+own when detection finishes. Recognition never overwrites good transcript
+text.
+
+**Knowledge quality.** Statements are extracted a page at a time, which
+removes the cross-product of subjects and objects that produced nonsense
+triples; people with different surnames stay distinct; and a Merge/Dedup
+pass collapses name collisions automatically.
+
+**Library cloning (early).** The groundwork for copying a library to
+another machine over the network — resumable, pull-only — ships behind
+`fichero library clone`.
+
+**About.** The "Built on" list now shows the live versions of the
+open-source libraries the running engine actually loaded.
 
 ## 2026.09.05
 
