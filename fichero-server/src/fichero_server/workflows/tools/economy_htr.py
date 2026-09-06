@@ -174,24 +174,44 @@ def trocr_transcribe_lines(
 
 
 def kraken_transcribe_page(image_path: str, model_path: str) -> str:
-    """Full-page kraken CLI run: baseline segmentation + recognition."""
+    """Full-page kraken CLI run: baseline segmentation + recognition.
+
+    ``model_path`` is either a catalog model id ("kraken-mccatmus",
+    "kraken-catmus-medieval") — resolved to the copy the app downloaded — or a
+    literal ``.mlmodel`` path. The kraken CLI is the app's OWN runtime venv
+    binary (installed from Settings), falling back to a system ``kraken`` only
+    if the runtime is absent — so installing Kraken + a model in Settings
+    actually feeds HTR.
+    """
+    from fichero_server.llm import kraken_runtime
+
+    # A catalog model id resolves to the downloaded .mlmodel; a path is literal.
+    if model_path in kraken_runtime.KRAKEN_RECOGNITION_MODELS:
+        resolved = kraken_runtime.recognition_model_path(model_path)
+        if not resolved:
+            raise RuntimeError(
+                f"Kraken recognition model '{model_path}' is not downloaded — "
+                "install it from Settings -> AI (the on-device model catalog)."
+            )
+        model_path = resolved
     if not model_path:
         raise RuntimeError(
-            "economy_htr kraken backend needs kraken_model_path "
-            "(e.g. catmus-medieval.mlmodel from zenodo.org/records/12743230)"
+            "economy_htr kraken backend needs kraken_model_path — a catalog "
+            "model id (e.g. 'kraken-mccatmus') or a path to a .mlmodel."
         )
     if not Path(model_path).exists():
         raise RuntimeError(f"kraken model not found: {model_path}")
-    kraken_bin = shutil.which("kraken")
-    if not kraken_bin:
+    runtime_bin = kraken_runtime.kraken_bin()
+    kraken_exe = str(runtime_bin) if runtime_bin else shutil.which("kraken")
+    if not kraken_exe:
         raise RuntimeError(
-            "economy_htr kraken backend needs the 'kraken' CLI on PATH "
-            "(pip install kraken; not a fichero dependency)"
+            "economy_htr kraken backend needs the Kraken runtime — install it "
+            "from Settings -> AI -> Local Inference (or a system 'kraken' on PATH)."
         )
     with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as handle:
         out_path = handle.name
     result = subprocess.run(
-        [kraken_bin, "-i", str(image_path), out_path, "segment", "-bl", "ocr", "-m", model_path],
+        [kraken_exe, "-i", str(image_path), out_path, "segment", "-bl", "ocr", "-m", model_path],
         capture_output=True,
         text=True,
         timeout=600,

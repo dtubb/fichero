@@ -108,18 +108,74 @@ KRAKEN_RECOGNITION_MODELS: dict[str, dict[str, object]] = {
 
 
 def recognition_model_dir(home: Path | None = None) -> Path:
-    """Where a completed recognition-model install is recorded (our marker)."""
+    """Where completed recognition-model installs are recorded (our markers)."""
     return kraken_runtime_dir(home) / "recognition"
 
 
-def is_recognition_model_installed(model_id: str, home: Path | None = None) -> bool:
-    """Whether a recognition model has been fetched.
+def recognition_data_home(home: Path | None = None) -> Path:
+    """XDG_DATA_HOME we point `kraken get` at, so the .mlmodel lands in OUR tree.
 
-    `kraken get` lands the weights under ~/.local/share/htrmopo with an opaque
-    UUID dir, so rather than reverse-map DOI→dir we drop a marker in our own
-    runtime tree on a successful fetch. Its presence is the honest signal.
+    `kraken get` writes to ``$XDG_DATA_HOME/htrmopo/<uuid>/`` with an opaque
+    UUID dir. Rather than reverse-map DOI→uuid, we make that base a directory we
+    own, then scan it for the fetched ``.mlmodel`` — a deterministic path under
+    the app's control instead of the user's global ``~/.local/share``.
     """
-    return (recognition_model_dir(home) / f"{model_id}.installed").exists()
+    return kraken_runtime_dir(home) / "htr-data"
+
+
+def kraken_bin(home: Path | None = None) -> Path | None:
+    """The runtime venv's `kraken` CLI, or None when the runtime is absent.
+
+    economy_htr's kraken backend must run the app's OWN kraken (the one this
+    runtime installed), not a system `kraken` that may not exist — the two
+    kraken worlds that used to never meet.
+    """
+    candidate = kraken_runtime_dir(home) / "bin" / "kraken"
+    return candidate if candidate.exists() else None
+
+
+def _marker_path(model_id: str, home: Path | None = None) -> Path:
+    return recognition_model_dir(home) / f"{model_id}.installed"
+
+
+def is_recognition_model_installed(model_id: str, home: Path | None = None) -> bool:
+    """Whether a recognition model has been fetched (our marker is the signal)."""
+    return _marker_path(model_id, home).exists()
+
+
+def recognition_model_path(model_id: str, home: Path | None = None) -> str | None:
+    """Filesystem path to a downloaded recognition ``.mlmodel``, or None.
+
+    Reads the path recorded at download time. None means "not downloaded (or the
+    fetch could not be located)" — the caller must say so rather than run
+    kraken against a path that is not there.
+    """
+    marker = _marker_path(model_id, home)
+    if not marker.exists():
+        return None
+    try:
+        data = json.loads(marker.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    path = data.get("model_path")
+    return str(path) if path else None
+
+
+def _default_run_get(argv: list[str]) -> str:
+    result = subprocess.run(argv, check=True, capture_output=True, text=True)
+    return result.stdout or ""
+
+
+def _locate_downloaded_mlmodel(data_home: Path) -> str | None:
+    """Newest ``.mlmodel`` under the data-home htrmopo tree, or None."""
+    if not data_home.exists():
+        return None
+    models = sorted(
+        data_home.rglob("*.mlmodel"),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    return str(models[0]) if models else None
 
 
 def download_recognition_model(
@@ -127,11 +183,17 @@ def download_recognition_model(
     home: Path | None = None,
     run_command=None,
 ) -> None:
-    """Fetch a recognition model with `kraken get <DOI>` and mark it installed.
+    """Fetch a recognition model with `kraken get <DOI>` and record its path.
 
     Requires the runtime venv (kraken lives in it). Raises rather than
     half-succeeding: without the venv there is no `kraken` to run, and a fetch
-    that quietly did nothing is the shape a user reads as success.
+    that quietly does nothing is the shape a user reads as success. The fetched
+    ``.mlmodel`` path is recorded so economy_htr can run against it.
+
+    NOTE: `kraken get`'s on-disk layout is verified LIVE — pointing XDG_DATA_HOME
+    at our own tree and scanning for the newest ``.mlmodel`` is robust to the
+    opaque UUID dir, but the exact CLI behaviour needs a real ~1 GB fetch to
+    confirm end to end (flagged for Daniel's live check).
     """
     spec = KRAKEN_RECOGNITION_MODELS.get(model_id)
     if spec is None:
@@ -140,17 +202,33 @@ def download_recognition_model(
         raise KrakenRuntimeMissingError(
             "Install the Kraken runtime before downloading recognition models."
         )
-    runner = run_command or _default_run_command
-    kraken_bin = kraken_runtime_dir(home) / "bin" / "kraken"
-    runner([str(kraken_bin), "get", str(spec["doi"])])
+    runner = run_command or _default_run_get
+    data_home = recognition_data_home(home)
+    data_home.mkdir(parents=True, exist_ok=True)
+    interpreter = kraken_runtime_dir(home) / "bin" / "kraken"
+    # HTRMoPo reads XDG_DATA_HOME for where to place the model, so setting it in
+    # the environment routes the download into our tree.
+    prior = os.environ.get("XDG_DATA_HOME")
+    os.environ["XDG_DATA_HOME"] = str(data_home)
+    try:
+        runner([str(interpreter), "get", str(spec["doi"])])
+    finally:
+        if prior is None:
+            os.environ.pop("XDG_DATA_HOME", None)
+        else:
+            os.environ["XDG_DATA_HOME"] = prior
+    model_path = _locate_downloaded_mlmodel(data_home)
     marker_dir = recognition_model_dir(home)
     marker_dir.mkdir(parents=True, exist_ok=True)
-    (marker_dir / f"{model_id}.installed").write_text(str(spec["doi"]), encoding="utf-8")
+    _marker_path(model_id, home).write_text(
+        json.dumps({"doi": str(spec["doi"]), "model_path": model_path}),
+        encoding="utf-8",
+    )
 
 
 def remove_recognition_model(model_id: str, home: Path | None = None) -> None:
     """Forget a recognition model (drops our marker; htrmopo cache is kraken's)."""
-    marker = recognition_model_dir(home) / f"{model_id}.installed"
+    marker = _marker_path(model_id, home)
     if marker.exists():
         marker.unlink()
 
@@ -564,7 +642,10 @@ __all__ = [
     "KRAKEN_VERSION",
     "download_recognition_model",
     "is_recognition_model_installed",
+    "kraken_bin",
+    "recognition_data_home",
     "recognition_model_dir",
+    "recognition_model_path",
     "remove_recognition_model",
     "KrakenInstallJob",
     "KrakenRuntimeManager",

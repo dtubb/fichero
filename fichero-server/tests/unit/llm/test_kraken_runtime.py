@@ -250,6 +250,41 @@ def test_removing_a_recognition_model_drops_its_marker(runtime_home: Path) -> No
     assert kraken_runtime.is_recognition_model_installed("kraken-mccatmus") is False
 
 
+def test_download_records_the_fetched_model_path(runtime_home: Path) -> None:
+    """The .mlmodel path is recorded so economy_htr can run against it."""
+    _mark_installed(runtime_home)
+
+    def fake_get(argv: list[str]) -> str:
+        # The real `kraken get` writes the model under XDG_DATA_HOME (our tree);
+        # simulate that landing.
+        data_home = kraken_runtime.recognition_data_home()
+        model_dir = data_home / "htrmopo" / "uuid-abc"
+        model_dir.mkdir(parents=True, exist_ok=True)
+        (model_dir / "McCATMuS.mlmodel").write_bytes(b"weights")
+        return "Model dir: whatever\n"
+
+    kraken_runtime.download_recognition_model("kraken-mccatmus", run_command=fake_get)
+
+    resolved = kraken_runtime.recognition_model_path("kraken-mccatmus")
+    assert resolved is not None
+    assert resolved.endswith("McCATMuS.mlmodel")
+
+
+def test_recognition_model_path_is_none_when_not_downloaded(runtime_home: Path) -> None:
+    assert kraken_runtime.recognition_model_path("kraken-mccatmus") is None
+
+
+def test_kraken_bin_is_the_venv_binary_only_when_installed(runtime_home: Path) -> None:
+    assert kraken_runtime.kraken_bin() is None  # no runtime yet
+    _mark_installed(runtime_home)
+    (kraken_runtime.kraken_runtime_dir() / "bin" / "kraken").write_text(
+        "#!/bin/sh\n", encoding="utf-8"
+    )
+    binary = kraken_runtime.kraken_bin()
+    assert binary is not None
+    assert str(binary).endswith("/bin/kraken")
+
+
 # --- the shared vocabulary --------------------------------------------------
 
 
