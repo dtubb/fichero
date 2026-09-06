@@ -143,19 +143,23 @@ struct ProviderDetailView: View {
                 }
                 }
 
-                // On-device runtime + its installable models, filtered to THIS
-                // provider (MLX/spaCy/Kraken/Whisper). The downloads that used
-                // to sit in a separate "MLX Runtime" block below the provider
-                // list now live in the provider's own row.
-                if isLocalProvider {
+                // On-device models live INSIDE the provider row (Daniel,
+                // 2026-09-05). Two runtimes, two backend spines:
+                //   • MLX (omlx) → /api/local-inference/* (LocalRuntimeModelsView),
+                //     which also carries the runtime-provisioning block.
+                //   • no-prompt runtimes (spaCy/Kraken/Whisper) →
+                //     /api/local-models?model_type=… (LocalModelsCatalogView).
+                if showsRuntimeBlock {
                     LocalRuntimeModelsView(
                         store: appState.localInferenceStore,
                         providerType: provider.providerType,
-                        showRuntime: showsRuntimeBlock,
-                        showServices: showsRuntimeBlock,
+                        showRuntime: true,
+                        showServices: true,
                         modelsTitle: "On-Device Models",
-                        hidesEmptyCatalog: !showsRuntimeBlock
+                        hidesEmptyCatalog: false
                     )
+                } else if isNoPromptRuntime {
+                    LocalModelsCatalogView(modelType: provider.providerType)
                 }
 
                 if !isLocalProvider {
@@ -323,10 +327,9 @@ struct ProviderDetailView: View {
         }
         .task(id: provider.id) {
             await loadModels()
-            // Populate the on-device catalog/runtime for local provider rows.
-            // The store guards against concurrent loads, so this is safe to
-            // call from every local row's task.
-            if isLocalProvider {
+            // MLX's on-device catalog/runtime comes from the shared store; the
+            // no-prompt runtimes load themselves inside LocalModelsCatalogView.
+            if showsRuntimeBlock {
                 await appState.localInferenceStore.load()
             }
         }
