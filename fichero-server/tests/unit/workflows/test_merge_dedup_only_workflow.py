@@ -105,6 +105,111 @@ def test_merge_dedup_preset_applies_rules_and_is_idempotent(tmp_path: Path):
     assert trivial_claim.confidence == 0.2
 
 
+def test_merge_dedup_collapses_case_variant_duplicates(tmp_path: Path):
+    # Daniel, live: Merge/Dedup examined the two "Alejandro Piedrahita" case
+    # variants but merged 0 — the workflow only applied hand-written rules and
+    # never ran the automatic name-collision dedup. It must now collapse genuine
+    # case/accent variants (no rule needed) WITHOUT merging distinct people.
+    library_path, parent_doc_id = _seed_case_variant_library(tmp_path)
+    db = db_manager.get_database(library_path)
+    workflow = _load_workflow("4 · Merge / Dedup")
+
+    result = asyncio.run(
+        build_graph(workflow, skip_cache=True).ainvoke(
+            _workflow_state(library_path, parent_doc_id, task_id="merge-dedup-casevar")
+        )
+    )
+    assert not result.get("error")
+    summary = result["outputs"]["merge-dedup"]["summary"]
+
+    # Exactly one merge: the ALEJANDRO PIEDRAHITA / Alejandro Piedrahita pair.
+    assert summary["entities_merged"] == 1
+
+    live_names = [
+        e.canonical_name
+        for e in db.all(KnowledgeEntity)
+        if e.merged_into_id is None
+    ]
+    alejandros = [n for n in live_names if n.lower() == "alejandro piedrahita"]
+    marias = sorted(n for n in live_names if n.startswith("María García"))
+    # Case-variants collapsed to one; divergent second surnames stayed distinct.
+    assert len(alejandros) == 1, live_names
+    assert marias == ["María García López", "María García Pérez"], live_names
+
+    # Idempotent: a second run finds nothing left to merge.
+    second = asyncio.run(
+        build_graph(workflow, skip_cache=True).ainvoke(
+            _workflow_state(library_path, parent_doc_id, task_id="merge-dedup-casevar-2")
+        )
+    )
+    assert second["outputs"]["merge-dedup"]["summary"]["entities_merged"] == 0
+
+
+def _seed_case_variant_library(tmp_path: Path) -> tuple[Path, str]:
+    library_path = tmp_path / "case-variant-stage.fichero"
+    seed(library_path)
+    db = db_manager.get_database(library_path)
+
+    source_file = tmp_path / "piedrahita.pdf"
+    source_file.write_bytes(b"%PDF-1.4\n% case variant fixture\n")
+
+    parent_doc = Document(
+        id="piedrahita-root",
+        name="Piedrahita root",
+        path=str(source_file),
+        doc_type=DocType.file,
+        file_type=FileType.pdf,
+        metadata={"canonical_external_id": "piedrahita-root"},
+    )
+    page = Document(
+        id="piedrahita-page-1",
+        parent_id=parent_doc.id,
+        name="Piedrahita page 1",
+        doc_type=DocType.page,
+        sequence=1,
+        metadata={"page_label": "001"},
+    )
+    db.save(parent_doc)
+    db.save(page)
+
+    # Two case-variants of ONE person (no resolution rule) — must merge.
+    db.save(
+        KnowledgeEntity(
+            id="ent-alej-upper",
+            canonical_name="ALEJANDRO PIEDRAHITA",
+            entity_type=EntityType.person,
+            source_document_ids=[page.id],
+        )
+    )
+    db.save(
+        KnowledgeEntity(
+            id="ent-alej-title",
+            canonical_name="Alejandro Piedrahita",
+            entity_type=EntityType.person,
+            source_document_ids=[page.id],
+        )
+    )
+    # Two DISTINCT people sharing first name + first surname — must NOT merge.
+    db.save(
+        KnowledgeEntity(
+            id="ent-maria-lopez",
+            canonical_name="María García López",
+            entity_type=EntityType.person,
+            source_document_ids=[page.id],
+        )
+    )
+    db.save(
+        KnowledgeEntity(
+            id="ent-maria-perez",
+            canonical_name="María García Pérez",
+            entity_type=EntityType.person,
+            source_document_ids=[page.id],
+        )
+    )
+
+    return library_path, parent_doc.id
+
+
 def _seed_merge_dedup_library(tmp_path: Path) -> tuple[Path, str]:
     library_path = tmp_path / "merge-dedup-stage.fichero"
     seed(library_path)

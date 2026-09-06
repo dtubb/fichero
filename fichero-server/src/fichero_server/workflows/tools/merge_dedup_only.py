@@ -6,9 +6,12 @@ those documents, then re-apply the persisted entity-resolution rules and
 claim-suppression rules to the existing entities/claims.
 
 It intentionally does NOT invent new merge heuristics. Entity merges go
-through the existing rule resolver + entity-curation merge path; claim
-suppression mirrors the existing claim-write semantics; trivial-claim pruning
-reuses the shared conservative detector.
+through the existing rule resolver + entity-curation merge path AND the shared
+``plan_entity_dedupe`` name/alias-collision planner (the same accent/case/
+punctuation-folded ``normalize_name`` discipline the write path uses — no fuzzy
+tier), so legacy case/accent-variant duplicates that no hand-written rule
+targets are still collapsed; claim suppression mirrors the existing claim-write
+semantics; trivial-claim pruning reuses the shared conservative detector.
 """
 
 from __future__ import annotations
@@ -321,6 +324,53 @@ async def merge_dedup_only(
         summary["entities_merged"] += 1
         if target_type != entity.entity_type:
             summary["entities_reclassified"] += 1
+
+    # Automatic same-type dedup by normalized name / alias collision — the
+    # piece the rule pass above does NOT cover. `_apply_entity_resolution_rules`
+    # fires only for entities a hand-written rule targets, so legacy case/accent
+    # variants of one person ("ALEJANDRO PIEDRAHITA" / "Alejandro Piedrahita")
+    # with no rule were examined and left split (Daniel, live: examined 8,
+    # merged 0). plan_entity_dedupe reuses the SAME normalize_name discipline as
+    # the write path (upsert_entity): an exact accent/case/punctuation-folded key
+    # + alias collision, with min_similarity left None so NO fuzzy tier runs —
+    # distinct names ("García López" / "García Pérez") fold to different keys and
+    # never union. Runs after the rule pass so it dedups what remains.
+    from fichero_server.knowledge.dedupe import plan_entity_dedupe
+
+    remaining = _scoped_entities(db, scoped_doc_ids)
+    dedupe_groups = plan_entity_dedupe(remaining)  # include_reviewed=False
+    if dedupe_groups:
+        # api.route imported at call time, not module scope (#3950 layering).
+        from fichero_server.api.routes.kg_entity_curation import (
+            EntityMergeRequest,
+            merge_entities,
+        )
+
+        group_member_ids = {
+            member.id
+            for group in dedupe_groups
+            for member in (group.survivor, *group.absorbed)
+        }
+        dedupe_audited = audited_row_ids(db, group_member_ids)
+        for group in dedupe_groups:
+            survivor = group.survivor
+            for absorbed in group.absorbed:
+                # Never destroy a hand-curated / audited row, even one still
+                # marked unreviewed by state — mirror the rule pass's guard.
+                if resolve_curation(absorbed, audited_ids=dedupe_audited).is_protected:
+                    summary["entities_curated_preserved"] += 1
+                    continue
+                await merge_entities(
+                    EntityMergeRequest(
+                        absorbing_entity_id=survivor.id,
+                        absorbed_entity_ids=[absorbed.id],
+                        merged_aliases=[absorbed.canonical_name],
+                    ),
+                    db=db,
+                    ctx=action_ctx,
+                )
+                touched_entity_ids.extend([survivor.id, absorbed.id])
+                summary["entities_merged"] += 1
 
     await emit_progress_event(
         progress_callback,
