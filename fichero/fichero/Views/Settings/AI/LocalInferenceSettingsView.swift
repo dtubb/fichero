@@ -19,8 +19,15 @@ struct LocalInferenceSettingsView: View {
                         .foregroundStyle(.secondary)
                 }
             } else {
-                runtimeSection
-                catalogSection
+                // Runtime block + full multi-runtime catalog now live in the
+                // shared `LocalRuntimeModelsView` so a local PROVIDER ROW can
+                // render exactly the same rows filtered to one runtime.
+                LocalRuntimeModelsView(
+                    store: store,
+                    providerType: nil,
+                    showRuntime: true,
+                    modelsTitle: "Model Catalog"
+                )
                 servicesSection
             }
 
@@ -37,169 +44,6 @@ struct LocalInferenceSettingsView: View {
         .task {
             guard !Task.isCancelled else { return }
             await store.load()
-        }
-    }
-
-    // MARK: Runtime
-
-    @ViewBuilder
-    private var runtimeSection: some View {
-        Section("MLX Runtime") {
-            let runtime = store.runtime
-            HStack {
-                Label {
-                    Text(runtime?.provisioned == true ? "Provisioned" : "Not provisioned")
-                } icon: {
-                    Image(systemName: runtime?.provisioned == true ? "checkmark.seal.fill" : "seal")
-                        .foregroundStyle(runtime?.provisioned == true ? .green : .secondary)
-                }
-                LocalPrivateBadge()
-                Spacer()
-                if store.isRuntimeBusy {
-                    runtimeProgress
-                } else if runtime?.provisioned == true {
-                    Button("Remove", role: .destructive) {
-                        Task { await store.removeRuntime() }
-                    }
-                    .buttonStyle(.borderless)
-                } else {
-                    Button("Provision") {
-                        Task { await store.provisionRuntime() }
-                    }
-                    .buttonStyle(.borderless)
-                }
-            }
-
-            if let version = runtime?.mlxLmVersion, !version.isEmpty {
-                LabeledContent("mlx-lm (text)", value: version)
-            }
-            if let version = runtime?.mlxVlmVersion, !version.isEmpty {
-                LabeledContent("mlx-vlm (vision)", value: version)
-            }
-            // Audio is its own capability: a runtime can serve every text and
-            // vision model in the catalog with no transcriber installed, so it
-            // is not "unprovisioned" — it just cannot transcribe, and says so
-            // here rather than failing when someone runs a Whisper workflow.
-            if let version = runtime?.mlxWhisperVersion, !version.isEmpty {
-                LabeledContent("mlx-whisper (audio)", value: version)
-            } else if runtime?.provisioned == true {
-                LabeledContent("mlx-whisper (audio)") {
-                    Text("Not installed — Provision again to add transcription")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            if let bytes = runtime?.diskUsageBytes, bytes > 0 {
-                LabeledContent("Disk usage", value: Self.formatBytes(bytes))
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var runtimeProgress: some View {
-        if let job = store.runtime?.job,
-           let fraction = LocalInferenceDisplay.progressFraction(current: job.current, total: job.total, percent: job.percent) {
-            ProgressView(value: fraction) {
-                if !job.message.isEmpty {
-                    Text(job.message).font(.caption).foregroundStyle(.secondary)
-                }
-            }
-            .frame(width: 160)
-        } else {
-            ProgressView().controlSize(.small)
-        }
-    }
-
-    // MARK: Catalog
-
-    @ViewBuilder
-    private var catalogSection: some View {
-        Section("Model Catalog") {
-            if store.catalog.isEmpty {
-                Text("No models available.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else {
-                ForEach(store.catalog, id: \.modelId) { entry in
-                    catalogRow(entry)
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func catalogRow(_ entry: Components.Schemas.LocalModelCatalogEntry) -> some View {
-        let row = LocalInferenceDisplay.row(
-            supported: entry.supported,
-            unsupportedReason: entry.unsupportedReason,
-            installed: entry.installed
-        )
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
-                    Text(entry.displayName)
-                        .font(.body)
-                    ForEach(entry.capabilities ?? [], id: \.self) { capability in
-                        CapabilityChip(capability: capability)
-                    }
-                    if entry.testedStatus == "untested" {
-                        // Never claim a model works here on its reputation.
-                        Text("untested")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                            .help("Nobody has run this model inside Fichero yet.")
-                    }
-                }
-                // Size and memory floor together: the two numbers that decide
-                // whether a download is worth starting on THIS Mac.
-                Text(Self.subtitle(for: entry))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                if row.disabled, let reason = row.unsupportedReason {
-                    Text(reason)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else if let note = entry.note, !note.isEmpty {
-                    Text(note)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            Spacer()
-            catalogAction(entry, row: row)
-        }
-        .opacity(row.disabled ? 0.5 : 1)
-    }
-
-    @ViewBuilder
-    private func catalogAction(_ entry: Components.Schemas.LocalModelCatalogEntry, row: LocalInferenceDisplay.CatalogRow) -> some View {
-        if row.disabled {
-            Image(systemName: "nosign").foregroundStyle(.secondary)
-        } else if let job = store.downloads[entry.modelId],
-                  !LocalInferenceDisplay.isTerminal(state: job.state, error: job.error, percent: job.percent) {
-            HStack(spacing: 8) {
-                if let fraction = LocalInferenceDisplay.progressFraction(current: job.current, total: job.total, percent: job.percent) {
-                    ProgressView(value: fraction).frame(width: 100)
-                } else {
-                    ProgressView().controlSize(.small)
-                }
-                Button("Cancel") {
-                    Task { await store.cancelDownload(modelId: entry.modelId) }
-                }
-                .buttonStyle(.borderless)
-            }
-        } else if row.installed {
-            Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-            Button("Delete", role: .destructive) {
-                Task { await store.deleteModel(modelId: entry.modelId) }
-            }
-            .buttonStyle(.borderless)
-        } else {
-            Button("Download") {
-                Task { await store.downloadModel(modelId: entry.modelId) }
-            }
-            .buttonStyle(.borderless)
         }
     }
 
@@ -256,23 +100,6 @@ struct LocalInferenceSettingsView: View {
         case .error: return .red
         case .success: return .green
         }
-    }
-
-    /// "5.8 GB · needs 16 GB unified memory" — the mapping itself lives in
-    /// `LocalInferenceDisplay` so it can be tested without the generated type.
-    static func subtitle(for entry: Components.Schemas.LocalModelCatalogEntry) -> String {
-        LocalInferenceDisplay.subtitle(
-            downloadSizeBytes: entry.downloadSizeBytes,
-            diskUsageBytes: entry.diskUsageBytes,
-            memoryClass: entry.memoryClass,
-            format: formatBytes
-        )
-    }
-
-    static func formatBytes(_ bytes: Int) -> String {
-        let formatter = ByteCountFormatter()
-        formatter.countStyle = .file
-        return formatter.string(fromByteCount: Int64(bytes))
     }
 }
 
