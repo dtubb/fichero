@@ -24,19 +24,23 @@ from fichero_server.llm.providers import (
 )
 
 
+# The local runtimes that are real providers but answer no prompts: a
+# part-of-speech tagger, a line segmenter, an audio transcriber. A chat model
+# picker must never offer one (#4671).
+_NON_CHAT_PROVIDERS = {ProviderType.spacy, ProviderType.kraken, ProviderType.whisper}
+
+
 class TestTheFieldIsAdditive:
     def test_every_language_model_provider_still_declares_chat(self):
         # The default is the whole point: adding this field must not have
         # silently demoted anything.
         for info in list_providers():
-            if info.type is ProviderType.spacy:
+            if info.type in _NON_CHAT_PROVIDERS:
                 continue
             assert info.supports_chat, info.type.value
 
-    def test_only_the_nlp_runtime_opts_out(self):
-        assert [i.type.value for i in list_providers() if not i.supports_chat] == [
-            "spacy"
-        ]
+    def test_only_the_non_llm_runtimes_opt_out(self):
+        assert {i.type for i in list_providers() if not i.supports_chat} == _NON_CHAT_PROVIDERS
 
 
 class TestTheSpacyRow:

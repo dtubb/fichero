@@ -38,6 +38,13 @@ class ProviderType(str, Enum):
     mock = "mock"
     # Local NLP runtimes — models, but not language models (#4671)
     spacy = "spacy"
+    # Line segmenter for historical hands (finds lines, reads nothing). A
+    # user-chosen ~1 GB install, not an LLM — answers no prompts.
+    kraken = "kraken"
+    # On-device audio transcription (mlx-whisper), served from the MLX runtime.
+    # Its own provider row so Settings shows a "Local Whisper", not audio buried
+    # under oMLX.
+    whisper = "whisper"
     # Local servers
     ollama = "ollama"
     lmstudio = "lmstudio"
@@ -435,6 +442,54 @@ PROVIDERS: dict[ProviderType, ProviderInfo] = {
         icon="text.magnifyingglass",
         color="teal",
         sort_order=5,
+    ),
+    ProviderType.kraken: ProviderInfo(
+        type=ProviderType.kraken,
+        name="Kraken (line segmentation)",
+        description=(
+            "On-device line segmentation for historical hands. Finds where the "
+            "written lines are — a polygon and a baseline per line — and reads "
+            "nothing. Answers no prompts. A ~1 GB download, never installed "
+            "automatically."
+        ),
+        api_key_env=None,
+        api_key_url=None,
+        is_local=True,
+        # NOT builtin: unlike spaCy's ~54 MB, Kraken drags torch (~1 GB) and is
+        # a deliberate, user-chosen install. The provider row exists so Settings
+        # can offer it; whether it is present is the catalog entry's job.
+        is_builtin=False,
+        supports_chat=False,
+        supports_vision=False,
+        supports_embeddings=False,
+        supports_streaming=False,
+        default_model="kraken-blla",
+        icon="text.viewfinder",
+        color="indigo",
+        sort_order=6,
+    ),
+    ProviderType.whisper: ProviderInfo(
+        type=ProviderType.whisper,
+        name="Whisper (local transcription)",
+        description=(
+            "On-device audio transcription (mlx-whisper), served from the MLX "
+            "runtime. Curated model sizes from tiny to large-v3; turbo is the "
+            "recommended default. Answers no chat prompts."
+        ),
+        api_key_env=None,
+        api_key_url=None,
+        is_local=True,
+        # Needs the MLX runtime provisioned (the transcriber) plus a downloaded
+        # model, so it is available but not builtin.
+        is_builtin=False,
+        supports_chat=False,
+        supports_vision=False,
+        supports_embeddings=False,
+        supports_streaming=False,
+        default_model="turbo",
+        icon="waveform",
+        color="purple",
+        sort_order=6,
     ),
     ProviderType.deepl: ProviderInfo(
         type=ProviderType.deepl,
