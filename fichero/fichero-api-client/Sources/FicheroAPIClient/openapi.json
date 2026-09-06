@@ -3,7 +3,7 @@
   "info": {
     "title": "Fichero API",
     "description": "Document processing and search API",
-    "version": "2026.9.3"
+    "version": "2026.9.6"
   },
   "paths": {
     "/api/clients": {
@@ -283,6 +283,29 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/activity/jobs": {
+      "get": {
+        "tags": [
+          "activity",
+          "activity"
+        ],
+        "summary": "List Background Jobs",
+        "description": "Snapshot of currently-running background jobs + rough process CPU%.\n\nGlobal (not per-library): the background derivative/embed pool is process-\nwide, and the user wants to see everything consuming compute. Read-only and\ncheap \u2014 a point-in-time read of the live progress map plus one CPU sample \u2014\nso the Activity UI can poll it without adding load of its own.",
+        "operationId": "list_background_jobs_api_activity_jobs_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackgroundJobsResponse"
                 }
               }
             }
@@ -14578,6 +14601,71 @@
         "responses": {
           "204": {
             "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/library/sync/manifest": {
+      "get": {
+        "tags": [
+          "library-sync"
+        ],
+        "summary": "Get Sync Manifest",
+        "description": "Return the current sync manifest for the library (read role required).\n\nLists the ``files/`` originals plus one ``kind=\"db\"`` object \u2014 a consistent\ncopy of ``fichero.duckdb`` (quiesced + copied, design \u00a72.1) \u2014 so a clone is\nopenable. ``generation`` is the max object mtime_ns \u2014 cheap, monotonic-ish,\nand stable while the library is unchanged, so a clone can pin one generation\nand resume against it across restarts.",
+        "operationId": "get_sync_manifest_api_library_sync_manifest_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncManifestResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/library/sync/object": {
+      "get": {
+        "tags": [
+          "library-sync"
+        ],
+        "summary": "Get Sync Object",
+        "description": "Stream one syncable object by its manifest-relative path (read role).\n\nThe client re-hashes on landing (``land_object`` verifies ``sha256``), so\nthe server streams without re-hashing \u2014 cheap, and integrity is enforced at\nthe destination where a mismatch triggers a re-fetch on resume. Only\n``files/`` originals are syncable objects; the rel is confined to the\npackage (an untrusted rel with ``..`` never escapes), matching the read the\nexisting document/rendition routes already permit for this role.\n\nThe one non-``files/`` object is the DB image (``rel=fichero.duckdb``): it is\nserved from the consistent cached copy, built on demand so the bytes match\nthe hash the manifest advertised.",
+        "operationId": "get_sync_object_api_library_sync_object_get",
+        "parameters": [
+          {
+            "name": "rel",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Library-relative object path from the manifest",
+              "title": "Rel"
+            },
+            "description": "Library-relative object path from the manifest"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -37859,6 +37947,86 @@
         },
         "type": "object",
         "title": "BBoxCounts"
+      },
+      "BackgroundJob": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "task_type": {
+            "type": "string",
+            "title": "Task Type"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "library": {
+            "type": "string",
+            "title": "Library",
+            "default": ""
+          },
+          "current": {
+            "type": "integer",
+            "title": "Current"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "percent": {
+            "type": "number",
+            "title": "Percent"
+          },
+          "state": {
+            "type": "string",
+            "title": "State"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "task_type",
+          "name",
+          "current",
+          "total",
+          "percent",
+          "state"
+        ],
+        "title": "BackgroundJob",
+        "description": "One live background job (a running derivative/embed queue, \u2026).\n\nFirst-class so the Activity UI can show the user WHAT is consuming compute\nand how far along it is ([[user-machine-always-useful]] FIX 2)."
+      },
+      "BackgroundJobsResponse": {
+        "properties": {
+          "jobs": {
+            "items": {
+              "$ref": "#/components/schemas/BackgroundJob"
+            },
+            "type": "array",
+            "title": "Jobs"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "process_cpu_percent": {
+            "type": "number",
+            "nullable": true,
+            "title": "Process Cpu Percent"
+          },
+          "cpu_count": {
+            "type": "integer",
+            "title": "Cpu Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "count",
+          "cpu_count"
+        ],
+        "title": "BackgroundJobsResponse",
+        "description": "Snapshot of running background jobs + rough process CPU usage."
       },
       "BatchClaimCurationRequest": {
         "properties": {
@@ -63638,6 +63806,72 @@
         },
         "type": "object",
         "title": "StraightenOperationRequest"
+      },
+      "SyncManifestResponse": {
+        "properties": {
+          "library_id": {
+            "type": "string",
+            "title": "Library Id"
+          },
+          "generation": {
+            "type": "integer",
+            "title": "Generation"
+          },
+          "produced_at": {
+            "type": "string",
+            "title": "Produced At"
+          },
+          "objects": {
+            "items": {
+              "$ref": "#/components/schemas/SyncObjectModel"
+            },
+            "type": "array",
+            "title": "Objects"
+          }
+        },
+        "type": "object",
+        "required": [
+          "library_id",
+          "generation",
+          "produced_at",
+          "objects"
+        ],
+        "title": "SyncManifestResponse",
+        "description": "A library's syncable objects at one generation (design \u00a72.1)."
+      },
+      "SyncObjectModel": {
+        "properties": {
+          "rel": {
+            "type": "string",
+            "title": "Rel"
+          },
+          "sha256": {
+            "type": "string",
+            "title": "Sha256"
+          },
+          "size": {
+            "type": "integer",
+            "title": "Size"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "mtime_ns": {
+            "type": "integer",
+            "title": "Mtime Ns"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rel",
+          "sha256",
+          "size",
+          "kind",
+          "mtime_ns"
+        ],
+        "title": "SyncObjectModel",
+        "description": "One syncable object in a manifest (typed for OpenAPI codegen)."
       },
       "TaskCreateRequest": {
         "properties": {

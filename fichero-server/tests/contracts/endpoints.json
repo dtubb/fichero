@@ -360,6 +360,16 @@
       },
       {
         "method": "GET",
+        "path": "/activity/jobs",
+        "operation_id": "list_background_jobs_api_activity_jobs_get",
+        "summary": "List Background Jobs",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "BackgroundJobsResponse"
+      },
+      {
+        "method": "GET",
         "path": "/activity/metrics/summary",
         "operation_id": "get_activity_metrics_summary_api_activity_metrics_summary_get",
         "summary": "Get Activity Metrics Summary",
@@ -5875,6 +5885,32 @@
         "query_params": [],
         "request_model": "LibraryLinkUpdateRequest",
         "response_model": "LibraryItemLink"
+      },
+      {
+        "method": "GET",
+        "path": "/library/sync/manifest",
+        "operation_id": "get_sync_manifest_api_library_sync_manifest_get",
+        "summary": "Get Sync Manifest",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "SyncManifestResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/library/sync/object",
+        "operation_id": "get_sync_object_api_library_sync_object_get",
+        "summary": "Get Sync Object",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "rel",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": null
       }
     ],
     "library-items": [

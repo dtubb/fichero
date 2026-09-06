@@ -564,6 +564,17 @@ def register_generated_openapi_commands(
             return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("list-background-jobs")
+    def activity_list_background_jobs_get(
+        ctx: typer.Context,
+    ) -> None:
+        """List Background Jobs (GET /api/activity/jobs)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/activity/jobs"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("get-metrics-summary")
     def activity_get_metrics_summary_get(
         ctx: typer.Context,
@@ -8321,6 +8332,31 @@ def register_generated_openapi_commands(
                 "relation_type": {'type': 'string', 'enum': ['supports', 'contradicts', 'refines', 'duplicate_of', 'corroborates', 'derives_from', 'cites', 'follows', 'caused_by', 'related_to'], 'title': 'ClaimRelationType', 'description': "Typed relationship kinds for KnowledgeClaimLink (#1123 Phase B).\n\nOriginally four kinds (supports / contradicts / refines / duplicate_of).\n#1123 extends with five new dimensions plus ``related_to`` (the generic\nfallback used by ``kg_predictions._record_predictions`` when a model\nsurfaces a relation outside the curated set):\n\n- ``corroborates`` — independent evidence agreeing with the source\n  claim. Distinct from ``supports`` (which just reinforces with\n  additional evidence drawn from the same line of reasoning).\n- ``derives_from`` — claim B is inferred from / built on claim A;\n  removing A invalidates B. Stronger than ``cites``.\n- ``cites`` — B references A as a source. Bibliographic / citation\n  graph use.\n- ``follows`` — temporal sequence (A then B). Doesn't imply\n  causation; ``caused_by`` is the explicit causal claim.\n- ``caused_by`` — A is the cause of B. Strong claim; reviewers\n  should treat with corroboration.\n- ``related_to`` — generic fallback when the typed kinds don't\n  fit. Closes the latent crash in\n  ``kg_predictions.py:269`` where the relation_map fallback\n  referenced this value before it existed.\n\nNote: ``contests`` was considered as a synonym for ``contradicts``\nbut excluded — same semantic, different word, doesn't earn a\nseparate enum slot. Writers should keep using ``contradicts``.", 'x-cli-required': False},
             }, required=True)
             return client.request("PATCH", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("get-sync-manifest")
+    def library_get_sync_manifest_get(
+        ctx: typer.Context,
+    ) -> None:
+        """Get Sync Manifest (GET /api/library/sync/manifest)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/library/sync/manifest"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("get-sync-object")
+    def library_get_sync_object_get(
+        ctx: typer.Context,
+        rel: str = typer.Option(..., "--rel", help="Query parameter: rel."),
+    ) -> None:
+        """Get Sync Object (GET /api/library/sync/object)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/library/sync/object"
+            params = {
+                "rel": rel,
+            }
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('library-items')
