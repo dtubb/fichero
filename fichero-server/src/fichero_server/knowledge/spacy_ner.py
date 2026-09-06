@@ -159,13 +159,42 @@ class EntitySpan:
     label: str  # raw spaCy label, kept for downstream inspection
 
 
+# Model preference PER LANGUAGE, best first. `md` before `sm` for the two
+# bundled languages: the medium pipeline is the same tagger the SVO gate reads
+# plus word vectors, so when a user has added it (from the model catalog) the
+# gate uses it, and otherwise falls straight back to the small model that ships
+# in the app. The order is a preference, not a requirement — a language with
+# only the small model installed loads the small model with no fuss.
+_MODEL_PREFERENCE: dict[str, tuple[str, ...]] = {
+    "en": ("en_core_web_md", "en_core_web_sm"),
+    "es": ("es_core_news_md", "es_core_news_sm"),
+    "fr": ("fr_core_news_sm",),
+    "de": ("de_core_news_sm",),
+    "pt": ("pt_core_news_sm",),
+}
+
+
 # Cached pipeline objects per language. Keys are language codes
 # ("en", "es"); values are the loaded spaCy Language objects.
 _pipelines: dict[str, object] = {}
 
 
+def _installed_models(spacy_module) -> set[str]:
+    """Which pipeline packages this interpreter can load, empty on any doubt."""
+    try:
+        return set(spacy_module.util.get_installed_models())
+    except Exception:  # noqa: BLE001 — never let a probe break NER
+        return set()
+
+
 def _load_pipeline(language: str):
-    """Lazy-load and cache the spaCy pipeline for ``language``."""
+    """Lazy-load and cache the best installed spaCy pipeline for ``language``.
+
+    Tries the language's models in preference order (medium before small where
+    both exist) and loads the first one actually installed. Returns None when
+    spaCy is absent or no model for the language is installed, so callers fall
+    through to the LLM-only path rather than crashing the workflow.
+    """
     if language in _pipelines:
         return _pipelines[language]
 
@@ -178,30 +207,39 @@ def _load_pipeline(language: str):
         )
         return None
 
-    model_name = {
-        "en": "en_core_web_sm",
-        "es": "es_core_news_sm",
-    }.get(language)
-    if not model_name:
-        logger.warning("spacy_ner: no pipeline for language=%r, falling back to English", language)
-        model_name = "en_core_web_sm"
-        language = "en"
-
-    try:
-        nlp = spacy.load(model_name)
-    except OSError as exc:
-        # Model not downloaded — emit a useful error rather than
-        # crashing the catalogue workflow. Returning None lets
-        # callers fall through to the LLM-only path.
+    candidates = _MODEL_PREFERENCE.get(language)
+    if not candidates:
         logger.warning(
-            "spacy_ner: model %r not available (%s) — falling through to "
-            "LLM-only NER. Run: python -m spacy download %s",
-            model_name, exc, model_name,
+            "spacy_ner: no pipeline for language=%r, falling back to English", language
         )
-        return None
+        language = "en"
+        candidates = _MODEL_PREFERENCE["en"]
 
-    _pipelines[language] = nlp
-    return nlp
+    installed = _installed_models(spacy)
+    for model_name in candidates:
+        if model_name not in installed:
+            continue
+        try:
+            nlp = spacy.load(model_name)
+        except OSError as exc:
+            # Reported installed but did not load — try the next candidate
+            # rather than giving up on the language entirely.
+            logger.warning(
+                "spacy_ner: model %r reported installed but failed to load (%s)",
+                model_name, exc,
+            )
+            continue
+        _pipelines[language] = nlp
+        return nlp
+
+    # Nothing installed for this language — say what would fix it, then let the
+    # caller fall through to LLM-only NER.
+    logger.warning(
+        "spacy_ner: no installed model for language=%r (looked for %s) — "
+        "falling through to LLM-only NER. Run: python -m spacy download %s",
+        language, ", ".join(candidates), candidates[-1],
+    )
+    return None
 
 
 def detect_language(text: str) -> str:

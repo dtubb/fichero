@@ -169,6 +169,71 @@ class TestTrimPersonName:
         assert spacy_ner.trim_person_name("vecino") == "vecino"
 
 
+class TestModelPreference:
+    """The gate prefers the medium model WHEN INSTALLED, else the small one.
+
+    Daniel wants a larger default out of the box for the two gate languages,
+    with a clean fall-back so a machine that only has the bundled small model
+    keeps working. This exercises `_load_pipeline` against a fake spaCy so no
+    real ~40 MB wheel has to be present.
+    """
+
+    @pytest.fixture
+    def fake_spacy(self, monkeypatch):
+        import sys
+        import types
+
+        loaded: dict[str, object] = {}
+        installed: set[str] = set()
+
+        module = types.ModuleType("spacy")
+        util = types.ModuleType("spacy.util")
+        util.get_installed_models = lambda: sorted(installed)  # type: ignore[attr-defined]
+        module.util = util  # type: ignore[attr-defined]
+
+        def _load(name: str):
+            if name not in installed:
+                raise OSError(f"[E050] Can't find model {name!r}")
+            obj = object()
+            loaded["last"] = name
+            return obj
+
+        module.load = _load  # type: ignore[attr-defined]
+        monkeypatch.setitem(sys.modules, "spacy", module)
+        monkeypatch.setitem(sys.modules, "spacy.util", util)
+        return installed, loaded
+
+    def test_medium_is_preferred_when_installed(self, fake_spacy):
+        installed, loaded = fake_spacy
+        installed.update({"es_core_news_sm", "es_core_news_md"})
+        assert spacy_ner._load_pipeline("es") is not None
+        assert loaded["last"] == "es_core_news_md"
+
+    def test_falls_back_to_small_when_medium_absent(self, fake_spacy):
+        installed, loaded = fake_spacy
+        installed.add("es_core_news_sm")
+        assert spacy_ner._load_pipeline("es") is not None
+        assert loaded["last"] == "es_core_news_sm"
+
+    def test_english_prefers_medium_too(self, fake_spacy):
+        installed, loaded = fake_spacy
+        installed.update({"en_core_web_sm", "en_core_web_md"})
+        assert spacy_ner._load_pipeline("en") is not None
+        assert loaded["last"] == "en_core_web_md"
+
+    def test_no_installed_model_returns_none_not_crash(self, fake_spacy):
+        installed, _loaded = fake_spacy
+        # Nothing installed for Spanish → None, so callers fall through to the
+        # LLM-only path rather than the workflow crashing.
+        assert spacy_ner._load_pipeline("es") is None
+
+    def test_an_added_language_loads_its_small_model(self, fake_spacy):
+        installed, loaded = fake_spacy
+        installed.add("fr_core_news_sm")
+        assert spacy_ner._load_pipeline("fr") is not None
+        assert loaded["last"] == "fr_core_news_sm"
+
+
 class TestClusterAliases:
     def test_substring_variants_cluster_under_longest(self):
         """Davidson + Davidson [Deibinson] should cluster under the
