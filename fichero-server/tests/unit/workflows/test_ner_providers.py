@@ -22,6 +22,23 @@ def test_get_ner_provider_resolves_known_backends():
     assert isinstance(get_ner_provider("llm"), LLMNERProvider)
 
 
+def test_spacy_provider_runs_the_real_model_end_to_end():
+    """Provider-matrix proof (Daniel: "make sure it works, don't assume").
+
+    NO mocking: the actual bundled Spanish model must load in-engine and return
+    real entities through the provider the workflow node uses. If spaCy or its
+    model is missing this fails loudly rather than passing on a stub.
+    """
+    provider = get_ner_provider("spacy", "es_core_news_sm")
+    records = asyncio.run(
+        provider.extract("Juan Pérez firmó la escritura en Popayán.", language="es")
+    )
+    assert records, "spaCy returned no entities on real Spanish text"
+    assert any(record.type == "person" for record in records), (
+        "spaCy did not detect a PERSON — the model is not actually running"
+    )
+
+
 def test_spacy_provider_clusters_aliases_and_sets_metadata(monkeypatch):
     provider = SpacyNERProvider(model_name="en_core_web_sm")
     spans = [
