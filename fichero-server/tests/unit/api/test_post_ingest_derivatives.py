@@ -332,3 +332,63 @@ class TestDeferredEmbedding:
 
         assert embeds == []  # nothing embedded inline
         assert queued == [doc.id]
+
+
+class TestEmbedStageDoesNotFloodChangeEvents:
+    """Bulk embedding must NOT emit a per-doc document.updated (#[[user-machine-
+    always-useful]]).
+
+    Each such event ticked the library revision and re-fired the in-flight
+    content load, turning a 400ms folder click into 34s of supersede-thrash on a
+    1,600-page import. Embedding a vector changes nothing the UI renders, so the
+    embed stage stays silent; live progress rides the coalesced backend.work.*
+    frames, and completed status is persisted for the next load.
+    """
+
+    def test_embed_stage_emits_no_document_updated(self, db, test_package, monkeypatch):
+        from fichero_server.importers import derivatives
+        from fichero_server import db as db_module
+
+        note = Document(
+            name="a note",
+            doc_type=DocType.file,
+            file_type=FileType.text,
+            page_content="some text worth embedding",
+            status=Status.pending,
+        )
+        db.save(note)
+
+        # Avoid loading the real embedder — the point is the EVENT, not the vector.
+        monkeypatch.setattr(db_module.Database, "embed", lambda self, target, **k: True)
+
+        events: list[dict] = []
+
+        def _capture(library, *, type, **kwargs):  # noqa: A002 - mirror emit_change
+            events.append({"type": type, **kwargs})
+
+        monkeypatch.setattr(
+            "fichero_server.api.change_stream.emit_change", _capture
+        )
+
+        derivatives._embed_stage(note.id, str(test_package))
+
+        assert not any(e["type"] == "document.updated" for e in events), (
+            f"embed stage must not emit document.updated; got {events}"
+        )
+
+    def test_thumbnail_stage_still_announces_itself(self, ingested_image, test_package, monkeypatch):
+        # The counterpart guard: a landed thumbnail IS a render change and must
+        # still fire, so suppressing the embed flood didn't silence thumbnails.
+        from fichero_server.importers import derivatives
+
+        events: list[dict] = []
+        monkeypatch.setattr(
+            "fichero_server.api.change_stream.emit_change",
+            lambda library, *, type, **kwargs: events.append({"type": type, **kwargs}),
+        )
+
+        derivatives._thumbnail_stage(ingested_image.id, str(test_package))
+
+        assert any(e["type"] == "document.updated" for e in events), (
+            "thumbnail stage must still announce the landed thumbnail"
+        )

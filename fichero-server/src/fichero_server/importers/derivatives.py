@@ -152,6 +152,38 @@ STALL_SECONDS = 60.0
 _stall_timer: threading.Timer | None = None
 
 
+def background_jobs_snapshot() -> list[dict[str, object]]:
+    """Live snapshot of the background derivative/embed queues (one per library).
+
+    Point-in-time, cheap, and read-only — the ``_progress`` map holds ONLY
+    active work (an entry is deleted the moment its queue finishes, see
+    ``_progress_tick``), so this is exactly "what is running right now". Feeds
+    the Activity surface so the user can see WHAT is consuming compute and how
+    far along it is ([[user-machine-always-useful]] FIX 2).
+    """
+    with _progress_lock:
+        active = {lib: dict(state) for lib, state in _progress.items()}
+    jobs: list[dict[str, object]] = []
+    for library, state in active.items():
+        done, total = state.get("done", 0), state.get("total", 0)
+        percent = 100.0 if (total and done >= total) else (
+            done * 100.0 / total if total else 0.0
+        )
+        jobs.append(
+            {
+                "id": f"derivatives:{library}",
+                "task_type": "derivatives",
+                "name": "Processing imported pages",
+                "library": library,
+                "current": done,
+                "total": total,
+                "percent": round(percent, 1),
+                "state": "running",
+            }
+        )
+    return jobs
+
+
 def _emit_queue_progress(
     library: str, done: int, total: int, *, stalled: bool = False
 ) -> None:
@@ -557,9 +589,18 @@ def _thumbnail_stage(doc_id: str, library: str) -> Path | None:
 
 def _embed_stage(doc_id: str, library: str) -> None:
     """Embed one document's text tree, flip pending → completed (#4225), and
-    tick the queue-progress counter that feeds the status island."""
-    from fichero_server.api.change_stream import emit_change
+    tick the queue-progress counter that feeds the status island.
 
+    Emits NO per-doc ``document.updated`` change event. Embedding adds a vector
+    and nothing the UI renders changes — but a per-doc frame during a bulk
+    import (1,600+ pages) FLOODED the app: each event ticked the library
+    revision and re-fired the in-flight ``loadChildren?level=content``, so a
+    single folder click took 34s of supersede-thrash instead of 400ms (Daniel's
+    console, 2026-09-06). Live progress rides the coalesced ``backend.work.*``
+    queue events (every 5th + final) instead; the completed status is persisted
+    and shows on the next load. Thumbnails still emit — a landed thumbnail IS a
+    render change ([[user-machine-always-useful]]).
+    """
     try:
         opened = _open_stage_db(library, doc_id)
         if opened is None:
@@ -607,12 +648,8 @@ def _embed_stage(doc_id: str, library: str) -> None:
             )
             return
 
-        emit_change(
-            library,
-            type="document.updated",
-            document_ids=[doc_id],
-            actor="derivatives",
-        )
+        # NO per-doc document.updated here — see the docstring. The bulk-embed
+        # flood re-fired heavy content loads and made the UI unusable.
     finally:
         _progress_tick(library)
 
