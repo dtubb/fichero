@@ -152,17 +152,24 @@ STALL_SECONDS = 60.0
 _stall_timer: threading.Timer | None = None
 
 
-def background_jobs_snapshot() -> list[dict[str, object]]:
+def background_jobs_snapshot(library: str | None = None) -> list[dict[str, object]]:
     """Live snapshot of the background derivative/embed queues (one per library).
 
     Point-in-time, cheap, and read-only — the ``_progress`` map holds ONLY
     active work (an entry is deleted the moment its queue finishes, see
     ``_progress_tick``), so this is exactly "what is running right now". Feeds
     the Activity surface so the user can see WHAT is consuming compute and how
-    far along it is ([[user-machine-always-useful]] FIX 2).
+    far along it is ([[user-machine-always-useful]] FIX 2/3).
+
+    ``library`` filters to one library's queue when given (the Activity view is
+    per-library); None returns every active queue.
     """
     with _progress_lock:
-        active = {lib: dict(state) for lib, state in _progress.items()}
+        active = {
+            lib: dict(state)
+            for lib, state in _progress.items()
+            if library is None or lib == library
+        }
     jobs: list[dict[str, object]] = []
     for library, state in active.items():
         done, total = state.get("done", 0), state.get("total", 0)

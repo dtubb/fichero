@@ -132,13 +132,16 @@ class BackgroundJob(BaseModel):
     """
 
     id: str
-    task_type: str
+    task_type: str  # derivatives | workflow
     name: str
     library: str = ""
     current: int
     total: int
     percent: float
-    state: str  # running | stalled | paused
+    state: str  # running | stalled | failed | paused
+    # For a failed job (e.g. a Kraken run when the runtime/model isn't installed),
+    # the actionable reason — so the user sees WHY, not just that it stopped.
+    reason: Optional[str] = None
 
 
 class BackgroundJobsResponse(BaseModel):
@@ -286,18 +289,63 @@ async def get_recent_activities(
 
 
 @router.get("/jobs", response_model=BackgroundJobsResponse)
-async def list_background_jobs() -> BackgroundJobsResponse:
-    """Snapshot of currently-running background jobs + rough process CPU%.
+async def list_background_jobs(
+    db: Database = Depends(get_library_database),
+) -> BackgroundJobsResponse:
+    """The SINGLE source of running background jobs, so every activity surface
+    (toolbar popover AND full viewer) agrees (FIX 3). Merges:
 
-    Global (not per-library): the background derivative/embed pool is process-
-    wide, and the user wants to see everything consuming compute. Read-only and
-    cheap — a point-in-time read of the live progress map plus one CPU sample —
-    so the Activity UI can poll it without adding load of its own.
+    - the derivative/embed queue (embedding + importing/processing), from the
+      live in-memory progress map; and
+    - workflow runs (Kraken Detect Regions / HTR, transcription, …) that are
+      RUNNING or recently FAILED — with the failure reason, so a run that died
+      on "Kraken not installed" shows a clear FAILED entry instead of vanishing.
+
+    Read-only and cheap (a point-in-time read + recent-run query + one CPU
+    sample), so the UI can poll it without adding load of its own. Per-library,
+    matching the rest of /activity.
     """
+    from pathlib import Path as _Path
+
     from fichero_server.core.background_compute import cpu_count, process_cpu_percent
     from fichero_server.importers.derivatives import background_jobs_snapshot
 
-    jobs = [BackgroundJob(**job) for job in background_jobs_snapshot()]
+    library = str(_Path(db.path).parent)
+    jobs = [BackgroundJob(**job) for job in background_jobs_snapshot(library)]
+
+    # Workflow runs that are running or recently failed. A completed run is not a
+    # "job" the user needs to watch; a running or failed one is.
+    try:
+        tracker = get_activity_tracker(str(db.path))
+        runs = await tracker.store.list_workflow_runs(limit=50)
+        for run in runs:
+            status = (run.status or "").lower()
+            if status not in ("running", "failed"):
+                continue
+            timeline = getattr(run, "progress_timeline", None) or []
+            last = timeline[-1] if isinstance(timeline, list) and timeline else {}
+            current = int(last.get("current", 0)) if isinstance(last, dict) else 0
+            total = int(last.get("total", 0)) if isinstance(last, dict) else 0
+            percent = (
+                100.0 if status == "failed"
+                else (current * 100.0 / total if total else 0.0)
+            )
+            jobs.append(
+                BackgroundJob(
+                    id=run.thread_id,
+                    task_type="workflow",
+                    name=run.workflow_name or "Workflow",
+                    library=library,
+                    current=current,
+                    total=total,
+                    percent=round(percent, 1),
+                    state=status,
+                    reason=(run.error or None) if status == "failed" else None,
+                )
+            )
+    except Exception as exc:  # never let the jobs list fail over the workflow half
+        logger.debug("list_background_jobs: workflow-run merge failed: %s", exc)
+
     return BackgroundJobsResponse(
         jobs=jobs,
         count=len(jobs),
