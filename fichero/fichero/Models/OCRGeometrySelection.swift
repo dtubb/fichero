@@ -39,7 +39,14 @@ enum OCRGeometrySelection {
     /// `regions` (the bboxes-first Apple Vision pre-pass, 2026-08-11) ranks
     /// last: it is boxes without aligned text, so it shows a page's geometry
     /// BEFORE any transcription exists and yields to both richer types after.
-    static let geometryBearingTypes = ["text_geometry", "transcription", "regions"]
+    /// `aligned_transcript` (2026-09-06): Kraken baselines with a KNOWN
+    /// transcript forced onto them line-by-line (no recognition). It carries
+    /// text like `transcription` and shares its tier — newest measured pass
+    /// wins — so a fresh alignment shows on its own and never permanently masks
+    /// a later Detect Regions run.
+    static let geometryBearingTypes = [
+        "text_geometry", "transcription", "aligned_transcript", "regions",
+    ]
 
     /// Key the producer writes alongside a geometry artifact, letting an empty
     /// one be skipped from the LIST payload without spending a fetch on it.

@@ -286,6 +286,17 @@ struct ZoomableImagePreview: View {
             // load — the selection now drives which artifact's boxes render.
             id: "\(documentId ?? "")|\(ocrBoxesEnabled)"
                 + "|\(executionObserver?.activeExecutions.count ?? 0)"
+                // Auto-show (Daniel, 2026-09-06: regions "don't appear when
+                // done, I had to open artifacts"). activeExecutions.count moves
+                // when a run STARTS and STOPS, and the stop can beat the
+                // artifact's write-back — so the reload fetched before the boxes
+                // were persisted and nothing retriggered until the inspector set
+                // FocusedArtifact. fileCompletedCount / workflowCompletedCount
+                // are the POST-persist SSE signals the inspectors and the reader
+                // already refresh on; keying on them makes a Detect Regions (or
+                // Align Transcript) result appear on the page on its own.
+                + "|\(executionObserver?.fileCompletedCount ?? 0)"
+                + "|\(executionObserver?.workflowCompletedCount ?? 0)"
                 + "|\(FocusedArtifact.shared.id ?? "")"
         ) {
             await loadOCRGeometry()
@@ -435,7 +446,7 @@ extension ZoomableImagePreview {
     func publishHeadChrome() {
         guard let paneChrome else { return }
         paneChrome.pageNav = imagePageNav
-        paneChrome.renditionNames = renditions.map(\.displayName)
+        paneChrome.renditionNames = uniqueRenditionLabels(renditions)
         paneChrome.renditionIndex = renditionIndex
         paneChrome.selectRendition = { index in self.flipRendition(to: index) }
     }
