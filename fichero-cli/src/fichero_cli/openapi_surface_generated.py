@@ -1351,6 +1351,18 @@ def register_generated_openapi_commands(
             return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("align-transcript-to-regions")
+    def artifacts_align_transcript_to_regions_post(
+        ctx: typer.Context,
+        artifact_id: str = typer.Argument(..., help="Path parameter: artifact_id."),
+    ) -> None:
+        """Align Transcript To Regions (POST /api/artifacts/{artifact_id}/align-transcript)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/artifacts/{artifact_id}/align-transcript"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("get-region")
     def artifacts_get_region_get(
         ctx: typer.Context,

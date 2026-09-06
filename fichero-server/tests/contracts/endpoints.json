@@ -908,6 +908,18 @@
         "response_model": "ArtifactResponse"
       },
       {
+        "method": "POST",
+        "path": "/artifacts/{artifact_id}/align-transcript",
+        "operation_id": "align_transcript_to_regions_api_artifacts__artifact_id__align_transcript_post",
+        "summary": "Align Transcript To Regions",
+        "path_params": [
+          "artifact_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "AlignTranscriptResponse"
+      },
+      {
         "method": "GET",
         "path": "/artifacts/{artifact_id}/region",
         "operation_id": "get_artifact_region_api_artifacts__artifact_id__region_get",

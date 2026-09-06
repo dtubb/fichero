@@ -297,7 +297,7 @@
           "activity"
         ],
         "summary": "List Background Jobs",
-        "description": "Snapshot of currently-running background jobs + rough process CPU%.\n\nGlobal (not per-library): the background derivative/embed pool is process-\nwide, and the user wants to see everything consuming compute. Read-only and\ncheap \u2014 a point-in-time read of the live progress map plus one CPU sample \u2014\nso the Activity UI can poll it without adding load of its own.",
+        "description": "The SINGLE source of running background jobs, so every activity surface\n(toolbar popover AND full viewer) agrees (FIX 3). Merges:\n\n- the derivative/embed queue (embedding + importing/processing), from the\n  live in-memory progress map; and\n- workflow runs (Kraken Detect Regions / HTR, transcription, \u2026) that are\n  RUNNING or recently FAILED \u2014 with the failure reason, so a run that died\n  on \"Kraken not installed\" shows a clear FAILED entry instead of vanishing.\n\nRead-only and cheap (a point-in-time read + recent-run query + one CPU\nsample), so the UI can poll it without adding load of its own. Per-library,\nmatching the rest of /activity.",
         "operationId": "list_background_jobs_api_activity_jobs_get",
         "responses": {
           "200": {
@@ -4246,6 +4246,49 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ArtifactRegionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/artifacts/{artifact_id}/align-transcript": {
+      "post": {
+        "tags": [
+          "artifacts"
+        ],
+        "summary": "Align Transcript To Regions",
+        "description": "Hang this page's known transcript on a Kraken ``regions`` artifact.\n\n``artifact_id`` names the ``regions`` artifact (Kraken baselines, no text).\nThe transcript is resolved from the page \u2014 its ``page_content``, else the\nnewest ``transcription`` artifact. No model is called: this is pure\nline-level forced alignment (:mod:`media.transcript_alignment`).",
+        "operationId": "align_transcript_to_regions_api_artifacts__artifact_id__align_transcript_post",
+        "parameters": [
+          {
+            "name": "artifact_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Artifact Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlignTranscriptResponse"
                 }
               }
             }
@@ -36396,6 +36439,39 @@
         "title": "AgentWriteResponse",
         "description": "Response for agent write submission."
       },
+      "AlignTranscriptResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "aligned": {
+            "type": "boolean",
+            "title": "Aligned"
+          },
+          "transcript_line_count": {
+            "type": "integer",
+            "title": "Transcript Line Count"
+          },
+          "baseline_count": {
+            "type": "integer",
+            "title": "Baseline Count"
+          },
+          "artifact": {
+            "$ref": "#/components/schemas/ArtifactResponse",
+            "nullable": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "aligned",
+          "transcript_line_count",
+          "baseline_count"
+        ],
+        "title": "AlignTranscriptResponse",
+        "description": "Outcome of forced transcript\u2194Kraken-baseline alignment.\n\n``aligned`` is the honest bottom line: an exact line-count match saved a new\n``aligned_transcript`` artifact (returned with geometry); a mismatch saved\nnothing and the counts say why, so the UI can tell the user \"28 transcript\nlines, 31 baselines \u2014 not aligned\" instead of showing wrong text."
+      },
       "AnchorSpace": {
         "type": "string",
         "enum": [
@@ -37982,6 +38058,11 @@
           "state": {
             "type": "string",
             "title": "State"
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true,
+            "title": "Reason"
           }
         },
         "type": "object",
