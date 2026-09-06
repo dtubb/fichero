@@ -277,10 +277,19 @@ def _load_source_image(path: Path, page: int = 1) -> Image.Image:
 
 
 def _remove_black_background_opencv(image: Image.Image) -> Image.Image:
-    """Port the archive contour-mask and crop path for black scanner borders."""
+    """Port the archive contour-mask and crop path for black scanner borders.
+
+    Degrades gracefully when OpenCV is not installed (it is not bundled in the
+    shipped app): the image is returned unchanged rather than crashing the edit
+    with an ImportError.
+    """
     from PIL import Image  # lazy (#3985): keep PIL off the engine boot path
-    import cv2  # type: ignore[import-not-found]
-    import numpy as np
+
+    try:
+        import cv2  # type: ignore[import-not-found]
+        import numpy as np
+    except ImportError:
+        return image.convert("RGBA")
 
     rgb = np.array(image.convert("RGB"))
     gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)

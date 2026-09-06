@@ -46,9 +46,16 @@ def remove_black_background_opencv(image: Image.Image) -> Image.Image:
     keep the large/central contours, fill them SOLID, feather, crop. Because
     the kept contour covers the whole page, every ink stroke inside it
     survives — the mask is drawn at the page level, never per pixel.
+
+    Degrades gracefully when OpenCV is not installed (it is not bundled in the
+    shipped app — hundreds of MB): the page is returned unchanged rather than
+    crashing the enhance/background-removal path with an ImportError.
     """
-    import cv2  # type: ignore[import-not-found]
-    import numpy as np
+    try:
+        import cv2  # type: ignore[import-not-found]
+        import numpy as np
+    except ImportError:
+        return image.convert("RGBA")
 
     gray = cv2.cvtColor(np.array(image.convert("RGB")), cv2.COLOR_RGB2GRAY)
     if np.count_nonzero(gray < 80) / gray.size < 0.01:
