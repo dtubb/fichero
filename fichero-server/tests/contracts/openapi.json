@@ -15998,7 +15998,7 @@
           "providers"
         ],
         "summary": "List Providers",
-        "description": "List user's configured providers (app-wide).",
+        "description": "List the user's providers, with the on-device runtimes always present.",
         "operationId": "list_providers_api_providers_get",
         "responses": {
           "200": {
@@ -48166,6 +48166,13 @@
             "type": "string",
             "nullable": true,
             "title": "Launch Nonce"
+          },
+          "dependencies": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Dependencies"
           }
         },
         "type": "object",
