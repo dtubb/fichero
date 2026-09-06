@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import logging
 import uuid
+from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -441,15 +442,58 @@ def get_global_defaults_database() -> "Database | None":
         return None
 
 
+@lru_cache(maxsize=1)
+def _shipped_preset_identity() -> tuple[frozenset[str], frozenset[tuple[str, str]]]:
+    """Immutable identity of every shipped preset: (ids, (name, folder_path) pairs).
+
+    The cross-library merge used to gate ONLY on the per-row ``is_system``
+    flag. That flag is mutable and has been lost in the field — a legacy or
+    re-homed global preset row can carry ``is_system=False`` (heal restores it,
+    but its gate skips a row that has neither flag nor a matching folder_path),
+    and then every non-global library offers ZERO defaults. Preset identity is
+    app data that cannot be lost: the deterministic ``preset_workflow_id`` and
+    the shipped ``(name, folder_path)`` pair (the same signal ``heal``'s
+    ``looks_seeded`` trusts). Matching either means a shipped preset surfaces
+    even when its flag was dropped.
+    """
+    ids: set[str] = set()
+    name_folders: set[tuple[str, str]] = set()
+    for preset in _load_preset_files():
+        name = preset.get("name")
+        if not name:
+            continue
+        ids.add(preset_workflow_id(name))
+        name_folders.add((name, preset.get("folder_path") or "/"))
+    return frozenset(ids), frozenset(name_folders)
+
+
+def _is_shipped_default(workflow) -> bool:
+    """Whether a GLOBAL-library row is a shipped default (#4450).
+
+    True when the seeder's ``is_system`` flag is set OR the row matches a
+    shipped preset's immutable identity (deterministic id, or name+folder_path)
+    — so a preset whose flag was dropped still resolves into every library. A
+    global USER workflow matches none of these and stays scoped to the global
+    library.
+    """
+    if getattr(workflow, "is_system", False):
+        return True
+    ids, name_folders = _shipped_preset_identity()
+    if getattr(workflow, "id", None) in ids:
+        return True
+    name = getattr(workflow, "name", None)
+    folder = getattr(workflow, "folder_path", None) or "/"
+    return name is not None and (name, folder) in name_folders
+
+
 def list_global_default_workflows(folder_path: str | None = None) -> list:
     """Default workflow rows resolved from the global library.
 
-    Only ``is_system`` rows qualify: that flag is written exclusively by the
-    seeder (create/import/duplicate never set it, and editing demotes a
-    preset), so it IS the line between a shipped default and a user
-    workflow. A user workflow created while the global library was open is a
-    global-library workflow — not a default — and stays out of other
-    libraries' lists.
+    A row qualifies as a shipped default via :func:`_is_shipped_default`: the
+    seeder's ``is_system`` flag OR a match on the shipped preset identity, so a
+    preset whose flag was dropped still appears in every library. A user
+    workflow created while the global library was open matches none of these and
+    stays out of other libraries' lists.
     """
     db = get_global_defaults_database()
     if db is None:
@@ -459,7 +503,7 @@ def list_global_default_workflows(folder_path: str | None = None) -> list:
     except Exception as exc:
         logger.warning(f"Cannot list global default workflows: {exc}")
         return []
-    return [w for w in rows if getattr(w, "is_system", False)]
+    return [w for w in rows if _is_shipped_default(w)]
 
 
 def resolve_default_workflow(workflow_id: str):
@@ -481,6 +525,6 @@ def resolve_default_workflow(workflow_id: str):
     except Exception as exc:
         logger.warning(f"Cannot resolve default workflow {workflow_id}: {exc}")
         return None
-    if workflow is not None and getattr(workflow, "is_system", False):
+    if workflow is not None and _is_shipped_default(workflow):
         return workflow
     return None

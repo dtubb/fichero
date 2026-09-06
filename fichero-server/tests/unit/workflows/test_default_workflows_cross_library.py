@@ -88,6 +88,40 @@ class TestListMergesGlobalDefaults:
         ids = {item["id"] for item in response.json()["items"]}
         assert user_workflow.id not in ids
 
+    def test_global_preset_appears_even_when_is_system_flag_dropped(
+        self, client, global_db
+    ):
+        # Regression (#4450): the merge filtered on the mutable is_system flag,
+        # which legacy / re-homed global preset rows can lose — then a
+        # non-global library offered ZERO defaults (Daniel, live). A row that
+        # matches a shipped preset's IDENTITY must still surface even with the
+        # flag cleared, and must not be duplicated.
+        from fichero_server.workflows.default_workflows import (
+            _load_preset_files,
+            preset_workflow_id,
+        )
+
+        preset = _load_preset_files()[0]
+        name = preset["name"]
+        flag_dropped = Workflow(
+            id=preset_workflow_id(name),
+            name=name,
+            format="nodes",
+            is_system=False,  # the flag the old filter required — gone
+            is_template=False,
+            folder_path=preset.get("folder_path", "/"),
+            nodes=[{"id": "files-source", "tool": "files", "inputs": {}, "config": {}}],
+            edges=[],
+        )
+        global_db.save(flag_dropped)
+
+        response = client.get("/api/workflows")
+        assert response.status_code == 200
+        matches = [
+            i for i in response.json()["items"] if i["id"] == flag_dropped.id
+        ]
+        assert len(matches) == 1  # present despite the dropped flag, and once
+
     def test_library_workflow_of_same_id_wins_over_global_default(
         self, client, db, global_db
     ):
