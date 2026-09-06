@@ -223,7 +223,29 @@ extension WorkflowBar {
             // moment it matters. A finished step keeps the double-click, so a
             // stray click while assembling cannot fling a window open.
             .onTapGesture(count: 2) { onOpenStep?(step) }
-            .onTapGesture { if step.state == .running { onOpenStep?(step) } }
+            // Single click: a RUNNING step opens its live output (you're watching
+            // it); an assembling step reveals WHAT IT DOES in a light popover
+            // (Daniel, 2026-09-06). A dismissible popover is not a window, so it
+            // doesn't fling anything open the way opening the editor would.
+            .onTapGesture {
+                if step.state == .running {
+                    onOpenStep?(step)
+                } else {
+                    inspectingStepId = step.id
+                }
+            }
+            .popover(
+                isPresented: Binding(
+                    get: { inspectingStepId == step.id },
+                    set: { if !$0 { inspectingStepId = nil } }
+                ),
+                arrowEdge: .bottom
+            ) {
+                WorkflowStepInspectPopover(
+                    step: step,
+                    onOpen: onOpenStep.map { open in { inspectingStepId = nil; open(step) } }
+                )
+            }
             .draggable(step.id.uuidString) {
                 Text(step.name).font(.caption).padding(4)
             }

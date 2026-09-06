@@ -190,6 +190,10 @@ struct WorkflowBar: View {
     /// Which family's variant popover is open, if any.
     @State private var openFamily: String?
     @State private var showingTools = false
+    /// The staged step whose "what it does" inspect popover is open (Daniel,
+    /// 2026-09-06: click a workflow in the bar to see what it does). A single
+    /// click on an assembling step sets this; double-click still opens the editor.
+    @State var inspectingStepId: UUID?
     /// Where a dragged chip would land.
     @State var dropTargetIndex: Int?
     /// The context (framing) popover, opened from the sentence's own token —
