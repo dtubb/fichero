@@ -320,3 +320,80 @@ def test_flag_on_mutating_tool_is_denied_and_never_invoked(
     # The mutating action was NEVER executed and wrote NO audit row.
     assert write_calls == []
     assert len(list(db.all(ActionAudit))) == audits_before
+
+
+# ---------------------------------------------------------------------------
+# SELECTED WRITES (EPIC #1848) — an ALLOWLISTED mutation IS dispatched + audited
+# ---------------------------------------------------------------------------
+
+
+def test_allowlisted_write_is_dispatched_and_audited(
+    client, db, monkeypatch, demo_actions
+):
+    """A mutating action ON the write allowlist is dispatched through the audited
+    choke point (is_mutation True, audit_id set) — read parity's counterpart."""
+    monkeypatch.delenv("FICHERO_CHAT_TOOLS", raising=False)
+    write_calls = demo_actions
+    # Add the throwaway mutating action to the allowlist for this test only.
+    import fichero_server.actions.chat_tools as chat_tools
+
+    monkeypatch.setattr(
+        chat_tools,
+        "CHAT_WRITE_ALLOWLIST",
+        frozenset(chat_tools.CHAT_WRITE_ALLOWLIST | {"demo.write"}),
+    )
+
+    llm = _ScriptedToolLLM(
+        [
+            _resp(tool_calls=[{"name": "demo_write", "args": {"value": "ok"}, "id": "c1"}]),
+            _resp(content="write done"),
+        ]
+    )
+    _stub_llm(monkeypatch, llm)
+
+    r = client.post("/api/chat", json={"message": "please write"})
+
+    assert r.status_code == 200
+    data = r.json()
+    assert data["message"] == "write done"
+    assert len(data["tool_calls"]) == 1
+    call = data["tool_calls"][0]
+    assert call["action_name"] == "demo.write"
+    assert call["status"] == "ok"
+    assert call["is_mutation"] is True
+    assert call["audit_id"]
+    # It really ran, and it wrote an audit row through registry.invoke.
+    assert write_calls == ["ok"]
+    assert db.get(ActionAudit, call["audit_id"]) is not None
+    # The write tool was actually offered to the model (chat_agent_tools).
+    offered = {t["function"]["name"] for t in llm.bound_tools}
+    assert "demo_write" in offered
+
+
+def test_off_allowlist_mutation_still_refused_when_reads_enabled(
+    client, db, monkeypatch, demo_actions
+):
+    """With read parity live, a mutation OFF the allowlist is still refused and
+    never invoked — the allowlist is the only write door."""
+    monkeypatch.delenv("FICHERO_CHAT_TOOLS", raising=False)
+    write_calls = demo_actions  # demo.write is NOT on the default allowlist
+
+    llm = _ScriptedToolLLM(
+        [
+            _resp(tool_calls=[{"name": "demo_write", "args": {"value": "boom"}, "id": "c1"}]),
+            _resp(content="acknowledged"),
+        ]
+    )
+    _stub_llm(monkeypatch, llm)
+    audits_before = len(list(db.all(ActionAudit)))
+
+    r = client.post("/api/chat", json={"message": "please write"})
+
+    assert r.status_code == 200
+    call = r.json()["tool_calls"][0]
+    assert call["action_name"] == "demo.write"
+    assert call["status"] == "error"
+    assert call["is_mutation"] is True
+    assert call["audit_id"] is None
+    assert write_calls == []
+    assert len(list(db.all(ActionAudit))) == audits_before

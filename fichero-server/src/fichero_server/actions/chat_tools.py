@@ -54,6 +54,45 @@ logger = logging.getLogger(__name__)
 _ILLEGAL_TOOL_NAME_CHARS = re.compile(r"[^a-zA-Z0-9_-]")
 
 
+# ===========================================================================
+# Chat write allowlist (EPIC #1848 — SELECTED WRITES)
+# ===========================================================================
+#
+# The chat agent is otherwise reads-only: it may dispatch any action flagged
+# `read_only=True`. A SMALL, explicit set of mutating actions is additionally
+# permitted, and every OTHER mutation stays refused (recorded, never invoked).
+# The allowlist is a deliberate, reviewable choke: extending the agent's write
+# surface is adding one action name here — nothing else. Each permitted write
+# already flows through the audited `registry.invoke` path (actor='chat' → the
+# real user), inherits its action's curation guard, and is either undoable or
+# discardable. See agent-work/design/in-app-agent-parity-plan.md for the
+# per-action safety rationale.
+CHAT_WRITE_ALLOWLIST: frozenset[str] = frozenset(
+    {
+        "workflow.run",  # run a workflow over documents (curation-guarded, discardable)
+        "entity.create",  # create a new entity (undoable)
+        "entity.update",  # edit an existing entity (undoable — restores prior snapshot)
+        "claim.create",  # create a new claim (undoable)
+    }
+)
+
+
+def is_write_allowed(tool_name: str, reg: ActionRegistry | None = None) -> bool:
+    """True when ``tool_name`` resolves to an allowlisted mutating action.
+
+    Accepts the sanitised tool name or the canonical action name. Returns
+    ``False`` (rather than raising) for an unknown name, so the caller's refusal
+    path handles unknown tools uniformly. A read-only action is NOT reported here
+    — reads are gated by :func:`is_read_only_action`, writes by this allowlist.
+    """
+    reg = reg or _global_registry
+    try:
+        action_name = resolve_action_name(tool_name, reg)
+    except ActionNotFoundError:
+        return False
+    return action_name in CHAT_WRITE_ALLOWLIST
+
+
 def tool_name_for(action_name: str) -> str:
     """Map a registry action name (``<domain>.<verb>``) to a valid tool name.
 
@@ -130,6 +169,24 @@ def action_tools(
     actions = reg.all()
     if read_only:
         actions = [action for action in actions if action.read_only]
+    return [action_tool(action) for action in actions]
+
+
+def chat_agent_tools(reg: ActionRegistry | None = None) -> list[dict]:
+    """The exact tool set the chat agent is offered (EPIC #1848).
+
+    Every ``read_only=True`` action PLUS every action in
+    :data:`CHAT_WRITE_ALLOWLIST` — and nothing else. The model never even sees a
+    mutating action that is off the allowlist, which is defence-in-depth
+    alongside the dispatch gate (a refused mutation is still recorded, never
+    invoked). Order follows ``registry.all()`` (sorted by name) for stability.
+    """
+    reg = reg or _global_registry
+    actions = [
+        action
+        for action in reg.all()
+        if action.read_only or action.name in CHAT_WRITE_ALLOWLIST
+    ]
     return [action_tool(action) for action in actions]
 
 
@@ -226,19 +283,21 @@ def dispatch_tool_call(
 # single-shot RAG, byte-for-byte unchanged. When on, the handler:
 #
 #     from fichero_server.actions.chat_tools import (
-#         action_tools, is_read_only_action, dispatch_tool_call,
+#         chat_agent_tools, is_read_only_action, is_write_allowed,
+#         dispatch_tool_call,
 #     )
 #
-#     tools = action_tools(read_only=True)          # SAFE subset only (this slice)
+#     tools = chat_agent_tools()                     # reads ∪ write allowlist
 #     resp = await llm.bind_tools(tools).ainvoke(messages)
 #     for call in resp.tool_calls:                   # agent asked to act
-#         if not is_read_only_action(call["name"]):  # deny mutations, don't invoke
-#             record denied tool_call; continue
+#         read_ok = is_read_only_action(call["name"])
+#         if not read_ok and not is_write_allowed(call["name"]):
+#             record denied tool_call; continue      # off-allowlist mutation: refuse
 #         result = dispatch_tool_call(db, call["name"], call["args"], actor="chat", ...)
 #     # loop until the model stops emitting tool calls (bounded max-iterations).
 #
-# READS-ONLY THIS SLICE: only actions flagged `read_only=True` are exposed AND
-# dispatched. Mutating tool calls are refused (recorded as a denied `tool_call`,
-# never invoked) so no write can reach `registry.invoke` from chat until a later
-# write-policy review lands (EPIC #1848). Every dispatched read still flows
-# through the audited `registry.invoke` choke point — one path, one audit.
+# READ PARITY + SELECTED WRITES (EPIC #1848): actions flagged `read_only=True`
+# AND actions in `CHAT_WRITE_ALLOWLIST` are exposed and dispatched. Every other
+# mutating tool call is refused (recorded as a denied `tool_call`, never
+# invoked). Every dispatched call — read or allowlisted write — flows through
+# the audited `registry.invoke` choke point: one path, one audit.

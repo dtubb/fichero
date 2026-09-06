@@ -1026,29 +1026,27 @@ async def assign_time_period_from_metadata(
     return response
 
 
-@router.get("", response_model=ClaimListResponse)
-async def list_claims(
-    q: Annotated[str | None, Query()] = None,
-    entity_id: Annotated[str | None, Query()] = None,
-    curated_only: Annotated[bool, Query()] = False,
-    curation_state: Annotated[ClaimCurationState | None, Query()] = None,
-    claim_type: Annotated[ClaimType | None, Query()] = None,
-    epistemic_status: Annotated[EpistemicStatus | None, Query()] = None,
-    source_document_id: Annotated[str | None, Query()] = None,
-    include_descendants: Annotated[bool, Query()] = False,
-    source_language: Annotated[str | None, Query()] = None,
-    source_type: Annotated[SourceType | None, Query()] = None,
-    limit: Annotated[int, Query(ge=1, le=1000)] = 200,
-    offset: Annotated[int, Query(ge=0)] = 0,
-    db: Database = Depends(get_library_database),
-) -> ClaimListResponse:
-    """List knowledge claims with optional filtering.
+def list_claims_impl(
+    db: Database,
+    *,
+    q: str | None = None,
+    entity_id: str | None = None,
+    curated_only: bool = False,
+    curation_state: ClaimCurationState | None = None,
+    claim_type: ClaimType | None = None,
+    epistemic_status: EpistemicStatus | None = None,
+    source_document_id: str | None = None,
+    include_descendants: bool = False,
+    source_language: str | None = None,
+    source_type: SourceType | None = None,
+    limit: int = 200,
+    offset: int = 0,
+) -> list[KnowledgeClaim]:
+    """Core claim-list query shared by the route and the ``claim.list`` action.
 
-    When ``include_descendants=true`` is combined with
-    ``source_document_id=<folder_id>``, claims for the folder AND every
-    descendant doc are returned — required by the folder KG view
-    because extract_all writes claims to PAGE docs, not the container
-    (#826).
+    Extracted from ``list_claims`` (iterate-not-replace) so BOTH the typed
+    ``GET /api/claims`` route and the read-only ``claim.list`` action the chat
+    agent calls run the SAME filtering + pagination. Returns the page of claims.
     """
     claims = db.all(KnowledgeClaim)
 
@@ -1077,7 +1075,48 @@ async def list_claims(
     if source_type:
         claims = [c for c in claims if c.source_type == source_type]
 
-    items = claims[offset : offset + limit]
+    return claims[offset : offset + limit]
+
+
+@router.get("", response_model=ClaimListResponse)
+async def list_claims(
+    q: Annotated[str | None, Query()] = None,
+    entity_id: Annotated[str | None, Query()] = None,
+    curated_only: Annotated[bool, Query()] = False,
+    curation_state: Annotated[ClaimCurationState | None, Query()] = None,
+    claim_type: Annotated[ClaimType | None, Query()] = None,
+    epistemic_status: Annotated[EpistemicStatus | None, Query()] = None,
+    source_document_id: Annotated[str | None, Query()] = None,
+    include_descendants: Annotated[bool, Query()] = False,
+    source_language: Annotated[str | None, Query()] = None,
+    source_type: Annotated[SourceType | None, Query()] = None,
+    limit: Annotated[int, Query(ge=1, le=1000)] = 200,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    db: Database = Depends(get_library_database),
+) -> ClaimListResponse:
+    """List knowledge claims with optional filtering.
+
+    When ``include_descendants=true`` is combined with
+    ``source_document_id=<folder_id>``, claims for the folder AND every
+    descendant doc are returned — required by the folder KG view
+    because extract_all writes claims to PAGE docs, not the container
+    (#826).
+    """
+    items = list_claims_impl(
+        db,
+        q=q,
+        entity_id=entity_id,
+        curated_only=curated_only,
+        curation_state=curation_state,
+        claim_type=claim_type,
+        epistemic_status=epistemic_status,
+        source_document_id=source_document_id,
+        include_descendants=include_descendants,
+        source_language=source_language,
+        source_type=source_type,
+        limit=limit,
+        offset=offset,
+    )
     return ClaimListResponse(items=items, count=len(items))
 
 
@@ -1298,3 +1337,89 @@ def _action_assign_time_period_from_metadata(
         claim_ids=updated_ids,
     )
     return response.model_dump(mode="json"), spec
+
+
+# =============================================================================
+# Read-only actions (EPIC #1848 — READ PARITY for the chat agent)
+# =============================================================================
+#
+# Claim reads were plain GET routes the chat agent could not reach. These
+# register the key claim read paths as audited read_only actions wrapping the
+# same impls the routes use, so the agent can list and fetch claims to answer
+# grounded questions. read_only=True → no mutation, no undo; invoke() still
+# writes an audit row (what was queried, by whom).
+
+
+class ClaimListActionParams(BaseModel):
+    """``claim.list`` — list knowledge claims with optional filtering."""
+
+    q: str | None = Field(default=None, description="Text substring filter")
+    entity_id: str | None = Field(
+        default=None, description="Only claims mentioning this entity"
+    )
+    curated_only: bool = False
+    curation_state: ClaimCurationState | None = None
+    claim_type: ClaimType | None = None
+    epistemic_status: EpistemicStatus | None = None
+    source_document_id: str | None = None
+    include_descendants: bool = False
+    source_language: str | None = None
+    source_type: SourceType | None = None
+    limit: int = Field(default=200, ge=1, le=1000)
+    offset: int = Field(default=0, ge=0)
+
+
+@action(
+    "claim.list",
+    ClaimListActionParams,
+    domains=["claim"],
+    undoable=False,
+    read_only=True,
+)
+def _action_list_claims(
+    db: Database, params: ClaimListActionParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    items = list_claims_impl(
+        db,
+        q=params.q,
+        entity_id=params.entity_id,
+        curated_only=params.curated_only,
+        curation_state=params.curation_state,
+        claim_type=params.claim_type,
+        epistemic_status=params.epistemic_status,
+        source_document_id=params.source_document_id,
+        include_descendants=params.include_descendants,
+        source_language=params.source_language,
+        source_type=params.source_type,
+        limit=params.limit,
+        offset=params.offset,
+    )
+    result = {
+        "items": [claim.model_dump(mode="json") for claim in items],
+        "count": len(items),
+    }
+    return result, ChangeSpec(domains=["claim"])
+
+
+class ClaimGetActionParams(BaseModel):
+    """``claim.get`` — fetch one claim by id."""
+
+    claim_id: str = Field(min_length=1)
+
+
+@action(
+    "claim.get",
+    ClaimGetActionParams,
+    domains=["claim"],
+    undoable=False,
+    read_only=True,
+)
+def _action_get_claim(
+    db: Database, params: ClaimGetActionParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    claim = db.get(KnowledgeClaim, params.claim_id)
+    if claim is None:
+        raise HTTPException(
+            status_code=404, detail=f"Claim not found: {params.claim_id}"
+        )
+    return claim.model_dump(mode="json"), ChangeSpec(domains=["claim"])

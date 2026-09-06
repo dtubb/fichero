@@ -876,19 +876,21 @@ async def upsert_entity(
     return KnowledgeEntity.model_validate(result.result)
 
 
-@router.get("", response_model=EntityListResponse)
-async def list_entities(
-    q: Annotated[str | None, Query()] = None,
-    entity_type: Annotated[EntityType | None, Query()] = None,
-    document_id: Annotated[str | None, Query()] = None,
-    limit: Annotated[int, Query(ge=1, le=500)] = 50,
-    offset: Annotated[int, Query(ge=0)] = 0,
-    db: Database = Depends(get_library_database),
-) -> EntityListResponse:
-    """List knowledge entities with optional filtering.
+def list_entities_impl(
+    db: Database,
+    *,
+    q: str | None = None,
+    entity_type: EntityType | None = None,
+    document_id: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> list[KnowledgeEntity]:
+    """Core entity-list query shared by the route and the ``entity.list`` action.
 
-    When `document_id` is provided, returns only entities mentioned by claims
-    from that document (source-scoped aggregation).
+    Extracted from ``list_entities`` (iterate-not-replace) so BOTH the typed
+    ``GET /api/entities`` route and the read-only ``entity.list`` action the chat
+    agent calls run the SAME filtering, tombstone exclusion, and pagination.
+    Returns the page of entities; callers wrap it in their response shape.
     """
     # If document_id filter, get entity IDs from claims first
     if document_id:
@@ -945,7 +947,31 @@ async def list_entities(
     # Honest pagination (2026-08-18): this route silently ignored ``offset``,
     # so paginated readers looped forever on page one — a corpus import's
     # dedup read hit offset 4,170,000 live before its client grew a guard.
-    items = entities[offset : offset + limit]
+    return entities[offset : offset + limit]
+
+
+@router.get("", response_model=EntityListResponse)
+async def list_entities(
+    q: Annotated[str | None, Query()] = None,
+    entity_type: Annotated[EntityType | None, Query()] = None,
+    document_id: Annotated[str | None, Query()] = None,
+    limit: Annotated[int, Query(ge=1, le=500)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    db: Database = Depends(get_library_database),
+) -> EntityListResponse:
+    """List knowledge entities with optional filtering.
+
+    When `document_id` is provided, returns only entities mentioned by claims
+    from that document (source-scoped aggregation).
+    """
+    items = list_entities_impl(
+        db,
+        q=q,
+        entity_type=entity_type,
+        document_id=document_id,
+        limit=limit,
+        offset=offset,
+    )
     return EntityListResponse(items=items, count=len(items))
 
 
@@ -1782,3 +1808,107 @@ async def export_entity_biography(
         media_type=media_type,
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+# =============================================================================
+# Read-only actions (EPIC #1848 — READ PARITY for the chat agent)
+# =============================================================================
+#
+# The chat/agent tool loop exposes read_only actions as tools. Entity reads were
+# plain GET routes the agent could not reach; these register the key entity read
+# paths as audited read_only actions that WRAP the same impls the routes use, so
+# the agent can list, fetch, and explore the neighborhood of entities to answer
+# grounded questions. read_only=True → no mutation, no undo; invoke() still
+# writes an audit row (what was queried, by whom).
+
+
+class EntityListActionParams(BaseModel):
+    """``entity.list`` — list knowledge entities with optional filtering."""
+
+    q: str | None = Field(default=None, description="Name/alias substring filter")
+    entity_type: EntityType | None = None
+    document_id: str | None = Field(
+        default=None, description="Scope to entities mentioned by a document's claims"
+    )
+    limit: int = Field(default=50, ge=1, le=500)
+    offset: int = Field(default=0, ge=0)
+
+
+@action(
+    "entity.list",
+    EntityListActionParams,
+    domains=["entity"],
+    undoable=False,
+    read_only=True,
+)
+def _action_list_entities(
+    db: Database, params: EntityListActionParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    items = list_entities_impl(
+        db,
+        q=params.q,
+        entity_type=params.entity_type,
+        document_id=params.document_id,
+        limit=params.limit,
+        offset=params.offset,
+    )
+    result = {
+        "items": [entity.model_dump(mode="json") for entity in items],
+        "count": len(items),
+    }
+    return result, ChangeSpec(domains=["entity"])
+
+
+class EntityGetActionParams(BaseModel):
+    """``entity.get`` — fetch one entity by id."""
+
+    entity_id: str = Field(min_length=1)
+
+
+@action(
+    "entity.get",
+    EntityGetActionParams,
+    domains=["entity"],
+    undoable=False,
+    read_only=True,
+)
+def _action_get_entity(
+    db: Database, params: EntityGetActionParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    entity = db.get(KnowledgeEntity, params.entity_id)
+    # A tombstoned (merged-away) entity is kept for audit but must not surface
+    # as a live entity — mirror the list route's exclusion (#1849).
+    if entity is None or entity.merged_into_id is not None:
+        raise HTTPException(
+            status_code=404, detail=f"Entity not found: {params.entity_id}"
+        )
+    return entity.model_dump(mode="json"), ChangeSpec(domains=["entity"])
+
+
+class EntityNeighborhoodActionParams(BaseModel):
+    """``entity.neighborhood`` — focus entity + k-hop neighbors + SVO edges."""
+
+    entity_id: str = Field(min_length=1)
+    hops: int = Field(default=1, ge=1, le=3)
+    limit: int = Field(default=50, ge=1, le=500)
+    rank: str = Field(default="edge_weight", pattern="^(edge_weight|degree|name)$")
+
+
+@action(
+    "entity.neighborhood",
+    EntityNeighborhoodActionParams,
+    domains=["entity", "claim"],
+    undoable=False,
+    read_only=True,
+)
+def _action_entity_neighborhood(
+    db: Database, params: EntityNeighborhoodActionParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    # Local import: the impl lives in the kg graph route module; importing it at
+    # module scope would couple the entity + kg routers' import order.
+    from fichero_server.api.routes.kg.graph import neighborhood_impl
+
+    response = neighborhood_impl(
+        db, params.entity_id, hops=params.hops, limit=params.limit, rank=params.rank
+    )
+    return response.model_dump(mode="json"), ChangeSpec(domains=["entity", "claim"])

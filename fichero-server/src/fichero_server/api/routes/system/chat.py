@@ -560,17 +560,18 @@ def _build_history_messages(
 
 
 # ---------------------------------------------------------------------------
-# Chat-tools agent loop (#1847 / #3 / #2067) — DEFAULT-ON, READS-ONLY
+# Chat-tools agent loop (#1847 / #3 / #2067 / #1848) — DEFAULT-ON
 # ---------------------------------------------------------------------------
 #
 # Wires the `fichero_server.actions.chat_tools` generator + dispatcher into the
 # live chat handler. The loop is the DEFAULT chat path (#2067 — the Research
 # surface chats with the library through audited tools); FICHERO_CHAT_TOOLS=0
-# is the kill switch back to the single-shot RAG path. This slice only exposes
-# and dispatches actions flagged `read_only=True`; a mutating tool call is
-# refused (recorded, never invoked) pending a write-policy review (EPIC #1848).
-# A model/provider that cannot bind tools degrades gracefully to single-shot
-# inside `_run_chat_tools_loop` rather than failing the turn.
+# is the kill switch back to the single-shot RAG path. The agent is offered
+# read parity (every `read_only=True` action) PLUS a small explicit write
+# allowlist (`chat_tools.CHAT_WRITE_ALLOWLIST`); every OTHER mutation is refused
+# (recorded, never invoked). A model/provider that cannot bind tools degrades
+# gracefully to single-shot inside `_run_chat_tools_loop` rather than failing
+# the turn.
 
 _CHAT_TOOLS_FALSY = {"0", "false", "no", "off"}
 
@@ -597,30 +598,32 @@ async def _run_chat_tools_loop(
     db: Database,
     ctx: ActionContext,
 ) -> tuple[str, list[ToolCall]]:
-    """Run the bounded, read-only chat-tools agent loop.
+    """Run the bounded chat-tools agent loop (read parity + selected writes).
 
-    Binds the SAFE (``read_only=True``) subset of registry actions as tools,
-    then loops: ask the model; if it emits tool calls, run each read-only one
+    Binds the read-only actions PLUS the explicit write allowlist
+    (:func:`chat_agent_tools`) as tools, then loops: ask the model; if it emits
+    tool calls, dispatch each allowed one (a read, or an allowlisted write)
     through the audited ``dispatch_tool_call`` choke point and refuse any
-    mutating one; feed results back; repeat until the model returns a final
-    text answer or the iteration cap is hit.
+    off-allowlist mutation; feed results back; repeat until the model returns a
+    final text answer or the iteration cap is hit.
 
     Returns ``(final_text, tool_calls)`` — ``tool_calls`` records every call the
-    model made (dispatched reads and refused mutations) for the ``ToolCallCard``
+    model made (dispatched calls and refused mutations) for the ``ToolCallCard``
     UI. Any tool call that fails to resolve or dispatch is recorded as an error
     tool_call rather than aborting the whole chat turn.
     """
     from langchain_core.messages import ToolMessage  # noqa: PLC0415
 
     from fichero_server.actions.chat_tools import (  # noqa: PLC0415
-        action_tools,
+        chat_agent_tools,
         dispatch_tool_call,
         is_read_only_action,
+        is_write_allowed,
         resolve_action_name,
     )
     from fichero_server.actions.registry import ActionNotFoundError  # noqa: PLC0415
 
-    tools = action_tools(read_only=True)
+    tools = chat_agent_tools()
     try:
         bound = llm.bind_tools(tools) if tools else llm
     except (AttributeError, NotImplementedError, ValueError) as exc:
@@ -673,8 +676,13 @@ async def _run_chat_tools_loop(
                 )
                 continue
 
-            # READS-ONLY gate: refuse (do NOT invoke) any mutating action.
-            if not is_read_only_action(canonical):
+            # Read-parity + selected-writes gate (EPIC #1848): a read-only
+            # action, or a mutation on the explicit write allowlist, may be
+            # dispatched. Every OTHER mutation is refused (recorded, never
+            # invoked).
+            read_ok = is_read_only_action(canonical)
+            is_mutation = not read_ok
+            if not read_ok and not is_write_allowed(canonical):
                 tool_calls.append(
                     ToolCall(
                         id=call_id,
@@ -688,15 +696,16 @@ async def _run_chat_tools_loop(
                 convo.append(
                     ToolMessage(
                         content=(
-                            f"denied: '{canonical}' mutates state; chat tools are "
-                            "read-only in this build"
+                            f"denied: '{canonical}' mutates state and is not on the "
+                            "chat write allowlist"
                         ),
                         tool_call_id=call_id,
                     )
                 )
                 continue
 
-            # Safe read — dispatch through the audited choke point.
+            # Allowed call (read, or an allowlisted write) — dispatch through
+            # the audited choke point.
             try:
                 result = dispatch_tool_call(
                     db,
@@ -714,7 +723,7 @@ async def _run_chat_tools_loop(
                         params=args,
                         actor=actor,
                         audit_id=result.audit_id,
-                        is_mutation=False,
+                        is_mutation=is_mutation,
                         status="ok",
                     )
                 )
@@ -732,7 +741,7 @@ async def _run_chat_tools_loop(
                         action_name=canonical,
                         params=args,
                         actor=actor,
-                        is_mutation=False,
+                        is_mutation=is_mutation,
                         status="error",
                     )
                 )
@@ -1365,6 +1374,60 @@ async def list_providers(
         )
 
     return ChatProviderListResponse(items=result, count=len(result))
+
+
+# ---------------------------------------------------------------------------
+# provider.list read action (EPIC #1848 — READ PARITY for the chat agent)
+# ---------------------------------------------------------------------------
+#
+# Providers/models are app-wide (not per-library), so this reads ``get_app_db()``
+# internally and ignores the library ``db`` invoke() passes — mirroring the
+# provider WRITE actions in ai/providers.py, which do the same. It returns
+# provider ids + enabled model ids + availability ONLY — never API keys. Lives
+# here (not ai/providers.py) because that file is owned by another lane; it is a
+# read_only action so it writes an audit row and mutates nothing.
+
+
+class ProviderListActionParams(BaseModel):
+    """``provider.list`` — list configured LLM providers and their model ids."""
+
+
+@action(
+    "provider.list",
+    ProviderListActionParams,
+    domains=["provider"],
+    undoable=False,
+    read_only=True,
+)
+def _action_list_providers(
+    db: Database, params: ProviderListActionParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    from fichero_server.api.routes.ai.providers import always_present_local_providers
+
+    app_db = get_app_db()
+    providers = app_db.list_providers()
+    providers = providers + always_present_local_providers(providers)
+    providers = [p for p in providers if p.enabled]
+
+    items: list[dict[str, Any]] = []
+    for provider in providers:
+        provider_type = provider.provider_type.value
+        models = [m for m in app_db.list_models(provider.id) if m.enabled]
+        model_ids = [m.model_id for m in models]
+        catalog_info = get_provider_info(provider_type)
+        if not model_ids and catalog_info and catalog_info.default_model:
+            model_ids = [catalog_info.default_model]
+        is_local = catalog_info.is_local if catalog_info else False
+        available = True if is_local else has_api_key(provider_type)
+        items.append(
+            {
+                "id": provider_type,
+                "name": provider.name,
+                "models": model_ids,
+                "available": available,
+            }
+        )
+    return {"items": items, "count": len(items)}, ChangeSpec(domains=["provider"])
 
 
 # Text extraction endpoint

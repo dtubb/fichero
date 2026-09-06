@@ -27,11 +27,14 @@ from pydantic import BaseModel
 import fichero_server.api.routes.claim.claims  # noqa: F401  (registers claim.* actions)
 import fichero_server.api.routes.system.actions  # noqa: F401  (registers actionlib.* actions)
 from fichero_server.actions.chat_tools import (
+    CHAT_WRITE_ALLOWLIST,
     action_tool,
     action_tools,
     available_tool_names,
+    chat_agent_tools,
     dispatch_tool_call,
     is_read_only_action,
+    is_write_allowed,
     resolve_action_name,
     tool_name_for,
 )
@@ -254,6 +257,31 @@ class TestDispatch:
         )
         assert result.result["echo"] == "x"
 
+    def test_read_parity_entity_list_returns_data_and_is_audited(self, db):
+        """READ PARITY (EPIC #1848): the chat agent can dispatch entity.list
+        through the audited choke point and get the library's entities back."""
+        # Registering entities.py's @action decorators populates the GLOBAL
+        # registry (the default dispatch_tool_call uses) with entity.list.
+        import fichero_server.api.routes.entity.entities  # noqa: F401
+        from fichero_server.models.knowledge import EntityType, KnowledgeEntity
+
+        db.save(
+            KnowledgeEntity(canonical_name="Douglas Adams", entity_type=EntityType.person)
+        )
+        db.save(KnowledgeEntity(canonical_name="Paris", entity_type=EntityType.location))
+
+        result = dispatch_tool_call(
+            db, "entity_list", {"limit": 50}, actor="chat", library_path=None
+        )
+
+        assert result.ok is True
+        names = {row["canonical_name"] for row in result.result["items"]}
+        assert {"Douglas Adams", "Paris"} <= names
+        assert result.result["count"] >= 2
+        # A read still writes an audit row (what was queried, by whom).
+        assert result.audit_id
+        assert db.get(ActionAudit, result.audit_id) is not None
+
     def test_dispatch_parses_json_string_arguments(self, db):
         reg, _ = _make_registry()
         result = dispatch_tool_call(
@@ -332,12 +360,21 @@ def _make_read_write_registry() -> ActionRegistry:
 
 class TestReadOnlyGate:
     def test_read_only_subset_is_exactly_the_retrieval_tools(self):
-        # Every mutating action stays OUT of the chat-safe subset. The subset
-        # is no longer empty: search.query (#4115) is deliberately the first
-        # read_only action — the chat agent's retrieval tool. Any NEW name
-        # appearing here must be a consciously flagged read-only action.
+        # Every mutating action stays OUT of the chat-safe read subset. The set
+        # is the deliberate READ-PARITY surface (EPIC #1848): search plus the
+        # key KG / entity / claim / workflow / provider read paths. Any NEW name
+        # appearing here must be a consciously flagged read_only action.
         safe = {t["function"]["name"] for t in action_tools(read_only=True)}
-        assert safe == {"search_query"}
+        assert safe == {
+            "search_query",
+            "entity_list",
+            "entity_get",
+            "entity_neighborhood",
+            "claim_list",
+            "claim_get",
+            "workflow_list",
+            "provider_list",
+        }
 
     def test_action_tools_read_only_filters_to_flagged_actions(self):
         reg = _make_read_write_registry()
@@ -357,6 +394,35 @@ class TestReadOnlyGate:
         reg = _make_read_write_registry()
         with pytest.raises(ActionNotFoundError):
             is_read_only_action("ghost_tool", reg)
+
+
+class TestWriteAllowlist:
+    """SELECTED WRITES (EPIC #1848): a small explicit allowlist of mutations is
+    dispatchable; every other mutation stays refused."""
+
+    def test_allowlist_is_the_expected_small_set(self):
+        assert CHAT_WRITE_ALLOWLIST == frozenset(
+            {"workflow.run", "entity.create", "entity.update", "claim.create"}
+        )
+
+    def test_is_write_allowed_by_action_and_tool_name(self):
+        # canonical + sanitised forms both resolve; reads + off-list writes don't
+        assert is_write_allowed("entity.create") is True
+        assert is_write_allowed("entity_create") is True
+        assert is_write_allowed("workflow.run") is True
+        assert is_write_allowed("entity.delete") is False  # mutating, off-list
+        assert is_write_allowed("search.query") is False  # read, not a write
+        assert is_write_allowed("ghost.tool") is False  # unknown → False, no raise
+
+    def test_chat_agent_tools_is_reads_union_allowlist(self):
+        offered = {t["function"]["name"] for t in chat_agent_tools()}
+        # read-parity reads are present
+        assert {"search_query", "entity_list", "claim_list"} <= offered
+        # allowlisted writes are present
+        assert {"entity_create", "entity_update", "claim_create", "workflow_run"} <= offered
+        # an off-list mutation is NEVER offered to the model
+        assert "entity_delete" not in offered
+        assert "claim_delete" not in offered
 
     def test_read_only_action_still_dispatches_through_audit(self, db):
         reg = _make_read_write_registry()

@@ -396,36 +396,22 @@ class NeighborhoodResponse(BaseModel):
     truncated: bool  # True if `limit` cut off neighbors that would otherwise have been included
 
 
-@router.get(
-    "/neighborhood/{entity_id}",
-    response_model=NeighborhoodResponse,
-    summary="Focus entity + k-hop neighbors + SVO edges",
-    description=(
-        "Returns the focus entity, its k-hop neighbor entities, and the "
-        "SVO-labeled claim edges connecting them. Predicate = the claim's "
-        "verb from metadata; target = an entity when the object resolves "
-        "to a known canonical_name/alias, else the literal object phrase. "
-        "Backs the SwiftUI focus-neighborhood viz (#976). Bounded — "
-        "the focus + ~50 neighbors at the default settings, never the "
-        "whole library."
-    ),
-)
-async def neighborhood(
+def neighborhood_impl(
+    db: Database,
     entity_id: str,
-    hops: int = Query(default=1, ge=1, le=3),
-    limit: int = Query(default=50, ge=1, le=500),
-    rank: str = Query(
-        default="edge_weight",
-        pattern="^(edge_weight|degree|name)$",
-        description=(
-            "How to rank neighbors when more than `limit` are reachable. "
-            "edge_weight (default): most edges to the focus first. "
-            "degree: highest total-degree neighbors first. "
-            "name: alphabetical (stable for tests + screenshots)."
-        ),
-    ),
-    db: Database = Depends(get_library_database),
+    *,
+    hops: int = 1,
+    limit: int = 50,
+    rank: str = "edge_weight",
 ) -> NeighborhoodResponse:
+    """Core focus-neighborhood computation shared by the route and the
+    ``entity.neighborhood`` action.
+
+    Extracted from the ``GET /api/kg/neighborhood/{entity_id}`` route
+    (iterate-not-replace) so BOTH the typed route and the read-only
+    ``entity.neighborhood`` action the chat agent calls run the SAME bounded BFS,
+    ranking, and truncation. Raises ``HTTPException(404)`` on an unknown entity.
+    """
     from fichero_server.models.knowledge import KnowledgeClaim, KnowledgeEntity
 
     focus = db.get(KnowledgeEntity, entity_id)
@@ -616,6 +602,39 @@ async def neighborhood(
         edges=edges,
         truncated=truncated,
     )
+
+
+@router.get(
+    "/neighborhood/{entity_id}",
+    response_model=NeighborhoodResponse,
+    summary="Focus entity + k-hop neighbors + SVO edges",
+    description=(
+        "Returns the focus entity, its k-hop neighbor entities, and the "
+        "SVO-labeled claim edges connecting them. Predicate = the claim's "
+        "verb from metadata; target = an entity when the object resolves "
+        "to a known canonical_name/alias, else the literal object phrase. "
+        "Backs the SwiftUI focus-neighborhood viz (#976). Bounded — "
+        "the focus + ~50 neighbors at the default settings, never the "
+        "whole library."
+    ),
+)
+async def neighborhood(
+    entity_id: str,
+    hops: int = Query(default=1, ge=1, le=3),
+    limit: int = Query(default=50, ge=1, le=500),
+    rank: str = Query(
+        default="edge_weight",
+        pattern="^(edge_weight|degree|name)$",
+        description=(
+            "How to rank neighbors when more than `limit` are reachable. "
+            "edge_weight (default): most edges to the focus first. "
+            "degree: highest total-degree neighbors first. "
+            "name: alphabetical (stable for tests + screenshots)."
+        ),
+    ),
+    db: Database = Depends(get_library_database),
+) -> NeighborhoodResponse:
+    return neighborhood_impl(db, entity_id, hops=hops, limit=limit, rank=rank)
 
 
 # ---------------------------------------------------------------------------

@@ -1958,3 +1958,58 @@ def _action_create_node(
         emit_type=None,
     )
     return node_dict, spec
+
+
+# =============================================================================
+# Read-only action (EPIC #1848 — READ PARITY for the chat agent)
+# =============================================================================
+#
+# The chat agent could RUN a workflow (workflow.run) but had no way to discover
+# which workflows exist. workflow.list registers the list read path as an audited
+# read_only action that mirrors ``GET /api/workflows?summary=true`` (labels +
+# counts, no graphs), including the #4450 default-workflow merge for non-global
+# libraries. read_only=True → no mutation; invoke() writes an audit row.
+
+
+class WorkflowListActionParams(BaseModel):
+    """``workflow.list`` — list saved + default workflows (labels + counts)."""
+
+    folder_path: str | None = Field(
+        default=None, description="Filter to a folder; omit for all workflows"
+    )
+
+
+@action(
+    "workflow.list",
+    WorkflowListActionParams,
+    domains=["workflow"],
+    undoable=False,
+    read_only=True,
+)
+def _action_list_workflows(
+    db: Database, params: WorkflowListActionParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    from fichero_server.db.paths import is_global_library_package
+    from fichero_server.workflows.default_workflows import (
+        list_global_default_workflows,
+    )
+    from fichero_server.workflows.subworkflow import sub_workflow_resolver_for_db
+
+    workflows = _workflow_rows_for_list(db, params.folder_path)
+    # Non-global libraries additionally offer the shipped DEFAULT workflows
+    # (#4450) — app-level defaults must appear in every library.
+    if not is_global_library_package(ctx.library_path):
+        present = {w.id for w in workflows}
+        workflows = workflows + [
+            w
+            for w in list_global_default_workflows(params.folder_path)
+            if w.id not in present
+        ]
+    resolver = sub_workflow_resolver_for_db(db)
+    items = [
+        _workflow_to_response(
+            workflow, db, workflow_resolver=resolver, summary=True
+        ).model_dump(mode="json")
+        for workflow in sorted(workflows, key=lambda w: w.sort_order)
+    ]
+    return {"items": items, "count": len(items)}, ChangeSpec(domains=["workflow"])
