@@ -305,19 +305,26 @@ extension ContentView {
         // A chain of paid model calls can legitimately run a long time; the
         // deadline only guards against polling a wedged engine forever.
         let deadline = Date().addingTimeInterval(4 * 60 * 60)
+        // Poll cadence backs OFF (Daniel, 2026-09-06: one session polled a
+        // single execution 2,822 times). A chain step is a paid model call that
+        // runs for seconds to minutes, so second-by-second polling only adds
+        // load for no UX gain — start responsive at 1s, then widen to a 5s cap.
+        var pollInterval: Duration = .seconds(1)
+        let maxPollInterval: Duration = .seconds(5)
         while Date() < deadline {
             // A Stop press cancels this polling Task (stopStagedChain); it has
             // already cancelled the steps on the engine, so quit watching.
             if Task.isCancelled { break }
             guard let status = try? await service.getExecutionStatus(execution.executionId)
             else {
-                try? await Task.sleep(for: .seconds(2))
+                try? await Task.sleep(for: maxPollInterval)
                 continue
             }
             applyEngineStepResults(status, threads: execution.steps,
                                    started: &started, ended: &ended)
             if WorkflowBarChainPersistence.isTerminal(status.status) { break }
-            try? await Task.sleep(for: .seconds(1))
+            try? await Task.sleep(for: pollInterval)
+            pollInterval = min(pollInterval + .seconds(1), maxPollInterval)
         }
         // A completed step may have written per-page content; show it fresh,
         // as the SSE path does at its terminal boundary (#1445).
