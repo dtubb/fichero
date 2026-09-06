@@ -950,6 +950,7 @@ class Database(DatabaseEmbeddingMixin):
             migrate_provider_refs_table,
             migrate_known_libraries_table,
             migrate_library_entity_types_table,
+            migrate_library_identity_table,
             migrate_spatial_node_layout_fields,
             migrate_references_table,
             migrate_reference_provenance_table,
@@ -961,6 +962,7 @@ class Database(DatabaseEmbeddingMixin):
         migrate_provider_refs_table(self.conn)
         migrate_known_libraries_table(self.conn)
         migrate_library_entity_types_table(self.conn)
+        migrate_library_identity_table(self.conn)
         migrate_canvas_layout_table(self.conn)
         migrate_spatial_node_layout_fields(self.conn)
         migrate_references_table(self.conn)

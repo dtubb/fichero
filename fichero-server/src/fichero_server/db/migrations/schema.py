@@ -864,3 +864,62 @@ def migrate_catalogue_chunk_artifact_type(conn) -> None:
         )
     except Exception as e:
         logger.warning("catalogue.chunk artifact_type migration failed: %s", e)
+
+
+def migrate_library_identity_table(conn) -> None:
+    """Mint a stable per-library UUID for sync identity (D1).
+
+    ``actions/audit_chain.py`` derives ``library_id = sha256(library_path)``,
+    which changes the moment the package is moved or renamed — wrong as a *sync*
+    identity, because a moved library must still be recognized as the same
+    library by the peers it syncs with (design
+    ``agent-work/design/hpc-remote-library-sync.md`` §7 D1). This table holds a
+    single row: a UUID minted once, at first open, and stable for the life of
+    the package regardless of where it lives on disk.
+
+    Idempotent: creates the table if absent and inserts exactly one row if it is
+    empty; a second run finds the row and does nothing. The path hash stays as
+    the audit-chain key — this is an additive identity, not a replacement.
+    """
+    from uuid import uuid4
+
+    from fichero_server.core.timeutil import utc_now
+
+    try:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS library_identity (
+                singleton BOOLEAN PRIMARY KEY DEFAULT TRUE,
+                library_uuid VARCHAR NOT NULL,
+                minted_at TIMESTAMP NOT NULL
+            )
+            """
+        )
+        row = conn.execute("SELECT COUNT(*) FROM library_identity").fetchone()
+        if row is not None and row[0] == 0:
+            conn.execute(
+                "INSERT INTO library_identity (singleton, library_uuid, minted_at) "
+                "VALUES (TRUE, ?, ?)",
+                [str(uuid4()), utc_now()],
+            )
+        logger.info("Library identity table migration completed")
+    except Exception as e:
+        logger.warning("Library identity table migration failed: %s", e)
+
+
+def read_library_uuid(conn) -> str | None:
+    """Return the library's stable sync UUID, or ``None`` if not yet minted.
+
+    A thin reader over the single ``library_identity`` row (see
+    :func:`migrate_library_identity_table`). Used by the sync layer to key
+    manifests and checkpoints by a move-stable identity rather than the package
+    path. Returns ``None`` rather than raising if the table is missing, so a
+    caller on a not-yet-migrated library degrades gracefully.
+    """
+    try:
+        row = conn.execute(
+            "SELECT library_uuid FROM library_identity LIMIT 1"
+        ).fetchone()
+        return str(row[0]) if row and row[0] else None
+    except Exception:
+        return None
