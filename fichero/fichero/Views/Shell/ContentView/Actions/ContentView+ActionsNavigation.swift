@@ -160,11 +160,16 @@ extension ContentView {
             // preview twice, then it moves to the second"). Forward therefore
             // seeds PAST the shown child; backward still enters at the end.
             let target = forward ? (kids.dropFirst().first ?? kids.first) : kids.last
-            guard let target else { return }
-            withAnimation(.easeInOut(duration: 0.2)) {
-                detailDocument = target
-                browserSelection = [target.id]
-            }
+            guard let target,
+                  let index = kids.firstIndex(where: { $0.id == target.id }) else { return }
+            NavTrace.log("navigateIntoFolder", "\(folder.id) → \(target.id)")
+            // Warm the child's preferred display BEFORE the swap, exactly as a
+            // sibling step does (Daniel, 2026-09-06: descending into a folder and
+            // landing on its first page flashed to the skeleton). This path used
+            // to commit the document with no bytes ready — unlike
+            // commitSiblingStep, which gives the fetch a head start so the page
+            // lands in place with no blank frame.
+            commitSiblingStep(to: target, at: index, in: kids)
         }
     }
 
@@ -196,10 +201,10 @@ extension ContentView {
             guard kids.indices.contains(next) else { return }
             let target = kids[next]
             NavTrace.log("stepViaFetchedSiblings", "\(current.id) → \(target.id)")
-            withAnimation(.easeInOut(duration: 0.2)) {
-                detailDocument = target
-                browserSelection = [target.id]
-            }
+            // Same warm-then-swap as the primary sibling path — the single
+            // remaining commit that lacked it, so this fallback no longer
+            // flashes the skeleton (fix-then-sweep for the sibling class).
+            commitSiblingStep(to: target, at: next, in: kids)
         }
     }
 

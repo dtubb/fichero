@@ -167,6 +167,65 @@ final class SVGRenditionTests: XCTestCase {
         )
     }
 
+    // MARK: - Selector labels (Daniel, 2026-09-06: "not sure it shows all renditions")
+
+    /// The acronym role must not fall through generic title-casing to "Svg" —
+    /// it reads as a typo and made the selector look wrong.
+    func testTheSVGRoleRendersAsAnAcronym() {
+        let svg = DocumentRendition(
+            id: "svg:a", documentId: "d1", role: DocumentRendition.svgRole, path: "",
+            isPrimary: false, pixelWidth: nil, pixelHeight: nil, isMaterialized: true,
+            hasOwnFrame: true, note: nil
+        )
+        XCTAssertEqual(svg.displayName, "SVG")
+    }
+
+    func testOrdinaryRolesStillTitleCase() {
+        let bg = DocumentRendition(
+            id: "r", documentId: "d1", role: "background_removed", path: "",
+            isPrimary: false, pixelWidth: nil, pixelHeight: nil, isMaterialized: true,
+            hasOwnFrame: false, note: nil
+        )
+        XCTAssertEqual(bg.displayName, "Background Removed")
+    }
+
+    #if os(macOS)
+    /// Two renditions that share a role (two SVG redraws, say) must each get a
+    /// distinct, selectable row — identical labels read as if the selector were
+    /// hiding entries.
+    func testDuplicateRoleLabelsAreDisambiguated() {
+        func svg(_ id: String) -> DocumentRendition {
+            DocumentRendition(
+                id: id, documentId: "d1", role: DocumentRendition.svgRole, path: "",
+                isPrimary: false, pixelWidth: nil, pixelHeight: nil, isMaterialized: true,
+                hasOwnFrame: true, note: nil
+            )
+        }
+        XCTAssertEqual(
+            uniqueRenditionLabels([svg("svg:a"), svg("svg:b"), svg("svg:c")]),
+            ["SVG", "SVG 2", "SVG 3"]
+        )
+    }
+
+    func testDistinctRolesKeepTheirOwnLabels() {
+        func rendition(_ id: String, _ role: String) -> DocumentRendition {
+            DocumentRendition(
+                id: id, documentId: "d1", role: role, path: "", isPrimary: false,
+                pixelWidth: nil, pixelHeight: nil, isMaterialized: true,
+                hasOwnFrame: false, note: nil
+            )
+        }
+        XCTAssertEqual(
+            uniqueRenditionLabels([
+                rendition("r1", "original"),
+                rendition("r2", "enhanced"),
+                rendition("r3", "background_removed")
+            ]),
+            ["Original", "Enhanced", "Background Removed"]
+        )
+    }
+    #endif
+
     func testAnOrdinaryStickyRoleStillWins() {
         let renditions = [
             DocumentRendition(

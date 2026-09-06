@@ -49,6 +49,22 @@ func overlayFrameMatches(
     return required == displayed
 }
 
+/// Menu labels for a page's renditions, disambiguated so every rendition is a
+/// distinct, selectable row even when two share a role — two SVG redraws, say,
+/// or two enhanced passes (Daniel, 2026-09-06: "not sure it shows all
+/// renditions"). Identical labels made the selector read as if it were hiding
+/// entries; order is preserved and the second and later duplicates gain a
+/// " 2", " 3"… suffix. File scope so it can be exercised off-main.
+func uniqueRenditionLabels(_ renditions: [DocumentRendition]) -> [String] {
+    var counts: [String: Int] = [:]
+    return renditions.map { rendition in
+        let base = rendition.displayName
+        let seen = (counts[base] ?? 0) + 1
+        counts[base] = seen
+        return seen == 1 ? base : "\(base) \(seen)"
+    }
+}
+
 extension ZoomableImagePreview {
     /// Load this page's renditions (2026-08-20 bbox review).
     ///

@@ -41,11 +41,18 @@ struct DocumentRendition: Identifiable, Hashable, Sendable {
     /// Removed". Derived rather than tabled so a role the pipeline invents
     /// still renders as words instead of falling through to a raw identifier.
     var displayName: String {
-        role
+        // Acronym roles read wrong under generic title-casing ("svg" → "Svg"),
+        // so name them explicitly; everything else title-cases its
+        // underscore-separated words.
+        if let acronym = Self.acronymRoleNames[role] { return acronym }
+        return role
             .split(separator: "_")
             .map { $0.prefix(1).uppercased() + $0.dropFirst() }
             .joined(separator: " ")
     }
+
+    /// Roles whose label is an acronym, not a title-cased word.
+    static let acronymRoleNames: [String: String] = ["svg": "SVG"]
 }
 
 /// Fetches a document's renditions through the generated OpenAPI client.

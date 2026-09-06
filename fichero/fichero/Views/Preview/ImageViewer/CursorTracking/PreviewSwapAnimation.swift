@@ -34,18 +34,24 @@ enum PreviewSwapAnimation {
         guard let kind = pending else { return }
         pending = nil
         let transition = CATransition()
-        transition.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-        transition.duration = 0.22
         transition.type = .push
         switch kind {
         case .pageStep(let forward):
             transition.subtype = forward ? .fromRight : .fromLeft
+            // Left/right page step: a shorter ease-OUT reads as the page
+            // arriving and settling — snappier than the symmetric ease-in-out,
+            // whose slow lead-in made the slide feel like it hesitated (Daniel,
+            // 2026-09-06: "could be a bit better left and right").
+            transition.duration = 0.18
+            transition.timingFunction = CAMediaTimingFunction(name: .easeOut)
         case .renditionFlip(let forward):
             // Empirical (Daniel, 2026-08-22: "the animation is the wrong
             // direction for flipping up and down") — the y-up reasoning was
             // backwards on this layer: forward = next rendition comes from
             // the TOP of the screen sense below.
             transition.subtype = forward ? .fromBottom : .fromTop
+            transition.duration = 0.22
+            transition.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
         }
         view.wantsLayer = true
         view.layer?.add(transition, forKey: "previewSwap")
