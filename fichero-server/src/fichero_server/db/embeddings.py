@@ -174,9 +174,21 @@ def _get_shared_embedder(model_name: str, cache_dir: str) -> Any:
         if embedder is None:
             from fastembed import TextEmbedding
 
-            embedder = TextEmbedding(model_name=model_name, cache_dir=cache_dir)
+            from fichero_server.core.background_compute import embed_threads
+
+            # Cap ONNX intra-op parallelism so a bulk embed can't peg every core
+            # and freeze the app ([[user-machine-always-useful]]). fastembed
+            # otherwise defaults to all cores per call.
+            threads = embed_threads()
+            embedder = TextEmbedding(
+                model_name=model_name, cache_dir=cache_dir, threads=threads
+            )
             _EMBEDDER_CACHE[model_name] = embedder
-            logger.info("Loaded embedding model (process-global): %s", model_name)
+            logger.info(
+                "Loaded embedding model (process-global): %s (threads=%d)",
+                model_name,
+                threads,
+            )
         return embedder
 
 

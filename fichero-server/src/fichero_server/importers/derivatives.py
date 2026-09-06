@@ -46,14 +46,29 @@ DERIVATIVE_FILE_TYPES = frozenset({FileType.image, FileType.pdf})
 _executor: ThreadPoolExecutor | None = None
 _executor_lock = threading.Lock()
 
+# Balanced background throttle ([[user-machine-always-useful]]): embedding is
+# the CPU-heavy stage, and its ONNX call already uses embed_threads() cores, so
+# we also bound how many embeds run AT ONCE. Default 1 → total embedding CPU ≈
+# embed_threads() ≈ half the machine, even mid bulk-import. Thumbnails keep the
+# pool's own 2-wide limit (a different, #1400, hazard). Sized once at import.
+from fichero_server.core.background_compute import embed_concurrency
+
+_embed_gate = threading.Semaphore(embed_concurrency())
+
 
 def _get_executor() -> ThreadPoolExecutor:
     global _executor
     with _executor_lock:
         if _executor is None:
+            from fichero_server.core.background_compute import set_background_qos
+
             _executor = ThreadPoolExecutor(
                 max_workers=MAX_CONCURRENT_DERIVATIVES,
                 thread_name_prefix="derivative",
+                # Every derivative/embed worker runs at background QoS so its CPU
+                # yields to the foreground — the machine stays usable during a
+                # big import (Daniel, 2026-09-06).
+                initializer=set_background_qos,
             )
     return _executor
 
@@ -557,7 +572,12 @@ def _embed_stage(doc_id: str, library: str) -> None:
         # with no file at all (a note, an extracted entry) is not a failure.
         # The probe belongs in the thumbnail stage, which is the one that
         # decodes, and therefore the one that can block.
-        embed_error = _embed_document_tree(doc, db, library)
+        #
+        # Gate the CPU-heavy embed so at most embed_concurrency() run at once —
+        # keeps a bulk import from stacking multiple all-core ONNX passes and
+        # pegging the machine ([[user-machine-always-useful]]).
+        with _embed_gate:
+            embed_error = _embed_document_tree(doc, db, library)
 
         # RE-READ before writing (manifest-drop repro, 2026-08-20): embedding
         # takes seconds, and saving the copy read at stage START resurrected

@@ -2846,7 +2846,7 @@ class TestEmbeddingsModelLoading:
         calls: list[dict] = []
 
         class FakeTextEmbedding:
-            def __init__(self, *, model_name: str, cache_dir: str):
+            def __init__(self, *, model_name: str, cache_dir: str, threads=None, **kwargs):
                 calls.append({"model_name": model_name, "cache_dir": cache_dir})
 
             def embed(self, texts):
