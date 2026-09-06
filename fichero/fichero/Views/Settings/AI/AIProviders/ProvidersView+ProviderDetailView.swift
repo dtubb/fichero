@@ -51,11 +51,15 @@ struct ProviderDetailView: View {
     }
 
     /// The reference-model list ("Models" + "Add Models…" browser) applies to
-    /// providers whose models you REFERENCE by id for chat/completion — cloud
-    /// providers and MLX. A no-prompt local runtime has none, so it is
-    /// suppressed rather than left to come up blank.
+    /// providers whose models you REFERENCE by id — cloud providers and external
+    /// local servers (ollama/lmstudio). The app's MANAGED-local runtimes
+    /// (MLX/spaCy/Kraken/Whisper) are excluded: their models live in the
+    /// On-Device Models section, and they're returned as always-present rows with
+    /// a synthetic "local-<type>" id that has no /providers/{id}/models to fetch
+    /// (spaCy's browser also just came up blank). So skip the reference list —
+    /// and its model fetch — for all of them.
     private var usesReferenceModels: Bool {
-        !isNoPromptRuntime
+        !ManagedLocalRuntime.contains(provider.providerType)
     }
 
     private var statusText: String {
@@ -335,7 +339,12 @@ struct ProviderDetailView: View {
             .padding()
         }
         .task(id: provider.id) {
-            await loadModels()
+            // Only providers with a reference-model list fetch it. Managed-local
+            // runtimes have a synthetic "local-<type>" id with no models endpoint
+            // and no reference list to fill, so skip the call entirely.
+            if usesReferenceModels {
+                await loadModels()
+            }
             // Every on-device runtime row (MLX + no-prompt) reads the shared
             // local-inference catalog; load it once here. The store guards
             // against concurrent loads.
