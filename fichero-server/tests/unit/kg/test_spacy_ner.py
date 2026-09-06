@@ -169,6 +169,37 @@ class TestTrimPersonName:
         # emptied — it just isn't a valid person, which the caller handles.
         assert spacy_ner.trim_person_name("vecino") == "vecino"
 
+    def test_a_leading_descriptor_is_stripped(self):
+        # "indio Pablo…" and "Pablo…indio" are ONE person: a leading descriptor
+        # must be cut too, not just a trailing one (Caciques Indios corpus).
+        assert spacy_ner.trim_person_name(
+            "indio Pablo de la Cruz vecino de Tunja"
+        ) == "Pablo de la Cruz"
+
+    def test_leading_and_trailing_forms_agree(self):
+        # The two ways of writing the same person collapse to one name.
+        assert (
+            spacy_ner.trim_person_name("indio Pablo de la Cruz vecino")
+            == spacy_ner.trim_person_name("Pablo de la Cruz indio")
+            == "Pablo de la Cruz"
+        )
+
+    def test_leading_anaphora_is_stripped(self):
+        # "el dicho Juan" (the aforesaid Juan) is Juan.
+        assert spacy_ner.trim_person_name("el dicho Juan") == "Juan"
+        assert spacy_ner.trim_person_name("la dicha india María") == "María"
+
+    def test_a_real_article_surname_keeps_its_article(self):
+        # A bare article is only anaphora when a stopword follows it. "Las
+        # Casas" / "La Cruz" are names, not "the aforesaid …" — never beheaded.
+        assert spacy_ner.trim_person_name("Las Casas") == "Las Casas"
+        assert spacy_ner.trim_person_name("La Cruz") == "La Cruz"
+
+    def test_a_leading_only_descriptor_run_is_left_for_role_reject(self):
+        # All-descriptor spans are never emptied here; the write-tier
+        # role-reject rejects them. Just don't crash or over-trim.
+        assert spacy_ner.trim_person_name("el dicho") == "el dicho"
+
 
 class TestModelPreference:
     """The gate prefers the medium model WHEN INSTALLED, else the small one.

@@ -44,6 +44,8 @@ class TestRoleOnlyPersonReject:
             "el cabildo",
             "escribano",
             "el gobernador",
+            "el dicho",
+            "la dicha",
         ],
     )
     def test_role_only_person_is_rejected(self, db, name):
@@ -86,6 +88,67 @@ class TestRoleOnlyPersonReject:
         assert _is_role_only_person_name("el alcalde Pedro Nieto") is False
         assert _is_role_only_person_name("Eugenio Córdoba") is False
         assert _is_role_only_person_name("") is False
+        # Anaphora-only spans ("the aforesaid") are offices of speech, not people.
+        assert _is_role_only_person_name("el dicho") is True
+        assert _is_role_only_person_name("la dicha") is True
+        assert _is_role_only_person_name("el dicho Juan") is False
+
+
+class TestSurvivorRankIgnoresDescriptors:
+    """Survivor-rank must crown the CLEAN name, not the descriptor-polluted one.
+
+    "indio Pablo García" and "Pablo García" are one person; whichever arrives
+    second merges into the first. The promote decision compares
+    descriptor-STRIPPED cores, so the 3-token polluted form never out-ranks the
+    2-token clean form — the canonical stays "Pablo García" either way
+    (Caciques Indios corpus).
+    """
+
+    def _person_rows(self, db):
+        return db.query(KnowledgeEntity, entity_type=EntityType.person)
+
+    def test_clean_form_wins_when_it_arrives_second(self, db):
+        from fichero_server.workflows.tools._entity_writer import upsert_entity
+
+        first = upsert_entity(
+            db, canonical_name="indio Pablo García", entity_type=EntityType.person
+        )
+        second = upsert_entity(
+            db, canonical_name="Pablo García", entity_type=EntityType.person
+        )
+        assert second == first  # merged, one entity
+        rows = self._person_rows(db)
+        assert len(rows) == 1
+        assert rows[0].canonical_name == "Pablo García"
+
+    def test_clean_form_wins_when_it_arrives_first(self, db):
+        from fichero_server.workflows.tools._entity_writer import upsert_entity
+
+        first = upsert_entity(
+            db, canonical_name="Pablo García", entity_type=EntityType.person
+        )
+        second = upsert_entity(
+            db, canonical_name="indio Pablo García", entity_type=EntityType.person
+        )
+        assert second == first
+        rows = self._person_rows(db)
+        assert len(rows) == 1
+        assert rows[0].canonical_name == "Pablo García"
+
+    def test_a_genuinely_fuller_name_still_promotes(self, db):
+        # The descriptor strip must NOT defeat the real superset rule.
+        from fichero_server.workflows.tools._entity_writer import upsert_entity
+
+        first = upsert_entity(
+            db, canonical_name="Daniel Mosquera", entity_type=EntityType.person
+        )
+        upsert_entity(
+            db, canonical_name="Daniel Mosquera Lozano", entity_type=EntityType.person
+        )
+        rows = self._person_rows(db)
+        assert len(rows) == 1
+        assert rows[0].canonical_name == "Daniel Mosquera Lozano"
+        assert rows[0].id == first
 
 
 class TestUpsertEntity:

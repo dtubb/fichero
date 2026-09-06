@@ -120,6 +120,16 @@ _PERSON_DESCRIPTOR_STOPWORDS = frozenset(
 )
 
 
+# Anaphoric "the aforesaid X" heads (dicho/dicha/…) and the articles that lead
+# them (el/la/…). "el dicho Pablo", "la dicha india María" are the SAME person
+# as "Pablo" / "María" — the anaphora is pure boilerplate in colonial records.
+# An article is stripped only when ANOTHER leading stopword follows it (below),
+# so real article-surnames — "Las Casas", "La Cruz" — keep their article.
+_LEADING_ANAPHORA = frozenset({"dicho", "dicha", "dichos", "dichas"})
+_LEADING_ARTICLES = frozenset({"el", "la", "los", "las"})
+_LEADING_STOPWORDS = _PERSON_DESCRIPTOR_STOPWORDS | _LEADING_ANAPHORA | _LEADING_ARTICLES
+
+
 def _fold_word(word: str) -> str:
     """Accent-, case- and edge-punctuation-folded single word, for lookup."""
     decomposed = unicodedata.normalize("NFKD", word)
@@ -128,19 +138,45 @@ def _fold_word(word: str) -> str:
 
 
 def trim_person_name(name: str) -> str:
-    """Cut a PERSON name at the first trailing descriptor, or return it whole.
+    """Strip descriptor boilerplate around a PERSON name; return the core name.
 
-    "Antonio de Guzman vezino de la cibdad de uitoria" → "Antonio de Guzman".
-    The cut only fires from the SECOND word on, so a span is never emptied and
-    a name that opens with a title ("el capitan Galarza vz de Tunja") keeps the
-    title and loses only the trailing "vz de Tunja". Names with no descriptor
-    token ("Antonio de Guzman", "Juan de la Cruz") are returned unchanged.
+    Two cuts, so the SAME person written either way collapses to one canonical
+    name (critical for the Caciques Indios corpus, where "indio"/"la dicha
+    india" lead a name as often as they trail it):
+
+    - LEADING descriptor/anaphora run: "indio Pablo de la Cruz vecino" and
+      "el dicho Juan" lose their front boilerplate. A bare article
+      (el/la/los/las) is only stripped when another stopword follows it, so
+      "Las Casas" / "La Cruz" keep their article and are NOT beheaded.
+    - TRAILING descriptor: "Antonio de Guzman vezino de la cibdad" →
+      "Antonio de Guzman" (the appositive is dropped).
+
+    Neither cut can empty the span: a run made entirely of descriptors
+    ("vecino", "el dicho") is returned whole for the write-tier role-reject to
+    reject. Clean names ("Juan de la Cruz") pass through unchanged.
     """
     words = name.split()
-    for i in range(1, len(words)):
-        if _fold_word(words[i]) in _PERSON_DESCRIPTOR_STOPWORDS:
-            return " ".join(words[:i]).strip(" ,;:")
-    return name
+    folded = [_fold_word(w) for w in words]
+
+    # LEADING run: advance past front stopwords, but stop at a bare article
+    # that a name (not another stopword) follows — that article belongs to the
+    # name ("Las Casas"), it is not anaphora.
+    i = 0
+    while i < len(words) and folded[i] in _LEADING_STOPWORDS:
+        if folded[i] in _LEADING_ARTICLES and not (
+            i + 1 < len(words) and folded[i + 1] in _LEADING_STOPWORDS
+        ):
+            break
+        i += 1
+    if 0 < i < len(words):  # never empty the span
+        words = words[i:]
+
+    # TRAILING cut at the first descriptor (from the second word on, so a lone
+    # leading descriptor is never emptied here either).
+    for j in range(1, len(words)):
+        if _fold_word(words[j]) in _PERSON_DESCRIPTOR_STOPWORDS:
+            return " ".join(words[:j]).strip(" ,;:")
+    return " ".join(words).strip(" ,;:")
 
 
 @dataclass(frozen=True)

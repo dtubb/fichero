@@ -287,6 +287,30 @@ def _tokenise_lower(s: str) -> list[str]:
     return [tok for tok in cleaned.split() if tok]
 
 
+def _core_name_tokens(name: str) -> set[str]:
+    """Name tokens with leading/trailing DESCRIPTOR words removed.
+
+    Survivor-rank promotes the token-superset name to canonical. Without this,
+    a descriptor-polluted longer form ("indio Pablo García", 3 tokens) would
+    out-rank the clean "Pablo García" (2 tokens) and become canonical. Stripping
+    descriptors from BOTH sides first makes the two compare equal, so the clean
+    form keeps the crown. Reuses spaCy's descriptor list so there is one source
+    of truth (lazy import: avoids a knowledge<->workflows import cycle at load).
+    """
+    from fichero_server.knowledge.spacy_ner import _PERSON_DESCRIPTOR_STOPWORDS
+
+    toks = _tokenise_lower(_fold_accents(name))
+    lo, hi = 0, len(toks)
+    while lo < hi and toks[lo] in _PERSON_DESCRIPTOR_STOPWORDS:
+        lo += 1
+    while hi > lo and toks[hi - 1] in _PERSON_DESCRIPTOR_STOPWORDS:
+        hi -= 1
+    core = toks[lo:hi]
+    # All-descriptor (no real name token) — fall back to the raw tokens so an
+    # accidental empty core can't make unrelated names compare "equal".
+    return set(core or toks)
+
+
 def _normalized_match_key(name: str) -> str:
     """Conservative high-precision identity key for a name (#1811).
 
@@ -343,8 +367,9 @@ def _strip_admin_qualifiers(tokens: list[str]) -> list[str]:
 # token is one of these (or a bare number), so "el alcalde Pedro Nieto" keeps
 # its real name and survives.
 _PERSON_NONNAME_TOKENS = frozenset({
-    # articles / connectors
+    # articles / connectors / anaphora ("el dicho X" = the aforesaid X)
     "the", "el", "la", "los", "las", "le", "les", "de", "del", "al", "y",
+    "dicho", "dicha", "dichos", "dichas",
     # honorifics
     "don", "dona", "fray", "sor", "san", "santo", "santa",
     "senor", "senora", "senorita", "licenciado", "lic",
@@ -1911,10 +1936,20 @@ def upsert_entity(
         # incoming name's tokens strictly contain the matched one's ("Daniel
         # Mosquera Lozano" ⊃ "Daniel Mosquera"), promote the fuller name so it
         # wins over first-seen; the shorter form is retained as an alias.
+        # Compare DESCRIPTOR-STRIPPED cores so "indio Pablo García" doesn't
+        # out-rank the clean "Pablo García"; a genuinely fuller name
+        # ("Daniel Mosquera Lozano" ⊃ "Daniel Mosquera") still promotes.
         old_canonical = matched.canonical_name
-        incoming_tokens = set(_tokenise_lower(_fold_accents(canonical_name)))
-        current_tokens = set(_tokenise_lower(_fold_accents(old_canonical)))
+        incoming_tokens = _core_name_tokens(canonical_name)
+        current_tokens = _core_name_tokens(old_canonical)
         promote = incoming_tokens > current_tokens
+        if not promote and incoming_tokens == current_tokens:
+            # Same core name — the two differ only by leading/trailing
+            # descriptor tokens. Prefer the CLEANER (fewer raw tokens) form, so
+            # an already-stored "indio Pablo García" yields to "Pablo García".
+            incoming_raw = len(_tokenise_lower(_fold_accents(canonical_name)))
+            current_raw = len(_tokenise_lower(_fold_accents(old_canonical)))
+            promote = incoming_raw < current_raw
         if promote:
             matched.canonical_name = canonical_name
 
