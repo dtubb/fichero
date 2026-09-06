@@ -95,13 +95,18 @@ def test_local_inference_catalog_exposes_configured_model(client) -> None:
 
     assert response.status_code == 200
     data = response.json()
-    assert data["count"] == 1
-    entry = data["items"][0]
+    # The catalog now aggregates every local runtime (Shape A), so the MLX
+    # entry is one of several rather than the whole list — find it by id.
+    entry = next(
+        e for e in data["items"] if e["model_id"] == routes.DEFAULT_OMLX_MODEL_ID
+    )
     assert entry["provider_type"] == "omlx"
-    assert entry["model_id"] == routes.DEFAULT_OMLX_MODEL_ID
     assert entry["capabilities"] == ["text", "vision"]
     assert entry["installed"] is True
     assert entry["supported"] is True
+    # The folded-in runtimes appear alongside it, each tagged by provider_type.
+    providers = {e["provider_type"] for e in data["items"]}
+    assert {"spacy", "kraken", "whisper"} <= providers
 
 
 def test_local_inference_catalog_surfaces_hardware_unsupported_reason(
