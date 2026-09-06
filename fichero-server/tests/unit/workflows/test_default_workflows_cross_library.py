@@ -122,6 +122,45 @@ class TestListMergesGlobalDefaults:
         ]
         assert len(matches) == 1  # present despite the dropped flag, and once
 
+    def test_global_user_workflow_named_like_preset_does_not_leak(
+        self, client, global_db
+    ):
+        # CRITICAL (code review): the (name, folder_path) fallback must be gated
+        # on a seeder flag. A workflow a USER authored in the global library,
+        # named exactly like a preset and in its folder but carrying NO flags,
+        # must NOT leak into other libraries — while a real preset that kept
+        # is_template (lost only is_system) still resolves.
+        from fichero_server.workflows.default_workflows import _load_preset_files
+
+        presets = _load_preset_files()
+        user_row = Workflow(
+            name=presets[0]["name"],
+            format="nodes",
+            is_system=False,
+            is_template=False,  # no seeder flag → a user workflow, not a default
+            folder_path=presets[0].get("folder_path", "/"),
+            nodes=[],
+            edges=[],
+        )
+        global_db.save(user_row)
+        # A real preset that lost is_system but kept is_template must still show.
+        flagged_preset = Workflow(
+            name=presets[1]["name"],
+            format="nodes",
+            is_system=False,
+            is_template=True,
+            folder_path=presets[1].get("folder_path", "/"),
+            nodes=[{"id": "files-source", "tool": "files", "inputs": {}, "config": {}}],
+            edges=[],
+        )
+        global_db.save(flagged_preset)
+
+        response = client.get("/api/workflows")
+        assert response.status_code == 200
+        ids = {i["id"] for i in response.json()["items"]}
+        assert user_row.id not in ids  # gated out — no seeder flag
+        assert flagged_preset.id in ids  # name+folder + is_template → resolves
+
     def test_library_workflow_of_same_id_wins_over_global_default(
         self, client, db, global_db
     ):

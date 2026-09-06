@@ -465,6 +465,11 @@ def _shipped_preset_identity() -> tuple[frozenset[str], frozenset[tuple[str, str
     the shipped ``(name, folder_path)`` pair (the same signal ``heal``'s
     ``looks_seeded`` trusts). Matching either means a shipped preset surfaces
     even when its flag was dropped.
+
+    ``lru_cache(maxsize=1)`` is intentionally process-lifetime-fixed and never
+    invalidated: the presets are baked into the app resources
+    (``_load_preset_files``), so their identity cannot change while the process
+    runs.
     """
     ids: set[str] = set()
     name_folders: set[tuple[str, str]] = set()
@@ -480,17 +485,34 @@ def _shipped_preset_identity() -> tuple[frozenset[str], frozenset[tuple[str, str
 def _is_shipped_default(workflow) -> bool:
     """Whether a GLOBAL-library row is a shipped default (#4450).
 
-    True when the seeder's ``is_system`` flag is set OR the row matches a
-    shipped preset's immutable identity (deterministic id, or name+folder_path)
-    — so a preset whose flag was dropped still resolves into every library. A
-    global USER workflow matches none of these and stays scoped to the global
-    library.
+    True when EITHER:
+      * ``is_system`` is set (the seeder's own flag), OR
+      * the row's id is the deterministic ``preset_workflow_id`` (minted only by
+        the seeder — always safe), OR
+      * its (name, folder_path) matches a shipped preset AND it still carries a
+        seeder flag (``is_template``/``is_system``).
+
+    The name+folder branch is gated on a seeder flag on purpose: name+folder
+    alone is a WEAK signal a user can collide with — a workflow a user authored
+    IN the global library named like a preset ("Transcribe Paleography" in
+    "/Transcribe") would otherwise leak into every non-global library. Gating it
+    on ``is_template or is_system`` — the same discipline ``heal``'s
+    ``looks_seeded`` uses — means a genuine user workflow (no flags) can never
+    leak, while a real preset that lost only ``is_system`` (kept ``is_template``)
+    still resolves. A user workflow matches none of the three and stays scoped
+    to the global library.
     """
     if getattr(workflow, "is_system", False):
         return True
     ids, name_folders = _shipped_preset_identity()
     if getattr(workflow, "id", None) in ids:
         return True
+    # Weak signal — require a seeder flag so a colliding user name can't leak.
+    if not (
+        getattr(workflow, "is_template", False)
+        or getattr(workflow, "is_system", False)
+    ):
+        return False
     name = getattr(workflow, "name", None)
     folder = getattr(workflow, "folder_path", None) or "/"
     return name is not None and (name, folder) in name_folders
