@@ -220,18 +220,18 @@ def kreuzberg_pdf_usable(logger=None) -> bool:
         with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
             f.write(_PROBE_PDF)
             probe_path = f.name
-        proc = subprocess.run(
-            _worker_command(), capture_output=True, timeout=60,
-            env=_worker_env({**os.environ, "FICHERO_PDFIUM_PROBE_PDF": probe_path}),
+        returncode, stderr = _run_worker(
+            _worker_env({**os.environ, "FICHERO_PDFIUM_PROBE_PDF": probe_path}),
+            timeout=60,
         )
-        _KREUZBERG_PDF_USABLE = proc.returncode == 0
+        _KREUZBERG_PDF_USABLE = returncode == 0
         if not _KREUZBERG_PDF_USABLE and logger:
             logger.warning(
                 "kreuzberg PDF probe failed (rc=%s) — scanned-PDF text "
                 "extraction disabled for this run; text-layer PDFs still "
                 "extract via fitz. stderr tail: %s",
-                proc.returncode,
-                (proc.stderr or b"")[-300:].decode(errors="replace"),
+                returncode,
+                (stderr or b"")[-300:].decode(errors="replace"),
             )
     except subprocess.TimeoutExpired:
         _KREUZBERG_PDF_USABLE = False
@@ -296,23 +296,143 @@ def prewarm_for_extraction() -> None:
 
 
 def _worker_command() -> list[str]:
-    """The out-of-process kreuzberg worker invocation for THIS layout."""
+    """The dev/venv out-of-process worker invocation (`python -m`).
+
+    Only reached from `_run_worker`'s dev branch: sys.executable IS a real
+    python there (sys.base_prefix would escape the venv to a bare interpreter
+    with no kreuzberg). The shipped bundle no longer re-execs its app stub —
+    it fork()s instead (see `_fork_worker`), because the sandboxed stub cannot
+    launch as a grandchild.
+    """
     import sys
 
-    exe = Path(sys.executable)
-    if exe.name.lower().startswith("python"):
-        # Dev/venv: sys.executable IS a python (sys.base_prefix would escape
-        # the venv to a bare interpreter with no kreuzberg).
-        return [str(exe), "-m", "fichero_server._pdfium_probe"]
-    # Shipped Briefcase: sys.executable is the app stub; BRIEFCASE_MAIN_MODULE
-    # (set in _worker_env) points it at the worker module instead of the app.
-    return [str(exe)]
+    return [str(Path(sys.executable)), "-m", "fichero_server._pdfium_probe"]
 
 
 def _worker_env(env: dict) -> dict:
     env = dict(env)
     env["BRIEFCASE_MAIN_MODULE"] = "fichero_server._pdfium_probe"
     return env
+
+
+def run_worker_from_env() -> int:
+    """The kreuzberg worker body — reads its mode from the env, returns an
+    exit code. Shared by BOTH out-of-process shapes so each does exactly one
+    measured thing:
+      • dev/venv: `python -m fichero_server._pdfium_probe` (a real child python)
+      • shipped bundle: a fork()ed child of the engine (see `_fork_worker`)
+
+    Modes (env-driven):
+      - FICHERO_KREUZBERG_EXTRACT_INPUT/_OUTPUT: extract per-page records and
+        write {"pages": [...]} JSON to the output path.
+      - FICHERO_PDFIUM_PROBE_PDF: bind pdfium by extracting the probe PDF; 0 on
+        success (the availability gate).
+    """
+    import json
+
+    extract_in = os.environ.get("FICHERO_KREUZBERG_EXTRACT_INPUT")
+    extract_out = os.environ.get("FICHERO_KREUZBERG_EXTRACT_OUTPUT")
+    probe = os.environ.get("FICHERO_PDFIUM_PROBE_PDF")
+
+    # Bind pdfium and pre-import the FFI-callback deps BEFORE touching kreuzberg
+    # (prepare_pdfium's hardlink is idempotent; see prewarm's docstring).
+    prewarm_for_extraction()
+
+    import kreuzberg
+
+    if extract_in and extract_out:
+        cfg = kreuzberg.ExtractionConfig(pages=kreuzberg.PageConfig(extract_pages=True))
+        result = kreuzberg.extract_file_sync(extract_in, None, cfg)
+        with open(extract_out, "w", encoding="utf-8") as f:
+            json.dump({"pages": result.pages or []}, f, default=str)
+        return 0
+
+    if probe:
+        kreuzberg.extract_file_sync(probe, None, kreuzberg.ExtractionConfig())
+        return 0
+
+    print("no mode env set", file=sys.stderr)
+    return 64
+
+
+def _fork_worker(env: dict, timeout: int) -> tuple[int, bytes]:
+    """Bundle out-of-process shape: run the worker in a fork()ed child.
+
+    WHY FORK, NOT RE-EXEC (root cause, #4555 / 2026-09-06): the shipped engine
+    has no standalone python — the only way to re-exec was its own Briefcase
+    app STUB with BRIEFCASE_MAIN_MODULE. But the notarized DMG re-signs that
+    stub with `{app-sandbox, inherit}` (FicheroEngine.entitlements, since the
+    2026-08-27 "one sandbox everywhere" ruling). `com.apple.security.inherit`
+    is SINGLE-LEVEL: the engine is already an inherit child of the sandboxed
+    app, so re-execing the stub makes a SECOND-level inherit grandchild that
+    can never establish its sandbox — it wedges in `_libsecinit_appsandbox`
+    (a >60s hang in the real container; a SIGTRAP from an unsandboxed parent),
+    before Python starts. The probe then always times out → kreuzberg disabled
+    → fitz split → no searchable text. (Dev works via `python -m`; Dev Embedded
+    worked because its engine is COPIED unsandboxed — so #4555, validated there
+    2026-08-09, never saw this; only the sandboxed DMG channel hits it.)
+
+    fork() does NOT execve, so dyld initializers and `_libsecinit_appsandbox`
+    never re-run: the child stays in the engine's already-established sandbox
+    (kernel-inherited across fork, no entitlement needed) and gets the SAME
+    process isolation #4555 wants — a hung pdfium bind costs the child its life
+    at `timeout`, never the engine's. Blast radius is confined: the child only
+    reads a PDF and writes a temp JSON, never the DB or shared state, and any
+    child failure already degrades to the fitz split, exactly as today.
+
+    UNVERIFIED IN A SEALED BUNDLE until the next DMG rebuild — the fork path is
+    proven functionally in the dev venv, and the sandbox-hang avoidance is
+    sound by construction (no exec ⇒ no libsecinit), but the notarized channel
+    can only be confirmed by a rebuilt, re-signed DMG.
+
+    Returns (returncode, stderr_bytes); raises subprocess.TimeoutExpired on
+    timeout, matching the dev subprocess path so callers are unchanged.
+    """
+    import multiprocessing
+    import subprocess
+
+    def _entry() -> None:
+        code = 70
+        try:
+            os.environ.update(env)
+            code = run_worker_from_env()
+        except BaseException:  # noqa: BLE001 — report, then die with a nonzero code
+            import traceback
+
+            traceback.print_exc()
+        os._exit(code)
+
+    ctx = multiprocessing.get_context("fork")
+    proc = ctx.Process(target=_entry)
+    proc.start()
+    proc.join(timeout)
+    if proc.is_alive():
+        proc.terminate()
+        proc.join(5)
+        if proc.is_alive():
+            proc.kill()
+            proc.join(5)
+        raise subprocess.TimeoutExpired(cmd="fork:_pdfium_probe", timeout=timeout)
+    return (proc.exitcode or 0), b""
+
+
+def _run_worker(env: dict, timeout: int) -> tuple[int, bytes]:
+    """Run the kreuzberg worker out-of-process for THIS layout.
+
+    Dev/venv re-execs a real python (`python -m`); the shipped bundle CANNOT
+    re-exec its own `{app-sandbox, inherit}` stub as a grandchild (it hangs in
+    `_libsecinit_appsandbox` — see `_fork_worker`), so it fork()s instead.
+    Returns (returncode, stderr_bytes); raises subprocess.TimeoutExpired.
+    """
+    import subprocess
+
+    exe = Path(sys.executable)
+    if exe.name.lower().startswith("python"):
+        proc = subprocess.run(
+            _worker_command(), capture_output=True, timeout=timeout, env=env,
+        )
+        return proc.returncode, (proc.stderr or b"")
+    return _fork_worker(env, timeout)
 
 
 class KreuzbergSubprocessError(RuntimeError):
@@ -340,18 +460,15 @@ def extract_pdf_pages_subprocess(path, timeout: int = 300) -> list:
         "FICHERO_KREUZBERG_EXTRACT_OUTPUT": out_path,
     }
     try:
-        proc = subprocess.run(
-            _worker_command(), capture_output=True, timeout=timeout,
-            env=_worker_env(env),
-        )
+        returncode, stderr = _run_worker(_worker_env(env), timeout=timeout)
     except subprocess.TimeoutExpired as exc:
         raise KreuzbergSubprocessError(
             f"kreuzberg worker timed out after {timeout}s (killed; engine unharmed)"
         ) from exc
-    if proc.returncode != 0:
-        tail = (proc.stderr or b"")[-400:].decode(errors="replace")
+    if returncode != 0:
+        tail = (stderr or b"")[-400:].decode(errors="replace")
         raise KreuzbergSubprocessError(
-            f"kreuzberg worker rc={proc.returncode}: {tail}"
+            f"kreuzberg worker rc={returncode}: {tail}"
         )
     try:
         with open(out_path, encoding="utf-8") as f:
