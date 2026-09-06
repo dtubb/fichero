@@ -162,6 +162,11 @@ extension ContentView {
             artifactTypeHint = artifactType
             artifactStepNameHint = stepName
         }
+        // "This folder" runs on the folder itself, not its files — frozen with
+        // the scope so it cannot drift as the selection wanders mid-chain.
+        let expandFolders = WorkflowBarPolicy.expandFolders(
+            for: scope, folderSubjectId: workflowBarSelectionSnapshot.folderSubjectId
+        )
         // What "see what it produced" opens later, however the live selection
         // wanders during the run.
         lastChainRunTargets = targets
@@ -212,6 +217,7 @@ extension ContentView {
                 modelOverride: choice?.model,
                 artifactTypeHint: artifactTypeHint,
                 artifactStepNameHint: artifactStepNameHint,
+                expandFolders: expandFolders,
                 onThreadId: { threadId in
                     // Stamped the moment the server accepts, not when the run
                     // ends — the point is to watch a step WHILE it works.

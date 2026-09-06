@@ -83,7 +83,12 @@ extension WorkflowBarPolicy {
         case .documents(let ids):
             return snapshot.browserSelection == ids
         case .detailDocument(let id, _):
-            return snapshot.detailDocumentId == id
+            // Valid while it is the previewed document OR while it is the lone
+            // folder subject — "This folder" is a `.detailDocument(folderId)`
+            // override, and a folder selected in the browser is often not the
+            // previewed detail document, so keying on detail alone silently
+            // dropped the choice back to the ladder (2026-09-06).
+            return snapshot.detailDocumentId == id || snapshot.folderSubjectId == id
         case .folderContents(let folderId, _, _):
             // Valid while the same folder is still the subject — the child ids
             // are refreshed from the snapshot, so a changed count is fine.
@@ -91,6 +96,26 @@ extension WorkflowBarPolicy {
         case .nothing:
             return false
         }
+    }
+
+    /// Whether the engine may expand a selected FOLDER into its file
+    /// descendants for this scope (Daniel, 2026-09-06: "am I translating the
+    /// folder, or all the children?").
+    ///
+    /// The engine expands a selected folder to every file inside it by default,
+    /// so "This folder" and "Everything inside" would run on the identical leaf
+    /// set unless this says otherwise. "This folder" is the lone-folder subject
+    /// chosen as a single document (`.detailDocument(folderId)` where the id is
+    /// the folder subject): it runs on the folder DOCUMENT itself, so expansion
+    /// is OFF. Every other scope — a plain selection, "Everything inside"
+    /// (`.folderContents`, which already carries the child ids) — keeps the
+    /// engine's default expansion.
+    static func expandFolders(for scope: RunScope, folderSubjectId: String?) -> Bool {
+        if case .detailDocument(let id, _) = scope,
+           let folderSubjectId, id == folderSubjectId {
+            return false
+        }
+        return true
     }
 
     /// The artifact types the menu offers explicitly — the `artifacts_source`

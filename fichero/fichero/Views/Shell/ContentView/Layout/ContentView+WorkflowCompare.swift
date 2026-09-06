@@ -31,6 +31,9 @@ extension ContentView {
         let scope = workflowBarRunScope
         guard let targets = await frozenChainTargets(for: scope) else { return }
         let hints = Self.artifactHints(for: scope)
+        let expandFolders = WorkflowBarPolicy.expandFolders(
+            for: scope, folderSubjectId: workflowBarSelectionSnapshot.folderSubjectId
+        )
         lastChainRunTargets = targets
 
         chromeUX.compareRunProgress = runs.map {
@@ -81,6 +84,7 @@ extension ContentView {
                 artifactTypeHint: hints.type,
                 artifactStepNameHint: hints.stepName,
                 compareGroup: groupId,
+                expandFolders: expandFolders,
                 // Stamped the moment the server accepts, so a capsule can name
                 // its own run even while it is still going.
                 onThreadId: { accepted in update(run.model, .running, threadId: accepted) }

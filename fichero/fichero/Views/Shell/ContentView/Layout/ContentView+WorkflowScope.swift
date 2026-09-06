@@ -142,6 +142,18 @@ extension ContentView {
         )
     }
 
+    /// Whether a run dispatched RIGHT NOW may expand a selected folder into its
+    /// files. False only for "This folder" — the lone-folder subject chosen as
+    /// a single document — so that choice runs on the folder itself, not every
+    /// file inside it (Daniel, 2026-09-06). Rides the run inputs to the engine's
+    /// source resolver, the only place a selected folder is (or is not) widened.
+    var workflowBarExpandFolders: Bool {
+        WorkflowBarPolicy.expandFolders(
+            for: workflowBarRunScope,
+            folderSubjectId: workflowBarSelectionSnapshot.folderSubjectId
+        )
+    }
+
     /// The subject chip's menu, fed by the ladder: Automatic, every rung
     /// resolvable right now, and the inspected document's artifacts by type.
     var workflowBarScopeOptions: [WorkflowBarPolicy.ScopeOption] {

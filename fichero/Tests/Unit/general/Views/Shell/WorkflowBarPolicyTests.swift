@@ -198,6 +198,57 @@ final class WorkflowBarPolicyTests: XCTestCase {
         XCTAssertEqual(resolved, .documents(ids: ["other"]))
     }
 
+    func testThisFolderOverrideSurvivesWhenTheFolderIsNotThePreviewedDoc() {
+        // "This folder" is a `.detailDocument(folderId)` override. The folder is
+        // selected in the browser but NOT the previewed detail document, so
+        // keying visibility on the detail doc alone silently dropped the choice
+        // back to the ladder — which sends [folderId] and lets the engine expand
+        // it to every file, the exact "it still runs on every file" bug.
+        let chosen = WorkflowBarPolicy.RunScope.detailDocument(
+            id: "folder-1", name: "Marshall Diaries"
+        )
+        let resolved = WorkflowBarPolicy.resolveRunScope(folderSnapshot(), override: chosen)
+        XCTAssertEqual(resolved, chosen)
+        XCTAssertEqual(resolved.documentIds, ["folder-1"])
+    }
+
+    func testExpandFoldersIsOffOnlyForTheThisFolderScope() {
+        // "This folder" — the lone folder subject chosen as a single document —
+        // must NOT be expanded to its files.
+        XCTAssertFalse(
+            WorkflowBarPolicy.expandFolders(
+                for: .detailDocument(id: "folder-1", name: "Marshall Diaries"),
+                folderSubjectId: "folder-1"
+            )
+        )
+        // "Everything inside" already carries the child ids; the engine still
+        // expands each child (subfolders, PDFs) normally.
+        XCTAssertTrue(
+            WorkflowBarPolicy.expandFolders(
+                for: .folderContents(
+                    folderId: "folder-1", folderName: "Marshall Diaries",
+                    childIds: ["c1", "c2"]
+                ),
+                folderSubjectId: "folder-1"
+            )
+        )
+        // A plain folder selection with no explicit "This folder" choice keeps
+        // the engine's default expansion.
+        XCTAssertTrue(
+            WorkflowBarPolicy.expandFolders(
+                for: .documents(ids: ["folder-1"]), folderSubjectId: "folder-1"
+            )
+        )
+        // A previewed ordinary document that happens to be the detail scope is
+        // never a folder subject, so expansion stays on (a no-op for a leaf).
+        XCTAssertTrue(
+            WorkflowBarPolicy.expandFolders(
+                for: .detailDocument(id: "page-1", name: "Hoja"),
+                folderSubjectId: nil
+            )
+        )
+    }
+
     func testAPopulatedBarHasNoEmptyReason() {
         XCTAssertNil(
             WorkflowBarPolicy.emptyReason(

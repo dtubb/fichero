@@ -294,6 +294,15 @@ class State(TypedDict):
     # UI selection — document IDs selected when the user clicked Run
     selected_doc_ids: list[str]
 
+    #: Whether a selected FOLDER is expanded to its file descendants (the
+    #: default) or treated as the single work unit. The workflow bar's "This
+    #: folder" scope sends False so the run acts on the folder document itself,
+    #: not every file inside it (Daniel, 2026-09-06). Declared as its own
+    #: channel for the same reason as `selected_doc_ids`: otherwise LangGraph
+    #: drops it when it initialises channels from this TypedDict, and "This
+    #: folder" would silently expand like any other folder selection.
+    expand_folders: bool
+
     # Input/Output
     inputs: dict[str, Any]  # Initial inputs to workflow
     outputs: Annotated[

@@ -87,6 +87,17 @@ class TestScopeResolution:
         assert scope["resolved_count"] == 4
         assert scope["kinds"] == {"sc-folder": "folder"}
 
+    def test_this_folder_scope_records_the_folder_not_its_descendants(self, library):
+        """"This folder" (expand_folders=False) runs on the folder document
+        itself, so the recorded scope must be the folder — not four descendants
+        — or Activity would claim the run touched files it never processed
+        (Daniel, 2026-09-06)."""
+        _package, db = library
+        scope = resolve_run_scope(db, ["sc-folder"], expand_folders=False)
+        assert scope["resolved_ids"] == ["sc-folder"]
+        assert scope["resolved_count"] == 1
+        assert scope["requested_count"] == 1
+
     def test_a_pdf_resolves_to_its_pages_not_itself(self, library):
         """The unit of work is the page — recording the parent would misstate
         how much the run actually touched."""

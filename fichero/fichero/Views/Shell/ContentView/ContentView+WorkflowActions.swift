@@ -246,6 +246,11 @@ extension ContentView {
         /// the artifacts they produce can be lined up later. The engine
         /// ignores unknown inputs today; the compare-reader lane reads it.
         compareGroup: String? = nil,
+        /// "This folder" (Daniel, 2026-09-06): when false, a selected folder in
+        /// the run is treated as the single work unit rather than expanded to
+        /// its files. Defaults true so every existing caller keeps the engine's
+        /// folder expansion; only the workflow bar's folder-self scope sets it.
+        expandFolders: Bool = true,
         /// Called with the SERVER's thread id as soon as the run is accepted,
         /// so a caller can watch a run it is still awaiting — the chain rail
         /// uses it to make a running step clickable (2026-08-28).
@@ -269,7 +274,8 @@ extension ContentView {
             userContext: workflowUserContext,
             artifactTypeHint: artifactTypeHint,
             artifactStepNameHint: artifactStepNameHint,
-            compareGroup: compareGroup
+            compareGroup: compareGroup,
+            expandFolders: expandFolders
         )
         do {
                 let response = try await workflowStreamService.execute(

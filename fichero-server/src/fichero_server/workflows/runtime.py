@@ -161,6 +161,11 @@ def build_initial_state(
         # LangGraph drops it when it initialises channels from the State
         # TypedDict, and a force run would silently become an ordinary one.
         "force_recompute": bool(inputs.get("force_recompute", False)),
+        # Same reason again (Daniel, 2026-09-06): the workflow bar's "This
+        # folder" scope sends expand_folders=False so a selected folder runs on
+        # itself rather than its files; dropped as an undeclared channel it
+        # would default back to expansion and the choice would be silently lost.
+        "expand_folders": bool(inputs.get("expand_folders", True)),
     }
     if metadata:
         state["metadata"] = metadata

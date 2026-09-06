@@ -244,3 +244,31 @@ class TestTheScopeInvariants:
         db = _db_with([])
         with pytest.raises(ValueError, match="resolved to 0 processable files"):
             _resolve_selection_pairs(db, ["gone-1", "gone-2"], "/lib")
+
+
+class TestThisFolderScopeVsEverythingInside:
+    """The scope choice must GATE the run (Daniel, 2026-09-06): "This folder"
+    acts on the folder itself, "Everything inside" on the children. Without the
+    `expand_folders` flag both resolved to the identical leaf set, because a
+    selected folder was always expanded — so "This folder" ran on every file."""
+
+    def test_expand_folders_true_is_the_default_and_widens(self):
+        folder = _folder("folder-x")
+        members = [_file(f"file-{i}", parent_id="folder-x") for i in range(5)]
+        db = _db_with([folder, *members])
+        pairs = _resolve_selection_pairs(db, ["folder-x"], "/lib")
+        assert {d.id for _, d in pairs} == {f"file-{i}" for i in range(5)}, (
+            "the default must keep expanding a selected folder to its files"
+        )
+
+    def test_expand_folders_false_keeps_the_folder_whole(self):
+        folder = _folder("folder-x")
+        members = [_file(f"file-{i}", parent_id="folder-x") for i in range(5)]
+        db = _db_with([folder, *members])
+        pairs = _resolve_selection_pairs(
+            db, ["folder-x"], "/lib", expand_folders=False
+        )
+        assert [d.id for _, d in pairs] == ["folder-x"], (
+            "'This folder' must resolve to the folder DOCUMENT itself, never "
+            "its descendants — the two scope choices are otherwise identical"
+        )

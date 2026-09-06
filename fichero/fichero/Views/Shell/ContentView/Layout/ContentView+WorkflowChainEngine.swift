@@ -286,7 +286,10 @@ extension ContentView {
             userContext: workflowUserContext,
             artifactTypeHint: artifactTypeHint,
             artifactStepNameHint: artifactStepNameHint,
-            compareGroup: nil
+            compareGroup: nil,
+            expandFolders: WorkflowBarPolicy.expandFolders(
+                for: scope, folderSubjectId: workflowBarSelectionSnapshot.folderSubjectId
+            )
         )
         return EngineChainLaunch(
             targets: targets, inputs: Self.codableRunInputs(inputs)

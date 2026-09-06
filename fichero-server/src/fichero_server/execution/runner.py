@@ -1307,8 +1307,14 @@ async def _run_workflow_in_background(
             )
 
             selection = request.selection
+            # "This folder" runs on the folder itself, not its files — the run
+            # inputs carry the flag, so the recorded scope must honor it too or
+            # Activity would claim the run touched every descendant (2026-09-06).
+            expand_folders = bool((request.inputs or {}).get("expand_folders", True))
             resolved_scope = resolve_run_scope(
-                db, list(selection.ids) if selection else None
+                db,
+                list(selection.ids) if selection else None,
+                expand_folders=expand_folders,
             )
             if selection is not None:
                 # What the user pointed AT, as declared. `kinds` records what

@@ -30,13 +30,23 @@ logger = logging.getLogger(__name__)
 MAX_RECORDED_IDS = 5000
 
 
-def resolve_run_scope(db: Any, selected_doc_ids: list[str] | None) -> dict[str, Any]:
+def resolve_run_scope(
+    db: Any,
+    selected_doc_ids: list[str] | None,
+    *,
+    expand_folders: bool = True,
+) -> dict[str, Any]:
     """Resolve a selection into the document set a run will actually touch.
 
     Mirrors what the source node does — a folder expands to its file/page
     descendants, a PDF expands to its pages, a leaf stays itself — so the
     recorded scope is what the run really operates on rather than a restatement
     of the request.
+
+    ``expand_folders`` mirrors the source resolver's flag: when False a
+    directly-selected folder is one resolved unit (the "This folder" scope),
+    not its descendants, so the recorded scope agrees with what actually ran
+    (Daniel, 2026-09-06).
 
     Never raises: a run must not fail because its scope could not be described.
     A resolution failure is recorded AS a failure in the returned record, so an
@@ -77,7 +87,16 @@ def resolve_run_scope(db: Any, selected_doc_ids: list[str] | None) -> dict[str, 
             document = db.get(Document, doc_id)
             if document is not None:
                 kind = getattr(document, "doc_type", None)
-                kinds[doc_id] = getattr(kind, "value", None) or str(kind or "unknown")
+                kind_value = getattr(kind, "value", None) or str(kind or "unknown")
+                kinds[doc_id] = kind_value
+                # "This folder": a directly-selected folder is the unit itself,
+                # not its descendants — record it so the scope agrees with the
+                # run's source resolver (both gated by expand_folders).
+                if not expand_folders and kind_value == "folder":
+                    if doc_id not in seen:
+                        seen.add(doc_id)
+                        resolved.append(doc_id)
+                    continue
             visit(doc_id)
     except Exception as exc:  # pragma: no cover - defensive
         # Say so. An empty scope with no explanation reads as "the run touched

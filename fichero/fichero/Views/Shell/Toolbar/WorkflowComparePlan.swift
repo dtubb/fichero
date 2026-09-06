@@ -82,9 +82,17 @@ enum WorkflowRunInputs {
         userContext: String,
         artifactTypeHint: String?,
         artifactStepNameHint: String?,
-        compareGroup: String?
+        compareGroup: String?,
+        /// "This folder" (Daniel, 2026-09-06): a lone folder chosen as the run's
+        /// subject must run on the folder DOCUMENT itself, not its descendants.
+        /// The engine expands a selected folder to all its files by default, so
+        /// the ONLY way "This folder" differs from "Everything inside" is this
+        /// flag reaching the source resolver. Sent only when false — an ordinary
+        /// run carries no such key and keeps the engine's default expansion.
+        expandFolders: Bool = true
     ) -> [String: Any] {
         var inputs: [String: Any] = ["selected_doc_ids": docIds]
+        if !expandFolders { inputs["expand_folders"] = false }
         // The window's framing line rides every run (Daniel, 2026-08-30).
         let framing = userContext.trimmingCharacters(in: .whitespacesAndNewlines)
         if !framing.isEmpty { inputs["user_context"] = framing }

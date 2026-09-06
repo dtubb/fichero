@@ -134,16 +134,29 @@ def _resolve_selection_pairs(
     library_path: str,
     *,
     source_label: str = "files source",
+    expand_folders: bool = True,
 ) -> list[tuple[str, "Document"]]:
     """Resolve the request's selection into (abs_path, Document) work units.
 
     One (path, document) entry per ATOMIC UNIT of work:
-    - Folder → recursively expand to file descendants
+    - Folder → recursively expand to file descendants (the default), UNLESS
+      ``expand_folders`` is False, in which case the folder is itself the single
+      work unit — the "This folder" scope (Daniel, 2026-09-06: "am I
+      translating the folder, or all the children?"). Without this, "This
+      folder" and "Everything inside" resolve to the identical leaf set, because
+      the engine has always expanded a selected folder to every file inside it.
     - Parent PDF (or any file with page children) → one entry per page child,
       sharing the parent's on-disk path (downstream tools use document.id and
       .page_content, not just the path)
     - Leaf file (no page children) → one entry
     - Page selected directly → one entry, parent resolved for the path
+
+    ``expand_folders`` scopes ONLY the first level: a folder selected directly
+    stays whole when it is False, but a folder reached by expanding ANOTHER
+    selected folder still recurses — a False flag never leaves descendant
+    folders half-walked. (No current caller sends both a folder to keep whole
+    and a parent folder to expand into it; the rule is stated so a future one is
+    unsurprising.)
 
     Raises ``ValueError`` when the selection resolves to nothing (#4467) or
     when resolution would escape the selection's closure (#4523).
@@ -274,6 +287,21 @@ def _resolve_selection_pairs(
 
     for doc in docs:
         if doc.doc_type == DocType.folder:
+            if not expand_folders:
+                # "This folder" (Daniel, 2026-09-06): the folder IS the unit of
+                # work, not its files. Emit it as its own pair — folder-aware
+                # tools (catalogue writes onto the container, organize) key off
+                # the document, and file tools that need a real path skip a
+                # folder honestly rather than fanning out across its contents.
+                _add(_abs(doc), doc, doc.id)
+                logger.info(
+                    "%s: folder %s kept whole (expand_folders=False) — run acts "
+                    "on the folder itself, not its %d immediate children",
+                    source_label,
+                    doc.id,
+                    len(db.query(Document, parent_id=doc.id) or []),
+                )
+                continue
             _expand_folder(doc, doc.id)
             logger.info(
                 "%s: expanded folder %s → %d entries so far",
@@ -528,6 +556,7 @@ async def files_tool(
             pairs = _resolve_selection_pairs(
                 db, list(selected_doc_ids), library_path,
                 source_label="files source",
+                expand_folders=bool(state.get("expand_folders", True)),
             )
             files = [path for path, _ in pairs]
             documents = [d.model_dump(mode="json") for _, d in pairs]
@@ -717,6 +746,7 @@ async def collection_tool(
             pairs = _resolve_selection_pairs(
                 db, list(selected_doc_ids), library_path,
                 source_label=f"collection source ({collection_id})",
+                expand_folders=bool(state.get("expand_folders", True)),
             )
             files = [path for path, _ in pairs]
             documents = [d.model_dump(mode="json") for _, d in pairs]
@@ -892,6 +922,7 @@ async def folder_tool(
             pairs = _resolve_selection_pairs(
                 db, list(selected_doc_ids), library_path,
                 source_label=f"folder source ({folder_id or folder_path})",
+                expand_folders=bool(state.get("expand_folders", True)),
             )
             files = [path for path, _ in pairs]
             documents = [d.model_dump(mode="json") for _, d in pairs]
