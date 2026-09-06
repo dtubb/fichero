@@ -34,12 +34,16 @@ class TestCatalog:
         assert ProviderType.kraken in providers
         assert ProviderType.whisper in providers
 
-    def test_kraken_is_one_entry_for_the_runtime(self):
-        kraken = [e for e in cat.kraken_catalog_entries()]
-        assert len(kraken) == 1
-        assert kraken[0].model_id == cat.KRAKEN_MODEL_ID
-        assert kraken[0].capabilities == ["segmentation"]
-        assert kraken[0].download_size_bytes == cat.KRAKEN_DOWNLOAD_SIZE_BYTES
+    def test_kraken_lists_the_segmenter_and_recognition_models(self):
+        entries = cat.kraken_catalog_entries()
+        by_id = {e.model_id: e for e in entries}
+        # Segmenter (built-in) + the two known-good HTR models — no empty picker.
+        assert cat.KRAKEN_MODEL_ID in by_id
+        assert by_id[cat.KRAKEN_MODEL_ID].capabilities == ["segmentation"]
+        assert "kraken-mccatmus" in by_id
+        assert "kraken-catmus-medieval" in by_id
+        assert by_id["kraken-mccatmus"].capabilities == ["recognition"]
+        assert by_id["kraken-mccatmus"].download_size_bytes > 0
 
     def test_spacy_rows_include_the_medium_default(self):
         ids = {e.model_id for e in cat.spacy_catalog_entries()}
@@ -63,8 +67,14 @@ class TestOwnership:
         assert cat.owns("es_core_news_md")
         assert cat.owns("turbo")
         assert cat.owns(cat.KRAKEN_MODEL_ID)
+        assert cat.owns("kraken-mccatmus")  # recognition model
         # An MLX curated id belongs to the MLX store, not the coordinator.
         assert not cat.owns("Qwen2.5-VL-3B")
+
+    def test_kraken_recognition_delete_is_a_noop_when_absent(self):
+        # Deleting an un-downloaded HTR model just drops a marker that isn't
+        # there — freed bytes 0, no error.
+        assert cat.get_local_model_coordinator().delete("kraken-mccatmus") == 0
 
 
 class TestInstallDispatch:

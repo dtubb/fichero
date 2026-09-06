@@ -80,11 +80,13 @@ def spacy_catalog_entries() -> list[Any]:
 
 
 def kraken_catalog_entries() -> list[Any]:
-    from fichero_server.llm.kraken_runtime import get_kraken_runtime
+    from fichero_server.llm import kraken_runtime as kr
 
-    status = get_kraken_runtime().status()
+    status = kr.get_kraken_runtime().status()
     installed = bool(status.get("installed"))
-    return [
+    entries = [
+        # The built-in neural segmenter — ships in the venv, so it is installed
+        # exactly when the runtime is.
         _make_entry(
             provider_type=ProviderType.kraken,
             model_id=KRAKEN_MODEL_ID,
@@ -101,14 +103,43 @@ def kraken_catalog_entries() -> list[Any]:
             unsupported_reason=None,
             note=(
                 "Finds line polygons and baselines on historical hands where "
-                "Apple Vision localises badly. ~1 GB, never installed "
-                "automatically. Verified on 17th-century secretary hand."
+                "Apple Vision localises badly. Built into the ~1 GB Kraken "
+                "runtime, never installed automatically. Verified on "
+                "17th-century secretary hand."
             ),
             tested_status="verified",
             license_label="user-managed",
             source=_source(installed),
         )
     ]
+    # Recognition (HTR) models — fetched by DOI once the runtime is present.
+    for model_id, spec in kr.KRAKEN_RECOGNITION_MODELS.items():
+        model_installed = kr.is_recognition_model_installed(model_id)
+        entries.append(
+            _make_entry(
+                provider_type=ProviderType.kraken,
+                model_id=model_id,
+                display_name=str(spec["display_name"]),
+                capabilities=["recognition"],
+                installed=model_installed,
+                download_size_bytes=int(spec["size_bytes"]),
+                disk_usage_bytes=0,
+                min_memory_bytes=None,
+                memory_class=None,
+                supported=True,
+                # It needs the runtime venv first; the install enforces that
+                # with a typed error rather than a silent no-op.
+                unsupported_reason=(
+                    None if installed else "Install the Kraken runtime first."
+                ),
+                note=str(spec["note"]),
+                # Provisional shortlist — not yet run inside Fichero.
+                tested_status="untested",
+                license_label="user-managed",
+                source=_source(model_installed),
+            )
+        )
+    return entries
 
 
 def whisper_catalog_entries() -> list[Any]:
@@ -147,12 +178,14 @@ def catalog_entries() -> list[Any]:
 
 def owns(model_id: str) -> bool:
     """Whether this coordinator (not the MLX store) installs ``model_id``."""
+    from fichero_server.llm.kraken_runtime import KRAKEN_RECOGNITION_MODELS
     from fichero_server.llm.local_models import SPACY_MODELS
     from fichero_server.llm.whisper_runtime import WHISPER_MLX_MODELS
 
     return (
         model_id in SPACY_MODELS
         or model_id == KRAKEN_MODEL_ID
+        or model_id in KRAKEN_RECOGNITION_MODELS
         or model_id in WHISPER_MLX_MODELS
     )
 
@@ -178,11 +211,16 @@ class LocalModelInstallCoordinator:
             await task
 
     async def start_install(self, model_id: str) -> ManagedModelDownloadJob:
+        from fichero_server.llm.kraken_runtime import KRAKEN_RECOGNITION_MODELS
         from fichero_server.llm.local_models import SPACY_MODELS
         from fichero_server.llm.whisper_runtime import WHISPER_MLX_MODELS
 
         if model_id == KRAKEN_MODEL_ID:
             return await self._start_kraken()
+        if model_id in KRAKEN_RECOGNITION_MODELS:
+            return await self._start_thread_install(
+                model_id, "kraken-htr", self._install_kraken_recognition
+            )
         if model_id in SPACY_MODELS:
             return await self._start_thread_install(
                 model_id, "spacy", self._install_spacy
@@ -273,6 +311,12 @@ class LocalModelInstallCoordinator:
         LocalModelManager().download_spacy_model(model_id)
 
     @staticmethod
+    def _install_kraken_recognition(model_id: str) -> None:
+        from fichero_server.llm.kraken_runtime import download_recognition_model
+
+        download_recognition_model(model_id)
+
+    @staticmethod
     def _install_whisper(model_id: str) -> None:
         # Refuse rather than queue work that cannot run: without a transcriber
         # the snapshot lands but nothing can load it.
@@ -290,6 +334,7 @@ class LocalModelInstallCoordinator:
         return self._jobs.get(job_id)
 
     def delete(self, model_id: str) -> int:
+        from fichero_server.llm.kraken_runtime import KRAKEN_RECOGNITION_MODELS
         from fichero_server.llm.local_models import LocalModelManager
         from fichero_server.llm.whisper_runtime import WHISPER_MLX_MODELS
 
@@ -297,6 +342,11 @@ class LocalModelInstallCoordinator:
             from fichero_server.llm.kraken_runtime import get_kraken_runtime
 
             get_kraken_runtime().remove()
+            return 0
+        if model_id in KRAKEN_RECOGNITION_MODELS:
+            from fichero_server.llm.kraken_runtime import remove_recognition_model
+
+            remove_recognition_model(model_id)
             return 0
         if model_id in WHISPER_MLX_MODELS:
             return LocalModelManager().delete_whisper_model(model_id)

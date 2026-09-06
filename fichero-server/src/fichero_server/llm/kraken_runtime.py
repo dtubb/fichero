@@ -65,6 +65,95 @@ _METADATA_FILENAME = "runtime.json"
 _PROVIDER = "kraken"
 _MODEL = "blla"
 
+# =============================================================================
+# Kraken model catalog (#4671 follow-up — Daniel's "No models found")
+# =============================================================================
+#
+# Two kinds of Kraken model:
+#
+# * SEGMENTATION — finding the lines. `blla` is Kraken's built-in neural
+#   segmenter and ships INSIDE the package, so it needs no separate download;
+#   it is "installed" exactly when the runtime venv is. This is what Fichero's
+#   OCR-geometry seam uses today.
+#
+# * RECOGNITION (HTR/OCR) — reading the lines. These are separate `.mlmodel`
+#   files retrieved by DOI with `kraken get <DOI>` (stored under
+#   ~/.local/share/htrmopo). A short HARDCODED shortlist of known-good general
+#   Latin-script models, measured from Zenodo. Fichero does not yet run a
+#   Kraken recognition pass — this makes the models installable so the picker
+#   is populated and the pieces are in place.
+#
+# CURATION IS PROVISIONAL: these are sensible general Latin-script options, NOT
+# a considered pick for Daniel's Spanish 1870-1930 court hand. He knows the
+# paleography; the shortlist is flagged for his call and this table is the one
+# place to edit it.
+KRAKEN_RECOGNITION_MODELS: dict[str, dict[str, object]] = {
+    "kraken-mccatmus": {
+        "doi": "10.5281/zenodo.13788177",
+        "display_name": "McCATMuS (multi-script HTR)",
+        "size_bytes": 16_173_802,
+        "note": "General transcription of handwritten, printed and typewritten "
+                "documents, 16th-21st century, multi-script. A broad Latin-script "
+                "starting point; not tuned for any one hand.",
+    },
+    "kraken-catmus-medieval": {
+        "doi": "10.5281/zenodo.12743230",
+        "display_name": "CATMuS Medieval",
+        "size_bytes": 16_332_989,
+        "note": "Medieval manuscripts (Old/Middle French, Latin, Spanish). "
+                "Older hands than a 19th-20th century court record — offered as "
+                "a general Latin-script option, not a court-hand pick.",
+    },
+}
+
+
+def recognition_model_dir(home: Path | None = None) -> Path:
+    """Where a completed recognition-model install is recorded (our marker)."""
+    return kraken_runtime_dir(home) / "recognition"
+
+
+def is_recognition_model_installed(model_id: str, home: Path | None = None) -> bool:
+    """Whether a recognition model has been fetched.
+
+    `kraken get` lands the weights under ~/.local/share/htrmopo with an opaque
+    UUID dir, so rather than reverse-map DOI→dir we drop a marker in our own
+    runtime tree on a successful fetch. Its presence is the honest signal.
+    """
+    return (recognition_model_dir(home) / f"{model_id}.installed").exists()
+
+
+def download_recognition_model(
+    model_id: str,
+    home: Path | None = None,
+    run_command=None,
+) -> None:
+    """Fetch a recognition model with `kraken get <DOI>` and mark it installed.
+
+    Requires the runtime venv (kraken lives in it). Raises rather than
+    half-succeeding: without the venv there is no `kraken` to run, and a fetch
+    that quietly did nothing is the shape a user reads as success.
+    """
+    spec = KRAKEN_RECOGNITION_MODELS.get(model_id)
+    if spec is None:
+        raise ValueError(f"Unknown Kraken recognition model: {model_id}")
+    if not is_installed(home):
+        raise KrakenRuntimeMissingError(
+            "Install the Kraken runtime before downloading recognition models."
+        )
+    runner = run_command or _default_run_command
+    kraken_bin = kraken_runtime_dir(home) / "bin" / "kraken"
+    runner([str(kraken_bin), "get", str(spec["doi"])])
+    marker_dir = recognition_model_dir(home)
+    marker_dir.mkdir(parents=True, exist_ok=True)
+    (marker_dir / f"{model_id}.installed").write_text(str(spec["doi"]), encoding="utf-8")
+
+
+def remove_recognition_model(model_id: str, home: Path | None = None) -> None:
+    """Forget a recognition model (drops our marker; htrmopo cache is kraken's)."""
+    marker = recognition_model_dir(home) / f"{model_id}.installed"
+    if marker.exists():
+        marker.unlink()
+
 
 class KrakenRuntimeMissingError(RuntimeError):
     """Raised when Kraken segmentation is asked of a runtime without Kraken."""
@@ -470,8 +559,13 @@ def _default_run_command(argv: list[str]) -> None:
 
 
 __all__ = [
+    "KRAKEN_RECOGNITION_MODELS",
     "KRAKEN_SCIPY_OVERRIDE",
     "KRAKEN_VERSION",
+    "download_recognition_model",
+    "is_recognition_model_installed",
+    "recognition_model_dir",
+    "remove_recognition_model",
     "KrakenInstallJob",
     "KrakenRuntimeManager",
     "KrakenRuntimeMissingError",

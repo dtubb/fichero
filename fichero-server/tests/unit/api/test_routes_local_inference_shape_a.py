@@ -21,11 +21,15 @@ class TestUnifiedCatalog:
         # MLX is "omlx"; the three folded-in runtimes carry their own types.
         assert {"spacy", "kraken", "whisper"} <= providers
 
-    def test_kraken_appears_as_a_single_entry(self, client):
+    def test_kraken_lists_segmenter_and_recognition_models(self, client):
         r = client.get("/api/local-inference/catalog")
-        kraken = [i for i in r.json()["items"] if i["provider_type"] == "kraken"]
-        assert len(kraken) == 1
-        assert kraken[0]["model_id"] == "kraken-blla"
+        kraken = {
+            i["model_id"] for i in r.json()["items"] if i["provider_type"] == "kraken"
+        }
+        # The segmenter plus the known-good HTR models — the picker is populated.
+        assert "kraken-blla" in kraken
+        assert "kraken-mccatmus" in kraken
+        assert "kraken-catmus-medieval" in kraken
 
 
 class TestDownloadDispatch:

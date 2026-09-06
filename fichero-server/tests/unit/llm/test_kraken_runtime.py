@@ -204,6 +204,52 @@ async def test_a_failed_install_surfaces_on_the_job_not_as_a_raise(
     assert manager.status()["installed"] is False
 
 
+# --- recognition (HTR) catalog + download -----------------------------------
+
+
+def test_recognition_catalog_is_populated_and_honest() -> None:
+    """The picker was empty; the catalog now offers known-good HTR models."""
+    models = kraken_runtime.KRAKEN_RECOGNITION_MODELS
+    assert "kraken-mccatmus" in models
+    assert "kraken-catmus-medieval" in models
+    for spec in models.values():
+        assert spec["doi"]
+        assert int(spec["size_bytes"]) > 0
+        assert str(spec["note"]).strip()
+
+
+def test_recognition_download_needs_the_runtime_first(runtime_home: Path) -> None:
+    with pytest.raises(KrakenRuntimeMissingError):
+        kraken_runtime.download_recognition_model("kraken-mccatmus")
+
+
+def test_recognition_download_runs_kraken_get_and_marks_installed(runtime_home: Path) -> None:
+    _mark_installed(runtime_home)
+    commands: list[list[str]] = []
+
+    assert kraken_runtime.is_recognition_model_installed("kraken-mccatmus") is False
+    kraken_runtime.download_recognition_model("kraken-mccatmus", run_command=commands.append)
+
+    assert commands[0][-2:] == ["get", "10.5281/zenodo.13788177"]
+    assert commands[0][0].endswith("/bin/kraken")
+    assert kraken_runtime.is_recognition_model_installed("kraken-mccatmus") is True
+
+
+def test_unknown_recognition_model_is_rejected(runtime_home: Path) -> None:
+    _mark_installed(runtime_home)
+    with pytest.raises(ValueError, match="Unknown Kraken recognition model"):
+        kraken_runtime.download_recognition_model("kraken-not-a-model", run_command=lambda a: None)
+
+
+def test_removing_a_recognition_model_drops_its_marker(runtime_home: Path) -> None:
+    _mark_installed(runtime_home)
+    kraken_runtime.download_recognition_model("kraken-mccatmus", run_command=lambda a: None)
+    assert kraken_runtime.is_recognition_model_installed("kraken-mccatmus") is True
+
+    kraken_runtime.remove_recognition_model("kraken-mccatmus")
+    assert kraken_runtime.is_recognition_model_installed("kraken-mccatmus") is False
+
+
 # --- the shared vocabulary --------------------------------------------------
 
 
