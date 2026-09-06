@@ -32,6 +32,10 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
     var lastSelectedClaimCharStart: Int?
     var lastSelectedClaimCharEnd: Int?
     var lastActivePageNumber: Int?
+    /// The page id last scrolled to (#reader-page-id). Separate from the ordinal
+    /// tracker: the id path lands pages whose `sequence` is null, which the
+    /// ordinal path leaves at nil forever.
+    var lastActivePageId: String?
     var lastActiveTab: String?
     var suppressActivePageSyncUntil = Date.distantPast
     var cachedBootstrapScript: String?
@@ -77,6 +81,7 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
         lastSelectedClaimCharStart = nil
         lastSelectedClaimCharEnd = nil
         lastActivePageNumber = nil
+        lastActivePageId = nil
         findSync.reset()
         progressSync.reset()
         guard let parent, let request = DocumentKGPaneRoute.request(
@@ -136,6 +141,7 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
         findSync.sync(
             into: webView,
             query: parent.searchQuery,
+            activePageId: parent.activePageId ?? "",
             selectionIndex: parent.searchSelectionIndex,
             onMatchCount: parent.onSearchMatchCount
         )
@@ -183,26 +189,42 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
     /// (#4373). The decision is pure and lives in `ReaderActivePageSync`; this
     /// only performs it.
     func syncActivePage(into webView: WKWebView, parent: DocumentKGWebPane) {
+        let suppressed = Date() < suppressActivePageSyncUntil
+        let webDriving = parent.scrollSync.isDriving(.web)
         let decision = ReaderActivePageSync.decide(
             lastSent: lastActivePageNumber,
             desired: parent.activePageNumber,
-            isScrollSuppressed: Date() < suppressActivePageSyncUntil,
-            isWebDriving: parent.scrollSync.isDriving(.web)
+            isScrollSuppressed: suppressed,
+            isWebDriving: webDriving
         )
-        guard decision.sendsHighlight else { return }
-        // Record ONLY what actually went out. The old code recorded before its
-        // early returns, so a suppressed tick marked the border delivered and
-        // left it on the wrong page (#4373).
-        lastActivePageNumber = parent.activePageNumber
-        webView.evaluateJavaScript(
-            ReaderActivePageSync.highlightScript(page: parent.activePageNumber)
-        )
-        if decision.sendsScroll,
-           let pageNumber = parent.activePageNumber,
-           let pageCount = parent.pageCount {
+        if decision.sendsHighlight {
+            // Record ONLY what actually went out. The old code recorded before
+            // its early returns, so a suppressed tick marked the border
+            // delivered and left it on the wrong page (#4373).
+            lastActivePageNumber = parent.activePageNumber
             webView.evaluateJavaScript(
-                ReaderActivePageSync.scrollScript(page: pageNumber, pageCount: pageCount)
+                ReaderActivePageSync.highlightScript(page: parent.activePageNumber)
             )
+            if decision.sendsScroll,
+               let pageNumber = parent.activePageNumber,
+               let pageCount = parent.pageCount {
+                webView.evaluateJavaScript(
+                    ReaderActivePageSync.scrollScript(page: pageNumber, pageCount: pageCount)
+                )
+            }
+        }
+        // Scroll-by-id (#reader-page-id). ADDITIVE to the ordinal path above:
+        // when the page HAS a sequence both resolve to the same <article>, so
+        // this never fights it; when the top-level `sequence` is null (manifest-
+        // imported image pages) the ordinal path scrolls nowhere and this is the
+        // only thing that lands the selected page instead of the parent's first.
+        if let pageId = parent.activePageId {
+            if pageId != lastActivePageId, !suppressed, !webDriving {
+                lastActivePageId = pageId
+                webView.evaluateJavaScript(ReaderActivePageSync.scrollByIdScript(pageId: pageId))
+            }
+        } else {
+            lastActivePageId = nil
         }
     }
 

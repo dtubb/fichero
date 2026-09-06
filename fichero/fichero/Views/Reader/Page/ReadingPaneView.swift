@@ -11,6 +11,11 @@ struct ReadingPaneView: View {
     // Live values forwarded from ContentView; overridden by pin state when locked.
     let liveDocument: Document?
     let liveActivePageNumber: Int?
+    /// The selected page's own node id (#reader-page-id): scrolls the transcript
+    /// by `<article data-page-id>`, so a page whose top-level `sequence` is null
+    /// (manifest-imported image pages) still lands on the right page instead of
+    /// the parent's first. nil when nothing on screen names a page.
+    let liveActivePageId: String?
     let livePageCount: Int?
     let scrollSync: DocumentScrollSyncState
     let onPageSelected: (Int) -> Void
@@ -126,6 +131,7 @@ struct ReadingPaneView: View {
     @State var isPinned = false
     @State private var pinnedDocument: Document?
     @State private var pinnedActivePageNumber: Int?
+    @State private var pinnedActivePageId: String?
     @State private var pinnedPageCount: Int?
     @State var webZoom: Double = 1.0
     /// Pages a run has touched since this document loaded (#4357). A page stays
@@ -160,6 +166,7 @@ struct ReadingPaneView: View {
 
     var effectiveDocument: Document? { isPinned ? pinnedDocument : liveDocument }
     var effectivePageNumber: Int? { isPinned ? pinnedActivePageNumber : liveActivePageNumber }
+    var effectivePageId: String? { isPinned ? pinnedActivePageId : liveActivePageId }
     var effectivePageCount: Int? { isPinned ? pinnedPageCount : livePageCount }
 
     /// X button: collapses the active split when inside one,
@@ -538,6 +545,7 @@ struct ReadingPaneView: View {
                 if pin {
                     pinnedDocument = liveDocument
                     pinnedActivePageNumber = liveActivePageNumber
+                    pinnedActivePageId = liveActivePageId
                     pinnedPageCount = livePageCount
                 }
                 isPinned = pin

@@ -60,12 +60,13 @@ extension DocumentKGPaneRoute {
     /// untouched. Defines the finder once (idempotent), then runs the query
     /// and RETURNS the match count so `evaluateJavaScript`'s completion can
     /// report it to the native find bar.
-    static func findScript(query: String) -> String {
+    static func findScript(query: String, activePageId: String = "") -> String {
         let literal = jsStringLiteral(query)
+        let pageLiteral = jsStringLiteral(activePageId)
         return """
         (function() {
             \(findInstallScript)
-            return window.__ficheroFind('\(literal)');
+            return window.__ficheroFind('\(literal)', '\(pageLiteral)');
         })();
         """
     }
@@ -100,7 +101,7 @@ extension DocumentKGPaneRoute {
                 }
                 return !!(el.offsetParent || (el.getClientRects && el.getClientRects().length));
             };
-            window.__ficheroFind = function(query) {
+            window.__ficheroFind = function(query, activePageId) {
                 var state = window.__ficheroFindState;
                 state.ranges = [];
                 if (window.CSS && CSS.highlights) {
@@ -152,6 +153,34 @@ extension DocumentKGPaneRoute {
                         idx += q.length;
                     }
                 }
+                // Take the reader to the SELECTED page's hits FIRST (Daniel,
+                // 2026-09-06: "take us to the page selected first, then show
+                // what's highlighted and how many"). A library-search hit lands
+                // the reader on one page; a common seed term ("Marshall") also
+                // occurs across the whole assembled diary, so the plain
+                // document-order first match sat on some OTHER page and yanked
+                // the view off the one the user picked. A STABLE partition —
+                // on-page ranges first, each group keeping reading order — makes
+                // the initial select (index 0) land on this page while every
+                // match stays highlighted and counted. A no-op when no page is
+                // active or the page holds no match, so it never disturbs the
+                // plain find bar.
+                if (activePageId && state.ranges.length) {
+                    var onPage = [];
+                    var offPage = [];
+                    for (var k = 0; k < state.ranges.length; k++) {
+                        var host = state.ranges[k].startContainer.parentElement;
+                        var article = (host && host.closest)
+                            ? host.closest('.transcript-page[data-page-id]')
+                            : null;
+                        if (article && article.getAttribute('data-page-id') === activePageId) {
+                            onPage.push(state.ranges[k]);
+                        } else {
+                            offPage.push(state.ranges[k]);
+                        }
+                    }
+                    if (onPage.length) { state.ranges = onPage.concat(offPage); }
+                }
                 if (state.ranges.length) {
                     CSS.highlights.set('fichero-find', new Highlight(...state.ranges));
                 }
@@ -180,27 +209,33 @@ extension DocumentKGPaneRoute {
 /// WebKit invokes everything here on the main thread.
 final class WebPaneFindSync {
     private var lastQuery: String?
+    private var lastActivePageId: String?
     private var lastIndex = -1
 
     func reset() {
         lastQuery = nil
+        lastActivePageId = nil
         lastIndex = -1
     }
 
     func sync(
         into webView: WKWebView,
         query: String,
+        activePageId: String,
         selectionIndex: Int,
         onMatchCount: (@MainActor @Sendable (Int) -> Void)?
     ) {
-        if lastQuery != query {
+        // Re-run when the query OR the active page changes: the same query on a
+        // new page must re-partition so the initial select lands on THAT page.
+        if lastQuery != query || lastActivePageId != activePageId {
             lastQuery = query
+            lastActivePageId = activePageId
             lastIndex = -1
             // WKWebView is main-actor; this class is called on the main
             // thread (see the class doc) but is not actor-annotated, so
             // assert the isolation rather than restating it on every owner.
             MainActor.assumeIsolated {
-                webView.evaluateJavaScript(DocumentKGPaneRoute.findScript(query: query)) { result, _ in
+                webView.evaluateJavaScript(DocumentKGPaneRoute.findScript(query: query, activePageId: activePageId)) { result, _ in
                     let count = (result as? NSNumber)?.intValue ?? 0
                     // WebKit calls this completion on the main thread; hop
                     // explicitly so the isolation is checked, not assumed.

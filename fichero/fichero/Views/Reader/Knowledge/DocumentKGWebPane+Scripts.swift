@@ -219,6 +219,26 @@ extension DocumentKGPaneRoute {
                 });
             });
         };
+        window.ficheroScrollToPageId = function(pageId) {
+            if (!pageId) { return; }
+            var selector = '.transcript-page[data-page-id="'
+                + ((window.CSS && CSS.escape) ? CSS.escape(pageId) : pageId) + '"]';
+            var anchor = document.querySelector(selector);
+            var root = scroller();
+            if (!anchor) {
+                installPageAnchors();
+                anchor = document.querySelector(selector);
+            }
+            if (!anchor || !root) { return; }
+            window.ficheroScrollSyncSequence += 1;
+            window.ficheroSuppressScrollPost = true;
+            anchor.scrollIntoView({ block: 'start', inline: 'nearest' });
+            window.requestAnimationFrame(function() {
+                window.requestAnimationFrame(function() {
+                    window.ficheroSuppressScrollPost = false;
+                });
+            });
+        };
         function postPage(page) {
             var count = window.ficheroPageCount || 0;
             var handler = window.webkit?.messageHandlers?.ficheroBridge;

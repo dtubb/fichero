@@ -181,6 +181,10 @@ extension ContentView {
                 // page never uses that canvas, so the reader was handed no
                 // active page and never scrolled to a search hit.
                 liveActivePageNumber: readerActivePageNumber,
+                // Scroll-by-id (#reader-page-id): lands on the exact page even
+                // when its top-level `sequence` is null (manifest-imported image
+                // pages), which the ordinal above cannot.
+                liveActivePageId: readerActivePageId,
                 livePageCount: pageCount == 0 ? nil : pageCount,
                 scrollSync: documentScrollSync,
                 onPageSelected: { index in syncGridSelectionToPDFPage(index: index) },

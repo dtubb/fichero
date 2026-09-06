@@ -56,6 +56,10 @@ def test_transcript_page_cards_keep_scroll_sync_anchors() -> None:
 
     assert "function transcriptPages()" in source
     assert 'data-page="${page.number}"' in source
+    # The page's own node id rides the article too (#reader-page-id): the reader
+    # scrolls to the selected page by id, robust where the ordinal page number is
+    # null (manifest-imported image pages leave the top-level `sequence` unset).
+    assert 'data-page-id="${escapeHtml(page.id)}"' in source
     assert "scroll-margin-block-start" in source
 
 

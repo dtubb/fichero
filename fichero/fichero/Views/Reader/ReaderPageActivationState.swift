@@ -142,6 +142,15 @@ enum ReaderActivePageSync {
     static func scrollScript(page: Int, pageCount: Int) -> String {
         "window.ficheroScrollToPage?.(\(page), \(pageCount));"
     }
+
+    /// Scroll the transcript to the page whose own node id is `pageId`. Robust
+    /// where `scrollScript`'s ordinal is not: manifest-imported image pages
+    /// leave the top-level `sequence` column null, so the ordinal path resolved
+    /// every selected hit to the parent's first page. The page's id always
+    /// names its `<article data-page-id>`, so this lands on the exact page.
+    static func scrollByIdScript(pageId: String) -> String {
+        "window.ficheroScrollToPageId?.('\(DocumentKGPaneRoute.jsStringLiteral(pageId))');"
+    }
 }
 
 /// Per-window bus for reader page activations (#4373).

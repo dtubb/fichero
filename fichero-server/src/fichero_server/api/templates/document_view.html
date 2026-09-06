@@ -1062,7 +1062,7 @@ function transcriptPageMarkup(page) {
         ? `<span class="page-label">${escapeHtml(page.label)}</span>`
         : "";
     return `
-        <article class="transcript-page${page.hasContent ? "" : " empty-page"}" data-page="${page.number}">
+        <article class="transcript-page${page.hasContent ? "" : " empty-page"}" data-page="${page.number}"${page.id ? ` data-page-id="${escapeHtml(page.id)}"` : ""}>
             <div class="page-marker">${proxy}Page ${page.number}${label}</div>
             ${page.markup_render ? markupRenderMarkup(page.markup_render)
                 : page.table ? tableMarkup(page.table)

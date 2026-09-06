@@ -44,6 +44,12 @@ struct DocumentKGWebPane: NSViewRepresentable {
     /// switcher as fixed, never-scrolling AppKit chrome (#1228 follow-up).
     var activeTab: String = KGSurfaceTab.transcript.rawValue
     var activePageNumber: Int?
+    /// The selected page's own node id, when the reader is focused on a page.
+    /// Scrolls the transcript by id (`<article data-page-id>`) — robust where
+    /// `activePageNumber` is not: manifest-imported image pages leave the
+    /// top-level `sequence` null, so the ordinal path stranded every selected
+    /// hit on the parent's first page (#reader-page-id).
+    var activePageId: String?
     var pageCount: Int?
     var onPageSelected: (Int) -> Void = { _ in }
     var scrollSync: DocumentScrollSyncState
@@ -188,6 +194,10 @@ struct DocumentKGWebPane: UIViewRepresentable {
     var selectedClaimId: String?
     var activeTab: String = KGSurfaceTab.transcript.rawValue
     var activePageNumber: Int?
+    /// The selected page's own node id — see the macOS twin above. Scrolls the
+    /// transcript by `<article data-page-id>`, robust where the ordinal
+    /// `activePageNumber` is null (#reader-page-id).
+    var activePageId: String?
     var pageCount: Int?
     var onPageSelected: (Int) -> Void = { _ in }
     var scrollSync: DocumentScrollSyncState

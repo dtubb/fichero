@@ -57,9 +57,18 @@ final class ReaderFindInPageTests: XCTestCase {
     // MARK: - Script builders
 
     func testFindScriptEscapesTheQuery() {
-        let script = DocumentKGPaneRoute.findScript(query: "o'brien \\ test")
-        XCTAssertTrue(script.contains("__ficheroFind('o\\'brien \\\\ test')"), "quotes and backslashes must be escaped")
+        let script = DocumentKGPaneRoute.findScript(query: "o'brien \\ test", activePageId: "page-7")
+        // The query is the first argument; the active page id (#reader-page-id)
+        // rides as the second, so the call no longer closes right after the query.
+        XCTAssertTrue(script.contains("__ficheroFind('o\\'brien \\\\ test', 'page-7')"), "quotes and backslashes must be escaped, active page id passed second")
         XCTAssertTrue(script.contains("CSS.highlights"), "highlighting uses the CSS Custom Highlight API — no DOM mutation")
+    }
+
+    func testFindScriptDefaultsToNoActivePage() {
+        // No active page → empty second argument; the partition is then a no-op
+        // and the plain find bar behaves exactly as before (#reader-page-id).
+        let script = DocumentKGPaneRoute.findScript(query: "x")
+        XCTAssertTrue(script.contains("__ficheroFind('x', '')"), "absent active page id emits an empty second argument")
     }
 
     func testFindSelectScriptClampsNegativeIndex() {

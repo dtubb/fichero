@@ -30,6 +30,8 @@ final class DocumentKGWebPaneCoordinatoriOS: NSObject, WKNavigationDelegate, WKS
     var lastSelectedClaimCharStart: Int?
     var lastSelectedClaimCharEnd: Int?
     var lastActivePageNumber: Int?
+    /// The page id last scrolled to (#reader-page-id) — see the macOS twin.
+    var lastActivePageId: String?
     var lastActiveTab: String?
     var suppressActivePageSyncUntil = Date.distantPast
     private var lastAppliedZoom: Double = 1.0
@@ -74,6 +76,7 @@ final class DocumentKGWebPaneCoordinatoriOS: NSObject, WKNavigationDelegate, WKS
         lastSelectedClaimCharStart = nil
         lastSelectedClaimCharEnd = nil
         lastActivePageNumber = nil
+        lastActivePageId = nil
         findSync.reset()
         progressSync.reset()
         guard let parent, let request = DocumentKGPaneRoute.request(
@@ -125,6 +128,7 @@ final class DocumentKGWebPaneCoordinatoriOS: NSObject, WKNavigationDelegate, WKS
         findSync.sync(
             into: webView,
             query: parent.searchQuery,
+            activePageId: parent.activePageId ?? "",
             selectionIndex: parent.searchSelectionIndex,
             onMatchCount: parent.onSearchMatchCount
         )
@@ -172,26 +176,40 @@ final class DocumentKGWebPaneCoordinatoriOS: NSObject, WKNavigationDelegate, WKS
     /// (#4373). The decision is pure and lives in `ReaderActivePageSync`; this
     /// only performs it.
     func syncActivePage(into webView: WKWebView, parent: DocumentKGWebPane) {
+        let suppressed = Date() < suppressActivePageSyncUntil
+        let webDriving = parent.scrollSync.isDriving(.web)
         let decision = ReaderActivePageSync.decide(
             lastSent: lastActivePageNumber,
             desired: parent.activePageNumber,
-            isScrollSuppressed: Date() < suppressActivePageSyncUntil,
-            isWebDriving: parent.scrollSync.isDriving(.web)
+            isScrollSuppressed: suppressed,
+            isWebDriving: webDriving
         )
-        guard decision.sendsHighlight else { return }
-        // Record ONLY what actually went out. The old code recorded before its
-        // early returns, so a suppressed tick marked the border delivered and
-        // left it on the wrong page (#4373).
-        lastActivePageNumber = parent.activePageNumber
-        webView.evaluateJavaScript(
-            ReaderActivePageSync.highlightScript(page: parent.activePageNumber)
-        )
-        if decision.sendsScroll,
-           let pageNumber = parent.activePageNumber,
-           let pageCount = parent.pageCount {
+        if decision.sendsHighlight {
+            // Record ONLY what actually went out. The old code recorded before
+            // its early returns, so a suppressed tick marked the border
+            // delivered and left it on the wrong page (#4373).
+            lastActivePageNumber = parent.activePageNumber
             webView.evaluateJavaScript(
-                ReaderActivePageSync.scrollScript(page: pageNumber, pageCount: pageCount)
+                ReaderActivePageSync.highlightScript(page: parent.activePageNumber)
             )
+            if decision.sendsScroll,
+               let pageNumber = parent.activePageNumber,
+               let pageCount = parent.pageCount {
+                webView.evaluateJavaScript(
+                    ReaderActivePageSync.scrollScript(page: pageNumber, pageCount: pageCount)
+                )
+            }
+        }
+        // Scroll-by-id (#reader-page-id) — see the macOS twin. Additive to the
+        // ordinal path; the only thing that lands a page whose top-level
+        // `sequence` is null (manifest-imported image pages).
+        if let pageId = parent.activePageId {
+            if pageId != lastActivePageId, !suppressed, !webDriving {
+                lastActivePageId = pageId
+                webView.evaluateJavaScript(ReaderActivePageSync.scrollByIdScript(pageId: pageId))
+            }
+        } else {
+            lastActivePageId = nil
         }
     }
 

@@ -316,6 +316,25 @@ extension ContentView {
         Self.readerActivePageNumber(for: pageFocusDocument ?? detailDocument)
     }
 
+    /// Pure: the selected page's own node id, for scroll-by-id (#reader-page-id).
+    ///
+    /// The ordinal `readerActivePageNumber` is null whenever the page's
+    /// top-level `sequence` is — which manifest-imported image pages (the
+    /// Marshall corpus) always leave null — so picking a search hit stranded
+    /// the reader on the parent's first page. A page's id always names its
+    /// transcript `<article data-page-id>`, so this lands on the exact page
+    /// regardless of `sequence`. nil for anything that is not a page.
+    static func readerActivePageId(for doc: Document?) -> String? {
+        guard let doc, doc.docType == .page else { return nil }
+        return doc.id
+    }
+
+    /// The selected page's id for THIS window's focus cursor — the same
+    /// `pageFocusDocument ?? detailDocument` the page number resolves through.
+    var readerActivePageId: String? {
+        Self.readerActivePageId(for: pageFocusDocument ?? detailDocument)
+    }
+
     /// Number of page-child documents for the previewed PDF (#3866). The reading
     /// pane needs only the COUNT, so this skips the O(n log n) filter+sort +
     /// array allocation that the old `pdfDocPages` accessor cost — read twice per

@@ -176,6 +176,9 @@ struct DocumentKGSurface: View {
     var selectedEntityId: String?
     var selectedClaimId: String?
     var activePageNumber: Int?
+    /// The selected page's own node id — scrolls the transcript by id, robust
+    /// where `activePageNumber` is null (#reader-page-id).
+    var activePageId: String?
     var pageCount: Int?
     var onPageSelected: (Int) -> Void = { _ in }
     var scrollSync: DocumentScrollSyncState
@@ -307,6 +310,7 @@ struct DocumentKGSurface: View {
                     selectedClaimId: selectedClaimId,
                     activeTab: activeTab.rawValue,
                     activePageNumber: activePageNumber,
+                    activePageId: activePageId,
                     pageCount: pageCount,
                     onPageSelected: onPageSelected,
                     scrollSync: scrollSync,

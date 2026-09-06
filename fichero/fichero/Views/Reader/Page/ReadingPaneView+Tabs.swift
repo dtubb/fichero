@@ -340,6 +340,7 @@ extension ReadingPaneView {
                 selectedEntityId: kgFocusState.focusedEntityId,
                 selectedClaimId: highlightedClaimId,
                 activePageNumber: effectivePageNumber,
+                activePageId: effectivePageId,
                 pageCount: effectivePageCount,
                 onPageSelected: isPinned ? { _ in } : onPageSelected,
                 scrollSync: scrollSync,
