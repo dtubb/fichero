@@ -1,0 +1,16 @@
+<footer id="footer" class="footer dark-background">
+  <div class="footer-top">
+    <div class="container">
+      <div class="row gy-4">
+        <div class="col-lg-6 footer-about">
+          <span class="sitename">{{ site.title }}</span>
+          {% if site.subtitle %}<p class="pt-2 mb-0">{{ site.subtitle }}</p>{% endif %}
+        </div>
+        <div class="col-lg-6">
+          <p class="mb-1">{{ site.doc_count }} documentos · {{ site.expediente_count }} expedientes{% if site.include_entities %} · {{ site.entity_count }} entidades{% endif %}</p>
+          <p class="mb-0 small">Catálogo publicado con <a href="https://www.11ty.dev/">Eleventy</a> desde Fichero.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</footer>

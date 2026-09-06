@@ -1,0 +1,19 @@
+<header id="header" class="header d-flex align-items-center sticky-top">
+  <div class="container-fluid container-xl d-flex align-items-center justify-content-between">
+    <a href="{{ site.base }}/" class="logo d-flex flex-column">
+      <h1 class="sitename mb-0">{{ site.title }}</h1>
+      {% if site.subtitle %}<span class="site-tagline">{{ site.subtitle }}</span>{% endif %}
+    </a>
+
+    <nav id="navmenu" class="navmenu">
+      <ul>
+        <li><a href="{{ site.base }}/">Inicio</a></li>
+        <li><a href="{{ site.base }}/expedientes/">Expedientes</a></li>
+        {% if site.include_entities %}<li><a href="{{ site.base }}/entities/">Entidades</a></li>{% endif %}
+        {% if site.include_claims %}<li><a href="{{ site.base }}/claims/">Afirmaciones</a></li>{% endif %}
+        {% if site.include_search %}<li><i id="search-icon" class="bi bi-search" role="button" aria-label="Buscar"></i></li>{% endif %}
+      </ul>
+      <i class="mobile-nav-toggle d-xl-none bi bi-list"></i>
+    </nav>
+  </div>
+</header>

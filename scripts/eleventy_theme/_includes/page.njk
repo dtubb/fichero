@@ -1,0 +1,44 @@
+---
+layout: base.njk
+---
+<section class="doc-viewer section">
+  <div class="container">
+    <nav class="doc-crumbs mb-3" aria-label="breadcrumb">
+      <a href="{{ site.base }}/">Inicio</a>
+      {% if expediente %} <i class="bi bi-chevron-right"></i> <a href="{{ expediente_url }}">{{ expediente }}</a>{% endif %}
+    </nav>
+
+    <div class="row g-4">
+      <div class="col-lg-8">
+        <figure class="doc-figure">
+          {% if image %}
+          <a class="glightbox" href="{{ image }}" data-type="image" data-title="{{ title }}">
+            <img src="{{ image }}" alt="{{ title }}" class="img-fluid doc-image">
+            <span class="zoom-hint"><i class="bi bi-zoom-in"></i> Ampliar</span>
+          </a>
+          {% endif %}
+        </figure>
+
+        <div class="transcript-block">
+          <h2 class="transcript-heading">Transcripción</h2>
+          <div class="transcript">
+            {{ content | safe }}
+          </div>
+        </div>
+      </div>
+
+      <aside class="col-lg-4">
+        <div class="doc-meta-card">
+          <h1 class="doc-title">{{ title }}</h1>
+          <dl class="doc-meta-list">
+            {% if page_label %}<dt>Página</dt><dd>{{ page_label }}</dd>{% endif %}
+            {% if expediente %}<dt>Expediente</dt><dd><a href="{{ expediente_url }}">{{ expediente }}</a></dd>{% endif %}
+            {% if box %}<dt>Colección</dt><dd>{{ box }}</dd>{% endif %}
+            {% if file_type %}<dt>Tipo</dt><dd>{{ file_type }}</dd>{% endif %}
+          </dl>
+          {% if image %}<a class="btn btn-outline-dark btn-sm w-100" href="{{ image }}" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right"></i> Abrir imagen</a>{% endif %}
+        </div>
+      </aside>
+    </div>
+  </div>
+</section>

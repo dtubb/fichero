@@ -1,0 +1,45 @@
+---
+layout: base.njk
+---
+<section class="archivos-hero section">
+  <div class="container">
+    <div class="row">
+      <div class="col-lg-9">
+        <h1 class="hero-title">{{ site.title }}</h1>
+        {% if site.subtitle %}<p class="hero-intro">{{ site.subtitle }}</p>{% endif %}
+        <div class="hero-stats d-flex flex-wrap gap-4 pt-2">
+          <span><strong>{{ site.doc_count }}</strong> documentos</span>
+          <span><strong>{{ site.expediente_count }}</strong> expedientes</span>
+          {% if site.include_entities %}<span><strong>{{ site.entity_count }}</strong> entidades</span>{% endif %}
+          {% if site.include_claims %}<span><strong>{{ site.claim_count }}</strong> afirmaciones</span>{% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="expedientes" class="recent-posts section">
+  <div class="container section-title">
+    <h2>Expedientes</h2>
+  </div>
+  <div class="container">
+    <div class="row gy-4">
+      {% for exp in catalogue.expedientes %}
+      <div class="col-xl-4 col-md-6">
+        <div class="post-item position-relative h-100">
+          <div class="post-img position-relative overflow-hidden">
+            {% if exp.thumbnail %}<img src="{{ exp.thumbnail }}" class="img-fluid" alt="{{ exp.title }}" loading="lazy">{% endif %}
+            <span class="post-date">{{ exp.count }} pág.</span>
+          </div>
+          <div class="post-content d-flex flex-column">
+            <h3 class="post-title">{{ exp.title }}</h3>
+            {% if exp.box %}<div class="meta d-flex align-items-center"><i class="bi bi-folder2"></i> <span class="ps-2">{{ exp.box }}</span></div>{% endif %}
+            <hr>
+            <a href="{{ exp.url }}" class="readmore stretched-link"><span>Ver expediente</span> <i class="bi bi-arrow-right"></i></a>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>

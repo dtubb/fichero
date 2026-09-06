@@ -1,0 +1,11 @@
+{
+  "library": "~/Fichero/Istmina Demo.fichero",
+  "out": "~/Desktop/istmina-catalogue",
+  "folder": null,
+  "title": "Istmina Demo",
+  "subtitle": "Archivo minero del Chocó — Compañía Minera Chocó Pacífico",
+  "lang": "es",
+  "include_entities": true,
+  "include_claims": true,
+  "include_search": true
+}
