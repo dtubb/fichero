@@ -1292,9 +1292,18 @@ async def list_providers(
     """
     result = []
 
-    # Get configured providers from app-wide database
+    # Get configured providers from app-wide database, then merge in the
+    # always-present on-device runtimes (spaCy/Kraken/Whisper/oMLX) via the ONE
+    # shared helper so the workflow bar lists the same set as /api/providers
+    # (#4671). Per-node suitability marking is the UI's job — a runtime is
+    # listed here even where it can't chat, never silently filtered.
+    from fichero_server.api.routes.ai.providers import always_present_local_providers
+
     configured_providers = app_db.list_providers()
-    # Filter to enabled only
+    configured_providers = configured_providers + always_present_local_providers(
+        configured_providers
+    )
+    # Filter to enabled only (synthetic local rows are enabled by construction)
     configured_providers = [p for p in configured_providers if p.enabled]
 
     for provider in configured_providers:

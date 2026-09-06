@@ -110,6 +110,27 @@ def test_catalog_default_model_has_no_row_and_inherits_provider(client, app_db):
         assert detail["supports_vision"] is entry["supports_vision"]
 
 
+_LOCAL_RUNTIME_IDS = {"omlx", "spacy", "kraken", "whisper"}
+
+
+def test_workflow_bar_lists_the_on_device_runtimes_out_of_the_box(client, app_db):
+    """The Run Workflow bar reads /api/chat/providers. With NO configured
+    providers the four on-device runtimes must still be listed (#4671) — the
+    same shared always-present set /api/providers merges in — so a step's
+    model menu can offer spaCy/Kraken/Whisper/oMLX. Suitability marking is the
+    UI's job; the backend never silently filters them out.
+    """
+    payload = client.get("/api/chat/providers").json()
+    by_id = {item["id"]: item for item in payload["items"]}
+
+    assert _LOCAL_RUNTIME_IDS <= set(by_id)
+    for rid in _LOCAL_RUNTIME_IDS:
+        entry = by_id[rid]
+        assert entry["available"] is True  # local: no key needed
+        # A usable model id is offered (catalog default), so the menu isn't empty.
+        assert entry["models"], f"{rid} listed with no model to pick"
+
+
 def test_models_list_shape_is_unchanged(client, app_db):
     """`models` stays a plain id list so existing clients keep working."""
     provider = _provider(app_db)

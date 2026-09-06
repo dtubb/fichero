@@ -5,7 +5,7 @@ API endpoints for managing LLM providers and models.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from fichero_server.core.timeutil import utc_now
 
 from fastapi import APIRouter, HTTPException, Depends
@@ -207,7 +207,41 @@ _ALWAYS_PRESENT_LOCAL_TYPES = (
 )
 # Stable, obviously-synthetic timestamp so these rows don't churn and read as
 # "always here" rather than "added at some moment".
-_ALWAYS_PRESENT_CREATED_AT = "1970-01-01T00:00:00+00:00"
+_ALWAYS_PRESENT_CREATED_AT = datetime(1970, 1, 1, tzinfo=timezone.utc)
+
+
+def always_present_local_providers(configured: list[Provider]) -> list[Provider]:
+    """Synthetic (non-persisted) rows for the on-device runtimes.
+
+    These runtimes run inside the app, need no key or URL, and Daniel wants
+    them present by default with nothing to "add". They are NOT stored in
+    app_db (so a delete can't loop and no migration touches the live DB) —
+    instead every model menu merges them in via this ONE helper, so
+    /api/providers, /api/chat/providers and the workflow bar all list the same
+    set (#4671). A real configured row of the same type wins and the synthetic
+    row is skipped, so there are never duplicates.
+    """
+    configured_types = {p.provider_type for p in configured}
+    rows: list[Provider] = []
+    for ptype in _ALWAYS_PRESENT_LOCAL_TYPES:
+        if ptype in configured_types:
+            continue  # a real configured row exists — don't duplicate it
+        info = get_provider_info(ptype)
+        if info is None:
+            continue
+        rows.append(
+            Provider(
+                id=f"local-{ptype.value}",
+                name=info.name,
+                provider_type=ptype,
+                api_base=None,
+                enabled=True,
+                sort_order=info.sort_order,
+                created_at=_ALWAYS_PRESENT_CREATED_AT,
+                updated_at=_ALWAYS_PRESENT_CREATED_AT,
+            )
+        )
+    return rows
 
 
 @router.get("", response_model=ProviderListResponse)
@@ -215,7 +249,10 @@ async def list_providers(
     app_db: AppDatabase = Depends(get_app_database),
 ) -> ProviderListResponse:
     """List the user's providers, with the on-device runtimes always present."""
-    providers = app_db.list_providers()
+    configured = app_db.list_providers()
+    synthetic = always_present_local_providers(configured)
+    synthetic_ids = {p.id for p in synthetic}
+
     items = [
         ProviderResponse(
             id=p.id,
@@ -224,33 +261,15 @@ async def list_providers(
             api_base=p.api_base,
             enabled=p.enabled,
             sort_order=p.sort_order,
-            has_api_key=has_api_key(p.provider_type.value),
+            # Synthetic local rows need no key; True means "no key required",
+            # matching the catalog route's is_local handling.
+            has_api_key=(
+                True if p.id in synthetic_ids else has_api_key(p.provider_type.value)
+            ),
             created_at=p.created_at.isoformat(),
         )
-        for p in providers
+        for p in [*configured, *synthetic]
     ]
-
-    configured_types = {p.provider_type for p in providers}
-    for ptype in _ALWAYS_PRESENT_LOCAL_TYPES:
-        if ptype in configured_types:
-            continue  # a real configured row exists — don't duplicate it
-        info = get_provider_info(ptype)
-        if info is None:
-            continue
-        items.append(
-            ProviderResponse(
-                id=f"local-{ptype.value}",
-                name=info.name,
-                provider_type=ptype.value,
-                api_base=None,
-                enabled=True,
-                # Local runtimes need no key; True means "no key required",
-                # matching the catalog route's is_local handling.
-                has_api_key=True,
-                sort_order=info.sort_order,
-                created_at=_ALWAYS_PRESENT_CREATED_AT,
-            )
-        )
 
     items.sort(key=lambda item: item.sort_order)
     return ProviderListResponse(items=items, count=len(items))
@@ -553,28 +572,20 @@ def _synthetic_local_provider(provider_id: str) -> ProviderResponse | None:
     that id used to 404. Resolve it the same way the list does, so the read
     path agrees with the list.
     """
-    if not provider_id.startswith("local-"):
-        return None
-    type_value = provider_id.removeprefix("local-")
-    try:
-        ptype = ProviderType(type_value)
-    except ValueError:
-        return None
-    if ptype not in _ALWAYS_PRESENT_LOCAL_TYPES:
-        return None
-    info = get_provider_info(ptype)
-    if info is None:
-        return None
-    return ProviderResponse(
-        id=provider_id,
-        name=info.name,
-        provider_type=ptype.value,
-        api_base=None,
-        enabled=True,
-        sort_order=info.sort_order,
-        has_api_key=True,
-        created_at=_ALWAYS_PRESENT_CREATED_AT,
-    )
+    # Resolve via the SAME helper the list uses, so read and list never drift.
+    for p in always_present_local_providers([]):
+        if p.id == provider_id:
+            return ProviderResponse(
+                id=p.id,
+                name=p.name,
+                provider_type=p.provider_type.value,
+                api_base=p.api_base,
+                enabled=p.enabled,
+                sort_order=p.sort_order,
+                has_api_key=True,
+                created_at=p.created_at.isoformat(),
+            )
+    return None
 
 
 @router.get("/{provider_id}", response_model=ProviderResponse)
