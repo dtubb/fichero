@@ -64,8 +64,14 @@ def test_prewarm_embeddings_honors_bge_m3_env(monkeypatch) -> None:
             self.hf = hf
 
     class FakeTextEmbedding:
-        def __init__(self, *, model_name: str, cache_dir: str):
-            calls.append({"model_name": model_name, "cache_dir": cache_dir})
+        # threads= caps ONNX intra-op parallelism so a bulk embed can't peg
+        # every core (the always-usable-machine throttle, 1bd84fc19). Prewarm
+        # goes through _get_shared_embedder, which now passes it — accept it and
+        # record it so the assertion can pin that the throttle is applied.
+        def __init__(self, *, model_name: str, cache_dir: str, threads: int | None = None):
+            calls.append(
+                {"model_name": model_name, "cache_dir": cache_dir, "threads": threads}
+            )
 
         @staticmethod
         def _list_supported_models():
@@ -95,9 +101,12 @@ def test_prewarm_embeddings_honors_bge_m3_env(monkeypatch) -> None:
 
     _prewarm_embeddings()
 
+    from fichero_server.core.background_compute import embed_threads
+
     assert calls == [
         {
             "model_name": "BAAI/bge-m3",
             "cache_dir": str(MODELS_BASE / "embeddings"),
+            "threads": embed_threads(),
         }
     ]
