@@ -136,22 +136,24 @@ class TestEventsReachTheTimeline:
             schema = kwargs["schema"]
             if getattr(schema, "__name__", "") == "_Section_Dates":
                 return schema(items=[])
-            return schema(
-                subject="The signing of the fixture deed",
-                claims=[
-                    {
-                        "subject": "The signing of the fixture deed",
-                        "verb": "took place",
-                        "object": "in Regression Place",
-                        "source_text": "took place in Regression Place",
-                        "date": "1842-04-10",
-                    }
-                ],
+            # The page-at-a-time SVO pass: one call returning triples that each
+            # carry their own subject + scope (date).
+            return svo._PageClaims(
+                items=[
+                    svo._PageClaimItem(
+                        subject="The signing of the fixture deed",
+                        subject_type="event",
+                        verb="took place",
+                        object="in Regression Place",
+                        source_text="took place in Regression Place",
+                        date="1842-04-10",
+                        place="Regression Place",
+                    )
+                ]
             )
 
         # Both bindings: the dates pass calls through `extract_svo_only`, the
-        # per-entity claim loop through `extract_all`. Patching one leaves the
-        # other reaching a real provider.
+        # page SVO pass too. Patching one leaves the other reaching a provider.
         monkeypatch.setattr(svo, "chat_structured_with_fallback", fake_structured)
         monkeypatch.setattr(
             extract_all, "chat_structured_with_fallback", fake_structured
@@ -186,22 +188,21 @@ class TestEventsReachTheTimeline:
             schema = kwargs["schema"]
             if getattr(schema, "__name__", "") == "_Section_Dates":
                 return schema(items=[])
-            return schema(
-                subject="The signing of the fixture deed",
-                claims=[
-                    {
-                        "subject": "The signing of the fixture deed",
-                        "verb": "took place",
-                        "object": "before the notary",
-                        "source_text": "before the notary",
-                        "date": "",
-                    }
-                ],
+            return svo._PageClaims(
+                items=[
+                    svo._PageClaimItem(
+                        subject="The signing of the fixture deed",
+                        subject_type="event",
+                        verb="took place",
+                        object="before the notary",
+                        source_text="before the notary",
+                        date="",
+                    )
+                ]
             )
 
         # Both bindings: the dates pass calls through `extract_svo_only`, the
-        # per-entity claim loop through `extract_all`. Patching one leaves the
-        # other reaching a real provider.
+        # page SVO pass too. Patching one leaves the other reaching a provider.
         monkeypatch.setattr(svo, "chat_structured_with_fallback", fake_structured)
         monkeypatch.setattr(
             extract_all, "chat_structured_with_fallback", fake_structured

@@ -71,12 +71,26 @@ def _seed_two_pages(tmp_path):
 async def test_multipage_claims_carry_their_own_page_label(tmp_path, monkeypatch):
     library_path, pages = _seed_two_pages(tmp_path)
 
-    async def fake_claims(*args, **kwargs):
-        return [{"verb": "firmó"}]
+    async def fake_page_claims(page_text, llm_config, instructions, extraction_sem):
+        # One page pass per page; the subject is the page's OWN entity.
+        del llm_config, instructions, extraction_sem
+        subject = "Juan1" if "Juan1" in page_text else "Juan2"
+        return [
+            {
+                "subject": subject,
+                "subject_type": "person",
+                "verb": "firmó",
+                "object": "la escritura",
+                "source_text": page_text,
+            }
+        ]
 
-    # Keep the write path reachable without depending on claim/item internals —
-    # what matters here is WHICH page_label reaches _write_kg_rows per document.
-    monkeypatch.setattr(svo, "_extract_claims_for_entity", fake_claims)
+    # Keep the write path reachable without depending on claim/item/gate
+    # internals — what matters here is WHICH page_label reaches _write_kg_rows
+    # per document, so the per-claim gate is no-op'd for this test.
+    monkeypatch.setattr(svo, "_extract_page_claims", fake_page_claims)
+    monkeypatch.setattr(svo, "claim_rejection", lambda *a, **k: None)
+    monkeypatch.setattr(svo, "predicate_problem", lambda *a, **k: None)
     monkeypatch.setattr(
         svo, "_build_entity_items_for_section", lambda entity, section_key, claims: [{"i": 1}]
     )

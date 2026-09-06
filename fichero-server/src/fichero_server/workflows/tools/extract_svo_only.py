@@ -19,8 +19,21 @@ import os
 from collections import defaultdict
 from typing import Any
 
+from pydantic import BaseModel, Field
+
 from fichero_server.db import db_manager
-from fichero_server.knowledge.svo_cleanup import collapse_dated_claims
+from fichero_server.knowledge.dedupe import normalize_name
+from fichero_server.knowledge.spacy_svo import predicate_problem
+from fichero_server.knowledge.svo_cleanup import (
+    collapse_dated_claims,
+    collapse_near_duplicate_claims,
+)
+from fichero_server.knowledge.svo_quality import (
+    MAX_VERB_WORDS,
+    claim_rejection,
+    trim_predicate,
+    ungrounded_span,
+)
 from fichero_server.models.knowledge import KnowledgeClaim, KnowledgeEntity
 from fichero_server.llm import (
     LLMConfig,
@@ -37,9 +50,9 @@ from fichero_server.models import Document
 from fichero_server.workflows.registry import register_tool
 from fichero_server.workflows.tools.extract_all import (
     _EntityOnly,
+    _annotate_pronoun_source,
     _build_entity_items_for_section,
-    _build_per_entity_claim_instructions,
-    _extract_claims_for_entity,
+    _date_is_on_the_page,
 )
 from fichero_server.workflows.tools.extract_entities_only import (
     _ENTITY_TYPES,
@@ -72,6 +85,131 @@ _SECTION_BY_KEY = {
 _SECTION_KEY_BY_ENTITY_TYPE = {
     entity_type: section_key for section_key, entity_type in _ENTITY_TYPES.items()
 }
+
+
+class _PageClaimItem(BaseModel):
+    """One SVO claim from the page-level pass — the subject is CHOSEN, not given."""
+
+    subject: str = Field(
+        default="",
+        description=(
+            "The AGENT of the action — the entity that performs or owns it. "
+            "Must be one of the entities listed in the instructions, copied as "
+            "written. A person performs actions; a place is a location, never "
+            "the agent of a person's action; an organization owns/operates."
+        ),
+    )
+    subject_type: str = Field(
+        default="", description="person | place | organization | river | event | mine"
+    )
+    verb: str = Field(
+        default="",
+        description=(
+            "Predicate verb/verb phrase copied from the page (include "
+            "prepositions); the subject is implicit — do not repeat it."
+        ),
+    )
+    object: str = Field(
+        default="",
+        description="Rest of the predicate — a minimal noun phrase copied from the page.",
+    )
+    source_text: str = Field(
+        default="", description="The exact span from the page this claim is read from."
+    )
+    epistemic_status: str = Field(default="tentative")
+    claim_type: str = Field(default="")
+    date: str = Field(
+        default="",
+        description="YYYY-MM-DD / YYYY-MM / YYYY, ONLY when the page states one for this claim.",
+    )
+    place: str = Field(
+        default="",
+        description="Where it happened, copied from the page, ONLY when the page names it.",
+    )
+
+
+class _PageClaims(BaseModel):
+    items: list[_PageClaimItem] = Field(default_factory=list)
+
+
+def _build_page_claim_instructions(
+    output_language: str,
+    entities_by_section: dict[str, list[_EntityOnly]],
+    document_context: str | None = None,
+) -> str:
+    """Instructions for ONE page-level SVO pass over the whole page.
+
+    Replaces the per-entity Stage-2 loop, which asked for claims about each
+    entity separately and so copied a sentence's predicate onto every nearby
+    entity — a cross-product of duplicates with wrong subjects (a place cast as
+    the agent of a person's verb). Here the model reads the page once and, for
+    each fact, picks the single correct AGENT from the known entities.
+    """
+    context_block = ""
+    if document_context and document_context.strip():
+        context_block = (
+            f"Document context: {document_context.strip()}\n"
+            "First-person statements ('I', 'me', 'my') refer to the document's "
+            "author named in the context above — never to another entity "
+            "mentioned nearby.\n\n"
+        )
+    lines = []
+    for section_key, entities in entities_by_section.items():
+        names = sorted({e.name for e in entities if e.name})
+        if names:
+            lines.append(f"  {section_key.rstrip('s')}: " + "; ".join(names))
+    entity_block = "\n".join(lines) or "  (none identified)"
+    return (
+        f"{context_block}"
+        f"Read the whole page and extract subject-verb-object claims — one row "
+        f"per distinct fact.\n\n"
+        f"THE SUBJECT IS THE AGENT. For each fact the subject is the ONE entity "
+        f"that performs or owns the action. A person performs actions; a place "
+        f"is where something happens, NEVER the agent of a person's action; an "
+        f"organization owns or operates things. Do NOT attach the same predicate "
+        f"to more than one entity — if a sentence says a person works a mine in "
+        f"a town, the PERSON is the subject, not the town and not the mine's "
+        f"owner.\n\n"
+        f"The subject MUST be one of these already-identified entities, copied "
+        f"as written:\n{entity_block}\n\n"
+        f"If a fact's true agent is not in this list, omit the fact rather than "
+        f"forcing a wrong subject. Never use a pronoun as a subject.\n\n"
+        f"COPY, DO NOT COMPOSE. The verb and object must be spans found on the "
+        f"page word for word, in the source's language and spelling — no "
+        f"translation, no modernisation, no smoothing. The verb is the MINIMAL "
+        f"verb phrase (at most {MAX_VERB_WORDS} words); the object is the "
+        f"minimal completing noun phrase, never a whole clause.\n\n"
+        f"One assertion per claim, and DO NOT repeat a claim. Write any "
+        f"commentary in {output_language}; the verb and object stay in the "
+        f"source's language. Only include facts directly supported by the page."
+    )
+
+
+async def _extract_page_claims(
+    page_text: str,
+    llm_config: LLMConfig,
+    instructions: str,
+    extraction_sem: asyncio.Semaphore,
+) -> list[dict]:
+    """ONE page-level SVO pass → claim dicts each carrying its own subject."""
+    if not (page_text or "").strip():
+        return []
+    try:
+        async with extraction_sem:
+            result = await chat_structured_with_fallback(
+                prompt=page_text,
+                schema=_PageClaims,
+                config=llm_config,
+                system=instructions,
+                include_schema_in_prompt=False,
+                permissive_guardrails=True,
+            )
+        return [item.model_dump() for item in (getattr(result, "items", None) or [])]
+    except ProviderQuotaError:
+        raise
+    except Exception as exc:
+        logger.warning("extract_svo_only: page SVO extraction failed: %s", exc)
+        return []
 
 
 def _page_label(document: Document) -> str | None:
@@ -231,7 +369,6 @@ async def extract_svo_only(
     # "language of the document" mean something on a mixed corpus.
     requested_sections = _requested_sections(inputs.get("entity_types"))
     policy = configured_policy()
-    instructions_by_language: dict[tuple[str, str], str] = {}
     languages_used: dict[str, int] = defaultdict(int)
 
     progress_callback = inputs.get("__progress_callback")
@@ -268,13 +405,6 @@ async def extract_svo_only(
         # reject a first-person verb when the subject IS that person — only
         # when a nearby name has been stamped onto someone else's "we".
         speaker = str(doc_meta.get("author") or "").strip()
-        cache_key = (instruction_key, document_context)
-        claim_instructions = instructions_by_language.get(cache_key)
-        if claim_instructions is None:
-            claim_instructions = _build_per_entity_claim_instructions(
-                instruction_key, document_context or None
-            )
-            instructions_by_language[cache_key] = claim_instructions
 
         await emit_progress_event(
             progress_callback,
@@ -354,30 +484,91 @@ async def extract_svo_only(
                     grounding_text=record["text"],
                 )
 
+        # Page-at-a-time SVO (was: one _extract_claims_for_entity call per
+        # entity, which copied each sentence's predicate onto EVERY nearby entity
+        # — a cross-product of duplicates with wrong subjects, e.g. a place or an
+        # owner cast as the agent of a person's verb). One pass now; the model
+        # picks the single correct AGENT for each fact, and we route it to that
+        # entity. Distinct facts, one subject each → cross-product + dups gone at
+        # the source.
+        entity_by_norm: dict[str, tuple[str, _EntityOnly]] = {}
         for section_key, entities in page_entities.items():
-            section = _SECTION_BY_KEY.get(section_key)
-            if section is None or section_key not in requested_sections:
+            if section_key not in requested_sections or _SECTION_BY_KEY.get(section_key) is None:
                 continue
             for entity in entities:
-                entities_processed += 1
-                claims = await _extract_claims_for_entity(
-                    record["text"],
-                    entity.name,
-                    section_key.rstrip("s"),
-                    llm_config,
-                    claim_instructions,
-                    extraction_sem,
-                    speaker=speaker,
-                )
-                claims_extracted += len(claims)
-                if not claims:
+                entity_by_norm.setdefault(normalize_name(entity.name), (section_key, entity))
+
+        if entity_by_norm and (record["text"] or "").strip():
+            page_instructions = _build_page_claim_instructions(
+                instruction_key,
+                {
+                    section_key: entities
+                    for section_key, entities in page_entities.items()
+                    if section_key in requested_sections
+                },
+                document_context or None,
+            )
+            page_claims = await _extract_page_claims(
+                record["text"], llm_config, page_instructions, extraction_sem
+            )
+
+            claims_by_entity: dict[str, list[dict]] = defaultdict(list)
+            for page_claim in page_claims:
+                hit = entity_by_norm.get(normalize_name(page_claim.get("subject", "")))
+                if hit is None:
+                    # Subject is not one of the page's entities: a hallucinated
+                    # or cross-product subject — drop it.
                     continue
-                items = _build_entity_items_for_section(entity, section_key, claims)
+                _section_key, entity = hit
+                verb, obj = trim_predicate(
+                    page_claim.get("verb", ""), page_claim.get("object", "")
+                )
+                # Same per-claim gate the per-entity path used: grounded against
+                # the page text, then the deterministic grammar gate.
+                if claim_rejection(entity.name, verb, obj, record["text"]) is not None:
+                    continue
+                if predicate_problem(entity.name, verb, record["text"], speaker=speaker):
+                    continue
+                # Scope is claim-only and MUST be grounded: an inferred date or
+                # place is a guess wearing a fact's clothes (the timeline plots
+                # it, the map pins it). Keep the claim, drop an ungrounded scope.
+                # date_normalized is what makes an event a timeline row (#4667).
+                place = (page_claim.get("place") or "").strip()
+                if place and ungrounded_span(place, record["text"]):
+                    place = ""
+                date = (page_claim.get("date") or "").strip()
+                if date and not _date_is_on_the_page(date, record["text"]):
+                    date = ""
+                claims_by_entity[entity.name].append(
+                    {
+                        "name": entity.name,
+                        "verb": verb,
+                        "object": obj,
+                        "source_text": _annotate_pronoun_source(
+                            page_claim.get("source_text", ""), entity.name
+                        ),
+                        "epistemic_status": page_claim.get("epistemic_status", ""),
+                        "claim_type": page_claim.get("claim_type", ""),
+                        "date_normalized": date,
+                        "claim_location": place,
+                    }
+                )
+
+            for _norm_key, (section_key, entity) in entity_by_norm.items():
+                claim_list = claims_by_entity.get(entity.name)
+                if not claim_list:
+                    continue
+                entities_processed += 1
+                # Belt-and-suspenders near-dup collapse per subject (the page
+                # pass shouldn't repeat, but a model still can).
+                claim_list = collapse_near_duplicate_claims(entity.name, claim_list)
+                claims_extracted += len(claim_list)
+                items = _build_entity_items_for_section(entity, section_key, claim_list)
                 if not items:
                     continue
                 _write_kg_rows(
                     db,
-                    section,
+                    _SECTION_BY_KEY[section_key],
                     items,
                     doc_id,
                     page_label=_page_label(documents[record["index"]]),

@@ -39,6 +39,7 @@ import fichero_server.workflows.tools  # noqa: F401
 import fichero_server.workflows.tools.citations_extract as citations_module
 import fichero_server.workflows.tools.cleanup as cleanup_module
 import fichero_server.workflows.tools.extract_all as extract_all_module
+import fichero_server.workflows.tools.extract_svo_only as extract_svo_only_module
 
 
 # The fixture page must SAY what the stubbed extractions claim it says
@@ -428,6 +429,32 @@ def _install_deterministic_workflow_stubs(
                         "object": "the fixture deed",
                         "source_text": "in 1842",
                     }
+                ]
+            )
+        if schema is extract_svo_only_module._PageClaims:
+            # Stage 3's page-at-a-time SVO pass: one call per page returning
+            # triples that each carry their own correct subject (replaces the
+            # per-entity calls). Subjects must match the Stage-1 entities above.
+            return extract_svo_only_module._PageClaims(
+                items=[
+                    extract_svo_only_module._PageClaimItem(
+                        subject="Regression Person",
+                        subject_type="person",
+                        verb="signed",
+                        object="the fixture deed",
+                        source_text="Regression Person signed the fixture deed",
+                        epistemic_status="established",
+                        claim_type="action",
+                    ),
+                    extract_svo_only_module._PageClaimItem(
+                        subject="Regression Place",
+                        subject_type="place",
+                        verb="hosted",
+                        object="the fixture signing",
+                        source_text="in Regression Place",
+                        epistemic_status="established",
+                        claim_type="action",
+                    ),
                 ]
             )
         return await fake_extract_all_structured(**kwargs)

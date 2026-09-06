@@ -524,40 +524,27 @@ def test_catalogue_full_pipeline_runs_from_folder_with_stubs(
             events=[],
         )
 
-    async def fake_claims_for_entity(
-        chunk_text: str,
-        entity_name: str,
-        entity_type: str,
+    async def fake_page_claims(
+        page_text: str,
         llm_config,
         instructions: str,
         extraction_sem,
-        speaker: str = "",
     ) -> list[dict]:
-        del chunk_text, entity_type, llm_config, instructions, extraction_sem
-        del speaker
-        if entity_name == "Ada Mock":
-            return [
-                {
-                    "name": entity_name,
-                    "verb": "signed",
-                    "object": "the ledger",
-                    "source_text": "Ada Mock signed the ledger in Mockton.",
-                    "epistemic_status": "confirmed",
-                    "claim_type": "fact",
-                }
-            ]
-        if entity_name == "Mockton":
-            return [
-                {
-                    "name": entity_name,
-                    "verb": "is",
-                    "object": "the town where Ada signed the ledger",
-                    "source_text": "Ada Mock signed the ledger in Mockton.",
-                    "epistemic_status": "confirmed",
-                    "claim_type": "fact",
-                }
-            ]
-        return []
+        # Page-at-a-time SVO: one pass returning triples that carry their own
+        # correct subject. Ada (person) is the agent of "signed"; the predicate
+        # is NOT copied onto Mockton (place).
+        del page_text, llm_config, instructions, extraction_sem
+        return [
+            {
+                "subject": "Ada Mock",
+                "subject_type": "person",
+                "verb": "signed",
+                "object": "the ledger",
+                "source_text": "Ada Mock signed the ledger in Mockton.",
+                "epistemic_status": "confirmed",
+                "claim_type": "fact",
+            }
+        ]
 
     monkeypatch.setattr(
         "fichero_server.llm.resolve_model_alias_for_capability",
@@ -568,8 +555,8 @@ def test_catalogue_full_pipeline_runs_from_folder_with_stubs(
         fake_entities,
     )
     monkeypatch.setattr(
-        "fichero_server.workflows.tools.extract_svo_only._extract_claims_for_entity",
-        fake_claims_for_entity,
+        "fichero_server.workflows.tools.extract_svo_only._extract_page_claims",
+        fake_page_claims,
     )
     monkeypatch.setattr(
         "fichero_server.knowledge.entity_vectors.find_similar",

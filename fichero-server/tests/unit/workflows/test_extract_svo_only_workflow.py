@@ -17,7 +17,9 @@ from fichero_server.workflows.tools._entity_writer import upsert_entity
 import fichero_server.workflows.tools  # noqa: F401
 
 
-FIXTURE_TEXT = "Ada signed the ledger in Mockton."
+# Two clean, page-grounded facts with DIFFERENT correct subjects: Ada (person)
+# is the agent of "signed"; Mockton (place) is the subject of "borders".
+FIXTURE_TEXT = "Ada Mock signed the ledger. Mockton borders the river."
 
 
 def test_extract_svo_preset_persists_claims_and_is_idempotent(tmp_path: Path):
@@ -25,44 +27,63 @@ def test_extract_svo_preset_persists_claims_and_is_idempotent(tmp_path: Path):
     db = db_manager.get_database(library_path)
     workflow = _load_workflow("3 · Extract SVO → Claims", provider_name="mock")
 
-    async def fake_extract_claims_for_entity(
-        chunk_text: str,
-        entity_name: str,
-        entity_type: str,
+    page_pass_calls = {"n": 0}
+
+    async def fake_extract_page_claims(
+        page_text: str,
         llm_config,
         instructions: str,
         extraction_sem,
-        speaker: str = "",
     ) -> list[dict]:
-        # `speaker` is who the page's first person refers to (#4671) — the
-        # stub takes it so a real signature change fails HERE, at the seam,
-        # rather than mid-workflow with a TypeError wearing a systemic-error
-        # costume.
-        del entity_type, llm_config, instructions, extraction_sem, speaker
-        assert FIXTURE_TEXT in chunk_text
-        if entity_name == "Ada Mock":
-            return [{
-                "name": entity_name,
+        # Page-at-a-time: ONE pass per page returns SVO triples that each carry
+        # their own correct subject (was: a call per entity that copied the
+        # predicate onto every entity). Signature mirrored so a real change
+        # fails HERE at the seam.
+        del llm_config, instructions, extraction_sem
+        page_pass_calls["n"] += 1
+        assert FIXTURE_TEXT in page_text
+        return [
+            {
+                "subject": "Ada Mock",
+                "subject_type": "person",
                 "verb": "signed",
                 "object": "the ledger",
                 "source_text": FIXTURE_TEXT,
                 "epistemic_status": "confirmed",
                 "claim_type": "fact",
-            }]
-        if entity_name == "Mockton":
-            return [{
-                "name": entity_name,
-                "verb": "is",
-                "object": "the town where Ada signed the ledger",
+            },
+            {
+                "subject": "Mockton",
+                "subject_type": "place",
+                "verb": "borders",
+                "object": "the river",
                 "source_text": FIXTURE_TEXT,
                 "epistemic_status": "confirmed",
                 "claim_type": "fact",
-            }]
-        return []
+            },
+            # A subject that is NOT one of the page's entities — the kind of
+            # cross-product/hallucinated subject the old per-entity path emitted.
+            # Verb+object ARE on the page, so only the unknown-subject guard
+            # drops it.
+            {
+                "subject": "Tadó",
+                "subject_type": "place",
+                "verb": "borders",
+                "object": "the river",
+                "source_text": FIXTURE_TEXT,
+            },
+            # Exact duplicate of Ada's claim — must collapse, not double-write.
+            {
+                "subject": "Ada Mock",
+                "verb": "signed",
+                "object": "the ledger",
+                "source_text": FIXTURE_TEXT,
+            },
+        ]
 
     with patch(
-        "fichero_server.workflows.tools.extract_svo_only._extract_claims_for_entity",
-        new=fake_extract_claims_for_entity,
+        "fichero_server.workflows.tools.extract_svo_only._extract_page_claims",
+        new=fake_extract_page_claims,
     ):
         first = asyncio.run(
             build_graph(workflow, skip_cache=True).ainvoke(
@@ -97,14 +118,27 @@ def test_extract_svo_preset_persists_claims_and_is_idempotent(tmp_path: Path):
             "claims_reused": 4,
         }
 
+    # ONE page pass per page (2 pages), NOT one call per entity — the structural
+    # fix for the cross-product. Two runs → 4 calls.
+    assert page_pass_calls["n"] == 4
+
     claims = [
         claim
         for claim in db.query(KnowledgeClaim)
         if claim.source_document_id in set(page_doc_ids)
     ]
+    # 2 real claims per page (Ada·signed, Mockton·borders). The Tadó triple
+    # (subject not a page entity) was dropped; the duplicate Ada triple collapsed.
     assert len(claims) == 4
     assert {claim.subject_canonical for claim in claims} == {"Ada Mock", "Mockton"}
-    assert {claim.predicate_verb for claim in claims} == {"signed", "is"}
+    assert {claim.predicate_verb for claim in claims} == {"signed", "borders"}
+    # No place cast as the agent of the person-verb "signed", and no "Tadó".
+    assert "Tadó" not in {claim.subject_canonical for claim in claims}
+    assert all(
+        claim.subject_canonical == "Ada Mock"
+        for claim in claims
+        if claim.predicate_verb == "signed"
+    )
     assert all(claim.source_page_label in {"001", "002"} for claim in claims)
 
     transcription_artifacts = [
