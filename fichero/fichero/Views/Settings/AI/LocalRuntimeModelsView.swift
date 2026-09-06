@@ -311,12 +311,24 @@ struct CapabilityChip: View {
             .help(help)
     }
 
-    private var label: String { LocalInferenceDisplay.capabilityLabel(capability) }
+    // spaCy/Kraken/Whisper catalog entries (Shape A) carry capabilities the
+    // MLX-only mapping never saw — "nlp" (grammar/entities) and "segmentation"
+    // (page line-finding) — so those are named here rather than falling through
+    // to the generic "text" label, which would misdescribe them on the row.
+    private var label: String {
+        switch capability {
+        case "nlp": return "grammar / NLP"
+        case "segmentation": return "line segmentation"
+        default: return LocalInferenceDisplay.capabilityLabel(capability)
+        }
+    }
 
     private var symbol: String {
         switch capability {
         case "vision": return "eye"
         case "audio": return "waveform"
+        case "nlp": return "text.magnifyingglass"
+        case "segmentation": return "text.viewfinder"
         default: return "text.alignleft"
         }
     }
@@ -325,6 +337,8 @@ struct CapabilityChip: View {
         switch capability {
         case "vision": return "Reads images and page scans."
         case "audio": return "Transcribes audio."
+        case "nlp": return "On-device grammar and named-entity analysis."
+        case "segmentation": return "Detects text lines on a page for OCR."
         default: return "Reads and writes text."
         }
     }
