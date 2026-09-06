@@ -546,6 +546,37 @@ async def delete_provider_ref(
     return DeletedResponse(status="deleted")
 
 
+def _synthetic_local_provider(provider_id: str) -> ProviderResponse | None:
+    """The always-present on-device row for a synthetic ``local-<type>`` id.
+
+    list_providers merges these in without persisting them, so a direct GET by
+    that id used to 404. Resolve it the same way the list does, so the read
+    path agrees with the list.
+    """
+    if not provider_id.startswith("local-"):
+        return None
+    type_value = provider_id.removeprefix("local-")
+    try:
+        ptype = ProviderType(type_value)
+    except ValueError:
+        return None
+    if ptype not in _ALWAYS_PRESENT_LOCAL_TYPES:
+        return None
+    info = get_provider_info(ptype)
+    if info is None:
+        return None
+    return ProviderResponse(
+        id=provider_id,
+        name=info.name,
+        provider_type=ptype.value,
+        api_base=None,
+        enabled=True,
+        sort_order=info.sort_order,
+        has_api_key=True,
+        created_at=_ALWAYS_PRESENT_CREATED_AT,
+    )
+
+
 @router.get("/{provider_id}", response_model=ProviderResponse)
 async def get_provider(
     provider_id: str,
@@ -554,6 +585,9 @@ async def get_provider(
     """Get a specific provider configuration (app-wide)."""
     provider = app_db.get_provider(provider_id)
     if not provider:
+        synthetic = _synthetic_local_provider(provider_id)
+        if synthetic is not None:
+            return synthetic
         raise HTTPException(status_code=404, detail="Provider not found")
 
     return ProviderResponse(

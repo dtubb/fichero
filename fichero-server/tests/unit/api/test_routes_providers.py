@@ -170,6 +170,20 @@ class TestListProviders:
         assert len(omlx_rows) == 1
         assert omlx_rows[0]["name"] == "My oMLX"
 
+    def test_synthetic_local_provider_is_gettable_by_id(self, client):
+        # The read path agrees with the list: GET /providers/local-<type>
+        # resolves instead of 404ing.
+        r = client.get("/api/providers/local-spacy")
+        assert r.status_code == 200
+        body = r.json()
+        assert body["id"] == "local-spacy"
+        assert body["provider_type"] == "spacy"
+        assert body["enabled"] is True
+
+    def test_unknown_local_or_missing_id_still_404s(self, client):
+        assert client.get("/api/providers/local-nonsense").status_code == 404
+        assert client.get("/api/providers/does-not-exist").status_code == 404
+
 
 # ---------------------------------------------------------------------------
 # POST /api/providers
