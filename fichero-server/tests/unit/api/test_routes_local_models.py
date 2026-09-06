@@ -5,7 +5,7 @@ Local models (Whisper speech-to-text, embedding models) are downloaded to
 download, and delete models without external calls (LocalModelManager mocked).
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 
 # ---------------------------------------------------------------------------
@@ -141,3 +141,69 @@ class TestDownloadModel:
         with patch("fichero_server.llm.local_models.WHISPER_MODELS", {"base": {}, "small": {}}):
             r = client.post("/api/local-models/download/whisper/no-such-model")
         assert r.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# Kraken install/status (~1 GB user-chosen segmentation runtime)
+# ---------------------------------------------------------------------------
+
+
+def _kraken_manager(installed: bool, job: dict | None = None) -> MagicMock:
+    mgr = MagicMock()
+    mgr.status.return_value = {
+        "installed": installed,
+        "kraken_version": "7.1.1" if installed else None,
+        "scipy_override": "scipy>=1.16" if installed else None,
+        "runtime_dir": "/tmp/kraken-runtime",
+        "disk_usage_bytes": 996_000_000 if installed else 0,
+        "reason": None if installed else "Kraken is not installed. ~1 GB download.",
+        "job": job,
+    }
+    mgr.start_install = AsyncMock(return_value=mgr.status.return_value)
+    return mgr
+
+
+class TestKrakenRuntime:
+    def test_status_reports_uninstalled_with_a_size_note(self, client):
+        with patch(
+            "fichero_server.llm.kraken_runtime.get_kraken_runtime",
+            return_value=_kraken_manager(installed=False),
+        ):
+            r = client.get("/api/local-models/kraken/status")
+        assert r.status_code == 200
+        body = r.json()
+        assert body["installed"] is False
+        assert body["available"] is True
+        assert body["size_note"]  # the UI can warn about the ~1 GB cost
+        assert body["job"] is None
+
+    def test_install_starts_the_background_job(self, client):
+        job = {
+            "job_id": "abc",
+            "state": "running",
+            "current": 2,
+            "total": 4,
+            "percent": 50.0,
+            "message": "Installing kraken==7.1.1",
+            "error": None,
+        }
+        mgr = _kraken_manager(installed=False, job=job)
+        with patch(
+            "fichero_server.llm.kraken_runtime.get_kraken_runtime",
+            return_value=mgr,
+        ):
+            r = client.post("/api/local-models/kraken/install")
+        assert r.status_code == 200
+        assert mgr.start_install.await_count == 1
+        assert r.json()["job"]["state"] == "running"
+
+    def test_remove_while_installing_returns_409(self, client):
+        mgr = _kraken_manager(installed=True)
+        mgr.remove.side_effect = RuntimeError("Kraken install is still running")
+        with patch(
+            "fichero_server.llm.kraken_runtime.get_kraken_runtime",
+            return_value=mgr,
+        ):
+            r = client.delete("/api/local-models/kraken")
+        assert r.status_code == 409
+        assert "still running" in r.json()["detail"]

@@ -27,13 +27,15 @@ coremltools into an env that deliberately excludes them.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import asyncio
+from dataclasses import asdict, dataclass
 import json
 import logging
 import os
 from pathlib import Path
 import shutil
 import subprocess
+import uuid
 import venv
 
 from fichero_server.db.paths import server_state_dir
@@ -306,6 +308,153 @@ def segment_to_geometry(
     )
 
 
+@dataclass
+class KrakenInstallJob:
+    """One background Kraken install, with coarse but real progress.
+
+    Kraken is a ~1 GB download, so the UI needs something to poll. The steps
+    are the load-bearing ones ``install()`` already performs — create the venv,
+    install kraken, override its scipy pin — counted as they happen rather than
+    guessed, so a stalled pip is visible as a job stuck on that step.
+    """
+
+    job_id: str
+    state: str  # queued | running | completed | failed
+    current: int
+    total: int
+    message: str
+    error: str | None = None
+
+    @property
+    def percent(self) -> float:
+        if self.total <= 0:
+            return 0.0
+        return (self.current / self.total) * 100
+
+    def to_dict(self) -> dict[str, object]:
+        data = asdict(self)
+        data["percent"] = self.percent
+        return data
+
+
+class KrakenRuntimeManager:
+    """Own the Kraken install as a coalesced background job with status.
+
+    Mirrors ``MLXRuntime``: one install runs at a time, ``status()`` merges the
+    on-disk runtime facts with the live job, and provisioning NEVER starts on
+    its own — only an explicit ``start_install`` (the POST endpoint) begins it,
+    keeping Daniel's "never automatic" rule true at the process layer too.
+    """
+
+    #: create venv, install kraken, override scipy, write metadata.
+    _TOTAL_STEPS = 4
+
+    def __init__(
+        self,
+        home: Path | None = None,
+        *,
+        create_venv=None,
+        run_command=None,
+    ) -> None:
+        self._home = home
+        # Injectable so a test can drive an install to completion without
+        # spending minutes building a real venv (the same seam install() has).
+        self._create_venv = create_venv or _default_create_venv
+        self._run_command = run_command or _default_run_command
+        self._job_lock = asyncio.Lock()
+        self._install_task: asyncio.Task[None] | None = None
+        self._job: KrakenInstallJob | None = None
+
+    def runtime_dir(self) -> Path:
+        return kraken_runtime_dir(self._home)
+
+    def status(self) -> dict[str, object]:
+        payload = dict(runtime_status(self._home))
+        payload["job"] = self._job.to_dict() if self._job is not None else None
+        return payload
+
+    async def start_install(self) -> dict[str, object]:
+        async with self._job_lock:
+            if self._install_task is not None and not self._install_task.done():
+                return self.status()
+            if is_installed(self._home):
+                # Already there — do not rebuild a 1 GB venv for a no-op.
+                self._job = KrakenInstallJob(
+                    job_id=str(uuid.uuid4()),
+                    state="completed",
+                    current=self._TOTAL_STEPS,
+                    total=self._TOTAL_STEPS,
+                    message="Kraken already installed",
+                )
+                return self.status()
+            job = KrakenInstallJob(
+                job_id=str(uuid.uuid4()),
+                state="running",
+                current=0,
+                total=self._TOTAL_STEPS,
+                message="Creating Kraken runtime",
+            )
+            self._job = job
+            self._install_task = asyncio.create_task(self._install(job))
+            return self.status()
+
+    async def wait_for_current_job(self) -> None:
+        task = self._install_task
+        if task is not None:
+            await task
+
+    async def _install(self, job: KrakenInstallJob) -> None:
+        def bump_venv(target: Path) -> None:
+            job.current = 1
+            job.message = "Creating Kraken virtual environment"
+            self._create_venv(target)
+
+        def bump_run(argv: list[str]) -> None:
+            # The two pip calls, named as they run: kraken first, then the
+            # scipy override that replaces kraken's broken pin.
+            if job.current < 2:
+                job.current = 2
+                job.message = f"Installing kraken=={KRAKEN_VERSION}"
+            else:
+                job.current = 3
+                job.message = f"Overriding scipy pin ({KRAKEN_SCIPY_OVERRIDE})"
+            self._run_command(argv)
+
+        try:
+            await asyncio.to_thread(
+                install,
+                self._home,
+                run_command=bump_run,
+                create_venv=bump_venv,
+            )
+            job.current = self._TOTAL_STEPS
+            job.state = "completed"
+            job.message = "Kraken runtime ready"
+        except Exception as exc:  # noqa: BLE001 — surfaced on the job, not raised
+            job.state = "failed"
+            job.error = str(exc)
+            job.message = "Kraken install failed"
+
+    def remove(self) -> dict[str, object]:
+        if self._install_task is not None and not self._install_task.done():
+            raise RuntimeError("Kraken install is still running")
+        remove(self._home)
+        self._job = None
+        return self.status()
+
+
+_RUNTIME_MANAGER: KrakenRuntimeManager | None = None
+
+
+def get_kraken_runtime() -> KrakenRuntimeManager:
+    """Process-wide Kraken install manager, rebound if the runtime dir moves."""
+    global _RUNTIME_MANAGER
+    target = kraken_runtime_dir()
+    if _RUNTIME_MANAGER is None or _RUNTIME_MANAGER.runtime_dir() != target:
+        _RUNTIME_MANAGER = KrakenRuntimeManager()
+    return _RUNTIME_MANAGER
+
+
 def _disk_usage_bytes(path: Path) -> int:
     if not path.exists():
         return 0
@@ -323,8 +472,11 @@ def _default_run_command(argv: list[str]) -> None:
 __all__ = [
     "KRAKEN_SCIPY_OVERRIDE",
     "KRAKEN_VERSION",
+    "KrakenInstallJob",
+    "KrakenRuntimeManager",
     "KrakenRuntimeMissingError",
     "KrakenSegmentationError",
+    "get_kraken_runtime",
     "install",
     "is_installed",
     "kraken_runtime_dir",

@@ -125,6 +125,85 @@ def test_install_overrides_the_scipy_pin_after_kraken_not_before(runtime_home: P
     assert kraken_runtime.runtime_status()["scipy_override"] == KRAKEN_SCIPY_OVERRIDE
 
 
+# --- installable in the background, with status -----------------------------
+
+
+def _fake_venv(target: Path) -> None:
+    (target / "bin").mkdir(parents=True, exist_ok=True)
+    (target / "bin" / "python").write_text("#!/usr/bin/env python3\n", encoding="utf-8")
+
+
+@pytest.mark.asyncio
+async def test_install_runs_as_a_coalesced_background_job(runtime_home: Path) -> None:
+    """One install at a time, and the job reports real progress and completion.
+
+    Kraken is ~1 GB, so the UI needs a job to poll. A second start while one
+    runs returns the SAME job rather than building the venv twice.
+    """
+    commands: list[list[str]] = []
+    manager = kraken_runtime.KrakenRuntimeManager(
+        create_venv=_fake_venv, run_command=commands.append
+    )
+
+    first = await manager.start_install()
+    second = await manager.start_install()
+    assert first["job"]["job_id"] == second["job"]["job_id"]
+    await manager.wait_for_current_job()
+
+    status = manager.status()
+    assert status["installed"] is True
+    assert status["job"]["state"] == "completed"
+    assert status["job"]["percent"] == 100.0
+    # Order is load-bearing: kraken first, then the scipy override.
+    assert commands[0][-1] == f"kraken=={kraken_runtime.KRAKEN_VERSION}"
+    assert commands[1][-1] == KRAKEN_SCIPY_OVERRIDE
+
+
+@pytest.mark.asyncio
+async def test_install_never_starts_on_its_own(runtime_home: Path) -> None:
+    """Constructing the manager must not build a 1 GB venv by surprise."""
+    manager = kraken_runtime.KrakenRuntimeManager(
+        create_venv=_fake_venv, run_command=lambda argv: None
+    )
+    assert manager.status()["installed"] is False
+    assert manager.status()["job"] is None
+    assert not kraken_runtime.kraken_runtime_dir().exists()
+
+
+@pytest.mark.asyncio
+async def test_an_already_installed_runtime_is_a_noop_not_a_rebuild(
+    runtime_home: Path,
+) -> None:
+    _mark_installed(runtime_home)
+    commands: list[list[str]] = []
+    manager = kraken_runtime.KrakenRuntimeManager(
+        create_venv=_fake_venv, run_command=commands.append
+    )
+
+    status = await manager.start_install()
+    assert status["job"]["state"] == "completed"
+    assert commands == []  # nothing reinstalled
+
+
+@pytest.mark.asyncio
+async def test_a_failed_install_surfaces_on_the_job_not_as_a_raise(
+    runtime_home: Path,
+) -> None:
+    def boom(argv: list[str]) -> None:
+        raise RuntimeError("pip exploded")
+
+    manager = kraken_runtime.KrakenRuntimeManager(
+        create_venv=_fake_venv, run_command=boom
+    )
+    await manager.start_install()
+    await manager.wait_for_current_job()
+
+    job = manager.status()["job"]
+    assert job["state"] == "failed"
+    assert "pip exploded" in job["error"]
+    assert manager.status()["installed"] is False
+
+
 # --- the shared vocabulary --------------------------------------------------
 
 
