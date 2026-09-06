@@ -15,9 +15,11 @@ import XCTest
 /// stub intercepts) and asserts the behavior the chevrons depend on:
 ///
 /// - `loadCollections()` fills `childrenCache` one level below the roots with
-///   ZERO expansions — the chevron data for "a folder of folders" (#3355).
+///   ZERO expansions — a bounded, one-time startup warm-up (#3355).
 /// - `loadSidebarChildren(of:)` (the disclosure-toggle path) caches the
-///   folder's children AND one level deeper.
+///   folder's OWN children only — names-first, then lazy (#4515,
+///   2026-09-06): a subfolder's children load when IT is expanded, and its
+///   chevron rides `child_count`, not a prefetched list.
 /// - The prefetched rows surface through `sidebarDocuments` — the exact input
 ///   `SidebarItemBuilder`/`sidebarTreeSignature` consume, so a cache fill that
 ///   never reached the tree would fail here, not just in the UI.
@@ -197,7 +199,12 @@ final class SidebarPrefetchBehavioralTests: XCTestCase {
 
     // MARK: - Expansion (disclosure toggle path)
 
-    func testExpansionCachesChildrenAndPrefetchesOneLevelDeeper() async throws {
+    func testExpansionCachesOwnChildrenAndDoesNotPrefetchDeeper() async throws {
+        // 2026-09-06 (Daniel: "opening a folder takes forever… get names, then
+        // load the rest lazily"). An expand now fetches the folder's OWN
+        // children only — the names — and stops. The revealed subfolder's
+        // chevron rides its honest `child_count` (#4515), not a prefetched
+        // child list, so its children load lazily only when IT is expanded.
         let folder = Document(id: "top", parentId: nil, docType: .folder, name: "top")
         let store = makeStore(stubs: [
             Stub(pathSuffix: "/documents/top/view", body: viewJSON(
@@ -219,16 +226,16 @@ final class SidebarPrefetchBehavioralTests: XCTestCase {
             store.childrenCache["top"]?.map(\.id), ["mid", "midFile"],
             "expanding caches the folder's own children"
         )
-        XCTAssertEqual(
-            store.childrenCache["mid"]?.map(\.id), ["leaf"],
-            "…and one level deeper, so the revealed subfolder has its chevron (#3355)"
+        // The expanded folder's SUBfolder is NOT fetched — no grandchild
+        // prefetch. `mid`'s children load only when the user expands `mid`.
+        XCTAssertNil(
+            store.childrenCache["mid"],
+            "expand loads names only; a subfolder's children stay lazy (#4515)"
         )
-        // One level ONLY — the grandchild file has no fetch, and nothing below
-        // `mid` was asked for beyond its own children.
         let paths = PrefetchStubURLProtocol.recordedPaths()
         XCTAssertFalse(
-            paths.contains { $0.hasSuffix("/documents/leaf/view") },
-            "prefetch is bounded to one level below the expansion"
+            paths.contains { $0.hasSuffix("/documents/mid/view") },
+            "expanding `top` must not fire a fetch for its subfolder `mid`"
         )
     }
 

@@ -57,23 +57,27 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         XCTAssertFalse(source.contains("api.post(\"/documents\""))
     }
 
-    // MARK: - #3355 one-level chevron prefetch
+    // MARK: - #3355 chevron prefetch / #4515 names-only lazy expand
 
-    func testSidebarPrefetchesOneLevelDownForChevrons() throws {
-        // The backend never sends child_count, so a folder's disclosure chevron
-        // only renders once its children are cached. The fix prefetches one level
-        // down at both load seams so "a folder of folders" shows its triangles.
+    func testSidebarExpandLoadsNamesOnlyAndDoesNotPrefetchGrandchildren() throws {
+        // 2026-09-06 (Daniel: "opening a folder takes forever… get names, then
+        // load the rest lazily"). Expanding a folder fetches ITS OWN children
+        // only — the names, plus each child's honest `child_count` (#4515),
+        // which is all `isExpandable` reads to draw a subfolder chevron. The
+        // old one-level-deeper grandchild prefetch on expand is gone: it was
+        // 1 + K sequential round-trips per expand, existing only to paint
+        // chevrons the count now paints for free.
         let store = try Self.appSource("Models/DocumentStore.swift")
         let prefetch = try Self.appSource("Models/DocumentStore+SidebarPrefetch.swift")
-        // Root load prefetches so top-level folders show chevrons before a click.
+        // Root load STILL prefetches one level so top-level folders' subfolders
+        // are warm — a bounded, one-time startup cost over a handful of roots.
         XCTAssertTrue(store.contains("prefetchChildContainerChildren(of: collections)"))
-        // Expanding a folder REFRESHES its children (2026-08-23: a sparse
-        // early fetch is not forever) AND still prefetches one level deeper.
+        // Expanding a folder fetches its own children (the names)…
         XCTAssertTrue(prefetch.contains("fetchSidebarChildren(of: document)"))
-        XCTAssertTrue(prefetch.contains("prefetchChildContainerChildren(of: children)"))
-        // Only containers are prefetched — leaf rows have nothing to reveal.
-        // (The batching refactor moved the guard from a `for … where` clause
-        // into `containersNeedingChildren`'s filter.)
+        // …and does NOT cascade a fetch per subfolder. `loadSidebarChildren`
+        // must not prefetch the expanded folder's children's children.
+        XCTAssertFalse(prefetch.contains("prefetchChildContainerChildren(of: children)"))
+        // The roots-level prefetch still fetches only containers.
         XCTAssertTrue(prefetch.contains("$0.docType == .folder"))
     }
 

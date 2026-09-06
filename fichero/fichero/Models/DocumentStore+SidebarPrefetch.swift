@@ -23,15 +23,25 @@ extension DocumentStore {
         // Expansion REFRESHES (2026-08-23, Daniel: sidebar showed 3 children
         // while the grid showed 151). The cache-first helper below made a
         // sparse early fetch permanent for the session; an explicit expand
-        // is the user asking what is in here NOW, so it answers with a fetch
-        // and leaves the cache to the chevron prefetch, where stale but
-        // instant is the point.
+        // is the user asking what is in here NOW, so it answers with a fetch.
+        //
+        // NAMES ONLY, then lazy (2026-09-06, Daniel: "opening a folder takes
+        // forever… get names, then load the rest lazily"). This ONE fetch is
+        // the folder's own children — the names/ids the tree needs, plus each
+        // child's `child_count` (the outline endpoint's `_with_child_counts`),
+        // which is all `SidebarItem.isExpandable` reads to draw a subfolder's
+        // disclosure triangle. It used to ALSO prefetch one level deeper —
+        // a `getDocumentView` per subfolder, sequentially, on the @MainActor
+        // store — so expanding a folder of K subfolders fired 1 + K round
+        // trips before it settled. That prefetch existed only to make
+        // subfolder chevrons appear (#3355/#4293); #4515 made `child_count`
+        // honest and moved the chevron onto it, so the grandchild fetch is now
+        // pure redundant cost. Each subfolder loads its own children when the
+        // user actually expands it — lazily, one level at a time.
         if let fresh = await fetchSidebarChildren(of: document),
            childrenCache[document.id] != fresh {
             childrenCache[document.id] = fresh
         }
-        let children = childrenCache[document.id] ?? []
-        await prefetchChildContainerChildren(of: children)
     }
 
     /// Fetch and cache a document's immediate children (idempotent). Does NOT
