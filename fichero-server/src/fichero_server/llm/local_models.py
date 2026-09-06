@@ -90,17 +90,27 @@ WHISPER_MODELS: dict[str, dict] = {
 # place in `MODELS_BASE`. So installed-state is asked of the runtime rather
 # than measured off disk, and there is no directory of ours to delete.
 
+# The catalog the "Add Models" picker reads. Each row is a real spaCy pipeline
+# package the grammar gate can load once installed, with its measured wheel
+# size and the one-line "why". The two SMALL models ship in the bundle (see
+# pyproject `es_core_news_sm`/`en_core_web_sm`), so they report installed on
+# first launch; everything else is an addable download. `sm`/`md`/`lg` are the
+# same pipeline at three sizes: `md`/`lg` add word vectors the SVO gate itself
+# does not read, so they are offered for the user to TEST, not asserted better.
 SPACY_MODELS: dict[str, dict] = {
     "es_core_news_sm": {
         "language": "es",
         "disk_mb": 16,
         "note": "Spanish — the SVO grammar gate. Small is enough: the gate "
-                "reads part-of-speech and person, not word vectors.",
+                "reads part-of-speech and person, not word vectors. Ships in "
+                "the app.",
     },
-    "en_core_web_sm": {
-        "language": "en",
-        "disk_mb": 15,
-        "note": "English — the same gate, for English-language material.",
+    "es_core_news_md": {
+        "language": "es",
+        "disk_mb": 45,
+        "note": "Spanish, medium. Same tagger as small plus word vectors; when "
+                "installed the gate prefers it over small. Its benefit for "
+                "16th-century orthography is UNMEASURED — add it to test.",
     },
     "es_core_news_lg": {
         "language": "es",
@@ -108,6 +118,42 @@ SPACY_MODELS: dict[str, dict] = {
         "note": "Spanish, large. Carries word vectors this gate does not use, "
                 "and its benefit for 16th-century orthography is UNMEASURED — "
                 "install it to test that, not on the assumption it is better.",
+    },
+    "en_core_web_sm": {
+        "language": "en",
+        "disk_mb": 15,
+        "note": "English — the same gate, for English-language material. Ships "
+                "in the app.",
+    },
+    "en_core_web_md": {
+        "language": "en",
+        "disk_mb": 44,
+        "note": "English, medium. Same tagger as small plus word vectors; when "
+                "installed the gate prefers it over small.",
+    },
+    "en_core_web_lg": {
+        "language": "en",
+        "disk_mb": 400,
+        "note": "English, large. Word vectors the gate does not read — add it "
+                "only to measure whether they help your material.",
+    },
+    "fr_core_news_sm": {
+        "language": "fr",
+        "disk_mb": 16,
+        "note": "French — part-of-speech and named entities for "
+                "French-language material.",
+    },
+    "de_core_news_sm": {
+        "language": "de",
+        "disk_mb": 15,
+        "note": "German — part-of-speech and named entities for "
+                "German-language material.",
+    },
+    "pt_core_news_sm": {
+        "language": "pt",
+        "disk_mb": 16,
+        "note": "Portuguese — part-of-speech and named entities for "
+                "Portuguese-language material.",
     },
 }
 

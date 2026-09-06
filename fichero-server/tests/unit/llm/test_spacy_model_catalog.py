@@ -38,13 +38,35 @@ class TestTheCatalog:
         for model_id, info in SPACY_MODELS.items():
             assert info["note"].strip(), model_id
             assert info["disk_mb"] > 0, model_id
-            assert info["language"] in {"es", "en"}, model_id
+            assert info["language"] in {"es", "en", "fr", "de", "pt"}, model_id
 
     def test_the_large_model_admits_it_is_unmeasured(self):
         # It carries word vectors this gate does not use, and nobody has
         # tested whether it reads 16th-century orthography better. Saying so
         # on the row is the difference between a choice and a guess.
         assert "UNMEASURED" in SPACY_MODELS["es_core_news_lg"]["note"]
+
+    def test_the_picker_is_not_empty_it_offers_addable_models(self):
+        # The bug this catalog fixes: the "Add Models" picker came up empty
+        # because only the two bundled small models existed. There must be
+        # more than the bundled pair to add — medium/large sizes and other
+        # languages.
+        bundled = {"es_core_news_sm", "en_core_web_sm"}
+        addable = set(SPACY_MODELS) - bundled
+        assert len(addable) >= 4, sorted(addable)
+
+    def test_medium_sizes_exist_for_the_two_gate_languages(self):
+        # `md` is what the gate prefers when installed (see spacy_ner), so it
+        # has to be an offer the user can actually accept.
+        assert "es_core_news_md" in SPACY_MODELS
+        assert "en_core_web_md" in SPACY_MODELS
+
+    @pytest.mark.parametrize(
+        "model_id", ["fr_core_news_sm", "de_core_news_sm", "pt_core_news_sm"]
+    )
+    def test_common_other_languages_are_offered(self, model_id):
+        # Users can add their own language beyond the two that ship.
+        assert model_id in SPACY_MODELS
 
 
 class TestListing:
@@ -79,7 +101,7 @@ class TestListing:
 class TestWritesRefuseRatherThanPretend:
     def test_an_unknown_model_is_rejected(self, manager):
         with pytest.raises(ValueError):
-            manager.download_spacy_model("fr_core_news_sm")
+            manager.download_spacy_model("xx_core_news_sm")
 
     def test_downloading_without_the_runtime_raises(self, manager, monkeypatch):
         import fichero_server.llm.local_models as mod
