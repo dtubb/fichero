@@ -1,5 +1,7 @@
 from types import SimpleNamespace
 
+import pytest
+
 from fichero_server.knowledge.svo_cleanup import (
     clean_svo_claims,
     collapse_dated_claims,
@@ -183,3 +185,85 @@ def test_dated_claims_keep_distinct_statements_on_one_date():
         {"date_normalized": "1830-01-01", "verb": "pagó", "object": "300 pesos"},
     ]
     assert len(collapse_dated_claims(claims)) == 2
+
+
+# ---------------------------------------------------------------------------
+# QUALITY AUDIT (Daniel: "deduping svo... they need to be good"). A single
+# realistic batch mixing GENUINE near-duplicates with GENUINE distinct claims,
+# with a measured collapse ratio and — the load-bearing half — assertions that
+# every distinct claim SURVIVES. These fail if dedup regresses to either
+# over-merging (a distinct claim disappears) or under-merging (a dup survives).
+# ---------------------------------------------------------------------------
+
+
+def test_svo_dedup_quality_collapses_dups_never_merges_distinct():
+    subject = "Andrés Restrepo"
+    batch = [
+        # --- one true statement, said four ways (all must collapse to 1) ---
+        {"verb": "otorgó", "object": "poder a Juan Pérez"},
+        {"verb": "otorgó", "object": "poder a Juan Pérez"},          # exact
+        {"verb": "otorgó", "object": "el poder a Juan Pérez"},       # determiner
+        {"verb": "otorgó", "object": "el mismo poder a Juan Pérez"}, # determiner + filler
+        # --- genuinely DISTINCT claims (every one must survive) ---
+        {"verb": "vendió", "object": "la mina a Juan Pérez"},        # different verb
+        {"verb": "otorgó", "object": "poder a Pedro Lozano"},        # different object head
+        {"verb": "pagó", "object": "300 pesos"},                     # numbers
+        {"verb": "pagó", "object": "500 pesos"},                     # different number
+        {"verb": "compró", "object": "la casa"},
+        {"verb": "compró", "object": "la casa en 1842"},             # date-extended = distinct
+    ]
+
+    cleaned = collapse_near_duplicate_claims(subject, batch)
+
+    # The 4 phrasings of "otorgó poder a Juan Pérez" collapse to 1; the other 6
+    # are all distinct. 10 → 7.
+    assert len(batch) == 10
+    assert len(cleaned) == 7
+
+    survivors = {(c["verb"], c["object"]) for c in cleaned}
+    # Every DISTINCT claim survived — no false merge.
+    for must_survive in [
+        ("vendió", "la mina a Juan Pérez"),
+        ("otorgó", "poder a Pedro Lozano"),
+        ("pagó", "300 pesos"),
+        ("pagó", "500 pesos"),
+        ("compró", "la casa"),
+        ("compró", "la casa en 1842"),
+    ]:
+        assert must_survive in survivors, f"distinct claim wrongly merged: {must_survive}"
+
+    # The repetition is gone: exactly one "otorgó … Juan Pérez" statement remains.
+    juan_statements = [c for c in cleaned if "Juan Pérez" in c["object"] and c["verb"] == "otorgó"]
+    assert len(juan_statements) == 1
+
+
+@pytest.mark.xfail(
+    reason="UNDER-MERGE: the Spanish preposition+article contractions 'al'/'del' "
+    "(and bare 'de') are not in svo_quality._FILLER_WORDS — deliberately short to "
+    "avoid over-merge — so 'poder a Juan' and 'poder al dicho Juan' stay distinct. "
+    "Policy call for the lead: widen the filler set vs. keep it conservative "
+    "(svo-quality audit 2026-09-06).",
+    strict=False,
+)
+def test_svo_dedup_spanish_contraction_al_under_merges():
+    cleaned = collapse_near_duplicate_claims(
+        "Andrés",
+        [
+            {"verb": "otorgó", "object": "poder a Juan"},
+            {"verb": "otorgó", "object": "poder al dicho Juan"},
+        ],
+    )
+    assert len(cleaned) == 1
+
+
+def test_svo_dedup_respects_word_order():
+    # Same content words, different order = different statement — must NOT
+    # collapse (statement_key keeps token order).
+    cleaned = collapse_near_duplicate_claims(
+        "Pedro",
+        [
+            {"verb": "prestó", "object": "dinero al hijo del gobernador"},
+            {"verb": "prestó", "object": "gobernador del hijo dinero"},
+        ],
+    )
+    assert len(cleaned) == 2
