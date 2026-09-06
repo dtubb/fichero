@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
 from dataclasses import dataclass
 import re
 from typing import Iterable, Protocol
@@ -113,3 +114,31 @@ def collapse_near_duplicate_claims(
         kept.append(claim)
         kept_predicates.append(predicate)
     return kept
+
+
+def collapse_dated_claims(
+    claims: Iterable[dict],
+    *,
+    near_duplicate_threshold: float = NEAR_DUPLICATE_RATIO,
+) -> list[dict]:
+    """Collapse near-duplicate DATE claim dicts, grouped by their own date.
+
+    Date claims are claim-only (no canonical entity row), so they skip the
+    per-entity loop and never met ``collapse_near_duplicate_claims``. Each row
+    carries the date as its anchor — ``date_normalized`` when the model resolved
+    one, else the as-written ``date`` — plus a ``verb``/``object`` statement. Two
+    rows for the SAME date that say the same thing are one fact; two different
+    dates are always distinct. Grouping by date and collapsing within each group
+    gives exactly that: the entity path's near-dup collapse, for the date rows.
+    """
+    grouped: dict[str, list[dict]] = defaultdict(list)
+    for claim in claims:
+        date_key = claim.get("date_normalized") or claim.get("date") or ""
+        grouped[date_key].append(claim)
+    return [
+        kept
+        for date_key, items in grouped.items()
+        for kept in collapse_near_duplicate_claims(
+            date_key, items, near_duplicate_threshold=near_duplicate_threshold
+        )
+    ]

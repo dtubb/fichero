@@ -20,6 +20,7 @@ from collections import defaultdict
 from typing import Any
 
 from fichero_server.db import db_manager
+from fichero_server.knowledge.svo_cleanup import collapse_dated_claims
 from fichero_server.models.knowledge import KnowledgeClaim, KnowledgeEntity
 from fichero_server.llm import (
     LLMConfig,
@@ -324,6 +325,22 @@ async def extract_svo_only(
                 )
                 date_items = []
             if date_items:
+                # Date claims skip the per-entity loop (entity_type None), so
+                # they never met the near-dup collapse the entity path runs. A
+                # model repeating "1830 | firmó la escritura" left both rows.
+                # Collapse within each date so a repeat of one date's statement
+                # folds while two different dates stay distinct.
+                date_before = len(date_items)
+                date_items = collapse_dated_claims(date_items)
+                if len(date_items) != date_before:
+                    logger.info(
+                        "SVO date cleanup for %s: %d in → %d kept "
+                        "(%d near-dup collapsed)",
+                        doc_name,
+                        date_before,
+                        len(date_items),
+                        date_before - len(date_items),
+                    )
                 claims_extracted += len(date_items)
                 _write_kg_rows(
                     db,

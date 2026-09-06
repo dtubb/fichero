@@ -2,6 +2,7 @@ from types import SimpleNamespace
 
 from fichero_server.knowledge.svo_cleanup import (
     clean_svo_claims,
+    collapse_dated_claims,
     collapse_near_duplicate_claims,
 )
 
@@ -145,3 +146,40 @@ def test_collapse_never_merges_across_different_subjects():
         ],
     )
     assert len(cleaned) == 1
+
+
+# ---------------------------------------------------------------------------
+# collapse_dated_claims — the same collapse for the claim-only DATE rows that
+# extract_svo_only writes outside the per-entity loop.
+# ---------------------------------------------------------------------------
+
+
+def test_dated_claims_fold_within_a_date_but_stay_distinct_across_dates():
+    claims = [
+        {"date": "1830", "date_normalized": "1830-01-01", "verb": "firmó", "object": "la escritura"},
+        # Same date, near-dup ("dicha" is notarial filler) — collapses.
+        {"date": "1830", "date_normalized": "1830-01-01", "verb": "firmó", "object": "la dicha escritura"},
+        # Same statement but a DIFFERENT date — a distinct fact, kept.
+        {"date": "1842", "date_normalized": "1842-01-01", "verb": "firmó", "object": "la escritura"},
+    ]
+    cleaned = collapse_dated_claims(claims)
+    assert len(cleaned) == 2
+    assert sorted(c["date_normalized"] for c in cleaned) == ["1830-01-01", "1842-01-01"]
+
+
+def test_dated_claims_fall_back_to_as_written_date_and_carry_fields():
+    claims = [
+        {"date": "el año de 1830", "verb": "nació", "object": "en Istmina", "source_text": "nació en Istmina"},
+        {"date": "el año de 1830", "verb": "nació", "object": "en Istmina"},  # exact dup
+    ]
+    cleaned = collapse_dated_claims(claims)
+    assert len(cleaned) == 1
+    assert cleaned[0]["source_text"] == "nació en Istmina"
+
+
+def test_dated_claims_keep_distinct_statements_on_one_date():
+    claims = [
+        {"date_normalized": "1830-01-01", "verb": "firmó", "object": "la escritura"},
+        {"date_normalized": "1830-01-01", "verb": "pagó", "object": "300 pesos"},
+    ]
+    assert len(collapse_dated_claims(claims)) == 2
