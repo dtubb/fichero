@@ -6,7 +6,13 @@ from dataclasses import dataclass
 import re
 from typing import Iterable, Protocol
 
-from fichero_server.knowledge.svo_quality import same_statement
+from fichero_server.knowledge.svo_quality import (
+    NEAR_DUPLICATE_RATIO,
+    claim_rejection,
+    same_statement,
+    statement_key,
+    trim_predicate,
+)
 
 NEAR_DUPLICATE_THRESHOLD = 0.86
 _DEHYPHENATE = re.compile(r"(?<!\d)([^\W\d_])-\s+([^\W\d_])(?!\d)")
@@ -64,3 +70,70 @@ def clean_svo_claims(
         else:
             cleaned.append(CleanedClause(verb, object_phrase, (claim.id,), tuple(transforms)))
     return cleaned
+
+
+def clean_extracted_claims(
+    subject: str,
+    claims: Iterable[dict],
+    *,
+    source_grounding: bool = False,
+    near_duplicate_threshold: float = NEAR_DUPLICATE_RATIO,
+) -> list[dict]:
+    """Apply the one shared SVO quality standard to model-extracted claim dicts.
+
+    The LLM extraction tools (``extract_svo_only`` / ``extract_all``) build one
+    claim per model assertion as a dict carrying at least ``verb`` and
+    ``object`` about an entity ``subject``, then persist it verbatim. That path
+    never went through ``svo_quality``/``dedupe`` the way the spaCy tier does, so
+    run-ons, malformed predicates and near-duplicate repetition reached the
+    stored claims untouched (#3808 follow-up). This is the seam that closes that
+    gap with the SAME rules both tiers already share.
+
+    Returns a NEW list, order preserved, with:
+
+    * run-on verbs trimmed, overflow moved into the object (``trim_predicate``);
+    * malformed / pronoun-subject / self-restating / clause-dump triples
+      dropped (``claim_rejection``);
+    * near-duplicate statements about this subject collapsed to their first
+      occurrence (``statement_key`` + ``same_statement``).
+
+    Dedup uses ``same_statement`` — the standard the display path
+    (``clean_svo_claims``) trusts — deliberately, NOT ``near_duplicate``. The
+    latter adds a prefix-extension rule ("el cargo" ⊂ "el cargo en 1830") that
+    exists to fold the spaCy parser's obj/obl double-emit; the LLM does no such
+    double-emit, and a date- or object-extended assertion it makes is a
+    genuinely distinct fact that must survive.
+
+    Conservative by construction: distinct numbers, dates and object heads are
+    never collapsed (the shared standard guarantees it), and every non-SVO field
+    on a surviving claim (``source_text``, ``epistemic_status``, ``claim_type``,
+    …) is carried through unchanged.
+
+    ``source_grounding`` is OFF by default. Model verbs/objects are readings of
+    the page, not the verbatim spans the spaCy tier emits, so applying
+    ``claim_rejection``'s grounding rule to them would reject faithful claims
+    whose surface form differs from the cited excerpt. The structural rejections
+    (pronoun subject, empty/non-word predicate, subject-restating or clause-dump
+    object) always apply.
+    """
+    kept: list[dict] = []
+    kept_predicates: list[str] = []
+    for claim in claims:
+        verb, obj = trim_predicate(claim.get("verb", ""), claim.get("object", ""))
+        source_text = claim.get("source_text") if source_grounding else None
+        if claim_rejection(subject, verb, obj, source_text) is not None:
+            continue
+        # statement_key drops a leading copy of the subject inside the object, so
+        # "otorgó Andrés poder" and "otorgó poder" compare equal.
+        _subject_key, predicate = statement_key(subject, verb, obj)
+        if any(
+            same_statement(predicate, seen, ratio=near_duplicate_threshold)
+            for seen in kept_predicates
+        ):
+            continue
+        cleaned = dict(claim)
+        cleaned["verb"] = verb
+        cleaned["object"] = obj
+        kept.append(cleaned)
+        kept_predicates.append(predicate)
+    return kept
