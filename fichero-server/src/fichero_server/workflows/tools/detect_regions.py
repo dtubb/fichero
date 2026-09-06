@@ -52,14 +52,17 @@ DETECT_REGIONS_CONFIG = {
     "provider": {
         "type": "string",
         "default": "apple",
-        "enum": ["apple", "vlm"],
+        "enum": ["apple", "vlm", "kraken"],
         "description": (
             "apple: free on-device Vision OCR (measured boxes). vlm: send the "
             "page to the vision model chosen in the Run Workflow menu (e.g. an "
             "OpenRouter model) and ask IT for word boxes — for hands Apple "
             "cannot read. VLM boxes are claimed, not measured; replies whose "
             "box text is absent from their own transcription are rejected "
-            "whole rather than rendered."
+            "whole rather than rendered. kraken: on-device neural LINE "
+            "segmentation (a polygon + baseline per line, no text) for "
+            "historical hands Apple Vision localises badly — needs the Kraken "
+            "runtime installed from Settings."
         ),
     },
 }
@@ -112,8 +115,15 @@ async def detect_regions(
     files = inputs.get("files") or state.get("input_files", [])
     documents = inputs.get("documents", [])
 
-    use_vlm = inputs.get("provider", "apple") == "vlm"
-    if use_vlm:
+    provider = inputs.get("provider", "apple")
+    use_vlm = provider == "vlm"
+    use_kraken = provider == "kraken"
+    if use_kraken:
+        # Kraken's own neural segmenter — no LLM, no prompt. It reads nothing;
+        # the baseline/polygon geometry is the whole output.
+        prompt = ""
+        effective_llm = LLMConfig(provider="kraken", model="kraken-blla")
+    elif use_vlm:
         # The boxes prompt is transcribe's own (function-local import: the
         # two tools import each other, both late, so neither loads first).
         from fichero_server.workflows.tools.transcribe import (  # noqa: PLC0415
@@ -175,7 +185,7 @@ async def detect_regions(
         library_path=state.get("library_path", ""),
         task_id=state.get("task_id"),
         tool_config=TOOL_CONFIG,
-        vision_mode="llm" if use_vlm else "apple",
+        vision_mode="kraken" if use_kraken else ("llm" if use_vlm else "apple"),
         # The user explicitly chose a VLM for BOXES — honour the request for
         # any vision model; the orphan-rejection guard is the safety net, not
         # a provider allow-list (2026-08-23, "some of these documents are

@@ -225,12 +225,13 @@ VISION_CONFIG_SCHEMA = merge_config_schema(
     {
         "vision_mode": {
             "type": "string",
-            "enum": ["auto", "apple", "llm"],
+            "enum": ["auto", "apple", "llm", "kraken"],
             "default": "auto",
             "description": (
                 "Vision engine. 'auto' picks based on the resolved "
                 "provider: apple → Apple Vision OCR; anything else → "
-                "LLM vision path."
+                "LLM vision path. 'kraken' → on-device neural line "
+                "segmentation (baselines/polygons, no text)."
             ),
             "x-hidden": True,  # Hidden: most tools only support LLM
         },
@@ -4024,7 +4025,9 @@ async def process_vision(
             if (
                 not force_ocr
                 and tool_config.supports_apple_vision
-                and vision_mode != "llm"  # LLM mode must render+call LLM, not use text layer
+                # LLM mode must render+call LLM; kraken must run its own
+                # segmenter — neither may short-circuit to the PDF text layer.
+                and vision_mode not in ("llm", "kraken")
                 and file_path.lower().endswith(".pdf")
             ):
                 layer = _try_pdf_text_layer_cached(file_path)
@@ -4209,6 +4212,28 @@ async def process_vision(
                     page_geometry = _apple_geometry_result(_vision_result)
                 # Apple Vision doesn't use LLM params, parse as text
                 parsed = text
+            elif vision_mode == "kraken":
+                # Kraken's neural segmenter finds LINES — a polygon and a
+                # baseline per written line — and reads NOTHING, so the geometry
+                # IS the whole output and the text stays empty (#4671). It works
+                # on a page IMAGE, so a PDF must be split into page images first.
+                logger.info(f"Kraken segmenter: {Path(file_path).name}")
+                if file_path.lower().endswith(".pdf"):
+                    raise ValueError(
+                        "Kraken segments page images — split the PDF into page "
+                        "images first (run Prepare Images or a split step)."
+                    )
+                from fichero_server.llm.kraken_runtime import segment_to_geometry
+                _ocr_path = _frame_true_background_removed_path(
+                    library_path, doc_id_for_file
+                ) or file_path
+                page_geometry = await asyncio.to_thread(
+                    segment_to_geometry, _ocr_path, rendition_id=None
+                )
+                # Kraken reads nothing — an empty transcript is the truthful
+                # value; the baseline/polygon geometry rides on page_geometry.
+                text = ""
+                parsed = ""
             else:
                 logger.info(f"LLM Vision: {Path(file_path).name}")
                 # Check if we should use HF Inference API for thinking models
@@ -4461,7 +4486,11 @@ async def process_vision(
             # ladder and onto the step's error payload as `error_kind`.
             _empty_failure_kind: str | None = None
             _empty_failure_detail: str | None = None
-            if not (text or "").strip() and vision_mode != "apple" and not _llm_multipage and image_uri is not None:
+            # An empty transcript is a FAILURE only for the LLM path. Apple OCR
+            # and Kraken segmentation both legitimately produce empty text (a
+            # blank page; a segmenter that reads nothing), so neither triggers
+            # the LLM retry.
+            if not (text or "").strip() and vision_mode not in ("apple", "kraken") and not _llm_multipage and image_uri is not None:
                 logger.warning(
                     f"Vision LLM returned empty for {Path(file_path).name}; "
                     f"retrying once before declaring failure"
@@ -4601,7 +4630,13 @@ async def process_vision(
                 if reference_values:
                     parsed = apply_reference_matching(parsed, reference_values)
 
-            if not (text or "").strip():
+            if not (text or "").strip() and vision_mode != "kraken":
+                # Kraken is a SEGMENTER: it reads nothing, so empty text is the
+                # expected result, not a failed transcription — its baseline/
+                # polygon geometry (page_geometry) is what this run produces and
+                # gets saved below. Every other mode treats empty text as a
+                # failure.
+                #
                 # Name the failure instead of guessing at it. `error_kind` is
                 # the machine-readable half (the UI groups per-model failure
                 # chips by it); the sentence is the operator-readable half.
