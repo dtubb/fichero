@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import logging
 import re
+import threading
 import unicodedata
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -214,6 +215,15 @@ _MODEL_PREFERENCE: dict[str, tuple[str, ...]] = {
 # ("en", "es"); values are the loaded spaCy Language objects.
 _pipelines: dict[str, object] = {}
 
+# A spaCy ``Language`` object is NOT thread-safe: calling ``nlp(text)`` mutates
+# shared per-pipe state and the shared Vocab/StringStore, so two pages extracted
+# in parallel (per-page NER fan-out, separate workflow runs) crashed on the one
+# cached pipeline. Daniel: concurrent spaCy "should DELAY not FAIL for no
+# reason." This process-global lock serialises spaCy load+inference so the
+# second caller WAITS instead of erroring. spaCy inference is GIL-bound anyway,
+# so the throughput cost of serialising is small; correctness is not.
+_spacy_lock = threading.Lock()
+
 
 def _installed_models(spacy_module) -> set[str]:
     """Which pipeline packages this interpreter can load, empty on any doubt."""
@@ -314,40 +324,45 @@ def extract_entities(text: str, language: str | None = None) -> list[EntitySpan]
         return []
 
     lang = language or detect_language(text)
-    nlp = _load_pipeline(lang)
-    if nlp is None:
-        return []
 
-    label_map = _SPACY_TO_FICHERO_ES if lang == "es" else _SPACY_TO_FICHERO_EN
-    doc = nlp(text)
+    # Serialise load + inference + Doc reads on the shared, non-thread-safe
+    # pipeline (see _spacy_lock). Concurrent callers queue here rather than
+    # crashing — "delay not fail".
+    with _spacy_lock:
+        nlp = _load_pipeline(lang)
+        if nlp is None:
+            return []
 
-    seen: dict[tuple[str, str], EntitySpan] = {}
-    for ent in doc.ents:
-        fichero_type = label_map.get(ent.label_)
-        if not fichero_type:
-            continue
-        # Display surface form: dotted paleographic text ("Antonio.de.guzman")
-        # reads naturally. Offsets stay on the original span so a highlight
-        # still lands; the cleaned form also drives dedup, so a dotted and a
-        # spaced mention of the same name collapse.
-        name = readable_surface_form(ent.text)
-        if fichero_type == "person":
-            # Stop the name at a trailing residence/role descriptor so the same
-            # person's mentions collapse to one entity instead of fragmenting.
-            name = trim_person_name(name)
-        key = (name, fichero_type)
-        if key in seen:
-            # Keep the earliest occurrence — the LLM later sees this
-            # one span and can include the parenthetical variants
-            # via alternative_spellings.
-            continue
-        seen[key] = EntitySpan(
-            text=name,
-            fichero_type=fichero_type,
-            start=ent.start_char,
-            end=ent.end_char,
-            label=ent.label_,
-        )
+        label_map = _SPACY_TO_FICHERO_ES if lang == "es" else _SPACY_TO_FICHERO_EN
+        doc = nlp(text)
+
+        seen: dict[tuple[str, str], EntitySpan] = {}
+        for ent in doc.ents:
+            fichero_type = label_map.get(ent.label_)
+            if not fichero_type:
+                continue
+            # Display surface form: dotted paleographic text ("Antonio.de.guzman")
+            # reads naturally. Offsets stay on the original span so a highlight
+            # still lands; the cleaned form also drives dedup, so a dotted and a
+            # spaced mention of the same name collapse.
+            name = readable_surface_form(ent.text)
+            if fichero_type == "person":
+                # Stop the name at a trailing residence/role descriptor so the
+                # same person's mentions collapse to one entity, not fragment.
+                name = trim_person_name(name)
+            key = (name, fichero_type)
+            if key in seen:
+                # Keep the earliest occurrence — the LLM later sees this
+                # one span and can include the parenthetical variants
+                # via alternative_spellings.
+                continue
+            seen[key] = EntitySpan(
+                text=name,
+                fichero_type=fichero_type,
+                start=ent.start_char,
+                end=ent.end_char,
+                label=ent.label_,
+            )
     return list(seen.values())
 
 

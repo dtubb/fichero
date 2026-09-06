@@ -370,3 +370,55 @@ class TestClusterAliases:
         ]
         clusters = spacy_ner.cluster_aliases(spans)
         assert len(clusters) == 2
+
+
+class TestConcurrentSpacyIsSerialisedNotFailed:
+    """Concurrent spaCy NER must DELAY, not FAIL (Daniel, 2026-09-06).
+
+    The one cached ``Language`` object is not thread-safe, so parallel page
+    extraction used to crash on it. The module lock serialises inference: a
+    second caller waits instead of erroring, and two never run ``nlp()`` at once.
+    Proven with a fake pipeline that flags any overlap — no real model needed.
+    """
+
+    def test_no_overlap_and_no_error_under_many_threads(self, monkeypatch):
+        import threading
+        import time
+
+        from fichero_server.knowledge import spacy_ner
+
+        state = {"inside": 0, "overlapped": False}
+        guard = threading.Lock()
+
+        class _FakeDoc:
+            ents: list = []
+
+        class _FakeNLP:
+            def __call__(self, text):
+                with guard:
+                    state["inside"] += 1
+                    if state["inside"] > 1:
+                        state["overlapped"] = True
+                time.sleep(0.01)  # widen the window a real crash would need
+                with guard:
+                    state["inside"] -= 1
+                return _FakeDoc()
+
+        monkeypatch.setattr(spacy_ner, "_load_pipeline", lambda lang: _FakeNLP())
+
+        errors: list[Exception] = []
+
+        def worker():
+            try:
+                spacy_ner.extract_entities("Juan Pérez vive en Madrid", language="es")
+            except Exception as exc:  # noqa: BLE001 - the whole point is no error
+                errors.append(exc)
+
+        threads = [threading.Thread(target=worker) for _ in range(8)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert errors == [], f"concurrent spaCy should not fail: {errors}"
+        assert state["overlapped"] is False, "the lock must serialise nlp() calls"
