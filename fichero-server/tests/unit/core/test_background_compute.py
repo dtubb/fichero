@@ -88,3 +88,45 @@ class TestEmbedderReceivesThreadCap:
             assert captured["threads"] == 3
         finally:
             embeddings._EMBEDDER_CACHE.pop("unit-test-model", None)
+
+
+import sys as _sys
+import threading
+
+
+@pytest.mark.skipif(_sys.platform != "darwin", reason="macOS per-thread QoS")
+class TestPerThreadQoSSeparation:
+    """The throttle is SURGICAL: only the worker thread is backgrounded, never
+    the caller. This is the guarantee behind "throttle the embedding worker, not
+    the main app" — the serving thread keeps its priority, so a big embed backlog
+    can't cause "can't connect to server" (Daniel, 2026-09-06)."""
+
+    def test_only_the_thread_that_opts_in_is_backgrounded(self):
+        # Two fresh threads: one opts into background, one does not. Only the
+        # opted-in worker is throttled — the other (a stand-in for the serving
+        # thread) keeps a normal QoS. Uses fresh threads rather than the pytest
+        # main thread so the assertion doesn't depend on the harness's own QoS.
+        seen: dict[str, int | None] = {}
+
+        def backgrounded():
+            bc.set_background_qos()
+            seen["bg"] = bc.current_thread_qos_class()
+
+        def untouched():
+            seen["plain"] = bc.current_thread_qos_class()
+
+        for target in (backgrounded, untouched):
+            t = threading.Thread(target=target)
+            t.start()
+            t.join()
+
+        assert seen["bg"] == bc._QOS_CLASS_BACKGROUND
+        assert seen["plain"] != bc._QOS_CLASS_BACKGROUND
+
+    def test_the_derivative_pool_runs_workers_at_background_qos(self):
+        # The pool's initializer must background every derivative/embed worker.
+        from fichero_server.importers import derivatives
+
+        pool = derivatives._get_executor()
+        qos = pool.submit(bc.current_thread_qos_class).result(timeout=5)
+        assert qos == bc._QOS_CLASS_BACKGROUND

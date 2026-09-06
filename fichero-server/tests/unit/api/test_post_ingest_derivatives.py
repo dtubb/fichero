@@ -392,3 +392,67 @@ class TestEmbedStageDoesNotFloodChangeEvents:
         assert any(e["type"] == "document.updated" for e in events), (
             "thumbnail stage must still announce the landed thumbnail"
         )
+
+
+class TestEmbedResumeSkipsAlreadyEmbedded:
+    """Restart-resume must not re-hog the machine re-embedding finished pages
+    ([[user-machine-always-useful]]). The open-time resume re-queues every
+    `pending` doc; a page already carrying a vector (embedded, but its status
+    flip was lost to a crash/quit) is skipped by a cheap has_embedding lookup —
+    never re-vectorized."""
+
+    def test_already_embedded_target_is_not_re_embedded(self, db, test_package, monkeypatch):
+        from fichero_server.importers import derivatives
+        from fichero_server import db as db_module
+
+        note = Document(
+            name="already embedded",
+            doc_type=DocType.file,
+            file_type=FileType.text,
+            page_content="text that already has a vector",
+            status=Status.pending,
+        )
+        db.save(note)
+
+        monkeypatch.setattr(db_module.Database, "has_embedding", lambda self, doc_id: True)
+        embed_calls: list[str] = []
+        monkeypatch.setattr(
+            db_module.Database,
+            "embed",
+            lambda self, target, **k: (embed_calls.append(target.id), True)[1],
+        )
+        monkeypatch.setattr(
+            "fichero_server.api.change_stream.emit_change", lambda *a, **k: None
+        )
+
+        derivatives._embed_stage(note.id, str(test_package))
+
+        assert embed_calls == [], "an already-embedded page must not be re-embedded"
+
+    def test_unembedded_target_is_embedded(self, db, test_package, monkeypatch):
+        from fichero_server.importers import derivatives
+        from fichero_server import db as db_module
+
+        note = Document(
+            name="fresh",
+            doc_type=DocType.file,
+            file_type=FileType.text,
+            page_content="text with no vector yet",
+            status=Status.pending,
+        )
+        db.save(note)
+
+        monkeypatch.setattr(db_module.Database, "has_embedding", lambda self, doc_id: False)
+        embed_calls: list[str] = []
+        monkeypatch.setattr(
+            db_module.Database,
+            "embed",
+            lambda self, target, **k: (embed_calls.append(target.id), True)[1],
+        )
+        monkeypatch.setattr(
+            "fichero_server.api.change_stream.emit_change", lambda *a, **k: None
+        )
+
+        derivatives._embed_stage(note.id, str(test_package))
+
+        assert note.id in embed_calls, "a page with no vector must be embedded"

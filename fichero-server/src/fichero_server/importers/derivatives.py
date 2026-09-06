@@ -344,7 +344,15 @@ def _embed_document_tree(
         _progress_expand(library, len(targets))
     for target in targets:
         try:
-            if not db.embed(target):
+            if db.has_embedding(target.id):
+                # Already embedded — resume after an interrupted import, or a
+                # crash between the vector write and the pending→completed flip,
+                # re-queues this page. Skip the recompute (has_embedding is a
+                # cheap limit(1) lookup, not a vectorization) so a restart never
+                # re-hogs the machine re-embedding finished pages
+                # ([[user-machine-always-useful]]).
+                embedded += 1
+            elif not db.embed(target):
                 outcome = getattr(db, "last_embed_outcome", None)
                 reason = getattr(outcome, "reason", None)
                 # 'unsupported'/'empty' style outcomes are not failures.
