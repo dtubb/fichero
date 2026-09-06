@@ -65,6 +65,8 @@ extension AppState {
                 let health = try okResponse.body.json
                 documentCount = health.activeLibraries ?? 0
                 backendVersion = health.backendVersion
+                // Feeds the About box "Built on" list live dep versions (seam in AppState).
+                dependencyVersions = health.dependencies?.additionalProperties ?? [:]
                 let version = health.backendVersion ?? "unknown"
                 let count = health.activeLibraries ?? 0
                 logger.info("Backend connected: v\(version), \(count) active libraries")
