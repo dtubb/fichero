@@ -333,18 +333,23 @@ def cluster_aliases(spans: list[EntitySpan]) -> dict[EntitySpan, list[str]]:
     # forms) anchor the clusters.
     by_length = sorted(spans, key=lambda s: -len(s.text))
     clusters: dict[EntitySpan, list[str]] = {}
+    tokens_of: dict[str, frozenset[str]] = {}
 
     for span in by_length:
+        st = tokens_of.setdefault(span.text, _name_tokens(span.text))
         absorbed = False
         for canonical in clusters:
             if canonical.fichero_type != span.fichero_type:
                 continue
-            ct = canonical.text.lower()
-            st = span.text.lower()
-            # Substring in either direction → cluster. Cheap proxy for
-            # alias relationship that catches parenthetical variants
-            # without an explicit list.
-            if st in ct or ct in st:
+            ct = tokens_of.setdefault(canonical.text, _name_tokens(canonical.text))
+            # WHOLE-TOKEN subset, not character substring. Raw substring merged
+            # distinct people who merely share letters — "Ana"⊂"Susana",
+            # "Juan"⊂"Juana", "Luis"⊂"Luisa", "Mari"⊂"María" — a disaster on a
+            # Spanish corpus. Requiring the shorter name's tokens to ALL be
+            # whole tokens of the longer keeps the real cases ("Davidson" and
+            # "[Deibinson]" under "Davidson [Deibinson]") and drops the false
+            # ones. Empty token sets never match.
+            if st and ct and (st <= ct or ct <= st):
                 if span.text != canonical.text and span.text not in clusters[canonical]:
                     clusters[canonical].append(span.text)
                 absorbed = True
@@ -353,6 +358,16 @@ def cluster_aliases(spans: list[EntitySpan]) -> dict[EntitySpan, list[str]]:
             clusters[span] = []
 
     return clusters
+
+
+def _name_tokens(text: str) -> frozenset[str]:
+    """Accent/case/punct-folded whole-word tokens of a name, for subset tests.
+
+    ``_fold_word`` strips surrounding brackets and accents, so "[Deibinson]"
+    and "Deibinson" fold to the same token and "María" to "maria". Empty tokens
+    (a word that was pure punctuation) are dropped.
+    """
+    return frozenset(t for t in (_fold_word(w) for w in text.split()) if t)
 
 
 __all__ = [name for name in globals() if not name.startswith("__")]

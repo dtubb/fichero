@@ -149,6 +149,7 @@ class TestTrimPersonName:
 
     def test_a_leading_title_is_kept_only_the_trailing_descriptor_is_cut(self):
         # Titles precede the name; only the trailing "vz de Tunja" is a descriptor.
+        # (Leading-title stripping is handled at the write tier, not here.)
         assert spacy_ner.trim_person_name("el capitan Galarza vz de Tunja") == "el capitan Galarza"
 
     @pytest.mark.parametrize(
@@ -270,6 +271,57 @@ class TestClusterAliases:
             ),
         ]
         clusters = spacy_ner.cluster_aliases(spans)
+        assert len(clusters) == 2
+
+    @staticmethod
+    def _person(text: str) -> "spacy_ner.EntitySpan":
+        return spacy_ner.EntitySpan(
+            text=text, fichero_type="person", start=0, end=len(text), label="PER"
+        )
+
+    @pytest.mark.parametrize(
+        "short,long",
+        [
+            ("Ana", "Susana"),
+            ("Juan", "Juana"),
+            ("Luis", "Luisa"),
+            ("Mari", "María"),
+            ("Elena", "Malena"),
+        ],
+    )
+    def test_distinct_people_sharing_letters_do_not_merge(self, short, long):
+        # The over-merge svo-quality traced: raw substring collapsed two real
+        # people into one. Whole-token matching keeps them apart.
+        clusters = spacy_ner.cluster_aliases([self._person(short), self._person(long)])
+        assert len(clusters) == 2
+
+    def test_real_parenthetical_aliases_still_merge(self):
+        # Guard against over-correction: the true alias case must STILL cluster.
+        spans = [
+            self._person("Davidson"),
+            self._person("[Deibinson]"),
+            self._person("Davidson [Deibinson]"),
+        ]
+        clusters = spacy_ner.cluster_aliases(spans)
+        assert len(clusters) == 1
+        canonical = next(iter(clusters))
+        assert canonical.text == "Davidson [Deibinson]"
+        assert "Davidson" in clusters[canonical]
+        assert "[Deibinson]" in clusters[canonical]
+
+    def test_a_short_name_still_merges_into_its_longer_form(self):
+        # "Juan" is a whole token of "Juan de la Cruz", so it clusters — the
+        # subset rule keeps genuine short-mention aliases.
+        clusters = spacy_ner.cluster_aliases(
+            [self._person("Juan"), self._person("Juan de la Cruz")]
+        )
+        assert len(clusters) == 1
+
+    def test_two_people_who_share_a_first_name_stay_apart(self):
+        # {juan,perez} vs {juan,gomez}: neither is a subset of the other.
+        clusters = spacy_ner.cluster_aliases(
+            [self._person("Juan Pérez"), self._person("Juan Gómez")]
+        )
         assert len(clusters) == 2
 
     def test_different_types_dont_cluster(self):
