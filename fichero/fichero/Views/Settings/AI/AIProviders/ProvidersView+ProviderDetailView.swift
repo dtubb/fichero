@@ -36,16 +36,26 @@ struct ProviderDetailView: View {
         provider.providerType == "omlx"
     }
 
+    /// A local runtime that answers no prompts — spaCy (grammar), Kraken (OCR),
+    /// Whisper (ASR). It is in-process, not a server, so there is no connection
+    /// to open and no chat model to reference: its readiness is "is the runtime/
+    /// model installed", shown by the Status row + the On-Device Models section.
+    ///
+    /// Both of the crash-and-clutter fixes below key off this:
+    /// - Test Connection is HIDDEN (Daniel: connecting to spaCy crashed the app;
+    ///   a no-prompt runtime has nothing to test, and firing the connect action
+    ///   at it is the crash surface — the Status row already states readiness).
+    /// - the reference-model browser is HIDDEN (it opened blank for spaCy).
+    private var isNoPromptRuntime: Bool {
+        isLocalProvider && !(catalogEntry?.supportsChat ?? true)
+    }
+
     /// The reference-model list ("Models" + "Add Models…" browser) applies to
     /// providers whose models you REFERENCE by id for chat/completion — cloud
-    /// providers and MLX. A download-only local runtime (spaCy grammar, Kraken
-    /// OCR, Whisper ASR) has no chat models to reference: its models are the
-    /// installable ones in the On-Device Models section above, so the empty
-    /// browser that used to open here (Daniel: spaCy "Add Models" showed
-    /// NOTHING) is suppressed rather than left to come up blank.
+    /// providers and MLX. A no-prompt local runtime has none, so it is
+    /// suppressed rather than left to come up blank.
     private var usesReferenceModels: Bool {
-        guard isLocalProvider else { return true }
-        return catalogEntry?.supportsChat ?? true
+        !isNoPromptRuntime
     }
 
     private var statusText: String {
@@ -75,6 +85,11 @@ struct ProviderDetailView: View {
                     }
                 }
 
+                // No-prompt local runtimes (spaCy/Kraken/Whisper) have no
+                // connection to test — firing the connect action at spaCy
+                // crashed the app (Daniel). Readiness is the Status row above
+                // plus the On-Device Models section below; no button here.
+                if !isNoPromptRuntime {
                 Section("Connection") {
                     HStack {
                         Button(action: testConnection) {
@@ -125,6 +140,7 @@ struct ProviderDetailView: View {
                                 .foregroundColor(.secondary)
                         }
                     }
+                }
                 }
 
                 // On-device runtime + its installable models, filtered to THIS
