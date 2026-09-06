@@ -63,6 +63,14 @@ async def test_extract_entities_spacy_routes_to_ner_not_llm(monkeypatch):
     assert "Popayán" in result["entities"]["locations"]
 
 
+def test_local_ner_providers_include_transformers():
+    # A pinned "transformers" NER backend must route to the NER path, not the
+    # LLM chat factory (which has no 'transformers' provider).
+    assert entities_tool._is_local_ner_provider("transformers")
+    assert eeo._is_local_ner_provider("transformers")
+    assert not entities_tool._is_local_ner_provider("openai")
+
+
 @pytest.mark.asyncio
 async def test_extract_entities_llm_provider_still_uses_the_llm(monkeypatch):
     # Guard against over-correction: a normal cloud provider must still go

@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 # must not reach the LLM chat factory (which raises "Unknown LLM provider:
 # 'spacy'"). A run-level "spacy/*" model override sets llm_config.provider to a
 # local NER provider; detected here and routed to the spaCy NER path instead.
-_LOCAL_NER_PROVIDERS = frozenset({"spacy", "spacy_ner"})
+_LOCAL_NER_PROVIDERS = frozenset({"spacy", "spacy_ner", "transformers"})
 
 # spaCy's fichero entity types → this tool's entities-dict keys.
 _NER_TYPE_TO_ENTITIES_KEY = {

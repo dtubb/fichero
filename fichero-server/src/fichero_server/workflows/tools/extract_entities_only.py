@@ -72,7 +72,7 @@ _ALL_SECTION_KEYS = ("people", "places", "organizations", "events", "dates")
 # "spacy/es_core_news_sm" set llm_config.provider="spacy", which then reached
 # chat_structured_with_fallback and died with "Unknown LLM provider: 'spacy'"
 # (Daniel, live). Detected here and routed to get_ner_provider instead.
-_LOCAL_NER_PROVIDERS = frozenset({"spacy", "spacy_ner"})
+_LOCAL_NER_PROVIDERS = frozenset({"spacy", "spacy_ner", "transformers"})
 
 # spaCy's fichero entity types → the section keys this stage upserts. `concept`,
 # `date` and `money` have no entity-row section here (dates are claim-only), so
