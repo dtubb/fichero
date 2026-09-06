@@ -1427,6 +1427,7 @@ from fichero_server.api.routes import (  # noqa: E402
     workflow_execution,
 )
 from fichero_server.api.routes.ai import (  # noqa: E402
+    hpc,
     local_inference,
     local_models,
     model_comparison,
@@ -1589,6 +1590,9 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (mcp_tools.router, "/api/mcp/tools", ["mcp"]),
     (multilingual.router, "/api", ["multilingual"]),
     (providers.router, "/api/providers", ["providers"]),
+    # /api/hpc/clusters — configure/test an HPC (Slurm) cluster connection and
+    # dry-run-submit a workflow run as an array job (HPC live-connection plan).
+    (hpc.router, "/api/hpc", ["hpc"]),
     # /api/registries/epistemic-statuses and /api/registries/claim-kinds —
     # user-extensible vocabulary for KnowledgeClaim fields (#1102).
     (registries.router, "/api", ["registries"]),
