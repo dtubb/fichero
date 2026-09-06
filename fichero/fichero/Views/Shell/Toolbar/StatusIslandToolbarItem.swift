@@ -218,10 +218,21 @@ struct StatusIslandMessage: Equatable {
     }
 
     /// Highest-urgency source first: engine failure → engine booting → import
-    /// error → import → engine background work → workflows → idle. Errors
-    /// outrank progress because a stalled connection explains why the progress
-    /// stopped; engine state outranks import state because an import cannot
-    /// proceed without the engine at all.
+    /// error → import → running workflows → the selection → ambient background
+    /// work → idle. Errors outrank progress because a stalled connection
+    /// explains why the progress stopped; engine state outranks import state
+    /// because an import cannot proceed without the engine at all.
+    ///
+    /// Ambient `backendWorkLabel` was DEMOTED below the selection (Daniel,
+    /// 2026-09-06): under the always-on-background rule it runs nearly
+    /// continuously, so ranked above the selection it PERMANENTLY masked it —
+    /// the user could never see what they had selected. It is also already
+    /// surfaced by its own dedicated `ActivityStatusToolbarItem`, so its island
+    /// echo was a redundant signal, not a needed one. A user-INITIATED workflow
+    /// run (`runningWorkflows`) still stays ABOVE the selection — Ann's
+    /// 2026-08-24 case, where echoing "98 selected" during her run read as
+    /// nothing happening — because that is transient work she kicked off, not
+    /// the ambient stream.
     /// - Parameter engineStatusTitle: the SHORT title from
     ///   `ConnectionPresentation.status(…)` — the same words the engine popover
     ///   puts at the top of the same failure. Never a raw diagnosis or a
@@ -251,12 +262,11 @@ struct StatusIslandMessage: Equatable {
         // app-authored and short by construction.
         if let importError { return .init(text: shortForm(importError), isError: true) }
         if isImporting { return .init(text: shortForm(importProgress ?? "Importing…"), isError: false) }
-        // LIVE WORK outranks the selection (Ann, 2026-08-24: she ran a
-        // workflow on 98 files and the island kept saying "98 selected" — "it
-        // should say working on processing… it's not clear to her that it's
-        // working"). The selection is usually the very thing being processed,
-        // so echoing its count during a run reads as "nothing happened".
-        if let backendWorkLabel { return .init(text: shortForm(backendWorkLabel), isError: false) }
+        // A user-INITIATED workflow run outranks the selection (Ann,
+        // 2026-08-24: she ran a workflow on 98 files and the island kept saying
+        // "98 selected" — "it should say working on processing"). Transient,
+        // kicked off by the user, and directly about the selection — so it
+        // stays above it.
         if runningWorkflows > 0 {
             let text = runningWorkflows == 1
                 ? "Running 1 workflow…"
@@ -275,6 +285,12 @@ struct StatusIslandMessage: Equatable {
         if selection.count == 1, let label = selection.label, !label.isEmpty {
             return .init(text: shortForm(label), isError: false)
         }
+        // AMBIENT background work sits BELOW the selection (Daniel, 2026-09-06):
+        // it runs nearly continuously under the always-on-background rule, so
+        // ranked above the selection it permanently masked it — and it already
+        // has its own ActivityStatusToolbarItem. It still shows when nothing is
+        // selected, above the idle folder name.
+        if let backendWorkLabel { return .init(text: shortForm(backendWorkLabel), isError: false) }
         // Nothing selected (re-ruled 2026-08-30, superseding the 2026-08-23
         // quiet idle): name the OPEN folder — the island never sits empty —
         // and say "Nothing selected" only when there is no folder either.

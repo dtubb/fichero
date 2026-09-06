@@ -42,17 +42,71 @@ struct StatusIslandToolbarTests {
 
     // MARK: - Photos-style selection indicator (#29 / Daniel #138)
 
-    @Test("live work outranks the selection (Ann 2026-08-24: '98 selected' hid the run)")
+    @Test("a user-initiated workflow run outranks the selection (Ann 2026-08-24: '98 selected' hid the run)")
     func liveWorkOutranksSelection() {
-        // Backend work keeps its OWN precedence over the workflow count (it
-        // carries a %); both sit above the selection now.
+        // Ann's case: a workflow the USER kicked off outranks echoing the
+        // selection it runs on. Ambient backendWorkLabel no longer competes
+        // here — it is demoted below the selection (2026-09-06), so with a run
+        // in flight the island names the run.
         let status = StatusIslandMessage.resolve(
             enginePhase: .ready, engineStatusTitle: "Connected",
             importError: nil, isImporting: false, importProgress: nil,
             backendWorkLabel: "Embedding — 40%", runningWorkflows: 3,
             selection: StatusIslandSelection(count: 12, noun: "images")
         )
-        #expect(status == StatusIslandMessage(text: "Embedding — 40%", isError: false))
+        #expect(status == StatusIslandMessage(text: "Running 3 workflows…", isError: false))
+    }
+
+    @Test("(d) an active selection outranks ambient background work (Daniel 2026-09-06)")
+    func selectionOutranksAmbientBackendWork() {
+        // The fix: "processing … pages" (ambient backendWorkLabel) ran nearly
+        // continuously and permanently masked the selection. With no
+        // user-initiated run or import in flight, the island now shows what the
+        // user has selected; the ambient work stays visible in its own
+        // ActivityStatusToolbarItem.
+        let multi = StatusIslandMessage.resolve(
+            enginePhase: .ready, engineStatusTitle: "Connected",
+            importError: nil, isImporting: false, importProgress: nil,
+            backendWorkLabel: "Processing 240 pages…", runningWorkflows: 0,
+            selection: StatusIslandSelection(count: 5, noun: "images")
+        )
+        #expect(multi == StatusIslandMessage(text: "5 images selected", isError: false))
+
+        let single = StatusIslandMessage.resolve(
+            enginePhase: .ready, engineStatusTitle: "Connected",
+            importError: nil, isImporting: false, importProgress: nil,
+            backendWorkLabel: "Processing 240 pages…", runningWorkflows: 0,
+            selection: StatusIslandSelection(count: 1, label: "January 1, 1933")
+        )
+        #expect(single == StatusIslandMessage(text: "January 1, 1933", isError: false))
+    }
+
+    @Test("(d) ambient background work still shows when nothing is selected")
+    func ambientBackendWorkShowsWhenNothingSelected() {
+        // Demoted BELOW the selection, not removed: with no selection it still
+        // outranks the idle folder name.
+        let status = resolve(backendWorkLabel: "Processing 240 pages…", selectionCount: 0)
+        #expect(status == StatusIslandMessage(text: "Processing 240 pages…", isError: false))
+    }
+
+    @Test("(d) a user-initiated workflow still outranks the selection (Ann preserved)")
+    func workflowStillOutranksSelectionOverAmbient() {
+        let status = StatusIslandMessage.resolve(
+            enginePhase: .ready, engineStatusTitle: "Connected",
+            importError: nil, isImporting: false, importProgress: nil,
+            backendWorkLabel: nil, runningWorkflows: 2,
+            selection: StatusIslandSelection(count: 40, noun: "images")
+        )
+        #expect(status == StatusIslandMessage(text: "Running 2 workflows…", isError: false))
+    }
+
+    @Test("(d) a live import still outranks the selection")
+    func importStillOutranksSelection() {
+        let status = resolve(
+            isImporting: true, importProgress: "Importing 4 of 900…",
+            selection: StatusIslandSelection(count: 12, noun: "images")
+        )
+        #expect(status == StatusIslandMessage(text: "Importing 4 of 900…", isError: false))
     }
 
     @Test("running workflows outrank the selection when no backend label exists")
@@ -223,10 +277,14 @@ struct StatusIslandToolbarTests {
         #expect(resolve(isImporting: true) == StatusIslandMessage(text: "Importing…", isError: false))
     }
 
-    @Test("backend work outranks workflow counts")
-    func backendWorkOutranksWorkflows() {
+    @Test("a user-initiated workflow run outranks ambient backend work (2026-09-06)")
+    func workflowsOutrankAmbientBackendWork() {
+        // Reversed from the pre-2026-09-06 order: ambient backendWorkLabel was
+        // demoted below the selection, and a fortiori below a user-initiated
+        // run. Ambient work has its own ActivityStatusToolbarItem; the island
+        // names the run the user actually started.
         let status = resolve(backendWorkLabel: "Indexing — 40%", runningWorkflows: 5)
-        #expect(status == StatusIslandMessage(text: "Indexing — 40%", isError: false))
+        #expect(status == StatusIslandMessage(text: "Running 5 workflows…", isError: false))
     }
 
     @Test("running workflows are counted, and pluralised")
