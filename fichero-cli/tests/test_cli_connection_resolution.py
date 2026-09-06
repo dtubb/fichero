@@ -236,3 +236,30 @@ class TestLoopbackTrustFailsClosed:
             token="", transport=httpx.MockTransport(lambda r: httpx.Response(200))
         )
         client.close()
+
+    def test_uds_env_bypasses_loopback_trust(self, monkeypatch):
+        """FICHERO_UDS=<path> dials the socket and must NOT read a loopback cert.
+
+        Regression: the loopback-trust block ran before the UDS check, so
+        setting FICHERO_UDS still tried to read a TLS cert from :8765 and
+        aborted every call when the engine was UDS-only (the running app).
+        """
+        from fichero_cli import client as client_module
+        from fichero_cli.client import FicheroClient
+
+        monkeypatch.setenv("FICHERO_UDS", "/tmp/fichero-uds-test.sock")
+
+        def _boom(*_a, **_k):
+            raise AssertionError(
+                "_loopback_trust must not be called for a UDS connection"
+            )
+
+        monkeypatch.setattr(client_module, "_loopback_trust", _boom)
+        # token="" skips disk discovery; no transport passed so the client
+        # builds its own UDS transport. Construction must not raise.
+        client = FicheroClient(token="")
+        try:
+            assert client._uds_path == "/tmp/fichero-uds-test.sock"
+            assert client.base_url == "http://fichero-app"
+        finally:
+            client.close()

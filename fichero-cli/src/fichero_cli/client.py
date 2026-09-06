@@ -434,11 +434,6 @@ class FicheroClient:
         # verification for now — the SPKI-pin trust path for remote CLI use
         # needs a pin store the CLI does not have yet (#4468, reported).
         verify: Any = True
-        if transport is None and self.base_url.startswith("https://"):
-            if not os.environ.get("SSL_CERT_FILE") and _is_loopback_base_url(
-                self.base_url
-            ):
-                verify = _loopback_trust(self.base_url)
         # The running APP's engine serves a private Unix socket (UDS-only
         # unless Sharing is on). When the caller uses the DEFAULT base URL,
         # nothing answers 8765, and the app's socket exists, dial the socket —
@@ -446,9 +441,18 @@ class FicheroClient:
         # `fichero health` works against the running app with zero setup
         # (Daniel, 2026-08-27: "the point is the CLI and MCP working").
         # FICHERO_UDS=path forces the socket; FICHERO_UDS=0 disables the probe.
+        # A UDS connection is a local socket with NO TLS, so it must bypass the
+        # loopback-cert trust below entirely: reading a cert from :8765 fails
+        # (connection refused) when the engine is UDS-only, which used to abort
+        # every CLI call the moment FICHERO_UDS was set.
         if transport is None and self._uds_path:
             transport = httpx.HTTPTransport(uds=self._uds_path)
             self.base_url = "http://fichero-app"
+        elif transport is None and self.base_url.startswith("https://"):
+            if not os.environ.get("SSL_CERT_FILE") and _is_loopback_base_url(
+                self.base_url
+            ):
+                verify = _loopback_trust(self.base_url)
         self._client = httpx.Client(
             base_url=self.base_url, timeout=timeout, transport=transport,
             verify=verify,
