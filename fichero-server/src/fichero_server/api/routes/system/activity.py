@@ -124,6 +124,35 @@ def _change_event_to_activity_response(event: ChangeEvent) -> ActivityResponse:
     )
 
 
+class BackgroundJob(BaseModel):
+    """One live background job (a running derivative/embed queue, …).
+
+    First-class so the Activity UI can show the user WHAT is consuming compute
+    and how far along it is ([[user-machine-always-useful]] FIX 2).
+    """
+
+    id: str
+    task_type: str
+    name: str
+    library: str = ""
+    current: int
+    total: int
+    percent: float
+    state: str  # running | stalled | paused
+
+
+class BackgroundJobsResponse(BaseModel):
+    """Snapshot of running background jobs + rough process CPU usage."""
+
+    jobs: list[BackgroundJob] = Field(default_factory=list)
+    count: int
+    # Process CPU% since the last poll (100 == one core busy; can exceed 100 on
+    # multiple cores). None on the very first poll (no interval yet) or if the
+    # sample is unavailable. Per-job attribution is intentionally not attempted.
+    process_cpu_percent: Optional[float] = None
+    cpu_count: int
+
+
 class CleanupResponse(BaseModel):
     deleted: int
     older_than: str
@@ -254,6 +283,27 @@ async def get_recent_activities(
     tracker = get_activity_tracker(str(db.path))
     activities = tracker.get_recent(limit)
     return ActivityListResponse(items=[ActivityResponse.from_activity(a) for a in activities], count=len(activities))
+
+
+@router.get("/jobs", response_model=BackgroundJobsResponse)
+async def list_background_jobs() -> BackgroundJobsResponse:
+    """Snapshot of currently-running background jobs + rough process CPU%.
+
+    Global (not per-library): the background derivative/embed pool is process-
+    wide, and the user wants to see everything consuming compute. Read-only and
+    cheap — a point-in-time read of the live progress map plus one CPU sample —
+    so the Activity UI can poll it without adding load of its own.
+    """
+    from fichero_server.core.background_compute import cpu_count, process_cpu_percent
+    from fichero_server.importers.derivatives import background_jobs_snapshot
+
+    jobs = [BackgroundJob(**job) for job in background_jobs_snapshot()]
+    return BackgroundJobsResponse(
+        jobs=jobs,
+        count=len(jobs),
+        process_cpu_percent=process_cpu_percent(),
+        cpu_count=cpu_count(),
+    )
 
 
 @router.get("/stats", response_model=ActivityStatsResponse)
