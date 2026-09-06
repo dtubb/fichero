@@ -36,7 +36,21 @@
 #
 # Also deliberately excluded from the shipped/base stack (install locally only
 # when working on those features): pykeen, torch (except as a kraken/mlx dep in
-# dev), rdflib, opencv-python-headless.
+# dev), rdflib.
+#
+# opencv-python-headless (cv2): NOT shipped/bundled. It lives ONLY in
+# pyproject's [project.optional-dependencies].image extra — it is commented out
+# of both the briefcase bundle requires and [project].dependencies for size. So
+# it is dev/optional only and correctly absent here. NOTE the gap: cv2 IS used
+# by shipped engine code (media/image_ops.py, api/routes/ingest/image_editing.py,
+# workflows/tools/remove_background_images.py — deskew, remove-background,
+# contour crop, gutter detection). Most call sites guard `import cv2` and fall
+# back to a non-cv2 path, but some do not; the OpenCV-method enhance features
+# degrade or fail in the shipped bundle. In DEV cv2 is present transitively via
+# mlx-vlm (opencv-python), which masks the gap locally.
+#
+# SYNC: fichero-server/requirements.txt is generated from pyproject and kept in
+# sync by scripts/check_requirements_matches_pyproject.py (a check_*.py gate).
 # =============================================================================
 
 # --- Web / server core ---
