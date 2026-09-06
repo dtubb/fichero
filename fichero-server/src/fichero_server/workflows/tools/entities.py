@@ -28,6 +28,25 @@ from fichero_server.llm import LLMConfig
 logger = logging.getLogger(__name__)
 
 
+# Local NER providers (spaCy) run on-device — they are NOT language models and
+# must not reach the LLM chat factory (which raises "Unknown LLM provider:
+# 'spacy'"). A run-level "spacy/*" model override sets llm_config.provider to a
+# local NER provider; detected here and routed to the spaCy NER path instead.
+_LOCAL_NER_PROVIDERS = frozenset({"spacy", "spacy_ner"})
+
+# spaCy's fichero entity types → this tool's entities-dict keys.
+_NER_TYPE_TO_ENTITIES_KEY = {
+    "person": "people",
+    "organization": "organizations",
+    "location": "locations",
+    "event": "events",
+}
+
+
+def _is_local_ner_provider(provider: object) -> bool:
+    return str(provider or "").strip().lower() in _LOCAL_NER_PROVIDERS
+
+
 def _normalize_entity_name(value: Any) -> str:
     """Normalize entity labels for stable deduplication."""
     text = " ".join(str(value or "").split()).strip()
@@ -210,6 +229,31 @@ async def extract_entities(
             "results": [],
             "artifacts": [],
             "error": "No text provided",
+        }
+
+    # spaCy / local NER: extract on-device and return the entities dict
+    # directly, never touching the LLM chat factory.
+    if _is_local_ner_provider(getattr(llm_config, "provider", None)):
+        from fichero_server.workflows.ner.providers import get_ner_provider
+
+        provider = get_ner_provider(
+            getattr(llm_config, "provider", None), getattr(llm_config, "model", None)
+        )
+        spans = await provider.extract(text, language=inputs.get("language"))
+        entities = {etype: [] for etype in entity_types}
+        for span in spans:
+            key = _NER_TYPE_TO_ENTITIES_KEY.get(str(span.type))
+            if key and key in entities and span.name:
+                entities[key].append(span.name)
+        return {
+            "entities": entities,
+            "text": text,
+            "value": entities,
+            "texts": [text],
+            "values": [entities],
+            "results": [],
+            "artifacts": [],
+            "error": None,
         }
 
     # Build prompt

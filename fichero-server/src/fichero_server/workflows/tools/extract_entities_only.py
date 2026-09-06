@@ -67,6 +67,28 @@ _ENTITY_TYPES = {
 _ALL_SECTION_KEYS = ("people", "places", "organizations", "events", "dates")
 
 
+# Local NER providers run on-device and are NOT language models — they must go
+# to the spaCy NER path, not the LLM chat factory. A run-level model override of
+# "spacy/es_core_news_sm" set llm_config.provider="spacy", which then reached
+# chat_structured_with_fallback and died with "Unknown LLM provider: 'spacy'"
+# (Daniel, live). Detected here and routed to get_ner_provider instead.
+_LOCAL_NER_PROVIDERS = frozenset({"spacy", "spacy_ner"})
+
+# spaCy's fichero entity types → the section keys this stage upserts. `concept`,
+# `date` and `money` have no entity-row section here (dates are claim-only), so
+# they are dropped, exactly as the LLM path drops everything but these four.
+_NER_TYPE_TO_SECTION = {
+    "person": "people",
+    "location": "places",
+    "organization": "organizations",
+    "event": "events",
+}
+
+
+def _is_local_ner_provider(provider: object) -> bool:
+    return str(provider or "").strip().lower() in _LOCAL_NER_PROVIDERS
+
+
 def _requested_sections(raw: object) -> set[str]:
     """Parse the ``entity_types`` config into a set of section keys.
 
@@ -318,6 +340,17 @@ async def extract_entities_only(
     extraction_sem = asyncio.Semaphore(max_in_flight)
     known_entity_ids = {entity.id for entity in db.query(KnowledgeEntity)}
 
+    # spaCy (and any local NER provider) skips the LLM entirely — this is the
+    # fix for "Unknown LLM provider: 'spacy'".
+    use_local_ner = _is_local_ner_provider(getattr(llm_config, "provider", None))
+    ner_provider = None
+    if use_local_ner:
+        from fichero_server.workflows.ner.providers import get_ner_provider
+
+        ner_provider = get_ner_provider(
+            getattr(llm_config, "provider", None), getattr(llm_config, "model", None)
+        )
+
     mentions_processed = 0
     created = 0
     reused = 0
@@ -355,47 +388,78 @@ async def extract_entities_only(
             instructions = _build_entity_only_instructions(instruction_key)
             instructions_by_language[instruction_key] = instructions
 
-        async with extraction_sem:
-            extraction = await chat_structured_with_fallback(
-                prompt=record["text"],
-                schema=_EntitiesOnly,
-                config=llm_config,
-                system=instructions,
-                include_schema_in_prompt=_entity_schema_in_prompt(llm_config),
-                permissive_guardrails=True,
+        # (canonical_name, entity_type, aliases) to upsert, from whichever
+        # extractor this run selected. The upsert loop below is shared.
+        mentions: list[tuple[str, Any, list[str]]] = []
+        if use_local_ner:
+            spans = await ner_provider.extract(
+                record["text"], language=resolution.language
             )
-        if _entities_only_is_empty(extraction) and len(record["text"].strip()) > 200:
-            logger.warning(
-                "extract_entities_only: empty entity result for %s (%d chars)",
-                doc_name,
-                len(record["text"].strip()),
-            )
+            for span in spans:
+                section_key = _NER_TYPE_TO_SECTION.get(str(span.type))
+                if section_key is None or section_key not in requested_sections:
+                    continue
+                entity_type = _ENTITY_TYPES.get(section_key)
+                if entity_type is None:
+                    continue
+                mentions.append(
+                    (str(span.name or "").strip(), entity_type, list(span.aliases or []))
+                )
+            if not mentions and len(record["text"].strip()) > 200:
+                logger.warning(
+                    "extract_entities_only: spaCy NER found no entities for %s (%d chars)",
+                    doc_name,
+                    len(record["text"].strip()),
+                )
+        else:
+            async with extraction_sem:
+                extraction = await chat_structured_with_fallback(
+                    prompt=record["text"],
+                    schema=_EntitiesOnly,
+                    config=llm_config,
+                    system=instructions,
+                    include_schema_in_prompt=_entity_schema_in_prompt(llm_config),
+                    permissive_guardrails=True,
+                )
+            if _entities_only_is_empty(extraction) and len(record["text"].strip()) > 200:
+                logger.warning(
+                    "extract_entities_only: empty entity result for %s (%d chars)",
+                    doc_name,
+                    len(record["text"].strip()),
+                )
+            for section_key, entity_type in _ENTITY_TYPES.items():
+                if section_key not in requested_sections:
+                    continue
+                for entity in getattr(extraction, section_key, []):
+                    mentions.append(
+                        (
+                            str(entity.name or "").strip(),
+                            entity_type,
+                            list(getattr(entity, "aliases", []) or []),
+                        )
+                    )
 
         written_entity_ids: list[str] = []
-        for section_key, entity_type in _ENTITY_TYPES.items():
-            if section_key not in requested_sections:
+        for canonical_name, entity_type, aliases in mentions:
+            if not canonical_name:
                 continue
-            for entity in getattr(extraction, section_key, []):
-                canonical_name = str(entity.name or "").strip()
-                if not canonical_name:
-                    continue
-                mentions_processed += 1
-                entity_id = upsert_entity(
-                    db,
-                    canonical_name=canonical_name,
-                    entity_type=entity_type,
-                    aliases=list(getattr(entity, "aliases", []) or []),
-                    source_document_id=record["doc_id"],
-                )
-                if entity_id is None:
-                    suppressed += 1
-                    continue
-                written_entity_ids.append(entity_id)
-                if entity_id in known_entity_ids:
-                    reused += 1
-                else:
-                    known_entity_ids.add(entity_id)
-                    created += 1
+            mentions_processed += 1
+            entity_id = upsert_entity(
+                db,
+                canonical_name=canonical_name,
+                entity_type=entity_type,
+                aliases=aliases,
+                source_document_id=record["doc_id"],
+            )
+            if entity_id is None:
+                suppressed += 1
+                continue
+            written_entity_ids.append(entity_id)
+            if entity_id in known_entity_ids:
+                reused += 1
+            else:
+                known_entity_ids.add(entity_id)
+                created += 1
 
         if written_entity_ids:
             emit_workflow_kg_changes(
