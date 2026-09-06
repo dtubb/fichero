@@ -271,9 +271,12 @@ extension ContentView {
     /// transition and the selection change land together; an uncached page
     /// commits after the cap anyway — navigation must never feel stuck.
     private func commitSiblingStep(to target: Document, at index: Int, in docs: [Document]) {
-        let storage = storageService
         Task { @MainActor in
-            let warm = Task { _ = try? await storage.getDisplayPlatformImage(target.id) }
+            // Warm the image the target will actually DISPLAY (the preferred
+            // rendition, not the base original — see warmPreferredDisplay) so
+            // the swap lands on background-removed straight away instead of
+            // showing the original and swapping a beat later (Daniel).
+            let warm = Task { await warmPreferredDisplay(for: target.id) }
             await withTaskGroup(of: Void.self) { group in
                 group.addTask { _ = await warm.value }
                 group.addTask { try? await Task.sleep(for: .milliseconds(140)) }
@@ -286,6 +289,40 @@ extension ContentView {
             }
             prefetchAdjacentSiblingDisplays(around: index, in: docs)
         }
+    }
+
+    /// Warm the bytes the target page will actually SHOW: the preferred
+    /// rendition (background_removed → enhanced → …, honouring the reader's
+    /// sticky role) when one exists, else the base display image.
+    ///
+    /// Mirrors `StorageDisplayImageCanvas.loadImageOnce` exactly, so the swap
+    /// finds the SAME bytes already cached — and because `RenditionService`
+    /// coalesces concurrent fetches, the canvas's own load reuses this warm
+    /// instead of racing it. Fail-safe: with no rendition service in scope (or
+    /// no non-base preferred rendition) it falls back to the base-display warm,
+    /// i.e. the previous behaviour. Best-effort throughout — a failed warm just
+    /// means the canvas fetches normally; the 140 ms cap still commits the step.
+    private func warmPreferredDisplay(for documentId: String) async {
+        #if os(macOS)
+        if let renditionService {
+            _ = await renditionService.load(documentId: documentId)
+            let displayable = renditionService.displayable(documentId: documentId)
+            let sticky = UserDefaults.standard.string(
+                forKey: ZoomableImagePreview.stickyRenditionRoleKey
+            )
+            let preferred = preferredRenditionIndex(in: displayable, stickyRole: sticky)
+            // Index 0 is the engine's primary, which the base display serves
+            // (cheaper, cached); only a non-base preferred flip target is worth
+            // the rendition fetch — same rule as loadImageOnce.
+            if preferred != 0, displayable.indices.contains(preferred) {
+                _ = try? await renditionService.contentData(
+                    documentId: documentId, renditionId: displayable[preferred].id
+                )
+                return
+            }
+        }
+        #endif
+        _ = try? await storageService.getDisplayPlatformImage(documentId)
     }
 
     /// ★ EVERY FRAME PERFECT: warm the display cache both directions around

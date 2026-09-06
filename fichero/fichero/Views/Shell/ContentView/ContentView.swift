@@ -160,6 +160,14 @@ struct ContentView: View {
     /// warming the pages either side of a turn is what makes the next flip
     /// swap instantly instead of fetching through the white-frame window.
     @Environment(StorageService.self) var storageService
+    /// Optional, fail-safe: when present, a sibling step warms the PREFERRED
+    /// rendition (background_removed → enhanced → …, honouring the sticky role)
+    /// for the target page instead of the base display, so the page arrives
+    /// already showing the rendition the reader lands on — no "loads the
+    /// original then swaps to background removed" flash (Daniel, 2026-08-24 /
+    /// 2026-09-06). nil (no rendition service in scope) → the base-display warm
+    /// still runs, i.e. today's behaviour, so this never regresses.
+    @Environment(RenditionService.self) var renditionService: RenditionService?
 
     // MARK: - State (synced with @SceneStorage for persistence)
 
@@ -239,6 +247,12 @@ struct ContentView: View {
     @State var lastChainRunTargets: [String] = []
     /// Which chain step is executing, for the rail's progress.
     @State var runningStagedStepIndex: Int?
+    /// The Task driving the current staged-chain run, held so a Stop press can
+    /// cancel it (Daniel, 2026-09-06). Cancelling the driver stops the chain
+    /// from advancing to its next step; `stopStagedChain` also cancels the step
+    /// already in flight on the engine, so Stop is a real stop, not a hidden
+    /// spinner.
+    @State var stagedChainRunTask: Task<Void, Never>?
     /// Explicit run-scope chosen from the subject chip's menu (Daniel,
     /// 2026-08-29). Outranks the automatic ladder while what it names is
     /// still visible; nil (the menu's "Automatic") follows the ladder.
