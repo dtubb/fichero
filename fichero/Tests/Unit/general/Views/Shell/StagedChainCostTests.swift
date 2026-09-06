@@ -26,7 +26,7 @@ struct StagedChainCostTests {
 
     @Test func pricedTotalSumsOnlyPricedSteps() {
         let cost = lines([0.10, 0.25, nil, 0.05])
-        #expect(cost.pricedTotal == 0.40)
+        #expect(abs(cost.pricedTotal - 0.40) < 0.0001)
         #expect(cost.pricedCount == 3)
         #expect(cost.unpricedCount == 1)
     }
@@ -67,14 +67,14 @@ struct StagedChainCostTests {
         let cost = lines([0.10, 0.20, 0.05])
         #expect(cost.hasPricedStep)
         #expect(cost.isCompletePricing)  // → "est. ≤ $0.35"
-        #expect(cost.pricedTotal == 0.35)
+        #expect(abs(cost.pricedTotal - 0.35) < 0.0001)
     }
 
     @Test func someStepsUnpricedIsAFloorWithATail() {
         let cost = lines([0.10, nil, 0.20, nil])
         #expect(cost.hasPricedStep)
         #expect(cost.isCompletePricing == false)  // → "est. ≥ $0.30 · 2 unpriced"
-        #expect(cost.pricedTotal == 0.30)
+        #expect(abs(cost.pricedTotal - 0.30) < 0.0001)
         #expect(cost.unpricedCount == 2)
     }
 
