@@ -1099,3 +1099,179 @@ async def list_models_for_provider(
         )
 
     return ModelListResponse(items=models, count=len(models))
+
+
+# =============================================================================
+# Unified local-runtime status (#4671 — one shape for four runtimes)
+#
+# MLX, spaCy, Kraken and local Whisper are all "download-then-use" local
+# runtimes, but each grew its own status/install surface (mlx-runtime jobs,
+# the spaCy model catalog, the new Kraken install endpoint, the whisper rows).
+# Settings has to render them as PEER rows with the same affordances, so this
+# gives it ONE list: per runtime an installed/available flag, a human size
+# note, and — reusing the endpoints that already exist — where to POST to
+# install and where to GET to poll. It reports STATE; it triggers nothing, so
+# no ~1 GB download ever starts as a side effect of reading this.
+# =============================================================================
+
+
+class LocalRuntimeAction(BaseModel):
+    """Where to call to install/provision a runtime (an existing endpoint)."""
+
+    method: str
+    path: str
+
+
+class LocalRuntimeRow(BaseModel):
+    """One local runtime as a uniform provider-peer row."""
+
+    provider_type: str
+    name: str
+    #: The runtime can actually act right now (usable this instant).
+    installed: bool
+    #: The row can be acted on at all on this machine/engine (e.g. spaCy needs
+    #: the [kg] extra; MLX needs Apple Silicon). False disables the install
+    #: button rather than letting a click fail.
+    available: bool
+    size_note: str
+    #: Recommended default model to provision first, when the runtime has a
+    #: notion of one (whisper -> turbo). None for runtimes without models.
+    recommended_model: Optional[str] = None
+    reason: Optional[str] = None
+    #: null when nothing to trigger (spaCy small models ship in the bundle).
+    install_action: Optional[LocalRuntimeAction] = None
+    #: Where to GET fine-grained status (job progress, per-model rows).
+    status_path: str
+
+
+class LocalRuntimeListResponse(BaseModel):
+    items: list[LocalRuntimeRow]
+    count: int
+
+
+def _mlx_runtime_row() -> LocalRuntimeRow:
+    from fichero_server.llm.mlx_runtime import get_mlx_runtime
+
+    try:
+        status = get_mlx_runtime().status()
+        provisioned = bool(status.get("provisioned"))
+        reason = None if provisioned else "Provision the MLX runtime to run local vision/OCR and text models."
+    except Exception as exc:  # noqa: BLE001 — one bad runtime must not blank the list
+        logger.warning("local-runtimes: MLX status failed: %s", exc)
+        provisioned = False
+        reason = f"MLX runtime status unavailable: {exc}"
+    return LocalRuntimeRow(
+        provider_type="mlx",
+        name="MLX (local vision & text)",
+        installed=provisioned,
+        available=True,
+        size_note="~2 GB runtime + models",
+        reason=reason,
+        install_action=LocalRuntimeAction(
+            method="POST", path="/api/local-inference/runtime/provision"
+        ),
+        status_path="/api/local-inference/runtime",
+    )
+
+
+def _spacy_runtime_row() -> LocalRuntimeRow:
+    from fichero_server.llm.local_models import LocalModelManager
+
+    try:
+        rows = LocalModelManager().list_spacy_models()
+        available = any(r.available for r in rows)
+        installed = any(r.is_downloaded for r in rows)
+        reason = None if available else next(
+            (r.unavailable_reason for r in rows if r.unavailable_reason), None
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("local-runtimes: spaCy status failed: %s", exc)
+        available = installed = False
+        reason = f"spaCy status unavailable: {exc}"
+    return LocalRuntimeRow(
+        provider_type="spacy",
+        name="spaCy (local NLP)",
+        installed=installed,
+        available=available,
+        size_note="Ships in the app (~54 MB); more languages addable",
+        reason=reason,
+        # The two small models are bundled, so the PROVIDER needs no install;
+        # adding a language/size is a per-model POST the catalog rows carry.
+        install_action=None,
+        status_path="/api/local-models?model_type=spacy",
+    )
+
+
+def _kraken_runtime_row() -> LocalRuntimeRow:
+    from fichero_server.llm.kraken_runtime import get_kraken_runtime
+
+    try:
+        status = get_kraken_runtime().status()
+        installed = bool(status.get("installed"))
+        reason = status.get("reason")
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("local-runtimes: Kraken status failed: %s", exc)
+        installed = False
+        reason = f"Kraken status unavailable: {exc}"
+    return LocalRuntimeRow(
+        provider_type="kraken",
+        name="Kraken (line segmentation)",
+        installed=installed,
+        available=True,
+        size_note="~1 GB download",
+        reason=reason,
+        install_action=LocalRuntimeAction(
+            method="POST", path="/api/local-models/kraken/install"
+        ),
+        status_path="/api/local-models/kraken/status",
+    )
+
+
+def _whisper_runtime_row() -> LocalRuntimeRow:
+    from fichero_server.llm.local_models import LocalModelManager
+    from fichero_server.llm.whisper_runtime import audio_runtime_status
+
+    try:
+        runtime = audio_runtime_status()
+        ready = bool(runtime.get("ready"))
+        rows = LocalModelManager().list_whisper_models()
+        has_model = any(r.is_downloaded for r in rows)
+        # "Installed" for whisper means it can transcribe now: a transcriber
+        # runtime AND at least one downloaded model.
+        installed = ready and has_model
+        reason = None if ready else str(runtime.get("reason") or "")
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("local-runtimes: whisper status failed: %s", exc)
+        ready = installed = False
+        reason = f"Whisper status unavailable: {exc}"
+    return LocalRuntimeRow(
+        provider_type="whisper",
+        name="Whisper (local transcription)",
+        installed=installed,
+        # The transcriber lives in the MLX runtime, so a machine without it
+        # provisioned cannot download weights yet — that gate is honest here.
+        available=ready,
+        size_note="Models ~75 MB–1.5 GB each",
+        recommended_model="turbo",
+        reason=reason,
+        install_action=LocalRuntimeAction(
+            method="POST", path="/api/local-models/download/whisper/turbo"
+        ),
+        status_path="/api/local-models?model_type=whisper",
+    )
+
+
+@router.get("/local-runtimes", response_model=LocalRuntimeListResponse)
+async def list_local_runtimes() -> LocalRuntimeListResponse:
+    """One uniform list of the four local runtimes for Settings to render.
+
+    Reports state only; it starts no installs. Each row points at the existing
+    install/poll endpoints so the UI drives them the same way for every row.
+    """
+    rows = [
+        _mlx_runtime_row(),
+        _spacy_runtime_row(),
+        _kraken_runtime_row(),
+        _whisper_runtime_row(),
+    ]
+    return LocalRuntimeListResponse(items=rows, count=len(rows))
