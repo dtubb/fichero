@@ -139,6 +139,12 @@ _FILLER_WORDS = frozenset(
     {
         "the", "a", "an", "said", "same", "aforesaid", "aforementioned",
         "el", "la", "los", "las", "un", "una", "unos", "unas",
+        # Spanish prepositions + preposition/article contractions — function
+        # words, not content, on a Spanish corpus (Daniel's Istmina archive):
+        # "poder a Juan" / "poder al dicho Juan" are one statement. A different
+        # NAME or NUMBER still survives because those are content tokens that
+        # stay on the list's far side (guarded by test).
+        "de", "del", "al",
         "dicho", "dicha", "dichos", "dichas",
         "mismo", "misma", "mismos", "mismas", "mesmo", "mesma",
     }

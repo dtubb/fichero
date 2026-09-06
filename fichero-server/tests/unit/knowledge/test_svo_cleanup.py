@@ -237,23 +237,40 @@ def test_svo_dedup_quality_collapses_dups_never_merges_distinct():
     assert len(juan_statements) == 1
 
 
-@pytest.mark.xfail(
-    reason="UNDER-MERGE: the Spanish preposition+article contractions 'al'/'del' "
-    "(and bare 'de') are not in svo_quality._FILLER_WORDS — deliberately short to "
-    "avoid over-merge — so 'poder a Juan' and 'poder al dicho Juan' stay distinct. "
-    "Policy call for the lead: widen the filler set vs. keep it conservative "
-    "(svo-quality audit 2026-09-06).",
-    strict=False,
-)
-def test_svo_dedup_spanish_contraction_al_under_merges():
+def test_svo_dedup_collapses_spanish_contraction_variants():
+    # Approved widening of _FILLER_WORDS with de/del/al: a Spanish
+    # preposition/contraction difference is not a different statement.
     cleaned = collapse_near_duplicate_claims(
         "Andrés",
         [
             {"verb": "otorgó", "object": "poder a Juan"},
             {"verb": "otorgó", "object": "poder al dicho Juan"},
+            {"verb": "otorgó", "object": "poder del rey"},  # distinct: different noun
         ],
     )
-    assert len(cleaned) == 1
+    # "poder a Juan" == "poder al dicho Juan" (function words only); "poder del
+    # rey" is a different statement (rey is a content word).
+    assert len(cleaned) == 2
+
+
+def test_widened_filler_never_merges_distinct_content():
+    # The guard the lead required: after adding de/del/al, statements differing
+    # only in CONTENT (names, nouns, numbers) MUST stay distinct.
+    cleaned = collapse_near_duplicate_claims(
+        "Andrés",
+        [
+            {"verb": "otorgó", "object": "poder a Juan"},
+            {"verb": "otorgó", "object": "poder a Pedro"},        # different name
+            {"verb": "vendió", "object": "casa de campo"},
+            {"verb": "vendió", "object": "casa de playa"},        # different noun
+            {"verb": "pagó", "object": "de 3 pesos"},
+            {"verb": "pagó", "object": "de 5 pesos"},             # different number
+            {"verb": "es", "object": "hijo del gobernador"},
+            {"verb": "es", "object": "hijo del alcalde"},         # different role noun
+        ],
+    )
+    # Every pair differs by a content token — none may collapse.
+    assert len(cleaned) == 8
 
 
 def test_svo_dedup_respects_word_order():
