@@ -181,12 +181,23 @@ final class LocalInferenceStore {
 
     func deleteModel(modelId: String) async {
         do {
-            _ = try await client.api
+            let response = try await client.api
                 .deleteLocalInferenceModelApiLocalInferenceModelsModelIdDelete(
                     path: .init(modelId: modelId)
                 )
-            downloads[modelId] = nil
-            await refreshCatalog()
+            switch response {
+            case .ok:
+                downloads[modelId] = nil
+                loadError = nil
+                await refreshCatalog()
+            case .undocumented(let statusCode, _) where statusCode == 409:
+                // spaCy models are pip packages, not files in the app's store —
+                // the backend can't delete them for us (409). Surface the exact
+                // Terminal step as guidance, not a failure the user can't act on.
+                loadError = "\(modelId) is a pip package — remove it in Terminal with: pip uninstall \(modelId)"
+            case .unprocessableContent, .undocumented:
+                loadError = "Couldn't delete \(modelId)."
+            }
         } catch {
             if error.isCancellationError { return }   // superseded — not a failure
             loadError = error.localizedDescription

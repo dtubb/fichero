@@ -47,6 +47,17 @@ struct LocalRuntimeModelsView: View {
         if showServices {
             servicesSection
         }
+        // A failed install/delete (or the spaCy pip-uninstall guidance) must be
+        // SEEN — the standalone pane that used to show store.loadError is gone,
+        // so surface it here inside the row.
+        if let error = store.loadError, !error.isEmpty {
+            Section {
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+            }
+        }
     }
 
     // MARK: Runtime (MLX)
