@@ -52,6 +52,13 @@ extension ContentView {
         .environment(conversationService)
         .environment(ErrorService.shared)
         .environment(performanceService)
+        // macOS inactive-selection (Daniel, 2026-09-06): a selected sidebar row
+        // keeps its accent name+icon only while the sidebar is the focused
+        // pane, and goes grey when focus is in the library — the mirror of the
+        // library's own `isPaneFocused` tint. `paneFocusHint` is the durable
+        // half of the pair, exactly as `ContentView+Navigation` reads it for
+        // the center pane.
+        .environment(\.sidebarPaneActive, focusedPane == .sidebar || paneFocusHint == .sidebar)
         // #4301: never let sidebar content paint outside its column. During
         // collapse the column animates below the content's laid-out width; the
         // List clips itself but the bottom toolbar strip does not, and its

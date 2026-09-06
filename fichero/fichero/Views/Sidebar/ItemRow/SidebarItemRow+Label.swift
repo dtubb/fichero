@@ -26,7 +26,9 @@ extension SidebarItemRow {
     /// Applied explicitly so the row can never inherit the native emphasized
     /// selection's white-and-bold inversion.
     var rowLabelStyle: LibrarySelectionStyle.SidebarRowLabel {
-        LibrarySelectionStyle.sidebarLabel(isSelected: isRowInSelection)
+        // `paneFocused`: a selected row's name is accent only while the sidebar
+        // is the focused pane, grey otherwise (macOS inactive-selection).
+        LibrarySelectionStyle.sidebarLabel(isSelected: isRowInSelection, paneFocused: sidebarPaneActive)
     }
 
     var itemLabel: some View {
@@ -184,8 +186,12 @@ extension SidebarItemRow {
         // Drop target: white over the solid accent platter — same rule as
         // the name (rowContentColor, #4563).
         if isDropTargeted { return .white }
-        // Selection: accent icon on the grey row fill (Finder).
-        guard !selectedDestinations.contains(item.destination) else { return .accentColor }
+        // Selection: accent icon on the grey row fill (Finder) while the
+        // sidebar is focused; grey (.secondary) when focus is in the library,
+        // in step with the name (Daniel, 2026-09-06 inactive-selection).
+        if selectedDestinations.contains(item.destination) {
+            return sidebarPaneActive ? .accentColor : .secondary
+        }
         switch item.sidebarTint {
         case .accent: return .accentColor
         case .teal: return .teal

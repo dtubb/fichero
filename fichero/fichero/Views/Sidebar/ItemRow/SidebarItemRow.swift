@@ -61,6 +61,12 @@ struct SidebarItemRow: View {
     /// Finder-style Open in New Tab / New Window for sidebar rows (#1685).
     @Environment(\.openWindow) private var openWindow
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
+    /// True while the sidebar is the focused pane. Drives the inactive-selection
+    /// grey: a selected row keeps its accent name+icon only while the sidebar
+    /// has focus, and goes `.secondary` grey when focus is in the library/center
+    /// pane (Daniel, 2026-09-06). Set by the shell on `SidebarView`; defaults
+    /// true so isolated previews still render the focused appearance.
+    @Environment(\.sidebarPaneActive) var sidebarPaneActive
     var library: LibraryManager.LibraryReference? {
         guard let libraryId = item.libraryId else { return nil }
         return libraryManager.getLibrary(id: libraryId)
@@ -300,4 +306,25 @@ struct SidebarItemRow: View {
         )
     }
 
+}
+
+// MARK: - Sidebar focus (inactive-selection grey)
+
+/// Whether the sidebar is the focused pane. The shell sets it on `SidebarView`
+/// from its `focusedPane`/`paneFocusHint` state; a selected row reads it to
+/// drop its accent name+icon to grey when focus is in the library (macOS
+/// inactive-selection semantics, Daniel 2026-09-06). An Environment value
+/// rather than a threaded parameter so it reaches deep row subtrees without
+/// plumbing through every intermediate view.
+private struct SidebarPaneActiveKey: EnvironmentKey {
+    // Default true: an isolated preview or test that doesn't model pane focus
+    // renders the focused (accent) appearance, matching the pre-existing look.
+    static let defaultValue = true
+}
+
+extension EnvironmentValues {
+    var sidebarPaneActive: Bool {
+        get { self[SidebarPaneActiveKey.self] }
+        set { self[SidebarPaneActiveKey.self] = newValue }
+    }
 }

@@ -89,20 +89,30 @@ enum LibrarySelectionStyle {
     }
 
     /// Finder/Mail: the ROW carries the selection; the item keeps its own
-    /// appearance. The `isSelected` parameter is deliberately ignored — that
-    /// is the rule, not an oversight, and `sidebarLabel(isSelected: true) ==
-    /// sidebarLabel(isSelected: false)` is how the test states it.
+    /// appearance.
     ///
     /// This is also what keeps the icon's semantic colour: nothing here
     /// re-tints it, so a green folder stays green when selected.
-    static func sidebarLabel(isSelected: Bool) -> SidebarRowLabel {
+    ///
+    /// `paneFocused` is the macOS inactive-selection rule (Daniel, 2026-09-06:
+    /// "when the sidebar is selected but the actual focus is the library, the
+    /// sidebar should be selected but GRAY, and vice versa"). The HIG's
+    /// key-window-only-colour rule the library already follows via
+    /// `labelTint(focused:)`: accent while the sidebar is the focused pane,
+    /// `.secondary` grey while focus is elsewhere. Defaults to `true` so
+    /// previews and tests that don't model focus render the focused look.
+    static func sidebarLabel(isSelected: Bool, paneFocused: Bool = true) -> SidebarRowLabel {
         // Finder's selection grammar (Daniel, 2026-08-08, screenshots on
         // file — supersedes #4371's "selection changes nothing"): the grey
         // fill carries the ROW, and the NAME and icon take the system accent,
         // exactly like Finder's sidebar and Mail's mailbox list. Weight stays
         // regular — the accent is the signal, never bolding, and never the
         // white-on-accent inversion (that is reserved for the DROP target).
-        SidebarRowLabel(color: isSelected ? .accentColor : .primary, weight: .regular)
+        // When the sidebar is NOT the focused pane the accent drops to grey —
+        // the selection persists (the native grey platter stays), only its
+        // colour signal goes quiet, so you can tell which pane has focus.
+        let color: Color = isSelected ? (paneFocused ? .accentColor : .secondary) : .primary
+        return SidebarRowLabel(color: color, weight: .regular)
     }
 }
 

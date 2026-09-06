@@ -36,6 +36,27 @@ struct SidebarSelectionStyleTests {
         #expect(LibrarySelectionStyle.sidebarLabel(isSelected: false).color == .primary)
     }
 
+    /// macOS inactive-selection (Daniel, 2026-09-06: "when the sidebar is
+    /// selected but the actual focus is the library, the sidebar should be
+    /// selected but GRAY, and vice versa"). The row stays selected — the native
+    /// grey platter persists — but its accent name+icon drops to `.secondary`
+    /// while the sidebar is not the focused pane, so you can tell which pane has
+    /// keyboard focus. Mirrors the library's own `labelTint(focused:)`.
+    @Test("an unfocused sidebar selection keeps the row but greys the accent label")
+    func unfocusedSidebarSelectionGoesGrey() {
+        #expect(LibrarySelectionStyle.sidebarLabel(isSelected: true, paneFocused: true).color == .accentColor)
+        #expect(LibrarySelectionStyle.sidebarLabel(isSelected: true, paneFocused: false).color == .secondary)
+        // The grey is never neutral primary — it must read as SELECTED-but-inactive,
+        // the same `.secondary` the library uses, not the unselected primary.
+        #expect(LibrarySelectionStyle.sidebarLabel(isSelected: true, paneFocused: false).color != .primary)
+        // Focus never touches an UNSELECTED row — it stays primary either way.
+        #expect(LibrarySelectionStyle.sidebarLabel(isSelected: false, paneFocused: false).color == .primary)
+        #expect(LibrarySelectionStyle.sidebarLabel(isSelected: false, paneFocused: true).color == .primary)
+        // And the grey label is still never white or bolded.
+        #expect(LibrarySelectionStyle.sidebarLabel(isSelected: true, paneFocused: false).color != .white)
+        #expect(LibrarySelectionStyle.sidebarLabel(isSelected: true, paneFocused: false).weight == .regular)
+    }
+
     @Test("the label is never white — the inversion belongs to the drop target only")
     func labelIsNeverWhite() {
         for isSelected in [true, false] {
@@ -193,6 +214,27 @@ struct SidebarSelectionStyleTests {
         #expect(!label.contains("backgroundProminence") && !core.contains("backgroundProminence"))
         #expect(label.contains("weight: rowLabelStyle.weight"))
         #expect(core.contains(".fontWeight(weight)"))
+    }
+
+    /// The inactive-selection grey is only real if the focus SIGNAL is wired
+    /// end to end: the shell publishes it, the row reads it, and both the name
+    /// and the icon consume it. A focus-aware `sidebarLabel` with nothing
+    /// feeding it would compile, pass the pure-function tests, and still leave
+    /// the sidebar permanently blue — so pin the wiring (Daniel, 2026-09-06).
+    @Test("the sidebar focus signal is wired shell → row → name + icon")
+    func sidebarFocusSignalIsWired() throws {
+        let row = try Self.appSource("Views/Sidebar/ItemRow/SidebarItemRow.swift")
+        let label = try Self.appSource("Views/Sidebar/ItemRow/SidebarItemRow+Label.swift")
+        let shell = try Self.appSource("Views/Shell/ContentView/Layout/ContentView+SidebarLayout.swift")
+        // The row reads the pane-focus environment value…
+        #expect(row.contains("@Environment(\\.sidebarPaneActive)"))
+        // …and feeds it to BOTH the name style and the icon tint.
+        #expect(label.contains("paneFocused: sidebarPaneActive"))
+        #expect(label.contains("sidebarPaneActive ? .accentColor : .secondary"))
+        // The shell publishes it from the same focusedPane/hint pair the
+        // library's center-pane tint uses.
+        #expect(shell.contains(".environment(\\.sidebarPaneActive,"))
+        #expect(shell.contains("focusedPane == .sidebar"))
     }
 
     /// The system's own selection fill is tinted to the shared colour, so the
