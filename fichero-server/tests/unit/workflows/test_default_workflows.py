@@ -1151,6 +1151,94 @@ class TestLoadPresetFiles:
         assert translate_node["config"].get("target_lang") == "en"
 
 
+    def test_detect_regions_kraken_preset_routes_to_kraken(self):
+        """The Kraken baseline segmenter ships as a runnable preset (blla is
+        built into the runtime — no model download), routing detect_regions to
+        the kraken provider so a user can actually RUN kraken segmentation."""
+        presets = {p["name"]: p for p in _load_preset_files()}
+        assert "Detect Regions (Kraken)" in presets, "Kraken segmenter preset must ship"
+        preset = presets["Detect Regions (Kraken)"]
+
+        assert preset.get("is_template") is True
+        assert preset.get("is_system") is True
+        assert preset.get("folder_path") == "/Detect Regions"
+
+        node_tools = {n["tool"] for n in preset["nodes"]}
+        assert node_tools == {"files", "detect_regions"}
+        detect_node = next(n for n in preset["nodes"] if n["tool"] == "detect_regions")
+        assert detect_node["config"].get("provider") == "kraken"
+
+        files_id = _node_id(preset, "files")
+        detect_id = _node_id(preset, "detect_regions")
+        for port in ("files", "documents"):
+            assert any(
+                e["source"] == files_id
+                and e["target"] == detect_id
+                and e["source_port"] == port
+                and e["target_port"] == port
+                for e in preset["edges"]
+            ), f"{port} must flow into detect_regions"
+
+    def test_transcribe_kraken_preset_routes_to_kraken_htr(self):
+        """Kraken HTR (its own baseline + a McCATMuS recognition model) ships
+        as a runnable preset, so Daniel's "kraken for text" is executable. The
+        recognition model is installed via the catalog; economy_htr surfaces a
+        clear "install a Kraken recognition model" error if it is missing."""
+        presets = {p["name"]: p for p in _load_preset_files()}
+        assert "Transcribe (Kraken)" in presets, "Kraken HTR preset must ship"
+        preset = presets["Transcribe (Kraken)"]
+
+        assert preset.get("is_template") is True
+        assert preset.get("is_system") is True
+        assert preset.get("folder_path") == "/Transcribe"
+
+        node_tools = {n["tool"] for n in preset["nodes"]}
+        assert node_tools == {"files", "economy_htr"}
+        htr_node = next(n for n in preset["nodes"] if n["tool"] == "economy_htr")
+        assert htr_node["config"].get("backend") == "kraken"
+        # A catalog model id (not a literal path) so it resolves to the app's
+        # downloaded copy, and the missing-model error can name the catalog.
+        assert htr_node["config"].get("kraken_model_path") == "kraken-mccatmus"
+
+        files_id = _node_id(preset, "files")
+        htr_id = _node_id(preset, "economy_htr")
+        for port in ("files", "documents"):
+            assert any(
+                e["source"] == files_id
+                and e["target"] == htr_id
+                and e["source_port"] == port
+                and e["target_port"] == port
+                for e in preset["edges"]
+            ), f"{port} must flow into economy_htr"
+
+    @pytest.mark.parametrize(
+        "preset_name", ["Detect Regions (Kraken)", "Transcribe (Kraken)"]
+    )
+    def test_kraken_presets_pass_execution_gate(self, preset_name):
+        """Both Kraken presets must pass the exact validation the /execute
+        endpoint runs (load via to_workflow_def + both validators), so they
+        never ship a graph the runner would 400 on."""
+        from fichero_server.models import Workflow
+        from fichero_server.workflows.runtime import to_workflow_def
+
+        preset = {p["name"]: p for p in _load_preset_files()}[preset_name]
+        workflow_def = to_workflow_def(
+            Workflow(
+                id="kraken-preset-gate",
+                name=preset["name"],
+                description=preset.get("description", ""),
+                nodes=preset["nodes"],
+                edges=preset["edges"],
+                config=preset.get("config", {}),
+                folder_path=preset.get("folder_path", "/"),
+            )
+        )
+        assert validate_workflow_connections(workflow_def) == []
+        # Preflight has no vision-tier alias to trip on (kraken nodes use no LLM
+        # alias), so it must also be clean.
+        assert validate_workflow_preflight(workflow_def) == []
+
+
 def _node_id(preset: dict, tool: str) -> str:
     for node in preset["nodes"]:
         if node["tool"] == tool:

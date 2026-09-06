@@ -59,6 +59,10 @@
   "preset_version": 2,
   "sha256": "dfa7bcfb167bcfc354ba57c092449ed8c35f463d35d83b752ab4a62dfc8a24cd"
  },
+ "detect_regions_kraken.json": {
+  "preset_version": 1,
+  "sha256": "e54a155121ffc1841c0f14f859c6f29df00e7406759787af056f20ab8472ac91"
+ },
  "detect_regions_vlm.json": {
   "preset_version": 1,
   "sha256": "10a3b0b9d87db244a8e6655b02d37f4b5c22f6e3428ec41c6be790329e2bf185"
@@ -154,6 +158,10 @@
  "transcribe_htr.json": {
   "preset_version": 8,
   "sha256": "65c3b798a9be178fae8b2e3e652ef173a2f5269d17450dc06ec31f5819a9fb53"
+ },
+ "transcribe_kraken.json": {
+  "preset_version": 1,
+  "sha256": "2e20751518bc8cf63c57836bd8dd8606c9c99a37789946e5a95a3db47081fb01"
  },
  "transcribe_manuscript.json": {
   "preset_version": 4,
