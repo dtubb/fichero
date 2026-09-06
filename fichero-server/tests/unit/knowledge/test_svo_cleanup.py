@@ -1,8 +1,8 @@
 from types import SimpleNamespace
 
 from fichero_server.knowledge.svo_cleanup import (
-    clean_extracted_claims,
     clean_svo_claims,
+    collapse_near_duplicate_claims,
 )
 
 
@@ -60,60 +60,50 @@ def test_an_added_date_is_kept_distinct():
 
 
 # ---------------------------------------------------------------------------
-# clean_extracted_claims — the LLM extraction seam (extract_svo_only /
-# extract_all). Before this, model claim dicts were persisted verbatim, so the
-# repetition/run-ons/junk Daniel saw on the Istmina run never met the shared
-# svo_quality standard. These prove the seam measurably reduces junk while
+# collapse_near_duplicate_claims — the missing piece on the LLM extraction path
+# (_extract_claims_for_entity, shared by extract_all + extract_svo_only). That
+# path already trims + rejects each claim; what it never did was collapse two
+# SURVIVING claims that say the same thing — the repetition Daniel saw on the
+# Istmina run. These prove the collapse measurably reduces repetition while
 # keeping every genuinely distinct fact.
 # ---------------------------------------------------------------------------
 
 
-def test_istmina_shaped_run_before_after_counts():
-    """A realistic per-entity batch from the LLM extractor: 9 raw claims in,
-    4 real claims out. This is the BEFORE/AFTER the wiring buys us."""
+def test_istmina_repetition_before_after_counts():
+    """A per-entity batch AS IT LEAVES the per-claim gate (already trimmed and
+    rejected): 6 valid claims in, 4 distinct claims out — the two near-dups
+    Daniel's run left standing are collapsed."""
     subject = "Andrés Restrepo"
-    raw = [
-        # Real claim.
+    kept_by_gate = [
         {"verb": "otorgó", "object": "poder a Juan Pérez", "claim_type": "action"},
-        # Exact duplicate (the model re-asserting across chunks).
+        # Exact duplicate — the model re-asserting across chunks.
         {"verb": "otorgó", "object": "poder a Juan Pérez"},
-        # Near-duplicate: a determiner ("el") inserted, same statement.
+        # Near-duplicate — a determiner ("el") inserted, same statement.
         {"verb": "otorgó", "object": "el poder a Juan Pérez"},
         # Distinct fact — different object.
         {"verb": "vendió", "object": "una mina en Istmina por 300 pesos"},
         # Distinct fact — SAME shape, different NUMBER: must survive.
         {"verb": "vendió", "object": "una mina en Istmina por 500 pesos"},
-        # Junk: empty predicate.
-        {"verb": "", "object": ""},
-        # Junk: predicate is punctuation, not a word.
-        {"verb": "]", "object": "["},
-        # Junk: object only restates the subject.
-        {"verb": "es", "object": "Andrés Restrepo"},
-        # Run-on verb (7 words): trimmed, not dropped.
-        {
-            "verb": "registró la escritura pública firmada ante el",
-            "object": "notario de Quibdó",
-        },
+        # Distinct fact — a date-extended assertion is its own fact.
+        {"verb": "ocupó", "object": "el cargo en 1830"},
     ]
 
-    cleaned = clean_extracted_claims(subject, raw)
+    cleaned = collapse_near_duplicate_claims(subject, kept_by_gate)
 
-    # BEFORE: 9 raw claims. AFTER: 4 real, distinct claims.
-    assert len(raw) == 9
+    # BEFORE: 6 surviving-but-repetitive claims. AFTER: 4 distinct claims.
+    assert len(kept_by_gate) == 6
     assert len(cleaned) == 4
 
     verbs_objects = [(c["verb"], c["object"]) for c in cleaned]
     assert ("otorgó", "poder a Juan Pérez") in verbs_objects
     assert ("vendió", "una mina en Istmina por 300 pesos") in verbs_objects
     assert ("vendió", "una mina en Istmina por 500 pesos") in verbs_objects
-    # Run-on verb capped at 4 words; overflow moved into the object.
-    assert ("registró la escritura pública", "firmada ante el notario de Quibdó") in verbs_objects
+    assert ("ocupó", "el cargo en 1830") in verbs_objects
 
 
-def test_extracted_claims_preserve_non_svo_fields():
-    subject = "N. C. Marshall"
-    cleaned = clean_extracted_claims(
-        subject,
+def test_collapse_keeps_first_occurrence_with_all_its_fields():
+    cleaned = collapse_near_duplicate_claims(
+        "Ana",
         [
             {
                 "verb": "viajó a",
@@ -121,7 +111,8 @@ def test_extracted_claims_preserve_non_svo_fields():
                 "source_text": "salí para Istmina",
                 "epistemic_status": "asserted",
                 "claim_type": "movement",
-            }
+            },
+            {"verb": "viajó a", "object": "Istmina"},  # near-dup, dropped
         ],
     )
     assert len(cleaned) == 1
@@ -130,8 +121,8 @@ def test_extracted_claims_preserve_non_svo_fields():
     assert cleaned[0]["claim_type"] == "movement"
 
 
-def test_extracted_claims_keep_distinct_numbers_and_dates():
-    cleaned = clean_extracted_claims(
+def test_collapse_keeps_distinct_numbers_and_date_extensions():
+    cleaned = collapse_near_duplicate_claims(
         "Ana",
         [
             {"verb": "pagó", "object": "3 pesos"},
@@ -143,19 +134,14 @@ def test_extracted_claims_keep_distinct_numbers_and_dates():
     assert len(cleaned) == 4
 
 
-def test_extracted_claims_drop_pronoun_subject():
-    # A subject the entity tier should never have produced, but the LLM can.
-    cleaned = clean_extracted_claims(
-        "él",
-        [{"verb": "firmó", "object": "la escritura"}],
+def test_collapse_never_merges_across_different_subjects():
+    # The helper is called per subject, so a different subject is a separate
+    # call; within one subject a leading subject copy in the object is folded.
+    cleaned = collapse_near_duplicate_claims(
+        "Andrés",
+        [
+            {"verb": "otorgó", "object": "Andrés poder a Juan"},
+            {"verb": "otorgó", "object": "poder a Juan"},
+        ],
     )
-    assert cleaned == []
-
-
-def test_extracted_claims_source_grounding_is_opt_in():
-    claim = {"verb": "compró", "object": "una casa", "source_text": "unrelated page text"}
-    # Off by default: a faithful reading whose surface differs from the excerpt
-    # is kept.
-    assert len(clean_extracted_claims("Ana", [claim])) == 1
-    # On: the grounding rule applies (verb/object must appear on the page).
-    assert clean_extracted_claims("Ana", [claim], source_grounding=True) == []
+    assert len(cleaned) == 1

@@ -36,6 +36,7 @@ from fichero_server.llm import (
     resolve_model_alias,
 )
 from fichero_server.knowledge.spacy_svo import predicate_problem
+from fichero_server.knowledge.svo_cleanup import collapse_near_duplicate_claims
 from fichero_server.knowledge.svo_quality import (
     MAX_OBJECT_WORDS,
     MAX_VERB_WORDS,
@@ -633,7 +634,24 @@ async def _extract_claims_for_entity(
                 "date_normalized": date,
                 "claim_location": place,
             })
-        return kept
+        # Collapse near-duplicates the per-claim gate above lets through: two
+        # SURVIVING claims that say the same thing ("otorgó poder" / "otorgó el
+        # poder", or a claim repeated across chunks) were both written, which is
+        # the repetition seen on the Istmina run. Same shared standard the
+        # display and batch paths use; distinct numbers/dates/objects survive.
+        deduped = collapse_near_duplicate_claims(entity_name, kept)
+        raw_count = len(result.claims)
+        if raw_count != len(deduped):
+            logger.info(
+                "SVO cleanup for %s: %d in → %d kept "
+                "(%d rejected, %d near-dup collapsed)",
+                entity_name,
+                raw_count,
+                len(deduped),
+                raw_count - len(kept),
+                len(kept) - len(deduped),
+            )
+        return deduped
     except ProviderQuotaError:
         raise
     except Exception as exc:

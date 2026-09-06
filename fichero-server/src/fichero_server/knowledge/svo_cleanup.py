@@ -8,10 +8,8 @@ from typing import Iterable, Protocol
 
 from fichero_server.knowledge.svo_quality import (
     NEAR_DUPLICATE_RATIO,
-    claim_rejection,
     same_statement,
     statement_key,
-    trim_predicate,
 )
 
 NEAR_DUPLICATE_THRESHOLD = 0.86
@@ -72,68 +70,46 @@ def clean_svo_claims(
     return cleaned
 
 
-def clean_extracted_claims(
+def collapse_near_duplicate_claims(
     subject: str,
     claims: Iterable[dict],
     *,
-    source_grounding: bool = False,
     near_duplicate_threshold: float = NEAR_DUPLICATE_RATIO,
 ) -> list[dict]:
-    """Apply the one shared SVO quality standard to model-extracted claim dicts.
+    """Collapse near-duplicate model-extracted claim dicts about one subject.
 
-    The LLM extraction tools (``extract_svo_only`` / ``extract_all``) build one
-    claim per model assertion as a dict carrying at least ``verb`` and
-    ``object`` about an entity ``subject``, then persist it verbatim. That path
-    never went through ``svo_quality``/``dedupe`` the way the spaCy tier does, so
-    run-ons, malformed predicates and near-duplicate repetition reached the
-    stored claims untouched (#3808 follow-up). This is the seam that closes that
-    gap with the SAME rules both tiers already share.
+    The LLM extraction path (``_extract_claims_for_entity``) already trims each
+    claim (``trim_predicate``) and rejects the malformed/ungrounded ones
+    (``claim_rejection`` + ``predicate_problem``). What it never did was collapse
+    two SURVIVING claims that say the same thing — a model re-asserting "otorgó
+    poder" as "otorgó el poder", or repeating a claim across chunks, left both
+    rows standing. That is the repetition Daniel saw on the Istmina run.
 
-    Returns a NEW list, order preserved, with:
+    Each claim is a dict carrying ``verb`` and ``object`` about an entity
+    ``subject``. Returns the surviving claims in order, first occurrence kept,
+    every field carried through untouched (nothing is mutated).
 
-    * run-on verbs trimmed, overflow moved into the object (``trim_predicate``);
-    * malformed / pronoun-subject / self-restating / clause-dump triples
-      dropped (``claim_rejection``);
-    * near-duplicate statements about this subject collapsed to their first
-      occurrence (``statement_key`` + ``same_statement``).
-
-    Dedup uses ``same_statement`` — the standard the display path
-    (``clean_svo_claims``) trusts — deliberately, NOT ``near_duplicate``. The
-    latter adds a prefix-extension rule ("el cargo" ⊂ "el cargo en 1830") that
-    exists to fold the spaCy parser's obj/obl double-emit; the LLM does no such
-    double-emit, and a date- or object-extended assertion it makes is a
-    genuinely distinct fact that must survive.
-
-    Conservative by construction: distinct numbers, dates and object heads are
-    never collapsed (the shared standard guarantees it), and every non-SVO field
-    on a surviving claim (``source_text``, ``epistemic_status``, ``claim_type``,
-    …) is carried through unchanged.
-
-    ``source_grounding`` is OFF by default. Model verbs/objects are readings of
-    the page, not the verbatim spans the spaCy tier emits, so applying
-    ``claim_rejection``'s grounding rule to them would reject faithful claims
-    whose surface form differs from the cited excerpt. The structural rejections
-    (pronoun subject, empty/non-word predicate, subject-restating or clause-dump
-    object) always apply.
+    Uses ``same_statement`` — the standard the display path (``clean_svo_claims``)
+    trusts — deliberately, NOT ``near_duplicate``. The latter adds a
+    prefix-extension rule ("el cargo" ⊂ "el cargo en 1830") that exists to fold
+    the spaCy parser's obj/obl double-emit; the LLM does no such double-emit, and
+    a date- or object-extended assertion it makes is a distinct fact that must
+    survive. Distinct numbers, dates and object heads are never collapsed.
     """
     kept: list[dict] = []
     kept_predicates: list[str] = []
     for claim in claims:
-        verb, obj = trim_predicate(claim.get("verb", ""), claim.get("object", ""))
-        source_text = claim.get("source_text") if source_grounding else None
-        if claim_rejection(subject, verb, obj, source_text) is not None:
-            continue
-        # statement_key drops a leading copy of the subject inside the object, so
-        # "otorgó Andrés poder" and "otorgó poder" compare equal.
-        _subject_key, predicate = statement_key(subject, verb, obj)
+        # statement_key folds surface noise and drops a leading copy of the
+        # subject inside the object, so "otorgó Andrés poder" and "otorgó poder"
+        # compare equal.
+        _subject_key, predicate = statement_key(
+            subject, claim.get("verb", ""), claim.get("object", "")
+        )
         if any(
             same_statement(predicate, seen, ratio=near_duplicate_threshold)
             for seen in kept_predicates
         ):
             continue
-        cleaned = dict(claim)
-        cleaned["verb"] = verb
-        cleaned["object"] = obj
-        kept.append(cleaned)
+        kept.append(claim)
         kept_predicates.append(predicate)
     return kept
