@@ -282,24 +282,19 @@ def test_private_model_profile_rejects_cloud_provider_in_preflight(monkeypatch):
     assert "Private Cloud" in errors[0]
 
 
-def test_paleography_review_preset_is_single_model_and_passes_preflight(monkeypatch):
-    """The 2026-08-26 redesign: Paleographer Review replaces the ensemble.
-    Single model per run (no provider_name/$vision_* aliases anywhere — the
-    user picks the model at run time), so preflight must pass with only a
-    plain vision default configured."""
+def test_paleography_review_needs_a_generative_vision_model(monkeypatch):
+    """The 2026-08-26 redesign: Paleographer Review replaces the ensemble —
+    single model per run, no provider_name/$vision_* aliases (the user picks the
+    model at run time).
+
+    Daniel (2026-09-06): its review passes are GENERATIVE VISION, and Apple has
+    no on-device generative-vision model on macOS 26. So a plain apple-vision
+    (OCR) default is NOT enough — preflight refuses clearly; only a
+    generation-capable vision model (cloud, or opt-in MLX) satisfies it."""
     import json
     from pathlib import Path
 
     monkeypatch.delenv("FICHERO_LOCAL_ONLY", raising=False)
-    monkeypatch.setattr(
-        "fichero_server.db.app.get_app_db",
-        lambda: _fake_db(
-            settings={
-                "default_vision_provider": "apple",
-                "default_vision_model": "apple-vision",
-            }
-        ),
-    )
 
     preset_path = (
         Path(__file__).resolve().parents[3]
@@ -319,6 +314,33 @@ def test_paleography_review_preset_is_single_model_and_passes_preflight(monkeypa
         nodes=[NodeDef(**n) for n in preset["nodes"]],
         edges=preset["edges"],
     )
+
+    # Only OCR (apple-vision) configured → refuse clearly (Apple can't generate).
+    monkeypatch.setattr(
+        "fichero_server.db.app.get_app_db",
+        lambda: _fake_db(
+            settings={
+                "default_vision_provider": "apple",
+                "default_vision_model": "apple-vision",
+            }
+        ),
+    )
+    errors = validate_workflow_llm_preflight(
+        workflow, LLMConfig(provider="", model="")
+    )
+    assert errors, "review with only OCR vision default must refuse"
+    assert any("generation-capable vision model" in e for e in errors), errors
+
+    # A generation-capable vision model configured (as the Vision category
+    # default) → passes.
+    monkeypatch.setattr(
+        "fichero_server.db.app.get_app_db",
+        lambda: _fake_db(
+            category_defaults={"vision": ("openai", "gpt-5")},
+            models_by_provider={"openai": [_model("gpt-5", ["text", "vision"])]},
+        ),
+    )
+    monkeypatch.setattr("fichero_server.llm.get_api_key", lambda provider: "sk-test")
     errors = validate_workflow_llm_preflight(
         workflow, LLMConfig(provider="", model="")
     )

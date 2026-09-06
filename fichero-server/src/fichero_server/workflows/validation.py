@@ -347,6 +347,24 @@ def _require_interactive_model(provider: str, model: str) -> None:
     )
 
 
+def _no_apple_generative_vision_message(label: str) -> str:
+    """The clear keyless refusal for a generative-VISION node (Daniel, 2026-09-06).
+
+    Apple has NO on-device generative-vision model on macOS 26 — Apple Vision is
+    OCR (recognition-only) and Apple Intelligence is text-only and refuses images
+    (see ``_apple_vision_dispatch``). So a node that must GENERATE from an image
+    cannot run on Apple; it needs a cloud vision model or opt-in MLX. This is a
+    hardware limitation, stated plainly, not a broken preset — and never papered
+    over by pretending Apple can do it (which would die mid-run).
+    """
+    return (
+        f"'{label}' needs a generation-capable vision model, which is not "
+        "configured — Apple has no on-device generative-vision model on macOS 26 "
+        "(Apple Vision is OCR; Apple Intelligence is text-only). Configure a cloud "
+        "vision model in Settings, or enable MLX and download a model."
+    )
+
+
 def _require_generative_model(tool_def: ToolDef, node: NodeDef, llm_config: LLMConfig) -> None:
     """Raise when a parse-the-answer tool resolves to a recognition-only model (#4345).
 
@@ -375,13 +393,10 @@ def _require_generative_model(tool_def: ToolDef, node: NodeDef, llm_config: LLMC
     provider, model = effective.provider, effective.model
     if not is_recognition_only_vision_model(provider, model):
         return
-    raise ValueError(
-        f"'{tool_def.display_name}' needs a generation-capable vision model, "
-        f"which is not configured — the current vision model ({provider}/"
-        f"{model or 'apple-vision'}) is on-device OCR, which returns recognized "
-        "text and cannot answer a prompt. Configure a vision-capable LLM as the "
-        "Vision default in Settings, or set one on this node."
-    )
+    # A generative tool resolved to recognition-only Apple Vision OCR. Apple has
+    # no on-device generative-vision model to substitute (Daniel, 2026-09-06), so
+    # refuse clearly — cloud vision or opt-in MLX. Never auto-swap to MLX.
+    raise ValueError(_no_apple_generative_vision_message(tool_def.display_name or node.tool))
 
 
 def _preflight_node_error(node: NodeDef, llm_config: LLMConfig) -> str | None:
@@ -483,22 +498,40 @@ def _preflight_node_error(node: NodeDef, llm_config: LLMConfig) -> str | None:
                     exc,
                 )
                 cat_default = None
-            if cat_default:
-                provider, model = cat_default
-            elif (
-                capability == "vision"
-                and not provider
-                and not tool_def.requires_generative_model
+            # Does this node need a GENERATION-capable model? A vision tool that
+            # answers a prompt (vision_mode="llm"), or any requires_generative_model
+            # tool, cannot be served by recognition-only Apple Vision OCR (#4345).
+            needs_generative = (
+                tool_def.requires_generative_model
+                or _node_config(node).get("vision_mode") == "llm"
+            )
+            from fichero_server.llm import is_recognition_only_vision_model
+
+            if cat_default and not (
+                needs_generative and is_recognition_only_vision_model(*cat_default)
             ):
-                # Clean install, no Vision default, no cloud key: fall back to
-                # on-device Apple Vision (OCR) so recognition-vision presets run
-                # out of the box (Daniel's local-first goal). Apple is
-                # is_builtin — no key, always present on macOS 26. Generative
-                # vision tools are deliberately NOT covered: they have no
-                # on-device option and must still be configured, so they fail
-                # preflight loudly rather than pretend Apple OCR can answer a
-                # prompt (the #4345 rule stays intact).
-                provider, model = "apple", "apple-vision"
+                # A configured default wins — UNLESS this is a generative node and
+                # the default is recognition-only OCR (can't answer a prompt);
+                # then fall through to the on-device / refuse logic below.
+                provider, model = cat_default
+            elif not provider:
+                # Clean install, no usable default, no cloud provider chosen.
+                # Daniel (2026-09-06): fall back to ON-DEVICE Apple; MLX is opt-in
+                # only, NEVER auto-selected here.
+                if needs_generative:
+                    if capability == "vision":
+                        # Apple has NO on-device generative-vision model — refuse
+                        # clearly rather than pretend (would die at run time).
+                        raise ValueError(
+                            _no_apple_generative_vision_message(
+                                tool_def.display_name or node.tool
+                            )
+                        )
+                    # Text generation: Apple's on-device generative model.
+                    provider, model = "apple", "apple-intelligence"
+                elif capability == "vision":
+                    # Recognition-vision (OCR): free on-device Apple Vision.
+                    provider, model = "apple", "apple-vision"
 
         if provider or model:
             from fichero_server.llm import (

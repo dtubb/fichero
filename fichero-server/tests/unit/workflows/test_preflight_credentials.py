@@ -173,45 +173,41 @@ def test_keyless_fresh_install_passes_preflight_for_every_default_workflow(
     monkeypatch.setattr("fichero_server.db.app.get_app_db", lambda: fresh_db)
     monkeypatch.setattr("fichero_server.llm.get_api_key", lambda provider: None)
 
-    # The ONLY preset allowed to fail keyless preflight: Translate (DeepL)
-    # exists specifically to use the DeepL cloud API — keyless, it must fail
-    # AT PREFLIGHT with the provider named (the second #4325 acceptance
-    # criterion), not mid-run.
+    # Translate (DeepL) exists specifically to use the DeepL cloud API — keyless
+    # it must fail AT PREFLIGHT naming the provider (the #4325 criterion), and is
+    # never silently rerouted to Apple (an explicit cloud choice).
     keyed_presets = {"Translate (DeepL)"}
 
-    # #4345: the second class of honest keyless refusal. Group Same Documents
-    # json-parses a VISION answer, and the keyless vision default is Apple
-    # Vision OCR — a recognition pass that ignores the prompt. It used to pass
-    # preflight and then die mid-run on "Expecting value: line 1 column 1";
-    # now it refuses up front, naming the capability to configure.
-    # 2026-09-01 (Daniel: "Apple Vision → CSV failed"): the same class, three
-    # more presets. `table_extract` and `convert` ask a model to LAY OUT a
-    # page as CSV / HTML / Markdown / SVG; their own VisionToolConfig has
-    # always said supports_apple_vision=False, but only mid-run — so a
-    # keyless install dispatched, priced and logged the run before refusing.
-    # The refusal moved to preflight; the verdict is unchanged.
+    # DANIEL'S RULING (2026-09-06): keyless, a GENERATIVE-VISION node refuses
+    # clearly — Apple has NO on-device generative-vision model on macOS 26 (Apple
+    # Vision is OCR; Apple Intelligence is text-only and refuses images), and MLX
+    # is opt-in, never auto. So every preset that must GENERATE from an image —
+    # vision_mode="llm" transcribe/review (the paleography/HTR family, which
+    # DECLARED they need LLM vision) and the requires_generative_model vision
+    # tools (analyze/convert/table/similarity) — refuses at preflight with a
+    # clear, actionable message (configure cloud vision, or enable+download MLX).
+    # This replaces the earlier hollow apple-vision OCR "pass" (garbage on
+    # archaic hands). Text-generative presets still pass on Apple Intelligence.
     generative_vision_presets = {
-        "Group Same Documents",
         "Accounts → Spreadsheet (CSV)",
-        "Extract Table",
         "AI Convert to HTML",
         "AI Convert to Markdown",
         "AI Redraw as SVG",
-        # analyze declares requires_generative_model since 2026-09-03 — the
-        # paleography derivations refuse keyless at preflight instead of
-        # failing mid-run on apple-vision.
-        "Regesto (Archival Abstract)",
+        "English Secretary Hand (16th–17th C.)",
+        "Extract Table",
+        "Group Same Documents",
+        "Latin Paleography",
         "Modernización (Spanish)",
+        "Paleografía Española (s. XVIII–XIX)",
+        "Paleografía Española (s. XVI–XVII)",
+        "Paleographer Review",
+        "Regesto (Archival Abstract)",
+        "Transcribe (Auto-Detect)",
+        "Transcribe + Review (Pipeline)",
+        "Transcribe HTR",
+        "Transcribe Paleography",
         "Translate to English (Historical)",
     }
-
-    # 2026-08-26 redesign: the Pipeline preset DELEGATES to the paleography
-    # and review workflows, whose staged review passes need a configured,
-    # generation-capable vision model — the keyless Apple-OCR default cannot
-    # review anything. Refusing up front with the model named is the honest
-    # keyless behaviour (same philosophy as the class above), and the
-    # refusal must SAY what to configure.
-    delegating_presets = {"Transcribe + Review (Pipeline)"}
 
     failures: dict[str, list[str]] = {}
     for preset in _load_preset_files():
@@ -231,15 +227,9 @@ def test_keyless_fresh_install_passes_preflight_for_every_default_workflow(
             assert errors, f"{preset['name']}: expected keyless preflight failure"
             assert any("DeepL" in e and "API key" in e for e in errors), errors
         elif preset["name"] in generative_vision_presets:
-            assert errors, f"{preset['name']}: expected keyless preflight failure"
+            assert errors, f"{preset['name']}: expected keyless preflight refusal"
             assert any(
-                "generation-capable vision model" in e and "not configured" in e
-                for e in errors
-            ), errors
-        elif preset["name"] in delegating_presets:
-            assert errors, f"{preset['name']}: expected keyless preflight failure"
-            assert any(
-                "on-device model" in e or "not configured" in e for e in errors
+                "generation-capable vision model" in e for e in errors
             ), errors
         elif errors:
             failures[preset["name"]] = errors

@@ -1623,12 +1623,46 @@ class TestTranscriptionPresetConvention:
 
 _PRESET_NAMES = sorted(p["name"] for p in _load_preset_files())
 
+# Daniel (2026-09-06): keyless, generative-VISION presets REFUSE clearly — Apple
+# has no on-device generative-vision model on macOS 26 (Apple Vision is OCR;
+# Apple Intelligence is text-only), and MLX is opt-in, never auto. So every
+# preset that must GENERATE from an image (vision_mode="llm" transcribe/review,
+# or a requires_generative_model vision tool — analyze/convert/table/similarity)
+# expects a clear preflight refusal keyless, NOT a pass. Text-generative presets
+# still pass on Apple Intelligence. DeepL still fails keyless (explicit cloud).
+_KEYLESS_EXPECTED_REFUSALS = {
+    # generative-vision (needs a vision LLM Apple can't provide)
+    "Accounts → Spreadsheet (CSV)",
+    "AI Convert to HTML",
+    "AI Convert to Markdown",
+    "AI Redraw as SVG",
+    "English Secretary Hand (16th–17th C.)",
+    "Extract Table",
+    "Group Same Documents",
+    "Latin Paleography",
+    "Modernización (Spanish)",
+    "Paleografía Española (s. XVIII–XIX)",
+    "Paleografía Española (s. XVI–XVII)",
+    "Paleographer Review",
+    "Regesto (Archival Abstract)",
+    "Transcribe (Auto-Detect)",
+    "Transcribe + Review (Pipeline)",
+    "Transcribe HTR",
+    "Transcribe Paleography",
+    "Translate to English (Historical)",
+}
+# NOTE: Translate (DeepL) is NOT here — this gate does not stub get_api_key, so
+# its credential check does not fire and it passes (its keyless refusal is
+# asserted in test_preflight_credentials, which does stub the keychain).
+
 
 @pytest.mark.parametrize("preset_name", _PRESET_NAMES)
 def test_every_default_preset_passes_execution_gate(
     preset_name: str, monkeypatch: pytest.MonkeyPatch
 ):
-    """Every shipped preset must clear the real /execute validation gate."""
+    """Every shipped preset must clear the real /execute validation gate, EXCEPT
+    the generative-vision + explicit-cloud presets that refuse clearly keyless
+    (see _KEYLESS_EXPECTED_REFUSALS — a hardware/limitation refusal, not a bug)."""
     from fichero_server.models import Workflow
     from fichero_server.workflows.runtime import to_workflow_def
 
@@ -1663,9 +1697,20 @@ def test_every_default_preset_passes_execution_gate(
         *validate_workflow_connections(workflow_def),
         *validate_workflow_preflight(workflow_def),
     ]
-    assert errors == [], (
-        f"preset {preset_name!r} fails the /execute validation gate: {errors}"
-    )
+    if preset_name in _KEYLESS_EXPECTED_REFUSALS:
+        # Connection graph must still be clean; only the LLM preflight refuses.
+        assert validate_workflow_connections(workflow_def) == [], (
+            f"{preset_name!r} has a connection-graph error: "
+            f"{validate_workflow_connections(workflow_def)}"
+        )
+        assert errors, (
+            f"{preset_name!r} was expected to REFUSE keyless (no on-device "
+            "generative-vision / explicit cloud) but passed the gate"
+        )
+    else:
+        assert errors == [], (
+            f"preset {preset_name!r} fails the /execute validation gate: {errors}"
+        )
 
 
 class TestGlobalOnlyDefaultWorkflows:

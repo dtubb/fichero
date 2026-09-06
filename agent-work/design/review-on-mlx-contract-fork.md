@@ -1,10 +1,55 @@
 # Review-on-MLX vs the #4345 keyless-refusal contract — decision memo
 
 **Date:** 2026-09-06
-**Status:** PARKED — awaiting Daniel. No code committed for this fork; the tree is clean.
-**For:** Daniel (his #1 return decision)
-**Raised by:** backend lane (integration). Driving-execution lead cannot unpark a
-documented product contract Daniel explicitly deferred; this memo is the hand-off.
+**Status:** RESOLVED — Daniel ruled; implemented. See "Decision" below.
+**For:** Daniel — DECIDED.
+**Raised by:** backend lane (integration).
+
+---
+
+## Decision (Daniel, 2026-09-06) — implemented
+
+**"they can fall back to apple. mlx has to be turned on by user, and then
+download models ... we try apple stuff, mlx requires downloading, that's user
+decision."**
+
+Resolution = **Apple fallback, MLX opt-in** — with a hardware caveat that
+narrows it:
+
+- **Text-generative** nodes → fall back to Apple's on-device generative model
+  (**apple / apple-intelligence**); pass keyless, run out of the box.
+- **Vision-generative** nodes (vision_mode="llm" transcribe/review; the
+  requires_generative_model vision tools — analyze/convert/table/similarity) →
+  **refuse clearly keyless.** Apple has NO on-device generative-vision model on
+  macOS 26: Apple Vision is OCR (recognition-only) and Apple Intelligence is
+  text-only and refuses images (`_apple_vision_dispatch` raises). This is
+  Daniel's own stated exception ("if Apple genuinely can't serve, refuse
+  clearly") — the message points to a cloud vision model or opt-in MLX. It is a
+  hardware limitation, not a bug, and is NEVER papered over by pretending Apple
+  can do it (that would die mid-run) and NEVER auto-routed to MLX.
+- **MLX = opt-in only**: never an automatic fallback, never auto-selected,
+  never auto-provisioned.
+- **Explicit cloud** providers (DeepL/OpenAI) stay gated keyless — a user's
+  explicit choice is never rerouted.
+
+**Consequence for the demo:** keyless on-device REVIEW / paleography / any
+generative-vision transcription is NOT possible on macOS 26 (Apple can't do
+generative vision) — it needs a cloud key or opt-in MLX. The core
+paleography/HTR presets therefore refuse keyless with a clear message rather
+than silently producing Apple-Vision OCR garbage on archaic hands.
+
+**Implemented in:** `workflows/validation.py` (`_preflight_node_error` +
+`_require_generative_model`: text-generative → apple-intelligence;
+vision-generative → clear refusal via `_no_apple_generative_vision_message`),
+`workflows/subworkflow.py` (provider-agnostic preset children), and the tests
+`test_preflight_credentials.py` + `test_default_workflows.py` (the
+generative-vision set is asserted to refuse clearly keyless; text-generative
+passes; DeepL gated). The `default_local_generative_model` helper drafted
+earlier is NOT wired (MLX opt-in) and left unused.
+
+---
+
+The original analysis that led to the decision is retained below for the record.
 
 ---
 

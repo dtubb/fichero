@@ -215,7 +215,19 @@ def resolve_sub_workflow_ref(workflow_ref: str, state: State | None = None) -> W
 
         for preset in _load_preset_files():
             if workflow_ref in {str(preset.get("id", "")), str(preset.get("name", ""))}:
-                return WorkflowDef.model_validate(preset)
+                child = WorkflowDef.model_validate(preset)
+                # A shipped preset that names NO workflow-level provider/model is
+                # provider-agnostic: WorkflowDef defaults them to a generic cloud
+                # model (openai/gpt-4o), but these are NODE workflows — each node
+                # resolves its own model (category default, then the on-device
+                # fallback). A cloud default injected here masks that per-node
+                # resolution and, keyless, fails preflight on a model the run
+                # never uses (mirrors apply_default_provider_model's node rule).
+                if "provider" not in preset:
+                    child.provider = ""
+                if "model" not in preset:
+                    child.model = ""
+                return child
     except Exception:
         return None
     return None
