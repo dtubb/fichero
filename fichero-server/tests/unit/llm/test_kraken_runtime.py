@@ -381,6 +381,118 @@ def test_a_crashed_segmenter_reports_its_own_last_words(
         kraken_runtime.segment_to_geometry("/tmp/page.png")
 
 
+# --- recognition (segment + read, tied to baselines) ------------------------
+
+
+def _read_line(x0: float, y0: float, x1: float, y1: float, text: str) -> dict:
+    line = _line(x0, y0, x1, y1)
+    line["text"] = text
+    return line
+
+
+def test_recognition_ties_each_read_line_to_its_baseline(
+    runtime_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Per-line HTR: every box carries the text Kraken read AND the baseline it
+    read it from, and char spans index that line's slice of the transcript."""
+    _mark_installed(runtime_home)
+
+    class Completed:
+        stdout = _payload(
+            [_read_line(100, 200, 900, 300, "vecino de la ciudad"),
+             _read_line(100, 400, 500, 500, "de Santa Fe")]
+        )
+        stderr = ""
+
+    monkeypatch.setattr(kraken_runtime.subprocess, "run", lambda *a, **k: Completed())
+
+    result = kraken_runtime.recognize_to_geometry(
+        "/tmp/page.png", "/models/mccatmus.mlmodel",
+        model_id="kraken-mccatmus", rendition_id="rend-7",
+    )
+
+    assert result.provider == "kraken"
+    assert result.rendition_id == "rend-7"
+    assert result.source == "kraken-htr"
+    # page_content: the whole transcript, lines joined by newlines.
+    assert result.text == "vecino de la ciudad\nde Santa Fe"
+    assert [b.text for b in result.boxes] == ["vecino de la ciudad", "de Santa Fe"]
+    # Each box stamps the catalog model id and keeps its baseline.
+    assert result.boxes[0].model == "kraken-mccatmus"
+    assert result.boxes[0].metadata["baseline_px"] == [[100.0, 300.0], [900.0, 300.0]]
+    # char spans index the joined transcript EXACTLY (verified by slicing back).
+    for box in result.boxes:
+        assert result.text[box.char_start:box.char_end] == box.text
+
+
+def test_recognition_char_spans_are_exact_even_for_identical_lines(
+    runtime_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Two lines that read the same must map to DIFFERENT spans — a text search
+    would tie both to the first occurrence; the running cursor does not."""
+    _mark_installed(runtime_home)
+
+    class Completed:
+        stdout = _payload(
+            [_read_line(100, 200, 900, 300, "ídem"),
+             _read_line(100, 400, 900, 500, "ídem")]
+        )
+        stderr = ""
+
+    monkeypatch.setattr(kraken_runtime.subprocess, "run", lambda *a, **k: Completed())
+
+    result = kraken_runtime.recognize_to_geometry("/tmp/p.png", "/m.mlmodel")
+
+    assert result.text == "ídem\nídem"
+    assert (result.boxes[0].char_start, result.boxes[0].char_end) == (0, 4)
+    assert (result.boxes[1].char_start, result.boxes[1].char_end) == (5, 9)
+
+
+def test_recognition_stamps_the_path_when_no_model_id_given(
+    runtime_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _mark_installed(runtime_home)
+
+    class Completed:
+        stdout = _payload([_read_line(10, 20, 90, 30, "abc")])
+        stderr = ""
+
+    monkeypatch.setattr(kraken_runtime.subprocess, "run", lambda *a, **k: Completed())
+
+    result = kraken_runtime.recognize_to_geometry("/tmp/p.png", "/models/x.mlmodel")
+    assert result.boxes[0].model == "/models/x.mlmodel"
+
+
+def test_recognition_of_a_blank_page_says_produced_nothing(
+    runtime_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _mark_installed(runtime_home)
+
+    class Completed:
+        stdout = _payload([])
+        stderr = ""
+
+    monkeypatch.setattr(kraken_runtime.subprocess, "run", lambda *a, **k: Completed())
+
+    result = kraken_runtime.recognize_to_geometry("/tmp/p.png", "/m.mlmodel")
+    assert result.boxes == []
+    assert geometry_status(result) is OCRGeometryStatus.PRODUCED_NOTHING
+
+
+def test_recognition_failure_surfaces_the_models_last_words(
+    runtime_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _mark_installed(runtime_home)
+
+    def explode(*args: object, **kwargs: object) -> None:
+        raise subprocess.CalledProcessError(1, "python", stderr="RuntimeError: bad model")
+
+    monkeypatch.setattr(kraken_runtime.subprocess, "run", explode)
+
+    with pytest.raises(KrakenSegmentationError, match="bad model"):
+        kraken_runtime.recognize_to_geometry("/tmp/p.png", "/m.mlmodel")
+
+
 # --- sparse honesty ---------------------------------------------------------
 
 

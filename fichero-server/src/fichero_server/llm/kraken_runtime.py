@@ -475,6 +475,170 @@ def segment_to_geometry(
     )
 
 
+_RECOGNIZE_SCRIPT = """
+import json, sys
+from PIL import Image
+from kraken import blla, rpred
+from kraken.lib import models
+image_path, model_path = sys.argv[1], sys.argv[2]
+image = Image.open(image_path)
+if image.mode != "RGB":
+    image = image.convert("RGB")
+# blla's neural baseline segmentation gives us the lines; rpred reads each one
+# with the recognition model, in the SAME order — so prediction i belongs to
+# segmented line i, and every line keeps its own baseline/polygon geometry.
+segmentation = blla.segment(image)
+net = models.load_any(model_path)
+seg_lines = getattr(segmentation, "lines", None)
+if seg_lines is None and isinstance(segmentation, dict):
+    seg_lines = segmentation.get("lines", [])
+predictions = list(rpred.rpred(net, image, segmentation))
+lines = []
+for index, line in enumerate(seg_lines or []):
+    if isinstance(line, dict):
+        baseline, boundary = line.get("baseline"), line.get("boundary")
+    else:
+        baseline = getattr(line, "baseline", None)
+        boundary = getattr(line, "boundary", None)
+    record = predictions[index] if index < len(predictions) else None
+    text = "" if record is None else str(getattr(record, "prediction", record) or "")
+    lines.append({
+        "text": text,
+        "baseline": [[float(x), float(y)] for x, y in (baseline or [])],
+        "polygon": [[float(x), float(y)] for x, y in (boundary or [])],
+    })
+sys.stdout.write("__FICHERO_KRAKEN__" + json.dumps(
+    {"width": image.width, "height": image.height, "lines": lines}
+))
+"""
+
+
+def recognize_lines(
+    image_path: str | Path,
+    model_path: str,
+    home: Path | None = None,
+) -> dict[str, object]:
+    """Segment + RECOGNISE one image; raw per-line text plus pixel geometry.
+
+    Unlike :func:`segment_lines` (baselines only, no reading), this runs the
+    recognition model over each segmented line so every line comes back with
+    the text Kraken read AND the baseline/polygon it read it from. Runs in the
+    Kraken venv, same subprocess/marker protocol as the segmenter.
+    """
+    interpreter = require_python_path(home)
+    try:
+        completed = subprocess.run(
+            [str(interpreter), "-c", _RECOGNIZE_SCRIPT, str(image_path), str(model_path)],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        tail = (exc.stderr or exc.stdout or "").strip().splitlines()
+        raise KrakenSegmentationError(
+            f"Kraken recognition failed: {tail[-1] if tail else exc.returncode}"
+        ) from exc
+    marker = "__FICHERO_KRAKEN__"
+    if marker not in completed.stdout:
+        raise KrakenSegmentationError(
+            "The recogniser produced no payload; "
+            f"stderr: {(completed.stderr or '').strip()[-400:]}"
+        )
+    return json.loads(completed.stdout.split(marker, 1)[1])
+
+
+def recognize_to_geometry(
+    image_path: str | Path,
+    model_path: str,
+    *,
+    model_id: str | None = None,
+    rendition_id: str | None = None,
+    home: Path | None = None,
+) -> OCRGeometryResult:
+    """Segment + recognise one image into the shared OCR geometry vocabulary.
+
+    The result is a full transcript (``result.text`` = the lines joined by
+    newlines) whose every line is TIED to the baseline it was read from: each
+    box carries the recognised ``text`` plus its ``polygon_px``/``baseline_px``
+    in page pixels, and ``char_start``/``char_end`` index that line's slice of
+    ``result.text`` — so the reader can anchor text to the page and the pairs
+    are ground-truth for HTR training. Pure on-device Kraken, no LLM.
+
+    ``model_id`` is the catalog id to stamp on the boxes (e.g. "kraken-mccatmus")
+    when ``model_path`` is a resolved filesystem path; falls back to the path.
+    """
+    payload = recognize_lines(image_path, model_path, home=home)
+    width = float(payload.get("width") or 0)
+    height = float(payload.get("height") or 0)
+    if width <= 0 or height <= 0:
+        raise KrakenSegmentationError(
+            f"Kraken reported an unusable pixel frame for {image_path}"
+        )
+
+    stamped_model = model_id or str(model_path)
+    boxes: list[OCRGeometryBox] = []
+    texts: list[str] = []
+    cursor = 0
+    for index, line in enumerate(payload.get("lines") or []):
+        polygon = [(float(x), float(y)) for x, y in line.get("polygon") or []]
+        if len(polygon) < 3:
+            continue
+        xs = [point[0] for point in polygon]
+        ys = [point[1] for point in polygon]
+        x0, x1 = max(0.0, min(xs)), min(width, max(xs))
+        y0, y1 = max(0.0, min(ys)), min(height, max(ys))
+        if x1 <= x0 or y1 <= y0:
+            continue
+        text = str(line.get("text") or "")
+        # char_start/char_end index the line's slice of the joined transcript.
+        # Assigned as we build (a running cursor + 1 per newline) so the mapping
+        # is EXACT even when two lines read identically — a search would tie
+        # both to the first occurrence.
+        char_start = cursor
+        char_end = cursor + len(text)
+        cursor = char_end + 1  # + the "\n" that will join this line to the next
+        texts.append(text)
+        boxes.append(
+            OCRGeometryBox(
+                text=text,
+                bbox=[x0 / width, y0 / height, (x1 - x0) / width, (y1 - y0) / height],
+                level=OCRGeometryLevel.LINE,
+                provider=_PROVIDER,
+                model=stamped_model,
+                source="kraken-htr",
+                char_start=char_start,
+                char_end=char_end,
+                metadata={
+                    "line_index": index,
+                    "polygon_px": [[x, y] for x, y in polygon],
+                    "baseline_px": [
+                        [float(x), float(y)] for x, y in line.get("baseline") or []
+                    ],
+                    "pixel_frame": {"width": width, "height": height},
+                },
+            )
+        )
+
+    if not boxes:
+        return geometry_unavailable(
+            status=OCRGeometryStatus.PRODUCED_NOTHING,
+            provider=_PROVIDER,
+            model=stamped_model,
+            reason="Kraken recognised this image and found no text lines.",
+            source="kraken-htr",
+        )
+
+    return OCRGeometryResult(
+        text="\n".join(texts),
+        provider=_PROVIDER,
+        model=stamped_model,
+        boxes=boxes,
+        source="kraken-htr",
+        rendition_id=rendition_id,
+        metadata={"pixel_frame": {"width": width, "height": height}},
+    )
+
+
 @dataclass
 class KrakenInstallJob:
     """One background Kraken install, with coarse but real progress.
@@ -656,6 +820,8 @@ __all__ = [
     "is_installed",
     "kraken_runtime_dir",
     "python_path",
+    "recognize_lines",
+    "recognize_to_geometry",
     "remove",
     "require_python_path",
     "runtime_status",
