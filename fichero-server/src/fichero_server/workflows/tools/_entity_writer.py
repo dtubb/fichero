@@ -333,6 +333,46 @@ def _strip_admin_qualifiers(tokens: list[str]) -> list[str]:
     return tokens
 
 
+# Role / title / honorific / article words that, ALONE, name an office rather
+# than a person. Superset of the speaker-title alternation in
+# ``_SPEAKER_BEFORE_RE`` (~"alcalde|cabildo|notary|don|doña|señor|…"), extended
+# with the Spanish-colonial roles the corpus is full of. Stored accent-folded
+# and lowercased so they match ``_tokenise_lower(_fold_accents(name))``.
+# svo-quality proved upsert_entity was creating "ALCALDE" and "EL SEÑOR JUEZ 20"
+# as PERSON rows — a role with no human. The reject below fires only when EVERY
+# token is one of these (or a bare number), so "el alcalde Pedro Nieto" keeps
+# its real name and survives.
+_PERSON_NONNAME_TOKENS = frozenset({
+    # articles / connectors
+    "the", "el", "la", "los", "las", "le", "les", "de", "del", "al", "y",
+    # honorifics
+    "don", "dona", "fray", "sor", "san", "santo", "santa",
+    "senor", "senora", "senorita", "licenciado", "lic",
+    "doctor", "dr", "bachiller", "maestre", "maestro",
+    # roles / titles (speaker regex + corpus)
+    "witness", "petitioner", "deponent", "scribe", "alcalde", "cabildo",
+    "notary", "king", "queen", "viceroy", "judge", "priest", "presbyter",
+    "juez", "gobernador", "governador", "escribano", "escrivano",
+    "regidor", "corregidor", "alguacil", "capitan", "alferez", "sargento",
+    "general", "teniente", "cacique", "principal", "indio", "india",
+    "indios", "indias", "cura", "obispo", "encomendero", "senores",
+})
+
+
+def _is_role_only_person_name(name: str) -> bool:
+    """True when a name is ONLY role/title/article/number tokens — no person.
+
+    "ALCALDE", "EL SEÑOR JUEZ 20", "los señores" → True (office, not a human).
+    "el alcalde Pedro Nieto", "Juan de Guzmán" → False (a real name token
+    survives). Empty/unparseable names are NOT our reject (return False) — other
+    guards own that.
+    """
+    tokens = _tokenise_lower(_fold_accents(name))
+    if not tokens:
+        return False
+    return all(tok.isdigit() or tok in _PERSON_NONNAME_TOKENS for tok in tokens)
+
+
 # Embedding auto-merge precision gate (#1907)
 # -------------------------------------------
 # A high e5-large cosine alone over-merges surface-distinct but
@@ -1606,6 +1646,20 @@ def upsert_entity(
             "upsert_entity: rejected pronoun entity %r (%s) — names no one (#4666)",
             canonical_name,
             entity_type,
+        )
+        return None
+
+    # A bare role or title is not a person (svo-quality). Both the spaCy and LLM
+    # tiers emit "ALCALDE" / "EL SEÑOR JUEZ 20" as PERSON entities — an office
+    # with no human — which then anchor statements to the office. Rejected here,
+    # at the one door every extractor writes through, for both tiers. A role
+    # FOLLOWED by a real name ("el alcalde Pedro Nieto") keeps a non-role token
+    # and survives.
+    _type_val = entity_type.value if hasattr(entity_type, "value") else str(entity_type)
+    if _type_val == "person" and _is_role_only_person_name(canonical_name):
+        logger.info(
+            "upsert_entity: rejected role-only person %r — a title, not a name (svo-quality)",
+            canonical_name,
         )
         return None
 

@@ -4,6 +4,8 @@ These helpers wire structured-extraction outputs into the existing
 KnowledgeEntity + KnowledgeClaim KG layer (#728).
 """
 
+import pytest
+
 from fichero_server.models.knowledge import (
     ClaimCurationState,
     ClaimSuppressionRule,
@@ -18,6 +20,72 @@ from fichero_server.models.knowledge import (
     ClaimType,
 )
 from fichero_server.models import Document, DocType
+
+
+class TestRoleOnlyPersonReject:
+    """A bare role/title is an office, not a person (svo-quality).
+
+    upsert_entity was creating "ALCALDE" and "EL SEÑOR JUEZ 20" as PERSON rows
+    — anchoring statements to an office with no human. The reject fires at this
+    one door for BOTH the spaCy and LLM tiers. The guard against over-rejection:
+    a role FOLLOWED by a real name must still be created.
+    """
+
+    def _rows(self, db, name):
+        return db.query(KnowledgeEntity, canonical_name=name, entity_type=EntityType.person)
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "ALCALDE",
+            "EL SEÑOR JUEZ 20",
+            "los señores",
+            "don",
+            "el cabildo",
+            "escribano",
+            "el gobernador",
+        ],
+    )
+    def test_role_only_person_is_rejected(self, db, name):
+        from fichero_server.workflows.tools._entity_writer import upsert_entity
+
+        assert upsert_entity(db, canonical_name=name, entity_type=EntityType.person) is None
+        assert self._rows(db, name) == []
+
+    def test_a_role_followed_by_a_real_name_is_kept(self, db):
+        from fichero_server.workflows.tools._entity_writer import upsert_entity
+
+        entity_id = upsert_entity(
+            db, canonical_name="el alcalde Pedro Nieto", entity_type=EntityType.person
+        )
+        assert entity_id is not None
+        loaded = db.get(KnowledgeEntity, entity_id)
+        assert loaded.canonical_name == "el alcalde Pedro Nieto"
+
+    def test_a_plain_person_name_is_unaffected(self, db):
+        from fichero_server.workflows.tools._entity_writer import upsert_entity
+
+        assert upsert_entity(
+            db, canonical_name="Juan de Guzmán", entity_type=EntityType.person
+        ) is not None
+
+    def test_the_same_role_word_is_kept_for_a_non_person_type(self, db):
+        # "Cabildo" the institution is a legitimate organization; only PERSON
+        # rows are rejected for being role-only.
+        from fichero_server.workflows.tools._entity_writer import upsert_entity
+
+        assert upsert_entity(
+            db, canonical_name="Cabildo", entity_type=EntityType.organization
+        ) is not None
+
+    def test_the_predicate_directly(self):
+        from fichero_server.workflows.tools._entity_writer import _is_role_only_person_name
+
+        assert _is_role_only_person_name("EL SEÑOR JUEZ 20") is True
+        assert _is_role_only_person_name("alcalde") is True
+        assert _is_role_only_person_name("el alcalde Pedro Nieto") is False
+        assert _is_role_only_person_name("Eugenio Córdoba") is False
+        assert _is_role_only_person_name("") is False
 
 
 class TestUpsertEntity:
