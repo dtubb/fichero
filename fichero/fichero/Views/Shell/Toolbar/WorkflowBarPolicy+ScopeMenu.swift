@@ -45,6 +45,17 @@ extension WorkflowBarPolicy {
         override chosen: RunScope?
     ) -> RunScope {
         if let chosen, overrideStillVisible(chosen, in: snapshot) {
+            // A folder-contents override is keyed to the FOLDER, not to a frozen
+            // child list — refresh its ids from the live snapshot so a count
+            // that only filled in AFTER the choice (children load async) is
+            // still honoured (2026-09-06).
+            if case .folderContents(let folderId, let name, _) = chosen {
+                return .folderContents(
+                    folderId: folderId,
+                    folderName: name ?? snapshot.folderSubjectName,
+                    childIds: snapshot.folderChildIds
+                )
+            }
             return chosen
         }
         return resolveRunScope(snapshot)
@@ -73,6 +84,10 @@ extension WorkflowBarPolicy {
             return snapshot.browserSelection == ids
         case .detailDocument(let id, _):
             return snapshot.detailDocumentId == id
+        case .folderContents(let folderId, _, _):
+            // Valid while the same folder is still the subject — the child ids
+            // are refreshed from the snapshot, so a changed count is fine.
+            return snapshot.folderSubjectId == folderId
         case .nothing:
             return false
         }
@@ -141,13 +156,39 @@ extension WorkflowBarPolicy {
                 stepName: snapshot.artifactStepName
             ), label: known.flatMap { names[$0.id] })
         }
-        if !snapshot.browserSelection.isEmpty {
+        // The generic document/detail rows are suppressed for a lone folder —
+        // the folder block below names it more clearly ("This folder" vs
+        // "Everything inside"), and a bare "1 item" row for the same id would
+        // just compete with them.
+        if !snapshot.browserSelection.isEmpty,
+           snapshot.folderSubjectId.map({ [$0] }) != snapshot.browserSelection {
             add("documents", .documents(ids: snapshot.browserSelection))
         }
         if let detailId = snapshot.detailDocumentId,
+           detailId != snapshot.folderSubjectId,
            snapshot.browserSelection != [detailId] {
             add("detail", .detailDocument(id: detailId, name: snapshot.detailDocumentName),
                 label: snapshot.detailDocumentName ?? "This document")
+        }
+        // A FOLDER is ambiguous — the run can act on the folder document itself
+        // or on the documents inside it (Daniel, 2026-09-06: "am I translating
+        // the folder, or all the children?"). Offer BOTH, named, so the choice
+        // is explicit and never a silent recursion into children. The
+        // "everything inside" row states its count so a paid run over a box of
+        // 200 pages says so before it starts.
+        if let folderId = snapshot.folderSubjectId {
+            add("folder-self",
+                .detailDocument(id: folderId, name: snapshot.folderSubjectName),
+                label: "This folder")
+            let count = snapshot.folderChildIds.count
+            let noun = count == 1 ? "item" : "items"
+            add("folder-contents",
+                .folderContents(
+                    folderId: folderId,
+                    folderName: snapshot.folderSubjectName,
+                    childIds: snapshot.folderChildIds
+                ),
+                label: count > 0 ? "Everything inside — \(count) \(noun)" : "Everything inside")
         }
         if let detailId = snapshot.detailDocumentId {
             options.append(contentsOf: artifactOptions(

@@ -72,6 +72,20 @@ extension WorkflowBar {
                     .controlSize(.small)
                     .help("Chain is running")
                     .accessibilityLabel("Chain is running")
+                // Stop lives beside the spinner (Daniel, 2026-09-06): a running
+                // paid chain must always offer a way OUT, and one that actually
+                // cancels the run rather than merely hiding the bar. Red and a
+                // filled stop glyph so it reads as the run's opposite of ▶.
+                if let onStopChain {
+                    Button(action: onStopChain) {
+                        Image(systemName: "stop.circle.fill")
+                            .font(.title3)
+                            .foregroundStyle(.red)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Stop the running chain")
+                    .accessibilityLabel("Stop the chain")
+                }
             } else {
                 Button(action: onRunChain) {
                     Image(systemName: "play.circle.fill")

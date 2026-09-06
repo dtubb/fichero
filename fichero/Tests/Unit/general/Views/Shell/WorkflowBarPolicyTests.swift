@@ -142,6 +142,62 @@ final class WorkflowBarPolicyTests: XCTestCase {
         )
     }
 
+    // MARK: - Folder scope: This folder vs Everything inside (2026-09-06)
+
+    private func folderSnapshot(
+        childIds: [String] = ["c1", "c2", "c3"]
+    ) -> WorkflowBarPolicy.SelectionSnapshot {
+        WorkflowBarPolicy.SelectionSnapshot(
+            browserSelection: ["folder-1"],
+            folderSubjectId: "folder-1",
+            folderSubjectName: "Marshall Diaries",
+            folderChildIds: childIds
+        )
+    }
+
+    func testFolderSubjectOffersThisFolderAndEverythingInside() {
+        let options = WorkflowBarPolicy.scopeMenuOptions(from: folderSnapshot())
+        let labels = options.map(\.label)
+        XCTAssertTrue(labels.contains("This folder"))
+        XCTAssertTrue(labels.contains("Everything inside — 3 items"))
+        // The bare "1 item" document row for the same folder id is suppressed
+        // in favour of the two clearer folder rows.
+        XCTAssertFalse(labels.contains("1 item"))
+    }
+
+    func testFolderContentsScopeRunsOnTheChildIdsNotTheFolder() {
+        let scope = WorkflowBarPolicy.RunScope.folderContents(
+            folderId: "folder-1", folderName: "Marshall Diaries",
+            childIds: ["c1", "c2", "c3"]
+        )
+        XCTAssertEqual(scope.documentIds, ["c1", "c2", "c3"])
+        XCTAssertEqual(scope.target, .documents(count: 3))
+        XCTAssertEqual(WorkflowBarPolicy.scopeDetail(scope), "3 items in Marshall Diaries")
+    }
+
+    func testEverythingInsideOverrideRefreshesChildCountFromSnapshot() {
+        // Chosen while children were still loading (empty), then the cache
+        // fills — the override must reflect the fresh count, not the frozen one.
+        let stale = WorkflowBarPolicy.RunScope.folderContents(
+            folderId: "folder-1", folderName: "Marshall Diaries", childIds: []
+        )
+        let resolved = WorkflowBarPolicy.resolveRunScope(
+            folderSnapshot(childIds: ["c1", "c2"]), override: stale
+        )
+        XCTAssertEqual(resolved.documentIds, ["c1", "c2"])
+    }
+
+    func testFolderContentsOverrideDropsWhenTheFolderLeaves() {
+        let chosen = WorkflowBarPolicy.RunScope.folderContents(
+            folderId: "folder-1", folderName: "Marshall Diaries", childIds: ["c1"]
+        )
+        // A snapshot where the folder is no longer the subject — the override
+        // yields back to the ladder rather than running on an off-screen folder.
+        let gone = WorkflowBarPolicy.SelectionSnapshot(browserSelection: ["other"])
+        let resolved = WorkflowBarPolicy.resolveRunScope(gone, override: chosen)
+        XCTAssertEqual(resolved, .documents(ids: ["other"]))
+    }
+
     func testAPopulatedBarHasNoEmptyReason() {
         XCTAssertNil(
             WorkflowBarPolicy.emptyReason(

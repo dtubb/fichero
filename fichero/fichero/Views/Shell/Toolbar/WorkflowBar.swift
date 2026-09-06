@@ -42,6 +42,10 @@ struct WorkflowBar: View {
     @Binding var staged: [StagedWorkflowStep]
     /// Runs the staged chain, in order.
     let onRunChain: () -> Void
+    /// Stops a running chain (Daniel, 2026-09-06: "workflow bar needs a stop
+    /// button if it's running"). Cancels the step in flight on the engine and
+    /// halts the chain before its next step. nil hides the Stop control.
+    var onStopChain: (() -> Void)?
     /// True while the chain is running — ▶ becomes a progress affordance.
     var isRunning: Bool = false
     /// Index of the step currently executing, so the rail shows WHERE the

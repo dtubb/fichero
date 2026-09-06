@@ -43,7 +43,8 @@ extension ContentView {
                 // representable below carries it back to the NSToolbar.
                 onSetLabels: { showWorkflowBarLabels = $0 },
                 staged: $stagedWorkflowChain,
-                onRunChain: { Task { await runStagedChain() } },
+                onRunChain: { stagedChainRunTask = Task { await runStagedChain() } },
+                onStopChain: { Task { await stopStagedChain() } },
                 isRunning: isRunningStagedChain,
                 runningStepIndex: runningStagedStepIndex,
                 onOpenStep: { openStagedStepResult($0) },
@@ -79,6 +80,9 @@ extension ContentView {
             // On BOTH bars: labels follow the toolbar when only one is shown.
             .background { ToolbarTextModeSync(showsLabels: $showWorkflowBarLabels) }
             .task(id: chainCostKey) { await refreshChainCostCeiling() }
+            // Warm the folder subject's children so the "Everything inside" row
+            // can state an accurate count (Daniel, 2026-09-06).
+            .task(id: workflowBarFolderSubject?.id) { await prefetchFolderScopeChildren() }
             // Persist/restore keyed on the chain's STRUCTURE — steps, order,
             // pins — never run-state churn. See ContentView+WorkflowChainEngine.
             .task(id: WorkflowBarChainPersistence.structureKey(for: stagedWorkflowChain)) {
@@ -179,6 +183,9 @@ extension ContentView {
         }
 
         for step in stagedWorkflowChain {
+            // A Stop press cancels this driver Task (stopStagedChain) — halt
+            // before starting the next paid step rather than pressing on.
+            if Task.isCancelled { break }
             runningStagedStepIndex = stagedWorkflowChain.firstIndex { $0.id == step.id }
             update(step.id) { $0.state = .running }
             // Each step carries its own model, so a chain can read a hard hand
@@ -211,6 +218,14 @@ extension ContentView {
                     update(step.id) { $0.threadId = threadId }
                 }
             )
+            // A Stop press cancels this driver mid-step (stopStagedChain, which
+            // also cancels the run on the engine). A deliberate stop is neither
+            // a success nor a failure (#4321), so the chip goes back to pending
+            // rather than wearing a red X.
+            if Task.isCancelled {
+                update(step.id) { $0.state = .pending }
+                break
+            }
             // The chip states the run's OUTCOME, not merely that it returned.
             // The first version set .succeeded unconditionally, so an engine
             // failure wore a green check — the observer already knows the
@@ -271,7 +286,12 @@ extension ContentView {
         let docs = documentStore.currentDocuments.filter { Set(ids).contains($0.id) }
         if ids.count == 1 {
             if let doc = docs.first ?? detailDocument {
-                return DocumentTitle.displayName(for: doc)
+                let name = DocumentTitle.displayName(for: doc)
+                // Name the folder AS a folder so the chip is unambiguous: this
+                // scope runs on the folder document itself, not its contents —
+                // "Everything inside" in the subject menu is the other choice
+                // (Daniel, 2026-09-06).
+                return doc.docType == .folder ? "\(name) (folder)" : name
             }
             return nil
         }
@@ -461,7 +481,9 @@ extension ContentView {
             // may not be in the browser's currentDocuments, so answer from
             // what a crop IS.
             return true
-        case .documents, .detailDocument, .nothing:
+        case .documents, .detailDocument, .folderContents, .nothing:
+            // Folder contents are ordinary documents; ask the same question of
+            // the child ids the run will act on.
             let ids = Set(scope.documentIds)
             let docs = documentStore.currentDocuments.filter { ids.contains($0.id) }
             if docs.isEmpty {

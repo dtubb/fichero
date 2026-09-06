@@ -220,6 +220,17 @@ enum WorkflowBarPolicy {
         var detailDocumentId: String?
         var detailDocumentName: String?
 
+        /// The lone FOLDER the run would otherwise treat as a single document
+        /// (Daniel, 2026-09-06). Present, the subject menu offers an explicit
+        /// "This folder" vs "Everything inside" — never a silent recursion into
+        /// children. nil unless exactly one folder is the subject.
+        var folderSubjectId: String?
+        var folderSubjectName: String?
+        /// That folder's child document ids, as the host knows them right now.
+        /// Empty until loaded; the "Everything inside" row states this count and
+        /// the run acts on exactly these ids.
+        var folderChildIds: [String] = []
+
         /// Every artifact the inspected document actually HAS, newest-first
         /// is not required (the menu sorts), each carrying enough provenance
         /// to tell one Detect Regions pass from another (Daniel, 2026-09-03:
@@ -256,6 +267,14 @@ enum WorkflowBarPolicy {
         )
         case documents(ids: [String])
         case detailDocument(id: String, name: String?)
+        /// A FOLDER's CONTENTS (Daniel, 2026-09-06): the run acts on the
+        /// documents INSIDE the folder, not on the folder document itself.
+        /// Distinct from `.documents(childIds)` so the subject chip can offer
+        /// "This folder" and "Everything inside" as separate explicit choices,
+        /// and so an override to it stays visible while the FOLDER is in scope
+        /// — a `.documents(childIds)` override is keyed to the browser
+        /// selection and would vanish the instant it no longer matched.
+        case folderContents(folderId: String, folderName: String?, childIds: [String])
         case nothing
 
         /// The ids a run is dispatched with. For a marquee this is the SOURCE
@@ -269,6 +288,7 @@ enum WorkflowBarPolicy {
             case .artifact(let documentId, _, _, _, _, _): return [documentId]
             case .documents(let ids): return ids
             case .detailDocument(let id, _): return [id]
+            case .folderContents(_, _, let childIds): return childIds
             case .nothing: return []
             }
         }
@@ -282,6 +302,7 @@ enum WorkflowBarPolicy {
             case .artifact: return .documents(count: 1)
             case .documents(let ids): return .documents(count: ids.count)
             case .detailDocument: return .documents(count: 1)
+            case .folderContents(_, _, let childIds): return .documents(count: childIds.count)
             case .nothing: return .nothing
             }
         }
@@ -351,6 +372,10 @@ enum WorkflowBarPolicy {
         case .artifact(_, _, let displayName, let documentName, _, _):
             guard let documentName, !documentName.isEmpty else { return displayName }
             return "\(displayName) of \(documentName)"
+        case .folderContents(_, let folderName, let childIds):
+            let counted = childIds.count == 1 ? "1 item" : "\(childIds.count) items"
+            guard let folderName, !folderName.isEmpty else { return "\(counted) inside" }
+            return "\(counted) in \(folderName)"
         case .documents, .detailDocument, .nothing:
             return nil
         }

@@ -163,6 +163,39 @@ extension ContentView {
         await runStagedChainClientSide()
     }
 
+    /// Stop a running chain (Daniel, 2026-09-06: "the workflow bar needs a stop
+    /// button if it's running"). A real stop, not a hidden spinner: it cancels
+    /// the driver Task so the chain never advances to its next step, AND cancels
+    /// the step already in flight on the engine — the run is paid work, so Stop
+    /// has to reach the backend, not just drop the local progress view.
+    ///
+    /// The stopped step falls back to `.pending`: a deliberate stop is neither a
+    /// success nor a failure, and #4321's rule keeps it from reading as failed.
+    @MainActor
+    func stopStagedChain() async {
+        guard isRunningStagedChain else { return }
+        stagedChainRunTask?.cancel()
+        stagedChainRunTask = nil
+        // Cancel every step still in flight. A step whose thread id is still the
+        // optimistic placeholder never reached the server — there is nothing to
+        // cancel there, so leave it to the driver's own teardown.
+        for step in stagedWorkflowChain where step.state == .running {
+            guard let threadId = step.threadId,
+                  !threadId.hasPrefix("pending:") else { continue }
+            executionObserver.cancelExecution(threadId: threadId)
+            do {
+                try await workflowStreamService.stopWorkflow(threadId: threadId)
+            } catch {
+                engineChainLogger.warning(
+                    "Stop chain: cancel of \(threadId) failed: \(error.localizedDescription)"
+                )
+            }
+            updateStagedStep(step.id) { $0.state = .pending }
+        }
+        isRunningStagedChain = false
+        runningStagedStepIndex = nil
+    }
+
     /// Returns false ONLY when the engine lacks step execution and the
     /// client loop should take over; true means the run was handled here,
     /// whatever its outcome.
@@ -273,6 +306,9 @@ extension ContentView {
         // deadline only guards against polling a wedged engine forever.
         let deadline = Date().addingTimeInterval(4 * 60 * 60)
         while Date() < deadline {
+            // A Stop press cancels this polling Task (stopStagedChain); it has
+            // already cancelled the steps on the engine, so quit watching.
+            if Task.isCancelled { break }
             guard let status = try? await service.getExecutionStatus(execution.executionId)
             else {
                 try? await Task.sleep(for: .seconds(2))

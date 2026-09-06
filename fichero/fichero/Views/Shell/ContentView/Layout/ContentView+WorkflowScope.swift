@@ -22,6 +22,7 @@ extension ContentView {
         let marquee = windowState.previewMarquees
         let regions = FocusedRegionSelection.shared
         let artifactFocus = FocusedArtifact.shared
+        let folderSubject = workflowBarFolderSubject
         return WorkflowBarPolicy.SelectionSnapshot(
             marqueeDocumentId: marquee.documentId,
             marqueeRect: marquee.firstReadingOrderRect,
@@ -39,8 +40,60 @@ extension ContentView {
             browserSelection: effectiveWorkflowRunSelection,
             detailDocumentId: detailDocument?.id,
             detailDocumentName: detailDocument.map { DocumentTitle.displayName(for: $0) },
+            folderSubjectId: folderSubject?.id,
+            folderSubjectName: folderSubject?.name,
+            folderChildIds: folderSubject?.childIds ?? [],
             detailArtifacts: detailArtifactChoices
         )
+    }
+
+    /// The lone FOLDER the run would otherwise treat as a single document
+    /// (Daniel, 2026-09-06) — one selected folder, or the previewed document
+    /// when it is a folder and nothing is selected. Present, the subject menu
+    /// offers "This folder" vs "Everything inside" explicitly. nil unless
+    /// exactly one folder is the subject.
+    ///
+    /// Child ids come from `childrenCache` — whatever the store has loaded. A
+    /// `.task` on the bar warms it (`documentStore.children(of:)`), and because
+    /// the cache is observed, the count fills into the menu when it lands.
+    var workflowBarFolderSubject: (id: String, name: String?, childIds: [String])? {
+        let selection = effectiveWorkflowRunSelection
+        let candidateId: String?
+        if selection.count == 1 {
+            candidateId = selection.first
+        } else if selection.isEmpty {
+            candidateId = detailDocument?.id
+        } else {
+            candidateId = nil
+        }
+        guard let candidateId, let folder = workflowBarFolderDocument(id: candidateId) else {
+            return nil
+        }
+        let childIds = (documentStore.childrenCache[candidateId] ?? []).map(\.id)
+        return (candidateId, DocumentTitle.displayName(for: folder), childIds)
+    }
+
+    /// The document for `id` when it is a folder, found wherever the store
+    /// already holds it — the open listing, the previewed document, or the
+    /// collections tree. nil when `id` is not a folder we can see.
+    private func workflowBarFolderDocument(id: String) -> Document? {
+        if let doc = documentStore.currentDocuments.first(where: { $0.id == id }),
+           doc.docType == .folder { return doc }
+        if let detail = detailDocument, detail.id == id, detail.docType == .folder {
+            return detail
+        }
+        if let collection = documentStore.collections.first(where: { $0.id == id }),
+           collection.docType == .folder { return collection }
+        return nil
+    }
+
+    /// Warm the child cache for the folder subject so the "Everything inside"
+    /// row can state its count. Idempotent — `children(of:)` returns the cache
+    /// when it already has it.
+    @MainActor
+    func prefetchFolderScopeChildren() async {
+        guard let folderId = workflowBarFolderSubject?.id else { return }
+        _ = await documentStore.children(of: folderId)
     }
 
     /// The inspected document's artifacts, as the menu's plain values. Read
