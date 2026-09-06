@@ -239,6 +239,36 @@ final class SidebarPrefetchBehavioralTests: XCTestCase {
         )
     }
 
+    func testExpansionBumpsRevisionSoTheTreeRebuilds() async throws {
+        // The wedge (Daniel, live 2026-09-06): an image folder's spinner stayed
+        // for a long time or forever, "only fixed by close+reopen window".
+        // `childrenCache` is @ObservationIgnored, so the expand's cache write
+        // wakes no observer on its own — `SidebarObservers` tracks `revision`.
+        // Without a tick the freshly fetched rows never rebuild into the tree,
+        // and the row keeps its spinner until an UNRELATED event (the slow grid
+        // content load) happens to bump revision. Pin that expand itself ticks.
+        let folder = Document(id: "top", parentId: nil, docType: .folder, name: "top")
+        let store = makeStore(stubs: [
+            Stub(pathSuffix: "/documents/top/view", body: viewJSON(
+                docJSON("top", parent: nil, docType: "folder"),
+                children: [docJSON("mid", parent: "top", docType: "folder")]
+            ))
+        ])
+
+        let before = store.revision
+        await store.loadSidebarChildren(of: folder)
+
+        XCTAssertGreaterThan(
+            store.revision, before,
+            "expand must tick revision so the sidebar observer rebuilds the tree "
+                + "from its own fetch — otherwise the opening row's spinner never clears"
+        )
+        XCTAssertTrue(
+            store.sidebarDocuments.contains { $0.id == "mid" },
+            "the fetched child must be in sidebarDocuments the rebuild reads"
+        )
+    }
+
     func testExpansionDoesNotRefetchCachedChildren() async throws {
         let folder = Document(id: "top", parentId: nil, docType: .folder, name: "top")
         let store = makeStore(stubs: [

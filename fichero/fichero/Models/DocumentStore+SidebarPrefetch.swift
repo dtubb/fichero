@@ -41,6 +41,24 @@ extension DocumentStore {
         if let fresh = await fetchSidebarChildren(of: document),
            childrenCache[document.id] != fresh {
             childrenCache[document.id] = fresh
+            // WAKE THE OBSERVER (#4318 rule, 2026-09-06). `childrenCache` is
+            // @ObservationIgnored, so this write alone registers no dependency —
+            // `SidebarObservers.observeDocumentStore` tracks `revision`, not the
+            // cache. The sidebar forest is rebuilt (`rebuildCaches`) from
+            // `sidebarDocuments` (= collections + childrenCache) ONLY when the
+            // tree signature moves after a `revision` tick, so without this the
+            // freshly fetched child rows never enter the built tree: the opening
+            // row keeps its spinner (`sidebarNeedsDeferredDisclosureContent` =
+            // isExpandable && children == nil) until some UNRELATED event —
+            // typically the selection's grid content load — happens to tick
+            // revision. For an image folder that content load is `/children?
+            // level=content` (spreads → pages, a big list), slow and easily
+            // superseded, so the tick could lag for seconds or, if the load was
+            // cancelled, never arrive — stranding the spinner until the window
+            // was closed and reopened (Daniel, live). Ticking here rebuilds from
+            // the sidebar's OWN light stored-level fetch the instant the names
+            // land, independent of the grid's heavy work: expand opens now.
+            revision += 1
         }
     }
 
@@ -83,7 +101,14 @@ extension DocumentStore {
         }
 
         let merged = Self.mergingChildren(fetched, into: childrenCache)
-        if merged != childrenCache { childrenCache = merged }
+        if merged != childrenCache {
+            childrenCache = merged
+            // Same @ObservationIgnored wake as loadSidebarChildren above:
+            // this batch lands rows ONLY in childrenCache, so the sidebar
+            // observer must be ticked or the prefetched chevrons never rebuild
+            // into the tree (#4318).
+            revision += 1
+        }
     }
 
     /// The containers in `documents` whose children are not cached yet — the
