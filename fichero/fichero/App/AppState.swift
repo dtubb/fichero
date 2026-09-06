@@ -61,6 +61,19 @@ class AppState {
     var backendError: String? { engine.diagnosis }
     var documentCount: Int = 0  // Note: Now tracks active libraries count in multi-library architecture
     var backendVersion: String?
+    /// LIVE open-source dependency versions for the About box's "Built on" list
+    /// (Daniel, 2026-09-06), keyed by lowercased pip/SPM distribution name →
+    /// installed version. Derived from the engine's `/api/health` `dependencies`
+    /// field (never hard-typed); empty until the engine answers, and a missing
+    /// key renders that one library without a version rather than a wrong one.
+    // ponytail: this stays empty (curated static list, no versions) until the
+    // OpenAPI regen lands the `dependencies` field in the generated Types.swift.
+    // The field already exists on the Python HealthResponse model (9ace36a03),
+    // but openapi.json → Types.swift haven't been regenerated (a manager-gated
+    // build step). To go fully-live once they are, add one line to
+    // checkBackendHealth() in AppState+HealthCheck.swift:
+    //     dependencyVersions = health.dependencies ?? [:]
+    var dependencyVersions: [String: String] = [:]
     /// Set when the engine that answered is not the one this build embedded
     /// (Daniel, 2026-09-01) — the whole user-facing sentence, ready to show.
     /// nil whenever the versions agree, the engine is remote/dev-external, or

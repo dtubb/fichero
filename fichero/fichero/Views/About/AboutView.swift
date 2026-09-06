@@ -237,7 +237,10 @@ struct AboutView: View {
         .frame(width: 360)
         .frame(minHeight: 360)
         .sheet(isPresented: $isAcknowledgementsPresented) {
-            AcknowledgementsView(entries: AboutAcknowledgements.entries)
+            AcknowledgementsView(
+                entries: AboutAcknowledgements.entries,
+                versions: appState.dependencyVersions
+            )
         }
     }
 
