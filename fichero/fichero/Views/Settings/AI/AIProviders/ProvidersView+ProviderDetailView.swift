@@ -36,6 +36,18 @@ struct ProviderDetailView: View {
         provider.providerType == "omlx"
     }
 
+    /// The reference-model list ("Models" + "Add Models…" browser) applies to
+    /// providers whose models you REFERENCE by id for chat/completion — cloud
+    /// providers and MLX. A download-only local runtime (spaCy grammar, Kraken
+    /// OCR, Whisper ASR) has no chat models to reference: its models are the
+    /// installable ones in the On-Device Models section above, so the empty
+    /// browser that used to open here (Daniel: spaCy "Add Models" showed
+    /// NOTHING) is suppressed rather than left to come up blank.
+    private var usesReferenceModels: Bool {
+        guard isLocalProvider else { return true }
+        return catalogEntry?.supportsChat ?? true
+    }
+
     private var statusText: String {
         if isLocalProvider {
             return catalogEntry?.isBuiltin == true ? "Built-in" : "Local"
@@ -197,6 +209,7 @@ struct ProviderDetailView: View {
                     }
                 }
 
+                if usesReferenceModels {
                 Section {
                     if isLoadingModels {
                         ProgressView("Loading models...")
@@ -287,6 +300,7 @@ struct ProviderDetailView: View {
                         .accessibilityLabel("Add Models")
                         .help("Add Models")
                     }
+                }
                 }
             }
             .padding()
