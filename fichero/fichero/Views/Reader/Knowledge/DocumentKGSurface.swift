@@ -212,6 +212,14 @@ struct DocumentKGSurface: View {
     // pane is cheap and stays alive to preserve scroll (#1346).
     @State private var hasAppeared = false
     @State private var everShownWebKit = false
+    /// The document id the knowledge surface has actually COMMITTED to load
+    /// (WebKit transcript `/view` + entity/KG fetch). It trails `documentId` by
+    /// a short beat on a swipe so the page IMAGE — rendered in the sibling
+    /// preview pane — gets the main actor and paints first (Daniel: "everything
+    /// else loads then the image swipes; we want the opposite"). nil until the
+    /// first load commits; the WebKit pane keeps showing the previous page's
+    /// transcript during the beat, so nothing blanks.
+    @State private var kgDocumentId: String?
     @Environment(KGFocusState.self) private var kgFocusState
     /// The per-window source-navigation cursor (#3437). Optional: a host that
     /// has not injected one safely no-ops, and the KG focus above still fires.
@@ -287,7 +295,11 @@ struct DocumentKGSurface: View {
         ZStack {
             if shouldHostWebPane {
                 DocumentKGWebPane(
-                    documentId: documentId,
+                    // Deferred id (see `kgDocumentId`): on a swipe the pane
+                    // holds the previous page's transcript until the beat
+                    // elapses, then loads the new one — so the WebKit `/view`
+                    // fetch stops racing the page image for the main actor.
+                    documentId: kgDocumentId ?? documentId,
                     libraryPath: libraryPath,
                     pageIds: pageIds,
                     representation: representation,
@@ -322,7 +334,21 @@ struct DocumentKGSurface: View {
         }
         // Load the document's entities for the native Graph/Timeline/Map
         // sub-modes (idempotent + cached in the store). (#3503)
+        //
+        // Deferred a beat behind a swipe (Daniel: image first). The very first
+        // open commits immediately (kgDocumentId nil → no sleep); a subsequent
+        // document change yields ~200ms so the sibling image pane paints before
+        // this fires the `/knowledge-graph?include_children=true` +, via the
+        // deferred `kgDocumentId`, the WebKit transcript load. Task-id
+        // cancellation means fast swiping never loads the pages skated past.
+        // ponytail: fixed 200ms heuristic — a precise "image committed" signal
+        // would need cross-pane coupling; revisit if the beat feels wrong.
         .task(id: documentId) {
+            if kgDocumentId != nil {
+                try? await Task.sleep(for: .milliseconds(200))
+                guard !Task.isCancelled else { return }
+            }
+            kgDocumentId = documentId
             await entityStore.loadEntities(forDocument: documentId)
         }
     }
