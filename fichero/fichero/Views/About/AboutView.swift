@@ -69,8 +69,23 @@ struct Acknowledgement: Identifiable, Hashable {
     let license: String
     let url: URL
     let layer: AckLayer
+    /// The pip/SPM distribution name used to look up a LIVE version, when it
+    /// differs from the display `name` (e.g. "PyMuPDF" ships as "pymupdf").
+    /// nil means "look up by the lowercased display name".
+    let distribution: String?
 
     var id: String { name }
+
+    init(name: String, license: String, url: URL, layer: AckLayer, distribution: String? = nil) {
+        self.name = name
+        self.license = license
+        self.url = url
+        self.layer = layer
+        self.distribution = distribution
+    }
+
+    /// The key to look this dependency up by in a name→version map.
+    var versionKey: String { (distribution ?? name).lowercased() }
 }
 
 enum AboutLinks {
@@ -114,13 +129,13 @@ enum AboutAcknowledgements {
         .init(name: "LanceDB", license: "Apache License 2.0", url: URL(string: "https://lancedb.com")!, layer: .engine),
         .init(name: "LangChain", license: "MIT License", url: URL(string: "https://www.langchain.com")!, layer: .engine),
         .init(name: "LangGraph", license: "MIT License", url: URL(string: "https://langchain-ai.github.io/langgraph")!, layer: .engine),
-        .init(name: "Model Context Protocol (MCP)", license: "MIT License", url: URL(string: "https://modelcontextprotocol.io")!, layer: .engine),
+        .init(name: "Model Context Protocol (MCP)", license: "MIT License", url: URL(string: "https://modelcontextprotocol.io")!, layer: .engine, distribution: "mcp"),
         .init(name: "spaCy", license: "MIT License", url: URL(string: "https://spacy.io")!, layer: .engine),
         .init(name: "Kreuzberg", license: "MIT License", url: URL(string: "https://github.com/Goldziher/kreuzberg")!, layer: .engine),
         .init(name: "PyMuPDF", license: "AGPL-3.0 License", url: URL(string: "https://pymupdf.readthedocs.io")!, layer: .engine),
         .init(name: "pypdfium2", license: "Apache-2.0 / BSD-3-Clause", url: URL(string: "https://github.com/pypdfium2-team/pypdfium2")!, layer: .engine),
         .init(name: "Pillow", license: "HPND License", url: URL(string: "https://python-pillow.org")!, layer: .engine),
-        .init(name: "OpenCV", license: "Apache License 2.0", url: URL(string: "https://opencv.org")!, layer: .engine),
+        .init(name: "OpenCV", license: "Apache License 2.0", url: URL(string: "https://opencv.org")!, layer: .engine, distribution: "opencv-python-headless"),
         .init(name: "fastembed", license: "Apache License 2.0", url: URL(string: "https://github.com/qdrant/fastembed")!, layer: .engine),
         .init(name: "NumPy", license: "BSD-3-Clause License", url: URL(string: "https://numpy.org")!, layer: .engine),
         .init(name: "httpx", license: "BSD-3-Clause License", url: URL(string: "https://www.python-httpx.org")!, layer: .engine),
@@ -130,7 +145,7 @@ enum AboutAcknowledgements {
         .init(name: "PyObjC", license: "MIT License", url: URL(string: "https://pyobjc.readthedocs.io")!, layer: .engine),
 
         // On-device AI — provisioned at runtime by the local-inference runtimes
-        .init(name: "MLX (mlx-lm, mlx-vlm, mlx-whisper)", license: "MIT License", url: URL(string: "https://github.com/ml-explore/mlx")!, layer: .onDevice),
+        .init(name: "MLX (mlx-lm, mlx-vlm, mlx-whisper)", license: "MIT License", url: URL(string: "https://github.com/ml-explore/mlx")!, layer: .onDevice, distribution: "mlx-lm"),
         .init(name: "Kraken", license: "Apache License 2.0", url: URL(string: "https://kraken.re")!, layer: .onDevice),
         .init(name: "Whisper", license: "MIT License", url: URL(string: "https://github.com/openai/whisper")!, layer: .onDevice)
     ]
@@ -266,11 +281,24 @@ struct AboutView: View {
 
 private struct AcknowledgementsView: View {
     let entries: [Acknowledgement]
+    /// LIVE dependency versions keyed by `versionKey` (lowercased dist name),
+    /// derived from the engine — NOT hard-typed. Empty renders names + licenses
+    /// only; a missing key renders that one lib without a version. Never a
+    /// stale/wrong number.
+    var versions: [String: String] = [:]
 
     @Environment(\.dismiss) private var dismiss
 
     private func entries(in layer: AckLayer) -> [Acknowledgement] {
         entries.filter { $0.layer == layer }
+    }
+
+    /// "License" or "vX.Y · License" when a live version is known.
+    private func detailLine(for entry: Acknowledgement) -> String {
+        if let version = versions[entry.versionKey], !version.isEmpty {
+            return "v\(version) · \(entry.license)"
+        }
+        return entry.license
     }
 
     var body: some View {
@@ -290,7 +318,7 @@ private struct AcknowledgementsView: View {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(acknowledgement.name)
                                             .font(.body.weight(.medium))
-                                        Text(acknowledgement.license)
+                                        Text(detailLine(for: acknowledgement))
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
                                     }
