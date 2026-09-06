@@ -1,6 +1,6 @@
 {
  "name": "Transcribe (Kraken)",
- "description": "Use this when: you want fully on-device HTR from Kraken — its own neural baseline segmentation plus a CC-BY recognition model (McCATMuS), no paid API calls. Install the Kraken runtime AND a recognition model first from Settings → AI → Local Inference (the on-device model catalog); the run reports clearly if either is missing. Best on the historical hands McCATMuS was trained on. Pair with a Cleanup pass for hard pages.",
+ "description": "Use this when: you want fully on-device HTR from Kraken — its own neural baseline segmentation plus a CC-BY recognition model (McCATMuS), no paid API calls. It reads each line and SAVES the transcript tied to its baseline (per-line geometry the reader can overlay). Install the Kraken runtime AND a recognition model first from Settings → AI → Local Inference (the on-device model catalog); the run reports clearly if either is missing. Best on the historical hands McCATMuS was trained on. Pair with a Cleanup pass for hard pages.",
  "format": "nodes",
  "is_template": true,
  "is_system": true,
@@ -15,7 +15,7 @@
   "single-pass"
  ],
  "config": {
-  "preset_version": 1
+  "preset_version": 2
  },
  "nodes": [
   {
@@ -29,15 +29,14 @@
   },
   {
    "id": "kraken-htr",
-   "tool": "economy_htr",
+   "tool": "kraken_htr",
    "label": "Kraken HTR — baseline + recognition",
    "position_x": 320,
    "position_y": 200,
    "inputs": {},
    "config": {
-    "backend": "kraken",
-    "kraken_model_path": "kraken-mccatmus",
-    "language": "es"
+    "kraken_model": "kraken-mccatmus",
+    "update_page_content": true
    }
   }
  ],

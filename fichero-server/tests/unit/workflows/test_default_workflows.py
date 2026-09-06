@@ -1180,10 +1180,11 @@ class TestLoadPresetFiles:
             ), f"{port} must flow into detect_regions"
 
     def test_transcribe_kraken_preset_routes_to_kraken_htr(self):
-        """Kraken HTR (its own baseline + a McCATMuS recognition model) ships
-        as a runnable preset, so Daniel's "kraken for text" is executable. The
-        recognition model is installed via the catalog; economy_htr surfaces a
-        clear "install a Kraken recognition model" error if it is missing."""
+        """Kraken per-line HTR (its own baseline + a McCATMuS recognition model)
+        ships as a runnable preset that SAVES the transcript tied to its
+        baselines (kraken_htr node). The recognition model is installed via the
+        catalog; kraken_htr surfaces a clear "install a Kraken recognition
+        model" error if it is missing."""
         presets = {p["name"]: p for p in _load_preset_files()}
         assert "Transcribe (Kraken)" in presets, "Kraken HTR preset must ship"
         preset = presets["Transcribe (Kraken)"]
@@ -1193,15 +1194,14 @@ class TestLoadPresetFiles:
         assert preset.get("folder_path") == "/Transcribe"
 
         node_tools = {n["tool"] for n in preset["nodes"]}
-        assert node_tools == {"files", "economy_htr"}
-        htr_node = next(n for n in preset["nodes"] if n["tool"] == "economy_htr")
-        assert htr_node["config"].get("backend") == "kraken"
+        assert node_tools == {"files", "kraken_htr"}
+        htr_node = next(n for n in preset["nodes"] if n["tool"] == "kraken_htr")
         # A catalog model id (not a literal path) so it resolves to the app's
         # downloaded copy, and the missing-model error can name the catalog.
-        assert htr_node["config"].get("kraken_model_path") == "kraken-mccatmus"
+        assert htr_node["config"].get("kraken_model") == "kraken-mccatmus"
 
         files_id = _node_id(preset, "files")
-        htr_id = _node_id(preset, "economy_htr")
+        htr_id = _node_id(preset, "kraken_htr")
         for port in ("files", "documents"):
             assert any(
                 e["source"] == files_id

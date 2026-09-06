@@ -139,6 +139,7 @@ from fichero_server.workflows.tools import consistency_check  # noqa: F401  (#39
 # Transform tools
 from fichero_server.workflows.tools import zoom  # noqa: F401  (#3903)
 from fichero_server.workflows.tools import economy_htr  # noqa: F401  (lane/paleography 2026-08-25)
+from fichero_server.workflows.tools import kraken_htr  # noqa: F401  (per-line HTR tied to baselines, 2026-09-06)
 
 # Output tools
 from fichero_server.workflows.tools import write_file
