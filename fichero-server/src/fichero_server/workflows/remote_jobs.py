@@ -491,6 +491,68 @@ class DryRunSubmitter:
         self.cancelled.append(job_id)
 
 
+class SshExecutionDisabled(RuntimeError):
+    """Raised when a live SSH/sbatch action is attempted while execution is OFF.
+
+    The v0 slice is dry-run only (no irreversible cluster actions). This fires
+    the instant anything tries to shell out while the submitter's ``enabled``
+    gate is False — fail-closed, so a live job can never be submitted by
+    accident before the execution path is deliberately wired and reviewed.
+    """
+
+
+@dataclass
+class SshCliSubmitter:
+    """Slurm submitter over the user's own ``ssh``/``sbatch`` (plan §A) — v0 STUB.
+
+    This is the real-topology submitter, but in v0 it **builds commands and
+    never runs them**: ``enabled`` gates every shell-out and stays False. The
+    ``*_command`` methods are pure and testable now, so the exact argv the
+    engine will run is reviewable before any irreversible cluster action is
+    possible; ``submit``/``poll``/``cancel`` raise :class:`SshExecutionDisabled`
+    while disabled and ``NotImplementedError`` once enabled (execution is a
+    later slice). Satisfies the :class:`SlurmSubmitter` protocol.
+    """
+
+    cluster: HpcClusterConfig
+    #: Master gate for live SSH shell-out. Stays False in v0 (dry-run only).
+    enabled: bool = False
+
+    def submit_command(self, spec: "RemoteRunSpec") -> list[str]:
+        """The argv that WOULD submit the staged array job (``sbatch --parsable``)."""
+        remote = f"cd {shlex.quote(spec.remote_workdir)} && sbatch --parsable job.sh"
+        return build_ssh_command(self.cluster, ["bash", "-lc", remote])
+
+    def poll_command(self, job_id: str) -> list[str]:
+        """The argv that WOULD poll job/task state (``sacct --parsable2``, §3)."""
+        return build_ssh_command(
+            self.cluster,
+            ["sacct", "-j", job_id, "--parsable2", "--noheader", "-o", "JobID,State"],
+        )
+
+    def cancel_command(self, job_id: str) -> list[str]:
+        """The argv that WOULD cancel the job (``scancel``)."""
+        return build_ssh_command(self.cluster, ["scancel", job_id])
+
+    def _guard(self) -> None:
+        if not self.enabled:
+            raise SshExecutionDisabled(
+                "Live SSH/sbatch execution is disabled (v0 is dry-run only)."
+            )
+
+    def submit(self, spec: "RemoteRunSpec") -> SubmitResult:
+        self._guard()
+        raise NotImplementedError("Live sbatch submission is not wired yet")
+
+    def poll(self, job_id: str) -> dict[str, str]:
+        self._guard()
+        raise NotImplementedError("Live sacct polling is not wired yet")
+
+    def cancel(self, job_id: str) -> None:
+        self._guard()
+        raise NotImplementedError("Live scancel is not wired yet")
+
+
 def build_ssh_command(
     cluster: HpcClusterConfig, remote_command: list[str]
 ) -> list[str]:

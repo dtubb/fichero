@@ -12,6 +12,8 @@ from fichero_server.workflows.remote_jobs import (
     DryRunSubmitter,
     HpcClusterConfig,
     HpcConfigError,
+    SshCliSubmitter,
+    SshExecutionDisabled,
     build_array_directive,
     build_bundle_manifest,
     build_remote_run_spec,
@@ -232,3 +234,36 @@ class TestSshCommands:
         cmd = build_sinfo_probe_command(_cluster())
         assert cmd[0] == "ssh"
         assert "sinfo -p gpu" in cmd[-1]
+
+
+class TestSshCliSubmitterStub:
+    """v0 dry-run guardrail: the SSH submitter builds argv but never executes."""
+
+    def test_builds_submit_poll_cancel_commands(self):
+        sub = SshCliSubmitter(cluster=_cluster())
+        spec = build_remote_run_spec(
+            cluster=_cluster(), manifest=_manifest(), input_indices=[0, 1]
+        )
+        assert "sbatch --parsable job.sh" in sub.submit_command(spec)[-1]
+        assert "sacct -j 42" in sub.poll_command("42")[-1]
+        assert sub.cancel_command("42")[-1] == "scancel 42"
+
+    def test_execution_disabled_by_default_fails_closed(self):
+        sub = SshCliSubmitter(cluster=_cluster())
+        assert sub.enabled is False
+        spec = build_remote_run_spec(
+            cluster=_cluster(), manifest=_manifest(), input_indices=[0]
+        )
+        with pytest.raises(SshExecutionDisabled):
+            sub.submit(spec)
+        with pytest.raises(SshExecutionDisabled):
+            sub.poll("42")
+        with pytest.raises(SshExecutionDisabled):
+            sub.cancel("42")
+
+    def test_enabling_reaches_not_implemented_not_a_real_call(self):
+        # Even if someone flips the gate, execution is honestly unwired (no
+        # accidental live sbatch): NotImplementedError, never a shell-out.
+        sub = SshCliSubmitter(cluster=_cluster(), enabled=True)
+        with pytest.raises(NotImplementedError):
+            sub.poll("42")
