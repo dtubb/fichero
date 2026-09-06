@@ -94,7 +94,7 @@ struct NodeProviderModelSelector: View {
             node.usesLLM = true
             logger.info("Provider selected: id=\(newValue)")
             if let provider = providers.first(where: { $0.id == newValue }),
-               let firstModel = provider.models.first {
+               let firstModel = provider.models.first?.id {
                 selectedModelId = firstModel
                 node.modelName = firstModel
             }

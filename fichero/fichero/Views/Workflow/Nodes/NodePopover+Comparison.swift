@@ -18,7 +18,11 @@ extension NodePopover {
                 let modelInfos = try await providerService.listAvailableModels(
                     providerType: provider.providerType
                 )
-                let modelIds = modelInfos.map(\.modelId)
+                // The node popover has always shown raw model ids — keep that by
+                // setting each choice's name to its id.
+                let modelChoices = modelInfos.map {
+                    ModelPicker.ModelChoice(id: $0.modelId, name: $0.modelId)
+                }
                 let supportsVision = modelInfos.contains { $0.supportsVision }
                 loaded.append(
                     NodeProviderModelSelector.ProviderOption(
@@ -27,7 +31,7 @@ extension NodePopover {
                         providerType: provider.providerType,
                         available: true,
                         supportsVision: supportsVision,
-                        models: modelIds
+                        models: modelChoices
                     )
                 )
             }
@@ -42,7 +46,7 @@ extension NodePopover {
                     selectedModelId = ""
                 } else if let provider = providers.first(where: { $0.id == providerId }) {
                     selectedProviderId = provider.id
-                    selectedModelId = node.modelName ?? provider.models.first ?? ""
+                    selectedModelId = node.modelName ?? provider.models.first?.id ?? ""
                 }
             }
         } catch {

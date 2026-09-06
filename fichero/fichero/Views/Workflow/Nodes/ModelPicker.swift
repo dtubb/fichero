@@ -44,7 +44,15 @@ struct ModelPicker: View {
         let providerType: String
         let available: Bool
         let supportsVision: Bool
-        let models: [String]
+        let models: [ModelChoice]
+    }
+
+    /// One selectable model: `id` is the wire value written to the binding,
+    /// `name` its label. The node popover sets name==id (raw model id, as it
+    /// always showed); AI Settings sets name to the model's fullName.
+    struct ModelChoice: Identifiable, Hashable {
+        let id: String
+        let name: String
     }
 
     let providers: [ProviderOption]
@@ -181,8 +189,8 @@ struct ModelPicker: View {
         } else {
             Picker("Model", selection: $selectedModelId) {
                 Text("Select model...").tag("")
-                ForEach(models, id: \.self) { model in
-                    Text(model).tag(model)
+                ForEach(models) { model in
+                    Text(model.name).tag(model.id)
                 }
             }
             .pickerStyle(.menu)
@@ -198,9 +206,9 @@ private struct ModelPickerPreviewHost: View {
 
     private let providers: [ModelPicker.ProviderOption] = [
         .init(id: "openai", name: "OpenAI", providerType: "openai", available: true, supportsVision: true,
-              models: ["gpt-4o", "gpt-4o-mini"]),
+              models: [.init(id: "gpt-4o", name: "GPT-4o"), .init(id: "gpt-4o-mini", name: "GPT-4o mini")]),
         .init(id: "local-omlx", name: "MLX (Local)", providerType: "omlx", available: true, supportsVision: true,
-              models: ["qwen2.5-vl-7b", "llama-3.2-3b"])
+              models: [.init(id: "qwen2.5-vl-7b", name: "qwen2.5-vl-7b"), .init(id: "llama-3.2-3b", name: "llama-3.2-3b")])
     ]
 
     var body: some View {

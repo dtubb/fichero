@@ -26,26 +26,23 @@ extension AISettingsView {
                 Text("Used by Summarize, Extract, and Classify tools.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                providerPicker(selection: $store.defaults.textProvider)
                 // tier:.text filters the dropdown to LLM-shaped models
                 // (excludes Apple Vision OCR / Apple Speech). (#940)
-                modelPicker(selection: $store.defaults.textModel, models: textModels, tier: .text)
+                settingsModelPicker(providerSelection: $store.defaults.textProvider, modelSelection: $store.defaults.textModel, models: textModels, tier: .text)
             }
 
             Section("Vision") {
                 Text("Used by Describe and Analyze tools for image understanding.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                providerPicker(selection: $store.defaults.visionProvider)
-                modelPicker(selection: $store.defaults.visionModel, models: visionModels, tier: .vision)
+                settingsModelPicker(providerSelection: $store.defaults.visionProvider, modelSelection: $store.defaults.visionModel, models: visionModels, tier: .vision)
             }
 
             Section("Audio") {
                 Text("Used by Transcription tools for speech-to-text.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                providerPicker(selection: $store.defaults.audioProvider)
-                modelPicker(selection: $store.defaults.audioModel, models: audioModels, tier: .audio)
+                settingsModelPicker(providerSelection: $store.defaults.audioProvider, modelSelection: $store.defaults.audioModel, models: audioModels, tier: .audio)
             }
 
             if featureManager.isWorkflowToolsVideoEnabled {
@@ -53,8 +50,7 @@ extension AISettingsView {
                     Text("Used by video analysis tools.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    providerPicker(selection: $store.defaults.videoProvider)
-                    modelPicker(selection: $store.defaults.videoModel, models: videoModels, tier: .vision)
+                    settingsModelPicker(providerSelection: $store.defaults.videoProvider, modelSelection: $store.defaults.videoModel, models: videoModels, tier: .vision)
                 }
             }
 
@@ -68,10 +64,9 @@ extension AISettingsView {
                 Text(smallHelp)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                providerPicker(selection: $store.defaults.smallProvider)
                 // $small resolves a chat/completion LLM — filter to the
                 // text tier so OCR / transcription models can't be picked. (#1290)
-                modelPicker(selection: $store.defaults.smallModel, models: smallModels, tier: .text)
+                settingsModelPicker(providerSelection: $store.defaults.smallProvider, modelSelection: $store.defaults.smallModel, models: smallModels, tier: .text)
             }
 
             Section("Default Medium Model ($medium)") {
@@ -82,8 +77,7 @@ extension AISettingsView {
                 Text(mediumHelp)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                providerPicker(selection: $store.defaults.mediumProvider)
-                modelPicker(selection: $store.defaults.mediumModel, models: mediumModels, tier: .text)
+                settingsModelPicker(providerSelection: $store.defaults.mediumProvider, modelSelection: $store.defaults.mediumModel, models: mediumModels, tier: .text)
             }
 
             Section("Default Large Model ($large)") {
@@ -94,34 +88,30 @@ extension AISettingsView {
                 Text(largeHelp)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                providerPicker(selection: $store.defaults.largeProvider)
                 // $large resolves a frontier chat LLM — filter to the
                 // text tier so OCR / transcription models can't be picked. (#1290)
-                modelPicker(selection: $store.defaults.largeModel, models: largeModels, tier: .text)
+                settingsModelPicker(providerSelection: $store.defaults.largeProvider, modelSelection: $store.defaults.largeModel, models: largeModels, tier: .text)
             }
 
             Section("Vision Small Model ($vision_small)") {
                 Text("Vision workflow nodes that declare $vision_small resolve to this fast image model.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                providerPicker(selection: $store.defaults.visionSmallProvider)
-                modelPicker(selection: $store.defaults.visionSmallModel, models: visionSmallModels, tier: .vision)
+                settingsModelPicker(providerSelection: $store.defaults.visionSmallProvider, modelSelection: $store.defaults.visionSmallModel, models: visionSmallModels, tier: .vision)
             }
 
             Section("Vision Medium Model ($vision_medium)") {
                 Text("Vision workflow nodes that declare $vision_medium resolve to this balanced image model.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                providerPicker(selection: $store.defaults.visionMediumProvider)
-                modelPicker(selection: $store.defaults.visionMediumModel, models: visionMediumModels, tier: .vision)
+                settingsModelPicker(providerSelection: $store.defaults.visionMediumProvider, modelSelection: $store.defaults.visionMediumModel, models: visionMediumModels, tier: .vision)
             }
 
             Section("Vision Large Model ($vision_large)") {
                 Text("Vision workflow nodes that declare $vision_large resolve to this frontier image model.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                providerPicker(selection: $store.defaults.visionLargeProvider)
-                modelPicker(selection: $store.defaults.visionLargeModel, models: visionLargeModels, tier: .vision)
+                settingsModelPicker(providerSelection: $store.defaults.visionLargeProvider, modelSelection: $store.defaults.visionLargeModel, models: visionLargeModels, tier: .vision)
             }
 
             Section {

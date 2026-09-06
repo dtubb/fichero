@@ -19,25 +19,68 @@ extension AISettingsView {
         store.defaults.temperature.isEmpty ? "0.7" : store.defaults.temperature
     }
 
+    /// One Defaults slot's provider+model chooser, on the SHARED ModelPicker so
+    /// Settings uses the same picker as the node popover and workflow bar
+    /// (Daniel, 2026-09-06). Settings keys providers by providerType (so the
+    /// ProviderOption id IS the providerType) and shows the model's fullName;
+    /// the tier filter and its "N models withheld" help are preserved.
+    ///
+    /// Aliases/Apple-Vision are OFF here — the Defaults tiers ARE the aliases,
+    /// and provider filtering by vision stays off (the model list is already
+    /// tier-filtered, matching the prior behavior).
     @ViewBuilder
-    func providerPicker(selection: Binding<String>) -> some View {
-        // De-duplicate by providerType so the Picker ForEach has unique IDs
-        // even if the backend returns multiple provider rows with the same type.
+    func settingsModelPicker(
+        providerSelection: Binding<String>,
+        modelSelection: Binding<String>,
+        models: [ModelInfo],
+        tier: TierCapability = .any
+    ) -> some View {
+        // De-duplicate by providerType so option IDs are unique even if the
+        // backend returns multiple rows of the same type.
         let uniqueProviders = Array(
             Dictionary(grouping: appState.providers, by: { $0.providerType })
                 .compactMapValues { $0.first }
                 .values
         ).sorted(by: { $0.name < $1.name })
 
-        Picker("Provider", selection: selection) {
-            Text("None").tag("")
-            ForEach(uniqueProviders, id: \.providerType) { provider in
-                Text(provider.name).tag(provider.providerType)
-            }
+        // Only the currently-selected provider's models are loaded (into
+        // `models`); attach them to that option, tier-filtered, labelled by
+        // fullName. A capability mismatch simply isn't listed (#1290).
+        let filtered = models.filter { tier.matches($0) }
+        let hidden = models.count - filtered.count
+        let selectedType = providerSelection.wrappedValue
+
+        let options = uniqueProviders.map { provider in
+            ModelPicker.ProviderOption(
+                id: provider.providerType,
+                name: provider.name,
+                providerType: provider.providerType,
+                available: true,
+                supportsVision: true,
+                models: provider.providerType == selectedType
+                    ? filtered.map { .init(id: $0.modelId, name: $0.fullName) }
+                    : []
+            )
         }
+
+        ModelPicker(
+            providers: options,
+            selectedProviderId: providerSelection,
+            selectedModelId: modelSelection,
+            showDefault: true,
+            defaultLabel: "None",
+            showAliases: false,
+            showAppleVision: false,
+            requiresVision: false
+        )
+        .help(hidden > 0
+              ? "\(hidden) of this provider's \(models.count) models are not "
+                + "offered here because their catalog entry does not claim the "
+                + "capability this slot needs."
+              : "Every model configured for this provider fits this slot.")
     }
 
-    /// Capability requirement for a Defaults tier — used by modelPicker
+    /// Capability requirement for a Defaults tier — used by settingsModelPicker
     /// to filter the dropdown to only models whose capability fits the slot.
     /// Matches against the model's capability strings as reported by the
     /// provider/registry; it never hardcodes model ids (#940 / #1290).
@@ -112,38 +155,6 @@ extension AISettingsView {
                           "internvl", "minicpm-v", "moondream"]
             return vision.contains(where: id.contains)
         }
-    }
-
-    @ViewBuilder
-    func modelPicker(
-        selection: Binding<String>,
-        models: [ModelInfo],
-        tier: TierCapability = .any,
-        ) -> some View {
-        // Only offer models whose capability fits this slot. A saved
-        // value that no longer fits (legacy bad data) is simply not
-        // listed, so the Picker shows "None" and the user must re-pick a
-        // valid model — a capability mismatch can't be selected or saved.
-        // The old "(saved — wrong capability)" escape-hatch row is gone
-        // by design (#1290).
-        let filtered = models.filter { tier.matches($0) }
-        let hidden = models.count - filtered.count
-
-        Picker("Model", selection: selection) {
-            Text("None").tag("")
-            ForEach(filtered, id: \.modelId) { model in
-                Text(model.fullName).tag(model.modelId)
-            }
-        }
-        // SAY what was withheld (Daniel, 2026-09-01: "show WHY one is
-        // greyed"). A Picker cannot grey an individual row, so the count and
-        // the reason sit beneath it — which at least makes a wrong filter
-        // arguable instead of invisible.
-        .help(hidden > 0
-              ? "\(hidden) of this provider's \(models.count) models are not "
-                + "offered here because their catalog entry does not claim the "
-                + "capability this slot needs."
-              : "Every model configured for this provider fits this slot.")
     }
 
     /// Provider-change companion — clears the model selection immediately,
