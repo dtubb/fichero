@@ -3896,7 +3896,17 @@ async def process_vision(
             # whose ANSWER is the page's text may skip the model. Without the
             # gate, Table/Describe/Extract on an already-transcribed page
             # returned that transcription verbatim (#see LLMToolConfig).
-            if existing_text and not force_ocr and tool_config.accepts_extracted_text:
+            # Kraken is EXCLUDED: it must always run its own segmenter+recogniser
+            # so the baseline-tied geometry is captured on an artifact, even when
+            # the page already has text — the promote-only-if-empty guard (below,
+            # in save_artifact) is what keeps that run from overwriting the good
+            # existing content.
+            if (
+                existing_text
+                and not force_ocr
+                and tool_config.accepts_extracted_text
+                and vision_mode != "kraken"
+            ):
                 logger.info(
                     f"Pre-extracted text passthrough: {Path(file_path).name} "
                     f"({len(existing_text)} chars, doc_id={doc_id_for_file})"
@@ -3951,6 +3961,7 @@ async def process_vision(
                         metadata_field=metadata_field,
                         custom_metadata=custom_metadata,
                         document=_preloaded_doc,
+                        promote_page_content_only_if_empty=(vision_mode == "kraken"),
                     )
                     if artifact_id:
                         artifact_ids.append(artifact_id)
@@ -4000,6 +4011,7 @@ async def process_vision(
                         metadata_field=metadata_field,
                         custom_metadata=custom_metadata,
                         document=_preloaded_doc,
+                        promote_page_content_only_if_empty=(vision_mode == "kraken"),
                     )
                     if artifact_id:
                         artifact_ids.append(artifact_id)
@@ -4913,6 +4925,7 @@ async def process_vision(
                             metadata_field=metadata_field,
                             custom_metadata=custom_metadata,
                             document=_preloaded_doc,
+                            promote_page_content_only_if_empty=(vision_mode == "kraken"),
                         )
                         if artifact_id:
                             result["artifact_id"] = artifact_id
@@ -4935,6 +4948,7 @@ async def process_vision(
                         metadata_field=metadata_field,
                         custom_metadata=custom_metadata,
                         document=_preloaded_doc,
+                        promote_page_content_only_if_empty=(vision_mode == "kraken"),
                     )
                     if artifact_id:
                         result["artifact_id"] = artifact_id

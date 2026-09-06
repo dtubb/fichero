@@ -158,6 +158,72 @@ async def test_recognition_saves_transcript_tied_to_baselines(temp_library, tmp_
 
 
 @pytest.mark.asyncio
+async def test_recognition_does_not_clobber_existing_machine_page_content(temp_library, tmp_path):
+    """Curation persists: Kraken (a low-confidence recogniser) must NOT overwrite
+    a page's existing good transcription — even machine-written content with no
+    user-edited flag (the exact gap that destroyed 2 Istmina pages). The Kraken
+    result is still saved as a transcription artifact (with its geometry)."""
+    from fichero_server.models import Artifact, Document, DocType, FileType
+    import fichero_server.llm.kraken_runtime as kraken_runtime
+
+    library_path, db_manager = temp_library
+    db = db_manager.get_database(library_path)
+    png = tmp_path / "hand.png"
+    _make_png(png)
+    doc = Document(
+        name="hand.png", doc_type=DocType.file, file_type=FileType.image, path=str(png),
+        page_content="clean Spanish transcription from an earlier pass",
+    )
+    db.save(doc)
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(kraken_runtime, "recognize_to_geometry",
+                   lambda *a, **k: _recognized_geometry())
+        mp.setattr(kraken_runtime, "resolve_recognition_model",
+                   lambda ref: ("/models/mccatmus.mlmodel", "kraken-mccatmus"))
+        result = await _run_transcribe(library_path, doc, {"kraken_model": "kraken-mccatmus"})
+
+    assert not result.get("error"), result.get("error")
+    # The good existing content survives.
+    reloaded = db.get(Document, doc.id)
+    assert reloaded.page_content == "clean Spanish transcription from an earlier pass"
+    # But the Kraken output is still captured as an artifact for review/manual promote.
+    arts = db.query(Artifact, document_id=doc.id, artifact_type="transcription")
+    assert len(arts) == 1 and arts[0].ocr_geometry is not None
+    assert [b.text for b in arts[0].ocr_geometry.boxes] == ["vecino de la ciudad", "de Santa Fe"]
+
+
+@pytest.mark.asyncio
+async def test_recognition_does_not_clobber_user_edited_page_content(temp_library, tmp_path):
+    """The pre-existing user-edited guard also holds for Kraken."""
+    from fichero_server.models import Artifact, Document, DocType, FileType
+    from fichero_server.workflows.curation_guard import PAGE_CONTENT_USER_EDITED_KEY
+    import fichero_server.llm.kraken_runtime as kraken_runtime
+
+    library_path, db_manager = temp_library
+    db = db_manager.get_database(library_path)
+    png = tmp_path / "hand.png"
+    _make_png(png)
+    doc = Document(
+        name="hand.png", doc_type=DocType.file, file_type=FileType.image, path=str(png),
+        page_content="a human corrected this",
+        metadata={PAGE_CONTENT_USER_EDITED_KEY: "2026-09-06T00:00:00Z"},
+    )
+    db.save(doc)
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(kraken_runtime, "recognize_to_geometry",
+                   lambda *a, **k: _recognized_geometry())
+        mp.setattr(kraken_runtime, "resolve_recognition_model",
+                   lambda ref: ("/models/mccatmus.mlmodel", "kraken-mccatmus"))
+        await _run_transcribe(library_path, doc, {"kraken_model": "kraken-mccatmus"})
+
+    reloaded = db.get(Document, doc.id)
+    assert reloaded.page_content == "a human corrected this"
+    assert db.query(Artifact, document_id=doc.id, artifact_type="transcription")
+
+
+@pytest.mark.asyncio
 async def test_no_recognition_model_stays_segment_only(temp_library, tmp_path):
     """The guard: with no recognition model the kraken seam is unchanged —
     segment_to_geometry (not recognize), empty transcript."""

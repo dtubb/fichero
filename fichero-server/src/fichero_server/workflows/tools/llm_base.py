@@ -481,6 +481,7 @@ async def save_artifact(
     metadata_field: str | None = None,
     custom_metadata: dict | None = None,
     document: object | None = None,
+    promote_page_content_only_if_empty: bool = False,
 ) -> str | None:
     """Save LLM result to database.
 
@@ -497,6 +498,12 @@ async def save_artifact(
         tool_config: Tool-specific configuration
         metadata_field: Override where to save in metadata
         custom_metadata: Additional key-value pairs to save
+        promote_page_content_only_if_empty: When True, the artifact is still
+            saved but its text is promoted into Document.page_content ONLY if the
+            page has no content yet — so a LOW-CONFIDENCE recogniser (Kraken/
+            McCATMuS) cannot overwrite a good existing transcription in place
+            (curation persists). Default False keeps the trusted-LLM overwrite
+            behaviour unchanged.
 
     Returns:
         Artifact ID if saved, None otherwise
@@ -542,6 +549,7 @@ async def save_artifact(
         metadata_field,
         custom_metadata,
         ocr_geometry,
+        promote_page_content_only_if_empty,
     )
 
 
@@ -584,6 +592,7 @@ def _save_artifact_sync(
     metadata_field: str | None,
     custom_metadata: dict | None,
     ocr_geometry: OCRGeometryResult | None,
+    promote_page_content_only_if_empty: bool = False,
 ) -> str | None:
     """Synchronous DB-write + embed core of :func:`save_artifact`.
 
@@ -708,7 +717,15 @@ def _save_artifact_sync(
             if not isinstance(doc.metadata, dict):
                 doc.metadata = {}
             user_edited = page_content_is_user_edited(doc)
-            if tool_config.update_page_content and not user_edited:
+            # A low-confidence recogniser (Kraken/McCATMuS) must not overwrite a
+            # good existing transcription: promote only into an EMPTY page. The
+            # artifact above is still saved, so the result is discoverable and
+            # the user can promote it by hand (curation persists). Default off,
+            # so the trusted-LLM overwrite path is unchanged.
+            blocked_by_existing = promote_page_content_only_if_empty and bool(
+                (getattr(doc, "page_content", None) or "").strip()
+            )
+            if tool_config.update_page_content and not user_edited and not blocked_by_existing:
                 # A script-classification line the prompt requested is
                 # metadata: keep it on the document, never in its text
                 # (2026-08-25). The artifact saved above keeps the raw output.
@@ -843,6 +860,7 @@ async def save_file_artifact(
     metadata_field: str | None = None,
     custom_metadata: dict | None = None,
     document: object | None = None,
+    promote_page_content_only_if_empty: bool = False,
 ) -> str | None:
     """File-oriented entry point to ``save_artifact`` for media/file tools.
 
@@ -874,6 +892,7 @@ async def save_file_artifact(
         metadata_field=metadata_field,
         custom_metadata=custom_metadata,
         document=document,
+        promote_page_content_only_if_empty=promote_page_content_only_if_empty,
     )
 
 
