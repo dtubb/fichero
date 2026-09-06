@@ -55,10 +55,20 @@ enum AboutInfo {
     }
 }
 
+/// Which layer of the stack a dependency belongs to — groups the
+/// acknowledgements so the list reads as "what the app is built on", not a flat
+/// wall of names.
+enum AckLayer: String, CaseIterable, Hashable {
+    case app = "App (Swift)"
+    case engine = "Engine (Python)"
+    case onDevice = "On-device AI"
+}
+
 struct Acknowledgement: Identifiable, Hashable {
     let name: String
     let license: String
     let url: URL
+    let layer: AckLayer
 
     var id: String { name }
 }
@@ -68,15 +78,61 @@ enum AboutLinks {
     static let license = URL(string: "https://github.com/dtubb/fichero/blob/main/LICENSE")!
 }
 
+/// The open-source stack Fichero is built on (Daniel, 2026-09-06: the About box
+/// should credit the full stack).
+///
+/// Curated but DERIVED from the real manifests so it stays accurate — refresh it
+/// against:
+///   • App:    fichero/fichero.xcodeproj/…/swiftpm/Package.resolved
+///   • Engine: fichero-server/pyproject.toml
+///   • On-device AI: the local-inference runtime provisioner (mlx-lm/-vlm/
+///     -whisper, kraken) — these are provisioned at runtime, NOT pinned in
+///     pyproject, so an auto-scrape of the manifests alone would miss them.
+/// A full build-time generator is deliberately not built for a credits list;
+/// this is the low-maintenance middle ground.
 enum AboutAcknowledgements {
     static let entries: [Acknowledgement] = [
-        Acknowledgement(name: "DuckDB", license: "MIT License", url: URL(string: "https://duckdb.org")!),
-        Acknowledgement(name: "FastAPI", license: "MIT License", url: URL(string: "https://fastapi.tiangolo.com")!),
-        Acknowledgement(name: "LanceDB", license: "Apache License 2.0", url: URL(string: "https://lancedb.com")!),
-        Acknowledgement(name: "LangChain", license: "MIT License", url: URL(string: "https://www.langchain.com")!),
-        Acknowledgement(name: "LangGraph", license: "MIT License", url: URL(string: "https://langchain-ai.github.io/langgraph")!),
-        Acknowledgement(name: "Pydantic", license: "MIT License", url: URL(string: "https://docs.pydantic.dev")!),
-        Acknowledgement(name: "Sparkle", license: "MIT License", url: URL(string: "https://sparkle-project.org")!)
+        // App — Swift / Apple
+        .init(name: "SwiftUI & AppKit", license: "Apple platform frameworks", url: URL(string: "https://developer.apple.com/xcode/swiftui/")!, layer: .app),
+        .init(name: "Sparkle", license: "MIT License", url: URL(string: "https://sparkle-project.org")!, layer: .app),
+        .init(name: "PythonKit", license: "Apache License 2.0", url: URL(string: "https://github.com/pvieito/PythonKit")!, layer: .app),
+        .init(name: "Swift OpenAPI Generator", license: "Apache License 2.0", url: URL(string: "https://github.com/apple/swift-openapi-generator")!, layer: .app),
+        .init(name: "SwiftNIO", license: "Apache License 2.0", url: URL(string: "https://github.com/apple/swift-nio")!, layer: .app),
+        .init(name: "Swift Crypto & Certificates", license: "Apache License 2.0", url: URL(string: "https://github.com/apple/swift-crypto")!, layer: .app),
+        .init(name: "Swift Collections, Algorithms & Numerics", license: "Apache License 2.0", url: URL(string: "https://github.com/apple/swift-collections")!, layer: .app),
+        .init(name: "Swift Argument Parser", license: "Apache License 2.0", url: URL(string: "https://github.com/apple/swift-argument-parser")!, layer: .app),
+        .init(name: "AsyncHTTPClient", license: "Apache License 2.0", url: URL(string: "https://github.com/swift-server/async-http-client")!, layer: .app),
+        .init(name: "OpenAPIKit", license: "MIT License", url: URL(string: "https://github.com/mattpolzin/OpenAPIKit")!, layer: .app),
+        .init(name: "Yams", license: "MIT License", url: URL(string: "https://github.com/jpsim/Yams")!, layer: .app),
+
+        // Engine — Python
+        .init(name: "FastAPI", license: "MIT License", url: URL(string: "https://fastapi.tiangolo.com")!, layer: .engine),
+        .init(name: "Starlette", license: "BSD-3-Clause License", url: URL(string: "https://www.starlette.io")!, layer: .engine),
+        .init(name: "Uvicorn", license: "BSD-3-Clause License", url: URL(string: "https://www.uvicorn.org")!, layer: .engine),
+        .init(name: "Pydantic", license: "MIT License", url: URL(string: "https://docs.pydantic.dev")!, layer: .engine),
+        .init(name: "DuckDB", license: "MIT License", url: URL(string: "https://duckdb.org")!, layer: .engine),
+        .init(name: "LanceDB", license: "Apache License 2.0", url: URL(string: "https://lancedb.com")!, layer: .engine),
+        .init(name: "LangChain", license: "MIT License", url: URL(string: "https://www.langchain.com")!, layer: .engine),
+        .init(name: "LangGraph", license: "MIT License", url: URL(string: "https://langchain-ai.github.io/langgraph")!, layer: .engine),
+        .init(name: "Model Context Protocol (MCP)", license: "MIT License", url: URL(string: "https://modelcontextprotocol.io")!, layer: .engine),
+        .init(name: "spaCy", license: "MIT License", url: URL(string: "https://spacy.io")!, layer: .engine),
+        .init(name: "Kreuzberg", license: "MIT License", url: URL(string: "https://github.com/Goldziher/kreuzberg")!, layer: .engine),
+        .init(name: "PyMuPDF", license: "AGPL-3.0 License", url: URL(string: "https://pymupdf.readthedocs.io")!, layer: .engine),
+        .init(name: "pypdfium2", license: "Apache-2.0 / BSD-3-Clause", url: URL(string: "https://github.com/pypdfium2-team/pypdfium2")!, layer: .engine),
+        .init(name: "Pillow", license: "HPND License", url: URL(string: "https://python-pillow.org")!, layer: .engine),
+        .init(name: "OpenCV", license: "Apache License 2.0", url: URL(string: "https://opencv.org")!, layer: .engine),
+        .init(name: "fastembed", license: "Apache License 2.0", url: URL(string: "https://github.com/qdrant/fastembed")!, layer: .engine),
+        .init(name: "NumPy", license: "BSD-3-Clause License", url: URL(string: "https://numpy.org")!, layer: .engine),
+        .init(name: "httpx", license: "BSD-3-Clause License", url: URL(string: "https://www.python-httpx.org")!, layer: .engine),
+        .init(name: "Rich & Typer", license: "MIT License", url: URL(string: "https://github.com/Textualize/rich")!, layer: .engine),
+        .init(name: "Jinja2", license: "BSD-3-Clause License", url: URL(string: "https://jinja.palletsprojects.com")!, layer: .engine),
+        .init(name: "rdflib", license: "BSD-3-Clause License", url: URL(string: "https://rdflib.readthedocs.io")!, layer: .engine),
+        .init(name: "PyObjC", license: "MIT License", url: URL(string: "https://pyobjc.readthedocs.io")!, layer: .engine),
+
+        // On-device AI — provisioned at runtime by the local-inference runtimes
+        .init(name: "MLX (mlx-lm, mlx-vlm, mlx-whisper)", license: "MIT License", url: URL(string: "https://github.com/ml-explore/mlx")!, layer: .onDevice),
+        .init(name: "Kraken", license: "Apache License 2.0", url: URL(string: "https://kraken.re")!, layer: .onDevice),
+        .init(name: "Whisper", license: "MIT License", url: URL(string: "https://github.com/openai/whisper")!, layer: .onDevice)
     ]
 }
 
@@ -213,16 +269,34 @@ private struct AcknowledgementsView: View {
 
     @Environment(\.dismiss) private var dismiss
 
+    private func entries(in layer: AckLayer) -> [Acknowledgement] {
+        entries.filter { $0.layer == layer }
+    }
+
     var body: some View {
         NavigationStack {
-            List(entries) { acknowledgement in
-                Link(destination: acknowledgement.url) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(acknowledgement.name)
-                            .font(.body.weight(.medium))
-                        Text(acknowledgement.license)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+            List {
+                Section {
+                    Text("Fichero is built on the work of these open-source projects.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+                ForEach(AckLayer.allCases, id: \.self) { layer in
+                    let layerEntries = entries(in: layer)
+                    if !layerEntries.isEmpty {
+                        Section(layer.rawValue) {
+                            ForEach(layerEntries) { acknowledgement in
+                                Link(destination: acknowledgement.url) {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(acknowledgement.name)
+                                            .font(.body.weight(.medium))
+                                        Text(acknowledgement.license)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -256,4 +330,8 @@ struct AboutWindowMenuButton: View {
 #Preview {
     AboutView()
         .environment(AppState())
+}
+
+#Preview("Acknowledgements") {
+    AcknowledgementsView(entries: AboutAcknowledgements.entries)
 }
