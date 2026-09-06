@@ -288,4 +288,36 @@ struct EntityClickthroughTests {
         // It must not degrade back to focus-only, which navigated nowhere.
         #expect(!body.contains("onEntitySelect?(id)"))
     }
+
+    /// The REACHABILITY half (Daniel, 2026-09-05, live testing: "when I click on
+    /// a page, I'm not taken there"). All four repaired click paths above post to
+    /// `entitySearchState` / `claimSourceNavigationState` — but those per-window
+    /// buses are injected only on the NavigationSplitView subtree, and the
+    /// Document Knowledge inspector lives in the `.inspector` content, which does
+    /// NOT inherit the window environment (the documented non-inheritance the
+    /// library-service re-injection already works around). Unless the buses are
+    /// re-injected across THAT boundary too, the inspector reads them as nil and
+    /// every entity/claim clickthrough is a silent no-op — the row-logic fixes
+    /// land on a cursor that isn't there (#4666/#4672). This pins the injection
+    /// so it can't be dropped from the re-injected list again.
+    @Test("the inspector content re-injects the request buses, or clickthrough no-ops")
+    func inspectorBoundaryReinjectsTheRequestBuses() throws {
+        let root = try AppSource.code(
+            "Views/Shell/ContentView/Layout/ContentView+RootLayout.swift"
+        )
+        // Scope to the inspector-content injection chain: everything the
+        // `if let library` branch stacks onto `inspectorContainerView`, up to
+        // the `} else {` placeholder branch. The detail-side injection lives
+        // far below in `requestBusesAndAppleScript`, past this window.
+        let afterServices = try #require(
+            root.components(separatedBy: ".libraryServiceEnvironment(library)").dropFirst().first
+        )
+        let injectionBlock = try #require(
+            afterServices.components(separatedBy: "} else {").first
+        )
+        // Both buses the inspector's openEntity/openClaim post to must cross
+        // the boundary — a subset is the exact bug the services above document.
+        #expect(injectionBlock.contains(".environment(entitySearchState)"))
+        #expect(injectionBlock.contains(".environment(claimSourceNavigationState)"))
+    }
 }

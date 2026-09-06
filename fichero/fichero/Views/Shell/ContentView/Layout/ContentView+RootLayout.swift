@@ -63,6 +63,30 @@ extension ContentView {
                         .environment(errorService)
                         .environment(featureManager)
                         .environment(libraryManager)
+                        // The per-window REQUEST BUSES don't cross the
+                        // .inspector boundary either (same non-inheritance as
+                        // the services above). They are injected once on the
+                        // NavigationSplitView subtree in
+                        // `requestBusesAndAppleScript`, so the reader/library
+                        // side reaches them — but the Document Knowledge
+                        // inspector lives in THIS inspector content, and read
+                        // them as nil. That made every entity/claim clickthrough
+                        // in the inspector a SILENT no-op: `openEntity`'s scoped
+                        // mention search (entitySearchState) and `openClaim`'s
+                        // trace-to-source cursor (claimSourceNavigationState)
+                        // posted into nothing, so a page/source clicked from an
+                        // entity never took the reader anywhere — the #4666/#4672
+                        // class ("the cursor never reaching the surface"), which
+                        // left the just-landed row-action fixes inert here. The
+                        // buses are the SAME per-window instances the root
+                        // subscribes to via `.onChange(of: …requestID)`, so a
+                        // click here now drives the identical navigation the
+                        // reader/library clicks do. Re-inject the FULL set, not a
+                        // subset (the rule the services above already follow).
+                        .environment(entitySearchState)
+                        .environment(claimSourceNavigationState)
+                        .environment(readerPageActivationState)
+                        .environment(activeSurfaceState)
                 } else {
                     // NO bare mount, ever (Daniel's table-open crash,
                     // 2026-08-09 morning): at launch the restored selection
