@@ -191,40 +191,50 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
     func syncActivePage(into webView: WKWebView, parent: DocumentKGWebPane) {
         let suppressed = Date() < suppressActivePageSyncUntil
         let webDriving = parent.scrollSync.isDriving(.web)
+        // Scroll-by-id (#reader-page-id) FIRST, and INDEPENDENTLY of the border
+        // guard below: a null-sequence page collapses to ordinal 1 for EVERY
+        // page (readerActivePageNumber → max(1, sequence ?? 1)), so decide()'s
+        // "no change" guard would skip the scroll for the 2nd+ such page. The JS
+        // falls back to the ordinal when the id names no article (legacy
+        // transcript-parse payloads), so this never scrolls nowhere. Virtual
+        // page cursors carry a nil activePageId and stay on the ordinal path.
+        if let pageId = parent.activePageId {
+            if pageId != lastActivePageId, !suppressed, !webDriving {
+                lastActivePageId = pageId
+                webView.evaluateJavaScript(ReaderActivePageSync.scrollByIdScript(
+                    pageId: pageId,
+                    fallbackPage: parent.activePageNumber,
+                    fallbackCount: parent.pageCount
+                ))
+            }
+        } else {
+            lastActivePageId = nil
+        }
         let decision = ReaderActivePageSync.decide(
             lastSent: lastActivePageNumber,
             desired: parent.activePageNumber,
             isScrollSuppressed: suppressed,
             isWebDriving: webDriving
         )
-        if decision.sendsHighlight {
-            // Record ONLY what actually went out. The old code recorded before
-            // its early returns, so a suppressed tick marked the border
-            // delivered and left it on the wrong page (#4373).
-            lastActivePageNumber = parent.activePageNumber
+        guard decision.sendsHighlight else { return }
+        // Record ONLY what actually went out. The old code recorded before its
+        // early returns, so a suppressed tick marked the border delivered and
+        // left it on the wrong page (#4373). The border stays cursor-driven.
+        lastActivePageNumber = parent.activePageNumber
+        webView.evaluateJavaScript(
+            ReaderActivePageSync.highlightScript(page: parent.activePageNumber)
+        )
+        // Ordinal SCROLL only when there is NO page id: the id scroll above
+        // already landed the exact page, and a second scrollScript to the
+        // ordinal (1 for a null-sequence page) would fight it. The border
+        // highlight above still tracks the ordinal in both cases.
+        if decision.sendsScroll,
+           parent.activePageId == nil,
+           let pageNumber = parent.activePageNumber,
+           let pageCount = parent.pageCount {
             webView.evaluateJavaScript(
-                ReaderActivePageSync.highlightScript(page: parent.activePageNumber)
+                ReaderActivePageSync.scrollScript(page: pageNumber, pageCount: pageCount)
             )
-            if decision.sendsScroll,
-               let pageNumber = parent.activePageNumber,
-               let pageCount = parent.pageCount {
-                webView.evaluateJavaScript(
-                    ReaderActivePageSync.scrollScript(page: pageNumber, pageCount: pageCount)
-                )
-            }
-        }
-        // Scroll-by-id (#reader-page-id). ADDITIVE to the ordinal path above:
-        // when the page HAS a sequence both resolve to the same <article>, so
-        // this never fights it; when the top-level `sequence` is null (manifest-
-        // imported image pages) the ordinal path scrolls nowhere and this is the
-        // only thing that lands the selected page instead of the parent's first.
-        if let pageId = parent.activePageId {
-            if pageId != lastActivePageId, !suppressed, !webDriving {
-                lastActivePageId = pageId
-                webView.evaluateJavaScript(ReaderActivePageSync.scrollByIdScript(pageId: pageId))
-            }
-        } else {
-            lastActivePageId = nil
         }
     }
 

@@ -323,9 +323,12 @@ extension ContentView {
     /// Marshall corpus) always leave null — so picking a search hit stranded
     /// the reader on the parent's first page. A page's id always names its
     /// transcript `<article data-page-id>`, so this lands on the exact page
-    /// regardless of `sequence`. nil for anything that is not a page.
+    /// regardless of `sequence`. nil for anything that is not a page, and for a
+    /// VIRTUAL page cursor (`:vpage:` — an unprocessed PDF's synthetic cursor):
+    /// it names no transcript article, so it stays on the ordinal scroll path.
     static func readerActivePageId(for doc: Document?) -> String? {
-        guard let doc, doc.docType == .page else { return nil }
+        guard let doc, doc.docType == .page,
+              !Document.isVirtualPageCursorId(doc.id) else { return nil }
         return doc.id
     }
 

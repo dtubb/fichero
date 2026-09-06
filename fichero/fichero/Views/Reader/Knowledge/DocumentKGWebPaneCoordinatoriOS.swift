@@ -178,38 +178,45 @@ final class DocumentKGWebPaneCoordinatoriOS: NSObject, WKNavigationDelegate, WKS
     func syncActivePage(into webView: WKWebView, parent: DocumentKGWebPane) {
         let suppressed = Date() < suppressActivePageSyncUntil
         let webDriving = parent.scrollSync.isDriving(.web)
+        // Scroll-by-id (#reader-page-id) FIRST and independently of the border
+        // guard below — see the macOS twin for the full reasoning. Virtual page
+        // cursors carry a nil activePageId and stay on the ordinal path.
+        if let pageId = parent.activePageId {
+            if pageId != lastActivePageId, !suppressed, !webDriving {
+                lastActivePageId = pageId
+                webView.evaluateJavaScript(ReaderActivePageSync.scrollByIdScript(
+                    pageId: pageId,
+                    fallbackPage: parent.activePageNumber,
+                    fallbackCount: parent.pageCount
+                ))
+            }
+        } else {
+            lastActivePageId = nil
+        }
         let decision = ReaderActivePageSync.decide(
             lastSent: lastActivePageNumber,
             desired: parent.activePageNumber,
             isScrollSuppressed: suppressed,
             isWebDriving: webDriving
         )
-        if decision.sendsHighlight {
-            // Record ONLY what actually went out. The old code recorded before
-            // its early returns, so a suppressed tick marked the border
-            // delivered and left it on the wrong page (#4373).
-            lastActivePageNumber = parent.activePageNumber
+        guard decision.sendsHighlight else { return }
+        // Record ONLY what actually went out. The old code recorded before its
+        // early returns, so a suppressed tick marked the border delivered and
+        // left it on the wrong page (#4373). The border stays cursor-driven.
+        lastActivePageNumber = parent.activePageNumber
+        webView.evaluateJavaScript(
+            ReaderActivePageSync.highlightScript(page: parent.activePageNumber)
+        )
+        // Ordinal SCROLL only when there is NO page id — the id scroll above
+        // already landed the exact page; a second scrollScript to the ordinal
+        // (1 for a null-sequence page) would fight it.
+        if decision.sendsScroll,
+           parent.activePageId == nil,
+           let pageNumber = parent.activePageNumber,
+           let pageCount = parent.pageCount {
             webView.evaluateJavaScript(
-                ReaderActivePageSync.highlightScript(page: parent.activePageNumber)
+                ReaderActivePageSync.scrollScript(page: pageNumber, pageCount: pageCount)
             )
-            if decision.sendsScroll,
-               let pageNumber = parent.activePageNumber,
-               let pageCount = parent.pageCount {
-                webView.evaluateJavaScript(
-                    ReaderActivePageSync.scrollScript(page: pageNumber, pageCount: pageCount)
-                )
-            }
-        }
-        // Scroll-by-id (#reader-page-id) — see the macOS twin. Additive to the
-        // ordinal path; the only thing that lands a page whose top-level
-        // `sequence` is null (manifest-imported image pages).
-        if let pageId = parent.activePageId {
-            if pageId != lastActivePageId, !suppressed, !webDriving {
-                lastActivePageId = pageId
-                webView.evaluateJavaScript(ReaderActivePageSync.scrollByIdScript(pageId: pageId))
-            }
-        } else {
-            lastActivePageId = nil
         }
     }
 

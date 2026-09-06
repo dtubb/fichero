@@ -219,7 +219,7 @@ extension DocumentKGPaneRoute {
                 });
             });
         };
-        window.ficheroScrollToPageId = function(pageId) {
+        window.ficheroScrollToPageId = function(pageId, fallbackPage, fallbackCount) {
             if (!pageId) { return; }
             var selector = '.transcript-page[data-page-id="'
                 + ((window.CSS && CSS.escape) ? CSS.escape(pageId) : pageId) + '"]';
@@ -229,7 +229,16 @@ extension DocumentKGPaneRoute {
                 installPageAnchors();
                 anchor = document.querySelector(selector);
             }
-            if (!anchor || !root) { return; }
+            if (!anchor) {
+                // Legacy transcript-parse payloads carry data-page but no
+                // data-page-id: fall back to the ordinal so the scroll still
+                // lands instead of doing nothing.
+                if (fallbackPage != null && window.ficheroScrollToPage) {
+                    window.ficheroScrollToPage(fallbackPage, fallbackCount);
+                }
+                return;
+            }
+            if (!root) { return; }
             window.ficheroScrollSyncSequence += 1;
             window.ficheroSuppressScrollPost = true;
             anchor.scrollIntoView({ block: 'start', inline: 'nearest' });

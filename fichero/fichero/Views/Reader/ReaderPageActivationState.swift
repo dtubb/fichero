@@ -148,8 +148,14 @@ enum ReaderActivePageSync {
     /// leave the top-level `sequence` column null, so the ordinal path resolved
     /// every selected hit to the parent's first page. The page's id always
     /// names its `<article data-page-id>`, so this lands on the exact page.
-    static func scrollByIdScript(pageId: String) -> String {
-        "window.ficheroScrollToPageId?.('\(DocumentKGPaneRoute.jsStringLiteral(pageId))');"
+    ///
+    /// `fallbackPage`/`fallbackCount` are the ordinal the JS uses when the id
+    /// names no article — a legacy transcript-parse payload has `data-page` but
+    /// no `data-page-id`, so the scroll still lands rather than doing nothing.
+    static func scrollByIdScript(pageId: String, fallbackPage: Int?, fallbackCount: Int?) -> String {
+        let page = fallbackPage.map(String.init) ?? "null"
+        let count = fallbackCount.map(String.init) ?? "null"
+        return "window.ficheroScrollToPageId?.('\(DocumentKGPaneRoute.jsStringLiteral(pageId))', \(page), \(count));"
     }
 }
 
