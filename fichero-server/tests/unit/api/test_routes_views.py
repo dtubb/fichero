@@ -22,6 +22,35 @@ def _make_document(*, doc_id: str, name: str, doc_type: DocType, page_content: s
     )
 
 
+class TestReaderRenderPathGuard:
+    """The reader /view/document render path had NO guard, so when jinja2 (a
+    declared dep) went missing from the engine env the route 500'd silently and
+    only Daniel found it. This is that guard: a real document renders 200 with a
+    real HTML body — it fails on a missing jinja2, a broken template, or a
+    render-time exception.
+    """
+
+    def test_document_view_renders_non_empty_html(self, client, db):
+        doc = _make_document(
+            doc_id="reader-render-guard",
+            name="ReaderGuard.pdf",
+            doc_type=DocType.file,
+            file_type=FileType.pdf,
+            page_content="A transcript the reader must render.",
+        )
+        db.save(doc)
+
+        response = client.get(f"/view/document/{doc.id}")
+
+        # A missing jinja2 (or a template break) surfaces as a 500 right here.
+        assert response.status_code == 200
+        assert "text/html" in response.headers.get("content-type", "").lower()
+        body = response.text
+        assert len(body) > 500, "the reader returned an empty/truncated body"
+        assert "<html" in body.lower()
+        assert "<title>ReaderGuard.pdf</title>" in body
+
+
 class TestDocumentViewRoute:
     def test_html_route_seeds_document_entities_and_claims(self, client, db):
         doc = _make_document(

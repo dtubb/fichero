@@ -191,6 +191,38 @@ def test_floored_packages_agree_across_both_lists():
     )
 
 
+def _macos_requires() -> list[str]:
+    """The macOS-platform bundle requires (a THIRD dependency list).
+
+    Distinct from ``[tool.briefcase.app.fichero_server].requires``: the
+    platform block adds macOS-only wheels the shipped app needs. jinja2 lives
+    here (see below), which is why _shipped_lists() alone never saw it.
+    """
+    data = _pyproject()
+    app = data["tool"]["briefcase"]["app"]["fichero_server"]
+    return app.get("macOS", {}).get("requires", [])
+
+
+def test_jinja2_is_bundled_and_imports():
+    """The reader render path had no guard, so a missing jinja2 500'd silently.
+
+    /view/document renders document_view.html through Jinja2Templates. #3985
+    moved that import off the boot path (correctly) — which also meant a jinja2
+    absent from the bundle surfaced ONLY as a 500 the first time a user opened a
+    single-document reader, with nothing in the suite to catch it (Daniel,
+    2026-08-28). Two things keep it fixed: it stays in the macOS bundle
+    requires, and it actually imports in the env that runs the tests (so a
+    partial engine env fails HERE, not in Daniel's hands).
+    """
+    assert "jinja2" in {_base_name(r) for r in _macos_requires()}, (
+        "jinja2 must stay in the macOS bundle requires — the reader's "
+        "/view/document renders through Jinja2Templates and 500s without it."
+    )
+    import importlib
+
+    importlib.import_module("jinja2")
+
+
 def test_no_new_exact_pins_in_shipped_deps():
     """Floors, never ``==``. An exact pin freezes us on a stale version."""
     for list_name, requirements in _shipped_lists().items():
