@@ -3965,6 +3965,76 @@
         "response_model": "MethodTaxonomyResponse"
       }
     ],
+    "hpc": [
+      {
+        "method": "GET",
+        "path": "/hpc/clusters",
+        "operation_id": "list_clusters_api_hpc_clusters_get",
+        "summary": "List Clusters",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "HpcClusterListResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/hpc/clusters",
+        "operation_id": "create_or_update_cluster_api_hpc_clusters_post",
+        "summary": "Create Or Update Cluster",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "HpcClusterCreate",
+        "response_model": "HpcClusterResponse"
+      },
+      {
+        "method": "DELETE",
+        "path": "/hpc/clusters/{cluster_id}",
+        "operation_id": "delete_cluster_api_hpc_clusters__cluster_id__delete",
+        "summary": "Delete Cluster",
+        "path_params": [
+          "cluster_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "fichero_server__api__routes__ai__hpc__DeletedResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/hpc/clusters/{cluster_id}",
+        "operation_id": "get_cluster_api_hpc_clusters__cluster_id__get",
+        "summary": "Get Cluster",
+        "path_params": [
+          "cluster_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "HpcClusterResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/hpc/clusters/{cluster_id}/dry-run-submit",
+        "operation_id": "dry_run_submit_api_hpc_clusters__cluster_id__dry_run_submit_post",
+        "summary": "Dry Run Submit",
+        "path_params": [
+          "cluster_id"
+        ],
+        "query_params": [],
+        "request_model": "HpcDryRunSubmitRequest",
+        "response_model": "HpcDryRunSubmitResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/hpc/clusters/{cluster_id}/test",
+        "operation_id": "test_cluster_api_hpc_clusters__cluster_id__test_post",
+        "summary": "Test Cluster",
+        "path_params": [
+          "cluster_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "HpcTestResponse"
+      }
+    ],
     "iiif": [
       {
         "method": "GET",
@@ -6041,6 +6111,36 @@
       },
       {
         "method": "DELETE",
+        "path": "/local-models/kraken",
+        "operation_id": "remove_kraken_api_local_models_kraken_delete",
+        "summary": "Remove Kraken",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "KrakenRuntimeStatusResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/local-models/kraken/install",
+        "operation_id": "install_kraken_api_local_models_kraken_install_post",
+        "summary": "Install Kraken",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "KrakenRuntimeStatusResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/local-models/kraken/status",
+        "operation_id": "kraken_status_api_local_models_kraken_status_get",
+        "summary": "Kraken Status",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "KrakenRuntimeStatusResponse"
+      },
+      {
+        "method": "DELETE",
         "path": "/local-models/{model_type}/{model_id}",
         "operation_id": "delete_model_api_local_models__model_type___model_id__delete",
         "summary": "Delete Model",
@@ -7190,6 +7290,16 @@
         "query_params": [],
         "request_model": null,
         "response_model": "ProviderCatalogResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/providers/local-runtimes",
+        "operation_id": "list_local_runtimes_api_providers_local_runtimes_get",
+        "summary": "List Local Runtimes",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "LocalRuntimeListResponse"
       },
       {
         "method": "GET",

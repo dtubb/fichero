@@ -5770,6 +5770,133 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    target_app = existing_apps.get('hpc')
+    if target_app is None:
+        target_app = typer.Typer(help='Generated OpenAPI commands for hpc endpoints.', no_args_is_help=True)
+        root_app.add_typer(target_app, name='hpc')
+        existing_apps['hpc'] = target_app
+
+    @target_app.command("list-clusters")
+    def hpc_list_clusters_get(
+        ctx: typer.Context,
+    ) -> None:
+        """List Clusters (GET /api/hpc/clusters)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/hpc/clusters"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("create-or-update-cluster")
+    def hpc_create_or_update_cluster_post(
+        ctx: typer.Context,
+        account: Optional[str] = typer.Option(None, "--account", help="Request field: account."),
+        cluster_id: Optional[str] = typer.Option(None, "--cluster-id", help="Request field: cluster_id."),
+        host_alias: str = typer.Option(..., "--host-alias", help="Request field: host_alias."),
+        name: str = typer.Option(..., "--name", help="Request field: name."),
+        partition: Optional[str] = typer.Option(None, "--partition", help="Request field: partition."),
+        remote_base_dir: str = typer.Option(..., "--remote-base-dir", help="Request field: remote_base_dir."),
+        ssh_port: Optional[int] = typer.Option(None, "--ssh-port", help="Request field: ssh_port."),
+        username: str = typer.Option(..., "--username", help="Request field: username."),
+    ) -> None:
+        """Create Or Update Cluster (POST /api/hpc/clusters)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/hpc/clusters"
+            params = None
+            payload = _build_json_payload({
+                "account": account,
+                "cluster_id": cluster_id,
+                "host_alias": host_alias,
+                "name": name,
+                "partition": partition,
+                "remote_base_dir": remote_base_dir,
+                "ssh_port": ssh_port,
+                "username": username,
+            }, {
+                "account": {'type': 'string', 'nullable': True, 'title': 'Account', 'x-cli-required': False},
+                "cluster_id": {'type': 'string', 'nullable': True, 'title': 'Cluster Id', 'x-cli-required': False},
+                "host_alias": {'type': 'string', 'title': 'Host Alias', 'x-cli-required': True},
+                "name": {'type': 'string', 'title': 'Name', 'x-cli-required': True},
+                "partition": {'type': 'string', 'title': 'Partition', 'default': 'default', 'x-cli-required': False},
+                "remote_base_dir": {'type': 'string', 'title': 'Remote Base Dir', 'x-cli-required': True},
+                "ssh_port": {'type': 'integer', 'title': 'Ssh Port', 'default': 22, 'x-cli-required': False},
+                "username": {'type': 'string', 'title': 'Username', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("delete-cluster")
+    def hpc_delete_cluster_delete(
+        ctx: typer.Context,
+        cluster_id: str = typer.Argument(..., help="Path parameter: cluster_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
+    ) -> None:
+        """Delete Cluster (DELETE /api/hpc/clusters/{cluster_id})."""
+        if not yes:
+            typer.confirm("Delete hpc?", abort=True)
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/hpc/clusters/{cluster_id}"
+            params = None
+            return client.request("DELETE", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("get-cluster")
+    def hpc_get_cluster_get(
+        ctx: typer.Context,
+        cluster_id: str = typer.Argument(..., help="Path parameter: cluster_id."),
+    ) -> None:
+        """Get Cluster (GET /api/hpc/clusters/{cluster_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/hpc/clusters/{cluster_id}"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("dry-run-submit")
+    def hpc_dry_run_submit_post(
+        ctx: typer.Context,
+        cluster_id: str = typer.Argument(..., help="Path parameter: cluster_id."),
+        input_files: str = typer.Option(..., "--input-files", help="Request field: input_files."),
+        library_path: Optional[str] = typer.Option(None, "--library-path", help="Request field: library_path."),
+        run_id: str = typer.Option(..., "--run-id", help="Request field: run_id."),
+        throttle: Optional[int] = typer.Option(None, "--throttle", help="Request field: throttle."),
+        workflow_id: str = typer.Option(..., "--workflow-id", help="Request field: workflow_id."),
+        workflow_name: str = typer.Option(..., "--workflow-name", help="Request field: workflow_name."),
+    ) -> None:
+        """Dry Run Submit (POST /api/hpc/clusters/{cluster_id}/dry-run-submit)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/hpc/clusters/{cluster_id}/dry-run-submit"
+            params = None
+            payload = _build_json_payload({
+                "input_files": input_files,
+                "library_path": library_path,
+                "run_id": run_id,
+                "throttle": throttle,
+                "workflow_id": workflow_id,
+                "workflow_name": workflow_name,
+            }, {
+                "input_files": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Input Files', 'x-cli-required': True},
+                "library_path": {'type': 'string', 'title': 'Library Path', 'default': '', 'x-cli-required': False},
+                "run_id": {'type': 'string', 'title': 'Run Id', 'x-cli-required': True},
+                "throttle": {'type': 'integer', 'title': 'Throttle', 'default': 0, 'x-cli-required': False},
+                "workflow_id": {'type': 'string', 'title': 'Workflow Id', 'x-cli-required': True},
+                "workflow_name": {'type': 'string', 'title': 'Workflow Name', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("test-cluster")
+    def hpc_test_cluster_post(
+        ctx: typer.Context,
+        cluster_id: str = typer.Argument(..., help="Path parameter: cluster_id."),
+    ) -> None:
+        """Test Cluster (POST /api/hpc/clusters/{cluster_id}/test)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/hpc/clusters/{cluster_id}/test"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('iiif')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for iiif endpoints.', no_args_is_help=True)
@@ -8380,7 +8507,7 @@ def register_generated_openapi_commands(
                 "max_concurrency": {'type': 'integer', 'minimum': 1.0, 'title': 'Max Concurrency', 'default': 1, 'x-cli-required': False},
                 "model_id": {'type': 'string', 'title': 'Model Id', 'x-cli-required': True},
                 "name": {'type': 'string', 'title': 'Name', 'x-cli-required': True},
-                "provider_type": {'type': 'string', 'enum': ['apple', 'mock', 'spacy', 'ollama', 'lmstudio', 'omlx', 'huggingface', 'openrouter', 'openai', 'anthropic', 'google', 'groq', 'together', 'deepseek', 'mistral', 'cohere', 'dashscope', 'xai', 'perplexity', 'fireworks', 'deepl', 'azure', 'bedrock'], 'title': 'ProviderType', 'description': 'Supported LLM provider types.', 'x-cli-required': True},
+                "provider_type": {'type': 'string', 'enum': ['apple', 'mock', 'spacy', 'kraken', 'whisper', 'ollama', 'lmstudio', 'omlx', 'huggingface', 'openrouter', 'openai', 'anthropic', 'google', 'groq', 'together', 'deepseek', 'mistral', 'cohere', 'dashscope', 'xai', 'perplexity', 'fireworks', 'deepl', 'azure', 'bedrock'], 'title': 'ProviderType', 'description': 'Supported LLM provider types.', 'x-cli-required': True},
                 "python_executable": {'type': 'string', 'nullable': True, 'title': 'Python Executable', 'x-cli-required': False},
                 "startup_policy": {'type': 'string', 'enum': ['on_demand', 'eager', 'manual'], 'title': 'LocalProviderStartupPolicy', 'description': 'When the app should start a managed local provider.', 'x-cli-required': False},
                 "startup_timeout_seconds": {'type': 'number', 'minimum': 0.0, 'title': 'Startup Timeout Seconds', 'default': 300.0, 'x-cli-required': False},
@@ -8524,6 +8651,42 @@ def register_generated_openapi_commands(
             endpoint_path = f"/api/local-models/download/{model_type}/{model_id}"
             params = None
             return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("remove-kraken")
+    def local_models_remove_kraken_delete(
+        ctx: typer.Context,
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
+    ) -> None:
+        """Remove Kraken (DELETE /api/local-models/kraken)."""
+        if not yes:
+            typer.confirm("Delete local-models?", abort=True)
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/local-models/kraken"
+            params = None
+            return client.request("DELETE", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("install-kraken")
+    def local_models_install_kraken_post(
+        ctx: typer.Context,
+    ) -> None:
+        """Install Kraken (POST /api/local-models/kraken/install)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/local-models/kraken/install"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("kraken-status")
+    def local_models_kraken_status_get(
+        ctx: typer.Context,
+    ) -> None:
+        """Kraken Status (GET /api/local-models/kraken/status)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/local-models/kraken/status"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("delete")
@@ -10313,6 +10476,17 @@ def register_generated_openapi_commands(
         """Get Catalog Provider (GET /api/providers/catalog/{provider_type})."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = f"/api/providers/catalog/{provider_type}"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("list-local-runtimes")
+    def providers_list_local_runtimes_get(
+        ctx: typer.Context,
+    ) -> None:
+        """List Local Runtimes (GET /api/providers/local-runtimes)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/providers/local-runtimes"
             params = None
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)

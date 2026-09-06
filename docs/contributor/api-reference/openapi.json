@@ -3,7 +3,7 @@
   "info": {
     "title": "Fichero API",
     "description": "Document processing and search API",
-    "version": "2026.7.29"
+    "version": "2026.9.3"
   },
   "paths": {
     "/api/clients": {
@@ -15681,6 +15681,28 @@
         }
       }
     },
+    "/api/providers/local-runtimes": {
+      "get": {
+        "tags": [
+          "providers"
+        ],
+        "summary": "List Local Runtimes",
+        "description": "One uniform list of the four local runtimes for Settings to render.\n\nReports state only; it starts no installs. Each row points at the existing\ninstall/poll endpoints so the UI drives them the same way for every row.",
+        "operationId": "list_local_runtimes_api_providers_local_runtimes_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocalRuntimeListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/providers/{provider_type}/api-key": {
       "post": {
         "tags": [
@@ -16452,6 +16474,248 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/fichero_server__api__routes__ai__providers__DeletedResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hpc/clusters": {
+      "get": {
+        "tags": [
+          "hpc"
+        ],
+        "summary": "List Clusters",
+        "description": "List configured HPC cluster connections.",
+        "operationId": "list_clusters_api_hpc_clusters_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HpcClusterListResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "hpc"
+        ],
+        "summary": "Create Or Update Cluster",
+        "description": "Create or update an HPC cluster connection (validated at save time).",
+        "operationId": "create_or_update_cluster_api_hpc_clusters_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HpcClusterCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HpcClusterResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hpc/clusters/{cluster_id}": {
+      "get": {
+        "tags": [
+          "hpc"
+        ],
+        "summary": "Get Cluster",
+        "description": "Get one HPC cluster connection.",
+        "operationId": "get_cluster_api_hpc_clusters__cluster_id__get",
+        "parameters": [
+          {
+            "name": "cluster_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Cluster Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HpcClusterResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "hpc"
+        ],
+        "summary": "Delete Cluster",
+        "description": "Remove an HPC cluster connection.",
+        "operationId": "delete_cluster_api_hpc_clusters__cluster_id__delete",
+        "parameters": [
+          {
+            "name": "cluster_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Cluster Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/fichero_server__api__routes__ai__hpc__DeletedResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hpc/clusters/{cluster_id}/test": {
+      "post": {
+        "tags": [
+          "hpc"
+        ],
+        "summary": "Test Cluster",
+        "description": "Dry-run Test-connection: build the ``sinfo`` SSH probe command.\n\nv0 is honest about not executing: it validates the stored config and\nreturns the exact argv that a later wiring step will run over the user's\nSSH connection (plan \u00a76). This lets the settings UI show a Test button that\nsurfaces the real command today, then flips to live results when shell-out\nlands \u2014 no contract change.",
+        "operationId": "test_cluster_api_hpc_clusters__cluster_id__test_post",
+        "parameters": [
+          {
+            "name": "cluster_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Cluster Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HpcTestResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hpc/clusters/{cluster_id}/dry-run-submit": {
+      "post": {
+        "tags": [
+          "hpc"
+        ],
+        "summary": "Dry Run Submit",
+        "description": "Assemble a run as a Slurm array job spec WITHOUT submitting (plan \u00a72/\u00a73).\n\nOne workflow run over N input files = one array job with N indices. Returns\nthe remote workdir, the ``--array`` directive, and the rendered sbatch\nscript so the whole submission path is inspectable before any SSH is wired.",
+        "operationId": "dry_run_submit_api_hpc_clusters__cluster_id__dry_run_submit_post",
+        "parameters": [
+          {
+            "name": "cluster_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Cluster Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HpcDryRunSubmitRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HpcDryRunSubmitResponse"
                 }
               }
             }
@@ -32256,7 +32520,7 @@
           "local-inference"
         ],
         "summary": "Download Local Inference Model",
-        "description": "Start or reuse a managed MLX model download job.",
+        "description": "Start or reuse a local model install job (MLX, spaCy, Kraken or Whisper).\n\nOne endpoint for every local runtime: MLX models go to the MLX store, and\nspaCy/Kraken/Whisper go to the coordinator, both returning the same job so\nthe UI polls /models/downloads/{job_id} uniformly (Shape A).",
         "operationId": "download_local_inference_model_api_local_inference_models__model_id__download_post",
         "parameters": [
           {
@@ -32388,7 +32652,7 @@
           "local-inference"
         ],
         "summary": "Delete Local Inference Model",
-        "description": "Delete one managed MLX model from the local store.",
+        "description": "Delete one local model \u2014 MLX snapshot, Whisper weights, or Kraken venv.\n\nspaCy models are pip packages, so their delete refuses with how to remove\nthem (a 409) rather than pretending this app can.",
         "operationId": "delete_local_inference_model_api_local_inference_models__model_id__delete",
         "parameters": [
           {
@@ -32419,6 +32683,72 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/local-models/kraken/status": {
+      "get": {
+        "tags": [
+          "local-models"
+        ],
+        "summary": "Kraken Status",
+        "description": "Report whether Kraken is installed, plus any in-flight install job.",
+        "operationId": "kraken_status_api_local_models_kraken_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KrakenRuntimeStatusResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/local-models/kraken/install": {
+      "post": {
+        "tags": [
+          "local-models"
+        ],
+        "summary": "Install Kraken",
+        "description": "Start (or reuse) the coalesced background Kraken install job.\n\nReturns immediately with the job so the UI can poll ``/kraken/status``.\nIdempotent: a second call while one runs returns the same job, and a call\nwhen Kraken is already installed completes without rebuilding the venv.",
+        "operationId": "install_kraken_api_local_models_kraken_install_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KrakenRuntimeStatusResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/local-models/kraken": {
+      "delete": {
+        "tags": [
+          "local-models"
+        ],
+        "summary": "Remove Kraken",
+        "description": "Remove the Kraken venv when no install is running.",
+        "operationId": "remove_kraken_api_local_models_kraken_delete",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KrakenRuntimeStatusResponse"
                 }
               }
             }
@@ -47992,6 +48322,236 @@
         "type": "object",
         "title": "HeuristicRequest"
       },
+      "HpcClusterCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "host_alias": {
+            "type": "string",
+            "title": "Host Alias"
+          },
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
+          "remote_base_dir": {
+            "type": "string",
+            "title": "Remote Base Dir"
+          },
+          "partition": {
+            "type": "string",
+            "title": "Partition",
+            "default": "default"
+          },
+          "account": {
+            "type": "string",
+            "nullable": true,
+            "title": "Account"
+          },
+          "ssh_port": {
+            "type": "integer",
+            "title": "Ssh Port",
+            "default": 22
+          },
+          "cluster_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Cluster Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "host_alias",
+          "username",
+          "remote_base_dir"
+        ],
+        "title": "HpcClusterCreate",
+        "description": "Configure (create or update) an HPC cluster connection."
+      },
+      "HpcClusterListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/HpcClusterResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "HpcClusterListResponse"
+      },
+      "HpcClusterResponse": {
+        "properties": {
+          "cluster_id": {
+            "type": "string",
+            "title": "Cluster Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "host_alias": {
+            "type": "string",
+            "title": "Host Alias"
+          },
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
+          "remote_base_dir": {
+            "type": "string",
+            "title": "Remote Base Dir"
+          },
+          "partition": {
+            "type": "string",
+            "title": "Partition"
+          },
+          "account": {
+            "type": "string",
+            "nullable": true,
+            "title": "Account"
+          },
+          "ssh_port": {
+            "type": "integer",
+            "title": "Ssh Port"
+          }
+        },
+        "type": "object",
+        "required": [
+          "cluster_id",
+          "name",
+          "host_alias",
+          "username",
+          "remote_base_dir",
+          "partition",
+          "ssh_port"
+        ],
+        "title": "HpcClusterResponse"
+      },
+      "HpcDryRunSubmitRequest": {
+        "properties": {
+          "workflow_id": {
+            "type": "string",
+            "title": "Workflow Id"
+          },
+          "workflow_name": {
+            "type": "string",
+            "title": "Workflow Name"
+          },
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "input_files": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Input Files"
+          },
+          "throttle": {
+            "type": "integer",
+            "title": "Throttle",
+            "default": 0
+          },
+          "library_path": {
+            "type": "string",
+            "title": "Library Path",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "workflow_id",
+          "workflow_name",
+          "run_id",
+          "input_files"
+        ],
+        "title": "HpcDryRunSubmitRequest",
+        "description": "Assemble (but do not submit) a workflow run as a Slurm array job."
+      },
+      "HpcDryRunSubmitResponse": {
+        "properties": {
+          "cluster_id": {
+            "type": "string",
+            "title": "Cluster Id"
+          },
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "remote_workdir": {
+            "type": "string",
+            "title": "Remote Workdir"
+          },
+          "array_directive": {
+            "type": "string",
+            "title": "Array Directive"
+          },
+          "task_count": {
+            "type": "integer",
+            "title": "Task Count"
+          },
+          "sbatch_script": {
+            "type": "string",
+            "title": "Sbatch Script"
+          }
+        },
+        "type": "object",
+        "required": [
+          "cluster_id",
+          "run_id",
+          "remote_workdir",
+          "array_directive",
+          "task_count",
+          "sbatch_script"
+        ],
+        "title": "HpcDryRunSubmitResponse"
+      },
+      "HpcTestResponse": {
+        "properties": {
+          "cluster_id": {
+            "type": "string",
+            "title": "Cluster Id"
+          },
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "probe_command": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Probe Command"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "cluster_id",
+          "ok",
+          "probe_command",
+          "detail"
+        ],
+        "title": "HpcTestResponse",
+        "description": "Result of a (dry-run) Test-connection probe."
+      },
       "ImageBatchCropRequest": {
         "properties": {
           "left": {
@@ -50674,6 +51234,101 @@
         "title": "KnownLibrary",
         "description": "Persistent registry of known libraries.\n\nStored in the backend database to support CLI operations like\nlisting available libraries and switching between them (#1131).\nWhen a library is created via POST /api/library, it's auto-registered."
       },
+      "KrakenInstallJobResponse": {
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "title": "Job Id"
+          },
+          "state": {
+            "type": "string",
+            "title": "State"
+          },
+          "current": {
+            "type": "integer",
+            "title": "Current"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "percent": {
+            "type": "number",
+            "title": "Percent"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "error": {
+            "type": "string",
+            "nullable": true,
+            "title": "Error"
+          }
+        },
+        "type": "object",
+        "required": [
+          "job_id",
+          "state",
+          "current",
+          "total",
+          "percent",
+          "message"
+        ],
+        "title": "KrakenInstallJobResponse"
+      },
+      "KrakenRuntimeStatusResponse": {
+        "properties": {
+          "installed": {
+            "type": "boolean",
+            "title": "Installed"
+          },
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "kraken_version": {
+            "type": "string",
+            "nullable": true,
+            "title": "Kraken Version"
+          },
+          "scipy_override": {
+            "type": "string",
+            "nullable": true,
+            "title": "Scipy Override"
+          },
+          "runtime_dir": {
+            "type": "string",
+            "title": "Runtime Dir"
+          },
+          "disk_usage_bytes": {
+            "type": "integer",
+            "title": "Disk Usage Bytes",
+            "default": 0
+          },
+          "size_note": {
+            "type": "string",
+            "title": "Size Note",
+            "default": "~1 GB download"
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true,
+            "title": "Reason"
+          },
+          "job": {
+            "$ref": "#/components/schemas/KrakenInstallJobResponse",
+            "nullable": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "installed",
+          "available",
+          "runtime_dir"
+        ],
+        "title": "KrakenRuntimeStatusResponse"
+      },
       "LanguageCoverageRecord": {
         "properties": {
           "provider": {
@@ -52262,6 +52917,99 @@
         ],
         "title": "LocalProviderStartupPolicy",
         "description": "When the app should start a managed local provider."
+      },
+      "LocalRuntimeAction": {
+        "properties": {
+          "method": {
+            "type": "string",
+            "title": "Method"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          }
+        },
+        "type": "object",
+        "required": [
+          "method",
+          "path"
+        ],
+        "title": "LocalRuntimeAction",
+        "description": "Where to call to install/provision a runtime (an existing endpoint)."
+      },
+      "LocalRuntimeListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LocalRuntimeRow"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "LocalRuntimeListResponse"
+      },
+      "LocalRuntimeRow": {
+        "properties": {
+          "provider_type": {
+            "type": "string",
+            "title": "Provider Type"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "installed": {
+            "type": "boolean",
+            "title": "Installed"
+          },
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "size_note": {
+            "type": "string",
+            "title": "Size Note"
+          },
+          "recommended_model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Recommended Model"
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true,
+            "title": "Reason"
+          },
+          "install_action": {
+            "$ref": "#/components/schemas/LocalRuntimeAction",
+            "nullable": true
+          },
+          "status_path": {
+            "type": "string",
+            "title": "Status Path"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider_type",
+          "name",
+          "installed",
+          "available",
+          "size_note",
+          "status_path"
+        ],
+        "title": "LocalRuntimeRow",
+        "description": "One local runtime as a uniform provider-peer row."
       },
       "LocalServiceState": {
         "type": "string",
@@ -57446,6 +58194,8 @@
           "apple",
           "mock",
           "spacy",
+          "kraken",
+          "whisper",
           "ollama",
           "lmstudio",
           "omlx",
@@ -66613,6 +67363,19 @@
         },
         "type": "object",
         "title": "_EmbedEntityRequest"
+      },
+      "fichero_server__api__routes__ai__hpc__DeletedResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "DeletedResponse"
       },
       "fichero_server__api__routes__ai__model_comparison__ModelListResponse": {
         "properties": {
