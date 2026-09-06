@@ -3409,6 +3409,11 @@ async def process_vision(
     # Structured payload stamped onto every saved artifact's `data` (#4329) —
     # e.g. {"target_format": "svg"} so renderers pick the right surface.
     artifact_data: dict | None = None,
+    # When vision_mode="kraken" AND this names a recognition model (a catalog id
+    # like "kraken-mccatmus", or a .mlmodel path), Kraken READS each segmented
+    # line and the transcript is tied to its baselines. Absent, the kraken seam
+    # stays segment-only (baselines, empty text) exactly as before.
+    kraken_recognition_model: str | None = None,
 ) -> dict[str, Any]:
     """Process images with vision AI.
 
@@ -4223,17 +4228,40 @@ async def process_vision(
                         "Kraken segments page images — split the PDF into page "
                         "images first (run Prepare Images or a split step)."
                     )
-                from fichero_server.llm.kraken_runtime import segment_to_geometry
                 _ocr_path = _frame_true_background_removed_path(
                     library_path, doc_id_for_file
                 ) or file_path
-                page_geometry = await asyncio.to_thread(
-                    segment_to_geometry, _ocr_path, rendition_id=None
-                )
-                # Kraken reads nothing — an empty transcript is the truthful
-                # value; the baseline/polygon geometry rides on page_geometry.
-                text = ""
-                parsed = ""
+                if kraken_recognition_model:
+                    # A recognition model is configured: Kraken READS each line
+                    # and the transcript is tied to its baseline. text becomes
+                    # the page's content; page_geometry carries per-line
+                    # text+baseline+char spans (#4671 follow-up).
+                    from fichero_server.llm.kraken_runtime import (
+                        recognize_to_geometry,
+                        resolve_recognition_model,
+                    )
+                    _model_path, _model_id = resolve_recognition_model(
+                        kraken_recognition_model
+                    )
+                    page_geometry = await asyncio.to_thread(
+                        recognize_to_geometry,
+                        _ocr_path,
+                        _model_path,
+                        model_id=_model_id,
+                        rendition_id=None,
+                    )
+                    text = page_geometry.text
+                    parsed = text
+                else:
+                    # No recognition model: segment-only, exactly as before —
+                    # baselines/polygons, and an empty transcript is the truthful
+                    # value (the geometry rides on page_geometry).
+                    from fichero_server.llm.kraken_runtime import segment_to_geometry
+                    page_geometry = await asyncio.to_thread(
+                        segment_to_geometry, _ocr_path, rendition_id=None
+                    )
+                    text = ""
+                    parsed = ""
             else:
                 logger.info(f"LLM Vision: {Path(file_path).name}")
                 # Check if we should use HF Inference API for thinking models

@@ -15,7 +15,7 @@
   "single-pass"
  ],
  "config": {
-  "preset_version": 2
+  "preset_version": 3
  },
  "nodes": [
   {
@@ -29,14 +29,17 @@
   },
   {
    "id": "kraken-htr",
-   "tool": "kraken_htr",
+   "tool": "transcribe",
    "label": "Kraken HTR — baseline + recognition",
    "position_x": 320,
    "position_y": 200,
    "inputs": {},
    "config": {
+    "vision_mode": "kraken",
     "kraken_model": "kraken-mccatmus",
-    "update_page_content": true
+    "regions_first": false,
+    "update_page_content": true,
+    "language": "auto"
    }
   }
  ],

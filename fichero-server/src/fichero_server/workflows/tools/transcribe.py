@@ -81,6 +81,16 @@ TRANSCRIBE_CONFIG = {
         "default": True,
         "description": "Index for search",
     },
+    "kraken_model": {
+        "type": "string",
+        "default": "",
+        "description": (
+            "When vision_mode='kraken', the Kraken recognition model to READ "
+            "each line (a catalog id like 'kraken-mccatmus', or a .mlmodel path). "
+            "Empty = segment only (baselines, no text). Install from Settings -> "
+            "AI -> Local Inference."
+        ),
+    },
 }
 
 
@@ -344,6 +354,9 @@ async def transcribe(
         tool_config=tool_config,
         # Vision-specific
         vision_mode=vision_mode,
+        # When vision_mode="kraken", read each segmented line with this Kraken
+        # recognition model and save the transcript tied to its baselines.
+        kraken_recognition_model=inputs.get("kraken_model"),
         # Apple Vision needs a concrete recognition locale and has no "unknown"
         # — it keeps its historical en-US fallback. That is an OCR hint, not a
         # claim about the document, and unlike the prompt above it does not

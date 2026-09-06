@@ -161,6 +161,34 @@ def recognition_model_path(model_id: str, home: Path | None = None) -> str | Non
     return str(path) if path else None
 
 
+def resolve_recognition_model(model_ref: str) -> tuple[str, str | None]:
+    """(filesystem path, catalog id) for a recognition-model reference.
+
+    A catalog id ("kraken-mccatmus") resolves to the app's downloaded copy; a
+    literal ``.mlmodel`` path is used as-is. Raises a clear, actionable error
+    when a catalog model is not installed or a path is missing — never returns a
+    path that is not there (the caller must say "install it", not run against
+    nothing). One source of truth for both the workflow seam and any node.
+    """
+    if model_ref in KRAKEN_RECOGNITION_MODELS:
+        resolved = recognition_model_path(model_ref)
+        if not resolved:
+            raise RuntimeError(
+                f"Kraken recognition model '{model_ref}' is not downloaded — "
+                "install it from Settings -> AI -> Local Inference (the on-device "
+                "model catalog)."
+            )
+        return resolved, model_ref
+    if not model_ref:
+        raise RuntimeError(
+            "Kraken recognition needs a model — a catalog id (e.g. "
+            "'kraken-mccatmus') or a path to a .mlmodel."
+        )
+    if not Path(model_ref).exists():
+        raise RuntimeError(f"Kraken recognition model not found: {model_ref}")
+    return model_ref, None
+
+
 def _default_run_get(argv: list[str]) -> str:
     result = subprocess.run(argv, check=True, capture_output=True, text=True)
     return result.stdout or ""
@@ -810,6 +838,7 @@ __all__ = [
     "recognition_data_home",
     "recognition_model_dir",
     "recognition_model_path",
+    "resolve_recognition_model",
     "remove_recognition_model",
     "KrakenInstallJob",
     "KrakenRuntimeManager",
