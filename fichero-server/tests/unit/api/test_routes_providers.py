@@ -135,18 +135,40 @@ class TestProviderKeysAndConnection:
 # ---------------------------------------------------------------------------
 
 
+_LOCAL_RUNTIME_TYPES = {"omlx", "spacy", "kraken", "whisper"}
+
+
 class TestListProviders:
-    def test_empty_list(self, client):
+    def test_the_on_device_runtimes_are_always_present(self, client):
+        # Daniel's "on by default": with NO configured providers, the four
+        # on-device runtimes still come back as enabled rows so the user never
+        # has to "add" them.
         r = client.get("/api/providers")
         assert r.status_code == 200
-        assert r.json()["items"] == []
+        by_type = {item["provider_type"] for item in r.json()["items"]}
+        assert _LOCAL_RUNTIME_TYPES <= by_type
+        for item in r.json()["items"]:
+            if item["provider_type"] in _LOCAL_RUNTIME_TYPES:
+                assert item["enabled"] is True
+                assert item["has_api_key"] is True  # no key required
 
-    def test_returns_configured_providers(self, client, app_db):
+    def test_returns_configured_providers_alongside_the_runtimes(self, client, app_db):
         _make_provider(app_db, "Claude Provider")
         r = client.get("/api/providers")
         assert r.status_code == 200
-        assert len(r.json()["items"]) == 1
-        assert r.json()["items"][0]["name"] == "Claude Provider"
+        names = [item["name"] for item in r.json()["items"]]
+        assert "Claude Provider" in names
+        # The four runtimes are here too.
+        assert _LOCAL_RUNTIME_TYPES <= {i["provider_type"] for i in r.json()["items"]}
+
+    def test_a_configured_local_runtime_is_not_duplicated(self, client, app_db):
+        # If the user has a real oMLX row, the synthetic always-present one must
+        # be skipped — exactly one oMLX row, not two.
+        _make_provider(app_db, "My oMLX", ptype="omlx")
+        r = client.get("/api/providers")
+        omlx_rows = [i for i in r.json()["items"] if i["provider_type"] == "omlx"]
+        assert len(omlx_rows) == 1
+        assert omlx_rows[0]["name"] == "My oMLX"
 
 
 # ---------------------------------------------------------------------------

@@ -192,11 +192,29 @@ async def get_catalog_provider(provider_type: str) -> ProviderCatalogResponse:
 # =============================================================================
 
 
+# The on-device runtimes are ALWAYS-PRESENT rows: they run inside the app, need
+# no API key or server URL, and Daniel wants them on by default with nothing to
+# "add" (2026-09-06). They are MERGED into the configured list rather than
+# seeded into app_db, so a user can never delete one into a resurrection loop
+# and no migration touches the live app database. If the user has a real
+# configured row of the same type (e.g. an explicitly-added oMLX), that wins and
+# the synthetic row is skipped — no duplicates.
+_ALWAYS_PRESENT_LOCAL_TYPES = (
+    ProviderType.omlx,
+    ProviderType.spacy,
+    ProviderType.kraken,
+    ProviderType.whisper,
+)
+# Stable, obviously-synthetic timestamp so these rows don't churn and read as
+# "always here" rather than "added at some moment".
+_ALWAYS_PRESENT_CREATED_AT = "1970-01-01T00:00:00+00:00"
+
+
 @router.get("", response_model=ProviderListResponse)
 async def list_providers(
     app_db: AppDatabase = Depends(get_app_database),
 ) -> ProviderListResponse:
-    """List user's configured providers (app-wide)."""
+    """List the user's providers, with the on-device runtimes always present."""
     providers = app_db.list_providers()
     items = [
         ProviderResponse(
@@ -211,6 +229,30 @@ async def list_providers(
         )
         for p in providers
     ]
+
+    configured_types = {p.provider_type for p in providers}
+    for ptype in _ALWAYS_PRESENT_LOCAL_TYPES:
+        if ptype in configured_types:
+            continue  # a real configured row exists — don't duplicate it
+        info = get_provider_info(ptype)
+        if info is None:
+            continue
+        items.append(
+            ProviderResponse(
+                id=f"local-{ptype.value}",
+                name=info.name,
+                provider_type=ptype.value,
+                api_base=None,
+                enabled=True,
+                # Local runtimes need no key; True means "no key required",
+                # matching the catalog route's is_local handling.
+                has_api_key=True,
+                sort_order=info.sort_order,
+                created_at=_ALWAYS_PRESENT_CREATED_AT,
+            )
+        )
+
+    items.sort(key=lambda item: item.sort_order)
     return ProviderListResponse(items=items, count=len(items))
 
 
