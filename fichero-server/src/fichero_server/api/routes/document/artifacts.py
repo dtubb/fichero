@@ -31,6 +31,15 @@ from fichero_server.media.ocr_geometry import (
     region_for_span,
     union_bbox,
 )
+from fichero_server.media.transcript_alignment import (
+    BASELINE_COUNT_KEY,
+    STATUS_KEY,
+    TRANSCRIPT_LINE_COUNT_KEY,
+)
+from fichero_server.media.transcript_alignment_service import (
+    align_and_build_artifact,
+    resolve_transcript,
+)
 from fichero_server.models import Artifact, ArtifactTypeListResponse, Document
 
 logger = logging.getLogger(__name__)
@@ -514,6 +523,67 @@ async def get_artifact_region(
         geometry_status=str(status),
         geometry_reason=reason,
         region=region,
+    )
+
+
+class AlignTranscriptResponse(BaseModel):
+    """Outcome of forced transcript↔Kraken-baseline alignment.
+
+    ``aligned`` is the honest bottom line: an exact line-count match saved a new
+    ``aligned_transcript`` artifact (returned with geometry); a mismatch saved
+    nothing and the counts say why, so the UI can tell the user "28 transcript
+    lines, 31 baselines — not aligned" instead of showing wrong text.
+    """
+
+    status: str
+    aligned: bool
+    transcript_line_count: int
+    baseline_count: int
+    artifact: Optional[ArtifactResponse] = None
+
+
+@router.post(
+    "/{artifact_id}/align-transcript", response_model=AlignTranscriptResponse
+)
+async def align_transcript_to_regions(
+    artifact_id: str,
+    db: Database = Depends(get_library_database_for_write),
+) -> AlignTranscriptResponse:
+    """Hang this page's known transcript on a Kraken ``regions`` artifact.
+
+    ``artifact_id`` names the ``regions`` artifact (Kraken baselines, no text).
+    The transcript is resolved from the page — its ``page_content``, else the
+    newest ``transcription`` artifact. No model is called: this is pure
+    line-level forced alignment (:mod:`media.transcript_alignment`).
+    """
+    regions_artifact = db.get(Artifact, artifact_id)
+    if not regions_artifact:
+        raise HTTPException(status_code=404, detail=f"Artifact not found: {artifact_id}")
+
+    transcript = resolve_transcript(db, regions_artifact.document_id)
+    if not transcript:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "This page has no known transcript to align — transcribe it "
+                "first, then align the baselines to that text."
+            ),
+        )
+
+    aligned, artifact = align_and_build_artifact(regions_artifact, transcript)
+    if artifact is not None:
+        db.save(artifact)
+
+    return AlignTranscriptResponse(
+        status=str(aligned.metadata.get(STATUS_KEY)),
+        aligned=artifact is not None,
+        transcript_line_count=int(aligned.metadata.get(TRANSCRIPT_LINE_COUNT_KEY) or 0),
+        baseline_count=int(aligned.metadata.get(BASELINE_COUNT_KEY) or 0),
+        artifact=(
+            _artifact_response(artifact, include_geometry=True)
+            if artifact is not None
+            else None
+        ),
     )
 
 

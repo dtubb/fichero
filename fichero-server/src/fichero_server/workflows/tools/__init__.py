@@ -28,6 +28,7 @@ from fichero_server.workflows.tools import merge_geometry  # noqa: F401
 from fichero_server.workflows.tools import transcribe
 from fichero_server.workflows.tools import transcribe_review  # noqa: F401  (registers the tool via @register_tool)
 from fichero_server.workflows.tools import detect_regions  # noqa: F401  (bboxes-first pre-pass, 2026-08-11)
+from fichero_server.workflows.tools import align_transcript  # noqa: F401  (forced transcript↔baseline alignment, no LLM)
 from fichero_server.workflows.tools import describe
 from fichero_server.workflows.tools import classify
 from fichero_server.workflows.tools import classify_script  # noqa: F401  (registers classify_script tool)
@@ -150,6 +151,7 @@ __all__ = [
     # Vision
     "transcribe",
     "detect_regions",
+    "align_transcript",
     "describe",
     "classify",
     "classify_script",
