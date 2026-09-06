@@ -44,8 +44,9 @@ _FORBIDDEN_SHIPPED = {
     "mlx",
     "mlx-lm",
     "mlx-vlm",
-    "opencv-python",
-    "opencv-python-headless",
+    # opencv-python / opencv-python-headless were here until 2026-09-06, when
+    # Daniel ruled OpenCV INTO the bundle so the image-enhance demo feature works
+    # on-device (see _ALLOWED_BY_RULING). torch-class deps stay forbidden.
 }
 
 # PREMISE CHANGED 2026-09-04, by ruling, not by erosion.
@@ -63,10 +64,16 @@ _FORBIDDEN_SHIPPED = {
 # Daniel ruled it in. This list is the ONLY thing that may enter the bundle on
 # that ruling — named exactly, versions and all, so "spaCy is allowed" cannot
 # quietly become "spaCy plus whatever else someone adds next".
+# Two Daniel rulings ship packages the leanness guard would otherwise forbid:
+# spaCy (2026-09-04, the ~54 MB SVO grammar gate) and OpenCV (2026-09-06, so the
+# image-enhance / background-removal / deskew demo feature works on-device rather
+# than no-opping — ~hundreds of MB, accepted for that). Named exactly so "spaCy
+# and OpenCV are allowed" cannot quietly become "plus whatever else someone adds".
 _ALLOWED_BY_RULING = {
     "spacy",
     "es_core_news_sm",
     "en_core_web_sm",
+    "opencv-python-headless",
 }
 
 
@@ -118,7 +125,7 @@ def test_the_heavy_class_is_still_excluded_by_name():
     someone to read "the leanness guard allows an ML package now" and stop
     there. These names stay forbidden, explicitly.
     """
-    for heavy in ("torch", "pykeen", "transformers", "opencv-python-headless"):
+    for heavy in ("torch", "pykeen", "transformers"):
         assert heavy in _FORBIDDEN_SHIPPED, heavy
     assert not (_FORBIDDEN_SHIPPED & _ALLOWED_BY_RULING), (
         "a package cannot be both forbidden and allowed by ruling"

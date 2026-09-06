@@ -153,13 +153,14 @@ requires = [
     # its benefit for 16th-century orthography is unmeasured.
     "es_core_news_sm @ https://github.com/explosion/spacy-models/releases/download/es_core_news_sm-3.8.0/es_core_news_sm-3.8.0-py3-none-any.whl",
     "en_core_web_sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl",
-    # The rest of the optional KG/NER/image extras are still deliberately NOT
-    # shipped: pykeen -> torch and opencv-python-headless -> cv2 are hundreds
-    # of MB each, an order of magnitude past what spaCy costs. Install those
-    # locally when working on them.
+    # OpenCV SHIPS (Daniel, 2026-09-06): the image-enhance / background-removal /
+    # deskew step is a demo feature and must actually WORK on-device, not no-op.
+    # It is ~hundreds of MB — accepted for that. (image_ops still guards the
+    # import so a stripped build degrades rather than crashes.) pykeen -> torch
+    # stays OUT: an order of magnitude more, and nothing shipped needs it.
     # "pykeen",
     # "rdflib",
-    # "opencv-python-headless",
+    "opencv-python-headless",
     # Document Processing
     "PyMuPDF",
     # 12.3.0 fixes 22 image-decoder advisories (PYSEC-2026-2253..2257,
@@ -294,14 +295,13 @@ dependencies = [
     "watchdog",
     "kreuzberg",
     "fastembed",
-    # The remaining KG/image extras stay out of core so Briefcase does not
-    # bundle pykeen/torch or OpenCV into every app — hundreds of MB each.
-    # spaCy moved INTO the bundle (see the briefcase requires above): the SVO
-    # grammar gate needs it, and ~54 MB with both small models is an order of
-    # magnitude less than these.
+    # pykeen/torch stays out of core (hundreds of MB, nothing shipped needs it).
+    # spaCy and OpenCV both moved INTO the bundle: spaCy for the SVO grammar
+    # gate (~54 MB), OpenCV for the image-enhance demo feature (Daniel,
+    # 2026-09-06 — must work on-device, not no-op; ~hundreds of MB accepted).
     # "pykeen",
     # "rdflib",
-    # "opencv-python-headless",
+    "opencv-python-headless",
     # Historical-text stack (#3319/#3322): all four are small pure-Python.
     "ftfy",         # mojibake repair before parsing OCR'd text
     "anyascii",     # transliteration for accent-insensitive matching

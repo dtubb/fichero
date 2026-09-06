@@ -158,8 +158,8 @@ class TestItActuallyShips:
         )
 
     def test_the_expensive_neighbours_stay_out(self):
-        # spaCy shipping is not a precedent for pykeen (torch) or OpenCV —
-        # an order of magnitude more, each.
+        # spaCy shipping is not a precedent for pykeen (torch) — an order of
+        # magnitude more. (OpenCV was ruled INTO the bundle 2026-09-06 for the
+        # image-enhance demo feature; it is no longer an excluded neighbour.)
         requires = " ".join(self._briefcase_requires())
         assert "pykeen" not in requires
-        assert "opencv" not in requires
