@@ -20,10 +20,20 @@ struct ProviderDetailView: View {
     @State private var modelsLoadError: String?
 
     @Environment(ProviderAPIService.self) var providerService
+    // The on-device catalog + runtime provisioning for a LOCAL provider now live
+    // INSIDE its row (Daniel, 2026-09-05). Reached through the app-wide store so
+    // the same install/progress state drives every surface.
+    @Environment(AppState.self) var appState
     private let maskedKeyPlaceholder = "••••••••••••••••"
 
     private var isLocalProvider: Bool {
         catalogEntry?.isLocal ?? false
+    }
+
+    /// MLX is the one local runtime that needs a Python sidecar provisioned
+    /// before its models can serve; its row shows the runtime block.
+    private var showsRuntimeBlock: Bool {
+        provider.providerType == "omlx"
     }
 
     private var statusText: String {
@@ -103,6 +113,20 @@ struct ProviderDetailView: View {
                                 .foregroundColor(.secondary)
                         }
                     }
+                }
+
+                // On-device runtime + its installable models, filtered to THIS
+                // provider (MLX/spaCy/Kraken/Whisper). The downloads that used
+                // to sit in a separate "MLX Runtime" block below the provider
+                // list now live in the provider's own row.
+                if isLocalProvider {
+                    LocalRuntimeModelsView(
+                        store: appState.localInferenceStore,
+                        providerType: provider.providerType,
+                        showRuntime: showsRuntimeBlock,
+                        modelsTitle: "On-Device Models",
+                        hidesEmptyCatalog: !showsRuntimeBlock
+                    )
                 }
 
                 if !isLocalProvider {
@@ -268,6 +292,12 @@ struct ProviderDetailView: View {
         }
         .task(id: provider.id) {
             await loadModels()
+            // Populate the on-device catalog/runtime for local provider rows.
+            // The store guards against concurrent loads, so this is safe to
+            // call from every local row's task.
+            if isLocalProvider {
+                await appState.localInferenceStore.load()
+            }
         }
         .sheet(isPresented: $showModelBrowser) {
             AIProviderAddModelsSheet(
