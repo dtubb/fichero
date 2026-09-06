@@ -391,6 +391,48 @@ def _significant_tokens(s: str) -> set[str]:
     return {tok for tok in _tokenise_lower(_fold_accents(s)) if len(tok) > 2}
 
 
+def _terminal_surname_diverges(a: str, b: str) -> bool:
+    """Two multi-token names that share a leading run but END in a DIFFERENT
+    surname are DIFFERENT people — the Spanish two-surname over-merge.
+
+    "María García López" vs "María García Pérez" share a long prefix, which
+    drives SequenceMatcher.ratio ~0.83 (over the fuzzy floor) AND embedding
+    cosine high, so BOTH the auto-merge and the SequenceMatcher fallback would
+    collapse two distinct people. This is the block, applied to both paths.
+
+    Guarded against over-correction:
+    * a whole-token SUBSET ("Juan" ⊆ "Juan de la Cruz", "Daniel Mosquera" ⊆
+      "Daniel Mosquera Lozano") is the SAME person at different completeness —
+      never divergent;
+    * a spelling VARIANT of the terminal surname ("Pérez"/"Peres", char
+      similarity >= 0.7) is the same surname — never divergent.
+
+    Only a genuinely DIFFERENT final surname (low similarity) after a shared
+    given name diverges.
+    """
+    from difflib import SequenceMatcher
+
+    ta = _tokenise_lower(_fold_accents(a))
+    tb = _tokenise_lower(_fold_accents(b))
+    # Person-name-SHAPED only: 2-4 tokens (given + up to two surnames, maybe a
+    # particle). Longer strings are verbose event/concept paraphrases whose
+    # terminal words legitimately differ while naming the same thing ("…Racial
+    # Economic Exclusion" / "…Economic Marginalization"), so this guard must not
+    # touch them — they are handled by the shared-content-token signal.
+    if not (2 <= len(ta) <= 4 and 2 <= len(tb) <= 4):
+        return False
+    sa, sb = set(ta), set(tb)
+    if sa <= sb or sb <= sa:
+        return False  # subset — same person, more/less complete
+    if ta[0] != tb[0]:
+        return False  # they do not even share the given name
+    if ta[-1] == tb[-1]:
+        return False  # same terminal surname
+    if SequenceMatcher(None, ta[-1], tb[-1]).ratio() >= 0.7:
+        return False  # a spelling variant of the same surname, not a new one
+    return True
+
+
 def _lexical_agreement(name_a: str, name_b: str) -> bool:
     """Precision gate for embedding auto-merge (#1907).
 
@@ -411,6 +453,11 @@ def _lexical_agreement(name_a: str, name_b: str) -> bool:
     embedding cosine alone; they route to the human review queue.
     """
     from difflib import SequenceMatcher
+
+    # A divergent terminal surname is a different person — never let embedding
+    # cosine auto-merge them, even though the shared prefix agrees lexically.
+    if _terminal_surname_diverges(name_a, name_b):
+        return False
 
     folded_a = _fold_accents(name_a.lower())
     folded_b = _fold_accents(name_b.lower())
@@ -546,6 +593,12 @@ def _fuzzy_match_existing(
 
     best: tuple[float, Optional[KnowledgeEntity]] = (0.0, None)
     for ent in existing:
+        # A different terminal surname after a shared given name is a different
+        # person — never let the shared-prefix seq ratio merge them (Spanish
+        # two-surname corpus). Skip the candidate, so a genuine variant elsewhere
+        # can still win.
+        if _terminal_surname_diverges(canonical_name, ent.canonical_name):
+            continue
         # Two metrics, take the max so either signal can hit threshold.
         seq_ratio = SequenceMatcher(
             None, needle_lower, _fold_accents(ent.canonical_name.lower())
@@ -1854,8 +1907,22 @@ def upsert_entity(
         # entity). We keep the FIRST-seen surface form per case-folded
         # key (typically the better-capitalised variant from the source
         # text).
+        # Survivor-rank: keep the MORE COMPLETE name as canonical. When the
+        # incoming name's tokens strictly contain the matched one's ("Daniel
+        # Mosquera Lozano" ⊃ "Daniel Mosquera"), promote the fuller name so it
+        # wins over first-seen; the shorter form is retained as an alias.
+        old_canonical = matched.canonical_name
+        incoming_tokens = set(_tokenise_lower(_fold_accents(canonical_name)))
+        current_tokens = set(_tokenise_lower(_fold_accents(old_canonical)))
+        promote = incoming_tokens > current_tokens
+        if promote:
+            matched.canonical_name = canonical_name
+
         seen_folded: dict[str, str] = {}
-        for surface in list(matched.aliases or []) + [canonical_name] + list(aliases or []):
+        surfaces = list(matched.aliases or []) + [canonical_name] + list(aliases or [])
+        if promote:
+            surfaces.append(old_canonical)  # the shorter name survives as an alias
+        for surface in surfaces:
             if not surface or not surface.strip():
                 continue
             key = surface.strip().casefold()

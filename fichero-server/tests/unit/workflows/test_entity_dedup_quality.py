@@ -47,6 +47,18 @@ class TestUpsertMergesTrueVariants:
         assert len(_person_names(db)) == 1
 
 
+class TestSurvivorRank:
+    def test_more_complete_name_becomes_canonical(self, db):
+        # A token-superset merge keeps the FULLER name as canonical, not the
+        # first-seen shorter one — "Daniel Mosquera Lozano", not "Daniel
+        # Mosquera"; the shorter form survives as an alias.
+        upsert_entity(db, canonical_name="Daniel Mosquera", entity_type=EntityType.person)
+        upsert_entity(db, canonical_name="Daniel Mosquera Lozano", entity_type=EntityType.person)
+        assert _person_names(db) == ["Daniel Mosquera Lozano"]
+        ent = db.query(KnowledgeEntity, entity_type=EntityType.person)[0]
+        assert "Daniel Mosquera" in (ent.aliases or [])
+
+
 class TestUpsertKeepsDistinctPeople:
     def test_shared_surname_different_first_name_never_merges(self, db):
         upsert_entity(db, canonical_name="Juan Gómez", entity_type=EntityType.person)
@@ -105,16 +117,24 @@ class TestClusterAliasesPrecision:
         assert aliases == ["Juan"]
 
 
-class TestKnownOverMergeGaps:
-    @pytest.mark.xfail(
-        reason="OVER-MERGE: _fuzzy_match_existing SequenceMatcher.ratio >= 0.78 "
-        "merges names sharing first name + first surname when only the SECOND "
-        "surname differs — two distinct Spanish people collapse. Routed to the "
-        "entity-resolution/backend lane (svo-quality audit 2026-09-06).",
-        strict=False,
-    )
-    def test_divergent_second_surname_should_not_merge(self, db):
+class TestDivergentSurnamesStaySeparate:
+    def test_divergent_second_surname_does_not_merge(self, db):
+        # Two DISTINCT people who share first name + first surname but differ in
+        # the terminal surname. The shared prefix used to push SequenceMatcher
+        # over 0.78 and collapse them; the divergence guard keeps them apart.
         upsert_entity(db, canonical_name="María García López", entity_type=EntityType.person)
         upsert_entity(db, canonical_name="María García Pérez", entity_type=EntityType.person)
-        # DESIRED: two different people. CURRENT: they merge into one.
+        assert _person_names(db) == ["María García López", "María García Pérez"]
+
+    def test_two_token_divergent_surnames_stay_separate(self, db):
+        upsert_entity(db, canonical_name="García López", entity_type=EntityType.person)
+        upsert_entity(db, canonical_name="García Pérez", entity_type=EntityType.person)
         assert len(_person_names(db)) == 2
+
+    def test_terminal_surname_spelling_variant_still_merges(self, db):
+        # Over-correction guard: a spelling variant of the SAME terminal surname
+        # is one person, not two — must still merge.
+        a = upsert_entity(db, canonical_name="Juan Pérez", entity_type=EntityType.person)
+        b = upsert_entity(db, canonical_name="Juan Peres", entity_type=EntityType.person)
+        assert a == b
+        assert len(_person_names(db)) == 1
