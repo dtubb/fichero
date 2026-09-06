@@ -127,7 +127,15 @@ class TestProviderCatalog:
 
         # mock (#1566) is a built-in deterministic debug provider — local,
         # builtin, no api_key_env — so it belongs with the local set.
-        local_types = {"apple", "ollama", "lmstudio", "omlx", "mock"}
+        # spacy/kraken/whisper are the app's MANAGED-local runtimes (NLP, line
+        # segmentation, transcription): the ratified AI-settings redesign made
+        # them local provider peers (no Server URL, no api_key_env), same as
+        # omlx/MLX. They are is_local=True in the catalog (providers.py), so the
+        # local set includes them.
+        local_types = {
+            "apple", "ollama", "lmstudio", "omlx", "mock",
+            "spacy", "kraken", "whisper",
+        }
 
         for provider in data:
             if provider["type"] in local_types:
