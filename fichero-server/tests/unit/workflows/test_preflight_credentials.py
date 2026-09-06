@@ -315,6 +315,24 @@ def test_similarity_accepts_a_generative_vision_model(monkeypatch):
     assert errors == []
 
 
+def test_recognition_vision_falls_back_to_apple_on_a_clean_install(monkeypatch):
+    """Clean install: no Vision default, no cloud key, no provider on the node.
+
+    A recognition-vision preset (transcribe) must still pass preflight — it
+    falls back to on-device Apple Vision (is_builtin, no key), so vision presets
+    run out of the box (Daniel's local-first goal). _common_env's fake db
+    returns None for the vision category default and None for every api key.
+    """
+    _common_env(monkeypatch, api_key=None)
+    node = NodeDef(id="read", tool="transcribe")  # no provider/model set
+
+    errors = validate_workflow_llm_preflight(
+        _workflow_for(node), LLMConfig(provider="", model="")
+    )
+
+    assert errors == []
+
+
 def test_ocr_only_model_is_fine_for_a_tool_that_does_not_parse(monkeypatch):
     """The gate is per-tool: transcribe WANTS OCR text and stays ungated."""
     _common_env(monkeypatch, api_key=None)

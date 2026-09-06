@@ -485,6 +485,20 @@ def _preflight_node_error(node: NodeDef, llm_config: LLMConfig) -> str | None:
                 cat_default = None
             if cat_default:
                 provider, model = cat_default
+            elif (
+                capability == "vision"
+                and not provider
+                and not tool_def.requires_generative_model
+            ):
+                # Clean install, no Vision default, no cloud key: fall back to
+                # on-device Apple Vision (OCR) so recognition-vision presets run
+                # out of the box (Daniel's local-first goal). Apple is
+                # is_builtin — no key, always present on macOS 26. Generative
+                # vision tools are deliberately NOT covered: they have no
+                # on-device option and must still be configured, so they fail
+                # preflight loudly rather than pretend Apple OCR can answer a
+                # prompt (the #4345 rule stays intact).
+                provider, model = "apple", "apple-vision"
 
         if provider or model:
             from fichero_server.llm import (
