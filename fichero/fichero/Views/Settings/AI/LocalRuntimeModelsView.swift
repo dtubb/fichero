@@ -26,6 +26,8 @@ struct LocalRuntimeModelsView: View {
     var providerType: String?
     /// Include the MLX runtime provisioning/version/disk block above the models.
     var showRuntime: Bool = false
+    /// Include the managed-service (start/stop) section below the models.
+    var showServices: Bool = false
     /// Section header for the models list.
     var modelsTitle: String = "Models"
     /// When true, an empty catalog renders nothing instead of a placeholder row
@@ -42,6 +44,9 @@ struct LocalRuntimeModelsView: View {
             runtimeSection
         }
         catalogSection
+        if showServices {
+            servicesSection
+        }
     }
 
     // MARK: Runtime (MLX)
@@ -211,6 +216,65 @@ struct LocalRuntimeModelsView: View {
         }
     }
 
+    // MARK: Services
+
+    @ViewBuilder
+    private var servicesSection: some View {
+        let managed = store.profiles.filter { profile in
+            guard profile.managedByApp == true else { return false }
+            guard let providerType else { return true }
+            return profile.providerType.rawValue == providerType
+        }
+        if !managed.isEmpty {
+            Section("Local Services") {
+                ForEach(managed, id: \.id) { profile in
+                    serviceRow(profile)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func serviceRow(_ profile: Components.Schemas.LocalProviderProfile) -> some View {
+        let status = store.serviceStatuses[profile.id]
+        let badge = LocalInferenceDisplay.badge(
+            state: status?.state.rawValue ?? "stopped",
+            lastError: status?.lastError
+        )
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(profile.name)
+                    .font(.body)
+                Label(badge.text, systemImage: badge.symbol)
+                    .font(.caption)
+                    .foregroundStyle(tintColor(badge.tint))
+                    .textSelection(.enabled)
+            }
+            Spacer()
+            if status?.state.rawValue == "healthy" || status?.state.rawValue == "starting" || status?.state.rawValue == "degraded" {
+                Button("Stop") {
+                    Task { await store.stopProfile(id: profile.id) }
+                }
+                .buttonStyle(.borderless)
+            } else {
+                Button("Start") {
+                    Task { await store.startProfile(id: profile.id) }
+                }
+                .buttonStyle(.borderless)
+            }
+        }
+    }
+
+    private func tintColor(_ tint: LocalInferenceDisplay.Tint) -> Color {
+        switch tint {
+        case .neutral: return .secondary
+        case .active: return .accentColor
+        case .warning: return .orange
+        case .error: return .red
+        case .success: return .green
+        }
+    }
+
     // MARK: Formatting
 
     /// "5.8 GB · needs 16 GB unified memory" — the mapping itself lives in
@@ -228,5 +292,55 @@ struct LocalRuntimeModelsView: View {
         let formatter = ByteCountFormatter()
         formatter.countStyle = .file
         return formatter.string(fromByteCount: Int64(bytes))
+    }
+}
+
+// MARK: - Capability Chip
+
+/// What a model can actually DO, said on the row instead of left to the name.
+/// A catalog of five OCR-looking names with no capability marks makes the user
+/// guess which one reads an image and which one only takes text.
+struct CapabilityChip: View {
+    let capability: String
+
+    var body: some View {
+        Label(label, systemImage: symbol)
+            .font(.caption2)
+            .labelStyle(.titleAndIcon)
+            .foregroundStyle(.secondary)
+            .help(help)
+    }
+
+    private var label: String { LocalInferenceDisplay.capabilityLabel(capability) }
+
+    private var symbol: String {
+        switch capability {
+        case "vision": return "eye"
+        case "audio": return "waveform"
+        default: return "text.alignleft"
+        }
+    }
+
+    private var help: String {
+        switch capability {
+        case "vision": return "Reads images and page scans."
+        case "audio": return "Transcribes audio."
+        default: return "Reads and writes text."
+        }
+    }
+}
+
+// MARK: - Local / Private Badge
+
+/// The on-device/private marker shown next to local providers and the MLX
+/// runtime — ties the AI-integrity local-instrument stance (#3120). Reusable
+/// across the provider list and model pickers.
+struct LocalPrivateBadge: View {
+    var body: some View {
+        Label("On-device", systemImage: "lock.laptopcomputer")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .labelStyle(.titleAndIcon)
+            .help("Runs locally on this Mac — nothing leaves the device.")
     }
 }

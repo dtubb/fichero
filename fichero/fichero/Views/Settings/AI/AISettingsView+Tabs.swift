@@ -200,45 +200,25 @@ extension AISettingsView {
         }
     }
 
-    /// Models & Providers, including the on-device MLX provider's own controls
-    /// (#4503).
+    /// Models & Providers — the single home for every provider, cloud AND
+    /// on-device (Daniel, 2026-09-05).
     ///
-    /// MLX is a provider — `omlx` is a `ProviderType` on the wire, and
-    /// `AddProviderSheet` already knows its base URL. But the controls that
-    /// make it USABLE (provision the runtime, download a model, start the
-    /// service) lived on a separate "Local LLM" tab. So a user could add
-    /// "MLX (Local)" here, watch it fail, and the fix was on another screen
-    /// with no sign of where. Daniel asked for these to be together; they were
-    /// split for no reason a user could see.
-    /// NOT a `ScrollView` (#4531). #4503 put the two panes in
-    /// `ScrollView { VStack { … } }`, and that is what made the provider list
-    /// disappear: a ScrollView offers its content UNBOUNDED height on the
-    /// scroll axis, and both children are greedy containers with no intrinsic
-    /// height in that axis — `ProvidersView`'s root is a
-    /// `PlatformHSplitView` (an `HStack`) whose panes are a `List` and a
-    /// `.frame(maxHeight: .infinity)` detail, and `LocalInferenceSettingsView`
-    /// is a `Form`. Given infinite height to fill, the providers browser
-    /// collapsed and only the Form drew, so Models & Providers showed MLX and
-    /// nothing else — with no error anywhere, because nothing failed.
-    ///
-    /// The fix is bounds, not a different arrangement: each pane scrolls
-    /// itself, so the tab hands them a finite height and lets them do it.
-    /// The providers browser takes the flexible space (it is the subject of
-    /// the screen); the MLX section sits under a divider at a bounded height.
+    /// Each local runtime (MLX/spaCy/Kraken/Whisper) is a PROVIDER ROW whose
+    /// detail carries its own on-device controls: the installable-model catalog
+    /// (size, Download, progress, Delete), the runtime provisioning block (MLX),
+    /// and the managed-service start/stop. The separate "MLX Runtime" block that
+    /// used to sit under a divider here is GONE — its controls now live beside
+    /// the provider they belong to, in `ProviderDetailView` via
+    /// `LocalRuntimeModelsView`. So `providersTab` is just the providers browser,
+    /// filling the tab. (Kept out of a `ScrollView` for the #4531 reason: the
+    /// `PlatformHSplitView` needs a bounded height, not an unbounded scroll axis,
+    /// or its list collapses.)
     @ViewBuilder
     var providersTab: some View {
-        VStack(spacing: 0) {
-            ProvidersView()
-                .environment(appState.providerService)
-                .environment(appState.modelService)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            Divider()
-
-            LocalInferenceSettingsView(store: appState.localInferenceStore)
-                .frame(maxWidth: .infinity)
-                .frame(minHeight: 180, idealHeight: 240, maxHeight: 300)
-        }
+        ProvidersView()
+            .environment(appState.providerService)
+            .environment(appState.modelService)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     @ViewBuilder

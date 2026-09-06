@@ -124,6 +124,7 @@ struct ProviderDetailView: View {
                         store: appState.localInferenceStore,
                         providerType: provider.providerType,
                         showRuntime: showsRuntimeBlock,
+                        showServices: showsRuntimeBlock,
                         modelsTitle: "On-Device Models",
                         hidesEmptyCatalog: !showsRuntimeBlock
                     )
