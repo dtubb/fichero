@@ -26,6 +26,12 @@ import XCTest
 /// These are source-shape guards: the defect is in the LAYOUT declaration, and
 /// a unit test cannot measure a rendered height without a window server. What
 /// it can do is pin the shape that must never come back.
+///
+/// UPDATE (db887a111): the separate MLX Runtime block was later retired — all
+/// managed-local runtimes (MLX/spaCy/Kraken/Whisper) are provider ROWS now, so
+/// providersTab is a single ProvidersView pane. The #4531 collapse is
+/// structurally impossible with one child; the guards below pin the single-pane
+/// shape and that local runtimes stay peers rather than being evicted (#4503).
 @MainActor
 final class ProvidersTabLayoutTests: XCTestCase {
 
@@ -69,41 +75,58 @@ final class ProvidersTabLayoutTests: XCTestCase {
         )
     }
 
-    /// Bounds are the actual fix: each pane scrolls itself, so the tab must
-    /// hand them a finite height rather than rearranging them.
-    func testBothPanesAreGivenFiniteBounds() throws {
+    /// After the MLX Runtime block was retired (db887a111 — all local
+    /// runtimes folded into provider rows), providersTab is a SINGLE pane:
+    /// ProvidersView, handed the flexible height. The original collapse
+    /// (#4531) needed TWO greedy children competing for unbounded height; a
+    /// lone child cannot collapse itself. Guard that the single pane takes
+    /// the flexible frame and no second greedy Form sibling comes back.
+    func testProvidersTabHandsTheBrowserTheFlexibleHeight() throws {
         let body = try Self.providersTabBody()
 
         XCTAssertTrue(
             body.contains("maxHeight: .infinity"),
             "the providers browser must take the flexible height — it is the subject of the screen"
         )
-        XCTAssertTrue(
-            body.contains("maxHeight: 300") || body.contains("idealHeight:"),
-            "the MLX Form must be bounded, or it competes with the browser for unbounded space"
+        XCTAssertFalse(
+            body.contains("LocalInferenceSettingsView"),
+            """
+            the separate MLX Runtime Form is back in providersTab — db887a111 \
+            retired it (MLX is a provider ROW now). A second greedy Form here \
+            competing for unbounded height is exactly the #4531 collapse.
+            """
         )
     }
 
-    /// #4503's intent must survive the layout fix: MLX still renders on this
-    /// tab and there is still no separate Local LLM tab for it to drift back
-    /// into. A "fix" that restored the provider list by evicting MLX would
-    /// re-open the bug #4503 closed.
-    func testMLXStillRendersBesideTheProviders() throws {
+    /// #4503's intent must survive the redesign: MLX (and the other managed-
+    /// local runtimes) still render on this tab and there is no separate Local
+    /// LLM tab. The mechanism changed — they are provider ROWS inside
+    /// ProvidersView now, not a LocalInferenceSettingsView beside it
+    /// (db887a111) — so the guard follows them into the provider detail pane.
+    func testLocalRuntimesRenderAsProviderRows() throws {
         let body = try Self.providersTabBody()
-
         XCTAssertTrue(
             body.contains("ProvidersView()"),
             "the provider list must render on the Models & Providers tab"
-        )
-        XCTAssertTrue(
-            body.contains("LocalInferenceSettingsView(store:"),
-            "MLX controls must still sit beside the providers (#4503)"
         )
 
         let source = try Self.appSource("Views/Settings/AI/AISettingsView+Tabs.swift")
         XCTAssertFalse(
             source.contains("var localLLMTab: some View {"),
             "the separate Local LLM tab must stay deleted (#4503)"
+        )
+
+        // MLX/spaCy/Kraken/Whisper are peers in the provider list now — the
+        // detail pane keys off ManagedLocalRuntime to give them their local
+        // model/provisioning UI instead of a Server URL + API key. If that
+        // branch is gone, local runtimes have been evicted from the rows and
+        // #4503 is reopened by a different route.
+        let detail = try Self.appSource(
+            "Views/Settings/AI/AIProviders/ProvidersView+ProviderDetailView.swift"
+        )
+        XCTAssertTrue(
+            detail.contains("ManagedLocalRuntime"),
+            "managed-local runtimes (MLX/spaCy/Kraken/Whisper) must still be handled as provider rows (#4503)"
         )
     }
 
