@@ -42,6 +42,13 @@ EXPECTED_TOOLS = {
     "fichero_artifact_get",
     "fichero_search",
     "fichero_activity",
+    # Library scoping + doc/workflow drive tools that were registered but had
+    # gone missing from this contract set (S37762) — added here so the exact
+    # set is truthful again.
+    "fichero_list_libraries",
+    "fichero_use_library",
+    "fichero_document_move",
+    "fichero_workflow_create",
     "fichero_workspace_add_source",
     "fichero_workspace_remove_source",
     "fichero_workspace_surface_claim",
@@ -52,6 +59,27 @@ EXPECTED_TOOLS = {
     # had zero callers.
     "fichero_kg_entity_upsert",
     "fichero_kg_claim_create",
+    # AI providers & local model runtimes — same reach as the app's AI settings.
+    "fichero_providers",
+    "fichero_provider_catalog",
+    "fichero_local_runtimes",
+    "fichero_models_catalog",
+    "fichero_model_download",
+    "fichero_model_download_status",
+    "fichero_model_download_cancel",
+    "fichero_model_delete",
+    "fichero_runtime_status",
+    "fichero_runtime_provision",
+    "fichero_local_models",
+    "fichero_local_model_download",
+    "fichero_kraken_status",
+    "fichero_kraken_install",
+    # HPC (Slurm) cluster connections — dry-run only on the backend.
+    "fichero_hpc_clusters",
+    "fichero_hpc_configure_cluster",
+    "fichero_hpc_delete_cluster",
+    "fichero_hpc_test_cluster",
+    "fichero_hpc_dry_run_submit",
 }
 
 
@@ -511,3 +539,107 @@ def test_main_populates_config_from_args(monkeypatch):
     assert captured["ran"] is True
     assert mcp_server._CONFIG["base_url"] == "http://cli:1234"
     assert mcp_server._CONFIG["library_path"] == "/cli/L.fichero"
+
+
+# -- AI providers / local runtimes / HPC passthrough (#tools-coverage) ------
+#
+# _mutating_client() would build a real agent client; in tests there is no
+# stored agent token so it falls back to _client(). We patch _mutating_client
+# to the same mock builder so mutation tools exercise the mock transport too.
+
+
+def _mock_both(monkeypatch, *, body=None):
+    """_mock_client but also point _mutating_client at the mocked _client."""
+    cm = _mock_client(monkeypatch, body=body)
+    seen = cm.__enter__()
+    monkeypatch.setattr(mcp_server, "_mutating_client", mcp_server._client)
+    return cm, seen
+
+
+def test_providers_read_tools_hit_expected_paths(monkeypatch):
+    for tool, path, body in [
+        (mcp_server.fichero_providers, "/api/providers", []),
+        (mcp_server.fichero_provider_catalog, "/api/providers/catalog", []),
+        (mcp_server.fichero_local_runtimes, "/api/providers/local-runtimes", []),
+        (mcp_server.fichero_models_catalog, "/api/local-inference/catalog", []),
+        (mcp_server.fichero_runtime_status, "/api/local-inference/runtime", {}),
+        (mcp_server.fichero_kraken_status, "/api/local-models/kraken/status", {}),
+        (mcp_server.fichero_hpc_clusters, "/api/hpc/clusters", []),
+    ]:
+        with _mock_client(monkeypatch, body=body) as seen:
+            tool()
+        assert seen[0].method == "GET", tool.__name__
+        assert seen[0].url.path == path, tool.__name__
+
+
+def test_local_models_forwards_model_type_filter(monkeypatch):
+    with _mock_client(monkeypatch, body=[]) as seen:
+        mcp_server.fichero_local_models(model_type="kraken")
+    assert seen[0].url.path == "/api/local-models"
+    assert seen[0].url.params.get("model_type") == "kraken"
+
+
+def test_model_download_lifecycle_paths(monkeypatch):
+    cm, seen = _mock_both(monkeypatch, body={"job_id": "j1"})
+    try:
+        mcp_server.fichero_model_download("qwen2.5-vl")
+        mcp_server.fichero_model_download_cancel("j1")
+        mcp_server.fichero_model_delete("qwen2.5-vl")
+        mcp_server.fichero_runtime_provision()
+        mcp_server.fichero_kraken_install()
+        mcp_server.fichero_local_model_download("kraken", "catmus-print")
+    finally:
+        cm.__exit__(None, None, None)
+    calls = [(r.method, r.url.path) for r in seen]
+    assert ("POST", "/api/local-inference/models/qwen2.5-vl/download") in calls
+    assert ("POST", "/api/local-inference/models/downloads/j1/cancel") in calls
+    assert ("DELETE", "/api/local-inference/models/qwen2.5-vl") in calls
+    assert ("POST", "/api/local-inference/runtime/provision") in calls
+    assert ("POST", "/api/local-models/kraken/install") in calls
+    assert ("POST", "/api/local-models/download/kraken/catmus-print") in calls
+
+
+def test_hpc_configure_forwards_body(monkeypatch):
+    cm, seen = _mock_both(monkeypatch, body={"cluster_id": "c1"})
+    try:
+        mcp_server.fichero_hpc_configure_cluster(
+            name="ACEnet",
+            host_alias="acenet",
+            username="researcher",
+            remote_base_dir="/scratch/researcher",
+            partition="gpu",
+            account="def-lab",
+        )
+    finally:
+        cm.__exit__(None, None, None)
+    assert seen[0].method == "POST"
+    assert seen[0].url.path == "/api/hpc/clusters"
+    sent = json.loads(seen[0].content)
+    assert sent["host_alias"] == "acenet"
+    assert sent["partition"] == "gpu"
+    assert "cluster_id" not in sent  # omitted on create
+
+
+def test_hpc_test_and_dry_run_submit_paths(monkeypatch):
+    cm, seen = _mock_both(monkeypatch, body={"ok": True})
+    try:
+        mcp_server.fichero_hpc_test_cluster("c1")
+        mcp_server.fichero_hpc_dry_run_submit(
+            cluster_id="c1",
+            workflow_id="wf-1",
+            workflow_name="Transcribe",
+            run_id="run-7",
+            input_files=["/a.pdf", "/b.pdf"],
+            throttle=2,
+        )
+        mcp_server.fichero_hpc_delete_cluster("c1")
+    finally:
+        cm.__exit__(None, None, None)
+    calls = [(r.method, r.url.path) for r in seen]
+    assert ("POST", "/api/hpc/clusters/c1/test") in calls
+    assert ("POST", "/api/hpc/clusters/c1/dry-run-submit") in calls
+    assert ("DELETE", "/api/hpc/clusters/c1") in calls
+    submit = next(r for r in seen if r.url.path.endswith("/dry-run-submit"))
+    body = json.loads(submit.content)
+    assert body["input_files"] == ["/a.pdf", "/b.pdf"]
+    assert body["throttle"] == 2

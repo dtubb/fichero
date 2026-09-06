@@ -634,6 +634,252 @@ def fichero_artifact_get(artifact_id: str) -> Any:
         return client.get_artifact(artifact_id)
 
 
+# -- AI providers & local model runtimes -----------------------------------
+#
+# These give an agent the same reach the app's AI settings have: see which
+# providers are configured (incl. the always-present on-device rows), browse
+# the local model catalog, and drive the download/install lifecycle. Each is
+# ONE client.request over an existing endpoint — no new backend logic. Reads
+# use _client(); anything that mutations (download/install/delete/provision)
+# uses _mutating_client() so the action is attributed to the agent account
+# when one exists (single-user loopback acts as owner). Endpoints that are
+# owner-gated (provider create/delete is not exposed here) will raise a clear
+# FicheroError if the caller lacks rights — surfaced, never silent.
+
+
+@mcp.tool()
+def fichero_providers() -> Any:
+    """List the LLM providers configured on this engine (app-wide)."""
+    with _client() as client:
+        return client.request("GET", "/api/providers")
+
+
+@mcp.tool()
+def fichero_provider_catalog() -> Any:
+    """List every provider type in the catalog, including the always-present
+    on-device rows (Apple, spaCy, Kraken, Whisper). Use this to see what CAN be
+    configured, vs fichero_providers which shows what IS configured."""
+    with _client() as client:
+        return client.request("GET", "/api/providers/catalog")
+
+
+@mcp.tool()
+def fichero_local_runtimes() -> Any:
+    """List the local model runtimes (MLX, spaCy, Kraken, Whisper) as uniform
+    peer rows: installed/available flags, size notes, and where to install/poll.
+    Reports state only — reading this starts no downloads."""
+    with _client() as client:
+        return client.request("GET", "/api/providers/local-runtimes")
+
+
+@mcp.tool()
+def fichero_models_catalog() -> Any:
+    """Browse the local-inference (MLX) model catalog — the downloadable local
+    vision/text models with sizes and current install state."""
+    with _client() as client:
+        return client.request("GET", "/api/local-inference/catalog")
+
+
+@mcp.tool()
+def fichero_model_download(model_id: str) -> Any:
+    """Start downloading a local-inference model. Returns a job you can poll
+    with fichero_model_download_status(job_id)."""
+    with _mutating_client() as client:
+        return client.request(
+            "POST", f"/api/local-inference/models/{model_id}/download"
+        )
+
+
+@mcp.tool()
+def fichero_model_download_status(job_id: str) -> Any:
+    """Poll a local-inference model download job's progress by its job id."""
+    with _client() as client:
+        return client.request(
+            "GET", f"/api/local-inference/models/downloads/{job_id}"
+        )
+
+
+@mcp.tool()
+def fichero_model_download_cancel(job_id: str) -> Any:
+    """Cancel an in-progress local-inference model download job."""
+    with _mutating_client() as client:
+        return client.request(
+            "POST", f"/api/local-inference/models/downloads/{job_id}/cancel"
+        )
+
+
+@mcp.tool()
+def fichero_model_delete(model_id: str) -> Any:
+    """Delete a downloaded local-inference model to reclaim disk."""
+    with _mutating_client() as client:
+        return client.request(
+            "DELETE", f"/api/local-inference/models/{model_id}"
+        )
+
+
+@mcp.tool()
+def fichero_runtime_status() -> Any:
+    """Show the local-inference (MLX) runtime status — provisioned or not."""
+    with _client() as client:
+        return client.request("GET", "/api/local-inference/runtime")
+
+
+@mcp.tool()
+def fichero_runtime_provision() -> Any:
+    """Provision the local-inference (MLX) runtime so local vision/text and
+    Whisper models can run. Returns a job; poll runtime status to follow it."""
+    with _mutating_client() as client:
+        return client.request("POST", "/api/local-inference/runtime/provision")
+
+
+@mcp.tool()
+def fichero_local_models(model_type: Optional[str] = None) -> Any:
+    """List local models (spaCy / Kraken / Whisper) with download state.
+
+    Args:
+        model_type: Optional filter, e.g. "spacy", "kraken", "whisper".
+    """
+    params = {"model_type": model_type} if model_type else None
+    with _client() as client:
+        return client.request("GET", "/api/local-models", params=params)
+
+
+@mcp.tool()
+def fichero_local_model_download(model_type: str, model_id: str) -> Any:
+    """Download one local model (e.g. a Kraken HTR/segmenter model, a Whisper
+    weight, or a spaCy language model).
+
+    Args:
+        model_type: The runtime family: "kraken", "whisper", or "spacy".
+        model_id: The model identifier within that family.
+    """
+    with _mutating_client() as client:
+        return client.request(
+            "POST", f"/api/local-models/download/{model_type}/{model_id}"
+        )
+
+
+@mcp.tool()
+def fichero_kraken_status() -> Any:
+    """Show the Kraken line-segmentation runtime install status."""
+    with _client() as client:
+        return client.request("GET", "/api/local-models/kraken/status")
+
+
+@mcp.tool()
+def fichero_kraken_install() -> Any:
+    """Install the Kraken runtime (~1 GB) so line segmentation / HTR is usable."""
+    with _mutating_client() as client:
+        return client.request("POST", "/api/local-models/kraken/install")
+
+
+# -- HPC (Slurm) cluster connections ---------------------------------------
+#
+# Configure an academic HPC cluster as a compute target, dry-run its Test
+# connection, and dry-run-submit a workflow run as a Slurm array job. v0 is
+# dry-run only on the backend (no real SSH/sbatch runs), so these tools are
+# safe: nothing is executed on a cluster.
+
+
+@mcp.tool()
+def fichero_hpc_clusters() -> Any:
+    """List configured HPC (Slurm) cluster connections."""
+    with _client() as client:
+        return client.request("GET", "/api/hpc/clusters")
+
+
+@mcp.tool()
+def fichero_hpc_configure_cluster(
+    name: str,
+    host_alias: str,
+    username: str,
+    remote_base_dir: str,
+    partition: str = "default",
+    account: Optional[str] = None,
+    ssh_port: int = 22,
+    cluster_id: Optional[str] = None,
+) -> Any:
+    """Create or update an HPC cluster connection (config references only —
+    never key material; auth is the user's own SSH key).
+
+    Args:
+        name: Display name for the cluster.
+        host_alias: The SSH ``Host`` alias from the user's ~/.ssh/config.
+        username: SSH username on the login node.
+        remote_base_dir: Absolute path to scratch/project base for run workdirs.
+        partition: Default Slurm partition.
+        account: Optional Slurm account/allocation.
+        ssh_port: SSH port (default 22).
+        cluster_id: Pass an existing id to update in place; omit to create.
+    """
+    body: dict[str, Any] = {
+        "name": name,
+        "host_alias": host_alias,
+        "username": username,
+        "remote_base_dir": remote_base_dir,
+        "partition": partition,
+        "account": account,
+        "ssh_port": ssh_port,
+    }
+    if cluster_id:
+        body["cluster_id"] = cluster_id
+    with _mutating_client() as client:
+        return client.request("POST", "/api/hpc/clusters", json=body)
+
+
+@mcp.tool()
+def fichero_hpc_delete_cluster(cluster_id: str) -> Any:
+    """Remove an HPC cluster connection by id."""
+    with _mutating_client() as client:
+        return client.request("DELETE", f"/api/hpc/clusters/{cluster_id}")
+
+
+@mcp.tool()
+def fichero_hpc_test_cluster(cluster_id: str) -> Any:
+    """Dry-run Test-connection: validates the config and returns the ``sinfo``
+    SSH probe command that would run. Executes nothing on the cluster (v0)."""
+    with _mutating_client() as client:
+        return client.request("POST", f"/api/hpc/clusters/{cluster_id}/test")
+
+
+@mcp.tool()
+def fichero_hpc_dry_run_submit(
+    cluster_id: str,
+    workflow_id: str,
+    workflow_name: str,
+    run_id: str,
+    input_files: list[str],
+    throttle: int = 0,
+    library_path: str = "",
+) -> Any:
+    """Assemble a workflow run as a Slurm array job spec WITHOUT submitting it.
+
+    Returns the remote workdir, the ``--array`` directive, and the rendered
+    sbatch script so the submission path is inspectable before any SSH is wired.
+
+    Args:
+        cluster_id: The target cluster.
+        workflow_id: Workflow to run.
+        workflow_name: Human name (used in the job name).
+        run_id: The Fichero run id (keys the remote workdir).
+        input_files: Selected input files — one array index per file.
+        throttle: Max concurrent array tasks (``%N``); 0 = unthrottled.
+        library_path: Optional library path recorded in the manifest.
+    """
+    body = {
+        "workflow_id": workflow_id,
+        "workflow_name": workflow_name,
+        "run_id": run_id,
+        "input_files": input_files,
+        "throttle": throttle,
+        "library_path": library_path,
+    }
+    with _mutating_client() as client:
+        return client.request(
+            "POST", f"/api/hpc/clusters/{cluster_id}/dry-run-submit", json=body
+        )
+
+
 def main() -> None:
     """Console entry point — runs the MCP server over stdio."""
     parser = argparse.ArgumentParser(description="Fichero MCP server")
