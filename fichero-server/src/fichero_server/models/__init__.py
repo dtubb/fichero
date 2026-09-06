@@ -1753,6 +1753,11 @@ class HealthResponse(BaseModel):
     # the app diagnose "port occupied by PID N" precisely.
     engine_pid: int | None = None
     launch_nonce: str | None = None
+    # Live dependency versions for the About box's "Built with" (Daniel wants
+    # them DERIVED, never hard-typed). Keys are lowercased pip distribution
+    # names → installed version; a lib that is not installed is simply absent
+    # (the box shows its name with no version rather than a wrong one).
+    dependencies: dict[str, str] = Field(default_factory=dict)
 
 
 class EmbeddingStatsResponse(BaseModel):

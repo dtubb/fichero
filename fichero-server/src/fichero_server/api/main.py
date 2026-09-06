@@ -15,6 +15,7 @@ Environment Variables:
     TOKENIZERS_PARALLELISM: Set to "false" to disable tokenizer parallelism (avoids fork warnings)
 """
 
+import functools
 import hashlib
 import hmac
 import os
@@ -1297,6 +1298,63 @@ async def connected_clients():
     )
 
 
+# Notable frameworks whose live versions the About box's "Built with" shows —
+# DERIVED from the engine env, never hard-typed (Daniel). Keys are lowercased
+# pip distribution names; the UI looks up by that.
+_NOTABLE_DISTRIBUTIONS = (
+    "fastapi", "starlette", "uvicorn", "pydantic", "duckdb", "lancedb",
+    "langchain", "langgraph", "mcp", "spacy", "kreuzberg", "pymupdf",
+    "pypdfium2", "pillow", "opencv-python-headless", "fastembed", "numpy",
+    "httpx", "jinja2", "rdflib",
+)
+
+
+@functools.lru_cache(maxsize=1)
+def _static_dependency_versions() -> dict[str, str]:
+    """Installed versions of the notable frameworks — a lib absent from this
+    env is simply omitted (the About box then shows it with no version, never a
+    wrong one). Cached: these do not change during a process's life."""
+    versions: dict[str, str] = {}
+    for dist in _NOTABLE_DISTRIBUTIONS:
+        try:
+            versions[dist.lower()] = package_version(dist)
+        except PackageNotFoundError:
+            continue
+        except Exception:
+            continue
+    return versions
+
+
+def _dependency_versions() -> dict[str, str]:
+    """Static deps plus the runtime-provisioned venvs (mlx-*, kraken), which
+    live OUTSIDE this process — read from their recorded metadata when present,
+    per call since provisioning can happen mid-session."""
+    deps = dict(_static_dependency_versions())
+    try:
+        from fichero_server.llm.mlx_runtime import get_mlx_runtime
+
+        status = get_mlx_runtime().status()
+        for meta_key, dist in (
+            ("mlx_lm_version", "mlx-lm"),
+            ("mlx_vlm_version", "mlx-vlm"),
+            ("mlx_whisper_version", "mlx-whisper"),
+        ):
+            value = status.get(meta_key)
+            if value:
+                deps[dist] = str(value)
+    except Exception:
+        pass
+    try:
+        from fichero_server.llm.kraken_runtime import get_kraken_runtime
+
+        kraken_version = get_kraken_runtime().status().get("kraken_version")
+        if kraken_version:
+            deps["kraken"] = str(kraken_version)
+    except Exception:
+        pass
+    return deps
+
+
 @app.get("/api/health", response_model=HealthResponse)
 async def health_check(
     request: Request,
@@ -1335,6 +1393,7 @@ async def health_check(
                     database=str(db.path),
                     document_count=doc_count,
                     backend_version=_ENGINE_VERSION,
+                    dependencies=_dependency_versions(),
                 ),
                 nonce or x_fichero_client_nonce,
             )
@@ -1358,6 +1417,7 @@ async def health_check(
                 remote_backend=build_remote_backend_status().as_dict(),
                 engine_pid=os.getpid(),
                 launch_nonce=os.environ.get("FICHERO_LAUNCH_NONCE") or None,
+                dependencies=_dependency_versions(),
             ),
             nonce or x_fichero_client_nonce,
         )
