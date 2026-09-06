@@ -69,6 +69,20 @@ extension ContentView {
         .focusable()
         .focused($focusedPane, equals: .sidebar)
         .focusEffectDisabled()
+        // Claim pane focus on ANY click in the sidebar, the exact mirror of the
+        // library's `focusedPane = .content; paneFocusHint = .content` tap seams
+        // (centerContentRouting / PaneSpec). Daniel, 2026-09-06: after #581ff147e
+        // greyed the sidebar's selection while the library held focus, going BACK
+        // to the sidebar left the LIBRARY's selection still accent-tinted — the
+        // reverse transition never fired. Root cause: the `.focused` binding above
+        // sticks for keyboard/Tab entry but a mouse CLICK on a List row does not
+        // move @FocusState, so `focusedPane` stayed `.content` and the library's
+        // `isPaneFocused` (focusedPane == .content || paneFocusHint == .content)
+        // never dropped. The library forces the flip with an explicit tap gesture;
+        // the sidebar had no equivalent. `.simultaneousGesture` composes with the
+        // List's own selection click (and the per-row/section fallbacks) without
+        // consuming it — the same way it does on the center pane.
+        .simultaneousGesture(TapGesture().onEnded { focusedPane = .sidebar; paneFocusHint = .sidebar })
         // Track the column's live rendered width so each mode's @AppStorage
         // ideal is updated when the user drags the divider. The GeometryReader
         // fires on every layout pass — guard with a min-delta to avoid writing
