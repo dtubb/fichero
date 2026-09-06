@@ -72,6 +72,18 @@ final class RenditionService {
     private(set) var renditionsByDocument: [String: [DocumentRendition]] = [:]
     private(set) var loadingDocuments: Set<String> = []
 
+    /// In-flight `load` per document, so two callers that open the same page in
+    /// the same frame share ONE `/renditions` round-trip instead of racing the
+    /// (async) cache and both hitting the network. On a sibling swipe the
+    /// display canvas and the preview's own `loadRenditions` both call `load`
+    /// before either has populated `renditionsByDocument` — the engine log
+    /// showed the doubled `GET …/renditions` this coalesces away.
+    private var loadTasks: [String: Task<[DocumentRendition], Never>] = [:]
+
+    /// In-flight `contentData` per rendition id — same coalescing for the
+    /// byte fetch, which the log showed doubled as `GET …/renditions/<id>/content`.
+    private var contentTasks: [String: Task<Data, Error>] = [:]
+
     init(ficheroClient: FicheroClient) {
         self.client = ficheroClient
     }
@@ -97,6 +109,29 @@ final class RenditionService {
         if !forceRefresh, let cached = renditionsByDocument[documentId] {
             return cached
         }
+        // Coalesce concurrent loads of the same page onto one round-trip. A
+        // forced refresh always runs fresh (it is deliberately bypassing the
+        // cache), but still shares its result with any plain caller that lands
+        // while it is in flight.
+        if !forceRefresh, let inflight = loadTasks[documentId] {
+            return await inflight.value
+        }
+        let task = Task<[DocumentRendition], Never> {
+            await self.fetchRenditions(documentId: documentId)
+        }
+        loadTasks[documentId] = task
+        let result = await task.value
+        // Only clear if this is still the task we installed — a forceRefresh
+        // may have replaced it while we awaited.
+        if loadTasks[documentId] == task {
+            loadTasks[documentId] = nil
+        }
+        return result
+    }
+
+    /// The actual `/renditions` fetch, split out so `load` can coalesce
+    /// concurrent callers onto a single in-flight task.
+    private func fetchRenditions(documentId: String) async -> [DocumentRendition] {
         loadingDocuments.insert(documentId)
         defer { loadingDocuments.remove(documentId) }
 
@@ -164,13 +199,34 @@ final class RenditionService {
         if let cached = renditionsByDocument[documentId] {
             for rendition in cached {
                 contentCache.removeValue(forKey: rendition.id)
+                // Drop any in-flight byte fetch so a caller landing after the
+                // edit does not join a pre-edit round-trip and receive stale
+                // pixels (the same reason the byte cache is cleared here).
+                contentTasks.removeValue(forKey: rendition.id)
             }
         }
         renditionsByDocument.removeValue(forKey: documentId)
+        loadTasks.removeValue(forKey: documentId)
     }
 
     func contentData(documentId: String, renditionId: String) async throws -> Data {
         if let cached = contentCache[renditionId] { return cached }
+        // Coalesce concurrent byte fetches for the same rendition id onto one
+        // round-trip (the doubled `…/content` GET in the engine log): a sibling
+        // swipe can ask for the same preferred rendition from more than one
+        // surface before the cache fills.
+        if let inflight = contentTasks[renditionId] {
+            return try await inflight.value
+        }
+        let task = Task<Data, Error> {
+            try await self.fetchContentData(documentId: documentId, renditionId: renditionId)
+        }
+        contentTasks[renditionId] = task
+        defer { if contentTasks[renditionId] == task { contentTasks[renditionId] = nil } }
+        return try await task.value
+    }
+
+    private func fetchContentData(documentId: String, renditionId: String) async throws -> Data {
         // An edit STATE has no row and no stored bytes — the engine renders it
         // from the chain. Named by its id, never guessed at.
         if let role = DocumentRendition.editStateRole(of: renditionId) {
