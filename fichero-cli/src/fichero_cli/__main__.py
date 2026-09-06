@@ -2776,6 +2776,101 @@ def library_create(
     _invoke(ctx, op)
 
 
+@library_app.command("clone")
+def library_clone(
+    ctx: typer.Context,
+    dest: str = typer.Argument(..., help="Local .fichero package to create/update."),
+    from_url: str = typer.Option(
+        ..., "--from", help="Base URL of the source engine (e.g. https://host:8765)."
+    ),
+    remote_path: str = typer.Option(
+        ...,
+        "--remote-path",
+        help="Path of the source .fichero package on the source engine.",
+    ),
+) -> None:
+    """Clone/sync a library from a source engine, with checkpointed resume.
+
+    Pulls the source manifest, diffs it against the local package, and transfers
+    only the missing objects — re-running after an interruption resumes from a
+    per-destination checkpoint (``.sync-checkpoint.json``) and moves only what
+    is still missing. Files-only in this slice (the DB image is a later slice).
+
+    Auth/transport are the source engine's existing sharing surface (read role +
+    device token); this command is an ordinary read client of it.
+    """
+    from fichero_server.workflows.library_sync import (
+        SyncCheckpoint,
+        SyncManifest,
+        SyncObject,
+        diff_manifests,
+        pending_objects,
+    )
+    from fichero_server.workflows.library_sync_io import (
+        build_package_manifest,
+        land_object,
+    )
+
+    dest_root = Path(dest).expanduser().resolve()
+    (dest_root / "files").mkdir(parents=True, exist_ok=True)
+    checkpoint_path = dest_root / ".sync-checkpoint.json"
+
+    src = FicheroClient(
+        base_url=from_url,
+        library_path=remote_path,
+        token=ctx.obj.get("token"),
+        client_name="fichero-cli",
+    )
+    try:
+        with src:
+            payload = src.request("GET", "/api/library/sync/manifest")
+            remote = SyncManifest(
+                library_id=str(payload["library_id"]),
+                generation=int(payload["generation"]),
+                objects=tuple(SyncObject.from_dict(o) for o in payload.get("objects", [])),
+                produced_at=str(payload.get("produced_at", "")),
+            )
+
+            # Local manifest keyed to the SAME library id so the diff is valid.
+            local = build_package_manifest(
+                package_root=dest_root,
+                library_id=remote.library_id,
+                generation=0,
+            )
+            diff = diff_manifests(remote, local)
+
+            checkpoint = SyncCheckpoint.empty(remote.library_id, remote.generation)
+            if checkpoint_path.exists():
+                stored = SyncCheckpoint.from_json(checkpoint_path.read_text("utf-8"))
+                # A checkpoint for a stale generation is discarded and rebuilt.
+                if stored.generation == remote.generation and stored.library_id == remote.library_id:
+                    checkpoint = stored
+
+            plan = pending_objects(diff, checkpoint)
+            total = len(plan.pending) + len(plan.done)
+            if not plan.pending:
+                typer.echo(f"up to date ({total} objects, nothing to fetch)")
+                return
+
+            typer.echo(
+                f"cloning {len(plan.pending)} object(s) "
+                f"({plan.pending_bytes()} bytes); {len(plan.done)} already present"
+            )
+            for i, obj in enumerate(plan.pending, start=1):
+                data = src.get_bytes("/api/library/sync/object", params={"rel": obj.rel})
+                land_object(dest_root, obj, data)  # atomic + hash-verify + confinement
+                checkpoint = checkpoint.with_landed(obj)
+                checkpoint_path.write_text(checkpoint.to_json(), encoding="utf-8")
+                typer.echo(f"  [{i}/{len(plan.pending)}] {obj.rel}")
+
+            typer.echo(
+                f"done: {len(plan.pending)} fetched, {len(plan.done)} skipped "
+                f"(files-only; DB image is a later slice)"
+            )
+    except FicheroError as exc:
+        _report_fichero_error(ctx, exc)
+
+
 @library_app.command("snapshot")
 def library_snapshot(
     ctx: typer.Context,

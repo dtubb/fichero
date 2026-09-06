@@ -592,6 +592,34 @@ class FicheroClient:
                 "bytes": len(response.content),
             }
 
+    def get_bytes(
+        self,
+        path: str,
+        *,
+        params: dict[str, Any] | None = None,
+    ) -> bytes:
+        """GET raw response bytes (for binary payloads like sync objects).
+
+        Same auth headers and 401/403-refresh retry as :meth:`request`, but
+        returns the body verbatim instead of parsing JSON — the caller is
+        fetching a file, not a document. Non-2xx raises :class:`FicheroError`.
+        """
+        self._refresh_auth_context()
+        try:
+            response = self._client.request("GET", path, params=_clean(params), headers=self._headers())
+        except httpx.ConnectError as exc:
+            raise _connect_error(self.base_url, exc) from exc
+        except httpx.HTTPError as exc:
+            raise FicheroError(f"GET {path} failed: {exc}") from exc
+        if response.status_code in {401, 403} and self._refresh_auth_context():
+            response = self._client.request("GET", path, params=_clean(params), headers=self._headers())
+        if response.status_code >= 400:
+            raise FicheroError(
+                f"GET {path} -> {response.status_code}: {response.text}",
+                status_code=response.status_code,
+            )
+        return response.content
+
     def request_stream(
         self,
         method: str,

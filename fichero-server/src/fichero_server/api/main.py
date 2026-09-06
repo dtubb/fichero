@@ -1545,6 +1545,7 @@ from fichero_server.api.routes.library import (  # noqa: E402
     items as library_items,
     links as library_links,
     registry as library_registry,
+    sync as library_sync,
 )
 from fichero_server.api.routes.mcp import (  # noqa: E402
     integrations,
@@ -1646,6 +1647,10 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (library_registry.router, "/api", ["library"]),
     # /api/libraries/{lib}/entity-types — per-library entity type customization (#874).
     (library_entity_types.router, "/api", ["library"]),
+    # /api/library/sync/* — pull-only library-sync (manifest + object) for the
+    # resumable clone keystone. Reuses get_library_database (read role +
+    # device-token), no new auth surface (hpc-remote-library-sync design §2.2).
+    (library_sync.router, "/api", ["library-sync"]),
     (migrations.router, "/api/migrations", ["migrations"]),
     (mcp_tools.router, "/api/mcp/tools", ["mcp"]),
     (multilingual.router, "/api", ["multilingual"]),
