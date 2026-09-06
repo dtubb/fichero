@@ -2808,6 +2808,7 @@ def library_clone(
     )
     from fichero_server.workflows.library_sync_io import (
         build_package_manifest,
+        hash_file,
         land_object,
     )
 
@@ -2832,10 +2833,24 @@ def library_clone(
             )
 
             # Local manifest keyed to the SAME library id so the diff is valid.
+            # Include the already-landed DB image (hashed directly — no engine
+            # runs on the dest) so a plain re-run is a no-op for it too.
+            local_db = None
+            dest_db = dest_root / "fichero.duckdb"
+            if dest_db.exists():
+                sha, size = hash_file(dest_db)
+                local_db = SyncObject(
+                    rel="fichero.duckdb",
+                    sha256=sha,
+                    size=size,
+                    kind="db",
+                    mtime_ns=dest_db.stat().st_mtime_ns,
+                )
             local = build_package_manifest(
                 package_root=dest_root,
                 library_id=remote.library_id,
                 generation=0,
+                db_object=local_db,
             )
             diff = diff_manifests(remote, local)
 
@@ -2863,9 +2878,10 @@ def library_clone(
                 checkpoint_path.write_text(checkpoint.to_json(), encoding="utf-8")
                 typer.echo(f"  [{i}/{len(plan.pending)}] {obj.rel}")
 
+            has_db = any(o.kind == "db" for o in plan.pending) or dest_db.exists()
             typer.echo(
-                f"done: {len(plan.pending)} fetched, {len(plan.done)} skipped "
-                f"(files-only; DB image is a later slice)"
+                f"done: {len(plan.pending)} fetched, {len(plan.done)} skipped"
+                + ("" if has_db else " (no DB image on source)")
             )
     except FicheroError as exc:
         _report_fichero_error(ctx, exc)
