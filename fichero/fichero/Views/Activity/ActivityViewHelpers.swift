@@ -198,52 +198,85 @@ struct ActivityBrowserView: View {
 
             Divider()
 
-            if activityStore.runs.isEmpty && !activityStore.isRebuildingRuns {
-                List {
-                    Text("No runs yet")
-                        .foregroundStyle(.secondary)
-                        .listRowSeparator(.hidden)
-                }
-                .listStyle(.plain)
-            } else {
-                List(selection: $listSelection) {
-                    ForEach(activityStore.runs) { run in
-                        ActivityBrowserRow(
-                            run: run,
-                            showsDetailButton: opensDetailWindow && supportsMultipleWindows,
-                            onOpenDetails: {
-                                openDetails(for: run)
-                            }
-                        )
-                            .tag(run.runId)
-                            .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8))
-                            .listRowSeparator(.hidden)
-                            .onTapGesture(count: 2) {
-                                guard opensDetailWindow && supportsMultipleWindows else { return }
-                                openDetails(for: run)
-                            }
-                            // Deletable entries (#19): the SAME transactional
-                            // RunControls the detail window mounts — pause/stop
-                            // for live runs, Delete for settled ones — on the
-                            // row itself, so clearing history never requires
-                            // opening each run's detail first.
-                            .contextMenu {
-                                RunControls(
-                                    threadId: run.threadId ?? run.runId,
-                                    status: ActivityViewHelpers.workflowStatus(
-                                        for: run.status.toStatusType()
-                                    ),
-                                    onError: { controlError = $0 }
-                                )
-                            }
+            List(selection: $listSelection) {
+                // Live background jobs (embedding, derivative/HTR queues, Kraken
+                // Detect Regions, …) from `/api/activity/jobs` — the SAME rows
+                // the toolbar Activity popover shows, from the SAME source
+                // (ActivityStore.backgroundJobs), so the two surfaces can't
+                // disagree about what's running or whether it FAILED. These
+                // ride above the workflow run list because they are what's live
+                // NOW; runs below are the (mostly historical) workflow record.
+                if !activityStore.backgroundJobs.isEmpty {
+                    Section("Background") {
+                        ForEach(activityStore.backgroundJobs) { job in
+                            ActivityJobRow(job: job)
+                                .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8))
+                                .listRowSeparator(.hidden)
+                        }
                     }
                 }
-                .listStyle(.plain)
-                .onChange(of: listSelection) { _, newId in
-                    guard let newId,
-                          let run = activityStore.runs.first(where: { $0.runId == newId }) else { return }
-                    onSelectRun(run.toSelectedRun())
+
+                Section {
+                    if activityStore.runs.isEmpty && !activityStore.isRebuildingRuns {
+                        Text("No runs yet")
+                            .foregroundStyle(.secondary)
+                            .listRowSeparator(.hidden)
+                    } else {
+                        ForEach(activityStore.runs) { run in
+                            ActivityBrowserRow(
+                                run: run,
+                                showsDetailButton: opensDetailWindow && supportsMultipleWindows,
+                                onOpenDetails: {
+                                    openDetails(for: run)
+                                }
+                            )
+                                .tag(run.runId)
+                                .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8))
+                                .listRowSeparator(.hidden)
+                                .onTapGesture(count: 2) {
+                                    guard opensDetailWindow && supportsMultipleWindows else { return }
+                                    openDetails(for: run)
+                                }
+                                // Deletable entries (#19): the SAME transactional
+                                // RunControls the detail window mounts — pause/stop
+                                // for live runs, Delete for settled ones — on the
+                                // row itself, so clearing history never requires
+                                // opening each run's detail first.
+                                .contextMenu {
+                                    RunControls(
+                                        threadId: run.threadId ?? run.runId,
+                                        status: ActivityViewHelpers.workflowStatus(
+                                            for: run.status.toStatusType()
+                                        ),
+                                        onError: { controlError = $0 }
+                                    )
+                                }
+                        }
+                    }
+                } header: {
+                    // Only label the run list once background jobs give it a
+                    // sibling section to be told apart from.
+                    if !activityStore.backgroundJobs.isEmpty {
+                        Text("Runs")
+                    }
                 }
+            }
+            .listStyle(.plain)
+            .onChange(of: listSelection) { _, newId in
+                guard let newId,
+                      let run = activityStore.runs.first(where: { $0.runId == newId }) else { return }
+                onSelectRun(run.toSelectedRun())
+            }
+
+            // Process CPU% from the same jobs read — a persistent footer so the
+            // user can always see how much compute the app is using (Daniel:
+            // "a way to see how much CPU something is using").
+            if let cpu = activityStore.processCpuPercent {
+                Divider()
+                ProcessCPULabel(percent: cpu, cpuCount: activityStore.cpuCount)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
             }
         }
         .task { await reloadRuns() }

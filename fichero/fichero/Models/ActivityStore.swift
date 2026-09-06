@@ -59,6 +59,24 @@ final class ActivityStore: ChangeEventConsumer {
     private(set) var runLoadFailures: [String] = []
     private(set) var isRebuildingRuns = false
 
+    // MARK: - Background jobs (#user-machine-always-useful FIX 2)
+    //
+    // The single source both the toolbar Activity popover and the full Activity
+    // viewer read for live background jobs (embedding, derivative/HTR queues,
+    // Kraken Detect Regions, …) + rough process CPU%. `GET /api/activity/jobs`
+    // is polled here — global, cheap, no SSE frame for it — and the two
+    // surfaces observe these properties, so they cannot disagree about what is
+    // running or whether it FAILED. Updated in place, only when the value
+    // actually changes (no-wholesale-rerender): a steady 100%-idle poll never
+    // invalidates the observing views.
+    private(set) var backgroundJobs: [ActivityJob] = []
+    private(set) var processCpuPercent: Double?
+    private(set) var cpuCount: Int = 0
+    private var jobsPollTask: Task<Void, Never>?
+    /// How often the jobs endpoint is polled. Loopback + a point-in-time read,
+    /// so 2s is live enough for a progress bar without adding real load.
+    private let jobsPollInterval: Duration = .seconds(2)
+
     init(service: ActivityService) {
         self.activityService = service
         self.streamService = ActivityStreamService(activityService: service)
@@ -68,11 +86,55 @@ final class ActivityStore: ChangeEventConsumer {
         streamService.start { [weak self] activity in
             self?.applyActivityEvent(activity)
         }
+        startJobsPolling()
     }
 
     func stop() {
         streamService.stop()
+        jobsPollTask?.cancel()
+        jobsPollTask = nil
     }
+
+    // MARK: - Background-jobs polling
+
+    /// Poll `GET /api/activity/jobs` on a loop until `stop()`. Started by
+    /// `start()` so the toolbar's Activity glyph reflects background work even
+    /// with no Activity surface open.
+    private func startJobsPolling() {
+        jobsPollTask?.cancel()
+        jobsPollTask = Task { [weak self] in
+            while !Task.isCancelled {
+                await self?.refreshBackgroundJobs()
+                guard let interval = self?.jobsPollInterval else { return }
+                try? await Task.sleep(for: interval)
+            }
+        }
+    }
+
+    /// Read one jobs snapshot and apply it in place. A poll failure (engine
+    /// restarting, brief transport drop) keeps the last snapshot rather than
+    /// flapping the surfaces to empty — the next tick recovers.
+    func refreshBackgroundJobs() async {
+        do {
+            let snapshot = try await activityService.getBackgroundJobs()
+            if backgroundJobs != snapshot.jobs { backgroundJobs = snapshot.jobs }
+            if processCpuPercent != snapshot.processCpuPercent {
+                processCpuPercent = snapshot.processCpuPercent
+            }
+            if cpuCount != snapshot.cpuCount { cpuCount = snapshot.cpuCount }
+        } catch {
+            log.debug("ActivityStore: jobs poll failed \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    /// Background jobs the backend reports as FAILED — surfaced distinctly so a
+    /// silent failure (Kraken not installed) can't be mistaken for "still
+    /// working" and re-run. Derived so both surfaces agree on the set.
+    var failedJobs: [ActivityJob] { backgroundJobs.filter { $0.state.isFailed } }
+
+    /// Background jobs still consuming compute — counts toward the toolbar
+    /// badge and the popover's active-task list.
+    var activeJobs: [ActivityJob] { backgroundJobs.filter { $0.state.isActive } }
 
     /// True when the activity SSE stream has dropped and runs are no longer
     /// refreshing live (F7). Views show a "live updates paused" pill. Reads the

@@ -175,6 +175,120 @@ extension Components.Schemas.ActivityResponse {
     }
 }
 
+// MARK: - Background jobs (#user-machine-always-useful FIX 2)
+
+/// One live background job as the Activity surfaces render it.
+///
+/// Maps the generated `BackgroundJob` schema (`GET /api/activity/jobs`) into a
+/// small app value with a typed `state`, so BOTH the toolbar Activity popover
+/// and the full Activity viewer read ONE type from ONE source and cannot
+/// disagree about what is running — or whether it FAILED (a failed Kraken
+/// "Detect Regions" that reads as silent is exactly what made Daniel re-run it
+/// three times).
+struct ActivityJob: Identifiable, Equatable {
+    /// The job's lifecycle as reported by the backend. `.other` keeps any
+    /// future backend state renderable rather than swallowed; `.failed` folds
+    /// "failed"/"error" so a failure is always visibly a failure.
+    enum State: Equatable {
+        case running
+        case stalled
+        case paused
+        case failed
+        case completed
+        case other(String)
+
+        init(raw: String) {
+            switch raw.lowercased() {
+            case "running": self = .running
+            case "stalled": self = .stalled
+            case "paused": self = .paused
+            case "failed", "error": self = .failed
+            case "completed", "complete", "done", "finished": self = .completed
+            default: self = .other(raw)
+            }
+        }
+
+        var isFailed: Bool { self == .failed }
+
+        /// Still consuming compute — counts toward the toolbar badge. A failed
+        /// or completed job is surfaced but is not "active work".
+        var isActive: Bool {
+            switch self {
+            case .running, .stalled, .paused: return true
+            case .failed, .completed, .other: return false
+            }
+        }
+    }
+
+    let id: String
+    /// The kind of work — "derivatives"/"embedding"/"import"/… or "workflow"
+    /// for a workflow run (Kraken Detect Regions, HTR, transcription). Flows
+    /// through generically; the surfaces render by `state`, not `taskType`.
+    let taskType: String
+    let name: String
+    let library: String?
+    let current: Int
+    let total: Int
+    let percent: Double
+    let state: State
+    /// Why a FAILED job failed, when the backend knows it ("Kraken not
+    /// installed"). `nil` for non-failed jobs or when no reason was recorded.
+    let reason: String?
+
+    init(_ job: Components.Schemas.BackgroundJob) {
+        self.id = job.id
+        self.taskType = job.taskType
+        self.name = job.name
+        self.library = job.library
+        self.current = job.current
+        self.total = job.total
+        self.percent = job.percent
+        self.state = State(raw: job.state)
+        self.reason = job.reason
+    }
+
+    /// Test/preview seam — construct without the generated schema.
+    init(
+        id: String,
+        taskType: String = "",
+        name: String,
+        library: String? = nil,
+        current: Int = 0,
+        total: Int = 0,
+        percent: Double = 0,
+        state: State = .running,
+        reason: String? = nil
+    ) {
+        self.id = id
+        self.taskType = taskType
+        self.name = name
+        self.library = library
+        self.current = current
+        self.total = total
+        self.percent = percent
+        self.state = state
+        self.reason = reason
+    }
+
+    /// A determinate bar is only meaningful once the backend knows the total.
+    var showsProgress: Bool { total > 0 }
+
+    /// Integer percent for display.
+    var displayPercent: Int { Int(percent.rounded()) }
+}
+
+/// A point-in-time read of `GET /api/activity/jobs`: the running jobs plus the
+/// rough process-wide CPU usage the same call reports, so the Activity surfaces
+/// can show WHAT is consuming compute (Daniel: "a way to see how much CPU
+/// something is using").
+struct BackgroundJobsSnapshot: Equatable {
+    var jobs: [ActivityJob] = []
+    /// Process CPU% since the last poll (100 == one core busy; may exceed 100
+    /// on multiple cores). `nil` on the first poll or if unavailable.
+    var processCpuPercent: Double?
+    var cpuCount: Int = 0
+}
+
 /// Activity statistics from the API
 struct ActivityStats: Codable {
     let totalActivities: Int

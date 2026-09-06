@@ -33,15 +33,23 @@ struct ActivityStatusToolbarItem: View {
     }
 
     /// Count of distinct active tasks — workflows + the single backend-work
-    /// slot + the in-window import. Drives the badge in the glyph and the
-    /// popover's row list.
+    /// slot + the in-window import + live background jobs (embedding, HTR,
+    /// Detect Regions, …) from `/api/activity/jobs`. Drives the badge in the
+    /// glyph and the popover's row list. Background jobs are folded in here so
+    /// this popover and the full Activity viewer show the SAME work.
     private var activeCount: Int {
         activeWorkflows.count
             + (activityStore.backendWork != nil ? 1 : 0)
             + (isImporting ? 1 : 0)
+            + activityStore.activeJobs.count
     }
 
-    private var hasError: Bool { importError != nil }
+    /// An in-window import error OR any background job the backend reports as
+    /// FAILED — a failed Kraken "Detect Regions" must light the error glyph so
+    /// it isn't re-run in the dark (Daniel ran it three times).
+    private var hasError: Bool {
+        importError != nil || !activityStore.failedJobs.isEmpty
+    }
 
     var body: some View {
         Group {
@@ -128,6 +136,14 @@ struct ActivityStatusToolbarItem: View {
                 BackendWorkPill(status: backendWork)
             }
 
+            // Live background jobs (embedding, derivative/HTR queues, Kraken
+            // Detect Regions, …) from `/api/activity/jobs` — the SAME rows the
+            // full Activity viewer shows, from the SAME source, so the two
+            // surfaces can't disagree. Failed jobs render red here too.
+            ForEach(activityStore.backgroundJobs) { job in
+                ActivityJobRow(job: job)
+            }
+
             ForEach(activeWorkflows, id: \.threadId) { execution in
                 HStack(spacing: 8) {
                     ProgressView()
@@ -146,10 +162,16 @@ struct ActivityStatusToolbarItem: View {
                 }
             }
 
-            if activeCount == 0 && !hasError {
+            if activeCount == 0 && !hasError && activityStore.backgroundJobs.isEmpty {
                 Text("Nothing running.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
+            }
+
+            // Process CPU% from the same jobs read — what's consuming compute,
+            // in the surface where the user is already looking at the work.
+            if let cpu = activityStore.processCpuPercent {
+                ProcessCPULabel(percent: cpu, cpuCount: activityStore.cpuCount)
             }
 
             Divider()
@@ -165,7 +187,13 @@ struct ActivityStatusToolbarItem: View {
     }
 
     private var accessibilityLabel: String {
-        if hasError { return importError ?? "Import error" }
+        if let importError { return importError }
+        // A failed background job is the case this glyph exists to make audible
+        // as well as visible — name it rather than saying "Import error".
+        let failed = activityStore.failedJobs
+        if let first = failed.first {
+            return failed.count == 1 ? "\(first.name) failed" : "\(failed.count) background tasks failed"
+        }
         if activeCount > 0 { return "\(activeCount) task\(activeCount == 1 ? "" : "s") running" }
         return "No activity"
     }

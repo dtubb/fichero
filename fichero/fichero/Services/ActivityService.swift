@@ -147,6 +147,30 @@ class ActivityService {
         }
     }
 
+    // MARK: - Background jobs (#user-machine-always-useful FIX 2)
+
+    /// Snapshot of currently-running background jobs + rough process CPU%.
+    ///
+    /// Global (process-wide), read-only and cheap — the single source both the
+    /// toolbar Activity popover and the full Activity viewer read so they can't
+    /// disagree about what is running. No filters, so the only outcomes are a
+    /// value or a transport/HTTP failure the caller decides how to surface.
+    func getBackgroundJobs() async throws -> BackgroundJobsSnapshot {
+        let response = try await client.api.listBackgroundJobsApiActivityJobsGet()
+
+        switch response {
+        case .ok(let okResponse):
+            let body = try okResponse.body.json
+            return BackgroundJobsSnapshot(
+                jobs: (body.jobs ?? []).map { ActivityJob($0) },
+                processCpuPercent: body.processCpuPercent,
+                cpuCount: body.cpuCount
+            )
+        case .undocumented(let statusCode, _):
+            throw ActivityServiceError.unexpectedResponse(statusCode)
+        }
+    }
+
     // MARK: - Workflow Execution History
 
     /// Get checkpoint history for a workflow thread (state at each step)
