@@ -1425,6 +1425,9 @@ class TestTranscriptionPresetConvention:
         ("Paleografía Española (s. XVIII–XIX)", "transcribe"): "period hands read with LLM vision",
         ("Latin Paleography", "transcribe"): "abbreviation-heavy Latin requires LLM vision",
         ("English Secretary Hand (16th–17th C.)", "transcribe"): "secretary hand requires LLM vision",
+        # Kraken HTR: the transcribe node runs the on-device Kraken segmenter +
+        # recogniser (vision_mode="kraken"), not the auto/LLM vision backend.
+        ("Transcribe (Kraken)", "kraken-htr"): "on-device Kraken segmenter + recogniser",
     }
 
     def _all_preset_dicts(self) -> list[dict]:
