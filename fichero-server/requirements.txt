@@ -1,0 +1,109 @@
+# =============================================================================
+# fichero-server/requirements.txt — GENERATED, do not hand-edit as the source.
+# =============================================================================
+# This file captures the ENGINE's runtime dependencies exactly as declared in
+# pyproject.toml, so the canonical dev venv (~/code/fichero/.venv) can be kept
+# in sync with what the Briefcase app bundle actually ships.
+#
+# Source of truth is pyproject.toml, specifically the UNION of:
+#   - [project].dependencies
+#   - [tool.briefcase.app.fichero_server].requires        (base bundle deps)
+#   - [tool.briefcase.app.fichero_server.macOS].requires  (macOS-only deps)
+# Specifiers (floors, URL wheels, extras) are copied verbatim — do not invent
+# versions here; change them in pyproject.toml and regenerate.
+#
+# To regenerate: re-read the three requires/dependencies blocks in
+# fichero-server/pyproject.toml and rewrite this file to match (they are the
+# authority; TOML has no variable inheritance so both mirror each other).
+#
+# INTENTIONALLY NOT LISTED here — heavy AI runtimes that the SHIPPED bundle
+# does NOT vendor into the base engine env. Instead the app provisions them
+# into SEPARATE managed runtime venvs, on demand, and runs them out-of-process:
+#   - kraken               — KrakenRuntimeManager venv (kraken==7.1.1 + scipy>=1.16)
+#   - mlx-lm / mlx-vlm     — the mlx-runtime venv (0.31.3 / 0.6.17)
+#   - mlx-whisper          — the mlx-runtime venv (0.4.3); the engine uses
+#                            mlx-whisper, NOT openai-whisper (torch is absent
+#                            from the engine env by design).
+# Only the recognition/model WEIGHTS (Kraken McCATMuS ~1GB, MLX models ~2GB,
+# whisper weights) are downloaded via the in-app catalog — never listed here.
+#
+# DEV NOTE: for local development the canonical dev venv (~/code/fichero/.venv)
+# ALSO has these runtime PACKAGES installed directly (kraken, mlx-lm, mlx-vlm,
+# mlx-whisper) so a Dev Local engine can run them in-venv without waiting on the
+# managed-venv provisioning step. That is a dev convenience — it is NOT how the
+# shipped bundle is built, and these packages stay OUT of this requirements.txt
+# so the app-bundle sync stays faithful to the pyproject requires.
+#
+# Also deliberately excluded from the shipped/base stack (install locally only
+# when working on those features): pykeen, torch (except as a kraken/mlx dep in
+# dev), rdflib, opencv-python-headless.
+# =============================================================================
+
+# --- Web / server core ---
+fastapi
+starlette>=1.3.1
+uvicorn[standard]
+websockets
+python-multipart>=0.0.31
+python-dotenv
+aiofiles
+aiohttp>=3.14.1
+httpx
+defusedxml
+cryptography>=48.0.1
+zeroconf
+
+# --- Data layer ---
+pydantic>=2.13
+pydantic-settings>=2.14.2
+duckdb
+lancedb
+pylance  # provides the `lance` module — required for LanceDB full-text (FTS) search
+
+# --- AI / LLM (Ollama local + LiteLLM/LangChain provider routing) ---
+langchain>=1.3.9
+langchain-core
+langchain-openai
+langchain-anthropic>=1.4.6
+langchain-google-genai
+langchain-aws
+langchain-cohere
+langchain-mistralai
+langchain-openrouter
+langchain-community
+langchain-mcp-adapters
+mcp>=1.28.1,<2
+langgraph
+langchain-ollama
+
+# --- Scheduling / filesystem ---
+apscheduler
+watchdog
+
+# --- Document processing ---
+kreuzberg
+pypdfium2
+fastembed
+PyMuPDF
+Pillow>=12.3.0
+pillow-heif>=1.1.0
+
+# --- Historical-text stack (#3319/#3322) ---
+ftfy
+anyascii
+convertdate
+jdcal
+
+# --- spaCy grammar gate (SVO) + bundled small models ---
+spacy
+es_core_news_sm @ https://github.com/explosion/spacy-models/releases/download/es_core_news_sm-3.8.0/es_core_news_sm-3.8.0-py3-none-any.whl
+en_core_web_sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl
+
+# --- macOS-only: CLI + Reader template + Apple Vision OCR bindings ---
+# (from [tool.briefcase.app.fichero_server.macOS].requires)
+typer
+rich
+jinja2
+pyobjc-framework-Vision
+pyobjc-framework-Quartz
+pyobjc-framework-Cocoa
