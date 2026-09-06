@@ -914,11 +914,19 @@ async def list_models_for_provider(
             api_key = get_api_key("omlx")
             if api_key:
                 headers["Authorization"] = f"Bearer {api_key}"
+            # The installed models are already listed from the STORE (disk)
+            # above; this live query only ADDS server-reported models. So it
+            # must never make the picker wait: when the managed sidecar is down
+            # (its normal state until a run starts it), a 5s total timeout let
+            # the endpoint hang for seconds before falling back to the store —
+            # Daniel's "loading models is slow". A short CONNECT timeout fails
+            # fast on a refused/absent localhost server while still allowing a
+            # running server time to answer.
             async with httpx.AsyncClient() as client:
                 response = await client.get(
                     _openai_models_url(api_base),
                     headers=headers,
-                    timeout=5.0,
+                    timeout=httpx.Timeout(5.0, connect=0.5),
                 )
                 if response.status_code == 200:
                     data = response.json()
