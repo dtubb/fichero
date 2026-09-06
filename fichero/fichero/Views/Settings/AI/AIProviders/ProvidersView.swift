@@ -47,8 +47,14 @@ struct ProvidersView: View {
                         Image(systemName: "minus")
                     }
                     .buttonStyle(.borderless)
-                    .disabled(selectedProvider == nil)
-                    .help("Remove Selected Provider")
+                    // Managed-local runtimes (MLX/spaCy/Kraken/Whisper) are
+                    // always-present rows the backend returns enabled — they are
+                    // not user-configured, so they can't be removed here (Daniel:
+                    // on by default). Their models are managed inside the row.
+                    .disabled(selectedProvider == nil || isManagedLocal(selectedProvider))
+                    .help(isManagedLocal(selectedProvider)
+                        ? "Built-in local runtimes can't be removed"
+                        : "Remove Selected Provider")
                     .accessibilityLabel("Remove Selected Provider")
 
                     Spacer()
@@ -96,6 +102,14 @@ struct ProvidersView: View {
                 if orderB < 100 { return false }
                 return provider1.name.localizedCaseInsensitiveCompare(provider2.name) == .orderedAscending
             }
+    }
+
+    /// Whether the given provider is one of the app's managed-local runtimes —
+    /// returned as an always-present enabled row, not user-configured, so it
+    /// can't be removed from the list.
+    func isManagedLocal(_ provider: Components.Schemas.ProviderResponse?) -> Bool {
+        guard let provider else { return false }
+        return ManagedLocalRuntime.contains(provider.providerType)
     }
 
     func sortOrder(_ type: String) -> Int {
