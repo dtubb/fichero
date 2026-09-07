@@ -583,6 +583,51 @@ def _search_match_terms(query: str) -> list[str]:
 # clear the floor like any other candidate.
 _LEXICAL_EVIDENCE_FLOOR = 0.5
 
+# Semantic cosine scores are corpus-relative, not query-relative (#4630,
+# Daniel: "plantain" surfaced "CASH ACCOUNT JANUARY…"). A stylistically
+# uniform corpus (handwritten diary prose) hands nearly every passage a
+# cosine similarity around 0.72-0.75 against ANY query, whether or not it
+# contains a single query term — reproduced live against Marshall Diaries:
+# semantic-only "plantain" returned 15/15 hits scored 0.7181-0.7458, zero
+# of which contained the word. Hybrid still ranks the true lexical hit
+# #1 (RRF + the exact-match exemption above), but pads ranks 2-10 with
+# these same semantic-only neighbours as filler.
+#
+# Below this floor the semantic leg carries no real discriminating
+# signal for this query/corpus pair, so a hit with ONLY semantic support
+# (no fulltext, no KG evidence) is noise, not a result — see the hybrid
+# combiner below, which drops semantic-only rows once the leg's best raw
+# cosine fails to clear it. Set just above the observed noise ceiling
+# (0.746) so a corpus that genuinely discriminates (a real topical match
+# scoring 0.8+) is unaffected.
+_SEMANTIC_DISCRIMINATION_FLOOR = 0.76
+
+
+def _drop_semantic_only_below_discrimination_floor(
+    combined_results: list[dict],
+    semantic_results: list[dict],
+) -> list[dict]:
+    """Drop hybrid rows whose ONLY support is the semantic leg when that
+    leg's best raw cosine for this query doesn't clear
+    ``_SEMANTIC_DISCRIMINATION_FLOOR`` (#4630).
+
+    A row that also carries fulltext or KG support is real evidence and
+    always survives, regardless of how weak the corpus's semantic
+    discrimination is for this query. ``semantic_results`` is expected
+    sorted descending by score (already true where the caller builds it:
+    one row per document, best passage first) — ``semantic_results[0]``
+    is the leg's best raw cosine.
+    """
+    if not semantic_results:
+        return combined_results
+    best_semantic_raw = semantic_results[0]["score"]
+    if best_semantic_raw >= _SEMANTIC_DISCRIMINATION_FLOOR:
+        return combined_results
+    return [
+        row for row in combined_results
+        if row.get("match_sources", []) != ["semantic"]
+    ]
+
 
 def _lexical_evidence_strength(
     folded_content: str,
@@ -5580,6 +5625,12 @@ class Database(DatabaseEmbeddingMixin):
                     ]
                 else:
                     combined_results = list(merged.values())
+
+                # Discrimination floor (#4630): see
+                # ``_drop_semantic_only_below_discrimination_floor``.
+                combined_results = _drop_semantic_only_below_discrimination_floor(
+                    combined_results, semantic_results
+                )
             elif search_type == "semantic":
                 combined_results = semantic_results
             elif search_type == "fulltext":
@@ -5842,7 +5893,7 @@ class Database(DatabaseEmbeddingMixin):
                 not fulltext_results
                 and kg_leg_count == 0
                 and semantic_results
-                and best_semantic < 0.75
+                and best_semantic < _SEMANTIC_DISCRIMINATION_FLOOR
             )
 
             return results, total_count, search_stats

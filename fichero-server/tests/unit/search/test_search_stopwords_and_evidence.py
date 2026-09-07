@@ -19,7 +19,9 @@ from __future__ import annotations
 
 from fichero_server.db import (
     _LEXICAL_EVIDENCE_FLOOR,
+    _SEMANTIC_DISCRIMINATION_FLOOR,
     _build_transcript_excerpts,
+    _drop_semantic_only_below_discrimination_floor,
     _fold_for_search,
     _lexical_evidence_strength,
     _search_match_terms,
@@ -121,3 +123,98 @@ class TestExcerptsFollowTheSameTerms:
         )
         assert excerpts, "expected at least one excerpt"
         assert any("dam" in (e.text or "").lower() for e in excerpts)
+
+
+class TestSemanticDiscriminationFloor:
+    """#4630 — Daniel's demo complaint: "plantain" surfaced "CASH ACCOUNT
+    JANUARY…", a document with nothing to do with the query.
+
+    Reproduced live against Marshall Diaries (4533 docs): semantic-only
+    "plantain" returned 15/15 hits scored 0.7181-0.7458 — a dead-flat noise
+    band from a stylistically uniform corpus, none containing the word
+    "plantain" at all. Hybrid still ranked the true lexical hit #1 (RRF +
+    the full-text evidence exemption), but padded ranks 2-10 with the same
+    semantic-only neighbours as filler — a low-similarity hit shown as if
+    relevant.
+
+    ``_drop_semantic_only_below_discrimination_floor`` is the fix: when the
+    semantic leg's best raw cosine for a query doesn't clear
+    ``_SEMANTIC_DISCRIMINATION_FLOOR``, the leg has no real signal for this
+    query/corpus pair, so any row whose ONLY support is semantic is noise,
+    not a result.
+    """
+
+    def test_semantic_only_filler_below_the_floor_is_dropped(self) -> None:
+        # The corpus-wide noise band production actually hit (#4630).
+        semantic_results = [
+            {"document_id": "diary-1", "score": 0.7458},
+            {"document_id": "diary-2", "score": 0.7181},
+        ]
+        combined_results = [
+            {
+                "document_id": "diary-1",
+                "score": 0.48,
+                "match_sources": ["semantic"],
+            },
+            {
+                "document_id": "diary-2",
+                "score": 0.43,
+                "match_sources": ["semantic"],
+            },
+        ]
+        assert semantic_results[0]["score"] < _SEMANTIC_DISCRIMINATION_FLOOR
+
+        filtered = _drop_semantic_only_below_discrimination_floor(
+            combined_results, semantic_results
+        )
+        assert filtered == []
+
+    def test_the_real_lexical_match_survives_the_floor(self) -> None:
+        # Rank 1 in production: the page that actually contains "plantain",
+        # matched by the fulltext leg too — real evidence, not a fuzzy
+        # neighbour, so it must survive even though the semantic leg as a
+        # whole is noise for this query.
+        semantic_results = [
+            {"document_id": "diary-plantain", "score": 0.7458},
+            {"document_id": "diary-noise", "score": 0.7181},
+        ]
+        combined_results = [
+            {
+                "document_id": "diary-plantain",
+                "score": 1.0,
+                "match_sources": ["semantic", "fulltext"],
+            },
+            {
+                "document_id": "diary-noise",
+                "score": 0.43,
+                "match_sources": ["semantic"],
+            },
+        ]
+
+        filtered = _drop_semantic_only_below_discrimination_floor(
+            combined_results, semantic_results
+        )
+        ids = {row["document_id"] for row in filtered}
+        assert ids == {"diary-plantain"}
+
+    def test_a_genuinely_discriminating_corpus_is_left_alone(self) -> None:
+        # Best semantic score clears the floor: the leg has real signal
+        # here, so a semantic-only row is not filler and must stay.
+        semantic_results = [{"document_id": "doc-1", "score": 0.82}]
+        combined_results = [
+            {"document_id": "doc-1", "score": 0.55, "match_sources": ["semantic"]},
+        ]
+
+        filtered = _drop_semantic_only_below_discrimination_floor(
+            combined_results, semantic_results
+        )
+        assert filtered == combined_results
+
+    def test_no_semantic_results_is_a_no_op(self) -> None:
+        combined_results = [
+            {"document_id": "doc-1", "score": 1.0, "match_sources": ["fulltext"]},
+        ]
+        assert (
+            _drop_semantic_only_below_discrimination_floor(combined_results, [])
+            == combined_results
+        )
