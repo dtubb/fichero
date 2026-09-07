@@ -30,7 +30,9 @@ struct ForceDirectedGraphView: View {
 
     /// The shared source cursor — clicking a relationship EDGE opens the claim's
     /// source page (not just focuses it). Optional → safe no-op without a host.
-    @Environment(ClaimSourceNavigationState.self) private var claimSourceNavigationState: ClaimSourceNavigationState?
+    /// Internal (not private): the edge-tap handler lives in the +Render
+    /// extension, a separate file, so it must be reachable across the type.
+    @Environment(ClaimSourceNavigationState.self) var claimSourceNavigationState: ClaimSourceNavigationState?
 
     // Simulation state lives in a plain (non-observed) reference type so
     // the per-frame physics writes inside the Canvas render closure don't
