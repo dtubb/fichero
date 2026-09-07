@@ -81,7 +81,12 @@ extension LibraryView {
     /// The final answer: rows, or the empty/placeholder state.
     @ViewBuilder
     private var libraryRowsOrEmptyState: some View {
-        if isCollectionEmpty {
+        if libraryContentKind == .claims {
+            // Claims are nodes that flow through the library the way documents do
+            // (the node-model IA, Phase 1): the folder's claims as a sortable,
+            // searchable table, each row a door to its source page.
+            claimsContent
+        } else if isCollectionEmpty {
             // "Empty folder" and "contents not here yet" looked identical, so a
             // folder click or a drop showed "No Documents" and then relaid out
             // when the data landed (#4235). Show what is already in flight.
@@ -156,6 +161,25 @@ extension LibraryView {
                 .padding(.top, 8)
                 .padding(.bottom, 4)
             }
+        }
+    }
+
+    /// The folder's claims as a library table (node-model IA, Phase 1). Scoped to
+    /// the browsed folder (recursive), searchable via the same ⌘F box, each row a
+    /// door to its source page through the shared claim cursor.
+    @ViewBuilder
+    var claimsContent: some View {
+        if let service = scopedLibraryReference?.entityService {
+            ClaimsLibraryContent(
+                folderId: folderId,
+                entityService: service,
+                documents: documents,
+                searchQuery: activeSearchQuery,
+                selection: $selection
+            )
+            .padding(.leading, browserLeadingInset)
+        } else {
+            emptyState
         }
     }
 

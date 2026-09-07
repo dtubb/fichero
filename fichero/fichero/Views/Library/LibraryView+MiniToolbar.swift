@@ -49,6 +49,11 @@ extension LibraryView {
 
         Spacer(minLength: 8)
 
+        // The node-model axis (Phase 1): browse the folder's Documents, Claims,
+        // or Entities. A claim / entity is a node that flows through this same
+        // library — the picker only says WHICH kind of node the list shows.
+        libraryContentKindMenu
+
         // Canvas channels (Daniel, 2026-08-23): Arrange + Colour-by act on
         // what the board SHOWS, so they sit in the one bottom bar with sort
         // and filter — only while a canvas mode is up.
@@ -289,5 +294,39 @@ extension LibraryView {
             .help(model.help)
             .accessibilityLabel(model.title)
         }
+    }
+
+    /// The Documents / Claims / Entities picker — the node-model axis (Phase 1).
+    /// Compact menu; the label shows the current kind so the bar says what the
+    /// list is.
+    @ViewBuilder
+    var libraryContentKindMenu: some View {
+        Menu {
+            Picker("Browse", selection: contentKindBinding) {
+                ForEach(LibraryContentKind.allCases) { kind in
+                    Label(kind.label, systemImage: kind.systemImage).tag(kind)
+                }
+            }
+            .pickerStyle(.inline)
+            .labelsHidden()
+        } label: {
+            Label(libraryContentKind.label, systemImage: libraryContentKind.systemImage)
+        }
+        .fixedSize()
+        .help("Browse documents, claims, or entities in this folder")
+        .accessibilityLabel("Browse kind")
+    }
+
+    /// Switching kind clears the selection: a document-id selection must not leak
+    /// into the claims/entities list, where the ids mean something else.
+    var contentKindBinding: Binding<LibraryContentKind> {
+        Binding(
+            get: { libraryContentKind },
+            set: { newKind in
+                guard newKind != libraryContentKind else { return }
+                selection = []
+                libraryContentKind = newKind
+            }
+        )
     }
 }
