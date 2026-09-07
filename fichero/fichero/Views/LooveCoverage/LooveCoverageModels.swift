@@ -172,3 +172,50 @@ struct CoverageMatrix: Equatable, Sendable {
 
     var isEmpty: Bool { rows.isEmpty }
 }
+
+// MARK: - Language catalog
+
+/// The languages/scripts the coverage window can show, split into modern and
+/// historical. The user picks a subset; the service fetches only the chosen set.
+///
+/// Historical scripts are the demo-gold — where tokenizers actually diverge. Their
+/// query codes are best-effort identifiers the engine's language resolver is
+/// gaining exemplars for in parallel; until those land a chosen historical column
+/// will honestly read "unknown" for every model (the window never fakes it).
+enum LanguageCatalog {
+    static let modern: [CoverageLanguage] = [
+        CoverageLanguage(code: "en", name: "English"),
+        CoverageLanguage(code: "es", name: "Spanish"),
+        CoverageLanguage(code: "fr", name: "French"),
+        CoverageLanguage(code: "de", name: "German"),
+        CoverageLanguage(code: "pt", name: "Portuguese"),
+        CoverageLanguage(code: "it", name: "Italian"),
+        CoverageLanguage(code: "ru", name: "Russian"),
+        CoverageLanguage(code: "uk", name: "Ukrainian"),
+        CoverageLanguage(code: "el", name: "Greek"),
+        CoverageLanguage(code: "ar", name: "Arabic"),
+        CoverageLanguage(code: "he", name: "Hebrew")
+    ]
+
+    /// Historical scripts. `ru-petr1708` is the BCP-47 variant subtag for the
+    /// pre-1918 Russian orthography; `cop`/`ka`/`hy` are the ISO codes for
+    /// Coptic / Georgian / Armenian.
+    static let historical: [CoverageLanguage] = [
+        CoverageLanguage(code: "ru-petr1708", name: "Russian (pre-1918)"),
+        CoverageLanguage(code: "cop", name: "Coptic"),
+        CoverageLanguage(code: "ka", name: "Georgian"),
+        CoverageLanguage(code: "hy", name: "Armenian")
+    ]
+
+    static var all: [CoverageLanguage] { modern + historical }
+
+    /// Default visible set — a mix that INCLUDES historical scripts so the
+    /// differences show the moment the window opens.
+    static let defaultSelectedCodes: [String] = ["en", "es", "ru", "ru-petr1708", "el", "cop"]
+
+    /// Catalog languages for the chosen codes, in canonical catalog order (modern
+    /// then historical) — not selection order — so columns stay stable.
+    static func languages(for codes: Set<String>) -> [CoverageLanguage] {
+        all.filter { codes.contains($0.code) }
+    }
+}

@@ -100,6 +100,15 @@ final class LooveCoverageService {
         loadGeneration += 1
         let generation = loadGeneration
 
+        // No columns chosen — clear the matrix and prompt, don't spin.
+        guard !languages.isEmpty else {
+            isLoading = false
+            pendingLanguages = []
+            matrix = CoverageMatrix(languages: [], rows: [])
+            errorMessage = "Choose at least one language from the Languages menu."
+            return
+        }
+
         isLoading = true
         errorMessage = nil
         failedThisRun = []

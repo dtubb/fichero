@@ -14,23 +14,45 @@ import SwiftUI
 struct LooveCoverageView: View {
     @State private var service = LooveCoverageService()
 
+    /// The chosen language columns, persisted as a comma-separated list of codes
+    /// so the selection survives closing and reopening the window.
+    @AppStorage("loove.coverage.languages")
+    private var selectedCodesRaw = LanguageCatalog.defaultSelectedCodes.joined(separator: ",")
+
     // Fixed column geometry so the header row and body rows align while the whole
     // matrix scrolls in both axes.
     private let modelColumnWidth: CGFloat = 220
     private let languageColumnWidth: CGFloat = 132
+
+    /// The persisted selection as a set of codes.
+    private var selectedCodes: Set<String> {
+        Set(selectedCodesRaw.split(separator: ",").map(String.init))
+    }
+
+    /// The languages to fetch/show, in canonical catalog order.
+    private var visibleLanguages: [CoverageLanguage] {
+        LanguageCatalog.languages(for: selectedCodes)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
             Divider()
             content
+            Divider()
+            creditFooter
         }
         .frame(minWidth: 640, minHeight: 480)
         .task {
-            // Auto-load once on first open; the toolbar's Generate re-runs it.
+            // Auto-load once on first open; the picker / Generate re-run it.
             if service.matrix == nil && !service.isLoading {
-                await service.generate()
+                await service.load(languages: visibleLanguages)
             }
+        }
+        // Re-fetch when the chosen language set changes — columns are added or
+        // removed and the progressive fill runs for the new set.
+        .onChange(of: selectedCodesRaw) {
+            Task { await service.load(languages: visibleLanguages) }
         }
     }
 
@@ -48,8 +70,9 @@ struct LooveCoverageView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer()
+                languageMenu
                 Button {
-                    Task { await service.generate() }
+                    Task { await service.load(languages: visibleLanguages) }
                 } label: {
                     Label(service.matrix == nil ? "Generate" : "Refresh", systemImage: "arrow.clockwise")
                 }
@@ -59,6 +82,43 @@ struct LooveCoverageView: View {
             legend
         }
         .padding(16)
+    }
+
+    /// Multi-select of which languages/scripts the matrix shows. Modern and
+    /// historical are separate sections; toggling a row adds/removes that column
+    /// and re-runs the fetch (via the persisted `selectedCodesRaw`).
+    private var languageMenu: some View {
+        Menu {
+            Section("Modern") {
+                ForEach(LanguageCatalog.modern) { language in
+                    Toggle(language.name, isOn: languageBinding(for: language.code))
+                }
+            }
+            Section("Historical") {
+                ForEach(LanguageCatalog.historical) { language in
+                    Toggle(language.name, isOn: languageBinding(for: language.code))
+                }
+            }
+        } label: {
+            Label("Languages (\(selectedCodes.count))", systemImage: "character.book.closed")
+        }
+        .disabled(service.isLoading)
+    }
+
+    /// A checkbox binding for one language code, writing the canonical
+    /// catalog-ordered comma list back to `@AppStorage`.
+    private func languageBinding(for code: String) -> Binding<Bool> {
+        Binding(
+            get: { selectedCodes.contains(code) },
+            set: { isOn in
+                var codes = selectedCodes
+                if isOn { codes.insert(code) } else { codes.remove(code) }
+                selectedCodesRaw = LanguageCatalog.all
+                    .map(\.code)
+                    .filter { codes.contains($0) }
+                    .joined(separator: ",")
+            }
+        )
     }
 
     private var legend: some View {
@@ -142,12 +202,29 @@ struct LooveCoverageView: View {
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 420)
             Button("Generate") {
-                Task { await service.generate() }
+                Task { await service.load(languages: visibleLanguages) }
             }
-            .disabled(service.isLoading)
+            .disabled(service.isLoading || visibleLanguages.isEmpty)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding()
+    }
+
+    // MARK: Credit
+
+    /// Attribution for the coverage method. loove is Andy Janco's work (MIT);
+    /// credit it visibly, with the link.
+    private var creditFooter: some View {
+        HStack(spacing: 4) {
+            Text("Coverage method:")
+            Link("loove by Andy Janco", destination: URL(string: "https://github.com/apjanco/loove")!)
+            Text("· MIT · Measures tokenizer/script fit, not model quality.")
+        }
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // MARK: Matrix
@@ -169,6 +246,7 @@ struct LooveCoverageView: View {
                 .padding(.bottom, 8)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     /// True when any visible cell is a heuristic estimate — drives the banner so a
