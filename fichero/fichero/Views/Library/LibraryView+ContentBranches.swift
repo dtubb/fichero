@@ -86,6 +86,10 @@ extension LibraryView {
             // (the node-model IA, Phase 1): the folder's claims as a sortable,
             // searchable table, each row a door to its source page.
             claimsContent
+        } else if libraryContentKind == .entities {
+            // Entities, likewise — every one shown (duplicates + messy NER
+            // included), curatable in place from the row (Phase 2).
+            entitiesContent
         } else if isCollectionEmpty {
             // "Empty folder" and "contents not here yet" looked identical, so a
             // folder click or a drop showed "No Documents" and then relaid out
@@ -181,6 +185,21 @@ extension LibraryView {
         } else {
             emptyState
         }
+    }
+
+    /// The folder's entities as a library table (node-model IA, Phase 2). All of
+    /// them, folder-scoped client-side (the entity list carries source_document_ids,
+    /// so we filter to the folder's docs); a single-row click focuses the entity
+    /// and opens its detail, and the row context menu curates in place.
+    @ViewBuilder
+    var entitiesContent: some View {
+        EntitiesLibraryContent(
+            folderDocumentIds: folderId != nil ? Set(documents.map(\.id)) : nil,
+            documents: documents,
+            selection: $selection,
+            onOpen: { openEntityFromLibrary($0) }
+        )
+        .padding(.leading, browserLeadingInset)
     }
 
     /// One dataset renderer as a FULL view mode (Daniel 2026-08-14), over
