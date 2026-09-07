@@ -152,13 +152,15 @@ extension LibraryView {
             // Mandate 1, consumer 1: the folder's outline feeds the head's
             // crumb chain + jump menus from ONE fetch.
             .task(id: folderId) {
-                // A browser sentinel ("entities-browser", "claims-browser",
-                // "activity-browser", …) is NOT a document, so it has no outline —
-                // fetching one 404s ("Document not found: entities-browser") and,
-                // under the live P4 KG-row selection, that failing fetch churned
-                // the view tree every render (Touch Bar layout-pass crash). Only
-                // real documents get an outline.
-                if let rawId = folderId, !rawId.hasSuffix("-browser") {
+                // A browser sentinel ("activity-browser", …) or a KG collection id
+                // (per-library "kg-entities:<uuid>"/"kg-claims:<uuid>", or legacy
+                // "entities-browser") is NOT a document, so it has no outline —
+                // fetching one 404s and, under a live KG-row selection, that
+                // failing fetch churned the view tree every render (Touch Bar
+                // layout-pass crash). Only real documents get an outline.
+                if let rawId = folderId,
+                   !rawId.hasSuffix("-browser"),
+                   !SidebarDestination.isKnowledgeCollectionId(rawId) {
                     let anchor = rawId.hasPrefix("doc:") ? String(rawId.dropFirst(4)) : rawId
                     await documentStore.loadOutline(for: anchor)
                 }

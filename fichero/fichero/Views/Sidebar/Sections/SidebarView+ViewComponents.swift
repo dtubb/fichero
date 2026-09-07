@@ -157,11 +157,11 @@ extension SidebarView {
                 proposed: proposed,
                 isMomentarilyMissing: { destination in
                     switch destination {
-                    case .library, .browser, .run:
-                        // Pinned/static rows and activity runs are not
-                        // resolved through the cached item index (see
-                        // `handleSelectionDestination`) — a drop of these
-                        // is always the user.
+                    case .library, .browser, .run, .knowledgeCollection:
+                        // Pinned/static rows, activity runs, and the per-library
+                        // KG collections are not resolved through the cached item
+                        // index (see `handleSelectionDestination`) — a drop of
+                        // these is always the user.
                         return false
                     default:
                         return cachedItem(id: destination.serializedID) == nil
