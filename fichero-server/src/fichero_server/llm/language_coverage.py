@@ -296,9 +296,11 @@ def _ensure_derived_coverage(
     heuristic guess. Never raises into the fit path.
     """
     try:
-        from fichero_server.llm.script_coverage import write_coverage_record
+        from fichero_server.llm.script_coverage import ensure_coverage
 
-        write_coverage_record(
+        # Precedence: Andy's authoritative published coverage first, else our own
+        # tokenizer computation. Neither guesses; a genuine miss writes nothing.
+        ensure_coverage(
             spec.model, language, provider=spec.provider, coverage_dir=coverage_dir
         )
     except Exception:
@@ -546,6 +548,15 @@ def _record_from_payload(
         or language.name
     )
     script = language_payload.get("script") or language.script
+    notes = ["Loaded from local derived LOOVE-style coverage JSON."]
+    provenance = root_payload.get("coverage_provider")
+    if provenance == "apjanco/loove":
+        notes.insert(
+            0, "Authoritative coverage published by apjanco/loove (Andy Janco)."
+        )
+    elif provenance:
+        notes.insert(0, f"Coverage provenance: {provenance}.")
+    notes.append("Raw tokenizer vocabulary is not redistributed by this endpoint.")
     return LanguageCoverageRecord(
         provider=spec.provider,
         model=spec.model,
@@ -564,10 +575,7 @@ def _record_from_payload(
                 if root_payload.get("generated_at") is not None
                 else None
             ),
-            notes=[
-                "Loaded from local derived LOOVE-style coverage JSON.",
-                "Raw tokenizer vocabulary is not redistributed by this endpoint.",
-            ],
+            notes=notes,
         ),
         status="derived",
         warnings=[],

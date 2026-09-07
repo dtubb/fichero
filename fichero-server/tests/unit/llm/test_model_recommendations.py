@@ -2,11 +2,29 @@
 
 import json
 
+import pytest
+
+from fichero_server.llm import script_coverage as sc
 from fichero_server.llm.model_recommendations import (
     ModelRecommendationCandidate,
     ModelRecommendationRequest,
     build_model_recommendations,
 )
+
+
+@pytest.fixture(autouse=True)
+def _loove_offline(monkeypatch):
+    """No network: the language-fit path would otherwise fetch apjanco/loove
+    coverage or a HF tokenizer on a cache miss. Pre-written coverage files (used
+    by the loove-ranking test) still resolve to 'derived'."""
+    def _no_net(*a, **k):
+        raise OSError("offline: network disabled in unit tests")
+
+    monkeypatch.setattr(sc, "_http_get_bytes", _no_net)
+    monkeypatch.setattr(sc, "load_tokenizer", lambda *a, **k: None)
+    sc._fetch_andy_doc.cache_clear()
+    yield
+    sc._fetch_andy_doc.cache_clear()
 
 
 def test_local_private_candidate_wins_and_cloud_is_refused(tmp_path, monkeypatch):

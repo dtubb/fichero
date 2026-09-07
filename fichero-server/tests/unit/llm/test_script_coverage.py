@@ -12,11 +12,110 @@ Two things are asserted:
 
 from __future__ import annotations
 
+import json
 import re
+
+import pytest
 
 from fichero_server.llm import script_coverage as sc
 from fichero_server.llm import language_coverage as lc
 from fichero_server.llm.language_coverage import LanguageCoverageRecord
+
+
+@pytest.fixture(autouse=True)
+def _offline(monkeypatch):
+    """No test hits the network by default. Andy tests opt in via _stub_andy.
+
+    Also clears the Andy-doc lru cache before/after each test so a fixture doc
+    from one test can't leak into another.
+    """
+    def _no_net(*a, **k):
+        raise OSError("offline: network disabled in unit tests")
+
+    monkeypatch.setattr(sc, "_http_get_bytes", _no_net)
+    sc._fetch_andy_doc.cache_clear()
+    yield
+    sc._fetch_andy_doc.cache_clear()
+
+
+# --- Andy Janco (apjanco/loove) published-coverage fixtures ------------------
+# A tiny doc in his REAL schema so the fetch/adapter path is tested offline.
+
+
+def _andy_doc(model_id: str = "fake/model") -> dict:
+    return {
+        "model_id": model_id,
+        "source": "huggingface",
+        "vocab_size": 1000,
+        "has_byte_fallback": True,
+        "computed_at": "2026-09-04T00:00:00+00:00",
+        "languages": {
+            "en": {
+                "name": "English",
+                "script": "Latn",
+                "main": {
+                    "total": 26,
+                    "weighted_score": 0.88,  # distinct from a full-tier0 local score (1.0)
+                    "tier0_count": 22,
+                    "tier1_count": 2,
+                    "tier2_count": 2,
+                    "tier3_count": 0,
+                },
+                "glottocode": "stan1293",
+                "iso639_3": "eng",
+                "family_name": "Indo-European",
+                "latitude": 53.0,
+                "longitude": -1.0,
+                "is_historical": False,
+                "fertility": {
+                    "tokens_per_char": 0.222,
+                    "tokens_per_word": 1.15,
+                    "sample_chars": 3351,
+                    "sample_tokens": 744,
+                },
+            },
+            "cop": {
+                "name": "Coptic",
+                "script": "Copt",
+                "main": {
+                    "total": 32,
+                    "weighted_score": 0.2,
+                    "tier0_count": 4,
+                    "tier1_count": 0,
+                    "tier2_count": 28,
+                    "tier3_count": 0,
+                },
+                "glottocode": "copt1239",
+                "family_name": "Afro-Asiatic",
+                "latitude": 29.472,
+                "longitude": 31.2053,
+                "is_historical": True,
+            },
+            "zz": {  # present in his file, but we won't request it
+                "name": "Zzz",
+                "script": "Zzzz",
+                "main": {
+                    "total": 10, "weighted_score": 0.5,
+                    "tier0_count": 5, "tier1_count": 0, "tier2_count": 5, "tier3_count": 0,
+                },
+            },
+        },
+    }
+
+
+def _stub_andy(monkeypatch, doc: dict | None, expect_name: str | None = None):
+    """Stub the HTTP fetch. doc=None => always 404. Returns a call counter."""
+    calls = {"n": 0}
+
+    def fake_get(url, timeout=30.0):
+        calls["n"] += 1
+        if doc is not None and (expect_name is None or expect_name in url):
+            return json.dumps(doc).encode("utf-8")
+        raise OSError("404 not found")
+
+    monkeypatch.setattr(sc, "_http_get_bytes", fake_get)
+    sc._fetch_andy_doc.cache_clear()  # avoid cross-test lru contamination
+    return calls
 
 _BYTE_RE = re.compile(r"<0x([0-9A-Fa-f]{2})>")
 
@@ -374,3 +473,83 @@ def test_fit_path_recommend_returns_derived(tmp_path) -> None:
         assert response.results[0].score_band == "excellent"
     finally:
         sc.load_tokenizer = original  # type: ignore[assignment]
+
+
+# --- Andy Janco published-coverage consumption (offline, HTTP stubbed) -------
+
+
+def test_andy_adapter_and_filter(monkeypatch) -> None:
+    _stub_andy(monkeypatch, _andy_doc("fake/model"), expect_name="fake__model.json")
+    entries = sc.fetch_andy_coverage("fake/model", ["en", "cop"])
+    assert set(entries) == {"en", "cop"}  # filtered — "zz" NOT included
+
+    en = entries["en"]
+    assert en["coverage_score"] == 0.88
+    assert en["script"] == "Latn"  # Andy's ISO-15924 carried through
+    assert en["tier_counts"]["tier_0_native"] == 22
+    assert en["tier_counts"]["tier_2_byte_fallback"] == 2
+    assert en["tier_counts"]["total_chars"] == 26
+    assert en["fertility"]["tokens_per_word"] == 1.15
+    # Geo/provenance extras carried for a future map.
+    assert en["glottocode"] == "stan1293"
+    assert en["latitude"] == 53.0
+    assert entries["cop"]["is_historical"] is True
+
+
+def test_andy_missing_model_returns_none(monkeypatch) -> None:
+    _stub_andy(monkeypatch, None)  # every fetch 404s
+    assert sc.fetch_andy_coverage("no/such-model", ["en"]) is None
+
+
+def test_fit_prefers_andy_over_local(tmp_path, monkeypatch) -> None:
+    # Andy has en at 0.88; our local tokenizer would score 1.0. If Andy wins,
+    # the result is 0.88 with the apjanco provenance note.
+    _stub_andy(monkeypatch, _andy_doc("fake/model"), expect_name="fake__model.json")
+    monkeypatch.setattr(
+        sc, "load_tokenizer",
+        lambda *a, **k: _tok_all_tier0(sc.SCRIPT_EXEMPLARS["Latin"], sc.SCRIPT_SAMPLES["Latin"]),
+    )
+    record = lc.evaluate_language_fit(
+        lc.normalize_model_spec("hf", "fake/model"),
+        lc.language_spec("en"),
+        coverage_dir=tmp_path,
+    )
+    assert record.status == "derived"
+    assert record.coverage_score == 0.88  # Andy's number, not local's 1.0
+    assert record.score_band == "good"
+    assert record.source.kind == "loove_derived_json"
+    assert any("apjanco/loove" in n for n in record.source.notes)
+    # Only the requested language is cached — never the whole 5 MB file.
+    cached = json.loads((tmp_path / "hf__fake__model.json").read_text(encoding="utf-8"))
+    assert set(cached["coverage"]) == {"en"}
+
+
+def test_fit_falls_back_to_local_when_andy_404(tmp_path, monkeypatch) -> None:
+    _stub_andy(monkeypatch, None)  # Andy has nothing -> our own compute
+    monkeypatch.setattr(
+        sc, "load_tokenizer",
+        lambda *a, **k: _tok_all_tier0(sc.SCRIPT_EXEMPLARS["Latin"], sc.SCRIPT_SAMPLES["Latin"]),
+    )
+    record = lc.evaluate_language_fit(
+        lc.normalize_model_spec("hf", "no/such-model"),
+        lc.language_spec("en"),
+        coverage_dir=tmp_path,
+    )
+    assert record.status == "derived"
+    assert record.coverage_score == 1.0  # local full-tier0 compute
+    assert not any("apjanco/loove" in n for n in record.source.notes)
+
+
+def test_andy_cache_hit_second_call_no_refetch(tmp_path, monkeypatch) -> None:
+    calls = _stub_andy(monkeypatch, _andy_doc("fake/model"), expect_name="fake__model.json")
+    spec = lc.normalize_model_spec("hf", "fake/model")
+    r1 = lc.evaluate_language_fit(spec, lc.language_spec("en"), coverage_dir=tmp_path)
+    assert r1.status == "derived"
+    assert calls["n"] == 1  # fetched once
+
+    # Drop the in-memory doc cache so only the on-DISK cache can serve the 2nd call.
+    sc._fetch_andy_doc.cache_clear()
+    r2 = lc.evaluate_language_fit(spec, lc.language_spec("en"), coverage_dir=tmp_path)
+    assert r2.status == "derived"
+    assert r2.coverage_score == r1.coverage_score
+    assert calls["n"] == 1  # no refetch — served from the cached file

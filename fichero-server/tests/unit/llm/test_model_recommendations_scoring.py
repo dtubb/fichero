@@ -8,6 +8,9 @@ components (weights, thresholds, directions) and the rank assignment. No network
 from __future__ import annotations
 
 
+import pytest
+
+from fichero_server.llm import script_coverage as sc
 from fichero_server.llm.model_recommendations import (
     ModelRecommendationCandidate as Candidate,
     ModelRecommendationCost as Cost,
@@ -21,6 +24,20 @@ from fichero_server.llm.model_recommendations import (
     _total_score,
     build_model_recommendations,
 )
+
+
+@pytest.fixture(autouse=True)
+def _loove_offline(monkeypatch):
+    """Keep the file's 'no network' promise: the language-fit path would try to
+    fetch apjanco/loove coverage or a HF tokenizer on a cache miss."""
+    def _no_net(*a, **k):
+        raise OSError("offline: network disabled in unit tests")
+
+    monkeypatch.setattr(sc, "_http_get_bytes", _no_net)
+    monkeypatch.setattr(sc, "load_tokenizer", lambda *a, **k: None)
+    sc._fetch_andy_doc.cache_clear()
+    yield
+    sc._fetch_andy_doc.cache_clear()
 
 
 def _req(**kw) -> Request:

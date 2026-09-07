@@ -2,6 +2,9 @@
 
 import json
 
+import pytest
+
+from fichero_server.llm import script_coverage as sc
 from fichero_server.llm.language_coverage import (
     LanguageFitModelSpec,
     evaluate_language_fit,
@@ -10,6 +13,20 @@ from fichero_server.llm.language_coverage import (
     recommend_language_fit,
     score_band,
 )
+
+
+@pytest.fixture(autouse=True)
+def _offline(monkeypatch):
+    """Keep the fit path offline: the lazy generator would otherwise try to
+    fetch apjanco/loove's published coverage over the network on a cache miss."""
+    def _no_net(*a, **k):
+        raise OSError("offline: network disabled in unit tests")
+
+    monkeypatch.setattr(sc, "_http_get_bytes", _no_net)
+    monkeypatch.setattr(sc, "load_tokenizer", lambda *a, **k: None)
+    sc._fetch_andy_doc.cache_clear()
+    yield
+    sc._fetch_andy_doc.cache_clear()
 
 
 def test_normalize_model_spec_preserves_model_id_case():

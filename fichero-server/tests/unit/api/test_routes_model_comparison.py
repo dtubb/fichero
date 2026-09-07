@@ -8,8 +8,25 @@ prefix="/model-comparison" mounted at "/api"). Engine calls are mocked.
 import json
 from unittest.mock import MagicMock, patch, AsyncMock
 
+import pytest
+
+from fichero_server.llm import script_coverage as sc
 from fichero_server.models import DocType, Document, Model, Provider, ProviderType, Workflow
 from fichero_server.workflows.model_comparison import ComparisonResult, ModelResult
+
+
+@pytest.fixture(autouse=True)
+def _loove_offline(monkeypatch):
+    """Keep /language-fit offline: on a cache miss the lazy generator would try
+    to fetch apjanco/loove's published coverage over the network."""
+    def _no_net(*a, **k):
+        raise OSError("offline: network disabled in unit tests")
+
+    monkeypatch.setattr(sc, "_http_get_bytes", _no_net)
+    monkeypatch.setattr(sc, "load_tokenizer", lambda *a, **k: None)
+    sc._fetch_andy_doc.cache_clear()
+    yield
+    sc._fetch_andy_doc.cache_clear()
 
 
 def _seed_model(

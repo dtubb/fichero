@@ -355,33 +355,23 @@ def _target_path(provider: str, model_id: str, coverage_dir: Path) -> Path:
     return coverage_dir / f"{safe_model}.json"
 
 
-def write_coverage_record(
+def _upsert_coverage_entries(
+    provider: str,
     model_id: str,
-    language: LanguageSpec,
+    entries: dict[str, dict[str, Any]],
+    coverage_dir: Path,
     *,
-    provider: str = "",
-    coverage_dir: Path | None = None,
-    tokenizer: Tokenizer | None = None,
-) -> Path | None:
-    """Write one (model, language) coverage entry where language_coverage reads it.
+    provenance: str,
+) -> Path:
+    """Merge per-language ``entries`` into the model's cache file, atomically.
 
-    Merges into the model's existing file (a model accrues one entry per detected
-    script) and writes atomically. Returns the written path, or None when there
-    is nothing real to record — no tokenizer, or a script with no exemplar table.
-    In that case we write NO file so the consumer falls back to its transparent
-    heuristic; we never fabricate a derived score. (Any pre-existing file is left
-    untouched and its path returned.)
+    A model accrues one small entry per requested language — we never store the
+    whole 5 MB source file, only the filtered languages we were asked for.
     """
-    record = coverage_for_model(
-        model_id, language, provider=provider, tokenizer=tokenizer
-    )
     out_dir = coverage_dir or default_coverage_dir()
+    out_dir.mkdir(parents=True, exist_ok=True)
     path = _target_path(provider, model_id, out_dir)
 
-    if record.coverage_score is None:
-        return path if path.is_file() else None
-
-    out_dir.mkdir(parents=True, exist_ok=True)
     document: dict[str, Any] = {}
     if path.is_file():
         try:
@@ -394,14 +384,181 @@ def write_coverage_record(
     coverage = document.get("coverage")
     if not isinstance(coverage, dict):
         coverage = {}
-
-    coverage[language.code] = _record_to_payload(record)
+    coverage.update(entries)
 
     document["model_id"] = normalized_model_id(provider, model_id)
     document["generated_at"] = datetime.now(timezone.utc).isoformat()
+    document["coverage_provider"] = provenance  # surfaces as a provenance note
     document["coverage"] = coverage
 
     tmp = path.with_suffix(".json.tmp")
     tmp.write_text(json.dumps(document, ensure_ascii=False, indent=2), encoding="utf-8")
     tmp.replace(path)  # atomic
     return path
+
+
+def write_coverage_record(
+    model_id: str,
+    language: LanguageSpec,
+    *,
+    provider: str = "",
+    coverage_dir: Path | None = None,
+    tokenizer: Tokenizer | None = None,
+) -> Path | None:
+    """Write one (model, language) coverage entry from OUR own tokenizer compute.
+
+    Returns the written path, or None when there is nothing real to record — no
+    tokenizer, or a script with no exemplar table. In that case we write NO file
+    so the consumer returns honest unknown; we never fabricate a derived score.
+    (Any pre-existing file is left untouched and its path returned.)
+    """
+    record = coverage_for_model(
+        model_id, language, provider=provider, tokenizer=tokenizer
+    )
+    out_dir = coverage_dir or default_coverage_dir()
+    path = _target_path(provider, model_id, out_dir)
+    if record.coverage_score is None:
+        return path if path.is_file() else None
+    return _upsert_coverage_entries(
+        provider,
+        model_id,
+        {language.code: _record_to_payload(record)},
+        out_dir,
+        provenance="fichero-local-tokenizer",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Consume Andy Janco's authoritative published coverage (HF Space apjanco/loove)
+# ---------------------------------------------------------------------------
+
+ANDY_COVERAGE_BASE = (
+    "https://huggingface.co/spaces/apjanco/loove/resolve/main/data/coverage"
+)
+ANDY_PROVENANCE = "apjanco/loove"
+
+
+def andy_coverage_filename(model_id: str) -> str:
+    """Andy's per-model file name: repo id with '/' -> '__' (OpenAI ids as-is)."""
+    return f"{model_id.replace('/', '__')}.json"
+
+
+def _http_get_bytes(url: str, timeout: float = 30.0) -> bytes:
+    """GET raw bytes. Module-level so tests can stub it (kept dependency-free)."""
+    import urllib.request  # noqa: PLC0415 (lazy: importing this module stays cheap)
+
+    req = urllib.request.Request(url, headers={"User-Agent": "fichero-loove"})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310
+        return resp.read()
+
+
+@lru_cache(maxsize=4)
+def _fetch_andy_doc(model_id: str) -> dict[str, Any] | None:
+    """Fetch + parse Andy's full coverage doc for a model, or None if absent.
+
+    Cached (small maxsize) so several languages for one model reuse a single
+    download within the process instead of re-fetching the ~5 MB file each time.
+    404 / network error / bad JSON -> None (caller falls back). Never raises.
+    # ponytail: maxsize=4 holds at most ~4 * 5 MB; bump only if the matrix widens.
+    """
+    url = f"{ANDY_COVERAGE_BASE}/{andy_coverage_filename(model_id)}"
+    try:
+        raw = _http_get_bytes(url)
+        doc = json.loads(raw)
+    except Exception:
+        return None
+    return doc if isinstance(doc, dict) else None
+
+
+def _adapt_andy_entry(code: str, entry: dict[str, Any]) -> dict[str, Any] | None:
+    """Transform one of Andy's per-language entries into our per-language payload.
+
+    main.weighted_score -> coverage_score; main.tierN_count -> tier_counts;
+    fertility -> our fertility shape. His script (ISO-15924), glottocode, family,
+    lat/long and is_historical are carried through for a future map.
+    """
+    main = entry.get("main")
+    if not isinstance(main, dict):
+        return None
+    score = main.get("weighted_score")
+    total = main.get("total", 0) or 0
+    payload: dict[str, Any] = {
+        "language": code,
+        "language_name": entry.get("name") or code,
+        "script": entry.get("script"),  # ISO-15924 (e.g. "Latn", "Copt")
+        "coverage_score": score,
+        "tier_counts": {
+            "tier_0_native": int(main.get("tier0_count", 0) or 0),
+            "tier_1_embedded": int(main.get("tier1_count", 0) or 0),
+            "tier_2_byte_fallback": int(main.get("tier2_count", 0) or 0),
+            "tier_3_unreachable": int(main.get("tier3_count", 0) or 0),
+            "total_chars": int(total),
+        },
+    }
+    fert = entry.get("fertility")
+    if isinstance(fert, dict):
+        payload["fertility"] = {
+            "tokens_per_char": fert.get("tokens_per_char"),
+            "tokens_per_word": fert.get("tokens_per_word"),
+            "sample_chars": fert.get("sample_chars"),
+            "sample_tokens": fert.get("sample_tokens"),
+        }
+    # Geo / provenance extras carried through for a future map (not surfaced in
+    # the record yet — that needs schema fields, deferred).
+    for key in ("glottocode", "iso639_3", "family_name", "latitude", "longitude", "is_historical"):
+        if entry.get(key) is not None:
+            payload[key] = entry[key]
+    return payload
+
+
+def fetch_andy_coverage(
+    model_id: str, language_codes: list[str]
+) -> dict[str, dict[str, Any]] | None:
+    """Andy's coverage for a model, filtered to exactly ``language_codes``.
+
+    Returns {code: our-per-language-payload} for the codes he actually has, or
+    None if his file is missing entirely / has none of them. Only the requested
+    languages are kept — the ~5 MB source is never stored.
+    """
+    doc = _fetch_andy_doc(model_id)
+    if doc is None:
+        return None
+    langs = doc.get("languages")
+    if not isinstance(langs, dict):
+        return None
+    out: dict[str, dict[str, Any]] = {}
+    for code in language_codes:
+        entry = langs.get(code)
+        if isinstance(entry, dict):
+            adapted = _adapt_andy_entry(code, entry)
+            if adapted is not None and adapted.get("coverage_score") is not None:
+                out[code] = adapted
+    return out or None
+
+
+def ensure_coverage(
+    model_id: str,
+    language: LanguageSpec,
+    *,
+    provider: str = "",
+    coverage_dir: Path | None = None,
+    tokenizer: Tokenizer | None = None,
+    allow_fetch: bool = True,
+) -> Path | None:
+    """Ensure a cached coverage entry exists for (model, language).
+
+    Precedence (all honest, never heuristic):
+      1. Andy's authoritative published file (fetched, filtered, cached), else
+      2. our own tokenizer computation, else
+      3. nothing written -> caller returns honest unknown.
+    """
+    out_dir = coverage_dir or default_coverage_dir()
+    if allow_fetch and language.code:
+        entries = fetch_andy_coverage(model_id, [language.code])
+        if entries:
+            return _upsert_coverage_entries(
+                provider, model_id, entries, out_dir, provenance=ANDY_PROVENANCE
+            )
+    return write_coverage_record(
+        model_id, language, provider=provider, coverage_dir=out_dir, tokenizer=tokenizer
+    )
