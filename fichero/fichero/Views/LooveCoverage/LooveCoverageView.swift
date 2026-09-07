@@ -183,7 +183,11 @@ struct LooveCoverageView: View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .foregroundStyle(.orange)
-            Text("Scores marked ~ (est.) are heuristic per-script estimates — no derived tokenizer coverage exists for that model yet. Only plain, band-colored numbers are measured; “—” means unknown.")
+            Text(
+                "Scores marked ~ (est.) are heuristic per-script estimates — no derived "
+                + "tokenizer coverage exists for that model yet. Only plain, band-colored "
+                + "numbers are measured; “—” means unknown."
+            )
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
