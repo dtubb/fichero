@@ -8,6 +8,15 @@ extension EntityKindRow {
         .system(size: CGFloat(defaultFontSize))
     }
 
+    /// The entity NAME reads a touch larger than body — the row's anchor, and
+    /// Daniel wanted it "a bit larger, not much." Relative +2 pt off the same
+    /// user-configurable base (this inspector has its own font-size control), so
+    /// it scales WITH that control rather than fighting it — the reason this file
+    /// deliberately uses `.system(size:)` here instead of a semantic size.
+    var entityNameFont: Font {
+        .system(size: CGFloat(defaultFontSize + 2))
+    }
+
     var secondaryTextFont: Font {
         .system(size: CGFloat(max(defaultFontSize - 1, 10)))
     }
@@ -140,7 +149,7 @@ extension EntityKindRow {
                 }
             }, label: {
                 Text(item.displayName)
-                    .font(bodyTextFont)
+                    .font(entityNameFont)
                     .fontWeight(.medium)
                     .foregroundStyle(isFocused ? Color.accentColor : Color.primary)
             })
