@@ -28,6 +28,10 @@ struct ForceDirectedGraphView: View {
     /// inject no service.
     @Environment(EntityService.self) private var entityService: EntityService?
 
+    /// The shared source cursor — clicking a relationship EDGE opens the claim's
+    /// source page (not just focuses it). Optional → safe no-op without a host.
+    @Environment(ClaimSourceNavigationState.self) private var claimSourceNavigationState: ClaimSourceNavigationState?
+
     // Simulation state lives in a plain (non-observed) reference type so
     // the per-frame physics writes inside the Canvas render closure don't
     // count as "Modifying state during view update" (#1019, related #998).

@@ -130,6 +130,22 @@ extension ForceDirectedGraphView {
                 sourceDocumentId: hit.edge.sourceDocumentId,
                 sourcePageLabel: hit.edge.pageLabel
             )
+            // ...and OPEN the source page. `focusClaim` alone navigates nowhere —
+            // the exact defect ClaimSummaryCard warns about ("It used to call
+            // focusClaim() alone … and navigates nowhere"). The edge carries only
+            // claimId + document + page (no char span), so this opens the page
+            // without a highlight — honest, never a guessed passage. Reuses the
+            // SAME cursor the claim card and biography use; no new nav path.
+            if let request = ClaimSourceRequest.request(
+                claimId: hit.edge.claimId,
+                claimText: nil,
+                sourceDocumentId: hit.edge.sourceDocumentId,
+                pageLabel: hit.edge.pageLabel,
+                charStart: nil,
+                charEnd: nil
+            ) {
+                claimSourceNavigationState?.request(request)
+            }
         }
     }
 

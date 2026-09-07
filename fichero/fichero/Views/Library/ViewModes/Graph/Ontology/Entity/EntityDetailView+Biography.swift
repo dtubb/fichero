@@ -8,11 +8,16 @@ extension EntityDetailView {
     struct MentionSummary: Identifiable, Equatable {
         let id: String
         let claim: Components.Schemas.KnowledgeClaim
+        /// The source document's display name, when it's loaded — so a mention
+        /// row NAMES its source instead of only "date · page" (or the bare
+        /// "Mentioned in source" placeholder). `nil` degrades to that placeholder,
+        /// never a raw id.
+        let docName: String?
         let dateLabel: String?
         let pageLabel: String?
 
         var lineLabel: String {
-            let parts = [dateLabel, pageLabel]
+            let parts = [docName, dateLabel, pageLabel]
                 .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
                 .filter { !$0.isEmpty }
             return parts.isEmpty ? "Mentioned in source" : parts.joined(separator: " · ")
@@ -88,11 +93,16 @@ extension EntityDetailView {
             let pageLabel = normalizedPageLabel(for: claim, document: documents[documentId])
             let key = [documentId, pageLabel ?? ""].joined(separator: "::")
             guard seenIds.insert(key).inserted else { continue }
+            let sourceDoc = documents[documentId]
+            let docName = sourceDoc.map {
+                DocumentTitle.displayName(for: $0, parent: $0.parentId.flatMap { documents[$0] })
+            }
             mentions.append(
                 MentionSummary(
                     id: key,
                     claim: claim,
-                    dateLabel: mentionDateLabel(for: claim, document: documents[documentId]),
+                    docName: docName,
+                    dateLabel: mentionDateLabel(for: claim, document: sourceDoc),
                     pageLabel: pageLabel
                 )
             )

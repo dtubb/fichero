@@ -73,25 +73,32 @@ extension LibraryView {
             DatasetFilterCluster(store: datasetStore, documentStore: documentStore)
         }
 
-        // Xcode-console-style metadata popover (#18): which optional
-        // attributes list rows display. Sits with sort/filter because it,
-        // too, acts on the library list.
-        LibraryRowAttributesButton(
-            raw: $rowAttributesRaw,
-            contentLines: $rowContentLinesRaw,
-            datasetStore: displayMode.group == .dataset ? datasetStore : nil
-        )
+        // The document-list controls — row attributes, reading level, sort,
+        // filter — act on the DOCUMENT list, so they show only while browsing
+        // documents. In Claims / Entities mode the table owns its own column
+        // sort and those controls would be dead affordances over a different kind
+        // of row (Daniel: no-op controls confuse a demo).
+        if libraryContentKind == .documents {
+            // Xcode-console-style metadata popover (#18): which optional
+            // attributes list rows display. Sits with sort/filter because it,
+            // too, acts on the library list.
+            LibraryRowAttributesButton(
+                raw: $rowAttributesRaw,
+                contentLines: $rowContentLinesRaw,
+                datasetStore: displayMode.group == .dataset ? datasetStore : nil
+            )
 
-        // The Show control is in EVERY mode (2026-09-01). It used to be hidden
-        // in Data mode on the theory that the cluster's own Show menu carried
-        // the level — see `DatasetFilterCluster` for why that swap is gone.
-        // The reading level is a library-wide question (`documentStore
-        // .libraryLevel`), so the library-wide control is the one that asks it.
-        libraryLevelToggle
+            // The Show control is in EVERY mode (2026-09-01). It used to be hidden
+            // in Data mode on the theory that the cluster's own Show menu carried
+            // the level — see `DatasetFilterCluster` for why that swap is gone.
+            // The reading level is a library-wide question (`documentStore
+            // .libraryLevel`), so the library-wide control is the one that asks it.
+            libraryLevelToggle
 
-        librarySortMenu
+            librarySortMenu
 
-        libraryFilterToggleButton(iconOnly: condensed)
+            libraryFilterToggleButton(iconOnly: condensed)
+        }
     }
 
     /// Spreads ↔ Pages (2026-08-22). Daniel: "I want to be able to show

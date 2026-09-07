@@ -304,6 +304,23 @@ extension LibraryView {
         focusEntityIfPossible(entity)
     }
 
+    /// Open an entity picked from the entities library table (Phase 2). An entity
+    /// is not a single page, so a click does NOT jump to a source document — it
+    /// FOCUSES the entity (so the inspector's KG view surfaces it with its claims)
+    /// and roots the preview on one of its source documents when that document is
+    /// loaded, giving the detail pane a document context. The per-claim
+    /// "go to source" then happens inside that editor.
+    func openEntityFromLibrary(_ entity: Components.Schemas.KnowledgeEntity) {
+        onRequestFocus()
+        if let id = entity.id {
+            kgFocusState.focusEntity(entityId: id)
+        }
+        if let firstSource = entity.sourceDocumentIds?.first,
+           let doc = documents.first(where: { $0.id == firstSource }) {
+            detailDocument = doc
+        }
+    }
+
     func handleEntityDoubleClick(_ entity: Components.Schemas.KnowledgeEntity) {
         let entityId = entitySelectionId(for: entity)
         withAnimation(.easeInOut(duration: 0.2)) {

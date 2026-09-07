@@ -171,19 +171,22 @@ extension ClaimSummaryCard {
         }
     }
 
-    /// Italic source-doc name + optional page label, tappable to open
-    /// the source. Always renders when the doc exists in the in-memory
-    /// store; missing doc is silently hidden (claim was extracted from
-    /// a document no longer in the current scope). (#978/#979)
+    /// Source-doc name + optional page label, tappable to open the source.
+    ///
+    /// A claim that records a source ALWAYS shows this line now, even when that
+    /// document is not in the current scope — it used to hide the whole line for
+    /// an off-folder source, so the one claim you most needed to chase had no
+    /// visible, clickable source (the click still resolves via the claim's own
+    /// anchor, no loaded document required). The name comes from
+    /// `DocumentTitle.displayName` over every loaded store — never the raw
+    /// page-child temp name (#4416) — and falls back to a short, non-raw
+    /// placeholder rather than the 32-char id. (#978/#979)
     @ViewBuilder
     var sourceLine: some View {
-        let docId = claim.sourceDocumentId
+        let docId = claim.sourceDocumentId?.trimmingCharacters(in: .whitespacesAndNewlines)
         let pageLabel = claim.sourcePageLabel?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let docName = documentStore?
-            .currentDocuments
-            .first(where: { $0.id == docId })?
-            .name
-        if let docName, !docName.isEmpty {
+        if let docId, !docId.isEmpty {
+            let docName = sourceDocumentName(for: docId)
             Button { navigateToSource() } label: {
                 // Render as a link, not a label: accent color + underline
                 // + pointing-hand cursor + trailing chevron all advertise
@@ -223,6 +226,22 @@ extension ClaimSummaryCard {
             }
             .help("Open the source document — \(docName)\(pageLabel.map { ", page \($0)" } ?? "")")
         }
+    }
+
+    /// Human name for the claim's source document, resolved across every loaded
+    /// store (current scope, collections, sidebar) via `DocumentTitle` so a
+    /// page-child temp name never leaks. When the document isn't loaded anywhere,
+    /// a short, clearly-truncated placeholder — never the raw 32-char id, and
+    /// never a hidden line: the claim still navigates by its own anchor.
+    private func sourceDocumentName(for docId: String) -> String {
+        let pool = documentStore.map {
+            $0.currentDocuments + $0.collections + $0.sidebarDocuments
+        } ?? []
+        if let doc = pool.first(where: { $0.id == docId }) {
+            let parent = doc.parentId.flatMap { parentId in pool.first(where: { $0.id == parentId }) }
+            return DocumentTitle.displayName(for: doc, parent: parent)
+        }
+        return "Source \(docId.prefix(8))…"
     }
 
     /// Inline detail panel — verbatim source excerpt (moved here from
