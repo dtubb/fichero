@@ -231,6 +231,11 @@ Bounding box rules:
 - The origin is the TOP-LEFT corner: x grows right, y grows DOWN.
 - "level" is "line" or "word".
 - Every box's "text" must appear in the transcription above it.
+- Return at least one box for every line of visible text. A reply with an
+  empty "boxes" list is not an acceptable answer for a page that has text.
+- Output the JSON as RAW TEXT only. Do NOT wrap it in Markdown code fences
+  (no ``` and no ```json), and write no prose, heading, or explanation
+  before or after the JSON object.
 """
 
     return prompt

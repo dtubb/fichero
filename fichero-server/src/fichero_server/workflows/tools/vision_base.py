@@ -34,6 +34,7 @@ if TYPE_CHECKING:
     from fichero_server.llm import LLMConfig
 
 from fichero_server.media.ocr_geometry import (
+    GEOMETRY_REASON_KEY,
     OCRGeometryResult,
     OCRGeometryStatus,
     attach_char_spans,
@@ -2472,6 +2473,10 @@ VISION_ERROR_TIMEOUT = "timeout"
 VISION_ERROR_RATE_LIMITED = "rate_limited"
 #: The model answered, and the answer was empty. Not an error we can retry away.
 VISION_ERROR_EMPTY = "empty"
+#: Boxes were the POINT of the run (Detect Regions VLM), the model answered and
+#: was billed, and not one parseable box came out of the reply. A paid call
+#: that produced no geometry is a failure, never a silent success.
+VISION_ERROR_NO_BOXES = "no_boxes"
 #: Something else went wrong; the detail carries it.
 VISION_ERROR_UNKNOWN = "unknown"
 
@@ -4701,6 +4706,54 @@ async def process_vision(
                 texts.append("")
                 values.append(None)
                 return _outcome()
+
+            # Boxes were the POINT of this run, not a decoration on a
+            # transcription (Daniel, 2026-09-07 — Detect Regions VLM passes
+            # force_return_boxes=True; a plain transcribe with return_boxes does
+            # NOT, so its salvaged transcript is still kept below). A paid model
+            # call came back, and not one parseable box came out of it. Never
+            # report that as success: surface it loudly with the reason and a
+            # snippet of what the model actually returned, and do NOT save a
+            # boxless "regions" artifact that reads as a page with no text on it.
+            if force_return_boxes and _boxes_requested:
+                _boxes_geoms = per_page_geometries or (
+                    [page_geometry] if page_geometry is not None else []
+                )
+                if _boxes_geoms and not any(
+                    g is not None and g.boxes for g in _boxes_geoms
+                ):
+                    _reason = next(
+                        (
+                            g.metadata.get(GEOMETRY_REASON_KEY)
+                            for g in _boxes_geoms
+                            if g is not None and g.metadata.get(GEOMETRY_REASON_KEY)
+                        ),
+                        "the reply contained no parseable bounding boxes",
+                    )
+                    _snippet = " ".join((text or "").split())[:400]
+                    msg = (
+                        f"Detect Regions (VLM) called "
+                        f"{getattr(effective_config, 'provider', 'unknown')}/"
+                        f"{getattr(effective_config, 'model', 'unknown')} on "
+                        f"{Path(file_path).name} and it replied "
+                        f"({len(text or '')} chars) but produced NO parseable "
+                        f"regions — {_reason}. Nothing was saved; the call still "
+                        f"cost money. Reply snippet: {_snippet!r}"
+                    )
+                    logger.warning(msg)
+                    _log_vision_warning(msg, file_path)
+                    results.append(
+                        {
+                            "file": file_path,
+                            "text": "",
+                            "value": None,
+                            "error": msg,
+                            "error_kind": VISION_ERROR_NO_BOXES,
+                        }
+                    )
+                    texts.append("")
+                    values.append(None)
+                    return _outcome()
 
             result = {"file": file_path, "text": text, "value": parsed}
 
