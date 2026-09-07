@@ -1,29 +1,31 @@
-"""Producer for LOOVE-style tokenizer-coverage JSON.
+"""Producer for LOOVE-style tokenizer-coverage records.
 
-The *consumer* half already exists — ``llm.language_coverage`` loads derived
-LOOVE-style coverage JSON from ``default_coverage_dir()`` and turns it into a
-``LanguageCoverageRecord`` (score band, tier counts, fertility). Nothing wrote
-that JSON. This module is the missing producer: given a model's tokenizer and a
-set of languages, it classifies each script's exemplar characters into loove's
-four tiers and emits JSON in the *exact* shape ``language_coverage`` parses.
+The *consumer* half already exists — ``llm.language_coverage`` turns derived
+LOOVE-style coverage JSON into a ``LanguageCoverageRecord`` (score band, tier
+counts, fertility) and serves it through ``recommend_language_fit`` /
+``evaluate_language_fit`` and the ``/language-fit`` endpoint. Nothing produced
+that JSON. This module is the missing producer, and it speaks the consumer's
+own types.
 
-loove's tiers (github.com/apjanco/loove):
+It classifies a script's exemplar characters against a model's tokenizer into
+loove's four tiers, computes a weighted coverage score + fertility, and:
 
-- Tier 0 — dedicated single-character token (weight 1.0). The model sees the
-           letter.
-- Tier 1 — survives only inside multi-token merges (0.7). Blurrier.
-- Tier 2 — survives only as raw UTF-8 byte-fallback tokens (0.2). Bytes, not
-           letters — where yat (ѣ), Coptic, cuneiform fall.
-- Tier 3 — can't round-trip at all → unk / loss (0.0). The character is gone.
+- ``coverage_for_model`` assembles a ``LanguageCoverageRecord`` in memory, and
+- ``write_coverage_record`` writes JSON into ``default_coverage_dir()`` in the
+  exact shape ``_load_derived_record`` reads back, so ``evaluate_language_fit``
+  serves it as ``status="derived"``.
 
-Plus fertility = tokens per character / per word on a sample (the token tax).
+loove tiers → weights: tier 0 dedicated single token (1.0), tier 1 merge-only
+(0.7), tier 2 byte-fallback (0.2), tier 3 unk/loss (0.0). coverage_score is the
+mean weight over exemplars, in [0, 1] — matching ``language_coverage.score_band``.
 
-Pure-Python, offline, deterministic: no model inference, no network. tiktoken /
-transformers are lazy-imported inside the loader so importing this module stays
-cheap and free of hard dependencies. When no tokenizer can be obtained for a
-model, the producer writes *no file* rather than a guess — the consumer then
-falls back to its own transparent heuristic. That is the honest-absence
-principle, not a silent substitution.
+Pure-Python, offline, deterministic: no model inference, no network.
+tiktoken / transformers are lazy-imported inside the loader so importing this
+module stays cheap. Honest unknown: when no tokenizer can be obtained (some
+cloud models publish none), the record has ``coverage_score=None`` and a
+``tokenizer_unavailable`` reason — never a guessed number. Writing that explicit
+unknown is deliberate: it suppresses the consumer's heuristic guess, which is
+what would otherwise fill the gap.
 """
 
 from __future__ import annotations
@@ -34,8 +36,19 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
-# Tier -> weight (loove's weights). coverage_score is the mean weight over a
-# script's exemplar chars, in [0, 1] — matching language_coverage.score_band.
+from fichero_server.llm.language_coverage import (
+    LanguageCoverageRecord,
+    LanguageCoverageSource,
+    LanguageFertility,
+    LanguageSpec,
+    LanguageTierCounts,
+    default_coverage_dir,
+    normalized_model_id,
+    score_band,
+)
+from fichero_server.llm.language_coverage import _safe_filename  # producer/consumer pair
+
+# loove tier → weight. coverage_score = mean weight over a script's exemplars.
 TIER_WEIGHTS: dict[int, float] = {0: 1.0, 1: 0.7, 2: 0.2, 3: 0.0}
 
 
@@ -50,22 +63,22 @@ class Tokenizer(Protocol):
 
 # ---------------------------------------------------------------------------
 # Exemplar table — a *starter* set, keyed by Unicode script name (matching the
-# `script` field on language_coverage.LanguageSpec). Not the full 8000-language
-# sweep (YAGNI).
+# ``script`` field on language_coverage.LanguageSpec). Not the full
+# 8000-language sweep (YAGNI).
 #
 # ponytail: hardcoded starter set covering the scripts that matter for the SCOOP
 # demo. A dozen chars per script is plenty to score a tokenizer. Expand from
 # CLDR exemplar sets (per-language `exemplarCharacters`) when a real library
-# turns up a script not represented here — the producer simply skips languages
-# whose script is absent, so the consumer falls back cleanly.
+# turns up a script not represented here — languages whose script is absent get
+# an honest unsupported_language record rather than a fabricated score.
 # ---------------------------------------------------------------------------
 SCRIPT_EXEMPLARS: dict[str, str] = {
     "Latin": "abcdefghijklmnopqrstuvwxyzáéíóúñçüöäàèìòùâêîôûãõ",
     "Cyrillic": "абвгдеёжзийклмнопрстуфхцчшщъыьэюя",
     # Pre-1918 Russian orthography — letters *removed* by the reform, so a
     # modern tokenizer usually has no dedicated token for them: byte-fallback or
-    # unk. The loove demo money-shot. Score a language against it by passing a
-    # LanguageSpec with script="Cyrillic_Pre1918".
+    # unk. The loove demo money-shot. Score a language against it with a
+    # LanguageSpec whose script is "Cyrillic_Pre1918".
     "Cyrillic_Pre1918": "ѣѵіѳ",  # yat, izhitsa, decimal-i, fita
     "Greek": "αβγδεζηθικλμνξοπρστυφχψω",
     "Coptic": "ⲁⲃⲅⲇⲉⲍⲏⲑ",
@@ -84,6 +97,8 @@ SCRIPT_SAMPLES: dict[str, str] = {
 
 _BYTE_MARKER_RE = re.compile(r"<0x[0-9A-Fa-f]{2}>")
 
+TOKENIZER_UNAVAILABLE = "tokenizer_unavailable"
+
 
 def _is_byte_fallback_token(piece: str) -> bool:
     """Does this decoded token piece look like raw byte fallback?
@@ -93,8 +108,7 @@ def _is_byte_fallback_token(piece: str) -> bool:
     """
     if "�" in piece:
         return True
-    stripped = piece.strip()
-    return bool(_BYTE_MARKER_RE.fullmatch(stripped))
+    return bool(_BYTE_MARKER_RE.fullmatch(piece.strip()))
 
 
 def classify_char(tokenizer: Tokenizer, char: str) -> int:
@@ -133,14 +147,8 @@ def classify_char(tokenizer: Tokenizer, char: str) -> int:
     return 1
 
 
-def _exemplars_for(script: str | None) -> str | None:
-    if not script:
-        return None
-    return SCRIPT_EXEMPLARS.get(script)
-
-
-def _fertility_block(tokenizer: Tokenizer, sample: str) -> dict[str, Any] | None:
-    """Fertility metrics in language_coverage's LanguageFertility shape."""
+def _fertility(tokenizer: Tokenizer, sample: str) -> LanguageFertility | None:
+    """Fertility metrics in the consumer's LanguageFertility shape."""
     if not sample:
         return None
     try:
@@ -150,70 +158,31 @@ def _fertility_block(tokenizer: Tokenizer, sample: str) -> dict[str, Any] | None
     sample_chars = len(sample)
     sample_tokens = len(ids)
     words = [w for w in sample.split() if w]
-    return {
-        "tokens_per_char": sample_tokens / sample_chars if sample_chars else None,
-        "tokens_per_word": sample_tokens / len(words) if words else None,
-        "sample_chars": sample_chars,
-        "sample_tokens": sample_tokens,
-    }
+    return LanguageFertility(
+        tokens_per_char=sample_tokens / sample_chars if sample_chars else None,
+        tokens_per_word=sample_tokens / len(words) if words else None,
+        sample_chars=sample_chars,
+        sample_tokens=sample_tokens,
+    )
 
 
-def language_coverage_payload(tokenizer: Tokenizer, language: Any) -> dict[str, Any] | None:
-    """Per-language coverage dict in the exact shape language_coverage parses.
-
-    ``language`` is a language_coverage.LanguageSpec (or anything with ``code``,
-    ``name``, ``script``). Returns None when the script has no exemplar table —
-    the producer then omits the language, and the consumer falls back.
-    """
-    script = getattr(language, "script", None)
-    exemplars = _exemplars_for(script)
-    if not exemplars:
-        return None
-
-    tiers = [classify_char(tokenizer, ch) for ch in exemplars]
+def _tier_counts(tokenizer: Tokenizer, exemplars: str) -> tuple[LanguageTierCounts, float]:
+    """Count exemplar chars per tier and return (counts, coverage_score)."""
     counts = {0: 0, 1: 0, 2: 0, 3: 0}
-    for t in tiers:
-        counts[t] += 1
-    total = len(tiers)
-    coverage_score = sum(TIER_WEIGHTS[t] for t in tiers) / total if total else None
-
-    sample = SCRIPT_SAMPLES.get(script, exemplars)
-    payload: dict[str, Any] = {
-        "language": getattr(language, "code", None),
-        "language_name": getattr(language, "name", None),
-        "script": script,
-        "coverage_score": coverage_score,
-        "tier_counts": {
-            "tier_0_native": counts[0],
-            "tier_1_embedded": counts[1],
-            "tier_2_byte_fallback": counts[2],
-            "tier_3_unreachable": counts[3],
-            "total_chars": total,
-        },
-    }
-    fertility = _fertility_block(tokenizer, sample)
-    if fertility is not None:
-        payload["fertility"] = fertility
-    return payload
-
-
-def build_coverage_document(
-    model_id: str, tokenizer: Tokenizer, languages: list[Any]
-) -> dict[str, Any]:
-    """Root coverage document: {model_id, generated_at, coverage: {code: ...}}.
-
-    Only languages whose script has an exemplar table are included.
-    """
-    coverage: dict[str, Any] = {}
-    for lang in languages:
-        payload = language_coverage_payload(tokenizer, lang)
-        if payload is not None:
-            coverage[getattr(lang, "code")] = payload
-    return {
-        "model_id": model_id,
-        "generated_at": datetime.now(timezone.utc).isoformat(),
-        "coverage": coverage,
-    }
+    for ch in exemplars:
+        counts[classify_char(tokenizer, ch)] += 1
+    total = len(exemplars)
+    score = sum(TIER_WEIGHTS[t] * n for t, n in counts.items()) / total if total else 0.0
+    return (
+        LanguageTierCounts(
+            tier_0_native=counts[0],
+            tier_1_embedded=counts[1],
+            tier_2_byte_fallback=counts[2],
+            tier_3_unreachable=counts[3],
+            total_chars=total,
+        ),
+        score,
+    )
 
 
 def load_tokenizer(model_id: str) -> Tokenizer | None:
@@ -222,7 +191,7 @@ def load_tokenizer(model_id: str) -> Tokenizer | None:
     OpenAI-family ids go through tiktoken; everything else (local / MLX / HF ids)
     through HF ``AutoTokenizer``. Both imports are lazy so this module stays
     importable without tiktoken/transformers. Returns None when no tokenizer can
-    be built — the caller must then write no file rather than guess.
+    be built — the caller then emits an honest ``tokenizer_unavailable`` record.
     """
     if not model_id:
         return None
@@ -253,39 +222,153 @@ def load_tokenizer(model_id: str) -> Tokenizer | None:
         return None
 
 
-def _coverage_path(provider: str, model: str, coverage_dir: Path) -> Path:
-    """Filename the consumer's _coverage_file_for looks for, first candidate."""
-    # Reuse the consumer's exact sanitizer so the file lands where it reads.
-    from fichero_server.llm.language_coverage import _safe_filename  # noqa: PLC0415
-
-    return coverage_dir / f"{_safe_filename(provider)}__{_safe_filename(model)}.json"
-
-
-def write_coverage_file(
-    provider: str,
+def coverage_for_model(
     model_id: str,
-    languages: list[Any],
+    language: LanguageSpec,
     *,
+    provider: str = "",
     tokenizer: Tokenizer | None = None,
-    coverage_dir: Path | None = None,
-) -> Path | None:
-    """Produce and write a model's coverage JSON where language_coverage reads it.
+) -> LanguageCoverageRecord:
+    """Assemble a LanguageCoverageRecord for one (model, language) in memory.
 
-    Returns the written path, or None when no tokenizer is obtainable (honest
-    absence — the consumer falls back to its heuristic; we never fabricate a
-    derived file). ``tokenizer`` may be supplied directly (tests / preloaded);
-    otherwise it is loaded from ``model_id``.
+    ``tokenizer`` may be supplied (tests / preloaded); otherwise it is loaded
+    from ``model_id``. Honest unknowns:
+
+    - no tokenizer  -> coverage_score=None, band "unknown", tokenizer_unavailable
+                       reason (never a guess).
+    - unknown script -> status "unsupported_language" (no exemplar table to score
+                       it), so the consumer can fall back transparently.
     """
+    nmid = normalized_model_id(provider, model_id)
+
     tok = tokenizer if tokenizer is not None else load_tokenizer(model_id)
     if tok is None:
-        return None
+        return LanguageCoverageRecord(
+            provider=provider,
+            model=model_id,
+            normalized_model_id=nmid,
+            language=language,
+            coverage_score=None,
+            score_band=score_band(None),
+            tier_counts=None,
+            fertility=None,
+            source=LanguageCoverageSource(
+                kind="missing", model_id=nmid, notes=[TOKENIZER_UNAVAILABLE]
+            ),
+            status="derived",
+            warnings=[
+                "No tokenizer could be loaded for this model; coverage is "
+                "unknown and no heuristic guess is made."
+            ],
+        )
 
-    from fichero_server.llm.language_coverage import default_coverage_dir  # noqa: PLC0415
+    exemplars = SCRIPT_EXEMPLARS.get(language.script or "")
+    if not exemplars:
+        warning = (
+            f"No exemplar table for script '{language.script}'; cannot derive "
+            "tokenizer coverage for this language."
+        )
+        return LanguageCoverageRecord(
+            provider=provider,
+            model=model_id,
+            normalized_model_id=nmid,
+            language=language,
+            coverage_score=None,
+            score_band=score_band(None),
+            tier_counts=None,
+            fertility=None,
+            source=LanguageCoverageSource(kind="missing", model_id=nmid, notes=[warning]),
+            status="unsupported_language",
+            warnings=[warning],
+        )
 
+    counts, score = _tier_counts(tok, exemplars)
+    sample = SCRIPT_SAMPLES.get(language.script or "", exemplars)
+    return LanguageCoverageRecord(
+        provider=provider,
+        model=model_id,
+        normalized_model_id=nmid,
+        language=language,
+        coverage_score=score,
+        score_band=score_band(score),
+        tier_counts=counts,
+        fertility=_fertility(tok, sample),
+        source=LanguageCoverageSource(
+            kind="loove_derived_json",
+            model_id=nmid,
+            notes=["Derived from local tokenizer; no model inference, no network."],
+        ),
+        status="derived",
+        warnings=[],
+    )
+
+
+def _record_to_payload(record: LanguageCoverageRecord) -> dict[str, Any]:
+    """Serialize a record into the per-language JSON _load_derived_record reads."""
+    payload: dict[str, Any] = {
+        "language": record.language.code,
+        "language_name": record.language.name,
+        "script": record.language.script,
+        "coverage_score": record.coverage_score,
+    }
+    if record.tier_counts is not None:
+        payload["tier_counts"] = record.tier_counts.model_dump()
+    if record.fertility is not None:
+        payload["fertility"] = record.fertility.model_dump()
+    if record.source.notes:
+        payload["notes"] = list(record.source.notes)
+    return payload
+
+
+def _target_path(provider: str, model_id: str, coverage_dir: Path) -> Path:
+    """The file the consumer's _coverage_file_for looks up (its first candidate)."""
+    safe_model = _safe_filename(model_id)
+    if provider:
+        return coverage_dir / f"{_safe_filename(provider)}__{safe_model}.json"
+    return coverage_dir / f"{safe_model}.json"
+
+
+def write_coverage_record(
+    model_id: str,
+    language: LanguageSpec,
+    *,
+    provider: str = "",
+    coverage_dir: Path | None = None,
+    tokenizer: Tokenizer | None = None,
+) -> Path:
+    """Write one (model, language) coverage entry where language_coverage reads it.
+
+    Merges into the model's existing file (a model accrues one entry per detected
+    script) and writes atomically. Returns the written path. The tokenizer_
+    unavailable case still writes an explicit null-coverage entry — that is what
+    keeps the consumer from filling the gap with a heuristic guess.
+    """
     out_dir = coverage_dir or default_coverage_dir()
     out_dir.mkdir(parents=True, exist_ok=True)
-    document = build_coverage_document(model_id, tok, languages)
-    path = _coverage_path(provider, model_id, out_dir)
+    path = _target_path(provider, model_id, out_dir)
+
+    document: dict[str, Any] = {}
+    if path.is_file():
+        try:
+            existing = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(existing, dict):
+                document = existing
+        except (OSError, json.JSONDecodeError):
+            document = {}  # unreadable -> start fresh rather than fail
+
+    coverage = document.get("coverage")
+    if not isinstance(coverage, dict):
+        coverage = {}
+
+    record = coverage_for_model(
+        model_id, language, provider=provider, tokenizer=tokenizer
+    )
+    coverage[language.code] = _record_to_payload(record)
+
+    document["model_id"] = normalized_model_id(provider, model_id)
+    document["generated_at"] = datetime.now(timezone.utc).isoformat()
+    document["coverage"] = coverage
+
     tmp = path.with_suffix(".json.tmp")
     tmp.write_text(json.dumps(document, ensure_ascii=False, indent=2), encoding="utf-8")
     tmp.replace(path)  # atomic
