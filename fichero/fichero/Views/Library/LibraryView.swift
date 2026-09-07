@@ -312,6 +312,11 @@ struct LibraryView: View {
     // Space → Quick Look temp-file URL (#4160); non-nil presents the panel.
     @State var quickLookURL: URL?
 
+    // WHAT the library is browsing — documents, or the KG nodes (claims/entities)
+    // that also live in a folder (the node-model IA). Orthogonal to displayMode.
+    // Phase 1 lands `.claims` in the table.
+    @State var libraryContentKind: LibraryContentKind = .documents
+
     // Grid column count for arrow key navigation (updated by GeometryReader in iconsView)
     @State var gridColumnCount: Int = 4
 

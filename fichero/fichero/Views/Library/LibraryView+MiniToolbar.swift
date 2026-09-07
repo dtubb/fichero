@@ -290,4 +290,19 @@ extension LibraryView {
             .accessibilityLabel(model.title)
         }
     }
+
+    /// Switching kind clears the selection: a document-id selection must not leak
+    /// into the claims/entities list, where the ids mean something else. The
+    /// picker itself lives in the pane head (`LibraryContentKindControl`), beside
+    /// the view-mode picker; this is the binding it drives.
+    var contentKindBinding: Binding<LibraryContentKind> {
+        Binding(
+            get: { libraryContentKind },
+            set: { newKind in
+                guard newKind != libraryContentKind else { return }
+                selection = []
+                libraryContentKind = newKind
+            }
+        )
+    }
 }
