@@ -66,7 +66,25 @@ extension MainContentModifiers {
                 selectionLoadTask = Task {
                     await documentStore.selectCollection(document)
                     guard !Task.isCancelled else { return }
-                    detailDocument = document
+                    // Promote the container into the reader ONLY if the user has
+                    // not already landed on a specific item INSIDE it. A search-hit
+                    // reveal / claim-source jump (navigateToResolvedSource) selects
+                    // this container and then sets detailDocument to the matched
+                    // PAGE — a child of THIS container. Loading the children is async
+                    // (~1s); this write used to fire AFTER and re-root the reader onto
+                    // the container's first page, erasing the result the user picked
+                    // (Daniel, 2026-09-07: "shows up for a second, then redraws the
+                    // page based on its original folder, not the search result"). A
+                    // child of the just-loaded container IS that specific target —
+                    // keep it; a stale/unrelated focus is replaced as before. (#1463)
+                    let focusPointsInside = detailDocument.map { focused in
+                        focused.id == document.id
+                            || focused.parentId == document.id
+                            || pdfParentDocumentId(of: focused) == document.id
+                    } ?? false
+                    if !focusPointsInside {
+                        detailDocument = document
+                    }
                     let docCount = documentStore.currentDocuments.count
                     logger.info("selectCollection completed. currentDocuments count: \(docCount)")
                 }
