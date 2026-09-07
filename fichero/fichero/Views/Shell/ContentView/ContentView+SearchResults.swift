@@ -169,10 +169,11 @@ extension ContentView {
         await store.performSearch(
             query: query,
             limit: transientSearchLimit,
-            // All four legs (#4118): documents + entities + claims +
-            // workflow artifacts — the grid shows documents; the bar
-            // presents the typed hits.
-            include: [.content, .entities, .claims, .artifacts],
+            // Three MEANINGFUL legs (Daniel, 2026-09-07): documents +
+            // entities + claims. Artifacts (workflow intermediates —
+            // regions, raw derived outputs) are dropped: they're noise for
+            // a content search, not results a reader wants surfaced.
+            include: [.content, .entities, .claims],
             searchType: transientSearchType,
             sortBy: transientSearchSortBy,
             sortOrder: transientSearchSortDirection,
