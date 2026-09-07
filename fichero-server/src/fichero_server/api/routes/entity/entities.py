@@ -955,7 +955,7 @@ async def list_entities(
     q: Annotated[str | None, Query()] = None,
     entity_type: Annotated[EntityType | None, Query()] = None,
     document_id: Annotated[str | None, Query()] = None,
-    limit: Annotated[int, Query(ge=1, le=500)] = 50,
+    limit: Annotated[int, Query(ge=1, le=5000)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
     db: Database = Depends(get_library_database),
 ) -> EntityListResponse:
