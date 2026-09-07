@@ -15,7 +15,9 @@ struct AISettingsView: View {
     @Environment(AppState.self) var appState
     // Opens the standalone loove language-coverage window (scene "loove-coverage"
     // in FicheroApp) from the header button below.
-    @Environment(\.openWindow) private var openWindow
+    // Not `private`: the AISettingsView+Tabs extension (a separate file) reads
+    // it to open the loove coverage window, and `private` is file-scoped.
+    @Environment(\.openWindow) var openWindow
     let featureManager = FeatureManager.shared
 
     @State var store = AISettingsStore()

@@ -4,32 +4,40 @@ import SwiftUI
 
 extension AISettingsView {
 
+    /// The primary-language picker + loove coverage-window opener, factored out
+    /// so `defaultsTab`'s Form stays inside the Swift type-checker's budget
+    /// (the inline Section tipped it into an "unable to type-check" timeout).
+    @ViewBuilder
+    private var languageSection: some View {
+        Section("Language") {
+            Text("Force extraction into one language regardless of the source's own language. Auto detects per source.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Picker("Primary Language", selection: $store.defaults.primaryLanguage) {
+                Text("Auto (detect per source)").tag("")
+                Text("English").tag("en")
+                Text("Spanish").tag("es")
+                Text("French").tag("fr")
+                Text("German").tag("de")
+                Text("Portuguese").tag("pt")
+                Text("Italian").tag("it")
+            }
+
+            // Opens the standalone loove coverage matrix — which models can
+            // actually read which scripts — in its own window (#1820/#2116).
+            Button {
+                openWindow(id: "loove-coverage")
+            } label: {
+                Label("Language Coverage…", systemImage: "character.book.closed")
+            }
+            .help("See which models' tokenizers can read each script (tokenizer coverage, not model quality).")
+        }
+    }
+
     @ViewBuilder
     var defaultsTab: some View {
         Form {
-            Section("Language") {
-                Text("Force extraction into one language regardless of the source's own language. Auto detects per source.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Picker("Primary Language", selection: $store.defaults.primaryLanguage) {
-                    Text("Auto (detect per source)").tag("")
-                    Text("English").tag("en")
-                    Text("Spanish").tag("es")
-                    Text("French").tag("fr")
-                    Text("German").tag("de")
-                    Text("Portuguese").tag("pt")
-                    Text("Italian").tag("it")
-                }
-
-                // Opens the standalone loove coverage matrix — which models can
-                // actually read which scripts — in its own window (#1820/#2116).
-                Button {
-                    openWindow(id: "loove-coverage")
-                } label: {
-                    Label("Language Coverage…", systemImage: "character.book.closed")
-                }
-                .help("See which models' tokenizers can read each script (tokenizer coverage, not model quality).")
-            }
+            languageSection
 
             Section("Text") {
                 Text("Used by Summarize, Extract, and Classify tools.")
