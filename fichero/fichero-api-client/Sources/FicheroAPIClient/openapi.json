@@ -50642,6 +50642,24 @@
             "title": "Svo Object",
             "description": "Object of the SVO triple. Complements svo_subject and svo_verb to form complete structured triples. Populated from extract_all output."
           },
+          "predicate_verb_en": {
+            "type": "string",
+            "nullable": true,
+            "title": "Predicate Verb En",
+            "description": "English display form of predicate_verb \u2014 a faithful translation of the verbatim source-language verb. Display only; never used for grounding, provenance, or dedup."
+          },
+          "object_phrase_en": {
+            "type": "string",
+            "nullable": true,
+            "title": "Object Phrase En",
+            "description": "English display form of object_phrase. Display only \u2014 see predicate_verb_en."
+          },
+          "claim_text_en": {
+            "type": "string",
+            "nullable": true,
+            "title": "Claim Text En",
+            "description": "English display form of `text`, composed from the subject and the English predicate. Display only; `text` stays the source-language ground truth."
+          },
           "entity_ids": {
             "items": {
               "type": "string"
@@ -61474,6 +61492,24 @@
             "nullable": true,
             "title": "Svo Object",
             "description": "Object of the SVO triple. Complements svo_subject and svo_verb to form complete structured triples. Populated from extract_all output."
+          },
+          "predicate_verb_en": {
+            "type": "string",
+            "nullable": true,
+            "title": "Predicate Verb En",
+            "description": "English display form of predicate_verb \u2014 a faithful translation of the verbatim source-language verb. Display only; never used for grounding, provenance, or dedup."
+          },
+          "object_phrase_en": {
+            "type": "string",
+            "nullable": true,
+            "title": "Object Phrase En",
+            "description": "English display form of object_phrase. Display only \u2014 see predicate_verb_en."
+          },
+          "claim_text_en": {
+            "type": "string",
+            "nullable": true,
+            "title": "Claim Text En",
+            "description": "English display form of `text`, composed from the subject and the English predicate. Display only; `text` stays the source-language ground truth."
           },
           "entity_ids": {
             "items": {
