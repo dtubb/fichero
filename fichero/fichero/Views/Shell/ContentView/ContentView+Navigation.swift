@@ -42,7 +42,7 @@ extension ContentView {
             // relevance order; every Library view mode presents them.
             documents: pinnedLibrary?.documents
                 ?? (activeSearchQuery == nil ? selectedDocuments : searchResultDocuments),
-            contentCollection: isEntityLibrarySelection ? .entities : .documents,
+            contentCollection: sidebarContentCollection,
             isLoading: documentStore.isLoading,
             isConnected: documentStore.isConnected,
             errorMessage: documentStore.error?.localizedDescription,

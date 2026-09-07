@@ -83,9 +83,8 @@ extension SidebarView {
         }
     }
 
-    // `SidebarBrowserDestination` has exactly these 6 cases (see
-    // `SidebarStateManagers.swift`), each routing to a distinct sidebar
-    // mode/view mode — split out of `handleSelectionDestination` to keep
+    // `SidebarBrowserDestination` routes each browser section to a distinct
+    // sidebar mode/view mode — split out of `handleSelectionDestination` to keep
     // that switch's complexity low.
     private func handleBrowserSelectionDestination(_ section: SidebarBrowserDestination) {
         switch section {
@@ -100,7 +99,10 @@ extension SidebarView {
             // the mode bar/menus disagreeing with the pane.
             sidebarMode = .workflows
             viewMode = .batches
-        case .entities:
+        case .entities, .claims:
+            // Both KG collections land in the library, library-wide (the pane
+            // reads `contentCollection` from the selected item id to pick which
+            // table). One rule, two peer sections (P4).
             sidebarMode = .library
             viewMode = .library(nil)
         case .comparison:

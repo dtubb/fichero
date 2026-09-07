@@ -6,6 +6,8 @@ enum SidebarBrowserDestination: String, Hashable {
     case workflows
     case batches
     case entities
+    /// The library-wide claims table (P4) — the peer of `.entities`.
+    case claims
     case comparison
     case research
 }
@@ -67,6 +69,7 @@ enum SidebarDestination: Hashable {
         "workflows-browser": .workflows,
         "batches-browser": .batches,
         "entities-browser": .entities,
+        "claims-browser": .claims,
         "comparison-browser": .comparison,
         "research-browser": .research
     ]
@@ -103,6 +106,7 @@ enum SidebarDestination: Hashable {
         case .browser(.workflows): return "workflows-browser"
         case .browser(.batches): return "batches-browser"
         case .browser(.entities): return "entities-browser"
+        case .browser(.claims): return "claims-browser"
         case .browser(.comparison): return "comparison-browser"
         case .browser(.research): return "research-browser"
         case .library(let id): return "library:\(id.uuidString)"
