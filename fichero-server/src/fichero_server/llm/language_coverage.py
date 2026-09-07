@@ -134,6 +134,7 @@ class LanguageFitResponse(BaseModel):
 _COMMON_LANGUAGES: dict[str, LanguageSpec] = {
     "ar": LanguageSpec(code="ar", name="Arabic", script="Arabic"),
     "bn": LanguageSpec(code="bn", name="Bengali", script="Bengali"),
+    "cop": LanguageSpec(code="cop", name="Coptic", script="Coptic"),
     "cs": LanguageSpec(code="cs", name="Czech", script="Latin"),
     "da": LanguageSpec(code="da", name="Danish", script="Latin"),
     "de": LanguageSpec(code="de", name="German", script="Latin"),
@@ -144,8 +145,10 @@ _COMMON_LANGUAGES: dict[str, LanguageSpec] = {
     "fr": LanguageSpec(code="fr", name="French", script="Latin"),
     "he": LanguageSpec(code="he", name="Hebrew", script="Hebrew"),
     "hi": LanguageSpec(code="hi", name="Hindi", script="Devanagari"),
+    "hy": LanguageSpec(code="hy", name="Armenian", script="Armenian"),
     "it": LanguageSpec(code="it", name="Italian", script="Latin"),
     "ja": LanguageSpec(code="ja", name="Japanese", script="Jpan"),
+    "ka": LanguageSpec(code="ka", name="Georgian", script="Georgian"),
     "ko": LanguageSpec(code="ko", name="Korean", script="Hangul"),
     "nl": LanguageSpec(code="nl", name="Dutch", script="Latin"),
     "no": LanguageSpec(code="no", name="Norwegian", script="Latin"),
@@ -161,6 +164,20 @@ _COMMON_LANGUAGES: dict[str, LanguageSpec] = {
 }
 
 
+# Historical / variant languages whose script differs from the base code's, so
+# they must be matched on the FULL tag before normalize_language_code strips the
+# variant subtag. petr1708 is the IETF variant subtag for pre-1918 (Petrine,
+# 1708–1917) Russian orthography — the demo-gold case: yat/izhitsa/decimal-i/fita
+# live in a distinct script (Cyrillic_Pre1918) a modern tokenizer often can't see.
+_RUSSIAN_PRE1918 = LanguageSpec(
+    code="ru-petr1708", name="Russian (pre-1918)", script="Cyrillic_Pre1918"
+)
+_EXTENDED_LANGUAGES: dict[str, LanguageSpec] = {
+    "ru-petr1708": _RUSSIAN_PRE1918,
+    "russian (pre-1918)": _RUSSIAN_PRE1918,
+}
+
+
 def normalize_language_code(language: str) -> str:
     """Normalize a BCP-47-ish language code to a lookup key."""
 
@@ -168,8 +185,15 @@ def normalize_language_code(language: str) -> str:
 
 
 def language_spec(language: str) -> LanguageSpec:
-    """Return a known language spec or an unsupported placeholder."""
+    """Return a known language spec or an unsupported placeholder.
 
+    Full-tag variants (e.g. ``ru-petr1708``) resolve first, before the variant
+    subtag is stripped, so historical scripts get their own script assignment.
+    """
+
+    tag = (language or "").strip().replace("_", "-").lower()
+    if tag in _EXTENDED_LANGUAGES:
+        return _EXTENDED_LANGUAGES[tag]
     code = normalize_language_code(language)
     return _COMMON_LANGUAGES.get(code) or LanguageSpec(
         code=code,
@@ -246,7 +270,10 @@ def evaluate_language_fit(
     derived = _load_derived_record(spec, language, directory)
     if derived is not None:
         return derived
-    if not language.code or language.code not in _COMMON_LANGUAGES:
+    if not language.code or language.script is None:
+        # No resolvable script -> no metadata to score. (Covers unknown codes
+        # and any language whose script we can't identify.) Includes extended
+        # variants like ru-petr1708, whose script IS set, so they pass through.
         return _unsupported_language_record(spec, language)
     # Run loove for real: fetch the model's tokenizer files, compute genuine
     # coverage, cache it. On first fit this computes; subsequent fits read the

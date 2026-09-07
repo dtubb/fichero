@@ -85,6 +85,11 @@ SCRIPT_EXEMPLARS: dict[str, str] = {
     "Coptic": "ⲁⲃⲅⲇⲉⲍⲏⲑ",
     "Georgian": "აბგდევზთიკლ",
     "Armenian": "աբգդեզէըթժ",
+    # Arabic base letters (isolated forms) — RTL, but coverage classifies each
+    # codepoint independently.
+    "Arabic": "ابتثجحخدذرزسشصضطظعغفقكلمنهوي",
+    # Hebrew alphabet (no final-form variants in this starter set).
+    "Hebrew": "אבגדהוזחטיכלמנסעפצקרשת",
 }
 
 # Representative sample strings for fertility. Falls back to exemplar chars.
@@ -94,6 +99,8 @@ SCRIPT_SAMPLES: dict[str, str] = {
     "Cyrillic_Pre1918": "въ лѣто отъ сотворенія міра",
     "Greek": "η γρήγορη καφέ αλεπού πηδάει πάνω από το τεμπέλικο σκυλί",
     "Coptic": "ⲁⲛⲟⲕ ⲡⲉ ⲡⲟⲩⲟⲉⲓⲛ",
+    "Arabic": "السلام عليكم ورحمة الله وبركاته",
+    "Hebrew": "השועל החום המהיר קופץ מעל הכלב העצלן",
 }
 
 _BYTE_MARKER_RE = re.compile(r"<0x[0-9A-Fa-f]{2}>")

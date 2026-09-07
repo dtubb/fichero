@@ -129,6 +129,44 @@ def test_unmapped_script_is_unsupported() -> None:
     assert record.score_band == "unknown"
 
 
+def test_arabic_produces_real_record() -> None:
+    ar = sc.SCRIPT_EXEMPLARS["Arabic"]
+    tok = _tok_all_tier0(ar, sc.SCRIPT_SAMPLES["Arabic"])
+    record = sc.coverage_for_model("gpt-fake", lc.language_spec("ar"), tokenizer=tok)
+    assert record.status == "derived"  # not "unknown"
+    assert record.language.script == "Arabic"
+    assert record.coverage_score == 1.0
+    assert record.tier_counts.total_chars == len(ar)
+
+
+def test_pre1918_russian_scores_distinctly_from_modern() -> None:
+    # A tokenizer that covers MODERN Russian but has no token for the pre-1918
+    # letters (yat/izhitsa/decimal-i/fita). Modern Russian scores full; the
+    # pre-1918 script scores strictly lower — proving the historical script is
+    # scored as its own thing, the demo-gold distinction.
+    modern = sc.SCRIPT_EXEMPLARS["Cyrillic"]
+    tok = _tok_all_tier0(modern)  # pre-1918 chars left unregistered -> tier3
+
+    ru = sc.coverage_for_model("m", lc.language_spec("ru"), tokenizer=tok)
+    pre = sc.coverage_for_model("m", lc.language_spec("ru-petr1708"), tokenizer=tok)
+
+    assert ru.language.script == "Cyrillic"
+    assert pre.language.script == "Cyrillic_Pre1918"
+    assert ru.status == "derived" and pre.status == "derived"
+    assert ru.coverage_score == 1.0
+    assert pre.coverage_score < ru.coverage_score  # historical letters are lost
+
+
+def test_demo_languages_resolve_to_expected_scripts() -> None:
+    # Stable codes the window requests -> the scripts we have exemplars for.
+    assert lc.language_spec("ru-petr1708").script == "Cyrillic_Pre1918"
+    assert lc.language_spec("cop").script == "Coptic"
+    assert lc.language_spec("ka").script == "Georgian"
+    assert lc.language_spec("hy").script == "Armenian"
+    assert lc.language_spec("ar").script == "Arabic"
+    assert lc.language_spec("he").script == "Hebrew"
+
+
 def test_no_tokenizer_is_honest_unknown() -> None:
     original = sc.load_tokenizer
     try:
@@ -295,6 +333,26 @@ def test_fit_caches_second_call_does_not_recompute(tmp_path) -> None:
         r2 = lc.evaluate_language_fit(spec, lc.language_spec("el"), coverage_dir=tmp_path)
         assert r2.status == "derived"  # served from the cached file
         assert r2.coverage_score == r1.coverage_score
+    finally:
+        sc.load_tokenizer = original  # type: ignore[assignment]
+
+
+def test_fit_path_pre1918_variant_returns_derived(tmp_path) -> None:
+    # The historical variant (not in _COMMON_LANGUAGES) must pass the generation
+    # gate and return derived — proving the widened gate + resolver wiring.
+    pre = sc.SCRIPT_EXEMPLARS["Cyrillic_Pre1918"]
+    tok = _tok_all_tier0(pre, sc.SCRIPT_SAMPLES["Cyrillic_Pre1918"])
+    original = sc.load_tokenizer
+    try:
+        sc.load_tokenizer = lambda *a, **k: tok  # type: ignore[assignment]
+        record = lc.evaluate_language_fit(
+            lc.normalize_model_spec("hf", "cyr-fake"),
+            lc.language_spec("ru-petr1708"),
+            coverage_dir=tmp_path,
+        )
+        assert record.status == "derived"
+        assert record.language.script == "Cyrillic_Pre1918"
+        assert record.coverage_score == 1.0
     finally:
         sc.load_tokenizer = original  # type: ignore[assignment]
 
