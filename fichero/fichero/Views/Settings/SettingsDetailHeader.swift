@@ -20,6 +20,8 @@ struct SettingsSectionInfo {
             return SettingsSectionInfo(title: "General", symbol: "gear", tint: .gray)
         case .aiModels:
             return SettingsSectionInfo(title: "AI", symbol: "brain", tint: .purple)
+        case .knowledge:
+            return SettingsSectionInfo(title: "Knowledge", symbol: "point.3.filled.connected.trianglepath.dotted", tint: .pink)
         case .libraryView:
             return SettingsSectionInfo(title: "Library", symbol: "square.grid.2x2", tint: .blue)
         case .previewView:

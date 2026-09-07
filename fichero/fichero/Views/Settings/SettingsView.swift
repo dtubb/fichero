@@ -39,6 +39,7 @@ struct SettingsView: View {
                         row(.general)
                     }
                     row(.aiModels)
+                    row(.knowledge)
                 }
 
                 // Per-view settings (#3680) — Library is ONE surface (its icon /
@@ -175,6 +176,8 @@ struct SettingsView: View {
             InspectorViewSettingsPane()
         case .aiModels:
             AISettingsView()
+        case .knowledge:
+            KnowledgeSettingsView()
         case .mcp:
             MCPServersView()
                 .environment(appState.mcpService)

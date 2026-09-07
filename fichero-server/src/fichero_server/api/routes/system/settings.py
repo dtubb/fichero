@@ -4,13 +4,16 @@ Settings API Routes
 Endpoints for managing app-wide settings like default AI models.
 """
 
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from fichero_server.api.routes.auth.accounts import (
     _require_authenticated_or_bootstrap,
     _require_owner_or_bootstrap,
 )
+from fichero_server.knowledge.wikidata_enrich import DEFAULT_WIKIDATA_SPARQL_ENDPOINT
 from fichero_server.llm.model_profiles import (
     ModelProfile,
     ModelProfileCreate,
@@ -361,3 +364,102 @@ def reset_ai_defaults(
     db = get_app_db()
     db.reset_ai_defaults()
     return StatusOkResponse(status="ok")
+
+
+# ---------------------------------------------------------------------------
+# SPARQL endpoints — the knowledge-authority endpoints the Wikidata enrichment
+# (Enrich from Wikidata) queries. App-wide (get_app_db setting), like the AI
+# defaults above: one default (Wikidata) plus any user-added custom endpoints.
+# ---------------------------------------------------------------------------
+
+_SPARQL_ENDPOINTS_SETTING_KEY = "sparql_endpoints"
+_WIKIDATA_ENDPOINT_NAME = "Wikidata"
+
+
+class SparqlEndpoint(BaseModel):
+    """One named SPARQL endpoint the enrichment can query."""
+
+    name: str = Field(min_length=1, max_length=100)
+    url: str = Field(min_length=1, max_length=500)
+
+
+class SparqlEndpointsConfig(BaseModel):
+    """The full SPARQL-endpoints configuration persisted app-wide."""
+
+    endpoints: list[SparqlEndpoint] = Field(default_factory=list)
+    selected_url: str = Field(
+        default=DEFAULT_WIKIDATA_SPARQL_ENDPOINT,
+        description="URL of the endpoint the enrichment uses by default.",
+    )
+
+
+def _default_sparql_config() -> SparqlEndpointsConfig:
+    return SparqlEndpointsConfig(
+        endpoints=[
+            SparqlEndpoint(name=_WIKIDATA_ENDPOINT_NAME, url=DEFAULT_WIKIDATA_SPARQL_ENDPOINT)
+        ],
+        selected_url=DEFAULT_WIKIDATA_SPARQL_ENDPOINT,
+    )
+
+
+def load_sparql_endpoints(db) -> SparqlEndpointsConfig:
+    """Read the persisted config, falling back to the Wikidata default.
+
+    Shared with the enrichment route so both read the SAME source of truth.
+    A malformed stored value is treated as unset (never a silent half-config).
+    """
+    raw = db.get_setting(_SPARQL_ENDPOINTS_SETTING_KEY)
+    if not raw:
+        return _default_sparql_config()
+    try:
+        return SparqlEndpointsConfig.model_validate(json.loads(raw))
+    except (json.JSONDecodeError, ValueError):
+        return _default_sparql_config()
+
+
+def resolve_selected_endpoint(db) -> str:
+    """The endpoint URL the enrichment should query. Never empty."""
+    config = load_sparql_endpoints(db)
+    if config.selected_url:
+        return config.selected_url
+    if config.endpoints:
+        return config.endpoints[0].url
+    return DEFAULT_WIKIDATA_SPARQL_ENDPOINT
+
+
+@router.get("/sparql-endpoints", response_model=SparqlEndpointsConfig)
+def get_sparql_endpoints(request: Request) -> SparqlEndpointsConfig:
+    """Read the configured SPARQL endpoints + which one is selected."""
+    _require_authenticated_or_bootstrap(request)
+
+    from fichero_server.db.app import get_app_db
+
+    return load_sparql_endpoints(get_app_db())
+
+
+@router.put("/sparql-endpoints", response_model=SparqlEndpointsConfig)
+def set_sparql_endpoints(
+    body: SparqlEndpointsConfig,
+    request: Request,
+    _owner: None = Depends(_require_owner_or_bootstrap),
+) -> SparqlEndpointsConfig:
+    """Persist the SPARQL endpoints. The Wikidata default is always kept.
+
+    Keeping the default present means the enrichment can never be left with no
+    endpoint to query — a user can add/select custom endpoints, not delete the
+    ground truth out from under the feature.
+    """
+    endpoints = [SparqlEndpoint(name=e.name.strip(), url=e.url.strip()) for e in body.endpoints]
+    endpoints = [e for e in endpoints if e.name and e.url]
+    if not any(e.url == DEFAULT_WIKIDATA_SPARQL_ENDPOINT for e in endpoints):
+        endpoints.insert(
+            0, SparqlEndpoint(name=_WIKIDATA_ENDPOINT_NAME, url=DEFAULT_WIKIDATA_SPARQL_ENDPOINT)
+        )
+    known_urls = {e.url for e in endpoints}
+    selected = body.selected_url.strip() if body.selected_url.strip() in known_urls else DEFAULT_WIKIDATA_SPARQL_ENDPOINT
+    config = SparqlEndpointsConfig(endpoints=endpoints, selected_url=selected)
+
+    from fichero_server.db.app import get_app_db
+
+    get_app_db().set_setting(_SPARQL_ENDPOINTS_SETTING_KEY, config.model_dump_json())
+    return config
