@@ -254,11 +254,13 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
         lastSearchMatchSignature = match.signature
         if let pageId = match.pageId, let start = match.charStart,
            let end = match.charEnd, end > start {
+            NavTrace.log("reader.highlightMatch", "loaded=\(lastLoadedDocumentId ?? "nil") page=\(pageId) \(start)-\(end)")
             let literal = DocumentKGPaneRoute.jsStringLiteral(pageId)
             webView.evaluateJavaScript(
                 "window.fichero?.highlightMatchInPage('\(literal)', \(start), \(end));"
             )
         } else {
+            NavTrace.log("reader.highlightMatch", "CLEAR loaded=\(lastLoadedDocumentId ?? "nil")")
             webView.evaluateJavaScript("window.fichero?.highlightMatchInPage(null, null, null);")
         }
     }

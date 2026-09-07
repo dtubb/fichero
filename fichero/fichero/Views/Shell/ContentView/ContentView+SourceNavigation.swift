@@ -7,6 +7,7 @@ extension ContentView {
     // MARK: - Navigation
 
     func navigateToDocument(_ doc: Document) {
+        NavTrace.log("nav.toDocument", "\(doc.id) type=\(doc.docType.rawValue) (re-roots viewMode+sidebar here)")
         viewMode = .library(doc)
         sidebarSelectionState.selectedItemId = "doc:\(doc.id)"
     }
@@ -19,6 +20,7 @@ extension ContentView {
     /// so Back returns to them (see `recordNavigationEntry`).
     @MainActor
     func revealSearchResult(_ doc: Document) {
+        NavTrace.log("reveal.searchResult", "\(doc.id) container=\(doc.isNavigableContainer) (clears search + navigates)")
         clearTransientSearch()
         if doc.isNavigableContainer {
             navigateToDocument(doc)
@@ -94,12 +96,14 @@ extension ContentView {
     /// engine-resolved reveal (#3577) and the legacy client-side resolver above.
     @MainActor
     func navigateToResolvedSource(_ target: Document) async {
+        NavTrace.log("nav.resolvedSource", "target=\(target.id) type=\(target.docType.rawValue) parent=\(target.parentId ?? "nil")")
         if let folderId = target.parentId, !folderId.isEmpty {
             do {
                 let folder = try await documentStore.documentService.getDocument(folderId)
                 navigateToDocument(folder)
                 browserSelection = [target.id]
                 detailDocument = target
+                NavTrace.log("nav.resolvedSource.set", "container=\(folder.id) sel=[\(target.id)] detail=\(target.id)")
             } catch {
                 navigateToDocument(target)
             }

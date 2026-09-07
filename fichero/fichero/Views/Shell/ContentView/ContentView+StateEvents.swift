@@ -240,6 +240,11 @@ extension ContentView {
               let excerpt = result.transcriptExcerpts.first else {
             // No hit to light (search ended, or this selection is not a
             // resolvable result) — clear the transcript's search mark.
+            NavTrace.log(
+                "searchAnchor.clear",
+                "doc=\(doc?.id ?? "nil") search=\(activeSearchQuery != nil) "
+                    + "hasResult=\(transientSearchStore?.results.contains(where: { $0.documentId == doc?.id }) ?? false)"
+            )
             ReaderSearchMatchState.shared.clear()
             return
         }
@@ -258,6 +263,10 @@ extension ContentView {
             pageId: anchor.documentId,
             charStart: anchor.charStart,
             charEnd: anchor.charEnd
+        )
+        NavTrace.log(
+            "searchAnchor.set",
+            "page=\(anchor.documentId) start=\(anchor.charStart ?? -1) end=\(anchor.charEnd ?? -1)"
         )
         // LATCH, then post (Daniel, 2026-09-03). This fires from the
         // `detailDocument` change, so the reader for that document is

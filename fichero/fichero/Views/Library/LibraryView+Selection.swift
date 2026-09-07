@@ -253,13 +253,19 @@ extension LibraryView {
     /// within it (#1463 class) and leaving the preview's page label to a stale
     /// cursor. Everything else re-roots the preview.
     func previewSelectedDocument(_ doc: Document) {
-        if pageClickMovesCursorOnly(
+        let cursorOnly = pageClickMovesCursorOnly(
             clicked: doc,
             detailDocument: detailDocument,
             // The SAME condition the mode-scoping fix uses: while a query is up
             // this pane is showing hits, not a folder listing.
             isShowingSearchResults: activeSearchQuery != nil
-        ) {
+        )
+        NavTrace.log(
+            "preview.tap",
+            "\(doc.id) type=\(doc.docType.rawValue) search=\(activeSearchQuery != nil) "
+                + "-> \(cursorOnly ? "onPageFocus(cursor)" : "detailDocument=doc")"
+        )
+        if cursorOnly {
             onPageFocus(doc)
         } else {
             detailDocument = doc
