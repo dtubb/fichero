@@ -325,6 +325,28 @@ final class ClaimSummaryCardTests: XCTestCase {
         XCTAssertEqual(mentions[1].lineLabel, "Early January 1923 · p. 13")
     }
 
+    func testMentionLabelNamesItsSourceDocumentWhenLoaded() throws {
+        let claim = try decodeClaim("""
+        {
+          "id": "claim-1",
+          "text": "ignored",
+          "source_document_id": "doc-1",
+          "source_page_label": "12",
+          "time_start": "1923-01-01"
+        }
+        """)
+        // With the source document loaded, the mention row NAMES it — no longer
+        // only "date · page", and never the raw id.
+        let mentions = EntityDetailView.mentionSummaries(
+            from: [claim],
+            documents: ["doc-1": Document(id: "doc-1", name: "Diary 1923.pdf")]
+        )
+        XCTAssertEqual(mentions.count, 1)
+        XCTAssertEqual(mentions[0].docName, "Diary 1923.pdf")
+        XCTAssertTrue(mentions[0].lineLabel.hasPrefix("Diary 1923.pdf · "))
+        XCTAssertTrue(mentions[0].lineLabel.contains("p. 12"))
+    }
+
     func testMentionDateLabelFallsBackToDocumentMetadata() throws {
         let claim = try decodeClaim("""
         {
