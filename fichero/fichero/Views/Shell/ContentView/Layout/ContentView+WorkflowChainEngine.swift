@@ -148,94 +148,104 @@ extension ContentView {
 
     // MARK: - Engine execution
 
-    /// Launch the bar's staged chain, OR enqueue it behind a run already in
-    /// flight (Daniel, 2026-09-07: "start a run and compose the next thing").
+    /// The one entry point ▶ calls (Daniel, 2026-09-07: "it can run in
+    /// parallel. it lets us do one thing, then try the next").
     ///
-    /// The one entry point ▶ calls. Nothing running → run now, attached, exactly
-    /// as before. A run already in the pipeline → freeze this composition
-    /// (steps + scope + context, so it acts on what is selected NOW) onto the
-    /// queue and clear the bar for the next thing. `isChainPipelineActive`, not
-    /// `isRunningStagedChain`, is the gate: the latter flickers false between
-    /// drained runs, and a launch landing in that gap must enqueue, never start
-    /// a second concurrent pipeline.
+    /// Nothing running → run the bar's chain ATTACHED, exactly as before: live
+    /// chips, inline Stop, engine path preferred. Anything already running → the
+    /// bar is a LAUNCHER: freeze this composition (steps + scope + context, so
+    /// it acts on what is selected NOW) and launch it DETACHED, to run
+    /// CONCURRENTLY with the others, then clear the bar for the next thing.
+    /// "Already running" is any active run — the attached one OR a detached one
+    /// — so a second launch never collides with the single `isRunningStagedChain`
+    /// lock the attached run uses.
     @MainActor
-    func launchOrEnqueueStagedChain() {
+    func launchStagedChain() {
         guard !stagedWorkflowChain.isEmpty else { return }
-        if isChainPipelineActive {
-            workflowRunQueue.enqueue(QueuedWorkflowRun(
+        let anyRunActive = !workflowRunRegistry.isEmpty || isRunningStagedChain
+        if anyRunActive {
+            launchDetachedRun(
                 steps: stagedWorkflowChain,
                 scope: workflowBarRunScope,
                 userContext: workflowUserContext
-            ))
-            // The composition is safely queued; free the bar for the next one.
+            )
             stagedWorkflowChain = []
-            barChainDetached = true
         } else {
             stagedChainRunTask = Task { await runStagedChain() }
         }
     }
 
-    /// "New" (Daniel, 2026-09-07): DETACH the running chain from the editable
-    /// rail so the user can compose the next run while it finishes. The run is
-    /// NOT cancelled — it keeps executing, tracked in Activity; only its link to
-    /// the bar's chips is dropped. The bar clears to a fresh composition.
+    /// Launch one run DETACHED: registered as running, executed on its own Task,
+    /// concurrently with every other detached run. It tracks purely through
+    /// Activity (no bar chips) and takes the client loop — the engine chain path
+    /// is bound to the single persisted "Workflow Bar" chain and cannot run
+    /// several at once. The two loops share the same behavior contract
+    /// (sequential steps, per-step model, stop-on-failure).
+    @MainActor
+    func launchDetachedRun(
+        steps: [StagedWorkflowStep],
+        scope: WorkflowBarPolicy.RunScope,
+        userContext: String
+    ) {
+        let run = ActiveWorkflowRun(steps: steps, scope: scope, userContext: userContext)
+        workflowRunRegistry.register(run)
+        detachedRunTasks[run.id] = Task { [run] in
+            await runStagedChainClientSide(
+                steps: run.steps,
+                scope: run.scope,
+                userContext: run.userContext,
+                attached: false
+            )
+            // Settled (completed, failed or stopped): drop it from the running
+            // set and release its Task handle. Every other run is untouched.
+            workflowRunRegistry.finish(run.id)
+            detachedRunTasks[run.id] = nil
+        }
+    }
+
+    /// "New" (Daniel, 2026-09-07): DETACH the bar's own running chain from the
+    /// editable rail so the user can compose the next run while it finishes. The
+    /// run is NOT cancelled — it keeps executing on its existing driver, tracked
+    /// in Activity; it is registered as running so the compact status counts it,
+    /// and the bar clears to a fresh composition. Only meaningful while the
+    /// bar's own chain is the attached running one.
     @MainActor
     func startNewChainComposition() {
-        guard isChainPipelineActive else { return }
+        guard isRunningStagedChain, !barChainDetached else { return }
+        let run = ActiveWorkflowRun(
+            steps: stagedWorkflowChain,
+            scope: workflowBarRunScope,
+            userContext: workflowUserContext
+        )
+        workflowRunRegistry.register(run)
+        attachedRunRegistryId = run.id
         barChainDetached = true
         stagedWorkflowChain = []
     }
 
-    /// The run PIPELINE: the bar's own chain first (attached, engine path
-    /// preferred exactly as before), then every run enqueued behind it, in
-    /// order, until the queue drains or a Stop clears it.
-    ///
-    /// The behavior contract of a single run (chip states, frozen scope,
-    /// stop-on-failure, repeatable chain) is unchanged; the loop simply keeps
-    /// starting the next frozen run when one finishes.
+    /// Run the bar's OWN staged chain, attached: engine-side when this engine
+    /// can, the local loop when it cannot. The behavior contract (chip states,
+    /// frozen scope, stop-on-failure, repeatable chain) is unchanged. This is
+    /// the single-run path; concurrent runs go through `launchDetachedRun`.
     @MainActor
     func runStagedChain() async {
         guard !stagedWorkflowChain.isEmpty, !isRunningStagedChain else { return }
-        isChainPipelineActive = true
         defer {
-            isChainPipelineActive = false
+            // If "New" detached this run into the running set, its settling
+            // removes it — the compact status stops counting a run that is done.
+            if let id = attachedRunRegistryId {
+                workflowRunRegistry.finish(id)
+                attachedRunRegistryId = nil
+            }
             barChainDetached = false
-            runningChainTitle = nil
         }
         // A fresh press supersedes the last run's actuals — the chip shows the
         // estimate again until THIS run records what it spent. Without this a
         // re-run on the unchanged chain (chainCostKey never moved, so the
         // structure-change reset did not fire) would keep last time's numbers.
         stagedChainActualCost = nil
-        runningChainTitle = QueuedWorkflowRun.makeTitle(for: stagedWorkflowChain)
-        // The bar's own chain runs ATTACHED — live chips, engine path preferred.
-        if !(await runStagedChainViaEngine()) {
-            await runStagedChainClientSide()
-        }
-        await drainQueuedRuns()
-    }
-
-    /// Drain the runs enqueued while the active run executed, in order, until
-    /// the queue empties or a Stop cancels the driver.
-    ///
-    /// Each was frozen at ▶-press, so it acts on what was selected then. It runs
-    /// DETACHED — tracked in Activity, no bar chips, because the bar now holds a
-    /// fresh composition. Detached runs take the client loop (self-contained,
-    /// per-step Activity tracking) rather than the engine chain path, which is
-    /// bound to the single persisted "Workflow Bar" chain and would clobber the
-    /// bar's own staged chain; the two loops share the same behavior contract.
-    @MainActor
-    func drainQueuedRuns() async {
-        while !Task.isCancelled, let next = workflowRunQueue.dequeue() {
-            runningChainTitle = next.title
-            stagedChainActualCost = nil
-            await runStagedChainClientSide(
-                steps: next.steps,
-                scope: next.scope,
-                userContext: next.userContext,
-                attached: false
-            )
-        }
+        if await runStagedChainViaEngine() { return }
+        await runStagedChainClientSide()
     }
 
     /// Stop a running chain (Daniel, 2026-09-06: "the workflow bar needs a stop
@@ -249,15 +259,10 @@ extension ContentView {
     @MainActor
     func stopStagedChain() async {
         guard isRunningStagedChain else { return }
-        // Stop halts the WHOLE pipeline: cancelling the driver Task stops the
-        // run in flight and the drain loop behind it, and the queue is emptied
-        // so no run the user queued starts after a deliberate stop (Daniel,
-        // 2026-09-07). Removing individual pending runs is the queue's own
-        // affordance; Stop is the all-off.
-        workflowRunQueue.clear()
-        isChainPipelineActive = false
-        barChainDetached = false
-        runningChainTitle = nil
+        // Stops the bar's OWN attached run only — the run whose chips and Stop
+        // are on the rail. Concurrent DETACHED runs each stop individually from
+        // Activity (Daniel, 2026-09-07: "stop the specific run, not all"), so
+        // this deliberately does not touch the running registry.
         stagedChainRunTask?.cancel()
         stagedChainRunTask = nil
         // Cancel every step still in flight. A step whose thread id is still the

@@ -43,14 +43,15 @@ extension ContentView {
                 // representable below carries it back to the NSToolbar.
                 onSetLabels: { showWorkflowBarLabels = $0 },
                 staged: $stagedWorkflowChain,
-                // ▶ either runs now or, with a pipeline already executing,
-                // queues this composition behind it (Daniel, 2026-09-07).
-                onRunChain: { launchOrEnqueueStagedChain() },
+                // ▶ runs now when idle, or — with a run already active —
+                // launches this composition to run CONCURRENTLY (Daniel,
+                // 2026-09-07: "it can run in parallel").
+                onRunChain: { launchStagedChain() },
                 onStopChain: { Task { await stopStagedChain() } },
-                // The rail shows the inline spinner + Stop ONLY while the bar's
-                // own chain is the running one. After "New" detaches it, the bar
-                // is a fresh composition, so ▶ returns and the running chain's
-                // status moves to the compact pipeline row.
+                // The rail shows the inline spinner + Stop + chips ONLY while the
+                // bar's own chain is the attached running one. After "New"
+                // detaches it, the bar is a fresh composition, so ▶ returns and
+                // that run's status moves to the compact "N running" row.
                 isRunning: isRunningStagedChain && !barChainDetached,
                 runningStepIndex: runningStagedStepIndex,
                 onOpenStep: { openStagedStepResult($0) },
@@ -82,13 +83,15 @@ extension ContentView {
                 // cannot run on an OCR pass).
                 textTierDefault: workflowBarTextTierDefault,
                 visionTierDefault: workflowBarVisionTierDefault,
-                // Queue a run and compose the next while it executes (Daniel,
-                // 2026-09-07). The pipeline flag, not isRunningStagedChain,
-                // gates enqueue-vs-run and the compact status.
-                pipelineActive: isChainPipelineActive,
-                queuedCount: workflowRunQueue.count,
-                runningTitle: runningChainTitle,
-                onNewRun: { startNewChainComposition() }
+                // Launch a run, then compose the next — several run at once
+                // (Daniel, 2026-09-07). The registry counts the concurrent
+                // detached runs; "New" detaches the bar's own running chain.
+                runningCount: workflowRunRegistry.count,
+                runningTitle: workflowRunRegistry.latestTitle,
+                onNewRun: { startNewChainComposition() },
+                onOpenActivity: {
+                    openWindow(id: ActivityWindowSelectionState.detailWindowID)
+                }
             )
             // On BOTH bars: labels follow the toolbar when only one is shown.
             .background { ToolbarTextModeSync(showsLabels: $showWorkflowBarLabels) }
@@ -151,10 +154,12 @@ extension ContentView {
     /// repeat on the next folder is the point of having assembled it.
     ///
     /// A DETACHED run (`attached: false`) supplies its own frozen `steps`,
-    /// `scope` and `userContext` — a run the user queued behind an earlier one
-    /// (Daniel, 2026-09-07) — and tracks purely through Activity, never touching
-    /// the bar's chips, because the rail now holds a different composition. The
-    /// attached case (all-nil, `attached: true`) is the bar's own chain and
+    /// `scope` and `userContext` — a run launched to run CONCURRENTLY alongside
+    /// others (Daniel, 2026-09-07: "it can run in parallel") — and tracks purely
+    /// through Activity, never touching the bar's chips, its `isRunningStagedChain`
+    /// lock, or its cost/scope state, because the rail now holds a different
+    /// composition and other detached runs may be executing at the same time.
+    /// The attached case (all-nil, `attached: true`) is the bar's own chain and
     /// behaves exactly as before.
     @MainActor
     func runStagedChainClientSide(
@@ -164,15 +169,24 @@ extension ContentView {
         attached: Bool = true
     ) async {
         let chainSteps = steps ?? stagedWorkflowChain
-        guard !chainSteps.isEmpty, !isRunningStagedChain else { return }
-        isRunningStagedChain = true
-        // A plain run supersedes whatever the last compare showed — stale
-        // per-model capsules under a fresh chain run would claim runs this
-        // press never made.
-        chromeUX.compareRunProgress = []
+        // The `isRunningStagedChain` lock guards only the bar's OWN chain: it is
+        // one flag and cannot represent several concurrent detached runs, so a
+        // detached run neither checks nor sets it.
+        if attached {
+            guard !chainSteps.isEmpty, !isRunningStagedChain else { return }
+            isRunningStagedChain = true
+            // A plain run supersedes whatever the last compare showed — stale
+            // per-model capsules under a fresh chain run would claim runs this
+            // press never made.
+            chromeUX.compareRunProgress = []
+        } else {
+            guard !chainSteps.isEmpty else { return }
+        }
         defer {
-            isRunningStagedChain = false
-            runningStagedStepIndex = nil
+            if attached {
+                isRunningStagedChain = false
+                runningStagedStepIndex = nil
+            }
         }
         let runContext = userContext ?? workflowUserContext
 
@@ -196,8 +210,11 @@ extension ContentView {
             for: scope, folderSubjectId: workflowBarSelectionSnapshot.folderSubjectId
         )
         // What "see what it produced" opens later, however the live selection
-        // wanders during the run.
-        lastChainRunTargets = targets
+        // wanders during the run. Only the attached run drives the bar's "open
+        // result" — a detached run's output is opened from Activity.
+        if attached {
+            lastChainRunTargets = targets
+        }
 
         // Every step starts pending again, so a re-run does not show last
         // time's greens while this time's work is still ahead. Only for an
@@ -225,7 +242,11 @@ extension ContentView {
             // A Stop press cancels this driver Task (stopStagedChain) — halt
             // before starting the next paid step rather than pressing on.
             if Task.isCancelled { break }
-            runningStagedStepIndex = stagedWorkflowChain.firstIndex { $0.id == step.id }
+            // The rail's running-index highlight is the attached run's; a
+            // detached run has no chips to point at.
+            if attached {
+                runningStagedStepIndex = stagedWorkflowChain.firstIndex { $0.id == step.id }
+            }
             update(step.id) { $0.state = .running }
             // Each step carries its own model, so a chain can read a hard hand
             // with the best available and then count entities with something
@@ -282,8 +303,12 @@ extension ContentView {
         }
         // Whatever the chain settled to — all green, or stopped early — read
         // each step's recorded cost so the chip states what the run actually
-        // spent, the same source of truth as the engine path.
-        await refreshChainActualCost()
+        // spent, the same source of truth as the engine path. Only the attached
+        // run owns the bar's cost chip; a detached run's spend is read in
+        // Activity, and writing it here would overwrite the bar's own numbers.
+        if attached {
+            await refreshChainActualCost()
+        }
     }
 
     /// The workflow a step runs.

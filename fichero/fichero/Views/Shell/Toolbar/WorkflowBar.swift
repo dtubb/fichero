@@ -107,19 +107,20 @@ struct WorkflowBar: View {
     /// The configured Vision default, same reason.
     var visionTierDefault: WorkflowBarModelChoice?
 
-    /// A run PIPELINE is executing — the active run plus any queued behind it
-    /// (Daniel, 2026-09-07: "start a run and compose the next thing"). Drives
-    /// the compact "running / N queued" status, and makes ▶ ENQUEUE the composed
-    /// chain rather than start a second concurrent run.
-    var pipelineActive: Bool = false
-    /// How many runs are queued behind the active one, for the "N queued" chip.
-    var queuedCount: Int = 0
-    /// A short name for the run currently executing, for the compact status
-    /// shown once the running chain is detached from the editable rail.
+    /// How many DETACHED runs are executing concurrently (Daniel, 2026-09-07:
+    /// "it can run in parallel"), for the compact "N running" status. The
+    /// attached run on the rail is not counted here — it shows its own chips.
+    var runningCount: Int = 0
+    /// A short name for the most recent detached run, so a lone "1 running"
+    /// status can name it rather than just count it.
     var runningTitle: String?
     /// "New": detach the running chain (it keeps executing, tracked in Activity)
-    /// and clear the rail to compose the next run. nil hides the affordance.
+    /// and clear the rail to compose the next run — which then runs concurrently.
+    /// nil hides the affordance.
     var onNewRun: (() -> Void)?
+    /// Open Activity, where the concurrent detached runs live. nil leaves the
+    /// compact status non-interactive.
+    var onOpenActivity: (() -> Void)?
 
     /// Which configured default an unpinned STEP resolves to — its tool's
     /// need, not the selection's tier.
@@ -256,12 +257,13 @@ struct WorkflowBar: View {
                     compareProgressRow
                 }
             }
-            // The compact status for a DETACHED pipeline: the running chain has
-            // left the editable rail (via "New"), so its progress lives here and
-            // in Activity while the rail is free for the next composition. Shown
-            // only when detached — an attached single run keeps its inline
-            // spinner + Stop in the chain row above (Daniel, 2026-09-07).
-            if pipelineActive, !isRunning {
+            // The compact status for DETACHED runs: once a run leaves the
+            // editable rail (via "New", or by launching while one is already
+            // running), its progress lives here and in Activity while the rail
+            // is free for the next composition — several may run at once
+            // (Daniel, 2026-09-07). An attached single run keeps its inline
+            // spinner + Stop + chips in the chain row above.
+            if runningCount > 0 {
                 Divider()
                 pipelineStatusRow
             }

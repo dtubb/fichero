@@ -1,26 +1,26 @@
 import Foundation
 
-/// A chain the user composed and launched while another run was still
-/// executing, frozen at the moment they pressed ▶ (Daniel, 2026-09-07: "start a
-/// run and compose the next thing, e.g. do Apple Vision, then do Google").
+/// A workflow run launched from the bar and now executing on its own, tracked
+/// in Activity (Daniel, 2026-09-07: "it stays in activity. not queued behind
+/// vision. it can run in parallel. it lets us do one thing, then try the
+/// next").
 ///
-/// Steps, scope and the user's framing are captured HERE rather than read at
-/// drain time, so a queued run acts on what was selected when it was launched —
-/// not on whatever the selection has wandered to by the time the run ahead of
-/// it finishes. This is the same freeze `runStagedChain` makes for the live
-/// run; the queue simply keeps it until its turn.
-struct QueuedWorkflowRun: Identifiable, Equatable {
+/// The bar DETACHES a run the instant it launches: the run keeps executing
+/// concurrently with any others — Apple Vision AND Google at the same time —
+/// each on the steps, scope and framing frozen at ▶-press, so a run acts on
+/// what was selected when it was launched, never on whatever the selection has
+/// wandered to since. Steps/scope/context are kept for the record and for a
+/// re-launch; the live execution is the engine's, watched through Activity.
+struct ActiveWorkflowRun: Identifiable, Equatable {
     let id: UUID
-    /// The chain to run, in order, with each step's own model pin.
+    /// The chain this run executes, in order, with each step's own model pin.
     var steps: [StagedWorkflowStep]
     /// What the run acts on, resolved and frozen at ▶-press.
     var scope: WorkflowBarPolicy.RunScope
-    /// The run's user framing ("this is a historical diary"), frozen so a
-    /// detached run carries the context it was launched with rather than one
-    /// the window may have edited since.
+    /// The run's user framing ("this is a historical diary"), frozen.
     var userContext: String
-    /// A short label for the "N queued" / next-up indicator — read from the
-    /// steps so the strip can name the run without opening Activity.
+    /// A short name for the "N running" indicator — read from the steps so the
+    /// strip can name the run without opening Activity.
     var title: String
 
     init(
@@ -33,7 +33,7 @@ struct QueuedWorkflowRun: Identifiable, Equatable {
         self.steps = steps
         self.scope = scope
         self.userContext = userContext
-        self.title = QueuedWorkflowRun.makeTitle(for: steps)
+        self.title = ActiveWorkflowRun.makeTitle(for: steps)
     }
 
     /// The run's name: its only step's, or the first step plus a count so a
@@ -45,47 +45,43 @@ struct QueuedWorkflowRun: Identifiable, Equatable {
     }
 }
 
-/// The FIFO of runs waiting behind the one currently executing in the workflow
-/// bar — the queue that makes "Apple Vision THEN Google" possible (Daniel,
-/// 2026-09-07).
+/// The runs launched from the bar that are still executing — the bar's view of
+/// what Activity is running, so it can show "N running" and know it is no longer
+/// idle (Daniel, 2026-09-07). PARALLEL, not a queue: a run is registered the
+/// instant it launches and executes concurrently with every other registered
+/// run; none waits behind another, and finishing one leaves the rest untouched.
 ///
-/// A pure value type with no SwiftUI and no engine calls, so the behavior that
-/// matters — enqueue while a run is executing, drain in the order launched,
-/// and an empty queue leaving the single-run path untouched — is tested without
-/// a window. The host (ContentView) owns starting the runs; this type only owns
-/// their order.
-struct WorkflowRunQueue: Equatable {
-    private(set) var pending: [QueuedWorkflowRun] = []
+/// A pure value type with no SwiftUI, Tasks or engine calls, so the invariant
+/// that matters — launch registers, several run at once independently, and a
+/// finish (in any order) removes only that run — is tested without a window.
+/// The host (ContentView) owns the Tasks and the Activity wiring; this type
+/// owns only the set and its order of arrival.
+struct WorkflowRunRegistry: Equatable {
+    private(set) var runs: [ActiveWorkflowRun] = []
 
-    var isEmpty: Bool { pending.isEmpty }
-    var count: Int { pending.count }
+    var isEmpty: Bool { runs.isEmpty }
+    /// How many runs are executing concurrently, for the "N running" chip.
+    var count: Int { runs.count }
 
-    /// The label of the run that will start next, for the compact "next up"
-    /// indicator. nil when nothing is queued.
-    var nextTitle: String? { pending.first?.title }
+    /// A representative title for the compact status — the most RECENT launch,
+    /// which is what "N running" collapses to when only one is left. nil when
+    /// nothing is running.
+    var latestTitle: String? { runs.last?.title }
 
-    /// Add a run to the back of the queue — launched later means runs later.
-    mutating func enqueue(_ run: QueuedWorkflowRun) {
-        pending.append(run)
+    /// Record a run as it launches. Order is arrival order (newest last), so
+    /// `latestTitle` names the run just launched.
+    mutating func register(_ run: ActiveWorkflowRun) {
+        runs.append(run)
     }
 
-    /// Take the next run to start, removing it, or nil once the queue has
-    /// drained. FIFO: the run launched first comes out first.
-    mutating func dequeue() -> QueuedWorkflowRun? {
-        pending.isEmpty ? nil : pending.removeFirst()
+    /// Drop a run when it settles — completed, failed or stopped. Removes only
+    /// that run; every other concurrent run keeps executing. Unknown ids are a
+    /// no-op (a double-finish must not disturb the rest).
+    mutating func finish(_ id: UUID) {
+        runs.removeAll { $0.id == id }
     }
 
-    /// Drop a still-pending run — its "remove from queue" affordance. A run
-    /// already dequeued and executing is halted through the run controls
-    /// (Stop / Activity), never here; this only touches what has not started.
-    mutating func remove(_ id: UUID) {
-        pending.removeAll { $0.id == id }
-    }
-
-    /// Discard every pending run without starting any — the queue's own Clear,
-    /// for abandoning a backlog the user no longer wants. Leaves the executing
-    /// run alone.
-    mutating func clear() {
-        pending.removeAll()
+    func run(_ id: UUID) -> ActiveWorkflowRun? {
+        runs.first { $0.id == id }
     }
 }

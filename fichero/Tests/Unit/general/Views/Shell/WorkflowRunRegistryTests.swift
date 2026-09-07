@@ -1,20 +1,21 @@
 //
-//  WorkflowRunQueueTests.swift
+//  WorkflowRunRegistryTests.swift
 //  FicheroTests
 //
-//  The workflow bar can now launch a run and then compose the next one while
-//  it executes (Daniel, 2026-09-07: "start a run and compose the next thing,
-//  e.g. do Apple Vision, then do Google"). Runs launched while another is still
-//  executing are ENQUEUED and drained in order. These cover the pure queue:
-//  enqueue-while-running order, FIFO drain, an empty queue leaving the
-//  single-run path untouched, and removing a still-pending run.
+//  The workflow bar can launch a run and immediately compose the next, which
+//  runs CONCURRENTLY (Daniel, 2026-09-07: "it stays in activity. not queued
+//  behind vision. it can run in parallel. it lets us do one thing, then try
+//  the next"). Runs launched while others execute do NOT wait — they run in
+//  parallel, each tracked independently in Activity. These cover the pure
+//  registry: launch registers, several run at once, and a finish (in any
+//  order) removes only that run while the rest keep going.
 //
 
 @testable import Fichero
 import Foundation
 import Testing
 
-struct WorkflowRunQueueTests {
+struct WorkflowRunRegistryTests {
 
     private func step(id: String, name: String) -> StagedWorkflowStep {
         StagedWorkflowStep(kind: .workflow(WorkflowSidebarItem(id: id, name: name)))
@@ -22,73 +23,92 @@ struct WorkflowRunQueueTests {
 
     private func run(
         _ name: String, docIds: [String] = ["doc-1"], context: String = ""
-    ) -> QueuedWorkflowRun {
-        QueuedWorkflowRun(
+    ) -> ActiveWorkflowRun {
+        ActiveWorkflowRun(
             steps: [step(id: "wf-\(name)", name: name)],
             scope: .documents(ids: docIds),
             userContext: context
         )
     }
 
-    // MARK: - Empty queue = single-run behavior, untouched
+    // MARK: - Empty registry = idle, single-run untouched
 
-    @Test("a fresh queue is empty and offers nothing to drain")
-    func emptyQueueDrainsToNil() {
-        var queue = WorkflowRunQueue()
-        #expect(queue.isEmpty)
-        #expect(queue.count == 0)
-        #expect(queue.nextTitle == nil)
-        // Dequeue on an empty queue is a no-op returning nil, so the host's
-        // drain check after a lone run finds nothing and the bar stays in its
-        // single-run resting state.
-        #expect(queue.dequeue() == nil)
-        #expect(queue.isEmpty)
+    @Test("a fresh registry is empty and idle")
+    func emptyRegistryIsIdle() {
+        let registry = WorkflowRunRegistry()
+        #expect(registry.isEmpty)
+        #expect(registry.count == 0)
+        #expect(registry.latestTitle == nil)
     }
 
-    // MARK: - Enqueue while running → drain in order
+    // MARK: - Launch registers; runs are concurrent, not queued
 
-    @Test("runs launched while one executes drain in the order they were launched")
-    func enqueueWhileRunningDrainsFIFO() {
-        var queue = WorkflowRunQueue()
-        // The user launches Apple Vision (executes immediately, not queued),
-        // then composes and launches Google, then Whisper — both enqueued
-        // because a run is already in flight.
-        queue.enqueue(run("Google"))
-        queue.enqueue(run("Whisper"))
+    @Test("launching runs registers them all as concurrently running")
+    func launchesRunConcurrently() {
+        var registry = WorkflowRunRegistry()
+        // Apple Vision launches and runs; Google launches while it is still
+        // going — NOT queued behind it, both running at once.
+        let vision = run("AppleVision")
+        let google = run("Google")
+        registry.register(vision)
+        registry.register(google)
 
-        #expect(queue.count == 2)
-        #expect(queue.nextTitle == "Google")
-
-        // Apple Vision finishes → the host drains the next: Google first.
-        let first = queue.dequeue()
-        #expect(first?.title == "Google")
-        #expect(queue.count == 1)
-        #expect(queue.nextTitle == "Whisper")
-
-        // Google finishes → Whisper.
-        let second = queue.dequeue()
-        #expect(second?.title == "Whisper")
-        #expect(queue.isEmpty)
-
-        // Whisper finishes → nothing left; the bar returns to single-run rest.
-        #expect(queue.dequeue() == nil)
+        // Both are running at the same time — the registry is not a queue.
+        #expect(registry.count == 2)
+        #expect(registry.run(vision.id) != nil)
+        #expect(registry.run(google.id) != nil)
+        // The compact status names the most recent launch when it collapses.
+        #expect(registry.latestTitle == "Google")
     }
 
-    @Test("a queued run freezes its steps, scope and context at launch")
-    func queuedRunFreezesLaunchInputs() {
-        var queue = WorkflowRunQueue()
-        queue.enqueue(run("Google", docIds: ["a", "b"], context: "diary"))
-        let drained = queue.dequeue()
-        #expect(drained?.scope == .documents(ids: ["a", "b"]))
-        #expect(drained?.userContext == "diary")
-        #expect(drained?.steps.map(\.name) == ["Google"])
+    @Test("a run finishing leaves every other concurrent run untouched")
+    func finishOneKeepsTheRest() {
+        var registry = WorkflowRunRegistry()
+        let vision = run("AppleVision")
+        let google = run("Google")
+        let whisper = run("Whisper")
+        registry.register(vision)
+        registry.register(google)
+        registry.register(whisper)
+        #expect(registry.count == 3)
+
+        // Google finishes first, though it launched second — parallel runs
+        // settle in whatever order they complete, not launch order.
+        registry.finish(google.id)
+        #expect(registry.count == 2)
+        #expect(registry.run(google.id) == nil)
+        // Vision and Whisper keep running, undisturbed.
+        #expect(registry.run(vision.id) != nil)
+        #expect(registry.run(whisper.id) != nil)
+
+        registry.finish(vision.id)
+        registry.finish(whisper.id)
+        #expect(registry.isEmpty)
+    }
+
+    @Test("finishing an unknown id is a no-op")
+    func finishUnknownIsNoOp() {
+        var registry = WorkflowRunRegistry()
+        registry.register(run("Google"))
+        registry.finish(UUID())
+        #expect(registry.count == 1)
+    }
+
+    // MARK: - A run freezes its steps, scope and context at launch
+
+    @Test("a launched run freezes its steps, scope and context")
+    func launchedRunFreezesInputs() {
+        let launched = run("Google", docIds: ["a", "b"], context: "diary")
+        #expect(launched.scope == .documents(ids: ["a", "b"]))
+        #expect(launched.userContext == "diary")
+        #expect(launched.steps.map(\.name) == ["Google"])
     }
 
     // MARK: - Title derivation
 
     @Test("a multi-step run names its head plus a count")
     func multiStepRunTitle() {
-        let queued = QueuedWorkflowRun(
+        let launched = ActiveWorkflowRun(
             steps: [
                 step(id: "wf-1", name: "Transcribe"),
                 step(id: "wf-2", name: "Clean up"),
@@ -97,47 +117,11 @@ struct WorkflowRunQueueTests {
             scope: .documents(ids: ["doc-1"]),
             userContext: ""
         )
-        #expect(queued.title == "Transcribe +2")
+        #expect(launched.title == "Transcribe +2")
     }
 
     @Test("a single-step run is named for that step alone")
     func singleStepRunTitle() {
         #expect(run("Transcribe").title == "Transcribe")
-    }
-
-    // MARK: - Remove a still-pending run
-
-    @Test("removing a pending run drops only it and preserves order")
-    func removePendingRun() {
-        var queue = WorkflowRunQueue()
-        let google = run("Google")
-        let whisper = run("Whisper")
-        let translate = run("Translate")
-        queue.enqueue(google)
-        queue.enqueue(whisper)
-        queue.enqueue(translate)
-
-        queue.remove(whisper.id)
-        #expect(queue.count == 2)
-        #expect(queue.dequeue()?.id == google.id)
-        #expect(queue.dequeue()?.id == translate.id)
-    }
-
-    @Test("removing an unknown id leaves the queue unchanged")
-    func removeUnknownIsNoOp() {
-        var queue = WorkflowRunQueue()
-        queue.enqueue(run("Google"))
-        queue.remove(UUID())
-        #expect(queue.count == 1)
-    }
-
-    @Test("clear discards every pending run")
-    func clearEmptiesQueue() {
-        var queue = WorkflowRunQueue()
-        queue.enqueue(run("Google"))
-        queue.enqueue(run("Whisper"))
-        queue.clear()
-        #expect(queue.isEmpty)
-        #expect(queue.dequeue() == nil)
     }
 }

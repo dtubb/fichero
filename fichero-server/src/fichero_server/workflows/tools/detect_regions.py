@@ -115,6 +115,12 @@ async def detect_regions(
     files = inputs.get("files") or state.get("input_files", [])
     documents = inputs.get("documents", [])
 
+    # Set only when this run SUBSTITUTES the configured Vision tier default for
+    # an absent run/step choice — so a default that cannot serve fails loud and
+    # named below, never as an opaque "All parallel branches failed" (Fix A,
+    # Daniel 2026-09-07 no-silent-substitution).
+    configured_default: LLMConfig | None = None
+
     provider = inputs.get("provider", "apple")
     use_vlm = provider == "vlm"
     use_kraken = provider == "kraken"
@@ -170,6 +176,14 @@ async def detect_regions(
                     "geometry."
                 )
             effective_llm = LLMConfig(provider=prov, model=mod)
+            # This is the configured tier DEFAULT, not a model the user picked
+            # for this run. If it cannot serve (e.g. an unpicked local MLX model
+            # that isn't installed), fail loud and named after the call rather
+            # than letting it die as a bare "not installed" branch error. When
+            # the run/step DID pick a model it reaches this node via the R-11
+            # override (validation.apply_run_model_override) and never enters
+            # this branch — Gemini is used, full stop.
+            configured_default = effective_llm
     else:
         # The Apple branch never sends a prompt to a model; kept explicit so
         # the local path cannot silently inherit a transcription prompt.
@@ -206,6 +220,33 @@ async def detect_regions(
         save_to_db=inputs.get("save_to_db", True),
         save_to_file_flag=False,
     )
+
+    # Fix A: when this run substituted the configured Vision default (no model
+    # was picked for the run or the step) and that default could not serve any
+    # file, fail LOUD and NAMED. process_vision swallows a provider/runtime
+    # error into per-file result["error"], which otherwise surfaces only as the
+    # builder's opaque "All parallel branches failed ... not installed" — with
+    # no hint that the model was the CONFIGURED DEFAULT, not the user's pick.
+    if configured_default is not None:
+        branch_errors = [
+            r.get("error")
+            for r in result.get("results", [])
+            if isinstance(r, dict) and r.get("error")
+        ]
+        produced = any(
+            isinstance(r, dict) and not r.get("error")
+            for r in result.get("results", [])
+        )
+        if branch_errors and not produced:
+            raise ValueError(
+                f"Detect Regions (VLM) used the configured Vision default "
+                f"'{configured_default.provider}/{configured_default.model}' "
+                f"because no model was selected for this run, but it could not "
+                f"serve the request: {branch_errors[0]}. Select a vision-capable "
+                f"model in the Run Workflow menu, pin one on this step, or make "
+                f"the configured Vision default available (for a local MLX model, "
+                f"enable it and download it in Settings)."
+            )
 
     # Pass the inputs through untouched so a transcriber chains directly
     # after this node: detect_regions annotates, it does not transform.

@@ -59,39 +59,45 @@ extension WorkflowBar {
         .padding(.vertical, 6)
     }
 
-    /// The compact status of a DETACHED pipeline (Daniel, 2026-09-07): once
-    /// "New" moves the running chain off the editable rail, its progress reads
-    /// here and in Activity — the run currently executing, how many are queued
-    /// behind it, and one Stop that halts the whole pipeline. The full per-step
-    /// chips of a detached run live in Activity, not the bar, which is now a
-    /// launchpad for the next composition.
+    /// The compact status of the DETACHED runs (Daniel, 2026-09-07): runs that
+    /// left the editable rail — one detached via "New", or several launched to
+    /// run in parallel — track here and in Activity while the rail stays free
+    /// for the next composition. It counts them and opens Activity, which is the
+    /// source of truth and where each run is stopped individually; the full
+    /// per-step progress lives there, not in the bar, which is now a launchpad.
     var pipelineStatusRow: some View {
-        HStack(spacing: 8) {
-            ProgressView()
-                .controlSize(.small)
-            Text(runningTitle.map { "Running \($0)" } ?? "Running…")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .truncationMode(.tail)
-            if queuedCount > 0 {
-                Text("· \(queuedCount) queued")
+        // One run names itself ("Running Transcribe"); several collapse to a
+        // count, since the bar cannot show every concurrent run's chips.
+        let label = runningCount == 1
+            ? (runningTitle.map { "Running \($0)" } ?? "1 running")
+            : "\(runningCount) running"
+        return Button {
+            onOpenActivity?()
+        } label: {
+            HStack(spacing: 8) {
+                ProgressView()
+                    .controlSize(.small)
+                Text(label)
                     .font(.caption)
-                    .foregroundStyle(.tertiary)
-                    .accessibilityLabel("\(queuedCount) runs queued")
-            }
-            Spacer()
-            if let onStopChain {
-                Button(action: onStopChain) {
-                    Image(systemName: "stop.circle.fill")
-                        .font(.title3)
-                        .foregroundStyle(.red)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                Spacer()
+                if onOpenActivity != nil {
+                    Text("Activity")
+                        .font(.caption)
+                        .foregroundStyle(.tint)
+                    Image(systemName: "chevron.right")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
                 }
-                .buttonStyle(.plain)
-                .help("Stop the running chain and clear the queue")
-                .accessibilityLabel("Stop all runs")
             }
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
+        .disabled(onOpenActivity == nil)
+        .help("\(label) — open Activity to watch or stop them")
+        .accessibilityLabel("\(runningCount) runs executing. Open Activity.")
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
     }

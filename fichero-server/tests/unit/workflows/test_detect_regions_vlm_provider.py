@@ -75,3 +75,74 @@ def test_apple_pinned_vlm_run_substitutes_the_configured_vision_model(monkeypatc
     assert config is not None, "process_vision must be given the resolved config"
     assert config.provider == "openai"
     assert config.model == "gpt-5"
+
+
+def test_substituted_default_that_cannot_serve_fails_loud_and_named(monkeypatch):
+    """No model was picked for the run, so the step falls to the configured
+    Vision default — an unpicked local MLX model that isn't installed. It must
+    FAIL LOUD and NAMED, not die as an opaque 'All parallel branches failed …
+    not installed' (Daniel 2026-09-07 no-silent-substitution)."""
+    monkeypatch.setattr(
+        "fichero_server.llm.resolve_model_alias_for_capability",
+        lambda provider, model, required_capability=None: (
+            "omlx",
+            "mlx-community/Qwen3-VL-8B",
+        ),
+    )
+
+    async def _fake_process_vision(*args, **kwargs):
+        # process_vision swallows the provider/runtime error into per-file
+        # result["error"] (it degrades rather than raising).
+        return {
+            "results": [
+                {
+                    "file": "p1.png",
+                    "text": "",
+                    "value": None,
+                    "error": "Local model mlx-community/Qwen3-VL-8B is not installed.",
+                }
+            ]
+        }
+
+    monkeypatch.setattr(
+        detect_regions_module, "process_vision", _fake_process_vision
+    )
+
+    with pytest.raises(ValueError) as excinfo:
+        _run(
+            {"provider": "vlm", "files": ["p1.png"]},
+            # Empty config == the run's choice never reached this node.
+            LLMConfig(provider="", model=""),
+        )
+
+    message = str(excinfo.value)
+    assert "omlx/mlx-community/Qwen3-VL-8B" in message
+    assert "configured Vision default" in message
+    # The underlying reason is surfaced, not hidden.
+    assert "not installed" in message
+
+
+def test_a_run_pick_is_used_and_never_reframed_as_a_default(monkeypatch):
+    """When the run's cloud choice DOES reach the node it is used verbatim, and
+    a provider error on it is NOT reframed as a configured-default failure — the
+    substitution branch is not entered at all."""
+    captured: dict[str, object] = {}
+
+    async def _fake_process_vision(*args, **kwargs):
+        captured["llm_config"] = kwargs.get("llm_config")
+        # Even if this pick errored, detect_regions must not raise the
+        # configured-default message — that path is only for substitutions.
+        return {"results": [{"file": "p1.png", "text": "boxes", "value": None}]}
+
+    monkeypatch.setattr(
+        detect_regions_module, "process_vision", _fake_process_vision
+    )
+
+    result = _run(
+        {"provider": "vlm", "files": ["p1.png"]},
+        LLMConfig(provider="google", model="gemini-3-pro-preview"),
+    )
+    config = captured["llm_config"]
+    assert config.provider == "google"
+    assert config.model == "gemini-3-pro-preview"
+    assert "results" in result
