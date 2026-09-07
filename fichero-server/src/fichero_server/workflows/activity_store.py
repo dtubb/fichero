@@ -1024,6 +1024,30 @@ class ActivityStore:
         """Delete activities older than specified date."""
         return await asyncio.to_thread(self.delete_old_sync, older_than)
 
+    def delete_by_id_sync(self, activity_id: str) -> int:
+        """Delete ONE activity by id (sync, for use inside registry.invoke).
+
+        Returns the number of rows removed — 0 when the id is unknown (already
+        gone or never existed), so the caller can 404 honestly rather than
+        report a delete that did nothing.
+        """
+        conn = connect_utc(self.db_path)
+        try:
+            result = conn.execute(
+                """
+                DELETE FROM activities
+                WHERE id = ?
+            """,
+                [activity_id],
+            )
+            return result.fetchone()[0] if result else 0
+        finally:
+            conn.close()
+
+    async def delete_by_id(self, activity_id: str) -> int:
+        """Delete ONE activity by id."""
+        return await asyncio.to_thread(self.delete_by_id_sync, activity_id)
+
     # =========================================================================
     # Workflow Run Methods
     # =========================================================================

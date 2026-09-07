@@ -165,6 +165,15 @@ class ActivityCleanupParams(BaseModel):
     days: int = Field(ge=1, le=365)
 
 
+class ActivityDeleteParams(BaseModel):
+    activity_id: str = Field(min_length=1)
+
+
+class ActivityDeleteResponse(BaseModel):
+    deleted: int
+    activity_id: str
+
+
 class ActivityStatsResponse(BaseModel):
     """Response model for activity statistics."""
 
@@ -578,6 +587,54 @@ def _action_cleanup_old_activities(
         domains=["activity"],
         target_ids=[],
         before={"days": params.days},
+        after=result,
+        emit_type="activity.updated",
+    )
+    return result, spec
+
+
+@router.delete("/{activity_id}")
+async def delete_activity(
+    activity_id: str,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> ActivityDeleteResponse:
+    """Delete ONE activity entry the user chose to remove from the log.
+
+    The bulk `/cleanup` deletes by age; this removes a single entry the user
+    picked (Daniel: an old activity should be deletable). 404 when the id is
+    unknown so the UI never claims a delete that removed nothing.
+    """
+    result = registry.invoke(
+        db,
+        "activity.delete",
+        {"activity_id": activity_id},
+        ctx,
+    )
+    response = ActivityDeleteResponse.model_validate(result.result)
+    if response.deleted == 0:
+        raise HTTPException(status_code=404, detail="Activity not found")
+    return response
+
+
+@action(
+    "activity.delete",
+    ActivityDeleteParams,
+    domains=["activity"],
+    undoable=False,
+)
+def _action_delete_activity(
+    db: Database,
+    params: ActivityDeleteParams,
+    ctx: ActionContext,
+) -> tuple[dict[str, Any], ChangeSpec]:
+    tracker = get_activity_tracker(str(db.path))
+    deleted = tracker.store.delete_by_id_sync(params.activity_id)
+    result = {"deleted": deleted, "activity_id": params.activity_id}
+    spec = ChangeSpec(
+        domains=["activity"],
+        target_ids=[params.activity_id],
+        before={"activity_id": params.activity_id},
         after=result,
         emit_type="activity.updated",
     )

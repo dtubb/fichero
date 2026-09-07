@@ -429,6 +429,71 @@ class TestActivityCleanup:
 
 
 # ---------------------------------------------------------------------------
+# DELETE /api/activity/{activity_id} — single-entry delete
+# ---------------------------------------------------------------------------
+
+
+class TestActivityDelete:
+    def test_delete_removes_one_entry(self, client):
+        tracker = _make_mock_tracker()
+        tracker.store.delete_by_id_sync = MagicMock(return_value=1)
+        with patch("fichero_server.api.routes.system.activity.get_activity_tracker", return_value=tracker):
+            r = client.delete("/api/activity/act-123")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["deleted"] == 1
+        assert data["activity_id"] == "act-123"
+        tracker.store.delete_by_id_sync.assert_called_once_with("act-123")
+
+    def test_delete_unknown_id_returns_404(self, client):
+        """A delete that removed nothing is a 404 — never a false success."""
+        tracker = _make_mock_tracker()
+        tracker.store.delete_by_id_sync = MagicMock(return_value=0)
+        with patch("fichero_server.api.routes.system.activity.get_activity_tracker", return_value=tracker):
+            r = client.delete("/api/activity/no-such-id")
+        assert r.status_code == 404
+
+    def test_delete_writes_audit_row(self, client, db):
+        """Delete goes through registry.invoke and writes an ActionAudit row."""
+        tracker = _make_mock_tracker()
+        tracker.store.delete_by_id_sync = MagicMock(return_value=1)
+        with patch("fichero_server.api.routes.system.activity.get_activity_tracker", return_value=tracker):
+            r = client.delete("/api/activity/act-77")
+        assert r.status_code == 200
+        from fichero_server.models import ActionAudit
+        audits = [a for a in db.query(ActionAudit) if a.action_name == "activity.delete"]
+        assert len(audits) == 1
+        assert audits[0].params["activity_id"] == "act-77"
+
+    def test_delete_emits_change_event(self, client, db, monkeypatch):
+        calls = []
+        monkeypatch.setattr(
+            "fichero_server.api.change_stream.emit_change",
+            lambda *a, **k: calls.append((a, k)),
+        )
+        tracker = _make_mock_tracker()
+        tracker.store.delete_by_id_sync = MagicMock(return_value=1)
+        with patch("fichero_server.api.routes.system.activity.get_activity_tracker", return_value=tracker):
+            r = client.delete("/api/activity/act-9")
+        assert r.status_code == 200
+        assert len(calls) == 1
+        _args, kwargs = calls[0]
+        assert kwargs["type"] == "activity.updated"
+
+    def test_cleanup_path_not_shadowed_by_id_route(self, client):
+        """DELETE /activity/cleanup still hits the age-based cleanup, not the
+        single-id route — the literal path is declared first."""
+        tracker = _make_mock_tracker()
+        tracker.store.delete_old_sync = MagicMock(return_value=4)
+        tracker.store.delete_by_id_sync = MagicMock(return_value=0)
+        with patch("fichero_server.api.routes.system.activity.get_activity_tracker", return_value=tracker):
+            r = client.delete("/api/activity/cleanup")
+        assert r.status_code == 200
+        assert "older_than" in r.json()
+        tracker.store.delete_by_id_sync.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
 # GET /api/activity/workflow/{workflow_id}
 # ---------------------------------------------------------------------------
 
