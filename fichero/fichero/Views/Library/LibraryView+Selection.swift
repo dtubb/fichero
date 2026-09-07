@@ -65,8 +65,33 @@ extension LibraryView {
     var canvasSelectedNodeIds: Binding<Set<String>> {
         Binding(
             get: { Self.canvasNodeIds(forSelection: selection) },
-            set: { selection = Self.librarySelection(forCanvasNodeIds: $0) }
+            set: { newNodeIds in
+                selection = Self.librarySelection(forCanvasNodeIds: newNodeIds)
+                // A canvas click must SELECT the document app-wide, exactly like a
+                // grid click — so the preview and inspector follow it and it reads
+                // as selected (Daniel: clicking a document on the 2D canvas doesn't
+                // select it). This bridge wrote only `selection`, so the node
+                // highlighted but nothing rooted the preview — `handleTap` does
+                // that for the grid modes. Root the preview on a SINGLE selected
+                // document, through the SAME seam handleTap uses; a multi-select
+                // marquee (or a clear) leaves the preview where it is, because
+                // there is no one document a range is "about".
+                if let docId = Self.singleSelectedDocumentId(forCanvasNodeIds: newNodeIds),
+                   let doc = documents.first(where: { $0.id == docId })
+                    ?? documentStore.currentDocuments.first(where: { $0.id == docId }) {
+                    previewSelectedDocument(doc)
+                }
+            }
         )
+    }
+
+    /// The one document a canvas selection is "about", or nil when the selection
+    /// is empty, a multi-select, or a non-document node (an entity orb / canvas
+    /// item that has no row in any list mode). Only a single document click roots
+    /// the preview. `nonisolated`: pure, testable off-main (#4201).
+    nonisolated static func singleSelectedDocumentId(forCanvasNodeIds nodeIds: Set<String>) -> String? {
+        let docIds = librarySelection(forCanvasNodeIds: nodeIds)
+        return docIds.count == 1 ? docIds.first : nil
     }
 
     /// The nodes the canvas should show as selected for a library selection.
@@ -202,23 +227,7 @@ extension LibraryView {
         // DESELECTED it, in which case previewing it would contradict the
         // selection.
         if result.selection.contains(doc.id) {
-            // A page of the ALREADY-rooted PDF moves the page-focus cursor
-            // only (2026-08-09, #100 sibling sweep): table mode has done this
-            // via onPageFocus since the sidebar page-click fix, while the
-            // grid modes re-rooted detailDocument — reloading the transcript
-            // pane under a click meant to move within it (#1463 class) and
-            // leaving the preview's page label to a stale cursor.
-            if pageClickMovesCursorOnly(
-                clicked: doc,
-                detailDocument: detailDocument,
-                // The SAME condition the mode-scoping fix uses: while a query
-                // is up this pane is showing hits, not a folder listing.
-                isShowingSearchResults: activeSearchQuery != nil
-            ) {
-                onPageFocus(doc)
-            } else {
-                detailDocument = doc
-            }
+            previewSelectedDocument(doc)
         }
 
         // Drill-in is a PLAIN-click behaviour only: a ⇧ or ⌘ click is building
@@ -230,6 +239,30 @@ extension LibraryView {
             isCompactWidth: horizontalSizeClass == .compact
         ) {
             onNavigateInto(doc)
+        }
+    }
+
+    /// Root the preview/inspector on a document the user just selected — the ONE
+    /// seam every selecting surface shares (grid handleTap and the 2D canvas), so
+    /// they behave identically (#1463 one-seam rule).
+    ///
+    /// A page of the ALREADY-rooted PDF moves the page-focus cursor only
+    /// (2026-08-09, #100 sibling sweep): table mode has done this via onPageFocus
+    /// since the sidebar page-click fix, while the grid modes re-rooted
+    /// detailDocument — reloading the transcript pane under a click meant to move
+    /// within it (#1463 class) and leaving the preview's page label to a stale
+    /// cursor. Everything else re-roots the preview.
+    func previewSelectedDocument(_ doc: Document) {
+        if pageClickMovesCursorOnly(
+            clicked: doc,
+            detailDocument: detailDocument,
+            // The SAME condition the mode-scoping fix uses: while a query is up
+            // this pane is showing hits, not a folder listing.
+            isShowingSearchResults: activeSearchQuery != nil
+        ) {
+            onPageFocus(doc)
+        } else {
+            detailDocument = doc
         }
     }
 

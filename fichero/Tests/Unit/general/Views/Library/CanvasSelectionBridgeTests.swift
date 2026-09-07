@@ -136,4 +136,42 @@ struct CanvasSelectionBridgeTests {
         #expect(LibraryView.librarySelection(forCanvasNodeIds: mixed) == ["doc-1", "doc-2"])
     }
 
+    // MARK: - A single canvas click roots the preview (Task 6)
+
+    /// The gate the canvas binding uses to decide whether a click should root the
+    /// preview/inspector on a document, exactly as a grid click does. Only a
+    /// single selected DOCUMENT node qualifies.
+    @Test("one selected document is the document to preview")
+    func singleDocumentSelectionPreviews() {
+        #expect(LibraryView.singleSelectedDocumentId(forCanvasNodeIds: ["doc:doc-7"]) == "doc-7")
+    }
+
+    @Test("a multi-selection previews nothing — no single document to root on")
+    func multiSelectionPreviewsNothing() {
+        #expect(LibraryView.singleSelectedDocumentId(forCanvasNodeIds: ["doc:doc-1", "doc:doc-2"]) == nil)
+    }
+
+    @Test("an empty canvas selection previews nothing")
+    func emptySelectionPreviewsNothing() {
+        #expect(LibraryView.singleSelectedDocumentId(forCanvasNodeIds: []) == nil)
+    }
+
+    /// An entity orb or standalone item is not a document, so a click on one
+    /// alone roots no document preview (it has no row in any list mode).
+    @Test("a lone non-document node previews nothing")
+    func nonDocumentPreviewsNothing() {
+        #expect(LibraryView.singleSelectedDocumentId(forCanvasNodeIds: ["entity:e-1"]) == nil)
+        #expect(LibraryView.singleSelectedDocumentId(forCanvasNodeIds: ["item-42"]) == nil)
+    }
+
+    /// One document among a mix of non-document nodes still resolves — the
+    /// documents are the only members that can be previewed, and there is exactly
+    /// one, so it is unambiguous.
+    @Test("one document among non-document nodes still previews that document")
+    func oneDocumentAmongOrbsPreviews() {
+        #expect(
+            LibraryView.singleSelectedDocumentId(forCanvasNodeIds: ["doc:doc-3", "entity:e-1", "item-9"]) == "doc-3"
+        )
+    }
+
 }
