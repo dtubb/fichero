@@ -19,6 +19,11 @@ struct LooveCoverageView: View {
     @AppStorage("loove.coverage.languages")
     private var selectedCodesRaw = LanguageCatalog.defaultSelectedCodes.joined(separator: ",")
 
+    /// Whether the "add any language" search popover is showing.
+    @State private var showingLanguageSearch = false
+    /// The current search text in that popover.
+    @State private var languageQuery = ""
+
     // Fixed column geometry so the header row and body rows align while the whole
     // matrix scrolls in both axes.
     private let modelColumnWidth: CGFloat = 220
@@ -71,6 +76,7 @@ struct LooveCoverageView: View {
                 }
                 Spacer()
                 languageMenu
+                addLanguageButton
                 Button {
                     Task { await service.load(languages: visibleLanguages) }
                 } label: {
@@ -110,15 +116,39 @@ struct LooveCoverageView: View {
     private func languageBinding(for code: String) -> Binding<Bool> {
         Binding(
             get: { selectedCodes.contains(code) },
-            set: { isOn in
-                var codes = selectedCodes
-                if isOn { codes.insert(code) } else { codes.remove(code) }
-                selectedCodesRaw = LanguageCatalog.all
-                    .map(\.code)
-                    .filter { codes.contains($0) }
-                    .joined(separator: ",")
-            }
+            set: { isOn in setLanguage(code, selected: isOn) }
         )
+    }
+
+    /// Add or remove one language code, persisting the catalog-ordered comma list.
+    /// Routed through `LanguageCatalog.orderedCodes` so a freely-chosen off-catalog
+    /// code is preserved (the old menu-only path silently dropped anything outside
+    /// the fixed modern/historical list).
+    private func setLanguage(_ code: String, selected: Bool) {
+        var codes = selectedCodes
+        if selected { codes.insert(code) } else { codes.remove(code) }
+        selectedCodesRaw = LanguageCatalog.orderedCodes(codes).joined(separator: ",")
+    }
+
+    /// A search-any-language button. Opens a popover where the user types a
+    /// language name or ISO code and adds it as a column — the free-choice path
+    /// beyond the fixed modern/historical toggles. The engine scores the chosen
+    /// code from Andy Janco's published coverage where it exists, and honestly
+    /// reports "unknown" where it doesn't.
+    private var addLanguageButton: some View {
+        Button {
+            showingLanguageSearch = true
+        } label: {
+            Label("Add language", systemImage: "plus.magnifyingglass")
+        }
+        .disabled(service.isLoading)
+        .popover(isPresented: $showingLanguageSearch, arrowEdge: .bottom) {
+            LanguageSearchPopover(
+                query: $languageQuery,
+                isSelected: { selectedCodes.contains($0) },
+                onToggle: { code in setLanguage(code, selected: !selectedCodes.contains(code)) }
+            )
+        }
     }
 
     private var legend: some View {
@@ -475,6 +505,78 @@ private struct TierBar: View {
     private func segmentWidth(for tier: CoverageTier, total: Int, count: Int) -> CGFloat {
         guard total > 0 else { return 0 }
         return barWidth * CGFloat(count) / CGFloat(total)
+    }
+}
+
+// MARK: - Language search popover
+
+/// A searchable list to add ANY language as a coverage column. The user types a
+/// name or ISO code; matching languages from `LanguageCatalog.searchable` are
+/// listed, and tapping one toggles it into the selected set. This is the
+/// free-choice picker requested for the loove window — pick a language and have
+/// it tested — over and above the fixed modern/historical toggles.
+private struct LanguageSearchPopover: View {
+    @Binding var query: String
+    /// Whether a given code is already a chosen column.
+    let isSelected: (String) -> Bool
+    /// Toggle a code in/out of the chosen columns.
+    let onToggle: (String) -> Void
+
+    private var results: [CoverageLanguage] { LanguageCatalog.search(query) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Add a language column")
+                .font(.headline)
+            Text("Type a language name or ISO code. Coverage is scored from published data where it exists, and honestly marked “unknown” where it doesn't.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            TextField("Search languages…", text: $query)
+                .textFieldStyle(.roundedBorder)
+
+            if results.isEmpty {
+                Text("No language matches “\(query)”.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 12)
+            } else {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        ForEach(results) { language in
+                            languageRow(language)
+                            Divider()
+                        }
+                    }
+                }
+                .frame(height: 280)
+            }
+        }
+        .padding(16)
+        .frame(width: 320)
+    }
+
+    private func languageRow(_ language: CoverageLanguage) -> some View {
+        Button {
+            onToggle(language.code)
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: isSelected(language.code) ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(isSelected(language.code) ? Color.accentColor : .secondary)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(language.name).font(.body)
+                    Text(language.code.uppercased())
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+            .contentShape(Rectangle())
+            .padding(.vertical, 6)
+        }
+        .buttonStyle(.plain)
     }
 }
 
