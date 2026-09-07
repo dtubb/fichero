@@ -442,6 +442,14 @@
             padding: 0 2px;
         }
 
+        /* The library-search match: the RELEVANT passage the hit matched,
+           lit from the backend anchor (char range), distinct from the amber
+           claim/span marks so it reads as "this is why this page is a result". */
+        .transcript mark[data-highlight="search"] {
+            background: rgba(255, 179, 64, 0.85);
+            box-shadow: 0 0 0 1px rgba(200, 120, 0, 0.35);
+        }
+
         .digest-group + .digest-group {
             margin-top: 18px;
             border-top: 1px solid var(--line);
@@ -1931,6 +1939,62 @@ function scrollToCharRange(charStart, charEnd) {
     }
 }
 
+// Highlight the library-search MATCH on its own page, and scroll to it.
+// Distinct from scrollToCharRange (which indexes the WHOLE assembled
+// transcript): the search anchor's char range is PAGE-relative (into that
+// page's page_content, per _build_transcript_excerpts), so scope the walk to
+// the page's own `.transcript-page-body` — a single escaped text node of that
+// same content, so a page-relative offset maps straight to a node offset.
+// pageId == null (or an out-of-range span) just CLEARS — that is how Swift
+// clears the mark when the search ends or the selection changes.
+function applySearchMatchHighlight(pageId, charStart, charEnd) {
+    const panel = document.getElementById("transcript-panel");
+    if (!panel) return;
+    // Clear any prior search-match mark first (one at a time).
+    panel.querySelectorAll("mark[data-highlight='search']").forEach((mark) => {
+        const parent = mark.parentNode;
+        mark.replaceWith(document.createTextNode(mark.textContent));
+        if (parent) parent.normalize();
+    });
+    if (pageId == null || charStart == null || charEnd == null || charEnd <= charStart) return;
+    const selector = '.transcript-page[data-page-id="'
+        + ((window.CSS && CSS.escape) ? CSS.escape(pageId) : pageId) + '"]';
+    const article = panel.querySelector(selector);
+    if (!article) return;
+    const body = article.querySelector(".transcript-page-body");
+    // markup-render / table pages have no plain body to offset into — nothing
+    // to light here (the raw offsets index plain page_content only).
+    if (!body) return;
+    let charOffset = 0;
+    const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
+    let node;
+    while ((node = walker.nextNode())) {
+        const nodeLen = node.nodeValue.length;
+        const nodeStart = charOffset;
+        const nodeEnd = charOffset + nodeLen;
+        charOffset = nodeEnd;
+        if (nodeEnd <= charStart || nodeStart >= charEnd) continue;
+        const localStart = Math.max(0, charStart - nodeStart);
+        const localEnd = Math.min(charEnd - nodeStart, nodeLen);
+        if (localStart >= localEnd) continue;
+        const before = node.nodeValue.slice(0, localStart);
+        const highlighted = node.nodeValue.slice(localStart, localEnd);
+        const after = node.nodeValue.slice(localEnd);
+        const mark = document.createElement("mark");
+        mark.setAttribute("data-highlight", "search");
+        mark.textContent = highlighted;
+        const parent = node.parentNode;
+        if (before) parent.insertBefore(document.createTextNode(before), node);
+        parent.insertBefore(mark, node);
+        if (after) parent.insertBefore(document.createTextNode(after), node);
+        parent.removeChild(node);
+        mark.scrollIntoView({ behavior: "smooth", block: "center" });
+        // The body is a single escaped text node, so the span lives in one
+        // node — the first overlapping node is the whole match.
+        return;
+    }
+}
+
 document.querySelectorAll(".tabs button").forEach((button) => {
     button.addEventListener("click", () => {
         state.tab = button.dataset.tab;
@@ -2032,6 +2096,20 @@ window.fichero = {
             applyTabVisibility();
         }
         scrollToCharRange(charStart, charEnd);
+    },
+
+    // Light the RELEVANT passage of a library-search hit, from the backend
+    // anchor (pageId + PAGE-relative char range). Called from Swift
+    // (Coordinator.syncSelection) when a search result is the reader focus;
+    // pageId null clears. This replaces re-scanning the query text as a
+    // substring (which lit partial words like "nose" inside "diag-nose") —
+    // the anchor already names the exact matched span.
+    highlightMatchInPage(pageId, charStart, charEnd) {
+        if (pageId != null && state.tab !== "transcript") {
+            state.tab = "transcript";
+            applyTabVisibility();
+        }
+        applySearchMatchHighlight(pageId, charStart, charEnd);
     },
 
     // Highlight an entity node in the graph in-place.

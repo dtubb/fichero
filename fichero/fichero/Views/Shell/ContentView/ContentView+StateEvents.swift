@@ -235,12 +235,27 @@ extension ContentView {
         guard activeSearchQuery != nil, let doc,
               let result = transientSearchStore?.results
                   .first(where: { $0.documentId == doc.id }),
-              let excerpt = result.transcriptExcerpts.first else { return }
+              let excerpt = result.transcriptExcerpts.first else {
+            // No hit to light (search ended, or this selection is not a
+            // resolvable result) — clear the transcript's search mark.
+            ReaderSearchMatchState.shared.clear()
+            return
+        }
         let anchor = ReaderPassageAnchor(
             documentId: excerpt.anchor.documentId,
             text: excerpt.text,
             charStart: Int(excerpt.anchor.charStart),
             charEnd: Int(excerpt.anchor.charEnd)
+        )
+        // Light the RELEVANT passage in the transcript from the backend anchor
+        // (page id + PAGE-relative char range), not by re-scanning the query as
+        // a substring (Daniel, 2026-09-07: "highlight … by the html backend,
+        // not the swiftui interface with a filter"). The coordinator reads this
+        // in syncSelection and calls window.fichero.highlightMatchInPage.
+        ReaderSearchMatchState.shared.set(
+            pageId: anchor.documentId,
+            charStart: anchor.charStart,
+            charEnd: anchor.charEnd
         )
         // LATCH, then post (Daniel, 2026-09-03). This fires from the
         // `detailDocument` change, so the reader for that document is

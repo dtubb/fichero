@@ -325,16 +325,17 @@ struct ReaderSearchPassageLandingTests {
         #expect(ReaderPassageAnchor.findPhrase(from: "   ") == "")
     }
 
-    @Test("the passage wins over the bare query terms for the document it names")
-    func passageWinsForItsOwnDocument() {
+    @Test("the passage no longer seeds the find bar — the backend lights it in place")
+    func passageDoesNotSeedTheFindBar() {
         let anchor = ReaderPassageAnchor(
             documentId: "page-7", text: "the road to Bagadó", charStart: 10, charEnd: 28
         )
         #expect(
             ReadingPaneView.readerHighlightSeed(
                 anchor: anchor, documentId: "page-7", searchQuery: "road"
-            ) == "the road to Bagadó",
-            "The passage lands on the sentence; the bare term lights every road in the book."
+            ) == "road",
+            "The matched passage is lit by window.fichero.highlightMatchInPage from the "
+                + "anchor's char range; the find bar holds the query terms, not the excerpt."
         )
     }
 

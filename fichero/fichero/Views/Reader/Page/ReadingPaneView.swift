@@ -323,17 +323,20 @@ struct ReadingPaneView: View {
     /// transcript, which scrolls to the page anchor (#3226). There is no longer a
     /// source layout to switch: the source is Preview's job (#3765 Q4), and the
     /// reveal drives that pane separately via `.ficheroNavigateToPage`.
-    /// Seed the reader's find with the best available description of WHY this
-    /// document is on screen: the matched PASSAGE when a search anchor names
-    /// it, otherwise the library query's terms.
+    /// Seed the reader's find bar with the library query's terms, if any.
     ///
-    /// The passage wins because it is more specific — "the road to Bagadó"
-    /// lands on the sentence, where the bare query terms light every
-    /// occurrence of a common word. It goes through find-in-page rather than
-    /// through `scrollToSpan`: the reader renders the parent's ASSEMBLED
-    /// transcript, so the anchor's page-relative offsets address the wrong
-    /// text there, and a confidently wrong highlight over a manuscript is
-    /// worse than none (`ReaderPassageAnchor.findPhrase`).
+    /// The matched PASSAGE no longer seeds the find bar. It used to — a snippet
+    /// of the excerpt text was pushed through find-in-page, because the anchor's
+    /// offsets are PAGE-relative and `scrollToSpan` indexes the ASSEMBLED
+    /// transcript, so there was no way to apply the exact range. There is now:
+    /// the backend lights the passage in place from the anchor
+    /// (`window.fichero.highlightMatchInPage`, driven by the coordinator's
+    /// `syncSearchMatch`). So the passage is the backend highlight's job, and
+    /// the find bar is not auto-filled with a snippet the user did not type
+    /// (Daniel, 2026-09-07: "highlight … by the html backend, not the swiftui
+    /// interface with a filter"). The find bar stays a manual Cmd-F affordance;
+    /// only an explicit query-term seed still fills it, and the shell passes ""
+    /// for a search, so a search imposes no filter at all.
     ///
     /// `seededSearchHighlight` remembers what was seeded, so a re-render never
     /// re-imposes something the user has since edited or dismissed.
@@ -353,19 +356,19 @@ struct ReadingPaneView: View {
         }
     }
 
-    /// Pure: what the reader's find should hold. The anchor wins ONLY when it
-    /// names the document actually on screen — an anchor for another document
-    /// is not a description of this one.
+    /// Pure: what the reader's find bar should hold — the query terms only.
+    ///
+    /// The matched passage is lit directly by the backend now
+    /// (`highlightMatchInPage`), so a search anchor no longer feeds the find
+    /// bar. `anchor`/`documentId` remain in the signature (they named the
+    /// passage) but no longer decide the seed — the find bar is the query's, or
+    /// empty when there is no query.
     static func readerHighlightSeed(
         anchor: ReaderPassageAnchor?,
         documentId: String?,
         searchQuery: String
     ) -> String {
-        if let anchor, let documentId, anchor.documentId == documentId {
-            let phrase = anchor.findPhrase
-            if !phrase.isEmpty { return phrase }
-        }
-        return searchQuery
+        searchQuery
     }
 
     private func revealInTranscript() {

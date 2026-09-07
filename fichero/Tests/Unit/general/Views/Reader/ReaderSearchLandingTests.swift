@@ -4,11 +4,12 @@ import XCTest
 /// The tie between a LIBRARY search hit and what the reader lights (Daniel:
 /// "we want the reader to be able to show search results").
 ///
-/// Selecting a result promotes it to `detailDocument`; the reader then seeds
-/// its find-in-page (#4338) with the best description of WHY the document is on
-/// screen — the matched passage when a search anchor names THIS document,
-/// otherwise the library query's terms. `readerHighlightSeed` is that pure
-/// decision, and it is the seam that makes the reader "show" the result. The
+/// Selecting a result promotes it to `detailDocument`; the reader lights the
+/// matched PASSAGE directly from the backend anchor
+/// (`window.fichero.highlightMatchInPage`), and the find bar is seeded ONLY
+/// with the library query's terms — no longer with a snippet of the excerpt
+/// (Daniel, 2026-09-07: "highlight … by the html backend, not the swiftui
+/// interface with a filter"). `readerHighlightSeed` is that pure decision. The
 /// find machinery itself is covered by `ReaderFindInPageTests`; this pins the
 /// choice of WHAT to find, which nothing else guarded.
 @MainActor
@@ -20,15 +21,17 @@ final class ReaderSearchLandingTests: XCTestCase {
         ReaderPassageAnchor(documentId: documentId, text: text, charStart: nil, charEnd: nil)
     }
 
-    func testTheMatchedPassageWinsOverTheBareQuery() {
-        // A passage anchor for the document on screen is more specific than the
-        // query — it lands on the sentence, not every occurrence of a word.
+    func testTheAnchorNoLongerSeedsTheFindBar() {
+        // The matched passage is lit directly by the backend now
+        // (highlightMatchInPage), so a passage anchor no longer pushes a snippet
+        // into the SwiftUI find bar — the find bar holds the query terms, not
+        // the excerpt. (Daniel, 2026-09-07.)
         let seed = ReadingPaneView.readerHighlightSeed(
             anchor: anchor(documentId: "doc-1", text: "the road to Bagadó was long"),
             documentId: "doc-1",
             searchQuery: "road"
         )
-        XCTAssertEqual(seed, "the road to Bagadó was long")
+        XCTAssertEqual(seed, "road")
     }
 
     func testAnAnchorForAnotherDocumentIsIgnored() {

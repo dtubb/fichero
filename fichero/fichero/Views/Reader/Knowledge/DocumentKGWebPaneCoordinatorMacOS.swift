@@ -31,6 +31,9 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
     var lastSelectedClaimId: String?
     var lastSelectedClaimCharStart: Int?
     var lastSelectedClaimCharEnd: Int?
+    /// The library-search match last lit in the transcript (page id + char
+    /// range), so `highlightMatchInPage` is re-issued only when it moves.
+    var lastSearchMatchSignature: String?
     var lastActivePageNumber: Int?
     /// The page id last scrolled to (#reader-page-id). Separate from the ordinal
     /// tracker: the id path lands pages whose `sequence` is null, which the
@@ -82,6 +85,7 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
         lastSelectedClaimCharEnd = nil
         lastActivePageNumber = nil
         lastActivePageId = nil
+        lastSearchMatchSignature = nil
         findSync.reset()
         progressSync.reset()
         guard let parent, let request = DocumentKGPaneRoute.request(
@@ -137,6 +141,7 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
         syncSelectedClaim(into: webView, selectedClaimId: parent.selectedClaimId)
         syncSelectedEntity(into: webView, selectedEntityId: parent.selectedEntityId)
         syncActivePage(into: webView, parent: parent)
+        syncSearchMatch(into: webView)
         // In-reader find (#4338): query re-run + current-match select.
         findSync.sync(
             into: webView,
@@ -235,6 +240,26 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
             webView.evaluateJavaScript(
                 ReaderActivePageSync.scrollScript(page: pageNumber, pageCount: pageCount)
             )
+        }
+    }
+
+    /// Light the library-search MATCH on its page from the backend anchor
+    /// (`ReaderSearchMatchState`) — the exact matched passage, not a substring
+    /// re-scan of the query. Re-issued only when the match moves; a nil match
+    /// clears the mark. The JS scopes to the page's own article, so a match for
+    /// a page not currently rendered is a harmless no-op.
+    func syncSearchMatch(into webView: WKWebView) {
+        let match = ReaderSearchMatchState.shared
+        guard match.signature != lastSearchMatchSignature else { return }
+        lastSearchMatchSignature = match.signature
+        if let pageId = match.pageId, let start = match.charStart,
+           let end = match.charEnd, end > start {
+            let literal = DocumentKGPaneRoute.jsStringLiteral(pageId)
+            webView.evaluateJavaScript(
+                "window.fichero?.highlightMatchInPage('\(literal)', \(start), \(end));"
+            )
+        } else {
+            webView.evaluateJavaScript("window.fichero?.highlightMatchInPage(null, null, null);")
         }
     }
 
