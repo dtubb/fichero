@@ -2950,6 +2950,29 @@ def _write_kg_rows(
         mentioned = _scan_for_mentioned_entities(
             scan_text, alias_pairs, exclude={entity_id}
         )
+        # English DISPLAY normalization (#4494 follow-up). The verbatim verb/obj
+        # stay the grounding ground truth; these give the surfaces an English
+        # rendering on a non-English corpus. Prefer an extractor-supplied
+        # translation (verb_en/object_en); else, when the source is English, the
+        # verbatim triple already reads as English so mirror it; else leave null
+        # and let the surface fall back to the verbatim triple.
+        verb_en = (item.get("verb_en") or "").strip()
+        obj_en = (item.get("object_en") or "").strip()
+        source_is_english = (detected_language or "").lower() in {"", "en"}
+        if verb_en or obj_en:
+            predicate_verb_en = verb_en or None
+            object_phrase_en = obj_en or None
+        elif source_is_english:
+            predicate_verb_en = verb or None
+            object_phrase_en = obj or None
+        else:
+            predicate_verb_en = None
+            object_phrase_en = None
+        claim_text_en: str | None = None
+        pred_en = " ".join(filter(None, [predicate_verb_en, object_phrase_en])).strip()
+        if pred_en:
+            _suffix_en = "" if pred_en.endswith((".", "!", "?")) else "."
+            claim_text_en = f"{canonical} {pred_en}{_suffix_en}".strip()
         claim_id = save_claim(
             db,
             text=claim_text,
@@ -2996,6 +3019,10 @@ def _write_kg_rows(
             svo_subject=canonical,
             svo_verb=slug_verb(verb) if verb else None,
             svo_object=obj or None,
+            # English display normalizations (#4494 follow-up) — display only.
+            predicate_verb_en=predicate_verb_en,
+            object_phrase_en=object_phrase_en,
+            claim_text_en=claim_text_en,
             # Provider attribution + confidence + language (#1113).
             provider=base_provider_label,
             model=claim_model_label,

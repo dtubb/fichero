@@ -1722,6 +1722,35 @@ class KnowledgeClaim(BaseModel):
             "complete structured triples. Populated from extract_all output."
         ),
     )
+    # --- English display normalizations (#4494 follow-up) ---
+    # A DISPLAY layer only. The verbatim, source-language predicate_verb /
+    # object_phrase / text stay the ground truth every gate checks against
+    # (svo_quality.claim_rejection requires them on the page; the fuzzy anchor
+    # depends on it), so these NEVER participate in grounding, anchoring, or
+    # dedup. They exist so a graph/claims/inspector surface can render the
+    # statement in English on a non-English corpus. Equal to the verbatim form
+    # when the source is already English; null when no English form is
+    # available, and the surface then falls back to the verbatim triple.
+    predicate_verb_en: str | None = Field(
+        default=None,
+        description=(
+            "English display form of predicate_verb — a faithful translation of "
+            "the verbatim source-language verb. Display only; never used for "
+            "grounding, provenance, or dedup."
+        ),
+    )
+    object_phrase_en: str | None = Field(
+        default=None,
+        description="English display form of object_phrase. Display only — see predicate_verb_en.",
+    )
+    claim_text_en: str | None = Field(
+        default=None,
+        description=(
+            "English display form of `text`, composed from the subject and the "
+            "English predicate. Display only; `text` stays the source-language "
+            "ground truth."
+        ),
+    )
     # --- provenance & confidence ---
     entity_ids: list[str] = Field(default_factory=list)
     curation_state: ClaimCurationState = ClaimCurationState.unreviewed

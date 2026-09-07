@@ -2265,6 +2265,12 @@ def save_claim(
     svo_subject: Optional[str] = None,
     svo_verb: Optional[str] = None,
     svo_object: Optional[str] = None,
+    # English DISPLAY normalizations (#4494 follow-up). Display only — the
+    # verbatim predicate_verb/object_phrase/text stay the grounding ground
+    # truth; these render the statement in English on a non-English corpus.
+    predicate_verb_en: Optional[str] = None,
+    object_phrase_en: Optional[str] = None,
+    claim_text_en: Optional[str] = None,
     provider: Optional[str] = None,
     model: Optional[str] = None,
     language: Optional[str] = None,
@@ -2542,6 +2548,9 @@ def save_claim(
         svo_subject=incoming_svo_subject,
         svo_verb=incoming_svo_verb,
         svo_object=incoming_svo_object,
+        predicate_verb_en=predicate_verb_en,
+        object_phrase_en=object_phrase_en,
+        claim_text_en=claim_text_en,
         # Provider attribution (#1113) — which LLM (and any heuristic
         # post-processing) produced this claim. Surface in the inspector
         # so users can audit per-model claim quality.
