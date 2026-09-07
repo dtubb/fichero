@@ -44,9 +44,22 @@ struct EntitiesTableView: View {
 
     /// The retype options — the EntityType-Output cases, minus the current one is
     /// left to the user's judgement (retyping to the same type is a harmless no-op).
-    private static let typeOptions: [(raw: String, label: String)] = [
-        ("person", "Person"), ("location", "Location"), ("organization", "Organization"),
-        ("event", "Event"), ("concept", "Concept"), ("citation", "Citation"), ("other", "Other")
+    /// A named `Identifiable` type, not a tuple: SwiftUI's `ForEach(_:id:)` needs a
+    /// key path, and Swift has no key paths to tuple elements.
+    private struct TypeOption: Identifiable {
+        let raw: String
+        let label: String
+        var id: String { raw }
+    }
+
+    private static let typeOptions: [TypeOption] = [
+        TypeOption(raw: "person", label: "Person"),
+        TypeOption(raw: "location", label: "Location"),
+        TypeOption(raw: "organization", label: "Organization"),
+        TypeOption(raw: "event", label: "Event"),
+        TypeOption(raw: "concept", label: "Concept"),
+        TypeOption(raw: "citation", label: "Citation"),
+        TypeOption(raw: "other", label: "Other")
     ]
 
     @State private var sortOrder: [KeyPathComparator<Item>] = [
@@ -131,7 +144,7 @@ struct EntitiesTableView: View {
                 Label("Mark unreviewed", systemImage: "arrow.uturn.backward")
             }
             Menu("Set type") {
-                ForEach(Self.typeOptions, id: \.raw) { option in
+                ForEach(Self.typeOptions) { option in
                     Button(option.label) { actions.setType(targets, option.raw) }
                 }
             }
