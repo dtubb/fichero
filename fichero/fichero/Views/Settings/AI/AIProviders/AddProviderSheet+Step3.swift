@@ -11,7 +11,7 @@ extension AddProviderSheet {
                 if let entry = selectedEntry {
                     ProviderLogoView(entry: entry, size: 32)
                 }
-                Text("Add Models to \(selectedEntry?.name ?? "Provider")")
+                Text("Add Models from \(selectedEntry?.name ?? "Provider")")
                     .font(.title2)
                     .fontWeight(.medium)
                 Spacer()

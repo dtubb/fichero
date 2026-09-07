@@ -42,7 +42,7 @@ struct AIProviderAddModelsSheet: View {
                     )
                 }
             }
-            .navigationTitle("Add Model to \(provider.name)")
+            .navigationTitle("Add a Model from \(provider.name)")
             // A rejected add must be SEEN — swallowing it into a log line is
             // how "we added a model and it wasn't saved" happens (Ann,
             // 2026-08-24). The sheet stays open with the reason.
