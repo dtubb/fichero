@@ -306,6 +306,7 @@ struct EntityDetailView: View {
                 .help("Every subject-verb-object statement we know about this entity")
 
                 authorityLinkButton
+                EnrichFromWikidataButton(entity: entity, entityStore: entityStore)
             }
 
             if let description = cleanedDisplayText(entity.description) {

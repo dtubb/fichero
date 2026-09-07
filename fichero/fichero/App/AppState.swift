@@ -14,6 +14,7 @@ enum SettingsTab: Hashable {
     case readerView
     case inspectorView
     case aiModels
+    case knowledge
     case mcp
     case integrations
     case general
