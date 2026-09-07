@@ -233,17 +233,13 @@ extension ContentView {
         // the CSS Custom Highlight API through `WebPaneFindSync` (#4338) —
         // it was simply never told what the library search was looking for.
         //
-        // ONE SIGNIFICANT TERM, not the raw sentence (Daniel, 2026-09-02):
-        // the search is vector — an Ask query like "workplace injuries and
-        // accidents" almost never occurs literally in a hit, so injecting
-        // the whole sentence made find-in-page silently match nothing. The
-        // find machinery matches ONE literal string, so seed the longest
-        // stopword-stripped term (the most distinctive one, likeliest to
-        // occur); an all-stopword query seeds nothing rather than a doomed
-        // find. Multi-term OR-highlighting is the finder's follow-up.
-        chromeUX.readerFindQuery = SearchSnippetHighlighter
-            .terms(in: query)
-            .max(by: { $0.count < $1.count }) ?? ""
+        // Do NOT seed the find bar. The backend now lights the relevant
+        // passage in place from the search anchor (applySearchMatchHighlight /
+        // ReaderSearchMatchState, 2026-09-07) — a page-relative char range the
+        // SwiftUI finder can't express. Seeding a term here re-imposed the
+        // find-filter Daniel disliked ("more than one or two together…"), so
+        // leave the find bar empty; manual Cmd-F stays untouched.
+        chromeUX.readerFindQuery = ""
         transientSearchRowHits = Self.rowHits(
             results: store.results, stats: store.searchStats, query: query
         )
