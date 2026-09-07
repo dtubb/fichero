@@ -146,7 +146,11 @@ final class LooveCoverageService {
             band: CoverageBand(rawBand: record.scoreBand?.rawValue),
             tierCounts: tiers,
             tokensPerChar: record.fertility?.tokensPerChar,
-            status: record.status.rawValue
+            status: record.status.rawValue,
+            // `source.kind` is required on the record but its enum value is
+            // optional; a missing kind means we have no idea where the number
+            // came from, so treat it as "missing" (→ unknown in the UI).
+            sourceKind: record.source.kind?.rawValue ?? "missing"
         )
     }
 }

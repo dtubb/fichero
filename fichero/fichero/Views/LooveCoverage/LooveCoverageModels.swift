@@ -94,6 +94,23 @@ struct CoverageTierCounts: Equatable, Sendable {
     }
 }
 
+/// How much to trust a cell's number. THE honesty axis of this window — a tool
+/// about tokenizer coverage must never present a per-script guess as a
+/// measurement.
+///
+/// - `derived`: real tokenizer-derived coverage (`source.kind ==
+///   loove_derived_json`, `status == derived`). Full confidence — band color.
+/// - `heuristic`: the engine's model-independent per-SCRIPT fallback guess
+///   (`heuristic_fallback`). Rendered muted with a "~"/"est." marker, NEVER the
+///   confident band color.
+/// - `unknown`: no score, or no tokenizer to measure (e.g. Apple), or
+///   `source.kind == missing`. Rendered "—".
+enum CoverageConfidence: Sendable {
+    case derived
+    case heuristic
+    case unknown
+}
+
 /// One (model × language) coverage result. `coverageScore == nil` and
 /// `tierCounts == nil` are legitimate ("we have no derived data yet") and render
 /// as "—".
@@ -105,11 +122,29 @@ struct CoverageCell: Identifiable, Equatable, Sendable {
     var tierCounts: CoverageTierCounts?
     var tokensPerChar: Double?
     /// Raw engine status: `derived` / `heuristic` / `unsupported_language` /
-    /// `invalid_coverage_file`. Surfaced as a tooltip so the reader knows whether
-    /// a score is measured or a heuristic fallback.
+    /// `invalid_coverage_file`. Feeds `confidence` and the cell tooltip.
     var status: String
+    /// Raw `source.kind`: `loove_derived_json` / `heuristic_fallback` / `missing`.
+    /// The authority for whether the score was measured or guessed.
+    var sourceKind: String
 
     var id: String { "\(provider)/\(model)" }
+
+    /// Whether the number was MEASURED, GUESSED, or is absent. `source.kind` is
+    /// the authority; a nil score is always unknown regardless of status.
+    var confidence: CoverageConfidence {
+        guard coverageScore != nil else { return .unknown }
+        switch sourceKind {
+        case "loove_derived_json":
+            // Only a `derived` status confirms the measurement; any other status
+            // on a derived file (e.g. invalid) drops to a guess, never full trust.
+            return status == "derived" ? .derived : .heuristic
+        case "heuristic_fallback":
+            return .heuristic
+        default: // "missing" or anything unrecognized
+            return .unknown
+        }
+    }
 }
 
 /// A language column in the matrix.
