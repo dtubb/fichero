@@ -196,7 +196,28 @@ extension ContentView {
         // user action ('snaps back to page 1', #4558). Same id = same
         // document; the reader keeps its place.
         if oldDoc?.id != newDoc?.id {
-            pageFocusDocument = nil
+            // While a library search is active, the reader must show the
+            // ACTUAL SOURCE page the hit matched — not the parent paginated to
+            // page 1 (Daniel, 2026-09-07: "reader should show the actual
+            // source, not page 1, page 2, etc."). So make the hit's page the
+            // authoritative page cursor, and keep that cursor when detail later
+            // RE-ROOTS onto the hit's parent container (page-child → its folder
+            // / PDF): clearing it there is exactly what dropped the reader back
+            // to the container's first page. Outside search, behavior is
+            // unchanged — clear on a real document change (#1463/#4558).
+            if activeSearchQuery != nil, let newDoc {
+                if newDoc.docType == .page {
+                    pageFocusDocument = newDoc
+                } else if let focus = pageFocusDocument,
+                          focus.parentId == newDoc.id
+                            || pdfParentDocumentId(of: focus) == newDoc.id {
+                    // Re-root to the hit's parent: keep the source-page cursor.
+                } else {
+                    pageFocusDocument = nil
+                }
+            } else {
+                pageFocusDocument = nil
+            }
         }
         guard !isRestoringNavigationHistory else { return }
         recordNavigationEntry()
