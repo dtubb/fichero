@@ -96,7 +96,7 @@ struct EntitiesTableView: View {
             .width(min: 120, ideal: 170)
 
             TableColumn("Curation", value: \.values.curation.rawValue) { item in
-                EntityCurationBadge(curation: item.values.curation)
+                EntityTableCurationBadge(curation: item.values.curation)
             }
             .width(min: 90, ideal: 110)
         }
@@ -170,7 +170,10 @@ struct EntitiesTableView: View {
 /// The entity curation lozenge — the honesty layer. Blessed reads confident
 /// (green), rejected is struck (red), unreviewed is the machine's raw output
 /// (muted), merged is spent.
-struct EntityCurationBadge: View {
+/// Curation badge for the entities TABLE (distinct from the inspector's
+/// `EntityCurationBadge`, which takes an `EntityCurationState`; this one maps
+/// the table's richer `EntityTableRow.Curation` incl. `.merged`).
+struct EntityTableCurationBadge: View {
     let curation: EntityTableRow.Curation
 
     var body: some View {

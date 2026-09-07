@@ -150,12 +150,16 @@ extension WorkflowEditor {
                 // and sends its single id as `kind=collection` for the server
                 // to expand. Every other path has already expanded (#4414).
                 selection: scope.selection,
-                onAccepted: { acceptedResponse in
+                onAccepted: { [weak streamService] acceptedResponse in
                     let threadId = acceptedResponse.threadId
                     executionObserver.promoteExecution(
                         from: executionThreadId,
                         to: threadId,
-                        onCancel: { [weak streamService] in
+                        // `streamService` is already weak from the enclosing
+                        // capture list — the stored cancel handler must not
+                        // retain the service (a second `[weak]` here is the
+                        // Swift-6 "differs from implicitly-captured strong" error).
+                        onCancel: {
                             Task { @MainActor in
                                 try? await streamService?.stopWorkflow(threadId: threadId)
                             }

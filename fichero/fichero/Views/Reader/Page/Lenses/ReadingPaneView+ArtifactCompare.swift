@@ -23,7 +23,7 @@ import WebKit
 struct ReaderHTMLPane {
     let html: String
 
-    func makeWebView() -> WKWebView {
+    @MainActor func makeWebView() -> WKWebView {
         let configuration = WKWebViewConfiguration()
         let webView = WKWebView(frame: .zero, configuration: configuration)
         // Nothing here navigates: the page is a rendering of two texts, and a
