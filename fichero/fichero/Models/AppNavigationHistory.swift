@@ -11,6 +11,32 @@ struct AppNavigationHistory {
         let selectedSidebarItemId: String?
         let browserSelection: Set<String>
         let detailDocumentId: String?
+        /// The transient toolbar-search query active when this entry was
+        /// recorded, or `nil` when the entry is plain folder browsing (#4106).
+        /// Captured so Back/Forward can return to the search results a user
+        /// stepped away from — e.g. after double-clicking a hit to reveal its
+        /// source location — instead of silently dropping the query.
+        let searchQuery: String?
+
+        // Explicit init with a defaulted `searchQuery` so existing call sites
+        // (and tests) that predate the field keep compiling; a `let` with a
+        // default value is otherwise excluded from the synthesized memberwise
+        // initializer, which would reject the query at the one site that sets it.
+        init(
+            viewType: String,
+            viewItemId: String?,
+            selectedSidebarItemId: String?,
+            browserSelection: Set<String>,
+            detailDocumentId: String?,
+            searchQuery: String? = nil
+        ) {
+            self.viewType = viewType
+            self.viewItemId = viewItemId
+            self.selectedSidebarItemId = selectedSidebarItemId
+            self.browserSelection = browserSelection
+            self.detailDocumentId = detailDocumentId
+            self.searchQuery = searchQuery
+        }
     }
 
     private(set) var stack: [Entry] = []

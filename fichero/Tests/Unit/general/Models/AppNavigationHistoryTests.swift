@@ -51,18 +51,59 @@ final class AppNavigationHistoryTests: XCTestCase {
         XCTAssertEqual(history.current?.viewItemId, "item-\(AppNavigationHistory.maxDepth)")
     }
 
+    func testSearchQueryRoundTripsThroughBackAndForward() {
+        var history = AppNavigationHistory()
+        // Browsing a folder, then a search over it, then the hit's source
+        // location — the exact double-click-to-reveal sequence (#4106).
+        let browsing = entry("library", itemId: "folder-a")
+        let searching = entry("library", itemId: "folder-a", detailId: "hit-1", searchQuery: "marshall")
+        let revealed = entry("library", itemId: "folder-b", detailId: "hit-1")
+
+        history.push(browsing)
+        history.push(searching)
+        history.push(revealed)
+
+        // Back from the revealed source returns to the SEARCH (query intact),
+        // not straight to bare folder browsing.
+        XCTAssertEqual(history.goBack()?.searchQuery, "marshall")
+        // Back again reaches plain browsing with no query.
+        XCTAssertNil(history.goBack()?.searchQuery)
+        // Forward re-enters the search.
+        XCTAssertEqual(history.goForward()?.searchQuery, "marshall")
+    }
+
+    func testEntriesDifferingOnlyBySearchQueryAreNotDeduped() {
+        var history = AppNavigationHistory()
+        let browsing = entry("library", itemId: "folder-a")
+        let searching = entry("library", itemId: "folder-a", searchQuery: "foo")
+
+        history.push(browsing)
+        history.push(searching)
+
+        // Same folder, but the search overlay is a distinct navigable state —
+        // push must not collapse it into the browsing entry.
+        XCTAssertEqual(history.stack, [browsing, searching])
+        XCTAssertTrue(history.canGoBack)
+    }
+
+    func testSearchQueryDefaultsToNilForPlainBrowsing() {
+        XCTAssertNil(entry("library", itemId: "folder-a").searchQuery)
+    }
+
     private func entry(
         _ viewType: String,
         itemId: String? = nil,
         sidebarId: String? = nil,
-        detailId: String? = nil
+        detailId: String? = nil,
+        searchQuery: String? = nil
     ) -> AppNavigationHistory.Entry {
         AppNavigationHistory.Entry(
             viewType: viewType,
             viewItemId: itemId,
             selectedSidebarItemId: sidebarId,
             browserSelection: [],
-            detailDocumentId: detailId
+            detailDocumentId: detailId,
+            searchQuery: searchQuery
         )
     }
 }

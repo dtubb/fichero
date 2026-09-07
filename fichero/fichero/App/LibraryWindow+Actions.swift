@@ -42,6 +42,13 @@ extension LibraryWindow {
            libraryManager.getLibrary(id: pendingId) != nil {
             libraryWindowLogger.info("Consuming pendingWindowLibraryId: \(pendingId)")
             libraryManager.pendingWindowLibraryIds.removeFirst()
+            // Claim the "focus this doc" intent for THIS fresh window only, so a
+            // background window sharing the library's documentStore can't
+            // consume it on a revision tick and open it in the wrong window
+            // (#1685). Moved off the shared singleton the moment we know which
+            // window is the newly opened one.
+            windowState.pendingOpenDocumentId = libraryManager.pendingOpenDocumentId
+            libraryManager.pendingOpenDocumentId = nil
             assignLibrary(id: pendingId)
             return
         }

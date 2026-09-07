@@ -11,6 +11,24 @@ extension ContentView {
         sidebarSelectionState.selectedItemId = "doc:\(doc.id)"
     }
 
+    /// Double-click on a transient-search hit: leave the results and go to
+    /// where the item lives in the tree (#4106). A folder OPENS (its contents
+    /// show); a file lands SELECTED inside its containing folder. Clearing the
+    /// search first re-roots the library column on the real tree; the search
+    /// query stays captured in the history entry recorded for these results,
+    /// so Back returns to them (see `recordNavigationEntry`).
+    @MainActor
+    func revealSearchResult(_ doc: Document) {
+        clearTransientSearch()
+        if doc.isNavigableContainer {
+            navigateToDocument(doc)
+        } else {
+            Task { @MainActor in
+                await navigateToResolvedSource(doc)
+            }
+        }
+    }
+
     /// Open the source page behind a KG entity click. The source claim
     /// points at a page-level document (path=nil, parent = the real file
     /// per #701). Resolution:

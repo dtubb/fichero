@@ -104,6 +104,15 @@ extension LibraryView {
     /// document. Explicit New Tab / New Window affordances stay in the context
     /// menu. (#3364)
     func handleDoubleClick(_ doc: Document) {
+        // While search RESULTS are showing, a double-click means "take me to
+        // this hit's real home" (#4106): open the folder or reveal the file in
+        // its container, leaving the results so Back returns to them. In-place
+        // preview (single click) already showed it here; the double-click is
+        // the navigate gesture. Folder browsing keeps the ordinary open below.
+        if activeSearchQuery != nil {
+            onRevealSearchResult(doc)
+            return
+        }
         // O10 (2026-08-09): only icon and list CONSUME the center target;
         // writing it in table/columns left a stale id that fired a spurious
         // center-scroll on the next switch to a consuming mode — the exact
@@ -323,22 +332,55 @@ extension LibraryView {
     /// and preview that document here, then clear the intent so sibling
     /// windows don't also consume it.
     func consumePendingOpen() {
+        // Per-window intent first (#1685): the freshly opened window claimed
+        // the id into its own WindowState at init, so only IT consumes — a
+        // background window sharing this library's documentStore never hijacks
+        // the open on a revision tick.
+        if let pendingId = windowState.pendingOpenDocumentId {
+            consumeWindowPendingOpen(pendingId)
+            return
+        }
+        consumeSharedPendingOpen()
+    }
+
+    /// Production "Open in New Tab/Window" hand-off for the freshly opened
+    /// window. `openDocument` routes a container (folder / PDF) through
+    /// `onNavigateInto` — so the new window opens ALREADY NAVIGATED INTO the
+    /// folder, its contents shown — and a file through the detail pane, exactly
+    /// as the in-window Open does. Fetches the target by id when it is not in
+    /// this pane's listing (a nested folder, or a search hit's source, #4106),
+    /// which is what previously stranded new windows at the library root.
+    private func consumeWindowPendingOpen(_ pendingId: String) {
+        if let doc = documents.first(where: { $0.id == pendingId }) {
+            windowState.pendingOpenDocumentId = nil
+            openDocument(doc)
+            return
+        }
+        // Claim the id (nil it) before the async fetch so overlapping revision
+        // ticks don't each launch one; on failure — e.g. the engine isn't
+        // connected yet — restore it so a later tick retries.
+        windowState.pendingOpenDocumentId = nil
+        Task { @MainActor in
+            if let doc = try? await documentStore.documentService.getDocument(pendingId) {
+                openDocument(doc)
+            } else {
+                windowState.pendingOpenDocumentId = pendingId
+            }
+        }
+    }
+
+    /// XCUITest hand-off (UITestSupport sets the SHARED id directly rather than
+    /// through a fresh-window open). Unchanged behaviour: a UI test runs one
+    /// window, so there is no cross-window race; the seeded document is shown
+    /// straight in the detail/inspector, never navigated into.
+    private func consumeSharedPendingOpen() {
         guard let pendingId = libraryManager.pendingOpenDocumentId else { return }
         if let doc = documents.first(where: { $0.id == pendingId }) {
             libraryManager.pendingOpenDocumentId = nil
             openDocument(doc)
             return
         }
-        // Test hook (InspectorFlowsUITests): the wanted document may be nested
-        // under a collection and absent from the *current* folder listing. Under
-        // XCUITest only, fetch it by id and show it directly so the inspector
-        // flow tests can open a seeded child document without navigating folders.
-        // Production behaviour is unchanged — the fetch branch never runs outside
-        // a UI test.
         guard isUITesting() else { return }
-        // Claim the id (nil it) so overlapping revision ticks don't each launch a
-        // fetch; on failure — e.g. the engine isn't connected yet — restore it so
-        // a later revision retries once the connection is live.
         libraryManager.pendingOpenDocumentId = nil
         Task { @MainActor in
             if let doc = try? await documentStore.documentService.getDocument(pendingId) {

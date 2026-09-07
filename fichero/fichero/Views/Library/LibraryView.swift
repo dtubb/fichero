@@ -52,6 +52,12 @@ struct LibraryView: View {
     /// Called when a page item row is selected in the outline table (#2405).
     /// Callers should set `pageFocusDocument` to drive reader + inspector focus.
     var onPageFocus: (Document) -> Void = { _ in }
+    /// Double-click on a row WHILE transient search results are showing: take
+    /// the user to where the item actually lives in the tree — open the folder
+    /// (contents shown) or land on the file inside its containing folder — and
+    /// leave the results so Back returns to them (#4106). Only invoked while
+    /// `activeSearchQuery != nil`; ordinary browsing keeps the in-place open.
+    var onRevealSearchResult: (Document) -> Void = { _ in }
     /// When the sidebar is hidden, single-click in the grid acts like Finder
     /// (no-sidebar fallback): plain click navigates INTO navigable containers
     /// instead of just selecting. Modified clicks (Shift/Cmd) still select

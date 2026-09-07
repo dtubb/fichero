@@ -92,6 +92,7 @@ extension ContentView {
                     pageFocusDocument = doc
                 }
             },
+            onRevealSearchResult: { doc in revealSearchResult(doc) },
             sidebarHidden: !showSidebar,
             onToolbarSearchSubmit: { query in
                 runToolbarSearch(query)

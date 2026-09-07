@@ -12,6 +12,14 @@ class WindowState {
     /// Currently selected tab
     var selectedTab: String = "library"
 
+    /// A document THIS window should focus once its rows load — the per-window
+    /// half of the "Open in New Tab/Window" hand-off (#1685). Claimed from the
+    /// shared `LibraryManager.pendingOpenDocumentId` by `initializeWindow` when
+    /// this freshly opened window takes its library, so a BACKGROUND window
+    /// sharing the same library's `documentStore` can no longer consume the
+    /// intent on a revision tick and hijack the open into the wrong window.
+    var pendingOpenDocumentId: String?
+
     /// The document selection a workflow run must honor (#4523 LAW: "a
     /// workflow's scope is the CURRENT SELECTION at gesture time; selection
     /// means the selected items, not their peers").
