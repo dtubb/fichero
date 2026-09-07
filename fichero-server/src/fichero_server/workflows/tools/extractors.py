@@ -46,7 +46,7 @@ from fichero_server.llm import (
     ProviderQuotaError,
     chat_structured_with_fallback,
 )
-from fichero_server.knowledge.svo_quality import is_pronoun_subject
+from fichero_server.knowledge.svo_quality import fold as _fold_subject, is_pronoun_subject
 from fichero_server.loaders.rtf_text import to_plain_text
 from fichero_server.models import Artifact
 from fichero_server.workflows.tools._workflow_change_emit import (
@@ -2069,6 +2069,31 @@ def _temporal_scope(
 # a labelled `model_paraphrase` signal so nothing pretends it was verbatim.
 _ANCHOR_WORD_RE = _re.compile(r"\S+")
 
+# First-person pronoun subjects, accent-folded. A first-person pronoun subject
+# ("I", "we", "nosotros") in an authored document resolves to the AUTHOR when no
+# nearer antecedent names it — a diary's "I wrote …" is the diarist's statement,
+# not a dropped row (#4666 follow-up). Third-person pronouns are deliberately
+# absent: "they"/"he" name someone the author fallback cannot, so they resolve
+# only to a real antecedent, else drop.
+_FIRST_PERSON_PRONOUN_SUBJECTS = frozenset({
+    # English
+    "i", "we", "me", "us", "my", "our", "mine", "ours",
+    # Spanish (folded: accents removed)
+    "yo", "nosotros", "nosotras", "nos", "mi", "mis", "nuestro", "nuestra",
+    "nuestros", "nuestras",
+    # Portuguese / French neighbours in mixed corpora
+    "je", "nous",
+})
+
+
+def _is_first_person_subject(subject: str | None) -> bool:
+    """Whether ``subject`` is a first-person pronoun (folded, article-stripped)."""
+    folded = _fold_subject(subject or "")
+    if not folded:
+        return False
+    folded = _re.sub(r"^(the|el|la|los|las|un|una|a|an)\s+", "", folded)
+    return folded in _FIRST_PERSON_PRONOUN_SUBJECTS
+
 
 def _fold_for_anchor(word: str) -> str:
     """Case-, accent- and edge-punctuation-folded word, for fuzzy alignment."""
@@ -2422,9 +2447,16 @@ def _write_kg_rows(
     # "we" / "nosotros" / "them" walked straight through and became entities,
     # and any pronoun with no antecedent in scope became an entity too — which
     # is how a browser ends up showing "they" as the subject of nearly every
-    # statement. The vocabulary now lives in one place, and an unresolvable
-    # pronoun is DROPPED rather than canonicalised: a row that names nobody is
-    # worse than no row.
+    # statement. The vocabulary now lives in one place; a pronoun subject is
+    # resolved to the actual name — the running antecedent (the last named
+    # subject), or, for a FIRST-person pronoun in an authored document, the
+    # author — and only dropped when neither names anyone (Daniel: "insert the
+    # actual subject and just repeat the name" rather than drop). A third-person
+    # pronoun with no antecedent still drops: there is no name to repeat, and
+    # attributing it to the author would be a guess wearing a fact's clothes.
+    # `author_label` (computed above from source_metadata.authors) seeds the
+    # first-person fallback so a diary's "I wrote …" attributes to the diarist
+    # rather than vanishing.
     antecedent: str | None = None
 
     def clean_claim_text(value: Any) -> str:
@@ -2467,15 +2499,22 @@ def _write_kg_rows(
             or ""
         )
         if is_pronoun_subject(canonical):
-            if antecedent:
-                canonical = antecedent
+            # Resolve to the actual name rather than dropping: the running
+            # antecedent (last named subject) first, then — only for a
+            # first-person pronoun — the document's author. A row keeps the
+            # named subject and repeats it (Daniel), never a bare "they".
+            resolved = antecedent
+            if resolved is None and author_label and _is_first_person_subject(canonical):
+                resolved = author_label
+            if resolved:
+                canonical = resolved
             else:
                 invariant_violations.append(
                     "pronoun subject with no antecedent — item dropped"
                 )
                 logger.info(
                     "_write_kg_rows: dropped pronoun-subject item %r on %s "
-                    "(no antecedent to resolve it against, #4666)",
+                    "(no antecedent or author to resolve it against, #4666)",
                     canonical, container_id,
                 )
                 continue
