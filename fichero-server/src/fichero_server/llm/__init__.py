@@ -342,46 +342,6 @@ def run_model_choice() -> tuple[str, str] | None:
     return _run_model_choice.get()
 
 
-def _run_choice_fallback_config(failed: "LLMConfig") -> "LLMConfig | None":
-    """The run's chosen model as a fallback target, when it can serve.
-
-    Precedence, the same ladder resolution itself walks: the user's explicit
-    choice first, the configured tier after. Two guards keep it honest —
-
-    - it must not be the model that just failed, or the "fallback" is a retry
-      into the same refusal;
-    - it must be capability-compatible, because a choice that cannot do the
-      work is not a rescue. A text-only pick cannot save a vision step, and a
-      recognition-only route (apple-vision) cannot answer a prompt.
-
-    The capability asked for here is "text", and that is an inference with
-    evidence rather than an assumption: every caller of the two fallback
-    functions is a text tool (extractors, cleanup, citations, catalogue,
-    book_index, svo, entities) — the vision path does not route through them
-    at all.
-    """
-    choice = _run_model_choice.get()
-    if not choice:
-        return None
-    provider, model = choice
-    if not model:
-        return None
-    if (provider or "").lower() == (failed.provider or "").lower() and (
-        model.lower() == (failed.model or "").lower()
-    ):
-        return None
-    try:
-        from fichero_server.workflows.validation import model_can_serve_capability
-
-        if not model_can_serve_capability(provider, model, "text"):
-            return None
-    except Exception as exc:  # pragma: no cover - defensive
-        logger.debug("Run-choice fallback capability check failed: %s", exc)
-    # A dataclass, not a pydantic model — and a copy rather than a mutation,
-    # so the failing config stays intact for the record that names it.
-    return dataclasses.replace(failed, provider=provider, model=model)
-
-
 def fallback_condition_for(error: Exception) -> str:
     """Which KIND of condition this was — the distinction Daniel asked for.
 
@@ -1201,54 +1161,6 @@ def enforce_local_only_provider(provider: str, model: str, *, kind: str) -> None
     _enforce_local_only_provider(LLMConfig(provider=provider, model=model), kind=kind)
 
 
-def _resolve_tier_transport_settings(tier: str) -> tuple[str | None, str | None]:
-    """Resolve env-only overrides for a tier's transport settings."""
-    tier_name = tier.upper()
-    base_url = (
-        os.environ.get(f"FICHERO_{tier_name}_BASE_URL")
-        or os.environ.get(f"FICHERO_{tier_name}_API_BASE")
-    )
-    api_key = os.environ.get(f"FICHERO_{tier_name}_API_KEY")
-    return base_url, api_key
-
-
-def _build_fallback_config(config: LLMConfig, tier: str = "large") -> LLMConfig:
-    """Build a tier fallback config, including transport overrides."""
-    fallback_provider, fallback_model = resolve_model_alias(f"${tier}", "")
-    base_url, api_key = _resolve_tier_transport_settings(tier)
-    return LLMConfig(
-        provider=fallback_provider,
-        model=fallback_model,
-        temperature=config.temperature,
-        max_tokens=config.max_tokens,
-        api_key=api_key or config.api_key,
-        api_base=base_url or config.api_base,
-        timeout=config.timeout,
-        extra=dict(config.extra),
-        reasoning_effort=config.reasoning_effort,
-    )
-
-
-def _fallback_tier_order() -> tuple[str, ...]:
-    """Ordered fallback tiers after Apple. Defaults to $medium -> $large."""
-    raw = os.environ.get("FICHERO_AI_FALLBACK_TIERS")
-    if raw is None:
-        return ("medium", "large")
-
-    tiers: list[str] = []
-    for item in raw.split(","):
-        tier = item.strip().lower().lstrip("$")
-        if not tier:
-            continue
-        if tier not in {"medium", "large"}:
-            raise ValueError(
-                f"Invalid fallback tier {item!r}; expected comma-separated medium/large."
-            )
-        if tier not in tiers:
-            tiers.append(tier)
-    return tuple(tiers) or ("medium", "large")
-
-
 def _local_runtime_missing(origin_error: BaseException | None) -> bool:
     """Whether the failure was "the on-device runtime is not installed" (#4502).
 
@@ -1268,92 +1180,6 @@ def _local_runtime_missing(origin_error: BaseException | None) -> bool:
       with a fix, so the honest move is to say so.
     """
     return isinstance(origin_error, LocalModelUnavailableError)
-
-
-def _iter_fallback_configs(
-    config: LLMConfig,
-    *,
-    original_config: LLMConfig,
-    error_name: str,
-    kind: str,
-    origin_error: BaseException | None = None,
-) -> Iterator[tuple[str, LLMConfig, bool]]:
-    """Yield usable fallback configs in ordered tier order.
-
-    ``origin_error`` is what failed on the primary attempt. When it says the
-    LOCAL RUNTIME IS MISSING, only local fallbacks are yielded — see
-    :func:`_local_runtime_missing`. Defaults to None so existing callers keep
-    today's behaviour rather than silently changing it.
-    """
-    for tier in _fallback_tier_order():
-        try:
-            fallback_config = _build_fallback_config(config, tier)
-        except ValueError:
-            logger.warning(
-                "%s but no $%s fallback configured; continuing fallback chain.",
-                error_name,
-                tier,
-            )
-            continue
-
-        if (
-            fallback_config.provider == original_config.provider
-            and fallback_config.model == original_config.model
-        ):
-            continue
-
-        fallback_is_local = _is_local_or_builtin_provider(fallback_config.provider)
-        _enforce_local_only_provider(fallback_config, kind=f"{kind} ${tier} fallback")
-
-        # A missing on-device runtime never escalates to a paid provider,
-        # EVEN when paid fallbacks are enabled (#4502). Enabling paid fallbacks
-        # is consent to escape Apple's guardrail, not consent to replace the
-        # local model someone deliberately chose. Falling to another LOCAL tier
-        # is still fine — that keeps the property they picked it for.
-        if _local_runtime_missing(origin_error) and not fallback_is_local:
-            logger.warning(
-                "%s: the on-device runtime is unavailable, so NOT falling back "
-                "to paid $%s %s/%s. Install the local runtime, or pick a "
-                "different provider explicitly — a local-model failure will "
-                "not silently become a billed remote call.",
-                error_name,
-                tier,
-                fallback_config.provider,
-                fallback_config.model,
-            )
-            continue
-
-        if not _paid_remote_fallbacks_enabled() and not fallback_is_local:
-            logger.warning(
-                "Skipping $%s %s fallback %s/%s because paid remote fallbacks "
-                "are disabled by default. Configure a local provider or set "
-                "FICHERO_ALLOW_PAID_AI_FALLBACKS=1.",
-                tier,
-                kind,
-                fallback_config.provider,
-                fallback_config.model,
-            )
-            continue
-
-        yield tier, fallback_config, fallback_is_local
-
-
-def _paid_remote_fallbacks_enabled() -> bool:
-    """Whether Apple structured fallback may use paid remote providers."""
-    raw = os.environ.get("FICHERO_ALLOW_PAID_AI_FALLBACKS")
-    if raw is not None:
-        return raw.strip().lower() in {"1", "true", "yes", "on"}
-
-    try:
-        from fichero_server.db.app import get_app_db
-
-        setting = get_app_db().get_setting("allow_paid_ai_fallbacks")
-    except Exception:
-        setting = None
-
-    if setting is None:
-        return False
-    return str(setting).strip().lower() in {"1", "true", "yes", "on"}
 
 
 def is_local_only() -> bool:
@@ -1947,101 +1773,29 @@ async def chat_with_fallback(
     system: str | None = None,
     permissive_guardrails: bool = False,
 ) -> str:
-    """Like chat(), but falls back through the ordered tier chain when Apple
-    Intelligence can't service the request.
+    """Call chat() with the SELECTED model and raise loud on failure.
 
-    Apple's safety filter is tuned for consumer use cases and refuses
-    scholarly text containing literary profanity, drug references,
-    historical slurs, court-record vocabulary, etc. Apple's locale
-    matrix also evolves per OS release (en-US only on 15.1; Spanish-
-    Spain added 15.4; broader on 26+) and rejects out-of-set prompts
-    with `unsupportedLanguageOrLocale`. Frontier cloud providers
-    handle both — academic content + any locale — so the fallback
-    keeps the local-first default but escapes to the user-configured
-    cloud provider when needed.
+    Historically this walked an Apple-unavailable → $medium → $large tier
+    ladder, silently substituting a different model (and preferring the run's
+    own choice). That machinery was removed on Daniel's ruling (2026-09-07):
+    "get rid of fallback ladders, fail loudly." One selected/resolved model per
+    call — if it errors or its runtime is missing, the specific error propagates
+    to the node and Activity; there is NEVER a silent switch to a different or
+    local model the user did not pick.
 
-    Streaming is intentionally unsupported — callers that need streaming
-    are using direct chat() and accept the responsibility of catching
-    AppleUnavailableError subclasses themselves.
+    What is NOT a ladder and still stands: keyless text-generative nodes resolve
+    to Apple's on-device model, and keyless generative-vision nodes REFUSE
+    clearly — both at PREFLIGHT (a78e42129), a visible resolution/refusal, not a
+    silent on-failure swap here.
 
-    Returns the response string. Raises when every configured fallback tier
-    is unavailable or fails.
+    The name is kept so its many callers (extractors, cleanup, citations,
+    catalogue, book_index, svo, entities) are untouched; it is now a thin
+    passthrough to chat().
     """
-    try:
-        return await chat(
-            prompt, config, system=system,
-            permissive_guardrails=permissive_guardrails,
-        )
-    except AppleUnavailableError as apple_exc:
-        last_failure: Exception | None = None
-        attempted = False
-
-        # The run's own choice first — see the structured path for why.
-        if (run_choice := _run_choice_fallback_config(config)) is not None:
-            attempted = True
-            try:
-                result = await chat(
-                    prompt, run_choice, system=system,
-                    permissive_guardrails=permissive_guardrails,
-                )
-            except (AppleUnavailableError, ProviderQuotaError) as exc:
-                last_failure = exc
-            else:
-                _record_model_fallback(
-                    from_config=config, to_config=run_choice,
-                    error=apple_exc, kind="chat",
-                )
-                return result
-
-        for tier, fallback_config, fallback_is_local in _iter_fallback_configs(
-            config,
-            original_config=config,
-            error_name=type(apple_exc).__name__,
-            kind="chat",
-            origin_error=apple_exc,
-        ):
-            attempted = True
-            cost_note = (
-                "an on-device model — no API cost"
-                if fallback_is_local
-                else "a PAID remote model — this request now incurs cost"
-            )
-            logger.warning(
-                "Apple Intelligence unavailable (%s); falling back to %s: "
-                "$%s = %s/%s.",
-                type(apple_exc).__name__,
-                cost_note,
-                tier,
-                fallback_config.provider,
-                fallback_config.model,
-            )
-            try:
-                result = await chat(
-                    prompt,
-                    fallback_config,
-                    system=system,
-                    permissive_guardrails=permissive_guardrails,
-                )
-            except (AppleUnavailableError, ProviderQuotaError) as exc:
-                last_failure = exc
-                continue
-            logger.info(
-                "Fallback to $%s %s/%s succeeded.",
-                tier,
-                fallback_config.provider,
-                fallback_config.model,
-            )
-            _record_model_fallback(
-                from_config=config,
-                to_config=fallback_config,
-                error=apple_exc,
-                kind="chat",
-            )
-            return result
-
-        if attempted and last_failure is not None:
-            raise last_failure
-        raise apple_exc
+    return await chat(
+        prompt, config, system=system,
+        permissive_guardrails=permissive_guardrails,
+    )
 
 
 def _deepl_default_base(api_key: str) -> str:
@@ -3650,15 +3404,21 @@ async def chat_structured_with_fallback(
     use_case: str | None = None,
     permissive_guardrails: bool = False,
 ) -> BaseModel:
-    """Like chat_structured(), but falls back through $medium then $large
-    when Apple Intelligence can't service the request (guardrail refusal
-    #838 or unsupported locale #868).
+    """Call chat_structured() with the SELECTED model; retry ONCE on-device for
+    a transient decode miss, then raise loud. No model substitution.
 
-    Mirrors chat_with_fallback() for the structured-output path. Lets
-    extract_all, cleanup, and per-section extractors keep the local-first
-    default while still completing on documents Apple Intelligence
-    rejects (Spanish-LatAm court records, scholarly text with literary
-    profanity, etc.).
+    The $medium → $large tier ladder and the run-choice substitution were
+    removed on Daniel's ruling (2026-09-07): "get rid of fallback ladders, fail
+    loudly." What remains is same-model transient-error handling on the model
+    the caller selected: a grammar-constrained decode can miss a valid path and
+    land on a single retry, and a context/schema overflow can clear with the
+    schema kept out of the prompt — both re-roll the SAME model and raise loud
+    if they still fail. Never a different model, never a silent local swap.
+
+    Keyless text→Apple resolution and the keyless generative-vision refusal
+    happen at PREFLIGHT (a78e42129), not here. The name is kept so its callers
+    (extract_all, cleanup, per-section extractors, citations, book_index, svo,
+    entities) are untouched.
     """
     try:
         return await chat_structured(
@@ -3668,35 +3428,26 @@ async def chat_structured_with_fallback(
             permissive_guardrails=permissive_guardrails,
         )
     except AppleUnavailableError as apple_exc:
-        # Catches GuardrailViolationError, UnsupportedLocaleError, and
-        # any future "Apple can't proceed" subclass uniformly.
-
-        # #1027: a `decoding` / `generation` decode failure is often
-        # transient — the grammar-constrained sampler missed a valid
-        # path this time, but a single on-device retry frequently lands
-        # one. Retry once before paying for the $large cloud model.
-        # `context_overflow` / `schema` are NOT retried: the same chunk
-        # and schema fail identically, so they go straight to fallback.
+        # SAME-MODEL retries only (Ruling A, team-lead 2026-09-07): one re-roll
+        # for a transient grammar-decode miss (#1027), or one retry with the
+        # schema kept out of the prompt for a context/schema overflow. Not a
+        # ladder — the model never changes, and a second failure propagates
+        # loud. `context_overflow` / `schema` are disjoint from RETRYABLE_KINDS.
         if (
             isinstance(apple_exc, StructuredDecodeError)
             and apple_exc.kind in StructuredDecodeError.RETRYABLE_KINDS
         ):
             logger.warning(
-                "Apple Intelligence structured decode failed (%s) — "
-                "retrying once on-device before paid fallback.",
+                "Apple Intelligence structured decode failed (%s) — retrying "
+                "once on-device on the SAME model.",
                 apple_exc.kind,
             )
-            try:
-                return await chat_structured(
-                    prompt, schema, config, system=system,
-                    include_schema_in_prompt=include_schema_in_prompt,
-                    use_case=use_case,
-                    permissive_guardrails=permissive_guardrails,
-                )
-            except AppleUnavailableError as retry_exc:
-                # Retry also failed — fall through to $large with the
-                # retry's error as the operative cause.
-                apple_exc = retry_exc
+            return await chat_structured(
+                prompt, schema, config, system=system,
+                include_schema_in_prompt=include_schema_in_prompt,
+                use_case=use_case,
+                permissive_guardrails=permissive_guardrails,
+            )
 
         if (
             isinstance(apple_exc, StructuredDecodeError)
@@ -3704,105 +3455,25 @@ async def chat_structured_with_fallback(
             and apple_exc.kind in {"context_overflow", "schema"}
         ):
             logger.warning(
-                "Apple Intelligence structured decode failed (%s) — "
-                "retrying once on-device with include_schema_in_prompt=False.",
+                "Apple Intelligence structured decode failed (%s) — retrying "
+                "once on-device with include_schema_in_prompt=False (SAME model).",
                 apple_exc.kind,
             )
-            try:
-                return await chat_structured(
-                    prompt,
-                    schema,
-                    config,
-                    system=system,
-                    include_schema_in_prompt=False,
-                    use_case=use_case,
-                    permissive_guardrails=permissive_guardrails,
-                )
-            except AppleUnavailableError as compact_retry_exc:
-                apple_exc = compact_retry_exc
-
-        last_failure: Exception | None = None
-        attempted = False
-
-        # The run's OWN choice first (team-lead, 2026-09-05): when the user
-        # named a model, that is a stronger statement of what they mean to
-        # spend than any configured tier. Reached on the two paths the
-        # routing fix leaves open — a preset pinned to Apple that refuses
-        # overrides, and a step whose capability disqualified the run choice
-        # and so resolved its own tier.
-        if (run_choice := _run_choice_fallback_config(config)) is not None:
-            attempted = True
-            try:
-                result = await chat_structured(
-                    prompt, schema, run_choice, system=system,
-                    use_case=use_case,
-                    permissive_guardrails=permissive_guardrails,
-                )
-            except (ProviderQuotaError, AppleUnavailableError) as exc:
-                last_failure = exc
-            else:
-                _record_model_fallback(
-                    from_config=config, to_config=run_choice,
-                    error=apple_exc, kind="structured",
-                )
-                return result
-
-        for tier, fallback_config, fallback_is_local in _iter_fallback_configs(
-            config,
-            original_config=config,
-            error_name=type(apple_exc).__name__,
-            kind="structured",
-            origin_error=apple_exc,
-        ):
-            attempted = True
-            cost_note = (
-                "an on-device model — no API cost"
-                if fallback_is_local
-                else "a PAID remote model — this request now incurs cost"
+            return await chat_structured(
+                prompt,
+                schema,
+                config,
+                system=system,
+                include_schema_in_prompt=False,
+                use_case=use_case,
+                permissive_guardrails=permissive_guardrails,
             )
-            logger.warning(
-                "Apple Intelligence unavailable for structured call (%s); "
-                "falling back to %s: $%s = %s/%s.",
-                type(apple_exc).__name__,
-                cost_note,
-                tier,
-                fallback_config.provider,
-                fallback_config.model,
-            )
-            # The fallback provider is LangChain-based, so the Apple-only
-            # include_schema_in_prompt parameter is ignored on that path.
-            try:
-                result = await chat_structured(
-                    prompt,
-                    schema,
-                    fallback_config,
-                    system=system,
-                    use_case=use_case,
-                    permissive_guardrails=permissive_guardrails,
-                )
-            except (ProviderQuotaError, AppleUnavailableError) as exc:
-                last_failure = exc
-                continue
-            logger.info(
-                "Structured fallback to $%s %s/%s succeeded.",
-                tier,
-                fallback_config.provider,
-                fallback_config.model,
-            )
-            # Recorded, not merely logged: the substitution is now part of
-            # what the run REPORTS, so the answer can be attributed to the
-            # model that actually produced it (Daniel, 2026-09-05).
-            _record_model_fallback(
-                from_config=config,
-                to_config=fallback_config,
-                error=apple_exc,
-                kind="structured",
-            )
-            return result
 
-        if attempted and last_failure is not None:
-            raise last_failure
-        raise apple_exc
+        # Anything else — a guardrail refusal, an unsupported locale, a missing
+        # local runtime, a non-retryable decode — fails LOUD with its specific
+        # cause. No substitution to a different or local model the user did not
+        # pick.
+        raise
 
 
 # Apple Intelligence on-device model context window size. Documented at

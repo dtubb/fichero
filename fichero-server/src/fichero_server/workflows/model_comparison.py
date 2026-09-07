@@ -474,42 +474,20 @@ class ModelComparisonEngine:
         system_prompt: str | None,
         timeout_seconds: int,
     ) -> tuple[Any, ModelSpec | None]:
-        """Invoke a model and record when Apple guardrail fallback is used."""
-        # Imported here rather than at module scope: pulls langchain_core (#3950).
-        # AppleUnavailableError is caught below — an `except` clause is a global
-        # lookup, so the name must be bound in this scope before the try.
-        from fichero_server.llm import (  # noqa: PLC0415
-            AppleUnavailableError,
-            _is_local_or_builtin_provider,
-            _local_runtime_missing,
-            resolve_model_alias,
-        )
+        """Invoke the SELECTED model; raise loud on failure — no substitution.
 
-        try:
-            return await self._invoke_model(spec, prompt, system_prompt, timeout_seconds), None
-        except AppleUnavailableError as exc:
-            provider, model = resolve_model_alias("$large", "")
-            if provider == spec.provider and model == spec.model:
-                raise
-            # #4502: this path resolves $large DIRECTLY, so it never passed
-            # through `_iter_fallback_configs` and never consulted the paid
-            # gate. A missing on-device runtime must not become a billed call
-            # here either — same rule, same predicate, so the two paths cannot
-            # drift into disagreeing about what is free.
-            if _local_runtime_missing(exc) and not _is_local_or_builtin_provider(provider):
-                raise
-            fallback_spec = ModelSpec(
-                provider=provider,
-                model=model,
-                temperature=spec.temperature,
-                max_tokens=spec.max_tokens,
-            )
-            return (
-                await self._invoke_model(
-                    fallback_spec, prompt, system_prompt, timeout_seconds
-                ),
-                fallback_spec,
-            )
+        Historically an Apple-unavailable failure here resolved $large and
+        silently ran a DIFFERENT model. Removed on Daniel's ruling (2026-09-07):
+        "get rid of fallback ladders, fail loudly." A model bakeoff compares the
+        models the user asked for; if one can't serve, that is the honest,
+        specific result — never a quiet swap to another model. The second tuple
+        element (formerly the substituted spec) is always None now; kept so the
+        caller's unpacking is untouched.
+        """
+        return (
+            await self._invoke_model(spec, prompt, system_prompt, timeout_seconds),
+            None,
+        )
 
     async def _invoke_model(
         self,
