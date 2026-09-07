@@ -43,7 +43,7 @@ extension LibraryView {
     }
 
     var libraryPaneHead: some View {
-        PaneHead<PaneKindSelector<ViewDisplayMode>, EmptyView, EmptyView>(
+        PaneHead<PaneKindSelector<ViewDisplayMode>, LibraryContentKindControl, EmptyView>(
             crumbs: libraryHeadCrumbs,
             onClose: onClosePane,
             isPinned: isPanePinned,
@@ -65,7 +65,9 @@ extension LibraryView {
                 }
             },
             selector: { self.librarySelector },
-            controls: { EmptyView() },
+            // The node-model axis (Documents / Claims / Entities) sits beside the
+            // view-mode picker: WHAT you browse next to HOW it's laid out.
+            controls: { LibraryContentKindControl(kind: contentKindBinding) },
             tools: { EmptyView() }
         )
     }
