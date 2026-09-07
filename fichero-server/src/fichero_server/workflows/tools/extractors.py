@@ -29,6 +29,7 @@ from fichero_server.models.anchors import SourceAnchor
 from fichero_server.models.knowledge import EntityType
 
 import asyncio
+import difflib
 import json
 import logging
 import re as _re
@@ -2056,6 +2057,66 @@ def _temporal_scope(
     return normalized, normalized, t_precision
 
 
+# Fuzzy verbatim anchoring (#4494 follow-up). A model's supporting quote is
+# often a light paraphrase of the page — a dropped "Also", a "Those" the model
+# left out — so an EXACT substring search finds nothing and a genuine statement
+# is orphaned with no page anchor (observed: "believed to be among His Party"
+# vs the page's "Also Believed to be Among Those in His Party"). Rather than
+# reject outright, find the CLOSEST real page span: tokenise both, align with
+# difflib, and if enough of the quote's words land contiguously on the page,
+# anchor to that REAL span. The stored quote is then the page's OWN words (a
+# true substring, so highlight still lands), and the model's version is kept as
+# a labelled `model_paraphrase` signal so nothing pretends it was verbatim.
+_ANCHOR_WORD_RE = _re.compile(r"\S+")
+
+
+def _fold_for_anchor(word: str) -> str:
+    """Case-, accent- and edge-punctuation-folded word, for fuzzy alignment."""
+    folded = unicodedata.normalize("NFKD", word)
+    folded = "".join(ch for ch in folded if not unicodedata.combining(ch))
+    return folded.casefold().strip(".,;:!?¿¡\"'“”‘’()[]{}")
+
+
+def _fuzzy_anchor(
+    page: str,
+    quote: str,
+    *,
+    min_coverage: float = 0.75,
+    max_span_ratio: float = 3.0,
+) -> tuple[int, int] | None:
+    """Character span of ``page`` best matching ``quote``, or None.
+
+    Word-level difflib alignment on case/accent-folded tokens. Requires at
+    least two quote words (a one-word quote is too weak to anchor without
+    false hits), that ``min_coverage`` of the quote's words align onto the
+    page, and that the matched page window does not balloon past
+    ``max_span_ratio`` × the quote length (which would mean the words matched
+    scattered across unrelated text rather than one contiguous span).
+    """
+    page_words = [(m.start(), m.end()) for m in _ANCHOR_WORD_RE.finditer(page)]
+    page_norm = [_fold_for_anchor(page[s:e]) for s, e in page_words]
+    quote_norm = [
+        folded
+        for folded in (_fold_for_anchor(w) for w in _ANCHOR_WORD_RE.findall(quote))
+        if folded
+    ]
+    if len(quote_norm) < 2 or not page_norm:
+        return None
+    matcher = difflib.SequenceMatcher(a=page_norm, b=quote_norm, autojunk=False)
+    blocks = [b for b in matcher.get_matching_blocks() if b.size]
+    if not blocks:
+        return None
+    matched_words = sum(b.size for b in blocks)
+    if matched_words / len(quote_norm) < min_coverage:
+        return None
+    first_page_word = blocks[0].a
+    last_page_word = blocks[-1].a + blocks[-1].size - 1
+    span_words = last_page_word - first_page_word + 1
+    if span_words > max_span_ratio * len(quote_norm):
+        return None
+    return page_words[first_page_word][0], page_words[last_page_word][1]
+
+
 def _write_kg_rows(
     db,
     section: dict[str, Any],
@@ -2523,6 +2584,7 @@ def _write_kg_rows(
                 logger.warning("claim source_bbox rejected: %s", exc)
         verbatim_source_text: str | None = None
         model_paraphrase: str | None = None
+        fuzzy_paraphrase: str | None = None
         unverified_source_text: str | None = None
         if raw_source_text:
             if page_excerpt:
@@ -2532,9 +2594,21 @@ def _write_kg_rows(
                     char_start = idx
                     char_end = idx + len(raw_source_text)
                 else:
-                    # We looked, and these words are not on the page. That is
-                    # a refuted quote, and the reason #4494 exists.
-                    model_paraphrase = raw_source_text
+                    # Exact substring failed. Before refuting the quote, try to
+                    # anchor to the CLOSEST real span — a light paraphrase (a
+                    # dropped word, a case shift) still points at real page text
+                    # (#4494 follow-up). When one lands, store the page's OWN
+                    # words and keep the model's version as a labelled signal.
+                    anchor = _fuzzy_anchor(page_excerpt, raw_source_text)
+                    if anchor is not None:
+                        char_start, char_end = anchor
+                        verbatim_source_text = page_excerpt[char_start:char_end]
+                        if verbatim_source_text.strip() != raw_source_text.strip():
+                            fuzzy_paraphrase = raw_source_text
+                    else:
+                        # We looked, and these words are not on the page. That is
+                        # a refuted quote, and the reason #4494 exists.
+                        model_paraphrase = raw_source_text
             else:
                 # We could NOT look — this call has no page text (the
                 # non-paginated extraction path). "Refuted" and "unchecked"
@@ -2571,6 +2645,17 @@ def _write_kg_rows(
                 meta["source_text_unverified"] = True
                 meta["source_text_unverified_reason"] = (
                     "no page text available to verify the quote against"
+                )
+            if fuzzy_paraphrase:
+                # source_text above is the page's own words (a true substring,
+                # so it anchors and highlights); this keeps the model's lightly
+                # paraphrased version and says the anchor was fuzzy, so nothing
+                # downstream mistakes the alignment for an exact quote (#4494).
+                meta["model_paraphrase"] = fuzzy_paraphrase
+                meta["source_text_anchor"] = "fuzzy"
+                meta["source_text_anchor_reason"] = (
+                    "anchored to the closest matching span on the page; "
+                    "the model's quote was a light paraphrase"
                 )
         elif model_paraphrase:
             # Kept, but never in the field the inspector renders as a quote.
