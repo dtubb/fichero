@@ -152,7 +152,14 @@ extension LibraryView {
             // Mandate 1, consumer 1: the folder's outline feeds the head's
             // crumb chain + jump menus from ONE fetch.
             .task(id: folderId) {
-                if let anchor = folderId.map({ $0.hasPrefix("doc:") ? String($0.dropFirst(4)) : $0 }) {
+                // A browser sentinel ("entities-browser", "claims-browser",
+                // "activity-browser", …) is NOT a document, so it has no outline —
+                // fetching one 404s ("Document not found: entities-browser") and,
+                // under the live P4 KG-row selection, that failing fetch churned
+                // the view tree every render (Touch Bar layout-pass crash). Only
+                // real documents get an outline.
+                if let rawId = folderId, !rawId.hasSuffix("-browser") {
+                    let anchor = rawId.hasPrefix("doc:") ? String(rawId.dropFirst(4)) : rawId
                     await documentStore.loadOutline(for: anchor)
                 }
             }

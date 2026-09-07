@@ -121,12 +121,23 @@ struct EntitiesTableView: View {
             curationMenu(for: ids)
         }
         .onChange(of: selection) { _, newSelection in
-            guard newSelection.count == 1,
-                  let id = newSelection.first,
-                  let item = items.first(where: { $0.id == id }) else { return }
+            // RE-ENTRANCY GUARD (same as the claims table): open only a NEW single
+            // selection. Opening an entity writes kg-focus + detailDocument, which
+            // can re-enter this handler; the lastOpenedId latch stops open→render→
+            // open feeding the Touch Bar layout loop. A cleared/multi selection
+            // resets the latch.
+            guard newSelection.count == 1, let id = newSelection.first else {
+                lastOpenedId = nil
+                return
+            }
+            guard id != lastOpenedId, let item = items.first(where: { $0.id == id }) else { return }
+            lastOpenedId = id
             actions.open(item.entity)
         }
     }
+
+    /// The last id auto-opened, so a re-render can't re-open it in a loop.
+    @State private var lastOpenedId: String?
 
     /// The right-click curation menu, over the clicked/selected entities. Reuses
     /// the existing services through the host's action closures.

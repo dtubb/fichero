@@ -33,28 +33,13 @@ extension SidebarView {
         .selectionDisabled()
     }
 
-    /// The pinned bottom navigation rows were retired (#4102) — except this
-    /// deliberate, narrow pair (P4): the two peer knowledge-graph collections,
-    /// Entities and Claims. A claim and an entity are NODES that flow through the
-    /// SAME library as a document, so each row simply re-scopes the library pane
-    /// to that node kind, LIBRARY-WIDE (the pane reads the selected item id as its
-    /// `contentCollection` and shows the corresponding table). Reusing the two
-    /// tables, the shared selection and the source cursor — no new KG surface.
+    /// The pinned bottom navigation rows were retired (#4102): everything in the
+    /// sidebar is a node under its library. The knowledge-graph collections
+    /// (Entities / Claims, P4) are library-scoped, so they render at LIBRARY level
+    /// under the active library — see `unifiedLibrarySections` — not here. Only the
+    /// automation load-error surface remains at the global bottom.
     @ViewBuilder
     func pinnedGlobalNavigationRows() -> some View {
-        Section("Knowledge") {
-            knowledgeRow(
-                title: "Entities",
-                systemImage: "person.2",
-                destination: .browser(.entities)
-            )
-            knowledgeRow(
-                title: "Claims",
-                systemImage: "quote.bubble",
-                destination: .browser(.claims)
-            )
-        }
-
         if let automationLoadError {
             sidebarLoadErrorRow(
                 title: "Automation Unavailable",
@@ -62,18 +47,5 @@ extension SidebarView {
                 retry: { await loadAutomationData() }
             )
         }
-    }
-
-    /// One knowledge-graph entry row. Tagged with its `SidebarDestination` so the
-    /// list's own selection routes it through `handleBrowserSelectionDestination`
-    /// the same way every other node does.
-    private func knowledgeRow(
-        title: String,
-        systemImage: String,
-        destination: SidebarDestination
-    ) -> some View {
-        Label(title, systemImage: systemImage)
-            .tag(destination)
-            .listRowInsets(SidebarRowMetrics.insets(.libraryItem))
     }
 }
