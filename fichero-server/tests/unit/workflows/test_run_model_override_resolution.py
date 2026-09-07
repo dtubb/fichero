@@ -80,6 +80,66 @@ def test_an_empty_choice_serves_nothing():
 
 
 # =============================================================================
+# A vision-capable provider is the authority for a vision RUN choice
+#
+# The omlx Detect Regions (VLM) bug (Daniel 2026-09-07): a user's saved Gemini
+# carried capabilities that omit "vision" (catalog lag / a text-tagged custom
+# model). `_model_has_capability` then returned a POSITIVE False, which dropped
+# the run's explicit vision choice and silently fell to the local $vision_medium
+# default — "the model chosen is not the model used." A user-selected model on a
+# vision-capable provider must be honoured.
+# =============================================================================
+
+
+def test_vision_capable_provider_honours_a_selected_model_missing_the_vision_tag(
+    monkeypatch,
+):
+    import fichero_server.llm as llm_mod
+
+    # Simulate a saved google/gemini whose capability list lacks "vision".
+    monkeypatch.setattr(
+        llm_mod, "_model_has_capability", lambda provider, model, cap: False
+    )
+    # google supports_vision=True → the explicit choice is honoured anyway.
+    assert (
+        model_can_serve_capability("google", "gemini-3-pro-preview", "vision") is True
+    )
+
+
+def test_selected_cloud_vision_model_reaches_a_detect_regions_vlm_node(monkeypatch):
+    """End to end at the node: the run's cloud vision choice is stamped onto the
+    detect_regions VLM node instead of being dropped to the tier default."""
+    import fichero_server.llm as llm_mod
+
+    monkeypatch.setattr(
+        llm_mod, "_model_has_capability", lambda provider, model, cap: False
+    )
+    node = {"id": "n1", "tool": "detect_regions", "config": {"provider": "vlm"}}
+    assert run_override_reaches_node(node, "google", "gemini-3-pro-preview") is True
+    reached = apply_run_model_override([node], "google", "gemini-3-pro-preview")
+    assert reached == ["n1"]
+    assert node["provider_name"] == "google"
+    assert node["model_name"] == "gemini-3-pro-preview"
+
+
+def test_vision_honouring_does_not_over_broaden_the_text_path(monkeypatch):
+    """The fix only touched the vision case: a positive "no" for a TEXT
+    capability still disqualifies, so a text step keeps its tier default."""
+    import fichero_server.llm as llm_mod
+
+    monkeypatch.setattr(
+        llm_mod, "_model_has_capability", lambda provider, model, cap: False
+    )
+    assert model_can_serve_capability("openai", "some-text-model", "text") is False
+
+
+def test_a_provider_that_positively_lacks_vision_still_cannot_serve_vision():
+    """DeepL is translation-only (supports_vision=False) — a real "no" stands,
+    even for a vision run choice."""
+    assert model_can_serve_capability("deepl", "deepl-default", "vision") is False
+
+
+# =============================================================================
 # Ordinary steps: the choice spreads within its capability class
 # =============================================================================
 

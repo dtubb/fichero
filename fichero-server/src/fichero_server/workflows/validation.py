@@ -822,6 +822,20 @@ def model_can_serve_capability(provider: str, model: str, capability: str) -> bo
             info = get_provider_info(provider.lower())
             if info is not None and not info.supports_vision:
                 return False
+            # A vision-capable PROVIDER is the authority for a vision run. A
+            # specific model's saved capability list routinely omits "vision"
+            # (catalog lag, or a user-added model saved as text-only), and
+            # `_model_has_capability` would then return a POSITIVE False —
+            # dropping a model the user explicitly SELECTED for a vision run.
+            # That is exactly how a run's Gemini choice was dropped on Detect
+            # Regions (VLM), silently falling to the local $vision_medium
+            # default ("the model chosen is not the model used", Daniel
+            # 2026-09-07). Honour the choice: only a provider that positively
+            # lacks vision (handled above) or a recognition-only OCR route
+            # (handled by the caller's requires_generative_model guard)
+            # disqualifies it.
+            if info is not None and info.supports_vision:
+                return True
         return _model_has_capability(provider, model, capability) is not False
     except Exception as exc:
         logger.debug(
