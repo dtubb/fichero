@@ -26,23 +26,27 @@ def test_score_band_boundaries():
     assert score_band(None) == "unknown"
 
 
-def test_heuristic_fallback_is_transparent(tmp_path):
-    # A cloud model with no LOCAL tokenizer: lazy derived-coverage generation
-    # can't produce a file (local_files_only), so the transparent heuristic
-    # still serves. (An OpenAI/local model with a real tokenizer now returns
-    # "derived" instead — that path is covered in test_script_coverage.py.)
+def test_no_tokenizer_returns_unknown_not_guess(tmp_path, monkeypatch):
+    # A model whose tokenizer can't be obtained (Apple / vision-only / gated)
+    # yields an honest UNKNOWN through the fit path — NOT a heuristic guess.
+    # Stub the loader so the test stays offline (no HF fetch).
+    from fichero_server.llm import script_coverage as sc
+
+    monkeypatch.setattr(sc, "load_tokenizer", lambda *a, **k: None)
     response = recommend_language_fit(
         "es",
-        [LanguageFitModelSpec(provider="acme", model="acme-cloud-llm-v1")],
+        [LanguageFitModelSpec(provider="apple", model="apple-intelligence")],
         coverage_dir=tmp_path,
     )
 
     result = response.results[0]
-    assert result.status == "heuristic"
-    assert result.coverage_score is not None
-    assert result.source.kind == "heuristic_fallback"
-    assert "No LOOVE-derived coverage file" in result.warnings[0]
+    assert result.coverage_score is None
+    assert result.score_band == "unknown"
+    assert result.status != "heuristic"
+    assert result.source.kind != "heuristic_fallback"
     assert "No cloud calls" in response.privacy_note
+    # Nothing fabricated or cached on disk for a model we couldn't score.
+    assert not any(tmp_path.iterdir())
 
 
 def test_derived_loove_json_wins_over_heuristic(tmp_path):

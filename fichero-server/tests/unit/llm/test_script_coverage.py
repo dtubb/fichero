@@ -247,17 +247,54 @@ def test_fit_path_generates_derived(tmp_path) -> None:
         sc.load_tokenizer = original  # type: ignore[assignment]
 
 
-def test_fit_path_falls_back_to_heuristic_without_tokenizer(tmp_path) -> None:
+def test_fit_path_no_tokenizer_returns_unknown_not_heuristic(tmp_path) -> None:
+    # Genuinely-no-tokenizer model (Apple/vision-only/gated) -> honest UNKNOWN,
+    # NOT a heuristic guess, and nothing written to disk.
     original = sc.load_tokenizer
     try:
-        sc.load_tokenizer = lambda model_id: None  # type: ignore[assignment]
+        sc.load_tokenizer = lambda *a, **k: None  # type: ignore[assignment]
         record = lc.evaluate_language_fit(
-            lc.normalize_model_spec("cloud", "no-tokenizer-model"),
+            lc.normalize_model_spec("apple", "apple-intelligence"),
             lc.language_spec("en"),
             coverage_dir=tmp_path,
         )
-        assert record.status == "heuristic"  # honest fallback preserved
-        assert not any(tmp_path.iterdir())  # nothing fabricated on disk
+        assert record.coverage_score is None
+        assert record.score_band == "unknown"
+        assert record.status != "heuristic"
+        assert record.source.kind != "heuristic_fallback"
+        assert not any(tmp_path.iterdir())  # nothing fabricated/cached
+    finally:
+        sc.load_tokenizer = original  # type: ignore[assignment]
+
+
+def test_fit_caches_second_call_does_not_recompute(tmp_path) -> None:
+    # First fit computes (loads tokenizer, writes file); a second fit must read
+    # the cached file WITHOUT loading the tokenizer again — proving per-(provider,
+    # model) caching. We prove "no recompute" by making the loader explode on the
+    # second call: if the cache weren't used, this would raise / go unknown.
+    greek = sc.SCRIPT_EXEMPLARS["Greek"]
+    tok = _tok_all_tier0(greek, sc.SCRIPT_SAMPLES["Greek"])
+    calls: list[str] = []
+
+    def counting_loader(model_id, *a, **k):
+        calls.append(model_id)
+        return tok
+
+    original = sc.load_tokenizer
+    try:
+        sc.load_tokenizer = counting_loader  # type: ignore[assignment]
+        spec = lc.normalize_model_spec("hf", "greek-fake")
+        r1 = lc.evaluate_language_fit(spec, lc.language_spec("el"), coverage_dir=tmp_path)
+        assert r1.status == "derived"
+        assert len(calls) == 1  # computed once
+
+        def exploding_loader(*a, **k):
+            raise AssertionError("cache miss: tokenizer should not reload")
+
+        sc.load_tokenizer = exploding_loader  # type: ignore[assignment]
+        r2 = lc.evaluate_language_fit(spec, lc.language_spec("el"), coverage_dir=tmp_path)
+        assert r2.status == "derived"  # served from the cached file
+        assert r2.coverage_score == r1.coverage_score
     finally:
         sc.load_tokenizer = original  # type: ignore[assignment]
 

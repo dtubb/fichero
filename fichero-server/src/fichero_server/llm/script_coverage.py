@@ -187,18 +187,27 @@ def _tier_counts(tokenizer: Tokenizer, exemplars: str) -> tuple[LanguageTierCoun
 
 
 @lru_cache(maxsize=64)
-def load_tokenizer(model_id: str) -> Tokenizer | None:
+def load_tokenizer(model_id: str, allow_download: bool = True) -> Tokenizer | None:
     """Best-effort tokenizer for a model id, or None if none is obtainable.
 
     OpenAI-family ids go through tiktoken; everything else (local / MLX / HF ids)
     through HF ``AutoTokenizer``. Both imports are lazy so this module stays
-    importable without tiktoken/transformers. Returns None when no tokenizer can
-    be built — the caller then emits an honest ``tokenizer_unavailable`` record.
+    importable without tiktoken/transformers.
 
-    Cached so a model's tokenizer is loaded at most once per process (the lazy
-    fit trigger calls this on every miss).
+    ``allow_download`` (default True): the HF path fetches the model's TOKENIZER
+    FILES ONLY (tokenizer.json / vocab / merges — KB–MB), never the multi-GB
+    weights. This is deliberate — loove must run for real to be worth anything,
+    so it downloads the tiny tokenizer to compute genuine coverage and the result
+    is cached. Set False to restrict to already-on-disk tokenizers.
+
+    Returns None when no tokenizer can be built — a model with no published
+    tokenizer (Apple), a vision-only model, or a gated model needing a token that
+    isn't set. The caller then emits an honest unknown record — never a guess.
+
+    Cached so a model's tokenizer is fetched/loaded at most once per process.
     # ponytail: lru_cache also memoizes a None result, so we don't re-attempt a
-    # failed HF load every call; a transient failure stays cached until restart.
+    # failed/gated HF fetch every call; a transient failure stays cached until
+    # restart (delete the cache dir or restart to retry).
     """
     if not model_id:
         return None
@@ -224,10 +233,11 @@ def load_tokenizer(model_id: str) -> Tokenizer | None:
     except Exception:
         return None
     try:
-        # local_files_only: never hit the network. A configured/provisioned model
-        # already has its tokenizer on disk; anything else is honestly "no
-        # tokenizer" and the consumer falls back to its heuristic.
-        return AutoTokenizer.from_pretrained(model_id, local_files_only=True)  # type: ignore[return-value]
+        # Fetches tokenizer files only (never weights). A gated/vision-only/
+        # unpublished model raises here -> None -> honest unknown, never a crash.
+        return AutoTokenizer.from_pretrained(  # type: ignore[return-value]
+            model_id, local_files_only=not allow_download
+        )
     except Exception:
         return None
 

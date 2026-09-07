@@ -2,8 +2,11 @@
 
 This module consumes derived LOOVE-style tokenizer coverage JSON when available,
 and on a miss for a configured model delegates generation to the local producer
-(llm.script_coverage), which loads only LOCAL tokenizers. It never downloads
-tokenizer data, calls model providers, or inspects user text.
+(llm.script_coverage). The producer fetches the model's TOKENIZER FILES ONLY
+(tokenizer.json / vocab / merges — never the weights) to compute real coverage,
+then caches the result as JSON here. It never downloads model weights, calls
+model providers for inference, or inspects user text. A model with no obtainable
+tokenizer yields an honest UNKNOWN record — never a heuristic guess.
 """
 
 from __future__ import annotations
@@ -245,27 +248,25 @@ def evaluate_language_fit(
         return derived
     if not language.code or language.code not in _COMMON_LANGUAGES:
         return _unsupported_language_record(spec, language)
-    # Lazily generate a derived coverage file from the model's LOCAL tokenizer,
-    # so a configured model returns "derived" on first fit instead of falling
-    # back forever to the heuristic. Best-effort and cached: no local tokenizer
-    # (or any failure) leaves no file and we fall through to the heuristic.
-    derived = _ensure_derived_coverage(spec, language, directory)
-    if derived is not None:
-        return derived
-    return _heuristic_record(spec, language)
+    # Run loove for real: fetch the model's tokenizer files, compute genuine
+    # coverage, cache it. On first fit this computes; subsequent fits read the
+    # cached file above. When no tokenizer can be obtained (Apple / vision-only /
+    # gated) we return an honest UNKNOWN — never a heuristic guess.
+    return _ensure_derived_coverage(spec, language, directory)
 
 
 def _ensure_derived_coverage(
     spec: LanguageFitModelSpec,
     language: LanguageSpec,
     coverage_dir: Path,
-) -> LanguageCoverageRecord | None:
+) -> LanguageCoverageRecord:
     """Generate the derived coverage file for (model, language), then read it.
 
-    Delegates to the producer (llm.script_coverage), which loads the model's
-    tokenizer at most once (cached) and writes nothing when it cannot produce a
-    real score. Returns the freshly derived record, or None so the caller falls
-    back to the transparent heuristic. Never raises into the fit path.
+    Delegates to the producer (llm.script_coverage), which fetches the model's
+    tokenizer (files only) at most once (cached) and writes a file only when it
+    can compute a real score. Returns the freshly derived record; if no tokenizer
+    exists (so no file was written), returns an honest UNKNOWN record — never a
+    heuristic guess. Never raises into the fit path.
     """
     try:
         from fichero_server.llm.script_coverage import write_coverage_record
@@ -274,8 +275,46 @@ def _ensure_derived_coverage(
             spec.model, language, provider=spec.provider, coverage_dir=coverage_dir
         )
     except Exception:
-        return None
-    return _load_derived_record(spec, language, coverage_dir)
+        pass
+    derived = _load_derived_record(spec, language, coverage_dir)
+    if derived is not None:
+        return derived
+    return _tokenizer_unavailable_record(spec, language)
+
+
+def _tokenizer_unavailable_record(
+    spec: LanguageFitModelSpec,
+    language: LanguageSpec,
+) -> LanguageCoverageRecord:
+    """Honest unknown for a model whose tokenizer can't be obtained.
+
+    Not a heuristic guess: coverage_score is None and the band is "unknown". The
+    reason (no published tokenizer / vision-only / gated) is carried in the
+    warning. status is "unsupported_language" (the existing typed status paired
+    with a "missing" source) because FitStatus has no dedicated
+    tokenizer-unavailable value; the honest signal to the UI is band="unknown".
+    """
+    nmid = normalized_model_id(spec.provider, spec.model)
+    reason = (
+        f"No tokenizer available for '{spec.model}' (no published tokenizer, "
+        "vision-only, or a gated model without an access token); coverage is "
+        "unknown and is not guessed."
+    )
+    return LanguageCoverageRecord(
+        provider=spec.provider,
+        model=spec.model,
+        normalized_model_id=nmid,
+        language=language,
+        coverage_score=None,
+        score_band="unknown",
+        tier_counts=None,
+        fertility=None,
+        source=LanguageCoverageSource(
+            kind="missing", model_id=nmid, notes=["tokenizer_unavailable"]
+        ),
+        status="unsupported_language",
+        warnings=[reason],
+    )
 
 
 def _unsupported_language_record(

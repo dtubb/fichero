@@ -69,6 +69,20 @@ class TestListModels:
 class TestLanguageFit:
     def test_language_fit_scores_explicit_model(self, client, tmp_path, monkeypatch):
         monkeypatch.setenv("FICHERO_LANGUAGE_COVERAGE_DIR", str(tmp_path))
+        # The endpoint now runs loove for REAL and returns "derived" (not the
+        # old heuristic guess). Stub the tokenizer loader with a trivial offline
+        # identity tokenizer (every char is its own token) so the test computes
+        # genuine coverage without any network fetch.
+        from fichero_server.llm import script_coverage as sc
+
+        class _Identity:
+            def encode(self, text):
+                return [ord(c) for c in text]
+
+            def decode(self, ids):
+                return "".join(chr(i) for i in ids)
+
+        monkeypatch.setattr(sc, "load_tokenizer", lambda *a, **k: _Identity())
 
         r = client.get(
             "/api/model-comparison/language-fit",
@@ -84,8 +98,10 @@ class TestLanguageFit:
         assert data["language"]["code"] == "es"
         assert data["results"][0]["provider"] == "openai"
         assert data["results"][0]["model"] == "gpt-4o-mini"
-        assert data["results"][0]["status"] == "heuristic"
-        assert data["results"][0]["source"]["kind"] == "heuristic_fallback"
+        assert data["results"][0]["status"] == "derived"
+        assert data["results"][0]["source"]["kind"] == "loove_derived_json"
+        assert data["results"][0]["coverage_score"] == 1.0
+        assert data["results"][0]["score_band"] == "excellent"
         assert "No cloud calls" in data["privacy_note"]
 
     def test_language_fit_uses_settings_models_when_model_omitted(
