@@ -544,6 +544,109 @@ def from_pymupdf_page(
     )
 
 
+def _strip_code_fence(text: str) -> str:
+    """Drop a ```…``` / ```json fence wrapping a JSON reply, if present.
+
+    Gemini (and most chat VLMs) wrap JSON in a Markdown fence by default even
+    when asked not to. A fenced reply is not malformed geometry — it is
+    perfectly good JSON with three backticks and a language tag in front of it
+    — so peel the wrapper before parsing rather than rejecting the page.
+    """
+    s = text.strip()
+    if not s.startswith("```"):
+        return s
+    first_newline = s.find("\n")
+    if first_newline == -1:
+        return s
+    s = s[first_newline + 1:]
+    trimmed = s.rstrip()
+    if trimmed.endswith("```"):
+        s = trimmed[:-3]
+    return s.strip()
+
+
+def _first_json_value(text: str) -> Any | None:
+    """The first balanced JSON object or array embedded in prose, or ``None``.
+
+    A model that adds a sentence before or after the JSON ("Here are the
+    boxes: {…}") still returned usable geometry; scan for the first ``{`` or
+    ``[`` and walk to its balanced close, respecting quoted strings and
+    escapes, so a brace inside a transcribed word does not end the scan early.
+    """
+    for opener, closer in (("{", "}"), ("[", "]")):
+        start = text.find(opener)
+        if start == -1:
+            continue
+        depth = 0
+        in_string = False
+        escaped = False
+        for index in range(start, len(text)):
+            char = text[index]
+            if in_string:
+                if escaped:
+                    escaped = False
+                elif char == "\\":
+                    escaped = True
+                elif char == '"':
+                    in_string = False
+                continue
+            if char == '"':
+                in_string = True
+            elif char == opener:
+                depth += 1
+            elif char == closer:
+                depth -= 1
+                if depth == 0:
+                    try:
+                        return json.loads(text[start:index + 1])
+                    except (ValueError, TypeError):
+                        break
+    return None
+
+
+def _decode_vlm_payload(payload: str | dict[str, Any] | list[Any]) -> dict[str, Any]:
+    """Decode a VLM reply into the boxes dict, tolerating the shapes models return.
+
+    Three deviations show up on real replies, and each one used to make the
+    whole page's geometry unparseable — a silent MALFORMED result over a paid
+    call (Daniel, 2026-09-07: a Gemini run billed ~1704 output tokens and
+    produced ZERO boxes because its reply never reached the box parser):
+
+    - the JSON wrapped in a ```json … ``` Markdown fence (Gemini's default),
+    - a sentence of prose before or after the JSON,
+    - a BARE top-level array of box items instead of the ``{"boxes": [...]}``
+      object our prompt asks for — which is exactly Gemini's own native
+      bounding-box output shape (``[{"box_2d": […], "label": "…"}, …]``).
+
+    A dict passes through unchanged; a bare list is wrapped as
+    ``{"boxes": [...]}``; a string is fence-stripped and parsed, and if that
+    fails the first balanced JSON value embedded in it is parsed instead.
+    Anything that still cannot be read as JSON raises, so a genuinely unusable
+    reply is rejected loudly rather than mistaken for empty geometry.
+    """
+    if isinstance(payload, dict):
+        return payload
+    if isinstance(payload, list):
+        return {"boxes": payload}
+    if not isinstance(payload, str):
+        raise ValueError(
+            "VLM OCR geometry payload must be JSON text, a JSON object, or a list"
+        )
+    stripped = _strip_code_fence(payload)
+    try:
+        decoded = json.loads(stripped)
+    except (ValueError, TypeError):
+        decoded = _first_json_value(stripped)
+        if decoded is None:
+            # Re-raise a clean JSON error so the caller records the real reason.
+            json.loads(stripped)
+    if isinstance(decoded, list):
+        return {"boxes": decoded}
+    if isinstance(decoded, dict):
+        return decoded
+    raise ValueError("VLM OCR geometry payload must be a JSON object or array")
+
+
 def parse_vlm_geometry(
     payload: str | dict[str, Any],
     *,
@@ -554,9 +657,7 @@ def parse_vlm_geometry(
 ) -> OCRGeometryResult:
     """Parse prompted VLM JSON boxes, including common Qwen-style shapes."""
 
-    data = json.loads(payload) if isinstance(payload, str) else payload
-    if not isinstance(data, dict):
-        raise ValueError("VLM OCR geometry payload must be a JSON object")
+    data = _decode_vlm_payload(payload)
     width = _first_number(data, "image_width", "width", "page_width") or page_width
     height = _first_number(data, "image_height", "height", "page_height") or page_height
     items = _box_items(data)
