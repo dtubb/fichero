@@ -202,12 +202,16 @@ struct LooveCoverageView: View {
                 .frame(width: modelColumnWidth, alignment: .leading)
                 .padding(.horizontal, 8)
             ForEach(languages) { language in
+                let pending = service.pendingLanguages.contains(language.code)
                 VStack(spacing: 1) {
                     Text(language.name).font(.caption.bold())
                     Text(language.code.uppercased())
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
+                // Dim a column header while its data is still computing, so the
+                // eye follows the fill front as columns resolve.
+                .opacity(pending ? 0.4 : 1)
                 .frame(width: languageColumnWidth)
             }
         }
@@ -229,8 +233,11 @@ struct LooveCoverageView: View {
             .padding(.horizontal, 8)
 
             ForEach(languages) { language in
-                CoverageCellView(cell: row.cellsByLanguage[language.code])
-                    .frame(width: languageColumnWidth)
+                CoverageCellView(
+                    cell: row.cellsByLanguage[language.code],
+                    isPending: service.pendingLanguages.contains(language.code)
+                )
+                .frame(width: languageColumnWidth)
             }
         }
         .padding(.vertical, 6)
@@ -241,23 +248,44 @@ struct LooveCoverageView: View {
 
 private struct CoverageCellView: View {
     let cell: CoverageCell?
+    /// This language's call is still in flight and no cell has landed yet — show
+    /// "computing…" instead of a value or "—".
+    var isPending: Bool = false
 
     private static let scoreFormat: FloatingPointFormatStyle<Double> =
         .number.precision(.fractionLength(2))
 
     private var confidence: CoverageConfidence { cell?.confidence ?? .unknown }
+    private var isComputing: Bool { isPending && cell == nil }
 
     var body: some View {
-        VStack(spacing: 4) {
-            scoreLine
-            // Colored tier bar ONLY for a real measurement; heuristic/unknown get
-            // a flat neutral track so the histogram can't read as measured data.
-            TierBar(counts: cell?.tierCounts, derived: confidence == .derived)
-            tokenTaxLine
+        Group {
+            if isComputing {
+                computingCell
+            } else {
+                VStack(spacing: 4) {
+                    scoreLine
+                    // Colored tier bar ONLY for a real measurement; heuristic/unknown
+                    // get a flat neutral track so the histogram can't read as data.
+                    TierBar(counts: cell?.tierCounts, derived: confidence == .derived)
+                    tokenTaxLine
+                }
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 2)
-        .help(tooltip)
+        .help(isComputing ? "Computing…" : tooltip)
+    }
+
+    /// Transient per-cell state while its column's request is in flight.
+    private var computingCell: some View {
+        VStack(spacing: 4) {
+            ProgressView()
+                .controlSize(.small)
+            Text("computing…")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
     }
 
     /// The number itself, rendered by confidence:
