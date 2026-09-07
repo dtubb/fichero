@@ -349,6 +349,21 @@ class _SVOClaim(BaseModel):
     subject: str
     verb: str = Field(description="Specific predicate verb phrase.")
     object: str = Field(description="Specific object or complement.")
+    verb_en: str = Field(
+        default="",
+        description=(
+            "The verb translated to ENGLISH — a faithful restatement of `verb`, "
+            "not a new claim. If the text is already English, repeat `verb`. "
+            "Display only; the verbatim `verb` stays the source of truth."
+        ),
+    )
+    object_en: str = Field(
+        default="",
+        description=(
+            "The object translated to ENGLISH — a faithful restatement of "
+            "`object`. If the text is already English, repeat `object`."
+        ),
+    )
     source_text: str = Field(description="Verbatim quote from source.")
     epistemic_status: str = Field(default="tentative", description="confirmed/tentative/rejected")
     claim_type: str = Field(default="fact", description="fact/analysis/interpretation/argument")
@@ -480,11 +495,15 @@ def _build_per_entity_claim_instructions(
         f"that completes the claim, at most {MAX_OBJECT_WORDS} words (e.g., "
         f"'alcalde of Popayán', 'cañistin'). Never a whole clause, never a "
         f"copied sentence, never your own paraphrase.\n"
-        f"3. The exact source text where this claim appears, preserving any "
+        f"3. verb_en and object_en — the SAME verb and object faithfully "
+        f"translated to ENGLISH (a plain restatement, never a new claim). If the "
+        f"text is already English, repeat them. Display only; the verbatim verb "
+        f"and object above stay the source of truth.\n"
+        f"4. The exact source text where this claim appears, preserving any "
         f"   [ilegible] / [uncertain] markers and original accents exactly\n"
-        f"4. The date, ONLY when the text itself states one for this claim: "
+        f"5. The date, ONLY when the text itself states one for this claim: "
         f"YYYY-MM-DD, YYYY-MM, YYYY, or 'start/end' for a span.\n"
-        f"5. The place, ONLY when the text itself names where this claim "
+        f"6. The place, ONLY when the text itself names where this claim "
         f"happened — copied from the text, as it is written there.\n\n"
         f"Leave a date or a place empty rather than working it out. An "
         f"inferred scope is a guess wearing a fact's clothes: the timeline "
@@ -629,6 +648,8 @@ async def _extract_claims_for_entity(
                 "name": entity_name,
                 "verb": verb,
                 "object": obj,
+                "verb_en": (getattr(claim, "verb_en", "") or "").strip(),
+                "object_en": (getattr(claim, "object_en", "") or "").strip(),
                 "source_text": _annotate_pronoun_source(claim.source_text, entity_name),
                 "epistemic_status": claim.epistemic_status,
                 "claim_type": claim.claim_type,
@@ -685,6 +706,21 @@ class _PageClaimItem(BaseModel):
     object: str = Field(
         default="",
         description="Rest of the predicate — a minimal noun phrase copied from the page.",
+    )
+    verb_en: str = Field(
+        default="",
+        description=(
+            "The verb translated to ENGLISH — a faithful restatement of `verb`, "
+            "not a new claim. If the page is already English, repeat `verb`. "
+            "Display only; the verbatim `verb` stays the source of truth."
+        ),
+    )
+    object_en: str = Field(
+        default="",
+        description=(
+            "The object translated to ENGLISH — a faithful restatement of "
+            "`object`. If the page is already English, repeat `object`."
+        ),
     )
     source_text: str = Field(
         default="", description="The exact span from the page this claim is read from."
@@ -752,9 +788,14 @@ def _build_page_claim_instructions(
         f"translation, no modernisation, no smoothing. The verb is the MINIMAL "
         f"verb phrase (at most {MAX_VERB_WORDS} words); the object is the "
         f"minimal completing noun phrase, never a whole clause.\n\n"
+        f"THEN, separately, give verb_en and object_en: the SAME verb and object "
+        f"faithfully translated to ENGLISH — a plain restatement, never a new or "
+        f"expanded claim. If the page is already English, repeat verb and object "
+        f"verbatim. These are for display only and never replace the verbatim "
+        f"verb/object above.\n\n"
         f"One assertion per claim, and DO NOT repeat a claim. Write any "
-        f"commentary in {output_language}; the verb and object stay in the "
-        f"source's language. Only include facts directly supported by the page."
+        f"commentary in {output_language}; the verbatim verb and object stay in "
+        f"the source's language. Only include facts directly supported by the page."
     )
 
 
@@ -840,6 +881,8 @@ async def _extract_page_claims_by_entity(
                 "name": entity.name,
                 "verb": verb,
                 "object": obj,
+                "verb_en": (page_claim.get("verb_en") or "").strip(),
+                "object_en": (page_claim.get("object_en") or "").strip(),
                 "source_text": _annotate_pronoun_source(
                     page_claim.get("source_text", ""), entity.name
                 ),
@@ -1619,6 +1662,8 @@ def _build_entity_items_for_section(
             "alternative_spellings": getattr(entity, "aliases", []),
             "verb": c.get("verb", ""),
             "object": c.get("object", ""),
+            "verb_en": c.get("verb_en", ""),
+            "object_en": c.get("object_en", ""),
             "source_text": c.get("source_text", ""),
             "date_normalized": c.get("date_normalized", ""),
             "claim_location": c.get("claim_location", ""),

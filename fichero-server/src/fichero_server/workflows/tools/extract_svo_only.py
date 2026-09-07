@@ -418,6 +418,8 @@ async def extract_svo_only(
                         "name": entity.name,
                         "verb": verb,
                         "object": obj,
+                        "verb_en": (page_claim.get("verb_en") or "").strip(),
+                        "object_en": (page_claim.get("object_en") or "").strip(),
                         "source_text": _annotate_pronoun_source(
                             page_claim.get("source_text", ""), entity.name
                         ),

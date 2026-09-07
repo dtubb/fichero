@@ -84,3 +84,40 @@ def test_spanish_source_without_a_translation_leaves_english_null(tmp_path):
     assert claim.object_phrase_en is None
     assert claim.claim_text_en is None
     assert claim.predicate_verb == "huyó"
+
+
+class TestExtractorPlumbingCarriesTheTranslation:
+    """The extractor schemas accept verb_en/object_en and the dict builders
+    carry them to the item _write_kg_rows reads — the LLM half (prompt asks
+    for the restatement) is verified live by the build lane."""
+
+    def test_page_claim_schema_accepts_english_fields(self):
+        from fichero_server.workflows.tools.extract_all import _PageClaimItem
+        item = _PageClaimItem(
+            subject="X", verb="huyó", object="de la ciudad",
+            verb_en="fled", object_en="from the city",
+        )
+        dumped = item.model_dump()
+        assert dumped["verb_en"] == "fled"
+        assert dumped["object_en"] == "from the city"
+
+    def test_svo_claim_schema_accepts_english_fields(self):
+        from fichero_server.workflows.tools.extract_all import _SVOClaim
+        claim = _SVOClaim(
+            subject="X", verb="huyó", object="de la ciudad",
+            verb_en="fled", object_en="from the city", source_text="huyó de la ciudad",
+        )
+        assert claim.verb_en == "fled" and claim.object_en == "from the city"
+
+    def test_build_entity_items_carries_english_through_to_the_item(self):
+        from types import SimpleNamespace
+        from fichero_server.workflows.tools.extract_all import _build_entity_items_for_section
+        entity = SimpleNamespace(name="Andrés Hernández", aliases=[])
+        claims = [{
+            "verb": "huyó", "object": "de la ciudad",
+            "verb_en": "fled", "object_en": "from the city",
+            "source_text": "", "date_normalized": "", "claim_location": "",
+        }]
+        items = _build_entity_items_for_section(entity, "people", claims)
+        assert items[0]["verb_en"] == "fled"
+        assert items[0]["object_en"] == "from the city"
