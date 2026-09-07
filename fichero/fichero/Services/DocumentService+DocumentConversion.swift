@@ -34,6 +34,13 @@ extension DocumentService {
         let dateMeta = doc.dateMeta.map { payload in
             payload.additionalProperties.value.mapValues { AnyCodable($0 ?? "") }
         }
+        // `language_meta`'s ABSENCE is the "never determined" state (#2092), the
+        // same three-way honesty as `date_meta` above — so this stays nil when
+        // the server sent nothing. Defaulting it to [:] would read as "detection
+        // ran and found nothing", a different fact.
+        let languageMeta = doc.languageMeta.map { payload in
+            payload.additionalProperties.value.mapValues { AnyCodable($0 ?? "") }
+        }
         // bbox is OpenAPIArrayContainer — extract its inner [Int] payload.
         let bbox = doc.bbox?.value as? [Int]
         // Step 3 (bbox retirement): the typed region every NEW extraction
@@ -70,6 +77,8 @@ extension DocumentService {
             dateOriginal: doc.dateOriginal,   // #3322
             dateJdn: doc.dateJdn,
             dateMeta: dateMeta,
+            language: doc.language,           // #2092
+            languageMeta: languageMeta,
             sortOrder: doc.sortOrder ?? 0,
             // #4516: `prototypeKey` is what `isWorkflowNode` reads; dropping
             // it made the workflow icon, the mirror lock badge, the running

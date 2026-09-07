@@ -76,6 +76,7 @@ struct DocumentInspectorInfoTab: View {
 
         statusSection
         classSection
+        languageSection
 
         // Prototype-declared attributes (datasets Stage 1). Not gated by the
         // chooser: these rows ARE the assigned prototype's declared set, and
@@ -213,6 +214,29 @@ struct DocumentInspectorInfoTab: View {
                     documentId: document.id,
                     initialKey: document.prototypeKey,
                     entityService: currentLibrary?.entityService
+                )
+            }
+        }
+    }
+
+    /// The language the document is written in (#2092), shown by default and
+    /// editable. Mirrors `classSection`: a titled section with one row whose
+    /// detail is a dedicated picker. The three-way honesty (known / unknown /
+    /// never-determined) is resolved by `DocumentLanguageDisplay`, never
+    /// defaulted to a language that reads as a guess.
+    @ViewBuilder
+    private var languageSection: some View {
+        attributeSection("Language", attributes: [.language]) {
+            attributeRow(
+                name: "Language",
+                summary: DocumentLanguageDisplay.summary(for: document),
+                attribute: .language
+            ) {
+                DocumentLanguagePicker(
+                    documentId: document.id,
+                    language: document.language,
+                    languageMeta: document.languageMeta,
+                    actionsService: currentLibrary?.actionsService
                 )
             }
         }

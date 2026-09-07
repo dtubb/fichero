@@ -14,6 +14,7 @@ import Observation
 enum InspectorAttribute: String, CaseIterable, Hashable {
     case state
     case documentClass
+    case language
     case kind
     case fileType
     case format
@@ -28,6 +29,7 @@ enum InspectorAttribute: String, CaseIterable, Hashable {
         switch self {
         case .state: return "State"
         case .documentClass: return "Class"
+        case .language: return "Language"
         case .kind: return "Kind"
         case .fileType: return "Type"
         case .format: return "Format"
@@ -68,7 +70,12 @@ enum InspectorAttributeVisibility {
     /// could not find the type editor three separate times (2026-08-14).
     /// A user can still untick it per prototype; it just cannot default to
     /// undiscoverable.
-    static let defaultVisible: [InspectorAttribute] = [.documentClass]
+    ///
+    /// `Language` joins it (#2092): the language a document is written in is the
+    /// fact transcription, SVO and entity extraction all depend on, and Daniel's
+    /// ask is that it surface automatically — not only once someone thinks to
+    /// turn it on. Like `Class`, it stays untickable per prototype.
+    static let defaultVisible: [InspectorAttribute] = [.documentClass, .language]
 
     /// Everything a user may choose to show. Storage internals are not in this
     /// list because they are not cases of `InspectorAttribute` at all.

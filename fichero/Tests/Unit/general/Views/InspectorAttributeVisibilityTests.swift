@@ -19,12 +19,24 @@ struct InspectorAttributeVisibilityTests {
     /// #4422 defaulted to nothing; 2026-08-14 promoted `Class` back in — it is
     /// the datasets system's front door (prototype picker + "Edit Types…"),
     /// and with it hidden Daniel could not find the type editor three times.
-    /// Everything ELSE stays off by default.
-    @Test("only the Class row is shown by default")
-    func onlyClassByDefault() {
-        #expect(InspectorAttributeVisibility.visibleAttributes(for: document) == [.documentClass])
+    /// #2092 promoted `Language` in for the same reason: it must surface
+    /// automatically, not only once someone turns it on. Everything ELSE stays
+    /// off by default.
+    @Test("Class and Language are shown by default")
+    func classAndLanguageByDefault() {
+        #expect(InspectorAttributeVisibility.visibleAttributes(for: document) == [.documentClass, .language])
         #expect(InspectorAttributeVisibility.showsAnyAttributes(for: document))
-        #expect(InspectorAttributeVisibility.defaultVisible == [.documentClass])
+        #expect(InspectorAttributeVisibility.defaultVisible == [.documentClass, .language])
+    }
+
+    /// #2092: language must appear by default (Daniel's explicit ask) and its
+    /// row is titled "Language".
+    @Test("Language is a default-visible, selectable attribute titled Language")
+    func languageShownByDefault() {
+        #expect(InspectorAttributeVisibility.defaultVisible.contains(.language))
+        #expect(InspectorAttribute.language.title == "Language")
+        #expect(InspectorAttribute.allCases.contains(.language))
+        #expect(InspectorAttributeVisibility.selectable.contains(.language))
     }
 
     /// Every one of the six rows Daniel called out is absent by default.

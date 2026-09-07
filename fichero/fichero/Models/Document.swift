@@ -246,6 +246,17 @@ struct Document: Identifiable, Codable, Hashable, @unchecked Sendable {
     var dateOriginal: String?
     var dateJdn: Int?
     var dateMeta: [String: AnyCodable]?
+    /// The language the document IS IN (#2092) — what transcription, SVO and
+    /// entity extraction must be told, not the language the user wants output
+    /// in. Mirrors the date fields' three-way honesty, read through
+    /// `DocumentLanguageDisplay.resolve` rather than defaulted:
+    /// `languageMeta == nil` means detection never ran (never-determined),
+    /// `languageMeta["status"] == "unknown"` means it was examined and cannot
+    /// be told, and `"known"` means `language` holds the answer.
+    /// `languageMeta["source"] == "user"` marks a human correction that
+    /// survives re-extraction — the same rule as `dateMeta["source"]`.
+    var language: String?
+    var languageMeta: [String: AnyCodable]?
     /// **Not the library's sort setting.** `LibraryView` also has a
     /// `sortOrder` — an array of `KeyPathComparator`s driving the table
     /// header — and `DocumentStore` sits close enough to both that the two
@@ -302,6 +313,8 @@ struct Document: Identifiable, Codable, Hashable, @unchecked Sendable {
         case dateOriginal = "date_original"
         case dateJdn = "date_jdn"
         case dateMeta = "date_meta"
+        case language
+        case languageMeta = "language_meta"
         case sortOrder = "sort_order"
         case prototypeKey = "prototype_key"
         case nodeKind = "node_kind"
@@ -335,6 +348,8 @@ struct Document: Identifiable, Codable, Hashable, @unchecked Sendable {
         dateOriginal: String? = nil,
         dateJdn: Int? = nil,
         dateMeta: [String: AnyCodable]? = nil,
+        language: String? = nil,
+        languageMeta: [String: AnyCodable]? = nil,
         sortOrder: Int = 0,
         prototypeKey: String? = nil,
         nodeKind: String? = nil,
@@ -366,6 +381,8 @@ struct Document: Identifiable, Codable, Hashable, @unchecked Sendable {
         self.dateOriginal = dateOriginal
         self.dateJdn = dateJdn
         self.dateMeta = dateMeta
+        self.language = language
+        self.languageMeta = languageMeta
         self.sortOrder = sortOrder
         self.prototypeKey = prototypeKey
         self.nodeKind = nodeKind
@@ -403,6 +420,8 @@ struct Document: Identifiable, Codable, Hashable, @unchecked Sendable {
         self.dateOriginal = try container.decodeIfPresent(String.self, forKey: .dateOriginal)
         self.dateJdn = try container.decodeIfPresent(Int.self, forKey: .dateJdn)
         self.dateMeta = try container.decodeIfPresent([String: AnyCodable].self, forKey: .dateMeta)
+        self.language = try container.decodeIfPresent(String.self, forKey: .language)
+        self.languageMeta = try container.decodeIfPresent([String: AnyCodable].self, forKey: .languageMeta)
         self.sortOrder = try container.decodeIfPresent(Int.self, forKey: .sortOrder) ?? 0
         self.prototypeKey = try container.decodeIfPresent(String.self, forKey: .prototypeKey)
         self.nodeKind = try container.decodeIfPresent(String.self, forKey: .nodeKind)
