@@ -270,15 +270,17 @@ def evaluate_language_fit(
     derived = _load_derived_record(spec, language, directory)
     if derived is not None:
         return derived
-    if not language.code or language.script is None:
-        # No resolvable script -> no metadata to score. (Covers unknown codes
-        # and any language whose script we can't identify.) Includes extended
-        # variants like ru-petr1708, whose script IS set, so they pass through.
+    if not language.code:
+        # No code at all -> nothing to look up or score.
         return _unsupported_language_record(spec, language)
-    # Run loove for real: fetch the model's tokenizer files, compute genuine
-    # coverage, cache it. On first fit this computes; subsequent fits read the
-    # cached file above. When no tokenizer can be obtained (Apple / vision-only /
-    # gated) we return an honest UNKNOWN — never a heuristic guess.
+    # An arbitrary language the user chose still reaches Andy Janco's authoritative
+    # published coverage, which is keyed by the SAME short language code (ISO 639-1
+    # where one exists, else 639-3) and carries its own ISO-15924 script — so a
+    # code our local resolver doesn't recognize (script is None) can still be
+    # scored from real data instead of being refused outright. A known script
+    # additionally unlocks our local tokenizer fallback; an unknown script is
+    # Andy-or-honest-unknown, because we have no exemplar table to compute against
+    # locally. Either way we never guess: a genuine miss returns an honest UNKNOWN.
     return _ensure_derived_coverage(spec, language, directory)
 
 
@@ -308,6 +310,10 @@ def _ensure_derived_coverage(
     derived = _load_derived_record(spec, language, coverage_dir)
     if derived is not None:
         return derived
+    if language.script is None:
+        # No Andy data for this code and no script to compute against locally:
+        # honest "no local metadata" unknown, not a tokenizer-unavailable claim.
+        return _unsupported_language_record(spec, language)
     return _tokenizer_unavailable_record(spec, language)
 
 

@@ -541,31 +541,48 @@ struct EntityDigestContent: View {
         .padding(.vertical, 2)
     }
 
-    /// Human-readable name for a source document id. Searches every store the
-    /// app has loaded — current page/folder, collections, and the sidebar — not
-    /// just `currentDocuments`, so an off-page source resolves to its title
-    /// instead of a raw hash. Falls back to the id only when the document isn't
-    /// in any store (that residual case needs a title on the claim payload).
-    ///
-    /// The store comes from the library that owns this digest's `entityService`
-    /// (#4461), not from `globalLibrary`. Reaching for global here was the
-    /// #4306 shape in its quietest form: a non-global document is absent from
-    /// the global store, so every source name degraded to a raw hash id — and
-    /// that is exactly what this function returns when a document is genuinely
-    /// missing, so the wrong scope was indistinguishable from the honest
-    /// not-found.
+    /// Human-readable name for a source document id, for the "Appears In" and
+    /// "Source Annotations" sections. The window's stores come from the library
+    /// that owns this digest's `entityService` (#4461), not `globalLibrary` —
+    /// reaching for global was the #4306 shape: a non-global document is absent
+    /// from the global store, so a source name degraded to a raw hash id.
     private func docName(for docId: String) -> String {
-        guard let store = LibraryManager.shared
-            .library(owningService: entityService)?.documentStore
-        else { return docId }
-        let all = store.currentDocuments + store.collections + store.sidebarDocuments
-        guard let doc = all.first(where: { $0.id == docId }) else { return docId }
-        // Not `doc.name` (#4416 sibling, found in passing): a page child's name
-        // is the engine's upload temp file, so this header read
-        // `fichero_upload_…pdf` for a document the sidebar called `18590129.pdf`.
-        return DocumentTitle.displayName(for: doc, parent: doc.parentId.flatMap { parentId in
-            all.first(where: { $0.id == parentId })
-        })
+        let storeDocs: [Document] = LibraryManager.shared
+            .library(owningService: entityService)
+            .map { $0.documentStore.currentDocuments
+                + $0.documentStore.collections
+                + $0.documentStore.sidebarDocuments }
+            ?? []
+        return Self.sourceLabel(for: docId, appearsIn: appearsIn, storeDocs: storeDocs)
+    }
+
+    /// Resolve a source-document id to a user-facing label, static so the rule is
+    /// testable without mounting the view.
+    ///
+    /// Resolves against the entity's already-loaded source documents FIRST
+    /// (`appearsIn`, fetched by id → real names — exactly the id set these two
+    /// sections show), then whatever stores are loaded. NEVER surfaces the raw
+    /// 32-char id as a label (Daniel: the entity view showed
+    /// `68045f58a3ea47b2a4…` where a page name belongs); an unresolved id becomes
+    /// a short, clearly-truncated placeholder instead of the full hash.
+    static func sourceLabel(
+        for docId: String,
+        appearsIn: [Document],
+        storeDocs: [Document]
+    ) -> String {
+        guard !docId.isEmpty else { return "Unknown source" }
+        if let doc = appearsIn.first(where: { $0.id == docId })
+            ?? storeDocs.first(where: { $0.id == docId }) {
+            // Not `doc.name` (#4416): a page child's stored name is the engine's
+            // upload temp file (`fichero_upload_…pdf`), so compose the display
+            // title from the parent like every other surface.
+            let pool = appearsIn + storeDocs
+            let parent = doc.parentId.flatMap { parentId in pool.first(where: { $0.id == parentId }) }
+            return DocumentTitle.displayName(for: doc, parent: parent)
+        }
+        // The source document isn't loaded anywhere — a short, honest placeholder,
+        // never the raw hash.
+        return "Source \(docId.prefix(8))…"
     }
 
     /// The entity this digest is showing, which every claim below is grouped

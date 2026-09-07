@@ -18,6 +18,17 @@ struct EntitySourceGroupsView: View {
     /// injects none fails VISIBLY rather than operating on another
     /// library's graph (#4306/#4461).
     @Environment(EntityService.self) private var entityService: EntityService?
+
+    /// The SHARED source cursor (#4393 part 2) — the same seam the digest
+    /// biography, the annotations list, the source outline and the KG web pane
+    /// write to. This grouped-prose view was the last claim surface whose clauses
+    /// could not get back to the page; making each clause a producer here — rather
+    /// than a second addressing scheme — is what "a statement must lead to its
+    /// source" (Daniel, 2026-09-04) asks for. Optional → a safe no-op without a
+    /// host that injects it.
+    @Environment(ClaimSourceNavigationState.self)
+    private var claimSourceNavigationState: ClaimSourceNavigationState?
+
     let entityId: String
 
     @State private var inspectorData: Components.Schemas.EntityInspectorResponse?
@@ -123,10 +134,25 @@ struct EntitySourceGroupsView: View {
 
     @ViewBuilder
     private func denseClauseText(_ claims: [Components.Schemas.KnowledgeClaim]) -> some View {
-        if let combined = buildClauseAttributedString(claims) {
+        if let combined = Self.buildClauseAttributedString(claims) {
+            // Each clause IS a claim, and a claim knows its page — so each clause
+            // is a door to the source (Daniel, 2026-09-04). The clause keeps
+            // `textSelection` for copy-then-search; the in-prose link opens the
+            // page with the passage lit through the shared cursor. Mirrors
+            // EntityDigestView.biographyAttributed exactly — one link scheme, one
+            // producer, the reader/preview latch consumes it.
             Text(combined)
                 .font(.callout)
                 .textSelection(.enabled)
+                .environment(\.openURL, OpenURLAction { url in
+                    guard url.scheme == Self.claimLinkScheme,
+                          let claimId = url.host ?? url.pathComponents.dropFirst().first,
+                          let claim = claims.first(where: { $0.id == claimId }),
+                          let request = ClaimSourceRequest.request(for: claim)
+                    else { return .discarded }
+                    claimSourceNavigationState?.request(request)
+                    return .handled
+                })
         } else {
             Text("(no claim text)")
                 .font(.caption)
@@ -134,13 +160,38 @@ struct EntitySourceGroupsView: View {
         }
     }
 
-    private func buildClauseAttributedString(
+    /// Custom scheme for the in-prose clause links; never leaves the view.
+    static let claimLinkScheme = "fichero-claim"
+
+    /// Build the dense semicolon-separated prose for a source group, each clause
+    /// carrying a link to its claim's source page. A clause with no honest
+    /// destination (no id, or no recorded document) stays plain text — a link
+    /// that goes nowhere is worse than no link (the #4393 precision rule). Static
+    /// so the clause/link mapping is testable without mounting the view.
+    static func buildClauseAttributedString(
         _ claims: [Components.Schemas.KnowledgeClaim]
     ) -> AttributedString? {
         let parts: [AttributedString] = claims.compactMap { claim in
             let text = claim.text
             guard !text.isEmpty else { return nil }
             var str = AttributedString(text.trimmingCharacters(in: .init(charactersIn: ".")))
+            // Only link a clause that can actually reach its source — otherwise
+            // it reads as tappable and dead-ends.
+            if let id = claim.id, ClaimSourceRequest.request(for: claim) != nil {
+                // URLComponents, not a string-built URL: this is an INTERNAL link
+                // scheme for tappable prose, and the raw-networking guards ban
+                // string URL construction outright rather than guessing intent.
+                var linkParts = URLComponents()
+                linkParts.scheme = claimLinkScheme
+                linkParts.host = id
+                if let url = linkParts.url {
+                    str.link = url
+                    // Prose, not a wall of hyperlink-blue: keep body color and
+                    // mark tappability with a subtle underline (mirrors the digest).
+                    str.foregroundColor = .primary
+                    str.underlineStyle = .single
+                }
+            }
             var annotations: [String] = []
             if let time = claim.temporalContext { annotations.append(time) }
             if let place = claim.claimLocation { annotations.append(place) }

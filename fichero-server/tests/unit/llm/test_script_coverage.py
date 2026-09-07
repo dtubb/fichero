@@ -553,3 +553,51 @@ def test_andy_cache_hit_second_call_no_refetch(tmp_path, monkeypatch) -> None:
     assert r2.status == "derived"
     assert r2.coverage_score == r1.coverage_score
     assert calls["n"] == 1  # no refetch — served from the cached file
+
+
+# --- Arbitrary "choose any language" path ------------------------------------
+# The loove window lets a user pick ANY language, not just the curated ~30 in
+# _COMMON_LANGUAGES. A chosen code our local resolver can't map to a script must
+# still reach Andy's published coverage (keyed by the same short code), and fall
+# back to an HONEST unknown — never a guess — when he lacks it.
+
+
+def test_fit_path_arbitrary_language_scores_from_andy(tmp_path, monkeypatch) -> None:
+    """A code with no local script still scores from Andy's authoritative data.
+
+    'zz' is absent from _COMMON_LANGUAGES, so language_spec gives it no script;
+    before the widened gate it was refused outright. Andy's file has it at 0.5,
+    so the window's free-choice column now shows a real, derived number.
+    """
+    _stub_andy(monkeypatch, _andy_doc("fake/model"), expect_name="fake__model.json")
+    monkeypatch.setattr(sc, "load_tokenizer", lambda *a, **k: None)
+    lang = lc.language_spec("zz")
+    assert lang.script is None  # unknown to our local resolver
+    record = lc.evaluate_language_fit(
+        lc.normalize_model_spec("hf", "fake/model"), lang, coverage_dir=tmp_path
+    )
+    assert record.status == "derived"
+    assert record.coverage_score == 0.5  # straight from Andy's published file
+    assert record.language.code == "zz"
+    assert record.source.kind == "loove_derived_json"
+
+
+def test_fit_path_arbitrary_language_without_andy_is_honest_unknown(
+    tmp_path, monkeypatch
+) -> None:
+    """No Andy data + no local script table => honest unsupported_language.
+
+    'sw' (Swahili) is not curated locally; with Andy 404ing and no tokenizer the
+    fit path must return an explicit unknown with warnings, never a fabricated
+    score.
+    """
+    _stub_andy(monkeypatch, None)  # every fetch 404s
+    monkeypatch.setattr(sc, "load_tokenizer", lambda *a, **k: None)
+    lang = lc.language_spec("sw")
+    assert lang.script is None
+    record = lc.evaluate_language_fit(
+        lc.normalize_model_spec("hf", "no/such-model"), lang, coverage_dir=tmp_path
+    )
+    assert record.status == "unsupported_language"
+    assert record.coverage_score is None
+    assert record.warnings
