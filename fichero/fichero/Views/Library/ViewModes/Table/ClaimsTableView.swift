@@ -111,12 +111,24 @@ struct ClaimsTableView: View {
             // the shared cursor — the same "a statement leads to its source"
             // contract as the claim card and the entity biography. A multi-select
             // leaves the reader where it is (no one claim to open).
-            guard newSelection.count == 1,
-                  let id = newSelection.first,
-                  let item = items.first(where: { $0.id == id }) else { return }
+            //
+            // RE-ENTRANCY GUARD: open only a NEW single selection. Navigating to
+            // the source can write state that re-enters this handler; without the
+            // lastOpenedId latch that fed open→render→open every cycle, part of
+            // the Touch Bar layout-loop crash. A cleared/multi selection resets
+            // the latch so re-selecting the same row later still opens.
+            guard newSelection.count == 1, let id = newSelection.first else {
+                lastOpenedId = nil
+                return
+            }
+            guard id != lastOpenedId, let item = items.first(where: { $0.id == id }) else { return }
+            lastOpenedId = id
             onOpenSource(item.claim)
         }
     }
+
+    /// The last id auto-opened, so a re-render can't re-open it in a loop.
+    @State private var lastOpenedId: String?
 
     private var loadingState: some View {
         VStack(spacing: 12) {
