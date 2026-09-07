@@ -253,6 +253,26 @@ struct ContentView: View {
     /// already in flight on the engine, so Stop is a real stop, not a hidden
     /// spinner.
     @State var stagedChainRunTask: Task<Void, Never>?
+    /// Runs the user composed and launched WHILE another was still executing —
+    /// FIFO, drained one at a time when the active run ends (Daniel, 2026-09-07:
+    /// "start a run and compose the next thing, e.g. do Apple Vision, then do
+    /// Google"). Empty leaves the single-run path untouched.
+    @State var workflowRunQueue = WorkflowRunQueue()
+    /// True once "New" has DETACHED the running chain from the editable rail:
+    /// the run keeps executing (tracked in Activity), the bar clears to a fresh
+    /// composition, and its ▶/Stop controls act on that new chain rather than
+    /// the detached one. Reset when the whole pipeline goes idle.
+    @State var barChainDetached = false
+    /// True for the WHOLE run pipeline — the first run plus every queued run
+    /// drained behind it — independent of the per-run `isRunningStagedChain`
+    /// flag, which flickers false between drained runs. This is the flag the
+    /// bar reads to decide "enqueue vs run now" and to show the compact "N
+    /// queued" status, so a run launched in the gap between two drains cannot
+    /// start a second concurrent pipeline.
+    @State var isChainPipelineActive = false
+    /// A short label for the run currently executing, for the bar's compact
+    /// status once the running chain is detached or a run is queued behind it.
+    @State var runningChainTitle: String?
     /// Explicit run-scope chosen from the subject chip's menu (Daniel,
     /// 2026-08-29). Outranks the automatic ladder while what it names is
     /// still visible; nil (the menu's "Automatic") follows the ladder.

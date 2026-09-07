@@ -234,6 +234,12 @@ extension ContentView {
         docIds: [String],
         providerOverride: String? = nil,
         modelOverride: String? = nil,
+        /// The run's user framing, frozen. Set by a DETACHED chain run (one the
+        /// user queued behind another, 2026-09-07) so it carries the context it
+        /// was launched with rather than one the window has edited since. nil
+        /// falls back to the live `workflowUserContext`, the case for every
+        /// existing caller.
+        userContextOverride: String? = nil,
         /// Set when the run was scoped to ONE artifact (Daniel, 2026-08-29):
         /// rides in the run inputs so an `artifacts_source` step whose config
         /// doesn't pin a type reads THAT artifact instead of its default.
@@ -271,7 +277,7 @@ extension ContentView {
         // compare-group stamp cannot drift between call sites.
         let inputs = WorkflowRunInputs.build(
             docIds: docIds,
-            userContext: workflowUserContext,
+            userContext: userContextOverride ?? workflowUserContext,
             artifactTypeHint: artifactTypeHint,
             artifactStepNameHint: artifactStepNameHint,
             compareGroup: compareGroup,

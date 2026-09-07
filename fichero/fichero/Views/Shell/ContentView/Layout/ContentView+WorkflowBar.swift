@@ -43,9 +43,15 @@ extension ContentView {
                 // representable below carries it back to the NSToolbar.
                 onSetLabels: { showWorkflowBarLabels = $0 },
                 staged: $stagedWorkflowChain,
-                onRunChain: { stagedChainRunTask = Task { await runStagedChain() } },
+                // ▶ either runs now or, with a pipeline already executing,
+                // queues this composition behind it (Daniel, 2026-09-07).
+                onRunChain: { launchOrEnqueueStagedChain() },
                 onStopChain: { Task { await stopStagedChain() } },
-                isRunning: isRunningStagedChain,
+                // The rail shows the inline spinner + Stop ONLY while the bar's
+                // own chain is the running one. After "New" detaches it, the bar
+                // is a fresh composition, so ▶ returns and the running chain's
+                // status moves to the compact pipeline row.
+                isRunning: isRunningStagedChain && !barChainDetached,
                 runningStepIndex: runningStagedStepIndex,
                 onOpenStep: { openStagedStepResult($0) },
                 chainCost: stagedChainCost,
@@ -75,7 +81,14 @@ extension ContentView {
                 // had inherited the selection's vision default, and Translate
                 // cannot run on an OCR pass).
                 textTierDefault: workflowBarTextTierDefault,
-                visionTierDefault: workflowBarVisionTierDefault
+                visionTierDefault: workflowBarVisionTierDefault,
+                // Queue a run and compose the next while it executes (Daniel,
+                // 2026-09-07). The pipeline flag, not isRunningStagedChain,
+                // gates enqueue-vs-run and the compact status.
+                pipelineActive: isChainPipelineActive,
+                queuedCount: workflowRunQueue.count,
+                runningTitle: runningChainTitle,
+                onNewRun: { startNewChainComposition() }
             )
             // On BOTH bars: labels follow the toolbar when only one is shown.
             .background { ToolbarTextModeSync(showsLabels: $showWorkflowBarLabels) }
@@ -136,9 +149,22 @@ extension ContentView {
     /// wrote (transcribe then clean up then catalogue), so each awaits the
     /// one before it. The chain is NOT cleared on completion — a run you can
     /// repeat on the next folder is the point of having assembled it.
+    ///
+    /// A DETACHED run (`attached: false`) supplies its own frozen `steps`,
+    /// `scope` and `userContext` — a run the user queued behind an earlier one
+    /// (Daniel, 2026-09-07) — and tracks purely through Activity, never touching
+    /// the bar's chips, because the rail now holds a different composition. The
+    /// attached case (all-nil, `attached: true`) is the bar's own chain and
+    /// behaves exactly as before.
     @MainActor
-    func runStagedChainClientSide() async {
-        guard !stagedWorkflowChain.isEmpty, !isRunningStagedChain else { return }
+    func runStagedChainClientSide(
+        steps: [StagedWorkflowStep]? = nil,
+        scope scopeOverride: WorkflowBarPolicy.RunScope? = nil,
+        userContext: String? = nil,
+        attached: Bool = true
+    ) async {
+        let chainSteps = steps ?? stagedWorkflowChain
+        guard !chainSteps.isEmpty, !isRunningStagedChain else { return }
         isRunningStagedChain = true
         // A plain run supersedes whatever the last compare showed — stale
         // per-model capsules under a fresh chain run would claim runs this
@@ -148,13 +174,15 @@ extension ContentView {
             isRunningStagedChain = false
             runningStagedStepIndex = nil
         }
+        let runContext = userContext ?? workflowUserContext
 
         // Freeze the SCOPE once. Selection can move while a long chain runs,
         // and step four landing on documents the user picked mid-run is the
         // kind of surprise a paid job must never spring. The scope, not just
         // ids: an artifact scope also carries the type/step hint every step
-        // of this run must keep honoring.
-        let scope = workflowBarRunScope
+        // of this run must keep honoring. A detached run's scope was already
+        // frozen at ▶-press and rides in as `scopeOverride`.
+        let scope = scopeOverride ?? workflowBarRunScope
         guard let targets = await frozenChainTargets(for: scope) else { return }
         var artifactTypeHint: String?
         var artifactStepNameHint: String?
@@ -172,22 +200,28 @@ extension ContentView {
         lastChainRunTargets = targets
 
         // Every step starts pending again, so a re-run does not show last
-        // time's greens while this time's work is still ahead.
-        for index in stagedWorkflowChain.indices {
-            stagedWorkflowChain[index].state = .pending
+        // time's greens while this time's work is still ahead. Only for an
+        // ATTACHED run: a detached run's steps are not in the bar (which now
+        // holds a fresh composition), so this must not reset those chips.
+        if attached {
+            for index in stagedWorkflowChain.indices {
+                stagedWorkflowChain[index].state = .pending
+            }
         }
 
         // All chip-state writes go through the step's ID, not its index
         // (review, 2026-08-29): chips stay removable and draggable while a
         // chain runs, so a captured index can drift onto a DIFFERENT step —
-        // painting the wrong chip green, or writing past the end.
+        // painting the wrong chip green, or writing past the end. For a
+        // detached run the id is not in the bar, so every write no-ops and the
+        // run is followed through Activity alone — exactly the intent.
         func update(_ stepId: UUID, _ mutate: (inout StagedWorkflowStep) -> Void) {
             if let liveIndex = stagedWorkflowChain.firstIndex(where: { $0.id == stepId }) {
                 mutate(&stagedWorkflowChain[liveIndex])
             }
         }
 
-        for step in stagedWorkflowChain {
+        for step in chainSteps {
             // A Stop press cancels this driver Task (stopStagedChain) — halt
             // before starting the next paid step rather than pressing on.
             if Task.isCancelled { break }
@@ -215,6 +249,7 @@ extension ContentView {
                 docIds: targets,
                 providerOverride: choice?.provider,
                 modelOverride: choice?.model,
+                userContextOverride: runContext,
                 artifactTypeHint: artifactTypeHint,
                 artifactStepNameHint: artifactStepNameHint,
                 expandFolders: expandFolders,

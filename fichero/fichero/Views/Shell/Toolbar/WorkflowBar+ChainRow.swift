@@ -59,6 +59,43 @@ extension WorkflowBar {
         .padding(.vertical, 6)
     }
 
+    /// The compact status of a DETACHED pipeline (Daniel, 2026-09-07): once
+    /// "New" moves the running chain off the editable rail, its progress reads
+    /// here and in Activity — the run currently executing, how many are queued
+    /// behind it, and one Stop that halts the whole pipeline. The full per-step
+    /// chips of a detached run live in Activity, not the bar, which is now a
+    /// launchpad for the next composition.
+    var pipelineStatusRow: some View {
+        HStack(spacing: 8) {
+            ProgressView()
+                .controlSize(.small)
+            Text(runningTitle.map { "Running \($0)" } ?? "Running…")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+            if queuedCount > 0 {
+                Text("· \(queuedCount) queued")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .accessibilityLabel("\(queuedCount) runs queued")
+            }
+            Spacer()
+            if let onStopChain {
+                Button(action: onStopChain) {
+                    Image(systemName: "stop.circle.fill")
+                        .font(.title3)
+                        .foregroundStyle(.red)
+                }
+                .buttonStyle(.plain)
+                .help("Stop the running chain and clear the queue")
+                .accessibilityLabel("Stop all runs")
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+    }
+
     /// Run, clear, compare, cost and the step count — everything that must stay
     /// put no matter how many rows the sentence grows to.
     private var chainControls: some View {
@@ -85,6 +122,20 @@ extension WorkflowBar {
                     .buttonStyle(.plain)
                     .help("Stop the running chain")
                     .accessibilityLabel("Stop the chain")
+                }
+                // "New" (Daniel, 2026-09-07: "start a run and compose the next
+                // thing"): detach this running chain — it keeps executing,
+                // tracked in Activity — and clear the rail to compose the next
+                // run, which ▶ will then queue behind this one.
+                if let onNewRun {
+                    Button(action: onNewRun) {
+                        Image(systemName: "plus.circle")
+                            .font(.title3)
+                            .foregroundStyle(Color.accentColor)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Compose a new run — the current one keeps running")
+                    .accessibilityLabel("New run")
                 }
             } else {
                 Button(action: onRunChain) {
