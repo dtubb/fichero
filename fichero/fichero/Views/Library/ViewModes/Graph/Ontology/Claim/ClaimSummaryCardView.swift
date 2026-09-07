@@ -188,9 +188,20 @@ struct ClaimSummaryCard: View {
             .padding(10)
             .background(Color(.windowBackgroundColor))
             .clipShape(RoundedRectangle(cornerRadius: 6))
+            // THE LINE → SOURCE (Daniel, 2026-09-07, #1 priority "take me to
+            // page"): tapping the row anywhere OTHER than a chip opens the
+            // claim's source page. The chips are `.plain` Buttons that consume
+            // their own taps — subject/object → entity, verb → edit — so this
+            // row-level gesture only fires for the non-chip line, sending it to
+            // the source. One rule: noun chip → entity, verb chip → edit,
+            // line → source page.
+            .help("Open the source page for this statement")
             .onTapGesture {
                 // Cmd-click opens in a new tab, Finder-style (#1685); plain
-                // click GOES TO THE SOURCE (#4666).
+                // click GOES TO THE SOURCE PAGE (#4666) via `navigateToSource()`,
+                // which resolves to the precise `ClaimSourceNavigationState`
+                // cursor (`openClaimSource()`) — the page, with the passage lit,
+                // not just the file.
                 //
                 // It used to call `focusClaim()` alone, which assigns four
                 // properties on a shared focus object and navigates nowhere.
