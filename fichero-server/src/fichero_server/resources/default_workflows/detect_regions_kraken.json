@@ -1,10 +1,10 @@
 {
- "name": "Detect Regions (Kraken)",
+ "name": "Detect Segments (Kraken)",
  "description": "Use this when: you want on-device baseline + line regions from Kraken's neural segmenter (blla) instead of Apple Vision — often better on archaic hands and dense layouts. The blla segmenter is built into the Kraken runtime, so this runs with no model download once the Kraken runtime is installed (Settings → AI → Local Inference). Free and local. Pair with Transcribe (Kraken) to recognise the text.",
  "format": "nodes",
  "is_template": true,
  "is_system": true,
- "folder_path": "/Detect Regions",
+ "folder_path": "/Detect Segments",
  "tags": [
   "preset",
   "regions",
@@ -30,7 +30,7 @@
   {
    "id": "detect-regions",
    "tool": "detect_regions",
-   "label": "Detect Regions (Kraken)",
+   "label": "Detect Segments (Kraken)",
    "position_x": 280,
    "position_y": 200,
    "inputs": {},

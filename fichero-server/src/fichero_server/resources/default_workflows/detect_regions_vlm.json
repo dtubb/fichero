@@ -1,10 +1,10 @@
 {
- "name": "Detect Regions (VLM)",
+ "name": "Detect Segments (VLM)",
  "description": "Use this when: Apple Vision misses regions on hard material (archaic hands, damaged pages) and you want a vision LLM to find the text regions instead. Uses whatever model you pick at run time — compare providers by running this next to the Apple Vision preset.",
  "format": "nodes",
  "is_template": true,
  "is_system": true,
- "folder_path": "/Detect Regions",
+ "folder_path": "/Detect Segments",
  "tags": [
   "preset",
   "regions",
@@ -28,7 +28,7 @@
   {
    "id": "detect-regions",
    "tool": "detect_regions",
-   "label": "Detect Regions (VLM)",
+   "label": "Detect Segments (VLM)",
    "position_x": 280,
    "position_y": 200,
    "inputs": {},

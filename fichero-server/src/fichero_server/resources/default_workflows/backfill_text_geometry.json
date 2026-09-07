@@ -4,7 +4,7 @@
  "format": "nodes",
  "is_template": true,
  "is_system": true,
- "folder_path": "/Detect Regions",
+ "folder_path": "/Detect Segments",
  "tags": [
   "preset",
   "regions",
@@ -28,7 +28,7 @@
   {
    "id": "detect-regions",
    "tool": "detect_regions",
-   "label": "Detect Regions",
+   "label": "Detect Segments",
    "position_x": 280,
    "position_y": 200,
    "inputs": {},

@@ -1,10 +1,10 @@
 {
- "name": "Detect Regions (Apple Vision)",
- "description": "Use this when: you want text bounding boxes on pages before (or without) transcription. On-device Apple Vision detects line and word regions and saves them per page — fast, local, free. For hard hands Apple can miss regions; try Detect Regions (VLM) with a vision model of your choice.",
+ "name": "Detect Segments (Apple Vision)",
+ "description": "Use this when: you want text bounding boxes on pages before (or without) transcription. On-device Apple Vision detects line and word regions and saves them per page — fast, local, free. For hard hands Apple can miss regions; try Detect Segments (VLM) with a vision model of your choice.",
  "format": "nodes",
  "is_template": true,
  "is_system": true,
- "folder_path": "/Detect Regions",
+ "folder_path": "/Detect Segments",
  "tags": [
   "preset",
   "regions",
@@ -28,7 +28,7 @@
   {
    "id": "detect-regions",
    "tool": "detect_regions",
-   "label": "Detect Regions",
+   "label": "Detect Segments",
    "position_x": 280,
    "position_y": 200,
    "inputs": {},
