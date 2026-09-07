@@ -399,3 +399,68 @@ def test_gemini_grid_without_a_declared_frame_is_read_not_rejected():
         payload, provider="google", model="gemini-3.1-flash-lite"
     )
     assert geometry.boxes[0].bbox == pytest.approx([0.1, 0.5, 0.8, 0.03])
+
+
+def test_vlm_reply_wrapped_in_a_markdown_json_fence_is_parsed():
+    """Gemini wraps JSON in a ```json fence by default. A fenced reply is good
+    JSON with three backticks in front of it, not malformed geometry — peel the
+    fence rather than reject the page (2026-09-07 "1704 tokens, 0 boxes")."""
+    from fichero_server.media.ocr_geometry import parse_vlm_geometry
+
+    payload = (
+        "```json\n"
+        '{"image_width": 2048, "image_height": 1536, "text": "hola mundo",'
+        ' "boxes": [{"text": "hola", "bbox": [0.1, 0.1, 0.2, 0.05],'
+        ' "level": "word"}]}\n'
+        "```"
+    )
+    geometry = parse_vlm_geometry(
+        payload, provider="google", model="gemini-3.1-flash"
+    )
+    assert len(geometry.boxes) == 1
+    assert geometry.boxes[0].text == "hola"
+    assert geometry.text == "hola mundo"
+
+
+def test_bare_top_level_gemini_box_array_is_accepted():
+    """Gemini's native bounding-box output is a BARE array of {box_2d, label}
+    objects, not the {"boxes": [...]} object our prompt asks for. Accept it and
+    convert the 0..1000 yxyx grid, rather than failing on the shape."""
+    from fichero_server.media.ocr_geometry import parse_vlm_geometry
+
+    # box_2d = [ymin, xmin, ymax, xmax] on the 0..1000 grid.
+    payload = (
+        '[{"box_2d": [100, 50, 200, 400], "label": "hola"},'
+        ' {"box_2d": [250, 50, 350, 400], "label": "mundo"}]'
+    )
+    geometry = parse_vlm_geometry(
+        payload, provider="google", model="gemini-2.5-pro"
+    )
+    assert len(geometry.boxes) == 2
+    assert geometry.boxes[0].bbox == pytest.approx([0.05, 0.1, 0.35, 0.1])
+    # Labels become the box text and join into the page text.
+    assert geometry.text == "hola mundo"
+
+
+def test_json_embedded_in_prose_is_extracted():
+    """A model that adds a sentence around the JSON still returned usable
+    geometry — find the first balanced JSON value instead of failing."""
+    from fichero_server.media.ocr_geometry import parse_vlm_geometry
+
+    payload = (
+        'Here are the regions I found: '
+        '{"boxes": [{"text": "x", "bbox": [0.0, 0.0, 0.1, 0.1]}]} '
+        'Hope this helps!'
+    )
+    geometry = parse_vlm_geometry(payload)
+    assert len(geometry.boxes) == 1
+
+
+def test_genuinely_unparseable_reply_still_raises():
+    """The tolerant decoder must not turn prose with no JSON into empty
+    geometry — a reply that carries no boxes has to be rejected loudly so the
+    caller records MALFORMED, not a silent boxless page."""
+    from fichero_server.media.ocr_geometry import parse_vlm_geometry
+
+    with pytest.raises(ValueError):
+        parse_vlm_geometry("the handwriting was too faint for me to read")
