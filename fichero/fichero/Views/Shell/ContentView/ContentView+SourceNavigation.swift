@@ -20,11 +20,16 @@ extension ContentView {
     /// so Back returns to them (see `recordNavigationEntry`).
     @MainActor
     func revealSearchResult(_ doc: Document) {
-        NavTrace.log("reveal.searchResult", "\(doc.id) container=\(doc.isNavigableContainer) (clears search + navigates)")
-        clearTransientSearch()
+        NavTrace.log("reveal.searchResult", "\(doc.id) container=\(doc.isNavigableContainer)")
         if doc.isNavigableContainer {
+            // A FOLDER result: open it in place (its contents shown), leaving
+            // the results — that IS "go here" for a container.
+            clearTransientSearch()
             navigateToDocument(doc)
         } else {
+            // A file/page result (Option B): land the reader on the source and
+            // KEEP the search results + browse context (Daniel: don't lose my
+            // place). No search-clear, no container re-root.
             Task { @MainActor in
                 await navigateToResolvedSource(doc)
             }
@@ -96,20 +101,25 @@ extension ContentView {
     /// engine-resolved reveal (#3577) and the legacy client-side resolver above.
     @MainActor
     func navigateToResolvedSource(_ target: Document) async {
-        NavTrace.log("nav.resolvedSource", "target=\(target.id) type=\(target.docType.rawValue) parent=\(target.parentId ?? "nil")")
-        if let folderId = target.parentId, !folderId.isEmpty {
-            do {
-                let folder = try await documentStore.documentService.getDocument(folderId)
-                navigateToDocument(folder)
-                browserSelection = [target.id]
-                detailDocument = target
-                NavTrace.log("nav.resolvedSource.set", "container=\(folder.id) sel=[\(target.id)] detail=\(target.id)")
-            } catch {
-                navigateToDocument(target)
-            }
-        } else {
-            navigateToDocument(target)
-        }
+        // Option B (Daniel, 2026-09-08: "jump to source and HOLD, don't lose my
+        // place"): land the reader on the source and select it, WITHOUT
+        // re-rooting the library/sidebar to its container.
+        //
+        // The old path called `navigateToDocument(folder)`, which set
+        // `selectedItemId` — firing `handleSidebarSelectionChange`, which
+        // `removeAll()`s the selection (→ selChange.emptyClear → detailDocument
+        // = nil), force-clears detailDocument, then ASYNC re-roots it to the
+        // FOLDER via `applySidebarSelectedDocument`. That async folder-set ran
+        // AFTER the `detailDocument = target` here and clobbered it, so the
+        // reader jumped to the container's first page instead of the source —
+        // the long-standing "the click never worked" bug. Selecting the target
+        // without touching `selectedItemId`/`viewMode` never wakes that handler,
+        // so the reader keeps the page and the browse context is preserved.
+        // Reveal-to-container (#4106) is now an explicit affordance, not the
+        // default click.
+        NavTrace.log("nav.resolvedSource.B", "land on \(target.id) type=\(target.docType.rawValue) (no re-root)")
+        browserSelection = [target.id]
+        detailDocument = target
     }
 
     /// Resolve a source anchor to its parent document + page through the ONE
