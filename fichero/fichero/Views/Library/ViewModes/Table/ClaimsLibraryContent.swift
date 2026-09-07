@@ -53,8 +53,8 @@ struct ClaimsLibraryContent: View {
     }
 
     private var trimmedQuery: String? {
-        let q = (searchQuery ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        return q.isEmpty ? nil : q
+        let trimmed = (searchQuery ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     /// Resolve claims → sortable rows, filtered by the active search text over the

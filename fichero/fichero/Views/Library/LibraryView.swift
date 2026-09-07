@@ -4,9 +4,16 @@ import OSLog
 import SwiftUI
 import UniformTypeIdentifiers
 
+/// WHAT the library pane is showing, driven from OUTSIDE (the sidebar): documents,
+/// or a library-wide knowledge-graph collection. `.entities` predates the
+/// node-model tables; `.claims` (P4) joins it so the sidebar's two peer KG
+/// sections both flow through the same library. When this is a KG collection the
+/// pane shows the library-wide claims/entities TABLE; `.documents` leaves the
+/// in-pane `libraryContentKind` picker (folder-scoped) in charge.
 enum LibraryContentCollection {
     case documents
     case entities
+    case claims
 }
 
 /// Grid/List/Table/Map view of documents

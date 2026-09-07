@@ -81,14 +81,15 @@ extension LibraryView {
     /// The final answer: rows, or the empty/placeholder state.
     @ViewBuilder
     private var libraryRowsOrEmptyState: some View {
-        if libraryContentKind == .claims {
+        if effectiveContentKind == .claims {
             // Claims are nodes that flow through the library the way documents do
-            // (the node-model IA, Phase 1): the folder's claims as a sortable,
+            // (the node-model IA, Phase 1): the folder's — or, when the sidebar's
+            // Claims section drives it, the whole library's — claims as a sortable,
             // searchable table, each row a door to its source page.
             claimsContent
-        } else if libraryContentKind == .entities {
+        } else if effectiveContentKind == .entities {
             // Entities, likewise — every one shown (duplicates + messy NER
-            // included), curatable in place from the row (Phase 2).
+            // included), curatable in place from the row (Phase 2 / P4).
             entitiesContent
         } else if isCollectionEmpty {
             // "Empty folder" and "contents not here yet" looked identical, so a
@@ -168,14 +169,30 @@ extension LibraryView {
         }
     }
 
-    /// The folder's claims as a library table (node-model IA, Phase 1). Scoped to
-    /// the browsed folder (recursive), searchable via the same ⌘F box, each row a
-    /// door to its source page through the shared claim cursor.
+    /// The content kind actually shown. A sidebar-driven KG collection
+    /// (`contentCollection`) WINS over the in-pane picker, so the sidebar's Claims
+    /// / Entities section shows that collection regardless of the pane's picker;
+    /// `.documents` leaves the folder-scoped in-pane `libraryContentKind` in charge.
+    var effectiveContentKind: LibraryContentKind {
+        switch contentCollection {
+        case .entities: return .entities
+        case .claims: return .claims
+        case .documents: return libraryContentKind
+        }
+    }
+
+    /// A sidebar-driven KG collection is always LIBRARY-WIDE — its `folderId` is a
+    /// browser sentinel ("entities-browser" / "claims-browser"), not a real folder.
+    var isSidebarKGCollection: Bool { contentCollection != .documents }
+
+    /// The claims table (node-model IA). Folder-scoped when the in-pane picker
+    /// drove it; LIBRARY-WIDE when the sidebar's Claims section did (P4), each row
+    /// a door to its source page through the shared claim cursor.
     @ViewBuilder
     var claimsContent: some View {
         if let service = scopedLibraryReference?.entityService {
             ClaimsLibraryContent(
-                folderId: folderId,
+                folderId: isSidebarKGCollection ? nil : folderId,
                 entityService: service,
                 documents: documents,
                 searchQuery: activeSearchQuery,
@@ -194,7 +211,7 @@ extension LibraryView {
     @ViewBuilder
     var entitiesContent: some View {
         EntitiesLibraryContent(
-            folderDocumentIds: folderId != nil ? Set(documents.map(\.id)) : nil,
+            folderDocumentIds: (isSidebarKGCollection || folderId == nil) ? nil : Set(documents.map(\.id)),
             documents: documents,
             selection: $selection,
             onOpen: { openEntityFromLibrary($0) }

@@ -9,7 +9,7 @@ extension ContentView {
     /// This is independent of the current layout so toolbar pane buttons
     /// don't disappear when previews are temporarily hidden.
     var supportsReadingWorkspace: Bool {
-        sidebarMode == .library && !isEntityLibrarySelection
+        sidebarMode == .library && !isKGLibrarySelection
     }
 
     /// Available display modes for the current sidebar mode.
@@ -17,7 +17,7 @@ extension ContentView {
     var availableViewDisplayModes: [ViewDisplayMode] {
         switch sidebarMode {
         case .library:
-            if isEntityLibrarySelection {
+            if isKGLibrarySelection {
                 return [.list]
             }
             if let doc = libraryViewDocument,
@@ -52,6 +52,29 @@ extension ContentView {
 
     var isEntityLibrarySelection: Bool {
         sidebarSelectionState.selectedItemId == "entities-browser"
+    }
+
+    /// The sidebar's Claims section (P4) — the library-wide claims table, the
+    /// peer of the entities collection.
+    var isClaimLibrarySelection: Bool {
+        sidebarSelectionState.selectedItemId == "claims-browser"
+    }
+
+    /// Either knowledge-graph collection is selected — both are library-wide KG
+    /// tables, not folder listings, so they share the entities collection's
+    /// layout treatment.
+    var isKGLibrarySelection: Bool {
+        isEntityLibrarySelection || isClaimLibrarySelection
+    }
+
+    /// What the library pane should show, from the sidebar selection: a KG
+    /// collection (claims / entities) or ordinary documents. This is the seam the
+    /// sidebar's two peer KG sections drive (P4), reusing the existing
+    /// content-collection input rather than a parallel mechanism.
+    var sidebarContentCollection: LibraryContentCollection {
+        if isClaimLibrarySelection { return .claims }
+        if isEntityLibrarySelection { return .entities }
+        return .documents
     }
 
     var shellCollapsePolicy: ShellCollapsePolicy {

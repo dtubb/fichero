@@ -17,7 +17,9 @@ extension ContentView {
     /// Restores per-folder view mode and drives the inspector from sidebar selection.
     func handleSidebarSelectionChange(_ newFolderId: String?) {
         if isRestoringNavigationHistory { return }
-        if newFolderId == "entities-browser" {
+        // Either KG collection (entities / claims) is a library-wide table, not a
+        // folder listing — reset the browse context the same way (P4).
+        if newFolderId == "entities-browser" || newFolderId == "claims-browser" {
             viewDisplayMode = .list
             browserSelection.removeAll()
             detailDocument = nil
