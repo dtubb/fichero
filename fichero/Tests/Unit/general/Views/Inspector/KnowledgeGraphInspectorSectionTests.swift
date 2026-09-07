@@ -896,6 +896,35 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         XCTAssertEqual(reduced[0].target, "b")
     }
 
+    func testEpistemologyReducerKeepsSubjectToLiteralEdgeWhenLiteralIsAllowed() {
+        // A subject→literal SVO claim (object "His Party" never resolved to an
+        // entity) must draw an edge so the statement appears in the graph. The
+        // reducer keeps it once buildNodes has added the literal as a leaf node
+        // (its id is in allowedNodeIds) — the fix for the empty-graph bug where
+        // a focus whose only claim points at a literal rendered as a lone dot.
+        let reduced = EpistemologyGraphReducer.reduce(
+            edges: [
+                EpistemologyGraphEdgeInput(
+                    sourceId: "hindenburg",
+                    targetId: "literal:His Party",
+                    predicate: "believed to be among",
+                    claimId: "c1",
+                    sourceDocumentId: "d1",
+                    sourcePageLabel: nil
+                )
+            ],
+            allowedNodeIds: ["hindenburg", "literal:His Party"],
+            maxEdges: 10
+        )
+
+        XCTAssertEqual(reduced.count, 1)
+        XCTAssertEqual(reduced[0].predicate, "believed to be among")
+        XCTAssertTrue(
+            reduced[0].source == "literal:His Party" || reduced[0].target == "literal:His Party",
+            "the literal object must be one endpoint of the kept edge"
+        )
+    }
+
     func testEpistemologyReducerPrefersLongestPredicateForPair() {
         let reduced = EpistemologyGraphReducer.reduce(
             edges: [

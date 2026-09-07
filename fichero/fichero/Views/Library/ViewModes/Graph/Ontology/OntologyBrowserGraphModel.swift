@@ -187,17 +187,38 @@ final class GraphSimulation {
             position: .zero,
             velocity: .zero
         ))
-        let neighbors = Array(response.neighbors.prefix(maxNeighbors))
-        let count = max(neighbors.count, 1)
-        let radius: CGFloat = 220
-        for (idx, neighbor) in neighbors.enumerated() {
-            let angle = Double(idx) / Double(count) * 2.0 * .pi
-            newNodes.append(GraphNode(
+        // Peripheral nodes = entity neighbors, THEN a leaf node for every SVO
+        // object that never resolved to an entity ("His Party"). Without the
+        // leaves the reducer drops a subject→literal edge (its target isn't an
+        // allowed node id) and a focus whose only claim points at a literal
+        // renders as a lone dot — the statement the user opened the graph to
+        // see never appears. Literals are LEAVES, not entities (kind == nil),
+        // so the SVO fact shows without a phrase becoming a first-class entity.
+        var peripheral: [(id: String, name: String, kind: Components.Schemas.EntityTypeOutput?)] = []
+        for neighbor in response.neighbors.prefix(maxNeighbors) {
+            peripheral.append((
                 id: neighbor.id,
                 name: neighbor.canonicalName,
                 kind: neighbor.entityType.flatMap {
                     Components.Schemas.EntityTypeOutput(rawValue: $0)
-                },
+                }
+            ))
+        }
+        var seenIds = Set(peripheral.map(\.id))
+        seenIds.insert(response.focusEntityId)
+        for edge in response.edges where !edge.targetIsEntity {
+            guard !seenIds.contains(edge.targetId) else { continue }
+            seenIds.insert(edge.targetId)
+            peripheral.append((id: edge.targetId, name: edge.targetLabel, kind: nil))
+        }
+        let count = max(peripheral.count, 1)
+        let radius: CGFloat = 220
+        for (idx, node) in peripheral.enumerated() {
+            let angle = Double(idx) / Double(count) * 2.0 * .pi
+            newNodes.append(GraphNode(
+                id: node.id,
+                name: node.name,
+                kind: node.kind,
                 position: CGPoint(x: cos(angle) * radius, y: sin(angle) * radius),
                 velocity: .zero
             ))
