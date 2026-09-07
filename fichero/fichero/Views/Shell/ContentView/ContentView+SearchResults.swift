@@ -475,13 +475,32 @@ extension ContentView {
     static func hitDocumentIds(
         results: [SearchResult], stats: SearchResponse?
     ) -> [String] {
-        var hitIds: [String] = results.map(\.documentId)
+        // Rank the merged hits by RELEVANCE, not by hit TYPE. The old code
+        // appended artifact/entity/claim hits AFTER the content results, so
+        // the scores zig-zagged across the joins ("70 / 40 / 70" in the grid).
+        // Content results carry the fused rank score; the other legs are
+        // supplementary pointers to source docs with no comparable score, so
+        // they rank after the scored results (still surfaced, never above a
+        // real match). Deduped; a stable index tiebreaker keeps equal-score
+        // (and the unscored supplementary) hits in their arrival order.
+        var scoreById: [String: Double] = [:]
+        for result in results {
+            scoreById[result.documentId] = max(scoreById[result.documentId] ?? -1, result.score)
+        }
+        var ordered: [String] = results.map(\.documentId)
         if let stats {
-            hitIds.append(contentsOf: stats.artifactHits.map(\.documentId))
-            hitIds.append(contentsOf: stats.entityHits.compactMap(\.sourceDocumentIds?.first))
-            hitIds.append(contentsOf: stats.claimHits.compactMap(\.sourceDocumentId))
+            ordered.append(contentsOf: stats.artifactHits.map(\.documentId))
+            ordered.append(contentsOf: stats.entityHits.compactMap(\.sourceDocumentIds?.first))
+            ordered.append(contentsOf: stats.claimHits.compactMap(\.sourceDocumentId))
         }
         var seen = Set<String>()
-        return hitIds.filter { seen.insert($0).inserted }
+        let unique = ordered.filter { seen.insert($0).inserted }
+        return unique.enumerated()
+            .sorted { lhs, rhs in
+                let leftScore = scoreById[lhs.element] ?? -1
+                let rightScore = scoreById[rhs.element] ?? -1
+                return leftScore != rightScore ? leftScore > rightScore : lhs.offset < rhs.offset
+            }
+            .map(\.element)
     }
 }
