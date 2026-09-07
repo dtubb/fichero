@@ -1,7 +1,7 @@
 {
  "backfill_text_geometry.json": {
-  "preset_version": 1,
-  "sha256": "5bc5c6c0e81d1cd8b4c0bb13136f445438959c9dcdd0a6ea541f839ba23e74fe"
+  "preset_version": 2,
+  "sha256": "f431ee395b9aa7a7ee05d57ffdcb68033c3bb2d7ef58a25e260b39b2bd3abc27"
  },
  "capture_ocr_transcribe.json": {
   "preset_version": 2,
@@ -56,16 +56,16 @@
   "sha256": "b2e52b5b8655ab11aeef89b179c4efd6b29792aca88fe98fec5ec974a2452a99"
  },
  "detect_regions.json": {
-  "preset_version": 2,
-  "sha256": "dfa7bcfb167bcfc354ba57c092449ed8c35f463d35d83b752ab4a62dfc8a24cd"
+  "preset_version": 3,
+  "sha256": "542525a6012e65984151558947cb2647bceb77d375481558d5551f757bb138c6"
  },
  "detect_regions_kraken.json": {
-  "preset_version": 1,
-  "sha256": "e54a155121ffc1841c0f14f859c6f29df00e7406759787af056f20ab8472ac91"
+  "preset_version": 2,
+  "sha256": "85ce4129398c263daed583ad3de2763ede92539356439f32f3d0c53e0d4df7bc"
  },
  "detect_regions_vlm.json": {
-  "preset_version": 1,
-  "sha256": "10a3b0b9d87db244a8e6655b02d37f4b5c22f6e3428ec41c6be790329e2bf185"
+  "preset_version": 2,
+  "sha256": "edb8975a9ab7d7eafc0a41e8e3e2cd6c802df2468a709120585ad2970097b3c4"
  },
  "diary_entries.json": {
   "preset_version": 1,
