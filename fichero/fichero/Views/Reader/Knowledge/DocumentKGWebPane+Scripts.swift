@@ -223,8 +223,8 @@ extension DocumentKGPaneRoute {
             if (!pageId) { return; }
             var selector = '.transcript-page[data-page-id="'
                 + ((window.CSS && CSS.escape) ? CSS.escape(pageId) : pageId) + '"]';
-            var anchor = document.querySelector(selector);
             var root = scroller();
+            var anchor = document.querySelector(selector);
             if (!anchor) {
                 installPageAnchors();
                 anchor = document.querySelector(selector);
@@ -240,12 +240,35 @@ extension DocumentKGPaneRoute {
             }
             if (!root) { return; }
             window.ficheroScrollSyncSequence += 1;
-            window.ficheroSuppressScrollPost = true;
-            anchor.scrollIntoView({ block: 'start', inline: 'nearest' });
-            window.requestAnimationFrame(function() {
+            var mySeq = window.ficheroScrollSyncSequence;
+            // Land on the page AND HOLD it. A single scrollIntoView drifts back
+            // to page one when content above the target settles a beat later:
+            // the per-page thumbnails load lazily and reflow the diary above the
+            // hit, pushing it out of view (Daniel, 2026-09-07: single-click a
+            // library-search hit — the reader shows the page, then ~1s on the
+            // whole pane re-roots to the parent's FIRST page). Re-assert the
+            // scroll across the settle window, bounded (~1.1s) and
+            // self-cancelling: a newer scroll target (a fresh selection) bumps
+            // ficheroScrollSyncSequence and ends this loop, so it can never
+            // fight real navigation. Re-query the anchor each pass in case a
+            // progress/patch splice replaced the article node. suppressScrollPost
+            // stays true through each re-assert so it never self-reports a page.
+            function settle() {
+                if (window.ficheroScrollSyncSequence !== mySeq) { return; }
+                var el = document.querySelector(selector) || anchor;
+                window.ficheroSuppressScrollPost = true;
+                el.scrollIntoView({ block: 'start', inline: 'nearest' });
                 window.requestAnimationFrame(function() {
-                    window.ficheroSuppressScrollPost = false;
+                    window.requestAnimationFrame(function() {
+                        if (window.ficheroScrollSyncSequence === mySeq) {
+                            window.ficheroSuppressScrollPost = false;
+                        }
+                    });
                 });
+            }
+            settle();
+            [120, 350, 700, 1100].forEach(function(delay) {
+                setTimeout(settle, delay);
             });
         };
         function postPage(page) {
