@@ -196,6 +196,49 @@ extension SidebarView {
     ) -> some View {
         let libraryItems = flattenedLibraryItems(libraryId: libraryId, buckets: buckets)
         unifiedRows(libraryItems, libraryId: libraryId)
+        libraryKnowledgeRows(libraryId: libraryId)
+    }
+
+    /// The library's knowledge-graph collections — Entities and Claims — at
+    /// LIBRARY level (Daniel: "this has to be at library level, not the bottom of
+    /// the sidebar"), scoped to this library. A claim and an entity are nodes that
+    /// flow through the SAME library as a document, so each row re-scopes the
+    /// library pane to that node kind, library-wide, and opens the corresponding
+    /// table (P4).
+    ///
+    /// Rendered only under the ACTIVE library (`windowState.libraryId`): the
+    /// library-wide tables the rows open read the WINDOW's library, so the rows
+    /// must sit under that same library — and rendering them under every open
+    /// library would mint the same `.browser` selection tag twice, which a
+    /// single-selection List cannot tell apart. Switching the active library
+    /// moves these rows with it.
+    @ViewBuilder
+    func libraryKnowledgeRows(libraryId: UUID) -> some View {
+        if libraryId == windowState.libraryId {
+            knowledgeCollectionRow(
+                title: "Entities",
+                systemImage: "person.2",
+                destination: .browser(.entities)
+            )
+            knowledgeCollectionRow(
+                title: "Claims",
+                systemImage: "quote.bubble",
+                destination: .browser(.claims)
+            )
+        }
+    }
+
+    /// One knowledge-graph collection row. Tagged with its `SidebarDestination` so
+    /// the list's own selection routes it through `handleBrowserSelectionDestination`
+    /// exactly like every other node — no bespoke tap handling.
+    private func knowledgeCollectionRow(
+        title: String,
+        systemImage: String,
+        destination: SidebarDestination
+    ) -> some View {
+        Label(title, systemImage: systemImage)
+            .tag(destination)
+            .listRowInsets(SidebarRowMetrics.insets(.libraryItem))
     }
 
     private func flattenedLibraryItems(
