@@ -27,13 +27,9 @@ def test_score_band_boundaries():
 
 
 def test_heuristic_fallback_is_transparent(tmp_path):
-    # A cloud model with no LOCAL tokenizer: lazy derived-coverage generation
-    # can't produce a file (local_files_only), so the transparent heuristic
-    # still serves. (An OpenAI/local model with a real tokenizer now returns
-    # "derived" instead — that path is covered in test_script_coverage.py.)
     response = recommend_language_fit(
         "es",
-        [LanguageFitModelSpec(provider="acme", model="acme-cloud-llm-v1")],
+        [LanguageFitModelSpec(provider="openai", model="gpt-4o-mini")],
         coverage_dir=tmp_path,
     )
 

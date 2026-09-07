@@ -1,9 +1,7 @@
 """Local model/language coverage contracts.
 
-This module consumes derived LOOVE-style tokenizer coverage JSON when available,
-and on a miss for a configured model delegates generation to the local producer
-(llm.script_coverage), which loads only LOCAL tokenizers. It never downloads
-tokenizer data, calls model providers, or inspects user text.
+This module consumes derived LOOVE-style tokenizer coverage JSON when available.
+It never downloads tokenizer data, calls model providers, or inspects user text.
 """
 
 from __future__ import annotations
@@ -239,43 +237,12 @@ def evaluate_language_fit(
     """Evaluate one provider/model pair for one language."""
 
     spec = normalize_model_spec(model.provider, model.model)
-    directory = coverage_dir or default_coverage_dir()
-    derived = _load_derived_record(spec, language, directory)
+    derived = _load_derived_record(spec, language, coverage_dir or default_coverage_dir())
     if derived is not None:
         return derived
     if not language.code or language.code not in _COMMON_LANGUAGES:
         return _unsupported_language_record(spec, language)
-    # Lazily generate a derived coverage file from the model's LOCAL tokenizer,
-    # so a configured model returns "derived" on first fit instead of falling
-    # back forever to the heuristic. Best-effort and cached: no local tokenizer
-    # (or any failure) leaves no file and we fall through to the heuristic.
-    derived = _ensure_derived_coverage(spec, language, directory)
-    if derived is not None:
-        return derived
     return _heuristic_record(spec, language)
-
-
-def _ensure_derived_coverage(
-    spec: LanguageFitModelSpec,
-    language: LanguageSpec,
-    coverage_dir: Path,
-) -> LanguageCoverageRecord | None:
-    """Generate the derived coverage file for (model, language), then read it.
-
-    Delegates to the producer (llm.script_coverage), which loads the model's
-    tokenizer at most once (cached) and writes nothing when it cannot produce a
-    real score. Returns the freshly derived record, or None so the caller falls
-    back to the transparent heuristic. Never raises into the fit path.
-    """
-    try:
-        from fichero_server.llm.script_coverage import write_coverage_record
-
-        write_coverage_record(
-            spec.model, language, provider=spec.provider, coverage_dir=coverage_dir
-        )
-    except Exception:
-        return None
-    return _load_derived_record(spec, language, coverage_dir)
 
 
 def _unsupported_language_record(

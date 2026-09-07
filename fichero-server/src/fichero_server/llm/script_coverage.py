@@ -33,7 +33,6 @@ from __future__ import annotations
 import json
 import re
 from datetime import datetime, timezone
-from functools import lru_cache
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
@@ -186,7 +185,6 @@ def _tier_counts(tokenizer: Tokenizer, exemplars: str) -> tuple[LanguageTierCoun
     )
 
 
-@lru_cache(maxsize=64)
 def load_tokenizer(model_id: str) -> Tokenizer | None:
     """Best-effort tokenizer for a model id, or None if none is obtainable.
 
@@ -194,11 +192,6 @@ def load_tokenizer(model_id: str) -> Tokenizer | None:
     through HF ``AutoTokenizer``. Both imports are lazy so this module stays
     importable without tiktoken/transformers. Returns None when no tokenizer can
     be built — the caller then emits an honest ``tokenizer_unavailable`` record.
-
-    Cached so a model's tokenizer is loaded at most once per process (the lazy
-    fit trigger calls this on every miss).
-    # ponytail: lru_cache also memoizes a None result, so we don't re-attempt a
-    # failed HF load every call; a transient failure stays cached until restart.
     """
     if not model_id:
         return None
@@ -224,10 +217,7 @@ def load_tokenizer(model_id: str) -> Tokenizer | None:
     except Exception:
         return None
     try:
-        # local_files_only: never hit the network. A configured/provisioned model
-        # already has its tokenizer on disk; anything else is honestly "no
-        # tokenizer" and the consumer falls back to its heuristic.
-        return AutoTokenizer.from_pretrained(model_id, local_files_only=True)  # type: ignore[return-value]
+        return AutoTokenizer.from_pretrained(model_id)  # type: ignore[return-value]
     except Exception:
         return None
 
@@ -345,26 +335,18 @@ def write_coverage_record(
     provider: str = "",
     coverage_dir: Path | None = None,
     tokenizer: Tokenizer | None = None,
-) -> Path | None:
+) -> Path:
     """Write one (model, language) coverage entry where language_coverage reads it.
 
     Merges into the model's existing file (a model accrues one entry per detected
-    script) and writes atomically. Returns the written path, or None when there
-    is nothing real to record — no tokenizer, or a script with no exemplar table.
-    In that case we write NO file so the consumer falls back to its transparent
-    heuristic; we never fabricate a derived score. (Any pre-existing file is left
-    untouched and its path returned.)
+    script) and writes atomically. Returns the written path. The tokenizer_
+    unavailable case still writes an explicit null-coverage entry — that is what
+    keeps the consumer from filling the gap with a heuristic guess.
     """
-    record = coverage_for_model(
-        model_id, language, provider=provider, tokenizer=tokenizer
-    )
     out_dir = coverage_dir or default_coverage_dir()
+    out_dir.mkdir(parents=True, exist_ok=True)
     path = _target_path(provider, model_id, out_dir)
 
-    if record.coverage_score is None:
-        return path if path.is_file() else None
-
-    out_dir.mkdir(parents=True, exist_ok=True)
     document: dict[str, Any] = {}
     if path.is_file():
         try:
@@ -378,6 +360,9 @@ def write_coverage_record(
     if not isinstance(coverage, dict):
         coverage = {}
 
+    record = coverage_for_model(
+        model_id, language, provider=provider, tokenizer=tokenizer
+    )
     coverage[language.code] = _record_to_payload(record)
 
     document["model_id"] = normalized_model_id(provider, model_id)
