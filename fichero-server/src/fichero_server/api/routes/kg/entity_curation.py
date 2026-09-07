@@ -1149,6 +1149,172 @@ async def link_external_authority(
 
 
 # ---------------------------------------------------------------------------
+# Wikidata enrichment (#3757 follow-on) — import external statements as claims
+# ---------------------------------------------------------------------------
+#
+# Builds on the authority-link seam above: once an entity is linked to a
+# Wikidata QID (metadata["authority_links"]), the user can fetch that QID's
+# statements and import selected ones as Fichero claims. The claims are marked
+# WIKIDATA-SOURCED (created_by + metadata.authority), never given a
+# source_document_id — "Wikidata says" must never masquerade as "the diary says".
+
+
+class EnrichPreviewRequest(BaseModel):
+    entity_id: str = Field(min_length=1)
+    qid: str | None = Field(
+        default=None,
+        description="Wikidata QID to enrich from. Defaults to the entity's "
+        "linked Wikidata authority id.",
+    )
+
+
+class WikidataStatementModel(BaseModel):
+    property_id: str
+    property_label: str
+    value_label: str
+    value_qid: str | None = None
+    value_url: str | None = None
+    statement_id: str
+
+
+class EnrichPreviewResponse(BaseModel):
+    entity_id: str
+    qid: str
+    endpoint: str
+    subject_label: str
+    statements: list[WikidataStatementModel]
+
+
+class EnrichImportStatement(BaseModel):
+    property_id: str
+    property_label: str
+    value_label: str
+    value_qid: str | None = None
+    value_url: str | None = None
+
+
+class EnrichImportRequest(BaseModel):
+    entity_id: str = Field(min_length=1)
+    qid: str = Field(min_length=1)
+    statements: list[EnrichImportStatement] = Field(min_length=1)
+
+
+class EnrichImportResponse(BaseModel):
+    entity_id: str
+    imported: int
+    claim_ids: list[str] = Field(default_factory=list)
+
+
+def _resolve_wikidata_qid(entity: KnowledgeEntity, explicit_qid: str | None) -> str:
+    """The QID to enrich from: an explicit one, else the linked Wikidata id."""
+    if explicit_qid:
+        return explicit_qid.strip()
+    for link in entity.metadata.get("authority_links", []):
+        if link.get("authority") == "wikidata" and link.get("authority_id"):
+            return str(link["authority_id"])
+    raise HTTPException(
+        status_code=422,
+        detail="No Wikidata QID: link this entity to a Wikidata authority first, "
+        "or pass an explicit qid.",
+    )
+
+
+@router.post(
+    "/enrich/preview",
+    response_model=EnrichPreviewResponse,
+    summary="Fetch a linked entity's Wikidata statements for review",
+    description="Opt-in outbound network, gated by the same external-authority "
+    "switch as /authority/refresh. Returns statements only — nothing is written.",
+)
+async def enrich_preview(
+    body: EnrichPreviewRequest,
+    db: Database = Depends(get_library_database),
+) -> EnrichPreviewResponse:
+    from fichero_server.knowledge.wikidata_enrich import fetch_statements_sparql
+    from fichero_server.api.routes.system.settings import resolve_selected_endpoint
+    from fichero_server.db.app import get_app_db
+
+    if not _external_authority_enabled(db):
+        raise HTTPException(status_code=403, detail="External authority enrichment is disabled")
+    entity = db.get(KnowledgeEntity, body.entity_id)
+    if entity is None:
+        raise HTTPException(status_code=404, detail=f"Entity not found: {body.entity_id}")
+    qid = _resolve_wikidata_qid(entity, body.qid)
+    endpoint = resolve_selected_endpoint(get_app_db())
+    try:
+        statements = await fetch_statements_sparql(qid, endpoint)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001 — surface a clear, non-silent error
+        raise HTTPException(
+            status_code=502, detail=f"Wikidata enrichment failed: {exc}"
+        ) from exc
+    return EnrichPreviewResponse(
+        entity_id=entity.id,
+        qid=qid,
+        endpoint=endpoint,
+        subject_label=entity.canonical_name,
+        statements=[
+            WikidataStatementModel(**stmt.model_dump(), statement_id=stmt.statement_id)
+            for stmt in statements
+        ],
+    )
+
+
+@router.post(
+    "/enrich/import",
+    response_model=EnrichImportResponse,
+    summary="Import selected Wikidata statements as WIKIDATA-SOURCED claims",
+)
+async def enrich_import(
+    body: EnrichImportRequest,
+    db: Database = Depends(get_library_database_for_write),
+    actor: str = Depends(request_actor),
+) -> EnrichImportResponse:
+    from fichero_server.api.routes.claim.claims import ClaimCreateRequest, create_claim_impl
+    from fichero_server.knowledge.wikidata_enrich import (
+        WikidataStatement,
+        statement_to_claim_text,
+    )
+
+    entity = db.get(KnowledgeEntity, body.entity_id)
+    if entity is None:
+        raise HTTPException(status_code=404, detail=f"Entity not found: {body.entity_id}")
+    source_url = f"https://www.wikidata.org/wiki/{body.qid}"
+    claim_ids: list[str] = []
+    for item in body.statements:
+        stmt = WikidataStatement(**item.model_dump())
+        claim = create_claim_impl(
+            db,
+            ClaimCreateRequest(
+                text=statement_to_claim_text(entity.canonical_name, stmt),
+                # WIKIDATA-SOURCED: no source_document_id — this is an external
+                # assertion, not something read in this corpus.
+                source_document_id=None,
+                source_ref=stmt.value_url or source_url,
+                entity_ids=[entity.id],
+                created_by="wikidata",
+                confidence_source="wikidata",
+                subject_canonical=entity.canonical_name,
+                subject_entity_id=entity.id,
+                predicate_verb=stmt.property_label,
+                object_phrase=stmt.value_label,
+                metadata={
+                    "authority": "wikidata",
+                    "authority_id": body.qid,
+                    "property_id": stmt.property_id,
+                    "value_qid": stmt.value_qid,
+                    "source_url": source_url,
+                },
+            ),
+        )
+        claim_ids.append(claim.id)
+    return EnrichImportResponse(
+        entity_id=entity.id, imported=len(claim_ids), claim_ids=claim_ids
+    )
+
+
+# ---------------------------------------------------------------------------
 # Action layer registration (EPIC #1848 keystone #2013) — entity.merge pilot
 # ---------------------------------------------------------------------------
 #
