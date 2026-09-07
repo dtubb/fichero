@@ -206,7 +206,11 @@ class SpacyNERProvider(BaseNERProvider):
         if not text:
             return []
 
-        effective_language = language if language in {"en", "es"} else None
+        # The caller may hand us a code ("en") or a resolved NAME ("English") —
+        # the language-policy resolver emits names. Normalise both to the model
+        # code so the DECLARED language routes to the matching model; None means
+        # "unknown, detect from the text" rather than a wrong forced model.
+        effective_language = spacy_ner.normalize_language(language)
         spans = spacy_ner.extract_entities(text, language=effective_language)
         clustered = spacy_ner.cluster_aliases(spans)
         records: list[ExtractedEntity] = []

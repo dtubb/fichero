@@ -309,6 +309,43 @@ def detect_language(text: str) -> str:
     return "es" if es_score > en_score else "en"
 
 
+# A language reaches NER in one of two shapes: an ISO code ("en") or a canonical
+# English NAME ("English"). The shared language-policy resolver and lang_detect
+# emit NAMES; node config and the detect helpers emit CODES. Both must route to
+# the same spaCy model. The old boundary test `language in {"en", "es"}` matched
+# only codes, so a resolved "English"/"Spanish" name silently failed the test,
+# the declared language was dropped, and NER fell back to guessing — which let a
+# Spanish model run on English pages and mislabel their entities. Normalise both
+# shapes to the model code here so the declared language is what actually loads.
+_LANGUAGE_ALIASES = {
+    "en": "en", "eng": "en", "english": "en", "ingles": "en", "inglés": "en",
+    "es": "es", "spa": "es", "spanish": "es",
+    "espanol": "es", "español": "es", "castellano": "es",
+    "fr": "fr", "fra": "fr", "french": "fr", "francais": "fr", "français": "fr",
+    "de": "de", "ger": "de", "deu": "de", "german": "de", "deutsch": "de",
+    "pt": "pt", "por": "pt", "portuguese": "pt", "portugues": "pt", "português": "pt",
+}
+
+
+def normalize_language(language: str | None) -> str | None:
+    """Map a language name or code to a bundled spaCy model code, or None.
+
+    Accepts ISO codes ("en", "es", region-tagged "en-US") and canonical
+    English names ("English", "Spanish"). Returns None when the value is
+    empty, ``auto``, or a language with no model in ``_MODEL_PREFERENCE`` —
+    the caller then detects the language from the text rather than forcing
+    a wrong one.
+    """
+    if not language:
+        return None
+    key = language.strip().casefold()
+    if key in {"", "auto"}:
+        return None
+    base = re.split(r"[-_]", key, maxsplit=1)[0]
+    code = _LANGUAGE_ALIASES.get(key) or _LANGUAGE_ALIASES.get(base)
+    return code if code in _MODEL_PREFERENCE else None
+
+
 def extract_entities(text: str, language: str | None = None) -> list[EntitySpan]:
     """Run spaCy NER over ``text`` and return Fichero-typed spans.
 
