@@ -13,6 +13,9 @@ import SwiftUI
 /// `store.defaults`; moving those into the store is a follow-up.
 struct AISettingsView: View {
     @Environment(AppState.self) var appState
+    // Opens the standalone loove language-coverage window (scene "loove-coverage"
+    // in FicheroApp) from the header button below.
+    @Environment(\.openWindow) private var openWindow
     let featureManager = FeatureManager.shared
 
     @State var store = AISettingsStore()

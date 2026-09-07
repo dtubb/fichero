@@ -427,6 +427,16 @@ struct FicheroApp: App {
                 Button("Install Command-Line & MCP Tools…") {
                     openWindow(id: "install-tools")
                 }
+
+                // loove language-coverage matrix — a dev-tier diagnostic window
+                // (which models can read which scripts), shown alongside the other
+                // diagnostic windows in non-release builds. Also reachable from the
+                // AI settings pane, which is why the menu entry can stay gated.
+                if featureManager.shouldShowTierChrome {
+                    Button("Language Coverage…") {
+                        openWindow(id: "loove-coverage")
+                    }
+                }
                 #endif
             }
 
@@ -787,6 +797,22 @@ extension FicheroApp {
         }
         .defaultSize(width: 540, height: 720)
         .commandsRemoved()
+
+        // loove language-coverage matrix (#1820/#2116): its own window, opened
+        // from the App menu's "Language Coverage…" button and the AI settings
+        // header, both via `openWindow(id: "loove-coverage")`. Self-contained —
+        // LooveCoverageView owns its LooveCoverageService, which talks to the
+        // existing /api/model-comparison/language-fit route through the generated
+        // client, so it needs no library-service environment plumbing. Lives here
+        // (not in the main `body`) so the App struct's Scene buildBlock stays under
+        // the 10-arity cap. Windows-menu entry suppressed like the sibling
+        // diagnostic windows; it's reached from the menu button and settings.
+        Window("Language Coverage", id: "loove-coverage") {
+            LooveCoverageView()
+        }
+        .defaultSize(width: 1080, height: 640)
+        .commandsRemoved()
+        .defaultPosition(.center)
     }
 }
 

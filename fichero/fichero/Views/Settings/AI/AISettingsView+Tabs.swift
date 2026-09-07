@@ -20,6 +20,15 @@ extension AISettingsView {
                     Text("Portuguese").tag("pt")
                     Text("Italian").tag("it")
                 }
+
+                // Opens the standalone loove coverage matrix — which models can
+                // actually read which scripts — in its own window (#1820/#2116).
+                Button {
+                    openWindow(id: "loove-coverage")
+                } label: {
+                    Label("Language Coverage…", systemImage: "character.book.closed")
+                }
+                .help("See which models' tokenizers can read each script (tokenizer coverage, not model quality).")
             }
 
             Section("Text") {
