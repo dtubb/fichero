@@ -218,3 +218,64 @@ def test_written_filename_matches_consumer_lookup(tmp_path) -> None:
         lc.normalize_model_spec("OpenAI", "GPT 4o"), tmp_path
     )
     assert path == expected
+
+
+# --- End-to-end: the fit path lazily generates and returns "derived" ---------
+# These prove generation->read is wired into language_coverage, not just the
+# producer in isolation. load_tokenizer is patched to a fake so it stays offline.
+
+
+def test_fit_path_generates_derived(tmp_path) -> None:
+    greek = sc.SCRIPT_EXEMPLARS["Greek"]
+    tok = _tok_all_tier0(greek, sc.SCRIPT_SAMPLES["Greek"])
+    original = sc.load_tokenizer
+    try:
+        sc.load_tokenizer = lambda model_id: tok  # type: ignore[assignment]
+        # No coverage file exists yet -> the fit path must generate one.
+        assert not any(tmp_path.iterdir())
+        record = lc.evaluate_language_fit(
+            lc.normalize_model_spec("openai", "gpt-fake"),
+            lc.language_spec("el"),
+            coverage_dir=tmp_path,
+        )
+        assert record.status == "derived"  # NOT "heuristic"
+        assert record.score_band == "excellent"
+        assert record.coverage_score == 1.0
+        assert record.source.kind == "loove_derived_json"
+        assert any(tmp_path.iterdir())  # generation actually wrote a file
+    finally:
+        sc.load_tokenizer = original  # type: ignore[assignment]
+
+
+def test_fit_path_falls_back_to_heuristic_without_tokenizer(tmp_path) -> None:
+    original = sc.load_tokenizer
+    try:
+        sc.load_tokenizer = lambda model_id: None  # type: ignore[assignment]
+        record = lc.evaluate_language_fit(
+            lc.normalize_model_spec("cloud", "no-tokenizer-model"),
+            lc.language_spec("en"),
+            coverage_dir=tmp_path,
+        )
+        assert record.status == "heuristic"  # honest fallback preserved
+        assert not any(tmp_path.iterdir())  # nothing fabricated on disk
+    finally:
+        sc.load_tokenizer = original  # type: ignore[assignment]
+
+
+def test_fit_path_recommend_returns_derived(tmp_path) -> None:
+    """The public recommend_language_fit surface also gets derived results."""
+    cyr = sc.SCRIPT_EXEMPLARS["Cyrillic"]
+    tok = _tok_all_tier0(cyr, sc.SCRIPT_SAMPLES["Cyrillic"])
+    original = sc.load_tokenizer
+    try:
+        sc.load_tokenizer = lambda model_id: tok  # type: ignore[assignment]
+        response = lc.recommend_language_fit(
+            "ru",
+            [lc.LanguageFitModelSpec(provider="hf", model="cyr-fake")],
+            coverage_dir=tmp_path,
+        )
+        assert len(response.results) == 1
+        assert response.results[0].status == "derived"
+        assert response.results[0].score_band == "excellent"
+    finally:
+        sc.load_tokenizer = original  # type: ignore[assignment]
