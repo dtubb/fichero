@@ -4,7 +4,7 @@
 > creative director owns this intent; tests enforce it; code makes the tests pass.
 > One line per behavior; each maps to a pinning test cited by name in the test's
 > docstring.
-> Status: APPROVED (option a). F2 + F3 landed (eb5b868c6, 7ee417fbc). F5 + D remain.
+> Status: APPROVED (option a). F2+F3+F5 landed (eb5b868c6, 7ee417fbc, 1eb9b9557). D (empty-state) remains; field-based builder migration follow-up.
 >
 > Tags: **[OK]** behaves this way today · **[BROKEN]** regression, code contradicts
 > the line · **[GAP]** intended behavior never built. Untagged = design intent whose
