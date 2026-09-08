@@ -553,15 +553,12 @@ extension ClaimSummaryCard {
     static func openClaimSourceRequest(
         for claim: Components.Schemas.KnowledgeClaim
     ) -> ClaimSourceNavigationRequest? {
-        openClaimSourceRequest(
-            documentId: claim.sourceDocumentId ?? "",
-            pageLabel: claim.sourcePageLabel,
-            charStart: claim.sourceCharStart,
-            charEnd: claim.sourceCharEnd,
-            claimId: claim.id,
-            excerpt: claim.sourceExcerpt,
-            bbox: claim.sourceAnchor?.rect
-        )
+        // ONE builder, ONE precision rule (F5): delegate to the precision-aware
+        // producer so a statement jumps to the same place from every surface —
+        // instead of forwarding a span AND a bbox together, which let the same
+        // claim highlight differently in the card vs the inspector.
+        // (spec: kg-entity-inspector, kg.entity.source.one-anchor-builder / same-anchor)
+        ClaimSourceRequest.request(for: claim)
     }
 
     func postOpenClaimSource(for claim: Components.Schemas.KnowledgeClaim) {

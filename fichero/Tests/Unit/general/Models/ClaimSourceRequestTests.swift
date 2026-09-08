@@ -39,6 +39,33 @@ struct ClaimSourceRequestTests {
         )
     }
 
+    // MARK: - Same-anchor invariant (spec: kg-entity-inspector, F5)
+
+    /// `kg.entity.source.one-anchor-builder` + `xsurface.same-anchor` — a claim
+    /// must yield the SAME navigation from every surface. The ontology card's
+    /// builder (`ClaimSummaryCard.openClaimSourceRequest`) must agree with the
+    /// precision-aware `ClaimSourceRequest.request` — especially when a claim has
+    /// BOTH a span and a bbox, where the precision rule keeps only the span and
+    /// the old card builder forwarded both. Cross-surface invariant (hard-gate).
+    @Test("both claim-source builders agree for the same claim")
+    func sameAnchorAcrossBuilders() throws {
+        let fixtures: [Components.Schemas.KnowledgeClaim] = [
+            claim(),                                                     // span
+            claim(charStart: nil, charEnd: nil, bbox: [0.1, 0.2, 0.3, 0.4]),  // region
+            claim(bbox: [0.1, 0.2, 0.3, 0.4]),                          // BOTH → span wins
+            claim(charStart: nil, charEnd: nil),                        // page-only
+        ]
+        for c in fixtures {
+            let canonical = ClaimSourceRequest.request(for: c)
+            let card = ClaimSummaryCard.openClaimSourceRequest(for: c)
+            #expect(card?.documentId == canonical?.documentId)
+            #expect(card?.charStart == canonical?.charStart)
+            #expect(card?.charEnd == canonical?.charEnd)
+            #expect(card?.bbox == canonical?.bbox)
+            #expect(card?.pageLabel == canonical?.pageLabel)
+        }
+    }
+
     // MARK: - Span level, which is the whole point
 
     @Test("a claim with a recorded span navigates at span level")
