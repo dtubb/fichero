@@ -9,7 +9,7 @@ struct EntityTableRowTests {
 
     private func entity(
         name: String = "Adolfo Hurtado",
-        type: Components.Schemas.EntityType_Output? = .person
+        type: Components.Schemas.EntityTypeOutput? = .person
     ) -> Components.Schemas.KnowledgeEntity {
         Components.Schemas.KnowledgeEntity(id: "e-1", canonicalName: name, entityType: type)
     }
