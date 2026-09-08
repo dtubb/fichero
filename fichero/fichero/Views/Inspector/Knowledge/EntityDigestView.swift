@@ -487,10 +487,11 @@ struct EntityDigestContent: View {
                 .font(.headline)
                 .padding(.bottom, 4)
 
-            if isLoading && claims.isEmpty {
+            let state = Self.statementsState(isLoading: isLoading, isEmpty: claims.isEmpty)
+            if state == .loading {
                 ProgressView()
-            } else if claims.isEmpty {
-                Text("No source citations available.")
+            } else if state == .empty {
+                Text("No statements about \(entity.canonicalName) yet.")
                     .foregroundStyle(.secondary)
             } else {
                 let grouped = Dictionary(grouping: claims, by: { $0.sourceDocumentId ?? "" })
@@ -678,6 +679,19 @@ struct EntityDigestContent: View {
             entityName: entity.canonicalName, claims: claims
         ).map(\.sentence)
         return sentences.isEmpty ? "No biography data available." : sentences.joined(separator: " ")
+    }
+
+    /// The statements list's state — pure so the empty/loading/list rule is
+    /// testable without a rendered view. An empty result while loading shows the
+    /// spinner (never the previous entity's rows); an empty result once loaded
+    /// shows the entity-named "no statements" line. (A load error currently reads
+    /// as `empty` — ClaimStore surfaces no error yet; `empty.load-error` is a
+    /// bounded follow-up.) (spec: kg-entity-inspector, kg.entity.empty.no-claims)
+    enum StatementsState: Equatable { case loading, empty, list }
+
+    static func statementsState(isLoading: Bool, isEmpty: Bool) -> StatementsState {
+        if isEmpty { return isLoading ? .loading : .empty }
+        return .list
     }
 
     private func loadClaims() async {
