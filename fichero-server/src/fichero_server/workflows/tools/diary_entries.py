@@ -55,6 +55,18 @@ _LAST_SPLIT_REPORT: dict[str, dict[str, int]] = {}
 _TOOL_REMOVED_KEY = "diary_entries_tool_removed"
 DEFAULT_PROTOTYPE_KEY = "diary_entry"
 
+#: Same shape as the shared LLM tools' `prompt` field (see
+#: `llm_base.BASE_CONFIG_SCHEMA`) — this tool predates `llm_base` and does not
+#: inherit from it, so its own schema declares the one field that needs to be
+#: user-overridable rather than pulling in the whole shared config surface.
+_CONFIG_SCHEMA = {
+    "prompt": {
+        "type": "string",
+        "description": "Custom prompt (default splits by date heading)",
+        "x-group": "primary",
+    },
+}
+
 _SYSTEM = (
     "You segment historical diary transcripts into dated entries. "
     "Preserve the transcript text VERBATIM — never paraphrase, correct "
@@ -440,14 +452,16 @@ async def split_page_into_entries(
     llm_config: LLMConfig,
     *,
     prototype_key: str = DEFAULT_PROTOTYPE_KEY,
+    prompt: str | None = None,
 ) -> list[Document]:
     """Extract, then persist one child node per entry under ``page``."""
     transcript = (page.page_content or "").strip()
     if not transcript:
         raise ValueError(f"page {page.id} has no transcript to split")
 
+    prompt_template = prompt or _PROMPT
     result = await chat_structured(
-        _PROMPT.format(transcript=transcript),
+        prompt_template.format(transcript=transcript),
         DiaryPageSplit,
         llm_config,
         system=_SYSTEM,
@@ -608,6 +622,7 @@ async def split_page_into_entries(
     color="purple",
     uses_llm=True,
     supports_batch=False,
+    config_schema=_CONFIG_SCHEMA,
     input_ports=[
         PortDef(
             id="documents",
@@ -679,10 +694,11 @@ async def diary_entries(
     totals = {"unchanged": 0, "updated": 0, "created": 0, "removed": 0}
     if not pages and raw_documents:
         errors.append(f"{len(raw_documents)} selected document(s) resolved to no pages")
+    prompt_override = str(inputs.get("prompt") or "").strip() or None
     for page in pages:
         try:
             entries = await split_page_into_entries(
-                db, page, llm_config, prototype_key=prototype_key
+                db, page, llm_config, prototype_key=prototype_key, prompt=prompt_override
             )
         except ValueError as exc:
             errors.append(str(exc))

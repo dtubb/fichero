@@ -112,6 +112,30 @@ class TestDiaryEntries:
         assert "convoy" in created[1].page_content
 
     @pytest.mark.asyncio
+    async def test_prompt_override_replaces_the_default_when_provided(self, diary_db):
+        # A user-supplied prompt is what actually goes to the model; an empty
+        # one falls back to the built-in `_PROMPT` — same override-or-default
+        # contract as the sibling LLM tools (analyze, entities, transcribe).
+        db, page = diary_db
+        seen_prompts = []
+
+        async def fake_chat_structured(prompt, schema, config, **kwargs):
+            seen_prompts.append(prompt)
+            return DiaryPageSplit(entries=TWO_ENTRIES)
+
+        with patch(
+            "fichero_server.workflows.tools.diary_entries.chat_structured",
+            side_effect=fake_chat_structured,
+        ):
+            await split_page_into_entries(db, page, llm_config=None)
+            await split_page_into_entries(
+                db, page, llm_config=None, prompt="Custom split rules: {transcript}"
+            )
+
+        assert "Split this diary page transcript" in seen_prompts[0]
+        assert seen_prompts[1] == f"Custom split rules: {PAGE_TEXT}"
+
+    @pytest.mark.asyncio
     async def test_region_is_union_of_the_days_line_boxes(self, diary_db):
         db, page = diary_db
         with _split(TWO_ENTRIES):
