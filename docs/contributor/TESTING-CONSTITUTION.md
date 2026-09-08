@@ -56,7 +56,13 @@ N surfaces, test that *the surfaces agree*, once — not each surface ad hoc.
 
 **4. Availability tells the truth.** A provider / runtime / model is shown available or
 enabled **iff** it is actually installed and runnable. No surface advertises a
-capability the engine can't perform.
+capability the engine can't perform. **"Runnable" means resource-safe:** a model that
+crashes the machine, exhausts memory, or is too large to load is NOT available.
+Availability is tested by actually *running* the model under load — not just checking
+registration — and **fan-out/parallelism is bounded** so running models never peg or
+crash the machine (it stays useful) and never burst a provider into rate-limit/quota
+failures. The real provider error (bad key vs rate-limit vs out-of-credits vs too-large)
+is surfaced, never flattened to one generic message.
 
 **5. The gate is the contract.** A rule not in the gate is a suggestion. Specs that
 matter get a guardrail or test in `scripts/gate`; known gaps are explicit allowlists,
