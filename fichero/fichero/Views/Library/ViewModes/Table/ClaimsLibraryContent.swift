@@ -35,6 +35,20 @@ struct ClaimsLibraryContent: View {
     /// Presents the manual claim-create sheet (spec: kg-tables `claim.create`).
     @State private var showingCreateSheet = false
 
+    /// The claim being edited (spec: kg-tables `claim.edit`). Presents the EXISTING
+    /// `EditClaimSheet` (PATCH). A tiny Identifiable wrapper is needed because
+    /// `KnowledgeClaim.id` is optional, which `.sheet(item:)` cannot key on.
+    @State private var claimToEdit: Components.Schemas.KnowledgeClaim?
+
+    /// EditClaimSheet reads WindowState non-optionally; a `.sheet` is a hosting
+    /// boundary, so this is grabbed here and re-injected across it.
+    @Environment(WindowState.self) private var windowState
+
+    private struct EditingClaim: Identifiable {
+        let claim: Components.Schemas.KnowledgeClaim
+        var id: String { claim.id ?? claim.text }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             filterBar
@@ -44,7 +58,8 @@ struct ClaimsLibraryContent: View {
                 isLoading: model?.isLoading ?? true,
                 emptyMessage: emptyMessage,
                 onOpenSource: openSource,
-                onDelete: deleteClaims
+                onDelete: deleteClaims,
+                onEdit: { claimToEdit = $0 }
             )
         }
         .task(id: folderId) {
@@ -61,6 +76,18 @@ struct ClaimsLibraryContent: View {
                 sourceDocumentId: folderId,
                 onCreated: handleCreatedClaim
             )
+        }
+        .sheet(item: Binding(
+            get: { claimToEdit.map(EditingClaim.init) },
+            set: { claimToEdit = $0?.claim }
+        )) { wrapped in
+            // Reuse the existing SVO editor (PATCH). Re-inject WindowState across the
+            // sheet boundary. On save, reload the scope so the row reflects the edit.
+            EditClaimSheet(claim: wrapped.claim) { _ in
+                claimToEdit = nil
+                Task { await model?.load(folderId: folderId) }
+            }
+            .environment(windowState)
         }
     }
 

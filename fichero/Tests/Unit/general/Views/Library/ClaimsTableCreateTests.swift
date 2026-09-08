@@ -45,4 +45,17 @@ final class ClaimsTableCreateTests: XCTestCase {
         XCTAssertTrue(source.lowercased().contains("working hypothesis"),
                       "a sourceless claim must be flagged as a working hypothesis, not silent")
     }
+
+    func testClaimsTableOffersEditReusingTheExistingSVOEditor() throws {
+        // Edit-from-table (spec `claim.edit`) completes claim CRUD; it REUSES the
+        // existing EditClaimSheet (PATCH, edits S·V·O fields) rather than a new editor.
+        let content = try Self.appSource("Views/Library/ViewModes/Table/ClaimsLibraryContent.swift")
+        XCTAssertTrue(content.contains("claimToEdit"),
+                      "the claims table must hold an edit target")
+        XCTAssertTrue(content.contains("EditClaimSheet(claim:"),
+                      "edit must reuse the existing EditClaimSheet")
+        let tableView = try Self.appSource("Views/Library/ViewModes/Table/ClaimsTableView.swift")
+        XCTAssertTrue(tableView.contains("Edit…"),
+                      "the claim row menu must offer an Edit affordance")
+    }
 }

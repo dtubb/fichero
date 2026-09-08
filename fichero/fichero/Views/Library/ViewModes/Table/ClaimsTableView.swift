@@ -38,6 +38,9 @@ struct ClaimsTableView: View {
     /// which deletes server-side and drops the rows in place. Optional so a preview
     /// or a read-only host can render the table without a delete path.
     var onDelete: (([Components.Schemas.KnowledgeClaim]) -> Void)? = nil
+    /// Edit one claim — the host presents the existing EditClaimSheet (PATCH). Optional
+    /// so a read-only host can render the table without an edit path.
+    var onEdit: ((Components.Schemas.KnowledgeClaim) -> Void)? = nil
 
     @State private var sortOrder: [KeyPathComparator<Item>] = [
         KeyPathComparator(\Item.values.subject, order: .forward)
@@ -143,12 +146,20 @@ struct ClaimsTableView: View {
     @ViewBuilder
     private func claimMenu(for ids: Set<String>) -> some View {
         let targets = items.filter { ids.contains($0.id) }.map(\.claim)
-        if let onDelete, !targets.isEmpty {
-            Button(role: .destructive) { onDelete(targets) } label: {
-                Label(
-                    targets.count == 1 ? "Delete claim" : "Delete \(targets.count) claims",
-                    systemImage: "trash"
-                )
+        if !targets.isEmpty {
+            if let onEdit, targets.count == 1, let one = targets.first {
+                Button { onEdit(one) } label: {
+                    Label("Edit…", systemImage: "pencil")
+                }
+                if onDelete != nil { Divider() }
+            }
+            if let onDelete {
+                Button(role: .destructive) { onDelete(targets) } label: {
+                    Label(
+                        targets.count == 1 ? "Delete claim" : "Delete \(targets.count) claims",
+                        systemImage: "trash"
+                    )
+                }
             }
         }
     }
