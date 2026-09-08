@@ -54,6 +54,11 @@ extension DocumentStore: ObservableDomainStore {
     /// them. Purely local — no network — so it runs synchronously inside `apply`.
     private func removeDocuments(ids: Set<String>) {
         lastChangedDocumentIds = ids
+        // Mark these as genuinely deleted so the sidebar selection-resilience
+        // filter drops a just-deleted selected row instead of treating its
+        // absence as a momentary rebuild gap and re-selecting its parent
+        // (spec: sidebar-crud, delete.selection-safe).
+        recentlyDeletedDocumentIds.formUnion(ids)
         collections.removeAll { ids.contains($0.id) }
         currentDocuments.removeAll { ids.contains($0.id) }
         workspaces.removeAll { ids.contains($0.id) }

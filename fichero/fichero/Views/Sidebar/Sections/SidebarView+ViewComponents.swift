@@ -152,20 +152,22 @@ extension SidebarView {
             // user; the row re-selects itself when it re-materialises. A
             // deselect of a row that IS resolvable is a real user action
             // and passes through untouched.
+            // Ids removed by a delete this session, across every open library —
+            // a dropped row in this set is genuinely gone, not a rebuild gap, so
+            // the resilience filter must NOT resurrect it (spec: sidebar-crud,
+            // delete.selection-safe).
+            let recentlyDeleted = Set(
+                libraryManager.openLibraries.flatMap(\.documentStore.recentlyDeletedDocumentIds)
+            )
             let newValue = Self.sidebarResilientSelection(
                 current: selectionState.selectedDestinations,
                 proposed: proposed,
                 isMomentarilyMissing: { destination in
-                    switch destination {
-                    case .library, .browser, .run, .knowledgeCollection:
-                        // Pinned/static rows, activity runs, and the per-library
-                        // KG collections are not resolved through the cached item
-                        // index (see `handleSelectionDestination`) — a drop of
-                        // these is always the user.
-                        return false
-                    default:
-                        return cachedItem(id: destination.serializedID) == nil
-                    }
+                    SidebarView.droppedRowIsMomentarilyMissing(
+                        destination,
+                        cachedItemMissing: cachedItem(id: destination.serializedID) == nil,
+                        wasRecentlyDeleted: recentlyDeleted.contains(destination.serializedID)
+                    )
                 }
             )
             if newValue == selectionState.selectedDestinations, newValue != proposed {
@@ -224,6 +226,28 @@ extension SidebarView {
         guard !dropped.isEmpty else { return proposed }
         let spurious = dropped.filter(isMomentarilyMissing)
         return proposed.union(spurious)
+    }
+
+    /// Whether a DROPPED sidebar row should be treated as "momentarily missing"
+    /// (a rebuild gap to restore) rather than a genuine removal. Pinned/static
+    /// rows (library, browser, run, KG collection) are never cache-resolved, so a
+    /// drop of one is always the user. Any other row is momentarily missing ONLY
+    /// when its cache entry is absent AND it was not just deleted: a deleted row
+    /// is gone, not rebuilding, so it must drop out of the selection instead of
+    /// being resurrected — which was what routed a child-delete's selection onto
+    /// its parent (spec: sidebar-crud, delete.selection-safe). Pure, so the rule
+    /// is testable without a rendered List.
+    static func droppedRowIsMomentarilyMissing(
+        _ destination: SidebarDestination,
+        cachedItemMissing: Bool,
+        wasRecentlyDeleted: Bool
+    ) -> Bool {
+        switch destination {
+        case .library, .browser, .run, .knowledgeCollection:
+            return false
+        default:
+            return cachedItemMissing && !wasRecentlyDeleted
+        }
     }
 }
 

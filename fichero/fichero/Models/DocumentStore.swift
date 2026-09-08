@@ -67,6 +67,16 @@ final class DocumentStore {
     @ObservationIgnored
     var lastChangedDocumentIds: Set<String> = []
 
+    /// Document ids removed by a `document.deleted` change (accumulated for the
+    /// session). Distinct from `lastChangedDocumentIds`, which is ALSO set by
+    /// reloads — this set means specifically "deleted, gone, not a rebuild gap."
+    /// The sidebar selection-resilience filter reads it so a just-deleted selected
+    /// row is dropped rather than resurrected and re-routed to its parent
+    /// (spec: sidebar-crud, delete.selection-safe). Ids never come back, so the
+    /// set only grows with real deletions — negligible, never cleared.
+    @ObservationIgnored
+    var recentlyDeletedDocumentIds: Set<String> = []
+
     /// Currently selected document for detail view
     var selectedDocument: Document?
 

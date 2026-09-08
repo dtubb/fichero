@@ -98,4 +98,54 @@ final class SidebarSelectionResilienceTests: XCTestCase {
         )
         XCTAssertTrue(result.isEmpty)
     }
+
+    // MARK: - delete.selection-safe (spec: sidebar-crud) — a deleted row must
+    // NOT be resurrected. Root cause of "deleting a child lands you on the
+    // parent": the resurrection filter could not tell a just-deleted row (gone)
+    // from a mid-rebuild gap (coming back), so it kept the deleted row and the
+    // selection then routed to its parent. `droppedRowIsMomentarilyMissing`
+    // makes that distinction, driven by DocumentStore.recentlyDeletedDocumentIds.
+
+    /// delete.selection-safe: a dropped row whose cache entry vanished because it
+    /// was just DELETED is gone, not rebuilding — it must fall out of the
+    /// selection, never be resurrected.
+    func testRecentlyDeletedRowIsNotResurrected() {
+        XCTAssertFalse(
+            SidebarView.droppedRowIsMomentarilyMissing(
+                pageRow, cachedItemMissing: true, wasRecentlyDeleted: true
+            ),
+            "a just-deleted row must not be treated as a momentary rebuild gap"
+        )
+    }
+
+    /// The #4297 behavior the fix must preserve: a row missing due to a REBUILD
+    /// (not deleted) is still momentarily missing and kept.
+    func testRebuildGapRowIsStillKept() {
+        XCTAssertTrue(
+            SidebarView.droppedRowIsMomentarilyMissing(
+                pageRow, cachedItemMissing: true, wasRecentlyDeleted: false
+            ),
+            "a rebuild-time gap must still be resilient (#4297)"
+        )
+    }
+
+    /// A resolvable row (cache hit) is never momentarily missing, deleted or not.
+    func testResolvableRowIsNeverMomentarilyMissing() {
+        XCTAssertFalse(
+            SidebarView.droppedRowIsMomentarilyMissing(
+                pageRow, cachedItemMissing: false, wasRecentlyDeleted: false
+            )
+        )
+    }
+
+    /// Pinned/static rows (library, browser, run, KG collection) are never
+    /// resolved through the cache, so a drop of one is always the user — never
+    /// "momentarily missing", regardless of the cache/delete flags.
+    func testPinnedRowIsNeverMomentarilyMissing() {
+        XCTAssertFalse(
+            SidebarView.droppedRowIsMomentarilyMissing(
+                .library(UUID()), cachedItemMissing: true, wasRecentlyDeleted: false
+            )
+        )
+    }
 }
