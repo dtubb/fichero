@@ -131,10 +131,28 @@ manager-with-workers loop:
   **build-gates** it, runs `verify_all`, then **merges via PR**, closes the issues,
   and **re-dispatches** the next batch. It checks in on the workers about every 15
   minutes.
+- **Then it CLEANS UP.** A worker's lifecycle is: issue (under a milestone) → worktree
+  → integrate (cherry-pick/merge) + build-verify → **close the issue** → **remove the
+  worktree AND delete its branch**. Do not leave merged worktrees lying around — they
+  rot into stale-code and phantom-diff hazards. Remove with `git worktree remove`
+  (never `rm -rf` a sibling worktree), then `git worktree prune`; delete the throwaway
+  `worktree-agent-*` / lane branch. Periodically sweep: any agent worktree that is
+  `ahead:0` of integration (its work is merged) and carries only build cruft (a
+  `dd-worker/` derived-data dir, etc.) is safe to remove. Keep only worktrees with an
+  ACTIVE worker or genuinely unintegrated commits.
 
 Workers never push to shared branches for the manager; the manager owns the merge.
 This keeps one Xcode and one full-suite run as the gate while many workers grind in
 parallel, isolated worktrees.
+
+**Design-led testing (see `agent-work/proposals/TESTING-CONSTITUTION.md`).** New/changed
+behavior follows spec → approve → test → code: a worker DRAFTS a one-line-per-behavior
+design spec (`docs/contributor/specs/<area>.md`, format per `sidebar-crud.md`), the
+design lead (Daniel) APPROVES the intent, then the worker writes the pinning tests
+FIRST and the code to pass them — pinning test in the same PR. Cross-surface invariant
+tests (a truth that must agree across N surfaces) and capability-availability tests
+(shown iff actually runnable) HARD-GATE; other new tests are tracked coverage debt.
+A regression is not fixed until a test that would have caught it exists.
 
 ## Git Practices — Lanes, Integration, Commits
 
