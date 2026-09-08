@@ -104,6 +104,49 @@ class TestCatalogueWithExistingClaims:
         assert len(data.get("dates", [])) == 1
 
     @pytest.mark.asyncio
+    async def test_finds_claims_on_grandchild_entry_nodes(
+        self, db, test_package, container_doc, llm_config
+    ):
+        """Diary Entries splits each PAGE into per-day ENTRY child nodes —
+        folder -> page -> entry, two levels below the container — and the
+        extractors write claims/entities to the entry ids, not the page or
+        the folder. A one-level `parent_id=container_id` query used to miss
+        them entirely and fall through to Path 2's "nothing to describe"
+        error even though the subtree had rich KG data."""
+        from fichero_server.workflows.tools.catalogue import catalogue
+
+        page = Document(
+            name="Page 1", doc_type=DocType.page, parent_id=container_doc.id
+        )
+        db.save(page)
+        entry = Document(
+            name="1940-01-21", doc_type=DocType.file, parent_id=page.id
+        )
+        db.save(entry)
+
+        # Claims/entities live on the GRANDCHILD entry, not the folder.
+        _seed_claims(db, entry.id)
+
+        with patch(
+            "fichero_server.workflows.tools.catalogue.chat_with_fallback",
+            new=AsyncMock(return_value="Resumen narrative."),
+        ):
+            state = {
+                "library_path": str(test_package),
+                "selected_doc_ids": [container_doc.id],
+            }
+            result = await catalogue(
+                {"text": ""},
+                state,
+                llm_config,
+            )
+
+        assert not result.get("error"), result.get("error")
+        data = result.get("value")
+        assert data is not None, "catalogue found no claims in the subtree"
+        assert len(data.get("people", [])) == 2
+
+    @pytest.mark.asyncio
     async def test_falls_back_to_full_extraction_when_no_claims(
         self, db, test_package, container_doc, llm_config
     ):
