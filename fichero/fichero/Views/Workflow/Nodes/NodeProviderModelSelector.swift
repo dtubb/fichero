@@ -48,7 +48,9 @@ struct NodeProviderModelSelector: View {
         // bindings. This is the exact provider→node mapping that used to sit
         // inside the picker's onChange; behavior is unchanged.
         .onChange(of: selectedProviderId) { _, newValue in
-            applyProviderSelection(newValue)
+            selectedModelId = Self.apply(
+                providerId: newValue, to: &node, providers: providers, currentModelId: selectedModelId
+            )
         }
         .onChange(of: selectedModelId) { _, newValue in
             guard !newValue.isEmpty else { return }
@@ -57,35 +59,47 @@ struct NodeProviderModelSelector: View {
         }
     }
 
-    private func applyProviderSelection(_ newValue: String) {
+    /// The provider→node mapping, pure so it is unit-testable
+    /// (`NodeProviderModelSelectorVisionModeTests`). Returns the model id the
+    /// picker should now show ("" hides it).
+    ///
+    /// `usesLLM` is a TOOL fact (spec `nodeconfig.model.uses-llm-is-tool-fact`):
+    /// choosing "Default" must not flip it, because the popover gates the whole
+    /// provider section, Compare Models and the Prompt Preview on it — a
+    /// Default-provider summarize node used to lose all three on reopen, for good.
+    nonisolated static func apply(
+        providerId newValue: String,
+        to node: inout WorkflowNode,
+        providers: [ProviderOption],
+        currentModelId: String
+    ) -> String {
         node.config?.removeValue(forKey: "provider_name")
         if newValue.isEmpty {
             // Default selected — clear explicit provider/model so the runtime uses its default
             node.config?.removeValue(forKey: "vision_mode")
             node.providerName = nil
             node.modelName = nil
-            node.usesLLM = false
-            selectedModelId = ""
-            return
+            return ""
         }
 
         if newValue == appleVisionProviderId {
-            // Apple Vision selected — set vision_mode, clear LLM provider/model
+            // Apple Vision selected — set vision_mode, clear LLM provider/model.
+            // On-device OCR is genuinely not an LLM run, so usesLLM follows.
             if node.config == nil { node.config = [:] }
             node.config?["vision_mode"] = .string("apple")
             node.providerName = nil
             node.modelName = nil
             node.usesLLM = false
-            selectedModelId = ""
             logger.info("Apple Vision selected for node \(node.id)")
+            return ""
         } else if isModelAliasProviderId(newValue) {
             // Tier alias — runtime fills provider+model. Model picker hides.
             node.config?.removeValue(forKey: "vision_mode")
             node.providerName = newValue
             node.modelName = nil
             node.usesLLM = true
-            selectedModelId = ""
             logger.info("Alias \(newValue) selected for node \(node.id)")
+            return ""
         } else {
             // LLM provider selected
             if node.config == nil { node.config = [:] }
@@ -95,9 +109,10 @@ struct NodeProviderModelSelector: View {
             logger.info("Provider selected: id=\(newValue)")
             if let provider = providers.first(where: { $0.id == newValue }),
                let firstModel = provider.models.first?.id {
-                selectedModelId = firstModel
                 node.modelName = firstModel
+                return firstModel
             }
+            return currentModelId
         }
     }
 }

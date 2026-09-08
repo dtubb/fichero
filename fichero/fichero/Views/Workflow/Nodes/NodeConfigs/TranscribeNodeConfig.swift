@@ -74,26 +74,27 @@ struct TranscribeNodeConfig: View {
 
     @State private var language: String = TranscribeLanguageChoice.defaultCode
     @State private var maxImageDimension: Double = TranscribeNodeConfig.defaultMaxImageDimension
-    @State private var promptText: String = ""
 
-    /// Get the current default prompt - from backend if available, otherwise nil
-    private var currentDefaultPrompt: String? {
-        // Use dynamically fetched prompt if available
-        if let prompt = backendPrompt {
-            return prompt
+    /// Whether the run will go through an LLM, so the LLM-only fields (prompt,
+    /// image size) apply. Spec `nodeconfig.fields.transcribe.prompt.llm-only`.
+    ///
+    /// Mirrors the engine (`vision_base.py`: `auto` → `apple` only when the
+    /// resolved provider is Apple, else `llm`): `llm` and `auto` reach an LLM;
+    /// `apple`/`kraken` are recognition engines. With no mode at all — the
+    /// state a tier-alias selection leaves — a chosen provider/alias means
+    /// LLM; nothing chosen means the popover's Apple Vision default. Gating on
+    /// the literal "llm" used to hide the prompt for every NEW node (server
+    /// default is "auto") and every alias-configured node.
+    nonisolated static func showsLLMFields(config: [String: AnyCodableValue]?, providerName: String?) -> Bool {
+        switch config?["vision_mode"]?.stringValue {
+        case "apple", "kraken": return false
+        case "llm", "auto": return true
+        default: return providerName != nil
         }
-        // Fall back to static default from tool info
-        return toolInfo?.defaultPrompt
     }
 
-    /// Whether the node is currently configured for LLM mode (not Apple Vision)
     private var isLLMMode: Bool {
-        if let configValue = node.config?["vision_mode"],
-           case .string(let mode) = configValue {
-            return mode == "llm"
-        }
-        // Default: Apple Vision (not LLM mode)
-        return false
+        Self.showsLLMFields(config: node.config, providerName: configuredNodeProviderId(node))
     }
 
     var body: some View {
@@ -151,48 +152,18 @@ struct TranscribeNodeConfig: View {
                 }
             }
 
-            // Custom prompt (only for LLM mode)
+            // Prompt (only when an LLM reads the page). Ghost default, override
+            // on edit — the one shared editor; nothing here writes config on appear.
             if isLLMMode {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Prompt")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-
-                    MacPlainTextEditor(text: $promptText, font: .preferredFont(forTextStyle: .caption1))
-                        .frame(minHeight: 80)
-                        .background(Color(.textBackgroundColor))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 4)
-                                .stroke(Color(.separatorColor), lineWidth: 1)
-                        )
-                        .onChange(of: promptText) { _, newValue in
-                            if newValue.isEmpty {
-                                node.config?.removeValue(forKey: "prompt")
-                            } else {
-                                if node.config == nil {
-                                    node.config = [:]
-                                }
-                                node.config?["prompt"] = .string(newValue)
-                            }
-                        }
-
-                    Text("Prompt is editable. Clear to restore tool default.")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                }
+                NodePromptEditor(
+                    node: $node,
+                    backendPrompt: backendPrompt,
+                    registryPrompt: toolInfo?.defaultPrompt
+                )
             }
         }
         .onAppear {
             loadInitialState()
-        }
-        .onChange(of: backendPrompt) { _, newDefault in
-            // When backend prompt arrives asynchronously, populate editor only
-            // if user has not customized prompt yet.
-            guard promptText.isEmpty,
-                  node.config?["prompt"] == nil,
-                  let newDefault,
-                  !newDefault.isEmpty else { return }
-            promptText = newDefault
         }
     }
 
@@ -205,13 +176,6 @@ struct TranscribeNodeConfig: View {
         if let configValue = node.config?["max_image_dimension"],
            case .int(let dimension) = configValue {
             maxImageDimension = Double(dimension)
-        }
-
-        if let configValue = node.config?["prompt"],
-           case .string(let prompt) = configValue {
-            promptText = prompt
-        } else if let defaultPrompt = currentDefaultPrompt {
-            promptText = defaultPrompt
         }
     }
 }

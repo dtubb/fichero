@@ -16,6 +16,30 @@ extension WorkflowNode {
         }
         return result
     }
+
+    /// The node's config WITHOUT its own `prompt` override — the inputs the
+    /// tool's prompt builder reads (language, style, detail…). Equatable, so
+    /// the popover can re-ask the server for the effective default only when
+    /// one of these changes, never when the override itself is typed.
+    /// Spec: `nodeconfig.prompt.shows-effective-prompt`.
+    var promptInputsConfig: [String: AnyCodableValue] {
+        var inputs = config ?? [:]
+        inputs.removeValue(forKey: "prompt")
+        return inputs
+    }
+
+    /// `promptInputsConfig` in the shape `POST /workflows/tools/{name}/prompt`
+    /// wants. Asking with the override included would echo the override back
+    /// and the ghost would never show the default for the current config.
+    var defaultPromptConfigDict: [String: any Sendable] {
+        var result: [String: any Sendable] = [:]
+        for (key, value) in promptInputsConfig {
+            if let converted = value.sendableValue {
+                result[key] = converted
+            }
+        }
+        return result
+    }
 }
 
 extension AnyCodableValue {

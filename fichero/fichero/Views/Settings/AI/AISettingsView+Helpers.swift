@@ -58,7 +58,7 @@ extension AISettingsView {
                 available: true,
                 supportsVision: true,
                 models: provider.providerType == selectedType
-                    ? filtered.map { .init(id: $0.modelId, name: $0.fullName) }
+                    ? filtered.map { ModelPicker.ModelChoice.configured(modelId: $0.modelId, label: $0.fullName) }
                     : []
             )
         }
@@ -190,7 +190,7 @@ extension AISettingsView {
             do {
                 let configured = try await appState.providerService
                     .listProviderModels(providerId: provider.id)
-                let list = configuredModelInfos(from: configured, providerType: providerType)
+                let list = Self.configuredModelInfos(from: configured, providerType: providerType)
                 models.wrappedValue = list
                 // Prefer the already-saved selection if it still exists in
                 // the new list; fall back to first model otherwise.
@@ -230,7 +230,7 @@ extension AISettingsView {
             do {
                 let configured = try await appState.providerService
                     .listProviderModels(providerId: provider.id)
-                models.wrappedValue = configuredModelInfos(from: configured, providerType: providerType)
+                models.wrappedValue = Self.configuredModelInfos(from: configured, providerType: providerType)
             } catch {
                 settingsLogger.error(
                     "Failed to load configured models for \(providerType): \(error.localizedDescription)"
@@ -239,7 +239,11 @@ extension AISettingsView {
         }
     }
 
-    private func configuredModelInfos(
+    /// Pure and `nonisolated static` so the node-popover parity test
+    /// (`NodeModelListParityTests`) can derive Settings' choices for the same
+    /// rows without a view instance. Statics on a View type inherit MainActor
+    /// under the macOS 26 SDK; this touches no actor state.
+    nonisolated static func configuredModelInfos(
         from configured: [Components.Schemas.UserModelResponse],
         providerType: String
     ) -> [ModelInfo] {

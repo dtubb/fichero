@@ -9,17 +9,6 @@ struct DescribeNodeConfig: View {
 
     @State private var detailLevel: String = "detailed"
     @State private var focusText: String = ""
-    @State private var promptText: String = ""
-
-    /// Get the current default prompt - from backend if available, otherwise nil
-    private var currentDefaultPrompt: String? {
-        // Use dynamically fetched prompt if available
-        if let prompt = backendPrompt {
-            return prompt
-        }
-        // Fall back to static default from tool info
-        return toolInfo?.defaultPrompt
-    }
 
     var body: some View {
         // Describe tool ONLY supports LLM vision (no Apple Vision)
@@ -69,46 +58,16 @@ struct DescribeNodeConfig: View {
             // Thinking mode
             ThinkingModePicker(node: $node)
 
-            // Custom prompt
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Prompt")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-
-                MacPlainTextEditor(text: $promptText, font: .preferredFont(forTextStyle: .caption1))
-                    .frame(minHeight: 80)
-                    .background(Color(.textBackgroundColor))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 4)
-                            .stroke(Color(.separatorColor), lineWidth: 1)
-                    )
-                    .onChange(of: promptText) { _, newValue in
-                        if newValue.isEmpty {
-                            node.config?.removeValue(forKey: "prompt")
-                        } else {
-                            if node.config == nil {
-                                node.config = [:]
-                            }
-                            node.config?["prompt"] = .string(newValue)
-                        }
-                    }
-
-                Text("Prompt is editable. Clear to restore tool default.")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-            }
+            // Prompt: ghost default (for the current detail/focus), override on
+            // edit — the one shared editor; nothing here writes config on appear.
+            NodePromptEditor(
+                node: $node,
+                backendPrompt: backendPrompt,
+                registryPrompt: toolInfo?.defaultPrompt
+            )
         }
         .onAppear {
             loadInitialState()
-        }
-        .onChange(of: backendPrompt) { _, newDefault in
-            // When backend prompt arrives asynchronously, populate editor only
-            // if user has not customized prompt yet.
-            guard promptText.isEmpty,
-                  node.config?["prompt"] == nil,
-                  let newDefault,
-                  !newDefault.isEmpty else { return }
-            promptText = newDefault
         }
     }
 
@@ -121,13 +80,6 @@ struct DescribeNodeConfig: View {
         if let configValue = node.config?["focus"],
            case .string(let focus) = configValue {
             focusText = focus
-        }
-
-        if let configValue = node.config?["prompt"],
-           case .string(let prompt) = configValue {
-            promptText = prompt
-        } else if let defaultPrompt = currentDefaultPrompt {
-            promptText = defaultPrompt
         }
     }
 }

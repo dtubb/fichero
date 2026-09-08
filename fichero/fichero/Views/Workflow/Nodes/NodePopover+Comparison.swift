@@ -15,15 +15,21 @@ extension NodePopover {
             let configured = try await providerService.listProviders()
             var loaded: [NodeProviderModelSelector.ProviderOption] = []
             for provider in configured where provider.enabled {
-                let modelInfos = try await providerService.listAvailableModels(
-                    providerType: provider.providerType
-                )
-                // The node popover has always shown raw model ids — keep that by
-                // setting each choice's name to its id.
-                let modelChoices = modelInfos.map {
-                    ModelPicker.ModelChoice(id: $0.modelId, name: $0.modelId)
+                // The USER-CONFIGURED models for this provider — exactly the list
+                // AI Settings shows, under the same labels, via the one shared
+                // mapping (spec `nodeconfig.model.same-list-as-settings`, Daniel
+                // 2026-09-08). The catalog used to be offered here, which let a
+                // node pick a model the provider's API does not serve → 404 at run.
+                let rows = try await providerService.listProviderModels(providerId: provider.id)
+                let modelChoices = ModelPicker.ModelChoice.configured(rows)
+                // Vision capability from the configured rows, with Settings'
+                // family-floor fallback for legacy rows saved without caps —
+                // an Opus/Gemini row must not hide its provider from a vision tool.
+                let supportsVision = rows.contains {
+                    $0.capabilities.contains("vision")
+                        || ($0.capabilities.isEmpty
+                            && AISettingsView.TierCapability.idLooksVisionCapable($0.modelId))
                 }
-                let supportsVision = modelInfos.contains { $0.supportsVision }
                 loaded.append(
                     NodeProviderModelSelector.ProviderOption(
                         id: provider.id,

@@ -1,4 +1,22 @@
+import FicheroAPIClient
 import SwiftUI
+
+/// The ONE mapping from a user-configured model row (Settings → Models) to a
+/// picker choice, shared by AI Settings and the node popover so both surfaces
+/// list the same models under the same labels
+/// (`nodeconfig.model.same-list-as-settings` / `same-labels-as-settings`).
+extension ModelPicker.ModelChoice {
+    /// `modelId` is the wire value; `label` is the configured display name.
+    static func configured(modelId: String, label: String) -> ModelPicker.ModelChoice {
+        ModelPicker.ModelChoice(id: modelId, name: label)
+    }
+
+    /// Rows from `listProviderModels(providerId:)` — the user-configured list,
+    /// never the catalog. Order is preserved as served.
+    static func configured(_ rows: [Components.Schemas.UserModelResponse]) -> [ModelPicker.ModelChoice] {
+        rows.map { configured(modelId: $0.modelId, label: $0.name) }
+    }
+}
 
 /// Sentinel provider ID for Apple Vision (on-device OCR).
 let appleVisionProviderId = "apple_vision"

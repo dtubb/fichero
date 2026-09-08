@@ -4,9 +4,11 @@ import SwiftUI
 struct SummarizeFileNodeConfig: View {
     @Binding var node: WorkflowNode
 
+    let toolInfo: ToolInfo?
+    let backendPrompt: String?
+
     @State private var summaryStyle: String = "brief"
     @State private var maxLength: Int = 200
-    @State private var promptText: String = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -51,29 +53,13 @@ struct SummarizeFileNodeConfig: View {
             // Thinking mode
             ThinkingModePicker(node: $node)
 
-            // Custom prompt
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Custom Prompt (optional)")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-
-                MacPlainTextEditor(text: $promptText, font: .preferredFont(forTextStyle: .caption1))
-                    .frame(minHeight: 60)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 4)
-                            .stroke(Color(.separatorColor), lineWidth: 1)
-                    )
-                    .onChange(of: promptText) { _, newValue in
-                        if newValue.isEmpty {
-                            node.config?.removeValue(forKey: "prompt")
-                        } else {
-                            if node.config == nil {
-                                node.config = [:]
-                            }
-                            node.config?["prompt"] = .string(newValue)
-                        }
-                    }
-            }
+            // Prompt: the style/length-aware default shows as a ghost so the
+            // user sees what they would override (`nodeconfig.fields.summarize-file.prompt`).
+            NodePromptEditor(
+                node: $node,
+                backendPrompt: backendPrompt,
+                registryPrompt: toolInfo?.defaultPrompt
+            )
         }
         .onAppear {
             loadInitialState()
@@ -89,11 +75,6 @@ struct SummarizeFileNodeConfig: View {
         if let configValue = node.config?["max_length"],
            case .int(let length) = configValue {
             maxLength = length
-        }
-
-        if let configValue = node.config?["prompt"],
-           case .string(let prompt) = configValue {
-            promptText = prompt
         }
     }
 }

@@ -28,23 +28,18 @@ struct NodePopover: View {
     @Environment(WorkflowService.self) var workflowService
     @Environment(FeatureManager.self) private var featureManager
 
-    // Dynamic prompt from backend (fetched based on current config)
+    /// The server-assembled DEFAULT prompt for this node's current inputs
+    /// (language, style, detail…), shown as the ghost behind the prompt editor
+    /// (spec `nodeconfig.prompt.shows-effective-prompt`). Fetched on open and
+    /// re-fetched when a prompt INPUT changes — never when the override itself
+    /// is typed. This field used to be declared and never assigned, so the
+    /// editors only ever saw the frozen registry default.
     @State private var backendPrompt: String?
-    @State private var isLoadingPrompt: Bool = false
+    @State private var backendPromptTask: Task<Void, Never>?
 
     /// Get the tool info from the cached registry
     private var toolInfo: ToolInfo? {
         workflowService.getToolInfo(named: node.tool)
-    }
-
-    /// Get the current default prompt - from backend if available, otherwise nil
-    private var currentDefaultPrompt: String? {
-        // Use dynamically fetched prompt if available
-        if let prompt = backendPrompt {
-            return prompt
-        }
-        // Fall back to static default from tool info
-        return toolInfo?.defaultPrompt
     }
 
     var body: some View {
@@ -83,6 +78,16 @@ struct NodePopover: View {
             // Load providers if section should be shown
             if shouldShowProviderSection {
                 await loadProviders()
+            }
+            await loadBackendPrompt()
+        }
+        .onChange(of: node.promptInputsConfig) { _, _ in
+            // A prompt INPUT changed (language, style…): the default moves.
+            backendPromptTask?.cancel()
+            backendPromptTask = Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(300))
+                guard !Task.isCancelled else { return }
+                await loadBackendPrompt()
             }
         }
         .onChange(of: selectedProviderId) { _, newValue in
@@ -123,7 +128,11 @@ struct NodePopover: View {
                 backendPrompt: backendPrompt
             )
         case "summarize_file":
-            SummarizeFileNodeConfig(node: $node)
+            SummarizeFileNodeConfig(
+                node: $node,
+                toolInfo: toolInfo,
+                backendPrompt: backendPrompt
+            )
         case "summarize_folder":
             SummarizeFolderNodeConfig(node: $node)
         case "summarize_collection":
@@ -150,6 +159,26 @@ struct NodePopover: View {
     }
 
     // MARK: - Config Helpers
+
+    /// Ask the server what prompt this tool would send for the node's current
+    /// inputs, with the node's own override EXCLUDED — otherwise the server
+    /// echoes the override and the ghost can never show the default. Only for
+    /// tools that have a prompt at all. An empty answer is "no prompt", kept as
+    /// nil so the editor falls back to the registry default or says so.
+    private func loadBackendPrompt() async {
+        guard shouldShowProviderSection else { return }
+        do {
+            let prompt = try await workflowService.getToolPrompt(
+                toolName: node.tool,
+                config: node.defaultPromptConfigDict
+            )
+            guard !Task.isCancelled else { return }
+            backendPrompt = (prompt?.isEmpty == false) ? prompt : nil
+        } catch {
+            logger.error("Failed to load default prompt for \(node.tool): \(String(describing: error))")
+            // Registry default remains the ghost; nothing to clear.
+        }
+    }
 
     private func initConfigFromNode() {
         let configuredProviderId = configuredNodeProviderId(node)
