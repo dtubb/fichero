@@ -107,6 +107,36 @@ extension EntityService {
         }
     }
 
+    /// Create a KnowledgeClaim by hand (user-driven CRUD, spec: kg-tables
+    /// `claim.create`). Backed by `POST /api/claims`. `text` is the claim
+    /// sentence (subject/verb/object are parsed server-side); a manual claim MAY
+    /// have no source document (a working hypothesis) — flagged lower-provenance,
+    /// never silently indistinguishable from a sourced claim. `createdBy: "human"`
+    /// records it AS a human authorship in the provenance chain.
+    @discardableResult
+    func createClaim(
+        text: String,
+        sourceDocumentId: String? = nil,
+        entityIds: [String] = []
+    ) async throws -> Components.Schemas.KnowledgeClaim {
+        var body = Components.Schemas.ClaimCreateRequest(text: text)
+        body.sourceDocumentId = sourceDocumentId
+        body.entityIds = entityIds.isEmpty ? nil : entityIds
+        body.createdBy = "human"
+        let response = try await client.api.createClaimApiClaimsPost(
+            body: .json(body)
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let code, _):
+            throw ServiceError.unexpectedResponse(code)
+        }
+    }
+
     func deleteClaim(_ claimId: String) async throws {
         let response = try await client.api.deleteClaimApiClaimsClaimIdDelete(
             path: .init(claimId: claimId),

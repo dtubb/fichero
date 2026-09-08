@@ -32,6 +32,9 @@ struct ClaimsLibraryContent: View {
     @State private var filterText = ""
     @State private var filterType: String?
 
+    /// Presents the manual claim-create sheet (spec: kg-tables `claim.create`).
+    @State private var showingCreateSheet = false
+
     var body: some View {
         VStack(spacing: 0) {
             filterBar
@@ -48,6 +51,32 @@ struct ClaimsLibraryContent: View {
             let active = model ?? LibraryClaimsModel(service: entityService)
             model = active
             await active.load(folderId: folderId)
+        }
+        .sheet(isPresented: $showingCreateSheet) {
+            // Attribute the hand-authored claim to the folder/page in view so it
+            // appears in this scope after reload; a nil folder makes a sourceless
+            // working hypothesis (library-wide "Claims").
+            NewClaimSheet(
+                entityService: entityService,
+                sourceDocumentId: folderId,
+                onCreated: handleCreatedClaim
+            )
+        }
+    }
+
+    /// After a manual create, reload the folder scope so the new claim appears, and
+    /// select it. LibraryClaimsModel is not a change consumer, so the reload is
+    /// explicit (the source of truth), never an optimistic insert.
+    private func handleCreatedClaim(_ claim: Components.Schemas.KnowledgeClaim) {
+        guard let model else { return }
+        Task {
+            await model.load(folderId: folderId)
+            let docsById = Dictionary(documents.map { ($0.id, $0) },
+                                      uniquingKeysWith: { first, _ in first })
+            let parent = docsById[claim.sourceDocumentId ?? ""]
+                ?? Document(id: claim.sourceDocumentId ?? "unknown",
+                            name: Self.sourceName(for: claim.sourceDocumentId, docsById: docsById))
+            selection = [LibraryOutlineNode.claimItem(claim, parent: parent).id]
         }
     }
 
@@ -96,6 +125,14 @@ struct ClaimsLibraryContent: View {
             .menuStyle(.borderlessButton)
             .fixedSize()
             Spacer()
+            // Manual create (spec: kg-tables `claim.create`) — hand-author a claim
+            // from the table, wiring POST /api/claims via EntityService.createClaim.
+            Button {
+                showingCreateSheet = true
+            } label: {
+                Label("New Claim", systemImage: "plus")
+            }
+            .help("Assert a claim by hand")
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
