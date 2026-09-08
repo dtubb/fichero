@@ -26,6 +26,8 @@ struct EntitiesTableView: View {
     struct Actions {
         /// Single-row click: focus the entity and open its detail/editor.
         var open: (Components.Schemas.KnowledgeEntity) -> Void
+        /// Edit — open the create/edit sheet on this entity (spec: entity edit-from-table).
+        var edit: (Components.Schemas.KnowledgeEntity) -> Void
         /// Bless (verified) / Reject / Mark unreviewed — via EntityStore.setCuration.
         var setCuration: ([Components.Schemas.KnowledgeEntity], EntityTableRow.Curation) -> Void
         /// Retype to an EntityType raw value — via EntityStore.reclassify.
@@ -145,6 +147,12 @@ struct EntitiesTableView: View {
     private func curationMenu(for ids: Set<String>) -> some View {
         let targets = items.filter { ids.contains($0.id) }.map(\.entity)
         if !targets.isEmpty {
+            if targets.count == 1, let one = targets.first {
+                Button { actions.edit(one) } label: {
+                    Label("Edit…", systemImage: "pencil")
+                }
+                Divider()
+            }
             Button { actions.setCuration(targets, .blessed) } label: {
                 Label("Bless (verified)", systemImage: "checkmark.seal")
             }

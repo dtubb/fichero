@@ -43,4 +43,17 @@ final class EntitiesTableCreateTests: XCTestCase {
         XCTAssertTrue(source.contains("loadEntities(limit: 25000, force: true)"),
                       "a manual create must force-reload the library-wide entity list")
     }
+
+    func testTableOffersEditReusingTheSameSheet() throws {
+        // Edit-from-table (spec) completes the entity CRUD trio; it reuses NewEntitySheet
+        // in editing mode rather than a parallel editor.
+        let content = try entitiesContentSource()
+        XCTAssertTrue(content.contains("entityToEdit"),
+                      "the table must hold an edit target")
+        XCTAssertTrue(content.contains("NewEntitySheet(editing:"),
+                      "edit must reuse NewEntitySheet in editing mode")
+        let tableView = try Self.appSource("Views/Library/ViewModes/Table/EntitiesTableView.swift")
+        XCTAssertTrue(tableView.contains("Edit…"),
+                      "the entity row menu must offer an Edit affordance")
+    }
 }

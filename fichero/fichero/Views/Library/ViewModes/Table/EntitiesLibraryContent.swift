@@ -37,6 +37,16 @@ struct EntitiesLibraryContent: View {
     /// `NewEntitySheet` (create/edit) rather than a parallel form.
     @State private var showingCreateSheet = false
 
+    /// The entity being edited (spec: kg-tables entity edit-from-table). Presents the
+    /// same `NewEntitySheet` in its editing mode. A tiny Identifiable wrapper is needed
+    /// because `KnowledgeEntity.id` is optional, which `.sheet(item:)` cannot key on.
+    @State private var entityToEdit: Components.Schemas.KnowledgeEntity?
+
+    private struct EditingEntity: Identifiable {
+        let entity: Components.Schemas.KnowledgeEntity
+        var id: String { entity.id ?? entity.canonicalName }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             filterBar
@@ -57,6 +67,17 @@ struct EntitiesLibraryContent: View {
             // from the environment (the library it mutates). On commit, force a
             // library-wide reload so the new row appears here and select it.
             NewEntitySheet(onCreated: handleCreatedEntity)
+        }
+        .sheet(item: Binding(
+            get: { entityToEdit.map(EditingEntity.init) },
+            set: { entityToEdit = $0?.entity }
+        )) { wrapped in
+            // Same sheet, editing mode. On save, force-reload so the edited row
+            // reflects the change in place.
+            NewEntitySheet(editing: wrapped.entity) { _ in
+                entityToEdit = nil
+                Task { await store.loadEntities(limit: 25000, force: true) }
+            }
         }
     }
 
@@ -186,6 +207,7 @@ struct EntitiesLibraryContent: View {
     private var actions: EntitiesTableView.Actions {
         EntitiesTableView.Actions(
             open: onOpen,
+            edit: { entity in entityToEdit = entity },
             setCuration: { entities, curation in
                 let ids = entities.compactMap(\.id)
                 guard let state = Self.curationState(for: curation) else { return }
