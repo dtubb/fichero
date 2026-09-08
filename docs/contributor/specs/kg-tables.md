@@ -57,6 +57,11 @@ Surfaces: `EntitiesLibraryContent` / `EntitiesTableView`, `ClaimsLibraryContent`
 - `kg.tables.claim.curate` [PARTIAL] — bless / reject / merge from the table.
 
 ### D. Cross-cutting (both tables)
+- `kg.tables.crud.cross-surface` (creative-director ruling, 2026-09-08) — every KG CRUD
+  capability (claim delete, entity create, claim create, edits) must exist across the WHOLE
+  spine: **backend → UX (table) → AI (MCP) + CLI → tests → export**, not only the SwiftUI
+  table. A capability that works in the table but not via MCP/CLI is NOT done. Each CRUD
+  behavior below is delivered in all surfaces or tracked as an explicit gap.
 - `kg.tables.crud.audited` — every create/edit/delete is ONE typed, audited backend action,
   reversible via the mutation log (one-audited-action-layer).
 - `kg.tables.crud.in-place` — a create/edit/delete updates that one row in place; the table
