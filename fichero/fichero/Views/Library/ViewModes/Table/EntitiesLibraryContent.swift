@@ -32,6 +32,11 @@ struct EntitiesLibraryContent: View {
     @State private var filterText = ""
     @State private var filterType: String?
 
+    /// Presents the manual-create sheet (spec: kg-tables `entity.create`). A researcher
+    /// hand-authors an entity, not only curating AI output. Reuses the existing
+    /// `NewEntitySheet` (create/edit) rather than a parallel form.
+    @State private var showingCreateSheet = false
+
     var body: some View {
         VStack(spacing: 0) {
             filterBar
@@ -47,6 +52,25 @@ struct EntitiesLibraryContent: View {
         // list must be complete enough not to drop the folder's entities (the
         // default page size is small). The store dedups repeat loads.
         .task { await store.loadEntities(limit: 25000) }
+        .sheet(isPresented: $showingCreateSheet) {
+            // Reuse the Ontology create/edit sheet; it reads its own EntityService
+            // from the environment (the library it mutates). On commit, force a
+            // library-wide reload so the new row appears here and select it.
+            NewEntitySheet(onCreated: handleCreatedEntity)
+        }
+    }
+
+    /// After a manual create, force-reload the library-wide list (the change-stream's
+    /// scheduleReload targets the document scope; the table reads `libraryEntities`)
+    /// and select the new row so the researcher lands on what they just made.
+    private func handleCreatedEntity(_ entity: Components.Schemas.KnowledgeEntity) {
+        guard entity.id != nil else { return }
+        Task {
+            await store.loadEntities(limit: 25000, force: true)
+            let parent = Document(id: entity.sourceDocumentIds?.first ?? "unknown",
+                                  name: entity.canonicalName)
+            selection = [LibraryOutlineNode.entityItem(entity, parent: parent).id]
+        }
     }
 
     /// Whether an entity row survives the combined filter — the shared search AND
@@ -95,6 +119,14 @@ struct EntitiesLibraryContent: View {
             .menuStyle(.borderlessButton)
             .fixedSize()
             Spacer()
+            // Manual create (spec: kg-tables `entity.create`) — hand-author an entity
+            // from the table, not only via the Ontology sheet.
+            Button {
+                showingCreateSheet = true
+            } label: {
+                Label("New Entity", systemImage: "plus")
+            }
+            .help("Create an entity by hand")
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
