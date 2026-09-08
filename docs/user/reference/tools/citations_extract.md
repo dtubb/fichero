@@ -33,7 +33,9 @@ Extract bibliography entries and inline citation links
 
 ## Options
 
-This tool has no options.
+| Option | Type | Default | What it does |
+| --- | --- | --- | --- |
+| `prompt` | string | — | Custom instruction for parsing one bibliography entry. |
 
 ## The prompt it sends
 

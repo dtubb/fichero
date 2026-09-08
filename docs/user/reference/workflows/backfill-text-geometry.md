@@ -8,7 +8,7 @@ Use this when: pages already have a transcription but no word boxes. Apple Visio
 
 | | |
 | --- | --- |
-| Folder | /Detect Regions |
+| Folder | /Detect Segments |
 | Steps | 3 |
 | Tags | preset, regions, bboxes, backfill, alignment |
 
@@ -18,7 +18,7 @@ Use this when: pages already have a transcription but no word boxes. Apple Visio
 
 Tool: [Files](../tools/files.md) — Pass through input files from workflow context
 
-### 2. Detect Regions
+### 2. Detect Segments
 
 Tool: [Detect Regions](../tools/detect_regions.md) — Finds WHERE the words are, on-device and free. Apple Vision reads the page locally to locate line and word boxes, so it does produce text — that text is a by-product of finding the boxes, not a transcription: it never replaces the page's transcript, and no model is called. Runs before a transcriber so every box exists up front.
 

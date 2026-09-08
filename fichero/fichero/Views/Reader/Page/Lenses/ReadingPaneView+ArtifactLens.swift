@@ -550,7 +550,7 @@ extension ReadingPaneView {
                 case .ok(let okResponse) = response,
                 let body = try? okResponse.body.json
             else { continue }
-            if body.count > 0 { return true }
+            if !body.isEmpty { return true }
         }
         return false
     }

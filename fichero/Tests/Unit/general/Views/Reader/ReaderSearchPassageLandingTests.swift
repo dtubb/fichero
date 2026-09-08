@@ -334,8 +334,7 @@ struct ReaderSearchPassageLandingTests {
             ReadingPaneView.readerHighlightSeed(
                 anchor: anchor, documentId: "page-7", searchQuery: "road"
             ) == "road",
-            "The matched passage is lit by window.fichero.highlightMatchInPage from the "
-                + "anchor's char range; the find bar holds the query terms, not the excerpt."
+            "The matched passage is lit by window.fichero.highlightMatchInPage from the anchor's char range; the find bar holds the query terms, not the excerpt."
         )
     }
 

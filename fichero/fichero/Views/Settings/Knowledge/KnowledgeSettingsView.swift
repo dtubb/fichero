@@ -90,6 +90,7 @@ struct KnowledgeSettingsView: View {
                         }
                         .buttonStyle(.borderless)
                         .help("Remove this endpoint")
+                        .accessibilityLabel("Remove this endpoint")
                     }
                 }
             }

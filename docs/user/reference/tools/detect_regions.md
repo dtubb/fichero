@@ -45,7 +45,7 @@ Finds WHERE the words are, on-device and free. Apple Vision reads the page local
 | Option | Type | Default | What it does |
 | --- | --- | --- | --- |
 | `language` | string | en | Recognition locale hint for Apple Vision (an OCR hint, not a claim about the document). |
-| `provider` | string | apple | apple: free on-device Vision OCR (measured boxes). vlm: send the page to the vision model chosen in the Run Workflow menu (e.g. an OpenRouter model) and ask IT for word boxes — for hands Apple cannot read. VLM boxes are claimed, not measured; replies whose box text is absent from their own transcription are rejected whole rather than rendered. One of: apple, vlm. |
+| `provider` | string | apple | apple: free on-device Vision OCR (measured boxes). vlm: send the page to the vision model chosen in the Run Workflow menu (e.g. an OpenRouter model) and ask IT for word boxes — for hands Apple cannot read. VLM boxes are claimed, not measured; replies whose box text is absent from their own transcription are rejected whole rather than rendered. kraken: on-device neural LINE segmentation (a polygon + baseline per line, no text) for historical hands Apple Vision localises badly — needs the Kraken runtime installed from Settings. One of: apple, vlm, kraken. |
 
 ## The prompt it sends
 

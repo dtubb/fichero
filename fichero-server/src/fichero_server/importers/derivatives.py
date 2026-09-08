@@ -51,7 +51,7 @@ _executor_lock = threading.Lock()
 # we also bound how many embeds run AT ONCE. Default 1 → total embedding CPU ≈
 # embed_threads() ≈ half the machine, even mid bulk-import. Thumbnails keep the
 # pool's own 2-wide limit (a different, #1400, hazard). Sized once at import.
-from fichero_server.core.background_compute import embed_concurrency
+from fichero_server.core.background_compute import embed_concurrency  # noqa: E402
 
 _embed_gate = threading.Semaphore(embed_concurrency())
 

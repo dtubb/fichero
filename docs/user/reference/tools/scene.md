@@ -63,7 +63,7 @@ Classify scene environment
 | `scenes` | array | ["indoor", "outdoor_urban", "outdoor_nature", "studio", "aerial", "underwater", "abstract", "document", "screenshot"] | Scene categories. |
 | `temperature` | number | 0.7 | Creativity. |
 | `thinking_mode` | string | off | Chain-of-thought reasoning depth. One of: off, short, medium, long. |
-| `vision_mode` | string | auto | Vision engine. 'auto' picks based on the resolved provider: apple → Apple Vision OCR; anything else → LLM vision path. One of: auto, apple, llm. (Not shown in the editor.) |
+| `vision_mode` | string | auto | Vision engine. 'auto' picks based on the resolved provider: apple → Apple Vision OCR; anything else → LLM vision path. 'kraken' → on-device neural line segmentation (baselines/polygons, no text). One of: auto, apple, llm, kraken. (Not shown in the editor.) |
 
 ## The prompt it sends
 

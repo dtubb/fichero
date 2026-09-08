@@ -45,6 +45,7 @@ Extract text from images (OCR)
 | `choices` | array | — | Valid choices. (Not shown in the editor.) |
 | `chunk_size_chars` | integer | 0 | Chunk large input text above this character budget (0=auto). |
 | `force_ocr` | boolean | no | Force image processing instead of existing text. |
+| `kraken_model` | string | — | When vision_mode='kraken', the Kraken recognition model to READ each line (a catalog id like 'kraken-mccatmus', or a .mlmodel path). Empty = segment only (baselines, no text). Install from Settings -> AI -> Local Inference. |
 | `language` | string | auto | Language locale, or 'auto' to follow the library's language policy. |
 | `match_mode` | string | prefer | Match mode. One of: prefer, strict, inform. |
 | `max_image_dimension` | integer | 8192 | Max image size. |
@@ -65,7 +66,7 @@ Extract text from images (OCR)
 | `temperature` | number | 0.7 | Creativity. |
 | `thinking_mode` | string | off | Chain-of-thought reasoning depth. One of: off, short, medium, long. |
 | `update_page_content` | boolean | yes | Index for search. |
-| `vision_mode` | string | auto | Vision engine. 'auto' picks based on the resolved provider: apple → Apple Vision OCR; anything else → LLM vision path. One of: auto, apple, llm. (Not shown in the editor.) |
+| `vision_mode` | string | auto | Vision engine. 'auto' picks based on the resolved provider: apple → Apple Vision OCR; anything else → LLM vision path. 'kraken' → on-device neural line segmentation (baselines/polygons, no text). One of: auto, apple, llm, kraken. (Not shown in the editor.) |
 
 ## The prompt it sends
 

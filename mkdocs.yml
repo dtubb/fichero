@@ -160,8 +160,9 @@ nav:
               - Catalogue: user/reference/workflows/catalogue.md
               - Clean Up Text: user/reference/workflows/clean-up-text.md
               - Describe (visual): user/reference/workflows/describe-visual.md
-              - Detect Regions (Apple Vision): user/reference/workflows/detect-regions-apple-vision.md
-              - Detect Regions (VLM): user/reference/workflows/detect-regions-vlm.md
+              - Detect Segments (Apple Vision): user/reference/workflows/detect-segments-apple-vision.md
+              - Detect Segments (Kraken): user/reference/workflows/detect-segments-kraken.md
+              - Detect Segments (VLM): user/reference/workflows/detect-segments-vlm.md
               - Diary Entries: user/reference/workflows/diary-entries.md
               - English Secretary Hand (16th–17th C.): user/reference/workflows/english-secretary-hand-16th17th-c.md
               - Enhance Images: user/reference/workflows/enhance-images.md
@@ -187,6 +188,7 @@ nav:
               - Split Images: user/reference/workflows/split-images.md
               - Transcribe: user/reference/workflows/transcribe.md
               - Transcribe (Auto-Detect): user/reference/workflows/transcribe-auto-detect.md
+              - Transcribe (Kraken): user/reference/workflows/transcribe-kraken.md
               - Transcribe + Review (Pipeline): user/reference/workflows/transcribe-review-pipeline.md
               - Transcribe HTR: user/reference/workflows/transcribe-htr.md
               - Transcribe Manuscript: user/reference/workflows/transcribe-manuscript.md
@@ -204,6 +206,7 @@ nav:
               - Adaptive Binarize Images: user/reference/tools/adaptive_binarize_images.md
               - Agent Coordinator: user/reference/tools/agent_coordinator.md
               - Aggregate: user/reference/tools/aggregate.md
+              - Align Transcript to Baselines: user/reference/tools/align_transcript.md
               - Analyze: user/reference/tools/analyze.md
               - Annotations Source: user/reference/tools/annotations_source.md
               - Archival Summary: user/reference/tools/catalogue.md

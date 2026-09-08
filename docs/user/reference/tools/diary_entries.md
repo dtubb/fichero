@@ -34,7 +34,9 @@ Split each page's transcript into per-day entry nodes with a date attribute and 
 
 ## Options
 
-This tool has no options.
+| Option | Type | Default | What it does |
+| --- | --- | --- | --- |
+| `prompt` | string | — | Custom prompt (default splits by date heading). |
 
 ## The prompt it sends
 

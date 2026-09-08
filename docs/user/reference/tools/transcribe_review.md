@@ -63,7 +63,7 @@ Second-pass QA of a prior transcription against the image
 | `skip_if_artifact_exists` | boolean | yes | Reuse a matching prior review artifact. |
 | `temperature` | number | 0.7 | Creativity. |
 | `thinking_mode` | string | off | Chain-of-thought reasoning depth. One of: off, short, medium, long. |
-| `vision_mode` | string | llm | Vision engine. 'auto' picks based on the resolved provider: apple → Apple Vision OCR; anything else → LLM vision path. One of: auto, apple, llm. (Not shown in the editor.) |
+| `vision_mode` | string | llm | Vision engine. 'auto' picks based on the resolved provider: apple → Apple Vision OCR; anything else → LLM vision path. 'kraken' → on-device neural line segmentation (baselines/polygons, no text). One of: auto, apple, llm, kraken. (Not shown in the editor.) |
 
 ## The prompt it sends
 

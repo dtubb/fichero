@@ -4,7 +4,7 @@
 
 > 🤖 *AI Drafted (Not reviewed)*
 
-This part of the manual is generated from the app itself, so it says what Fichero actually does rather than what someone remembered it doing. It covers 53 shipped workflows and 126 tools.
+This part of the manual is generated from the app itself, so it says what Fichero actually does rather than what someone remembered it doing. It covers 55 shipped workflows and 127 tools.
 
 - [Every workflow](workflows/index.md) — the presets, step by step.
 - [Every tool](tools/index.md) — the single steps a workflow is built from.
@@ -21,11 +21,12 @@ Workflows are grouped into folders that follow the route work takes: prepare the
 - [Segment Images](workflows/segment-images.md) — Detect foreground document regions and write cropped segment derivatives without modifying originals. Useful for separating multi-region scans before editing, OCR, or recombination.
 - [Split Images](workflows/split-images.md) — Split images into grid tiles or PDFs into per-page image derivatives without modifying originals. Useful before OCR, segmentation, or recombination workflows.
 
-## Detect Regions
+## Detect Segments
 
 - [Backfill Text Geometry](workflows/backfill-text-geometry.md) — Use this when: pages already have a transcription but no word boxes. Apple Vision detects regions on the page (free, on-device), then the existing text is aligned onto those boxes, so every word in the transcript gets a position — measured where Vision read the same word, interpolated between anchors where it did not. Boxes are saved as provider aligned:apple_vision, never as a measured OCR pass, and a page whose alignment cannot be trusted is refused rather than given a wrong overlay.
-- [Detect Regions (Apple Vision)](workflows/detect-regions-apple-vision.md) — Use this when: you want text bounding boxes on pages before (or without) transcription. On-device Apple Vision detects line and word regions and saves them per page — fast, local, free. For hard hands Apple can miss regions; try Detect Regions (VLM) with a vision model of your choice.
-- [Detect Regions (VLM)](workflows/detect-regions-vlm.md) — Use this when: Apple Vision misses regions on hard material (archaic hands, damaged pages) and you want a vision LLM to find the text regions instead. Uses whatever model you pick at run time — compare providers by running this next to the Apple Vision preset.
+- [Detect Segments (Apple Vision)](workflows/detect-segments-apple-vision.md) — Use this when: you want text bounding boxes on pages before (or without) transcription. On-device Apple Vision detects line and word regions and saves them per page — fast, local, free. For hard hands Apple can miss regions; try Detect Segments (VLM) with a vision model of your choice.
+- [Detect Segments (Kraken)](workflows/detect-segments-kraken.md) — Use this when: you want on-device baseline + line regions from Kraken's neural segmenter (blla) instead of Apple Vision — often better on archaic hands and dense layouts. The blla segmenter is built into the Kraken runtime, so this runs with no model download once the Kraken runtime is installed (Settings → AI → Local Inference). Free and local. Pair with Transcribe (Kraken) to recognise the text.
+- [Detect Segments (VLM)](workflows/detect-segments-vlm.md) — Use this when: Apple Vision misses regions on hard material (archaic hands, damaged pages) and you want a vision LLM to find the text regions instead. Uses whatever model you pick at run time — compare providers by running this next to the Apple Vision preset.
 
 ## Transcribe
 
@@ -38,6 +39,7 @@ Workflows are grouped into folders that follow the route work takes: prepare the
 - [Prepare Images for OCR](workflows/prepare-images-for-ocr.md) — Normalize image and PDF pages into OCR-ready derived image files without modifying the originals. Applies EXIF rotation, renders PDFs, boosts contrast, and writes prepared JPGs for downstream transcription workflows.
 - [Transcribe](workflows/transcribe.md) — Use this when: you want to transcribe any file using the vision model in your provider settings, without a script-specific prompt. For better accuracy on specific document types use Transcribe HTR (historical handwriting), Transcribe Manuscript (modern handwriting), Transcribe Typescript (printed/typed), or Transcribe Paleography (archaic scripts).
 - [Transcribe (Auto-Detect)](workflows/transcribe-auto-detect.md) — Use this when: you don't know the document's script type and want automatic routing. Classifies the script type (Typescript / Manuscript / HTR / Paleography) then runs the matching transcription profile — including two-pass review for historical and archaic scripts.
+- [Transcribe (Kraken)](workflows/transcribe-kraken.md) — Use this when: you want fully on-device HTR from Kraken — its own neural baseline segmentation plus a CC-BY recognition model (McCATMuS), no paid API calls. It reads each line and SAVES the transcript tied to its baseline (per-line geometry the reader can overlay). Install the Kraken runtime AND a recognition model first from Settings → AI → Local Inference (the on-device model catalog); the run reports clearly if either is missing. Best on the historical hands McCATMuS was trained on. Pair with a Cleanup pass for hard pages.
 - [Transcribe + Review (Pipeline)](workflows/transcribe-review-pipeline.md) — Use this when: you want the full paleography treatment in one run — the single-pass Transcribe Paleography workflow, then the Paleographer Review workflow over its result. This preset RUNS the two other workflows as sub-workflows (the chain pattern: any preset can compose others the same way). Model: whatever you pick at run time, used by both stages.
 - [Transcribe HTR](workflows/transcribe-htr.md) — Use this when: you have legible historical handwriting (16th–19th C.) that doesn't need the full paleography treatment. One whole-page pass with period-orthography advice; run Paleographer Review afterwards for hard documents.
 - [Transcribe Manuscript](workflows/transcribe-manuscript.md) — Use this when: you have modern handwriting (20th–21st century) — letters, notes, diaries, forms, signatures. For historical handwriting (pre-20th C.) use Transcribe HTR; for archaic scripts use Transcribe Paleography.

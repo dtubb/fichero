@@ -4,7 +4,7 @@
 
 > 🤖 *AI Drafted (Not reviewed)*
 
-A tool is one step: it reads something, does one job, and emits a result. Workflows are tools wired together. Each page below says what the tool reads and emits, every option it takes, and — for tools that ask a model — the exact words it sends. There are 126 of them.
+A tool is one step: it reads something, does one job, and emits a result. Workflows are tools wired together. Each page below says what the tool reads and emits, every option it takes, and — for tools that ask a model — the exact words it sends. There are 127 of them.
 
 ## Agent
 
@@ -161,6 +161,7 @@ A tool is one step: it reads something, does one job, and emits a result. Workfl
 | Tool | What it does | Uses a model |
 | --- | --- | --- |
 | [AI Convert](tools/convert.md) | Generative format conversion: an AI vision model re-creates the page as Markdown, HTML, SVG, LaTeX, or CSV. The output is the model's reading of the page, not a mechanical file conversion. | yes |
+| [Align Transcript to Baselines](tools/align_transcript.md) | Joins a page's known transcript to its Kraken line baselines, on-device and free — no model runs. Each transcript line is hung on its baseline in reading order, so the reader can anchor the text to the page image. A page whose line count does not match its baseline count is left unaligned rather than have the wrong text placed on it. Run after Detect Regions (Kraken) on pages that already have a transcript. | no |
 | [Analyze](tools/analyze.md) | Custom vision analysis | yes |
 | [Caption](tools/caption.md) | Generate short image caption | yes |
 | [Classify](tools/classify.md) | Categorize document type | yes |

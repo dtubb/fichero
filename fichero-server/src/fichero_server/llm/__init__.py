@@ -36,7 +36,6 @@ import asyncio
 import base64
 import contextlib
 import contextvars
-import dataclasses
 import hashlib
 import inspect
 import json
