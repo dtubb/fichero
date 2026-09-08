@@ -50,31 +50,38 @@ extension ContentView {
         return nil
     }
 
-    var isEntityLibrarySelection: Bool {
-        sidebarSelectionState.selectedItemId == "entities-browser"
+    /// The KG collection kind the current sidebar selection names, if any —
+    /// recognizing BOTH the per-library ids ("kg-entities:<uuid>", P4 per-library)
+    /// and the legacy global sentinel ("entities-browser").
+    private var selectedKnowledgeKind: KnowledgeCollectionKind? {
+        SidebarDestination.knowledgeCollectionKind(
+            forSerializedID: sidebarSelectionState.selectedItemId ?? ""
+        )
     }
+
+    var isEntityLibrarySelection: Bool { selectedKnowledgeKind == .entities }
 
     /// The sidebar's Claims section (P4) — the library-wide claims table, the
     /// peer of the entities collection.
-    var isClaimLibrarySelection: Bool {
-        sidebarSelectionState.selectedItemId == "claims-browser"
-    }
+    var isClaimLibrarySelection: Bool { selectedKnowledgeKind == .claims }
 
     /// Either knowledge-graph collection is selected — both are library-wide KG
     /// tables, not folder listings, so they share the entities collection's
     /// layout treatment.
-    var isKGLibrarySelection: Bool {
-        isEntityLibrarySelection || isClaimLibrarySelection
-    }
+    var isKGLibrarySelection: Bool { selectedKnowledgeKind != nil }
 
     /// What the library pane should show, from the sidebar selection: a KG
     /// collection (claims / entities) or ordinary documents. This is the seam the
-    /// sidebar's two peer KG sections drive (P4), reusing the existing
-    /// content-collection input rather than a parallel mechanism.
+    /// sidebar's per-library KG rows drive (P4), reusing the existing
+    /// content-collection input rather than a parallel mechanism. The active
+    /// library is set by the row's selection (see `handleSelectionDestination`),
+    /// so the table scopes to the right library.
     var sidebarContentCollection: LibraryContentCollection {
-        if isClaimLibrarySelection { return .claims }
-        if isEntityLibrarySelection { return .entities }
-        return .documents
+        switch selectedKnowledgeKind {
+        case .claims?: return .claims
+        case .entities?: return .entities
+        case nil: return .documents
+        }
     }
 
     var shellCollapsePolicy: ShellCollapsePolicy {

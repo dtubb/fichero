@@ -199,37 +199,31 @@ extension SidebarView {
         libraryKnowledgeRows(libraryId: libraryId)
     }
 
-    /// The library's knowledge-graph collections — Entities and Claims — at
-    /// LIBRARY level (Daniel: "this has to be at library level, not the bottom of
-    /// the sidebar"), scoped to this library. A claim and an entity are nodes that
-    /// flow through the SAME library as a document, so each row re-scopes the
-    /// library pane to that node kind, library-wide, and opens the corresponding
-    /// table (P4).
+    /// EACH library's knowledge-graph collections — Entities and Claims — at
+    /// LIBRARY level (Daniel: "these need to be for EACH library"), scoped to THIS
+    /// library. A claim and an entity are nodes that flow through the SAME library
+    /// as a document, so each row re-scopes the pane to that node kind and opens
+    /// that library's library-wide table (P4, per-library).
     ///
-    /// Rendered only under the ACTIVE library (`windowState.libraryId`): the
-    /// library-wide tables the rows open read the WINDOW's library, so the rows
-    /// must sit under that same library — and rendering them under every open
-    /// library would mint the same `.browser` selection tag twice, which a
-    /// single-selection List cannot tell apart. Switching the active library
-    /// moves these rows with it.
+    /// The destination carries `libraryId`, so every open library's rows have
+    /// their OWN selection identity (no duplicate tags) and selecting one makes
+    /// that library active — Marshall, Istmina and SCOOP each get their own pair.
     @ViewBuilder
     func libraryKnowledgeRows(libraryId: UUID) -> some View {
-        if libraryId == windowState.libraryId {
-            knowledgeCollectionRow(
-                title: "Entities",
-                systemImage: "person.2",
-                destination: .browser(.entities)
-            )
-            knowledgeCollectionRow(
-                title: "Claims",
-                systemImage: "quote.bubble",
-                destination: .browser(.claims)
-            )
-        }
+        knowledgeCollectionRow(
+            title: "Entities",
+            systemImage: "person.2",
+            destination: .knowledgeCollection(.entities, libraryId: libraryId)
+        )
+        knowledgeCollectionRow(
+            title: "Claims",
+            systemImage: "quote.bubble",
+            destination: .knowledgeCollection(.claims, libraryId: libraryId)
+        )
     }
 
     /// One knowledge-graph collection row. Tagged with its `SidebarDestination` so
-    /// the list's own selection routes it through `handleBrowserSelectionDestination`
+    /// the list's own selection routes it through `handleSelectionDestination`
     /// exactly like every other node — no bespoke tap handling.
     private func knowledgeCollectionRow(
         title: String,

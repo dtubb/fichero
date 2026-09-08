@@ -12,6 +12,13 @@ enum SidebarBrowserDestination: String, Hashable {
     case research
 }
 
+/// A knowledge-graph collection shown at LIBRARY level — the two peer node kinds
+/// (entities, claims) that flow through the same library table as documents.
+enum KnowledgeCollectionKind: String, Hashable, CaseIterable {
+    case entities
+    case claims
+}
+
 enum SidebarDestination: Hashable {
     case document(String)
     case search(String)
@@ -35,6 +42,11 @@ enum SidebarDestination: Hashable {
     case folder(String)
     case browser(SidebarBrowserDestination)
     case library(UUID)
+    /// A library's knowledge-graph collection (P4, per-library): its own Entities
+    /// or Claims table, scoped to `libraryId`. Distinct per library so each
+    /// library's rows carry their own selection identity and open THAT library's
+    /// library-wide table.
+    case knowledgeCollection(KnowledgeCollectionKind, libraryId: UUID)
 
     /// One prefix → constructor per case. Table-driven so adding a node kind
     /// (e.g. "comparison:", #4335) is one row, not another branch in an
@@ -61,7 +73,9 @@ enum SidebarDestination: Hashable {
             return .structure(documentId: parts[0], nodeId: parts[1])
         }),
         ("folder:", { .folder($0) }),
-        ("library:", { id in UUID(uuidString: id).map { .library($0) } })
+        ("library:", { id in UUID(uuidString: id).map { .library($0) } }),
+        ("kg-entities:", { id in UUID(uuidString: id).map { .knowledgeCollection(.entities, libraryId: $0) } }),
+        ("kg-claims:", { id in UUID(uuidString: id).map { .knowledgeCollection(.claims, libraryId: $0) } })
     ]
 
     private static let browserCases: [String: SidebarBrowserDestination] = [
@@ -110,7 +124,26 @@ enum SidebarDestination: Hashable {
         case .browser(.comparison): return "comparison-browser"
         case .browser(.research): return "research-browser"
         case .library(let id): return "library:\(id.uuidString)"
+        case .knowledgeCollection(.entities, let libraryId): return "kg-entities:\(libraryId.uuidString)"
+        case .knowledgeCollection(.claims, let libraryId): return "kg-claims:\(libraryId.uuidString)"
         }
+    }
+
+    /// The knowledge-graph collection a serialized id names, if any — recognizing
+    /// BOTH the per-library ids ("kg-entities:<uuid>"/"kg-claims:<uuid>", P4
+    /// per-library) and the legacy global sentinels ("entities-browser"/
+    /// "claims-browser"). The one place ContentView and the outline-fetch guard
+    /// agree on "is this a KG collection, not a document?".
+    static func knowledgeCollectionKind(forSerializedID id: String) -> KnowledgeCollectionKind? {
+        if id.hasPrefix("kg-entities:") || id == "entities-browser" { return .entities }
+        if id.hasPrefix("kg-claims:") || id == "claims-browser" { return .claims }
+        return nil
+    }
+
+    /// Whether a serialized id names a KG collection (so it is NOT a document to
+    /// outline / fetch).
+    static func isKnowledgeCollectionId(_ id: String) -> Bool {
+        knowledgeCollectionKind(forSerializedID: id) != nil
     }
 }
 

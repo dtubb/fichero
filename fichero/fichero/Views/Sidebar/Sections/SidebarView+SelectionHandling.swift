@@ -38,6 +38,17 @@ extension SidebarView {
             sidebarMode = .library
             viewMode = .library(nil)
             return
+        case .knowledgeCollection(_, let libraryId):
+            // A per-library KG collection makes THAT library active (so the
+            // library-wide claims/entities table scopes to it) and lands in the
+            // library — the pane reads `contentCollection` from the selected id to
+            // pick which table. Same two axes as `.library`, plus the collection.
+            if windowState.libraryId != libraryId {
+                windowState.libraryId = libraryId
+            }
+            sidebarMode = .library
+            viewMode = .library(nil)
+            return
         case .browser(let section):
             handleBrowserSelectionDestination(section)
             return
