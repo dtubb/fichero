@@ -27,26 +27,88 @@ struct EntitiesLibraryContent: View {
 
     @Environment(EntityStore.self) private var store
 
+    /// Per-table filter (spec: kg-tables, filter.text / filter.entity-type). Intersects
+    /// with the shared ⌘F `searchQuery`; empty text + nil type = no per-table filter.
+    @State private var filterText = ""
+    @State private var filterType: String?
+
     var body: some View {
-        EntitiesTableView(
-            items: items,
-            selection: $selection,
-            isLoading: store.isLoadingLibrary,
-            emptyMessage: emptyMessage,
-            actions: actions
-        )
+        VStack(spacing: 0) {
+            filterBar
+            EntitiesTableView(
+                items: items,
+                selection: $selection,
+                isLoading: store.isLoadingLibrary,
+                emptyMessage: emptyMessage,
+                actions: actions
+            )
+        }
         // A high limit: we filter to the folder client-side, so the library-wide
         // list must be complete enough not to drop the folder's entities (the
         // default page size is small). The store dedups repeat loads.
         .task { await store.loadEntities(limit: 25000) }
     }
 
+    /// Whether an entity row survives the combined filter — the shared search AND
+    /// the per-table text AND the type picker must all pass (intersection). Pure so
+    /// the rule is testable without a rendered table. (spec: kg-tables,
+    /// filter.combines-with-search)
+    static func entityMatches(
+        name: String,
+        type: String,
+        search: String?,
+        filterText: String,
+        filterType: String?
+    ) -> Bool {
+        let haystack = "\(name) \(type)".lowercased()
+        if let search, !search.isEmpty, !haystack.contains(search.lowercased()) { return false }
+        let text = filterText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if !text.isEmpty, !haystack.contains(text) { return false }
+        if let filterType, !filterType.isEmpty,
+           type.lowercased() != filterType.lowercased() { return false }
+        return true
+    }
+
+    /// The entity types present in the loaded set, for the type picker (only offer
+    /// types that exist — filter.entity-type).
+    private var availableTypes: [String] {
+        Array(Set(store.libraryEntities.compactMap { $0.entityType?.rawValue })).sorted()
+    }
+
+    @ViewBuilder
+    private var filterBar: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "line.3.horizontal.decrease.circle")
+                .foregroundStyle(.secondary)
+            TextField("Filter entities", text: $filterText)
+                .textFieldStyle(.roundedBorder)
+                .frame(maxWidth: 220)
+            Menu {
+                Button("All types") { filterType = nil }
+                Divider()
+                ForEach(availableTypes, id: \.self) { type in
+                    Button(type.capitalized) { filterType = type }
+                }
+            } label: {
+                Label(filterType?.capitalized ?? "All types", systemImage: "tag")
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            Spacer()
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+    }
+
     private var emptyMessage: String {
         if let error = store.libraryLoadError {
             return "Couldn't load entities: \(error)"
         }
-        if let query = trimmedQuery {
+        if let query = trimmedQuery, filterText.isEmpty, filterType == nil {
             return "No entities match “\(query)”."
+        }
+        if trimmedQuery != nil || !filterText.isEmpty || filterType != nil {
+            return "No entities match the current filter."
         }
         return folderDocumentIds == nil
             ? "No entities in this library yet. Run knowledge extraction to populate them."
@@ -62,16 +124,18 @@ struct EntitiesLibraryContent: View {
 
     private var items: [EntitiesTableView.Item] {
         let docsById = Dictionary(documents.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        let needle = trimmedQuery?.lowercased()
         return store.libraryEntities.compactMap { entity -> EntitiesTableView.Item? in
             if let scope = folderDocumentIds {
                 let sources = Set(entity.sourceDocumentIds ?? [])
                 guard !sources.isDisjoint(with: scope) else { return nil }
             }
-            if let needle {
-                let haystack = "\(entity.canonicalName) \(entity.entityType?.rawValue ?? "")".lowercased()
-                guard haystack.contains(needle) else { return nil }
-            }
+            guard Self.entityMatches(
+                name: entity.canonicalName,
+                type: entity.entityType?.rawValue ?? "",
+                search: trimmedQuery,
+                filterText: filterText,
+                filterType: filterType
+            ) else { return nil }
             let claimCount = entity.id.flatMap { store.libraryClaimCounts[$0] } ?? 0
             let firstSource = entity.sourceDocumentIds?.first
             let parent = firstSource.flatMap { docsById[$0] }
