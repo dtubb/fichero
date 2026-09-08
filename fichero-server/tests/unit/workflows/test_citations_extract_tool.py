@@ -9,6 +9,45 @@ from fichero_server.workflows.tools import citations_extract as citations_module
 
 
 @pytest.mark.asyncio
+async def test_citations_prompt_override_replaces_the_default_instruction(monkeypatch):
+    # A user-supplied `prompt` config value is what actually reaches the
+    # model as the `system` instruction; an empty one falls back to
+    # `_DEFAULT_PARSE_PROMPT` — same override-or-default contract as the
+    # sibling extraction tools.
+    seen_systems: list[str] = []
+
+    class _Parsed:
+        authors: list[str] = []
+        year = ""
+        title = ""
+        journal_or_publisher = ""
+        doi = ""
+        url = ""
+
+    async def _fake_parse(*, system, **kwargs):
+        del kwargs
+        seen_systems.append(system)
+        return _Parsed()
+
+    monkeypatch.setattr(
+        citations_module, "chat_structured_with_fallback", _fake_parse
+    )
+
+    await citations_module.parse_bibliography_entry(
+        "Doe, Jane. 1999. The Cited Work.", 1, LLMConfig(provider="openai", model="gpt-4o-mini")
+    )
+    await citations_module.parse_bibliography_entry(
+        "Doe, Jane. 1999. The Cited Work.",
+        1,
+        LLMConfig(provider="openai", model="gpt-4o-mini"),
+        prompt="Custom parse instruction",
+    )
+
+    assert seen_systems[0] == citations_module._DEFAULT_PARSE_PROMPT
+    assert seen_systems[1] == "Custom parse instruction"
+
+
+@pytest.mark.asyncio
 async def test_citations_extract_dedupes_numeric_and_footnote_hits(db, monkeypatch):
     source = Document(name="Essay", doc_type=DocType.file)
     page = Document(

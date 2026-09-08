@@ -243,6 +243,13 @@ async def extract_svo_only(
     # "language of the document" mean something on a mixed corpus.
     requested_sections = _requested_sections(inputs.get("entity_types"))
     policy = configured_policy()
+    # Overrides the main per-entity claim instruction only (same
+    # override-or-default contract as the sibling extraction tools); the
+    # separate dates-only pass below keeps its own section template — a free
+    # prompt there would have to also honor the structured DiaryEntry-style
+    # schema and the deterministic date-parsing this tool does downstream,
+    # which is not the "one instruction" this override is for.
+    prompt_override = str(inputs.get("prompt") or "").strip() or None
     languages_used: dict[str, int] = defaultdict(int)
 
     progress_callback = inputs.get("__progress_callback")
@@ -373,7 +380,7 @@ async def extract_svo_only(
                 entity_by_norm.setdefault(normalize_name(entity.name), (section_key, entity))
 
         if entity_by_norm and (record["text"] or "").strip():
-            page_instructions = _build_page_claim_instructions(
+            page_instructions = prompt_override or _build_page_claim_instructions(
                 instruction_key,
                 {
                     section_key: entities

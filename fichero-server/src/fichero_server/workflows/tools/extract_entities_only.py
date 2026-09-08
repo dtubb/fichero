@@ -120,7 +120,15 @@ _ENTITY_TYPES_CONFIG = {
             "section. 'events,dates' is the timeline shape."
         ),
         "default": "all",
-    }
+    },
+    # Shared with extract_svo_only, which also spreads this dict into its own
+    # config_schema — one field, both tools' node editors surface it. Same
+    # shape as `llm_base.BASE_CONFIG_SCHEMA`'s "prompt".
+    "prompt": {
+        "type": "string",
+        "description": "Custom extraction instructions",
+        "x-group": "primary",
+    },
 }
 
 
@@ -332,6 +340,12 @@ async def extract_entities_only(
     # per language so a single-language corpus still builds one string.
     requested_sections = _requested_sections(inputs.get("entity_types"))
     policy = configured_policy()
+    # A user-supplied prompt replaces the per-language built instruction
+    # outright (same override-or-default contract as analyze/entities/
+    # transcribe) rather than being resolved per document language — an
+    # explicit override is a deliberate instruction, not something the
+    # language policy should still be allowed to swap out from under it.
+    prompt_override = str(inputs.get("prompt") or "").strip() or None
     instructions_by_language: dict[str, str] = {}
     languages_used: dict[str, int] = defaultdict(int)
 
@@ -385,7 +399,9 @@ async def extract_entities_only(
         instruction_key = prompt_language(resolution)
         instructions = instructions_by_language.get(instruction_key)
         if instructions is None:
-            instructions = _build_entity_only_instructions(instruction_key)
+            instructions = prompt_override or _build_entity_only_instructions(
+                instruction_key
+            )
             instructions_by_language[instruction_key] = instructions
 
         # (canonical_name, entity_type, aliases) to upsert, from whichever
