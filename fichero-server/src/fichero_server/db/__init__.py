@@ -3467,6 +3467,28 @@ class Database(DatabaseEmbeddingMixin):
 
         is_system = bool(getattr(workflow, "is_system", False))
         if is_system:
+            from fichero_server.workflows.validation import workflow_is_direct_runnable
+
+            if not workflow_is_direct_runnable(getattr(workflow, "config", None)):
+                # Sub-workflow components and internally-flagged presets
+                # (#4324) are excluded from the workflow BAR's verb list —
+                # WorkflowBarPolicy.families requires `canRunDirectly` — so
+                # the "Default Workflows" sidebar folder must not show them
+                # either; a folder full of entries that silently refuse to
+                # run standalone is the mismatch Daniel hit. No mirror
+                # document at all, rather than a hidden/locked one: keeping a
+                # component addressable by id here would still let it be
+                # opened and "run" from the sidebar's own context menu.
+                #
+                # Idempotent healing: seeding runs on every library open
+                # (`DatabaseManager.get_database`), so a mirror created by an
+                # older engine build before this rule existed is dropped the
+                # next time this preset is (re-)saved, rather than lingering.
+                self._execute(
+                    "DELETE FROM documents WHERE id = $id", {"id": workflow.id}
+                )
+                return
+
             self._seed_default_workflows_container()
             container_parent_id = self._ensure_default_workflows_subfolder(
                 workflow.folder_path
