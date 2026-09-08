@@ -27,14 +27,22 @@ struct ClaimsLibraryContent: View {
 
     @State private var model: LibraryClaimsModel?
 
+    /// Per-table filter (spec: kg-tables, filter.text / filter.claim-type). Intersects
+    /// with the shared ⌘F `searchQuery`; empty text + nil type = no per-table filter.
+    @State private var filterText = ""
+    @State private var filterType: String?
+
     var body: some View {
-        ClaimsTableView(
-            items: items,
-            selection: $selection,
-            isLoading: model?.isLoading ?? true,
-            emptyMessage: emptyMessage,
-            onOpenSource: openSource
-        )
+        VStack(spacing: 0) {
+            filterBar
+            ClaimsTableView(
+                items: items,
+                selection: $selection,
+                isLoading: model?.isLoading ?? true,
+                emptyMessage: emptyMessage,
+                onOpenSource: openSource
+            )
+        }
         .task(id: folderId) {
             let active = model ?? LibraryClaimsModel(service: entityService)
             model = active
@@ -42,12 +50,65 @@ struct ClaimsLibraryContent: View {
         }
     }
 
+    /// Whether a claim row survives the combined filter — the shared search AND the
+    /// per-table text AND the type picker must all pass (intersection). Pure so the
+    /// rule is testable without a rendered table. (spec: kg-tables,
+    /// filter.combines-with-search)
+    static func claimMatches(
+        haystack: String,
+        type: String,
+        search: String?,
+        filterText: String,
+        filterType: String?
+    ) -> Bool {
+        let hay = haystack.lowercased()
+        if let search, !search.isEmpty, !hay.contains(search.lowercased()) { return false }
+        let text = filterText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if !text.isEmpty, !hay.contains(text) { return false }
+        if let filterType, !filterType.isEmpty,
+           type.lowercased() != filterType.lowercased() { return false }
+        return true
+    }
+
+    /// The claim types present in the loaded set, for the type picker.
+    private var availableTypes: [String] {
+        Array(Set((model?.claims ?? []).compactMap { $0.claimType?.rawValue })).sorted()
+    }
+
+    @ViewBuilder
+    private var filterBar: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "line.3.horizontal.decrease.circle")
+                .foregroundStyle(.secondary)
+            TextField("Filter claims", text: $filterText)
+                .textFieldStyle(.roundedBorder)
+                .frame(maxWidth: 220)
+            Menu {
+                Button("All types") { filterType = nil }
+                Divider()
+                ForEach(availableTypes, id: \.self) { type in
+                    Button(type.capitalized) { filterType = type }
+                }
+            } label: {
+                Label(filterType?.capitalized ?? "All types", systemImage: "tag")
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            Spacer()
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+    }
+
     private var emptyMessage: String {
         if let error = model?.loadError {
             return "Couldn't load claims: \(error)"
         }
-        if let query = trimmedQuery {
+        if let query = trimmedQuery, filterText.isEmpty, filterType == nil {
             return "No claims match “\(query)”."
+        }
+        if trimmedQuery != nil || !filterText.isEmpty || filterType != nil {
+            return "No claims match the current filter."
         }
         return "No claims here yet. Run knowledge extraction to populate them."
     }
@@ -61,15 +122,17 @@ struct ClaimsLibraryContent: View {
     /// claim's own words and its source page name.
     private var items: [ClaimsTableView.Item] {
         let docsById = Dictionary(documents.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        let needle = trimmedQuery?.lowercased()
 
         return (model?.claims ?? []).compactMap { claim -> ClaimsTableView.Item? in
             let values = ClaimTableRow(claim)
             let sourceName = Self.sourceName(for: claim.sourceDocumentId, docsById: docsById)
-            if let needle {
-                let haystack = "\(values.svoLine) \(values.date) \(sourceName)".lowercased()
-                guard haystack.contains(needle) else { return nil }
-            }
+            guard Self.claimMatches(
+                haystack: "\(values.svoLine) \(values.date) \(sourceName)",
+                type: claim.claimType?.rawValue ?? "",
+                search: trimmedQuery,
+                filterText: filterText,
+                filterType: filterType
+            ) else { return nil }
             // Reuse the outline's claim-node identity so a claim selects the same
             // whether it appears here or as a document's disclosed child. Parent is
             // the source document when loaded, else a minimal stand-in carrying the
