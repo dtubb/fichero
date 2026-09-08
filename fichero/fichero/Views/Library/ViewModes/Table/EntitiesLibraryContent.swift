@@ -16,6 +16,10 @@ struct EntitiesLibraryContent: View {
     /// The loaded documents, to resolve an entity's node parent and its open
     /// target to a real document.
     let documents: [Document]
+    /// The library's active ⌘F query, so the entities table narrows with the same
+    /// search box — and so a search that matched only entities can auto-surface
+    /// the matching ones (E: "if there's stuff to show, show it").
+    var searchQuery: String? = nil
     @Binding var selection: Set<String>
     /// Focus the entity + open its detail/editor — supplied by LibraryView, which
     /// owns the KG focus state and the detail binding.
@@ -41,6 +45,9 @@ struct EntitiesLibraryContent: View {
         if let error = store.libraryLoadError {
             return "Couldn't load entities: \(error)"
         }
+        if let query = trimmedQuery {
+            return "No entities match “\(query)”."
+        }
         return folderDocumentIds == nil
             ? "No entities in this library yet. Run knowledge extraction to populate them."
             : "No entities in this folder yet."
@@ -48,12 +55,22 @@ struct EntitiesLibraryContent: View {
 
     /// Library entities, folder-scoped client-side, as sortable rows. Claim counts
     /// come from the store's already-loaded map.
+    private var trimmedQuery: String? {
+        let trimmed = (searchQuery ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
     private var items: [EntitiesTableView.Item] {
         let docsById = Dictionary(documents.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let needle = trimmedQuery?.lowercased()
         return store.libraryEntities.compactMap { entity -> EntitiesTableView.Item? in
             if let scope = folderDocumentIds {
                 let sources = Set(entity.sourceDocumentIds ?? [])
                 guard !sources.isDisjoint(with: scope) else { return nil }
+            }
+            if let needle {
+                let haystack = "\(entity.canonicalName) \(entity.entityType?.rawValue ?? "")".lowercased()
+                guard haystack.contains(needle) else { return nil }
             }
             let claimCount = entity.id.flatMap { store.libraryClaimCounts[$0] } ?? 0
             let firstSource = entity.sourceDocumentIds?.first

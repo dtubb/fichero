@@ -177,13 +177,33 @@ extension LibraryView {
         switch contentCollection {
         case .entities: return .entities
         case .claims: return .claims
-        case .documents: return libraryContentKind
+        case .documents: return searchAutoSurfaceKind ?? libraryContentKind
         }
     }
 
     /// A sidebar-driven KG collection is always LIBRARY-WIDE — its `folderId` is a
-    /// browser sentinel ("entities-browser" / "claims-browser"), not a real folder.
+    /// KG-collection sentinel ("kg-entities:<uuid>"/"kg-claims:<uuid>", per-library),
+    /// not a real folder to scope to.
     var isSidebarKGCollection: Bool { contentCollection != .documents }
+
+    /// A search that matched CLAIMS or ENTITIES but no documents auto-surfaces
+    /// those hits instead of the "No Matching Documents" empty state (Daniel:
+    /// "if there's stuff to show, show it"). Claims win when both matched — the
+    /// claims table filters by the query, so it shows the actual matches. Only in
+    /// the ordinary documents collection; a sidebar KG section already picks the
+    /// kind. Returns nil when there's nothing to auto-surface.
+    var searchAutoSurfaceKind: LibraryContentKind? {
+        guard contentCollection == .documents,
+              let query = activeSearchQuery, !query.isEmpty,
+              documents.isEmpty else { return nil }
+        if searchHitCounts.claims > 0 { return .claims }
+        if searchHitCounts.entities > 0 { return .entities }
+        return nil
+    }
+
+    /// The KG tables run LIBRARY-WIDE when the sidebar drove them OR when a search
+    /// auto-surfaced them (a search is library-wide, not folder-scoped).
+    var isLibraryWideKG: Bool { isSidebarKGCollection || searchAutoSurfaceKind != nil }
 
     /// The claims table (node-model IA). Folder-scoped when the in-pane picker
     /// drove it; LIBRARY-WIDE when the sidebar's Claims section did (P4), each row
@@ -192,7 +212,7 @@ extension LibraryView {
     var claimsContent: some View {
         if let service = scopedLibraryReference?.entityService {
             ClaimsLibraryContent(
-                folderId: isSidebarKGCollection ? nil : folderId,
+                folderId: isLibraryWideKG ? nil : folderId,
                 entityService: service,
                 documents: documents,
                 searchQuery: activeSearchQuery,
@@ -211,8 +231,9 @@ extension LibraryView {
     @ViewBuilder
     var entitiesContent: some View {
         EntitiesLibraryContent(
-            folderDocumentIds: (isSidebarKGCollection || folderId == nil) ? nil : Set(documents.map(\.id)),
+            folderDocumentIds: (isLibraryWideKG || folderId == nil) ? nil : Set(documents.map(\.id)),
             documents: documents,
+            searchQuery: activeSearchQuery,
             selection: $selection,
             onOpen: { openEntityFromLibrary($0) }
         )
