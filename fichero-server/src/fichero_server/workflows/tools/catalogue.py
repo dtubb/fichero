@@ -1001,6 +1001,30 @@ def _iter_section_artifacts(data: dict[str, Any]):
 # =============================================================================
 
 
+def _subtree_doc_ids(db, root_id: str) -> set[str]:
+    """The root id plus every descendant doc id, any depth (BFS).
+
+    Same shape as api/routes/claim/claims.py::_descendant_doc_ids and
+    workflows/tools/merge_dedup_only.py::_descendant_doc_ids — kept local
+    rather than imported to avoid a route-layer→tool-layer dependency, but
+    intentionally the identical resolution so a folder's "Appears In" KG
+    view and the catalogue gather never disagree about what's "inside" it.
+    """
+    from fichero_server.models import Document
+
+    seen: set[str] = {root_id}
+    frontier: list[str] = [root_id]
+    while frontier:
+        next_frontier: list[str] = []
+        for parent_id in frontier:
+            for child in db.query(Document, parent_id=parent_id) or []:
+                if child.id and child.id not in seen:
+                    seen.add(child.id)
+                    next_frontier.append(child.id)
+        frontier = next_frontier
+    return seen
+
+
 def _build_data_from_claims(
     container_id: str,
     library_path: str,
@@ -1029,17 +1053,21 @@ def _build_data_from_claims(
         KnowledgeClaim,
         KnowledgeEntity,
     )
-    from fichero_server.models import Document
 
     db = db_manager.get_database(library_path)
-    # Query claims for the container AND all descendant page docs.
-    # Per-page entity storage (0.0.2): extractors now write claims to
-    # PAGE doc_ids rather than the container. Without expanding the
-    # query to descendants, catalogue would see zero claims and fall
-    # to Path 2 (text-only synthesis) on every run.
-    container_descendants = list(db.query(Document, parent_id=container_id))
-    descendant_ids = [d.id for d in container_descendants]
-    all_doc_ids = [container_id] + descendant_ids
+    # Query claims for the container AND every descendant doc, not just its
+    # DIRECT children. Per-page entity storage (0.0.2): extractors write
+    # claims to PAGE doc_ids rather than the container — and the Diary
+    # Entries preset goes a level deeper still, splitting each page into
+    # per-day ENTRY child nodes that carry the actual entities/claims
+    # ("Catalogue: nothing to describe" on a diary folder even though its
+    # entries had rich KG data, #catalogue-subtree). A single
+    # `parent_id=container_id` query only reaches page docs; entries one
+    # level below those were invisible. Recurse (BFS) the same way the
+    # claim/entity "Appears In" resolution already does
+    # (api/routes/claim/claims.py::_descendant_doc_ids) so any depth of
+    # nesting — folder → page → entry, or deeper — is covered.
+    all_doc_ids = list(_subtree_doc_ids(db, container_id))
     claims = []
     for doc_id in all_doc_ids:
         claims.extend(db.query(KnowledgeClaim, source_document_id=doc_id))
