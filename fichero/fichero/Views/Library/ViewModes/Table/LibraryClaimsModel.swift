@@ -57,4 +57,30 @@ final class LibraryClaimsModel {
             isLoading = false
         }
     }
+
+    /// Delete the given claims (spec: kg-tables `claim.delete`). Each is one audited,
+    /// reversible backend action — the SAME `deleteClaim` call `ClaimStore.delete`
+    /// makes, so the server change-stream still fires for every other claim surface.
+    /// The rows then leave THIS list in place (`crud.in-place`), never a full reload.
+    func delete(claimIds: [String]) async throws {
+        guard !claimIds.isEmpty else { return }
+        for id in claimIds {
+            try await service.deleteClaim(id)
+        }
+        claims = Self.removing(claimIds: claimIds, from: claims)
+    }
+
+    /// The pure removal rule: drop claims whose id is in `claimIds`, keep the rest.
+    /// A claim with no id is never removed (absence is not a match). `nonisolated`
+    /// (touches no actor state) so the in-place-delete behaviour is testable off-main.
+    nonisolated static func removing(
+        claimIds: [String],
+        from claims: [Components.Schemas.KnowledgeClaim]
+    ) -> [Components.Schemas.KnowledgeClaim] {
+        let doomed = Set(claimIds)
+        return claims.filter { claim in
+            guard let id = claim.id else { return true }
+            return !doomed.contains(id)
+        }
+    }
 }

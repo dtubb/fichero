@@ -34,6 +34,10 @@ struct ClaimsTableView: View {
     /// Open a claim's source page with its passage lit — the host wires this to
     /// `ClaimSourceRequest.request(for:)` on the shared cursor.
     let onOpenSource: (Components.Schemas.KnowledgeClaim) -> Void
+    /// Delete the given claims — the host wires this to `LibraryClaimsModel.delete`,
+    /// which deletes server-side and drops the rows in place. Optional so a preview
+    /// or a read-only host can render the table without a delete path.
+    var onDelete: (([Components.Schemas.KnowledgeClaim]) -> Void)? = nil
 
     @State private var sortOrder: [KeyPathComparator<Item>] = [
         KeyPathComparator(\Item.values.subject, order: .forward)
@@ -106,6 +110,9 @@ struct ClaimsTableView: View {
         #if os(macOS)
         .alternatingRowBackgrounds()
         #endif
+        .contextMenu(forSelectionType: String.self) { ids in
+            claimMenu(for: ids)
+        }
         .onChange(of: selection) { _, newSelection in
             // A single-claim selection opens its source page + highlight through
             // the shared cursor — the same "a statement leads to its source"
@@ -129,6 +136,22 @@ struct ClaimsTableView: View {
 
     /// The last id auto-opened, so a re-render can't re-open it in a loop.
     @State private var lastOpenedId: String?
+
+    /// The right-click menu over the clicked/selected claims. Delete only, for now
+    /// (edit / curate arrive in later kg-tables waves); hidden when the host wired
+    /// no delete path. Maps the selected node-ids back to their claims.
+    @ViewBuilder
+    private func claimMenu(for ids: Set<String>) -> some View {
+        let targets = items.filter { ids.contains($0.id) }.map(\.claim)
+        if let onDelete, !targets.isEmpty {
+            Button(role: .destructive) { onDelete(targets) } label: {
+                Label(
+                    targets.count == 1 ? "Delete claim" : "Delete \(targets.count) claims",
+                    systemImage: "trash"
+                )
+            }
+        }
+    }
 
     private var loadingState: some View {
         VStack(spacing: 12) {

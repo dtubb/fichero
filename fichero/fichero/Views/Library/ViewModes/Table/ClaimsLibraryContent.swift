@@ -40,7 +40,8 @@ struct ClaimsLibraryContent: View {
                 selection: $selection,
                 isLoading: model?.isLoading ?? true,
                 emptyMessage: emptyMessage,
-                onOpenSource: openSource
+                onOpenSource: openSource,
+                onDelete: deleteClaims
             )
         }
         .task(id: folderId) {
@@ -154,6 +155,22 @@ struct ClaimsLibraryContent: View {
     private func openSource(_ claim: Components.Schemas.KnowledgeClaim) {
         guard let request = ClaimSourceRequest.request(for: claim) else { return }
         cursor?.request(request)
+    }
+
+    /// Delete the selected claims (spec: kg-tables `claim.delete`): the model deletes
+    /// them server-side (one audited action each) and drops the rows in place. A
+    /// failure leaves the rows and reloads from the source of truth, so the table
+    /// never shows a phantom-deleted row.
+    private func deleteClaims(_ claims: [Components.Schemas.KnowledgeClaim]) {
+        let ids = claims.compactMap(\.id)
+        guard !ids.isEmpty, let model else { return }
+        Task {
+            do {
+                try await model.delete(claimIds: ids)
+            } catch {
+                await model.load(folderId: folderId)
+            }
+        }
     }
 
     /// Human name for a claim's source document — its page title when the document
