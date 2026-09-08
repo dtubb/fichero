@@ -2,7 +2,7 @@
 
 *Full commit-level history, day by day, lives in [`CHANGELOG.md`](CHANGELOG.md).*
 
-## 2026.09.06
+## 2026.09.07
 
 Two builds in one day. An earlier rebuild fixed a packaging regression —
 shipped builds had been carrying Xcode's debug layout (a 296MB debug
