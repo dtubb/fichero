@@ -117,7 +117,11 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 THUMBNAIL_MAX_DIMENSION = 1024
-DISPLAY_MAX_DIMENSION = 1000
+# Display rendition long-edge cap. Raised from 1000 → 2200 so the reader's
+# preview/zoom is sharp on ~3600×4800 archival scans (the old 1000px cap read
+# as soft). Still bounded so display JPEGs stay small; true full-res is served
+# separately by GET /api/storage/source/{doc_id}. Override via FICHERO_DISPLAY_WIDTH.
+DISPLAY_MAX_DIMENSION = 2200
 DEFAULT_MAX_UPLOAD_BYTES = 500 * 1024 * 1024
 DEFAULT_UPLOAD_CHUNK_SIZE = 1024 * 1024
 
