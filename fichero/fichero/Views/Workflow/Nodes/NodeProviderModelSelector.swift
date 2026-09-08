@@ -73,6 +73,9 @@ struct NodeProviderModelSelector: View {
         providers: [ProviderOption],
         currentModelId: String
     ) -> String {
+        // Snapshot the id: `node` is inout, and logger.info's message is an
+        // escaping autoclosure — capturing the inout param directly is illegal.
+        let nodeId = node.id
         node.config?.removeValue(forKey: "provider_name")
         if newValue.isEmpty {
             // Default selected — clear explicit provider/model so the runtime uses its default
@@ -90,7 +93,7 @@ struct NodeProviderModelSelector: View {
             node.providerName = nil
             node.modelName = nil
             node.usesLLM = false
-            logger.info("Apple Vision selected for node \(node.id)")
+            logger.info("Apple Vision selected for node \(nodeId)")
             return ""
         } else if isModelAliasProviderId(newValue) {
             // Tier alias — runtime fills provider+model. Model picker hides.
@@ -98,7 +101,7 @@ struct NodeProviderModelSelector: View {
             node.providerName = newValue
             node.modelName = nil
             node.usesLLM = true
-            logger.info("Alias \(newValue) selected for node \(node.id)")
+            logger.info("Alias \(newValue) selected for node \(nodeId)")
             return ""
         } else {
             // LLM provider selected
