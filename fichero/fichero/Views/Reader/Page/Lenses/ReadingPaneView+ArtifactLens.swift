@@ -550,7 +550,8 @@ extension ReadingPaneView {
                 case .ok(let okResponse) = response,
                 let body = try? okResponse.body.json
             else { continue }
-            if !body.isEmpty { return true }
+            // swiftlint:disable:next empty_count - `count` is a response field, not a Collection
+            if body.count > 0 { return true }
         }
         return false
     }
