@@ -82,9 +82,20 @@ struct DocumentInspector: View {
 
     var body: some View {
         Group {
-            if let doc = document {
-                documentDetail(doc)
-            } else {
+            switch Self.inspectorArm(
+                hasDocument: document != nil,
+                focusedEntityId: kgFocusState.focusedEntityId
+            ) {
+            case .document:
+                if let doc = document { documentDetail(doc) }
+            case .entity:
+                // No document is selected but an entity is focused (Entities
+                // collection / Knowledge Graph mode). Show that entity rather
+                // than "No selection". (spec: kg-entity-inspector, F2)
+                if let entityId = kgFocusState.focusedEntityId {
+                    EntityInspectorArm(entityId: entityId, entityService: entityService)
+                }
+            case .empty:
                 emptyState
             }
         }
@@ -149,6 +160,58 @@ struct DocumentInspector: View {
             .font(.callout)
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    // MARK: - Which arm
+
+    /// Which inspector arm to show. A shown document wins (an entity focused
+    /// alongside it routes to that document's Entities tab, not away from it);
+    /// with no document but a focused entity, the entity arm; otherwise the empty
+    /// state. Pure so the rule is testable without a rendered inspector.
+    /// (spec: kg-entity-inspector, kg.entity.select.inspector-shows-entity — F2)
+    enum InspectorArm: Equatable { case document, entity, empty }
+
+    static func inspectorArm(hasDocument: Bool, focusedEntityId: String?) -> InspectorArm {
+        if hasDocument { return .document }
+        return focusedEntityId != nil ? .entity : .empty
+    }
+
+    /// The inspector's entity arm: the focused entity resolved to its record and
+    /// shown via `EntityDigestContent` — the same entity surface the Entities tab
+    /// renders inside a document, so statements + source click-through come for
+    /// free. Re-keyed on `entityId` so a focus change re-fetches and the pane
+    /// belongs to the new entity. (spec: kg-entity-inspector, F2 / rekey.on-focus-change)
+    private struct EntityInspectorArm: View {
+        let entityId: String
+        let entityService: EntityService
+        @State private var entity: Components.Schemas.KnowledgeEntity?
+        @State private var loadFailed = false
+
+        var body: some View {
+            Group {
+                if let entity {
+                    EntityDigestContent(entity: entity, entityService: entityService)
+                } else if loadFailed {
+                    ContentUnavailableView(
+                        "Entity Unavailable",
+                        systemImage: "person.crop.circle.badge.exclamationmark",
+                        description: Text("Could not load this entity.")
+                    )
+                } else {
+                    ProgressView()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            }
+            .task(id: entityId) {
+                loadFailed = false
+                entity = nil
+                do {
+                    entity = try await entityService.getEntity(entityId)
+                } catch {
+                    loadFailed = true
+                }
+            }
+        }
     }
 
     // MARK: - Helpers
