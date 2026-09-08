@@ -246,6 +246,13 @@ struct EntityDigestContent: View {
     /// the service (missing @Environment of a non-optional traps, #4513).
     @Environment(DocumentService.self) private var documentService: DocumentService?
 
+    /// The observable data layer for claims (#3300). Optional for the same
+    /// reason as `documentService`. The digest's statements load THROUGH this so
+    /// an edit/merge/delete/curation change anywhere resyncs here without
+    /// reselecting. (spec: kg-entity-inspector, kg.entity.statements.loads-via-store
+    /// + resyncs-on-change — F3)
+    @Environment(ClaimStore.self) private var claimStore: ClaimStore?
+
     @State private var claims: [Components.Schemas.KnowledgeClaim] = []
     /// The DOCUMENTS this entity appears in (user, 2026-08-20: "tell me in
     /// the inspector at the bottom where I can find this person — the actual
@@ -275,6 +282,12 @@ struct EntityDigestContent: View {
         .task(id: entity.id) {
             await loadClaims()
             await loadAppearsIn()
+        }
+        .onChange(of: claimStore?.changeToken) {
+            // A claim mutation anywhere (edit/merge/delete/curation) bumped the
+            // store — re-read this entity's statements without reselecting.
+            // (spec: kg-entity-inspector, kg.entity.statements.resyncs-on-change — F3)
+            Task { await loadClaims() }
         }
     }
 
@@ -675,12 +688,19 @@ struct EntityDigestContent: View {
             selectedClaimRowId = nil
             return
         }
-        do {
-            claims = try await entityService.listClaims(entityId: entityId, limit: 500)
-            selectedClaimRowId = nil
-        } catch {
-            claims = []
-            selectedClaimRowId = nil
+        // Route through the observable data layer (#3300) so a mutation anywhere
+        // resyncs here; fall back to a direct fetch only when no store is in the
+        // environment (the digest also renders in panes that don't carry it).
+        if let claimStore {
+            await claimStore.loadClaims(forEntity: entityId, force: true)
+            claims = claimStore.claims
+        } else {
+            do {
+                claims = try await entityService.listClaims(entityId: entityId, limit: 500)
+            } catch {
+                claims = []
+            }
         }
+        selectedClaimRowId = nil
     }
 }

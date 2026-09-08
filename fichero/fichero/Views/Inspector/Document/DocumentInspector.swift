@@ -93,7 +93,7 @@ struct DocumentInspector: View {
                 // collection / Knowledge Graph mode). Show that entity rather
                 // than "No selection". (spec: kg-entity-inspector, F2)
                 if let entityId = kgFocusState.focusedEntityId {
-                    EntityInspectorArm(entityId: entityId, entityService: entityService)
+                    entityArm(entityId)
                 }
             case .empty:
                 emptyState
@@ -160,6 +160,20 @@ struct DocumentInspector: View {
             .font(.callout)
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// The entity arm, with the library's claim store injected so the digest's
+    /// statements load through the observable data layer (spec: F3). Store
+    /// resolved defensively — if no library is open the digest falls back to a
+    /// direct fetch rather than trapping.
+    @ViewBuilder
+    private func entityArm(_ entityId: String) -> some View {
+        let arm = EntityInspectorArm(entityId: entityId, entityService: entityService)
+        if let claimStore = LibraryManager.shared.globalLibrary?.claimStore {
+            arm.environment(claimStore)
+        } else {
+            arm
+        }
     }
 
     // MARK: - Which arm
