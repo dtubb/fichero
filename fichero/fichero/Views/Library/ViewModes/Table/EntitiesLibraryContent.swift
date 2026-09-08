@@ -38,7 +38,7 @@ struct EntitiesLibraryContent: View {
         // A high limit: we filter to the folder client-side, so the library-wide
         // list must be complete enough not to drop the folder's entities (the
         // default page size is small). The store dedups repeat loads.
-        .task { await store.loadEntities(limit: 1000) }
+        .task { await store.loadEntities(limit: 25000) }
     }
 
     private var emptyMessage: String {

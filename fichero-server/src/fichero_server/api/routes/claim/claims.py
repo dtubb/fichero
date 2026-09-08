@@ -1090,7 +1090,7 @@ async def list_claims(
     include_descendants: Annotated[bool, Query()] = False,
     source_language: Annotated[str | None, Query()] = None,
     source_type: Annotated[SourceType | None, Query()] = None,
-    limit: Annotated[int, Query(ge=1, le=1000)] = 200,
+    limit: Annotated[int, Query(ge=1, le=25000)] = 200,
     offset: Annotated[int, Query(ge=0)] = 0,
     db: Database = Depends(get_library_database),
 ) -> ClaimListResponse:

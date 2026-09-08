@@ -35,7 +35,7 @@ final class LibraryClaimsModel {
     /// Load the claims for a folder scope. `folderId == nil` loads library-wide.
     /// `includeDescendants` makes a folder show every claim beneath it (recursive),
     /// matching how the table lists a folder's documents.
-    func load(folderId: String?, includeDescendants: Bool = true, limit: Int = 500) async {
+    func load(folderId: String?, includeDescendants: Bool = true, limit: Int = 25000) async {
         generation += 1
         let mine = generation
         isLoading = true
