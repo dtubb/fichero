@@ -131,6 +131,85 @@ def test_workflow_bar_lists_the_on_device_runtimes_out_of_the_box(client, app_db
         assert entry["models"], f"{rid} listed with no model to pick"
 
 
+def _local_entry(provider_type: str, model_id: str, capabilities: list[str], installed: bool):
+    from fichero_server.llm.local_inference import LocalModelCatalogEntry
+
+    return LocalModelCatalogEntry(
+        provider_type=provider_type,
+        model_id=model_id,
+        display_name=model_id,
+        capabilities=capabilities,
+        installed=installed,
+    )
+
+
+def test_on_device_runtime_lists_its_installed_models(client, app_db, monkeypatch):
+    """The workflow bar and the toolbar chip must see the SAME models Settings
+    does. Settings' MLX row reads the local catalog; this endpoint read only
+    app_db rows, which an always-present runtime never has — so both surfaces
+    saw a lone catalog default (`local-model`, not a model) while Settings
+    listed every download. Installed catalog entries ride here too, with the
+    capabilities the catalog knows.
+    """
+    from fichero_server.api.routes.ai import local_inference
+
+    monkeypatch.setattr(
+        local_inference,
+        "_local_catalog_entries",
+        lambda: [
+            _local_entry("omlx", "Chandra-OCR", ["text", "vision"], installed=True),
+            _local_entry("omlx", "Qwen3-4B-Instruct", ["text"], installed=True),
+            # Downloadable but NOT downloaded: cannot run, so not offered.
+            _local_entry("omlx", "Qwen2.5-VL-3B", ["text", "vision"], installed=False),
+            # Another runtime's download must not leak into MLX's list.
+            _local_entry("whisper", "turbo", ["audio"], installed=True),
+        ],
+    )
+
+    entry = next(i for i in client.get("/api/chat/providers").json()["items"] if i["id"] == "omlx")
+
+    assert entry["models"] == ["Chandra-OCR", "Qwen3-4B-Instruct"]
+    details = {d["model_id"]: d for d in entry["model_details"]}
+    assert details["Chandra-OCR"]["supports_vision"] is True
+    assert details["Qwen3-4B-Instruct"]["supports_vision"] is False
+    assert details["Qwen3-4B-Instruct"]["capabilities"] == ["text"]
+
+    whisper = next(i for i in client.get("/api/chat/providers").json()["items"] if i["id"] == "whisper")
+    assert whisper["models"] == ["turbo"]
+
+
+def test_on_device_runtime_with_nothing_installed_keeps_the_catalog_default(
+    client, app_db, monkeypatch
+):
+    """Nothing downloaded yet: the row still offers the catalog default so the
+    menu is never empty (the #4671 guarantee is unchanged)."""
+    from fichero_server.api.routes.ai import local_inference
+
+    monkeypatch.setattr(local_inference, "_local_catalog_entries", lambda: [])
+
+    entry = next(i for i in client.get("/api/chat/providers").json()["items"] if i["id"] == "omlx")
+
+    assert entry["models"], "an on-device runtime with no downloads still needs a pickable id"
+
+
+def test_configured_rows_win_over_the_local_catalog(client, app_db, monkeypatch):
+    """A user who explicitly configured MLX models keeps exactly those — the
+    catalog fills the gap only where app_db has nothing to say."""
+    from fichero_server.api.routes.ai import local_inference
+
+    provider = _provider(app_db, "omlx")
+    _model(app_db, provider, "my-pinned-model", ["text"])
+    monkeypatch.setattr(
+        local_inference,
+        "_local_catalog_entries",
+        lambda: [_local_entry("omlx", "Chandra-OCR", ["text", "vision"], installed=True)],
+    )
+
+    entry = next(i for i in client.get("/api/chat/providers").json()["items"] if i["id"] == "omlx")
+
+    assert entry["models"] == ["my-pinned-model"]
+
+
 def test_models_list_shape_is_unchanged(client, app_db):
     """`models` stays a plain id list so existing clients keep working."""
     provider = _provider(app_db)

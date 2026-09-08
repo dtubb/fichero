@@ -157,6 +157,38 @@ def _local_catalog_entries() -> list[LocalModelCatalogEntry]:
     return get_mlx_model_store().list_catalog_entries() + _extra()
 
 
+def installed_local_model_entries(provider_type: str) -> list[LocalModelCatalogEntry]:
+    """The INSTALLED models of one on-device runtime, as Settings lists them.
+
+    Settings' provider rows for MLX/spaCy/Kraken/Whisper read the local
+    catalog; the workflow bar and the toolbar model chip read
+    ``/api/chat/providers``, which knew only ``app_db`` model rows — and the
+    always-present runtimes have none, so those surfaces saw a single
+    catalog default (``local-model`` for MLX, which is not a model at all)
+    while Settings showed every downloaded model. Same defect class as #4560,
+    one endpoint over. This is the one seam both read, so they cannot drift.
+
+    Best-effort: a runtime whose status probe throws (Kraken venv missing,
+    HF cache unreadable) yields ``[]`` with a warning rather than failing the
+    whole provider list — the caller falls back to the catalog default.
+    """
+    import logging
+
+    try:
+        return [
+            entry
+            for entry in _local_catalog_entries()
+            # `use_enum_values` stores the raw value; tolerate an enum too.
+            if entry.installed
+            and getattr(entry.provider_type, "value", entry.provider_type) == provider_type
+        ]
+    except Exception as exc:  # pragma: no cover - probe failures are environmental
+        logging.getLogger(__name__).warning(
+            "Installed local models for %s could not be listed: %s", provider_type, exc
+        )
+        return []
+
+
 def _manager_for_profile(profile_id: str) -> LocalInferenceServiceManager:
     profile = _profile_by_id(profile_id)
     existing = _MANAGERS.get(profile_id)

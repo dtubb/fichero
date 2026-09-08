@@ -93,6 +93,37 @@ final class WorkflowRunProviderCacheTests: XCTestCase {
         XCTAssertTrue(source.contains("WorkflowRunProviderCache.shared.invalidate()"))
     }
 
+    // MARK: - The toolbar chip must reach a ChatService it can actually get
+
+    /// The model chip is a toolbar item, hosted by the WINDOW outside the
+    /// `LibraryWorkspaceRoot` tree that injects `library.chatService` (the
+    /// #4448 boundary). `@Environment(ChatService.self)` there was always
+    /// nil, `ensureLoaded(chatService: nil)` is a silent no-op, and the
+    /// popover sat on "Loading models…" forever while Settings listed every
+    /// model. The chip must resolve the service through `LibraryManager`,
+    /// which IS injected at the Scene — the same way the workflow bar does.
+    func testModelChipResolvesChatServiceThroughLibraryManagerNotTheToolbarEnvironment() throws {
+        let url = try AppSource.root()
+            .appendingPathComponent("Views/Shell/Toolbar/ModelChipToolbarItem.swift")
+        let source = try String(contentsOf: url, encoding: .utf8)
+
+        XCTAssertFalse(
+            source.contains("@Environment(ChatService.self)"),
+            "ChatService is never in the toolbar environment; reading it there is a permanent nil"
+        )
+        XCTAssertTrue(
+            source.contains("@Environment(LibraryManager.self)"),
+            "the chip must reach a library's chatService via the app-level LibraryManager"
+        )
+        // And it must WARM the cache itself: the workflow bar (the other
+        // warmer) is off by default, so a chip that only read the cache
+        // showed rows only when the bar happened to be on.
+        let warms = source.components(
+            separatedBy: "WorkflowRunProviderCache.shared.ensureLoaded(chatService: chatService)"
+        ).count - 1
+        XCTAssertEqual(warms, 2, "chip lifecycle + popover open must both warm the shared cache")
+    }
+
     // MARK: - #4276: out-of-app provider changes arrive via the change stream
 
     /// A provider added from ANOTHER window / device / the CLI never goes

@@ -1306,7 +1306,14 @@ async def list_providers(
     # shared helper so the workflow bar lists the same set as /api/providers
     # (#4671). Per-node suitability marking is the UI's job — a runtime is
     # listed here even where it can't chat, never silently filtered.
-    from fichero_server.api.routes.ai.providers import always_present_local_providers
+    from fichero_server.api.routes.ai.providers import (
+        _ALWAYS_PRESENT_LOCAL_TYPES,
+        always_present_local_providers,
+    )
+
+    # The runtimes whose models are installed DOWNLOADS rather than app_db
+    # rows — the very set merged in above, so the two cannot drift.
+    on_device_runtime_types = {ptype.value for ptype in _ALWAYS_PRESENT_LOCAL_TYPES}
 
     configured_providers = app_db.list_providers()
     configured_providers = configured_providers + always_present_local_providers(
@@ -1323,6 +1330,28 @@ async def list_providers(
         # Filter to enabled only
         models = [m for m in models if m.enabled]
         model_ids = [m.model_id for m in models]
+        capabilities_by_model = {
+            m.model_id: [str(cap).strip().lower() for cap in (m.capabilities or [])]
+            for m in models
+        }
+
+        # An on-device runtime's models are DOWNLOADS, not app_db rows: the
+        # always-present MLX/spaCy/Kraken/Whisper providers never have any.
+        # Settings lists what is installed from the local catalog; without
+        # this the workflow bar and the toolbar chip fell through to the one
+        # catalog default (`local-model` for MLX — not a model) while Settings
+        # showed every downloaded model. Same seam Settings reads, so the two
+        # cannot disagree (#4560 for the discovery route; this is its twin).
+        if not model_ids and provider_type in on_device_runtime_types:
+            from fichero_server.api.routes.ai.local_inference import (
+                installed_local_model_entries,
+            )
+
+            for entry in installed_local_model_entries(provider_type):
+                model_ids.append(entry.model_id)
+                capabilities_by_model[entry.model_id] = [
+                    str(cap).strip().lower() for cap in entry.capabilities
+                ]
 
         # If no models configured, use default from catalog
         if not model_ids:
@@ -1343,10 +1372,6 @@ async def list_providers(
         # Get vision support from catalog
         supports_vision = catalog_info.supports_vision if catalog_info else False
 
-        capabilities_by_model = {
-            m.model_id: [str(cap).strip().lower() for cap in (m.capabilities or [])]
-            for m in models
-        }
         model_details = []
         for model_id in model_ids:
             # A synthesized catalog default (no configured row) has no saved

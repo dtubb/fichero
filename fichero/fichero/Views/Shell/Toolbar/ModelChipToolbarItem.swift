@@ -43,7 +43,21 @@ struct ModelChipToolbarItem: View {
     /// selection, everything for text. From the same provider cache the Run
     /// Workflow menu uses, so the two lists can never disagree.
     @State private var isPresented = false
-    @Environment(ChatService.self) private var chatService: ChatService?
+    /// The provider list is fetched through a library's ChatService, but a
+    /// toolbar item is hosted by the WINDOW, outside the `LibraryWorkspaceRoot`
+    /// tree that injects `library.chatService` (#4448's boundary). Reading
+    /// `@Environment(ChatService.self)` here was always nil, and
+    /// `ensureLoaded(chatService: nil)` is a silent no-op — so the popover
+    /// sat on "Loading models…" for good unless the workflow bar happened to
+    /// have warmed the shared cache first. `LibraryManager` IS app-level
+    /// (injected at the Scene), and providers are app-wide, so any open
+    /// library's service answers the same question the bar's does.
+    @Environment(LibraryManager.self) private var libraryManager: LibraryManager?
+
+    private var chatService: ChatService? {
+        libraryManager?.globalLibrary?.chatService
+            ?? libraryManager?.openLibraries.first?.chatService
+    }
 
     /// Every configured model, NEVER filtered — only marked (Daniel,
     /// 2026-09-01: "cannot select a model like Opus or Google — maybe it's
@@ -158,7 +172,14 @@ struct ModelChipToolbarItem: View {
         .popover(isPresented: $isPresented, arrowEdge: .bottom) {
             modelPicker
         }
-        .task { await reload() }
+        .task {
+            await reload()
+            // Warm the shared cache from the CHIP's lifecycle too, not only
+            // the popover's: the chip is on every window while the workflow
+            // bar (the other warmer) is off by default, and a load-once cache
+            // costs nothing on a re-open.
+            await WorkflowRunProviderCache.shared.ensureLoaded(chatService: chatService)
+        }
         .help("\(prefersVision ? "Vision" : "Text") model for this selection: \(displayModel)")
         .accessibilityLabel("Model: \(displayModel)")
     }
