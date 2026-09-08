@@ -147,6 +147,51 @@ def test_extract_entities_tool_accepts_singleton_document_payload_without_unpack
     }
 
 
+def test_extract_entities_prompt_override_replaces_the_built_instruction(tmp_path: Path):
+    # A user-supplied `prompt` config value goes to the model verbatim as the
+    # `system` instruction; leaving it blank falls back to the built-in,
+    # per-language instruction — same override-or-default contract as the
+    # sibling extraction tools (diary_entries, geo_extract, ...).
+    library_path, parent_doc_id, page_doc_ids = _seed_importable_pdf_library(tmp_path)
+    db = db_manager.get_database(library_path)
+    page = db.get(Document, page_doc_ids[0])
+    assert page is not None
+
+    seen_systems: list[str] = []
+
+    async def fake_entities(**kwargs):
+        seen_systems.append(kwargs.get("system", ""))
+        return _EntitiesOnly(people=[], places=[], organizations=[], dates=[], events=[])
+
+    state = {
+        "library_path": str(library_path),
+        "selected_doc_ids": [parent_doc_id],
+        "task_id": "extract-entities-prompt-override",
+    }
+    with patch(
+        "fichero_server.workflows.tools.extract_entities_only.chat_structured_with_fallback",
+        new=fake_entities,
+    ):
+        asyncio.run(
+            extract_entities_only(
+                inputs={"documents": {"id": page.id}},
+                state=state,
+                llm_config=LLMConfig(provider="mock", model="mock"),
+            )
+        )
+        asyncio.run(
+            extract_entities_only(
+                inputs={"documents": {"id": page.id}, "prompt": "Custom instruction"},
+                state=state,
+                llm_config=LLMConfig(provider="mock", model="mock"),
+            )
+        )
+
+    assert seen_systems[1] == "Custom instruction"
+    assert seen_systems[0] != "Custom instruction"
+    assert seen_systems[0]  # the built default is non-empty
+
+
 def test_extract_entities_only_emits_per_document_workflow_changes(tmp_path: Path, monkeypatch):
     library_path, parent_doc_id, page_doc_ids = _seed_importable_pdf_library(tmp_path)
     events: list[tuple[str, dict]] = []

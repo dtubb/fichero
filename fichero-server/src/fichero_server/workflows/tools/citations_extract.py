@@ -204,17 +204,25 @@ def parse_bibliography_entry_regex(raw_text: str, index: int) -> BibliographyEnt
     )
 
 
+#: Default instruction for the structured LLM pass, overridable via the
+#: tool's `prompt` config field (same override-or-default contract as the
+#: sibling extraction tools).
+_DEFAULT_PARSE_PROMPT = (
+    "Parse one bibliography entry into structured citation fields. "
+    "Use only information present in the entry. Leave unknown fields empty."
+)
+
+
 async def parse_bibliography_entry(
     raw_text: str,
     index: int,
     llm_config: LLMConfig,
+    *,
+    prompt: str | None = None,
 ) -> BibliographyEntry:
     """Parse one entry with regex plus a conservative structured LLM pass."""
     fallback = parse_bibliography_entry_regex(raw_text, index)
-    system = (
-        "Parse one bibliography entry into structured citation fields. "
-        "Use only information present in the entry. Leave unknown fields empty."
-    )
+    system = prompt or _DEFAULT_PARSE_PROMPT
     try:
         result = await chat_structured_with_fallback(
             prompt=raw_text[:2500],
@@ -370,6 +378,8 @@ async def extract_citations_for_document(
     db: Database,
     source_doc: Document,
     llm_config: LLMConfig,
+    *,
+    prompt: str | None = None,
 ) -> dict[str, Any]:
     pages = _page_records_for_document(db, source_doc)
     document_ids: set[str] = {source_doc.id}
@@ -380,7 +390,7 @@ async def extract_citations_for_document(
 
     raw_entries = split_bibliography_entries(bibliography_text)
     entries = [
-        await parse_bibliography_entry(raw_entry, index, llm_config)
+        await parse_bibliography_entry(raw_entry, index, llm_config, prompt=prompt)
         for index, raw_entry in enumerate(raw_entries, start=1)
     ]
     body_pages = _body_pages_before_bibliography(pages, body_text)
@@ -501,6 +511,13 @@ def _body_pages_before_bibliography(
     uses_llm=True,
     supports_batch=False,
     supports_structured_output=True,
+    config_schema={
+        "prompt": {
+            "type": "string",
+            "description": "Custom instruction for parsing one bibliography entry",
+            "x-group": "primary",
+        },
+    },
     input_ports=[
         PortDef(
             id="documents",
@@ -550,7 +567,10 @@ async def citations_extract(
     if source_doc is None:
         return {"citations": {}, "text": "", "error": "No source document selected"}
 
-    result = await extract_citations_for_document(db, source_doc, llm_config)
+    prompt_override = str(inputs.get("prompt") or "").strip() or None
+    result = await extract_citations_for_document(
+        db, source_doc, llm_config, prompt=prompt_override
+    )
     if result.get("entity_ids") or result.get("claim_ids"):
         emit_workflow_kg_changes(
             str(db.path.parent),

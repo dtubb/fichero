@@ -150,6 +150,56 @@ def test_extract_svo_preset_persists_claims_and_is_idempotent(tmp_path: Path):
     assert len(transcription_artifacts) == 2
 
 
+def test_extract_svo_prompt_override_replaces_the_built_instruction(tmp_path: Path):
+    # A user-supplied `prompt` config value goes straight to the main
+    # per-entity claim pass as its instruction; leaving it blank falls back
+    # to `_build_page_claim_instructions` — same override-or-default
+    # contract as the sibling extraction tools.
+    from fichero_server.workflows.tools.extract_svo_only import extract_svo_only
+
+    library_path, parent_doc_id, page_doc_ids = _seed_extractable_library(tmp_path)
+
+    seen_instructions: list[str] = []
+
+    async def fake_extract_page_claims(page_text, llm_config, instructions, extraction_sem):
+        del page_text, llm_config, extraction_sem
+        seen_instructions.append(instructions)
+        return []
+
+    state = {
+        "library_path": str(library_path),
+        "selected_doc_ids": [parent_doc_id],
+        "task_id": "extract-svo-prompt-override",
+    }
+    with patch(
+        "fichero_server.workflows.tools.extract_svo_only._extract_page_claims",
+        new=fake_extract_page_claims,
+    ):
+        asyncio.run(
+            extract_svo_only(
+                inputs={"documents": [{"id": did} for did in page_doc_ids]},
+                state=state,
+                llm_config=None,
+            )
+        )
+        asyncio.run(
+            extract_svo_only(
+                inputs={
+                    "documents": [{"id": did} for did in page_doc_ids],
+                    "prompt": "Custom claim instruction",
+                },
+                state=state,
+                llm_config=None,
+            )
+        )
+
+    assert len(seen_instructions) == 4  # two pages x two runs
+    assert seen_instructions[0] != "Custom claim instruction"
+    assert seen_instructions[0]  # the built default is non-empty
+    assert seen_instructions[2] == "Custom claim instruction"
+    assert seen_instructions[3] == "Custom claim instruction"
+
+
 def _seed_extractable_library(tmp_path: Path) -> tuple[Path, str, list[str]]:
     library_path = tmp_path / "extract-svo-stage.fichero"
     seed(library_path)
