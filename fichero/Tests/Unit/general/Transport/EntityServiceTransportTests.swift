@@ -243,4 +243,36 @@ final class EntityServiceTransportTests: XCTestCase {
         XCTAssertEqual(classes.count, 0)
         assertRecorded(pathContains: "/api/classifications", method: "GET")
     }
+
+    // MARK: - Wikidata enrichment (spec: kg-enrichment — the Swift layer of the
+    // cross-surface testing mandate for an existing, previously-untested capability)
+
+    func testEnrichPreviewRoutesThroughTransport() async throws {
+        let service = makeService(stubs: [
+            Stub(
+                pathContains: "/api/kg/entity-curation/enrich/preview",
+                status: 200,
+                body: Data(#"{"statements":[]}"#.utf8)
+            )
+        ])
+        let data = try await service.enrichPreview(entityId: "ent-1", qid: "Q42")
+        XCTAssertFalse(data.isEmpty)
+        assertRecorded(pathContains: "/api/kg/entity-curation/enrich/preview", method: "POST")
+    }
+
+    func testEnrichImportRoutesThroughTransport() async throws {
+        let service = makeService(stubs: [
+            Stub(
+                pathContains: "/api/kg/entity-curation/enrich/import",
+                status: 200,
+                body: Data(#"{"imported":0,"claim_ids":[]}"#.utf8)
+            )
+        ])
+        _ = try await service.enrichImport(
+            entityId: "ent-1",
+            qid: "Q42",
+            statements: [["property": "P569", "value": "1900"]]
+        )
+        assertRecorded(pathContains: "/api/kg/entity-curation/enrich/import", method: "POST")
+    }
 }
