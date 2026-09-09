@@ -52,15 +52,17 @@ LEGACY_SPECS_DIR = pathlib.Path("agent-work/specs")
 
 
 def _spec_stems() -> set[str]:
-    canonical = {p.stem for p in SPECS_DIR.glob("*.md")}
-    legacy = {p.stem for p in LEGACY_SPECS_DIR.glob("*.md")} if LEGACY_SPECS_DIR.exists() else set()
+    # rglob so specs may be grouped into area subfolders (e.g. specs/kg/*.md) without
+    # breaking stem-based citations (the "split by area" ruling, 2026-09-09).
+    canonical = {p.stem for p in SPECS_DIR.rglob("*.md")}
+    legacy = {p.stem for p in LEGACY_SPECS_DIR.rglob("*.md")} if LEGACY_SPECS_DIR.exists() else set()
     return canonical | legacy
 
 
 def _approved_stems() -> set[str]:
-    """APPROVED specs in the CANONICAL dir — these must be tested (Rule B)."""
+    """APPROVED specs in the CANONICAL tree — these must be tested (Rule B)."""
     approved = set()
-    for p in SPECS_DIR.glob("*.md"):
+    for p in SPECS_DIR.rglob("*.md"):
         head = p.read_text(encoding="utf-8")[:800]
         if re.search(r"Status:\s*APPROVED", head):
             approved.add(p.stem)
