@@ -87,6 +87,46 @@ Surfaces: `EntitiesLibraryContent` / `EntitiesTableView`, `ClaimsLibraryContent`
   Section E lands AFTER #4636's model exists; the tables' first waves (filters + CRUD
   below) do NOT block on it and ship first.
 
+## Scale, bulk operations & first-class library view (creative-director review, 2026-09-09)
+
+The tables must behave like a **first-class Mac library view** at archive scale (1k–100k
+entities/claims), not a small demo table. What's missing:
+
+### Bulk operations at scale
+- `kg.scale.batch-delete` [MISSING backend] — deleting N rows is N sequential per-id DELETEs
+  today (1000 rows = 1000 round-trips) AND aborts mid-loop on one failure, leaving the UX
+  showing already-deleted rows (drift). Batch endpoints EXIST for transition / upsert /
+  curation (`/api/claims/batch/transition`, `/api/entities/batch`, `/api/kg/claims/batch-
+  curation`) but **not delete** — add `POST /api/claims/batch-delete` + `/api/entities/
+  batch-delete` (one audited, atomic-where-possible action) so 1k–10k is one call.
+- `kg.scale.bulk-correctness` — a bulk op prunes exactly the rows that SUCCEEDED (partial
+  failure never drifts the UX); interim client fix = bounded-concurrent deletes collecting
+  successes (reuse the `BatchService` maxConcurrent task-group pattern) until the endpoint lands.
+- `kg.scale.normalize-names` [MISSING] — a bulk "normalize / canonicalize names" op over a
+  selection (or the whole library) via a provider/AI: fold "Matheo del Mazo" / "Mateo del
+  Mazo" to a canonical form + merge. A batch curation/enrichment action, not per-row.
+- `kg.scale.progress-cancel` — a long bulk op shows progress and is cancellable; bounded so
+  it never pegs the machine (Article 4 resource-safety).
+
+### First-class library view affordances
+- `kg.view.contiguous-selection` [OK] — Set-based selection gives shift-click range +
+  ⌘-click; keep it.
+- `kg.view.keyboard-delete` [MISSING] — ⌘⌫ deletes the selection; ⌘A selects all — same
+  selection grammar as every other library mode (`check_selection_grammar`, #4436).
+- `kg.view.type-icons` [MISSING] — rows use the per-type icons that ALREADY exist
+  (`KnowledgeGraphSupport`: person/place/org/event/concept/date), not one flat glyph.
+- `kg.view.pagination` [MISSING at 10k] — the table loads up to 25 000 client-side; at
+  10k+ push filter/scope to the list endpoint (`filter.pushdown`) and page, so memory and
+  first-paint stay bounded.
+
+### Test coverage for scale — Swift + UX + backend + LOAD (all required)
+| Behavior | Backend (pytest) | Swift (unit) | UX (XCUITest) | Load/background (#4634) |
+|---|---|---|---|---|
+| batch-delete | endpoint deletes N atomically; audited; partial reported | bounded/bulk delete prunes only successes | select many → delete → rows gone | delete 1k/10k bounded, no peg, timed |
+| normalize-names | batch op merges canonically | pure canonicalize rule | select → normalize → merged | 10k under bounded concurrency |
+| keyboard-delete | — | command maps to delete action | ⌘⌫ removes selection | — |
+| type-icons | — | pure icon-for-type mapping | rows show right icons | — |
+
 ## First wave to pin (proposed)
 1. Filters: `filter.text` + `filter.entity-type` / `filter.claim-type` +
    `filter.combines-with-search` + `filter.empty-state` (#4625) — cleanest, no backend work.
