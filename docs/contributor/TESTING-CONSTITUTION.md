@@ -126,6 +126,12 @@ The constitution holds principles. **Current state lives in GitHub issues, not h
   handoff — they change weekly and would rot the constitution.
 - **Per-capability behavioral specs** → `docs/contributor/specs/<area>.md`, cited by the
   tests' docstrings.
+- **Which tests to write for a surface (the checklist so you don't have to remember)** →
+  `docs/contributor/TEST-TEMPLATE.md` — the per-surface leg matrix (pure rule · availability
+  · backend · MCP · CLI · **click-around XCUITest** · iPad/iOS · load) with a fill-in-the-blank
+  skeleton per leg, grounded in the real harnesses. Paste its matrix into a spec's *Test
+  matrix* section. The click-around leg is the weakest — treat its skeleton as non-optional
+  for any surface a user touches, and list the accessibility identifiers it needs in the spec.
 
 A bug is a line in an issue; a lesson from it is (maybe) a line in this doc.
 
