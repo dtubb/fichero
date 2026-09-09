@@ -272,8 +272,9 @@ struct InspectorAttributeChoiceStoreTests {
         store.toggle(.pageCount, forPrototype: "diary")
         let visible = InspectorAttributeVisibility.visibleAttributes(
             for: document, chosen: store.chosen(forPrototype: "diary"))
-        // The default (`Class`) rides along: toggling ADDS to what is shown.
-        #expect(visible == [.documentClass, .pageCount])
+        // The defaults (`Class` + `Language`) ride along: toggling ADDS to what
+        // is shown (defaultVisible = [.documentClass, .language] since #—language).
+        #expect(visible == [.documentClass, .language, .pageCount])
     }
 
     @Test("every attribute can be turned on through the chooser")

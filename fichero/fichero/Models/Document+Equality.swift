@@ -33,6 +33,7 @@ extension Document {
             && lhs.parentId == rhs.parentId
             && lhs.docType == rhs.docType
             && lhs.fileType == rhs.fileType
+            && lhs.language == rhs.language
             && lhs.name == rhs.name
             && lhs.path == rhs.path
             && lhs.sequence == rhs.sequence
@@ -52,7 +53,9 @@ extension Document {
             && lhs.expectedDisplayPath == rhs.expectedDisplayPath
         // Deliberately NOT compared (expensive; changes arrive with an
         // updatedAt bump): metadata, pageContent, curatedItems, structure,
-        // dateMeta, attributes.
+        // dateMeta, languageMeta, attributes.
+        // (`language` is a cheap scalar and IS compared above; `languageMeta`
+        // — like `dateMeta` — is the evidential/aggregate blob, skipped.)
     }
 
     // Equal values must hash equal; hashing a subset of the compared fields

@@ -94,7 +94,7 @@ struct DocumentEqualityTests {
     func storedPropertyInventory() {
         let classified: Set<String> = [
             // compared
-            "id", "parentId", "docType", "fileType", "name", "path",
+            "id", "parentId", "docType", "fileType", "language", "name", "path",
             "sequence", "bbox", "regionInParent", "status",
             "excludeFromProcessing", "excludeFromSearch",
             "isWorkspace", "childCount", "dateOriginal", "dateJdn",
@@ -103,7 +103,7 @@ struct DocumentEqualityTests {
             "expectedDisplayPath",
             // knowingly skipped (expensive; server writes bump updatedAt)
             "metadata", "pageContent", "curatedItems", "structure",
-            "dateMeta", "attributes"
+            "dateMeta", "languageMeta", "attributes"
         ]
         let stored = Set(Mirror(reflecting: makeDocument()).children.compactMap(\.label))
         #expect(
