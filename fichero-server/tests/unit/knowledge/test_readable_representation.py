@@ -176,3 +176,36 @@ def test_chronological_uses_earliest_of_multiple_date_values():
     ])
     mid = KnowledgeClaim(text="mid", time_start="1790-01-01")
     assert order_claims([mid, early], Ordering.chronological) == [early, mid]
+
+
+# ---- Stage 6: realisation (Spanish + English) ---------------------------------------
+
+def test_realises_single_claim_in_spanish():
+    from fichero_server.knowledge.readable import render_aggregation
+    agg = aggregate_claims([_svo("Ana", "nació en", "Quibdó")])[0]
+    assert render_aggregation(agg, language="es") == "Ana nació en Quibdó."
+
+
+def test_realises_aggregated_count_and_places_in_spanish():
+    from fichero_server.knowledge.readable import render_aggregation
+    a = _svo("Ana", "atestiguó", "un testamento", claim_location="Nóvita")
+    b = _svo("Ana", "atestiguó", "una venta", claim_location="Quibdó")
+    c = _svo("Ana", "atestiguó", "una escritura", claim_location="Nóvita")
+    agg = aggregate_claims([a, b, c])[0]
+    assert render_aggregation(agg, language="es") == "Ana atestiguó 3 veces (en Nóvita y Quibdó)."
+
+
+def test_realises_aggregated_count_and_places_in_english():
+    from fichero_server.knowledge.readable import render_aggregation
+    a = _svo("Ana", "witnessed", "a will", claim_location="Nóvita")
+    b = _svo("Ana", "witnessed", "a sale", claim_location="Quibdó")
+    agg = aggregate_claims([a, b])[0]
+    assert render_aggregation(agg, language="en") == "Ana witnessed 2 times (at Nóvita and Quibdó)."
+
+
+def test_unknown_language_falls_back_to_english_glue():
+    from fichero_server.knowledge.readable import render_aggregation
+    a = _svo("Ana", "witnessed", "a will", claim_location="Nóvita")
+    b = _svo("Ana", "witnessed", "a sale", claim_location="Quibdó")
+    agg = aggregate_claims([a, b])[0]
+    assert render_aggregation(agg, language="xx") == "Ana witnessed 2 times (at Nóvita and Quibdó)."

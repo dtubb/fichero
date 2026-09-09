@@ -151,3 +151,46 @@ def referring_expression(full_name: str, *, first_mention: bool) -> str:
         return name
     tokens = name.split(" ")
     return tokens[-1] if len(tokens) > 1 else name
+
+
+# Stage 6 — realisation. ponytail: a minimal per-language phrase table for the
+# count/place scaffolding ONLY. The verb + objects come from the claim's own SVO
+# (already in the source's language — we never translate); this table supplies the
+# language-specific glue ("N veces", "en X y Y" / "N times", "at X and Y"). Add a
+# language by adding a row. Escalate to Grammatical Framework (the Abstract
+# Wikipedia path) only when morphology outgrows this.
+_REALISATION = {
+    "es": {"times": "veces", "at": "en", "and": "y"},
+    "en": {"times": "times", "at": "at", "and": "and"},
+}
+
+
+def _join_list(items: list[str], conjunction: str) -> str:
+    """"A, B y C" / "A, B and C" — the last item joined by the language's conjunction."""
+    parts = [p for p in items if p]
+    if not parts:
+        return ""
+    if len(parts) == 1:
+        return parts[0]
+    return f"{', '.join(parts[:-1])} {conjunction} {parts[-1]}"
+
+
+def render_aggregation(agg: "Aggregation", language: str = "es") -> str:
+    """Stage 6 — realise one Aggregation into a sentence in `language`.
+
+    Deterministic, no LLM. The subject/verb are the claim's own words (source
+    language); this only phrases the count and the place distribution.
+    """
+    glue = _REALISATION.get(language, _REALISATION["en"])
+    head = " ".join(part for part in (agg.subject, agg.verb) if part).strip()
+    if agg.count > 1:
+        body = f"{head} {agg.count} {glue['times']}".strip()
+    elif agg.objects:
+        body = f"{head} {_join_list(agg.objects, glue['and'])}".strip()
+    else:
+        body = head
+    if not body:
+        return ""
+    if agg.places:
+        body = f"{body} ({glue['at']} {_join_list(agg.places, glue['and'])})"
+    return body if body.endswith(".") else body + "."

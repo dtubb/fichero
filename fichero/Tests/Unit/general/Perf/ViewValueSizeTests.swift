@@ -43,6 +43,11 @@ final class ViewValueSizeTests: XCTestCase {
         // now a hard follow-up owned by the workflow-bar lane — the next growth
         // must box, not raise. Bumped under a demo freeze; the refactor is
         // tracked for after, not rushed the night before travel.
-        assertSize(ContentView.self, atMost: 5864)
+        // 5864 → 6064 (2026-09-10: the Document `language` field + inspector
+        // language attribute — legitimate feature state). This raise OVERRIDES the
+        // "last raise" note above by creative-director decision; the boxing
+        // follow-up (fold stagedChain* + workspace SceneStorage into one reference
+        // holder) is now OVERDUE, not optional.
+        assertSize(ContentView.self, atMost: 6064)
     }
 }
