@@ -10,8 +10,6 @@
 		A18ED3AB2F13E313007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3AA2F13E313007C2C6E /* FicheroAPIClient */; };
 		A18ED3F22F141DFE007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3F12F141DFE007C2C6E /* FicheroAPIClient */; };
 		C10000020000000000000001 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; platformFilters = (macos, ); productRef = C10000310000000000000001 /* Sparkle */; };
-		FEED0000000000000000024E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3AA2F13E313007C2C6E /* FicheroAPIClient */; };
-		FEED0000000000000000024F /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3F12F141DFE007C2C6E /* FicheroAPIClient */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -61,14 +59,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 1;
 		};
-		FEED00000000000000000254 /* CopyFiles */ = {
-			isa = PBXCopyFilesBuildPhase;
-			dstPath = "";
-			dstSubfolder = None;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 1;
-		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
@@ -85,7 +75,6 @@
 		DEB68505AB23DDCB630B6A17 /* InstallToolsWindow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InstallToolsWindow.swift; sourceTree = "<group>"; };
 		F105C0DE0000000000000001 /* FicheroIOSUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroIOSUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		FE1DAD000000000000000010 /* FicheroIPadTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroIPadTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		FEED00000000000000000260 /* Fichero.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Fichero.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		FEED00000000000000000262 /* Configs/Version.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Configs/Version.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -97,13 +86,6 @@
 			);
 			target = 500 /* Fichero */;
 		};
-		205592B9300BF97F001A5D3D /* Exceptions for "fichero" folder in "Fichero (App Store)" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Info.plist,
-			);
-			target = FEED00000000000000000261 /* Fichero (App Store) */;
-		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -111,7 +93,6 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				205592B8300BF97F001A5D3D /* Exceptions for "fichero" folder in "Fichero" target */,
-				205592B9300BF97F001A5D3D /* Exceptions for "fichero" folder in "Fichero (App Store)" target */,
 			);
 			path = fichero;
 			sourceTree = "<group>";
@@ -192,13 +173,6 @@
 			files = (
 			);
 		};
-		FEED00000000000000000250 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			files = (
-				FEED0000000000000000024E /* FicheroAPIClient in Frameworks */,
-				FEED0000000000000000024F /* FicheroAPIClient in Frameworks */,
-			);
-		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -242,7 +216,6 @@
 			isa = PBXGroup;
 			children = (
 				100 /* Fichero.app */,
-				FEED00000000000000000260 /* Fichero.app */,
 				A10521A92EFDC92400B28C3E /* FicheroTests.xctest */,
 				FE1DAD000000000000000010 /* FicheroIPadTests.xctest */,
 				A10521C12EFDC94100B28C3E /* FicheroUITests.xctest */,
@@ -457,33 +430,6 @@
 			productReference = FE1DAD000000000000000010 /* FicheroIPadTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		FEED00000000000000000261 /* Fichero (App Store) */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = FEED0000000000000000025F /* Build configuration list for PBXNativeTarget "Fichero (App Store)" */;
-			buildPhases = (
-				FEED0000000000000000024D /* Sources */,
-				FEED00000000000000000250 /* Frameworks */,
-				FEED00000000000000000253 /* Resources */,
-				FEED00000000000000000254 /* CopyFiles */,
-				FEED00000000000000000255 /* SwiftLint */,
-				FEED00000000000000000256 /* Embed Fichero Server */,
-				SBX00042F27F36000EC9EE1 /* Strip Sparkle Info.plist Keys */,
-				SBX00052F27F36000EC9EE1 /* Validate App Store Bundle */,
-			);
-			buildRules = (
-			);
-			fileSystemSynchronizedGroups = (
-				20558E0F300BF97D001A5D3D /* fichero */,
-			);
-			name = "Fichero (App Store)";
-			packageProductDependencies = (
-				A18ED3AA2F13E313007C2C6E /* FicheroAPIClient */,
-				A18ED3F12F141DFE007C2C6E /* FicheroAPIClient */,
-			);
-			productName = Fichero;
-			productReference = FEED00000000000000000260 /* Fichero.app */;
-			productType = "com.apple.product-type.application";
-		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -535,11 +481,10 @@
 			projectRoot = "";
 			targets = (
 				500 /* Fichero */,
-				FEED00000000000000000261 /* Fichero (App Store) */,
 				A10521A82EFDC92400B28C3E /* FicheroTests */,
 				FE1DAD000000000000000070 /* FicheroIPadTests */,
-				A10521C02EFDC94100B28C3E /* FicheroUITests */,
 				208ADA983022008100B83F96 /* FicheroIOSTests */,
+				A10521C02EFDC94100B28C3E /* FicheroUITests */,
 				F105C0DE0000000000000000 /* FicheroIOSUITests */,
 			);
 		};
@@ -572,11 +517,6 @@
 			);
 		};
 		FE1DAD000000000000000032 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			files = (
-			);
-		};
-		FEED00000000000000000253 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			files = (
 			);
@@ -760,435 +700,6 @@
 				"",
 			);
 		};
-		FEED00000000000000000255 /* SwiftLint */ = {
-			isa = PBXShellScriptBuildPhase;
-			inputPaths = (
-				"$(SRCROOT)/../.swiftlint.yml",
-				"$(SRCROOT)/fichero",
-			);
-			name = SwiftLint;
-			outputPaths = (
-				"$(DERIVED_FILE_DIR)/swiftlint.done",
-			);
-			shellPath = /bin/sh;
-			shellScript = (
-				"SWIFTLINT_BIN=\"${SWIFTLINT_PATH:-/opt/homebrew/bin/swiftlint}\"",
-				"if [ ! -x \"$SWIFTLINT_BIN\" ]; then",
-				"  SWIFTLINT_BIN=\"$(command -v swiftlint || true)\"",
-				"fi",
-				"",
-				"if [ -x \"$SWIFTLINT_BIN\" ]; then",
-				"  \"$SWIFTLINT_BIN\" lint --config \"$SRCROOT/../.swiftlint.yml\" \"$SRCROOT/fichero\"",
-				"else",
-				"  echo \"warning: SwiftLint not installed, download from https://github.com/realm/SwiftLint\"",
-				"fi",
-				"",
-				"mkdir -p \"$DERIVED_FILE_DIR\"",
-				"touch \"$DERIVED_FILE_DIR/swiftlint.done\"",
-				"",
-				"",
-			);
-		};
-		FEED00000000000000000256 /* Embed Fichero Server */ = {
-			isa = PBXShellScriptBuildPhase;
-			inputFileListPaths = (
-				"$(SRCROOT)/fichero.xcodeproj/xcshareddata/FicheroEngineEmbedInputs.xcfilelist",
-			);
-			inputPaths = (
-				"$(SRCROOT)/../fichero-server/build/fichero_server/macos/app/Fichero Server.app",
-				"$(SRCROOT)/fichero/FicheroEngineAppStore.entitlements",
-			);
-			name = "Embed Fichero Server";
-			outputPaths = (
-				"$(FICHERO_ENGINE_EMBED_OUTPUT_PATH)",
-			);
-			shellPath = /bin/sh;
-			shellScript = (
-				"# Embed the briefcase-built engine into the App Store app bundle — SANDBOXED.",
-				"#",
-				"# The DMG target has its own copy of this phase; the two channels diverge and",
-				"# must stay diverged. Differences here, both mandatory for App Store ingestion:",
-				"#",
-				"#   1. The engine is SIGNED IN THIS PHASE with app-sandbox + inherit. A nested",
-				"#      executable that is not sandboxed is rejected at upload (ITMS-90296).",
-				"#      Xcode's own CodeSign phase runs AFTER this one and seals the outer app,",
-				"#      so by then the helper is already correctly signed.",
-				"#   2. NEVER `codesign --deep`. --deep re-signs nested code with the PARENT's",
-				"#      entitlements, which silently replaces the engine's two-key set and breaks",
-				"#      the inherit rule (#3746 spike).",
-				"#   3. NO hardened runtime and NO com.apple.security.cs.* keys. Those are",
-				"#      NOTARIZATION requirements for the DMG; MAS is not notarized, and the",
-				"#      spike proved the engine's 2,889 native libs load without them.",
-				"",
-				"if [ \"${PLATFORM_NAME}\" != \"macosx\" ]; then",
-				"  echo \"Skipping engine embed (non-macOS platform ${PLATFORM_NAME})\"",
-				"  exit 0",
-				"fi",
-				"",
-				"if [ \"${FICHERO_EMBED_ENGINE}\" != \"YES\" ]; then",
-				"  echo \"Skipping engine embed (FICHERO_EMBED_ENGINE=${FICHERO_EMBED_ENGINE}); use external backend on :8765\"",
-				"  exit 0",
-				"fi",
-				"",
-				"# Contents/Helpers, NOT Contents/Resources (#3749). TN2206 lists the",
-				"# designated code locations for nested executables — MacOS, Frameworks,",
-				"# Helpers, PlugIns, XPCServices, Library. Resources is not one of them,",
-				"# and MAS ingestion validation is stricter than notarization: an",
-				"# executable .app under Resources is an invalid bundle structure. The",
-				"# spike (#3746) ran the engine from Contents/Helpers. The DMG target",
-				"# keeps Contents/Resources and is deliberately left alone.",
-				"",
-				"\"${SRCROOT}/../scripts/preflight-embedded-engine.sh\"",
-				"ENGINE_SRC=\"${SRCROOT}/../fichero-server/build/fichero_server/macos/app/Fichero Server.app\"",
-				"ENGINE_ENTITLEMENTS=\"${SRCROOT}/fichero/FicheroEngineAppStore.entitlements\"",
-				"",
-				"# THE APP BUNDLE, AS A REAL PATH. Read this before changing it.",
-				"#",
-				"# ${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app is a SYMLINK in an archive/install build",
-				"# (ACTION=install): Xcode assembles the product under DSTROOT and leaves a symlink in",
-				"# the products dir. That is fine for `cp`, which resolves path components and writes",
-				"# THROUGH the link — which is why the engine embed always worked. It is NOT fine for",
-				"# `find`: with a symlink as its starting point and no -H/-L, find does not descend.",
-				"# It silently reports zero matches.",
-				"#",
-				"# That is what shipped the R2 archive full of .dSYMs. The strips found nothing, so",
-				"# they deleted nothing — and the \"no .dSYM remain\" assertions right below also found",
-				"# nothing, so they PASSED. A vacuous find looks exactly like a clean bundle.",
-				"#",
-				"# TARGET_BUILD_DIR/WRAPPER_NAME is the real product location in every ACTION, and",
-				"# `cd && pwd -P` resolves any remaining symlink to a physical path, so every find",
-				"# below starts at a real directory.",
-				"APP_DST=\"${TARGET_BUILD_DIR}/${WRAPPER_NAME}\"",
-				"if [ ! -d \"$APP_DST\" ]; then",
-				"  echo \"error: no app bundle at $APP_DST (TARGET_BUILD_DIR/WRAPPER_NAME)\" >&2",
-				"  exit 1",
-				"fi",
-				"APP_DST=\"$(cd \"$APP_DST\" && pwd -P)\"",
-				"ENGINE_DST=\"$APP_DST/Contents/Helpers/Fichero Server.app\"",
-				"APP_PLIST_FOR_STAMP=\"$APP_DST/Contents/Info.plist\"",
-				"",
-				"# Prove the traversal works before trusting anything it says. An app bundle always",
-				"# contains files; if find sees none, it is not traversing, and every check below",
-				"# would \"pass\" without inspecting a single byte. Fail loudly instead — this is the",
-				"# assertion whose absence let the last two rejections through.",
-				"if [ \"$(find \"$APP_DST\" -type f | head -1 | wc -l | tr -d \" \")\" -eq 0 ]; then",
-				"  echo \"error: find traverses nothing under $APP_DST — the strips and their checks would vacuously pass\" >&2",
-				"  exit 1",
-				"fi",
-				"echo \"  app bundle (resolved): $APP_DST\"",
-				"",
-				"if [ ! -d \"$ENGINE_SRC\" ]; then",
-				"  echo \"error: Fichero Server.app not found at $ENGINE_SRC — run 'briefcase build macOS --app server' in fichero-server/ first\" >&2",
-				"  exit 1",
-				"fi",
-				"",
-				"if [ ! -f \"$ENGINE_ENTITLEMENTS\" ]; then",
-				"  echo \"error: App Store engine entitlements not found at $ENGINE_ENTITLEMENTS\" >&2",
-				"  exit 1",
-				"fi",
-				"",
-				"",
-				"# Record WHAT was embedded in the host app's Info.plist, so the running app can",
-				"# check the engine answering it against the engine this build shipped (2026-09-01:",
-				"# a Dev Embedded build announced engine 2026.8.27 from a tree whose pyproject had",
-				"# moved on, and nothing at runtime disagreed). Written BEFORE the embed-stamp skip",
-				"# below: Xcode regenerates Info.plist every build, so a skipped embed would drop",
-				"# the keys and the launch check would go quiet exactly when nothing changed.",
-				"\"${SRCROOT}/../scripts/stamp_engine_version_into_app.sh\" \"$APP_PLIST_FOR_STAMP\" \"$ENGINE_SRC\"",
-				"",
-				"echo \"Embedding engine (App Store, sandboxed): $ENGINE_SRC -> $ENGINE_DST\"",
-				"rm -rf \"$ENGINE_DST\"",
-				"mkdir -p \"$(dirname \"$ENGINE_DST\")\"",
-				"cp -R \"$ENGINE_SRC\" \"$ENGINE_DST\"",
-				"\"${SRCROOT}/../scripts/clean-embedded-engine.sh\" \"$ENGINE_DST\"",
-				"",
-				"# Remove static archives (.a). REJECTED UPLOAD, code 90284: Python.framework ships",
-				"# Tcl/Tk link-time stubs (libtclstub8.6.a, libtkstub8.6.a, libitclstub4.3.2.a,",
-				"# libtdbcstub1.1.10.a) and App Store Connect demands every nested archive be signed",
-				"# with the provisioning-profile certificate. A .a CANNOT be signed: it is an ar",
-				"# archive of object files, not a Mach-O image, and codesign has nothing to seal in",
-				"# it. So the only way to satisfy the rule is to not ship them.",
-				"#",
-				"# Safe to delete: these are LINK-time stubs. Nothing dlopens a .a; the runtime uses",
-				"# the Tcl/Tk dylibs beside them, and Fichero never touches Tk at all. Deleted rather",
-				"# than excluded at build time because the engine bundle comes from Briefcase, which",
-				"# we do not control.",
-				"archive_count=$(find \"$APP_DST\" -name \"*.a\" -type f | wc -l | tr -d \" \")",
-				"if [ \"$archive_count\" -gt 0 ]; then",
-				"  find \"$APP_DST\" -name \"*.a\" -type f -delete",
-				"  echo \"  removed $archive_count static archive(s) from the app bundle — not signable code (90284)\"",
-				"fi",
-				"",
-				"# Remove debug-symbol bundles (.dSYM). REJECTED UPLOAD, codes 90277/90278: Briefcase",
-				"# ships PyObjCTest extensions with their *.cpython-312-darwin.so.dSYM beside them, and",
-				"# a .dSYM carries the bundle identifier com.apple.xcode.dsym.* — which is Apple's own,",
-				"# not ours, and does not match the provisioning profile. Ingestion refuses it.",
-				"#",
-				"# A .dSYM is not runtime code. It is the detached DWARF for a binary; nothing loads it,",
-				"# and it exists only so a crash log can be symbolicated. Re-identifying or re-signing it",
-				"# would be dressing up a file that has no business in a shipped bundle. Delete it.",
-				"#",
-				"# Deleted BEFORE the Mach-O sweep below, deliberately: a .dSYM contains a Mach-O",
-				"# (Contents/Resources/DWARF/<name>, a \"dSYM companion\" image), so leaving them here",
-				"# would mean signing files we are about to be rejected for shipping.",
-				"dsym_count=$(find \"$APP_DST\" -name \"*.dSYM\" -type d | wc -l | tr -d \" \")",
-				"if [ \"$dsym_count\" -gt 0 ]; then",
-				"  find \"$APP_DST\" -name \"*.dSYM\" -type d -exec rm -rf {} +",
-				"  echo \"  removed $dsym_count debug-symbol bundle(s) (.dSYM) from the app bundle — not runtime code (90277/90278)\"",
-				"fi",
-				"",
-				"if [ \"${CODE_SIGNING_ALLOWED}\" != \"YES\" ] || [ -z \"${EXPANDED_CODE_SIGN_IDENTITY}\" ]; then",
-				"  echo \"note: signing not configured for ${CONFIGURATION}; engine left as copied (ad-hoc)\"",
-				"  exit 0",
-				"fi",
-				"",
-				"# Sign inside-out. Mirrors scripts/build-release-dmg.sh step 2b, minus the",
-				"# hardened runtime and secure timestamp (neither applies to MAS).",
-				"IDENTITY=\"${EXPANDED_CODE_SIGN_IDENTITY}\"",
-				"",
-				"# is_macho_executable PATH — true for a Mach-O EXECUTABLE (MH_EXECUTE), false for a",
-				"# dylib, bundle or anything else. Handles universal binaries: `file` prints one line",
-				"# per architecture, and \"executable\" appears in each.",
-				"is_macho_executable() {",
-				"  file -b \"$1\" 2>/dev/null | grep -q \"Mach-O.*executable\"",
-				"}",
-				"",
-				"# sign_mas PATH — the two-key entitlements go on every nested EXECUTABLE. Not on",
-				"# paths: on executables.",
-				"#",
-				"# REJECTED UPLOAD, code 90296: this used to key off the PATH, entitling only",
-				"# ENGINE/Contents/MacOS/*. fm-bridge — the Swift CLI the engine spawns for Apple",
-				"# Intelligence, which Briefcase packages at",
-				"# Contents/Resources/app/fichero_server/resources/bin/fm-bridge — therefore signed PLAIN and",
-				"# shipped with no com.apple.security.app-sandbox. Every nested executable inside a",
-				"# sandboxed app must be sandboxed; a path rule cannot know which files those are, and",
-				"# the next one Briefcase adds would have been missed the same way. Mach-O type can.",
-				"#",
-				"# Libraries take no entitlements and sign plain: a .so/.dylib is not a process, and a",
-				"# .framework is a library container. Executable BUNDLES (.app, .xpc) are processes and",
-				"# do carry them — including Python.framework's own nested Python.app.",
-				"sign_mas() {",
-				"  target=\"$1\"",
-				"  case \"$target\" in",
-				"    *.framework)",
-				"      codesign --force --sign \"$IDENTITY\" \"$target\" >/dev/null 2>&1",
-				"      return $?",
-				"      ;;",
-				"  esac",
-				"  if [ -d \"$target\" ] || is_macho_executable \"$target\"; then",
-				"    codesign --force --sign \"$IDENTITY\" --entitlements \"$ENGINE_ENTITLEMENTS\" \"$target\" >/dev/null 2>&1",
-				"  else",
-				"    codesign --force --sign \"$IDENTITY\" \"$target\" >/dev/null 2>&1",
-				"  fi",
-				"}",
-				"",
-				"# Collect every Mach-O. `file {} +` batches; drop the per-architecture lines it",
-				"# emits for universal binaries so only real paths remain.",
-				"macho_list=\"$(mktemp)\"",
-				"find \"$ENGINE_DST\" -type f -exec file {} + 2>/dev/null | awk -F': ' '/Mach-O/ && !/for architecture/ {print $1}' | sort -u > \"$macho_list\"",
-				"echo \"  signing $(wc -l < \"$macho_list\" | tr -d ' ') Mach-O binaries in the engine\"",
-				"",
-				"# Plain loop, not xargs: under xcodebuild the inherited environment can be large",
-				"# enough that xargs cannot assemble even one command (see build-release-dmg.sh).",
-				"sign_fails=0",
-				"while IFS= read -r macho; do",
-				"  if ! sign_mas \"$macho\"; then",
-				"    echo \"  error: failed to sign Mach-O: $macho\" >&2",
-				"    sign_fails=$((sign_fails + 1))",
-				"  fi",
-				"done < \"$macho_list\"",
-				"rm -f \"$macho_list\"",
-				"if [ \"$sign_fails\" -gt 0 ]; then",
-				"  echo \"error: $sign_fails Mach-O binaries failed to sign\" >&2",
-				"  exit 1",
-				"fi",
-				"",
-				"# Re-seal bundles innermost-first: longest path first guarantees a nested bundle",
-				"# is sealed before its parent, so the parent's seal hashes a correct child. The",
-				"# engine bundle itself sorts last and picks up the entitlements via sign_mas.",
-				"bundle_list=\"$(mktemp)\"",
-				"find \"$ENGINE_DST\" -type d -name '*.app' -o -type d -name '*.framework' -o -type d -name '*.xpc' > \"$bundle_list.raw\"",
-				"awk '{print length, $0}' \"$bundle_list.raw\" | sort -rn | cut -d' ' -f2- > \"$bundle_list\"",
-				"rm -f \"$bundle_list.raw\"",
-				"bundle_fails=0",
-				"while IFS= read -r bundle; do",
-				"  if ! sign_mas \"$bundle\"; then",
-				"    echo \"  error: failed to re-seal bundle: $bundle\" >&2",
-				"    bundle_fails=$((bundle_fails + 1))",
-				"  fi",
-				"done < \"$bundle_list\"",
-				"rm -f \"$bundle_list\"",
-				"if [ \"$bundle_fails\" -gt 0 ]; then",
-				"  echo \"error: $bundle_fails bundles failed to re-seal\" >&2",
-				"  exit 1",
-				"fi",
-				"",
-				"# Fail the build here rather than at ingestion if the two-key rule was broken.",
-				"if ! codesign --verify --strict \"$ENGINE_DST\" >/dev/null 2>&1; then",
-				"  echo \"error: embedded engine signature is invalid after signing\" >&2",
-				"  exit 1",
-				"fi",
-				"if ! codesign --display --entitlements - \"$ENGINE_DST\" 2>&1 | grep -q \"com.apple.security.inherit\"; then",
-				"  echo \"error: embedded engine is missing com.apple.security.inherit\" >&2",
-				"  exit 1",
-				"fi",
-				"# get-task-allow is incompatible with com.apple.security.inherit (Apple",
-				"# Entitlement Key Reference) and aborts the sandboxed engine child at",
-				"# launch. CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO (asserted by",
-				"# scripts/check_mac_app_store_target.py on every MAS config) keeps it out",
-				"# at BUILD time; the export re-sign is guarded by",
-				"# scripts/resign_engine_in_archive.sh. Assert it here too so a future",
-				"# codesign change cannot ship a dead TestFlight build (#3952).",
-				"if codesign --display --entitlements - \"$ENGINE_DST\" 2>&1 | grep -q \"com.apple.security.get-task-allow\"; then",
-				"  echo \"error: embedded engine carries com.apple.security.get-task-allow\" >&2",
-				"  echo \"       get-task-allow is incompatible with com.apple.security.inherit and\" >&2",
-				"  echo \"       aborts the sandboxed engine child on launch (#3952).\" >&2",
-				"  exit 1",
-				"fi",
-				"",
-				"# The two checks that App Store Connect ran for us, run here instead. Both of these",
-				"# rejections cost a full archive + upload + wait to discover; they cost seconds here.",
-				"",
-				"# 90284 — no static archives may remain.",
-				"remaining=$(find \"$APP_DST\" -name \"*.a\" -type f | wc -l | tr -d \" \")",
-				"if [ \"$remaining\" -gt 0 ]; then",
-				"  echo \"error: $remaining static archive(s) (.a) still in the engine — ingestion rejects these (90284)\" >&2",
-				"  find \"$APP_DST\" -name \"*.a\" -type f >&2",
-				"  exit 1",
-				"fi",
-				"",
-				"# 90277/90278 — no debug-symbol bundles may remain.",
-				"remaining_dsym=$(find \"$APP_DST\" -name \"*.dSYM\" -type d | wc -l | tr -d \" \")",
-				"if [ \"$remaining_dsym\" -gt 0 ]; then",
-				"  echo \"error: $remaining_dsym .dSYM bundle(s) still in the engine — they carry com.apple.xcode.dsym identifiers and ingestion rejects them (90277/90278)\" >&2",
-				"  find \"$APP_DST\" -name \"*.dSYM\" -type d >&2",
-				"  exit 1",
-				"fi",
-				"",
-				"# 90296 — EVERY nested executable must be sandboxed, not just the engine's own.",
-				"# This is the check that would have caught fm-bridge.",
-				"exec_list=\"$(mktemp)\"",
-				"find \"$ENGINE_DST\" -type f -exec file {} + 2>/dev/null | awk -F\": \" '/Mach-O/ && /executable/ && !/for architecture/ {print $1}' | sort -u > \"$exec_list\"",
-				"unsandboxed=0",
-				"while IFS= read -r exe; do",
-				"  [ -n \"$exe\" ] || continue",
-				"  if ! codesign --display --entitlements - \"$exe\" 2>&1 | grep -q \"com.apple.security.app-sandbox\"; then",
-				"    echo \"error: nested executable is NOT sandboxed (90296): $exe\" >&2",
-				"    unsandboxed=$((unsandboxed + 1))",
-				"  fi",
-				"done < \"$exec_list\"",
-				"exec_count=$(wc -l < \"$exec_list\" | tr -d \" \")",
-				"rm -f \"$exec_list\"",
-				"if [ \"$unsandboxed\" -gt 0 ]; then",
-				"  echo \"error: $unsandboxed nested executable(s) lack com.apple.security.app-sandbox\" >&2",
-				"  exit 1",
-				"fi",
-				"",
-				"echo \"  engine signed sandboxed: $exec_count nested executable(s), all app-sandbox + inherit, no --deep, no .a\"",
-				"",
-			);
-		};
-		SBX00042F27F36000EC9EE1 /* Strip Sparkle Info.plist Keys */ = {
-			isa = PBXShellScriptBuildPhase;
-			name = "Strip Sparkle Info.plist Keys";
-			shellPath = /bin/sh;
-			shellScript = (
-				"# App Store: strip Sparkle's Info.plist keys (#3748).",
-				"#",
-				"# Sparkle is excluded from this target at the LINK level — the framework, Autoupdate",
-				"# and its XPC services are all absent from the binary. But Info.plist is SHARED with",
-				"# the Developer ID target (both set INFOPLIST_FILE = fichero/Info.plist), and it",
-				"# still advertises an update feed: SUFeedURL, SUPublicEDKey, SUEnableAutomaticChecks.",
-				"#",
-				"# An App Store app whose Info.plist declares a third-party self-update mechanism is",
-				"# exactly what guideline 2.4.5(vii) prohibits, and it is trivially greppable by a",
-				"# reviewer even though nothing can act on it. Sparkle must be ABSENT, not merely",
-				"# inert.",
-				"#",
-				"# Stripped from the BUILT bundle rather than by forking Info.plist into a second",
-				"# file, which would drift from the DMG one silently. Same shape as",
-				"# scripts/build-release-dmg.sh, which SETS SUFeedURL on the staged bundle at package",
-				"# time. This phase runs before Xcode's CodeSign phase, so the seal covers the",
-				"# stripped plist.",
-				"",
-				"PLIST=\"${BUILT_PRODUCTS_DIR}/${INFOPLIST_PATH}\"",
-				"",
-				"if [ ! -f \"$PLIST\" ]; then",
-				"  echo \"note: no Info.plist at $PLIST — nothing to strip\"",
-				"  exit 0",
-				"fi",
-				"",
-				"for KEY in SUFeedURL SUPublicEDKey SUEnableAutomaticChecks SUAllowsAutomaticUpdates SUScheduledCheckInterval; do",
-				"  if /usr/libexec/PlistBuddy -c \"Print :${KEY}\" \"$PLIST\" >/dev/null 2>&1; then",
-				"    /usr/libexec/PlistBuddy -c \"Delete :${KEY}\" \"$PLIST\"",
-				"    echo \"  removed ${KEY}\"",
-				"  fi",
-				"done",
-				"",
-				"# Fail the build rather than ship a Sparkle key to App Review.",
-				"for KEY in SUFeedURL SUPublicEDKey; do",
-				"  if /usr/libexec/PlistBuddy -c \"Print :${KEY}\" \"$PLIST\" >/dev/null 2>&1; then",
-				"    echo \"error: ${KEY} is still present in the App Store Info.plist\" >&2",
-				"    exit 1",
-				"  fi",
-				"done",
-				"",
-				"echo \"Sparkle Info.plist keys stripped from the App Store build\"",
-				"",
-			);
-		};
-		SBX00052F27F36000EC9EE1 /* Validate App Store Bundle */ = {
-			isa = PBXShellScriptBuildPhase;
-			name = "Validate App Store Bundle";
-			shellPath = /bin/sh;
-			shellScript = (
-				"# App Store: run the bundle validator against what we ACTUALLY built (#3797 follow-up).",
-				"#",
-				"# The R2 archive shipped full of .dSYMs while the build reported success, because the",
-				"# strip and its own verification both ran `find` against a SYMLINK",
-				"# (${BUILT_PRODUCTS_DIR}/Fichero.app is a symlink to DSTROOT in an archive build) and",
-				"# find does not descend into a symlinked starting point. Zero matches. Nothing",
-				"# deleted, nothing flagged, build green.",
-				"#",
-				"# The lesson is not \"fix the path\" — that is done. It is that the build must be checked",
-				"# by the SAME tool that judges the archive, instead of by bespoke assertions that can",
-				"# pass vacuously. So this phase runs scripts/validate_mas_bundle.sh, the exact script",
-				"# used on the .xcarchive, against the product we just assembled.",
-				"#",
-				"# --structure-only because Xcode's CodeSign step for the outer app runs AFTER this",
-				"# phase. Everything not dependent on that signature is checked, which is every",
-				"# rejection actually taken: .a (90284), .dSYM (90277/90278), unsandboxed nested",
-				"# executables (90296), engine placement, Sparkle.",
-				"",
-				"if [ \"${PLATFORM_NAME}\" != \"macosx\" ]; then",
-				"  exit 0",
-				"fi",
-				"",
-				"if [ \"${FICHERO_EMBED_ENGINE}\" != \"YES\" ]; then",
-				"  echo \"Skipping App Store bundle validation (no engine embedded in this configuration)\"",
-				"  exit 0",
-				"fi",
-				"",
-				"VALIDATOR=\"${SRCROOT}/../scripts/validate_mas_bundle.sh\"",
-				"if [ ! -f \"$VALIDATOR\" ]; then",
-				"  echo \"error: validator not found at $VALIDATOR\" >&2",
-				"  exit 1",
-				"fi",
-				"",
-				"APP_DST=\"${TARGET_BUILD_DIR}/${WRAPPER_NAME}\"",
-				"if [ ! -d \"$APP_DST\" ]; then",
-				"  echo \"error: no app bundle at $APP_DST\" >&2",
-				"  exit 1",
-				"fi",
-				"",
-				"echo \"Validating the App Store bundle we just built:\"",
-				"if ! /bin/bash \"$VALIDATOR\" --structure-only \"$APP_DST\"; then",
-				"  echo \"error: the App Store bundle would be REJECTED by App Store Connect — see the failures above\" >&2",
-				"  exit 1",
-				"fi",
-				"",
-			);
-		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -1218,11 +729,6 @@
 			);
 		};
 		FE1DAD000000000000000030 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			files = (
-			);
-		};
-		FEED0000000000000000024D /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			files = (
 			);
@@ -1270,6 +776,10 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
@@ -1278,50 +788,6 @@
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Fichero.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Fichero";
 			};
 			name = Debug;
-		};
-		208ADAA13022008700B83F96 /* Alpha configuration for PBXNativeTarget "FicheroIOSTests" */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGN_STYLE = Automatic;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
-				PRODUCT_BUNDLE_IDENTIFIER = com.tubb.FicheroIOSTests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Fichero.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Fichero";
-				VALIDATE_PRODUCT = YES;
-			};
-			name = Alpha;
-		};
-		208ADAA23022008700B83F96 /* Beta configuration for PBXNativeTarget "FicheroIOSTests" */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGN_STYLE = Automatic;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
-				PRODUCT_BUNDLE_IDENTIFIER = com.tubb.FicheroIOSTests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Fichero.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Fichero";
-				VALIDATE_PRODUCT = YES;
-			};
-			name = Beta;
 		};
 		208ADAA33022008700B83F96 /* Release configuration for PBXNativeTarget "FicheroIOSTests" */ = {
 			isa = XCBuildConfiguration;
@@ -1335,6 +801,10 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
@@ -1357,6 +827,10 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
@@ -1379,6 +853,10 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
@@ -1401,6 +879,10 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
@@ -1410,46 +892,6 @@
 				VALIDATE_PRODUCT = YES;
 			};
 			name = "Beta Embedded";
-		};
-		208ADAA73022008700B83F96 /* Release Local configuration for PBXNativeTarget "FicheroIOSTests" */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGN_STYLE = Automatic;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
-				PRODUCT_BUNDLE_IDENTIFIER = com.tubb.FicheroIOSTests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Fichero.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Fichero";
-				VALIDATE_PRODUCT = YES;
-			};
-			name = "Release Local";
-		};
-		20969FA93000614800D06A60 /* Alpha configuration for PBXNativeTarget "FicheroTests" */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				GENERATE_INFOPLIST_FILE = YES;
-				PRODUCT_NAME = FicheroTests;
-				SWIFT_VERSION = 5.0;
-			};
-			name = Alpha;
-		};
-		20969FAA3000614800D06A60 /* Beta configuration for PBXNativeTarget "FicheroTests" */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				GENERATE_INFOPLIST_FILE = YES;
-				PRODUCT_NAME = FicheroTests;
-				SWIFT_VERSION = 5.0;
-			};
-			name = Beta;
 		};
 		20969FAB3000614800D06A60 /* Dev Embedded configuration for PBXNativeTarget "FicheroTests" */ = {
 			isa = XCBuildConfiguration;
@@ -1477,35 +919,6 @@
 				SWIFT_VERSION = 5.0;
 			};
 			name = "Beta Embedded";
-		};
-		20969FAE3000614800D06A60 /* Release Local configuration for PBXNativeTarget "FicheroTests" */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				GENERATE_INFOPLIST_FILE = YES;
-				PRODUCT_NAME = FicheroTests;
-				SWIFT_VERSION = 5.0;
-			};
-			name = "Release Local";
-		};
-		20969FAF3000614800D06A60 /* Alpha configuration for PBXNativeTarget "FicheroUITests" */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				GENERATE_INFOPLIST_FILE = YES;
-				PRODUCT_NAME = FicheroUITests;
-				SWIFT_VERSION = 6.0;
-				TEST_TARGET_NAME = Fichero;
-			};
-			name = Alpha;
-		};
-		20969FB03000614800D06A60 /* Beta configuration for PBXNativeTarget "FicheroUITests" */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				GENERATE_INFOPLIST_FILE = YES;
-				PRODUCT_NAME = FicheroUITests;
-				SWIFT_VERSION = 6.0;
-				TEST_TARGET_NAME = Fichero;
-			};
-			name = Beta;
 		};
 		20969FB13000614800D06A60 /* Dev Embedded configuration for PBXNativeTarget "FicheroUITests" */ = {
 			isa = XCBuildConfiguration;
@@ -1537,20 +950,11 @@
 			};
 			name = "Beta Embedded";
 		};
-		20969FB43000614800D06A60 /* Release Local configuration for PBXNativeTarget "FicheroUITests" */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				GENERATE_INFOPLIST_FILE = YES;
-				PRODUCT_NAME = FicheroUITests;
-				SWIFT_VERSION = 6.0;
-				TEST_TARGET_NAME = Fichero;
-			};
-			name = "Release Local";
-		};
 		800 /* Debug configuration for PBXProject "fichero" */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = FEED00000000000000000262 /* Configs/Version.xcconfig */;
 			buildSettings = {
+				EXCLUDED_ARCHS = x86_64;
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -1618,6 +1022,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = FEED00000000000000000262 /* Configs/Version.xcconfig */;
 			buildSettings = {
+				EXCLUDED_ARCHS = x86_64;
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -1673,124 +1078,6 @@
 			};
 			name = Release;
 		};
-		802 /* Alpha configuration for PBXProject "fichero" */ = {
-			isa = XCBuildConfiguration;
-			baseConfigurationReference = FEED00000000000000000262 /* Configs/Version.xcconfig */;
-			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
-				CLANG_ANALYZER_NONNULL = YES;
-				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
-				CLANG_ENABLE_MODULES = YES;
-				CLANG_ENABLE_OBJC_ARC = YES;
-				CLANG_ENABLE_OBJC_WEAK = YES;
-				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
-				CLANG_WARN_BOOL_CONVERSION = YES;
-				CLANG_WARN_COMMA = YES;
-				CLANG_WARN_CONSTANT_CONVERSION = YES;
-				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
-				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
-				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
-				CLANG_WARN_EMPTY_BODY = YES;
-				CLANG_WARN_ENUM_CONVERSION = YES;
-				CLANG_WARN_INFINITE_RECURSION = YES;
-				CLANG_WARN_INT_CONVERSION = YES;
-				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
-				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
-				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
-				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
-				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
-				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
-				CLANG_WARN_STRICT_PROTOTYPES = YES;
-				CLANG_WARN_SUSPICIOUS_MOVE = YES;
-				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
-				CLANG_WARN_UNREACHABLE_CODE = YES;
-				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
-				COPY_PHASE_STRIP = NO;
-				DEAD_CODE_STRIPPING = YES;
-				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = QAPB6CWYR6;
-				ENABLE_NS_ASSERTIONS = NO;
-				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = NO;
-				GCC_C_LANGUAGE_STANDARD = gnu17;
-				GCC_NO_COMMON_BLOCKS = YES;
-				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
-				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
-				GCC_WARN_UNDECLARED_SELECTOR = YES;
-				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
-				GCC_WARN_UNUSED_FUNCTION = YES;
-				GCC_WARN_UNUSED_VARIABLE = YES;
-				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MTL_ENABLE_DEBUG_INFO = NO;
-				MTL_FAST_MATH = YES;
-				SDKROOT = macosx;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SWIFT_COMPILATION_MODE = wholemodule;
-			};
-			name = Alpha;
-		};
-		803 /* Beta configuration for PBXProject "fichero" */ = {
-			isa = XCBuildConfiguration;
-			baseConfigurationReference = FEED00000000000000000262 /* Configs/Version.xcconfig */;
-			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
-				CLANG_ANALYZER_NONNULL = YES;
-				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
-				CLANG_ENABLE_MODULES = YES;
-				CLANG_ENABLE_OBJC_ARC = YES;
-				CLANG_ENABLE_OBJC_WEAK = YES;
-				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
-				CLANG_WARN_BOOL_CONVERSION = YES;
-				CLANG_WARN_COMMA = YES;
-				CLANG_WARN_CONSTANT_CONVERSION = YES;
-				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
-				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
-				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
-				CLANG_WARN_EMPTY_BODY = YES;
-				CLANG_WARN_ENUM_CONVERSION = YES;
-				CLANG_WARN_INFINITE_RECURSION = YES;
-				CLANG_WARN_INT_CONVERSION = YES;
-				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
-				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
-				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
-				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
-				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
-				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
-				CLANG_WARN_STRICT_PROTOTYPES = YES;
-				CLANG_WARN_SUSPICIOUS_MOVE = YES;
-				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
-				CLANG_WARN_UNREACHABLE_CODE = YES;
-				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
-				COPY_PHASE_STRIP = NO;
-				DEAD_CODE_STRIPPING = YES;
-				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = QAPB6CWYR6;
-				ENABLE_NS_ASSERTIONS = NO;
-				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = NO;
-				GCC_C_LANGUAGE_STANDARD = gnu17;
-				GCC_NO_COMMON_BLOCKS = YES;
-				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
-				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
-				GCC_WARN_UNDECLARED_SELECTOR = YES;
-				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
-				GCC_WARN_UNUSED_FUNCTION = YES;
-				GCC_WARN_UNUSED_VARIABLE = YES;
-				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MTL_ENABLE_DEBUG_INFO = NO;
-				MTL_FAST_MATH = YES;
-				SDKROOT = macosx;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SWIFT_COMPILATION_MODE = wholemodule;
-			};
-			name = Beta;
-		};
 		810 /* Debug configuration for PBXNativeTarget "Fichero" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1806,14 +1093,10 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "";
-				ENABLE_APP_SANDBOX = YES;
+				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
-				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
-				ENABLE_RESOURCE_ACCESS_CAMERA = YES;
 				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = YES;
-				ENABLE_USER_SELECTED_FILES = readwrite;
 				FICHERO_EMBED_ENGINE = NO;
 				FICHERO_ENGINE_EMBED_OUTPUT_PATH = "$(DERIVED_FILE_DIR)/FicheroEngineEmbed.noop";
 				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/Fichero Server.app";
@@ -1928,158 +1211,6 @@
 			};
 			name = Release;
 		};
-		812 /* Alpha configuration for PBXNativeTarget "Fichero" */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphoneos*]" = "AppIcon-iOS";
-				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphonesimulator*]" = "AppIcon-iOS";
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				AUTOMATION_APPLE_EVENTS = YES;
-				CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION = YES;
-				CODE_SIGN_ENTITLEMENTS = fichero/FicheroRelease.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
-				COMBINE_HIDPI_IMAGES = YES;
-				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_ASSET_PATHS = "";
-				DEVELOPMENT_TEAM = QAPB6CWYR6;
-				ENABLE_APP_SANDBOX = YES;
-				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
-				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
-				ENABLE_PREVIEWS = YES;
-				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
-				ENABLE_RESOURCE_ACCESS_BLUETOOTH = NO;
-				ENABLE_RESOURCE_ACCESS_CALENDARS = NO;
-				ENABLE_RESOURCE_ACCESS_CAMERA = YES;
-				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
-				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
-				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = YES;
-				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
-				ENABLE_RESOURCE_ACCESS_USB = NO;
-				ENABLE_USER_SELECTED_FILES = readwrite;
-				FICHERO_EMBED_ENGINE = NO;
-				FICHERO_ENGINE_EMBED_OUTPUT_PATH = "$(DERIVED_FILE_DIR)/FicheroEngineEmbed.noop";
-				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/Fichero Server.app";
-				FICHERO_FEATURE_TIER = alpha;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = fichero/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Fichero;
-				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
-				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
-				INFOPLIST_KEY_NSCameraUsageDescription = "Fichero uses the camera to scan pairing QR codes and capture new photos into your queue.";
-				INFOPLIST_KEY_NSHumanReadableCopyright = "© 2025–2026 Daniel Tubb · AGPL-3.0";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Fichero uses local network discovery to find a nearby Mac host for QR pairing.";
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Fichero uses your photo library when you choose existing images to add to the capture queue.";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UTExportedTypeDeclarations = "(\n    {\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Drag Item\";\n    UTTypeIdentifier = \"app.fichero.fichero.drag-item\";\n    }\n)";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-				);
-				LIBRARY_SEARCH_PATHS = "";
-				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero;
-				PRODUCT_NAME = Fichero;
-				PROVISIONING_PROFILE_SPECIFIER = "";
-				REGISTER_APP_GROUPS = YES;
-				RUNTIME_EXCEPTION_ALLOW_DYLD_ENVIRONMENT_VARIABLES = NO;
-				RUNTIME_EXCEPTION_ALLOW_JIT = NO;
-				RUNTIME_EXCEPTION_ALLOW_UNSIGNED_EXECUTABLE_MEMORY = NO;
-				RUNTIME_EXCEPTION_DEBUGGING_TOOL = NO;
-				RUNTIME_EXCEPTION_DISABLE_EXECUTABLE_PAGE_PROTECTION = NO;
-				RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION = NO;
-				SPARKLE_FEED_URL = "https://tubb.ca/apps/fichero/appcast.xml";
-				SPARKLE_PUBLIC_ED_KEY = "z3UPbmGi74NGSqTQL25E2WFD1yulIzYRvtDitbIZvNY=";
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
-				SUPPORTS_MACCATALYST = NO;
-				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 6.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Alpha;
-		};
-		813 /* Beta configuration for PBXNativeTarget "Fichero" */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphoneos*]" = "AppIcon-iOS";
-				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphonesimulator*]" = "AppIcon-iOS";
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				AUTOMATION_APPLE_EVENTS = YES;
-				CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION = YES;
-				CODE_SIGN_ENTITLEMENTS = fichero/FicheroRelease.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
-				COMBINE_HIDPI_IMAGES = YES;
-				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_ASSET_PATHS = "";
-				DEVELOPMENT_TEAM = QAPB6CWYR6;
-				ENABLE_APP_SANDBOX = YES;
-				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
-				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
-				ENABLE_PREVIEWS = YES;
-				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
-				ENABLE_RESOURCE_ACCESS_BLUETOOTH = NO;
-				ENABLE_RESOURCE_ACCESS_CALENDARS = NO;
-				ENABLE_RESOURCE_ACCESS_CAMERA = YES;
-				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
-				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
-				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = YES;
-				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
-				ENABLE_RESOURCE_ACCESS_USB = NO;
-				ENABLE_USER_SELECTED_FILES = readwrite;
-				FICHERO_EMBED_ENGINE = NO;
-				FICHERO_ENGINE_EMBED_OUTPUT_PATH = "$(DERIVED_FILE_DIR)/FicheroEngineEmbed.noop";
-				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/Fichero Server.app";
-				FICHERO_FEATURE_TIER = beta;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = fichero/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Fichero;
-				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
-				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
-				INFOPLIST_KEY_NSCameraUsageDescription = "Fichero uses the camera to scan pairing QR codes and capture new photos into your queue.";
-				INFOPLIST_KEY_NSHumanReadableCopyright = "© 2025–2026 Daniel Tubb · AGPL-3.0";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Fichero uses local network discovery to find a nearby Mac host for QR pairing.";
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Fichero uses your photo library when you choose existing images to add to the capture queue.";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UTExportedTypeDeclarations = "(\n    {\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Drag Item\";\n    UTTypeIdentifier = \"app.fichero.fichero.drag-item\";\n    }\n)";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-				);
-				LIBRARY_SEARCH_PATHS = "";
-				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero;
-				PRODUCT_NAME = Fichero;
-				PROVISIONING_PROFILE_SPECIFIER = "";
-				REGISTER_APP_GROUPS = YES;
-				RUNTIME_EXCEPTION_ALLOW_DYLD_ENVIRONMENT_VARIABLES = NO;
-				RUNTIME_EXCEPTION_ALLOW_JIT = NO;
-				RUNTIME_EXCEPTION_ALLOW_UNSIGNED_EXECUTABLE_MEMORY = NO;
-				RUNTIME_EXCEPTION_DEBUGGING_TOOL = NO;
-				RUNTIME_EXCEPTION_DISABLE_EXECUTABLE_PAGE_PROTECTION = NO;
-				RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION = NO;
-				SPARKLE_FEED_URL = "https://tubb.ca/apps/fichero/appcast.xml";
-				SPARKLE_PUBLIC_ED_KEY = "z3UPbmGi74NGSqTQL25E2WFD1yulIzYRvtDitbIZvNY=";
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
-				SUPPORTS_MACCATALYST = NO;
-				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 6.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Beta;
-		};
 		A10521AF2EFDC92400B28C3E /* Debug configuration for PBXNativeTarget "FicheroTests" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -2149,41 +1280,15 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.tubb.FicheroIOSUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_TARGET_NAME = Fichero;
 			};
 			name = Debug;
-		};
-		F105C0DE0000000000000011 /* Alpha configuration for PBXNativeTarget "FicheroIOSUITests" */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
-				PRODUCT_BUNDLE_IDENTIFIER = com.tubb.FicheroIOSUITests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = Fichero;
-			};
-			name = Alpha;
-		};
-		F105C0DE0000000000000012 /* Beta configuration for PBXNativeTarget "FicheroIOSUITests" */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
-				PRODUCT_BUNDLE_IDENTIFIER = com.tubb.FicheroIOSUITests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = Fichero;
-			};
-			name = Beta;
 		};
 		F105C0DE0000000000000013 /* Release configuration for PBXNativeTarget "FicheroIOSUITests" */ = {
 			isa = XCBuildConfiguration;
@@ -2194,6 +1299,10 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.tubb.FicheroIOSUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_TARGET_NAME = Fichero;
@@ -2209,6 +1318,10 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.tubb.FicheroIOSUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_TARGET_NAME = Fichero;
@@ -2224,6 +1337,10 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.tubb.FicheroIOSUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_TARGET_NAME = Fichero;
@@ -2239,26 +1356,15 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.tubb.FicheroIOSUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_TARGET_NAME = Fichero;
 			};
 			name = "Beta Embedded";
-		};
-		F105C0DE0000000000000017 /* Release Local configuration for PBXNativeTarget "FicheroIOSUITests" */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
-				PRODUCT_BUNDLE_IDENTIFIER = com.tubb.FicheroIOSUITests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = Fichero;
-			};
-			name = "Release Local";
 		};
 		FE1DAD000000000000000050 /* Debug configuration for PBXNativeTarget "FicheroIPadTests" */ = {
 			isa = XCBuildConfiguration;
@@ -2271,6 +1377,9 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 2;
@@ -2289,48 +1398,15 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 2;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Fichero.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Fichero";
 			};
 			name = Release;
-		};
-		FE1DAD000000000000000052 /* Alpha configuration for PBXNativeTarget "FicheroIPadTests" */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGN_STYLE = Automatic;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
-				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero.ipadtests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 2;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Fichero.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Fichero";
-			};
-			name = Alpha;
-		};
-		FE1DAD000000000000000053 /* Beta configuration for PBXNativeTarget "FicheroIPadTests" */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGN_STYLE = Automatic;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
-				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero.ipadtests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 2;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Fichero.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Fichero";
-			};
-			name = Beta;
 		};
 		FE1DAD000000000000000054 /* Dev Embedded configuration for PBXNativeTarget "FicheroIPadTests" */ = {
 			isa = XCBuildConfiguration;
@@ -2343,6 +1419,9 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 2;
@@ -2361,6 +1440,9 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 2;
@@ -2379,30 +1461,15 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 2;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Fichero.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Fichero";
 			};
 			name = "Beta Embedded";
-		};
-		FE1DAD000000000000000057 /* Release Local configuration for PBXNativeTarget "FicheroIPadTests" */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGN_STYLE = Automatic;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
-				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero.ipadtests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 2;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Fichero.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Fichero";
-			};
-			name = "Release Local";
 		};
 		FE7E000100000000000000A1 /* Dev Embedded configuration for PBXNativeTarget "Fichero" */ = {
 			isa = XCBuildConfiguration;
@@ -2617,86 +1684,11 @@
 			};
 			name = "Beta Embedded";
 		};
-		FE7E000100000000000000A4 /* Release Local configuration for PBXNativeTarget "Fichero" */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphoneos*]" = "AppIcon-iOS";
-				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphonesimulator*]" = "AppIcon-iOS";
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				AUTOMATION_APPLE_EVENTS = YES;
-				CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION = YES;
-				CODE_SIGN_ENTITLEMENTS = fichero/FicheroRelease.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
-				COMBINE_HIDPI_IMAGES = YES;
-				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_ASSET_PATHS = "";
-				DEVELOPMENT_TEAM = QAPB6CWYR6;
-				ENABLE_APP_SANDBOX = YES;
-				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
-				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
-				ENABLE_PREVIEWS = YES;
-				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
-				ENABLE_RESOURCE_ACCESS_BLUETOOTH = NO;
-				ENABLE_RESOURCE_ACCESS_CALENDARS = NO;
-				ENABLE_RESOURCE_ACCESS_CAMERA = YES;
-				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
-				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
-				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = YES;
-				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
-				ENABLE_RESOURCE_ACCESS_USB = NO;
-				ENABLE_USER_SELECTED_FILES = readwrite;
-				FICHERO_EMBED_ENGINE = NO;
-				FICHERO_ENGINE_EMBED_OUTPUT_PATH = "$(DERIVED_FILE_DIR)/FicheroEngineEmbed.noop";
-				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/Fichero Server.app";
-				FICHERO_FEATURE_TIER = release;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = fichero/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Fichero;
-				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
-				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
-				INFOPLIST_KEY_NSCameraUsageDescription = "Fichero uses the camera to scan pairing QR codes and capture new photos into your queue.";
-				INFOPLIST_KEY_NSHumanReadableCopyright = "© 2025–2026 Daniel Tubb · AGPL-3.0";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Fichero uses local network discovery to find a nearby Mac host for QR pairing.";
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Fichero uses your photo library when you choose existing images to add to the capture queue.";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UTExportedTypeDeclarations = "(\n    {\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Drag Item\";\n    UTTypeIdentifier = \"app.fichero.fichero.drag-item\";\n    }\n)";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-				);
-				LIBRARY_SEARCH_PATHS = "";
-				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero;
-				PRODUCT_NAME = Fichero;
-				PROVISIONING_PROFILE_SPECIFIER = "";
-				REGISTER_APP_GROUPS = YES;
-				RUNTIME_EXCEPTION_ALLOW_DYLD_ENVIRONMENT_VARIABLES = NO;
-				RUNTIME_EXCEPTION_ALLOW_JIT = NO;
-				RUNTIME_EXCEPTION_ALLOW_UNSIGNED_EXECUTABLE_MEMORY = NO;
-				RUNTIME_EXCEPTION_DEBUGGING_TOOL = NO;
-				RUNTIME_EXCEPTION_DISABLE_EXECUTABLE_PAGE_PROTECTION = NO;
-				RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION = NO;
-				SPARKLE_FEED_URL = "https://tubb.ca/apps/fichero/appcast.xml";
-				SPARKLE_PUBLIC_ED_KEY = "z3UPbmGi74NGSqTQL25E2WFD1yulIzYRvtDitbIZvNY=";
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
-				SUPPORTS_MACCATALYST = NO;
-				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 6.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = "Release Local";
-		};
 		FE7E000100000000000000B1 /* Dev Embedded configuration for PBXProject "fichero" */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = FEED00000000000000000262 /* Configs/Version.xcconfig */;
 			buildSettings = {
+				EXCLUDED_ARCHS = x86_64;
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -2764,6 +1756,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = FEED00000000000000000262 /* Configs/Version.xcconfig */;
 			buildSettings = {
+				EXCLUDED_ARCHS = x86_64;
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -2823,6 +1816,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = FEED00000000000000000262 /* Configs/Version.xcconfig */;
 			buildSettings = {
+				EXCLUDED_ARCHS = x86_64;
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -2877,651 +1871,6 @@
 				SWIFT_COMPILATION_MODE = wholemodule;
 			};
 			name = "Beta Embedded";
-		};
-		FE7E000100000000000000B4 /* Release Local configuration for PBXProject "fichero" */ = {
-			isa = XCBuildConfiguration;
-			baseConfigurationReference = FEED00000000000000000262 /* Configs/Version.xcconfig */;
-			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
-				CLANG_ANALYZER_NONNULL = YES;
-				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
-				CLANG_ENABLE_MODULES = YES;
-				CLANG_ENABLE_OBJC_ARC = YES;
-				CLANG_ENABLE_OBJC_WEAK = YES;
-				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
-				CLANG_WARN_BOOL_CONVERSION = YES;
-				CLANG_WARN_COMMA = YES;
-				CLANG_WARN_CONSTANT_CONVERSION = YES;
-				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
-				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
-				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
-				CLANG_WARN_EMPTY_BODY = YES;
-				CLANG_WARN_ENUM_CONVERSION = YES;
-				CLANG_WARN_INFINITE_RECURSION = YES;
-				CLANG_WARN_INT_CONVERSION = YES;
-				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
-				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
-				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
-				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
-				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
-				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
-				CLANG_WARN_STRICT_PROTOTYPES = YES;
-				CLANG_WARN_SUSPICIOUS_MOVE = YES;
-				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
-				CLANG_WARN_UNREACHABLE_CODE = YES;
-				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
-				COPY_PHASE_STRIP = NO;
-				DEAD_CODE_STRIPPING = YES;
-				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = QAPB6CWYR6;
-				ENABLE_NS_ASSERTIONS = NO;
-				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = NO;
-				GCC_C_LANGUAGE_STANDARD = gnu17;
-				GCC_NO_COMMON_BLOCKS = YES;
-				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
-				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
-				GCC_WARN_UNDECLARED_SELECTOR = YES;
-				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
-				GCC_WARN_UNUSED_FUNCTION = YES;
-				GCC_WARN_UNUSED_VARIABLE = YES;
-				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MTL_ENABLE_DEBUG_INFO = NO;
-				MTL_FAST_MATH = YES;
-				SDKROOT = macosx;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SWIFT_COMPILATION_MODE = wholemodule;
-			};
-			name = "Release Local";
-		};
-		FEED00000000000000000257 /* Debug configuration for PBXNativeTarget "Fichero (App Store)" */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphoneos*]" = "AppIcon-iOS";
-				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphonesimulator*]" = "AppIcon-iOS";
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				AUTOMATION_APPLE_EVENTS = YES;
-				CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION = YES;
-				CODE_SIGN_ENTITLEMENTS = fichero/FicheroAppStore.entitlements;
-				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
-				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
-				CODE_SIGN_STYLE = Automatic;
-				COMBINE_HIDPI_IMAGES = YES;
-				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_ASSET_PATHS = "";
-				ENABLE_APP_SANDBOX = YES;
-				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
-				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
-				ENABLE_PREVIEWS = YES;
-				ENABLE_RESOURCE_ACCESS_CAMERA = YES;
-				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = YES;
-				ENABLE_USER_SELECTED_FILES = readwrite;
-				FICHERO_EMBED_ENGINE = NO;
-				FICHERO_ENGINE_EMBED_OUTPUT_PATH = "$(DERIVED_FILE_DIR)/FicheroEngineEmbed.noop";
-				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/Helpers/Fichero Server.app";
-				FICHERO_FEATURE_TIER = dev;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = fichero/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Fichero;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
-				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
-				INFOPLIST_KEY_NSCameraUsageDescription = "Fichero uses the camera to scan pairing QR codes and capture new photos into your queue.";
-				INFOPLIST_KEY_NSHumanReadableCopyright = "© 2025–2026 Daniel Tubb · AGPL-3.0";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Fichero uses local network discovery to find a nearby Mac host for QR pairing.";
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Fichero uses your photo library when you choose existing images to add to the capture queue.";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UTExportedTypeDeclarations = "(\n    {\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Drag Item\";\n    UTTypeIdentifier = \"app.fichero.fichero.drag-item\";\n    }\n)";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-				);
-				LIBRARY_SEARCH_PATHS = "";
-				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero;
-				PRODUCT_NAME = Fichero;
-				REGISTER_APP_GROUPS = YES;
-				SPARKLE_FEED_URL = "https://tubb.ca/apps/fichero/appcast.xml";
-				SPARKLE_PUBLIC_ED_KEY = "z3UPbmGi74NGSqTQL25E2WFD1yulIzYRvtDitbIZvNY=";
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
-				SUPPORTS_MACCATALYST = NO;
-				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "FICHERO_APP_STORE $(inherited)";
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 6.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Debug;
-		};
-		FEED00000000000000000258 /* Alpha configuration for PBXNativeTarget "Fichero (App Store)" */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphoneos*]" = "AppIcon-iOS";
-				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphonesimulator*]" = "AppIcon-iOS";
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				AUTOMATION_APPLE_EVENTS = YES;
-				CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION = YES;
-				CODE_SIGN_ENTITLEMENTS = fichero/FicheroAppStore.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
-				CODE_SIGN_STYLE = Automatic;
-				COMBINE_HIDPI_IMAGES = YES;
-				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_ASSET_PATHS = "";
-				DEVELOPMENT_TEAM = QAPB6CWYR6;
-				ENABLE_APP_SANDBOX = YES;
-				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
-				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
-				ENABLE_PREVIEWS = YES;
-				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
-				ENABLE_RESOURCE_ACCESS_BLUETOOTH = NO;
-				ENABLE_RESOURCE_ACCESS_CALENDARS = NO;
-				ENABLE_RESOURCE_ACCESS_CAMERA = YES;
-				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
-				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
-				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = YES;
-				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
-				ENABLE_RESOURCE_ACCESS_USB = NO;
-				ENABLE_USER_SELECTED_FILES = readwrite;
-				FICHERO_EMBED_ENGINE = NO;
-				FICHERO_ENGINE_EMBED_OUTPUT_PATH = "$(DERIVED_FILE_DIR)/FicheroEngineEmbed.noop";
-				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/Helpers/Fichero Server.app";
-				FICHERO_FEATURE_TIER = alpha;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = fichero/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Fichero;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
-				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
-				INFOPLIST_KEY_NSCameraUsageDescription = "Fichero uses the camera to scan pairing QR codes and capture new photos into your queue.";
-				INFOPLIST_KEY_NSHumanReadableCopyright = "© 2025–2026 Daniel Tubb · AGPL-3.0";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Fichero uses local network discovery to find a nearby Mac host for QR pairing.";
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Fichero uses your photo library when you choose existing images to add to the capture queue.";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UTExportedTypeDeclarations = "(\n    {\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Drag Item\";\n    UTTypeIdentifier = \"app.fichero.fichero.drag-item\";\n    }\n)";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-				);
-				LIBRARY_SEARCH_PATHS = "";
-				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero;
-				PRODUCT_NAME = Fichero;
-				PROVISIONING_PROFILE_SPECIFIER = "";
-				REGISTER_APP_GROUPS = YES;
-				RUNTIME_EXCEPTION_ALLOW_DYLD_ENVIRONMENT_VARIABLES = NO;
-				RUNTIME_EXCEPTION_ALLOW_JIT = NO;
-				RUNTIME_EXCEPTION_ALLOW_UNSIGNED_EXECUTABLE_MEMORY = NO;
-				RUNTIME_EXCEPTION_DEBUGGING_TOOL = NO;
-				RUNTIME_EXCEPTION_DISABLE_EXECUTABLE_PAGE_PROTECTION = NO;
-				RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION = NO;
-				SPARKLE_FEED_URL = "https://tubb.ca/apps/fichero/appcast.xml";
-				SPARKLE_PUBLIC_ED_KEY = "z3UPbmGi74NGSqTQL25E2WFD1yulIzYRvtDitbIZvNY=";
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
-				SUPPORTS_MACCATALYST = NO;
-				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "FICHERO_APP_STORE $(inherited)";
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 6.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Alpha;
-		};
-		FEED00000000000000000259 /* Beta configuration for PBXNativeTarget "Fichero (App Store)" */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphoneos*]" = "AppIcon-iOS";
-				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphonesimulator*]" = "AppIcon-iOS";
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				AUTOMATION_APPLE_EVENTS = YES;
-				CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION = YES;
-				CODE_SIGN_ENTITLEMENTS = fichero/FicheroAppStore.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
-				CODE_SIGN_STYLE = Automatic;
-				COMBINE_HIDPI_IMAGES = YES;
-				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_ASSET_PATHS = "";
-				DEVELOPMENT_TEAM = QAPB6CWYR6;
-				ENABLE_APP_SANDBOX = YES;
-				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
-				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
-				ENABLE_PREVIEWS = YES;
-				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
-				ENABLE_RESOURCE_ACCESS_BLUETOOTH = NO;
-				ENABLE_RESOURCE_ACCESS_CALENDARS = NO;
-				ENABLE_RESOURCE_ACCESS_CAMERA = YES;
-				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
-				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
-				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = YES;
-				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
-				ENABLE_RESOURCE_ACCESS_USB = NO;
-				ENABLE_USER_SELECTED_FILES = readwrite;
-				FICHERO_EMBED_ENGINE = NO;
-				FICHERO_ENGINE_EMBED_OUTPUT_PATH = "$(DERIVED_FILE_DIR)/FicheroEngineEmbed.noop";
-				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/Helpers/Fichero Server.app";
-				FICHERO_FEATURE_TIER = beta;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = fichero/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Fichero;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
-				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
-				INFOPLIST_KEY_NSCameraUsageDescription = "Fichero uses the camera to scan pairing QR codes and capture new photos into your queue.";
-				INFOPLIST_KEY_NSHumanReadableCopyright = "© 2025–2026 Daniel Tubb · AGPL-3.0";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Fichero uses local network discovery to find a nearby Mac host for QR pairing.";
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Fichero uses your photo library when you choose existing images to add to the capture queue.";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UTExportedTypeDeclarations = "(\n    {\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Drag Item\";\n    UTTypeIdentifier = \"app.fichero.fichero.drag-item\";\n    }\n)";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-				);
-				LIBRARY_SEARCH_PATHS = "";
-				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero;
-				PRODUCT_NAME = Fichero;
-				PROVISIONING_PROFILE_SPECIFIER = "";
-				REGISTER_APP_GROUPS = YES;
-				RUNTIME_EXCEPTION_ALLOW_DYLD_ENVIRONMENT_VARIABLES = NO;
-				RUNTIME_EXCEPTION_ALLOW_JIT = NO;
-				RUNTIME_EXCEPTION_ALLOW_UNSIGNED_EXECUTABLE_MEMORY = NO;
-				RUNTIME_EXCEPTION_DEBUGGING_TOOL = NO;
-				RUNTIME_EXCEPTION_DISABLE_EXECUTABLE_PAGE_PROTECTION = NO;
-				RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION = NO;
-				SPARKLE_FEED_URL = "https://tubb.ca/apps/fichero/appcast.xml";
-				SPARKLE_PUBLIC_ED_KEY = "z3UPbmGi74NGSqTQL25E2WFD1yulIzYRvtDitbIZvNY=";
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
-				SUPPORTS_MACCATALYST = NO;
-				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "FICHERO_APP_STORE $(inherited)";
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 6.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Beta;
-		};
-		FEED0000000000000000025A /* Release configuration for PBXNativeTarget "Fichero (App Store)" */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphoneos*]" = "AppIcon-iOS";
-				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphonesimulator*]" = "AppIcon-iOS";
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				AUTOMATION_APPLE_EVENTS = YES;
-				CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION = YES;
-				CODE_SIGN_ENTITLEMENTS = fichero/FicheroAppStore.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
-				CODE_SIGN_STYLE = Automatic;
-				COMBINE_HIDPI_IMAGES = YES;
-				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_ASSET_PATHS = "";
-				DEVELOPMENT_TEAM = QAPB6CWYR6;
-				ENABLE_APP_SANDBOX = YES;
-				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
-				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
-				ENABLE_PREVIEWS = YES;
-				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
-				ENABLE_RESOURCE_ACCESS_BLUETOOTH = NO;
-				ENABLE_RESOURCE_ACCESS_CALENDARS = NO;
-				ENABLE_RESOURCE_ACCESS_CAMERA = YES;
-				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
-				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
-				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = YES;
-				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
-				ENABLE_RESOURCE_ACCESS_USB = NO;
-				ENABLE_USER_SELECTED_FILES = readwrite;
-				FICHERO_EMBED_ENGINE = YES;
-				FICHERO_ENGINE_EMBED_OUTPUT_PATH = "$(DERIVED_FILE_DIR)/FicheroEngineEmbed.noop";
-				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/Helpers/Fichero Server.app";
-				FICHERO_FEATURE_TIER = release;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = fichero/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Fichero;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
-				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
-				INFOPLIST_KEY_NSCameraUsageDescription = "Fichero uses the camera to scan pairing QR codes and capture new photos into your queue.";
-				INFOPLIST_KEY_NSHumanReadableCopyright = "© 2025–2026 Daniel Tubb · AGPL-3.0";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Fichero uses local network discovery to find a nearby Mac host for QR pairing.";
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Fichero uses your photo library when you choose existing images to add to the capture queue.";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UTExportedTypeDeclarations = "(\n    {\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Drag Item\";\n    UTTypeIdentifier = \"app.fichero.fichero.drag-item\";\n    }\n)";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-				);
-				LIBRARY_SEARCH_PATHS = "";
-				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero;
-				PRODUCT_NAME = Fichero;
-				PROVISIONING_PROFILE_SPECIFIER = "";
-				REGISTER_APP_GROUPS = YES;
-				RUNTIME_EXCEPTION_ALLOW_DYLD_ENVIRONMENT_VARIABLES = NO;
-				RUNTIME_EXCEPTION_ALLOW_JIT = NO;
-				RUNTIME_EXCEPTION_ALLOW_UNSIGNED_EXECUTABLE_MEMORY = NO;
-				RUNTIME_EXCEPTION_DEBUGGING_TOOL = NO;
-				RUNTIME_EXCEPTION_DISABLE_EXECUTABLE_PAGE_PROTECTION = NO;
-				RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION = NO;
-				SPARKLE_FEED_URL = "https://tubb.ca/apps/fichero/appcast.xml";
-				SPARKLE_PUBLIC_ED_KEY = "z3UPbmGi74NGSqTQL25E2WFD1yulIzYRvtDitbIZvNY=";
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
-				SUPPORTS_MACCATALYST = NO;
-				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "FICHERO_APP_STORE $(inherited)";
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 6.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Release;
-		};
-		FEED0000000000000000025B /* Dev Embedded configuration for PBXNativeTarget "Fichero (App Store)" */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphoneos*]" = "AppIcon-iOS";
-				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphonesimulator*]" = "AppIcon-iOS";
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				AUTOMATION_APPLE_EVENTS = YES;
-				CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION = YES;
-				CODE_SIGN_ENTITLEMENTS = fichero/FicheroAppStore.entitlements;
-				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
-				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
-				CODE_SIGN_STYLE = Automatic;
-				COMBINE_HIDPI_IMAGES = YES;
-				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_ASSET_PATHS = "";
-				ENABLE_APP_SANDBOX = YES;
-				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
-				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
-				ENABLE_PREVIEWS = YES;
-				ENABLE_RESOURCE_ACCESS_CAMERA = YES;
-				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = YES;
-				ENABLE_USER_SELECTED_FILES = readwrite;
-				FICHERO_EMBED_ENGINE = YES;
-				FICHERO_ENGINE_EMBED_OUTPUT_PATH = "$(DERIVED_FILE_DIR)/FicheroEngineEmbed.noop";
-				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/Helpers/Fichero Server.app";
-				FICHERO_FEATURE_TIER = dev;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = fichero/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Fichero;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
-				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
-				INFOPLIST_KEY_NSCameraUsageDescription = "Fichero uses the camera to scan pairing QR codes and capture new photos into your queue.";
-				INFOPLIST_KEY_NSHumanReadableCopyright = "© 2025–2026 Daniel Tubb · AGPL-3.0";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Fichero uses local network discovery to find a nearby Mac host for QR pairing.";
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Fichero uses your photo library when you choose existing images to add to the capture queue.";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UTExportedTypeDeclarations = "(\n    {\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Drag Item\";\n    UTTypeIdentifier = \"app.fichero.fichero.drag-item\";\n    }\n)";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-				);
-				LIBRARY_SEARCH_PATHS = "";
-				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero;
-				PRODUCT_NAME = Fichero;
-				REGISTER_APP_GROUPS = YES;
-				SPARKLE_FEED_URL = "https://tubb.ca/apps/fichero/appcast.xml";
-				SPARKLE_PUBLIC_ED_KEY = "z3UPbmGi74NGSqTQL25E2WFD1yulIzYRvtDitbIZvNY=";
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
-				SUPPORTS_MACCATALYST = NO;
-				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "FICHERO_APP_STORE $(inherited)";
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 6.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = "Dev Embedded";
-		};
-		FEED0000000000000000025C /* Alpha Embedded configuration for PBXNativeTarget "Fichero (App Store)" */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphoneos*]" = "AppIcon-iOS";
-				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphonesimulator*]" = "AppIcon-iOS";
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				AUTOMATION_APPLE_EVENTS = YES;
-				CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION = YES;
-				CODE_SIGN_ENTITLEMENTS = fichero/FicheroAppStore.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
-				CODE_SIGN_STYLE = Automatic;
-				COMBINE_HIDPI_IMAGES = YES;
-				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_ASSET_PATHS = "";
-				DEVELOPMENT_TEAM = QAPB6CWYR6;
-				ENABLE_APP_SANDBOX = YES;
-				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
-				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
-				ENABLE_PREVIEWS = YES;
-				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
-				ENABLE_RESOURCE_ACCESS_BLUETOOTH = NO;
-				ENABLE_RESOURCE_ACCESS_CALENDARS = NO;
-				ENABLE_RESOURCE_ACCESS_CAMERA = YES;
-				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
-				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
-				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = YES;
-				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
-				ENABLE_RESOURCE_ACCESS_USB = NO;
-				ENABLE_USER_SELECTED_FILES = readwrite;
-				FICHERO_EMBED_ENGINE = YES;
-				FICHERO_ENGINE_EMBED_OUTPUT_PATH = "$(DERIVED_FILE_DIR)/FicheroEngineEmbed.noop";
-				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/Helpers/Fichero Server.app";
-				FICHERO_FEATURE_TIER = alpha;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = fichero/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Fichero;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
-				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
-				INFOPLIST_KEY_NSCameraUsageDescription = "Fichero uses the camera to scan pairing QR codes and capture new photos into your queue.";
-				INFOPLIST_KEY_NSHumanReadableCopyright = "© 2025–2026 Daniel Tubb · AGPL-3.0";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Fichero uses local network discovery to find a nearby Mac host for QR pairing.";
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Fichero uses your photo library when you choose existing images to add to the capture queue.";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UTExportedTypeDeclarations = "(\n    {\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Drag Item\";\n    UTTypeIdentifier = \"app.fichero.fichero.drag-item\";\n    }\n)";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-				);
-				LIBRARY_SEARCH_PATHS = "";
-				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero;
-				PRODUCT_NAME = Fichero;
-				PROVISIONING_PROFILE_SPECIFIER = "";
-				REGISTER_APP_GROUPS = YES;
-				RUNTIME_EXCEPTION_ALLOW_DYLD_ENVIRONMENT_VARIABLES = NO;
-				RUNTIME_EXCEPTION_ALLOW_JIT = NO;
-				RUNTIME_EXCEPTION_ALLOW_UNSIGNED_EXECUTABLE_MEMORY = NO;
-				RUNTIME_EXCEPTION_DEBUGGING_TOOL = NO;
-				RUNTIME_EXCEPTION_DISABLE_EXECUTABLE_PAGE_PROTECTION = NO;
-				RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION = NO;
-				SPARKLE_FEED_URL = "https://tubb.ca/apps/fichero/appcast.xml";
-				SPARKLE_PUBLIC_ED_KEY = "z3UPbmGi74NGSqTQL25E2WFD1yulIzYRvtDitbIZvNY=";
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
-				SUPPORTS_MACCATALYST = NO;
-				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "FICHERO_APP_STORE $(inherited)";
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 6.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = "Alpha Embedded";
-		};
-		FEED0000000000000000025D /* Beta Embedded configuration for PBXNativeTarget "Fichero (App Store)" */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphoneos*]" = "AppIcon-iOS";
-				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphonesimulator*]" = "AppIcon-iOS";
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				AUTOMATION_APPLE_EVENTS = YES;
-				CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION = YES;
-				CODE_SIGN_ENTITLEMENTS = fichero/FicheroAppStore.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
-				CODE_SIGN_STYLE = Automatic;
-				COMBINE_HIDPI_IMAGES = YES;
-				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_ASSET_PATHS = "";
-				DEVELOPMENT_TEAM = QAPB6CWYR6;
-				ENABLE_APP_SANDBOX = YES;
-				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
-				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
-				ENABLE_PREVIEWS = YES;
-				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
-				ENABLE_RESOURCE_ACCESS_BLUETOOTH = NO;
-				ENABLE_RESOURCE_ACCESS_CALENDARS = NO;
-				ENABLE_RESOURCE_ACCESS_CAMERA = YES;
-				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
-				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
-				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = YES;
-				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
-				ENABLE_RESOURCE_ACCESS_USB = NO;
-				ENABLE_USER_SELECTED_FILES = readwrite;
-				FICHERO_EMBED_ENGINE = YES;
-				FICHERO_ENGINE_EMBED_OUTPUT_PATH = "$(DERIVED_FILE_DIR)/FicheroEngineEmbed.noop";
-				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/Helpers/Fichero Server.app";
-				FICHERO_FEATURE_TIER = beta;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = fichero/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Fichero;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
-				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
-				INFOPLIST_KEY_NSCameraUsageDescription = "Fichero uses the camera to scan pairing QR codes and capture new photos into your queue.";
-				INFOPLIST_KEY_NSHumanReadableCopyright = "© 2025–2026 Daniel Tubb · AGPL-3.0";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Fichero uses local network discovery to find a nearby Mac host for QR pairing.";
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Fichero uses your photo library when you choose existing images to add to the capture queue.";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UTExportedTypeDeclarations = "(\n    {\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Drag Item\";\n    UTTypeIdentifier = \"app.fichero.fichero.drag-item\";\n    }\n)";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-				);
-				LIBRARY_SEARCH_PATHS = "";
-				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero;
-				PRODUCT_NAME = Fichero;
-				PROVISIONING_PROFILE_SPECIFIER = "";
-				REGISTER_APP_GROUPS = YES;
-				RUNTIME_EXCEPTION_ALLOW_DYLD_ENVIRONMENT_VARIABLES = NO;
-				RUNTIME_EXCEPTION_ALLOW_JIT = NO;
-				RUNTIME_EXCEPTION_ALLOW_UNSIGNED_EXECUTABLE_MEMORY = NO;
-				RUNTIME_EXCEPTION_DEBUGGING_TOOL = NO;
-				RUNTIME_EXCEPTION_DISABLE_EXECUTABLE_PAGE_PROTECTION = NO;
-				RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION = NO;
-				SPARKLE_FEED_URL = "https://tubb.ca/apps/fichero/appcast.xml";
-				SPARKLE_PUBLIC_ED_KEY = "z3UPbmGi74NGSqTQL25E2WFD1yulIzYRvtDitbIZvNY=";
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
-				SUPPORTS_MACCATALYST = NO;
-				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "FICHERO_APP_STORE $(inherited)";
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 6.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = "Beta Embedded";
-		};
-		FEED0000000000000000025E /* Release Local configuration for PBXNativeTarget "Fichero (App Store)" */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphoneos*]" = "AppIcon-iOS";
-				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=iphonesimulator*]" = "AppIcon-iOS";
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				AUTOMATION_APPLE_EVENTS = YES;
-				CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION = YES;
-				CODE_SIGN_ENTITLEMENTS = fichero/FicheroAppStore.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
-				CODE_SIGN_STYLE = Automatic;
-				COMBINE_HIDPI_IMAGES = YES;
-				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_ASSET_PATHS = "";
-				DEVELOPMENT_TEAM = QAPB6CWYR6;
-				ENABLE_APP_SANDBOX = YES;
-				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
-				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
-				ENABLE_PREVIEWS = YES;
-				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
-				ENABLE_RESOURCE_ACCESS_BLUETOOTH = NO;
-				ENABLE_RESOURCE_ACCESS_CALENDARS = NO;
-				ENABLE_RESOURCE_ACCESS_CAMERA = YES;
-				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
-				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
-				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = YES;
-				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
-				ENABLE_RESOURCE_ACCESS_USB = NO;
-				ENABLE_USER_SELECTED_FILES = readwrite;
-				FICHERO_EMBED_ENGINE = NO;
-				FICHERO_ENGINE_EMBED_OUTPUT_PATH = "$(DERIVED_FILE_DIR)/FicheroEngineEmbed.noop";
-				"FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]" = "$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/Helpers/Fichero Server.app";
-				FICHERO_FEATURE_TIER = release;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = fichero/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Fichero;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
-				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
-				INFOPLIST_KEY_NSCameraUsageDescription = "Fichero uses the camera to scan pairing QR codes and capture new photos into your queue.";
-				INFOPLIST_KEY_NSHumanReadableCopyright = "© 2025–2026 Daniel Tubb · AGPL-3.0";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Fichero uses local network discovery to find a nearby Mac host for QR pairing.";
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Fichero uses your photo library when you choose existing images to add to the capture queue.";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UTExportedTypeDeclarations = "(\n    {\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Drag Item\";\n    UTTypeIdentifier = \"app.fichero.fichero.drag-item\";\n    }\n)";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-				);
-				LIBRARY_SEARCH_PATHS = "";
-				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero;
-				PRODUCT_NAME = Fichero;
-				PROVISIONING_PROFILE_SPECIFIER = "";
-				REGISTER_APP_GROUPS = YES;
-				RUNTIME_EXCEPTION_ALLOW_DYLD_ENVIRONMENT_VARIABLES = NO;
-				RUNTIME_EXCEPTION_ALLOW_JIT = NO;
-				RUNTIME_EXCEPTION_ALLOW_UNSIGNED_EXECUTABLE_MEMORY = NO;
-				RUNTIME_EXCEPTION_DEBUGGING_TOOL = NO;
-				RUNTIME_EXCEPTION_DISABLE_EXECUTABLE_PAGE_PROTECTION = NO;
-				RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION = NO;
-				SPARKLE_FEED_URL = "https://tubb.ca/apps/fichero/appcast.xml";
-				SPARKLE_PUBLIC_ED_KEY = "z3UPbmGi74NGSqTQL25E2WFD1yulIzYRvtDitbIZvNY=";
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
-				SUPPORTS_MACCATALYST = NO;
-				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "FICHERO_APP_STORE $(inherited)";
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 6.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = "Release Local";
 		};
 /* End XCBuildConfiguration section */
 
@@ -3530,13 +1879,10 @@
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				208ADAA03022008700B83F96 /* Debug configuration for PBXNativeTarget "FicheroIOSTests" */,
-				208ADAA13022008700B83F96 /* Alpha configuration for PBXNativeTarget "FicheroIOSTests" */,
-				208ADAA23022008700B83F96 /* Beta configuration for PBXNativeTarget "FicheroIOSTests" */,
 				208ADAA33022008700B83F96 /* Release configuration for PBXNativeTarget "FicheroIOSTests" */,
 				208ADAA43022008700B83F96 /* Dev Embedded configuration for PBXNativeTarget "FicheroIOSTests" */,
 				208ADAA53022008700B83F96 /* Alpha Embedded configuration for PBXNativeTarget "FicheroIOSTests" */,
 				208ADAA63022008700B83F96 /* Beta Embedded configuration for PBXNativeTarget "FicheroIOSTests" */,
-				208ADAA73022008700B83F96 /* Release Local configuration for PBXNativeTarget "FicheroIOSTests" */,
 			);
 			defaultConfigurationName = Release;
 		};
@@ -3544,13 +1890,10 @@
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				810 /* Debug configuration for PBXNativeTarget "Fichero" */,
-				812 /* Alpha configuration for PBXNativeTarget "Fichero" */,
-				813 /* Beta configuration for PBXNativeTarget "Fichero" */,
 				811 /* Release configuration for PBXNativeTarget "Fichero" */,
 				FE7E000100000000000000A1 /* Dev Embedded configuration for PBXNativeTarget "Fichero" */,
 				FE7E000100000000000000A2 /* Alpha Embedded configuration for PBXNativeTarget "Fichero" */,
 				FE7E000100000000000000A3 /* Beta Embedded configuration for PBXNativeTarget "Fichero" */,
-				FE7E000100000000000000A4 /* Release Local configuration for PBXNativeTarget "Fichero" */,
 			);
 			defaultConfigurationName = Release;
 		};
@@ -3558,13 +1901,10 @@
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				800 /* Debug configuration for PBXProject "fichero" */,
-				802 /* Alpha configuration for PBXProject "fichero" */,
-				803 /* Beta configuration for PBXProject "fichero" */,
 				801 /* Release configuration for PBXProject "fichero" */,
 				FE7E000100000000000000B1 /* Dev Embedded configuration for PBXProject "fichero" */,
 				FE7E000100000000000000B2 /* Alpha Embedded configuration for PBXProject "fichero" */,
 				FE7E000100000000000000B3 /* Beta Embedded configuration for PBXProject "fichero" */,
-				FE7E000100000000000000B4 /* Release Local configuration for PBXProject "fichero" */,
 			);
 			defaultConfigurationName = Release;
 		};
@@ -3573,12 +1913,9 @@
 			buildConfigurations = (
 				A10521AF2EFDC92400B28C3E /* Debug configuration for PBXNativeTarget "FicheroTests" */,
 				A10521B02EFDC92400B28C3E /* Release configuration for PBXNativeTarget "FicheroTests" */,
-				20969FA93000614800D06A60 /* Alpha configuration for PBXNativeTarget "FicheroTests" */,
-				20969FAA3000614800D06A60 /* Beta configuration for PBXNativeTarget "FicheroTests" */,
 				20969FAB3000614800D06A60 /* Dev Embedded configuration for PBXNativeTarget "FicheroTests" */,
 				20969FAC3000614800D06A60 /* Alpha Embedded configuration for PBXNativeTarget "FicheroTests" */,
 				20969FAD3000614800D06A60 /* Beta Embedded configuration for PBXNativeTarget "FicheroTests" */,
-				20969FAE3000614800D06A60 /* Release Local configuration for PBXNativeTarget "FicheroTests" */,
 			);
 			defaultConfigurationName = Release;
 		};
@@ -3587,12 +1924,9 @@
 			buildConfigurations = (
 				A10521C82EFDC94100B28C3E /* Debug configuration for PBXNativeTarget "FicheroUITests" */,
 				A10521C92EFDC94100B28C3E /* Release configuration for PBXNativeTarget "FicheroUITests" */,
-				20969FAF3000614800D06A60 /* Alpha configuration for PBXNativeTarget "FicheroUITests" */,
-				20969FB03000614800D06A60 /* Beta configuration for PBXNativeTarget "FicheroUITests" */,
 				20969FB13000614800D06A60 /* Dev Embedded configuration for PBXNativeTarget "FicheroUITests" */,
 				20969FB23000614800D06A60 /* Alpha Embedded configuration for PBXNativeTarget "FicheroUITests" */,
 				20969FB33000614800D06A60 /* Beta Embedded configuration for PBXNativeTarget "FicheroUITests" */,
-				20969FB43000614800D06A60 /* Release Local configuration for PBXNativeTarget "FicheroUITests" */,
 			);
 			defaultConfigurationName = Release;
 		};
@@ -3600,13 +1934,10 @@
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				F105C0DE0000000000000010 /* Debug configuration for PBXNativeTarget "FicheroIOSUITests" */,
-				F105C0DE0000000000000011 /* Alpha configuration for PBXNativeTarget "FicheroIOSUITests" */,
-				F105C0DE0000000000000012 /* Beta configuration for PBXNativeTarget "FicheroIOSUITests" */,
 				F105C0DE0000000000000013 /* Release configuration for PBXNativeTarget "FicheroIOSUITests" */,
 				F105C0DE0000000000000014 /* Dev Embedded configuration for PBXNativeTarget "FicheroIOSUITests" */,
 				F105C0DE0000000000000015 /* Alpha Embedded configuration for PBXNativeTarget "FicheroIOSUITests" */,
 				F105C0DE0000000000000016 /* Beta Embedded configuration for PBXNativeTarget "FicheroIOSUITests" */,
-				F105C0DE0000000000000017 /* Release Local configuration for PBXNativeTarget "FicheroIOSUITests" */,
 			);
 			defaultConfigurationName = Release;
 		};
@@ -3615,26 +1946,9 @@
 			buildConfigurations = (
 				FE1DAD000000000000000050 /* Debug configuration for PBXNativeTarget "FicheroIPadTests" */,
 				FE1DAD000000000000000051 /* Release configuration for PBXNativeTarget "FicheroIPadTests" */,
-				FE1DAD000000000000000052 /* Alpha configuration for PBXNativeTarget "FicheroIPadTests" */,
-				FE1DAD000000000000000053 /* Beta configuration for PBXNativeTarget "FicheroIPadTests" */,
 				FE1DAD000000000000000054 /* Dev Embedded configuration for PBXNativeTarget "FicheroIPadTests" */,
 				FE1DAD000000000000000055 /* Alpha Embedded configuration for PBXNativeTarget "FicheroIPadTests" */,
 				FE1DAD000000000000000056 /* Beta Embedded configuration for PBXNativeTarget "FicheroIPadTests" */,
-				FE1DAD000000000000000057 /* Release Local configuration for PBXNativeTarget "FicheroIPadTests" */,
-			);
-			defaultConfigurationName = Release;
-		};
-		FEED0000000000000000025F /* Build configuration list for PBXNativeTarget "Fichero (App Store)" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				FEED00000000000000000257 /* Debug configuration for PBXNativeTarget "Fichero (App Store)" */,
-				FEED00000000000000000258 /* Alpha configuration for PBXNativeTarget "Fichero (App Store)" */,
-				FEED00000000000000000259 /* Beta configuration for PBXNativeTarget "Fichero (App Store)" */,
-				FEED0000000000000000025A /* Release configuration for PBXNativeTarget "Fichero (App Store)" */,
-				FEED0000000000000000025B /* Dev Embedded configuration for PBXNativeTarget "Fichero (App Store)" */,
-				FEED0000000000000000025C /* Alpha Embedded configuration for PBXNativeTarget "Fichero (App Store)" */,
-				FEED0000000000000000025D /* Beta Embedded configuration for PBXNativeTarget "Fichero (App Store)" */,
-				FEED0000000000000000025E /* Release Local configuration for PBXNativeTarget "Fichero (App Store)" */,
 			);
 			defaultConfigurationName = Release;
 		};
