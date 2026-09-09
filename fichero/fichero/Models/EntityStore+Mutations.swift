@@ -175,10 +175,18 @@ extension EntityStore {
 
     /// Delete the given entities, then remove the matching rows in place.
     func delete(entityIds: [String]) async throws {
-        for entityId in entityIds {
-            try await entityService.deleteEntity(entityId)
+        // Bounded-concurrent + prune-only-successes (spec: kg-tables kg.scale.bulk-
+        // correctness): the old sequential loop aborted on the first failure, leaving
+        // the entities it HAD deleted still visible; and 1000 rows meant 1000 serial
+        // round-trips. Interim until a batch-delete endpoint (#4643).
+        let service = entityService
+        let succeeded = await BulkDelete.succeeding(ids: entityIds) { id in
+            do { try await service.deleteEntity(id); return true } catch { return false }
         }
-        removeEntitiesEverywhere(ids: Set(entityIds))
+        removeEntitiesEverywhere(ids: Set(succeeded))
+        if succeeded.count < entityIds.count {
+            throw BulkDeleteError.partial(deleted: succeeded.count, requested: entityIds.count)
+        }
     }
 
     /// The single place an entity is removed from every container this store

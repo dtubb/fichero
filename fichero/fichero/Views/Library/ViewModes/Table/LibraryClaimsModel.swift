@@ -64,10 +64,18 @@ final class LibraryClaimsModel {
     /// The rows then leave THIS list in place (`crud.in-place`), never a full reload.
     func delete(claimIds: [String]) async throws {
         guard !claimIds.isEmpty else { return }
-        for id in claimIds {
-            try await service.deleteClaim(id)
+        // Bounded-concurrent + prune-only-successes (spec: kg-tables kg.scale.bulk-
+        // correctness): a partial failure removes exactly the rows that were deleted,
+        // never leaving a phantom row, and N deletes don't run N serial round-trips.
+        // Interim until a batch-delete endpoint (#4643).
+        let svc = service
+        let succeeded = await BulkDelete.succeeding(ids: claimIds) { id in
+            do { try await svc.deleteClaim(id); return true } catch { return false }
         }
-        claims = Self.removing(claimIds: claimIds, from: claims)
+        claims = Self.removing(claimIds: succeeded, from: claims)
+        if succeeded.count < claimIds.count {
+            throw BulkDeleteError.partial(deleted: succeeded.count, requested: claimIds.count)
+        }
     }
 
     /// The pure removal rule: drop claims whose id is in `claimIds`, keep the rest.
