@@ -93,6 +93,7 @@ class Aggregation:
     subject: str | None
     verb: str | None
     objects: list[str]
+    places: list[str]
     count: int
     claim_ids: list[str]
 
@@ -111,13 +112,18 @@ def aggregate_claims(claims: Sequence[KnowledgeClaim]) -> list[Aggregation]:
         key = (_normalize(subject or ""), _normalize(verb or ""))
         agg = groups.get(key)
         if agg is None:
-            agg = Aggregation(subject=subject, verb=verb, objects=[], count=0, claim_ids=[])
+            agg = Aggregation(
+                subject=subject, verb=verb, objects=[], places=[], count=0, claim_ids=[]
+            )
             groups[key] = agg
             order.append(key)
         agg.count += 1
         agg.claim_ids.append(claim.id)
         if obj is not None and obj not in agg.objects:
             agg.objects.append(obj)
+        place = claim.claim_location
+        if place and place not in agg.places:
+            agg.places.append(place)
     return [groups[key] for key in order]
 
 

@@ -139,3 +139,18 @@ def test_single_token_name_is_unchanged_when_subsequent():
 def test_blank_name_is_empty():
     from fichero_server.knowledge.readable import referring_expression
     assert referring_expression("   ", first_mention=True) == ""
+
+
+def test_aggregation_collects_place_distribution():
+    # "seven witness appearances -> one sentence with a count and a place distribution"
+    a = _svo("Ana", "witnessed", "a will", claim_location="Nóvita")
+    b = _svo("Ana", "witnessed", "a sale", claim_location="Quibdó")
+    c = _svo("Ana", "witnessed", "a deed", claim_location="Nóvita")  # duplicate place
+    agg = aggregate_claims([a, b, c])[0]
+    assert agg.count == 3
+    assert agg.places == ["Nóvita", "Quibdó"]  # distinct, first-seen order
+
+
+def test_aggregation_places_empty_when_no_locations():
+    a = _svo("Ana", "born in", "Quibdó")
+    assert aggregate_claims([a])[0].places == []
