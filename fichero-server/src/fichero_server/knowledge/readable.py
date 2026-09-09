@@ -16,9 +16,16 @@ land on top of these, each test-first. See the spec's pipeline section.
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
 from enum import Enum
 from typing import Sequence
 
+from fichero_server.knowledge.paragraph import (
+    _claim_object,
+    _claim_subject,
+    _claim_verb,
+    _normalize,
+)
 from fichero_server.models.knowledge import KnowledgeClaim
 
 
@@ -72,3 +79,43 @@ def order_claims(
     if ordering == Ordering.chronological:
         return sorted(claims, key=_chronological_key)
     return sorted(claims, key=_by_source_key)
+
+
+@dataclass
+class Aggregation:
+    """Stage 3 output — one (subject, verb) collapsed across its claims.
+
+    Repetition becomes a count plus the distinct objects/places, so "witnessed the
+    will, witnessed the sale, …" renders as one sentence. `claim_ids` keeps every
+    contributing claim for citation (provenance is never lost by aggregating).
+    """
+
+    subject: str | None
+    verb: str | None
+    objects: list[str]
+    count: int
+    claim_ids: list[str]
+
+
+def aggregate_claims(claims: Sequence[KnowledgeClaim]) -> list[Aggregation]:
+    """Stage 3 — aggregation. Group claims by (subject, verb); within a group keep
+    the count of claims and the DISTINCT objects. First-seen group order is preserved
+    (ordering is stage 2's job; this doesn't re-sort). No claim is dropped — every id
+    is retained for citation."""
+    groups: dict[tuple[str, str], Aggregation] = {}
+    order: list[tuple[str, str]] = []
+    for claim in claims:
+        subject = _claim_subject(claim)
+        verb = _claim_verb(claim)
+        obj = _claim_object(claim)
+        key = (_normalize(subject or ""), _normalize(verb or ""))
+        agg = groups.get(key)
+        if agg is None:
+            agg = Aggregation(subject=subject, verb=verb, objects=[], count=0, claim_ids=[])
+            groups[key] = agg
+            order.append(key)
+        agg.count += 1
+        agg.claim_ids.append(claim.id)
+        if obj is not None and obj not in agg.objects:
+            agg.objects.append(obj)
+    return [groups[key] for key in order]

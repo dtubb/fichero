@@ -11,7 +11,13 @@ from __future__ import annotations
 import pytest
 
 from fichero_server.models.knowledge import KnowledgeClaim
-from fichero_server.knowledge.readable import Ordering, order_claims, select_entry_claims
+from fichero_server.knowledge.readable import (
+    Aggregation,
+    Ordering,
+    aggregate_claims,
+    order_claims,
+    select_entry_claims,
+)
 
 
 def _claim(text: str, **kw) -> KnowledgeClaim:
@@ -72,3 +78,42 @@ def test_by_source_puts_sourceless_claims_last():
     manual = _claim("manually asserted")  # no source_document_id
     sourced = _claim("from a doc", source_document_id="A", source_char_start=0)
     assert order_claims([manual, sourced], Ordering.by_source) == [sourced, manual]
+
+
+# ---- Stage 3: aggregation -----------------------------------------------------------
+
+def _svo(s, v, o, **kw):
+    return KnowledgeClaim(text=f"{s} {v} {o}", svo_subject=s, svo_verb=v, svo_object=o, **kw)
+
+
+def test_aggregates_same_subject_verb_into_one_with_count_and_objects():
+    a = _svo("Ana", "witnessed", "the Nóvita will")
+    b = _svo("Ana", "witnessed", "the Quibdó sale")
+    result = aggregate_claims([a, b])
+    assert len(result) == 1
+    agg = result[0]
+    assert agg.subject == "Ana" and agg.verb == "witnessed"
+    assert agg.count == 2
+    assert agg.objects == ["the Nóvita will", "the Quibdó sale"]
+    assert agg.claim_ids == [a.id, b.id]
+
+
+def test_different_verbs_stay_separate_groups_in_first_seen_order():
+    a = _svo("Ana", "witnessed", "a will")
+    b = _svo("Ana", "owned", "a mine")
+    result = aggregate_claims([a, b])
+    assert [(g.verb, g.count) for g in result] == [("witnessed", 1), ("owned", 1)]
+
+
+def test_aggregation_dedupes_objects_but_counts_every_claim():
+    a = _svo("Ana", "witnessed", "a will")
+    b = _svo("Ana", "witnessed", "a will")  # same object, distinct claim
+    agg = aggregate_claims([a, b])[0]
+    assert agg.count == 2
+    assert agg.objects == ["a will"]  # distinct objects
+
+
+def test_single_claim_aggregates_to_count_one():
+    a = _svo("Ana", "born in", "Quibdó")
+    agg = aggregate_claims([a])[0]
+    assert agg.count == 1 and agg.objects == ["Quibdó"]
