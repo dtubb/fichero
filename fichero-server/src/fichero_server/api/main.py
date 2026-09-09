@@ -489,6 +489,20 @@ def _collapse_duplicate_providers() -> None:
         logger.warning("Provider duplicate collapse failed: %s", exc)
 
 
+def _should_prewarm_embeddings() -> bool:
+    """Whether to pre-warm the embeddings model at startup.
+
+    Default TRUE — production and normal dev always warm it. Opt OUT with
+    ``FICHERO_SKIP_EMBEDDINGS_PREWARM=1``: a fresh Application Support home (a
+    UI-test harness engine) has an empty model cache, so warming there blocks
+    startup on a 7-file HuggingFace download and can hang the engine. A UI test
+    that actually EXERCISES embeddings unsets the flag for its engine so it warms;
+    everything else skips the download it does not need. Pure so the gate is
+    testable without booting the engine.
+    """
+    return os.environ.get("FICHERO_SKIP_EMBEDDINGS_PREWARM") != "1"
+
+
 def _prewarm_embeddings() -> None:
     """Download + initialise the embeddings model so it's ready before first use."""
     try:
@@ -880,8 +894,12 @@ async def lifespan(app: FastAPI):
             # ~19s model load inside its own transaction — the measured
             # pathology this comment block describes was caused by the very
             # line meant to prevent it. We are already off the loop; just
-            # call it.
-            _prewarm_embeddings()
+            # call it — unless a fresh-home engine (UI test) opted out, where the
+            # empty model cache would turn this warm into a blocking download.
+            if _should_prewarm_embeddings():
+                _prewarm_embeddings()
+            else:
+                logger.info("Skipping embeddings pre-warm (FICHERO_SKIP_EMBEDDINGS_PREWARM=1)")
         except Exception as exc:
             # Deliberately not fatal: a failed warm-up must not take down an
             # engine that is already serving. It is logged at WARNING with a

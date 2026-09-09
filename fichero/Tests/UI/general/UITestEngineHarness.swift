@@ -176,6 +176,14 @@ final class UITestEngineHarness {
         proc.arguments = [script.path, "--socket", socketPath, "--seed-mode", "full"]
         var env = ProcessInfo.processInfo.environment
         env["PYTHONPATH"] = repo.appendingPathComponent("fichero-server/src").path
+        // The UI-test engine runs in a FRESH Application Support home, so its model
+        // cache is empty — warming embeddings at startup would block on a 7-file
+        // HuggingFace download and hang the engine (the observed skip cause). Skip it
+        // by default; a UI plan that EXERCISES embeddings sets this to "0" in the
+        // runner env to warm (and must ensure the model is cached — see #4634).
+        if env["FICHERO_SKIP_EMBEDDINGS_PREWARM"] == nil {
+            env["FICHERO_SKIP_EMBEDDINGS_PREWARM"] = "1"
+        }
         proc.environment = env
         let out = Pipe()
         let errPipe = Pipe()
