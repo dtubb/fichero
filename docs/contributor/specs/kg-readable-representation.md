@@ -88,6 +88,10 @@ per claim, not a fixed language pair.
 - `kg.read.expose-kg-on-hover` [MISSING] — hover/click on a statement reveals **what the KG knows**
   behind it — location, dates, roles, confidence, the raw SVO — rendered readably (not raw JSON),
   as the bridge from prose back to structure back to source.
+- `kg.read.generation-provenance` [MISSING] — the render is no-LLM, but the underlying CLAIM was
+  extracted by a model+prompt+run; that generation provenance (which model, which prompt version,
+  which run) is exposed alongside the source, so a reader sees not just *where* the factoid came
+  from but *how it was made*. Ties to run-scope provenance logging.
 - `kg.read.no-llm` [MISSING, hard] — NO generative model anywhere in the path. Every sentence is
   produced by deterministic rules/templates/grammar from stored claims; a guard test asserts the
   render module imports/calls no LLM client and that output is a pure function of its claim input.

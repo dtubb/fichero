@@ -43,6 +43,12 @@ from the dependency manifests, kept distinct from the scholarly entries.
   a spec's "Related work" list is generated, not hand-maintained.
 - `cite.exportable` [MISSING] — the bibliography exports as BibTeX (and later CSL-JSON) for papers
   and for the app's future "sources / where this comes from" surface.
+- `cite.surfaces` [MISSING] — the credits render in THREE places from the one `.bib`: the app's
+  **About box**, the **user guide** (`docs/user/`), and the **website** — generated, never
+  hand-copied, so they never drift.
+- `cite.people-first` [MISSING] — ordering puts **specific people / articles first** (the
+  scholarship and the humans behind it), then projects, then code libraries — credit the thinking
+  before the tooling.
 
 ## Test matrix
 
