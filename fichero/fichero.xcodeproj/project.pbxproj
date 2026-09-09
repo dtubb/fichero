@@ -896,6 +896,7 @@
 		20969FAB3000614800D06A60 /* Dev Embedded configuration for PBXNativeTarget "FicheroTests" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				GENERATE_INFOPLIST_FILE = YES;
 				PRODUCT_NAME = FicheroTests;
 				SWIFT_VERSION = 5.0;
@@ -905,6 +906,7 @@
 		20969FAC3000614800D06A60 /* Alpha Embedded configuration for PBXNativeTarget "FicheroTests" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				GENERATE_INFOPLIST_FILE = YES;
 				PRODUCT_NAME = FicheroTests;
 				SWIFT_VERSION = 5.0;
@@ -914,6 +916,7 @@
 		20969FAD3000614800D06A60 /* Beta Embedded configuration for PBXNativeTarget "FicheroTests" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				GENERATE_INFOPLIST_FILE = YES;
 				PRODUCT_NAME = FicheroTests;
 				SWIFT_VERSION = 5.0;
@@ -1214,6 +1217,7 @@
 		A10521AF2EFDC92400B28C3E /* Debug configuration for PBXNativeTarget "FicheroTests" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -1230,6 +1234,7 @@
 		A10521B02EFDC92400B28C3E /* Release configuration for PBXNativeTarget "FicheroTests" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				GENERATE_INFOPLIST_FILE = YES;

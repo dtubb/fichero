@@ -29,7 +29,11 @@ import Foundation
 nonisolated(unsafe) private var _spawnedEngineProcess: Process?
 nonisolated(unsafe) private var _atexitRegistered = false
 
-private func _terminateSpawnedEngineAtExit() {
+// nonisolated: this is handed to C `atexit`, which requires a nonisolated
+// function pointer. Under SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor it would
+// otherwise infer @MainActor and fail to form the C pointer. An atexit handler
+// runs at process teardown on no particular actor, so nonisolated is correct.
+private nonisolated func _terminateSpawnedEngineAtExit() {
     _spawnedEngineProcess?.terminate()
     _spawnedEngineProcess = nil
 }
