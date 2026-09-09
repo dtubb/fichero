@@ -1,8 +1,16 @@
 # KG Readable Representation — narrative biographies from claims — Design Spec (#TBD)
 
+> Milestone: kg-readable-representation
+>
 > Design-led (Testing Constitution). **Status: DRAFT — awaiting creative-director approval.**
-> (A DRAFT needs no Milestone yet; declare one on approval — see TEST-TEMPLATE.md.)
 > Tags: [OK] built · [PARTIAL] exists, extend · [MISSING] not built.
+>
+> **Scope boundary:** this specs HOW the readable representation is BUILT — a deterministic,
+> background, backend NLG pipeline over the existing KG. It is NOT the document inspector
+> (`kg-entity-inspector.md`), which is the display *interface*; that surface consumes what this
+> produces. Two hard constraints: (1) **NO LLM generation anywhere in the path** — rendering is
+> 100% deterministic from stored claims (the current `narrative_v1` LLM prompt "makes it up" and
+> is the thing being replaced); (2) **any language**, not just Spanish/English.
 
 ## Why this spec exists
 
@@ -50,9 +58,12 @@ Given an entity (or a set), render a **biography** (or any genre above): readabl
 from its claims/factoids, under a chosen **ordering** and **grouping**, with citation markers
 linking every statement to its source anchor, and with **uncertainty shown, not hidden**
 (low-confidence or contradicted claims are marked, hedged, or sectioned — never silently asserted).
-Deterministic composition is the floor (testable, always available offline); an optional LLM polish
-pass (narrative_v1) may smooth prose but may not introduce any claim the deterministic layer
-didn't license. Output is **bilingual** (Spanish + English) from one abstract representation.
+Composition is **100% deterministic** — no LLM in the path, ever — computed in the **background**
+(like embeddings) and stored, not generated on demand in a web request. The rendered prose is in
+**the language of the SVO/claim itself** — i.e. the language of the source the factoid was
+extracted from (a claim from a Spanish document renders Spanish, a French source French); the
+representation is multilingual *because the sources are*, so realisation must be language-aware
+per claim, not a fixed language pair.
 
 ## Behaviors
 
@@ -70,8 +81,21 @@ didn't license. Output is **bilingual** (Spanish + English) from one abstract re
   edges must show their confidence. Never render a low-confidence claim as flat fact.
 - `kg.read.provenance-linked` [OK, extend] — every statement keeps its citation marker → source
   anchor (paragraph.py already does markers; ensure biography-scale keeps them 1:1).
-- `kg.read.no-fabrication` [MISSING, hard] — the LLM polish layer may reorder/smooth but MUST NOT
-  add a claim absent from the deterministic input; a guard test diffs claim-set in vs out.
+- `kg.read.cite-to-segment` [MISSING] — a citation resolves not just to a document/page but to the
+  **page SEGMENT** (the bbox/region the claim was extracted from), so a click lands the reader on
+  the exact spot in the source. The `SourceAnchor` already carries region data — the marker must
+  round-trip to it.
+- `kg.read.expose-kg-on-hover` [MISSING] — hover/click on a statement reveals **what the KG knows**
+  behind it — location, dates, roles, confidence, the raw SVO — rendered readably (not raw JSON),
+  as the bridge from prose back to structure back to source.
+- `kg.read.no-llm` [MISSING, hard] — NO generative model anywhere in the path. Every sentence is
+  produced by deterministic rules/templates/grammar from stored claims; a guard test asserts the
+  render module imports/calls no LLM client and that output is a pure function of its claim input.
+- `kg.read.language-of-svo` [MISSING] — each sentence renders in the language of its claim/SVO
+  (the source's language); connective/structuring prose follows the entity's dominant claim
+  language. Never machine-translate a claim into another language (that would be fabrication).
+- `kg.read.background` [MISSING] — the representation is computed in the background and stored
+  (auto-throttled, like embeddings — the machine stays usable), not synthesized per web request.
 
 ## Build: the Reiter & Dale NLG pipeline (six small, testable Python stages)
 
@@ -82,12 +106,15 @@ own unit test** — which is exactly why this whole feature is headless-testable
    (family / property / litigation). (= `kg.read.order.*`)
 3. **Aggregation** — collapse repetition: "seven witness appearances" → one sentence with a count
    and a place distribution. (extends `_group_claims`)
-4. **Lexicalisation** — each (event-type, role) pair → a verb phrase, in Spanish AND English.
-5. **Referring expressions** — full name on first mention, surname after, pronoun within a paragraph.
-6. **Realisation** — agreement + morphology. Jinja2 goes far; **RosaeNLG** handles Spanish agreement
-   (browser/node), **SimpleNLG-ES** is the Java realiser for grammar guarantees, Grammatical
-   Framework is the heavyweight bilingual option. Start with Jinja2 + deterministic rules; adopt a
-   realiser only when Spanish gender/number agreement actually bites (ponytail: don't add it early).
+4. **Lexicalisation** — each (event-type, role) pair → a verb phrase, in **the claim's language**
+   via a per-language lexicon table (add a language by adding a table, not code).
+5. **Referring expressions** — full name on first mention, surname after, pronoun within a paragraph
+   (pronoun/agreement rules are per-language).
+6. **Realisation** — agreement + morphology, per language. Jinja2 + per-language rule tables go far;
+   **Grammatical Framework** is the right heavyweight for *many* languages from one abstract tree
+   (RosaeNLG / SimpleNLG cover ~a dozen if a rule table proves too weak). ponytail: ship Jinja2 +
+   rule tables for the languages actually in the corpus; reach for GF only when a language's
+   morphology genuinely needs it. NEVER translate a claim across languages — render in its own.
 
 `paragraph.py` already implements a thin slice of stages 3–6 for a single paragraph; this spec
 extends it stage by stage to entry/biography scale, each stage landed test-first.
@@ -98,13 +125,14 @@ extends it stage by stage to entry/biography scale, each stage landed test-first
 |-----|---------------|------|------|
 | Pure rule (py) | y | ordering (chronological/by-source), grouping, hedging by confidence | `fichero-server/tests/unit/knowledge/test_readable_representation.py` |
 | Backend (pytest) | y | the render endpoint returns ordered prose + markers for a seeded entity | `fichero-server/tests/…` |
-| No-fabrication guard (py) | y | LLM-polished output introduces no new claim vs deterministic input | same |
+| No-LLM guard (py) | y | render module calls no LLM client; output is a pure function of its claims | same |
+| Multilingual (py) | y | a claim renders in ITS language; adding a language = adding a lexicon table | same |
 | Availability (Swift) | y | the reader surface wires the readable render | `fichero/Tests/Unit/**` |
 | Snapshot (Swift) | y | a biography renders legibly (chronological + by-source states) | `fichero/Tests/Unit/**` |
 | Click-around (XCUITest) | y | open an entity → read its biography → click a citation → its source | `fichero/Tests/UI/**` |
 
-Hard-gate: `kg.read.no-fabrication` (integrity — the AI-as-instrument north star) and
-`kg.read.provenance-linked` (every statement traceable).
+Hard-gate: `kg.read.no-llm` (integrity — the AI-as-instrument north star; no fabrication) and
+`kg.read.provenance-linked` (every statement traceable to its source).
 
 ## Related vision — NOT this spec (future, separate specs)
 
@@ -133,5 +161,7 @@ Captured here so the research isn't lost, deliberately out of scope for the read
 1. Default ordering for a biography — chronological, or by-source? (Both are behaviors; which is
    the default a reader lands on?)
 2. How should confidence read in prose — hedge words, a visible marker, or a separate section?
-3. Is the LLM polish layer on by default, or is deterministic prose the shipped default with
-   polish opt-in? (Integrity leans deterministic-default.)
+3. Connective/structuring prose language when an entity's claims mix languages — the dominant
+   claim language, or section per language? (Claims themselves always render in their own.)
+4. Which languages are actually in the current corpus (Spanish, plus…?) — sets which lexicon
+   tables ship first.
