@@ -17,6 +17,7 @@ grounded in the real harness** so writing it is mechanical.
 |-----|----------------|------|----------|
 | **Pure rule** (Swift) | there is any non-trivial logic (a filter, a mapping, a state machine) | the rule, off-main, no UI | `fichero/Tests/Unit/**/<Area>Tests.swift` |
 | **Availability** (Swift) | a capability must be REACHABLE in a surface | "this surface wires this capability" | same, source-string via `AppSource.root()` |
+| **Snapshot/Preview** (Swift) | a surface has a VISUAL design to defend (layout, states, empty/error) | the rendered surface matches its committed reference — headless, no launch, no engine | `fichero/Tests/Unit/**/<Area>SnapshotTests.swift` (+ `__Snapshots__/`) |
 | **Backend** (pytest) | the surface calls an endpoint / writes data | the endpoint's contract + that data was DELIVERED | `fichero-server/tests/**` |
 | **MCP** | the capability should be agent-reachable | the MCP tool maps + routes | `fichero-mcp/tests/test_mcp_full.py` |
 | **CLI** | the capability should be scriptable | the CLI command wires the endpoint | `fichero-cli/tests/test_*.py` |
@@ -54,6 +55,25 @@ func testSurfaceWiresCapability() throws {
     XCTAssertTrue(src.contains("<the wiring token>"), "<surface> must wire <capability>")
 }
 ```
+
+### 2b. Snapshot/preview (Swift — headless UI, the cheap design-led check below XCUITest)
+Render a view + fixture to a deterministic image and compare to a committed reference
+(`Tests/Unit/general/SnapshotSupport.swift`, `ImageRenderer`-based — no dependency). This is
+the layer the 87 `#Preview`s should feed. First run for a new name RECORDS the reference and
+fails (never a silent pass); commit the PNG like any reviewed artifact. Baselines are recorded
+on **macOS 26** (the deployment floor); a 26↔27 render drift is real signal.
+```swift
+@Test @MainActor
+func <surface>EmptyStateReadsCalm() throws {
+    try assertSnapshot(of: <View>(<fixture>), size: .init(width: 320, height: 200),
+                       named: "<surface>-empty")   // 1st run records; commit __Snapshots__/<name>.png
+}
+```
+**One render, two uses:** the same `ImageRenderer` pass that asserts a snapshot also *is* the
+**doc screenshot** the DOC-TEMPLATE requires for the user manual. Capture the surface once, at
+its seeded/fixture state, and both the Test matrix (this leg) and the Documentation matrix
+(user-manual screenshot) are satisfied — no separate screenshot step, and the manual image can
+never drift from what the test pins. See `DOC-TEMPLATE.md` → user-manual leg.
 
 ### 3. Backend (pytest — prove DELIVERY, not just a 200; see check_import_tests_prove_delivery)
 ```python

@@ -12,6 +12,7 @@ import Testing
 ///
 /// The precision rule holds here too: a clause with no honest destination stays
 /// plain — a link that goes nowhere is worse than no link.
+@Suite(.tags(.knowledgeGraph))
 struct EntitySourceGroupsLinkTests {
 
     private func claim(

@@ -16,6 +16,7 @@ import Testing
 /// with no recorded span opens its page and says so. A confidently wrong
 /// highlight over a manuscript asserts a word appears somewhere it does not,
 /// and the reader has no way to discover it is wrong.
+@Suite(.tags(.knowledgeGraph))
 struct ClaimSourceRequestTests {
 
     private func claim(

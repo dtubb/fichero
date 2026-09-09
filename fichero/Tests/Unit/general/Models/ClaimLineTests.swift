@@ -14,6 +14,7 @@ import Testing
 /// Scoping first established that the record is a real triple — `subject_canonical`,
 /// `predicate_verb`, `object_phrase` and the `svo_*` fields all persist — so
 /// this is a presentation fix, not a record fix.
+@Suite(.tags(.knowledgeGraph))
 struct ClaimLineTests {
 
     private func line(

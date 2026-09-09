@@ -7,6 +7,7 @@ import Testing
 /// instead of deep-comparing every generated struct (8s main-thread stall on
 /// a 2,600-entity Marshall folder, stall.txt 2026-08-19). The fingerprint must
 /// be stable for identical content and move for any id/updatedAt/order change.
+@Suite(.tags(.knowledgeGraph))
 struct EntityFingerprintTests {
     private func entity(
         id: String, name: String = "x", updatedAt: Date = Date(timeIntervalSince1970: 1000)
