@@ -208,6 +208,10 @@ struct EntitiesLibraryContent: View {
         EntitiesTableView.Actions(
             open: onOpen,
             edit: { entity in entityToEdit = entity },
+            rename: { entity, newName in
+                guard let id = entity.id else { return }
+                Task { try? await store.rename(entityId: id, to: newName) }
+            },
             setCuration: { entities, curation in
                 let ids = entities.compactMap(\.id)
                 guard let state = Self.curationState(for: curation) else { return }

@@ -28,6 +28,9 @@ struct EntitiesTableView: View {
         var open: (Components.Schemas.KnowledgeEntity) -> Void
         /// Edit — open the create/edit sheet on this entity (spec: entity edit-from-table).
         var edit: (Components.Schemas.KnowledgeEntity) -> Void
+        /// Rename — commit a new canonical name inline (spec: entity.rename-inline),
+        /// via EntityStore.rename (patches the row in place).
+        var rename: (Components.Schemas.KnowledgeEntity, String) -> Void
         /// Bless (verified) / Reject / Mark unreviewed — via EntityStore.setCuration.
         var setCuration: ([Components.Schemas.KnowledgeEntity], EntityTableRow.Curation) -> Void
         /// Retype to an EntityType raw value — via EntityStore.reclassify.
@@ -68,7 +71,33 @@ struct EntitiesTableView: View {
         KeyPathComparator(\Item.values.name, order: .forward)
     ]
 
+    /// Inline-rename state (spec: entity.rename-inline): the row whose Name cell is an
+    /// editable field, plus its working draft. `nil` = no row is being renamed.
+    @State private var renamingId: String?
+    @State private var draftName: String = ""
+    @FocusState private var nameFieldFocused: Bool
+
     private var sortedItems: [Item] { items.sorted(using: sortOrder) }
+
+    /// The committed rename, or nil when the draft is empty/whitespace (never rename to
+    /// nothing). Pure so the validation rule is testable off-main.
+    static func sanitizedRename(_ raw: String) -> String? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private func startRename(_ entity: Components.Schemas.KnowledgeEntity) {
+        guard let id = entity.id else { return }
+        draftName = entity.canonicalName
+        renamingId = id
+        nameFieldFocused = true
+    }
+
+    private func commitRename(_ entity: Components.Schemas.KnowledgeEntity) {
+        defer { renamingId = nil }
+        guard let name = Self.sanitizedRename(draftName), name != entity.canonicalName else { return }
+        actions.rename(entity, name)
+    }
 
     var body: some View {
         Group {
@@ -86,7 +115,17 @@ struct EntitiesTableView: View {
     private var table: some View {
         Table(sortedItems, selection: $selection, sortOrder: $sortOrder) {
             TableColumn("Name", value: \.values.name) { item in
-                Label(item.values.name, systemImage: "person.crop.circle").font(.body).lineLimit(1)
+                if renamingId == item.id {
+                    TextField("Name", text: $draftName)
+                        .textFieldStyle(.roundedBorder)
+                        .focused($nameFieldFocused)
+                        .onSubmit { commitRename(item.entity) }
+                        #if os(macOS)
+                        .onExitCommand { renamingId = nil }  // Esc cancels the rename
+                        #endif
+                } else {
+                    Label(item.values.name, systemImage: "person.crop.circle").font(.body).lineLimit(1)
+                }
             }
             .width(min: 150, ideal: 220)
 
@@ -148,6 +187,9 @@ struct EntitiesTableView: View {
         let targets = items.filter { ids.contains($0.id) }.map(\.entity)
         if !targets.isEmpty {
             if targets.count == 1, let one = targets.first {
+                Button { startRename(one) } label: {
+                    Label("Rename", systemImage: "character.cursor.ibeam")
+                }
                 Button { actions.edit(one) } label: {
                     Label("Edit…", systemImage: "pencil")
                 }

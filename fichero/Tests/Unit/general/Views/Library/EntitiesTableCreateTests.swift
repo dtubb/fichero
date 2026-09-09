@@ -56,4 +56,26 @@ final class EntitiesTableCreateTests: XCTestCase {
         XCTAssertTrue(tableView.contains("Edit…"),
                       "the entity row menu must offer an Edit affordance")
     }
+
+    // MARK: - Inline rename (spec: entity.rename-inline)
+
+    func testRenameNeverCommitsEmptyOrWhitespace() {
+        XCTAssertNil(EntitiesTableView.sanitizedRename(""))
+        XCTAssertNil(EntitiesTableView.sanitizedRename("   \n\t "))
+        XCTAssertEqual(EntitiesTableView.sanitizedRename("  Quito "), "Quito")
+        XCTAssertEqual(EntitiesTableView.sanitizedRename("Eugenio Córdoba"), "Eugenio Córdoba")
+    }
+
+    func testTableOffersInlineRename() throws {
+        let tableView = try Self.appSource("Views/Library/ViewModes/Table/EntitiesTableView.swift")
+        XCTAssertTrue(tableView.contains("Rename"),
+                      "the entity row menu must offer a Rename affordance")
+        XCTAssertTrue(tableView.contains("renamingId"),
+                      "the Name cell must become an editable field for the row being renamed")
+        XCTAssertTrue(tableView.contains("commitRename"),
+                      "the inline field must commit the rename")
+        let content = try entitiesContentSource()
+        XCTAssertTrue(content.contains("store.rename(entityId:"),
+                      "rename must go through EntityStore.rename (patches in place)")
+    }
 }
