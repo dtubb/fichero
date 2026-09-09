@@ -151,8 +151,12 @@ process is enforced, not remembered.
 2. **Behaviors.** Write one line per behavior with a stable id (`<surface>.<behavior>`) and a
    tag ([OK]/[MISSING]/[PARTIAL]). These ids are what tests cite.
 3. **Approve.** The creative director approves the *intent*; flip `Status: DRAFT → APPROVED`.
-   · *Gate:* an APPROVED spec MUST be cited by ≥1 test **and** carry a Test-matrix section
-   (`check_specs_have_tests.py`, Rules B + C).
+   · *Gate:* an APPROVED spec MUST be cited by ≥1 test, carry a Test-matrix section
+   (`check_specs_have_tests.py`, Rules B + C), **and declare `Milestone: <name>`** matching a
+   GitHub milestone of the same name (`check_spec_milestones.py`). On approval, create or rename
+   the milestone to the spec name and point its description back at the spec — the link is
+   bidirectional (spec name == milestone name == test tag). Tag the tests to the same area name:
+   Swift `@Tag` (`TestTags.swift`), pytest markers (`fichero-server/pyproject.toml`).
 4. **Fill the matrix.** Tick the legs this surface touches; list the **accessibility
    identifiers** the click-around leg needs (add them to the views as you build).
 5. **Test-first, per leg.** One file per ticked leg, from the skeletons above; the docstring

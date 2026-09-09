@@ -376,4 +376,9 @@ markers = [
     "requires_apple_vision: mark test as needing macOS Vision framework (auto-skipped on non-mac / when fm-bridge probe fails)",
     "requires_apple_intelligence: mark test as needing on-device Apple Intelligence (auto-skipped via fm-bridge --probe)",
     "slow: mark a test that is slow enough to be worth excluding from a fast gate (`-m 'not slow'`)",
+    # Spec/area tags — the backend parallel to Swift Testing's @Tag vocabulary
+    # (fichero/Tests/Unit/general/TestTags.swift). Same area names front and back so a
+    # feature slices identically across both suites (`pytest -m transport`).
+    "transport: engine transport contract (spec: transport-http-uds) — UDS / HTTPS / in-memory",
+    "build_config: Xcode build/test/run config invariants (spec: xcode-build-configs)",
 ]

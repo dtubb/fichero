@@ -205,9 +205,14 @@ def test_bootstrap_token_grants_access(fixture_name, request):
     assert response.status_code == 200, f"got {response.status_code}: {response.text}"
 
 
+@pytest.mark.transport
 @pytest.mark.anyio
 async def test_in_memory_asgi_round_trip():
-    """In-process ASGI — the Python side of Daniel's "via memory".
+    """In-process ASGI — the Python side of the "via memory" transport.
+
+    spec: transport-http-uds (transport.inmemory-contract). This covers the ASGI
+    in-memory REACHABILITY claim only; the real Swift/PythonKit in-process transport
+    and putting in-memory into the full equivalence sweep are tracked gaps in the spec.
 
     Only REACHABILITY is asserted here. `tests/conftest.py` sets
     FICHERO_DISABLE_AUTH=1 at import time for the whole session, so an app

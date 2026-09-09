@@ -1,5 +1,7 @@
 # <Surface> — Design Spec (#<issue>)
 
+> Milestone: <surface>
+
 > Copy this file to `docs/contributor/specs/<surface>.md` (or `specs/<area>/<surface>.md`)
 > to start a surface under design-led testing. Delete this quote block and fill every
 > section. `_`-prefixed files are scaffolds — the guardrail ignores them.
@@ -7,7 +9,12 @@
 > Design-led (Testing Constitution). Creative director owns intent; tests enforce it; code
 > makes them pass. **Status: DRAFT — awaiting approval before tests/code.**
 > Flip to `Status: APPROVED` only after the creative director approves the intent; an
-> APPROVED spec MUST carry a filled Test matrix and be cited by ≥1 test (guardrails enforce).
+> APPROVED spec MUST: carry a filled Test matrix; be cited by ≥1 test; and declare a
+> `Milestone: <name>` matching a GitHub milestone of the SAME name (spec name == milestone
+> name == test tag — guardrails `check_specs_have_tests.py` + `check_spec_milestones.py`
+> enforce). Create/rename the milestone when you approve the spec, and point its description
+> back at this file (the link is bidirectional). Tag the tests to match: Swift `@Tag` in
+> `fichero/Tests/Unit/general/TestTags.swift`, pytest markers in `fichero-server/pyproject.toml`.
 > Tags: [OK] built · [MISSING] not built · [PARTIAL] exists elsewhere / not wired.
 
 ## Intent (the design)

@@ -37,6 +37,10 @@
 //  app at failure time (XCUIScreen snapshot, kept always) — cheap, and turns
 //  "the wait timed out" into something a human can diagnose.
 //
+//  spec: ui-test-harness — this shared session base is the surface that spec pins
+//  (app connects to the seeded engine and reaches library.content.ready, fail-fast
+//  loud when it cannot). The connection fix + empty-screen removal land against it.
+//
 
 import XCTest
 

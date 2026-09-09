@@ -100,6 +100,13 @@ libraries come only from `seed_test_library.py`; and the coverage ratchet
 run whose coverage drops — baselines move only by deliberate
 `--update-baseline` commits.
 
+**Design-led surfaces carry ONE name across three places** (guardrails enforce, all in the gate):
+a spec `docs/contributor/specs/<name>.md`, a GitHub milestone named `<name>` (its description
+points back at the spec), and a test tag of the same area name **front and back** — Swift `@Tag`
+in `TestTags.swift`, pytest marker in `fichero-server/pyproject.toml`. Approving a spec means:
+flip `Status: APPROVED`, declare `Milestone: <name>`, create/rename that milestone, and cite the
+spec from ≥1 test. See `docs/contributor/TEST-TEMPLATE.md`.
+
 ---
 
 ## Worker Orchestration

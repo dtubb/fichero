@@ -54,6 +54,32 @@ plan selects an idiom CANARY (`IOSTargetCanaryTests`, `IPadTargetCanaryTests`,
 plan executes on the wrong device family, so no plan can be empty-and-green
 (#4472) or silently verify the wrong platform.
 
+## Design-led specs: one name across design, issues, and tests
+
+A design-led surface carries the SAME identifier through three places, so nothing drifts:
+
+- **Spec** — `docs/contributor/specs/<name>.md` (Intent / Behaviors / Test matrix). The design
+  of record. Approve it before writing tests or code.
+- **Milestone** — a GitHub milestone named exactly `<name>`, its description pointing back at the
+  spec. The issues live here. (Link is bidirectional: spec declares `Milestone: <name>` in its
+  header; the milestone points at the spec.)
+- **Tag** — the tests that pin the spec carry a tag/marker named for the area, **front and back**:
+  - **Frontend (Swift):** a `@Tag` in `fichero/Tests/Unit/general/TestTags.swift`, applied at the
+    suite (`@Suite(.tags(.transport))`). Slice with `--filter-tag`.
+  - **Backend (Python):** a pytest marker registered in `fichero-server/pyproject.toml`, applied
+    per test (`@pytest.mark.transport`). Slice with `pytest -m transport`.
+  The area name is the SAME on both sides, so one feature slices identically across both suites.
+
+Guardrails enforce the loop (all auto-run by `verify_all.sh`):
+- `check_specs_have_tests.py` — an APPROVED spec must carry a Test matrix and be cited by ≥1 test
+  (`spec: <name>` in a test docstring, or a `specs/<name>.md` path).
+- `check_spec_milestones.py` — an APPROVED spec must declare `Milestone: <name>`; the milestone's
+  existence on GitHub is checked best-effort when `gh` is available (offline stays deterministic).
+- `check_xcode_config_invariants.py` — the build/test/run config matrix (spec: xcode-build-configs).
+
+Specs approved before a rule are grandfathered (a named exemption list in the guardrail) and
+graduate as their area is next worked — see `TEST-TEMPLATE.md` for the per-surface process.
+
 ## Running areas
 
 Workers verify their own diff only; the manager owns full-suite runs and
