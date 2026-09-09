@@ -464,6 +464,18 @@
         ],
         "request_model": null,
         "response_model": "ActivityListResponse"
+      },
+      {
+        "method": "DELETE",
+        "path": "/activity/{activity_id}",
+        "operation_id": "delete_activity_api_activity__activity_id__delete",
+        "summary": "Delete Activity",
+        "path_params": [
+          "activity_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ActivityDeleteResponse"
       }
     ],
     "agent-memory": [
@@ -4987,6 +4999,26 @@
       },
       {
         "method": "POST",
+        "path": "/kg/entity-curation/enrich/import",
+        "operation_id": "enrich_import_api_kg_entity_curation_enrich_import_post",
+        "summary": "Import selected Wikidata statements as WIKIDATA-SOURCED claims",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "EnrichImportRequest",
+        "response_model": "EnrichImportResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/kg/entity-curation/enrich/preview",
+        "operation_id": "enrich_preview_api_kg_entity_curation_enrich_preview_post",
+        "summary": "Fetch a linked entity's Wikidata statements for review",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "EnrichPreviewRequest",
+        "response_model": "EnrichPreviewResponse"
+      },
+      {
+        "method": "POST",
         "path": "/kg/entity-curation/merge",
         "operation_id": "merge_entities_api_kg_entity_curation_merge_post",
         "summary": "Merge Entities",
@@ -8610,6 +8642,26 @@
         "query_params": [],
         "request_model": "ModelProfileUpdate",
         "response_model": "ModelProfile"
+      },
+      {
+        "method": "GET",
+        "path": "/settings/sparql-endpoints",
+        "operation_id": "get_sparql_endpoints_api_settings_sparql_endpoints_get",
+        "summary": "Get Sparql Endpoints",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "SparqlEndpointsConfig"
+      },
+      {
+        "method": "PUT",
+        "path": "/settings/sparql-endpoints",
+        "operation_id": "set_sparql_endpoints_api_settings_sparql_endpoints_put",
+        "summary": "Set Sparql Endpoints",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "SparqlEndpointsConfig",
+        "response_model": "SparqlEndpointsConfig"
       }
     ],
     "sources": [

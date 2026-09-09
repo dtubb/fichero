@@ -632,6 +632,21 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("delete")
+    def activity_delete_delete(
+        ctx: typer.Context,
+        activity_id: str = typer.Argument(..., help="Path parameter: activity_id."),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
+    ) -> None:
+        """Delete Activity (DELETE /api/activity/{activity_id})."""
+        if not yes:
+            typer.confirm("Delete activity?", abort=True)
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/activity/{activity_id}"
+            params = None
+            return client.request("DELETE", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('agent-memory')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for agent-memory endpoints.', no_args_is_help=True)
@@ -7293,6 +7308,49 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("import-selected-wikidata-statements-as-wikidata-sourced-claims")
+    def kg_import_selected_wikidata_statements_as_wikidata_sourced_claims_post(
+        ctx: typer.Context,
+        entity_id: str = typer.Option(..., "--entity-id", help="Request field: entity_id."),
+        qid: str = typer.Option(..., "--qid", help="Request field: qid."),
+        statements: str = typer.Option(..., "--statements", help="Request field: statements."),
+    ) -> None:
+        """Import selected Wikidata statements as WIKIDATA-SOURCED claims (POST /api/kg/entity-curation/enrich/import)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/kg/entity-curation/enrich/import"
+            params = None
+            payload = _build_json_payload({
+                "entity_id": entity_id,
+                "qid": qid,
+                "statements": statements,
+            }, {
+                "entity_id": {'type': 'string', 'minLength': 1, 'title': 'Entity Id', 'x-cli-required': True},
+                "qid": {'type': 'string', 'minLength': 1, 'title': 'Qid', 'x-cli-required': True},
+                "statements": {'items': {'$ref': '#/components/schemas/EnrichImportStatement'}, 'type': 'array', 'minItems': 1, 'title': 'Statements', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("fetch-a-linked-entity-s-wikidata-statements-for-review")
+    def kg_fetch_a_linked_entity_s_wikidata_statements_for_review_post(
+        ctx: typer.Context,
+        entity_id: str = typer.Option(..., "--entity-id", help="Request field: entity_id."),
+        qid: Optional[str] = typer.Option(None, "--qid", help="Request field: qid."),
+    ) -> None:
+        """Fetch a linked entity's Wikidata statements for review (POST /api/kg/entity-curation/enrich/preview)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/kg/entity-curation/enrich/preview"
+            params = None
+            payload = _build_json_payload({
+                "entity_id": entity_id,
+                "qid": qid,
+            }, {
+                "entity_id": {'type': 'string', 'minLength': 1, 'title': 'Entity Id', 'x-cli-required': True},
+                "qid": {'type': 'string', 'nullable': True, 'title': 'Qid', 'description': "Wikidata QID to enrich from. Defaults to the entity's linked Wikidata authority id.", 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("merge-entities")
     def kg_merge_entities_post(
         ctx: typer.Context,
@@ -12729,6 +12787,37 @@ def register_generated_openapi_commands(
                 "privacy": {'type': 'string', 'enum': ['standard', 'local_only', 'private'], 'title': 'ModelProfilePrivacy', 'description': 'Privacy policy attached to a named model profile.', 'x-cli-required': False},
                 "provider": {'type': 'string', 'nullable': True, 'title': 'Provider', 'x-cli-required': False},
                 "role": {'type': 'string', 'enum': ['general', 'text', 'vision', 'audio', 'video', 'embeddings'], 'title': 'ModelProfileRole', 'description': 'Intended use/capability for a named model profile.', 'x-cli-required': False},
+            }, required=True)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("get-sparql-endpoints")
+    def settings_get_sparql_endpoints_get(
+        ctx: typer.Context,
+    ) -> None:
+        """Get Sparql Endpoints (GET /api/settings/sparql-endpoints)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/settings/sparql-endpoints"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("set-sparql-endpoints")
+    def settings_set_sparql_endpoints_put(
+        ctx: typer.Context,
+        endpoints: Optional[str] = typer.Option(None, "--endpoints", help="Request field: endpoints."),
+        selected_url: Optional[str] = typer.Option(None, "--selected-url", help="Request field: selected_url."),
+    ) -> None:
+        """Set Sparql Endpoints (PUT /api/settings/sparql-endpoints)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/settings/sparql-endpoints"
+            params = None
+            payload = _build_json_payload({
+                "endpoints": endpoints,
+                "selected_url": selected_url,
+            }, {
+                "endpoints": {'items': {'$ref': '#/components/schemas/SparqlEndpoint'}, 'type': 'array', 'title': 'Endpoints', 'x-cli-required': False},
+                "selected_url": {'type': 'string', 'title': 'Selected Url', 'description': 'URL of the endpoint the enrichment uses by default.', 'default': 'https://query.wikidata.org/sparql', 'x-cli-required': False},
             }, required=True)
             return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)

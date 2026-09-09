@@ -3,7 +3,7 @@
   "info": {
     "title": "Fichero API",
     "description": "Document processing and search API",
-    "version": "2026.9.6"
+    "version": "2026.9.8"
   },
   "paths": {
     "/api/clients": {
@@ -603,6 +603,70 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CleanupResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/activity/{activity_id}": {
+      "delete": {
+        "tags": [
+          "activity",
+          "activity"
+        ],
+        "summary": "Delete Activity",
+        "description": "Delete ONE activity entry the user chose to remove from the log.\n\nThe bulk `/cleanup` deletes by age; this removes a single entry the user\npicked (Daniel: an old activity should be deletable). 404 when the id is\nunknown so the UI never claims a delete that removed nothing.",
+        "operationId": "delete_activity_api_activity__activity_id__delete",
+        "parameters": [
+          {
+            "name": "activity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Activity Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityDeleteResponse"
                 }
               }
             }
@@ -7848,7 +7912,7 @@
             "required": false,
             "schema": {
               "type": "integer",
-              "maximum": 1000,
+              "maximum": 25000,
               "minimum": 1,
               "default": 200,
               "title": "Limit"
@@ -11390,7 +11454,7 @@
             "required": false,
             "schema": {
               "type": "integer",
-              "maximum": 500,
+              "maximum": 25000,
               "minimum": 1,
               "default": 50,
               "title": "Limit"
@@ -17959,6 +18023,70 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/StatusOkResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/settings/sparql-endpoints": {
+      "get": {
+        "tags": [
+          "settings",
+          "settings"
+        ],
+        "summary": "Get Sparql Endpoints",
+        "description": "Read the configured SPARQL endpoints + which one is selected.",
+        "operationId": "get_sparql_endpoints_api_settings_sparql_endpoints_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SparqlEndpointsConfig"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "settings",
+          "settings"
+        ],
+        "summary": "Set Sparql Endpoints",
+        "description": "Persist the SPARQL endpoints. The Wikidata default is always kept.\n\nKeeping the default present means the enrichment can never be left with no\nendpoint to query \u2014 a user can add/select custom endpoints, not delete the\nground truth out from under the feature.",
+        "operationId": "set_sparql_endpoints_api_settings_sparql_endpoints_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SparqlEndpointsConfig"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SparqlEndpointsConfig"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -26417,6 +26545,89 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/EntityAuditResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/entity-curation/enrich/preview": {
+      "post": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Fetch a linked entity's Wikidata statements for review",
+        "description": "Opt-in outbound network, gated by the same external-authority switch as /authority/refresh. Returns statements only \u2014 nothing is written.",
+        "operationId": "enrich_preview_api_kg_entity_curation_enrich_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnrichPreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnrichPreviewResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/kg/entity-curation/enrich/import": {
+      "post": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "Import selected Wikidata statements as WIKIDATA-SOURCED claims",
+        "operationId": "enrich_import_api_kg_entity_curation_enrich_import_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnrichImportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnrichImportResponse"
                 }
               }
             }
@@ -35598,6 +35809,24 @@
         ],
         "title": "ActionSuccessResponse",
         "description": "Boolean success envelope for action mutations."
+      },
+      "ActivityDeleteResponse": {
+        "properties": {
+          "deleted": {
+            "type": "integer",
+            "title": "Deleted"
+          },
+          "activity_id": {
+            "type": "string",
+            "title": "Activity Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "deleted",
+          "activity_id"
+        ],
+        "title": "ActivityDeleteResponse"
       },
       "ActivityListResponse": {
         "properties": {
@@ -45912,6 +46141,149 @@
         },
         "type": "object",
         "title": "EnhanceOperationRequest"
+      },
+      "EnrichImportRequest": {
+        "properties": {
+          "entity_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Entity Id"
+          },
+          "qid": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Qid"
+          },
+          "statements": {
+            "items": {
+              "$ref": "#/components/schemas/EnrichImportStatement"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Statements"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity_id",
+          "qid",
+          "statements"
+        ],
+        "title": "EnrichImportRequest"
+      },
+      "EnrichImportResponse": {
+        "properties": {
+          "entity_id": {
+            "type": "string",
+            "title": "Entity Id"
+          },
+          "imported": {
+            "type": "integer",
+            "title": "Imported"
+          },
+          "claim_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Claim Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity_id",
+          "imported"
+        ],
+        "title": "EnrichImportResponse"
+      },
+      "EnrichImportStatement": {
+        "properties": {
+          "property_id": {
+            "type": "string",
+            "title": "Property Id"
+          },
+          "property_label": {
+            "type": "string",
+            "title": "Property Label"
+          },
+          "value_label": {
+            "type": "string",
+            "title": "Value Label"
+          },
+          "value_qid": {
+            "type": "string",
+            "nullable": true,
+            "title": "Value Qid"
+          },
+          "value_url": {
+            "type": "string",
+            "nullable": true,
+            "title": "Value Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "property_id",
+          "property_label",
+          "value_label"
+        ],
+        "title": "EnrichImportStatement"
+      },
+      "EnrichPreviewRequest": {
+        "properties": {
+          "entity_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Entity Id"
+          },
+          "qid": {
+            "type": "string",
+            "nullable": true,
+            "title": "Qid",
+            "description": "Wikidata QID to enrich from. Defaults to the entity's linked Wikidata authority id."
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity_id"
+        ],
+        "title": "EnrichPreviewRequest"
+      },
+      "EnrichPreviewResponse": {
+        "properties": {
+          "entity_id": {
+            "type": "string",
+            "title": "Entity Id"
+          },
+          "qid": {
+            "type": "string",
+            "title": "Qid"
+          },
+          "endpoint": {
+            "type": "string",
+            "title": "Endpoint"
+          },
+          "subject_label": {
+            "type": "string",
+            "title": "Subject Label"
+          },
+          "statements": {
+            "items": {
+              "$ref": "#/components/schemas/WikidataStatementModel"
+            },
+            "type": "array",
+            "title": "Statements"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity_id",
+          "qid",
+          "endpoint",
+          "subject_label",
+          "statements"
+        ],
+        "title": "EnrichPreviewResponse"
       },
       "EnrollmentRequest": {
         "properties": {
@@ -63607,6 +63979,49 @@
         "title": "SpanRegion",
         "description": "Where a span of transcribed text sits on the page."
       },
+      "SparqlEndpoint": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "url": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "url"
+        ],
+        "title": "SparqlEndpoint",
+        "description": "One named SPARQL endpoint the enrichment can query."
+      },
+      "SparqlEndpointsConfig": {
+        "properties": {
+          "endpoints": {
+            "items": {
+              "$ref": "#/components/schemas/SparqlEndpoint"
+            },
+            "type": "array",
+            "title": "Endpoints"
+          },
+          "selected_url": {
+            "type": "string",
+            "title": "Selected Url",
+            "description": "URL of the endpoint the enrichment uses by default.",
+            "default": "https://query.wikidata.org/sparql"
+          }
+        },
+        "type": "object",
+        "title": "SparqlEndpointsConfig",
+        "description": "The full SPARQL-endpoints configuration persisted app-wide."
+      },
       "SparqlExampleQuery": {
         "properties": {
           "id": {
@@ -66344,6 +66759,44 @@
           "snippet"
         ],
         "title": "WebSearchResult"
+      },
+      "WikidataStatementModel": {
+        "properties": {
+          "property_id": {
+            "type": "string",
+            "title": "Property Id"
+          },
+          "property_label": {
+            "type": "string",
+            "title": "Property Label"
+          },
+          "value_label": {
+            "type": "string",
+            "title": "Value Label"
+          },
+          "value_qid": {
+            "type": "string",
+            "nullable": true,
+            "title": "Value Qid"
+          },
+          "value_url": {
+            "type": "string",
+            "nullable": true,
+            "title": "Value Url"
+          },
+          "statement_id": {
+            "type": "string",
+            "title": "Statement Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "property_id",
+          "property_label",
+          "value_label",
+          "statement_id"
+        ],
+        "title": "WikidataStatementModel"
       },
       "WordExportRequest": {
         "properties": {
