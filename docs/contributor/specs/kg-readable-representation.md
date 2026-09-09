@@ -2,7 +2,7 @@
 
 > Milestone: kg-readable-representation
 >
-> Design-led (Testing Constitution). **Status: DRAFT — awaiting creative-director approval.**
+> Design-led (Testing Constitution). **Status: APPROVED — 2026-09-10.**
 > Tags: [OK] built · [PARTIAL] exists, extend · [MISSING] not built.
 >
 > **Scope boundary:** this specs HOW the readable representation is BUILT — a deterministic,
@@ -114,11 +114,23 @@ own unit test** — which is exactly why this whole feature is headless-testable
    via a per-language lexicon table (add a language by adding a table, not code).
 5. **Referring expressions** — full name on first mention, surname after, pronoun within a paragraph
    (pronoun/agreement rules are per-language).
-6. **Realisation** — agreement + morphology, per language. Jinja2 + per-language rule tables go far;
-   **Grammatical Framework** is the right heavyweight for *many* languages from one abstract tree
-   (RosaeNLG / SimpleNLG cover ~a dozen if a rule table proves too weak). ponytail: ship Jinja2 +
-   rule tables for the languages actually in the corpus; reach for GF only when a language's
-   morphology genuinely needs it. NEVER translate a claim across languages — render in its own.
+6. **Realisation** — agreement + morphology, per language. Library landscape (researched 2026-09-10,
+   for a Python backend):
+   - **Default (ponytail): Jinja2 + per-language lexicon/rule tables** — deterministic, zero new
+     deps, exactly how `paragraph.py` already works. Ships for the corpus's actual languages
+     (Spanish first). Lsjbot proves this scales (and warns of flatness — mitigated by aggregation +
+     referring-expression variation, stages 3 & 5).
+   - **Any-language escalation: Grammatical Framework** via the `pgf` Python runtime — one abstract
+     tree → concrete grammars per language; this is what **Abstract Wikipedia** uses. The principled
+     answer when a language's morphology outgrows rule tables. Heavy (write grammars) — adopt only
+     when it earns its keep.
+   - **pyrealb** — native-Python (no bridge), realizes EN+FR deterministically; a light step if EN/FR
+     realisation is needed before committing to GF.
+   - **SimpleNLG-ES** (Java, via server/bridge) — mature Spanish realiser if the ES rule tables prove
+     too weak before GF is worth it.
+   NEVER translate a claim across languages — render each in its own (the `_en` fields are a
+   pre-existing extraction-time translation, usable for an English rendering, not a license to
+   translate other languages).
 
 `paragraph.py` already implements a thin slice of stages 3–6 for a single paragraph; this spec
 extends it stage by stage to entry/biography scale, each stage landed test-first.
@@ -160,6 +172,22 @@ Captured here so the research isn't lost, deliberately out of scope for the read
 - **Architecture principle** (from the survey): Python owns layout (networkx/igraph/Graphviz/UMAP
   → x,y,z,t in SQLite); the app draws coordinates (SwiftUI Canvas); the SAME coordinates feed a
   web front end (FastAPI) so the Mac view and the shareable link never drift.
+
+## Cross-surface & authoring (the invariant to hold — audit tracked separately)
+
+The factoid substrate is rich (audited 2026-09-10: who-asserts, date, place, role, citation,
+Toulmin, confidence, language, generation-provenance all present). The open concern is whether
+every dimension we can STORE is also: (a) visible in the UX (KG tables / inspector), (b)
+**authorable by BOTH a person (manual) and the extraction pipeline (LLM)** — never LLM-only, and
+(c) tested end-to-end (backend ↔ MCP ↔ CLI ↔ UX — the Constitution's hard-gate invariant). This
+readable rendering is a READ view of that substrate; the authoring/visibility audit belongs to
+`kg-tables.md` / `kg-entity-inspector.md`. Tracked, not assumed.
+
+**Idea (Abstract Wikipedia / GF):** multilingual NLG organized into abstraction levels lets code
+be shared across languages and splits labour between programmers (grammars) and authors (content);
+a **Controlled Natural Language** puts a human in the loop to author/correct factoids in
+constrained prose that round-trips to structure. A candidate future authoring path — deterministic,
+no-LLM, and the same abstract representation the render reads.
 
 ## Open questions for the creative director
 1. Default ordering for a biography — chronological, or by-source? (Both are behaviors; which is
