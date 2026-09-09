@@ -47,16 +47,65 @@ backend but isn't surfaced, or isn't tested at every layer, is not done.
   tagged** (created_by = the source), never silently merged as first-party.
 - `kg.jsonld.roundtrip` [MISSING] — export → import → export is stable (the invariant test).
 
-### B. Enrichment sources — unified in Settings
+### B. Enrichment sources — unified in Settings, ALL selectable
 - `kg.enrich.sources.settings` [PARTIAL] — Settings has SPARQL endpoints; extend to a
-  unified **Enrichment Sources** area: Wikidata, GeoNames, Getty (TGN/AAT), VIAF, Pleiades,
-  gazetteers — each a togglable, configurable source (endpoint/key), with the external-
-  enrichment master switch. (Which sources beyond Wikidata/gazetteer: creative-director
-  input — "not sure where else": propose VIAF/GeoNames/Getty/Pleiades.)
-- `kg.enrich.per-type` [MISSING] — a source applies to the right entity types (places →
-  GeoNames/Pleiades; persons/works → VIAF/Wikidata; concepts → Getty AAT).
+  unified **Enrichment Sources** area where **every source below is individually
+  togglable + configurable** (endpoint/API key where needed), under the external-
+  enrichment master switch. Ruling (creative director, 2026-09-09): **all selectable.**
+
+#### The authority-source catalogue (what each is, why it's here)
+
+**The hub**
+- **Wikidata** — free, universal, structured knowledge base (QIDs). Covers people, places,
+  works, organizations, concepts, dates. It cross-links to almost every other authority
+  below (a Wikidata item carries its VIAF/GeoNames/Getty ids), so it's the natural **default
+  hub**: enrich from Wikidata, then follow its `sameAs` links out to the specialists.
+  *Already built.* Best general default.
+
+**People, organizations, works (name authorities)**
+- **VIAF** (Virtual International Authority File) — aggregates the name-authority files of
+  national libraries worldwide into one id per person/corporate-body/work. The standard for
+  disambiguating a *named person* ("which Juan Pérez?"). Free.
+- **LoC / LCNAF + LCSH** (Library of Congress Name & Subject Authorities) — US library
+  standard for names and subject headings. Strong for published works and topical subjects.
+- **GND** (Gemeinsame Normdatei, German National Library) — persons/works/subjects/places;
+  the strongest authority for German-speaking and much European material.
+- **ISNI** — International Standard Name Identifier for public identities (persons/orgs);
+  bridges the publishing and library worlds.
+
+**Places (gazetteers)**
+- **GeoNames** — the go-to gazetteer for **modern** places worldwide: coordinates,
+  administrative hierarchy, alternate names, population. Free (needs a username/key).
+- **Pleiades** — the authoritative gazetteer of the **ancient** Greco-Roman world; essential
+  for classics/ancient-history material where modern gazetteers have nothing.
+- **Getty TGN** (Thesaurus of Geographic Names) — places both current and **historical**,
+  with art-historical depth (former names, historical polities) — good for the gap between
+  "ancient" and "modern".
+- **Nominatim / OpenStreetMap** — free geocoding for coordinates; *already used* in
+  `media/geo.py` as the online fallback behind the offline gazetteer.
+
+**Concepts, materials, makers, periods (thesauri)**
+- **Getty AAT** (Art & Architecture Thesaurus) — controlled vocabulary for object types,
+  materials, techniques, styles — for describing *what a thing is*.
+- **Getty ULAN** (Union List of Artist Names) — artists/makers/studios.
+- **PeriodO** — a gazetteer of **historical periods** (named time-spans with definitions);
+  a time authority to complement the place authorities.
+
+**Domain-specific (opt-in, for specialist collections)**
+- **Nomisma** — numismatics (coins/mints/denominations) — for numismatic archives.
+- **WorldCat / OCLC** — works and editions (bibliographic).
+
+**Recommended defaults for Fichero's historical-archive use** (all still selectable):
+Wikidata (hub, on) · VIAF (persons) · GeoNames (modern places) · Pleiades (ancient places) ·
+Getty TGN (historical places) · Getty AAT (concepts) · PeriodO (periods) · Nominatim (geo
+fallback, already on). The rest ship off-by-default, one toggle away.
+
+- `kg.enrich.per-type` [MISSING] — a source is offered for the entity types it serves
+  (places → GeoNames/Pleiades/TGN; persons/orgs → VIAF/LoC/GND/ISNI; concepts → Getty AAT;
+  periods → PeriodO), so the UI never suggests a nonsensical lookup.
 - `kg.enrich.provenance` — every enriched value is authority-sourced + provenance-tagged
-  (rides #4636), never indistinguishable from hand/AI values.
+  with WHICH source (rides #4636), never indistinguishable from hand/AI values; a value can
+  carry several `sameAs` ids at once (Wikidata + VIAF + GeoNames).
 
 ### C. Surface the enrichment/prediction UX everywhere
 - `kg.enrich.ux` [PARTIAL] — Wikidata enrich preview/import + PyKEEN predictions have
@@ -82,15 +131,20 @@ Cross-surface invariant (HARD-GATE): the SAME enrichment/prediction reachable + 
 from backend, MCP/CLI, and the app; and a validated JSON-LD export re-imports to the same
 graph.
 
-## Open questions for the creative director
-- Which enrichment sources to ship first beyond Wikidata + gazetteer (VIAF / GeoNames /
-  Getty / Pleiades)?
-- JSON-LD `@context`: schema.org, Linked Art, or CIDOC-CRM as the primary mapping (or all,
-  selectable)?
+## Rulings + open questions
+
+**Ruled (creative director, 2026-09-09):**
+- **Sources: ALL selectable** — ship the full catalogue above, each individually
+  togglable; the "recommended defaults" set is on out of the box, the rest one toggle away.
+- **`@context`: selectable too** — offer schema.org / Linked Art / CIDOC-CRM as selectable
+  export mappings (not a single hard-coded one), same spirit as the sources.
+
+**Still open:**
 - Validation strength: JSON-LD expand/compact only, or also SHACL shapes (and who authors
-  the shapes)?
+  the shapes)? *(Recommend: expand/compact always; SHACL where a shape is declared.)*
 - Does JSON-LD import create a separate "imported" provenance layer distinct from Wikidata-
-  enrichment claims?
+  enrichment claims? *(Recommend: yes — import provenance = the file/source, distinct from
+  live-authority enrichment.)*
 
 Ties: #4641 (authority/Web of Data), #4640 (exporter — add JSON-LD beside JSONL), #4636
 (provenance for enriched/imported values), #4624 (KG tables surface the affordances),

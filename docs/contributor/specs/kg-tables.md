@@ -2,7 +2,7 @@
 
 > Design-led (Testing Constitution). The Fichero creative director owns this intent;
 > tests enforce it; code makes them pass. One line per behavior, each cited by its
-> pinning test. Status: DRAFT — awaiting creative-director approval before tests/code.
+> pinning test. Status: APPROVED — creative director ratified; first-wave CRUD + filters shipped.
 > Tags: [OK] today · [MISSING] not built · [PARTIAL] exists elsewhere, not in the table.
 
 ## Intent (the design)
