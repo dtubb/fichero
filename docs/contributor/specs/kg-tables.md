@@ -127,6 +127,16 @@ entities/claims), not a small demo table. What's missing:
 | keyboard-delete | — | command maps to delete action | ⌘⌫ removes selection | — |
 | type-icons | — | pure icon-for-type mapping | rows show right icons | — |
 
+## Accessibility identifiers (for the click-around leg — TEST-TEMPLATE)
+
+Stable ids on the KG tables so an XCUITest can find + act on them:
+- rows: `kg.entity.row.<id>` · `kg.claim.row.<id>`
+- entity menu: `kg.entity.menu.{rename,edit,bless,reject,merge,delete}`
+- claim menu: `kg.claim.menu.{edit,delete}`
+- create: `kg.entity.new` · `kg.claim.new`
+
+(More as interaction verbs land — comment/export/combine, #4644.)
+
 ## First wave to pin (proposed)
 1. Filters: `filter.text` + `filter.entity-type` / `filter.claim-type` +
    `filter.combines-with-search` + `filter.empty-state` (#4625) — cleanest, no backend work.

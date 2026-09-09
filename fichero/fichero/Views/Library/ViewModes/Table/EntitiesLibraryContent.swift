@@ -148,6 +148,7 @@ struct EntitiesLibraryContent: View {
                 Label("New Entity", systemImage: "plus")
             }
             .help("Create an entity by hand")
+            .accessibilityIdentifier("kg.entity.new")
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)

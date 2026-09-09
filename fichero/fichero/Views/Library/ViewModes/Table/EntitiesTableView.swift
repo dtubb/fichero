@@ -115,17 +115,22 @@ struct EntitiesTableView: View {
     private var table: some View {
         Table(sortedItems, selection: $selection, sortOrder: $sortOrder) {
             TableColumn("Name", value: \.values.name) { item in
-                if renamingId == item.id {
-                    TextField("Name", text: $draftName)
-                        .textFieldStyle(.roundedBorder)
-                        .focused($nameFieldFocused)
-                        .onSubmit { commitRename(item.entity) }
-                        #if os(macOS)
-                        .onExitCommand { renamingId = nil }  // Esc cancels the rename
-                        #endif
-                } else {
-                    Label(item.values.name, systemImage: "person.crop.circle").font(.body).lineLimit(1)
+                Group {
+                    if renamingId == item.id {
+                        TextField("Name", text: $draftName)
+                            .textFieldStyle(.roundedBorder)
+                            .focused($nameFieldFocused)
+                            .onSubmit { commitRename(item.entity) }
+                            #if os(macOS)
+                            .onExitCommand { renamingId = nil }  // Esc cancels the rename
+                            #endif
+                    } else {
+                        Label(item.values.name, systemImage: "person.crop.circle").font(.body).lineLimit(1)
+                    }
                 }
+                // Stable a11y id for the click-around leg (TEST-TEMPLATE): a UI test can
+                // find + act on a specific entity row by its id.
+                .accessibilityIdentifier("kg.entity.row.\(item.entity.id ?? item.id)")
             }
             .width(min: 150, ideal: 220)
 
@@ -190,17 +195,21 @@ struct EntitiesTableView: View {
                 Button { startRename(one) } label: {
                     Label("Rename", systemImage: "character.cursor.ibeam")
                 }
+                .accessibilityIdentifier("kg.entity.menu.rename")
                 Button { actions.edit(one) } label: {
                     Label("Edit…", systemImage: "pencil")
                 }
+                .accessibilityIdentifier("kg.entity.menu.edit")
                 Divider()
             }
             Button { actions.setCuration(targets, .blessed) } label: {
                 Label("Bless (verified)", systemImage: "checkmark.seal")
             }
+            .accessibilityIdentifier("kg.entity.menu.bless")
             Button(role: .destructive) { actions.setCuration(targets, .rejected) } label: {
                 Label("Reject", systemImage: "xmark.bin")
             }
+            .accessibilityIdentifier("kg.entity.menu.reject")
             Button { actions.setCuration(targets, .unreviewed) } label: {
                 Label("Mark unreviewed", systemImage: "arrow.uturn.backward")
             }
@@ -213,11 +222,13 @@ struct EntitiesTableView: View {
                 Button { actions.merge(targets) } label: {
                     Label("Merge \(targets.count) duplicates", systemImage: "arrow.triangle.merge")
                 }
+                .accessibilityIdentifier("kg.entity.menu.merge")
             }
             Divider()
             Button(role: .destructive) { actions.delete(targets) } label: {
                 Label(targets.count == 1 ? "Delete entity" : "Delete \(targets.count) entities", systemImage: "trash")
             }
+            .accessibilityIdentifier("kg.entity.menu.delete")
         }
     }
 

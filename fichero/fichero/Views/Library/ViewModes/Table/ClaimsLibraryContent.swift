@@ -160,6 +160,7 @@ struct ClaimsLibraryContent: View {
                 Label("New Claim", systemImage: "plus")
             }
             .help("Assert a claim by hand")
+            .accessibilityIdentifier("kg.claim.new")
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)

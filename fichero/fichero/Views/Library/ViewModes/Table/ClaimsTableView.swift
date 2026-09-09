@@ -67,6 +67,7 @@ struct ClaimsTableView: View {
         Table(sortedItems, selection: $selection, sortOrder: $sortOrder) {
             TableColumn("Subject", value: \.values.subject) { item in
                 Text(item.values.subject).font(.body).lineLimit(1)
+                    .accessibilityIdentifier("kg.claim.row.\(item.claim.id ?? item.id)")
             }
             .width(min: 120, ideal: 180)
 
@@ -151,6 +152,7 @@ struct ClaimsTableView: View {
                 Button { onEdit(one) } label: {
                     Label("Edit…", systemImage: "pencil")
                 }
+                .accessibilityIdentifier("kg.claim.menu.edit")
                 if onDelete != nil { Divider() }
             }
             if let onDelete {
@@ -160,6 +162,7 @@ struct ClaimsTableView: View {
                         systemImage: "trash"
                     )
                 }
+                .accessibilityIdentifier("kg.claim.menu.delete")
             }
         }
     }
