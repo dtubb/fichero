@@ -88,6 +88,11 @@ per claim, not a fixed language pair.
 - `kg.read.expose-kg-on-hover` [MISSING] — hover/click on a statement reveals **what the KG knows**
   behind it — location, dates, roles, confidence, the raw SVO — rendered readably (not raw JSON),
   as the bridge from prose back to structure back to source.
+- `kg.read.audit-history` [MISSING] — expose the factoid's HISTORY, not just its current state:
+  the original extracted names before canonicalisation, how entities were merged (`merged_into_id`),
+  the `curation_state` (blessed / rejected / merged) and who/when (`created_by`, `created_at`,
+  `attribution_chain`). Much of this is already stored — the render surfaces it readably so a
+  reader can see how a factoid came to read the way it does, not just trust it.
 - `kg.read.generation-provenance` [MISSING] — the render is no-LLM, but the underlying CLAIM was
   extracted by a model+prompt+run; that generation provenance (which model, which prompt version,
   which run) is exposed alongside the source, so a reader sees not just *where* the factoid came
@@ -143,6 +148,9 @@ the ISO ontology the cultural-heritage crowd uses for exactly this factoid subst
 actors, places, times); our factoids map to it, so they can be imported from / exported to an RDF
 server as linked open data (cf. Enslaved.org). The readable render must work over a factoid whether
 it came from the extraction pipeline OR an RDF import — same substrate, same rendering.
+**CIDOC-CRM import/export itself is LATER — it belongs to the import/export engine, not this spec.**
+This spec keeps the DH deterministic approach (working well: stages 1-3 shipped, 12 tests green);
+CIDOC-CRM I/O is a separate future milestone.
 
 ## Test matrix (BACKEND-heavy — this is why it's the right headless target)
 
