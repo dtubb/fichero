@@ -115,6 +115,7 @@ class EngineHarness:
         self.app_home: Path | None = None
         self.engine: subprocess.Popen | None = None
         self._stderr_file = None
+        self._stdout_file = None
         self.summary: dict = {}
 
     # -- lifecycle ----------------------------------------------------------
@@ -145,7 +146,11 @@ class EngineHarness:
         # #4400: the engine self-terminates if THIS process dies.
         env["FICHERO_PARENT_PID"] = str(os.getpid())
 
+        # Capture BOTH streams: a startup crash may print its traceback to stdout
+        # (uvicorn/asyncio) or stderr, and stdout was previously DEVNULL'd — so a
+        # whole class of engine errors was invisible ("<no stderr captured>").
         self._stderr_file = open(self.temp_dir / "engine-stderr.log", "wb")  # noqa: SIM115 — outlives this frame; closed in stop()
+        self._stdout_file = open(self.temp_dir / "engine-stdout.log", "wb")  # noqa: SIM115 — outlives this frame; closed in stop()
         self.engine = subprocess.Popen(
             [
                 sys.executable, "-m", "uvicorn",
@@ -154,7 +159,7 @@ class EngineHarness:
                 "--ws", "websockets-sansio",
             ],
             env=env,
-            stdout=subprocess.DEVNULL,
+            stdout=self._stdout_file,
             stderr=self._stderr_file,
         )
         self._wait_ready()
@@ -174,16 +179,33 @@ class EngineHarness:
             "full_ids": self.summary.get("full_ids", {}),
         }
 
-    def _stderr_tail(self, limit: int = 4000) -> str:
+    def _stderr_tail(self, limit: int = 8000) -> str:
+        """Combined stdout+stderr tail of the engine, and — because ``stop()`` deletes
+        the temp dir on failure — a COPY persisted to a stable path so it can be read
+        after the run (path in FICHERO_UITEST_LOG or /tmp/fichero-uitest-engine.log)."""
+        parts: list[str] = []
+        for stream, handle in (("stdout", self._stdout_file), ("stderr", self._stderr_file)):
+            try:
+                if handle:
+                    handle.flush()
+                log = self.temp_dir / f"engine-{stream}.log" if self.temp_dir else None
+                if log and log.is_file():
+                    text = log.read_bytes()[-limit:].decode("utf-8", "replace").strip()
+                    if text:
+                        parts.append(f"----- engine {stream} -----\n{text}")
+            except OSError:
+                pass
+        combined = "\n".join(parts) if parts else "<no engine output captured>"
+        # Persist a copy that outlives the temp-dir cleanup.
         try:
-            if self._stderr_file:
-                self._stderr_file.flush()
-            log = self.temp_dir / "engine-stderr.log" if self.temp_dir else None
-            if log and log.is_file():
-                return log.read_bytes()[-limit:].decode("utf-8", "replace")
+            stable = Path(os.environ.get("FICHERO_UITEST_LOG", "")) if os.environ.get(
+                "FICHERO_UITEST_LOG"
+            ) else Path(tempfile.gettempdir()) / "fichero-uitest-engine.log"
+            stable.write_text(combined, encoding="utf-8")
+            combined += f"\n(full logs persisted to {stable})"
         except OSError:
             pass
-        return "<no stderr captured>"
+        return combined
 
     def _wait_ready(self) -> None:
         """Bounded wait for /api/health over the socket. Loud on failure."""
@@ -224,6 +246,9 @@ class EngineHarness:
         if self._stderr_file:
             self._stderr_file.close()
             self._stderr_file = None
+        if self._stdout_file:
+            self._stdout_file.close()
+            self._stdout_file = None
         Path(self.socket_path).unlink(missing_ok=True)
         if self.temp_dir and not self.keep_dir:
             shutil.rmtree(self.temp_dir, ignore_errors=True)
