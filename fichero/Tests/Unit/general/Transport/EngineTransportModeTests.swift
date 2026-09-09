@@ -14,7 +14,9 @@ import FicheroAPIClient
 import Foundation
 import Testing
 
-@Suite("Engine transport mode")
+/// spec: transport-http-uds — the transport-selection precedence table
+/// (`localDebugTransportOverride`) and the strategy→mode mapping.
+@Suite("Engine transport mode", .tags(.transport))
 struct EngineTransportModeTests {
 
     private typealias Strategy = EngineConfig.EngineProvisioningStrategy
@@ -54,6 +56,59 @@ struct EngineTransportModeTests {
         )
 
         #expect(mode == .uds(path: "/tmp/test.sock"))
+    }
+
+    @Test("FICHERO_FORCE_UDS_PATH dials UDS for a local engine (not UI testing)")
+    func forceUDSPathDialsUDSLocally() {
+        let mode = EngineConfig.localDebugTransportOverride(
+            environment: ["FICHERO_FORCE_UDS_PATH": "/tmp/local.sock"],
+            hostRequiresRemoteConnection: false,
+            uiTesting: false
+        )
+        #expect(mode == .uds(path: "/tmp/local.sock"))
+    }
+
+    @Test("FICHERO_FORCE_UDS=1 dials the app-computed socket path")
+    func forceUDSFlagUsesComputedPath() {
+        let mode = EngineConfig.localDebugTransportOverride(
+            environment: ["FICHERO_FORCE_UDS": "1"],
+            hostRequiresRemoteConnection: false,
+            uiTesting: false
+        )
+        #expect(mode == .uds(path: EngineConfig.udsSocketPath))
+    }
+
+    @Test("in-memory wins when both in-memory and UDS overrides are set")
+    func inMemoryWinsOverUDS() {
+        let mode = EngineConfig.localDebugTransportOverride(
+            environment: [
+                "FICHERO_FORCE_INMEMORY": "1",
+                "FICHERO_FORCE_UDS_PATH": "/tmp/ignored.sock",
+            ],
+            hostRequiresRemoteConnection: false,
+            uiTesting: false
+        )
+        #expect(mode == .inMemory)
+    }
+
+    @Test("a saved remote host is not redirected to a local override outside UI testing")
+    func remoteHostKeepsHTTPSOutsideUITesting() {
+        let mode = EngineConfig.localDebugTransportOverride(
+            environment: ["FICHERO_FORCE_UDS_PATH": "/tmp/local.sock"],
+            hostRequiresRemoteConnection: true,
+            uiTesting: false
+        )
+        #expect(mode == nil)  // nil => fall through to the strategy's transport (HTTPS)
+    }
+
+    @Test("no override env returns nil (default path stays HTTPS)")
+    func noOverrideReturnsNil() {
+        let mode = EngineConfig.localDebugTransportOverride(
+            environment: [:],
+            hostRequiresRemoteConnection: false,
+            uiTesting: false
+        )
+        #expect(mode == nil)
     }
 
     @Test("socket path stays well under the ~104-byte sun_path limit")
