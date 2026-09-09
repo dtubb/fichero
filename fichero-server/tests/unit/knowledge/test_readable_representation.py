@@ -117,3 +117,25 @@ def test_single_claim_aggregates_to_count_one():
     a = _svo("Ana", "born in", "Quibdó")
     agg = aggregate_claims([a])[0]
     assert agg.count == 1 and agg.objects == ["Quibdó"]
+
+
+# ---- Stage 5: referring expressions -------------------------------------------------
+
+def test_first_mention_uses_full_name():
+    from fichero_server.knowledge.readable import referring_expression
+    assert referring_expression("María de Córdoba", first_mention=True) == "María de Córdoba"
+
+
+def test_subsequent_mention_uses_family_name():
+    from fichero_server.knowledge.readable import referring_expression
+    assert referring_expression("María de Córdoba", first_mention=False) == "Córdoba"
+
+
+def test_single_token_name_is_unchanged_when_subsequent():
+    from fichero_server.knowledge.readable import referring_expression
+    assert referring_expression("Quibdó", first_mention=False) == "Quibdó"
+
+
+def test_blank_name_is_empty():
+    from fichero_server.knowledge.readable import referring_expression
+    assert referring_expression("   ", first_mention=True) == ""

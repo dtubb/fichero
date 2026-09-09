@@ -119,3 +119,22 @@ def aggregate_claims(claims: Sequence[KnowledgeClaim]) -> list[Aggregation]:
         if obj is not None and obj not in agg.objects:
             agg.objects.append(obj)
     return [groups[key] for key in order]
+
+
+def referring_expression(full_name: str, *, first_mention: bool) -> str:
+    """Stage 5 — referring expressions.
+
+    Full name on first mention; the family name thereafter. ponytail: "family name =
+    last whitespace token" is a heuristic that holds for most Spanish/European names
+    in the corpus (e.g. "María de Córdoba" -> "Córdoba"); refine per-language (two
+    Spanish surnames, particles like "de la") if it proves too blunt. Pronoun-level
+    reference (stage 5's finer grain) needs the entity's gender + language and lands
+    with lexicalisation.
+    """
+    name = " ".join(full_name.split())  # collapse whitespace
+    if not name:
+        return ""
+    if first_mention:
+        return name
+    tokens = name.split(" ")
+    return tokens[-1] if len(tokens) > 1 else name
