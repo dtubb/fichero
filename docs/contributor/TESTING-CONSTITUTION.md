@@ -132,6 +132,11 @@ The constitution holds principles. **Current state lives in GitHub issues, not h
   skeleton per leg, grounded in the real harnesses. Paste its matrix into a spec's *Test
   matrix* section. The click-around leg is the weakest — treat its skeleton as non-optional
   for any surface a user touches, and list the accessibility identifiers it needs in the spec.
+- **Which DOCS to write for a feature (same idea, for readers)** → `docs/contributor/DOC-TEMPLATE.md`
+  — the per-feature documentation matrix (user manual + screenshot · developer docs · MCP tool
+  description · CLI `--help` · reference). A feature is met by four kinds of reader who never
+  read each other's docs; the matrix says which it owes. Paste it into the spec's
+  *Documentation matrix* section, next to the Test matrix.
 
 A bug is a line in an issue; a lesson from it is (maybe) a line in this doc.
 

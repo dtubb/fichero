@@ -37,6 +37,18 @@ One line per behavior, each with a stable id and a tag. The id is what a test ci
 Hard-gate: the cross-surface **invariant** (same result backend/MCP/CLI/UX) + capability
 **availability**. Rest is tracked debt — but listed here so it isn't forgotten.
 
+## Documentation matrix (paste from `../DOC-TEMPLATE.md`, tick the audiences this reaches)
+
+| Audience | Doc leg | This feature? | Lives in |
+|----------|---------|---------------|----------|
+| User | user manual + screenshot | y/n | `docs/user/guide/<area>.md` |
+| Contributor | developer docs | y/n | `docs/contributor/<area>.md` + this spec |
+| AI / agent | MCP tool description | y/n | `fichero-mcp/**` (`description=`) |
+| Scripter | CLI `--help` | y/n | `fichero-cli/**` (`help=`) |
+| Reference | capability/endpoint reference | y/n | generated (`check_capability_reference_current`) |
+
+A feature is met by readers who never read each other's docs — cover the ones it reaches.
+
 ## Accessibility identifiers (required for the click-around leg)
 
 List the stable a11y ids the UI test will drive — add them to the views AS YOU BUILD:
