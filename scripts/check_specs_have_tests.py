@@ -50,23 +50,44 @@ BARE_CITATION_RE = re.compile(rf"[Ss]pec:\s*({STEM})(?![/.\w])")
 # Legacy spec home (older working specs); a bare citation may resolve here too.
 LEGACY_SPECS_DIR = pathlib.Path("agent-work/specs")
 
+# `_`-prefixed files are scaffolds/templates, not real specs — never required to be tested.
+def _is_scaffold(p: pathlib.Path) -> bool:
+    return p.name.startswith("_")
+
+# A spec's test-matrix section may be phrased a few ways.
+MATRIX_MARKER_RE = re.compile(r"test matrix|test coverage|test legs|per-surface matrix", re.I)
+
+# Approved specs that predate the Test-matrix process step (design-led testing, 2026-09-09).
+# Grandfathered from Rule C; add a matrix section to graduate one off this list.
+MATRIX_GRANDFATHERED = {"kg-entity-inspector", "sidebar-crud", "workflow-node-config"}
+
+
+def _canonical_specs() -> list[pathlib.Path]:
+    return [p for p in SPECS_DIR.rglob("*.md") if not _is_scaffold(p)]
+
 
 def _spec_stems() -> set[str]:
     # rglob so specs may be grouped into area subfolders (e.g. specs/kg/*.md) without
     # breaking stem-based citations (the "split by area" ruling, 2026-09-09).
-    canonical = {p.stem for p in SPECS_DIR.rglob("*.md")}
-    legacy = {p.stem for p in LEGACY_SPECS_DIR.rglob("*.md")} if LEGACY_SPECS_DIR.exists() else set()
+    canonical = {p.stem for p in _canonical_specs()}
+    legacy = (
+        {p.stem for p in LEGACY_SPECS_DIR.rglob("*.md") if not _is_scaffold(p)}
+        if LEGACY_SPECS_DIR.exists() else set()
+    )
     return canonical | legacy
 
 
+def _approved_specs() -> list[pathlib.Path]:
+    """APPROVED specs in the CANONICAL tree (scaffolds excluded)."""
+    out = []
+    for p in _canonical_specs():
+        if re.search(r"Status:\s*APPROVED", p.read_text(encoding="utf-8")[:800]):
+            out.append(p)
+    return out
+
+
 def _approved_stems() -> set[str]:
-    """APPROVED specs in the CANONICAL tree — these must be tested (Rule B)."""
-    approved = set()
-    for p in SPECS_DIR.rglob("*.md"):
-        head = p.read_text(encoding="utf-8")[:800]
-        if re.search(r"Status:\s*APPROVED", head):
-            approved.add(p.stem)
-    return approved
+    return {p.stem for p in _approved_specs()}
 
 
 def _test_files() -> list[pathlib.Path]:
@@ -138,6 +159,19 @@ def main() -> int:
                 f"untested approved spec: {SPECS_DIR}/{stem}.md is Status: APPROVED "
                 f"but no test cites it. Add a pinning test (docstring 'spec: {stem}') "
                 f"or move it back to DRAFT."
+            )
+
+    # Rule C: an APPROVED spec must carry a Test-matrix section (the design-led-testing
+    # process step — TEST-TEMPLATE.md), so no surface ships without deciding its legs.
+    # Legacy approved specs are grandfathered until a matrix is added.
+    for spec in _approved_specs():
+        if spec.stem in MATRIX_GRANDFATHERED:
+            continue
+        if not MATRIX_MARKER_RE.search(spec.read_text(encoding="utf-8")):
+            failures.append(
+                f"missing test matrix: {spec} is Status: APPROVED but has no Test-matrix "
+                f"section. Paste the matrix from docs/contributor/TEST-TEMPLATE.md so the "
+                f"surface's test legs are decided, not forgotten."
             )
 
     if failures:

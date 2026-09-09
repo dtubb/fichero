@@ -1,0 +1,48 @@
+# <Surface> — Design Spec (#<issue>)
+
+> Copy this file to `docs/contributor/specs/<surface>.md` (or `specs/<area>/<surface>.md`)
+> to start a surface under design-led testing. Delete this quote block and fill every
+> section. `_`-prefixed files are scaffolds — the guardrail ignores them.
+>
+> Design-led (Testing Constitution). Creative director owns intent; tests enforce it; code
+> makes them pass. **Status: DRAFT — awaiting approval before tests/code.**
+> Flip to `Status: APPROVED` only after the creative director approves the intent; an
+> APPROVED spec MUST carry a filled Test matrix and be cited by ≥1 test (guardrails enforce).
+> Tags: [OK] built · [MISSING] not built · [PARTIAL] exists elsewhere / not wired.
+
+## Intent (the design)
+
+One paragraph: what the user should be able to OBSERVE on this surface, and why. Name the
+concrete files/types the surface lives in.
+
+## Behaviors
+
+One line per behavior, each with a stable id and a tag. The id is what a test cites.
+- `<surface>.<behavior>` [MISSING] — what the user observes.
+- `<surface>.<behavior-2>` [PARTIAL] — …
+
+## Test matrix (paste from `../TEST-TEMPLATE.md`, tick the legs this surface touches)
+
+| Leg | This surface? | Pins | File |
+|-----|---------------|------|------|
+| Pure rule (Swift) | y/n | the rule off-main | `fichero/Tests/Unit/…/<Surface>Tests.swift` |
+| Availability (Swift) | y/n | capability reachable in the surface | same, `AppSource.root()` |
+| Backend (pytest) | y/n | endpoint contract + delivery | `fichero-server/tests/…` |
+| MCP | y/n | tool maps + routes | `fichero-mcp/tests/test_mcp_full.py` |
+| CLI | y/n | command wires endpoint | `fichero-cli/tests/test_*.py` |
+| Click-around (XCUITest) | y/n | click → effect, end-to-end | `fichero/Tests/UI/…` (subclass `FicheroUISessionTests`) |
+| iPad/iOS | y/n | the touch path | `fichero/Tests/UI/ios`, `…/ipad` |
+| Load (#4634) | y/n | bounded, no peg, timed | `fichero-server/tests/perf/…` |
+
+Hard-gate: the cross-surface **invariant** (same result backend/MCP/CLI/UX) + capability
+**availability**. Rest is tracked debt — but listed here so it isn't forgotten.
+
+## Accessibility identifiers (required for the click-around leg)
+
+List the stable a11y ids the UI test will drive — add them to the views AS YOU BUILD:
+- `<surface>.entry` — the control that opens the surface
+- `<surface>.row.<id>` — a row/item
+- `<surface>.menu.<verb>` — each context-menu verb / button
+
+## Open questions for the creative director
+- …

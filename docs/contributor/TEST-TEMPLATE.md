@@ -118,16 +118,32 @@ def test_<verb>_1k_is_bounded(client, benchmark):
 
 ---
 
-## How to use it (the no-remembering workflow)
-1. Writing a spec for a surface? Paste the **Per-surface matrix**, tick the legs it touches,
-   and list the **accessibility identifiers** the click-around leg will need.
-2. Creating the surface? Create one test file per ticked leg from the skeletons; add the
-   a11y ids as you build the views.
-3. The `check_specs_have_tests.py` guardrail already binds an APPROVED spec to ≥1 test; the
-   matrix is how you make sure the RIGHT legs are covered, not just one.
-4. Weakest leg today is **click-around** — treat its skeleton as non-optional for any surface
-   a user touches. A surface without a click-around test is not "done", it's "unproven in the
-   one way the user actually experiences it".
+## The process — any surface, turn the crank
+
+The same abstract procedure prepares design-led testing for every surface (KG tables today,
+Library icon view next, and on through all of them). Each step has a guardrail gate, so the
+process is enforced, not remembered.
+
+1. **Scaffold.** `cp docs/contributor/specs/_TEMPLATE.md docs/contributor/specs/<surface>.md`
+   (or `specs/<area>/<surface>.md`). The scaffold already contains the Intent / Behaviors /
+   **Test matrix** / **Accessibility identifiers** / Open-questions sections.
+   · *Gate:* `_`-prefixed scaffolds are skipped; real specs are tracked.
+2. **Behaviors.** Write one line per behavior with a stable id (`<surface>.<behavior>`) and a
+   tag ([OK]/[MISSING]/[PARTIAL]). These ids are what tests cite.
+3. **Approve.** The creative director approves the *intent*; flip `Status: DRAFT → APPROVED`.
+   · *Gate:* an APPROVED spec MUST be cited by ≥1 test **and** carry a Test-matrix section
+   (`check_specs_have_tests.py`, Rules B + C).
+4. **Fill the matrix.** Tick the legs this surface touches; list the **accessibility
+   identifiers** the click-around leg needs (add them to the views as you build).
+5. **Test-first, per leg.** One file per ticked leg, from the skeletons above; the docstring
+   cites the behavior id. Hard-gate legs (cross-surface invariant + availability) first.
+6. **Implement** until the tests pass; add the a11y ids alongside the views.
+7. **Verify.** `python scripts/check_specs_have_tests.py` + the full gate (`verify_all.sh`
+   runs every `check_*.py`, including this one).
+
+Weakest leg today is **click-around** — treat its skeleton as non-optional for any surface a
+user touches. A surface without a click-around test is not "done", it's "unproven in the one
+way the user actually experiences it".
 
 ## Worked reference
 `kg-interactions.md` and `kg-tables.md` carry filled-in Test matrices. Use them as examples
