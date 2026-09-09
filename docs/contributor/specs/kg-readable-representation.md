@@ -135,6 +135,15 @@ own unit test** — which is exactly why this whole feature is headless-testable
 `paragraph.py` already implements a thin slice of stages 3–6 for a single paragraph; this spec
 extends it stage by stage to entry/biography scale, each stage landed test-first.
 
+**Prior art to build on (RDF/linked-data crowd — researched 2026-09-10):** the semantic-web
+community verbalizes graphs to text with **LD2NL / SPARQL2NL / SemWeb2NL** (rule+template RDF→text),
+whose pipeline (lexicalization → single-triple realization → clustering → ordering → grouping)
+*mirrors Reiter-Dale* — independent confirmation the deterministic path is sound. **CIDOC-CRM** is
+the ISO ontology the cultural-heritage crowd uses for exactly this factoid substrate (events,
+actors, places, times); our factoids map to it, so they can be imported from / exported to an RDF
+server as linked open data (cf. Enslaved.org). The readable render must work over a factoid whether
+it came from the extraction pipeline OR an RDF import — same substrate, same rendering.
+
 ## Test matrix (BACKEND-heavy — this is why it's the right headless target)
 
 | Leg | This surface? | Pins | File |
