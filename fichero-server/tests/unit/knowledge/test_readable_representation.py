@@ -154,3 +154,25 @@ def test_aggregation_collects_place_distribution():
 def test_aggregation_places_empty_when_no_locations():
     a = _svo("Ana", "born in", "Quibdó")
     assert aggregate_claims([a])[0].places == []
+
+
+def test_chronological_falls_back_to_date_values_when_no_time_start():
+    from fichero_server.models.knowledge import EvidenceBasis, EvidentialDateRange
+    via_values = KnowledgeClaim(
+        text="dated only via date_values",
+        date_values=[EvidentialDateRange(basis=EvidenceBasis.asserted, start="1785-01-01")],
+    )
+    later = KnowledgeClaim(text="later, time_start", time_start="1799-01-01")
+    # via_values (1785) sorts before later (1799) even though it has no time_start.
+    assert order_claims([later, via_values], Ordering.chronological) == [via_values, later]
+
+
+def test_chronological_uses_earliest_of_multiple_date_values():
+    from fichero_server.models.knowledge import EvidenceBasis, EvidentialDateRange
+    b = EvidenceBasis.asserted
+    early = KnowledgeClaim(text="earliest wins", date_values=[
+        EvidentialDateRange(basis=b, start="1799-01-01"),
+        EvidentialDateRange(basis=b, start="1780-01-01"),
+    ])
+    mid = KnowledgeClaim(text="mid", time_start="1790-01-01")
+    assert order_claims([mid, early], Ordering.chronological) == [early, mid]

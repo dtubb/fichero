@@ -54,8 +54,15 @@ def select_entry_claims(
 def _chronological_key(claim: KnowledgeClaim) -> tuple[bool, str]:
     # Undated claims sort last (True > False); dated claims sort by their start.
     # time_start is an ISO-ish string, so a lexical sort is date order. Ties keep
-    # input order because Python's sort is stable.
-    start = claim.time_start or ""
+    # input order because Python's sort is stable. The spec dates a claim by its
+    # event/attestation date, so when time_start is absent fall back to the
+    # earliest `date_values` start (evidential dates) before treating it as undated.
+    start = claim.time_start
+    if not start and claim.date_values:
+        starts = [dv.start for dv in claim.date_values if dv.start]
+        if starts:
+            start = min(starts)
+    start = start or ""
     return (start == "", start)
 
 
