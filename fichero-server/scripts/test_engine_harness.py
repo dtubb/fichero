@@ -143,6 +143,14 @@ class EngineHarness:
         # #4537 class rule: the engine's own dotfiles/state land in the
         # disposable app-home, never the real container or real $HOME.
         env["HOME"] = str(self.app_home)
+        # The seeded library lives in this per-run temp dir, which is OUTSIDE the
+        # engine's home-derived allowed roots (HOME is the disposable app-home).
+        # Whitelist it explicitly so the engine's library-open path check
+        # (security/path_security.py `configured_library_allowed_roots`) permits
+        # opening Seed.fichero — otherwise the app shows "No Access to Seed" and
+        # never reaches library.content.ready (2026-09-10). The temp dir is
+        # disposable and removed in stop(), so this grants nothing durable.
+        env["FICHERO_LIBRARY_ALLOWED_ROOTS"] = str(self.temp_dir)
         # #4400: the engine self-terminates if THIS process dies.
         env["FICHERO_PARENT_PID"] = str(os.getpid())
 

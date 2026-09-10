@@ -249,26 +249,28 @@ final class UITestEngineHarness {
     /// per-run temp dir would overflow it, so the socket lives directly in
     /// NSTemporaryDirectory under a compact name derived from the run id.
     ///
-    /// #4194 CAVEAT: this is the XCTRUNNER's temp dir. A SANDBOXED app under
-    /// test gets `connect() errno 1 (Operation not permitted)` dialing it —
-    /// the app logs that loudly while the test only sees "never ready" and
-    /// polls. UDS harness suites are only valid against a non-sandboxed
-    /// build (Dev schemes); the sandboxed MAS config needs a different
-    /// transport or an app-group socket location.
+    /// Bind the socket in the RUNNER's OWN `NSTemporaryDirectory` (spec:
+    /// ui-test-harness). The engine is spawned as a CHILD of this XCUITest
+    /// runner, so the socket must live where the RUNNER can write — its own
+    /// temp — otherwise the engine's `bind()` fails and it exits status 1
+    /// before serving (the "engine exited (status 1) before becoming ready /
+    /// no output captured" harness failure, confirmed 2026-09-10).
+    ///
+    /// The 2026-07-29 relocation into the APP's container
+    /// (`app.fichero.fichero/Data/tmp`) assumed the app under test was
+    /// SANDBOXED and could only connect() a socket inside its own container.
+    /// That is WRONG for Dev Local: `Fichero (Dev Local)` → `Debug` config →
+    /// `ENABLE_APP_SANDBOX = NO` (verified 2026-09-10). An UNSANDBOXED app can
+    /// connect() a socket anywhere, so it reaches the runner's temp fine —
+    /// while the runner-child engine can only bind in the runner's own temp.
+    /// (The sandboxed MAS config would still need an app-group socket; UDS
+    /// harness suites remain Dev-scheme-only.)
     private static func shortSocketPath(runID: String) -> String {
-        let shortID = String(runID.replacingOccurrences(of: "-", with: "").prefix(10))
-        // The app under test is SANDBOXED — including Dev Local (verified on
-        // the built product's entitlements, 2026-07-29). A sandboxed app can
-        // only connect to an AF_UNIX socket inside its OWN container; the
-        // runner's NSTemporaryDirectory is the RUNNER's container, which is
-        // how every session suite failed with connect EPERM (#4194). Bind
-        // where the dev run-loop already proved the app can reach: the app
-        // container's tmp. Still under the sun_path ~104-byte limit (~88).
-        let containerTmp = (realHome as NSString).appendingPathComponent(
-            "Library/Containers/app.fichero.fichero/Data/tmp")
-        try? FileManager.default.createDirectory(
-            atPath: containerTmp, withIntermediateDirectories: true)
-        return (containerTmp as NSString).appendingPathComponent("fut-\(shortID).sock")
+        // 6 hex chars keeps the path well under the AF_UNIX sun_path ~104-byte
+        // limit even when NSTemporaryDirectory is a deep container path.
+        let shortID = String(runID.replacingOccurrences(of: "-", with: "").prefix(6))
+        return (NSTemporaryDirectory() as NSString)
+            .appendingPathComponent("fut-\(shortID).sock")
     }
 
     // MARK: - Repo root
