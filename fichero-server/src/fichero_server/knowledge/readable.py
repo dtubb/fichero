@@ -6,13 +6,20 @@ The Reiter & Dale NLG pipeline, built as small pure functions over KnowledgeClai
 whole thing is testable without a GUI, an engine, or an LLM. NOTHING here calls a model:
 the prose is a pure function of stored claims (the `narrative_v1` LLM prompt is what this
 replaces). Sentence-level composition already lives in `knowledge/paragraph.py`; this module
-adds the entry/biography-scale stages around it — starting with:
+adds the entry/biography-scale stages around it (Reiter & Dale). Built so far:
 
-  1. content determination — which claims belong in an entity's entry.
-  2. document structuring   — the order they're presented in (chronological / by source).
+  1. content determination — `select_entry_claims`: which claims belong in an entry.
+  2. document structuring   — `order_claims`: chronological (time_start / date_values)
+     or by source (document → page → offset).
+  3. aggregation            — `aggregate_claims`: collapse same-(subject,verb) claims to a
+     count + distinct objects + place distribution, keeping every claim_id for citation.
+  5. referring expressions  — `referring_expression`: full name first, family name after.
+  6. realisation            — `render_aggregation`: phrase an Aggregation per language
+     (es/en glue for count/places; the verb + objects stay the claim's own words).
 
-Later stages (aggregation, lexicalisation per language, referring expressions, realisation)
-land on top of these, each test-first. See the spec's pipeline section.
+Not yet built: stage 4 (lexicalisation — per-language verb lexicon) beyond the count/place
+glue; deferred until the corpus's languages + real verb vocab are grounded (spec open Q).
+See docs/contributor/specs/kg-readable-representation.md for the pipeline + behaviors.
 """
 from __future__ import annotations
 
