@@ -39,11 +39,23 @@ The transport contract the harness depends on is [`transport-http-uds.md`](trans
   (library, app-home) already lives in a disposable per-run temp dir. That relocation is exactly
   the "test stuff in my real container" ruling #1 rejects.
 
-**Corrected root-cause direction:** filesystem reach is NOT the blocker (unsandboxed app reaches
-`/var/folders` fine). The empty-state bounce is an **app-side launch/open behavior** — the
-seeded library isn't becoming *current* before the window resolves, so the root switch shows the
-empty new/open-library surface instead of the library shell. To be pinned by ONE instrumented
-app run (Xcode MCP) before the fix — do not fix ahead of that.
+**CONFIRMED root cause (2026-09-10, ran the harness via CLI with the screen unlocked) — a
+two-layer ENGINE-PROVISIONING failure, NOT the app-side bounce first hypothesized:**
+1. **Engine wouldn't start.** The engine is spawned as a CHILD of the XCUITest *runner*, so it
+   can only `bind()` its UDS socket in the runner's own container temp. The 2026-07-29 relocation
+   put the socket in the *app's* container → cross-container `bind()` failed → "engine exited
+   (status 1) before becoming ready, no output captured". FIX: bind in `NSTemporaryDirectory`
+   (`UITestEngineHarness.shortSocketPath`). Dev Local is UNSANDBOXED, so the app connects fine.
+   VERIFIED: the app then received the engine's own 403 — proof the UDS connection works.
+2. **Engine refused the seeded library.** Its library-open policy (`security/path_security.py`)
+   rejected `Seed.fichero` as "outside every location this engine may open (allowed roots and
+   security-scoped grants)" — because the engine's HOME is the disposable app-home, so the temp
+   dir is outside its home-derived roots. FIX: the harness sets `FICHERO_LIBRARY_ALLOWED_ROOTS`
+   to the per-run temp dir (`test_engine_harness.py`). (commit 497469f15)
+
+Both fixes are committed; the final GREEN run is pending an UNLOCKED screen (XCUITest "enabling
+automation mode" times out while the screen is locked — it only runs unlocked). No app-side
+bounce fix was needed — the app was never the problem; the engine provisioning was.
 
 ## Creative-director rulings (2026-09-09)
 
