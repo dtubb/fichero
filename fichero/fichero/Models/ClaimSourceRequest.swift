@@ -81,7 +81,11 @@ enum ClaimSourceRequest {
 
         var request = ClaimSourceNavigationRequest(documentId: documentId)
         request.claimId = claim.id
-        request.claimText = claim.text
+        // Highlight the VERBATIM source quote (sourceExcerpt), not the possibly
+        // paraphrased/normalized claim text — the reader jumps to what is actually
+        // on the page. Falls back to text when no excerpt was captured. This matches
+        // the sibling flattened-payload builder and #3449's provenance-anchor intent.
+        request.claimText = claim.sourceExcerpt ?? claim.text
         request.pageLabel = claim.sourcePageLabel
         request.destination = .reader
 

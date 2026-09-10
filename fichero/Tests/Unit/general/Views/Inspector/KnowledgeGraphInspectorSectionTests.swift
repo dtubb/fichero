@@ -542,7 +542,7 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         ].joined(separator: "\n")
         XCTAssertTrue(entitiesSource.contains("deleteActionButton(targetEntities: selectedEntities)"))
         XCTAssertTrue(entitiesSource.contains("Button(\"Delete…\", role: .destructive)"))
-        XCTAssertTrue(storeSource.contains("try await entityService.deleteEntity(entityId)"))
+        XCTAssertTrue(storeSource.contains("try await service.deleteEntity(id)"))
         XCTAssertTrue(claimsSource.contains("deleteActionButton(targetClaims: selectedClaims)"))
         XCTAssertTrue(claimsSource.contains("requestClaimDeleteAction: requestDeleteAction(for:)"))
         // Claim delete routes through ClaimStore now (the same observable-

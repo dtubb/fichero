@@ -219,7 +219,9 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         XCTAssertTrue(stateSource.contains("var isEntityLibrarySelection: Bool"))
         XCTAssertTrue(stateSource.contains("if isEntityLibrarySelection {"))
         XCTAssertTrue(stateSource.contains("return [.list]"))
-        XCTAssertTrue(stateSource.contains("if newFolderId == \"entities-browser\""))
+        // Entity-library selection is now detected via selectedKnowledgeKind
+        // (was the "entities-browser" folder-id sentinel). Behavior unchanged.
+        XCTAssertTrue(stateSource.contains("selectedKnowledgeKind == .entities"))
         XCTAssertTrue(stateSource.contains("viewDisplayMode = .list"))
     }
 
@@ -237,7 +239,10 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         XCTAssertTrue(stateSource.contains("if isEntityLibrarySelection {"))
         XCTAssertTrue(stateSource.contains("kgFocusState.focusEntity(entityId: firstId)"))
         XCTAssertTrue(stateSource.contains("kgFocusState.clear()"))
-        XCTAssertTrue(navigationSource.contains("contentCollection: isEntityLibrarySelection ? .entities : .documents"))
+        // Navigation now routes via `sidebarContentCollection` (which maps
+        // selectedKnowledgeKind .entities -> .entities); was an inline ternary.
+        XCTAssertTrue(navigationSource.contains("contentCollection: sidebarContentCollection"))
+        XCTAssertTrue(stateSource.contains("case .entities?: return .entities"))
     }
 
     func testPinnedSidebarEntryPointsRouteToExpectedSurfaces() throws {

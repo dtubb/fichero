@@ -46,7 +46,7 @@ struct ModelChipToolbarItem: View {
     /// The provider list is fetched through a library's ChatService, but a
     /// toolbar item is hosted by the WINDOW, outside the `LibraryWorkspaceRoot`
     /// tree that injects `library.chatService` (#4448's boundary). Reading
-    /// `@Environment(ChatService.self)` here was always nil, and
+    /// a ChatService from the SwiftUI environment here was always nil, and
     /// `ensureLoaded(chatService: nil)` is a silent no-op — so the popover
     /// sat on "Loading models…" for good unless the workflow bar happened to
     /// have warmed the shared cache first. `LibraryManager` IS app-level

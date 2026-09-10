@@ -250,7 +250,11 @@ final class ToolbarSearchRoutingTests: XCTestCase {
         // which is why a search for a person returned only Artifacts, so all
         // three non-document legs now share `SearchHitSection` and one
         // document-opening seam takes an id rather than a typed artifact hit.
-        XCTAssertTrue(resultsSource.contains("include: [.content, .entities, .claims, .artifacts]"))
+        // Ruling (Daniel, 2026-09-07): search's three MEANINGFUL legs are
+        // documents + entities + claims; artifacts (workflow intermediates) are
+        // dropped as noise. (The artifact-hit RESOLUTION plumbing below stays,
+        // harmless, in case a future leg re-includes them.)
+        XCTAssertTrue(resultsSource.contains("include: [.content, .entities, .claims]"))
         // Ruling change (2026-08-19, #4118): no separate hit LIST — every leg
         // resolves to its parent document and joins the grid as a node, so
         // artifact/entity/claim hits are clickable/saveable like any other.
