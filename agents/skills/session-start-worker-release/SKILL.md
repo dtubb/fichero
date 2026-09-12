@@ -46,7 +46,7 @@ The bar for a line in the notes:
 - It describes something a user can now do, or a bug they hit that is now gone.
 - It shipped in a build. A merged commit behind a flag that is `false` in
   `FeatureManager.resetToV001()` **did not ship** — do not announce it. Check
-  `docs/user/features.md`, which derives status from that function.
+  `docs/reference_manual/features.md`, which derives status from that function.
 - No internal vocabulary: no issue numbers in prose, no "refactored", no module
   names, no "improved performance" without a number.
 - Security fixes get their own **Security** line, always, even when small.

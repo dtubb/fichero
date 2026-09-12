@@ -9,9 +9,29 @@ Specialized `session-start-worker`. Read that skill first for the shared worker
 contract (claim the issue, commit-only, test bar, blocked → notify). This file
 narrows it to the docs lane.
 
+## Three-manual model (know this before touching anything)
+
+- `docs/user_manual/` — the maintainer's manual, **Tinderbox-authored**. You do
+  **not** write prose here. Your job for this manual is to supply **facts and
+  screenshots**: verified claims (what a feature does, current behavior) and
+  captured screenshots dropped in `docs/assets/<milestone>/`. Daniel composes
+  the manual itself in Tinderbox from that material.
+- `docs/contributor_manual/` — **AI-authored**. This is yours to write:
+  architecture, specs, dev standards, contributor guides. Ground every claim in
+  code per the rule below.
+- `docs/reference_manual/` — **code-generated**. Don't hand-author prose here;
+  fix the generator/source if it's wrong.
+
+The old non-suffixed doc roots (`docs/` + `user` or `contributor`, without
+`_manual`) are **retired** — if you see either referenced anywhere, that's
+stale; fix it to point at the corresponding `*_manual/` path.
+
 ## Lane — files you own
 
-- `docs/**`
+- `docs/contributor_manual/**` — full authoring rights
+- `docs/user_manual/**` and `docs/assets/<milestone>/**` — facts + screenshots
+  only, never composed prose
+- `docs/reference_manual/**` — only to fix the generator, not by hand-editing output
 - root doc files: `README.md`, `CONSTITUTION.md`, `CONTRIBUTING.md`, `USER.md`,
   `AGENTS.md`, `CLAUDE.md`, `RELEASE_NOTES.md`
 - `agents/**` — skills and prompts

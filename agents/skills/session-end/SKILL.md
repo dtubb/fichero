@@ -104,13 +104,14 @@ Next session: [one-line preview of the STATE.md entry]
 
 ## Step 7 — Write Completion Sentinel
 
-Write `.session-end-complete` in the project root so an outer autonomous loop (e.g. `agent-autonomous-loop.py`) knows `/session-end` already ran and can skip its own duplicate end phase:
+Write `.session-end-complete` in the project root so an outer loop knows
+`/session-end` already ran and can skip its own duplicate end phase:
 
 ```bash
 date -u +%Y-%m-%dT%H:%M:%SZ > .session-end-complete
 ```
 
-The loop deletes this file after consuming it. Harmless if no loop is running — it can be gitignored or ignored entirely.
+Harmless if nothing consumes it — it can be gitignored or ignored entirely.
 
 ## Constraints
 

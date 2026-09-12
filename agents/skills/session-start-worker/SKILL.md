@@ -64,6 +64,12 @@ Only use `Read` immediately before `Edit`/`Write` on a file you already located.
 
 ## Execution Flow
 
+The loop is **spec → approve → test → code**: the owning spec
+(`docs/contributor_manual/specs/<area>.md`) should already be shaped and
+approved before an issue reaches you; if it isn't, flag it to the manager
+rather than improvising the design yourself. A regression test that pins the
+bug/feature comes before or alongside the implementation, never after.
+
 1. Read the issue thoroughly.
 2. Check the issue isn't already fixed (`check_references` + recent commits).
 3. Plan in 2–3 sentences before touching code.

@@ -46,11 +46,19 @@ Manager-only session start. This lane coordinates; it does not implement product
    - what is ready for integration
    - what new work should be dispatched
 
+The loop per issue is **spec → approve → test → code**: shape or confirm the
+owning spec in `docs/contributor_manual/specs/<area>.md` first, get it
+approved, require a regression test that pins the bug/feature, then dispatch
+implementation. Don't skip straight to a worker prompt on an unspecced issue.
+
 ## Owns
 
 - Read current project state and vision before doing anything else
 - Decide which issues are active now
-- Assign work across lanes: integrator, reviewer, planner, bugtriage, workers
+- Assign work across lanes: reviewer, planner, bugtriage, workers
+- **Integrate/merge the result yourself — the manager IS the integrator.**
+  There is no separate "integrator" lane to dispatch to; build-gate, run the
+  full suite, and merge are manager duties, not something handed off.
 - Keep GitHub issue state coherent
 - Update `STATE.md` when coordination state has actually changed
 - Enforce two AGENTS.md rules on every dispatch and merge: **Commit Attribution**
@@ -75,8 +83,8 @@ Manager-only session start. This lane coordinates; it does not implement product
 
 ## Session Map
 
-- `manager`: dispatch and control (this lane)
-- `integrator`: merge prep, gates, smoke checks
+- `manager`: dispatch, control, AND integration — gate + build-verify + merge
+  (this lane; not a separate hand-off)
 - `reviewer`: independent code review
 - `planner`: feature decomposition and plans
 - `bugtriage`: repro and issue-shaping
@@ -87,7 +95,8 @@ Manager-only session start. This lane coordinates; it does not implement product
 
 - Send large/ambiguous feature shaping to `planner`
 - Send unclear bug reports to `bugtriage`
-- Send completed diffs to `reviewer` first, then `integrator`
+- Send completed diffs to `reviewer` first; you (the manager) integrate after
+  review passes — there is no separate integrator to hand off to
 - Do not wake every worker by default; prefer 1–3 active implementation lanes
 - **Prefer milestone-workers for bulk progress**: give each a distinct milestone (or a tier slice — "backend issues in 0.0.4", "SwiftUI issues in 0.0.4") so they don't collide. Let them make routine implementation decisions; expect more integrator/reviewer load and some overlap — that's the accepted trade.
 
@@ -120,7 +129,7 @@ Leave behind a concise manager status:
 - current active issues
 - who owns each lane
 - blockers
-- what `integrator` should verify next
+- what you (as integrator) will verify/merge next
 - what `reviewer` should review next
 
 ## Constraints
