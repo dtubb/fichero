@@ -2,6 +2,146 @@
 
 ## Unreleased
 
+## 2026-09-12
+
+**New — Documentation overhaul.** The contributor manual, reference manual, and user guide now live in organized subdirectories with clear handoffs between them. Specifications are grouped by area (harness, testing, KG, transport, UI, docs) for easier navigation.
+
+**Improved — Release readiness.** The release-readiness check is now a test, so you know immediately if a build is shippable. Agent skills aligned to current models, and dead lanes removed.
+
+**Improved — Testing clarity.** UI testing strategy documented as an Apple-only visual/a11y layer, with honest assessment of what each verification method catches (scan vs. test vs. audit).
+
+## 2026-09-09
+
+**New — Knowledge graph narrative.** The KG now generates readable biographies and place distributions from your claims—no LLM needed, any language. Chronological ordering falls back to date values when exact dates are absent.
+
+**Improved — Knowledge graph browsing.** Entity and claim tables now let you filter by text and type (intersecting search), rename entities inline, and see inline accessibility IDs for testing.
+
+**Improved — Entity inspector.** Selecting an entity shows all its statements and lights up the exact pages where it was mentioned.
+
+**Fixed — Testing framework.** Test targets now default to MainActor isolation to stop runtime traps; the engine's UI-test harness binds in temp folders to keep your library safe.
+
+## 2026-09-08
+
+**Improved — Knowledge graph editing.** Create, edit, and delete claims and entities directly in their tables. Rename entities in place; the changes sync across every page they appear on.
+
+**Improved — Workflow builder.** Workflow extraction family prompts are now user-overridable—diary entries and default workflows folder auto-update to match what you customize.
+
+**Improved — Testing.** Specification↔milestone↔tag tracking system ensures design specs stay load-bearing; feature-gate guardrails support nested folders.
+
+**Fixed — Entity creation.** Role-only person entities are now rejected at the write door (upsert).
+
+## 2026-09-07
+
+**New — Search surfaces entities and claims.** When you search, entity and claim hits surface even if no documents match. Click to jump to the inspector.
+
+**Improved — Knowledge graph sidebar.** Entities and Claims now appear at the library level in the sidebar—each library gets its own tables, independent of others.
+
+**Improved — Entity navigation.** Entity appearance lists now show page names instead of raw IDs; claim sources are clickable doors back to the page they came from.
+
+**Fixed — Search performance.** Search hits now anchor to their exact passage; the reader finds a term that actually exists.
+
+## 2026-09-06
+
+**New — Activity jobs dashboard.** See all your background jobs (embedding, import, enrichment) in one place, with CPU%, task type, and per-library scoping.
+
+**New — Library clone over HTTP.** Export a library's DB image so you can share it with others; the `fichero library clone` CLI makes it easy.
+
+**Improved — Local models inside settings.** spaCy, Kraken (handwriting), and Whisper now live inside the Settings catalog—no separate blocks. Auto-provision on first use, auto-throttle to keep your machine responsive.
+
+**Improved — Embeddings performance.** Throttling is now per-thread and nice-by-default—background embedding no longer pegs your machine during serving.
+
+## 2026-09-05
+
+**Improved — AI settings redesign.** Local models (spaCy, Kraken, Whisper) are now unified in the catalog alongside cloud providers. Each row shows capability badges (NER, segmentation, embedding).
+
+**Improved — Cost tracking.** Every run now shows estimated vs. actual cost—calibrate your cost ceiling predictions over time.
+
+**New — HPC/Slurm connection.** (Dry-run only; execution gated off.) Prepare for remote compute by connecting to SSH-based HPC clusters.
+
+**Improved — Knowledge graph cleanup.** SVO (subject-verb-object) extraction now collapses near-duplicate date claims and shared descriptors, reducing noise.
+
+## 2026-09-04
+
+**New — Export what you're reading.** Export the current page or folder as Markdown or Word—formatted, page numbers included.
+
+**New — Programmatic cleanup.** Whitespace, hyphens, page chrome—the programmatic cleaner reads a real page instead of wasting tokens on description.
+
+**Improved — Knowledge graph navigation.** Corroborating runs are now navigable—click to see which other runs found the same entity.
+
+**Improved — Vision quality.** Rendered PDF pages export as JPEG (not bloated PNG); text extraction happens once per document, not per page.
+
+**Fixed — Multipage selection.** Reader comparison now shows columns you read across, not sections you scroll between.
+
+## 2026-09-03
+
+**Improved — Workflow presets.** Auto-Detect's prompt copies no longer drift; renamed presets keep their rows instead of stranding themselves.
+
+**Improved — Search honesty.** The search header now says what actually ran—tier ladder shows each leg (hybrid, semantic, keyword) and whether it succeeded.
+
+**Fixed — Word highlighting.** Highlighting now hugs the exact words it marks, everywhere they appear (not just the current page).
+
+**Improved — Vision polish.** Ink-residue escalation—a second-pass review of sparse areas catches ink Apple Vision missed.
+
+## 2026-09-02
+
+**New — Passage ranking in search.** Selecting a search hit lights the best-matched passage in preview and reader—not just the page.
+
+**Improved — Library search.** Re-clicking the current library folder exits search instead of staying stuck.
+
+**Improved — Vision error messages.** Failed vision calls name what failed (timeout, model unavailable, etc.) instead of generic stalling.
+
+**Fixed — Run costs.** A run that cannot price itself now says "unpriced" instead of "$0.00"—and falls back through the ladder correctly.
+
+## 2026-09-01
+
+**Improved — Import freshness.** Documents imported today are findable immediately—no cache staleness penalty.
+
+**Improved — Testing confidence.** The beta build underwent live re-testing: gestures, geometry, search, library management, model selection, chrome, and launch.
+
+## 2026-08-31
+
+**Improved — Sharing Polish.** Pairing trust no longer causes headaches; the app's socket certificate names loopback correctly. The evening batch brought seven lanes of stability fixes.
+
+**Fixed — Gestures, markup tools, chrome, editor undo, search notices.** Live-testing batch refined the most-used flows.
+
+## 2026-08-30
+
+**New — Markup bar.** Draw, highlight, and annotate right from the window toolbar. The armed tool stays armed; the cursor shows which tool is active.
+
+**New — Chains engine integration.** Run workflow chains as real engine runs—persisted and live-tracked, not ephemeral.
+
+**New — Compare step.** Same sentence, every model. See how the same input differs across providers in side-by-side columns.
+
+**New — Regions curation.** Click, shift-click, drag, or rubber-band to select regions in the preview. The inspector lights up as you select. Verb set: move, delete, add, combine.
+
+**Improved — Reader artifacts.** SVG and HTML artifacts now render as themselves (inertly). Table artifacts export their CSV.
+
+**Fixed — Selection scoping.** Run scope now follows the visible selection—regions, preview marquee, or dialog choice.
+
+## 2026-08-29
+
+**New — Xcode-style window chrome.** Split/tab, workspaces, layouts, native search—Fichero now reads like a Pro app.
+
+**New — Regions as objects.** Preview regions become selectable, movable objects with a unified verb set (move, delete, combine, add).
+
+**Improved — Reader tables.** Table representations are now real tables in the reader—not just text dumps.
+
+**Improved — iOS launch.** Launch no longer waits for a Mac that isn't answering. Retries live in the background so the app stays responsive.
+
+**Improved — Finder-like file management.** The app target is now a synchronized folder—no more manual re-registrations when you add files.
+
+## 2026-08-28
+
+**New — Workflow capability bar.** Click to build a workflow chain. Drag to reorder steps. Each step carries its own model. The bar shows a cost ceiling before you run.
+
+**New — Word geometry binding.** Tie a reviewed transcription to the actual word boxes we measured from the image—no more guessing.
+
+**Improved — Live run watching.** Click a running step to watch it work. Steps change colour as they finish and open what they made.
+
+**Improved — Region performance.** Word boxes now draw in one canvas instead of one view each—much snappier on dense pages.
+
+**Improved — Tool context.** Workflow tools are now reachable, with context popovers for what each tool needs.
+
 ## 2026-08-27
 
 - feat(sharing): the Sharing toggle now serves the CLI, MCP clients, and paired devices from the embedded engine (UDS + HTTPS dual-bind; verified live)
