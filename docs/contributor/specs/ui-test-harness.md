@@ -74,8 +74,25 @@ bounce fix was needed — the app was never the problem; the engine provisioning
 5. **Design-led testing for the Xcode configs too** — a guardrail that asserts the config matrix
    (scheme → config → sandbox/arch/deployment/test-plan), so config drift is a red test.
 
-## Behaviors
+## Behaviors (the four provisioning layers — each a named regression guard)
 
+Found by running the harness end-to-end (report: `reports/ui-test-harness-findings-2026-09-12.md`).
+The seeded library/socket/app-home live in the **xctrunner container tmp** (the containerized
+runner's `tempfile.gettempdir()`), NOT `/var/folders` as the Evidence section first assumed.
+
+- `harness.runner-gui` [ENV] — XCUITest needs an UNLOCKED GUI session; "Timed out enabling
+  automation mode" = locked screen, not a test failure. The runner/report must distinguish it.
+- `harness.engine-binds` [OK, fixed] — the engine (a CHILD of the runner) binds its socket in the
+  RUNNER's own `NSTemporaryDirectory`, not the app's container (cross-container `bind()` → status 1).
+- `harness.library-allowed` [OK, fixed] — the harness sets `FICHERO_LIBRARY_ALLOWED_ROOTS` to the
+  per-run temp so the engine's `path_security` policy permits opening the seeded library.
+- `harness.content-renders` [MISSING] — **the open layer.** The library opens but its seeded
+  content doesn't drive the UI ("a library seems to open… but nothing happens"). App-side: the
+  current-library observation / change-stream doesn't populate from the seeded engine. This is the
+  last thing between here and a green `testDocumentInspectorLoadsSeededEntities`.
+- `harness.persist-engine-stderr` [MISSING] — on any provisioning failure the harness must persist
+  the engine's REAL stderr + spawn command + errno to a stable path (it currently loses them —
+  every layer above had to be inferred, not read).
 - `harness.testing-container` [MISSING] — socket + library + app-home all live in the disposable
   per-run temp dir; nothing is written to the real app container.
 - `harness.app-connects` [MISSING] — the app reaches `library.content.ready` with the seeded

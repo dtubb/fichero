@@ -2,8 +2,23 @@
 
 > Milestone: dev-orchestration-harness
 >
-> Design-led. **Status: DRAFT — for Daniel's review.** How the agent team is structured to get
-> work done without wasting tokens. Grounded in what this session actually showed.
+> Design-led. **Status: DRAFT — model RATIFIED by Daniel 2026-09-12** (Fabel manager, sonnet/opus
+> workers). Stays DRAFT until its enforcement lands — a guardrail asserting the routing policy is
+> in `AGENTS.md` — because a governance spec has no code surface to bind a test to. How the agent
+> team is structured to get work done without wasting tokens. Grounded in what this session showed.
+
+## The model (ruled 2026-09-12)
+
+**Fabel is the manager** (fast, cheap, always-on — this session's driver). It coordinates, does
+the fast design/review/routing, owns the verify gate, and **dispatches workers**:
+- **sonnet workers** — the default: implement a specced feature + its tests, bulk/mechanical edits,
+  doc sweeps. Most writing.
+- **opus workers** — escalation only: hard root-cause debugging, tricky design, deep review — the
+  reasoning Fabel wants more depth for. One or two at a time.
+
+Fabel-as-manager inverts the usual tree: the manager is *cheaper* than some of its workers (opus),
+which is correct — spend the deep model only on the hard reasoning, keep the always-on coordinator
+fast and cheap.
 
 ## The question
 
@@ -27,20 +42,21 @@ it token-efficiently with fabel/opus?
 
 ## Ruling proposal (the design)
 
-- **Keep it FLAT by default.** Daniel → **me (opus)** → **sonnet/codex workers** for
-  implementation. Me = design + root-cause + review + the verify gate. Workers = write to a spec,
-  run their own area tests, report. No standing opus middle layer for routine work.
+- **Keep it FLAT by default.** Daniel → **me (Fabel)** → **sonnet workers** for implementation
+  (**opus workers** only for hard reasoning). Me = fast design + routing + review + the verify
+  gate. Workers = write to a spec, run their own area tests, report. No standing middle layer.
 - **Add a dedicated opus "area lead" ONLY for a large, long-running milestone** whose context is
   too big to hold alongside everything else (e.g. a whole KG or testing milestone). It owns that
   milestone, dispatches its own sonnet workers, and reports up. One or two at a time — not one per
   area on principle. This is the existing `session-start-milestone-worker` pattern; reuse it.
-- **Model routing (the token policy):**
-  - **opus / me** — design specs, root-cause debugging, code/test review, the merge/verify gate.
-  - **sonnet** — implement a specced feature + its tests (the bulk of writing).
-  - **codex / haiku** — mechanical/bulk edits, boilerplate, doc sweeps, bounded refactors.
-  - **fabel** — fast interactive UI iteration where speed beats depth (visible in Xcode).
-  - Route DOWN, never up: never use opus for what sonnet can do; never use sonnet for what a
-    guardrail/script can do.
+- **Model routing (the token policy, ruled 2026-09-12):**
+  - **fabel (me, manager)** — coordinate, fast design/review/routing, the verify gate, visible
+    interactive iteration. Always-on driver.
+  - **sonnet worker** — the default worker: implement a specced feature + tests, bulk/mechanical
+    edits, doc sweeps, bounded refactors.
+  - **opus worker** — escalation only: hard root-cause debugging, tricky design, deep review.
+  - Route DOWN for writing (sonnet), escalate UP only for hard reasoning (opus); never spend a
+    model on what a guardrail/script already does.
 - **tmux windows vs subagents:** subagents (the `Agent` tool) for **bounded parallel tasks** that
   report back within a turn (context-isolated, no plumbing). Persistent **tmux lanes** only for
   **long-lived autonomous work that must survive across turns** (an overnight milestone). Don't
