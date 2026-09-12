@@ -52,14 +52,19 @@ struct BackendRootGate<Content: View, Setup: View>: View {
             // too; `EngineStatusToolbarItem` (in the toolbar `content()`
             // provides) is what surfaces those phases, not this gate.
             content()
-                // Make the container a single matchable AX element so a UI test
-                // can query `library.content.ready`. A bare `.accessibilityIdentifier`
-                // on a layout container is NOT surfaced as a queryable XCUIElement
-                // (the modifier only tags an existing AX element); `.contain` keeps
-                // every descendant individually accessible, so leaf queries (e.g.
-                // `inspectorSection-Knowledge`, `inspector.entity.row`) still resolve.
-                .accessibilityElement(children: .contain)
-                .accessibilityIdentifier("library.content.ready")
+                // Anchor `library.content.ready` to a dedicated hidden leaf marker
+                // rather than grouping the window ROOT. A bare `.accessibilityIdentifier`
+                // on a layout container is not a queryable XCUIElement; and making the
+                // root a `.accessibilityElement(children: .contain)` group risked
+                // reshaping deep descendants (the inspector tab buttons) out of
+                // individual queryability. A 1pt marker in `.background` carries the
+                // id as its own leaf element, leaving every real control untouched.
+                .background(
+                    Color.clear
+                        .frame(width: 1, height: 1)
+                        .accessibilityElement()
+                        .accessibilityIdentifier("library.content.ready")
+                )
         }
     }
 }

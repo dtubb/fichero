@@ -56,6 +56,12 @@ struct SurfaceTabBar<Tab: SurfaceTab>: View {
         // ★ EVERY FRAME PERFECT (#3619): glide the active-tab highlight + divider
         // fade between tabs instead of a jump-cut, with the shared chrome timing.
         .animation(FrameAnimation.snappy, value: selection)
+        // Declare the strip a container element that CONTAINS its buttons: a bare
+        // `.accessibilityIdentifier` on this HStack surfaced the container but
+        // absorbed the child tab buttons, so a UI test could find `inspectorSectionBar`
+        // yet not `inspectorSection-Knowledge`/-`Source` inside it. `.contain` keeps
+        // each tab button individually queryable while still tagging the strip.
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier(accessibilityID)
     }
 
