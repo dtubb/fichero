@@ -124,53 +124,42 @@ final class KGInspectorCRUDUITests: FicheroUISessionTests {
     /// type is editable by dragging one entity onto a DIFFERENT-kind entity
     /// (`DocumentInspectorEntitiesTab+Actions.swift.handleEntityDrop` →
     /// `PendingEntityReclassifyPlan` → the `kg.entity.retype.confirm` alert
-    /// button added by this change).
+    /// button). A cross-kind drop retypes the DRAGGED entity to the TARGET's
+    /// kind; a same-kind drop is a merge instead (asserted elsewhere).
     ///
-    /// KNOWN FIXTURE GAP (flagged for the manager): `seed_test_library.py`
-    /// creates every seeded entity with the model default `entity_type = .other`
-    /// (no explicit type is passed for "Eugenio Córdoba" / "Bogotá" / "Ministry
-    /// of Education" — verified via search_text), so all three land in ONE kind
-    /// section and dragging any onto another resolves to a SAME-KIND
-    /// `InspectorEntityBulkSelection.mergePlan` (→ the Merge alert), never the
-    /// different-kind `PendingEntityReclassifyPlan` (→ Change Type). The
-    /// retype affordance is real and wired, but UNREACHABLE from today's
-    /// shared fixture. Wrapped in `XCTExpectFailure` so the suite stays green;
-    /// fix by giving the seeded entities distinct `entity_type`s (no test
-    /// found asserting entity_type=="other" for these three ids) and then
-    /// dropping this wrapper.
+    /// Requires the shared fixture to seed DISTINCT entity kinds — `Bogotá`
+    /// (location), `Eugenio Córdoba` (person), `Ministry of Education`
+    /// (organization). Before seed_test_library.py set explicit `entity_type`s
+    /// they all defaulted to `.other`, landing in one kind-section, so every
+    /// drop resolved to a same-kind merge and this path was unreachable. The
+    /// seeder now types them, so dragging the location onto the person reaches
+    /// the reclassify confirmation for real.
+    ///
+    /// This test proves the affordance is REACHABLE and the confirmation is
+    /// presented; it CANCELS rather than confirms, so it does not mutate the
+    /// shared session's kind diversity that later drops depend on.
     func testEntityRetypeChangesType() throws {
         waitForLibraryReady()
         navigateToKnowledgeEntities()
 
-        let sourceName = "Bogotá"
-        let targetName = "Eugenio Córdoba"
+        let sourceName = "Bogotá"          // seeded location
+        let targetName = "Eugenio Córdoba" // seeded person — different kind
         let source = app.staticTexts[sourceName]
         let target = app.staticTexts[targetName]
         XCTAssertTrue(source.waitForExistence(timeout: readyTimeout), "'\(sourceName)' never rendered.")
         XCTAssertTrue(target.waitForExistence(timeout: 10), "'\(targetName)' never rendered.")
 
-        let expectedFailureOptions = XCTExpectedFailure.Options()
-        expectedFailureOptions.isStrict = false
-        XCTExpectFailure(
-            "Reclassify is unreachable from the shared fixture: every seeded "
-            + "entity defaults to entity_type .other (seed_test_library.py), so "
-            + "dragging one onto another resolves to a same-kind Merge plan, "
-            + "never PendingEntityReclassifyPlan. Diversify the seeded entity "
-            + "types to exercise this for real, then drop this wrapper.",
-            options: expectedFailureOptions
-        ) {
-            source.press(forDuration: 0.6, thenDragTo: target)
+        source.press(forDuration: 0.6, thenDragTo: target)
 
-            let retypeConfirm = app.buttons["kg.entity.retype.confirm"]
-            XCTAssertTrue(
-                retypeConfirm.waitForExistence(timeout: 5),
-                "No 'Change Type' confirmation (kg.entity.retype.confirm) appeared after the drag."
-            )
-        }
+        let retypeConfirm = app.buttons["kg.entity.retype.confirm"]
+        XCTAssertTrue(
+            retypeConfirm.waitForExistence(timeout: 5),
+            "No 'Change Type' confirmation (kg.entity.retype.confirm) appeared after dragging "
+            + "'\(sourceName)' (location) onto '\(targetName)' (person) — the cross-kind "
+            + "reclassify path was not reached."
+        )
 
-        // Whatever confirmation DID appear (today: a same-kind Merge alert)
-        // must not linger over the shared session — cancel it so later tests
-        // (and the accessibility audit below) see a clean inspector.
+        // Cancel — proving reachability without mutating the shared fixture.
         let cancelButton = app.buttons["Cancel"].firstMatch
         if cancelButton.waitForExistence(timeout: 3) {
             cancelButton.tap()

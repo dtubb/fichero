@@ -49,6 +49,7 @@ from fichero_server.db import db_manager
 from fichero_server.models import Artifact, Document, DocType, FileType, Status, Workflow
 from fichero_server.models.knowledge import (
     ClaimType,
+    EntityType,
     EpistemicStatus,
     KnowledgeClaim,
     KnowledgeEntity,
@@ -360,9 +361,15 @@ def seed(path: Path, with_files: bool = False, full: bool = False) -> dict:
     )
 
     # --- knowledge graph: entities + claims --------------------------------
-    db.save(KnowledgeEntity(id=ENTITY_PERSON_ID, canonical_name="Eugenio Córdoba"))
-    db.save(KnowledgeEntity(id=ENTITY_PLACE_ID, canonical_name="Bogotá"))
-    db.save(KnowledgeEntity(id=ENTITY_ORG_ID, canonical_name="Ministry of Education"))
+    # Distinct entity_types (not the model default .other) so the fixture
+    # exercises the multi-kind KG inspector: three kind-sections instead of
+    # one, which is what unblocks the drag-to-reclassify (retype) UI test —
+    # dragging a person onto a location must resolve to a cross-kind
+    # PendingEntityReclassifyPlan, not a same-kind merge (spec: kg-tables,
+    # kg.tables.entity.retype). The IDs already encode the intended kinds.
+    db.save(KnowledgeEntity(id=ENTITY_PERSON_ID, canonical_name="Eugenio Córdoba", entity_type=EntityType.person))
+    db.save(KnowledgeEntity(id=ENTITY_PLACE_ID, canonical_name="Bogotá", entity_type=EntityType.location))
+    db.save(KnowledgeEntity(id=ENTITY_ORG_ID, canonical_name="Ministry of Education", entity_type=EntityType.organization))
 
     claim_specs = [
         (CLAIM_IDS[0], DOC_LETTER_ID, [ENTITY_PERSON_ID, ENTITY_PLACE_ID]),
