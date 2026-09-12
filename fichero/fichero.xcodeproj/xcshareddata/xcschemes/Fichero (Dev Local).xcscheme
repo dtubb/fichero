@@ -34,9 +34,6 @@
             default = "YES">
          </TestPlanReference>
          <TestPlanReference
-            reference = "container:Tests/plans/fichero-ipad.xctestplan">
-         </TestPlanReference>
-         <TestPlanReference
             reference = "container:Tests/plans/fichero-ui-general.xctestplan">
          </TestPlanReference>
          <TestPlanReference
@@ -52,15 +49,6 @@
                BlueprintIdentifier = "A10521C02EFDC94100B28C3E"
                BuildableName = "FicheroUITests.xctest"
                BlueprintName = "FicheroUITests"
-               ReferencedContainer = "container:fichero.xcodeproj">
-            </BuildableReference>
-         </TestableReference>
-         <TestableReference
-            skipped = "NO">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "208ADA983022008100B83F96"
-               BuildableName = "FicheroIOSTests.xctest"
                ReferencedContainer = "container:fichero.xcodeproj">
             </BuildableReference>
          </TestableReference>

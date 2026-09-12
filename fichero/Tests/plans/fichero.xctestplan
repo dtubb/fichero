@@ -28,13 +28,6 @@
         "identifier" : "A10521A82EFDC92400B28C3E",
         "name" : "FicheroTests"
       }
-    },
-    {
-      "target" : {
-        "containerPath" : "container:fichero.xcodeproj",
-        "identifier" : "208ADA983022008100B83F96",
-        "name" : "FicheroIOSTests"
-      }
     }
   ],
   "version" : 1
