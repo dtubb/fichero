@@ -93,14 +93,21 @@ final class KGInspectorCRUDUITests: FicheroUISessionTests {
         )
         deleteMenuItem.tap()
 
-        // macOS 26 presents a SwiftUI `.alert` as its OWN window; the alert window
-        // is the one that ALSO has a Cancel button (the main window's toolbar delete
-        // has none). Its buttons are queried by title, not identifier.
-        let confirmDelete = app.windows.containing(.button, identifier: "Cancel")
-            .firstMatch.buttons["Delete"].firstMatch
+        // The confirm button carries a stable identifier (`kg.entity.delete.confirm`,
+        // set on the alert in DocumentInspectorEntitiesTab). `app.buttons[id]`
+        // traverses every window the app owns — including the separate window
+        // macOS presents a SwiftUI `.alert` in — so this is the correct query
+        // regardless of where the alert is hosted. (The old query matched a window
+        // *containing a button whose identifier is "Cancel"*, but the Cancel button's
+        // "Cancel" is its LABEL, not its identifier — it could never match.)
+        let confirmDelete = app.buttons["kg.entity.delete.confirm"].firstMatch
+        if !confirmDelete.waitForExistence(timeout: 10) {
+            attachScreenshot(named: "delete-confirm-missing")
+        }
         XCTAssertTrue(
-            confirmDelete.waitForExistence(timeout: 10),
-            "Delete confirmation alert's 'Delete' button never appeared."
+            confirmDelete.exists,
+            "Delete confirmation alert's 'Delete' button never appeared "
+            + "(screenshot attached; windows=\(app.windows.count), dialogs=\(app.dialogs.count), sheets=\(app.sheets.count))."
         )
         confirmDelete.tap()
 
@@ -151,12 +158,16 @@ final class KGInspectorCRUDUITests: FicheroUISessionTests {
 
         source.press(forDuration: 0.6, thenDragTo: target)
 
-        let retypeConfirm = app.buttons["kg.entity.retype.confirm"]
+        let retypeConfirm = app.buttons["kg.entity.retype.confirm"].firstMatch
+        if !retypeConfirm.waitForExistence(timeout: 5) {
+            attachScreenshot(named: "retype-confirm-missing")
+        }
         XCTAssertTrue(
-            retypeConfirm.waitForExistence(timeout: 5),
+            retypeConfirm.exists,
             "No 'Change Type' confirmation (kg.entity.retype.confirm) appeared after dragging "
             + "'\(sourceName)' (location) onto '\(targetName)' (person) — the cross-kind "
-            + "reclassify path was not reached."
+            + "reclassify path was not reached "
+            + "(screenshot attached; windows=\(app.windows.count), dialogs=\(app.dialogs.count), sheets=\(app.sheets.count))."
         )
 
         // Cancel — proving reachability without mutating the shared fixture.
@@ -182,5 +193,18 @@ final class KGInspectorCRUDUITests: FicheroUISessionTests {
         navigateToKnowledgeEntities()
 
         try app.performAccessibilityAudit()
+    }
+
+    // MARK: - Diagnostics
+
+    /// Attach a full-screen screenshot to the test report. Called only on a
+    /// failing branch so a green run carries no attachments. Cheap and targeted
+    /// — never dump the XCUI element tree (`allElementsBoundByIndex` /
+    /// `debugDescription`), which OOMs the runner.
+    private func attachScreenshot(named name: String) {
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 }
