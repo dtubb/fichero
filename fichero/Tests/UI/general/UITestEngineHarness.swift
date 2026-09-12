@@ -158,6 +158,17 @@ final class UITestEngineHarness {
     }
 
     func stop() {
+        // Surface the engine's stderr tail on teardown (spec: harness.persist-engine-stderr).
+        // Pre-ready failures already print it; this covers the AFTER-ready case — a
+        // "library opens but nothing renders" (layer-4) failure, where the engine was
+        // healthy at ready but its later stderr (serving errors, 4xx/5xx) is the evidence
+        // and was otherwise discarded. Printed to the test process's stderr, so it lands
+        // in the Xcode test log for post-mortem.
+        let engineStderrTail = stderrBuffer.text
+        if !engineStderrTail.isEmpty {
+            FileHandle.standardError.write(Data(
+                "[UITestEngineHarness] engine stderr (tail):\n\(engineStderrTail)\n".utf8))
+        }
         // SIGTERM the script; its handler reaps the engine (#4400 backstops a
         // SIGKILLed runner), unlinks the socket, and removes its temp dir.
         engineProcess?.terminate()
