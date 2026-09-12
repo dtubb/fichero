@@ -18,9 +18,9 @@ that matters — see AGENTS.md "Authorship model" for the canonical statement.
 
 ## Screenshots
 
-Screenshots are captured **deterministically** — Xcode `RenderPreview` or a
-SwiftUI `ImageRenderer` snapshot — so one render is both a test reference and a
-doc image. Store them under `docs/assets/<milestone>/` (subfolder named for the
+Screenshots are captured **deterministically** — Xcode `RenderPreview` or the
+`.xctestplan` screenshot capture from a UI-test run (capture, not pixel-diff).
+Store them under `docs/assets/<milestone>/` (subfolder named for the
 spec feature / milestone) and reference them page-relative, e.g.
 `![The library window](../../assets/<milestone>/library-window.png)`.
 

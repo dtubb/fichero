@@ -31,9 +31,8 @@ internal helper has no CLI). The matrix says which, so none is silently skipped.
 > Tip / limitation the user should know.
 ```
 Screenshot rule: capture the surface **deterministically** — Xcode `RenderPreview`, or the
-Swift snapshot `ImageRenderer` pass from TEST-TEMPLATE §2b (**one render, two uses**: the
-committed snapshot reference IS this doc screenshot, so the image can never drift from the
-tested surface). Store shots under **`docs/assets/<milestone>/`** — a subfolder named for
+`.xctestplan` screenshot **capture** from a UI-test run (TEST-TEMPLATE §2b). Capture, not
+pixel-diff (Apple ships no snapshot assertion). Store shots under **`docs/assets/<milestone>/`** — a subfolder named for
 the spec/milestone — and name each for its surface. The **agent produces the screenshot**
 (it owns the tested surface); the maintainer places it in the Tinderbox-authored chapter.
 A user-manual section with no screenshot of a visual feature is incomplete.
