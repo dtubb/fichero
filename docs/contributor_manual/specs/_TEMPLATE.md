@@ -87,27 +87,35 @@ List the stable a11y ids the UI test will drive — add them to the views AS YOU
 - `<surface>.row.<id>` — a row/item
 - `<surface>.menu.<verb>` — each context-menu verb / button
 
-## UX completeness (required on EVERY surface — tested against this spec)
+## UX completeness (required on EVERY surface)
 
-Every user-facing control on this surface ships ALL of the following, and a test verifies each
-against what the spec says here (design-led: the test pins the intended text/label, not the code):
+Every user-facing control on this surface ships ALL of the following. Two levels of verification —
+be honest about which a given item has:
 
-- **Tooltip / help.** Every control has a `.help("…")` (and menu items a help tag). What each says
-  is spec'd below and gate-checked by `scripts/check_tooltips.py`.
-- **Label.** Every control has a visible or accessibility label — no icon-only control without a
-  name. No control unreachable by name.
+- **Tooltip / help.** Every control has a `.help("…")` (menu items a help tag). *Today:*
+  `scripts/check_tooltips.py` scans for **presence** on icon-only toolbar controls (conservative,
+  has a `KNOWN_VIOLATIONS` backlog). *Target:* the spec table below names the intended text so a
+  test can pin it.
+- **Label.** Every control has a visible or accessibility label — no icon-only control unreachable
+  by name.
 - **Accessibility.** An `.accessibilityLabel` + the stable `.accessibilityIdentifier` (above) on
-  every interactive element; the click-around leg runs `try app.performAccessibilityAudit()`
-  (Apple-first-party) so missing labels/identifiers/contrast fail the test. Gate: `check_accessibility.py`.
-- **Localization-ready.** No hardcoded user-facing strings — every string comes from the String
-  Catalog (`.xcstrings`), so the surface is translatable without code changes. Gate:
-  `check_localization.py`. (Shipping a locale is a later decision; being *ready* is required now.)
+  every interactive element. *Today:* `scripts/check_accessibility.py` scans for **presence** of a
+  label on icon-only controls (conservative, backlog). *Target (Apple-first-party, NOT YET ADOPTED
+  — [MISSING]):* the click-around leg runs `try app.performAccessibilityAudit()`, which catches
+  missing labels/identifiers and contrast at runtime. Adopting it is part of the `ui-testing-strategy`
+  spec — prefer it over growing the static scanner.
+- **Localization-ready.** No hardcoded user-facing strings — every string comes through
+  `LocalizedStringKey` / the String Catalog (`.xcstrings`), so the surface is translatable without
+  code changes. *Today:* `scripts/check_localization.py` fails on `Text(verbatim:)` and other escapes
+  (real, Apple-aligned). (Shipping a locale is a later decision; being *ready* is required now.)
 
-Fill the table — one row per control, so the tests have the intended text to pin:
+Honesty rule (design-led testing): a **presence scan is not a behavioral test.** Fill the table so
+the intended text is on record; where a spec-pinned test or `performAccessibilityAudit()` isn't
+wired yet, tag the row `[MISSING]` rather than implying it's proven.
 
-| Control (a11y id) | Label | Tooltip/help text | Localized key |
-|---|---|---|---|
-| `<surface>.entry` | … | … | `<key>` |
+| Control (a11y id) | Label | Tooltip/help text | Localized key | Verified by |
+|---|---|---|---|---|
+| `<surface>.entry` | … | … | `<key>` | scan / test / audit / [MISSING] |
 
 ## Open questions for the creative director
 - …

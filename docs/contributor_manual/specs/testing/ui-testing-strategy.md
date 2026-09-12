@@ -60,7 +60,10 @@ overflow).
    `.xctestplan` runs the same code on macOS, an iOS sim, and an iPad sim.
 4. **Accessibility audit — `try app.performAccessibilityAudit()`** in the XCUITest layer: Apple's
    first-party check for missing identifiers/labels and contrast — and it enforces that our elements
-   *have* the identifiers layer 3 depends on.
+   *have* the identifiers layer 3 depends on. **[MISSING today]** — it is used nowhere in the suite
+   yet; we currently hand-roll static presence scanners (`check_accessibility.py`,
+   `check_tooltips.py`) instead. Adopting the audit and letting it *replace* those scanners is a
+   named deliverable of this strategy (prefer Apple's runtime audit over growing our own grep).
 
 **Accessibility identifiers are the spec contract.** `.accessibilityIdentifier("DocRow-\(id)")` is a
 stable behavioral id: a test breaks only when the *behavior* changes, not when copy or layout does —
