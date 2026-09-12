@@ -72,7 +72,7 @@ Hard-gate: the cross-surface **invariant** (same result backend/MCP/CLI/UX) + ca
 A feature is met by readers who never read each other's docs — cover the ones it reaches.
 
 **Authorship (who owns which folder).**
-- `docs/contributor_manual/` + `docs/reference/` + MCP/CLI help — **AI-authored, as part of the spec.**
+- `docs/contributor_manual/` + `docs/reference_manual/` + MCP/CLI help — **AI-authored, as part of the spec.**
   The agent writes and maintains these from the code + this spec; keeping them current is part of
   finishing the surface, not a separate task.
 - `docs/user_manual/` — **the maintainer's own.** The final user-facing manual is authored in Tinderbox

@@ -177,7 +177,7 @@ not remembered. The loop produces four bound artifacts for one `<name>`: the **s
    runs every `check_*.py`, including this one).
 8. **Document each audience — by its owner.** Fill the spec's **Documentation matrix**. The agent
    authors what it owns: the **contributor** docs (`docs/contributor_manual/…` + this spec), the
-   **reference** (`docs/reference/…`), and the MCP tool description / CLI `--help` where the feature
+   **reference** (`docs/reference_manual/…`), and the MCP tool description / CLI `--help` where the feature
    is agent- or script-reachable. The **user manual (`docs/user_manual/…`) is the maintainer's own** —
    authored in Tinderbox, exported to the GitHub folder; the agent does NOT write it, but DOES
    produce the accurate raw material the maintainer needs (the committed snapshot render doubles as
