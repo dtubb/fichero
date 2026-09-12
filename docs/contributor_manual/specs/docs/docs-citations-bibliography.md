@@ -21,7 +21,7 @@ BibTeX for a paper.
 ## Intent (the design)
 
 One canonical bibliography (`docs/references.bib`, BibTeX) is the single source of truth. Docs in
-`docs/user/` and `docs/contributor_manual/` cite entries by key; a guardrail proves every citation
+`docs/user_manual/` and `docs/contributor_manual/` cite entries by key; a guardrail proves every citation
 resolves and the file parses. Docs render a human-readable **References** section (not raw keys),
 and the bibliography **exports** (BibTeX now; CSL/other later) for papers and for the "sources"
 surfaces. References are **categorized** by what they inform (a spec, a feature, a doc) so
@@ -32,7 +32,7 @@ from the dependency manifests, kept distinct from the scholarly entries.
 
 - `cite.bibtex-canonical` [MISSING] — `docs/references.bib` is the one BibTeX store; every
   scholarly/tool reference is an entry with a stable key (e.g. `six-degrees-francis-bacon`).
-- `cite.docs-resolve` [MISSING, hard] — every citation key used in `docs/user/**` and
+- `cite.docs-resolve` [MISSING, hard] — every citation key used in `docs/user_manual/**` and
   `docs/contributor_manual/**` resolves to a `.bib` entry; an orphan citation fails the gate
   (`scripts/check_doc_citations.py`). Mirrors how `check_specs_have_tests` binds specs to tests.
 - `cite.human-readable` [MISSING] — a doc renders its References as author/title/year/URL a person
@@ -44,7 +44,7 @@ from the dependency manifests, kept distinct from the scholarly entries.
 - `cite.exportable` [MISSING] — the bibliography exports as BibTeX (and later CSL-JSON) for papers
   and for the app's future "sources / where this comes from" surface.
 - `cite.surfaces` [MISSING] — the credits render in THREE places from the one `.bib`: the app's
-  **About box**, the **user guide** (`docs/user/`), and the **website** — generated, never
+  **About box**, the **user guide** (`docs/user_manual/`), and the **website** — generated, never
   hand-copied, so they never drift.
 - `cite.people-first` [MISSING] — ordering puts **specific people / articles first** (the
   scholarship and the humans behind it), then projects, then code libraries — credit the thinking

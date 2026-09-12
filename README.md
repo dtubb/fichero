@@ -17,7 +17,7 @@ There is an iPad and iPhone version, which lets you connect to your Mac library.
 - **Search**: Semantic search across everything you've imported.
 - **Researcher**: ask questions of your documents and get answers grounded in your own sources.
 
-Fichero’s documentation, while not finished, is in two places. First, a **[User Guide](docs/user_manual/README.md)** for people who want to use Fichero. Second, the **[Contributor Guide](docs/contributor_manual/README.md)** for people (and AI agents) who want to help build it.  AI Coding agents should read [`AGENTS.md`](AGENTS.md). 
+Fichero’s documentation, while not finished, is in three places. First, a **[User Guide](docs/user_manual/README.md)** for people who want to use Fichero, written by Daniel Tubb. Second, the **[Contributor Guide](docs/contributor_manual/README.md)**, written by AI agents, for people (and AI agents) who want to help build it. Third, the generated **[Reference Manual](docs/reference_manual/features.md)**, produced programmatically from the app's source code. AI Coding agents should read [`AGENTS.md`](AGENTS.md). 
 
 Fichero is not finished. It is still in Alpha. The [feature matrix](docs/reference_manual/features.md) lists capabilities, with a status.
 
@@ -37,7 +37,7 @@ you import. Treat the app as an experiment: useful to be sure, but also unfinish
 
 ## How it is Built?
 
-Fichero has been coded since 2024 almost entirely by AI coding agents, under the "Creative Direction" of Daniel Tubb. [How It's Built](docs/user/how-its-built.md) explains the process. It is a work in progress, and it is open source. If you would like to contribute, start with [CONTRIBUTING.md](CONTRIBUTING.md); 
+Fichero has been coded since 2024 almost entirely by AI coding agents, under the "Creative Direction" of Daniel Tubb. [How Fichero Works](docs/contributor_manual/how-fichero-works.md) explains the process. It is a work in progress, and it is open source. If you would like to contribute, start with [CONTRIBUTING.md](CONTRIBUTING.md); 
 
 ## License
 

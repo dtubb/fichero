@@ -1,6 +1,6 @@
 # Feature Tiers
 
-Fichero's contributor-facing feature tier system has one source of truth: [`features.yaml`](../../features.yaml). `python scripts/gen_feature_tiers.py` regenerates three derived artifacts from it: the Swift tier map in [`fichero/fichero/Models/FeatureTiers.generated.swift`](../../fichero/fichero/Models/FeatureTiers.generated.swift), the backend route-tier data in [`fichero-server/src/fichero_server/api/feature_tiers_generated.py`](../../fichero-server/src/fichero_server/api/feature_tiers_generated.py), and the public matrix in [`docs/user/features.md`](../user/features.md).
+Fichero's contributor-facing feature tier system has one source of truth: [`features.yaml`](../../features.yaml). `python scripts/gen_feature_tiers.py` regenerates three derived artifacts from it: the Swift tier map in [`fichero/fichero/Models/FeatureTiers.generated.swift`](../../fichero/fichero/Models/FeatureTiers.generated.swift), the backend route-tier data in [`fichero-server/src/fichero_server/api/feature_tiers_generated.py`](../../fichero-server/src/fichero_server/api/feature_tiers_generated.py), and the public matrix in [`docs/reference_manual/features.md`](../reference_manual/features.md).
 
 ## Tiers
 
@@ -30,7 +30,7 @@ Promotion is a source edit plus regeneration:
 2. Run `python scripts/gen_feature_tiers.py`.
 3. Commit the YAML change and the regenerated outputs together.
 
-Use [`docs/user/features.md`](../user/features.md) to verify the generated user-facing matrix after the bump.
+Use [`docs/reference_manual/features.md`](../reference_manual/features.md) to verify the generated user-facing matrix after the bump.
 
 `scripts/promote_feature.py` is a read-only validator for this workflow. It checks that the feature exists, the tier change is a real promotion unless `--allow-demote` is set, the generated files are fresh, and beta-or-higher route promotions still match the backend cumulative route data.
 
@@ -50,5 +50,5 @@ Promotion should satisfy the target tier before you bump `tier:`:
 Promotion spans disjoint lanes:
 
 - Scripts/docs lane edits [`features.yaml`](../../features.yaml), runs [`scripts/gen_feature_tiers.py`](../../scripts/gen_feature_tiers.py), updates this page, and validates with [`scripts/promote_feature.py`](../../scripts/promote_feature.py).
-- The generated user matrix lives in [`docs/user/features.md`](../user/features.md); do not hand-edit it.
+- The generated user matrix lives in [`docs/reference_manual/features.md`](../reference_manual/features.md); do not hand-edit it.
 - Manager-owned Xcode files such as `Info.plist`, schemes, and `project.pbxproj` stay out of the promotion lane even though they carry the baked `FicheroFeatureTier` build setting.

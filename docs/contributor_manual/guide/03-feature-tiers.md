@@ -1,7 +1,7 @@
 # 3. Feature Tiers
 
 
-The tier system has one source of truth: `features.yaml` at the repo root. `python scripts/gen_feature_tiers.py` regenerates three derived artifacts: the Swift tier map (`fichero/fichero/Models/FeatureTiers.generated.swift`), the backend route-tier data (`fichero-server/src/fichero_server/api/feature_tiers_generated.py`), and the public matrix (`docs/user/features.md`). Never hand-edit the generated files.
+The tier system has one source of truth: `features.yaml` at the repo root. `python scripts/gen_feature_tiers.py` regenerates three derived artifacts: the Swift tier map (`fichero/fichero/Models/FeatureTiers.generated.swift`), the backend route-tier data (`fichero-server/src/fichero_server/api/feature_tiers_generated.py`), and the public matrix (`docs/reference_manual/features.md`). Never hand-edit the generated files.
 
 `FeatureTier` defines four ordered ranks:
 

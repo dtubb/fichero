@@ -10,7 +10,7 @@ hide:
 
 # Fichero: AI for archives
 
-Fichero is a Mac app to read archives and other structured and unstructured research material. On the one hand, can help you transcribe handwritten documents and generate structured data from using automatic text recognition, and as well as to navigate, search, and edit the results. To learn more about how Fichero works, please read the [FAQ](user/guide/8-appendixes/1-frequently-asked-questions.md) and the User Manual, which I am writing. 
+Fichero is a Mac app to read archives and other structured and unstructured research material. On the one hand, can help you transcribe handwritten documents and generate structured data from using automatic text recognition, and as well as to navigate, search, and edit the results. To learn more about how Fichero works, please read the [FAQ](user_manual/guide/Part I. Getting Started/4-frequently-asked-questions.md) and the User Manual, which I am writing. 
 
 **Fichero is open source, but it is in early days. It is Public *Alpha*.** Read the manual. 
 
