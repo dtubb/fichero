@@ -186,9 +186,13 @@ struct DocumentInspectorEntitiesTab: View {
             ),
             presenting: pendingReclassifyPlan
         ) { plan in
+            // spec: kg-tables, kg.tables.entity.retype [OK] — the reclassify
+            // confirmation triggered by dragging an entity onto a different-kind
+            // entity (see `handleEntityDrop` in +Actions.swift).
             Button("Change Type") {
                 Task { await applyReclassify(plan) }
             }
+            .accessibilityIdentifier("kg.entity.retype.confirm")
             Button("Cancel", role: .cancel) {
                 pendingReclassifyPlan = nil
             }
@@ -203,9 +207,13 @@ struct DocumentInspectorEntitiesTab: View {
             ),
             presenting: pendingDeleteConfirmation
         ) { pending in
+            // spec: kg-tables, kg.tables.entity.delete [OK] — confirms the
+            // delete requested via `kg.entity.menu.delete` (context menu) or
+            // `kg.entity.delete` (mini-toolbar bulk delete).
             Button("Delete", role: .destructive) {
                 Task { await applyDelete(pending) }
             }
+            .accessibilityIdentifier("kg.entity.delete.confirm")
             Button("Cancel", role: .cancel) {
                 pendingDeleteConfirmation = nil
             }

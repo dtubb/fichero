@@ -77,6 +77,10 @@ extension DocumentInspectorEntitiesTab {
         Button("Open") { openEntity(entity) }
         Button("Rename") { beginRename(entity) }
             .disabled(entity.id == nil)
+            // spec: kg-tables, kg.tables.entity.rename-inline (still Ontology-sheet-only
+            // for the table's inline rename; THIS context-menu path is the one that IS
+            // wired today) — stable id so a UI test can drive it without label matching.
+            .accessibilityIdentifier("kg.entity.menu.rename")
         Button("Find in Library") {
             postSearch(for: entity, kind: EntityKind(apiType: entity.entityType) ?? .other)
         }
@@ -107,6 +111,10 @@ extension DocumentInspectorEntitiesTab {
         }
         Divider()
 
+        // spec: kg-tables, kg.tables.entity.curate [OK] — bless/reject via the
+        // context menu's scoped submenus. Stable ids on the submenu TRIGGERS
+        // (not the scope leaves inside) so a UI test can open + assert them
+        // without depending on menu-item label text.
         Menu("Approve") {
             bulkScopeButtons(
                 action: .approve,
@@ -114,6 +122,7 @@ extension DocumentInspectorEntitiesTab {
             )
         }
         .disabled(isApplyingBulkAction || targetCount == 0)
+        .accessibilityIdentifier("kg.entity.menu.bless")
 
         Menu("Reject") {
             bulkScopeButtons(
@@ -122,6 +131,7 @@ extension DocumentInspectorEntitiesTab {
             )
         }
         .disabled(isApplyingBulkAction || targetCount == 0)
+        .accessibilityIdentifier("kg.entity.menu.reject")
 
         Menu("Suppress") {
             bulkScopeButtons(
@@ -174,6 +184,20 @@ extension DocumentInspectorEntitiesTab {
         }
         .menuStyle(.borderlessButton)
         .disabled(isApplyingBulkAction || selectedEntities.isEmpty)
+        .help("\(title) the selected entities")
+        // spec: kg-tables, kg.tables.entity.curate [OK] — the mini-toolbar's
+        // bulk bless/reject/suppress trigger (multi-selection path); the
+        // context-menu's single/targeted equivalent carries `kg.entity.menu.*`.
+        .accessibilityIdentifier(bulkActionMenuIdentifier(for: action))
+    }
+
+    // `private`: only `bulkActionMenu` (same file) reads this.
+    private func bulkActionMenuIdentifier(for action: InspectorEntityBulkAction) -> String {
+        switch action {
+        case .approve: return "kg.entity.curate.bless"
+        case .reject: return "kg.entity.curate.reject"
+        case .suppress: return "kg.entity.curate.suppress"
+        }
     }
 
     // `internal`: called from `entitiesMiniToolbar` in `+Rows.swift`.
@@ -209,6 +233,7 @@ extension DocumentInspectorEntitiesTab {
         }
         .menuStyle(.borderlessButton)
         .disabled(isApplyingBulkAction || !canMerge)
+        .help("Merge the selected entities into one")
     }
 
     // `private`: only `mergeActionMenu` (same file) uses this.
@@ -229,6 +254,12 @@ extension DocumentInspectorEntitiesTab {
         }
         .buttonStyle(.borderless)
         .disabled(isApplyingBulkAction || targetEntities.isEmpty)
+        .help("Delete the selected entities")
+        // spec: kg-tables, kg.tables.entity.delete [OK] — the mini-toolbar's
+        // bulk delete trigger (multi-selection path); opens the same
+        // `pendingDeleteConfirmation` alert as the context-menu's
+        // `kg.entity.menu.delete` (single/targeted path).
+        .accessibilityIdentifier("kg.entity.delete")
     }
 
     // `private`: only `entityContextMenu` (same file) uses this.
@@ -240,6 +271,10 @@ extension DocumentInspectorEntitiesTab {
             requestDeleteAction(for: targetEntities)
         }
         .disabled(isApplyingBulkAction || targetEntities.isEmpty)
+        // spec: kg-tables, kg.tables.entity.delete [OK] — the context-menu trigger
+        // that opens the delete confirmation (see DocumentInspectorEntitiesTab's
+        // `.alert` for the confirm button's `kg.entity.delete.confirm` id).
+        .accessibilityIdentifier("kg.entity.menu.delete")
     }
 
     // `internal`: called from `entityRow` in `+Rows.swift` and the "Open"
