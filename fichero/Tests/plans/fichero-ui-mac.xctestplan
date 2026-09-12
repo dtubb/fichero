@@ -14,7 +14,7 @@
   "testTargets" : [
     {
       "selectedTests" : [
-        "InspectorFlowsUITests",
+        "InspectorFlowsUITests\/testDocumentInspectorLoadsSeededEntities()",
         "MacUITargetCanaryTests"
       ],
       "target" : {
