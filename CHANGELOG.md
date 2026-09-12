@@ -2,27 +2,7 @@
 
 ## Unreleased
 
-## 2026.09.08
-
-## 2026.09.07
-
-## 2026.09.06
-
-## 2026.09.03
-
-## 2026.07.31
-
-## 2026.07.31-beta
-
-## 2026.08.27
-
-## 2026.07.31
-
-## 2026.07.31-beta
-
-## 2026.08.27
-
-### 2026-08-27
+## 2026-08-27
 
 - feat(sharing): the Sharing toggle now serves the CLI, MCP clients, and paired devices from the embedded engine (UDS + HTTPS dual-bind; verified live)
 - fix(sharing): pairing trusts the app's own socket; the certificate names loopback; .local sharing listens on the LAN
@@ -44,7 +24,7 @@
 - feat(reader): the artifact lens — a pane shows the artifact you choose
 - feat(workflows): the paleography redesign — single model, staged craft, user decides
 
-### 2026-08-25
+## 2026-08-25
 
 - fix(paleography): economy trocr default = TRIDIS v1 — v2's hub packaging is broken
 - feat(paleography): economy HTR tool — free Apple Vision line boxes, one cheap cleanup
@@ -52,20 +32,6 @@
 - feat(release): every release ships two DMGs — beta (public) + dev (all features)
 - feat(release): the Sparkle feed moves home to tubb.ca/apps/fichero (Daniel's 2026-08-25 ruling)
 - feat(tiers): beta build sheds the untested surfaces (Daniel's 2026-08-25 ruling)
-
-### 2026-08-04
-
-- docs(testing): platform split, plan matrix, and the ONE spawn-per-run harness (#4250 #4535 #4541)
-- feat(applescript): agent verbs — stop run, declared-selection runs, one screenshot verb; scripted UX smoke (#4535, #4536, #4166)
-- fix(tests): sweep hop-count #filePath resolvers onto AppSource + the ONE spawn-per-run engine harness (#4493 class; #4250 #4241 #4400)
-- feat(tests): seed_test_library --full — the synthetic seeded library, deterministic and self-proving (#4248 follow-on, 2026-08-04 decisions)
-- feat(tests): plan matrix — 9 resolving plans with per-destination idiom canaries (#4250, #4472)
-- fix(project): FicheroIOSTests carried MARKETING_VERSION/CURRENT_PROJECT_VERSION literals (#3234)
-- refactor(tests): move all test targets under fichero/Tests/{Unit,UI}/{general,mac,ios,ipad} + plans/ (#4250)
-
-## 2026.08.26
-
-### 2026-08-25
 
 - test(perf): the stall-implicated view values get a size ratchet
 - chore(gates): the reanchor endpoint's remaining three baselines
@@ -86,22 +52,7 @@
 - fix(bbox+inspector): fresh geometry wins, and the artifact list obeys the click
 - feat(ux): the server says so, and the panes drop their surname
 
-## 2026.08.25
-
-### 2026-08-24
-
-- feat(engine): the outline endpoint learns the #3322 listing sort; its first route tests
-- test(llm+ingest): pins follow the new cache-key and retention contracts
-- fix(core): an explicit DuckDB memory cap that cannot apply RAISES
-- fix(tests): spawned test engines keep their tokens OUT of the user's (FICHERO_TOKEN_DIR)
-- fix(workflows): a draft that quotes our own instructions is commentary (prompt-echo)
-- feat(vision): cursive word boxes snap to their ink (C2)
-- feat(sidebar): reveal path and child fetch ride the outline endpoint (Mandate 1, consumers 2+3)
-- feat(vision): Apple Vision geometry prefers the frame-true background_removed rendition
-
-## 2026.08.24
-
-### 2026-08-24
+## 2026-08-24
 
 - chore(release): accept 2026.08.24 sizes (+3.2MB app, +1.3MB DMG — the pane-head program, outline client, dataset filter cluster; no new dependency)
 - fix(island+tests): backend work keeps precedence over the workflow count; principal-zone pin matches C10
@@ -131,7 +82,16 @@
 - test: the reskin-emphasis pin follows reskinCard to its +Thumbnails home
 - chore(lint): the ratchet holds at 64 — file splits for the night's growth
 
-### 2026-08-23
+- feat(engine): the outline endpoint learns the #3322 listing sort; its first route tests
+- test(llm+ingest): pins follow the new cache-key and retention contracts
+- fix(core): an explicit DuckDB memory cap that cannot apply RAISES
+- fix(tests): spawned test engines keep their tokens OUT of the user's (FICHERO_TOKEN_DIR)
+- fix(workflows): a draft that quotes our own instructions is commentary (prompt-echo)
+- feat(vision): cursive word boxes snap to their ink (C2)
+- feat(sidebar): reveal path and child fetch ride the outline endpoint (Mandate 1, consumers 2+3)
+- feat(vision): Apple Vision geometry prefers the frame-true background_removed rendition
+
+## 2026-08-23
 
 - chore: comment-hygiene — the expansion note reads as prose, not commented-out code
 - test+refactor: the guardrail sweep follows tonight's rulings; PaneCrumb.name becomes title
@@ -228,7 +188,14 @@
 - fix(perf): the stall sampler names the culprit — 192 frames, both halves
 - fix(entries): the converters carry region_in_parent — the highlight renders
 
-### 2026-08-22
+## 2026-08-22
+
+- fix(ios): the 3D camera extension is cross-platform — drop the macOS guard
+- chore(release): accept +0.11% size — the rendition machinery + four SPM minor bumps
+- chore(lint): projection vars earn names — x/y were identifier ERRORS
+- fix(guardrail): import-render checker reads table-shaped decoders
+- fix(workflows): a part that fails to store must reach the caller
+- chore(lint): pay tonight's speed tax — 80 warnings back to the 66 baseline
 
 - fix(tests): a guard must not read its own prose, or a prefix of its target
 - fix(tests): the reader wrap negative control forces layout — no content-visibility race
@@ -263,18 +230,7 @@
 - feat(library): one definition of "the content level" — views and workflows share it
 - fix(canvas+preview): morning batch 1 — taps live again, flip refits, honest directions
 
-## 2026.08.22
-
-### 2026-08-22
-
-- fix(ios): the 3D camera extension is cross-platform — drop the macOS guard
-- chore(release): accept +0.11% size — the rendition machinery + four SPM minor bumps
-- chore(lint): projection vars earn names — x/y were identifier ERRORS
-- fix(guardrail): import-render checker reads table-shaped decoders
-- fix(workflows): a part that fails to store must reach the caller
-- chore(lint): pay tonight's speed tax — 80 warnings back to the 66 baseline
-
-### 2026-08-21
+## 2026-08-21
 
 - fix(preview): entry-source highlight is a soft wash BEHIND the word boxes
 - fix(preview): tall pages fit BOTH axes after a step; boxes survive page steps
@@ -315,7 +271,16 @@
 - feat(db): backfill Rendition rows for pre-Rendition documents
 - chore(release): commit the 2026.8.20 version stamps left in the tree by the release run
 
-### 2026-08-20
+## 2026-08-20
+
+- chore(release): accept +0.5% DMG size — the 2026-08-19 dependency refresh (first release since)
+- fix(release): retry notary submission — the multi-GB S3 upload aborts transiently
+- fix(release): retry hardened signing — the timestamp service flakes under 285 sequential requests
+- docs(release): 2026.08.20 release notes — the speed build
+- test(flake): self-diagnosing failure detail for the phantom-credentials polluter
+- chore(lint): restore honest 66 baseline (65 was an error-threshold artifact)
+- fix(gate): derivative stages never resurrect deleted rows; bounded inline thumbnails; stale read-cursor drop
+- perf(fetch): ONE batched document fetch everywhere + guardrail-clean splits
 
 - feat(ingest): read .renditions.json instead of skipping it
 - feat(api): GET /documents/{id}/renditions, ordered engine-side
@@ -329,20 +294,7 @@
 - fix(release): idempotent GitHub step — create/edit + retried asset upload, resumable after a half-done run
 - fix(live round 3): canvas input polish, workflow availability everywhere, exclusion is a promise
 
-## 2026.08.20
-
-### 2026-08-20
-
-- chore(release): accept +0.5% DMG size — the 2026-08-19 dependency refresh (first release since)
-- fix(release): retry notary submission — the multi-GB S3 upload aborts transiently
-- fix(release): retry hardened signing — the timestamp service flakes under 285 sequential requests
-- docs(release): 2026.08.20 release notes — the speed build
-- test(flake): self-diagnosing failure detail for the phantom-credentials polluter
-- chore(lint): restore honest 66 baseline (65 was an error-threshold artifact)
-- fix(gate): derivative stages never resurrect deleted rows; bounded inline thumbnails; stale read-cursor drop
-- perf(fetch): ONE batched document fetch everywhere + guardrail-clean splits
-
-### 2026-08-19
+## 2026-08-19
 
 - fix+perf(overnight round 1): 3D thumbnails, Trash-bookmark guard, reader-search sync, stall killers
 - fix+perf(live round 2): search selection scope, canvas input, listing off the loop, defaults heal
@@ -395,7 +347,7 @@
 - fix(embed): drop all-null unknown columns at vector-table creation
 - fix(embed): explicit arrow types at vector-table creation
 
-### 2026-08-18
+## 2026-08-18
 
 - fix(gates): re-arm the size ratchet; re-pin stale provider-key tests
 - feat(search): stats report embedding COVERAGE, not just a row count
@@ -419,9 +371,7 @@
 - feat(sheet): the Text column edits in place, protected by the user-edit stamp
 - chore(release): appcast entry for 2026.08.17 — the Sparkle channel sees the DMG
 
-## 2026.08.17
-
-### 2026-08-17
+## 2026-08-17
 
 - chore(release): accept the hardening build's size
 - chore(release): stamp 2026.08.17 with its own notes; 2026.08.15 notes restored
@@ -441,11 +391,11 @@
 - feat(ingest): an .iffy.json original_date dates the document on arrival
 - feat(ingest): dropping a folder with manifest.jsonl imports the corpus — the UX path
 
-### 2026-08-16
+## 2026-08-16
 
 - feat(ingest): the Marshall staging sidecars are sidecars, not documents
 
-### 2026-08-15
+## 2026-08-15
 
 - fix(dataset): the heading dedup and chronological default reach every renderer
 - fix(dataset): textDetail storage moves into the class body
@@ -469,7 +419,7 @@
 - fix: three live morning bugs — created-library 403, sibling workflow blast, folder-delete consent
 - test(sidebar): scan tests follow the label core; fixture matches the live feed
 
-### 2026-08-14
+## 2026-08-14
 
 - perf(sidebar): measured selection-stall harness + equatable label core
 - fix(sandbox): test-run libraries stop polluting the app's saved bookmarks
@@ -489,7 +439,7 @@
 - feat(datasets): DatasetService — the app speaks the renderer query
 - feat(datasets): the renderer query — Stage 2 engine slice lands
 
-### 2026-08-13
+## 2026-08-13
 
 - fix(app): File menu, round two — an empty .newItem replacement wins the merge
 - feat(prototypes): three morning rulings — editor everywhere, honest empty state, entity multi-drag
@@ -503,7 +453,7 @@
 - fix(tests): the unit suite is green again — ten pins reconciled with their rulings
 - feat(entities): rows select on plain click; entities drag onto workspaces
 
-### 2026-08-12
+## 2026-08-12
 
 - feat(inspector): prototype-declared attributes are visible and editable
 - chore(openapi): spec regen for the Stage 1 prototype surface
@@ -537,7 +487,7 @@
 - fix(workflows): the repo-root MagicMock junk-file polluter is closed (task #14)
 - feat(search): result rows show the MATCHED text and relevance, in relevance order
 
-### 2026-08-11
+## 2026-08-11
 
 - feat(library): Xcode-style metadata popover chooses what list rows display
 - feat(panes): step 1 — the widescreen row renders from a pane LIST
@@ -564,7 +514,7 @@
 - feat(workflows): a run over zero files fails loudly instead of completing green
 - fix(db): thumbnail reads answer during imports — gate-free committed-read path
 
-### 2026-08-10
+## 2026-08-10
 
 - fix(workflows): the vision fan-out cap is tunable; extract_entities actually fans out
 - fix(columns): the browser begins at the top level; the preview column takes the room
@@ -625,7 +575,7 @@
 - fix(toolbar): breadcrumb island capped + middle-ellipsized (#176); drop stray AppKit import
 - fix(engine): kreuzberg PDF extraction runs OUT OF PROCESS — the wedge class is closed
 
-### 2026-08-09
+## 2026-08-09
 
 - fix(engine): pre-import kreuzberg's lazy Python deps — the second wedge layer
 - fix(engine): the pdfium probe child runs real code, not a second engine
@@ -716,7 +666,7 @@
 - docs(selection): five hash-order draws are one identity defect, not four bugs
 - fix(crash): the guardrail now looks at the boundaries that actually crashed (#4455)
 
-### 2026-08-08
+## 2026-08-08
 
 - fix(crash): AnyView at the sidebar ROW boundary — per-item copies overflowed too
 - fix(preview): ONE browserSelection handler — the stripped duplicate is deleted (#4572 #4574)
@@ -790,11 +740,11 @@
 - perf(model): hand-written Document ==/hash — stop diffing six blob fields (#4546)
 - docs(verify): sidebar-ux verify-and-close checklist (#4523 #4186 #4516 #4514 #4522 #4520 #4503)
 
-### 2026-08-06
+## 2026-08-06
 
 - fix(release-now): do not print DONE when nothing was built
 
-### 2026-08-05
+## 2026-08-05
 
 - chore(release): --force accepts a size increase and resumes
 - chore(release): one command for push, verify, and release
@@ -817,7 +767,7 @@
 - fix(release): place pdfium where EVERY lane reaches it
 - chore(release): accept +5.7MB DMG for bundled pdfium
 
-### 2026-08-04
+## 2026-08-04
 
 - fix(release): strip pbxproj version literals Xcode reinjected
 - docs(release): 2026.08.04 notes
@@ -952,7 +902,85 @@
 - docs(handover): verifying done work found half the night's defects
 - fix(providers): the free/paid safeguard reported a providerless node as free (#4503)
 
-### 2026-08-03
+- docs(testing): platform split, plan matrix, and the ONE spawn-per-run harness (#4250 #4535 #4541)
+- feat(applescript): agent verbs — stop run, declared-selection runs, one screenshot verb; scripted UX smoke (#4535, #4536, #4166)
+- fix(tests): sweep hop-count #filePath resolvers onto AppSource + the ONE spawn-per-run engine harness (#4493 class; #4250 #4241 #4400)
+- feat(tests): seed_test_library --full — the synthetic seeded library, deterministic and self-proving (#4248 follow-on, 2026-08-04 decisions)
+- feat(tests): plan matrix — 9 resolving plans with per-destination idiom canaries (#4250, #4472)
+- fix(project): FicheroIOSTests carried MARKETING_VERSION/CURRENT_PROJECT_VERSION literals (#3234)
+- refactor(tests): move all test targets under fichero/Tests/{Unit,UI}/{general,mac,ios,ipad} + plans/ (#4250)
+
+**Libraries & Access**
+
+- A library you create is one the engine can actually read. The sandboxed engine's
+  `Path.home()` is the app container, so every home-derived allowed root pointed
+  inside the container and no library outside it could be served. Two defects, both
+  required: the bookmark handoff was gated on a build flag that stopped tracking
+  whether the process is sandboxed, and the *create* path never minted a bookmark
+  at all (only *open* did).
+- A refused library now says what is wrong and where, instead of failing to load
+  silently. A 403 reports the engine's own reason rather than a guess.
+
+**Import**
+
+- A 61-second import is no longer reported as a failure. File ingest rides a
+  deadline that scales with the document instead of the 60-second bound meant for
+  quick requests; the same applies to starting a workflow run.
+- The failure alert shows the per-file reasons it was already assembling, and the
+  progress label stops claiming a phase the app cannot observe.
+- pdfium ships inside the bundle, signed with the app, instead of being fetched at
+  runtime into a quarantined temp copy Gatekeeper refuses to load — which left
+  every PDF imported as images with no searchable text.
+
+**Workflows**
+
+- A tiled page keeps every strip, in order. Tiling paired all N strips with one
+  document and each transcription overwrote the last, so a ten-strip page kept
+  only the tenth. Joined once, ordered by file index, after the concurrent
+  fan-out completes.
+- The paleography ensemble's steps say what they do instead of showing graph ids.
+
+**Windows & Diagnostics**
+
+- File-menu commands work with no window open, so ⌘N can recover from zero windows.
+- Models & Providers shows the provider list again (a layout collapse hid it).
+- An unreadable API key is no longer reported as an absent one.
+- Engine startup distinguishes "nothing listening", "our child died", "another
+  engine holds the socket" and "the engine rejected our token" instead of
+  reporting one message for all four.
+- `engine.log` appends, so a crash's evidence survives the restart that follows it.
+- Sidebar drop outcomes persist in the log; readiness polling stopped flooding it.
+
+**Transport & Data Loading**
+
+- Add a pluggable `ClientTransport` seam for the engine connection: macOS local
+  builds dial the embedded engine over a Unix domain socket (UDS), iOS/iPad and
+  remote/sharing use HTTPS, and an experimental in-process ASGI transport
+  (PythonKit) can run the engine inside the app on Dev/DMG builds
+  ([#4037](https://github.com/dtubb/fichero/issues/4037)).
+- Route all image, media, and WebKit storage loading through the transport via a
+  `fichero-res://` scheme (`URLProtocol` + `WKURLSchemeHandler` +
+  `AVAssetResourceLoaderDelegate`), so assets load identically over UDS,
+  in-memory, and HTTPS — no component builds a raw `127.0.0.1:8765` URL.
+- Route the engine readiness probe through the transport, so launch reaches
+  "ready" over any transport rather than a hard-coded TCP probe.
+- Grant loopback-owner auth to UDS and in-process connections via an ASGI
+  `scope["fichero.transport"]` marker; fixes authenticated requests returning
+  401 over UDS.
+- Shorten the UDS socket path to fit the AF_UNIX `sun_path` limit inside the App
+  Store sandbox container.
+
+**Notes**
+
+- The in-memory / PythonKit transport is a Dev/DMG experiment only — signed App
+  Store builds cannot disable library validation, which loading an external
+  `libpython` requires.
+- A launch-time import-deferral optimization was shelved pending investigation
+  of an async-test hang it exposed.
+
+---
+
+## 2026-08-03
 
 - fix(tests): a unit-test host must not need a live engine to exist (#4511)
 - docs(handover): correct it — TEST EXECUTE FAILED, and I may never have run a Swift test
@@ -1127,7 +1155,7 @@
 - docs(status): the second gate — five legs red, Swift legs never ran
 - docs(handover): the Swift test suite cannot run — runner hangs before connecting
 
-### 2026-08-02
+## 2026-08-02
 
 - docs(handover): decision 9 — the archive can hold a translated pseudo-quote
 - fix(tests): SVO live smoke — first marker subscriber, flake root-caused
@@ -1146,79 +1174,6 @@
 - fix(lint): my access-level note orphaned a doc comment — 75 back to 74
 - fix(guardrails): the three verify-all reds — one design bug, two hash drifts
 - feat(ratchet): iOS app SIZE — after compile time was measured and rejected (#4466)
-
-## 2026.08.04
-
-**Libraries & Access**
-
-- A library you create is one the engine can actually read. The sandboxed engine's
-  `Path.home()` is the app container, so every home-derived allowed root pointed
-  inside the container and no library outside it could be served. Two defects, both
-  required: the bookmark handoff was gated on a build flag that stopped tracking
-  whether the process is sandboxed, and the *create* path never minted a bookmark
-  at all (only *open* did).
-- A refused library now says what is wrong and where, instead of failing to load
-  silently. A 403 reports the engine's own reason rather than a guess.
-
-**Import**
-
-- A 61-second import is no longer reported as a failure. File ingest rides a
-  deadline that scales with the document instead of the 60-second bound meant for
-  quick requests; the same applies to starting a workflow run.
-- The failure alert shows the per-file reasons it was already assembling, and the
-  progress label stops claiming a phase the app cannot observe.
-- pdfium ships inside the bundle, signed with the app, instead of being fetched at
-  runtime into a quarantined temp copy Gatekeeper refuses to load — which left
-  every PDF imported as images with no searchable text.
-
-**Workflows**
-
-- A tiled page keeps every strip, in order. Tiling paired all N strips with one
-  document and each transcription overwrote the last, so a ten-strip page kept
-  only the tenth. Joined once, ordered by file index, after the concurrent
-  fan-out completes.
-- The paleography ensemble's steps say what they do instead of showing graph ids.
-
-**Windows & Diagnostics**
-
-- File-menu commands work with no window open, so ⌘N can recover from zero windows.
-- Models & Providers shows the provider list again (a layout collapse hid it).
-- An unreadable API key is no longer reported as an absent one.
-- Engine startup distinguishes "nothing listening", "our child died", "another
-  engine holds the socket" and "the engine rejected our token" instead of
-  reporting one message for all four.
-- `engine.log` appends, so a crash's evidence survives the restart that follows it.
-- Sidebar drop outcomes persist in the log; readiness polling stopped flooding it.
-
-
-**Transport & Data Loading**
-
-- Add a pluggable `ClientTransport` seam for the engine connection: macOS local
-  builds dial the embedded engine over a Unix domain socket (UDS), iOS/iPad and
-  remote/sharing use HTTPS, and an experimental in-process ASGI transport
-  (PythonKit) can run the engine inside the app on Dev/DMG builds
-  ([#4037](https://github.com/dtubb/fichero/issues/4037)).
-- Route all image, media, and WebKit storage loading through the transport via a
-  `fichero-res://` scheme (`URLProtocol` + `WKURLSchemeHandler` +
-  `AVAssetResourceLoaderDelegate`), so assets load identically over UDS,
-  in-memory, and HTTPS — no component builds a raw `127.0.0.1:8765` URL.
-- Route the engine readiness probe through the transport, so launch reaches
-  "ready" over any transport rather than a hard-coded TCP probe.
-- Grant loopback-owner auth to UDS and in-process connections via an ASGI
-  `scope["fichero.transport"]` marker; fixes authenticated requests returning
-  401 over UDS.
-- Shorten the UDS socket path to fit the AF_UNIX `sun_path` limit inside the App
-  Store sandbox container.
-
-**Notes**
-
-- The in-memory / PythonKit transport is a Dev/DMG experiment only — signed App
-  Store builds cannot disable library validation, which loading an external
-  `libpython` requires.
-- A launch-time import-deferral optimization was shelved pending investigation
-  of an async-test hang it exposed.
-
----
 
 ## 2026-07-20-beta
 

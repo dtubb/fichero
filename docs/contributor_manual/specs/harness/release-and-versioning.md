@@ -64,32 +64,50 @@ readiness snapshot. Shape:
    (refuses anything but a clean fast-forward) as the pre-step; `release-all.sh` builds from the
    `main` checkout. It stamps the version *after* the merge, so the dated stamps are not a merge
    conflict source.
-3. **Build + sign + ship.** `scripts/release-all.sh` runs the lane **unattended**: builds the
+3. **Readiness gate (blocks distribution).** `scripts/check_release_docs_ready.py` runs in
+   `release-all.sh`'s preflight and **fails the lane** unless, for the version being stamped:
+   (a) `RELEASE_NOTES.md` has that `## <version>` section, (b) `CHANGELOG.md` carries the day's
+   entry, and (c) the docs guardrails pass (`check_capability_reference_current`,
+   `check_features_freshness`, and every `mkdocs` nav path resolves). A release cannot ship with
+   stale or missing docs — the docs are part of the release, not an afterthought.
+4. **Build + sign + ship.** `scripts/release-all.sh` runs the lane **unattended**: builds the
    embedded engine once, then DMG (Developer ID → notarize → staple → Sparkle-sign → GitHub release
    via `create-github-release.sh`) + Mac TestFlight + iOS TestFlight. iOS is remote-only (no embedded
    engine, no Sparkle).
-4. **Tag.** `vYYYY.MM.DD[.N]` on the shipped commit; the GitHub release carries that version's notes.
+5. **Smoke the optimized build locally.** Before the verdict, run the *shipped* optimized artifact
+   (the notarized DMG / `scripts/smoke-release-embedded-backend.sh`), **not** a `-Onone` RUN scheme.
+   The RUN schemes build Swift `-Onone` (see AGENTS.md), so a debug-layout regression can reach a
+   shipped build unseen — exactly what `2026.09.08` had to fix. The release is not verified until the
+   real optimized build has been exercised locally.
+6. **Tag.** `vYYYY.MM.DD[.N]` on the shipped commit; the GitHub release carries that version's notes.
 
-**Tested before published.** Releases are notarized/verified and the design lead gives the verdict
-*before* anything goes public (GitHub, TestFlight, the site). The lane does not self-publish on a
-green build.
+**Tested before published.** Releases are notarized/verified, the optimized build is smoke-tested
+locally (step 5), and the design lead gives the verdict *before* anything goes public (GitHub,
+TestFlight, the site). The lane does not self-publish on a green build.
 
 ## Release notes — two artifacts, different owners
 
-| Artifact | What | Who | How |
-|----------|------|-----|-----|
-| `CHANGELOG.md` | The commit-level, day-by-day record. Bare dated `## YYYY.MM.DD` headings — **every shipped release date gets one**, including a same-day re-stamp. | Agents (the record). | `scripts/release-notes-gen.sh` backfills history from git + closed issues via a local model (zero Claude cost); it only walks backward, never adds today. |
-| `RELEASE_NOTES.md` | The human prose — one section per shipped release, the story for users. | The **maintainer** owns this prose (user-facing). | Written by hand. `scripts/gen_site_releases.py` slices the newest section onto the landing page. |
+Two files, two conventions — do not conflate them:
+
+| Artifact | What | Heading | Who | How |
+|----------|------|---------|-----|-----|
+| `CHANGELOG.md` | The commit-level, **day-by-day** record — what changed, every day. Updated as work lands. | `## YYYY-MM-DD` (dashed, **per day**) | Agents (the record). | `scripts/release-notes-gen.sh` writes one section per day from git + closed issues via a local model (zero Claude cost). |
+| `RELEASE_NOTES.md` | The human prose — **one section per shipped release**, the story for users. | `## YYYY.MM.DD` (dotted, **per release**) | The **maintainer** owns this prose (user-facing). | Written by hand. `scripts/gen_site_releases.py` slices the newest section onto the landing page. |
+
+The dotted-vs-dashed heading is the tell: a *release* date is dotted (`2026.09.08`), a *calendar*
+day is dashed (`2026-09-08`). `CHANGELOG.md` must contain only dashed per-day sections; dotted
+release headings there are leakage from `RELEASE_NOTES.md` (or merge debris) and must be removed.
 
 The GitHub release body holds each version's own notes independently of these files, so a version's
 notes survive even if a later re-date reshuffles the local files.
 
-## Open questions for the design lead
+## Rulings (design lead)
 
-- **Does a same-day re-stamp deserve its own `RELEASE_NOTES.md` section?** When one calendar day
-  ships twice (e.g. `2026.09.07` then `2026.09.08` for the same build 3), `CHANGELOG.md` gets both
-  headings but the prose is usually one story. Current practice: one `RELEASE_NOTES.md` section for
-  the newer date; the superseded date keeps only its GitHub release body. Confirm that's the rule, or
-  say both dates should carry a prose section.
-- **Should `CHANGELOG.md`/`RELEASE_NOTES.md` be part of the merge-conflict-free set** the way the
-  dated stamps are (recreated post-merge), rather than hand-resolved on every integration merge?
+- **A same-day re-stamp gets ONE `RELEASE_NOTES.md` section, under the newer date.** When one
+  calendar day ships twice (e.g. `2026.09.07` then `2026.09.08`, same build 3), the prose is one
+  story: keep a single section for the newer date; the superseded date keeps only its GitHub release
+  body. `CHANGELOG.md` is unaffected (it is per-day, not per-release).
+- **`CHANGELOG.md` / `RELEASE_NOTES.md` are hand-resolved on merge, by union** — they hold authored
+  content, not derived stamps, so they are *not* in the recreated-post-merge conflict-free set. A
+  merge that touches both dates keeps both; the readiness gate (release lane, step 3) then confirms
+  the shipping version's entries are present before anything is distributed.

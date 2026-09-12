@@ -264,6 +264,16 @@ else
 fi
 
 echo
+echo "── Preflight: release docs readiness ──"
+# Release lane step 3 (release-and-versioning.md): a release cannot ship with
+# stale or missing docs. Fails fast, before any signing/build work starts.
+if ! PYTHONPATH="$ROOT_DIR/fichero-server/src" python3 "$ROOT_DIR/scripts/check_release_docs_ready.py"; then
+  echo "error: release docs are not ready — see failures above." >&2
+  echo "       Fix RELEASE_NOTES.md / CHANGELOG.md / docs freshness, then re-run." >&2
+  exit 1
+fi
+
+echo
 echo "── Preflight: codesign keychain access ──"
 # Fail fast if codesign would hang on a keychain prompt mid-release. Only test
 # the identities the active lanes will actually sign with.
