@@ -22,6 +22,16 @@
 One paragraph: what the user should be able to OBSERVE on this surface, and why. Name the
 concrete files/types the surface lives in.
 
+## Prior art / best practices (don't invent from scratch)
+
+Before proposing a novel design, survey how the field already solves this and cite what we build
+on. Fichero is a scholarly/archival + AI tool, so look to: **digital humanities** (DH methods,
+standards — IIIF, W3C Web Annotation, CIDOC-CRM, TEI, the factoid model), **NLP/NLG** (established
+pipelines — e.g. Reiter & Dale; realisers), **Hugging Face** (models, datasets, tokenizers,
+`transformers`/`datasets` APIs) and their conventions, and the relevant **standards/libraries**.
+State: what established approach we adopt, what we deliberately do differently and why, and what we
+reuse rather than rebuild. A spec that invents where the field has a solution is sent back.
+
 ## Behaviors
 
 One line per behavior, each with a stable id and a tag. The id is what a test cites.
@@ -37,9 +47,14 @@ One line per behavior, each with a stable id and a tag. The id is what a test ci
 | Backend (pytest) | y/n | endpoint contract + delivery | `fichero-server/tests/…` |
 | MCP | y/n | tool maps + routes | `fichero-mcp/tests/test_mcp_full.py` |
 | CLI | y/n | command wires endpoint | `fichero-cli/tests/test_*.py` |
-| Click-around (XCUITest) | y/n | click → effect, end-to-end | `fichero/Tests/UI/…` (subclass `FicheroUISessionTests`) |
-| iPad/iOS | y/n | the touch path | `fichero/Tests/UI/ios`, `…/ipad` |
+| Click-around (XCUITest, Mac) | y/n | click → effect, end-to-end | `fichero/Tests/UI/…` (subclass `FicheroUISessionTests`) |
+| iPhone (iOS) | y/n | the touch path on iPhone | `fichero/Tests/UI/ios` + `fichero-ui-ios` plan |
+| iPad | y/n | the touch path on iPad | `fichero/Tests/UI/ipad` + `fichero-ui-ipad` plan |
 | Load (#4634) | y/n | bounded, no peg, timed | `fichero-server/tests/perf/…` |
+
+The surfaces a spec can touch: **server** (pytest) · **MCP** · **CLI** · **Swift** (unit/
+availability/snapshot) · **UI-Mac** (XCUITest) · **iPhone** · **iPad**. Tick every one the feature
+reaches — a capability that ships on a surface but has no test there is unproven on it.
 
 Hard-gate: the cross-surface **invariant** (same result backend/MCP/CLI/UX) + capability
 **availability**. Rest is tracked debt — but listed here so it isn't forgotten.

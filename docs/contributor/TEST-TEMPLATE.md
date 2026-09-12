@@ -22,7 +22,8 @@ grounded in the real harness** so writing it is mechanical.
 | **MCP** | the capability should be agent-reachable | the MCP tool maps + routes | `fichero-mcp/tests/test_mcp_full.py` |
 | **CLI** | the capability should be scriptable | the CLI command wires the endpoint | `fichero-cli/tests/test_*.py` |
 | **Click-around** (XCUITest, Mac) | a user drives it in the UI | the end-to-end path: click → effect | `fichero/Tests/UI/**` (subclass `FicheroUISessionTests`) |
-| **iPad/iOS** | the surface ships on touch | the touch path exists | `fichero/Tests/UI/ios`, `…/ipad` + the `fichero-ui-ios/ipad` plans |
+| **iPhone (iOS)** | the surface ships on iPhone | the touch path exists on iPhone | `fichero/Tests/UI/ios` + the `fichero-ui-ios` plan |
+| **iPad** | the surface ships on iPad | the touch path exists on iPad (the split/regular-width IA) | `fichero/Tests/UI/ipad` + the `fichero-ui-ipad` plan |
 | **Load** (#4634) | the surface acts on many rows | bounded, no peg, timed | `fichero-server/tests/perf/**` |
 
 **Hard-gate (Testing Constitution Art. 4):** the cross-surface **invariant** (same result
@@ -138,15 +139,18 @@ def test_<verb>_1k_is_bounded(client, benchmark):
 
 ---
 
-## The process — any surface, turn the crank
+## The process — spec-lead development, every surface, every time
 
-The same abstract procedure prepares design-led testing for every surface (KG tables today,
-Library icon view next, and on through all of them). Each step has a guardrail gate, so the
-process is enforced, not remembered.
+Everything is done systematically, the same way each time — **spec-lead development**. Run the
+design half in **plan mode** with a **ponytail lens** (research → plan → approve before code; the
+laziest design that meets the intent). Each step has a guardrail gate, so the process is enforced,
+not remembered. The loop produces four bound artifacts for one `<name>`: the **spec**, the
+**GitHub milestone**, the **tests** (tagged), and the **docs** (contributor AND user).
 
-1. **Scaffold.** `cp docs/contributor/specs/_TEMPLATE.md docs/contributor/specs/<surface>.md`
-   (or `specs/<area>/<surface>.md`). The scaffold already contains the Intent / Behaviors /
-   **Test matrix** / **Accessibility identifiers** / Open-questions sections.
+1. **Scaffold + survey prior art.** `cp docs/contributor/specs/_TEMPLATE.md
+   docs/contributor/specs/<surface>.md`. Fill Intent, then the **Prior art / best practices**
+   section — survey how the field already solves this (digital humanities standards, NLP/NLG
+   pipelines, Hugging Face, relevant libraries) and cite what we adopt/reuse rather than invent.
    · *Gate:* `_`-prefixed scaffolds are skipped; real specs are tracked.
 2. **Behaviors.** Write one line per behavior with a stable id (`<surface>.<behavior>`) and a
    tag ([OK]/[MISSING]/[PARTIAL]). These ids are what tests cite.
@@ -161,9 +165,19 @@ process is enforced, not remembered.
    identifiers** the click-around leg needs (add them to the views as you build).
 5. **Test-first, per leg.** One file per ticked leg, from the skeletons above; the docstring
    cites the behavior id. Hard-gate legs (cross-surface invariant + availability) first.
-6. **Implement** until the tests pass; add the a11y ids alongside the views.
+6. **Reuse, don't duplicate — THEN implement.** BEFORE writing, search the codebase for an
+   existing path (jCodemunch `search_symbols` / `find_references` / `find_similar_symbols`) — we
+   too often grow a SECOND implementation of something that already exists. If a path exists,
+   EXTEND it; never add a parallel one (one audited action layer, one endpoint per capability).
+   After implementing, confirm no duplicate/parallel path was introduced. Then make the tests pass;
+   add the a11y ids alongside the views.
 7. **Verify.** `python scripts/check_specs_have_tests.py` + the full gate (`verify_all.sh`
    runs every `check_*.py`, including this one).
+8. **Document both audiences.** Fill the spec's **Documentation matrix** and write what the feature
+   reaches: the **contributor** docs (`docs/contributor/…` + this spec) AND the **user** manual
+   (`docs/user/guide/…` + a screenshot — reuse the snapshot render, one capture two uses), plus the
+   MCP tool description / CLI `--help` / capability reference where the feature is agent- or
+   script-reachable. A feature isn't done until the reader who never opens the code can use it.
 
 Weakest leg today is **click-around** — treat its skeleton as non-optional for any surface a
 user touches. A surface without a click-around test is not "done", it's "unproven in the one
