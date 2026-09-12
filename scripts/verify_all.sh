@@ -385,10 +385,17 @@ run_platform_checks() {
       -destination 'platform=macOS' \
       -resultBundlePath "$(mktemp -d)/verify.xcresult"
 
+    # UI smoke = the Mac-only, green UI plan (fichero-ui-mac): the seeded-engine
+    # KG inspector flow + the target canary. Was `-testPlan fichero`, which pulled
+    # in the whole (not-yet-green) UI suite AND, via the plan union, iOS test
+    # targets that cannot link on macOS — so this leg had never actually passed.
+    # Grow fichero-ui-mac's selectedTests as more UI flows go green.
+    # NOTE: needs an interactive Aqua login session + a one-time
+    # `sudo automationmodetool enable-automationmode-without-authentication`.
     run_xcode_test "xcodebuild macOS UI smoke tests" \
       -project "${XCODE_PROJECT}" \
       -scheme "${XCODE_SCHEME_MACOS}" \
-      -testPlan "fichero" \
+      -testPlan "fichero-ui-mac" \
       -destination 'platform=macOS' \
       -resultBundlePath "$(mktemp -d)/verify-ui.xcresult"
 
