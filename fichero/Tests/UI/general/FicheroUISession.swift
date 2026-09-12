@@ -117,11 +117,23 @@ class FicheroUISessionTests: XCTestCase {
         }
         app = Self.sharedApp
 
-        // A crash mid-test is caught (and failed) by the test that caused it;
-        // this only confirms the session instance is usable for THIS test.
+        // macOS doesn't always foreground a freshly-launched app under
+        // automation, and the first launch also processes the seeded library —
+        // so bring the app forward explicitly and POLL for foreground rather
+        // than asserting the state instantly (Apple guidance: activate() + wait
+        // for state, never assume it; ui-testing-strategy). A crash mid-test is
+        // caught by the test that caused it; this confirms the session instance
+        // is usable for THIS test.
+        app.activate()
+        var waitedForForeground = 0.0
+        while app.state != .runningForeground && waitedForForeground < 120 {
+            try await Task.sleep(nanoseconds: 500_000_000)  // 0.5s
+            waitedForForeground += 0.5
+        }
         XCTAssertEqual(
             app.state, .runningForeground,
-            "The shared session app is not foregrounded even after (re)launch."
+            "The shared session app is not foregrounded even after (re)launch + activate "
+            + "(state \(app.state.rawValue), waited \(waitedForForeground)s)."
         )
 
         resetToKnownState()
