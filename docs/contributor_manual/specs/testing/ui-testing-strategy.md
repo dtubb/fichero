@@ -43,27 +43,36 @@ overflow).
   export. The only first-party visual-correctness primitive is **`performAccessibilityAudit()`**.
   Pixel-diff snapshotting requires a **community** library.
 
-## The strategy — four layers, most weight at the bottom
+## The strategy — Apple-first, three layers
+
+Ruling: **use Apple's own tools; add no snapshot dependency and delete the hand-rolled diff engine.**
+Apple ships no pixel-diff assertion, so we do NOT do automatic pixel-regression — we use Apple's
+`performAccessibilityAudit()` for correctness and Apple's `.xctestplan` screenshot **capture** for
+review-by-eye. Honest consequence: there is **no cheap layer that skips launching the app** — visual
+and a11y verification ride the XCUITest-launched app. That's acceptable because **iOS/iPad simulators
+auto-consent** to automation (no Mac Aqua-session problem in the sim), so launching the app in a sim
+under XCUITest still catches the iOS 1 MB-stack crash class. It does make the pyramid top-heavy, so
+XCUITest flows MUST stay identifier-driven and fast-failing.
 
 1. **Unit / logic — Swift Testing (`@Test`).** Pure rules, models, view-model logic. Fast, parallel.
-   New non-UI tests go here. (Guardrail already pins `SWIFT_DEFAULT_ACTOR_ISOLATION=MainActor` so
-   off-main `@Test` doesn't SIGTRAP on MainActor statics.)
-2. **Snapshot / preview — the cheap deterministic layer that carries the BULK of UI coverage.**
-   Render each `#Preview` to a PNG and diff against a committed baseline; the same render is the doc
-   screenshot ("one render, two uses"). This runs **on every destination in the simulator** — so it
-   catches the iOS 1 MB-stack crash class **without** full app automation. This layer is ~1% built
-   today; building it out is the single highest-ROI move. **(Which snapshot engine = open question 1.)**
-3. **UI automation — XCTest/XCUITest, kept THIN.** A handful of identifier-driven click-throughs of
-   the real app over the existing UDS+seeded harness: launch → seeded data renders → a few core
-   flows (open document → inspector → entities load). Data-ID accessibility identifiers only;
-   `waitForExistence`/`wait(for:)` only — **the poll-until-120s pattern is retired**. One
-   `.xctestplan` runs the same code on macOS, an iOS sim, and an iPad sim.
-4. **Accessibility audit — `try app.performAccessibilityAudit()`** in the XCUITest layer: Apple's
-   first-party check for missing identifiers/labels and contrast — and it enforces that our elements
-   *have* the identifiers layer 3 depends on. **[MISSING today]** — it is used nowhere in the suite
-   yet; we currently hand-roll static presence scanners (`check_accessibility.py`,
-   `check_tooltips.py`) instead. Adopting the audit and letting it *replace* those scanners is a
-   named deliverable of this strategy (prefer Apple's runtime audit over growing our own grep).
+   New non-UI tests go here. This is where the bulk of *logic* coverage lives and stays cheap.
+   (Guardrail already pins `SWIFT_DEFAULT_ACTOR_ISOLATION=MainActor` so off-main `@Test` doesn't
+   SIGTRAP on MainActor statics.)
+2. **UI automation + accessibility audit — XCTest/XCUITest, kept THIN, one plan across destinations.**
+   Identifier-driven click-throughs of the real app over the existing UDS+seeded harness: launch →
+   seeded data renders → a few core flows (open document → inspector → entities load). Data-ID
+   accessibility identifiers only; `waitForExistence`/`wait(for:)` only — **the poll-until-120s
+   pattern is retired**. Each flow ends with `try app.performAccessibilityAudit()` (Apple-first-party
+   — catches missing identifiers/labels + contrast, and enforces the identifiers the tests depend
+   on). One `.xctestplan` runs the same code on macOS, an iOS sim, and an iPad sim — so the
+   cross-platform crash class is caught here. **[performAccessibilityAudit is MISSING today]** —
+   adopting it lets us **retire the hand-rolled `check_accessibility.py` scanner** (adopt the audit
+   first, then delete the scanner — never leave a gap between).
+3. **Visual review — Apple `.xctestplan` screenshot capture ("keep all").** The XCUITest runs capture
+   screenshots on every destination for review-by-eye and to feed the guides — capture, **not**
+   auto-diff. This **replaces** the hand-rolled `SnapshotSupport.swift` PNG-diff engine, which is
+   deleted. Doc screenshots (the "two uses" idea) now come from this capture / `RenderPreview`, not
+   from a diff test.
 
 **Accessibility identifiers are the spec contract.** `.accessibilityIdentifier("DocRow-\(id)")` is a
 stable behavioral id: a test breaks only when the *behavior* changes, not when copy or layout does —
@@ -82,28 +91,42 @@ Each XCUITest cites a spec behavior id; the identifier in the SwiftUI view is th
   `automationmodetool enable-automationmode-without-authentication`); never pretend headless works.
 - **XCTSkip must not read as green** — a provisioning failure fails loud (finish `harness.fail-fast-loud`).
 
-## Open questions for the design lead
+## Rulings (design lead, 2026-09-12 — "please proceed")
 
-1. **Snapshot engine (the pivotal call).** Apple ships none. Options: (a) **EmergeTools
-   SnapshotPreviews** — harvests our ~92 `#Preview`s directly into XCTest snapshot cases (least new
-   code, previews *are* the tests); (b) **Point-Free swift-snapshot-testing** — the de-facto
-   standard, more explicit test authoring; (c) **keep our hand-rolled `ImageRenderer`+PNG**
-   (`SnapshotSupport.swift`) and just build out consumers (no new dependency, but we maintain the
-   diff engine ourselves). Recommendation: **(a)** — biggest coverage for least code, turns the 92
-   idle previews into the bulk layer; it's a community dep, but it *replaces* hand-rolled infra
-   rather than adding to it. Ponytail: prefer deleting our snapshot engine over maintaining it.
-2. **How thin is the XCUITest layer?** Given the GUI-session + OOM history, recommend a **hard cap**
-   (e.g. ≤ a dozen flows) and everything else pushed to layer 2. Confirm the appetite.
-3. **Where does the Mac runner's Aqua session come from?** The build machine is the maintainer's Mac
-   (no separate CI). Options: run the UI leg only in an interactive session (current reality), or
-   set up a dedicated logged-in runner. This bounds how often layer 3 can run in the gate.
-4. **Does layer 2 (snapshots) run in the default gate, or nightly?** It's cheap and cross-platform,
-   so it *could* gate every push — but baseline churn on macOS 26 is a cost. Recommend: gate it.
+1. **Visual/a11y layer: Apple tools only — no pixel-diff, no snapshot dependency.** Adopt Apple's
+   `performAccessibilityAudit()` (a11y correctness) + `.xctestplan` screenshot capture (visual
+   review by eye). **Delete the hand-rolled `SnapshotSupport.swift`** pixel-diff engine. No community
+   snapshot lib (EmergeTools/Point-Free) — automatic pixel-regression is deliberately out of scope;
+   Apple provides no such tool and we won't hand-roll one. Sequence: adopt the audit, then retire
+   `check_accessibility.py`.
+2. **XCUITest layer is capped THIN** — a small, fixed set of identifier-driven full-app flows (order
+   ~a dozen, not per-feature). Everything else is pushed down to the snapshot layer. No
+   poll-until-deadline; `waitForExistence`/`wait(for:)` only.
+3. **Mac runner uses the interactive (logged-in Aqua) session** — current reality; no separate CI
+   runner for now. This bounds the XCUITest leg to interactive/manager runs, which is acceptable
+   because the bulk of coverage lives in the snapshot layer (sim, gateable).
+4. **The snapshot layer gates every push.** It's cheap and cross-platform; baseline churn on macOS 26
+   is the accepted cost. The XCUITest leg stays out of the per-push gate (interactive session).
 
-## Behaviors (to fill once the approach is ratified)
+## Behaviors
 
-`ui-testing.<behavior>` ids will be assigned when this flips from DRAFT to APPROVED (then it needs a
-citing test per `check_specs_have_tests`). Draft leaves them open.
+- `ui-testing.a11y-audit` [MISSING] — every XCUITest flow ends with `try app.performAccessibilityAudit()`
+  (Apple-first-party), catching missing labels/identifiers + contrast. Once wired, it **retires**
+  `check_accessibility.py`.
+- `ui-testing.crossplatform-plan` [MISSING] — one `.xctestplan` runs the same identifier-driven flows
+  on macOS **and** an iOS sim **and** an iPad sim, so the iOS 1 MB-stack crash class is caught (sims
+  auto-consent — no Aqua-session gate).
+- `ui-testing.identifier-contract` [PARTIAL] — every control a UI test drives has a stable,
+  data-ID-anchored `.accessibilityIdentifier` matching this spec (never label/coordinate).
+- `ui-testing.xcuitest-thin` [PARTIAL] — the full-app XCUITest set is capped (~a dozen flows) and
+  identifier-driven; waits use `waitForExistence`/`wait(for:)`, never poll-until-deadline.
+- `ui-testing.deterministic-launch` [PARTIAL] — UI tests seed all state via `launchArguments`/
+  `launchEnvironment`, disable animations (`-DisableAnimations`), and set `continueAfterFailure=false`.
+- `ui-testing.screenshot-capture` [MISSING] — the `.xctestplan` captures screenshots per destination
+  for review-by-eye + the guides (capture, not diff); the hand-rolled `SnapshotSupport.swift`
+  pixel-diff engine is **deleted**.
+- `ui-testing.evidence-on-failure` [MISSING] — the harness persists engine stderr + a screenshot on
+  failure (stop discarding the evidence needed to debug it).
 
 ## Sources
 
