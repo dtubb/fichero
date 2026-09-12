@@ -7,6 +7,48 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		20D4D44430526D19007C5A96 /* fichero-embedded.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = 20D4D43C30526D19007C5A96 /* fichero-embedded.xctestplan */; };
+		20D4D44530526D19007C5A96 /* fichero-ipad.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = 20D4D43E30526D19007C5A96 /* fichero-ipad.xctestplan */; };
+		20D4D44630526D19007C5A96 /* fichero-ui-ios.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = 20D4D44030526D19007C5A96 /* fichero-ui-ios.xctestplan */; };
+		20D4D44730526D19007C5A96 /* fichero-ui-ipad.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = 20D4D44130526D19007C5A96 /* fichero-ui-ipad.xctestplan */; };
+		20D4D44830526D19007C5A96 /* fichero-ios.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = 20D4D43D30526D19007C5A96 /* fichero-ios.xctestplan */; };
+		20D4D44930526D19007C5A96 /* fichero-ui-general.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = 20D4D43F30526D19007C5A96 /* fichero-ui-general.xctestplan */; };
+		20D4D44A30526D19007C5A96 /* fichero-ui-mac.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = 20D4D44230526D19007C5A96 /* fichero-ui-mac.xctestplan */; };
+		20D4D44C30526D19007C5A96 /* fichero-embedded.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = 20D4D43C30526D19007C5A96 /* fichero-embedded.xctestplan */; };
+		20D4D44D30526D19007C5A96 /* fichero-ipad.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = 20D4D43E30526D19007C5A96 /* fichero-ipad.xctestplan */; };
+		20D4D44E30526D19007C5A96 /* fichero-ui-ios.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = 20D4D44030526D19007C5A96 /* fichero-ui-ios.xctestplan */; };
+		20D4D44F30526D19007C5A96 /* fichero-ui-ipad.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = 20D4D44130526D19007C5A96 /* fichero-ui-ipad.xctestplan */; };
+		20D4D45030526D19007C5A96 /* fichero-ios.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = 20D4D43D30526D19007C5A96 /* fichero-ios.xctestplan */; };
+		20D4D45130526D19007C5A96 /* fichero-ui-general.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = 20D4D43F30526D19007C5A96 /* fichero-ui-general.xctestplan */; };
+		20D4D45230526D19007C5A96 /* fichero-ui-mac.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = 20D4D44230526D19007C5A96 /* fichero-ui-mac.xctestplan */; };
+		20D4D45430526D19007C5A96 /* fichero-embedded.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = 20D4D43C30526D19007C5A96 /* fichero-embedded.xctestplan */; };
+		20D4D45530526D19007C5A96 /* fichero-ipad.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = 20D4D43E30526D19007C5A96 /* fichero-ipad.xctestplan */; };
+		20D4D45630526D19007C5A96 /* fichero-ui-ios.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = 20D4D44030526D19007C5A96 /* fichero-ui-ios.xctestplan */; };
+		20D4D45730526D19007C5A96 /* fichero-ui-ipad.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = 20D4D44130526D19007C5A96 /* fichero-ui-ipad.xctestplan */; };
+		20D4D45830526D19007C5A96 /* fichero-ios.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = 20D4D43D30526D19007C5A96 /* fichero-ios.xctestplan */; };
+		20D4D45930526D19007C5A96 /* fichero-ui-general.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = 20D4D43F30526D19007C5A96 /* fichero-ui-general.xctestplan */; };
+		20D4D45A30526D19007C5A96 /* fichero-ui-mac.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = 20D4D44230526D19007C5A96 /* fichero-ui-mac.xctestplan */; };
+		20D4D45C30526D19007C5A96 /* fichero-embedded.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = 20D4D43C30526D19007C5A96 /* fichero-embedded.xctestplan */; };
+		20D4D45D30526D19007C5A96 /* fichero-ipad.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = 20D4D43E30526D19007C5A96 /* fichero-ipad.xctestplan */; };
+		20D4D45E30526D19007C5A96 /* fichero-ui-ios.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = 20D4D44030526D19007C5A96 /* fichero-ui-ios.xctestplan */; };
+		20D4D45F30526D19007C5A96 /* fichero-ui-ipad.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = 20D4D44130526D19007C5A96 /* fichero-ui-ipad.xctestplan */; };
+		20D4D46030526D19007C5A96 /* fichero-ios.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = 20D4D43D30526D19007C5A96 /* fichero-ios.xctestplan */; };
+		20D4D46130526D19007C5A96 /* fichero-ui-general.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = 20D4D43F30526D19007C5A96 /* fichero-ui-general.xctestplan */; };
+		20D4D46230526D19007C5A96 /* fichero-ui-mac.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = 20D4D44230526D19007C5A96 /* fichero-ui-mac.xctestplan */; };
+		20D4D46430526D19007C5A96 /* fichero-embedded.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = 20D4D43C30526D19007C5A96 /* fichero-embedded.xctestplan */; };
+		20D4D46530526D19007C5A96 /* fichero-ipad.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = 20D4D43E30526D19007C5A96 /* fichero-ipad.xctestplan */; };
+		20D4D46630526D19007C5A96 /* fichero-ui-ios.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = 20D4D44030526D19007C5A96 /* fichero-ui-ios.xctestplan */; };
+		20D4D46730526D19007C5A96 /* fichero-ui-ipad.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = 20D4D44130526D19007C5A96 /* fichero-ui-ipad.xctestplan */; };
+		20D4D46830526D19007C5A96 /* fichero-ios.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = 20D4D43D30526D19007C5A96 /* fichero-ios.xctestplan */; };
+		20D4D46930526D19007C5A96 /* fichero-ui-general.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = 20D4D43F30526D19007C5A96 /* fichero-ui-general.xctestplan */; };
+		20D4D46A30526D19007C5A96 /* fichero-ui-mac.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = 20D4D44230526D19007C5A96 /* fichero-ui-mac.xctestplan */; };
+		20D4D46C30526D19007C5A96 /* fichero-embedded.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = 20D4D43C30526D19007C5A96 /* fichero-embedded.xctestplan */; };
+		20D4D46D30526D19007C5A96 /* fichero-ipad.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = 20D4D43E30526D19007C5A96 /* fichero-ipad.xctestplan */; };
+		20D4D46E30526D19007C5A96 /* fichero-ui-ios.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = 20D4D44030526D19007C5A96 /* fichero-ui-ios.xctestplan */; };
+		20D4D46F30526D19007C5A96 /* fichero-ui-ipad.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = 20D4D44130526D19007C5A96 /* fichero-ui-ipad.xctestplan */; };
+		20D4D47030526D19007C5A96 /* fichero-ios.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = 20D4D43D30526D19007C5A96 /* fichero-ios.xctestplan */; };
+		20D4D47130526D19007C5A96 /* fichero-ui-general.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = 20D4D43F30526D19007C5A96 /* fichero-ui-general.xctestplan */; };
+		20D4D47230526D19007C5A96 /* fichero-ui-mac.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = 20D4D44230526D19007C5A96 /* fichero-ui-mac.xctestplan */; };
 		A18ED3AB2F13E313007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3AA2F13E313007C2C6E /* FicheroAPIClient */; };
 		A18ED3F22F141DFE007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3F12F141DFE007C2C6E /* FicheroAPIClient */; };
 		C10000020000000000000001 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; platformFilters = (macos, ); productRef = C10000310000000000000001 /* Sparkle */; };
@@ -65,13 +107,17 @@
 		100 /* Fichero.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Fichero.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		18E20C2646AD0D1174376756 /* FicheroUICapture.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FicheroUICapture.swift; sourceTree = "<group>"; };
 		208ADA993022008200B83F96 /* FicheroIOSTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroIOSTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		20D4D43C30526D19007C5A96 /* fichero-embedded.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; name = "fichero-embedded.xctestplan"; path = "Tests/plans/fichero-embedded.xctestplan"; sourceTree = "<group>"; };
+		20D4D43D30526D19007C5A96 /* fichero-ios.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; name = "fichero-ios.xctestplan"; path = "Tests/plans/fichero-ios.xctestplan"; sourceTree = "<group>"; };
+		20D4D43E30526D19007C5A96 /* fichero-ipad.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; name = "fichero-ipad.xctestplan"; path = "Tests/plans/fichero-ipad.xctestplan"; sourceTree = "<group>"; };
+		20D4D43F30526D19007C5A96 /* fichero-ui-general.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; name = "fichero-ui-general.xctestplan"; path = "Tests/plans/fichero-ui-general.xctestplan"; sourceTree = "<group>"; };
+		20D4D44030526D19007C5A96 /* fichero-ui-ios.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; name = "fichero-ui-ios.xctestplan"; path = "Tests/plans/fichero-ui-ios.xctestplan"; sourceTree = "<group>"; };
+		20D4D44130526D19007C5A96 /* fichero-ui-ipad.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; name = "fichero-ui-ipad.xctestplan"; path = "Tests/plans/fichero-ui-ipad.xctestplan"; sourceTree = "<group>"; };
+		20D4D44230526D19007C5A96 /* fichero-ui-mac.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; name = "fichero-ui-mac.xctestplan"; path = "Tests/plans/fichero-ui-mac.xctestplan"; sourceTree = "<group>"; };
 		5076236A8758ED35278E3B62 /* AppleScriptRunCommands.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppleScriptRunCommands.swift; sourceTree = "<group>"; };
 		A10521A92EFDC92400B28C3E /* FicheroTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10521C12EFDC94100B28C3E /* FicheroUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		A16FDD632EFDCD17003296BF /* fichero-tests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; name = "fichero-tests.xctestplan"; path = "Tests/plans/fichero-tests.xctestplan"; sourceTree = "<group>"; };
 		A16FDD642EFDCD17003296C0 /* fichero.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; name = fichero.xctestplan; path = Tests/plans/fichero.xctestplan; sourceTree = "<group>"; };
-		A16FDD652EFDCD17003296C1 /* fichero-embedded.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; name = "fichero-embedded.xctestplan"; path = "Tests/plans/fichero-embedded.xctestplan"; sourceTree = "<group>"; };
-		A16FDD662EFDCD17003296C2 /* fichero-ipad.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; name = "fichero-ipad.xctestplan"; path = "Tests/plans/fichero-ipad.xctestplan"; sourceTree = "<group>"; };
 		DEB68505AB23DDCB630B6A17 /* InstallToolsWindow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InstallToolsWindow.swift; sourceTree = "<group>"; };
 		F105C0DE0000000000000001 /* FicheroIOSUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroIOSUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		FE1DAD000000000000000010 /* FicheroIPadTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroIPadTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -193,10 +239,14 @@
 		400 = {
 			isa = PBXGroup;
 			children = (
-				A16FDD632EFDCD17003296BF /* fichero-tests.xctestplan */,
 				A16FDD642EFDCD17003296C0 /* fichero.xctestplan */,
-				A16FDD652EFDCD17003296C1 /* fichero-embedded.xctestplan */,
-				A16FDD662EFDCD17003296C2 /* fichero-ipad.xctestplan */,
+				20D4D43C30526D19007C5A96 /* fichero-embedded.xctestplan */,
+				20D4D43D30526D19007C5A96 /* fichero-ios.xctestplan */,
+				20D4D43E30526D19007C5A96 /* fichero-ipad.xctestplan */,
+				20D4D43F30526D19007C5A96 /* fichero-ui-general.xctestplan */,
+				20D4D44030526D19007C5A96 /* fichero-ui-ios.xctestplan */,
+				20D4D44130526D19007C5A96 /* fichero-ui-ipad.xctestplan */,
+				20D4D44230526D19007C5A96 /* fichero-ui-mac.xctestplan */,
 				FEED00000000000000000262 /* Configs/Version.xcconfig */,
 				20558E0F300BF97D001A5D3D /* fichero */,
 				A10521AA2EFDC92400B28C3E /* Tests/Unit/general */,
@@ -494,31 +544,73 @@
 		208ADA973022008100B83F96 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			files = (
+				20D4D45C30526D19007C5A96 /* fichero-embedded.xctestplan in Resources */,
+				20D4D45D30526D19007C5A96 /* fichero-ipad.xctestplan in Resources */,
+				20D4D45E30526D19007C5A96 /* fichero-ui-ios.xctestplan in Resources */,
+				20D4D45F30526D19007C5A96 /* fichero-ui-ipad.xctestplan in Resources */,
+				20D4D46030526D19007C5A96 /* fichero-ios.xctestplan in Resources */,
+				20D4D46130526D19007C5A96 /* fichero-ui-general.xctestplan in Resources */,
+				20D4D46230526D19007C5A96 /* fichero-ui-mac.xctestplan in Resources */,
 			);
 		};
 		520 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			files = (
+				20D4D46C30526D19007C5A96 /* fichero-embedded.xctestplan in Resources */,
+				20D4D46D30526D19007C5A96 /* fichero-ipad.xctestplan in Resources */,
+				20D4D46E30526D19007C5A96 /* fichero-ui-ios.xctestplan in Resources */,
+				20D4D46F30526D19007C5A96 /* fichero-ui-ipad.xctestplan in Resources */,
+				20D4D47030526D19007C5A96 /* fichero-ios.xctestplan in Resources */,
+				20D4D47130526D19007C5A96 /* fichero-ui-general.xctestplan in Resources */,
+				20D4D47230526D19007C5A96 /* fichero-ui-mac.xctestplan in Resources */,
 			);
 		};
 		A10521A72EFDC92400B28C3E /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			files = (
+				20D4D45430526D19007C5A96 /* fichero-embedded.xctestplan in Resources */,
+				20D4D45530526D19007C5A96 /* fichero-ipad.xctestplan in Resources */,
+				20D4D45630526D19007C5A96 /* fichero-ui-ios.xctestplan in Resources */,
+				20D4D45730526D19007C5A96 /* fichero-ui-ipad.xctestplan in Resources */,
+				20D4D45830526D19007C5A96 /* fichero-ios.xctestplan in Resources */,
+				20D4D45930526D19007C5A96 /* fichero-ui-general.xctestplan in Resources */,
+				20D4D45A30526D19007C5A96 /* fichero-ui-mac.xctestplan in Resources */,
 			);
 		};
 		A10521BF2EFDC94100B28C3E /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			files = (
+				20D4D44430526D19007C5A96 /* fichero-embedded.xctestplan in Resources */,
+				20D4D44530526D19007C5A96 /* fichero-ipad.xctestplan in Resources */,
+				20D4D44630526D19007C5A96 /* fichero-ui-ios.xctestplan in Resources */,
+				20D4D44730526D19007C5A96 /* fichero-ui-ipad.xctestplan in Resources */,
+				20D4D44830526D19007C5A96 /* fichero-ios.xctestplan in Resources */,
+				20D4D44930526D19007C5A96 /* fichero-ui-general.xctestplan in Resources */,
+				20D4D44A30526D19007C5A96 /* fichero-ui-mac.xctestplan in Resources */,
 			);
 		};
 		F105C0DE0000000000000006 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			files = (
+				20D4D44C30526D19007C5A96 /* fichero-embedded.xctestplan in Resources */,
+				20D4D44D30526D19007C5A96 /* fichero-ipad.xctestplan in Resources */,
+				20D4D44E30526D19007C5A96 /* fichero-ui-ios.xctestplan in Resources */,
+				20D4D44F30526D19007C5A96 /* fichero-ui-ipad.xctestplan in Resources */,
+				20D4D45030526D19007C5A96 /* fichero-ios.xctestplan in Resources */,
+				20D4D45130526D19007C5A96 /* fichero-ui-general.xctestplan in Resources */,
+				20D4D45230526D19007C5A96 /* fichero-ui-mac.xctestplan in Resources */,
 			);
 		};
 		FE1DAD000000000000000032 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			files = (
+				20D4D46430526D19007C5A96 /* fichero-embedded.xctestplan in Resources */,
+				20D4D46530526D19007C5A96 /* fichero-ipad.xctestplan in Resources */,
+				20D4D46630526D19007C5A96 /* fichero-ui-ios.xctestplan in Resources */,
+				20D4D46730526D19007C5A96 /* fichero-ui-ipad.xctestplan in Resources */,
+				20D4D46830526D19007C5A96 /* fichero-ios.xctestplan in Resources */,
+				20D4D46930526D19007C5A96 /* fichero-ui-general.xctestplan in Resources */,
+				20D4D46A30526D19007C5A96 /* fichero-ui-mac.xctestplan in Resources */,
 			);
 		};
 /* End PBXResourcesBuildPhase section */
@@ -896,9 +988,9 @@
 		20969FAB3000614800D06A60 /* Dev Embedded configuration for PBXNativeTarget "FicheroTests" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				GENERATE_INFOPLIST_FILE = YES;
 				PRODUCT_NAME = FicheroTests;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_VERSION = 5.0;
 			};
 			name = "Dev Embedded";
@@ -906,9 +998,9 @@
 		20969FAC3000614800D06A60 /* Alpha Embedded configuration for PBXNativeTarget "FicheroTests" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				GENERATE_INFOPLIST_FILE = YES;
 				PRODUCT_NAME = FicheroTests;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_VERSION = 5.0;
 			};
 			name = "Alpha Embedded";
@@ -916,9 +1008,9 @@
 		20969FAD3000614800D06A60 /* Beta Embedded configuration for PBXNativeTarget "FicheroTests" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				GENERATE_INFOPLIST_FILE = YES;
 				PRODUCT_NAME = FicheroTests;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_VERSION = 5.0;
 			};
 			name = "Beta Embedded";
@@ -957,7 +1049,6 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = FEED00000000000000000262 /* Configs/Version.xcconfig */;
 			buildSettings = {
-				EXCLUDED_ARCHS = x86_64;
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -995,6 +1086,7 @@
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				EXCLUDED_ARCHS = x86_64;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -1025,7 +1117,6 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = FEED00000000000000000262 /* Configs/Version.xcconfig */;
 			buildSettings = {
-				EXCLUDED_ARCHS = x86_64;
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -1063,6 +1154,7 @@
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				EXCLUDED_ARCHS = x86_64;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -1217,7 +1309,6 @@
 		A10521AF2EFDC92400B28C3E /* Debug configuration for PBXNativeTarget "FicheroTests" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -1225,6 +1316,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Fichero.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Fichero";
@@ -1234,7 +1326,6 @@
 		A10521B02EFDC92400B28C3E /* Release configuration for PBXNativeTarget "FicheroTests" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -1242,6 +1333,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Fichero.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Fichero";
@@ -1693,7 +1785,6 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = FEED00000000000000000262 /* Configs/Version.xcconfig */;
 			buildSettings = {
-				EXCLUDED_ARCHS = x86_64;
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -1731,6 +1822,7 @@
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				EXCLUDED_ARCHS = x86_64;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -1761,7 +1853,6 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = FEED00000000000000000262 /* Configs/Version.xcconfig */;
 			buildSettings = {
-				EXCLUDED_ARCHS = x86_64;
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -1799,6 +1890,7 @@
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				EXCLUDED_ARCHS = x86_64;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -1821,7 +1913,6 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = FEED00000000000000000262 /* Configs/Version.xcconfig */;
 			buildSettings = {
-				EXCLUDED_ARCHS = x86_64;
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -1859,6 +1950,7 @@
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				EXCLUDED_ARCHS = x86_64;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;

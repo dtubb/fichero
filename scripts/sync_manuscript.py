@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""RETIRED as the authoring path (Daniel, 2026-08-30): the markdown pages in
-docs/<guide>/guide/ are the MASTERS now, edited in Scrivener (folder sync) or
-directly — see docs/contributor/writing-the-guides.md. Keep this script only
-for one-off recovery of prose that exists solely in a .docx.
+"""RETIRED (2026-09-12): the User Guide is now authored by the maintainer in
+**Tinderbox** and exported to docs/user_manual/; there is no Scrivener/.docx
+round-trip to sync. This script is kept only for one-off recovery of prose that
+exists solely in an old .docx, and its paths below are NOT maintained.
 
-Sync a guide manuscript (Daniel's edited .docx) back into docs/ pages.
+Sync a guide manuscript (an edited .docx) back into docs/ pages.
 
-The manuscripts in ~/My Drive/Tubb Lab/Apps/Fichero/ are the human-edited
-masters (see AGENTS.md "Manuscript model"). This script does the derived
-half mechanically:
+The manuscripts in ~/My Drive/Tubb Lab/Apps/Fichero/ were the human-edited
+masters under the old model (see AGENTS.md "Authorship model"). This script does
+the derived half mechanically:
 
   1. pandoc the .docx back to markdown
   2. refresh the .md master beside the .docx
@@ -46,7 +46,7 @@ GUIDES = {
     },
     "contributor": {
         "docx": DRIVE / "Fichero Contributor Guide.docx",
-        "pages_dir": REPO / "docs/contributor/guide",
+        "pages_dir": REPO / "docs/contributor_manual/guide",
         "assets_dir": REPO / "docs/assets/contributor",
     },
 }

@@ -1,33 +1,41 @@
 {
-  "configurations": [
+  "configurations" : [
     {
-      "id": "1C37B94C-AD56-4CBE-9B8B-C2CE21D2F115",
-      "name": "Test Scheme Action",
-      "options": {}
-    }
-  ],
-  "defaultOptions": {},
-  "testTargets": [
-    {
-      "target": {
-        "containerPath": "container:fichero.xcodeproj",
-        "identifier": "A10521C02EFDC94100B28C3E",
-        "name": "FicheroUITests"
-      },
-      "skippedTests": [
-        "ColdLaunchReachesLibraryUITests",
-        "LaunchPerformanceUITests",
-        "LibraryLoadingIsNotAnOutageUITests",
-        "LibrarySmokeUITests"
-      ]
-    },
-    {
-      "target": {
-        "containerPath": "container:fichero.xcodeproj",
-        "identifier": "A10521A82EFDC92400B28C3E",
-        "name": "FicheroTests"
+      "id" : "1C37B94C-AD56-4CBE-9B8B-C2CE21D2F115",
+      "name" : "Test Scheme Action",
+      "options" : {
+
       }
     }
   ],
-  "version": 1
+  "defaultOptions" : {
+
+  },
+  "testTargets" : [
+    {
+      "skippedTests" : [
+        "LaunchPerformanceUITests"
+      ],
+      "target" : {
+        "containerPath" : "container:fichero.xcodeproj",
+        "identifier" : "A10521C02EFDC94100B28C3E",
+        "name" : "FicheroUITests"
+      }
+    },
+    {
+      "target" : {
+        "containerPath" : "container:fichero.xcodeproj",
+        "identifier" : "A10521A82EFDC92400B28C3E",
+        "name" : "FicheroTests"
+      }
+    },
+    {
+      "target" : {
+        "containerPath" : "container:fichero.xcodeproj",
+        "identifier" : "208ADA983022008100B83F96",
+        "name" : "FicheroIOSTests"
+      }
+    }
+  ],
+  "version" : 1
 }

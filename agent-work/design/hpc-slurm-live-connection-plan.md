@@ -6,8 +6,8 @@
 intent into spec prose.
 **Verified against:** the `integration` worktree — `workflows/remote_jobs.py`,
 `workflows/run_status.py`, `workflows/run_steps.py`, `execution/runner.py`,
-`api/change_stream.py`, `docs/contributor/remote-backend-acenet.md`,
-`docs/contributor/remote-backend-tailscale.md`.
+`api/change_stream.py`, `docs/contributor_manual/remote-backend-acenet.md`,
+`docs/contributor_manual/remote-backend-tailscale.md`.
 
 ## 0. What this is
 
@@ -20,9 +20,9 @@ light up in the library one by one.
 Two prior-art documents already exist and stay valid; this plan is their complement,
 not their replacement:
 
-- `docs/contributor/remote-backend-acenet.md` — run the **whole engine** on the cluster,
+- `docs/contributor_manual/remote-backend-acenet.md` — run the **whole engine** on the cluster,
   SSH-forward loopback to the Mac. Good for "my library lives on the cluster".
-- `docs/contributor/remote-backend-tailscale.md` — loopback engine + `tailscale serve`
+- `docs/contributor_manual/remote-backend-tailscale.md` — loopback engine + `tailscale serve`
   for a lab machine. Good for a persistent second machine you own.
 
 This plan covers the third and most common case: **the library and the engine stay on

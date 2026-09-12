@@ -5,7 +5,7 @@ Codex, Claude Code, Claude-in-Xcode — reads this file (`CLAUDE.md` is a thin
 pointer here). Product north-star: `CONSTITUTION.md`. Session-start / manager
 skills under `agents/skills/` tell each lane its job.
 
-Two roles, one layer (spec: `docs/contributor/specs/harness/dev-orchestration-harness.md`):
+Two roles, one layer (spec: `docs/contributor_manual/specs/harness/dev-orchestration-harness.md`):
 the **manager** (the interactive session — coordinates, reviews, owns the verify
 gate, AND integrates/merges) and the **worker** (implements + tests its own diff).
 Start with `/session-start-manager` or `/session-start-worker`. Work happens on
@@ -78,7 +78,7 @@ path like `~/code/fichero/.venv` into a doc or a script; it is only true on one 
 - **Ship tests with the change.** Every SwiftUI fix or feature lands with new/updated unit tests in the same commit; write the failing test first for a bug. Test the logic (state, predicates, builders, ID parsing) rather than the rendered pixels, and eyeball pixels by running the built app.
 - **Risky diff?** Anything touching auth, file I/O, network, secrets, or keychain → run `/security-review`.
 
-**Testing manual: `docs/contributor/TESTING.md`.** Short version:
+**Testing manual: `docs/contributor_manual/TESTING.md`.** Short version:
 `fichero/Tests/Unit/general/` mirrors `fichero/fichero/` — a new test goes in
 the matching folder (plus `Transport/`/`Contract/` buckets); shared specimen
 files live in `test-fixtures/files/`, resolved ONLY via `tests/fixture_paths.py`
@@ -88,19 +88,19 @@ fails any run whose coverage drops — baselines move only by deliberate
 `--update-baseline` commits.
 
 **Design-led surfaces carry ONE name across three places** (guardrails enforce, all in the gate):
-a spec `docs/contributor/specs/<name>.md`, a GitHub milestone named `<name>` (its description
+a spec `docs/contributor_manual/specs/<name>.md`, a GitHub milestone named `<name>` (its description
 points back at the spec), and a test tag of the same area name **front and back** — Swift `@Tag`
 in `fichero/Tests/Unit/general/TestTags.swift`, pytest marker in `fichero-server/pyproject.toml`.
 `scripts/check_specs_have_tests.py` binds spec↔test; `scripts/check_spec_milestones.py` binds
 spec↔milestone. Approving a spec means: flip `Status: APPROVED`, declare `Milestone: <name>`,
-create/rename that milestone, and cite the spec from ≥1 test. See `docs/contributor/TEST-TEMPLATE.md`.
+create/rename that milestone, and cite the spec from ≥1 test. See `docs/contributor_manual/TEST-TEMPLATE.md`.
 
 ---
 
 ## Worker Orchestration
 
 Fichero is built by AI coding agents, **one layer deep** (spec:
-`docs/contributor/specs/harness/dev-orchestration-harness.md`). The shape:
+`docs/contributor_manual/specs/harness/dev-orchestration-harness.md`). The shape:
 
 - **Manager = the interactive session (Fabel).** Fast, cheap, always-on. It coordinates,
   does the design/root-cause/review, owns the verify gate, and dispatches workers. It does
@@ -144,7 +144,7 @@ This keeps one Xcode and one full-suite run as the gate while many workers grind
 parallel, isolated worktrees.
 
 **Spec-lead development — the systematic loop, every surface, every time** (authority:
-`docs/contributor/TESTING-CONSTITUTION.md` + `TEST-TEMPLATE.md`; run the design half in **plan
+`docs/contributor_manual/TESTING-CONSTITUTION.md` + `TEST-TEMPLATE.md`; run the design half in **plan
 mode** with a **ponytail lens**). One `<name>` binds four artifacts — spec, GitHub milestone,
 tests (tagged), docs. The eight steps:
 1. **Prior art first** — survey how the field solves this (DH standards, NLP/NLG, Hugging Face,
@@ -162,7 +162,7 @@ tests (tagged), docs. The eight steps:
 
 ## Git Practices — Lanes, Integration, Commits
 
-**Full layout + process: `docs/contributor/specs/harness/git-worktree-workflow.md`** — one repo
+**Full layout + process: `docs/contributor_manual/specs/harness/git-worktree-workflow.md`** — one repo
 (`~/code/fichero/.git`), worktrees as ephemeral branch-views, everything pushed via `main`;
 branch-off-`origin/main`, the integration gate, keep-updated-via-GitHub, and cleanup. The essentials:
 
@@ -259,7 +259,7 @@ When an agent runs **inside Xcode**, prefer the MCP tools over command-line `ls`
 - **The three-leg Swift check** before declaring SwiftUI work done, in order: (1) `swiftlint lint fichero/fichero/` clean; (2) `BuildProject` succeeds; (3) `RunAllTests` passes. `XcodeRefreshCodeIssuesInFile` gives fast per-file diagnostics but does NOT substitute for a full build; use `RenderPreview` for rendered-UI changes.
 - **Limit changes to the requested task** — don't make unrelated edits.
 
-SwiftUI code-style guidelines live in `docs/contributor/swiftui-development-standards.md`; the deeper architecture reference in `docs/contributor/architecture-overview.md`.
+SwiftUI code-style guidelines live in `docs/contributor_manual/swiftui-development-standards.md`; the deeper architecture reference in `docs/contributor_manual/architecture-overview.md`.
 
 ---
 
@@ -310,7 +310,7 @@ prefix and a test path, two minutes — rather than skipping the check.
 
 ## Releasing
 
-The app ships as a notarized DMG (Sparkle/GitHub) and, separately, to TestFlight. Wrapper: `scripts/release-all.sh --help`; lane doc: `docs/contributor/release/release-lane.md`.
+The app ships as a notarized DMG (Sparkle/GitHub) and, separately, to TestFlight. Wrapper: `scripts/release-all.sh --help`; lane doc: `docs/contributor_manual/release/release-lane.md`.
 
 1. **Gate:** `verify_all.sh --full` green.
 2. **Build + package the Mac DMG:** `scripts/build-release-dmg.sh` — stamps today's dated version (`YYYY.MM.DD-beta`; opt out with `FICHERO_RELEASE_VERSION`), builds the Release app with the **embedded** engine (Briefcase), re-signs inside-out with Developer ID, and styles the DMG. (Reuse an already-built app with `--skip-app-build`, but note that **skips the date re-stamp**.)
@@ -326,7 +326,7 @@ The version date is stamped **at build time** — it does not auto-update when y
 Three failure modes that bite *silently*, with no exception and no test failure, just data that vanishes or rows that hide. Load-bearing, not style:
 
 1. **Declare every field on the Pydantic model.** `extra="allow"` lets unknown fields write at runtime, but `model_dump()` only serializes declared fields, so the next read drops them. Add the DB column + the model field + the OpenAPI-typed schema field in the same commit. (`feedback_pydantic_field_must_be_declared.md`)
-2. **Swift wrappers set OpenAPI-typed fields, not `additionalProperties`.** Declared fields dumped into `additionalProperties` round-trip on the wire, but the backend Pydantic model ignores them, so the write is lost. (`docs/contributor/architecture/fichero/api_client.md`)
+2. **Swift wrappers set OpenAPI-typed fields, not `additionalProperties`.** Declared fields dumped into `additionalProperties` round-trip on the wire, but the backend Pydantic model ignores them, so the write is lost. (`docs/contributor_manual/architecture/fichero/api_client.md`)
 3. **Endpoint defaults matched by strict equality against seed data are foot-guns.** A `folder_path: str = "/"` default silently stops returning rows the moment seed JSON shape changes. Default `Optional[T] = None`, filter only when the caller passes a value, add a regression test. (#722 → #723)
 
 When seed-data shape changes, the shape change and every filter that reads it ship together.
@@ -523,13 +523,26 @@ Directed-By: the maintainer"
 ## Docs Placement
 
 ONE docs folder, `docs/` (the MkDocs `docs_dir`). It is BOTH the published site AND
-the reference contributors read on GitHub. It holds two guides:
+the reference contributors read on GitHub. It holds **three manuals**, each with a
+distinct owner:
 
-- **`docs/user/`** — the User Guide: using Fichero. Entry point `docs/user/README.md`.
-- **`docs/contributor/`** — the Contributor Guide: building it. Architecture, API
-  reference, release runbooks, QA, design notes. Entry point
-  `docs/contributor/README.md`. (Agents read this file, `AGENTS.md`, not a copy
-  inside `docs/`.)
+- **`docs/user_manual/`** — the User Guide: using Fichero. **The maintainer's own** —
+  authored in **Tinderbox** and exported to this folder. Agents do NOT write or draft
+  its prose; agents keep the *facts* it relies on accurate (behaviors, screenshots).
+- **`docs/contributor_manual/`** — the Contributor Guide: building it. Architecture, API
+  reference, release runbooks, QA, design notes, and `specs/`. **AI-authored** (agent
+  writes and maintains it from the code + the spec, as part of finishing a surface).
+  Entry point `docs/contributor_manual/README.md`. (Agents read this file, `AGENTS.md`,
+  not a copy inside `docs/`.)
+- **`docs/reference_manual/`** — the generated Reference. **Code-generated, not written:**
+  `tool_references/` is produced from the engine by
+  `scripts/generate_capability_reference.py` (guardrail `check_capability_reference_current.py`);
+  per-feature reference material generated by specs also lands here. Never hand-edit a
+  generated page — change the generator or the source, then regenerate.
+
+Ownership rule: **the maintainer owns `user_manual`; the agent owns `contributor_manual`
+and `reference_manual`** — and keeping the latter two current is part of the spec-lead
+loop, not a separate task (no personal names in any of it — Rules I Don't Break).
 
 **`nav` does not gate publication.** MkDocs builds EVERY `.md` under `docs_dir` into
 a live public page; `mkdocs.yml` `nav` controls only site navigation — a page left
@@ -547,17 +560,27 @@ decision to publish an unlinked page). When unsure between `docs/` and `agent-wo
 point-in-time "what I found" material is agent-work, durable "how it works" reference
 is `docs/`; anything that must never be public goes outside `docs/` entirely.
 
-### Manuscript model — MARKDOWN IS THE MASTER
+### Authorship model — who writes which manual
 
-The guide chapters in the repo are the masters (`docs/user/guide/NN-<slug>.md`,
-`docs/contributor/`). The design lead edits them in **Scrivener** via
-Sync-with-External-Folder; agents edit the same files directly and may add images
-(`docs/assets/users/…`, page-relative) — no round-tripping through a Drive `.docx`
-(those are historical copies only). Contract: one chapter per file (`NN-<slug>.md`,
-`# Title` H1, plain markdown); `> 🤖 *AI Drafted (Not reviewed)*` marks an unreviewed
-page; gate every edit with `scripts/check_docs_publication.py` + `mkdocs build --strict`
-(new chapter needs a `mkdocs.yml` nav line); the Word manual in Drive is built FROM
-the markdown via `python3 scripts/build_manual_appendix.py` — the `.docx` is output-only.
+- **`user_manual` — the maintainer's, authored in Tinderbox** and exported to
+  `docs/user_manual/guide/`. Agents do not edit its prose. The agent's job for this
+  audience is to keep its *facts* true to what shipped (behaviors, a11y ids, and
+  **screenshots** — see below), never to author the chapters.
+- **`contributor_manual` — AI-authored markdown in the repo.** Agents edit these files
+  directly; one topic per file, `# Title` H1, plain markdown; `> 🤖 *AI Drafted (Not
+  reviewed)*` marks an unreviewed page. Gate every edit with
+  `scripts/check_docs_publication.py` + `mkdocs build --strict` (a new page needs a
+  `mkdocs.yml` nav line).
+- **`reference_manual` — generated, never hand-written.** Regenerate with
+  `scripts/generate_capability_reference.py`; the freshness guardrail fails if the
+  committed pages drift from the engine.
+
+**Screenshots (any manual).** Capture a surface deterministically via Xcode
+`RenderPreview` (or the Swift snapshot `ImageRenderer` pass — one render, two uses: the
+committed snapshot reference IS the doc screenshot). Store images under
+**`docs/assets/<milestone>/`** (a subfolder named for the spec/milestone), so a manual's
+image can never drift from the tested surface. The spec's Documentation matrix names the
+shots it owes; see `docs/contributor_manual/TEST-TEMPLATE.md` §2b and `DOC-TEMPLATE.md`.
 
 ---
 
@@ -597,8 +620,8 @@ Key Paths below. Pure crud or superseded material is `git rm`-ed, not parked at 
 |---|---|
 | `CONSTITUTION.md` | Product north star: what we're building, why, what it's not, hard constraints |
 | `AGENTS.md` | This file — operational manual + hard rules |
-| `docs/contributor/architecture/` | Architecture docs |
-| `docs/contributor/architecture/vocabulary.md` | Shared backend/frontend terminology |
+| `docs/contributor_manual/architecture/` | Architecture docs |
+| `docs/contributor_manual/architecture/vocabulary.md` | Shared backend/frontend terminology |
 | `USER.md` | About the design lead — who they are, constraints |
 | `STATE.md` | Local working notes (gitignored, not in the repo) — current branch, focus, next session |
 | `MEMORY.md` | Local working notes (gitignored, not in the repo) — persistent lessons and decisions |
@@ -611,7 +634,7 @@ Key Paths below. Pure crud or superseded material is `git rm`-ed, not parked at 
 | `fichero-server/tests/` | The gated Python suite for all three products (`unit/`, `integration/`, `contracts/`, and `perf/` — gated separately via `scripts/verify_perf.sh`) |
 | `fichero-cli/tests/`, `fichero-mcp/tests/` | Each product's own unit tests. Run directly (`pytest fichero-cli/tests`) — their conftest supplies the sibling `src/` paths. **Not yet in `verify_all`/`verify_python`, which name `fichero-server/tests/` explicitly** |
 | `test-fixtures/` | Shared specimen files, resolved only via `tests/fixture_paths.py` / `TestFixtures.swift` |
-| `docs/` | Published documentation — `docs/user/` and `docs/contributor/` (see Docs Placement above) |
+| `docs/` | Published documentation — `docs/user_manual/` and `docs/contributor_manual/` (see Docs Placement above) |
 | `agents/` | Harness: skills, prompts, `agents/ROADMAP.md` (the priority spine) |
 | `scripts/` | Repo-wide gates and tooling (`check_*.py`, `verify_*.sh`) |
 
@@ -631,7 +654,7 @@ Key Paths below. Pure crud or superseded material is `git rm`-ed, not parked at 
 1. Never push directly to `main` — always go through a PR (create it and merge it yourself).
 2. Never skip build, test, lint before marking work complete.
 3. Never modify genuinely auto-generated files: `openapi.json`, or anything under `fichero/fichero-api-client/.build/` or `.../Sources/FicheroAPIClient/` produced by the OpenAPI generator. Regen via `fichero-server/scripts/sync_openapi_schema.sh` and commit the output — what's forbidden is hand-editing it.
-4. When editing a service wrapper that builds a request body, **always use the OpenAPI-typed fields** on `Components.Schemas.*`, not `additionalProperties`, for any field declared in `openapi.json` — dumping declared fields into `additionalProperties` silently loses writes under Pydantic `extra="allow"` (commit 31fc4141; `docs/contributor/architecture/fichero/api_client.md`).
+4. When editing a service wrapper that builds a request body, **always use the OpenAPI-typed fields** on `Components.Schemas.*`, not `additionalProperties`, for any field declared in `openapi.json` — dumping declared fields into `additionalProperties` silently loses writes under Pydantic `extra="allow"` (commit 31fc4141; `docs/contributor_manual/architecture/fichero/api_client.md`).
 5. Never start coding before a plan exists for non-trivial work.
 6. `PYTHONPATH` must be set to `fichero-server/src` for all Python commands.
 7. Never create per-task branches — commit all work to the milestone branch directly.
@@ -645,9 +668,9 @@ Key Paths below. Pure crud or superseded material is `git rm`-ed, not parked at 
 
 ## Before editing backend or API-client code
 
-Read `docs/contributor/architecture/` first — specifically:
-- `docs/contributor/architecture/fichero/api_client.md` for the OpenAPI round-trip contract.
-- `docs/contributor/backend-development-standards.md` for backend conventions.
-- `docs/contributor/swiftui-development-standards.md` for Swift conventions.
+Read `docs/contributor_manual/architecture/` first — specifically:
+- `docs/contributor_manual/architecture/fichero/api_client.md` for the OpenAPI round-trip contract.
+- `docs/contributor_manual/backend-development-standards.md` for backend conventions.
+- `docs/contributor_manual/swiftui-development-standards.md` for Swift conventions.
 
 `AGENTS.md` is the canonical detailed guidance and also references these.

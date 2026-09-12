@@ -5,9 +5,9 @@
     "note": "first recorded run"
   },
   "claims.list": {
-    "commit": "18917fe1f",
-    "ms": 319.1,
-    "note": "tightened from 381.9 ms"
+    "commit": "5dac20b82",
+    "ms": 157.7,
+    "note": "tightened from 319.1 ms"
   },
   "documents.list": {
     "commit": "18917fe1f",
@@ -25,9 +25,9 @@
     "note": "first recorded run"
   },
   "entities.list.full": {
-    "commit": "5c15d0b59",
-    "ms": 30.7,
-    "note": "tightened from 42.0 ms"
+    "commit": "5dac20b82",
+    "ms": 27.3,
+    "note": "tightened from 30.7 ms"
   },
   "mem::session::tests,tests/unit/mcp": {
     "commit": "c653992c9",
@@ -104,8 +104,18 @@
     "count": 2,
     "note": "first recorded run"
   },
+  "queries.GET./api/claims": {
+    "commit": "5dac20b82",
+    "count": 1,
+    "note": "first recorded run"
+  },
   "queries.GET./api/documents": {
-    "commit": "5c15d0b59",
+    "commit": "5dac20b82",
+    "count": 0,
+    "note": "tightened from 1 queries"
+  },
+  "queries.GET./api/entities": {
+    "commit": "5dac20b82",
     "count": 1,
     "note": "first recorded run"
   },
@@ -118,6 +128,11 @@
     "commit": "18917fe1f",
     "count": 1,
     "note": "tightened from 180 queries"
+  },
+  "queries.GET./api/storage/thumbnail/{doc_id}": {
+    "commit": "5dac20b82",
+    "count": 7,
+    "note": "first recorded run"
   },
   "queries.GET./api/workflows": {
     "commit": "18917fe1f",
@@ -135,14 +150,14 @@
     "note": "first recorded run"
   },
   "queries.POST./api/ingest/file": {
-    "commit": "107c1c884",
-    "count": 10,
-    "note": "first recorded run"
+    "commit": "5dac20b82",
+    "count": 8,
+    "note": "tightened from 10 queries"
   },
   "queries.POST./api/library": {
-    "commit": "107c1c884",
-    "count": 401,
-    "note": "first recorded run"
+    "commit": "5dac20b82",
+    "count": 197,
+    "note": "tightened from 401 queries"
   },
   "queries.POST./api/search": {
     "commit": "107c1c884",
@@ -545,14 +560,14 @@
     "note": "first recorded run"
   },
   "test::tests/perf/test_entity_list_perf.py::test_list_entities_doc_scoped_scale": {
-    "commit": "5c15d0b59",
-    "ms": 1394762.6,
-    "note": "tightened from 1613939.2 ms"
+    "commit": "5dac20b82",
+    "ms": 260429.1,
+    "note": "tightened from 1394762.6 ms"
   },
   "test::tests/perf/test_entity_list_perf.py::test_list_entities_full_scale": {
-    "commit": "523cca6c0",
-    "ms": 1416691.9,
-    "note": "first recorded run"
+    "commit": "5dac20b82",
+    "ms": 279065.4,
+    "note": "tightened from 1416691.9 ms"
   },
   "test::tests/unit/actions/test_action_audit_chain.py::test_appended_actions_verify_and_link_contiguously": {
     "commit": "18917fe1f",

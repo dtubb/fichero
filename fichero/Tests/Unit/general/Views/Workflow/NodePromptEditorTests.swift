@@ -2,7 +2,7 @@
 import Foundation
 import XCTest
 
-/// Pins the prompt behaviors of `docs/contributor/specs/ui/workflow-node-config.md`
+/// Pins the prompt behaviors of `docs/contributor_manual/specs/ui/workflow-node-config.md`
 /// section B and the round-trip rule D.open-is-read-only.
 final class NodePromptEditorTests: XCTestCase {
 

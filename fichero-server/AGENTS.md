@@ -34,6 +34,6 @@ clients over its HTTP surface (the CLI and MCP server are the peer packages
 
 - Repo-wide workflow and verification: [../AGENTS.md](../AGENTS.md)
 - Engine layout and runtime entry points: [README.md](README.md)
-- Backend conventions: [../docs/contributor/backend-development-standards.md](../docs/contributor/backend-development-standards.md)
-- OpenAPI/client contract: [../docs/contributor/openapi-and-clients.md](../docs/contributor/openapi-and-clients.md)
-- Action registry pattern: [../docs/contributor/action-registry.md](../docs/contributor/action-registry.md)
+- Backend conventions: [../docs/contributor_manual/backend-development-standards.md](../docs/contributor_manual/backend-development-standards.md)
+- OpenAPI/client contract: [../docs/contributor_manual/openapi-and-clients.md](../docs/contributor_manual/openapi-and-clients.md)
+- Action registry pattern: [../docs/contributor_manual/action-registry.md](../docs/contributor_manual/action-registry.md)

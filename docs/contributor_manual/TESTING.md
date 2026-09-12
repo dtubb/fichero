@@ -1,0 +1,197 @@
+# Testing
+
+How Fichero is tested: the layers, where a new test belongs, how to run each
+area, fixtures, and the rules that keep test runs from taking the machine
+down. This documents what is BUILT today; anything not yet landed is marked
+**(planned)**.
+
+## The pyramid
+
+Cheapest layer that can catch the defect wins. From the #4241 architecture
+review, bottom-up:
+
+| Layer | Lives in | Status |
+|---|---|---|
+| Pure unit (config decisions, parsers, builders, splice rules) | `fichero/Tests/Unit/general/` + `fichero-server/tests/unit/` | built, healthy |
+| Store/service + stubbed transport (async state machines) | `fichero/Tests/Unit/general/Services/`, `Transport/` | partial — one ad-hoc `MockTransportURLProtocol`; shared kit **(planned, #4241 step 1)** |
+| Engine pytest (pipelines, derivatives, fixtures) | `fichero-server/tests/unit/`, `integration/` | built |
+| App↔engine contract (in-process, no uvicorn/TLS) | `fichero/Tests/Unit/general/Contract/` | built on spawned uvicorn; in-process `InMemoryEngineApp` harness **(planned, #4241 step 2)** |
+| CLI unit (dispatch, connection resolution, transport selection) | `fichero-cli/tests/` | built |
+| MCP unit (tool schemas, connection, fail-closed auth) | `fichero-mcp/tests/` | built |
+| CLI leg (installed `fichero` binary, hermetic) | `fichero-server/tests/integration/test_cli_installed_roundtrip.py` | built |
+| MCP leg (shipped `fichero-mcp` tool surface) | `fichero-server/tests/integration/test_mcp_server_contract.py` | built |
+| XCUITest (shipping config only, ~8 flows) | `fichero/Tests/UI/general/` | built |
+
+## Where a new test goes
+
+`fichero/Tests/Unit/general/` mirrors `fichero/fichero/`: a test for
+`Views/Sidebar/…` goes in `Tests/Unit/general/Views/Sidebar/`, a store test in
+`Models/`, a service test in `Services/`. Two extra buckets that have no app
+mirror:
+
+- `Transport/` — connection, pairing, TLS, engine-lifecycle, `APIClient`.
+- `Contract/` — app↔engine and wire-contract tests (engine-harness suites).
+
+Harness files stay at the target root (`EngineHarness.swift`,
+`TestDefaults.swift`, `TestFixtures.swift`; `UITestEngineHarness.swift` and
+`RequiresEngine.swift` in `Tests/UI/general/`). UI tests group by surface:
+`Launch/`, `Library/`, `Inspector/`.
+
+Rule: **new tests go in the folder matching the code under test.** Do not add
+files to the target roots.
+
+### Platform split and the plan matrix
+
+Unit and UI tests each split by destination under `fichero/Tests/`:
+`Unit/{general,mac,ios,ipad}` and `UI/{general,mac,ios,ipad}`. The
+platform-agnostic bulk stays in `general/`; a genuinely platform-only test
+goes in its platform folder (`Unit/mac/AppleScriptSurfaceTests.swift` is the
+shape). Test plans live in `fichero/Tests/plans/` — nine of them, audited
+statically by `scripts/check_test_plans_runnable.py`, which also prints the
+scheme/plan matrix and the exact `xcodebuild` invocations. Every iOS-family
+plan selects an idiom CANARY (`IOSTargetCanaryTests`, `IPadTargetCanaryTests`,
+`IOSUITargetCanaryTests`, `IPadUITargetCanaryTests`) that fails loudly when a
+plan executes on the wrong device family, so no plan can be empty-and-green
+(#4472) or silently verify the wrong platform.
+
+## Design-led specs: one name across design, issues, and tests
+
+A design-led surface carries the SAME identifier through three places, so nothing drifts:
+
+- **Spec** — `docs/contributor_manual/specs/<name>.md` (Intent / Behaviors / Test matrix). The design
+  of record. Approve it before writing tests or code.
+- **Milestone** — a GitHub milestone named exactly `<name>`, its description pointing back at the
+  spec. The issues live here. (Link is bidirectional: spec declares `Milestone: <name>` in its
+  header; the milestone points at the spec.)
+- **Tag** — the tests that pin the spec carry a tag/marker named for the area, **front and back**:
+  - **Frontend (Swift):** a `@Tag` in `fichero/Tests/Unit/general/TestTags.swift`, applied at the
+    suite (`@Suite(.tags(.transport))`). Slice with `--filter-tag`.
+  - **Backend (Python):** a pytest marker registered in `fichero-server/pyproject.toml`, applied
+    per test (`@pytest.mark.transport`). Slice with `pytest -m transport`.
+  The area name is the SAME on both sides, so one feature slices identically across both suites.
+
+Guardrails enforce the loop (all auto-run by `verify_all.sh`):
+- `check_specs_have_tests.py` — an APPROVED spec must carry a Test matrix and be cited by ≥1 test
+  (`spec: <name>` in a test docstring, or a `specs/<name>.md` path).
+- `check_spec_milestones.py` — an APPROVED spec must declare `Milestone: <name>`; the milestone's
+  existence on GitHub is checked best-effort when `gh` is available (offline stays deterministic).
+- `check_xcode_config_invariants.py` — the build/test/run config matrix (spec: xcode-build-configs).
+
+Specs approved before a rule are grandfathered (a named exemption list in the guardrail) and
+graduate as their area is next worked — see `TEST-TEMPLATE.md` for the per-surface process.
+
+## Running areas
+
+Workers verify their own diff only; the manager owns full-suite runs and
+Xcode builds (see `AGENTS.md`).
+
+```bash
+# Engine — always with PYTHONPATH relative to YOUR worktree
+PYTHONPATH=fichero-server/src pytest fichero-server/tests/unit/ -q
+PYTHONPATH=fichero-server/src pytest fichero-server/tests/unit/test_ingest_module.py -q   # one area
+
+# CLI / MCP products — their own test dirs; each conftest puts the sibling
+# src/ trees on sys.path, so no PYTHONPATH is needed for these two.
+pytest fichero-cli/tests -q
+pytest fichero-mcp/tests -q
+
+# Never `pytest fichero-server/tests` (pulls the ~50-min perf suite).
+scripts/verify_perf.sh          # perf, deliberately, on its own
+
+# Swift — manager-run via the fichero-tests.xctestplan (FicheroTests target)
+# Guardrails — all of them, before any push
+for s in scripts/check_*.py; do python3 "$s" || break; done
+```
+
+Area-scoped runs are live: `scripts/gate part <area>` runs one area's leg
+(see `scripts/gate --help`); scope pytest by file/folder and Swift tests by
+test-plan selection when you need something finer.
+
+## Fixtures
+
+One shared, versioned fixture library at the repo root:
+
+- `test-fixtures/files/` — tiny REAL specimens (pdf, multi-page pdf, jpg,
+  png, heic, docx, legacy .doc, md, txt, IIIF manifest) plus corrupt/edge
+  specimens (`empty.txt`, `wrong_extension.pdf` — PNG bytes behind a .pdf
+  name — and `sample_corrupted.docx`). Size discipline: every fixture
+  minimal; a unit test fails any specimen over 1 MB.
+- `test-fixtures/coverage-ratchet/` — synthetic reports proving the coverage
+  guardrail fires.
+
+Resolvers — one per language, never hand-rolled paths:
+
+```python
+from tests.fixture_paths import sample_file      # engine tests
+pdf = sample_file("multipage.pdf")               # raises if missing
+```
+
+```swift
+let pdf = try TestFixtures.sampleFile("multipage.pdf")  // Tests/Unit/general
+```
+
+Seeded libraries all come from ONE builder —
+`fichero-server/scripts/seed_test_library.py` (via
+`tests/integration/_seedlib.py` in pytest). `--with-files` additionally
+imports real specimens as file-backed documents and two extra canonical
+workflows; the default output is unchanged. Engine-only fixtures (contract
+JSON, paleography) stay under `fichero-server/tests/fixtures/`.
+
+## Engine provisioning rules
+
+- A test must NEVER require an already-running backend, and a live plan with
+  no engine must FAIL loudly — never skip, never silently green.
+- **The ONE spawn-per-run harness is
+  `fichero-server/scripts/test_engine_harness.py`** (2026-08-04 decisions). It
+  seeds the synthetic `--full` library (deterministic uuid5 ids, every
+  DocType, both workflow shapes — `seed_test_library.py --full`, self-proven
+  by `--self-test`), spawns the engine on a temp UDS socket with `HOME` at a
+  disposable app-home (#4537) and `FICHERO_PARENT_PID` orphan accountability
+  (#4400), waits bounded for `/api/health`, prints one ready-JSON line, and
+  tears everything down. Consumers: `UITestEngineHarness` (Swift, a thin
+  wrapper), the `spawned_engine` pytest fixture
+  (`tests/integration/test_spawn_per_run_harness.py`), and the scripted UX
+  smoke (`scripts/ux_smoke.py`, which drives the app's AppleScript verbs
+  against it — #4535).
+- `EngineHarness` (the Swift unit contract suite) still self-provisions a TLS
+  engine — folding it onto the script needs a `--tls` mode (#4541).
+  `FICHERO_REPO_ROOT` overrides discovery for both Swift harnesses.
+- Older hermetic legs (`tests/integration/_cli_live.py`) predate the shared
+  harness; new legs use the `spawned_engine` fixture.
+
+## Memory-safety rules
+
+Unserialized runs have crashed this machine (56 GB XCUITest incident):
+
+- ONE `xcodebuild` at a time, ever. Check `pgrep -f xcodebuild` before
+  starting a perf suite or any build.
+- Never run the perf suite and an Xcode build together.
+- XCUITests: never poll the accessibility tree in a loop (tree-snapshot
+  polling is the 56 GB pathology); launch-stress suites live ONLY in the
+  embedded plan.
+- macOS XCUITests need a GUI session; headless runs time out.
+- Workers do not run xcodebuild or full Swift suites — the manager does,
+  serialized.
+
+## Coverage
+
+Coverage is ON in `fichero-tests.xctestplan` and `fichero-ipad.xctestplan`.
+The ratchet (`scripts/check_coverage_ratchet.py`) fails any run where line
+coverage drops below `coverage-baseline.json` minus tolerance, prints the
+top-20 least-covered production files, and only moves via a deliberate
+`--update-baseline` commit. Produce inputs with:
+
+```bash
+# engine
+coverage run -m pytest fichero-server/tests/unit && coverage json -o agent-work/coverage/engine.json
+# swift (after a plan run with coverage)
+xcrun xccov view --report --json Result.xcresult > agent-work/coverage/swift.json
+python3 scripts/check_coverage_ratchet.py
+```
+
+## The habit
+
+Every change ships with tests in the same commit — edge cases, undo paths,
+and side effects, not just the happy path (write the failing test first for a
+bug). Reviewers check the coverage delta and the ratchet output as part of
+review. Would more tests have caught more issues? Then more tests.

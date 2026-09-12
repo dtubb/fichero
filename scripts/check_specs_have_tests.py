@@ -3,7 +3,7 @@
 
 The Testing Constitution's loop is **spec -> approve -> test -> code**, and tests cite
 the spec they pin in a docstring ("spec: kg-tables", "Spec: specs/workflow-node-config.md").
-But nothing ENFORCED that link: a `docs/contributor/specs/*.md` file could be deleted or
+But nothing ENFORCED that link: a `docs/contributor_manual/specs/*.md` file could be deleted or
 renamed and the build stayed green, even though tests still referenced it — and an
 APPROVED spec could ship with no test at all. This guardrail makes the specs directory
 part of the gate (run by verify_all.sh with every other check_*.py).
@@ -29,7 +29,7 @@ import pathlib
 import re
 import sys
 
-SPECS_DIR = pathlib.Path("docs/contributor/specs")
+SPECS_DIR = pathlib.Path("docs/contributor_manual/specs")
 TEST_ROOTS = [
     pathlib.Path("fichero/Tests"),
     pathlib.Path("fichero-server/tests"),
@@ -41,7 +41,7 @@ TEST_GLOBS = ("*.swift", "*.py")
 # A spec stem is lowercase words joined by hyphens (e.g. "kg-entity-inspector").
 STEM = r"[a-z0-9]+(?:-[a-z0-9]+)+"
 # An explicit path citation to a spec file, anywhere under a `specs/` dir
-# (docs/contributor/specs OR agent-work/specs): verified at its own path.
+# (docs/contributor_manual/specs OR agent-work/specs): verified at its own path.
 PATH_CITATION_RE = re.compile(r"([A-Za-z0-9_./-]*specs/[A-Za-z0-9_./-]+\.md)")
 # A bare "spec: <stem>" docstring citation (not a path, not "<stem>.md"): resolved
 # against the canonical + legacy specs dirs by stem.
@@ -128,7 +128,7 @@ def main() -> int:
     failures: list[str] = []
 
     # Rule A1: every explicit spec PATH a test cites must exist at that path (covers
-    # both docs/contributor/specs and agent-work/specs — a deleted/renamed spec fails).
+    # both docs/contributor_manual/specs and agent-work/specs — a deleted/renamed spec fails).
     for rel, files in sorted(path_cites.items()):
         if not pathlib.Path(rel).exists():
             where = ", ".join(str(f) for f in files[:3])
@@ -170,7 +170,7 @@ def main() -> int:
         if not MATRIX_MARKER_RE.search(spec.read_text(encoding="utf-8")):
             failures.append(
                 f"missing test matrix: {spec} is Status: APPROVED but has no Test-matrix "
-                f"section. Paste the matrix from docs/contributor/TEST-TEMPLATE.md so the "
+                f"section. Paste the matrix from docs/contributor_manual/TEST-TEMPLATE.md so the "
                 f"surface's test legs are decided, not forgotten."
             )
 

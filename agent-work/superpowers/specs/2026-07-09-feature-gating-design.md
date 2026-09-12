@@ -122,7 +122,7 @@ each now carrying `FICHERO_EMBED_ENGINE` alongside `FICHERO_FEATURE_TIER`;
 ## F. Matrix doc + checklist + promotion
 
 - `docs/user/features.md` (generated from `features.yaml`) — user-facing matrix, sorted by tier.
-- `docs/contributor/feature-tiers.md` (hand-written, stable) — tier definitions, promotion
+- `docs/contributor_manual/feature-tiers.md` (hand-written, stable) — tier definitions, promotion
   workflow, per-tier test/review checklist:
   - **dev:** AI added; tests pass; swiftlint clean.
   - **alpha:** Daniel reviewed (UX, edge cases, undo, side-effects).
@@ -152,7 +152,7 @@ each now carrying `FICHERO_EMBED_ENGINE` alongside `FICHERO_FEATURE_TIER`;
 | owner    | files                                                                                |
 |----------|--------------------------------------------------------------------------------------|
 | manager  | `project.pbxproj`, `*.xcscheme`, `Info.plist`                                         |
-| worker   | `features.yaml` (new), `scripts/gen_feature_tiers.py` (new), `scripts/promote_feature.py` (new, optional), `fichero/fichero/Models/FeatureTiers.generated.swift` (new, generated — **manager adds to target**), `fichero/fichero/Models/FeatureManager.swift` (extend), `fichero-server/src/fichero_server/api/main.py` (extend tier fns), `fichero-server/src/fichero_server/api/feature_tiers_generated.py` (new, generated), `docs/user/features.md` (regenerate), `docs/contributor/feature-tiers.md` (new), `fichero-server/tests/unit/api/test_feature_tier_routing.py` (extend), `fichero/fichero/Services/EmbeddedBackendService.swift` (extend env passthrough), `.github/workflows/ci.yml` + `scripts/verify_python.sh` (freshness gate) |
+| worker   | `features.yaml` (new), `scripts/gen_feature_tiers.py` (new), `scripts/promote_feature.py` (new, optional), `fichero/fichero/Models/FeatureTiers.generated.swift` (new, generated — **manager adds to target**), `fichero/fichero/Models/FeatureManager.swift` (extend), `fichero-server/src/fichero_server/api/main.py` (extend tier fns), `fichero-server/src/fichero_server/api/feature_tiers_generated.py` (new, generated), `docs/user/features.md` (regenerate), `docs/contributor_manual/feature-tiers.md` (new), `fichero-server/tests/unit/api/test_feature_tier_routing.py` (extend), `fichero/fichero/Services/EmbeddedBackendService.swift` (extend env passthrough), `.github/workflows/ci.yml` + `scripts/verify_python.sh` (freshness gate) |
 
 ## Gate criteria (worker lane, before push)
 

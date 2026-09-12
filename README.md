@@ -17,9 +17,9 @@ There is an iPad and iPhone version, which lets you connect to your Mac library.
 - **Search**: Semantic search across everything you've imported.
 - **Researcher**: ask questions of your documents and get answers grounded in your own sources.
 
-Fichero’s documentation, while not finished, is in two places. First, a **[User Guide](docs/user/README.md)** for people who want to use Fichero. Second, the **[Contributor Guide](docs/contributor/README.md)** for people (and AI agents) who want to help build it.  AI Coding agents should read [`AGENTS.md`](AGENTS.md). 
+Fichero’s documentation, while not finished, is in two places. First, a **[User Guide](docs/user_manual/README.md)** for people who want to use Fichero. Second, the **[Contributor Guide](docs/contributor_manual/README.md)** for people (and AI agents) who want to help build it.  AI Coding agents should read [`AGENTS.md`](AGENTS.md). 
 
-Fichero is not finished. It is still in Alpha. The [feature matrix](docs/user/features.md) lists capabilities, with a status.
+Fichero is not finished. It is still in Alpha. The [feature matrix](docs/reference_manual/features.md) lists capabilities, with a status.
 
 ## Installing and using Fichero
 

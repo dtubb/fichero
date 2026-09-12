@@ -45,10 +45,10 @@ Not here. `agents/skills/_shared/` used to hold copies; nothing loaded them and 
 had decayed into describing directories that no longer exist. The maintained
 standards are in the contributor manual:
 
-- [`docs/contributor/swiftui-principles.md`](../docs/contributor/swiftui-principles.md)
-- [`docs/contributor/swiftui-development-standards.md`](../docs/contributor/swiftui-development-standards.md)
-- [`docs/contributor/backend-development-standards.md`](../docs/contributor/backend-development-standards.md)
-- [`docs/contributor/architecture-overview.md`](../docs/contributor/architecture-overview.md)
+- [`docs/contributor_manual/swiftui-principles.md`](../docs/contributor_manual/swiftui-principles.md)
+- [`docs/contributor_manual/swiftui-development-standards.md`](../docs/contributor_manual/swiftui-development-standards.md)
+- [`docs/contributor_manual/backend-development-standards.md`](../docs/contributor_manual/backend-development-standards.md)
+- [`docs/contributor_manual/architecture-overview.md`](../docs/contributor_manual/architecture-overview.md)
 
 The hard rules an agent must not break are in [`../AGENTS.md`](../AGENTS.md).
 

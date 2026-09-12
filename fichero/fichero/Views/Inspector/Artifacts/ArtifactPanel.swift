@@ -6,7 +6,7 @@ import SwiftUI
 /// overwrite what's already on screen.
 ///
 /// Phase 1: read-only display. Phase 2 will add per-artifact actions
-/// (copy, regenerate, hide). See docs/contributor/architecture/fichero/inspector_redesign.md.
+/// (copy, regenerate, hide). See docs/contributor_manual/architecture/fichero/inspector_redesign.md.
 struct ArtifactPanel: View {
     enum PanelKind {
         case artifact(Artifact)

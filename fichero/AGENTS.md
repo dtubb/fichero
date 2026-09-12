@@ -26,6 +26,6 @@ This subtree is the SwiftUI mac, iPad, and iOS app. The app renders UI, owns win
 
 - Repo-wide workflow and verification: [../AGENTS.md](../AGENTS.md)
 - App layout and current surfaces: [README.md](README.md)
-- SwiftUI conventions: [../docs/contributor/swiftui-development-standards.md](../docs/contributor/swiftui-development-standards.md)
-- OpenAPI round-trip contract: [../docs/contributor/openapi-and-clients.md](../docs/contributor/openapi-and-clients.md)
-- Observable data layer: [../docs/contributor/architecture/fichero/observable_data_layer.md](../docs/contributor/architecture/fichero/observable_data_layer.md)
+- SwiftUI conventions: [../docs/contributor_manual/swiftui-development-standards.md](../docs/contributor_manual/swiftui-development-standards.md)
+- OpenAPI round-trip contract: [../docs/contributor_manual/openapi-and-clients.md](../docs/contributor_manual/openapi-and-clients.md)
+- Observable data layer: [../docs/contributor_manual/architecture/fichero/observable_data_layer.md](../docs/contributor_manual/architecture/fichero/observable_data_layer.md)

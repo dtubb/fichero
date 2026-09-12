@@ -4,7 +4,7 @@
 Outputs:
   - fichero/fichero/Models/FeatureTiers.generated.swift
   - fichero-server/src/fichero_server/api/feature_tiers_generated.py
-  - docs/user/features.md
+  - docs/reference_manual/features.md
 """
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parent.parent
 SOURCE = ROOT / "features.yaml"
 SWIFT_OUT = ROOT / "fichero" / "fichero" / "Models" / "FeatureTiers.generated.swift"
 PYTHON_OUT = ROOT / "fichero-server" / "src" / "fichero_server" / "api" / "feature_tiers_generated.py"
-DOCS_OUT = ROOT / "docs" / "user" / "features.md"
+DOCS_OUT = ROOT / "docs" / "reference_manual" / "features.md"
 TIER_ORDER = {"dev": 1, "alpha": 2, "beta": 3, "release": 4}
 @dataclass(frozen=True)
 class Feature:

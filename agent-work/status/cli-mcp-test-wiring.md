@@ -73,7 +73,7 @@ file.
   products always dial an HTTP(S) `base_url`. The UDS *client* lives in the
   Swift app. Worth knowing before anyone writes a doc claiming the CLI can talk
   to a sandboxed embedded server over its socket.
-- **`docs/contributor/architecture/fichero-server/mcp_simple_interface.md`
+- **`docs/contributor_manual/architecture/fichero-server/mcp_simple_interface.md`
   describes a `fichero-mcp` product but sits under the server's architecture
   folder.** Left in place: moving it churns `mkdocs.yml` nav / the docs
   publication allowlist. A later docs-IA pass could relocate it alongside a nav

@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// The ONLY code that reads or writes a node's `prompt` override.
-/// Spec: docs/contributor/specs/workflow-node-config.md §B.
+/// Spec: docs/contributor_manual/specs/workflow-node-config.md §B.
 ///
 /// Pure so the rule "looking never writes, only an edit writes" is a unit
 /// test, not a hope: the editor's appearance path calls nothing here.

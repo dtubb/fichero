@@ -87,7 +87,7 @@ The image-editing surface is **already built and working**, not greenfield:
   cache shows outside the editor. That is the bug to fix, not the whole
   storage layer.
 - **The architecture decision for Quartz already exists** in
-  `docs/contributor/architecture/image_editing_backend_strategy.md` (#2061):
+  `docs/contributor_manual/architecture/image_editing_backend_strategy.md` (#2061):
   Pillow/PyMuPDF stays canonical; Quartz/Core Image is an **Apple-native
   acceleration layer for preview + throughput**, OpenCV stays a narrow
   segmentation/matting helper. #3213 does not need a new decision, it needs

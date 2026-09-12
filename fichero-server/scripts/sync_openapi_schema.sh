@@ -66,7 +66,7 @@ fi
 
 PYTHONPATH="$API_ROOT/src" "$PYTHON_BIN" "$API_ROOT/scripts/generate_openapi_cli.py"
 DEST_SCHEMA="$REPO_ROOT/fichero/fichero-api-client/Sources/FicheroAPIClient/openapi.json"
-DOCS_SCHEMA="$REPO_ROOT/docs/contributor/api-reference/openapi.json"
+DOCS_SCHEMA="$REPO_ROOT/docs/contributor_manual/api-reference/openapi.json"
 
 # Keep the PUBLISHED API-reference schema fresh, independently of the Swift
 # fast path below. The docs copy has no generator/build step, so nothing else
@@ -76,7 +76,7 @@ DOCS_SCHEMA="$REPO_ROOT/docs/contributor/api-reference/openapi.json"
 # ponytail: plain cmp+cp, no build.
 if [ ! -f "$DOCS_SCHEMA" ] || ! cmp -s "$NEW_SCHEMA" "$DOCS_SCHEMA"; then
   cp "$NEW_SCHEMA" "$DOCS_SCHEMA"
-  echo "↻ Refreshed published API-reference schema (docs/contributor/api-reference/openapi.json)"
+  echo "↻ Refreshed published API-reference schema (docs/contributor_manual/api-reference/openapi.json)"
 fi
 
 # Fast path: if the freshly-exported schema is byte-identical to what the

@@ -7,8 +7,8 @@ backed by DuckDB (structured metadata) and LanceDB (vector embeddings).
 
 See the [top-level README](../README.md) for the whole-system picture, the root
 [AGENTS.md](../AGENTS.md) for build/lint/test rules and commit attribution,
-[`docs/contributor/architecture-overview.md`](../docs/contributor/architecture-overview.md)
-for the deep dive, and [docs/user/](../docs/user/) for the user manual.
+[`docs/contributor_manual/architecture-overview.md`](../docs/contributor_manual/architecture-overview.md)
+for the deep dive, and [docs/user_manual/](../docs/user_manual/) for the user manual.
 This file keeps only what is specific to the engine: its layout and how it works.
 
 ## What lives here
@@ -77,7 +77,7 @@ bash fichero-server/scripts/start_backend.sh
 
 For remote / off-network access, the engine still binds loopback only and is
 fronted by `tailscale serve` (never funnel) — see
-`docs/contributor/architecture/` and `docs/contributor/remote-backend-tailscale.md`.
+`docs/contributor_manual/architecture/` and `docs/contributor_manual/remote-backend-tailscale.md`.
 
 ## Test and lint
 
@@ -89,7 +89,7 @@ and `ruff check fichero-server/src/`, both with `PYTHONPATH=fichero-server/src`.
 
 Backend-specific essentials live in [AGENTS.md](AGENTS.md). For the repo-wide
 workflow, see [CONTRIBUTING.md](../CONTRIBUTING.md) and
-[docs/contributor/setup-and-contributing.md](../docs/contributor/setup-and-contributing.md).
+[docs/contributor_manual/setup-and-contributing.md](../docs/contributor_manual/setup-and-contributing.md).
 
 ## How it works — workflows + knowledge graph
 
@@ -111,7 +111,7 @@ workflow, see [CONTRIBUTING.md](../CONTRIBUTING.md) and
 - **Action registry.** Engine mutations flow through a single typed action layer
   (`registry.invoke`) that emits change events and writes an audit record —
   shared by the API, CLI, and (planned) chat/App-Intent tools. See
-  `docs/contributor/action-registry.md`.
+  `docs/contributor_manual/action-registry.md`.
 
 ## MCP server
 

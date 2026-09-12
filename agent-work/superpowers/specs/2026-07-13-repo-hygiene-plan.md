@@ -27,7 +27,7 @@ Every factual claim below was verified against the working tree at `main` (83cc2
 - **588 `.swift` files.** `Views/` has 402 across 27 subfolders + 13 loose at `Views/` root (the `ContentView` family — cohesive, fine). Largest: `Views/Library/` **102**, `Views/Workflow/` **64**, `Views/KnowledgeGraph/` **36**, `Views/Sidebar/` **33**. `Models/` has 91 direct files + `Platform/`; `Services/` 75 direct files.
 - `scripts/check_folder_organization.py` already encodes the offender list (`KNOWN_VIOLATIONS`, :43-52: Models, Services, Views/KnowledgeGraph/OntologyBrowser, Views/Library, Views/Library/DocumentInspector, Views/Library/Inspector, Views/Sidebar, Views/Workflow) with `MAX_DIRECT_SWIFT_FILES = 18` (:31) and suggested subfolders for Views/Library (:38-40). **The reorg's Swift-side definition of done = this guardrail's `KNOWN_VIOLATIONS` shrinks to `{}`.**
 - **Three distinct surfaces confirmed in code** (do not conflate): Preview/source-viewing (`Views/Preview/ImageViewer/`, `QuickLookPreviewViews.swift`, `MediaStreamPreview.swift`), Reader (`Views/Reader/` — `ImmersiveReaderView`, `DocumentTextReader`, `ReaderTabBar`, `PDFPageView`), Inspector/editing (`Views/Inspector/` — presenter, tabs, panes — and `Views/Inspector/Document/` — document-scoped tabs, 24+ files, two >1,100-line files per #3439).
-- **The existing plan doc `docs/contributor/design/swiftui-app-reorg.md` is prior art AND is stale.** It proposes the same Library split (Reading/Representations/Inspector, :63-73) — partly executed since (Reading/ and Inspector/ exist). But it declares Mind-Palace-3D/RealityKit fully removed (:106-132, "No RealityKit import remains"), while today `Views/Space/SpaceSceneView.swift` imports RealityKit and renders "a Spatial room — the `.threeD` render mode". Its file counts are also outdated (Library 65 → now 102). It must be updated or superseded (§9).
+- **The existing plan doc `docs/contributor_manual/design/swiftui-app-reorg.md` is prior art AND is stale.** It proposes the same Library split (Reading/Representations/Inspector, :63-73) — partly executed since (Reading/ and Inspector/ exist). But it declares Mind-Palace-3D/RealityKit fully removed (:106-132, "No RealityKit import remains"), while today `Views/Space/SpaceSceneView.swift` imports RealityKit and renders "a Spatial room — the `.threeD` render mode". Its file counts are also outdated (Library 65 → now 102). It must be updated or superseded (§9).
 - **Canvas naming chaos, frontend:** three sibling folders render the same domain — `Views/Canvas/` (Canvas2DProjection, CanvasOrtho2DRenderer), `Views/Space/` (Canvas3DProjection, CanvasScene3DRenderer, SpaceSceneView), `Views/Spatial/` (Spatial2DCanvasGestures/Items, SpatialView) — plus top-level `CanvasScene/` (7 files). Two naming generations (Spatial*, Canvas*) coexist.
 - **`Services/*ServiceGenerated.swift` are hand-written** despite the suffix — AGENTS.md:375 says so explicitly. The suffix lies to strangers.
 
@@ -197,7 +197,7 @@ Rules for the move worker: follow #3439's discipline — move reusable chrome on
 
 ## 6. Shared vocabulary — concept → word, both sides
 
-No vocabulary table exists (the "#104 table" referenced by #2571 and the reorg doc is a dangling pointer). This section is the seed table; it should land as `docs/contributor/architecture/vocabulary.md` and be referenced from AGENTS.md. **Canonical direction: frontend-first** (per closed #2565's settled approach), except where the UI itself is inconsistent.
+No vocabulary table exists (the "#104 table" referenced by #2571 and the reorg doc is a dangling pointer). This section is the seed table; it should land as `docs/contributor_manual/architecture/vocabulary.md` and be referenced from AGENTS.md. **Canonical direction: frontend-first** (per closed #2565's settled approach), except where the UI itself is inconsistent.
 
 ### 6.1 Already aligned (keep, enforce)
 
@@ -250,11 +250,11 @@ Naive whole-repo "no references" scanning produced 26,000 false positives here (
 Must change in the same PRs as the moves (`check_docs_paths.py` enforces this):
 
 - `AGENTS.md` — §Key Paths (:353), §Working in Xcode (:134 — retire add-swift-file.rb instructions post-conversion), §Docs Placement (:317), §Code Navigation (:273); add pointer to the new vocabulary doc.
-- `docs/contributor/design/swiftui-app-reorg.md` — **stale on two counts** (RealityKit/3D "removed" vs live `Views/Space/SpaceSceneView.swift`; Library file counts). Update to match code or mark superseded-by this plan. Docs describe what is BUILT.
-- `docs/contributor/architecture/fichero/key_files.md`, `overview.md`, `observable_data_layer.md` — path references to Views/Models/Services.
-- `docs/contributor/architecture/fichero-server/key_files.md`, `overview.md`, `KG_ENDPOINTS.md` — route paths and module names.
-- `docs/contributor/architecture-overview.md`, `ui-map.md`, `swiftui-development-standards.md`, `backend-development-standards.md`, `setup-and-contributing.md`, `openapi-and-clients.md`.
-- **New:** `docs/contributor/architecture/vocabulary.md` (§6 table) and a short "where does a new file go" section in `CONTRIBUTING.md` — the literal acceptance test, written down.
+- `docs/contributor_manual/design/swiftui-app-reorg.md` — **stale on two counts** (RealityKit/3D "removed" vs live `Views/Space/SpaceSceneView.swift`; Library file counts). Update to match code or mark superseded-by this plan. Docs describe what is BUILT.
+- `docs/contributor_manual/architecture/fichero/key_files.md`, `overview.md`, `observable_data_layer.md` — path references to Views/Models/Services.
+- `docs/contributor_manual/architecture/fichero-server/key_files.md`, `overview.md`, `KG_ENDPOINTS.md` — route paths and module names.
+- `docs/contributor_manual/architecture-overview.md`, `ui-map.md`, `swiftui-development-standards.md`, `backend-development-standards.md`, `setup-and-contributing.md`, `openapi-and-clients.md`.
+- **New:** `docs/contributor_manual/architecture/vocabulary.md` (§6 table) and a short "where does a new file go" section in `CONTRIBUTING.md` — the literal acceptance test, written down.
 - `mkdocs.yml` nav + `scripts/check_docs_paths_allowlist.json` as paths move.
 - Guardrails-as-docs: `scripts/check_folder_organization.py` (`MIXED_CONCERN_DIRS`/`SUGGESTED_SUBFOLDERS` updated to the §5 targets), `scripts/check_xcode_registration.py` (retire/rewrite post-conversion).
 - `README.md`, `fichero/README.md`, `fichero-server/README.md` (#2556).

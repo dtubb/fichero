@@ -18,7 +18,7 @@ from fichero_cli import __main__ as cli_main
 
 runner = CliRunner()
 
-# Groups every documented workflow in docs/contributor/cli-test-harness.md and
+# Groups every documented workflow in docs/contributor_manual/cli-test-harness.md and
 # AGENTS.md's "reproduce against the CLI first" rule depends on. A rename that
 # drops one of these breaks the harness silently.
 REQUIRED_COMMANDS = (

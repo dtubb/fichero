@@ -135,193 +135,193 @@ nav:
       - Feature Matrix: user/features.md
       # BEGIN generated capability reference nav — scripts/generate_capability_reference.py
       - Reference:
-          - Workflows & Tools: user/reference/index.md
+          - Workflows & Tools: reference_manual/tool_references/index.md
           - Workflows:
-              - Every Workflow: user/reference/workflows/index.md
-              - 1 · Import → Artifacts: user/reference/workflows/1-import-artifacts.md
-              - 2 · Extract Entities: user/reference/workflows/2-extract-entities.md
-              - 3 · Extract SVO → Claims: user/reference/workflows/3-extract-svo-claims.md
-              - 4 · Merge / Dedup: user/reference/workflows/4-merge-dedup.md
-              - 5 · KG Persist / Finalize: user/reference/workflows/5-kg-persist-finalize.md
-              - 6 · Catalogue: user/reference/workflows/6-catalogue.md
-              - AI Convert to HTML: user/reference/workflows/ai-convert-to-html.md
-              - AI Convert to Markdown: user/reference/workflows/ai-convert-to-markdown.md
-              - AI Redraw as SVG: user/reference/workflows/ai-redraw-as-svg.md
-              - Accounts → Spreadsheet (CSV): user/reference/workflows/accounts-spreadsheet-csv.md
-              - Backfill Text Geometry: user/reference/workflows/backfill-text-geometry.md
-              - Capture OCR + Transcribe: user/reference/workflows/capture-ocr-transcribe.md
-              - Catalogue: user/reference/workflows/catalogue.md
-              - Clean Up Text: user/reference/workflows/clean-up-text.md
-              - Describe (visual): user/reference/workflows/describe-visual.md
-              - Detect Segments (Apple Vision): user/reference/workflows/detect-segments-apple-vision.md
-              - Detect Segments (Kraken): user/reference/workflows/detect-segments-kraken.md
-              - Detect Segments (VLM): user/reference/workflows/detect-segments-vlm.md
-              - Diary Entries: user/reference/workflows/diary-entries.md
-              - English Secretary Hand (16th–17th C.): user/reference/workflows/english-secretary-hand-16th17th-c.md
-              - Enhance Images: user/reference/workflows/enhance-images.md
-              - Export to Desktop (MD + DOCX + XLSX): user/reference/workflows/export-to-desktop-md-docx-xlsx.md
-              - Extract Events (Timeline): user/reference/workflows/extract-events-timeline.md
-              - Extract Geo: user/reference/workflows/extract-geo.md
-              - Extract Table: user/reference/workflows/extract-table.md
-              - Fuzzy Clean Images: user/reference/workflows/fuzzy-clean-images.md
-              - Group Same Documents: user/reference/workflows/group-same-documents.md
-              - Latin Paleography: user/reference/workflows/latin-paleography.md
-              - Modernización (Spanish): user/reference/workflows/modernizacion-spanish.md
-              - NER per-page (local): user/reference/workflows/ner-per-page-local.md
-              - Paleografía Española (s. XVIII–XIX): user/reference/workflows/paleografia-espanola-s-xviiixix.md
-              - Paleografía Española (s. XVI–XVII): user/reference/workflows/paleografia-espanola-s-xvixvii.md
-              - Paleographer Review: user/reference/workflows/paleographer-review.md
-              - Prepare Images for OCR: user/reference/workflows/prepare-images-for-ocr.md
-              - Recombine Segments: user/reference/workflows/recombine-segments.md
-              - Regesto (Archival Abstract): user/reference/workflows/regesto-archival-abstract.md
-              - Remove Background Images: user/reference/workflows/remove-background-images.md
-              - Rotate / Auto-Orient Images: user/reference/workflows/rotate-auto-orient-images.md
-              - Segment Images: user/reference/workflows/segment-images.md
-              - Split Chapters: user/reference/workflows/split-chapters.md
-              - Split Images: user/reference/workflows/split-images.md
-              - Transcribe: user/reference/workflows/transcribe.md
-              - Transcribe (Auto-Detect): user/reference/workflows/transcribe-auto-detect.md
-              - Transcribe (Kraken): user/reference/workflows/transcribe-kraken.md
-              - Transcribe + Review (Pipeline): user/reference/workflows/transcribe-review-pipeline.md
-              - Transcribe HTR: user/reference/workflows/transcribe-htr.md
-              - Transcribe Manuscript: user/reference/workflows/transcribe-manuscript.md
-              - Transcribe Paleography: user/reference/workflows/transcribe-paleography.md
-              - Transcribe Paleography (Economy): user/reference/workflows/transcribe-paleography-economy.md
-              - Transcribe Typescript: user/reference/workflows/transcribe-typescript.md
-              - Translate: user/reference/workflows/translate.md
-              - Translate (DeepL): user/reference/workflows/translate-deepl.md
-              - Translate + Double-Check: user/reference/workflows/translate-double-check.md
-              - Translate the Reviewed Transcription: user/reference/workflows/translate-the-reviewed-transcription.md
-              - Translate to English (Historical): user/reference/workflows/translate-to-english-historical.md
+              - Every Workflow: reference_manual/tool_references/workflows/index.md
+              - 1 · Import → Artifacts: reference_manual/tool_references/workflows/1-import-artifacts.md
+              - 2 · Extract Entities: reference_manual/tool_references/workflows/2-extract-entities.md
+              - 3 · Extract SVO → Claims: reference_manual/tool_references/workflows/3-extract-svo-claims.md
+              - 4 · Merge / Dedup: reference_manual/tool_references/workflows/4-merge-dedup.md
+              - 5 · KG Persist / Finalize: reference_manual/tool_references/workflows/5-kg-persist-finalize.md
+              - 6 · Catalogue: reference_manual/tool_references/workflows/6-catalogue.md
+              - AI Convert to HTML: reference_manual/tool_references/workflows/ai-convert-to-html.md
+              - AI Convert to Markdown: reference_manual/tool_references/workflows/ai-convert-to-markdown.md
+              - AI Redraw as SVG: reference_manual/tool_references/workflows/ai-redraw-as-svg.md
+              - Accounts → Spreadsheet (CSV): reference_manual/tool_references/workflows/accounts-spreadsheet-csv.md
+              - Backfill Text Geometry: reference_manual/tool_references/workflows/backfill-text-geometry.md
+              - Capture OCR + Transcribe: reference_manual/tool_references/workflows/capture-ocr-transcribe.md
+              - Catalogue: reference_manual/tool_references/workflows/catalogue.md
+              - Clean Up Text: reference_manual/tool_references/workflows/clean-up-text.md
+              - Describe (visual): reference_manual/tool_references/workflows/describe-visual.md
+              - Detect Segments (Apple Vision): reference_manual/tool_references/workflows/detect-segments-apple-vision.md
+              - Detect Segments (Kraken): reference_manual/tool_references/workflows/detect-segments-kraken.md
+              - Detect Segments (VLM): reference_manual/tool_references/workflows/detect-segments-vlm.md
+              - Diary Entries: reference_manual/tool_references/workflows/diary-entries.md
+              - English Secretary Hand (16th–17th C.): reference_manual/tool_references/workflows/english-secretary-hand-16th17th-c.md
+              - Enhance Images: reference_manual/tool_references/workflows/enhance-images.md
+              - Export to Desktop (MD + DOCX + XLSX): reference_manual/tool_references/workflows/export-to-desktop-md-docx-xlsx.md
+              - Extract Events (Timeline): reference_manual/tool_references/workflows/extract-events-timeline.md
+              - Extract Geo: reference_manual/tool_references/workflows/extract-geo.md
+              - Extract Table: reference_manual/tool_references/workflows/extract-table.md
+              - Fuzzy Clean Images: reference_manual/tool_references/workflows/fuzzy-clean-images.md
+              - Group Same Documents: reference_manual/tool_references/workflows/group-same-documents.md
+              - Latin Paleography: reference_manual/tool_references/workflows/latin-paleography.md
+              - Modernización (Spanish): reference_manual/tool_references/workflows/modernizacion-spanish.md
+              - NER per-page (local): reference_manual/tool_references/workflows/ner-per-page-local.md
+              - Paleografía Española (s. XVIII–XIX): reference_manual/tool_references/workflows/paleografia-espanola-s-xviiixix.md
+              - Paleografía Española (s. XVI–XVII): reference_manual/tool_references/workflows/paleografia-espanola-s-xvixvii.md
+              - Paleographer Review: reference_manual/tool_references/workflows/paleographer-review.md
+              - Prepare Images for OCR: reference_manual/tool_references/workflows/prepare-images-for-ocr.md
+              - Recombine Segments: reference_manual/tool_references/workflows/recombine-segments.md
+              - Regesto (Archival Abstract): reference_manual/tool_references/workflows/regesto-archival-abstract.md
+              - Remove Background Images: reference_manual/tool_references/workflows/remove-background-images.md
+              - Rotate / Auto-Orient Images: reference_manual/tool_references/workflows/rotate-auto-orient-images.md
+              - Segment Images: reference_manual/tool_references/workflows/segment-images.md
+              - Split Chapters: reference_manual/tool_references/workflows/split-chapters.md
+              - Split Images: reference_manual/tool_references/workflows/split-images.md
+              - Transcribe: reference_manual/tool_references/workflows/transcribe.md
+              - Transcribe (Auto-Detect): reference_manual/tool_references/workflows/transcribe-auto-detect.md
+              - Transcribe (Kraken): reference_manual/tool_references/workflows/transcribe-kraken.md
+              - Transcribe + Review (Pipeline): reference_manual/tool_references/workflows/transcribe-review-pipeline.md
+              - Transcribe HTR: reference_manual/tool_references/workflows/transcribe-htr.md
+              - Transcribe Manuscript: reference_manual/tool_references/workflows/transcribe-manuscript.md
+              - Transcribe Paleography: reference_manual/tool_references/workflows/transcribe-paleography.md
+              - Transcribe Paleography (Economy): reference_manual/tool_references/workflows/transcribe-paleography-economy.md
+              - Transcribe Typescript: reference_manual/tool_references/workflows/transcribe-typescript.md
+              - Translate: reference_manual/tool_references/workflows/translate.md
+              - Translate (DeepL): reference_manual/tool_references/workflows/translate-deepl.md
+              - Translate + Double-Check: reference_manual/tool_references/workflows/translate-double-check.md
+              - Translate the Reviewed Transcription: reference_manual/tool_references/workflows/translate-the-reviewed-transcription.md
+              - Translate to English (Historical): reference_manual/tool_references/workflows/translate-to-english-historical.md
           - Tools:
-              - Every Tool: user/reference/tools/index.md
-              - AI Convert: user/reference/tools/convert.md
-              - Adaptive Binarize Images: user/reference/tools/adaptive_binarize_images.md
-              - Agent Coordinator: user/reference/tools/agent_coordinator.md
-              - Aggregate: user/reference/tools/aggregate.md
-              - Align Transcript to Baselines: user/reference/tools/align_transcript.md
-              - Analyze: user/reference/tools/analyze.md
-              - Annotations Source: user/reference/tools/annotations_source.md
-              - Archival Summary: user/reference/tools/catalogue.md
-              - Artifacts Source: user/reference/tools/artifacts_source.md
-              - Auto Crop Scan Borders: user/reference/tools/auto_crop_border_images.md
-              - Auto Deskew Images: user/reference/tools/deskew_images.md
-              - Book Structure: user/reference/tools/book_structure.md
-              - Browser Navigate: user/reference/tools/research_browser_navigate.md
-              - CLI Agent: user/reference/tools/cli_agent.md
-              - Caption: user/reference/tools/caption.md
-              - Classify: user/reference/tools/classify.md
-              - Classify Script Type: user/reference/tools/classify_script.md
-              - Classify Text: user/reference/tools/classify_text.md
-              - Clean Dates (folder): user/reference/tools/dates_folder_cleanup.md
-              - Clean Dates (page): user/reference/tools/dates_page_cleanup.md
-              - Clean Events (folder): user/reference/tools/events_folder_cleanup.md
-              - Clean Events (page): user/reference/tools/events_page_cleanup.md
-              - Clean Keywords (folder): user/reference/tools/keywords_folder_cleanup.md
-              - Clean Keywords (page): user/reference/tools/keywords_page_cleanup.md
-              - Clean Organizations (folder): user/reference/tools/organizations_folder_cleanup.md
-              - Clean Organizations (page): user/reference/tools/organizations_page_cleanup.md
-              - Clean People (folder): user/reference/tools/people_folder_cleanup.md
-              - Clean People (page): user/reference/tools/people_page_cleanup.md
-              - Clean Places (folder): user/reference/tools/places_folder_cleanup.md
-              - Clean Places (page): user/reference/tools/places_page_cleanup.md
-              - Clean Up Text: user/reference/tools/clean_text.md
-              - Collection: user/reference/tools/collection.md
-              - Colors: user/reference/tools/colors.md
-              - Compare: user/reference/tools/compare.md
-              - Consistency Check: user/reference/tools/consistency-check.md
-              - Denoise Images: user/reference/tools/denoise_images.md
-              - Describe: user/reference/tools/describe.md
-              - Describe Video: user/reference/tools/video_describe.md
-              - Detect AI Text: user/reference/tools/detect_ai_text.md
-              - Detect Regions: user/reference/tools/detect_regions.md
-              - Detect Structure: user/reference/tools/detect_structure.md
-              - Diagram: user/reference/tools/diagram.md
-              - Document Fetch: user/reference/tools/research_document_fetch.md
-              - Economy HTR: user/reference/tools/economy_htr.md
-              - Enhance Images: user/reference/tools/enhance_images.md
-              - Export Documents: user/reference/tools/export_documents.md
-              - Extract: user/reference/tools/extract.md
-              - Extract All Entities: user/reference/tools/extract_all.md
-              - Extract Book Index Topics: user/reference/tools/book_index_extract.md
-              - Extract Citation Usage: user/reference/tools/citation_usage_extract.md
-              - Extract Citations: user/reference/tools/citations_extract.md
-              - Extract Date: user/reference/tools/date_extract.md
-              - Extract Dates: user/reference/tools/dates_extract.md
-              - Extract Entities: user/reference/tools/extract_entities.md
-              - Extract Entities: user/reference/tools/extract_entities_only.md
-              - Extract Events: user/reference/tools/events_extract.md
-              - Extract Geo: user/reference/tools/extract_geo.md
-              - Extract Interpretations: user/reference/tools/hermeneutics_extract.md
-              - Extract Keywords: user/reference/tools/keywords_extract.md
-              - Extract Legal References: user/reference/tools/legal_references_extract.md
-              - Extract Mines: user/reference/tools/mines_extract.md
-              - Extract Organizations: user/reference/tools/organizations_extract.md
-              - Extract People: user/reference/tools/people_extract.md
-              - Extract Places: user/reference/tools/places_extract.md
-              - Extract Properties: user/reference/tools/properties_extract.md
-              - Extract Quotes: user/reference/tools/quotes_extract.md
-              - Extract Rivers: user/reference/tools/rivers_extract.md
-              - Extract SVO Claims: user/reference/tools/extract_svo_only.md
-              - Faces: user/reference/tools/faces.md
-              - Files: user/reference/tools/files.md
-              - Folder: user/reference/tools/folder.md
-              - Fuzzy Clean Images: user/reference/tools/fuzzy_clean_images.md
-              - Handwriting: user/reference/tools/handwriting.md
-              - Import Artifacts: user/reference/tools/import_artifacts.md
-              - Interpret: user/reference/tools/interpret.md
-              - KG Persist / Finalize: user/reference/tools/kg_persist_finalize.md
-              - Key People: user/reference/tools/key_people.md
-              - Keywords: user/reference/tools/keywords.md
-              - Language Identification: user/reference/tools/language_identification.md
-              - Layout: user/reference/tools/layout.md
-              - Merge / Dedup: user/reference/tools/merge_dedup_only.md
-              - Merge Geometry: user/reference/tools/merge_geometry.md
-              - Model Comparison: user/reference/tools/model_comparison.md
-              - Named Entity Recognition: user/reference/tools/ner.md
-              - OCR Cleanup: user/reference/tools/ocr_cleanup.md
-              - Objects: user/reference/tools/objects.md
-              - Organize Same Documents: user/reference/tools/organize_same_documents.md
-              - Prepare Images: user/reference/tools/prepare_images.md
-              - Quality: user/reference/tools/quality.md
-              - Questions: user/reference/tools/questions.md
-              - ReAct Agent: user/reference/tools/react_agent.md
-              - Recombine Segments: user/reference/tools/recombine_segments.md
-              - Remove Background Images: user/reference/tools/remove_background_images.md
-              - Rewrite: user/reference/tools/rewrite.md
-              - Rotate / Auto-Orient Images: user/reference/tools/rotate_images.md
-              - Safety: user/reference/tools/safety.md
-              - Scene: user/reference/tools/scene.md
-              - Search: user/reference/tools/search.md
-              - Segment Images: user/reference/tools/segment_images.md
-              - Selection: user/reference/tools/selection.md
-              - Sentiment: user/reference/tools/sentiment.md
-              - Similarity: user/reference/tools/similarity.md
-              - Split Chapters: user/reference/tools/split_chapters.md
-              - Split Diary Entries: user/reference/tools/diary_entries.md
-              - Split Images: user/reference/tools/split_images.md
-              - Style: user/reference/tools/style.md
-              - Sub-Workflow: user/reference/tools/sub_workflow.md
-              - Summarize: user/reference/tools/summarize.md
-              - Summarize Collection: user/reference/tools/summarize_collection.md
-              - Summarize File: user/reference/tools/summarize_file.md
-              - Summarize Folder: user/reference/tools/summarize_folder.md
-              - Supervisor Agent: user/reference/tools/supervisor_agent.md
-              - Swarm Agent: user/reference/tools/swarm_agent.md
-              - Table: user/reference/tools/table_extract.md
-              - Tags: user/reference/tools/tags.md
-              - Text Reflow: user/reference/tools/text_reflow.md
-              - Timeline: user/reference/tools/timeline.md
-              - Transcribe: user/reference/tools/transcribe.md
-              - Transcribe Audio: user/reference/tools/audio_transcribe.md
-              - Transcribe Review: user/reference/tools/transcribe_review.md
-              - Translate: user/reference/tools/translate.md
-              - Translate Review: user/reference/tools/text_translate_review.md
-              - Translate Text: user/reference/tools/text_translate.md
-              - Web Search: user/reference/tools/research_web_search.md
-              - Write File: user/reference/tools/write_file.md
-              - Write KG: user/reference/tools/kg_writer.md
-              - Zoom: user/reference/tools/zoom.md
+              - Every Tool: reference_manual/tool_references/tools/index.md
+              - AI Convert: reference_manual/tool_references/tools/convert.md
+              - Adaptive Binarize Images: reference_manual/tool_references/tools/adaptive_binarize_images.md
+              - Agent Coordinator: reference_manual/tool_references/tools/agent_coordinator.md
+              - Aggregate: reference_manual/tool_references/tools/aggregate.md
+              - Align Transcript to Baselines: reference_manual/tool_references/tools/align_transcript.md
+              - Analyze: reference_manual/tool_references/tools/analyze.md
+              - Annotations Source: reference_manual/tool_references/tools/annotations_source.md
+              - Archival Summary: reference_manual/tool_references/tools/catalogue.md
+              - Artifacts Source: reference_manual/tool_references/tools/artifacts_source.md
+              - Auto Crop Scan Borders: reference_manual/tool_references/tools/auto_crop_border_images.md
+              - Auto Deskew Images: reference_manual/tool_references/tools/deskew_images.md
+              - Book Structure: reference_manual/tool_references/tools/book_structure.md
+              - Browser Navigate: reference_manual/tool_references/tools/research_browser_navigate.md
+              - CLI Agent: reference_manual/tool_references/tools/cli_agent.md
+              - Caption: reference_manual/tool_references/tools/caption.md
+              - Classify: reference_manual/tool_references/tools/classify.md
+              - Classify Script Type: reference_manual/tool_references/tools/classify_script.md
+              - Classify Text: reference_manual/tool_references/tools/classify_text.md
+              - Clean Dates (folder): reference_manual/tool_references/tools/dates_folder_cleanup.md
+              - Clean Dates (page): reference_manual/tool_references/tools/dates_page_cleanup.md
+              - Clean Events (folder): reference_manual/tool_references/tools/events_folder_cleanup.md
+              - Clean Events (page): reference_manual/tool_references/tools/events_page_cleanup.md
+              - Clean Keywords (folder): reference_manual/tool_references/tools/keywords_folder_cleanup.md
+              - Clean Keywords (page): reference_manual/tool_references/tools/keywords_page_cleanup.md
+              - Clean Organizations (folder): reference_manual/tool_references/tools/organizations_folder_cleanup.md
+              - Clean Organizations (page): reference_manual/tool_references/tools/organizations_page_cleanup.md
+              - Clean People (folder): reference_manual/tool_references/tools/people_folder_cleanup.md
+              - Clean People (page): reference_manual/tool_references/tools/people_page_cleanup.md
+              - Clean Places (folder): reference_manual/tool_references/tools/places_folder_cleanup.md
+              - Clean Places (page): reference_manual/tool_references/tools/places_page_cleanup.md
+              - Clean Up Text: reference_manual/tool_references/tools/clean_text.md
+              - Collection: reference_manual/tool_references/tools/collection.md
+              - Colors: reference_manual/tool_references/tools/colors.md
+              - Compare: reference_manual/tool_references/tools/compare.md
+              - Consistency Check: reference_manual/tool_references/tools/consistency-check.md
+              - Denoise Images: reference_manual/tool_references/tools/denoise_images.md
+              - Describe: reference_manual/tool_references/tools/describe.md
+              - Describe Video: reference_manual/tool_references/tools/video_describe.md
+              - Detect AI Text: reference_manual/tool_references/tools/detect_ai_text.md
+              - Detect Regions: reference_manual/tool_references/tools/detect_regions.md
+              - Detect Structure: reference_manual/tool_references/tools/detect_structure.md
+              - Diagram: reference_manual/tool_references/tools/diagram.md
+              - Document Fetch: reference_manual/tool_references/tools/research_document_fetch.md
+              - Economy HTR: reference_manual/tool_references/tools/economy_htr.md
+              - Enhance Images: reference_manual/tool_references/tools/enhance_images.md
+              - Export Documents: reference_manual/tool_references/tools/export_documents.md
+              - Extract: reference_manual/tool_references/tools/extract.md
+              - Extract All Entities: reference_manual/tool_references/tools/extract_all.md
+              - Extract Book Index Topics: reference_manual/tool_references/tools/book_index_extract.md
+              - Extract Citation Usage: reference_manual/tool_references/tools/citation_usage_extract.md
+              - Extract Citations: reference_manual/tool_references/tools/citations_extract.md
+              - Extract Date: reference_manual/tool_references/tools/date_extract.md
+              - Extract Dates: reference_manual/tool_references/tools/dates_extract.md
+              - Extract Entities: reference_manual/tool_references/tools/extract_entities.md
+              - Extract Entities: reference_manual/tool_references/tools/extract_entities_only.md
+              - Extract Events: reference_manual/tool_references/tools/events_extract.md
+              - Extract Geo: reference_manual/tool_references/tools/extract_geo.md
+              - Extract Interpretations: reference_manual/tool_references/tools/hermeneutics_extract.md
+              - Extract Keywords: reference_manual/tool_references/tools/keywords_extract.md
+              - Extract Legal References: reference_manual/tool_references/tools/legal_references_extract.md
+              - Extract Mines: reference_manual/tool_references/tools/mines_extract.md
+              - Extract Organizations: reference_manual/tool_references/tools/organizations_extract.md
+              - Extract People: reference_manual/tool_references/tools/people_extract.md
+              - Extract Places: reference_manual/tool_references/tools/places_extract.md
+              - Extract Properties: reference_manual/tool_references/tools/properties_extract.md
+              - Extract Quotes: reference_manual/tool_references/tools/quotes_extract.md
+              - Extract Rivers: reference_manual/tool_references/tools/rivers_extract.md
+              - Extract SVO Claims: reference_manual/tool_references/tools/extract_svo_only.md
+              - Faces: reference_manual/tool_references/tools/faces.md
+              - Files: reference_manual/tool_references/tools/files.md
+              - Folder: reference_manual/tool_references/tools/folder.md
+              - Fuzzy Clean Images: reference_manual/tool_references/tools/fuzzy_clean_images.md
+              - Handwriting: reference_manual/tool_references/tools/handwriting.md
+              - Import Artifacts: reference_manual/tool_references/tools/import_artifacts.md
+              - Interpret: reference_manual/tool_references/tools/interpret.md
+              - KG Persist / Finalize: reference_manual/tool_references/tools/kg_persist_finalize.md
+              - Key People: reference_manual/tool_references/tools/key_people.md
+              - Keywords: reference_manual/tool_references/tools/keywords.md
+              - Language Identification: reference_manual/tool_references/tools/language_identification.md
+              - Layout: reference_manual/tool_references/tools/layout.md
+              - Merge / Dedup: reference_manual/tool_references/tools/merge_dedup_only.md
+              - Merge Geometry: reference_manual/tool_references/tools/merge_geometry.md
+              - Model Comparison: reference_manual/tool_references/tools/model_comparison.md
+              - Named Entity Recognition: reference_manual/tool_references/tools/ner.md
+              - OCR Cleanup: reference_manual/tool_references/tools/ocr_cleanup.md
+              - Objects: reference_manual/tool_references/tools/objects.md
+              - Organize Same Documents: reference_manual/tool_references/tools/organize_same_documents.md
+              - Prepare Images: reference_manual/tool_references/tools/prepare_images.md
+              - Quality: reference_manual/tool_references/tools/quality.md
+              - Questions: reference_manual/tool_references/tools/questions.md
+              - ReAct Agent: reference_manual/tool_references/tools/react_agent.md
+              - Recombine Segments: reference_manual/tool_references/tools/recombine_segments.md
+              - Remove Background Images: reference_manual/tool_references/tools/remove_background_images.md
+              - Rewrite: reference_manual/tool_references/tools/rewrite.md
+              - Rotate / Auto-Orient Images: reference_manual/tool_references/tools/rotate_images.md
+              - Safety: reference_manual/tool_references/tools/safety.md
+              - Scene: reference_manual/tool_references/tools/scene.md
+              - Search: reference_manual/tool_references/tools/search.md
+              - Segment Images: reference_manual/tool_references/tools/segment_images.md
+              - Selection: reference_manual/tool_references/tools/selection.md
+              - Sentiment: reference_manual/tool_references/tools/sentiment.md
+              - Similarity: reference_manual/tool_references/tools/similarity.md
+              - Split Chapters: reference_manual/tool_references/tools/split_chapters.md
+              - Split Diary Entries: reference_manual/tool_references/tools/diary_entries.md
+              - Split Images: reference_manual/tool_references/tools/split_images.md
+              - Style: reference_manual/tool_references/tools/style.md
+              - Sub-Workflow: reference_manual/tool_references/tools/sub_workflow.md
+              - Summarize: reference_manual/tool_references/tools/summarize.md
+              - Summarize Collection: reference_manual/tool_references/tools/summarize_collection.md
+              - Summarize File: reference_manual/tool_references/tools/summarize_file.md
+              - Summarize Folder: reference_manual/tool_references/tools/summarize_folder.md
+              - Supervisor Agent: reference_manual/tool_references/tools/supervisor_agent.md
+              - Swarm Agent: reference_manual/tool_references/tools/swarm_agent.md
+              - Table: reference_manual/tool_references/tools/table_extract.md
+              - Tags: reference_manual/tool_references/tools/tags.md
+              - Text Reflow: reference_manual/tool_references/tools/text_reflow.md
+              - Timeline: reference_manual/tool_references/tools/timeline.md
+              - Transcribe: reference_manual/tool_references/tools/transcribe.md
+              - Transcribe Audio: reference_manual/tool_references/tools/audio_transcribe.md
+              - Transcribe Review: reference_manual/tool_references/tools/transcribe_review.md
+              - Translate: reference_manual/tool_references/tools/translate.md
+              - Translate Review: reference_manual/tool_references/tools/text_translate_review.md
+              - Translate Text: reference_manual/tool_references/tools/text_translate.md
+              - Web Search: reference_manual/tool_references/tools/research_web_search.md
+              - Write File: reference_manual/tool_references/tools/write_file.md
+              - Write KG: reference_manual/tool_references/tools/kg_writer.md
+              - Zoom: reference_manual/tool_references/tools/zoom.md
       # END generated capability reference nav
   - Contributor Guide:
       - Overview: contributor/README.md

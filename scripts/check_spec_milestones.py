@@ -24,7 +24,7 @@ import shutil
 import subprocess
 import sys
 
-SPECS_DIR = pathlib.Path("docs/contributor/specs")
+SPECS_DIR = pathlib.Path("docs/contributor_manual/specs")
 MILESTONE_RE = re.compile(r"Milestone:\s*(\S+)")
 
 # Specs approved BEFORE the milestone-declaration rule (2026-09-09). They graduate off this

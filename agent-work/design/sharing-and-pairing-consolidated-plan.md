@@ -161,7 +161,7 @@ TestFlight build, iPad/Vision Pro clients) either depends on it or is peripheral
 
 One paragraph: this milestone is **essentially complete**. Tailnet transport detection, Bonjour
 advertisement, self-signed TLS + SPKI exposure, the loopback+`tailscale serve` model
-(`docs/contributor/remote-backend-tailscale.md`, verified current and accurate against
+(`docs/contributor_manual/remote-backend-tailscale.md`, verified current and accurate against
 `bind_host.py`), the platform abstraction layer, and the AppKit-to-SwiftUI audit are all closed
 and confirmed in code. Only generic "someday" web-client work remains open.
 
@@ -169,7 +169,7 @@ and confirmed in code. Only generic "someday" web-client work remains open.
 |---|---|---|---|
 | 1182 | Platform expansion: web UI + iOS/iPad sharing FastAPI backend | DESIGN-BLOCKED | no active design; genuine product-priority fork (see Decisions below) |
 | 1094 | Web client calling the engine | DESIGN-BLOCKED | same fork as 1182 |
-| ...16 closed | Tailnet detection, Bonjour+TLS LAN listener, platform abstraction, AppKit audit, remote iOS/iPad target, no-local-paths audit | BUILT | verified: `docs/contributor/remote-backend-tailscale.md` matches `bind_host.py` current behavior exactly (loopback default, explicit-ack escape hatch, `tailscale serve` not funnel) |
+| ...16 closed | Tailnet detection, Bonjour+TLS LAN listener, platform abstraction, AppKit audit, remote iOS/iPad target, no-local-paths audit | BUILT | verified: `docs/contributor_manual/remote-backend-tailscale.md` matches `bind_host.py` current behavior exactly (loopback default, explicit-ack escape hatch, `tailscale serve` not funnel) |
 
 ### #205 — Engine - Sharing - Settings (0 issues)
 
@@ -209,7 +209,7 @@ subsystems. Grounded in verified code:
    defaults to `127.0.0.1`; any non-loopback bind (LAN direct or otherwise) requires the explicit
    `FICHERO_ALLOW_NON_LOOPBACK_BIND=I_UNDERSTAND_SHARED_SECRET_RISK` acknowledgement. The
    documented supported remote path is loopback + `tailscale serve` (never funnel) — verified
-   current and accurate in `docs/contributor/remote-backend-tailscale.md`. **Open tension** (see
+   current and accurate in `docs/contributor_manual/remote-backend-tailscale.md`. **Open tension** (see
    Decisions #1): the shipped one-action "Share this library" toggle auto-supplies that
    acknowledgement env for same-network LAN sharing (per the 07-14 design's Flag 1) — this was
    flagged for Daniel a week ago and this audit could not confirm it was resolved. It should be

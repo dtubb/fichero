@@ -55,6 +55,15 @@
                ReferencedContainer = "container:fichero.xcodeproj">
             </BuildableReference>
          </TestableReference>
+         <TestableReference
+            skipped = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "208ADA983022008100B83F96"
+               BuildableName = "FicheroIOSTests.xctest"
+               ReferencedContainer = "container:fichero.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction

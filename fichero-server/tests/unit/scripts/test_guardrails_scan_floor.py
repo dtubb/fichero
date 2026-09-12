@@ -48,7 +48,7 @@ FLOORED_CHECKS: dict[str, dict] = {
             "fichero-server/tests/contracts/openapi.json": json.dumps(
                 {"openapi": "3.1.0", "info": {"title": "t", "version": "0"}, "paths": {}}
             ),
-            "docs/contributor/api-reference/openapi.json": json.dumps(
+            "docs/contributor_manual/api-reference/openapi.json": json.dumps(
                 {"openapi": "3.1.0", "info": {"title": "t", "version": "0"}, "paths": {}}
             ),
         },
@@ -60,7 +60,7 @@ FLOORED_CHECKS: dict[str, dict] = {
             "fichero-server/tests/contracts/openapi.json": json.dumps(
                 {"openapi": "3.1.0", "info": {"title": "t", "version": "0"}, "paths": {}}
             ),
-            "docs/contributor/api-reference/openapi.json": json.dumps(
+            "docs/contributor_manual/api-reference/openapi.json": json.dumps(
                 {"openapi": "3.1.0", "info": {"title": "t", "version": "0"}, "paths": {}}
             ),
         },
@@ -74,7 +74,7 @@ FLOORED_CHECKS: dict[str, dict] = {
         ],
         "files": {
             "fichero-server/tests/contracts/openapi.json": _EMPTY_OPENAPI,
-            "docs/contributor/api-reference/openapi.json": _EMPTY_OPENAPI,
+            "docs/contributor_manual/api-reference/openapi.json": _EMPTY_OPENAPI,
         },
         "extra_scripts": [
             "matrix_guardrail_common.py",

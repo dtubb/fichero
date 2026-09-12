@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """Build the full User Guide .docx: manuscript chapters + capability reference.
 
-Daniel's rulings (2026-08-29): the generated reference IS an appendix inside
+Ruling (2026-08-29): the generated reference IS an appendix inside
 the printed book, prompts in small type, wording stays honest
 ("Human-verified: not yet"). The manuscript master in Drive is never touched;
 this writes a separate built artifact beside it.
 
 Order (deterministic, mirrors the site):
-  docs/user/guide/NN-*.md            (the human-edited chapters)
+  docs/user_manual/guide/NN-*.md     (the maintainer's Tinderbox-authored chapters)
   Appendix part page (generated)
-  docs/user/reference/index.md
-  docs/user/reference/workflows/index.md + workflows/*.md
-  docs/user/reference/tools/index.md + tools/*.md
+  docs/reference_manual/tool_references/index.md
+  docs/reference_manual/tool_references/workflows/index.md + workflows/*.md
+  docs/reference_manual/tool_references/tools/index.md + tools/*.md
 
 Usage:
   python3 scripts/build_manual_appendix.py             # writes the Drive docx
@@ -30,8 +30,8 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 DRIVE = Path.home() / "My Drive/Tubb Lab/Apps/Fichero"
 PANDOC = shutil.which("pandoc") or "/opt/homebrew/bin/pandoc"
-GUIDE = REPO / "docs/user/guide"
-REFERENCE = REPO / "docs/user/reference"
+GUIDE = REPO / "docs/user_manual/guide"
+REFERENCE = REPO / "docs/reference_manual/tool_references"
 CODE_PT_HALF = "16"  # 8pt — the small-type ruling for prompts
 
 
@@ -118,7 +118,7 @@ def main() -> int:
         "-f", "gfm", "-o", str(args.out),
         "--reference-doc", str(ref_doc),
         "--toc", "--toc-depth=2",
-        "--resource-path", f"{REPO}/docs/user/guide:{REPO}/docs/user/reference/workflows:{REPO}/docs/user/reference/tools:{REPO}/docs/user/reference",
+        "--resource-path", f"{REPO}/docs/user_manual/guide:{REPO}/docs/reference_manual/tool_references/workflows:{REPO}/docs/reference_manual/tool_references/tools:{REPO}/docs/reference_manual/tool_references",
         "--metadata", "title=Fichero User Guide",
     ]
     r = subprocess.run(cmd, capture_output=True, text=True)

@@ -580,7 +580,7 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
 
     /// #4447: the two literals below were checked absent in only two named
     /// preview files. The invariant is the HARD rule "no local paths — the
-    /// server may be remote" (see `docs/contributor/architecture`), which
+    /// server may be remote" (see `docs/contributor_manual/architecture`), which
     /// applies to every preview/activity surface, not just the two that broke
     /// once. A THIRD surface fabricating a local file URL would have passed
     /// silently. Verified zero occurrences app-wide before landing.

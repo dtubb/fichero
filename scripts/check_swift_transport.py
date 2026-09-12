@@ -41,7 +41,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SWIFT_DIR = ROOT / "fichero" / "fichero"
-RULE_DOC = "docs/contributor/architecture/fichero/api_client.md"
+RULE_DOC = "docs/contributor_manual/architecture/fichero/api_client.md"
 
 _BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
 _LINE_COMMENT = re.compile(r"(?<!:)//.*")

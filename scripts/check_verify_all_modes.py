@@ -79,16 +79,16 @@ def scan() -> dict[str, str]:
         "no silent localhost fallback",
     ]
     if not CHECKLIST.exists():
-        issues["docs/contributor/qa/remote-pairing-smoke-checklist.md"] = "manual smoke checklist file is missing"
+        issues["docs/contributor_manual/qa/remote-pairing-smoke-checklist.md"] = "manual smoke checklist file is missing"
     else:
         for phrase in checklist_checks:
             if phrase not in checklist_text:
-                issues[f"docs/contributor/qa/remote-pairing-smoke-checklist.md::{phrase}"] = (
+                issues[f"docs/contributor_manual/qa/remote-pairing-smoke-checklist.md::{phrase}"] = (
                     f"missing checklist step: {phrase}"
                 )
 
     if not CAPTURE_MATRIX.exists():
-        issues["docs/contributor/qa/capture-smoke-matrix.md"] = "capture smoke matrix file is missing"
+        issues["docs/contributor_manual/qa/capture-smoke-matrix.md"] = "capture smoke matrix file is missing"
     else:
         capture_text = _read(CAPTURE_MATRIX).lower()
         capture_checks = [
@@ -101,7 +101,7 @@ def scan() -> dict[str, str]:
         ]
         for phrase in capture_checks:
             if phrase not in capture_text:
-                issues[f"docs/contributor/qa/capture-smoke-matrix.md::{phrase}"] = (
+                issues[f"docs/contributor_manual/qa/capture-smoke-matrix.md::{phrase}"] = (
                     f"missing capture smoke step: {phrase}"
                 )
 

@@ -55,8 +55,8 @@ guidance see [fichero/AGENTS.md](fichero/AGENTS.md) and for the Python engine se
 
 For the fuller repo
 conventions, see
-[docs/contributor/setup-and-contributing.md](docs/contributor/setup-and-contributing.md).
-The [Contributor Guide](docs/contributor/README.md) is the entry point for the whole
+[docs/contributor_manual/setup-and-contributing.md](docs/contributor_manual/setup-and-contributing.md).
+The [Contributor Guide](docs/contributor_manual/README.md) is the entry point for the whole
 contributor manual: architecture, the OpenAPI contract, the action registry, the
 security model, and the release lane.
 
@@ -205,7 +205,7 @@ codebase most relies on:
 
 ## Releases
 
-The release lane is documented in [docs/contributor/release/release-lane.md](docs/contributor/release/release-lane.md).
+The release lane is documented in [docs/contributor_manual/release/release-lane.md](docs/contributor_manual/release/release-lane.md).
 It covers the notarized DMG/Sparkle/GitHub path and the separate Mac TestFlight
 archive/upload path. The wrapper script is:
 

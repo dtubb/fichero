@@ -16,7 +16,7 @@ cites a file. Priority feature = **contiguous / multi-select** (Phase 2 below).
 - Views: `Views/Sidebar/**` (37 files, ~6.8k LoC). Entry: `SidebarView.swift`.
 - Selection: `Views/Sidebar/State/SidebarStateManagers.swift`
   (`SidebarSelectionState`, `SidebarDestination`).
-- Node model backing: `docs/contributor/node-model.md`,
+- Node model backing: `docs/contributor_manual/node-model.md`,
   `fichero-server` `Document.node_kind` (read-only reference — engine not touched).
 - Existing tests: `fichero/fichero-tests/Models/SidebarItemTests.swift` (Swift Testing).
 
@@ -91,7 +91,7 @@ Selection is per scene: `@SceneStorage("selectedSidebarItem")` (`LibraryWindow.s
 one `SidebarSelectionState` per `ContentView`. "Sidebar is per tab" already holds.
 Data flows through `@Observable` stores (`libraryManager`, `documentStore`, …);
 the sidebar builds `SidebarItem`s from those, matching the node model
-(`docs/contributor/node-model.md`: everything is a `Document` with
+(`docs/contributor_manual/node-model.md`: everything is a `Document` with
 `doc_type`/`node_kind`/`prototype_key`) and the observable-data-layer /
 knowledge-consistency mandates (no hand-rolled `URLSession`).
 

@@ -47,7 +47,7 @@ PY_MODELS = ROOT / "fichero-server" / "src" / "fichero_server" / "models" / "__i
 # to that file: this went red the moment the declaration moved, which is the
 # audit trigger working — repoint it when the function moves, never loosen it.
 DECODER = ROOT / "fichero" / "fichero" / "Services" / "DocumentService+DocumentConversion.swift"
-RULE_DOC = "docs/contributor/architecture/fichero/reform_masterplan_2026-06.md"
+RULE_DOC = "docs/contributor_manual/architecture/fichero/reform_masterplan_2026-06.md"
 
 # Engine enum  ->  the Swift decoder switch that classifies it into a renderer.
 ENUM_DECODERS = {

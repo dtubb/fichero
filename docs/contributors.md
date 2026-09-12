@@ -1,6 +1,6 @@
 # Contributor(s)
 
-Fichero is 100% AI coded, under the creative direction of its contributors. Right now, that's just me, [Daniel Tubb](https://tubb.ca).
+Fichero is 100% AI coded, under the Creative Direction of its contributors. (Right now, that's just me, [Daniel Tubb](https://tubb.ca)). I welcome contributors.
 
 ## Daniel Tubb
 
@@ -17,7 +17,7 @@ As well as a writer and anthropologist, I have been a long-time Mac user. I thin
 I love AI for fixing my typos, but like many I have become alarmed by the way it is used in the classroom to prevent critical thinking. Yet I am also convinced that AI tools can allow us to do better research. Research that would otherwise have been impossible.
 
 Why then use AI to write a Mac app? It's a tool that I began to vibe code as a Python CLI app in 2024 while on sabbatical, and for a while it was a Toga/Briefcase Mac, Windows, and Android app. But, in December 2025, I decided to start over from scratch, to make a SwiftUI app for Mac, iOS, and iPad, with a Python server on the backend. Without AI, Fichero would not exist. So, Fichero has at once been a project that is vibe coded, and increasingly, vibe directed. If my purpose was to write the best Mac app, would this be the way to proceed? I have no idea. But, my purpose is to make a good enough tool to work with archives and research materials. Fichero does that.
- 
+
 Fichero is the tool I want for reading old archives and historical materials, as well as my own research notes and field notes. These are about a million words. The former will allow me to work on a large synthesis project on the origins of agricultural systems in Colombia, and the latter will allow me to finish a project on makeshift writing.
 
 So, Fichero is at once a tool to help me do this work and a tool for others, I hope. 

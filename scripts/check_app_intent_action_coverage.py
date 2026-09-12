@@ -41,7 +41,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 ENGINE_DIR = ROOT / "fichero-server" / "src" / "fichero_server"
 INTENTS_DIR = ROOT / "fichero" / "fichero" / "Intents"
-RULE_DOC = "docs/contributor/architecture/fichero/reform_masterplan_2026-06.md"
+RULE_DOC = "docs/contributor_manual/architecture/fichero/reform_masterplan_2026-06.md"
 
 _ACTION_DECL_RE = re.compile(r"@action\(\s*\"([a-zA-Z0-9_.]+)\"")
 _INTENT_REF_RE = re.compile(r"invokeAuditedAction\(\s*\"([a-zA-Z0-9_.]+)\"")

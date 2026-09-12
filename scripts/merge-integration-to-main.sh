@@ -24,7 +24,7 @@
 # Every other dirty path is still a hard error.
 
 REGENERATED_FILES=(
-  "docs/contributor/api-reference/openapi.json"
+  "docs/contributor_manual/api-reference/openapi.json"
   "fichero-server/tests/contracts/openapi.json"
   "fichero/fichero-api-client/Sources/FicheroAPIClient/openapi.json"
   "RELEASE_NOTES.md"
@@ -159,7 +159,7 @@ else
   echo "── Sync generated OpenAPI contracts ──"
   ./fichero-server/scripts/sync_openapi_schema.sh
   if ! git diff --quiet; then
-    git add docs/contributor/api-reference/openapi.json \
+    git add docs/contributor_manual/api-reference/openapi.json \
       fichero-cli/src/fichero_cli/openapi_surface_generated.py \
       fichero-server/tests/contracts/endpoints.json \
       fichero-server/tests/contracts/openapi.json \

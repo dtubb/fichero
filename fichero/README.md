@@ -5,7 +5,7 @@ accepts input, and talks to the FastAPI engine over pinned HTTPS loopback. The
 logic — ingest, search, knowledge graph, workflows — lives in the engine, not
 here. See the [top-level README](../README.md) for the whole-system picture, the
 root [AGENTS.md](../AGENTS.md) for build/lint/test rules and commit attribution, and
-[docs/contributor/](../docs/contributor/) for the developer docs. This file
+[docs/contributor_manual/](../docs/contributor_manual/) for the developer docs. This file
 keeps only what is specific to the app: its layout and key concepts.
 
 ## What lives here
@@ -97,7 +97,7 @@ the OpenAPI schema after backend changes, the three-leg Swift check) live in the
 ## Read next
 
 - Repo-wide workflow and verification: [../AGENTS.md](../AGENTS.md)
-- SwiftUI conventions: [../docs/contributor/swiftui-development-standards.md](../docs/contributor/swiftui-development-standards.md)
-- OpenAPI round-trip contract: [../docs/contributor/openapi-and-clients.md](../docs/contributor/openapi-and-clients.md)
-- Observable data layer: [../docs/contributor/architecture/fichero/observable_data_layer.md](../docs/contributor/architecture/fichero/observable_data_layer.md)
-- Sparkle updater release setup: [../docs/contributor/release/sparkle-release.md](../docs/contributor/release/sparkle-release.md)
+- SwiftUI conventions: [../docs/contributor_manual/swiftui-development-standards.md](../docs/contributor_manual/swiftui-development-standards.md)
+- OpenAPI round-trip contract: [../docs/contributor_manual/openapi-and-clients.md](../docs/contributor_manual/openapi-and-clients.md)
+- Observable data layer: [../docs/contributor_manual/architecture/fichero/observable_data_layer.md](../docs/contributor_manual/architecture/fichero/observable_data_layer.md)
+- Sparkle updater release setup: [../docs/contributor_manual/release/sparkle-release.md](../docs/contributor_manual/release/sparkle-release.md)

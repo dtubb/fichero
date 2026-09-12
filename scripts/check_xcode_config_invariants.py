@@ -8,7 +8,7 @@ container. Config truth lived only in prose nothing checked. This guardrail asse
 matrix from the project files themselves, so the drift is a red test — not a debugging
 session. Cheap: pure file parse, no Xcode build. Runs in verify_all.sh.
 
-Invariants (verified 2026-09-09, spec: docs/contributor/specs/xcode-build-configs.md):
+Invariants (verified 2026-09-09, spec: docs/contributor_manual/specs/xcode-build-configs.md):
   * Dev Local scheme -> buildConfiguration "Debug" (the UI-test host).
   * Debug config -> ENABLE_APP_SANDBOX = NO (unsandboxed so tests reach temp-dir fixtures).
   * Dev Embedded / Release / App Store configs -> ENABLE_APP_SANDBOX = YES.

@@ -6,7 +6,7 @@ import SwiftUI
 /// Shows the few fields a researcher checks most often when scanning a
 /// document: status, kind, ingest mode, timestamps. The list is intentionally
 /// short — anything more belongs in the Info tab. See
-/// docs/contributor/architecture/fichero/inspector_redesign.md.
+/// docs/contributor_manual/architecture/fichero/inspector_redesign.md.
 struct DisplayAttributesStrip: View {
     let document: Document
 

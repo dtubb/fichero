@@ -20,7 +20,7 @@ let webContentRecoveryLogger = Logger(
 /// reader/preview pane until the user changed documents (empirically
 /// reproduced 2026-08-04: a minimal sandboxed WKWebView host on macOS 26.3
 /// had its WebContent process terminate once during startup with zero app
-/// code involved — see docs/contributor/qa/known-launch-log-noise.md).
+/// code involved — see docs/contributor_manual/qa/known-launch-log-noise.md).
 ///
 /// The policy is deliberately bounded: reload on termination, but never more
 /// than `maxAttempts` times within `attemptWindow`. A renderer that dies the

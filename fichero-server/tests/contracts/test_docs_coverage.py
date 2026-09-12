@@ -36,7 +36,7 @@ def test_every_public_openapi_path_is_documented_or_allowlisted() -> None:
     missing = sorted(public - documented - set(allowlisted))
 
     assert not missing, (
-        f"{len(missing)} public OpenAPI path(s) are not mentioned in docs/contributor/api-reference/*.md "
+        f"{len(missing)} public OpenAPI path(s) are not mentioned in docs/contributor_manual/api-reference/*.md "
         f"and not allowlisted in {ALLOWLIST.relative_to(ROOT)}:\n  " + "\n  ".join(missing)
     )
 

@@ -1,6 +1,6 @@
 """Deterministic readable rendering of the KG (biography / regest / gazetteer).
 
-spec: docs/contributor/specs/kg-readable-representation.md
+spec: docs/contributor_manual/specs/kg-readable-representation.md
 
 The Reiter & Dale NLG pipeline, built as small pure functions over KnowledgeClaim so the
 whole thing is testable without a GUI, an engine, or an LLM. NOTHING here calls a model:
@@ -19,7 +19,7 @@ adds the entry/biography-scale stages around it (Reiter & Dale). Built so far:
 
 Not yet built: stage 4 (lexicalisation — per-language verb lexicon) beyond the count/place
 glue; deferred until the corpus's languages + real verb vocab are grounded (spec open Q).
-See docs/contributor/specs/kg-readable-representation.md for the pipeline + behaviors.
+See docs/contributor_manual/specs/kg-readable-representation.md for the pipeline + behaviors.
 """
 from __future__ import annotations
 

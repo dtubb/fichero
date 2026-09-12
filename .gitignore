@@ -133,3 +133,8 @@ HISTORY*.md
 fichero-server/tests/perf/history.jsonl
 fichero-server/tests/history.jsonl
 .netlify/
+
+# Authoring source for the User Guide (Scrivener/Tinderbox project + sync +
+# images). The maintainer authors here and EXPORTS to docs/user_manual/;
+# the source itself is not tracked. See AGENTS.md "Authorship model".
+/user_guide/

@@ -12,7 +12,7 @@ otherwise.
 Access limitation, stated up front: this session had no `gh` access and the repo is private, so
 issues #3275, #3278, #3291, #2865, #2579, #2584, #2663, #2620, #1093 could not be read directly.
 Their content is taken from the task brief's summary plus the local design doc
-`docs/contributor/design/ios-ipad-embedding-plan.md` (2026-07-06) and the shipping code
+`docs/contributor_manual/design/ios-ipad-embedding-plan.md` (2026-07-06) and the shipping code
 (`EngineConfig.swift` `iosCompanion`, verified in source today). Flagged again in Open Questions.
 
 ---
@@ -308,7 +308,7 @@ subprocess architecture impossible, in-process architecture legal-but-uninstalla
 
 **Repo files read (2026-07-13):**
 - `fichero-server/pyproject.toml` (full dependency manifest)
-- `docs/contributor/design/ios-ipad-embedding-plan.md` (2026-07-06 survey; feasibility matrix)
+- `docs/contributor_manual/design/ios-ipad-embedding-plan.md` (2026-07-06 survey; feasibility matrix)
 - `agent-work/superpowers/specs/2026-07-13-mac-app-store-sandbox-research.md` (sibling macOS report)
 - `fichero/fichero/Services/EngineConfig.swift`, `EmbeddedBackendService.swift`,
   `fichero-tests/EngineProvisioningStrategyTests.swift` (iosCompanion posture, via grep)

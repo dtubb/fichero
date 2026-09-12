@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Capability-reference freshness guardrail.
 
-The user manual's workflow/tool reference under `docs/user/reference/` is
+The generated workflow/tool reference under `docs/reference_manual/tool_references/` is
 GENERATED from the engine's own tool registry and shipped workflow presets
 (scripts/generate_capability_reference.py). That is the whole point: the manual
 cannot claim a prompt the app no longer sends.

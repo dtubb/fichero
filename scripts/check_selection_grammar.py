@@ -7,7 +7,7 @@ implementation never reproduces by accident. `SelectionGrammar` states them
 once. The failure this guards against is not "a mode has a bug"; it is a mode
 being ADDED that never delegates, which is how the app arrived at six
 implementations of one concept (see
-docs/contributor/architecture/fichero/library_selection_inventory.md).
+docs/contributor_manual/architecture/fichero/library_selection_inventory.md).
 
 The rule: inside the library view-mode tree, a write to the selection set or to
 the anchor/cursor must go through the grammar — `apply(...)`,
