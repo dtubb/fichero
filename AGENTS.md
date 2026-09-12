@@ -1,16 +1,15 @@
 # AGENTS.md: Operational Manual
 
 The single canonical agent/operational doc for Fichero. Every coding agent —
-Codex, Claude Code, and Claude-in-Xcode — reads this file. (`CLAUDE.md` is a thin
-pointer here.) The product north-star is `CONSTITUTION.md`; the detailed
-architecture/development guide is `AGENTS.md`; the session-start / manager
+Codex, Claude Code, Claude-in-Xcode — reads this file (`CLAUDE.md` is a thin
+pointer here). Product north-star: `CONSTITUTION.md`. Session-start / manager
 skills under `agents/skills/` tell each lane its job.
 
-Two roles, one layer (spec: `docs/contributor/specs/dev-orchestration-harness.md`): the **manager**
-(the interactive session — it coordinates, reviews, owns the verify gate, AND integrates/merges;
-manager = integrator) and the **worker** (implements + tests its own diff). Start a session with
-`/session-start-manager` or `/session-start-worker`; it loads context and reports state. Work happens
-on the milestone branch this worktree is on. Commit directly, no per-task branches.
+Two roles, one layer (spec: `docs/contributor/specs/dev-orchestration-harness.md`):
+the **manager** (the interactive session — coordinates, reviews, owns the verify
+gate, AND integrates/merges) and the **worker** (implements + tests its own diff).
+Start with `/session-start-manager` or `/session-start-worker`. Work happens on
+the milestone branch this worktree is on — commit directly, no per-task branches.
 
 ---
 
@@ -34,55 +33,36 @@ bash fichero-server/scripts/start_backend.sh   # server (serves HTTPS; app pins 
 swiftlint lint fichero/fichero/
 ```
 
-**The run target is `Fichero (Dev Embedded)`** (design lead, 2026-08-04). Run the app
-under that scheme when handing a build back for testing.
+**`Fichero (Dev Embedded)` is the RUN scheme** (design lead, 2026-08-04); **`Fichero
+(Dev Local)` is the TEST scheme.** Dev Embedded's config is `Dev Embedded`, not
+`Debug` — `DEBUG` is undefined, so `EngineConfig.engineProvisioningStrategy()`
+resolves to `.releaseEmbedded` and **the app spawns and owns the bundled engine**
+on the same UDS socket a hand-started `start_backend.sh` uses
+(`EngineConfig.udsSocketPath`) — stop any hand-started engine first, or you get
+two engines on one socket. The embedded engine is also UDS-only (no TCP, no TLS),
+so **the CLI and MCP server cannot reach it**; to exercise CLI/MCP, run a
+`start_backend.sh` engine (HTTPS `:8765`) instead — app quit, or against a
+scratch library (two engines must never open the same DuckDB).
 
-It is NOT a Debug build: its build configuration is `Dev Embedded`, which does
-not define `DEBUG`, so `EngineConfig.engineProvisioningStrategy()` resolves to
-`.releaseEmbedded` — **the app spawns and owns the bundled engine**. That has one
-operational consequence worth stating plainly:
-
-> **Stop any hand-started engine before running Dev Embedded.** The spawn sets
-> `FICHERO_UDS_PATH` to `EngineConfig.udsSocketPath`
-> (`EmbeddedBackendService+Spawn.swift:221`) — the same socket a
-> `start_backend.sh` engine binds. Two engines, one socket path.
-
-> **The CLI and MCP server cannot reach a Dev Embedded engine.** The embedded
-> engine binds UDS-only (no TCP port, no TLS — `__main__.py`, Lane E), and the
-> CLI/MCP clients speak TCP only. To exercise the CLI or MCP, run a
-> `start_backend.sh` engine (HTTPS `:8765`) — with the app QUIT if they must
-> share the same library, or against a scratch/temp library while the app runs
-> (two engines must never open the same DuckDB). Verified live 2026-08-27.
-
-Contrast `Fichero (Dev Local)`, whose configuration IS `Debug` and therefore
-resolves to `.debugExternal`: it never spawns, and *requires* a developer-run
-engine to adopt (the engine is deliberately not bundled in Debug, #3042). Under
-Dev Local a hand-started engine is mandatory; under Dev Embedded it is a
-conflict. Swift optimization is `-Onone` in both, so neither is the "faster"
-build — they differ in who owns the engine, not in speed.
+Dev Local's config IS `Debug`, resolving to `.debugExternal`: it never spawns
+and *requires* a developer-run engine (not bundled in Debug, #3042) — the
+opposite requirement of Dev Embedded. Swift optimization is `-Onone` in both;
+they differ in who owns the engine, not in speed.
 
 **Which tests the gates actually run — and what they deliberately skip.** Every
 gate (`verify_python.sh`, `verify_all.sh --standard`, `build-and-validate.sh`)
 covers `fichero-server/tests/unit/` plus, in `verify_all`, `tests/contracts/`.
-**`fichero-server/tests/perf/` is run by NOTHING automatically** — that is
-deliberate, not an oversight:
+**`fichero-server/tests/perf/` is run by NOTHING automatically** — run it on
+purpose via `scripts/verify_perf.sh` (~50 min).
 
-```bash
-scripts/verify_perf.sh          # the perf suite, on purpose (~50 min)
-```
+Do NOT reach for the whole-tree `pytest fichero-server/tests` form: it silently
+pulls in the perf suite and takes ~70 minutes (two perf tests alone were 73% of
+a measured 4219s full run, #4039) — they're SLOW, not hung, and print nothing
+under `-q` for ~25 min each; `verify_perf.sh` streams progress instead.
 
-Do NOT reach for the whole-tree `pytest fichero-server/tests` form. It silently
-pulls in the perf suite and takes ~70 minutes: measured 2026-07-28, a full-tree
-run was 4219s of which **two perf tests were 3089s — 73% of the entire suite**
-(`test_list_entities_full_scale` 1612s, `test_list_entities_doc_scoped_scale`
-1477s). Everything outside `tests/perf/` finishes in under 12s per test. Those
-two are SLOW, not hung — under `-q` they print nothing for ~25 minutes each and
-have been mistaken for a hang (#4039); `verify_perf.sh` streams their output so
-you can see progress.
-
-Because a perf run and an Xcode build together have pushed this machine past
-the load where the OS starts killing processes, check `pgrep -f xcodebuild`
-before starting either the perf suite or a whole-tree pytest run.
+A perf run and an Xcode build together can push this machine past the load
+where the OS starts killing processes — check `pgrep -f xcodebuild` before
+starting either the perf suite or a whole-tree pytest run.
 
 **Working in a git worktree?** A worktree has no `.venv` of its own. Activate the one from
 your main checkout, but keep `PYTHONPATH=fichero-server/src` **relative to the worktree**
@@ -90,26 +70,30 @@ your main checkout, but keep `PYTHONPATH=fichero-server/src` **relative to the w
 and test the *other* tree and get a green run that means nothing. Never write an absolute
 path like `~/code/fichero/.venv` into a doc or a script; it is only true on one machine.
 
-- **Backend API changed?** Regenerate the committed client or the Swift build breaks: `./fichero-server/scripts/sync_openapi_schema.sh` (change API → sync → commit regen).
+- **Backend API changed?** `start_backend.sh` **auto-syncs the OpenAPI client on startup** (default;
+  `--no-sync`/`--fast` skip it), so a normal server restart regenerates the committed client for you
+  — then commit the regen. Run `./fichero-server/scripts/sync_openapi_schema.sh` directly only when
+  you changed the API but aren't restarting the server. (Skipping the sync → the Swift build breaks
+  against a stale client.)
 - **Ship tests with the change.** Every SwiftUI fix or feature lands with new/updated unit tests in the same commit; write the failing test first for a bug. Test the logic (state, predicates, builders, ID parsing) rather than the rendered pixels, and eyeball pixels by running the built app.
 - **Risky diff?** Anything touching auth, file I/O, network, secrets, or keychain → run `/security-review`.
 
-**Testing manual: `docs/contributor/TESTING.md`.** The short version:
-`fichero/Tests/Unit/general/` mirrors `fichero/fichero/` — a new test goes in the
-folder matching the code under test (plus `Transport/` and `Contract/`
-buckets); shared specimen files live in `test-fixtures/files/`, resolved ONLY
-via `tests/fixture_paths.py` (Python) or `TestFixtures.swift` (Swift); seeded
-libraries come only from `seed_test_library.py`; and the coverage ratchet
-(`scripts/check_coverage_ratchet.py` + `coverage-baseline.json`) fails any
-run whose coverage drops — baselines move only by deliberate
+**Testing manual: `docs/contributor/TESTING.md`.** Short version:
+`fichero/Tests/Unit/general/` mirrors `fichero/fichero/` — a new test goes in
+the matching folder (plus `Transport/`/`Contract/` buckets); shared specimen
+files live in `test-fixtures/files/`, resolved ONLY via `tests/fixture_paths.py`
+/ `TestFixtures.swift`; seeded libraries come only from `seed_test_library.py`;
+the coverage ratchet (`scripts/check_coverage_ratchet.py` + `coverage-baseline.json`)
+fails any run whose coverage drops — baselines move only by deliberate
 `--update-baseline` commits.
 
 **Design-led surfaces carry ONE name across three places** (guardrails enforce, all in the gate):
 a spec `docs/contributor/specs/<name>.md`, a GitHub milestone named `<name>` (its description
 points back at the spec), and a test tag of the same area name **front and back** — Swift `@Tag`
-in `TestTags.swift`, pytest marker in `fichero-server/pyproject.toml`. Approving a spec means:
-flip `Status: APPROVED`, declare `Milestone: <name>`, create/rename that milestone, and cite the
-spec from ≥1 test. See `docs/contributor/TEST-TEMPLATE.md`.
+in `fichero/Tests/Unit/general/TestTags.swift`, pytest marker in `fichero-server/pyproject.toml`.
+`scripts/check_specs_have_tests.py` binds spec↔test; `scripts/check_spec_milestones.py` binds
+spec↔milestone. Approving a spec means: flip `Status: APPROVED`, declare `Milestone: <name>`,
+create/rename that milestone, and cite the spec from ≥1 test. See `docs/contributor/TEST-TEMPLATE.md`.
 
 ---
 
@@ -135,33 +119,25 @@ Two dispatch modes — pick by lifetime, not habit:
 - **tmux worktree lanes — ONLY for long, cross-turn work** (a whole milestone that must
   survive across turns). Then, and only then:
 
-  **`scripts/spawn-worker.sh` is the canonical launcher for a tmux lane. Use it; do not hand-roll.**
+  **`scripts/spawn-worker.sh` is the canonical launcher for a tmux lane — use it, never hand-roll.**
 
   ```bash
   scripts/spawn-worker.sh <opus|sonnet> "<Milestone Title>" [session-name]
   ```
 
-  It fetches, creates the worktree off **`origin/main`** (never stale local `main`),
-  opens a detached tmux session in it, activates the venv, launches the agent, and feeds
-  the worker prompt scoped to that milestone. Worktrees land under
-  `$FICHERO_WORKTREES` (default: a `fichero-worktrees/` beside your checkout). It prints
-  the `tmux attach -t <session>` command to watch it.
-
-  Hand-rolling `git worktree add … main` branches off whatever your local `main` happens
-  to be, which is how a worker starts on stale code.
+  It fetches, creates the worktree off **`origin/main`** (never stale local `main` —
+  hand-rolling `git worktree add … main` starts a worker on stale code), opens a
+  detached tmux session, activates the venv, and feeds the worker prompt scoped to
+  that milestone. Worktrees land under `$FICHERO_WORKTREES` (default: a
+  `fichero-worktrees/` beside your checkout); it prints the `tmux attach` command.
 - The manager **reviews** each worker's output (ponytail lens plus `/code-review`),
   **build-gates** it, runs `verify_all`, then **merges via PR**, closes the issues,
-  and **re-dispatches** the next batch. It checks in on the workers about every 15
-  minutes.
-- **Then it CLEANS UP.** A worker's lifecycle is: issue (under a milestone) → worktree
-  → integrate (cherry-pick/merge) + build-verify → **close the issue** → **remove the
-  worktree AND delete its branch**. Do not leave merged worktrees lying around — they
-  rot into stale-code and phantom-diff hazards. Remove with `git worktree remove`
-  (never `rm -rf` a sibling worktree), then `git worktree prune`; delete the throwaway
-  `worktree-agent-*` / lane branch. Periodically sweep: any agent worktree that is
-  `ahead:0` of integration (its work is merged) and carries only build cruft (a
-  `dd-worker/` derived-data dir, etc.) is safe to remove. Keep only worktrees with an
-  ACTIVE worker or genuinely unintegrated commits.
+  and **re-dispatches** the next batch. It checks in on workers about every 15 minutes.
+- **Then it CLEANS UP.** Lifecycle: issue → worktree → integrate + build-verify →
+  **close the issue** → **remove the worktree AND delete its branch** (`git worktree
+  remove`, never `rm -rf` a sibling worktree; then `git worktree prune`). Merged
+  worktrees left lying around rot into stale-code and phantom-diff hazards. Keep only
+  worktrees with an ACTIVE worker or genuinely unintegrated commits.
 
 Workers never push to shared branches for the manager; the manager owns the merge.
 This keeps one Xcode and one full-suite run as the gate while many workers grind in
@@ -175,77 +151,59 @@ pass them — pinning test in the same PR. Cross-surface invariant tests and cap
 tests HARD-GATE; other new tests are tracked coverage debt. A regression is not fixed until a test
 that would have caught it exists.
 
-**One name across design, issues, and tests** (guardrails enforce, all in the gate): an APPROVED
-spec `<name>.md` declares `Milestone: <name>` matching a GitHub milestone of the same name (its
-description points back at the spec), and its tests carry a tag of the same area name — Swift
-`@Tag` in `fichero/Tests/Unit/general/TestTags.swift`, pytest marker in `fichero-server/pyproject.toml`.
-`scripts/check_specs_have_tests.py` binds spec↔test; `scripts/check_spec_milestones.py` binds
-spec↔milestone. Approving a spec means: flip `Status: APPROVED`, declare the milestone, create/rename
-it, and cite the spec from ≥1 test.
-
 ## Git Practices — Lanes, Integration, Commits
 
 Short-lived **lane branches** (one worker, one worktree under
 `~/code/fichero-worktrees/<name>`, branched off `origin/main`) merge into an
-**integration branch** when 2+ lanes must land together; the manager gates
-the combined diff there (full suite, 0 failed) before fast-forwarding to
-`main`. Delete a lane branch once its commits reach `main` — nothing is
-lost, the commits stay reachable by SHA / `git log --grep` / the closed
-issue.
+**integration branch** when 2+ lanes must land together; the manager gates the
+combined diff there (full suite, 0 failed) before fast-forwarding to `main`.
+Delete a lane branch once its commits reach `main` — nothing is lost, commits
+stay reachable by SHA / `git log --grep` / the closed issue.
 
 **Commit, never stash.** Park interrupted work as a WIP commit on the lane
-branch, not `git stash` — a stash doesn't survive a worktree teardown and is
-invisible outside the shell that made it. Baseline-diffing (comparing two
-tree states) happens in a **separate worktree**, never via
-stash-and-checkout in the same one (see `agent-work/design/git-practices-fabel-review.md`
-Rule "stash-pop hazard").
+branch — a stash doesn't survive a worktree teardown. Baseline-diffing happens
+in a **separate worktree**, never stash-and-checkout in the same one (see
+`agent-work/design/git-practices-fabel-review.md` "stash-pop hazard").
 
 **Bring an agent up to speed with data, not a long-lived branch:**
-`agents/ROADMAP.md` + GitHub milestones for "what's next", per-area
-`*_STATUS.md` / fabel-review docs for "what's the current state",
-conventional-commit scopes (`git log --grep '(#1234)'`) for "what happened
-and why". A branch several agents keep rebasing onto is the failure mode
-this replaces.
+`agents/ROADMAP.md` + GitHub milestones for "what's next", `*_STATUS.md` /
+fabel-review docs for "what's the current state", commit-scope grep (`git log
+--grep '(#1234)'`) for "what happened and why" — not a branch several agents
+keep rebasing onto.
 
 **Verification runs in the foreground.** Any agent whose job is "verify then
-commit" (worker or otherwise) blocks on its own check and commits in the
-SAME turn it sees the result. Never launch a background test + a `Monitor`
-and pause — the turn ends before the result lands, and the agent loops
-without ever committing.
+commit" blocks on its own check and commits in the SAME turn it sees the
+result — never a background test + a `Monitor` + pause, or the turn ends
+before the result lands and the agent loops without ever committing.
 
-**Path-keyed guardrails move with the file.** Any commit that moves, renames,
-or splits a file must update every `scripts/check_*.py` `TARGET_FILES`-style
-constant and guardrail allowlist in the SAME commit — see "A `pytest -k`
-subset skips the architecture guardrails" in Common Pitfalls below; the
-guardrail's own test files are part of the gate, not optional.
-
-Full rationale and the incidents behind each rule:
+**Path-keyed guardrails move with the file.** A commit that moves, renames, or
+splits a file must update every `scripts/check_*.py` `TARGET_FILES`-style
+constant and guardrail allowlist in the SAME commit (see "A `pytest -k` subset
+skips the architecture guardrails" below) — the guardrail's own test files are
+part of the gate, not optional. Full rationale:
 `agent-work/design/git-practices-fabel-review.md`.
 
 ### Manager loop — use the scripts, don't improvise
 
-The manager drives work through three scripts. **Do not hand-pick issues, hand-edit ROADMAP order, or `gh issue create` by hand** — that is how duplicate/mis-placed milestones crept in.
+The manager drives work through these scripts. **Do not hand-pick issues, hand-edit ROADMAP order, or `gh issue create` by hand** — that is how duplicate/mis-placed milestones crept in.
 
-1. **Pick next work** — `python3 scripts/choose_next.py [--json]`. It walks the
-   `## Tier` PRIORITY SPINE in `agents/ROADMAP.md` (foundations-first, milestone
-   order = ascending due-date) and returns the highest-priority *ready, unclaimed*
-   batch (it already skips `status:in-progress`/`blocked`, `needs:human`, assigned).
+1. **Pick next work** — `python3 scripts/choose_next.py [--json]`: walks the
+   `## Tier` PRIORITY SPINE in `agents/ROADMAP.md` (foundations-first, ascending
+   due-date) and returns the highest-priority *ready, unclaimed* batch.
 2. **Size each issue** — `python3 scripts/dispatch_advisor.py <issue#>` → `mini |
    regular | frontier` worker class.
 3. **Dispatch by lane label** — `backend` → codex · `client:swiftui` → claude ·
    `docs` → codex-docs. External worktree only, **commit-only, one build at a time**
    (serialize-builds rule). `needs-design` issues are NOT for free-model workers.
 4. **File any new issue** — `scripts/file_issue.sh --title ... --type ... --lane ...
-   [--milestone ... | let it route]`. It validates the milestone is OPEN, rejects
-   closed ones with their successor, enforces the 15 canonical labels, auto-routes
-   by keywords. `--dry-run` to preview, `--self-test` to check the router.
+   [--milestone ...]` (`--dry-run` to preview). It validates the milestone is OPEN,
+   enforces the 15 canonical labels, and auto-routes by keywords.
 5. **On a red test** — `python3 scripts/tests_to_issues.py <junit.xml>` files one
-   tracked issue per failing test (labeled to its lane) so nothing is lost on a crash.
-6. **Gate** from the **repo root** (some contract tests read source via root-relative
-   paths): `bash scripts/verify_all.sh --standard|--full` — or the PYTHONPATH-forced
-   backend gate on the integrate worktree. Then merge via PR, close issues, re-run
-   `choose_next.py`. Do NOT hand-edit ROADMAP order / milestone `due_on` — ask the
-   board organizer to re-sort.
+   tracked issue per failing test so nothing is lost on a crash.
+6. **Gate** from the **repo root** (contract tests read root-relative paths):
+   `bash scripts/verify_all.sh --standard|--full`. Then merge via PR, close issues,
+   re-run `choose_next.py`. Do NOT hand-edit ROADMAP order / milestone `due_on` —
+   ask the board organizer to re-sort.
 
 **Lane discipline:** two workers must never own the same file — overlap = an
 unmergeable collision (see the disjoint-ownership rule). Before dispatching, check
@@ -281,14 +239,11 @@ filled worker-loop template.
 
 ## Working in Xcode
 
-When an agent runs **inside Xcode** (Claude-in-Xcode / the `xcode-tools` MCP server), prefer the MCP tools over command-line `ls`/`find` — every shell invocation may prompt the user for approval, so use them sparingly.
+When an agent runs **inside Xcode**, prefer the MCP tools over command-line `ls`/`find` — every shell invocation may prompt the user for approval.
 
 - **Build** with `BuildProject` (Xcode MCP) rather than raw `xcodebuild` — it shares Xcode.app's cache and avoids `build.db` lock contention.
-- **New Apple APIs**: use `DocumentationSearch` (Xcode MCP) liberally. It runs locally, returns compact results fast, and is newer than training data. ALWAYS search for these if referenced — they post-date most training data:
-  - **Liquid Glass** — the current design system.
-  - **FoundationModels** — on-device ML framework with macros for structured generation.
-  - **SwiftUI** keeps evolving (especially around `NSViewRepresentable`-era patterns) — don't assume the latest way of doing anything. If you can't find an implementation of something in the project, assume it's new API and search for it.
-- **The three-leg Swift check** before declaring SwiftUI work done, in order: (1) `swiftlint lint fichero/fichero/` clean; (2) `BuildProject` succeeds; (3) `RunAllTests` passes. A build log alone is not done; a green test run alone is not done. `XcodeRefreshCodeIssuesInFile` gives fast per-file diagnostics for the inner loop but does NOT substitute for a full build. Use `RenderPreview` / visual capture for rendered-UI changes.
+- **New Apple APIs**: use `DocumentationSearch` (Xcode MCP) liberally — it's newer than training data. ALWAYS search for **Liquid Glass** (design system), **FoundationModels** (on-device ML), and evolving **SwiftUI** patterns (`NSViewRepresentable`-era) before assuming an implementation doesn't exist.
+- **The three-leg Swift check** before declaring SwiftUI work done, in order: (1) `swiftlint lint fichero/fichero/` clean; (2) `BuildProject` succeeds; (3) `RunAllTests` passes. `XcodeRefreshCodeIssuesInFile` gives fast per-file diagnostics but does NOT substitute for a full build; use `RenderPreview` for rendered-UI changes.
 - **Limit changes to the requested task** — don't make unrelated edits.
 
 SwiftUI code-style guidelines live in `docs/contributor/swiftui-development-standards.md`; the deeper architecture reference in `docs/contributor/architecture-overview.md`.
@@ -301,9 +256,9 @@ One gate, tiered. Run from the repo root:
 
 - `bash scripts/verify_all.sh --fast` — swiftlint + ruff + `scripts/check_*.py` guardrails + version-date + OpenAPI model sync. Cheap; workers can run it.
 - `--standard` — fast + backend pytest unit tests.
-- `--full` — standard + platform legs (macOS Xcode build/test + the generic iOS Simulator compile gate; `--macos` / `--ios` to select). The manager owns `--full`.
+- `--full` — standard + platform legs (macOS Xcode build/test + the generic, device-less iOS Simulator compile gate; `--macos` / `--ios` to select). The manager owns `--full`.
 
-Backend pytest needs `PYTHONPATH=fichero-server/src`; write-suites need their `FICHERO_RUN_*` flag. Parse the summary — merge only on **0 failed**. The macOS/UI leg needs a live window server (screen unlocked + `caffeinate -d`); a locked screen makes XCUITest time out. The iOS leg is compile-only and device-less: `bash scripts/verify_all.sh --standard --ios` uses `-destination 'generic/platform=iOS Simulator'` and isolated generated DerivedData/output directories (named `verify-all-derived` and `ios-simulator`) under the build output area, so CI/manager gates iOS compilation without booting or naming a simulator.
+Backend pytest needs `PYTHONPATH=fichero-server/src`; write-suites need their `FICHERO_RUN_*` flag. Parse the summary — merge only on **0 failed**. The macOS/UI leg needs a live window server (screen unlocked + `caffeinate -d`) or XCUITest times out. The iOS leg (`--ios`) is compile-only, using isolated DerivedData/output dirs so it never boots or names a simulator.
 
 ## Verify the part you touched (`gate part`) — do this AS YOU WORK
 
@@ -331,16 +286,12 @@ Every test is timed and held to its **best-ever** result (#4439, milestone
 
 Comparison is against the best ever, never against last week — otherwise the
 window absorbs each regression and the bar drifts up with the thing it was
-meant to catch. Fifty accepted 5% slips are a 12x slowdown.
+meant to catch (fifty accepted 5% slips are a 12x slowdown).
 
-### Why this is a working habit, not a release step
-
-A slowdown found before a release is attributable: one person, one change, one
-afternoon. Found at release time it belongs to nobody — whoever did the work has
-long since moved on, and the answer becomes "raise the budget". That is how a
-project gets slower every version while every individual change looked fine.
-
-So: **the issue you are working on is the unit of performance, not the release.**
+**Why this is a working habit, not a release step:** a slowdown found before a
+release is attributable to one person, one change, one afternoon; found at
+release time it belongs to nobody, and the answer becomes "raise the budget."
+**The issue you are working on is the unit of performance, not the release.**
 If your area has no entry in `area_table()` in `scripts/gate`, add one — a
 prefix and a test path, two minutes — rather than skipping the check.
 
@@ -419,21 +370,18 @@ all validation live in the engine. `litellm` is metadata only — `get_model_inf
 and `cost_per_token()`. It never routes a call.
 
 **Why the split is load-bearing, not stylistic.** Other clients exist (CLI, MCP, and
-later web and other people's machines), and they must agree. The moment a client
-*decides* an outcome, every other client is wrong until it recomputes the same way.
-Two clients with the same logic drift; two clients rendering the same server state
-cannot. Both halves of today's scope bug were this: the client resolved a workflow's
-target set from `documentStore.currentDocuments` and sent the result — once too wide
-(#4396), once collapsed to a single item (#4419). **Clients send what the user pointed
-at; the server resolves what that means.**
+later web and other people's machines), and they must agree. Two clients with the
+same logic drift; two clients rendering the same server state cannot — a workflow's
+target set resolved client-side went wrong twice, once too wide (#4396), once
+collapsed to one item (#4419). **Clients send what the user pointed at; the server
+resolves what that means.**
 
 The corollary is real-time propagation: a change in one client reaches the others
-without a refresh. `api/change_stream.py` already carries a domain-typed vocabulary
-(`entity.updated`, `claim.updated`, `document.updated`, plus `stream.gap` /
-`stream.resync_required`), and stores observe it. What is missing is coverage — a
-mutation that does not emit is invisible to every other client, which is how the
-Knowledge Graph inspector stopped updating (#4392). **Emit at the write, not at each
-caller**, or the next caller forgets. See #4427.
+without a refresh via `api/change_stream.py`'s domain-typed vocabulary
+(`entity.updated`, `claim.updated`, `document.updated`, `stream.gap`/
+`stream.resync_required`) — but a mutation that does not emit is invisible to every
+other client (how the KG inspector stopped updating, #4392). **Emit at the write,
+not at each caller**, or the next caller forgets. See #4427.
 
 **Where things live.** Pydantic models in `fichero-server/src/fichero_server/models/`;
 the OpenAPI schema generated from them; the Swift client generated from that schema;
@@ -443,69 +391,45 @@ rather than fetching. `fichero-cli` and `fichero-mcp` are thin — every command
 is one or two HTTP calls through `FicheroClient`, and **no backend logic lives in
 either**. If a client needs logic, the logic belongs in the engine.
 
-- **Route tiers.** `FICHERO_FEATURE_TIER` (`release` | `beta` | `alpha` | `dev`,
-  default `release`) in `api/main.py`, table in `api/feature_tiers_generated.py`.
-  **21 route groups are tier-gated** (checked by `scripts/check_agents_route_tier_claim.py`),
-  and a default (release) engine registers
-  only `/api/ingest` and `/api/search` of them — `workflows`, `workflow-execution`,
-  `kg`, `claims`, `activity`, `providers`, `models`, `chat`, `research`, `mcp` and
-  the rest need `beta`+ (`iiif`/`schedules`/`triggers` need `dev`,
-  `integrations`/`mcp-servers` need `alpha`). The app spawns its engine at its own
-  build tier, so it never notices; a hand-started engine at the default tier 404s
-  the entire workflow/KG surface, which reads as "the CLI is broken" (#4470,
-  found live in #4465). A gated route's 404 now NAMES the tier that would expose
-  it (`install_tier_aware_not_found`, api/main.py) — route-raised 404s such as
-  "Document not found" pass through unchanged.
-  Route registration is therefore a poor signal of whether a feature is *usable* —
-  the UI is flag-gated separately.
+- **Route tiers.** `FICHERO_FEATURE_TIER` (`release` | `beta` | `alpha` | `dev`, default
+  `release`) in `api/main.py`, table in `api/feature_tiers_generated.py`. **21 route
+  groups are tier-gated** (`scripts/check_agents_route_tier_claim.py` checks it); a
+  default (release) engine registers only `/api/ingest` and `/api/search` — `workflows`,
+  `kg`, `claims`, `chat`, `mcp` and the rest need `beta`+. The app spawns its engine at
+  its own build tier so it never notices, but a hand-started engine at the default tier
+  404s the whole workflow/KG surface (#4470) — the 404 now NAMES the tier that would
+  expose it. Route registration is a poor usability signal — the UI is flag-gated separately.
 - **What ships to a user** is decided by `FeatureManager.resetToV001()` in
-  `fichero/fichero/Models/FeatureManager.swift`, re-applied on every
-  `releaseProfileVersion` bump. `docs/user/features.md` is derived from it.
-- **Databases:** `~/Library/Application Support/Fichero/fichero.duckdb` and
-  `.../lance/`. Never query them directly — everything goes through `db.py`.
+  `fichero/fichero/Models/FeatureManager.swift`, re-applied on every `releaseProfileVersion` bump.
+- **Databases:** `~/Library/Application Support/Fichero/fichero.duckdb` and `.../lance/`.
+  Never query them directly — everything goes through `db.py`.
 - **Engine is macOS-only when embedded.** Briefcase declares one platform; iOS and
   iPadOS always talk to a remote engine. See `fichero-server/README.md`.
-- **Restaging the embedded engine — use a script, never bare `briefcase`.**
+- **Restaging the embedded engine — use a script, never bare `briefcase`:**
 
   ```bash
   scripts/preflight-embedded-engine.sh --rebuild   # the restage; Xcode runs the no-arg form itself
   fichero-server/scripts/build_backend_bundle.sh   # full rebuild + Briefcase sign (release path)
   ```
 
-  `briefcase update -r` by hand is **not** a restage. `update` re-installs app
-  code and requirements; it never re-renders the generated app template, so
-  `Contents/Info.plist` keeps whatever `CFBundleShortVersionString` was current
-  the last time `briefcase create` ran. (briefcase 0.4.2,
-  `commands/update.py: UpdateCommand.update_app` — code, requirements,
-  resources, support, stub, and no cookiecutter pass.)
-
-  2026-09-01, the failure that put this paragraph here: `~/code/fichero` held
-  **three** versions at once — `Info.plist` 2026.8.27 (last `create`, Aug 30),
-  `fichero_server-2026.8.31b1.dist-info` (a hand-run `update -r`), and
-  `pyproject.toml` 2026.9.1b2 (that morning's date stamp). Both scripts above
-  now recreate the template when the stamped version has drifted, so a restage
-  carries the current version instead of a fossil.
-
-- **The version label is checked at launch, not just at build.** The embed phase
-  stamps `FicheroEmbeddedEngineVersion` (the version of the engine bundle it
-  actually copied) and `FicheroExpectedEngineVersion` (the checkout's
-  `fichero-server/pyproject.toml` at build time) into the host app's
-  `Info.plist`. When the engine reports ready, `AppState` compares them against
-  the `backend_version` `/api/health` returns and — on any mismatch — logs an
-  error and shows a dismissible banner above the window content saying which
-  version is running and which was expected. `scripts/check_engine_version_stamp.py`
-  guards that the embed phase still writes the stamps.
+  `briefcase update -r` by hand is **not** a restage — it never re-renders the generated
+  app template, so `Info.plist` keeps a stale `CFBundleShortVersionString` (once left three
+  drifted version stamps at once, 2026-09-01). Both scripts above recreate the template
+  when the stamped version has drifted.
+- **The version label is checked at launch, not just at build.** The embed phase stamps
+  `FicheroEmbeddedEngineVersion` (bundle copied) and `FicheroExpectedEngineVersion`
+  (checkout's `pyproject.toml` at build time) into `Info.plist`; `AppState` compares them
+  against `/api/health`'s `backend_version` and shows a banner on mismatch.
+  `scripts/check_engine_version_stamp.py` guards that the embed phase writes the stamps.
 
 ---
 
 ## MCP Tools
 
-**The live tool list in your session is authoritative.** The repo pins nothing —
-there is no `.mcp.json`. Every MCP server comes from the agent's own global or
-plugin config, varies per harness (Claude Code, Codex, Claude-in-Xcode), and changes
-over time. A roster here would rot; this is deliberate.
-
-What the harness *needs*, and what to do when it is missing:
+**The live tool list in your session is authoritative.** The repo pins nothing — no
+`.mcp.json`. Every MCP server comes from the agent's own global/plugin config, varies
+per harness, and changes over time; a roster here would rot. What the harness *needs*,
+and what to do when it is missing:
 
 | Capability | Server | If absent |
 |---|---|---|
@@ -528,45 +452,22 @@ simplification). Both are enforced by review, not by a script.
 
 The ones that cost hours, and that no test catches for you:
 
-- **New `.swift` files just work — never run `add-swift-file.rb` on the app
-  target.** The `Fichero` target is a synchronized folder; explicit registration
-  now DUPLICATES the build file (warning storm). Never hand-edit
-  `project.pbxproj`. (Test targets are sync'd groups too.)
-- **`PYTHONPATH=fichero-server/src` on every Python command.** The shared `.venv` is
-  editable-installed against your MAIN checkout, not this worktree; without it, a
-  worktree gates the *stale* tree — a green run that means nothing.
-- **Never bare `uvicorn`.** The app pins `https://127.0.0.1:8765` fail-closed. Use
-  `fichero-server/scripts/start_backend.sh`.
-- **Multi-library requests need the `X-Fichero-Library-Path` header** (app-wide
-  endpoints — health, providers/catalog, settings — skip it).
-- **A `pytest -k` subset skips the architecture guardrails.** Anything touching a
-  persisted DB, a route, or a Swift service needs the full run.
-- **Paths assembled from parts hide from a string sweep.** `ROOT / "docs" / "<page>.md"`
-  has no `docs/<page>.md` substring to grep. Moving a file breaks it silently.
-- **Backtick text inside `git commit -m "..."` is command substitution.** The shell
-  executes it and pastes the output into your message. Use `git commit -F <file>`.
-- **Automated edits and function-local imports do not mix — AST-audit after
-  any scripted import change.** During #4487's 44-file floor sweep, a batch
-  import-inserter matched a *function-local* `import sys` and spliced a
-  module-level import into the function body; `ruff --fix` then compounded it
-  by deleting the now-"unused" import while `_sys` references remained.
-  Neither tool was wrong in isolation — each reasoned about a file the other
-  had just changed under a different model of it. After any scripted edit
-  that touches imports across many files, run
-  `python -c "import ast; ast.parse(open(f).read())"` over every touched file
-  (the #4487 batch did, and that audit is why only one file needed repair).
-- **Renames/moves break path-keyed guardrails.** `PERSISTENCE_PATH`,
-  `WILDCARD_BIND`, the XML chokepoint check, `db_access`,
-  `single_connection`, and every `check_*.py` `TARGET_FILES` list hardcode
-  paths. A move that doesn't update them in the same commit gives a false
-  green (7 regressions from #3751/#3754). Grep for the old path across
-  `scripts/check_*.py` before committing a rename.
+- **New `.swift` files just work — never run `add-swift-file.rb` on the app target.** It's a synchronized folder; explicit registration DUPLICATES the build file. Never hand-edit `project.pbxproj`.
+- **`PYTHONPATH=fichero-server/src` on every Python command.** The shared `.venv` is editable-installed against your MAIN checkout, not this worktree — without it, a worktree gates the *stale* tree.
+- **Never bare `uvicorn`.** The app pins `https://127.0.0.1:8765` fail-closed. Use `fichero-server/scripts/start_backend.sh`.
+- **Multi-library requests need the `X-Fichero-Library-Path` header** (app-wide endpoints — health, providers/catalog, settings — skip it).
+- **A `pytest -k` subset skips the architecture guardrails.** Anything touching a persisted DB, a route, or a Swift service needs the full run.
+- **Paths assembled from parts hide from a string sweep.** `ROOT / "docs" / "<page>.md"` has no `docs/<page>.md` substring to grep — moving a file breaks it silently.
+- **Backtick text inside `git commit -m "..."` is command substitution** — the shell executes it and pastes the output into your message. Use `git commit -F <file>`.
+- **Automated edits and function-local imports do not mix — AST-audit after any scripted import change.** A batch import-inserter once spliced a *function-local* `import sys` into a module-level import, then `ruff --fix` deleted it as "unused" while references remained (#4487). Run `python -c "import ast; ast.parse(open(f).read())"` over every touched file after any scripted import change.
+- **Renames/moves break path-keyed guardrails.** `PERSISTENCE_PATH`, `WILDCARD_BIND`, `db_access`, `single_connection`, and every `check_*.py` `TARGET_FILES` list hardcode paths — a move that doesn't update them gives a false green (7 regressions from #3751/#3754). Grep for the old path across `scripts/check_*.py` before committing a rename.
 
 ---
 
 ## Code Navigation
 
-When a code-intelligence MCP server (jcodemunch) is connected, prefer it over Read/Grep/Glob for code questions — it is an AST index with large token savings. If it is **not** connected, fall back to Read/Grep and say so. Typical routing:
+jcodemunch is an AST index with large token savings over Read/Grep/Glob (fallback per
+MCP Tools above). Typical routing:
 
 | Question | tool |
 |---|---|
@@ -582,29 +483,24 @@ Start a session with `plan_turn { repo: ".", query: "<task>" }` for confidence +
 
 ---
 
-## Commit Format
+## Commit Format & Attribution
 
-Conventional commits — `feat:`, `fix:`, `chore:`, `refactor:`, `test:`, `docs:`, `style:` — always referencing a GitHub issue: `feat: add tasks router (#420)`. GitHub Issues + Milestones is the source of truth for the backlog.
+Conventional commits — `feat:`, `fix:`, `chore:`, `refactor:`, `test:`, `docs:`, `style:`
+— always referencing a GitHub issue: `feat: add tasks router (#420)`. GitHub Issues +
+Milestones is the source of truth for the backlog.
 
----
-
-## Commit Attribution
-
-Each agent commits as ITSELF. The author is the agent doing the work; the
-committer stays the human.
-
-- Claude writing → author `Claude <noreply@anthropic.com>`
-- Codex writing → author `Codex <noreply@anthropic.com>`
-- Other model → that model's name with `<noreply@anthropic.com>`
+**Each agent commits as ITSELF** — author is the agent doing the work (Claude writing
+→ `Claude <noreply@anthropic.com>`, Codex → `Codex <noreply@anthropic.com>`, other model
+→ that model's name), committer stays the human:
 
 ```bash
 git -c user.name="Claude" -c user.email="noreply@anthropic.com" \
   commit -m "docs: fix faq models (#1234)
 
-Directed-By: the design lead Tubb <dtubb@me.com>"
+Directed-By: the design lead <dtubb@me.com>"
 ```
 
-The git log shows which agent produced which work, and the design lead is credited as the human who directed it.
+The git log shows which agent produced which work; the design lead is credited as the human who directed it.
 
 ---
 
@@ -620,65 +516,43 @@ the reference contributors read on GitHub. It holds two guides:
   inside `docs/`.)
 
 **`nav` does not gate publication.** MkDocs builds EVERY `.md` under `docs_dir` into
-a live public page. `mkdocs.yml` `nav` controls only what appears in the site
-navigation — a page left out of `nav` is still public at its URL, just unlinked.
-`/ROADMAP/`, `/CLAUDE/` and `/archive/` all shipped publicly this way before anyone
-noticed. So:
+a live public page; `mkdocs.yml` `nav` controls only site navigation — a page left
+out of `nav` is still public at its URL, just unlinked (`/ROADMAP/`, `/CLAUDE/` and
+`/archive/` all shipped this way before anyone noticed). So:
 
-- **`docs/`** — durable documentation you are content to publish. Anything you add
-  here is public.
-- **`agent-work/`** — AGENT scratch, never part of `docs/` or the build: session
-  notes, handoffs, QA logs, reviews, validation reports, audits, triage, design
-  explorations, proposals.
-- **`agents/`** — the harness: skills, prompts, and `agents/ROADMAP.md` (the priority
-  spine). Operational planning, not documentation.
+- **`docs/`** — durable documentation you are content to publish; anything added here is public.
+- **`agent-work/`** — AGENT scratch, never part of `docs/` or the build: session notes, handoffs, QA logs, reviews, audits, design explorations, proposals.
+- **`agents/`** — the harness: skills, prompts, `agents/ROADMAP.md` (the priority spine). Operational planning, not documentation.
 - **delete** — pure crud or superseded material: `git rm` it.
 
 `scripts/check_docs_publication.py` enforces this: every built page must be reachable
-from `nav` or listed in `scripts/check_docs_publication_allowlist.json`. Adding an
-allowlist entry is a decision to publish an unlinked page — make it deliberately.
+from `nav` or listed in `scripts/check_docs_publication_allowlist.json` (a deliberate
+decision to publish an unlinked page). When unsure between `docs/` and `agent-work/`:
+point-in-time "what I found" material is agent-work, durable "how it works" reference
+is `docs/`; anything that must never be public goes outside `docs/` entirely.
 
-When unsure between `docs/` and `agent-work/`: point-in-time, dated, "what I found"
-material is agent-work; durable "how the system works" reference is `docs/`. Material
-that must never be public goes outside `docs/` entirely — not merely out of `nav`.
+### Manuscript model — MARKDOWN IS THE MASTER
 
-### Manuscript model — MARKDOWN IS THE MASTER (re-ruled 2026-08-30)
-
-the design lead's ruling (2026-08-30, superseding the 2026-08-27 docx flow): the
-guide chapters in the repo are the masters — `docs/user/guide/NN-<slug>.md`
-(and the contributor pages under `docs/contributor/`). the design lead edits them in
-**Scrivener** via its Sync-with-External-Folder pointed at the guide folder;
-agents edit the same files directly and may add images
-(`docs/assets/users/…`, referenced page-relative). No more round-tripping
-through the Drive `.docx` — those remain as historical copies only.
-
-The contract that keeps Scrivener sync and the site build happy:
-
-1. One chapter per file, `NN-<slug>.md`, starting with a single `# Title`
-   H1. The `NN-` prefix is the book order. Plain markdown — headings,
-   tables, fenced code, `![alt](../../assets/users/name.png)` images.
-2. Pages marked `> 🤖 *AI Drafted (Not reviewed)*` are unreviewed; the design lead
-   deletes the badge when they have made a page their own.
-3. After edits (either side), gate with `scripts/check_docs_publication.py`
-   + `mkdocs build --strict`; a new chapter also needs its `mkdocs.yml` nav
-   line.
-4. The BOOK is built FROM the markdown:
-   `python3 scripts/build_manual_appendix.py` concatenates the chapters and
-   the generated capability reference into the Word manual in Drive
-   (prompts in small type). The `.docx` is an output artifact now, never an
-   input. `scripts/sync_manuscript.py` (docx→md) is retired to one-off
-   recovery use.
+The guide chapters in the repo are the masters (`docs/user/guide/NN-<slug>.md`,
+`docs/contributor/`). The design lead edits them in **Scrivener** via
+Sync-with-External-Folder; agents edit the same files directly and may add images
+(`docs/assets/users/…`, page-relative) — no round-tripping through a Drive `.docx`
+(those are historical copies only). Contract: one chapter per file (`NN-<slug>.md`,
+`# Title` H1, plain markdown); `> 🤖 *AI Drafted (Not reviewed)*` marks an unreviewed
+page; gate every edit with `scripts/check_docs_publication.py` + `mkdocs build --strict`
+(new chapter needs a `mkdocs.yml` nav line); the Word manual in Drive is built FROM
+the markdown via `python3 scripts/build_manual_appendix.py` — the `.docx` is output-only.
 
 ---
 
 ## Where Things Live (file placement)
 
-Nothing new lands at the repo root. Root holds the governance docs
-(`AGENTS.md`, `CONSTITUTION.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `README.md`,
-`USER.md`, `CHANGELOG.md`, `RELEASE_NOTES.md`), repo-wide config
-(`mkdocs.yml`, `features.yaml`, `coverage-baseline.json`, `.swiftlint.yml`), and
-the product/tooling directories below. A new note, report, or plan at the root
-is misplaced — no exceptions.
+Nothing new lands at the repo root. Root holds only governance docs (`AGENTS.md`,
+`CONSTITUTION.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `README.md`, `USER.md`,
+`CHANGELOG.md`, `RELEASE_NOTES.md`), repo-wide config (`mkdocs.yml`,
+`features.yaml`, `coverage-baseline.json`, `.swiftlint.yml`), and the
+product/tooling directories below. A new note, report, or plan at the root is
+misplaced — no exceptions.
 
 **Agent scratch → `agent-work/`.** Never the repo root, never `docs/`.
 
@@ -696,20 +570,8 @@ convention; a new `FOO_STATUS.md` at the root is wrong by construction.
 added deliberately: `git add -f agent-work/status/<file>.md`. Scratch you do not
 add stays local, which is the point.
 
-**Product code.** Four peer products, one docs tree, one fixtures tree:
-
-| Path | What |
-|---|---|
-| `fichero/` | Swift/SwiftUI app + Xcode project |
-| `fichero-server/` | Python FastAPI server (`src/fichero_server/`) and the Python test suite |
-| `fichero-cli/` | `fichero` CLI (`src/fichero_cli/`, tests in `fichero-cli/tests/`) |
-| `fichero-mcp/` | MCP server product (`src/fichero_mcp/`, tests in `fichero-mcp/tests/`) |
-| `test-fixtures/` | Shared specimen files, resolved only via `tests/fixture_paths.py` / `TestFixtures.swift` |
-| `docs/` | Published documentation — `docs/user/` and `docs/contributor/` (see Docs Placement above) |
-| `agents/` | Harness: skills, prompts, `agents/ROADMAP.md` |
-| `scripts/` | Repo-wide gates and tooling (`check_*.py`, `verify_*.sh`) |
-
-Pure crud or superseded material is `git rm`-ed, not parked at the root.
+**Product code.** Four peer products, one docs tree, one fixtures tree — full paths in
+Key Paths below. Pure crud or superseded material is `git rm`-ed, not parked at the root.
 
 ---
 
@@ -732,6 +594,10 @@ Pure crud or superseded material is `git rm`-ed, not parked at the root.
 | `fichero-mcp/src/fichero_mcp/` | MCP server product (also shipped inside the app bundle) |
 | `fichero-server/tests/` | The gated Python suite for all three products (`unit/`, `integration/`, `contracts/`, and `perf/` — gated separately via `scripts/verify_perf.sh`) |
 | `fichero-cli/tests/`, `fichero-mcp/tests/` | Each product's own unit tests. Run directly (`pytest fichero-cli/tests`) — their conftest supplies the sibling `src/` paths. **Not yet in `verify_all`/`verify_python`, which name `fichero-server/tests/` explicitly** |
+| `test-fixtures/` | Shared specimen files, resolved only via `tests/fixture_paths.py` / `TestFixtures.swift` |
+| `docs/` | Published documentation — `docs/user/` and `docs/contributor/` (see Docs Placement above) |
+| `agents/` | Harness: skills, prompts, `agents/ROADMAP.md` (the priority spine) |
+| `scripts/` | Repo-wide gates and tooling (`check_*.py`, `verify_*.sh`) |
 
 ---
 
@@ -743,21 +609,21 @@ Pure crud or superseded material is `git rm`-ed, not parked at the root.
   it, not of the release that happens to ship it.
 
 0. **Fail loudly; never fall back silently.** A rename or move is atomic: new path only, every caller repointed in the SAME commit, nothing left at the old location. No compatibility shims, no legacy-path aliases, no "try the new name, then the old name" resolution chains, no `except ImportError` bridges, no default that quietly substitutes a different id, value, model, or file. If something can't be resolved, raise/throw with what was expected and what was found.
-   Why this is rule zero: a shim lets a stale caller keep working, so nobody finds it — and the failure surfaces weeks later, far from the change that caused it. #2566 left "identity-preserving shims" when moving the security modules; the shims were dropped later, and a caller hidden inside a Python string embedded in a Swift file (`EngineHarness`) turned into a **silently skipped** test suite that no gate could see (#4365). A hard cutover would have broken it immediately, in the commit that moved the module, with an obvious cause.
-   Corollaries: a test that can't run must FAIL, not skip — a conditional skip is only legitimate for a genuinely optional capability, never for a broken harness. A guardrail whose input is missing fails; it never passes vacuously. And when searching for callers, remember that grep does not see cross-language references embedded in strings.
-   **A guardrail must know when it has gone blind.** Missing input is the easy case. The dangerous one is input that is present and only half understood: the check runs, parses less than it should, finds no violations in the part it managed to read, and reports success. That is indistinguishable from a clean tree, which makes it a lie rather than a gap. So every check that parses or discovers things must assert a floor on what it found and FAIL — with a distinct exit code, not the violation one — when it comes up short. `scripts/check_environment_forwarding.py` is the worked example: its first version required `var` when reading `LibraryReference` and resolved 18 of 38 injections, because most of those properties are `let`. It did not print "no gaps"; a floor check made it exit 2 saying the parser had gone blind. A parser that resolves 18 of 38 and shouts is worth more than one that resolves all 38 quietly, because the quiet one is indistinguishable from the broken one. Pair it with a `--self-test` that reverts a real, known-caught defect and asserts the check fails — a check that has never been observed to fail has not been tested, it has only been run. **And the self-test must not rot as the debt it guards gets paid off:** a fixture that borrows its violation from a baseline stops testing anything the moment that baseline empties, and it keeps printing `[ok]` while doing so — the same illusion as a blind parser, but reached through SUCCESS rather than failure, so nobody goes looking (the check is green and the debt is gone; both signals say fine). `check_environment_forwarding.py` hit exactly this when its fourteen baselined gaps were fixed. The fixture must SYNTHESISE its own violation — remove a real forward and assert that is caught — rather than depend on the debt still existing. **And distinguish NOT ARMED from BLIND.** A check whose inputs are legitimately absent — a release-artifact check on a machine where no release has been built — is not blind, it is inapplicable, and it must exit 0 rather than failing every developer's `verify_all --fast` for no reason. Blind is *"my own committed inputs are missing, so I cannot judge"* (exit 2). Not armed is *"the thing I measure does not exist here yet"* (exit 0). Conflating them produces either a gate nobody can run or a check nobody believes. `scripts/check_release_size_ratchet.py` is the worked example: a missing committed baseline is BLIND, missing build artifacts at the default path are NOT ARMED, and an explicitly-passed `--baseline` is exempt because that is the legitimate first run.
+   Why this is rule zero: a shim lets a stale caller keep working, so nobody finds it, and the failure surfaces weeks later, far from the change that caused it — #2566's "identity-preserving shims" turned into a **silently skipped** test suite that no gate could see (#4365). A hard cutover would have broken it immediately, at an obvious cause.
+   Corollaries: a test that can't run must FAIL, not skip (a conditional skip is only legitimate for a genuinely optional capability, never a broken harness); a guardrail whose input is missing fails, never passes vacuously; grep does not see cross-language references embedded in strings.
+   **A guardrail must know when it has gone blind** — not just when input is missing, but when it's present and only half-parsed: finding no violations in the part it managed to read and reporting success is a lie, not a gap. Every parsing/discovery check must assert a floor on what it found and FAIL with a distinct exit code when it comes up short, paired with a `--self-test` that synthesises (never borrows from a shrinking baseline) a known defect and asserts the check catches it. Distinguish BLIND (*my own committed inputs are missing* → exit 2) from NOT ARMED (*the thing I measure doesn't exist here yet* → exit 0). Worked examples: `scripts/check_environment_forwarding.py`, `scripts/check_release_size_ratchet.py`.
 1. Never push directly to `main` — always go through a PR (create it and merge it yourself).
 2. Never skip build, test, lint before marking work complete.
-3. Never modify genuinely auto-generated files: `openapi.json`, anything under `fichero/fichero-api-client/.build/`, anything under `fichero/fichero-api-client/Sources/FicheroAPIClient/` that's produced by the OpenAPI generator. The `openapi.json` files ARE regenerated from the backend (via `fichero-server/scripts/sync_openapi_schema.sh`) and that regen output should be committed — what's forbidden is hand-editing them.
-4. When editing a service wrapper that builds a request body, **always use the OpenAPI-typed fields** on `Components.Schemas.*`, not `additionalProperties`, for any field that's declared in `openapi.json`. Dumping declared fields into `additionalProperties` silently loses writes under Pydantic `extra="allow"` — see commit 31fc4141 for the pattern and `docs/contributor/architecture/fichero/api_client.md` for context.
+3. Never modify genuinely auto-generated files: `openapi.json`, or anything under `fichero/fichero-api-client/.build/` or `.../Sources/FicheroAPIClient/` produced by the OpenAPI generator. Regen via `fichero-server/scripts/sync_openapi_schema.sh` and commit the output — what's forbidden is hand-editing it.
+4. When editing a service wrapper that builds a request body, **always use the OpenAPI-typed fields** on `Components.Schemas.*`, not `additionalProperties`, for any field declared in `openapi.json` — dumping declared fields into `additionalProperties` silently loses writes under Pydantic `extra="allow"` (commit 31fc4141; `docs/contributor/architecture/fichero/api_client.md`).
 5. Never start coding before a plan exists for non-trivial work.
 6. `PYTHONPATH` must be set to `fichero-server/src` for all Python commands.
 7. Never create per-task branches — commit all work to the milestone branch directly.
 8. Never start a milestone more than one ahead of what the design lead is currently testing.
-9. **Schema changes are no-migration in 0.0.x for fresh DBs, but real data needs migrations.** A new column on a Pydantic model is picked up by `_ensure_table` on fresh databases — don't add an `ALTER TABLE ADD COLUMN` for a column already in the model. BUT once a persisted DB (`app.duckdb` or a real library) exists, a new column needs an idempotent `ALTER`+backfill, not `CREATE-IF-NOT-EXISTS`. Structural changes (table renames, data backfills) belong in `db_migrations.py`.
-10. **New .swift files just work — do NOT register them** (updated 2026-08-30): The `Fichero` main target is a SYNCHRONIZED folder now; a file written under `fichero/fichero/` is picked up by the build automatically, and running `scripts/add-swift-file.rb` on it creates a duplicate build-file warning (proved and de-registered in 156973b98). Never edit `project.pbxproj` by hand; use `git mv` for moves.
-11. **Worktrees live ONLY under `~/code/fichero-worktrees/<name>`; never `rm` a `~/code/` sibling.** Create worktrees with `git worktree add ~/code/fichero-worktrees/<name> -b <branch> main` — never as bare siblings `~/code/fichero-<name>`. Remove them ONLY with `git worktree remove --force <path>` (operates only on registered worktrees). **NEVER `rm -rf` a `~/code/` path and NEVER glob-delete `~/code/fichero-*`** — bare siblings are SEPARATE projects with their own remotes and uncommitted work. Before any destructive fs op, confirm the path is under `~/code/fichero-worktrees/` AND in `git worktree list`; otherwise stop and surface it. A worktree that must build on un-pushed integration-branch state (not yet on `origin/main`) is created from that branch's HEAD sha explicitly — `git worktree add <path> <integration-branch-or-sha>` — not the Agent tool's default `isolation: "worktree"`, which branches from `origin/main` and won't see integration-only commits.
-12. **No personal names in new or revised code, comments, commits, issues, milestones, or docs.** This is open source and outlives any one contributor — speak in ROLES ("the design lead", "the maintainer", "the reviewer") or drop the "who" and keep the date + intent: `(<name>, 2026-08-27)` → `(2026-08-27)`, "<name> asked for X" → "the design decision was X". A name is acceptable ONLY where it materially improves clarity. Genericize an existing mention when you're already editing that file — never a big-bang sweep of the codebase. (Extends the milestones/issues no-names ruling to code + comments.)
+9. **Schema changes are no-migration in 0.0.x for fresh DBs, but real data needs migrations.** A new column on a Pydantic model is picked up by `_ensure_table` on fresh databases — don't add an `ALTER TABLE ADD COLUMN` for a column already in the model. But once a persisted DB (`app.duckdb` or a real library) exists, a new column needs an idempotent `ALTER`+backfill, not `CREATE-IF-NOT-EXISTS`; structural changes (table renames, data backfills) belong in `db_migrations.py`.
+10. **New .swift files just work — do NOT register them.** The `Fichero` main target is a SYNCHRONIZED folder; running `scripts/add-swift-file.rb` on a file it already picked up creates a duplicate build-file warning. Never edit `project.pbxproj` by hand; use `git mv` for moves.
+11. **Worktrees live ONLY under `~/code/fichero-worktrees/<name>`; never `rm` a `~/code/` sibling.** Create with `git worktree add ~/code/fichero-worktrees/<name> -b <branch> main` — never as bare siblings `~/code/fichero-<name>` (those are SEPARATE projects with their own remotes and uncommitted work). Remove ONLY with `git worktree remove --force <path>`. **NEVER `rm -rf` a `~/code/` path or glob-delete `~/code/fichero-*`.** Before any destructive fs op, confirm the path is under `~/code/fichero-worktrees/` AND in `git worktree list`; otherwise stop and surface it. To build on un-pushed integration-branch state, create the worktree from that branch's HEAD sha explicitly (`git worktree add <path> <sha>`) — not the Agent tool's default `isolation: "worktree"`, which branches from `origin/main` and won't see integration-only commits.
+12. **No personal names in new or revised code, comments, commits, issues, milestones, or docs.** Speak in ROLES ("the design lead", "the maintainer", "the reviewer") or drop the "who" and keep the date + intent: `(<name>, 2026-08-27)` → `(2026-08-27)`. A name is acceptable ONLY where it materially improves clarity. Genericize an existing mention when you're already editing that file — never a big-bang sweep of the codebase.
 
 ---
 
