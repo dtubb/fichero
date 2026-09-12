@@ -20,18 +20,12 @@ Worker-only session start. This lane implements one issue at a time as directed 
    [ -f AGENTS.md ] && sed -n '1,40p' AGENTS.md
    [ -f STATE.md ] && sed -n '1,60p' STATE.md
    ```
-3. Read the assigned issue. If no issue was assigned by the manager, pick the lowest-numbered open, **unclaimed** issue from the current milestone:
+3. Read the assigned issue. The manager assigns each worker a disjoint issue (and usually its own worktree), so there is no cross-worker claiming to do. If no issue was assigned, pick the lowest-numbered open, unassigned issue from the current milestone:
    ```bash
    gh issue list --milestone "<MILESTONE>" --state open \
-     --search "no:assignee -label:status:in-progress -label:status:blocked -label:needs-human-test" --limit 10
+     --search "no:assignee -label:status:blocked -label:needs-human-test" --limit 10
+   gh issue edit <N> --add-assignee @me
    ```
-
-4. **Claim the issue before touching code** — this is the cross-worker lock; sibling workers check it so they don't double-work the same issue. Run `/claim-task <N>`, or inline:
-   ```bash
-   gh issue edit <N> --add-assignee @me --add-label "status:in-progress"
-   gh issue view <N> --json assignees -q '.assignees[].login'   # race re-check
-   ```
-   If the issue already has an assignee or carries `status:in-progress`, pick a different one. When done, `/complete-task <N>` drops the label and closes; if you pause unfinished, `/release-task <N>` drops the label so a sibling can resume.
 
 ## Owns
 
@@ -92,12 +86,12 @@ bug/feature comes before or alongside the implementation, never after.
    (AGENTS.md → Docs Placement; public pages go in `mkdocs.yml` nav), agent scratch
    in `agent-work/`, crud → `git rm`.
 8. Push branch.
-9. Run `/complete-task N` to close the task.
+9. Report completion to the manager; the manager closes the issue once the branch is reviewed and integrated.
 
 ## If Blocked
 
 - Record the blocker clearly.
-- Run `/block-task N <reason>`.
+- Report it to the manager directly (message or issue comment).
 - Do not spin; hand off immediately.
 
 ## Output

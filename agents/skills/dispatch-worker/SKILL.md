@@ -114,9 +114,8 @@ the ceiling + upgrade path (harvestable later via `/ponytail-debt`). "Less is mo
    - Implementation and FIX loops run on `spark`.
 2. CODE REVIEW: manager runs `/code-review` using **codex 5.4** (different model from the worker, programmatic reviewer), AND `/ponytail-review` (over-engineering pass — what to delete/simplify; aim for a shorter diff). Cut the dead/speculative before merge.
 3. FIX: if review points out issues, return to the same worker for warm-context fixes.
-4. TEST-EXPAND: manager dispatches `/test-writer` for the ADVERSARIAL PASS (error/boundary/failure modes, same files already changed).
-5. TEST-SANITY: run `python3 scripts/check_test_assertions.py` from the **fichero** repo root.
-6. MANAGER GATE: merge only after the manager can confirm backend pytest and Swift compile-verify expectations are met.
+4. TEST-SANITY: run `python3 scripts/check_test_assertions.py` from the **fichero** repo root.
+5. MANAGER GATE: merge only after the manager can confirm backend pytest and Swift compile-verify expectations are met.
 
 Swift and CLI tests are compile-verify-only; full test execution is intentionally batched/deliberate and should never be in default per-feature loop.
 

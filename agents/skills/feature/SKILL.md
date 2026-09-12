@@ -19,7 +19,7 @@ Ask Daniel for only what is missing:
 
 If the answer to (1) is a *solution* ("add a dropdown to the inspector"), ask what
 it is for. A feature request that names an implementation forecloses the design.
-Write down the need; let the planner pick the mechanism.
+Write down the need; let the manager pick the mechanism when the issue is scheduled.
 
 ## File it with the script, never raw `gh`
 

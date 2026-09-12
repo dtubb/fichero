@@ -1,6 +1,6 @@
 ---
 name: session-start-manager
-description: Control-lane manager for any project using GitHub Issues — review current state and project vision, triage issues and inbox messages, dispatch work to active lanes, and decide what the integrator and reviewer should handle next. Does not write source code.
+description: Control-lane manager for any project using GitHub Issues — review current state and project vision, triage issues and inbox messages, dispatch work to workers, and integrate/merge completed work. Does not write source code.
 ---
 
 # /session-start-manager
@@ -55,7 +55,7 @@ implementation. Don't skip straight to a worker prompt on an unspecced issue.
 
 - Read current project state and vision before doing anything else
 - Decide which issues are active now
-- Assign work across lanes: reviewer, planner, bugtriage, workers
+- Assign work across lanes: bugtriage, workers
 - **Integrate/merge the result yourself — the manager IS the integrator.**
   There is no separate "integrator" lane to dispatch to; build-gate, run the
   full suite, and merge are manager duties, not something handed off.
@@ -79,48 +79,42 @@ implementation. Don't skip straight to a worker prompt on an unspecced issue.
 
 - No source-code edits unless explicitly repurposed this session
 - No speculative feature implementation
-- No final integration testing unless the integrator lane is unavailable
+- Integration testing IS the manager's job (the manager is the integrator) — not delegated
 
 ## Session Map
 
 - `manager`: dispatch, control, AND integration — gate + build-verify + merge
   (this lane; not a separate hand-off)
-- `reviewer`: independent code review
-- `planner`: feature decomposition and plans
 - `bugtriage`: repro and issue-shaping
 - `worker`: single-issue implementation (`/session-start-worker`)
-- `milestone-worker`: autonomous multi-issue lane — owns a whole milestone, works through 5–15 issues with leeway (`/session-start-milestone-worker`)
 
 ## Dispatch Rules
 
-- Send large/ambiguous feature shaping to `planner`
 - Send unclear bug reports to `bugtriage`
-- Send completed diffs to `reviewer` first; you (the manager) integrate after
-  review passes — there is no separate integrator to hand off to
+- Review completed diffs yourself (`/code-review`) before merging — there is
+  no separate reviewer lane to hand off to
 - Do not wake every worker by default; prefer 1–3 active implementation lanes
-- **Prefer milestone-workers for bulk progress**: give each a distinct milestone (or a tier slice — "backend issues in 0.0.4", "SwiftUI issues in 0.0.4") so they don't collide. Let them make routine implementation decisions; expect more integrator/reviewer load and some overlap — that's the accepted trade.
+- **Give each worker a disjoint slice**: a distinct milestone, or a tier
+  slice ("backend issues in 0.0.4", "SwiftUI issues in 0.0.4"), or separate
+  files/worktrees, so lanes don't collide. Let them make routine
+  implementation decisions; expect more manager review load and some
+  overlap — that's the accepted trade.
 
 ## Test expansion loop (post-feature loop)
 
-After a feature worker lanes lands and before merge handoff:
+After a feature worker lane lands and before merge:
 1. Run `/code-review` on the landed diff (programmatic review, different model than author).
-2. Dispatch `/test-writer` for ADVERSARIAL PASS only (error paths, boundaries, failure modes).
-3. Run `python3 scripts/check_test_assertions.py` from `fichero` root as TEST-SANITY.
-4. Run `python3 scripts/scan_test_coverage_gaps.py --file-issues` in `fichero` root.
+2. Run `python3 scripts/check_test_assertions.py` from `fichero` root as TEST-SANITY.
+3. Run `python3 scripts/scan_test_coverage_gaps.py --file-issues` in `fichero` root.
    - This generates/updates Test Coverage milestone (#82) debt under `type:test`.
    - Treat these as non-blocking debt, not a merge gate.
-5. Start a second worker wave (milestone-worker lanes preferred) to drain newly filed Test Coverage issues while the next feature wave is in flight.
+4. Start a second worker wave to drain newly filed Test Coverage issues while the next feature wave is in flight.
 
 Do **not** hard-block merges on test debt while coverage remains low; track it as Test Coverage backlog.
 
-## Anti-Overlap: ALWAYS Tell Workers to Claim
+## Avoiding Overlap
 
-**Every dispatch brief you write MUST include the claim instruction** — this is how parallel workers avoid double-working the same issue. The lock is the `status:in-progress` GitHub label + assignee.
-
-In each worker/milestone-worker dispatch, state explicitly:
-> Claim every issue before coding: `/claim-task <N>` (adds `status:in-progress` + assigns you). Skip any issue that already has an assignee or `status:in-progress`. Release with `/release-task <N>` if you pause it; `/complete-task <N>` drops the label and closes.
-
-Give each lane a **disjoint slice** (different milestone, or backend-vs-SwiftUI within one milestone) so claims rarely contend. When you must run two lanes on the same milestone, tell each to work from opposite ends (lowest-number-up vs highest-number-down) to minimize collisions.
+Workers avoid double-work by owning **disjoint issues/files**, not by claiming a shared lock — there is no claim/release mechanism to invoke. Give each lane a distinct slice (different milestone, backend-vs-SwiftUI within one milestone, or a separate worktree) before dispatch. When two lanes must share a milestone, tell each to work from opposite ends (lowest-number-up vs highest-number-down) to minimize collisions.
 
 ## Output
 
@@ -130,7 +124,6 @@ Leave behind a concise manager status:
 - who owns each lane
 - blockers
 - what you (as integrator) will verify/merge next
-- what `reviewer` should review next
 
 ## Constraints
 
