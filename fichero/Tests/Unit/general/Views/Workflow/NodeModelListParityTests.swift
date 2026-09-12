@@ -3,7 +3,7 @@ import FicheroAPIClient
 import Foundation
 import XCTest
 
-/// Pins the cross-surface invariant from `docs/contributor/specs/workflow-node-config.md`:
+/// Pins the cross-surface invariant from `docs/contributor/specs/ui/workflow-node-config.md`:
 /// the node popover's model picker lists EXACTLY what AI Settings lists for a
 /// provider — the user-configured models, labelled by their configured name.
 /// HARD GATE (Testing Constitution): a drift here reintroduces the runtime-404

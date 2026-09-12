@@ -22,7 +22,7 @@ final class NodeProviderModelSelectorVisionModeTests: XCTestCase {
         XCTAssertEqual(configuredNodeProviderId(node), "$vision_large")
     }
 
-    // Spec: docs/contributor/specs/workflow-node-config.md
+    // Spec: docs/contributor/specs/ui/workflow-node-config.md
     // `nodeconfig.model.uses-llm-is-tool-fact` — usesLLM describes the TOOL and
     // never changes with the provider choice. Choosing "Default" used to set it
     // false, after which the provider section, Compare Models and the Prompt

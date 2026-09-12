@@ -17,7 +17,7 @@ struct TranscribeNodeConfigTests {
         #expect(TranscribeNodeConfig.defaultMaxImageDimension == 2048)
     }
 
-    // Spec: docs/contributor/specs/workflow-node-config.md
+    // Spec: docs/contributor/specs/ui/workflow-node-config.md
     // `nodeconfig.fields.transcribe.prompt.llm-only` + `nodeconfig.model.auto-mode-representation`
 
     @Test("LLM-only fields show for every mode that reaches an LLM: llm, auto, alias")

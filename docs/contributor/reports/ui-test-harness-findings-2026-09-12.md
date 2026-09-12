@@ -1,6 +1,6 @@
 # UI-Test Harness — problem report & test findings (2026-09-12)
 
-Companion to the spec `docs/contributor/specs/ui-test-harness.md`. This is the record of what
+Companion to the spec `docs/contributor/specs/testing/ui-test-harness.md`. This is the record of what
 was actually wrong — found by running the harness end-to-end via CLI — so the last layer can be
 closed without re-deriving the first four.
 

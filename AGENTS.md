@@ -5,7 +5,7 @@ Codex, Claude Code, Claude-in-Xcode — reads this file (`CLAUDE.md` is a thin
 pointer here). Product north-star: `CONSTITUTION.md`. Session-start / manager
 skills under `agents/skills/` tell each lane its job.
 
-Two roles, one layer (spec: `docs/contributor/specs/dev-orchestration-harness.md`):
+Two roles, one layer (spec: `docs/contributor/specs/harness/dev-orchestration-harness.md`):
 the **manager** (the interactive session — coordinates, reviews, owns the verify
 gate, AND integrates/merges) and the **worker** (implements + tests its own diff).
 Start with `/session-start-manager` or `/session-start-worker`. Work happens on
@@ -100,7 +100,7 @@ create/rename that milestone, and cite the spec from ≥1 test. See `docs/contri
 ## Worker Orchestration
 
 Fichero is built by AI coding agents, **one layer deep** (spec:
-`docs/contributor/specs/dev-orchestration-harness.md`). The shape:
+`docs/contributor/specs/harness/dev-orchestration-harness.md`). The shape:
 
 - **Manager = the interactive session (Fabel).** Fast, cheap, always-on. It coordinates,
   does the design/root-cause/review, owns the verify gate, and dispatches workers. It does
@@ -162,7 +162,7 @@ tests (tagged), docs. The eight steps:
 
 ## Git Practices — Lanes, Integration, Commits
 
-**Full layout + process: `docs/contributor/specs/git-worktree-workflow.md`** — one repo
+**Full layout + process: `docs/contributor/specs/harness/git-worktree-workflow.md`** — one repo
 (`~/code/fichero/.git`), worktrees as ephemeral branch-views, everything pushed via `main`;
 branch-off-`origin/main`, the integration gate, keep-updated-via-GitHub, and cleanup. The essentials:
 

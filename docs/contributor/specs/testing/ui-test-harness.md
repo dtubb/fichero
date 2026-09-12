@@ -20,7 +20,7 @@ documentation.** A harness comment asserted "Dev Local is sandboxed"; the actual
 says the opposite. That stale assumption is what sent the socket into the real app container.
 The config-invariants guardrail that prevents that drift is its own spec —
 [`xcode-build-configs.md`](xcode-build-configs.md) — so this one stays focused on the harness.
-The transport contract the harness depends on is [`transport-http-uds.md`](transport-http-uds.md).
+The transport contract the harness depends on is [`transport-http-uds.md`](../transport/transport-http-uds.md).
 
 ## Evidence gathered (2026-09-09, before any code)
 
