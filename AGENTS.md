@@ -30,7 +30,7 @@ bash fichero-server/scripts/start_backend.sh   # server (serves HTTPS; app pins 
 swiftlint lint fichero/fichero/
 ```
 
-**The run target is `Fichero (Dev Embedded)`** (Daniel, 2026-08-04). Run the app
+**The run target is `Fichero (Dev Embedded)`** (design lead, 2026-08-04). Run the app
 under that scheme when handing a build back for testing.
 
 It is NOT a Debug build: its build configuration is `Dev Embedded`, which does
@@ -166,7 +166,7 @@ parallel, isolated worktrees.
 **Design-led development (see `docs/contributor/TESTING-CONSTITUTION.md` +
 `TEST-TEMPLATE.md`).** New/changed behavior follows **spec → approve → test → code**: DRAFT a
 one-line-per-behavior design spec (`docs/contributor/specs/<name>.md`, format per `_TEMPLATE.md`),
-the design lead (Daniel) APPROVES the intent, then write the pinning tests FIRST and the code to
+the design lead APPROVES the intent, then write the pinning tests FIRST and the code to
 pass them — pinning test in the same PR. Cross-surface invariant tests and capability-availability
 tests HARD-GATE; other new tests are tracked coverage debt. A regression is not fixed until a test
 that would have caught it exists.
@@ -597,10 +597,10 @@ committer stays the human.
 git -c user.name="Claude" -c user.email="noreply@anthropic.com" \
   commit -m "docs: fix faq models (#1234)
 
-Directed-By: Daniel Tubb <dtubb@me.com>"
+Directed-By: the design lead Tubb <dtubb@me.com>"
 ```
 
-The git log shows which agent produced which work, and Daniel is credited as the human who directed it.
+The git log shows which agent produced which work, and the design lead is credited as the human who directed it.
 
 ---
 
@@ -640,9 +640,9 @@ that must never be public goes outside `docs/` entirely — not merely out of `n
 
 ### Manuscript model — MARKDOWN IS THE MASTER (re-ruled 2026-08-30)
 
-Daniel's ruling (2026-08-30, superseding the 2026-08-27 docx flow): the
+the design lead's ruling (2026-08-30, superseding the 2026-08-27 docx flow): the
 guide chapters in the repo are the masters — `docs/user/guide/NN-<slug>.md`
-(and the contributor pages under `docs/contributor/`). Daniel edits them in
+(and the contributor pages under `docs/contributor/`). the design lead edits them in
 **Scrivener** via its Sync-with-External-Folder pointed at the guide folder;
 agents edit the same files directly and may add images
 (`docs/assets/users/…`, referenced page-relative). No more round-tripping
@@ -653,7 +653,7 @@ The contract that keeps Scrivener sync and the site build happy:
 1. One chapter per file, `NN-<slug>.md`, starting with a single `# Title`
    H1. The `NN-` prefix is the book order. Plain markdown — headings,
    tables, fenced code, `![alt](../../assets/users/name.png)` images.
-2. Pages marked `> 🤖 *AI Drafted (Not reviewed)*` are unreviewed; Daniel
+2. Pages marked `> 🤖 *AI Drafted (Not reviewed)*` are unreviewed; the design lead
    deletes the badge when he has made a page his own.
 3. After edits (either side), gate with `scripts/check_docs_publication.py`
    + `mkdocs build --strict`; a new chapter also needs its `mkdocs.yml` nav
@@ -717,7 +717,7 @@ Pure crud or superseded material is `git rm`-ed, not parked at the root.
 | `AGENTS.md` | This file — operational manual + hard rules |
 | `docs/contributor/architecture/` | Architecture docs |
 | `docs/contributor/architecture/vocabulary.md` | Shared backend/frontend terminology |
-| `USER.md` | About Daniel — who he is, constraints |
+| `USER.md` | About the design lead — who he is, constraints |
 | `STATE.md` | Local working notes (gitignored, not in the repo) — current branch, focus, next session |
 | `MEMORY.md` | Local working notes (gitignored, not in the repo) — persistent lessons and decisions |
 | `agents/skills/` | Session-start / manager / worker skills + shared principles |
@@ -749,7 +749,7 @@ Pure crud or superseded material is `git rm`-ed, not parked at the root.
 5. Never start coding before a plan exists for non-trivial work.
 6. `PYTHONPATH` must be set to `fichero-server/src` for all Python commands.
 7. Never create per-task branches — commit all work to the milestone branch directly.
-8. Never start a milestone more than one ahead of what Daniel is currently testing.
+8. Never start a milestone more than one ahead of what the design lead is currently testing.
 9. **Schema changes are no-migration in 0.0.x for fresh DBs, but real data needs migrations.** A new column on a Pydantic model is picked up by `_ensure_table` on fresh databases — don't add an `ALTER TABLE ADD COLUMN` for a column already in the model. BUT once a persisted DB (`app.duckdb` or a real library) exists, a new column needs an idempotent `ALTER`+backfill, not `CREATE-IF-NOT-EXISTS`. Structural changes (table renames, data backfills) belong in `db_migrations.py`.
 10. **New .swift files just work — do NOT register them** (updated 2026-08-30): The `Fichero` main target is a SYNCHRONIZED folder now; a file written under `fichero/fichero/` is picked up by the build automatically, and running `scripts/add-swift-file.rb` on it creates a duplicate build-file warning (proved and de-registered in 156973b98). Never edit `project.pbxproj` by hand; use `git mv` for moves.
 11. **Worktrees live ONLY under `~/code/fichero-worktrees/<name>`; never `rm` a `~/code/` sibling.** Create worktrees with `git worktree add ~/code/fichero-worktrees/<name> -b <branch> main` — never as bare siblings `~/code/fichero-<name>`. Remove them ONLY with `git worktree remove --force <path>` (operates only on registered worktrees). **NEVER `rm -rf` a `~/code/` path and NEVER glob-delete `~/code/fichero-*`** — bare siblings are SEPARATE projects with their own remotes and uncommitted work. Before any destructive fs op, confirm the path is under `~/code/fichero-worktrees/` AND in `git worktree list`; otherwise stop and surface it. A worktree that must build on un-pushed integration-branch state (not yet on `origin/main`) is created from that branch's HEAD sha explicitly — `git worktree add <path> <integration-branch-or-sha>` — not the Agent tool's default `isolation: "worktree"`, which branches from `origin/main` and won't see integration-only commits.

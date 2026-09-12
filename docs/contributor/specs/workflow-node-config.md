@@ -116,7 +116,7 @@ Zoom (`zoom`)
 - `nodeconfig.canvas.icon-color-from-registry` — [BROKEN-partial] icon/colour come from the served registry on every canvas representation; `WorkflowNodeCard`/`WorkflowNodeRow` still carry their own hard-coded maps (the canvas node already reads the registry).
 - `nodeconfig.canvas.list-row-shows-config-summary` — [GAP] the list row shows the same provider/model summary as the canvas subtitle instead of the (x, y) position badge.
 
-## First wave to pin (proposed — awaiting Daniel)
+## First wave to pin (proposed — awaiting the design lead)
 
 1. `nodeconfig.model.uses-llm-is-tool-fact` + `nodeconfig.prompt.preview.shown-for-llm-tools` (F6) — the trap that hides the provider section for good.
 2. `nodeconfig.prompt.default-is-ghost-not-text` + `nodeconfig.roundtrip.open-is-read-only` (F4) — looking must not write.

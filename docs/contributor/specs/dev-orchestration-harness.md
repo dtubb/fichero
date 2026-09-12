@@ -2,27 +2,29 @@
 
 > Milestone: dev-orchestration-harness
 >
-> Design-led. **Status: DRAFT — model RATIFIED by Daniel 2026-09-12** (Fabel manager, sonnet/opus
+> Design-led. **Status: DRAFT — model RATIFIED by the design lead 2026-09-12** (Fabel manager, sonnet/opus
 > workers). Stays DRAFT until its enforcement lands — a guardrail asserting the routing policy is
 > in `AGENTS.md` — because a governance spec has no code surface to bind a test to. How the agent
 > team is structured to get work done without wasting tokens. Grounded in what this session showed.
 
-## The model (ruled 2026-09-12)
+## The model — roles, and a swappable model list
 
-**Fabel is the manager** (fast, cheap, always-on — this session's driver). It coordinates, does
-the fast design/review/routing, owns the verify gate, and **dispatches workers**:
-- **sonnet workers** — the default: implement a specced feature + its tests, bulk/mechanical edits,
-  doc sweeps. Most writing.
-- **opus workers** — escalation only: hard root-cause debugging, tricky design, deep review — the
-  reasoning Fabel wants more depth for. One or two at a time.
+Work is **one layer deep**: a MANAGER dispatches WORKERS. Roles are stable; the model bound to each
+role is config — **swap a model by editing its row; add/remove a model without touching the prose.**
 
-Fabel-as-manager inverts the usual tree: the manager is *cheaper* than some of its workers (opus),
-which is correct — spend the deep model only on the hard reasoning, keep the always-on coordinator
-fast and cheap.
+| Role | Current model | Purpose |
+|------|---------------|---------|
+| **manager** | `fabel` | always-on driver: coordinate, fast design/routing/review, own the verify gate. Does not grind implementation when a worker can. |
+| **worker — default** | `sonnet` | implement a specced feature + its tests, bulk/mechanical edits, doc sweeps. Most writing. |
+| **worker — deep** | `opus` | escalation only: hard root-cause debugging, tricky design, deep review. One or two at a time. |
+
+This inverts the usual tree — the manager is *cheaper* than the deep worker, which is correct:
+spend the expensive model only on hard reasoning, keep the always-on coordinator fast and cheap.
+The `Current model` column is the only thing that changes when the model roster changes.
 
 ## The question
 
-Proposal: Daniel → several **opus area-managers** (KG, testing, backend, frontend), each in its
+Proposal: the design lead → several **opus area-managers** (KG, testing, backend, frontend), each in its
 own tmux window, each managing **sonnet workers** that implement+test a feature; everyone uses
 jCodemunch. Is a two-layer (opus-manager → sonnet-worker) tree the right shape, and how do we do
 it token-efficiently with fabel/opus?
@@ -42,21 +44,18 @@ it token-efficiently with fabel/opus?
 
 ## Ruling proposal (the design)
 
-- **Keep it FLAT by default.** Daniel → **me (Fabel)** → **sonnet workers** for implementation
+- **Keep it FLAT by default.** the design lead → **me (Fabel)** → **sonnet workers** for implementation
   (**opus workers** only for hard reasoning). Me = fast design + routing + review + the verify
   gate. Workers = write to a spec, run their own area tests, report. No standing middle layer.
 - **Add a dedicated opus "area lead" ONLY for a large, long-running milestone** whose context is
   too big to hold alongside everything else (e.g. a whole KG or testing milestone). It owns that
   milestone, dispatches its own sonnet workers, and reports up. One or two at a time — not one per
   area on principle. This is the existing `session-start-milestone-worker` pattern; reuse it.
-- **Model routing (the token policy, ruled 2026-09-12):**
-  - **fabel (me, manager)** — coordinate, fast design/review/routing, the verify gate, visible
-    interactive iteration. Always-on driver.
-  - **sonnet worker** — the default worker: implement a specced feature + tests, bulk/mechanical
-    edits, doc sweeps, bounded refactors.
-  - **opus worker** — escalation only: hard root-cause debugging, tricky design, deep review.
-  - Route DOWN for writing (sonnet), escalate UP only for hard reasoning (opus); never spend a
-    model on what a guardrail/script already does.
+- **Routing (the token policy):** the manager does design/review/routing + the verify gate;
+  the **default worker** does the writing (features, tests, bulk edits, doc sweeps); the **deep
+  worker** is escalation-only (hard debugging, tricky design, deep review). Route DOWN for writing,
+  escalate UP only for hard reasoning, and never spend any model on what a guardrail/script already
+  does. (Which model fills each role: the table above.)
 - **tmux windows vs subagents:** subagents (the `Agent` tool) for **bounded parallel tasks** that
   report back within a turn (context-isolated, no plumbing). Persistent **tmux lanes** only for
   **long-lived autonomous work that must survive across turns** (an overnight milestone). Don't
@@ -68,13 +67,13 @@ it token-efficiently with fabel/opus?
 
 ## Behaviors
 
-- `orch.flat-default` [PROPOSED] — routine work is Daniel → me → sonnet/codex, no opus middle layer.
+- `orch.flat-default` [PROPOSED] — routine work is design lead → manager → default worker, no middle layer.
 - `orch.area-lead-on-demand` [PROPOSED] — an opus area-lead only for a large milestone; ≤2 at once.
 - `orch.model-routing` [PROPOSED] — the routing table above; route down.
 - `orch.verify-gate` [OK, keep] — I own the cross-cutting verify; unverified worker output blocks.
 - `orch.subagent-vs-tmux` [PROPOSED] — subagents for bounded tasks, tmux only for cross-turn lanes.
 
-## Open questions for Daniel
+## Open questions for the design lead
 
 1. Is a standing opus area-lead per area worth its coordination cost, or is on-demand (per big
    milestone) enough? (I lean on-demand — this session was all done flat + fast.)
@@ -88,4 +87,4 @@ it token-efficiently with fabel/opus?
 - Audit agents + skills; propose a trimmed set (the overlapping reviewers/planners especially).
 - Create the `dev-orchestration-harness` GitHub milestone + issues for the routing policy.
 - Fold the routing table into `AGENTS.md` (the operational manual) so every lane obeys it.
-- User manual: Daniel documents "how we work" for the guide once the policy is settled.
+- User manual: the design lead documents "how we work" for the guide once the policy is settled.
