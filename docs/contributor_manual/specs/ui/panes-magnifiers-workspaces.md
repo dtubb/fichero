@@ -37,6 +37,38 @@ sources. Selecting related things across panes composes a working set — relate
 a graph pane, their source pages in a preview pane, an inspector on the right — that is
 itself saveable.
 
+## Default composition (Mail-style) — RATIFIED 2026-09-12
+
+The default window is a three-region Mail-style layout. It prioritises the primary source
+image (full height, right) while grouping navigation and the AI workspace on the left and
+the browse→read flow down the centre.
+
+```
+┌────────────────┬─────────────────────────────┬──────────────────┐
+│ Sidebar        │ Library browser             │                  │
+│ (folder tree)  │ (icon/list — a HORIZONTAL   │                  │
+│                │  thumbnail strip, Mail       │                  │
+│                │  message-list style)         │   Source image   │
+│                ├─────────────────────────────┤   (the archival  │
+│ ─── divider ── │ Reader(s)                    │    scan, FULL    │
+│ Chat history   │ (transcription / summary /   │    HEIGHT, far   │
+│                │  metadata — one or two       │    right)        │
+│                │  readers)                    │                  │
+│ [ ask prompt ] │                              │                  │
+└────────────────┴─────────────────────────────┴──────────────────┘
+   left sidebar      centre: horizontal split       right column
+```
+
+- **Left** — folder tree on top; **chat history + its input stacked directly beneath it**,
+  in a collapsible split region (an `NSSplitView` divider the user can drag to give chat
+  more room or collapse when just navigating). The chat input is attached to the chat
+  history — it does **not** float at the bottom of the image/reader.
+- **Centre** — a **horizontal split**: the library browser (a horizontal thumbnail strip)
+  on top, one or two readers (transcription / summary / metadata) below. Selecting a
+  thumbnail above drives the reader below.
+- **Right** — the source image, anchored full height (historical documents are vertically
+  oriented, so uninterrupted top-to-bottom space maximises zoom and minimises scrolling).
+
 ## Behaviors (each → one pinning test)
 
 ### A. Pane composition & split
@@ -90,6 +122,25 @@ itself saveable.
 - `panes.workspace.reopen` — **[GAP]** reopening a workspace restores its panes, modes, and
   layout. (Ties the related-entities → sources → inspector composition in the Intent.)
 
+### E. Default layout & chat placement
+
+- `panes.layout.mail-default` — **[GAP]** a fresh window opens in the Mail-style default:
+  sidebar+chat (left) · library-browser-top + reader(s)-bottom (centre horizontal split) ·
+  full-height source (right).
+- `panes.chat.below-sidebar` — **[BROKEN]** the chat history and its input live in the left
+  sidebar beneath the folder tree, in a collapsible split region; the input is attached to
+  the chat history. Today the chat prompt sits at the bottom of the centre column, under the
+  image/reader, rather than under the chat text.
+- `panes.chat.collapsible-split` — **[GAP]** the sidebar↔chat divider drags to resize and
+  collapses the chat region when only navigating.
+- `panes.library.horizontal-icon-strip` — **[BROKEN/GAP]** the library browser renders as a
+  horizontal thumbnail strip (icon/list, Mail message-list style) at the top of the centre
+  column ("I want the icon view back — horizontal, like in Mail").
+- `panes.reader.one-or-two-below-browser` — **[GAP]** below the browser strip sit one or two
+  readers (transcription / summary / metadata), driven by the browser selection.
+- `panes.source.full-height-right` — **[GAP]** the source image occupies the full-height
+  right column by default.
+
 ## Known bugs to fix (already observed by the creative director)
 
 1. **Split affects both columns** (`panes.split.focused-column-only`) — split should act on
@@ -97,10 +148,12 @@ itself saveable.
 2. **Changing a pane to entity/claim wipes the others** (`panes.split.independent-mode-per-pane`).
 3. **No arbitrary way to open an entity/claim view in a window** (`panes.open-view-arbitrarily`).
 4. **Claims don't reset on library change** (`panes.kg.library-change-resets`).
+5. **Chat prompt is under the image, not under the chat** (`panes.chat.below-sidebar`) —
+   move the chat history + input into the left sidebar beneath the folder tree.
 
-These four are the first wave to pin — they are regressions/gaps in behavior that already
-half-works, so each needs a pinning test that asserts the *behavior* (not the code) and a
-fix that makes it pass.
+These are the first wave to pin — regressions/gaps in behavior that already half-works, so
+each needs a pinning test that asserts the *behavior* (not the code) and a fix that makes it
+pass. Delivering the Mail-style default (§Default composition) is the companion layout work.
 
 ## Open questions (for the design lead)
 
