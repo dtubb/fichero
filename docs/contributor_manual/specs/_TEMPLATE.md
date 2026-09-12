@@ -87,5 +87,27 @@ List the stable a11y ids the UI test will drive — add them to the views AS YOU
 - `<surface>.row.<id>` — a row/item
 - `<surface>.menu.<verb>` — each context-menu verb / button
 
+## UX completeness (required on EVERY surface — tested against this spec)
+
+Every user-facing control on this surface ships ALL of the following, and a test verifies each
+against what the spec says here (design-led: the test pins the intended text/label, not the code):
+
+- **Tooltip / help.** Every control has a `.help("…")` (and menu items a help tag). What each says
+  is spec'd below and gate-checked by `scripts/check_tooltips.py`.
+- **Label.** Every control has a visible or accessibility label — no icon-only control without a
+  name. No control unreachable by name.
+- **Accessibility.** An `.accessibilityLabel` + the stable `.accessibilityIdentifier` (above) on
+  every interactive element; the click-around leg runs `try app.performAccessibilityAudit()`
+  (Apple-first-party) so missing labels/identifiers/contrast fail the test. Gate: `check_accessibility.py`.
+- **Localization-ready.** No hardcoded user-facing strings — every string comes from the String
+  Catalog (`.xcstrings`), so the surface is translatable without code changes. Gate:
+  `check_localization.py`. (Shipping a locale is a later decision; being *ready* is required now.)
+
+Fill the table — one row per control, so the tests have the intended text to pin:
+
+| Control (a11y id) | Label | Tooltip/help text | Localized key |
+|---|---|---|---|
+| `<surface>.entry` | … | … | `<key>` |
+
 ## Open questions for the creative director
 - …
