@@ -440,7 +440,13 @@ extension LibraryView {
         libraryManager.pendingOpenDocumentId = nil
         Task { @MainActor in
             if let doc = try? await documentStore.documentService.getDocument(pendingId) {
-                detailDocument = doc
+                // Full open (selection + detail + inspector), matching the
+                // in-listing branch above. Setting `detailDocument` alone loaded
+                // the document's data but left the sidebar selection nil and the
+                // view in library mode, so the DocumentInspector section bar
+                // (inspectorSection-*) never rendered — the seeded document must
+                // actually OPEN, exactly as a user click does, for the KG UI test.
+                openDocument(doc)
             } else {
                 libraryManager.pendingOpenDocumentId = pendingId
             }
