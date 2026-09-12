@@ -143,15 +143,28 @@ Workers never push to shared branches for the manager; the manager owns the merg
 This keeps one Xcode and one full-suite run as the gate while many workers grind in
 parallel, isolated worktrees.
 
-**Design-led development (see `docs/contributor/TESTING-CONSTITUTION.md` +
-`TEST-TEMPLATE.md`).** New/changed behavior follows **spec → approve → test → code**: DRAFT a
-one-line-per-behavior design spec (`docs/contributor/specs/<name>.md`, format per `_TEMPLATE.md`),
-the design lead APPROVES the intent, then write the pinning tests FIRST and the code to
-pass them — pinning test in the same PR. Cross-surface invariant tests and capability-availability
-tests HARD-GATE; other new tests are tracked coverage debt. A regression is not fixed until a test
-that would have caught it exists.
+**Spec-lead development — the systematic loop, every surface, every time** (authority:
+`docs/contributor/TESTING-CONSTITUTION.md` + `TEST-TEMPLATE.md`; run the design half in **plan
+mode** with a **ponytail lens**). One `<name>` binds four artifacts — spec, GitHub milestone,
+tests (tagged), docs. The eight steps:
+1. **Prior art first** — survey how the field solves this (DH standards, NLP/NLG, Hugging Face,
+   libraries) and cite what we reuse. Don't invent what the field has solved.
+2. **Spec** — DRAFT a one-line-per-behavior spec (`specs/<name>.md`, format per `_TEMPLATE.md`).
+3. **Approve** — the design lead approves the intent; flip APPROVED + declare the milestone.
+4. **Test-first, per surface it touches** — **server (pytest) · MCP · CLI · Swift unit · UI-Mac
+   (XCUITest) · iPhone · iPad**. Cross-surface invariant + capability-availability tests HARD-GATE.
+5. **Reuse, don't duplicate** — search for an existing code path first (we too often grow a SECOND
+   implementation); extend it, never add a parallel one.
+6. **Implement** to green.
+7. **Verify** — the gate (`verify_all`).
+8. **Document both audiences** — contributor docs AND the user manual (reuse the snapshot as the
+   screenshot). A regression isn't fixed until a test that would have caught it exists.
 
 ## Git Practices — Lanes, Integration, Commits
+
+**Full layout + process: `docs/contributor/specs/git-worktree-workflow.md`** — one repo
+(`~/code/fichero/.git`), worktrees as ephemeral branch-views, everything pushed via `main`;
+branch-off-`origin/main`, the integration gate, keep-updated-via-GitHub, and cleanup. The essentials:
 
 Short-lived **lane branches** (one worker, one worktree under
 `~/code/fichero-worktrees/<name>`, branched off `origin/main`) merge into an
@@ -487,20 +500,23 @@ Start a session with `plan_turn { repo: ".", query: "<task>" }` for confidence +
 
 Conventional commits — `feat:`, `fix:`, `chore:`, `refactor:`, `test:`, `docs:`, `style:`
 — always referencing a GitHub issue: `feat: add tasks router (#420)`. GitHub Issues +
-Milestones is the source of truth for the backlog.
+Milestones is the source of truth for the backlog. **Before filing a bug or feature, search
+existing issues** (`gh issue list --search "<terms>"` / `--state all`) and comment on the match
+instead of opening a duplicate — the same reuse-don't-duplicate discipline we apply to code.
 
-**Each agent commits as ITSELF** — author is the agent doing the work (Claude writing
-→ `Claude <noreply@anthropic.com>`, Codex → `Codex <noreply@anthropic.com>`, other model
-→ that model's name), committer stays the human:
+**Each agent is the AUTHOR of its own commits — NOT a `Co-Authored-By` trailer on a
+human-authored commit.** The agent doing the work is the git *author* (Claude →
+`Claude <noreply@anthropic.com>`; another model → that model's name); the human who directed it is
+credited by a `Directed-By:` trailer, not by owning the authorship. This is what makes
+`git log --author=Claude` and GitHub's contributor view cleanly separate agent work from the
+maintainer's own edits — a `Co-Authored-By` line does not (it leaves the human as author):
 
 ```bash
 git -c user.name="Claude" -c user.email="noreply@anthropic.com" \
   commit -m "docs: fix faq models (#1234)
 
-Directed-By: the design lead <dtubb@me.com>"
+Directed-By: the maintainer"
 ```
-
-The git log shows which agent produced which work; the design lead is credited as the human who directed it.
 
 ---
 
