@@ -55,6 +55,13 @@ always is; only *which branch/worktree* differs.
 - `git.commit-never-stash` [OK] — interrupted work is a WIP commit, not a stash.
 - `git.cleanup-merged-worktrees` [OK] — merged lanes removed + branch deleted; no rot.
 - `git.updated-via-github` [OK] — "what's next" comes from milestones/ROADMAP, not a shared branch.
+- `git.shared-venv` [OK] — ONE `.venv` at the canonical checkout (`~/code/fichero/.venv`), shared
+  by all worktrees; worktrees have none of their own. Correctness comes from
+  **`PYTHONPATH=fichero-server/src` relative to the worktree you're in**, which forces that tree's
+  source ahead of the venv's editable install (which points at the canonical checkout / `main`).
+  Never rely on the bare editable install in a worktree, and never hard-code an absolute
+  `~/code/fichero/.venv` path in a doc or script. Per-worktree venvs are the fallback ONLY if the
+  PYTHONPATH discipline stops holding (costs a `uv venv + pip install -e` per ephemeral worktree).
 
 ## Open questions for the design lead
 

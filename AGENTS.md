@@ -6,7 +6,11 @@ pointer here.) The product north-star is `CONSTITUTION.md`; the detailed
 architecture/development guide is `AGENTS.md`; the session-start / manager
 skills under `agents/skills/` tell each lane its job.
 
-Every agent starts with `/session-start` (or a lane variant: `-manager`, `-worker`, `-integrator`, `-auto`); it loads context and reports state. Work happens on the milestone branch this worktree is on. Commit directly, no per-task branches.
+Two roles, one layer (spec: `docs/contributor/specs/dev-orchestration-harness.md`): the **manager**
+(the interactive session — it coordinates, reviews, owns the verify gate, AND integrates/merges;
+manager = integrator) and the **worker** (implements + tests its own diff). Start a session with
+`/session-start-manager` or `/session-start-worker`; it loads context and reports state. Work happens
+on the milestone branch this worktree is on. Commit directly, no per-task branches.
 
 ---
 
@@ -654,7 +658,7 @@ The contract that keeps Scrivener sync and the site build happy:
    H1. The `NN-` prefix is the book order. Plain markdown — headings,
    tables, fenced code, `![alt](../../assets/users/name.png)` images.
 2. Pages marked `> 🤖 *AI Drafted (Not reviewed)*` are unreviewed; the design lead
-   deletes the badge when he has made a page his own.
+   deletes the badge when they have made a page their own.
 3. After edits (either side), gate with `scripts/check_docs_publication.py`
    + `mkdocs build --strict`; a new chapter also needs its `mkdocs.yml` nav
    line.
@@ -717,7 +721,7 @@ Pure crud or superseded material is `git rm`-ed, not parked at the root.
 | `AGENTS.md` | This file — operational manual + hard rules |
 | `docs/contributor/architecture/` | Architecture docs |
 | `docs/contributor/architecture/vocabulary.md` | Shared backend/frontend terminology |
-| `USER.md` | About the design lead — who he is, constraints |
+| `USER.md` | About the design lead — who they are, constraints |
 | `STATE.md` | Local working notes (gitignored, not in the repo) — current branch, focus, next session |
 | `MEMORY.md` | Local working notes (gitignored, not in the repo) — persistent lessons and decisions |
 | `agents/skills/` | Session-start / manager / worker skills + shared principles |
@@ -753,6 +757,7 @@ Pure crud or superseded material is `git rm`-ed, not parked at the root.
 9. **Schema changes are no-migration in 0.0.x for fresh DBs, but real data needs migrations.** A new column on a Pydantic model is picked up by `_ensure_table` on fresh databases — don't add an `ALTER TABLE ADD COLUMN` for a column already in the model. BUT once a persisted DB (`app.duckdb` or a real library) exists, a new column needs an idempotent `ALTER`+backfill, not `CREATE-IF-NOT-EXISTS`. Structural changes (table renames, data backfills) belong in `db_migrations.py`.
 10. **New .swift files just work — do NOT register them** (updated 2026-08-30): The `Fichero` main target is a SYNCHRONIZED folder now; a file written under `fichero/fichero/` is picked up by the build automatically, and running `scripts/add-swift-file.rb` on it creates a duplicate build-file warning (proved and de-registered in 156973b98). Never edit `project.pbxproj` by hand; use `git mv` for moves.
 11. **Worktrees live ONLY under `~/code/fichero-worktrees/<name>`; never `rm` a `~/code/` sibling.** Create worktrees with `git worktree add ~/code/fichero-worktrees/<name> -b <branch> main` — never as bare siblings `~/code/fichero-<name>`. Remove them ONLY with `git worktree remove --force <path>` (operates only on registered worktrees). **NEVER `rm -rf` a `~/code/` path and NEVER glob-delete `~/code/fichero-*`** — bare siblings are SEPARATE projects with their own remotes and uncommitted work. Before any destructive fs op, confirm the path is under `~/code/fichero-worktrees/` AND in `git worktree list`; otherwise stop and surface it. A worktree that must build on un-pushed integration-branch state (not yet on `origin/main`) is created from that branch's HEAD sha explicitly — `git worktree add <path> <integration-branch-or-sha>` — not the Agent tool's default `isolation: "worktree"`, which branches from `origin/main` and won't see integration-only commits.
+12. **No personal names in new or revised code, comments, commits, issues, milestones, or docs.** This is open source and outlives any one contributor — speak in ROLES ("the design lead", "the maintainer", "the reviewer") or drop the "who" and keep the date + intent: `(<name>, 2026-08-27)` → `(2026-08-27)`, "<name> asked for X" → "the design decision was X". A name is acceptable ONLY where it materially improves clarity. Genericize an existing mention when you're already editing that file — never a big-bang sweep of the codebase. (Extends the milestones/issues no-names ruling to code + comments.)
 
 ---
 

@@ -71,6 +71,9 @@ Execution tracking lives in GitHub:
 
 - **Source of truth:** GitHub Issues, Milestones, and the project board
 - **Local continuity only:** gitignored working notes kept outside the public repo
+- **Roles, not names:** this is open source and outlives any one contributor — code,
+  comments, commits, issues, and docs speak in roles ("the design lead", "the maintainer",
+  "the reviewer"), not a personal name (see `AGENTS.md` Rules I Don't Break).
 
 ## Release State
 
