@@ -111,19 +111,30 @@ spec from ≥1 test. See `docs/contributor/TEST-TEMPLATE.md`.
 
 ## Worker Orchestration
 
-Fichero is built by AI coding agents. The work runs through a
-manager-with-workers loop:
+Fichero is built by AI coding agents, **one layer deep** (spec:
+`docs/contributor/specs/dev-orchestration-harness.md`). The shape:
 
-- The **manager** (`session-start-manager`) holds the control lane. It does not
-  write source code. It triages issues, picks the next batch, and dispatches it.
-- Each **worker** runs in its OWN git worktree, in its own detached tmux session, as an
-  interactive agent. A worker grinds one milestone's GitHub issues and commits as itself
-  (see Commit Attribution below).
+- **Manager = the interactive session (Fabel).** Fast, cheap, always-on. It coordinates,
+  does the design/root-cause/review, owns the verify gate, and dispatches workers. It does
+  not grind implementation itself when a worker can.
+- **Workers = sonnet by default, opus on escalation.** sonnet writes the specced feature +
+  its tests, bulk/mechanical edits, doc sweeps; opus is only for hard root-cause debugging,
+  tricky design, or deep review. One layer — a worker does NOT spawn its own managers.
+  Route DOWN for writing, escalate UP only for reasoning.
 
-  **`scripts/spawn-worker.sh` is the canonical launcher. Use it; do not hand-roll.**
+Two dispatch modes — pick by lifetime, not habit:
+
+- **Subagents (the `Agent` tool) — the DEFAULT** for a bounded task that reports back within
+  the turn (context-isolated, no plumbing). Most delegation is this. `subagent_type:
+  "general-purpose"` with `model: "sonnet"` (or `"opus"`), or `"fork"` to hand off your own
+  context.
+- **tmux worktree lanes — ONLY for long, cross-turn work** (a whole milestone that must
+  survive across turns). Then, and only then:
+
+  **`scripts/spawn-worker.sh` is the canonical launcher for a tmux lane. Use it; do not hand-roll.**
 
   ```bash
-  scripts/spawn-worker.sh <claude|opus|sonnet|haiku|codex> "<Milestone Title>" [session-name]
+  scripts/spawn-worker.sh <opus|sonnet> "<Milestone Title>" [session-name]
   ```
 
   It fetches, creates the worktree off **`origin/main`** (never stale local `main`),
@@ -152,14 +163,21 @@ Workers never push to shared branches for the manager; the manager owns the merg
 This keeps one Xcode and one full-suite run as the gate while many workers grind in
 parallel, isolated worktrees.
 
-**Design-led testing (see `agent-work/proposals/TESTING-CONSTITUTION.md`).** New/changed
-behavior follows spec → approve → test → code: a worker DRAFTS a one-line-per-behavior
-design spec (`docs/contributor/specs/<area>.md`, format per `sidebar-crud.md`), the
-design lead (Daniel) APPROVES the intent, then the worker writes the pinning tests
-FIRST and the code to pass them — pinning test in the same PR. Cross-surface invariant
-tests (a truth that must agree across N surfaces) and capability-availability tests
-(shown iff actually runnable) HARD-GATE; other new tests are tracked coverage debt.
-A regression is not fixed until a test that would have caught it exists.
+**Design-led development (see `docs/contributor/TESTING-CONSTITUTION.md` +
+`TEST-TEMPLATE.md`).** New/changed behavior follows **spec → approve → test → code**: DRAFT a
+one-line-per-behavior design spec (`docs/contributor/specs/<name>.md`, format per `_TEMPLATE.md`),
+the design lead (Daniel) APPROVES the intent, then write the pinning tests FIRST and the code to
+pass them — pinning test in the same PR. Cross-surface invariant tests and capability-availability
+tests HARD-GATE; other new tests are tracked coverage debt. A regression is not fixed until a test
+that would have caught it exists.
+
+**One name across design, issues, and tests** (guardrails enforce, all in the gate): an APPROVED
+spec `<name>.md` declares `Milestone: <name>` matching a GitHub milestone of the same name (its
+description points back at the spec), and its tests carry a tag of the same area name — Swift
+`@Tag` in `fichero/Tests/Unit/general/TestTags.swift`, pytest marker in `fichero-server/pyproject.toml`.
+`scripts/check_specs_have_tests.py` binds spec↔test; `scripts/check_spec_milestones.py` binds
+spec↔milestone. Approving a spec means: flip `Status: APPROVED`, declare the milestone, create/rename
+it, and cite the spec from ≥1 test.
 
 ## Git Practices — Lanes, Integration, Commits
 
