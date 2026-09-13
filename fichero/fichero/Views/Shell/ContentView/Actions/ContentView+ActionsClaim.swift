@@ -66,24 +66,28 @@ extension ContentView {
     }
 
     var showsPreviewPane: Bool {
-        guard currentLayoutMode != .none else { return false }
+        Self.showsPreviewPane(viewMode: viewMode, layoutMode: currentLayoutMode)
+    }
+
+    /// Whether the preview pane shows, given the view mode and layout mode.
+    /// Extracted pure so the policy is unit-testable off-view (spec:
+    /// panes-magnifiers-workspaces — the "Entities view takes over" fix).
+    ///
+    /// Selection KIND no longer changes this. An earlier `isEntityLibrarySelection`
+    /// special-case returned `false` here for the Entities collection, so entities
+    /// alone lost the preview and reflowed to a full-width takeover
+    /// (`centerContentRouting`'s `!showsPreviewPane` branch), while Claims — never
+    /// special-cased — kept the two-pane layout. That divergence violated the
+    /// stable-panes policy (#1452/#4525: a folder keeps the same panes as a file,
+    /// so selecting different items never reflows the window). Entity, claim and
+    /// folder `.library` selections now all keep the same panes — the parity the
+    /// CD asked for (2026-09-13, "entities takes over, claims have it").
+    static func showsPreviewPane(viewMode: AppViewMode, layoutMode: LayoutMode) -> Bool {
+        guard layoutMode != .none else { return false }
         switch viewMode {
-        case .library:
-            if isEntityLibrarySelection {
-                return false
-            }
-            // Stable layout: a folder keeps the same panes as a file, so
-            // selecting different items never reflows the window (#1452). The
-            // legacy opt-in (`layoutFollowsSelection` — folder collapses the
-            // preview, #712) was deleted with #4525 (V6): a toggle whose only
-            // purpose was to violate the stable-panes policy.
-            return true
-        case .chat:
-            // Chat KEEPS the library/preview/reader panes (Daniel 2026-08-12:
-            // "chat/terminal is supposed to be one narrow view that is always
-            // visible … instead it still takes over everything"). The chat
-            // pane in the row follows the selected conversation; selecting a
-            // chat must never collapse the workspace.
+        case .library, .chat:
+            // Chat also keeps the panes (Daniel 2026-08-12: chat must never
+            // collapse the workspace).
             return true
         default:
             return false
