@@ -89,6 +89,30 @@ final class LibraryClaimsModel {
         "\(libraryId.uuidString)|\(folderId ?? "")"
     }
 
+    /// The human label for a claim's SOURCE column: the resolved document name,
+    /// else a short non-raw id, never an empty cell (spec:
+    /// panes-magnifiers-workspaces panes.claim.source-is-document). The claim's
+    /// source IS a document, so the column reads as that document's name.
+    ///
+    /// `resolve` maps a source document id → its display name (nil when the
+    /// document isn't loaded). Injected so the rule is pure and unit-testable
+    /// off-main: a resolvable id yields the name, an unresolvable id yields the
+    /// short-id fallback, and a claim with no source yields an em dash. `nil`
+    /// docId (no recorded source) reads "—", not "Source …".
+    nonisolated static func sourceLabel(
+        for claim: Components.Schemas.KnowledgeClaim,
+        resolve: (String) -> String?
+    ) -> String {
+        guard let raw = claim.sourceDocumentId?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !raw.isEmpty else { return "—" }
+        if let name = resolve(raw)?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty {
+            return name
+        }
+        // Never a raw 32-char id: a short, honestly-truncated stand-in until the
+        // source document loads and resolves to its real name.
+        return "Source \(raw.prefix(8))…"
+    }
+
     /// The pure removal rule: drop claims whose id is in `claimIds`, keep the rest.
     /// A claim with no id is never removed (absence is not a match). `nonisolated`
     /// (touches no actor state) so the in-place-delete behaviour is testable off-main.

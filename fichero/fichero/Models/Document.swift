@@ -138,6 +138,29 @@ struct LibraryItemDrag: Codable, Equatable, Transferable {
 
     var exportText: String { "\(kind.rawValue.capitalized): \(text)" }
 
+    /// The drag payload for a document row, shared by every surface that drags a
+    /// document out (the library table/list/icon rows AND the claims table's
+    /// Source cell). Extracted from `LibraryView.libraryItemDrag(for:)` so the
+    /// claims Source column drags a document exactly as a library row does
+    /// (spec: panes-magnifiers-workspaces panes.claim.source-is-document — a
+    /// claim's source IS a document, so it drags like one).
+    static func forDocument(_ document: Document, libraryId: UUID?) -> LibraryItemDrag {
+        let kind: Kind = switch document.docType {
+        case .page: .page
+        case .group: .group
+        default: .document
+        }
+        return LibraryItemDrag(
+            kind: kind,
+            id: document.id,
+            documentId: document.id,
+            text: document.pageContent?.isEmpty == false ? (document.pageContent ?? document.name) : document.name,
+            libraryId: libraryId,
+            name: document.name,
+            pageIndex: kind == .page ? max(0, (document.sequence ?? 1) - 1) : nil
+        )
+    }
+
     /// Real file export applies to rows backed by a source file.
     var exportsSourceFile: Bool {
         documentId != nil && (kind == .document || kind == .page || kind == .group)

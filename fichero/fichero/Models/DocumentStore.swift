@@ -563,6 +563,29 @@ final class DocumentStore {
         }
     }
 
+    /// A best-effort id → document map over every document currently loaded in
+    /// any cache — the browsed folder, top-level collections, lazily-loaded
+    /// children, and workspaces. Best-effort: a document not yet fetched is
+    /// simply absent, so callers fall back honestly rather than inventing a
+    /// name. Used by the claims table to resolve a claim's source document to
+    /// its real name even when that document isn't in the currently-browsed
+    /// folder (spec: panes-magnifiers-workspaces panes.claim.source-is-document).
+    ///
+    /// O(loaded documents), built per call — the caller (a table render) already
+    /// does O(rows) work, and the loaded set is bounded by what's been fetched.
+    // ponytail: rebuilt each call; memoize on `revision` if a profile shows it hot.
+    func knownDocumentsById() -> [String: Document] {
+        var map: [String: Document] = [:]
+        for doc in collections { map[doc.id] = doc }
+        for kids in childrenCache.values {
+            for kid in kids { map[kid.id] = kid }
+        }
+        for doc in workspaces { map[doc.id] = doc }
+        // currentDocuments last so the freshest copy of a visible row wins.
+        for doc in currentDocuments { map[doc.id] = doc }
+        return map
+    }
+
     /// Get cached children or load from backend.
     func children(of documentId: String) async -> [Document] {
         if let cached = childrenCache[documentId] {

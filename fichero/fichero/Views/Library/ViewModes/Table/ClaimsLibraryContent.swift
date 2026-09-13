@@ -54,6 +54,13 @@ struct ClaimsLibraryContent: View {
     /// boundary, so this is grabbed here and re-injected across it.
     @Environment(WindowState.self) private var windowState
 
+    /// Resolves a claim's source document id → its real name even when that
+    /// document isn't in the folder-scoped `documents` (the library-wide claims
+    /// table shows claims whose source lives anywhere in the library). Without
+    /// this the Source column fell back to a raw "Source 2a614b56…" id (spec:
+    /// panes-magnifiers-workspaces panes.claim.source-is-document).
+    @Environment(DocumentStore.self) private var documentStore
+
     private struct EditingClaim: Identifiable {
         let claim: Components.Schemas.KnowledgeClaim
         var id: String { claim.id ?? claim.text }
@@ -115,11 +122,10 @@ struct ClaimsLibraryContent: View {
         guard let model else { return }
         Task {
             await model.load(folderId: folderId)
-            let docsById = Dictionary(documents.map { ($0.id, $0) },
-                                      uniquingKeysWith: { first, _ in first })
+            let docsById = self.docsById
             let parent = docsById[claim.sourceDocumentId ?? ""]
                 ?? Document(id: claim.sourceDocumentId ?? "unknown",
-                            name: Self.sourceName(for: claim.sourceDocumentId, docsById: docsById))
+                            name: Self.sourceName(for: claim, docsById: docsById))
             selection = [LibraryOutlineNode.claimItem(claim, parent: parent).id]
         }
     }
@@ -204,11 +210,11 @@ struct ClaimsLibraryContent: View {
     /// Resolve claims → sortable rows, filtered by the active search text over the
     /// claim's own words and its source page name.
     private var items: [ClaimsTableView.Item] {
-        let docsById = Dictionary(documents.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let docsById = self.docsById
 
         return (model?.claims ?? []).compactMap { claim -> ClaimsTableView.Item? in
             let values = ClaimTableRow(claim)
-            let sourceName = Self.sourceName(for: claim.sourceDocumentId, docsById: docsById)
+            let sourceName = Self.sourceName(for: claim, docsById: docsById)
             guard Self.claimMatches(
                 haystack: "\(values.svoLine) \(values.date) \(sourceName)",
                 type: claim.claimType?.rawValue ?? "",
@@ -220,13 +226,20 @@ struct ClaimsLibraryContent: View {
             // whether it appears here or as a document's disclosed child. Parent is
             // the source document when loaded, else a minimal stand-in carrying the
             // id (the node id is "<sourceDoc>:claim:<claimId>", still unique).
-            let parent = docsById[claim.sourceDocumentId ?? ""]
+            let sourceDoc = docsById[claim.sourceDocumentId ?? ""]
+            let parent = sourceDoc
                 ?? Document(id: claim.sourceDocumentId ?? "unknown", name: sourceName)
+            // The Source cell drags the source DOCUMENT with the SAME payload a
+            // library row uses (spec: panes.claim.source-is-document) — only when
+            // the document actually resolves; an unresolved id has nothing honest
+            // to drag.
+            let sourceDrag = sourceDoc.map { LibraryItemDrag.forDocument($0, libraryId: windowState.libraryId) }
             return ClaimsTableView.Item(
                 node: LibraryOutlineNode.claimItem(claim, parent: parent),
                 claim: claim,
                 values: values,
-                sourceName: sourceName
+                sourceName: sourceName,
+                sourceDrag: sourceDrag
             )
         }
     }
@@ -255,14 +268,34 @@ struct ClaimsLibraryContent: View {
         }
     }
 
+    /// Every document that can resolve a claim's source name: the store's whole
+    /// loaded set (so a library-wide claim's source resolves even outside the
+    /// browsed folder) with the folder-scoped `documents` overlaid so the
+    /// freshest copy of a visible row wins. This is what fixes the raw-id Source
+    /// column (spec: panes-magnifiers-workspaces panes.claim.source-is-document).
+    private var docsById: [String: Document] {
+        var map = documentStore.knownDocumentsById()
+        for doc in documents { map[doc.id] = doc }
+        return map
+    }
+
+    /// The display name of a resolved source document (with its parent for
+    /// disambiguation), or nil when the id isn't loaded — the resolver the pure
+    /// `LibraryClaimsModel.sourceLabel` calls.
+    static func resolvedName(for docId: String, docsById: [String: Document]) -> String? {
+        guard let doc = docsById[docId] else { return nil }
+        let parent = doc.parentId.flatMap { docsById[$0] }
+        return DocumentTitle.displayName(for: doc, parent: parent)
+    }
+
     /// Human name for a claim's source document — its page title when the document
-    /// is loaded, else a short, non-raw placeholder (never the 32-char id).
-    static func sourceName(for docId: String?, docsById: [String: Document]) -> String {
-        guard let docId, !docId.isEmpty else { return "—" }
-        if let doc = docsById[docId] {
-            let parent = doc.parentId.flatMap { docsById[$0] }
-            return DocumentTitle.displayName(for: doc, parent: parent)
-        }
-        return "Source \(docId.prefix(8))…"
+    /// is loaded, else a short, non-raw placeholder (never the 32-char id, never
+    /// empty). Delegates the rule to the pure, unit-tested
+    /// `LibraryClaimsModel.sourceLabel`.
+    static func sourceName(
+        for claim: Components.Schemas.KnowledgeClaim,
+        docsById: [String: Document]
+    ) -> String {
+        LibraryClaimsModel.sourceLabel(for: claim) { resolvedName(for: $0, docsById: docsById) }
     }
 }

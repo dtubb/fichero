@@ -10,24 +10,12 @@ private let contextMenuLogger = Logger(
 
 extension LibraryView {
 
+    // File-export context (#4123): the drag can promise a real copy of the
+    // source file, named for Finder. Page rows export just their page
+    // (`sequence` is 1-based). Delegates to the shared builder so the claims
+    // table's Source cell drags a document identically.
     func libraryItemDrag(for document: Document) -> LibraryItemDrag {
-        let kind: LibraryItemDrag.Kind = switch document.docType {
-        case .page: .page
-        case .group: .group
-        default: .document
-        }
-        return LibraryItemDrag(
-            kind: kind,
-            id: document.id,
-            documentId: document.id,
-            text: document.pageContent?.isEmpty == false ? document.pageContent ?? document.name : document.name,
-            // File-export context (#4123): the drag can promise a real copy
-            // of the source file, named for Finder. Page rows export just
-            // their page (`sequence` is 1-based).
-            libraryId: windowState.libraryId,
-            name: document.name,
-            pageIndex: kind == .page ? max(0, (document.sequence ?? 1) - 1) : nil
-        )
+        LibraryItemDrag.forDocument(document, libraryId: windowState.libraryId)
     }
 
     var libraryWorkflows: [WorkflowSidebarItem] {

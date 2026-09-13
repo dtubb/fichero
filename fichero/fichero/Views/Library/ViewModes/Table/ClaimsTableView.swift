@@ -24,6 +24,11 @@ struct ClaimsTableView: View {
         let claim: Components.Schemas.KnowledgeClaim
         let values: ClaimTableRow
         let sourceName: String
+        /// The drag payload for the source DOCUMENT, so the Source cell drags out
+        /// exactly like a library row (spec: panes-magnifiers-workspaces
+        /// panes.claim.source-is-document). `nil` when the source document isn't
+        /// resolved — nothing honest to drag.
+        var sourceDrag: LibraryItemDrag? = nil
         var id: String { node.id }
     }
 
@@ -89,12 +94,24 @@ struct ClaimsTableView: View {
             .width(min: 80, ideal: 110)
 
             TableColumn("Source", value: \.sourceName) { item in
-                // The source page is a door: a row click opens it, but the label
-                // itself reads as the page name, never a raw id.
-                Label(item.sourceName, systemImage: "doc.text")
+                // The source page is a door: a row click opens it (the shared
+                // ClaimSourceNavigationState cursor, see `.onChange(of: selection)`
+                // below), the label reads as the page name never a raw id, and the
+                // cell DRAGS the source document like any library row when it
+                // resolves (spec: panes-magnifiers-workspaces
+                // panes.claim.source-is-document). Inline (not a helper) so it
+                // lives in the column's own @ViewBuilder with no scope surprises.
+                let label = Label(item.sourceName, systemImage: "doc.text")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+                if let drag = item.sourceDrag {
+                    label.draggable(drag) {
+                        RowDragPreview(name: drag.name, systemImage: "doc.text")
+                    }
+                } else {
+                    label
+                }
             }
             .width(min: 120, ideal: 180)
 
