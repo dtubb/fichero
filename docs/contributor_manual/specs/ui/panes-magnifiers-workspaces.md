@@ -175,6 +175,51 @@ why "make it reliable so I can experiment" and "generalize to a pane list" are t
 on top with a reader beneath it; RIGHT column = the preview (source image). Chat in the sidebar.
 This is the Mail default below, expressed in the eventual pane-list model.
 
+## F7 implementation plan (the reliability generalization) — for CD review
+
+F7 is the one change that makes the pane system reliable AND lets you experiment with
+layouts. It subsumes the toggle-inertness (#1), the dead policies (#2), the
+widescreen-only pin/split (#3), the asymmetric split, and the 2-column target — because
+all of those are symptoms of *two renderers + a fixed-slot plan*. Incremental, not a
+rewrite; each step is independently shippable and testable.
+
+1. **Model — a pane LIST, not four Bools.** Introduce `PaneList = [PaneEntry]`, where
+   `PaneEntry = { kind: PaneKind, scope: PaneScope, split: SplitSpec? }`. `PaneKind` =
+   library/preview/reading/chat (the existing `PaneSpec.Kind`). `PaneScope` = which
+   library/document/folder the entry shows (this is what enables *different libraries /
+   different previews side by side*). Replaces `WidescreenPanePlan`'s four `showsXPane`
+   Bools. Pure + `Codable` → unit-testable and directly serializable as a workspace.
+2. **One renderer.** A single `paneRow(from: PaneList)` (generalise the existing
+   `widescreenPaneRow`) renders EVERY layout mode. Retire `centerContentRouting`: `.none`
+   and `.standard` become just *shorter PaneLists* (e.g. `.none` = `[library]`, `.standard`
+   = `[library, preview]`), not a different code path. **Fixes #1** (all modes honor the
+   list, so toggles work everywhere) and **#3** (pin/split chrome is per-entry, so it's
+   available in every mode).
+3. **Toggles mutate the list.** A pane toggle adds/removes a `PaneEntry` of that kind
+   (works in every mode; no more `showDocumentGrid`/`showDocumentCanvas`/… Bools — the list
+   is the single source of truth). Deletes the `showsPaneToggles`/`visiblePanes` divergence
+   and the dead `ReadingWorkspacePaneTogglePolicy` (#2). Pure seam: `PaneList.toggling(kind:)`.
+4. **Asymmetric split is a nested list.** `SplitSpec` lets a `PaneEntry` hold sub-entries
+   (a pane's content is itself a small `PaneList` in a `.horizontal`/`.vertical` split),
+   recursively — so "2 over 1" is `split(.vertical, [split(.horizontal, [a, b]), c])`.
+   Replaces the symmetric 2×2 `SplittablePane` cap. Pure seam: the split tree + its
+   flatten-to-views. **Fixes the asymmetric-split finding.**
+5. **Per-instance state stays per-entry.** Pin/zoom already live per sub-pane instance
+   (F3/F4 done); each `PaneEntry`'s rendered view keeps that. The list just says *which*
+   entries exist and how they nest.
+6. **Persistence + workspaces.** A saved workspace IS a `PaneList` (kinds + scopes + splits).
+   `WindowWorkspace` snapshots become PaneLists. **Delivers "save/reopen arbitrary
+   compositions."**
+7. **The Mail default is a starting list.** sidebar+chat (left column, already done) ·
+   centre `[library, reader]` stacked · right `[preview]` — expressed as the default PaneList.
+   No special layout code; just the initial value.
+
+**Sequence:** (1) model + (3) toggling as pure Codable types with tests → (2) route the
+widescreen path through `paneRow(from:)` (it's already list-shaped via `PaneSpec`) → fold
+`.standard`/`.none` in and retire `centerContentRouting` → (4) nested split → (6) workspace
+serialization → (7) default. Each step keeps the suite green; the risky view-composition
+steps (2, 4) need CD runtime verification, the model/logic steps (1, 3, 6) are unit-gated.
+
 ## Default composition (Mail-style) — RATIFIED 2026-09-12
 
 The default window is a three-region Mail-style layout. It prioritises the primary source
