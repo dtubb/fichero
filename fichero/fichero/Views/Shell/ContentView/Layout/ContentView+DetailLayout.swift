@@ -49,20 +49,37 @@ extension ContentView {
         // SLOT-scoped (2026-08-24): two slots hosting previews shared the
         // per-window "canvas" @SceneStorage, so splitting one split both.
         adaptiveSplittablePane(storageKey: splitKey) {
-            // The head, the chrome seam, and their sync live in
-            // ContentView+PreviewPaneHead.swift (2026-08-29 restructure).
-            previewHeadPlumbing(around: widescreenCanvasPaneContent)
+            // F3: the pin lives in the per-split HOST, not on ContentView, so
+            // each SplittablePane sub-instance pins independently (mirrors
+            // ReadingPaneView's own @State). The host is built INSIDE this
+            // per-sub-pane closure, so left and right halves get distinct
+            // @State — a shared ContentView @State pinned both at once.
+            PreviewSplitPaneHost { pinnedPreviewDocument in
+                // The head, the chrome seam, and their sync live in
+                // ContentView+PreviewPaneHead.swift (2026-08-29 restructure).
+                previewHeadPlumbing(
+                    around: widescreenCanvasPaneContent(
+                        pinnedPreviewDocument: pinnedPreviewDocument.wrappedValue
+                    ),
+                    pinnedPreviewDocument: pinnedPreviewDocument
+                )
+            }
         }
     }
 
     @ViewBuilder
-    private var widescreenCanvasPaneContent: some View {
+    private func widescreenCanvasPaneContent(pinnedPreviewDocument: Document?) -> some View {
         let stackDocuments = previewStackDocuments(
             selection: browserSelection, in: selectedDocuments
         )
         // Pinned: frozen on the captured document, whatever the selection
-        // does (Daniel, 2026-08-23: pin = pin to current view).
-        if let pinned = pinnedPreviewDocument {
+        // does (Daniel, 2026-08-23: pin = pin to current view). The pinned
+        // snapshot wins over the live selection (PreviewPanePin) — a pinned
+        // pane does not follow selection; `live: nil` because the frozen pane
+        // deliberately skips the stack/PDF renderings of the live set below.
+        if let pinned = PreviewPanePin.effectiveDocument(
+            pinned: pinnedPreviewDocument, live: nil
+        ) {
             EditorView(
                 document: pinned,
                 showHeader: false,
@@ -394,5 +411,46 @@ extension ContentView {
             .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .inspector; paneFocusHint = .inspector })
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(.bar)
+    }
+}
+
+// MARK: - Preview pane pin resolution (F3)
+
+/// Pure pin-decision for the preview pane, extracted so the F3 behaviour is
+/// unit-testable without a running view. A pane resolves to its pinned snapshot
+/// when one exists, otherwise the live selection — so two `PreviewSplitPaneHost`
+/// instances holding DIFFERENT pin state resolve to different documents from the
+/// same live selection, which is exactly independent per-split pinning.
+enum PreviewPanePin {
+    /// The document the pane shows: the pinned snapshot wins over the live
+    /// selection (a pinned pane does not follow selection).
+    static func effectiveDocument(pinned: Document?, live: Document?) -> Document? {
+        pinned ?? live
+    }
+
+    /// Whether the pane is pinned — a snapshot has been captured.
+    static func isPinned(pinned: Document?) -> Bool {
+        pinned != nil
+    }
+}
+
+// MARK: - Preview split-pane host (F3)
+
+/// Per-split-pane owner of the preview pin. Built INSIDE the SplittablePane
+/// per-sub-pane `content()` closure, so each sub-instance gets its own
+/// `@State` — exactly how `ReadingPaneView` owns `isPinned`/`pinnedDocument`.
+/// Splitting the preview and pinning one half no longer pins both, because the
+/// pin no longer lives on the single ContentView above the split boundary.
+///
+/// The pin freezes on whatever document was shown at pin time: the head's
+/// binding setter captures the current `shown` document into this @State, and
+/// the content reads it in place of the live selection (see
+/// `widescreenCanvasPaneContent` / `previewPaneHead`).
+private struct PreviewSplitPaneHost<Content: View>: View {
+    @State private var pinnedPreviewDocument: Document?
+    let content: (Binding<Document?>) -> Content
+
+    var body: some View {
+        content($pinnedPreviewDocument)
     }
 }

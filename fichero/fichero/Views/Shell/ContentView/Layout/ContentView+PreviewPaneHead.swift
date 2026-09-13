@@ -16,10 +16,15 @@ extension ContentView {
     /// the floating head (Daniel, 2026-08-23), the head ↔ canvas chrome seam,
     /// the outline fetch that feeds the crumbs, the quiet bar's ⓘ, and the
     /// edit-lens ↔ Edits-facet sync (all Daniel, 2026-08-29).
-    func previewHeadPlumbing(around content: some View) -> some View {
+    func previewHeadPlumbing(
+        around content: some View,
+        pinnedPreviewDocument: Binding<Document?>
+    ) -> some View {
         content
             .environment(previewChrome)
-            .safeAreaInset(edge: .top, spacing: 0) { previewPaneHead }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                previewPaneHead(pinnedPreviewDocument: pinnedPreviewDocument)
+            }
             // Mandate 1, consumer 1: the shown item's outline feeds the
             // head's crumb chain (entry → page → spread parents included).
             .task(id: detailDocument?.id) {
@@ -77,7 +82,7 @@ extension ContentView {
         )
     }
 
-    var previewPaneHead: some View {
+    func previewPaneHead(pinnedPreviewDocument: Binding<Document?>) -> some View {
         // The crumb names what the preview SHOWS — the image / spread /
         // page / region itself, never the folder it lives in (Daniel,
         // 2026-08-23). Same resolution the content branches use.
@@ -114,8 +119,8 @@ extension ContentView {
             crumbs: crumbs,
             onClose: { setPaneVisible(.canvas, false) },
             isPinned: Binding(
-                get: { pinnedPreviewDocument != nil },
-                set: { pin in pinnedPreviewDocument = pin ? shown : nil }
+                get: { PreviewPanePin.isPinned(pinned: pinnedPreviewDocument.wrappedValue) },
+                set: { pin in pinnedPreviewDocument.wrappedValue = pin ? shown : nil }
             ),
             onCrumb: { crumb in
                 NotificationCenter.default.post(

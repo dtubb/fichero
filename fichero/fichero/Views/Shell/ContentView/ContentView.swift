@@ -59,7 +59,11 @@ struct ContentView: View {
     @State var previewChrome = PreviewPaneChrome()
     /// Preview pin (Daniel: every pane pins to its current view): non-nil
     /// freezes the preview on this document while selection moves on.
-    @State var pinnedPreviewDocument: Document?
+    /// F3: this NO LONGER lives on ContentView — it moved INTO the per-split
+    /// host (`PreviewSplitPaneHost`, ContentView+DetailLayout) as @State, so
+    /// each SplittablePane sub-instance pins independently (mirrors
+    /// ReadingPaneView owning its own `isPinned`). A single shared @State here
+    /// pinned BOTH halves of a split at once.
     /// Library pin: freezes the browsed set + folder while the sidebar moves.
     @State var pinnedLibrary: PinnedLibraryScope?
     /// Per-slot pane-kind overrides (Daniel, 2026-08-23): a slot can host
