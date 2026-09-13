@@ -142,6 +142,35 @@ itself works (committed c4a22c2b5). The rest are the workspace/pane defects to p
   (the existing `ClaimSourceRequest.request(for:)` cursor entity statements use). Pinned:
   `ClaimSourceLabelTests`.
 
+### Reliability sweep (same-class latent bugs, 2026-09-13 overnight) — F7/NEEDS-CD
+
+A sweep for the same bug class as the fixed findings surfaced deeper, design-entangled
+defects (the toggle half of the CD's "can't turn preview/library/reader on or off"):
+
+- `panes.toggles.inert-outside-widescreen` — **[BROKEN, F1/F7]** the Preview/Reader/Chat
+  toolbar toggles are **no-ops in `.standard`/`.none` layout modes**: `centerContentRouting`
+  (`ContentView+SidebarLayout.swift:170-197`) reads only `showDocumentGrid`, never
+  `showDocumentCanvas`/`showReadingPane`/`showChatPane` — those flags are honored ONLY by
+  the widescreen pane-list path. Worse, turning a pane ON force-sets
+  `currentLayoutMode = .widescreen` (`ContentView+ActionsUI.swift:86-102`) — an unrequested
+  reflow riding on a toggle; turning OFF is just inert. This is the two-renderer divergence
+  (F1); the honest fix is F7 (one renderer, all modes honor the pane list), OR a CD ruling on
+  what a toggle should DO in non-widescreen. Testable seam: a pure
+  `visiblePanes(layoutMode:showDocumentGrid:showDocumentCanvas:showReadingPane:showChatPane:)`
+  whose result must change when EACH flag flips, for EVERY LayoutMode (fails today for
+  `.none`/`.standard`).
+- `panes.dead-toggle-policy` — **[BROKEN, cleanup]** `ReadingWorkspacePaneTogglePolicy`
+  (`Models/LayoutMode.swift:237-253`) documents the exact intended behavior for the above
+  ("a toggle from None/Standard enters the widescreen workspace and shows that pane") but has
+  **zero call sites** — the real toggle path reimplements only its ON-half inline. A second
+  "documented policy isn't the one running" instance (after the dead
+  `PaneContentPlan.plan(entitySelection:)`). Resolve WITH the above: wire it (covers OFF too)
+  or delete it — not before the direction is decided.
+
+**These confirm the reliability root is F1/F7:** the toolbar controls promise pane management
+the legacy renderer doesn't deliver. The reliable fix is one composition path (F7), which is
+why "make it reliable so I can experiment" and "generalize to a pane list" are the same task.
+
 **The 2-column target (CD, restated):** LEFT column = the browser (library / entities / claims)
 on top with a reader beneath it; RIGHT column = the preview (source image). Chat in the sidebar.
 This is the Mail default below, expressed in the eventual pane-list model.
