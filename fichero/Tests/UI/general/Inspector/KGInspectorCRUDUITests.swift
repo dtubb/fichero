@@ -181,7 +181,7 @@ final class KGInspectorCRUDUITests: FicheroUISessionTests {
 
     // MARK: - D. Cross-cutting: accessibility (ui-testing.a11y-audit)
 
-    /// spec: ui-testing-strategy.md, `ui-testing.a11y-audit` [MISSING until this
+    /// spec: ui-testing-strategy, `ui-testing.a11y-audit` [MISSING until this
     /// test] — every XCUITest flow ends with `performAccessibilityAudit()`
     /// (Apple-first-party); this test's whole job is running that audit over
     /// the Knowledge inspector's Entities facet, where this suite's CRUD
