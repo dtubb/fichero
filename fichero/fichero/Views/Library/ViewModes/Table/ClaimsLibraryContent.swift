@@ -27,6 +27,16 @@ struct ClaimsLibraryContent: View {
 
     @State private var model: LibraryClaimsModel?
 
+    /// The library the cached `model` was built for. `EntityService` is per-library
+    /// and captured permanently by `LibraryClaimsModel.init`, so a library switch
+    /// must rebuild the model — otherwise the table keeps loading the PREVIOUS
+    /// library's claims (spec: panes-magnifiers-workspaces F5). `nil` until first
+    /// build. See `.task(id:)` below. The active library id comes from the existing
+    /// `windowState` (declared below) — a library-wide Claims row keeps
+    /// `folderId == nil` before AND after a switch, so keying the reload on
+    /// `folderId` alone never refired across libraries (the F5 bug).
+    @State private var loadedLibraryId: UUID?
+
     /// Per-table filter (spec: kg-tables, filter.text / filter.claim-type). Intersects
     /// with the shared ⌘F `searchQuery`; empty text + nil type = no per-table filter.
     @State private var filterText = ""
@@ -62,10 +72,17 @@ struct ClaimsLibraryContent: View {
                 onEdit: { claimToEdit = $0 }
             )
         }
-        .task(id: folderId) {
-            let active = model ?? LibraryClaimsModel(service: entityService)
-            model = active
-            await active.load(folderId: folderId)
+        // Reload on BOTH the active library AND the folder scope. Keying on
+        // `folderId` alone left the library-wide row (folderId == nil) stuck on
+        // the previous library's claims after a switch (spec F5). The cached
+        // model captured the OLD library's per-library `EntityService`, so a
+        // switch also REBUILDS it — a stale-service model must not survive.
+        .task(id: LibraryClaimsModel.reloadKey(libraryId: windowState.libraryId, folderId: folderId)) {
+            if model == nil || loadedLibraryId != windowState.libraryId {
+                model = LibraryClaimsModel(service: entityService)
+                loadedLibraryId = windowState.libraryId
+            }
+            await model?.load(folderId: folderId)
         }
         .sheet(isPresented: $showingCreateSheet) {
             // Attribute the hand-authored claim to the folder/page in view so it

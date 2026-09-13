@@ -61,7 +61,15 @@ struct EntitiesLibraryContent: View {
         // A high limit: we filter to the folder client-side, so the library-wide
         // list must be complete enough not to drop the folder's entities (the
         // default page size is small). The store dedups repeat loads.
-        .task { await store.loadEntities(limit: 25000) }
+        //
+        // Keyed on the store's identity so a LIBRARY SWITCH re-triggers the load:
+        // `EntityStore` is per-library and swaps in the environment on a switch
+        // (LibraryWorkspaceRoot swaps stores without remounting), but a bare
+        // `.task` fires once for the view's lifetime and would NOT refire when
+        // the environment store changes — leaving the new library's table
+        // un-loaded. The parallel of the Claims F5 fix, so both tables behave
+        // identically (spec: panes-magnifiers-workspaces F5 / entities==claims).
+        .task(id: ObjectIdentifier(store)) { await store.loadEntities(limit: 25000) }
         .sheet(isPresented: $showingCreateSheet) {
             // Reuse the Ontology create/edit sheet; it reads its own EntityService
             // from the environment (the library it mutates). On commit, force a

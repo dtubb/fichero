@@ -78,6 +78,17 @@ final class LibraryClaimsModel {
         }
     }
 
+    /// The composite key a claims table reloads on: BOTH the active library AND
+    /// the folder scope. The library-wide Claims row keeps `folderId == nil`
+    /// before AND after a library switch, so keying the reload on `folderId`
+    /// alone never refired across libraries and the table showed the PREVIOUS
+    /// library's claims (spec: panes-magnifiers-workspaces F5). Folding the
+    /// library id in makes a switch change the key even when the folder scope
+    /// does not. `nonisolated` + pure so the reset rule is unit-testable off-main.
+    nonisolated static func reloadKey(libraryId: UUID, folderId: String?) -> String {
+        "\(libraryId.uuidString)|\(folderId ?? "")"
+    }
+
     /// The pure removal rule: drop claims whose id is in `claimIds`, keep the rest.
     /// A claim with no id is never removed (absence is not a match). `nonisolated`
     /// (touches no actor state) so the in-place-delete behaviour is testable off-main.
