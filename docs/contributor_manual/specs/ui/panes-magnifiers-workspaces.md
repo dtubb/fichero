@@ -124,18 +124,23 @@ itself works (committed c4a22c2b5). The rest are the workspace/pane defects to p
   makes a **2×2 grid of 4**; the CD wants asymmetric nesting ("2 over 1" — two panes on top,
   one below). The current split caps at a symmetric 2×2 (`SplittablePane.swift:156-166`) and
   every sub-pane renders the same content. Needs nested/asymmetric split (part of F7).
-- `panes.library.horizontal-and-entities-parity` — **[BROKEN]** in the horizontal library
-  layout: the **Entities** view "takes over" — no library shown — while **Claims** keeps the
-  library; also mis-aligned on the left, and it disappears. Entities and Claims compose the
-  pane plan differently (the F5/one-view-system divergence surfacing again in layout).
-- `panes.toolbar.toggles-consistent` — **[BROKEN]** in some layouts the toolbar's pane-toggle
-  icons (preview / library / reader on/off) DISAPPEAR, so panes can't be toggled — a strong
-  signal the modes don't share one toolbar/composition path (F1/F2, the two-renderer + naming
-  divergence). One toolbar, always offering the same pane toggles for the current pane list.
-- `panes.claim.source-is-document` — **[BROKEN]** the Claims table's **Source** column shows a
-  raw id ("Source 2a614b56…"); it must show the actual **document name**, be **draggable**, and
-  **click-through to the source** (open it in reader/preview) — the same source-navigation the
-  entity statements use (`kg-entity-inspector` `source.row-click-navigates`).
+- `panes.library.horizontal-and-entities-parity` — **[OK]** (fixed a7d349724) the Entities view
+  no longer "takes over" — entity/claim/folder library selections all keep the same panes. Was:
+  `showsPreviewPane` special-cased only entities→false (full-width takeover) while Claims kept
+  the two-pane layout, violating the stable-panes policy. Fix: pure `showsPreviewPane(viewMode:
+  layoutMode:)` with no selection input → parity structural. Pinned: `ShowsPreviewPanePolicyTests`.
+  (Any remaining left-alignment detail is a follow-up once the takeover is gone.)
+- `panes.toolbar.toggles-consistent` — **[OK]** (fixed d4ab628fb) the pane toggles + Workspaces
+  menu no longer vanish for KG collections. Was: both gated on `supportsReadingWorkspace`
+  (`.library && !isKGLibrarySelection`), so Entities/Claims hid every toggle AND the recovery
+  menu. Fix: pure `showsPaneToggles(sidebarMode:compactFlow:)` (drops isKG) + `showsWorkspacesMenu`
+  (compact-only); Workspaces menu moved to its own un-gated conditional. Pinned:
+  `ToolbarTogglePolicyTests`.
+- `panes.claim.source-is-document` — **[OK]** (fixed b7be99143) the Claims Source column shows
+  the document NAME (resolved over ALL loaded docs, not just the folder scope — the id-fallback
+  bug), is **draggable** (shared `LibraryItemDrag` payload), and **clicks through** to the source
+  (the existing `ClaimSourceRequest.request(for:)` cursor entity statements use). Pinned:
+  `ClaimSourceLabelTests`.
 
 **The 2-column target (CD, restated):** LEFT column = the browser (library / entities / claims)
 on top with a reader beneath it; RIGHT column = the preview (source image). Chat in the sidebar.
