@@ -71,3 +71,25 @@ def test_missing_mainactor_isolation_is_caught(tmp_path):
     pbx = _real_pbx().replace("SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor", "SWIFT_DEFAULT_ACTOR_ISOLATION = nonisolated")
     problems = _run_against(tmp_path, pbx)
     assert any("ACTOR_ISOLATION" in p or "MainActor" in p for p in problems)
+
+
+@pytest.mark.build_config
+def test_mainactor_dropped_from_ficherotests_only_is_caught(tmp_path):
+    """The scoping win: dropping the isolation from FicheroTests' OWN config blocks
+    is caught even though the setting still appears elsewhere in the file (e.g. on
+    FicheroUITests). A whole-file substring check would miss this exact drift — the
+    one that causes the ~575 off-main SIGTRAPs — because the string is still present.
+    """
+    pbx = _real_pbx()
+    blocks = _mod._config_blocks_for_product(pbx, "FicheroTests")
+    assert blocks, "fixture precondition: FicheroTests config blocks must exist"
+    for _cfg, body in blocks:
+        neutered = body.replace(
+            "SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;",
+            "SWIFT_DEFAULT_ACTOR_ISOLATION = nonisolated;",
+        )
+        pbx = pbx.replace(body, neutered)
+    # Precondition: the string still exists elsewhere (so a substring check would pass).
+    assert "SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor" in pbx
+    problems = _run_against(tmp_path, pbx)
+    assert any("FicheroTests" in p and "ACTOR_ISOLATION" in p for p in problems), problems

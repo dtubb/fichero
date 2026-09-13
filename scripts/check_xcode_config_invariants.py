@@ -56,6 +56,23 @@ def _app_config_block(pbx: str, name: str) -> str | None:
     return None
 
 
+def _config_blocks_for_product(pbx: str, product_name: str) -> list[tuple[str, str]]:
+    """(config-name, body) for every XCBuildConfiguration of the target whose
+    `PRODUCT_NAME` is `product_name`.
+
+    Scoping by product name is what makes the FicheroTests MainActor check honest:
+    a whole-file substring passes if the setting appears on ANY target, so it would
+    not catch the setting being dropped from FicheroTests specifically (the exact
+    drift that causes the ~575 off-main SIGTRAPs).
+    """
+    blocks: list[tuple[str, str]] = []
+    for m in _BLOCK_RE.finditer(pbx):
+        body = m.group("body")
+        if f"PRODUCT_NAME = {product_name};" in body:
+            blocks.append((m.group("name").strip('"'), body))
+    return blocks
+
+
 def check() -> list[str]:
     problems: list[str] = []
     if not PBXPROJ.is_file():
@@ -101,12 +118,22 @@ def check() -> list[str]:
     if bad:
         problems.append(f"MACOSX_DEPLOYMENT_TARGET floor is macOS 26; found {sorted(bad)}")
 
-    # 6. FicheroTests runs on the main actor by default.
-    if "SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor" not in pbx:
-        problems.append(
-            "SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor missing "
-            "(FicheroTests SIGTRAPs off-main without it)"
-        )
+    # 6. FicheroTests runs on the main actor by default — checked on the
+    # FicheroTests target's OWN config blocks, not a whole-file substring (which
+    # would pass if the setting sat on any other target).
+    test_blocks = _config_blocks_for_product(pbx, "FicheroTests")
+    if not test_blocks:
+        problems.append("FicheroTests target config blocks not found in pbxproj")
+    else:
+        missing = [
+            cfg for cfg, body in test_blocks
+            if "SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor" not in body
+        ]
+        if missing:
+            problems.append(
+                f"FicheroTests config(s) {sorted(missing)} missing "
+                "SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor (SIGTRAPs off-main without it)"
+            )
 
     return problems
 
