@@ -303,11 +303,16 @@ build before treating them as bugs:
 ## Design decisions — RATIFIED 2026-09-13 (creative director)
 
 1. **Generalize to a pane list — YES, after the safe fixes.** (F7) The plan becomes an
-   **ordered pane list** (kind + content per entry) instead of four Bools, enabling
-   two-of-a-kind (3 previews side-by-side: original · words · reader), arbitrary
-   compositions, and saved workspaces; the Mail default becomes just a starting list.
-   Sequenced *after* F3 (pin) + F6 (plan==render) land. Open sub-question kept: the cap
-   (max panes per row) and whether 2×2 split stays once a list can add more of a kind.
+   **ordered pane list** instead of four Bools. **A pane entry carries a *kind* AND a
+   *scope*** (which library / document / folder it shows), not just a kind — so the list
+   can hold **different previews, different readers, or even different LIBRARIES side by
+   side** (CD, 2026-09-13: "we want to be able to have different libraries, or different
+   previews, or readers"), not merely N-of-one-kind. Enables 3-previews (original · words ·
+   reader), heterogeneous compositions, and saved workspaces; the Mail default becomes just
+   a starting list. Sequenced *after* F3 (pin) + F6 (plan==render). Open sub-questions: the
+   cap (max panes per row); whether 2×2 split stays once a list can add more of a kind; and
+   how a pane's scope is chosen/persisted (a per-pane library/document picker). Chat is NOT
+   a row pane in this model — it lives inside the sidebar (`panes.chat.below-sidebar`).
 2. **Zoom — independent + opt-in sync.** (F4) Each split half zooms alone (matches the
    code); a "sync zoom" toggle links them on request. Still confirm the live repro of the
    "shared zoom" report first, in case there's an actual bug to fix underneath.
