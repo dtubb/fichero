@@ -211,8 +211,13 @@ the browse→read flow down the centre.
 1. ~~**Claims don't reset on library change**~~ — **FIXED 5b709aca0** (F5): Claims + Entities
    now key their reload on the library and reset on a switch; pinned by
    `ClaimsLibraryReloadKeyTests`. Built + tested green.
-2. **Pin shares across split halves for Preview & Library** (`panes.split.independent-mode-per-pane`
-   / pin) — F3. Move pin state inside the pane instance like the Reader. (NEXT fix lane.)
+2. **Pin shares across split halves** (`panes.split.independent-mode-per-pane` / pin) — F3.
+   **PREVIEW fixed** (474802124): pin moved into a per-sub-pane `PreviewSplitPaneHost`
+   (`@State`), pure `PreviewPanePin` seam, pinned by `PreviewPanePinTests`. **LIBRARY pin
+   still shared** — deferred: `pinnedLibrary` is read in 3 places, snapshots 4 ContentView
+   values at pin time, and is cleared cross-cuttingly (`ContentView+ActionsImport.swift:95`),
+   so a per-instance move needs a reset channel (a mailbox/token like split-apply) — a small
+   design task before the same pattern transfers. (NEXT sub-lane.)
 3. **Preview isn't always there** (F6) — plan==render parity; close the #4525 gap.
 4. **Chat prompt is under the image, not under the chat** (`panes.chat.below-sidebar`) — move
    the chat history + input into the left sidebar beneath the folder tree.
@@ -240,7 +245,9 @@ Paths relative to `fichero/fichero/`. From a read-only code map; every line veri
 - **F2 — Three pane vocabularies.** `Views/Shell/PaneVisibility.swift:5-7` (`grid/canvas/reading`)
   vs `PaneSpec.swift:16-20` (`library/preview/reading/chat`) vs
   `Views/Shell/WindowLayout/WindowWorkspace.swift:41-52` (`showLibraryPane/…`).
-- **F3 — Pin scope split.** Reader: per-instance `@State` inside the pane —
+- **F3 — Pin scope split.** *(PREVIEW fixed 474802124 — pin moved into `PreviewSplitPaneHost`
+  per sub-pane, `PreviewPanePin` seam; LIBRARY still shared, deferred pending a reset channel.)*
+  Reader: per-instance `@State` inside the pane —
   `Views/Reader/Page/ReadingPaneView.swift:131-135` (`isPinned`, `pinnedDocument`, …),
   read at `:167-170`, toggled at `:544-555`; the type doc (`:6-9`) states independence-per-split
   as the goal. Preview: `@State var pinnedPreviewDocument` on `ContentView` —
