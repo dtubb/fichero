@@ -360,6 +360,9 @@ struct ContentView: View {
     @SceneStorage("showChatPane") var showChatPane: Bool =
         WorkspaceLayoutDefaults.showChatPane
     @SceneStorage("chatPaneWidth") var chatPaneWidth: Double = 320
+    /// Height of the chat region beneath the sidebar folder tree, dragged by its
+    /// divider (spec panes.chat.below-sidebar). Per-window, like the pane widths.
+    @SceneStorage("sidebar.chat.height") var sidebarChatHeight: Double = 260
     @SceneStorage("showReadingPane") var showReadingPane: Bool =
         WorkspaceLayoutDefaults.showReadingPane
     // Summoned search (#4521): the engine-search field in the library's mini

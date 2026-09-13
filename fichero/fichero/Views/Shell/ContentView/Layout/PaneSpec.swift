@@ -1,5 +1,18 @@
 import SwiftUI
 
+// MARK: - Chat mount decision (spec panes.chat.below-sidebar)
+
+/// Pure decision for WHICH conversation the chat surface shows — extracted so
+/// it is unit-testable without a running view. The chat surface (now beneath the
+/// sidebar, `ContentView.chatSurface`) follows the view mode: a selected chat
+/// names its conversation, anything else is a fresh one.
+enum ChatMount {
+    static func conversation(for viewMode: AppViewMode) -> Conversation? {
+        if case .chat(let conversation) = viewMode { return conversation }
+        return nil
+    }
+}
+
 // MARK: - Pane system, step 1 (#13 / pane-system-proposal-2026-08-11)
 
 /// One pane of the widescreen centre row.
@@ -93,11 +106,12 @@ extension ContentView {
         } else if plan.showsReadingPane {
             specs.append(PaneSpec(kind: .reading, fixedWidth: nil))
         }
-        if plan.showsChatPane {
-            // Chat is the NARROW pane right of the reader (2026-08-11 pane
-            // rulings) — a fixed column its divider drags, never a takeover.
-            specs.append(PaneSpec(kind: .chat, fixedWidth: CGFloat(chatPaneWidth)))
-        }
+        // Chat is NO LONGER a centre pane (spec panes.chat.below-sidebar): it
+        // lives beneath the sidebar folder tree now, mounted by
+        // `ContentView.sidebarContent`. `showChatPane` still gates it — it just
+        // shows/hides the sidebar region instead of appending a row pane, so the
+        // sparkles toggle needs no change. The `if plan.showsChatPane { append
+        // .chat }` that used to be here is intentionally gone.
         return specs
     }
 
@@ -211,34 +225,35 @@ extension ContentView {
             }
             return AnyView(reading.frame(maxWidth: .infinity))
         case .chat:
-            // Splittable like every other pane (Daniel, 2026-08-29: "some
-            // panes offer splits and chat does not") — the SAME machinery,
-            // so the toolbar's Split Right/Below reaches a focused chat too.
+            // Chat is no longer a centre pane — it lives beneath the sidebar
+            // (spec panes.chat.below-sidebar). The kind stays in the enum so the
+            // slot switcher's `Kind` type stays total, but a slot manually
+            // switched to Chat now points the user to its real home instead of
+            // mounting a SECOND `ChatView` — a second one would carry its own
+            // @State conversation (double-send). The one mount is `chatSurface`
+            // in ContentView.sidebarContent.
             return AnyView(
-                adaptiveSplittablePane(storageKey: splitKey) {
-                    chatPaneContent
-                }
-                .frame(width: spec.fixedWidth ?? CGFloat(ContentView.chatPaneMinWidth))
-                .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .chat; paneFocusHint = .chat })
+                PaneEmptyStateView(reason: "Chat lives beneath the sidebar.")
+                    .frame(maxWidth: .infinity)
+                    .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .chat; paneFocusHint = .chat })
             )
         }
     }
 
-    /// The row's chat pane — the SAME ChatView the old takeover mode
-    /// rendered, scoped by the same attach context, just living beside the
-    /// reader instead of over everything. While the sidebar has a chat
-    /// selected, the pane follows it; otherwise it is a fresh conversation.
+    /// The assistant chat surface — the SAME `ChatView` the old centre pane
+    /// rendered, now mounted beneath the sidebar folder tree
+    /// (spec panes.chat.below-sidebar). ONE mount definition, called from
+    /// `ContentView.sidebarContent`. `internal` (not `private`) so that
+    /// cross-file caller can reach it; conversation history is unchanged because
+    /// it is backend-backed (ChatService/ConversationService), not view @State.
     @ViewBuilder
-    private var chatPaneContent: some View {
+    var chatSurface: some View {
         ChatView(
-            conversation: {
-                if case .chat(let conversation) = viewMode { return conversation }
-                return nil
-            }(),
+            conversation: ChatMount.conversation(for: viewMode),
             selectedDocuments: $chatSelectedDocuments,
             attachContext: chatAttachContext,
             onConversationUpdated: { refreshConversations() },
-            // X on the chat head hides the pane — the toolbar toggle's seam.
+            // X on the chat head hides the region — the toolbar toggle's seam.
             onClosePane: { setChatPaneVisible(false) }
         )
     }

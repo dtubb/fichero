@@ -30,6 +30,96 @@ extension ContentView {
 
     @ViewBuilder
     var sidebarContent: some View {
+        VStack(spacing: 0) {
+            sidebarTree
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // Chat lives BELOW the folder tree (spec panes.chat.below-sidebar):
+            // the assistant chat is no longer a centre pane. Gated on the SAME
+            // `showChatPane` the sparkles toolbar toggle drives; the divider
+            // remembers its height per window. It mounts the SAME `ChatView` the
+            // centre pane used (`chatSurface`), so conversation history — which
+            // lives in the backend via ChatService/ConversationService, not view
+            // @State — is unchanged. Those services (plus WorkspaceStore) are
+            // re-injected FROM THE WINDOW'S LIBRARY REFERENCE across this column
+            // boundary — the #4513 rule: a missing @Environment object is a hard
+            // crash, and re-deriving from `library` (like the inspector boundary
+            // does) avoids adding an unconditional @Environment read to
+            // ContentView that would trap when no chat is shown.
+            if showChatPane,
+               let library = libraryManager.getLibrary(id: windowState.libraryId) {
+                ResizableDivider(
+                    width: $sidebarChatHeight,
+                    minWidth: 140,
+                    maxWidth: 700,
+                    edge: .trailing,
+                    axis: .vertical
+                )
+                chatSurface
+                    .frame(height: CGFloat(sidebarChatHeight))
+                    .frame(maxWidth: .infinity)
+                    // #4513: a missing @Environment object is a HARD crash, and
+                    // ChatView's subtree reads EIGHT services non-optionally
+                    // (APIClient, ChatService, ConversationService, DocumentStore,
+                    // LibraryManager, ResearchService, ResearchStore,
+                    // WorkspaceStore). Re-inject the FULL library list (the ONE
+                    // mandated boundary helper — 7 of the 8) rather than a
+                    // hand-picked subset that would trap on the next one, plus
+                    // LibraryManager (the app singleton libraryServiceEnvironment
+                    // does not carry). Same seam the inspector boundary uses.
+                    .libraryServiceEnvironment(library)
+                    .environment(LibraryManager.shared)
+                    // Claim pane focus on click — the SAME gesture-only seam the
+                    // centre chat/reading/preview panes use (they set
+                    // `focusedPane`/`paneFocusHint` via a tap, never a
+                    // `.focused(equals:)` two-way binding, which would fight the
+                    // chat composer's own TextField focus). `PaneFocus.chat`
+                    // already exists.
+                    .simultaneousGesture(
+                        TapGesture().onEnded { focusedPane = .chat; paneFocusHint = .chat }
+                    )
+            }
+        }
+        // Track the column's live rendered width so each mode's @AppStorage
+        // ideal is updated when the user drags the divider. The GeometryReader
+        // fires on every layout pass — guard with a min-delta to avoid writing
+        // on every pixel during animation.
+        .background(
+            GeometryReader { geo in
+                Color.clear
+                    .onChange(of: geo.size.width) { _, newWidth in
+                        guard newWidth > 0, abs(newWidth - sidebarWidth) > 2 else { return }
+                        // Views audit B3: no geometry write-back while a
+                        // divider drag is invalidating layout every frame.
+                        guard !dividerDragInFlight else { return }
+                        sidebarWidth = newWidth
+                    }
+            }
+        )
+        // min: 180 lets the sidebar collapse tight enough that the mode
+        // icons dominate the column with minimal wasted space (#615).
+        // Was 250 — felt bloated on small screens.
+        //
+        .navigationSplitViewColumnWidth(
+            min: ContentView.sidebarMinWidth,
+            ideal: sidebarWidth,
+            max: 600
+        )
+        .focusedSceneValue(\.sidebarMode, $sidebarMode)
+        // NOTE: \.showInspector is published from the detail column in
+        // ContentView.navigationSplitColumn (always present), NOT here — the
+        // sidebar leaves the hierarchy when collapsed, which disabled ⌘⌥I
+        // and the View-menu toggle while the sidebar was hidden (#1513).
+        .focusedSceneValue(\.navigateToParentAction, FocusedLibraryAction(isEnabled: true, run: navigateToParent))
+    }
+
+    /// The folder-tree sidebar itself. Extracted from `sidebarContent` so a chat
+    /// region can sit BELOW it (spec panes.chat.below-sidebar). Carries the
+    /// tree's OWN environment, focus and click-to-focus seams; the column-width
+    /// + width-tracking modifiers stay on the enclosing column in
+    /// `sidebarContent`, which is the view NavigationSplitView hosts as the
+    /// sidebar column.
+    @ViewBuilder
+    private var sidebarTree: some View {
         SidebarView(
             sidebarMode: $sidebarMode,
             viewMode: $viewMode,
@@ -83,37 +173,6 @@ extension ContentView {
         // List's own selection click (and the per-row/section fallbacks) without
         // consuming it — the same way it does on the center pane.
         .simultaneousGesture(TapGesture().onEnded { focusedPane = .sidebar; paneFocusHint = .sidebar })
-        // Track the column's live rendered width so each mode's @AppStorage
-        // ideal is updated when the user drags the divider. The GeometryReader
-        // fires on every layout pass — guard with a min-delta to avoid writing
-        // on every pixel during animation.
-        .background(
-            GeometryReader { geo in
-                Color.clear
-                    .onChange(of: geo.size.width) { _, newWidth in
-                        guard newWidth > 0, abs(newWidth - sidebarWidth) > 2 else { return }
-                        // Views audit B3: no geometry write-back while a
-                        // divider drag is invalidating layout every frame.
-                        guard !dividerDragInFlight else { return }
-                        sidebarWidth = newWidth
-                    }
-            }
-        )
-        // min: 180 lets the sidebar collapse tight enough that the mode
-        // icons dominate the column with minimal wasted space (#615).
-        // Was 250 — felt bloated on small screens.
-        //
-        .navigationSplitViewColumnWidth(
-            min: ContentView.sidebarMinWidth,
-            ideal: sidebarWidth,
-            max: 600
-        )
-        .focusedSceneValue(\.sidebarMode, $sidebarMode)
-        // NOTE: \.showInspector is published from the detail column in
-        // ContentView.navigationSplitColumn (always present), NOT here — the
-        // sidebar leaves the hierarchy when collapsed, which disabled ⌘⌥I
-        // and the View-menu toggle while the sidebar was hidden (#1513).
-        .focusedSceneValue(\.navigateToParentAction, FocusedLibraryAction(isEnabled: true, run: navigateToParent))
     }
 
     // MARK: - Center Content (with Layout Modes)

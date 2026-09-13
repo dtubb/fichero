@@ -101,13 +101,13 @@ extension ContentView {
         setPaneVisible(.reading, isVisible)
     }
 
-    /// Chat is auxiliary (never the last content pane), so unlike
-    /// preview/reading it toggles directly — no #1696 invariant to guard.
+    /// Shows/hides the assistant chat region BENEATH the sidebar folder tree
+    /// (spec panes.chat.below-sidebar) — chat is no longer a centre pane, so
+    /// this no longer forces the centre into widescreen (it used to, because the
+    /// chat pane only existed in the widescreen row). Still `showChatPane`, so
+    /// the sparkles toolbar toggle needs no change; auxiliary, never the last
+    /// content pane, so no #1696 invariant to guard.
     func setChatPaneVisible(_ isVisible: Bool) {
-        if isVisible {
-            currentLayoutMode = .widescreen
-            viewSettings.previewMode = .widescreen
-        }
         showChatPane = isVisible
         WorkspaceLayoutDefaults.remember(paneVisibility, chat: isVisible)
     }
