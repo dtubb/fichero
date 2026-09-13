@@ -100,6 +100,15 @@ The north star is a single model, reached by finishing the migration — not a r
 6. **Plan == render.** A pane the plan says has content must actually render it, or the plan
    must not claim it (close the #4525 gap).
 
+## North star (CD, 2026-09-13): RELIABILITY over any specific layout
+
+The overriding goal is a pane system that is **reliable and works**, so the CD can
+**experiment with various layouts** — not one hard-coded arrangement. Every finding below
+is a reliability defect (a pane vanishes, a toggle disappears, a split produces a state you
+didn't ask for, a view "takes over"). Fixing these — one composition path, consistent
+toggles, predictable split, panes that never silently drop — matters MORE than delivering
+the Mail default. The Mail layout is just one composition the reliable system can express.
+
 ## CD runtime review 2026-09-13 (design-lead testing) — findings from a live build
 
 Findings from the creative director running the chat-in-sidebar build. Chat-in-sidebar
