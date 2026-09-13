@@ -64,8 +64,15 @@ struct ContentView: View {
     /// each SplittablePane sub-instance pins independently (mirrors
     /// ReadingPaneView owning its own `isPinned`). A single shared @State here
     /// pinned BOTH halves of a split at once.
-    /// Library pin: freezes the browsed set + folder while the sidebar moves.
-    @State var pinnedLibrary: PinnedLibraryScope?
+    /// Library pin (F3): the pin itself NO LONGER lives here — it moved INTO
+    /// the per-split host (`LibrarySplitPaneHost`, ContentView+Navigation) as
+    /// @State, so each SplittablePane sub-instance pins independently (a single
+    /// shared @State pinned every split half at once). What remains here is the
+    /// cross-cutting RESET signal: a monotonic token ContentView bumps (see
+    /// ContentView+ActionsImport) to release every library pane's pin on a new
+    /// search — the coordination the direct `pinnedLibrary = nil` write used to
+    /// do when the pin lived on ContentView.
+    @State var libraryPinClearToken: Int = 0
     /// Per-slot pane-kind overrides (Daniel, 2026-08-23): a slot can host
     /// any pane kind; nil entry = the plan's own kind.
     @State var paneKindOverrides: [String: PaneSpec.Kind] = [:]

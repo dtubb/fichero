@@ -82,9 +82,9 @@ extension ContentView {
         // the new one. Clearing here is what makes "search again" read as a
         // fresh answer rather than an edit of the last one.
         browserSelection = []
-        // Release a pinned library scope (Daniel, 2026-09-02: while results
-        // are showing, the other view modes "show the whole folder, not the
-        // search results"). `libraryContentColumn` reads
+        // Release every library pane's pinned scope (Daniel, 2026-09-02: while
+        // results are showing, the other view modes "show the whole folder, not
+        // the search results"). `libraryContentColumn` reads
         // `pinnedLibrary?.documents ?? … searchResultDocuments` — a pin is a
         // FROZEN snapshot of the rows that were showing when it was set, and
         // it wins over the result set in EVERY view mode: timeline, canvas,
@@ -92,7 +92,12 @@ extension ContentView {
         // found the folder. A search takes over the library column by
         // definition; a pin the results cannot be seen through is worse than
         // no pin.
-        pinnedLibrary = nil
+        //
+        // F3: the pin now lives PER split half inside `LibrarySplitPaneHost`,
+        // so ContentView can no longer nil it directly. Bumping this token is
+        // the reset channel — every mounted host observes it and clears its own
+        // @State pin (`LibraryPanePin.shouldClear`).
+        libraryPinClearToken &+= 1
         sidebarMode = route.sidebarMode
         viewMode = route.viewMode
         activeSearchQuery = route.query

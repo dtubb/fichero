@@ -25,7 +25,7 @@ extension ContentView {
     /// modes (2026-08-12: chat no longer takes over; its conversation lives
     /// in the row's chat pane while this column keeps the workspace).
     @ViewBuilder
-    var libraryContentColumn: some View {
+    func libraryContentColumn(pinnedLibrary: Binding<PinnedLibraryScope?>) -> some View {
         // #2960: @Observable via @Environment has no projected binding —
         // @Bindable gives `$viewSettings.libraryLayout`.
         @Bindable var viewSettings = viewSettings
@@ -40,8 +40,10 @@ extension ContentView {
             // Transient search (#4106/S2): while a toolbar query is
             // active the library column shows its resolved hits in
             // relevance order; every Library view mode presents them.
-            documents: pinnedLibrary?.documents
-                ?? (activeSearchQuery == nil ? selectedDocuments : searchResultDocuments),
+            documents: LibraryPanePin.effectiveDocuments(
+                pinned: pinnedLibrary.wrappedValue,
+                live: activeSearchQuery == nil ? selectedDocuments : searchResultDocuments
+            ),
             contentCollection: sidebarContentCollection,
             isLoading: documentStore.isLoading,
             isConnected: documentStore.isConnected,
@@ -72,9 +74,12 @@ extension ContentView {
                 ? { withAnimation(FrameAnimation.snappy) { setLibraryPaneVisible(false) } }
                 : nil,
             isPanePinned: Binding(
-                get: { pinnedLibrary != nil },
+                get: { LibraryPanePin.isPinned(pinned: pinnedLibrary.wrappedValue) },
                 set: { pin in
-                    pinnedLibrary = pin
+                    // Freeze-on-current: capture the EXACT rows + folder showing
+                    // now (the same 4-value snapshot as before F3), into THIS
+                    // split half's own @State via the binding.
+                    pinnedLibrary.wrappedValue = pin
                         ? PinnedLibraryScope(
                             documents: activeSearchQuery == nil ? selectedDocuments : searchResultDocuments,
                             folderId: sidebarSelectionState.selectedItemId
@@ -82,7 +87,10 @@ extension ContentView {
                         : nil
                 }
             ),
-            folderId: pinnedLibrary?.folderId ?? sidebarSelectionState.selectedItemId,
+            folderId: LibraryPanePin.effectiveFolderId(
+                pinned: pinnedLibrary.wrappedValue,
+                live: sidebarSelectionState.selectedItemId
+            ),
             onRequestFocus: { focusedPane = .content; paneFocusHint = .content },
             onRequestPreviousPaneFocus: { cyclePaneFocus(reverse: true) },
             onRequestNextPaneFocus: { cyclePaneFocus(reverse: false) },
@@ -225,14 +233,23 @@ extension ContentView {
         } else {
         switch viewMode {
         case .library:
-            libraryContentColumn
+            // F3: the pin lives PER split half in the host, so splitting the
+            // library and pinning one half no longer pins both. Built here (a
+            // leaf of `contentView`, which is re-instantiated per SplittablePane
+            // sub-pane), so each half gets its own @State; non-split layouts
+            // simply have one instance.
+            LibrarySplitPaneHost(clearToken: libraryPinClearToken) { pinnedLibrary in
+                libraryContentColumn(pinnedLibrary: pinnedLibrary)
+            }
 
         case .chat:
             // NO takeover (Daniel 2026-08-12): selecting a chat keeps the
             // library column; the conversation renders in the row's CHAT
             // PANE (PaneSpec .chat reads viewMode for it). The library shows
             // the last-browsed listing, so the workspace never collapses.
-            libraryContentColumn
+            LibrarySplitPaneHost(clearToken: libraryPinClearToken) { pinnedLibrary in
+                libraryContentColumn(pinnedLibrary: pinnedLibrary)
+            }
 
         case .comparison(let comparison):
             if let comp = comparison {
@@ -367,5 +384,76 @@ extension ContentView {
 
         }
         }
+    }
+}
+
+// MARK: - Library pane pin resolution (F3)
+
+/// Pure pin-decision for the library pane, extracted so the F3 behaviour is
+/// unit-testable without a running view — the sibling of `PreviewPanePin`. A
+/// pane resolves to its pinned snapshot when one exists, otherwise the live
+/// selection, so two `LibrarySplitPaneHost` instances holding DIFFERENT pin
+/// state resolve to different scopes from the same live selection (independent
+/// per-split pinning). The reset rule is likewise pure: a pane clears its pin
+/// when ContentView's monotonic clear token advances past what it last saw.
+enum LibraryPanePin {
+    /// Rows the pane shows: the pinned snapshot's frozen set wins over live.
+    static func effectiveDocuments(
+        pinned: PinnedLibraryScope?, live: [Document]
+    ) -> [Document] {
+        pinned?.documents ?? live
+    }
+
+    /// Folder the pane is scoped to: the pinned snapshot's folder wins over live.
+    static func effectiveFolderId(
+        pinned: PinnedLibraryScope?, live: String?
+    ) -> String? {
+        pinned?.folderId ?? live
+    }
+
+    /// Whether the pane is pinned — a snapshot has been captured.
+    static func isPinned(pinned: PinnedLibraryScope?) -> Bool {
+        pinned != nil
+    }
+
+    /// A pane releases its pin when the cross-cutting reset token advances
+    /// (ContentView bumps it on a new search — see ContentView+ActionsImport).
+    static func shouldClear(lastSeenToken: Int, currentToken: Int) -> Bool {
+        currentToken != lastSeenToken
+    }
+}
+
+// MARK: - Library split-pane host (F3)
+
+/// Per-split-pane owner of the library pin. Built INSIDE `contentView` (which
+/// is re-instantiated per SplittablePane sub-pane), so each sub-instance gets
+/// its own `@State` — exactly like `PreviewSplitPaneHost` / `ReadingPaneView`.
+/// Splitting the library and pinning one half no longer pins both, because the
+/// pin no longer lives on the single ContentView above the split boundary.
+///
+/// The pin is a frozen snapshot captured at pin time (the head's binding setter
+/// captures the current rows + folder). The cross-cutting clear that used to be
+/// a direct `pinnedLibrary = nil` on ContentView is now the `clearToken`: when
+/// it advances, each host releases its OWN pin.
+private struct LibrarySplitPaneHost<Content: View>: View {
+    let clearToken: Int
+    let content: (Binding<PinnedLibraryScope?>) -> Content
+
+    @State private var pinnedLibrary: PinnedLibraryScope?
+    @State private var seenClearToken: Int = 0
+
+    var body: some View {
+        content($pinnedLibrary)
+            // Baseline the token when this half mounts, so a bump that happened
+            // before it appeared does not wipe a pin it never had.
+            .onAppear { seenClearToken = clearToken }
+            .onChange(of: clearToken) { _, newToken in
+                if LibraryPanePin.shouldClear(
+                    lastSeenToken: seenClearToken, currentToken: newToken
+                ) {
+                    pinnedLibrary = nil
+                    seenClearToken = newToken
+                }
+            }
     }
 }
