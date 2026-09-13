@@ -4,7 +4,7 @@
 > tests enforce it; code makes them pass. One line per behavior, each to be cited by its
 > pinning test. **Status: DRAFT (most behaviors are [GAP]) — but the DESIGN DIRECTION is
 > RATIFIED 2026-09-13 (see Design decisions). Grounded in a read-only code map + Findings
-> F1–F7. Fix sequence: F5 reset [done] → F3 pin → F6 plan==render → then pane-list
+> F1–F7. Fix sequence: F5 reset [done] → F3 pin [done] → F6 plan==render [next] → then pane-list
 > generalization (F7), legacy renderer retired, entities/claims unified.**
 > Tags: **[OK]** today · **[BROKEN]** regression, code contradicts the line · **[GAP]**
 > intended, never built.
@@ -211,13 +211,13 @@ the browse→read flow down the centre.
 1. ~~**Claims don't reset on library change**~~ — **FIXED 5b709aca0** (F5): Claims + Entities
    now key their reload on the library and reset on a switch; pinned by
    `ClaimsLibraryReloadKeyTests`. Built + tested green.
-2. **Pin shares across split halves** (`panes.split.independent-mode-per-pane` / pin) — F3.
-   **PREVIEW fixed** (474802124): pin moved into a per-sub-pane `PreviewSplitPaneHost`
-   (`@State`), pure `PreviewPanePin` seam, pinned by `PreviewPanePinTests`. **LIBRARY pin
-   still shared** — deferred: `pinnedLibrary` is read in 3 places, snapshots 4 ContentView
-   values at pin time, and is cleared cross-cuttingly (`ContentView+ActionsImport.swift:95`),
-   so a per-instance move needs a reset channel (a mailbox/token like split-apply) — a small
-   design task before the same pattern transfers. (NEXT sub-lane.)
+2. ~~**Pin shares across split halves**~~ — **FIXED** (F3, all pane kinds): pin is now
+   per-split-half for Reader (was already), Preview (474802124), and Library (070cd1115).
+   Preview/Library pin moved into per-sub-pane hosts (`PreviewSplitPaneHost` /
+   `LibrarySplitPaneHost`) mirroring the Reader; a monotonic `libraryPinClearToken` carries
+   the cross-cutting search-clear to the per-instance library pins. Pure seams
+   (`PreviewPanePin`, `LibraryPanePin`); pinned by `PreviewPanePinTests` (6) +
+   `LibraryPanePinTests` (7). Built + green.
 3. **Preview isn't always there** (F6) — plan==render parity; close the #4525 gap.
 4. **Chat prompt is under the image, not under the chat** (`panes.chat.below-sidebar`) — move
    the chat history + input into the left sidebar beneath the folder tree.
@@ -245,8 +245,9 @@ Paths relative to `fichero/fichero/`. From a read-only code map; every line veri
 - **F2 — Three pane vocabularies.** `Views/Shell/PaneVisibility.swift:5-7` (`grid/canvas/reading`)
   vs `PaneSpec.swift:16-20` (`library/preview/reading/chat`) vs
   `Views/Shell/WindowLayout/WindowWorkspace.swift:41-52` (`showLibraryPane/…`).
-- **F3 — Pin scope split.** *(PREVIEW fixed 474802124 — pin moved into `PreviewSplitPaneHost`
-  per sub-pane, `PreviewPanePin` seam; LIBRARY still shared, deferred pending a reset channel.)*
+- **F3 — Pin scope split.** *(FIXED — Preview 474802124, Library 070cd1115: pin moved into
+  per-sub-pane hosts `PreviewSplitPaneHost`/`LibrarySplitPaneHost` with pure seams
+  `PreviewPanePin`/`LibraryPanePin`; library reset via a monotonic `libraryPinClearToken`.)*
   Reader: per-instance `@State` inside the pane —
   `Views/Reader/Page/ReadingPaneView.swift:131-135` (`isPinned`, `pinnedDocument`, …),
   read at `:167-170`, toggled at `:544-555`; the type doc (`:6-9`) states independence-per-split
