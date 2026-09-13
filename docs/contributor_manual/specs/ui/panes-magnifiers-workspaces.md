@@ -167,9 +167,11 @@ the browse→read flow down the centre.
 - `panes.kg.one-view-system` — **[BROKEN]** the entities view and the claims view are the
   same pane-system view, sharing selection grammar, split, magnifier, and workspace
   persistence. Today they are separate implementations that behave differently.
-- `panes.kg.library-change-resets` — **[BROKEN]** switching the active library resets the
-  claims (and entities) panes to the new library's data. Today the claims pane does not
-  reset on a library change.
+- `panes.kg.library-change-resets` — **[OK]** (fixed 5b709aca0) switching the active library
+  resets the claims AND entities tables to the new library's data — Claims key `.task` on a
+  composite `library|folder` key and rebuild the cached model on a library switch; Entities
+  key on `ObjectIdentifier(store)`. Pinned:
+  `Tests/Unit/general/Views/Library/ClaimsLibraryReloadKeyTests.swift`.
 - `panes.entity.sources-pane` — **[GAP]** an entity pane can show **all source pages** the
   entity appears on — scroll through them, see the same name across four documents, judge
   whether it is one person. (An entity is a name; its statements/sources are where it
@@ -205,11 +207,11 @@ the browse→read flow down the centre.
 
 ## Known bugs to fix (already observed by the creative director)
 
-1. **Claims don't reset on library change** (`panes.kg.library-change-resets`) — F5. Highest
-   value, clearly-correct fix: key Claims on library id / use the per-library store like
-   Entities. (First fix lane.)
+1. ~~**Claims don't reset on library change**~~ — **FIXED 5b709aca0** (F5): Claims + Entities
+   now key their reload on the library and reset on a switch; pinned by
+   `ClaimsLibraryReloadKeyTests`. Built + tested green.
 2. **Pin shares across split halves for Preview & Library** (`panes.split.independent-mode-per-pane`
-   / pin) — F3. Move pin state inside the pane instance like the Reader. (Second fix lane.)
+   / pin) — F3. Move pin state inside the pane instance like the Reader. (NEXT fix lane.)
 3. **Preview isn't always there** (F6) — plan==render parity; close the #4525 gap.
 4. **Chat prompt is under the image, not under the chat** (`panes.chat.below-sidebar`) — move
    the chat history + input into the left sidebar beneath the folder tree.
