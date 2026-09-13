@@ -2,10 +2,15 @@
 
 > Design-led (Testing Constitution). The Fichero creative director owns this intent;
 > tests enforce it; code makes them pass. One line per behavior, each to be cited by its
-> pinning test. **Status: DRAFT — captured from a creative-director brainstorm 2026-09-12;
-> awaiting the design lead's approval and answers to the open questions before tests/code.**
+> pinning test. **Status: DRAFT — brainstorm captured 2026-09-12; GROUNDED in a read-only
+> code map 2026-09-13 (see Current architecture + Findings F1–F7). Awaiting the design
+> lead's ruling on the design decisions below before tests/code.**
 > Tags: **[OK]** today · **[BROKEN]** regression, code contradicts the line · **[GAP]**
 > intended, never built.
+>
+> **The finding in one line:** the workspace is a half-finished migration to a pane-list
+> model — the reliability fix is to *finish it* (one renderer, one vocabulary, a real pane
+> list, per-instance pane state), not to patch symptoms. See F1–F7.
 >
 > This is an AREA spec for how a window is *composed* — the pane system that hosts every
 > view mode (source/preview, transcription/words, entities, claims, graph/canvas,
@@ -36,6 +41,63 @@ entity you can reach every source page it appears on; from a claim you can reach
 sources. Selecting related things across panes composes a working set — related entities in
 a graph pane, their source pages in a preview pane, an inspector on the right — that is
 itself saveable.
+
+## Current architecture (grounded, 2026-09-13) — a half-finished migration
+
+The workspace unreliability is not a pile of small bugs; it is **one migration left
+half-done**. A code map (every claim cited in Findings below) shows:
+
+- **Two renderers for the centre.** A newer **pane-list** model (`PaneSpec` list →
+  `widescreenPaneRow`, each slot wrapped in its own `SplittablePane`) runs only in
+  `LayoutMode.widescreen` (the default). `.standard`/`.none` fall to an **older
+  hand-branched** renderer (`centerContentRouting` with `PlatformVSplitView`). Any
+  behavior can diverge by layout mode. (F1)
+- **Three vocabularies for the same panes.** `PaneVisibility`/`WorkspaceLayoutDefaults`
+  say `grid/canvas/reading`; `PaneSpec.Kind` says `library/preview/reading/chat`;
+  `WindowLayoutSnapshot` says `showLibraryPane/…`. An invariant can't be stated once. (F2)
+- **Pin state lives at two different scopes.** The Reader keeps pin *inside*
+  `ReadingPaneView` (per split instance — correct); Preview and Library keep pin *on
+  `ContentView`*, above the split, so both split halves share one pin. Same-looking
+  control, opposite behavior. Entities/Claims have no pin at all. (F3)
+- **Zoom is already per-instance** (`webZoom` per `ReadingPaneView`, `PDFZoomController`
+  per `PDFPageWithToolbar`) — no shared/global store exists. The "split shares one zoom"
+  report is **not explained by the code**; it needs a live repro before any fix. (F4)
+- **Claims don't reset on library change.** Entities read a per-library `EntityStore` from
+  the environment; Claims cache a `LibraryClaimsModel` that captures the service once and
+  reload on `.task(id: folderId)` — keyed to folder, never library — so the library-wide
+  Claims row (`folderId == nil` on both sides of a switch) never refires. (F5)
+- **Preview "isn't always there."** `PaneContentPlan` claims preview content for
+  `.chat/.comparison/.workflow/…`, but `previewView` renders only for `.library` ("the
+  remaining #4525 step"); plan and implementation disagree. Plus `.none` mode and the
+  width-collapse order shed the preview. (F6)
+- **The pane model is fixed-slots, not a list.** `WidescreenPanePlan` is four `Bool`s and
+  `PaneSpec.Kind` a fixed 4-case enum, so it **cannot represent two of a kind** — three
+  previews side-by-side (original · words · reader) is impossible today; the only "second
+  preview" trades the Reader slot away via `paneKindOverrides`. (F7)
+
+### The design: converge on one pane model
+
+The north star is a single model, reached by finishing the migration — not a rewrite:
+
+1. **One renderer.** The pane-list path is canonical; retire `centerContentRouting`. Every
+   layout mode composes the same `PaneSpec` list (a `.none`/`.standard` mode is just a
+   different *list*, not a different renderer).
+2. **One vocabulary.** Collapse `grid/canvas/reading` and `showLibraryPane/…` onto
+   `PaneSpec.Kind`; the visibility/persistence layers speak that one language.
+3. **A pane LIST, not four Bools.** Replace `WidescreenPanePlan`'s booleans with an ordered
+   list of pane entries (kind + content binding), so a window can hold **N panes including
+   several of the same kind with different content** — the enabler for "three previews:
+   original · words · reader," and for arbitrary compositions the reader saves as a
+   workspace. Split (2×2 per slot) stays, but is no longer the *only* way to get a second
+   pane of a kind.
+4. **Per-instance pane state for every kind.** Pin (and any future per-pane setting) lives
+   *inside* the pane instance like the Reader already does, so split halves are independent
+   for Preview and Library too, and Entities/Claims gain a consistent pin.
+5. **Entities and Claims are one view system.** Same data-lifecycle (per-library store, or
+   both keyed on library id), same selection grammar, same reset-on-library-change, same
+   pin — differing only in row content and open-target.
+6. **Plan == render.** A pane the plan says has content must actually render it, or the plan
+   must not claim it (close the #4525 gap).
 
 ## Default composition (Mail-style) — RATIFIED 2026-09-12
 
@@ -143,17 +205,117 @@ the browse→read flow down the centre.
 
 ## Known bugs to fix (already observed by the creative director)
 
-1. **Split affects both columns** (`panes.split.focused-column-only`) — split should act on
-   the focused pane only.
-2. **Changing a pane to entity/claim wipes the others** (`panes.split.independent-mode-per-pane`).
-3. **No arbitrary way to open an entity/claim view in a window** (`panes.open-view-arbitrarily`).
-4. **Claims don't reset on library change** (`panes.kg.library-change-resets`).
-5. **Chat prompt is under the image, not under the chat** (`panes.chat.below-sidebar`) —
-   move the chat history + input into the left sidebar beneath the folder tree.
+1. **Claims don't reset on library change** (`panes.kg.library-change-resets`) — F5. Highest
+   value, clearly-correct fix: key Claims on library id / use the per-library store like
+   Entities. (First fix lane.)
+2. **Pin shares across split halves for Preview & Library** (`panes.split.independent-mode-per-pane`
+   / pin) — F3. Move pin state inside the pane instance like the Reader. (Second fix lane.)
+3. **Preview isn't always there** (F6) — plan==render parity; close the #4525 gap.
+4. **Chat prompt is under the image, not under the chat** (`panes.chat.below-sidebar`) — move
+   the chat history + input into the left sidebar beneath the folder tree.
+5. **No two-of-a-kind panes** (F7) — the enabler for 3 previews side-by-side; the pane-list
+   generalization. (Larger, sequenced after the convergence decisions.)
 
-These are the first wave to pin — regressions/gaps in behavior that already half-works, so
-each needs a pinning test that asserts the *behavior* (not the code) and a fix that makes it
-pass. Delivering the Mail-style default (§Default composition) is the companion layout work.
+Split-affects-both-columns and shared-zoom are in **Verify-on-build** above, not here — the
+code splits per focused slot and holds zoom per-instance, so those need a live repro first.
+
+These are the first wave to pin — each needs a pinning test that asserts the *behavior* (not
+the code, per the capability-scrape ruling) and a fix that makes it pass. Delivering the
+Mail-style default (§Default composition) is the companion layout work, and falls out almost
+free once the pane list (F7) exists — a default is just a starting list.
+
+## Findings (code evidence, 2026-09-13)
+
+Paths relative to `fichero/fichero/`. From a read-only code map; every line verified.
+
+- **F1 — Two centre renderers.** `Views/Shell/ContentView/Layout/PaneSpec.swift:15-46,78-225`
+  (`PaneSpec`, `widescreenPaneSpecs`, `widescreenPaneRow`) runs only in
+  `LayoutMode.widescreen`; `Views/Shell/ContentView/Layout/ContentView+SidebarLayout.swift:143-213`
+  (`centerContentRouting`, a `switch LayoutMode`) is the legacy `.standard`/`.none` path.
+  The `.none` branch there (170-180) is **dead** — an earlier `!showsPreviewPane` guard
+  (line 154) diverts first.
+- **F2 — Three pane vocabularies.** `Views/Shell/PaneVisibility.swift:5-7` (`grid/canvas/reading`)
+  vs `PaneSpec.swift:16-20` (`library/preview/reading/chat`) vs
+  `Views/Shell/WindowLayout/WindowWorkspace.swift:41-52` (`showLibraryPane/…`).
+- **F3 — Pin scope split.** Reader: per-instance `@State` inside the pane —
+  `Views/Reader/Page/ReadingPaneView.swift:131-135` (`isPinned`, `pinnedDocument`, …),
+  read at `:167-170`, toggled at `:544-555`; the type doc (`:6-9`) states independence-per-split
+  as the goal. Preview: `@State var pinnedPreviewDocument` on `ContentView` —
+  `Views/Shell/ContentView/ContentView.swift:60-62`, toggle at
+  `ContentView+PreviewPaneHead.swift:116-119`; each split half's head reads the one shared
+  property. Library: `@State var pinnedLibrary` on `ContentView` — `ContentView.swift:63-64`.
+  Entities/Claims: no pin affordance.
+- **F4 — Zoom is per-instance (no shared store).** `ReadingPaneView.swift:136`
+  (`@State var webZoom`), `Views/Preview/PDFViewer/PDFPageWithToolbar.swift:38`
+  (`@State var zoom = PDFZoomController()`); `SplittablePane.swift:516-521` invokes the
+  content closure per slot → distinct `@State`. No `AppStorage`/`SceneStorage`/doc-id-keyed
+  zoom store exists. **The CD's "split shares one zoom" is unexplained by the code — LIVE
+  REPRO NEEDED** before spec'ing a fix.
+- **F5 — Claims not keyed to library.** Entities: `EntitiesLibraryContent.swift:64`
+  (`.task { store.loadEntities(…) }`, no `id:`), store is per-library
+  (`Models/EntityStore.swift:46-47`, injected `LibraryWorkspaceRoot.swift:96`). Claims:
+  `ClaimsLibraryContent.swift:65` (`.task(id: folderId)`), model cached
+  `@State … model ?? LibraryClaimsModel(service:)` (`:66`), service captured permanently
+  (`LibraryClaimsModel.swift:29-33`); library-wide row has `folderId == nil` both sides of a
+  switch (`LibraryView+ContentBranches.swift:215`) so `.task(id:)` never refires.
+  `ContentView.handleLibraryChange()` (`ContentView+StateEvents.swift:316-331`) clears
+  detail/selection/search/KG-focus but neither KG table.
+- **F6 — Plan claims preview content the view won't render.** `PaneContentPlan.swift:82-162`
+  vs `ContentView+DetailLayout.swift:226-306` (`previewView` renders only `.library`; comment
+  "the remaining #4525 step" at `:298-300`). Also `.none` gate
+  (`ContentView+ActionsClaim.swift:68-69`) and collapse order (`Models/LayoutMode.swift:186-207`).
+- **F7 — Fixed slots, not a pane list.** `WidescreenPanePlan` = four `Bool`s
+  (`Models/LayoutMode.swift:128-135`); `widescreenPaneSpecs` appends one spec per flag
+  (`PaneSpec.swift:78-102`); `PaneSpec.Kind` a fixed 4-case enum with an exhaustive
+  `kindContent` switch (`:173-225`). A boolean can't count past one → no two-of-a-kind.
+  Split caps 2×2 (`SplittablePane.swift:156-166`) but every sub-pane renders the *same*
+  content closure → identical-kind panes only. `paneKindOverrides` (`ContentView.swift:65-67`)
+  can only trade the reading slot to a 2nd preview, not add a 3rd.
+
+## Test matrix (from the coverage audit)
+
+The pane system's **pure-model** layer is well-tested (`PaneVisibilityTests`,
+`PaneContentPlanTests`, `WindowWorkspaceTests` split-routing + snapshots,
+`WorkspaceLayoutDefaultsTests`, `ContentViewPersistenceTests`). The gaps are the exact
+reliability concerns — each is the first-wave pinning test:
+
+| Concern | Today | Required pinning test (behavior, not source-scrape) |
+|---|---|---|
+| Split focused-only isolation | routing keys tested, isolation not | splitting pane A does not change pane B's split count |
+| Pin under split (F3) | 0 behavior tests (2 source-scrapes) | pin left preview split-half; right half stays live; unpin releases — for Preview/Library like Reader |
+| Zoom independence (F4) | 0 tests | zoom one split half; the other's zoom is unchanged (after a live repro confirms the report) |
+| Claims reset on library change (F5) | MISSING (both tables) | switch library → Claims (and Entities) show the new library's rows, not stale |
+| Plan==render (F6) | plan tested, render-parity not | for every mode the plan marks preview `.content`, the view renders content |
+| N-pane / two-of-a-kind (F7) | capped, untested | the pane list can hold two `.preview` entries with different content |
+| Convert the seed-write scrape | `WorkspaceLayoutDefaultsTests::testTheSeedAndTheWriteBackAreBothWired` is a baselined scrape | drive the view/store, toggle a pane, assert `WorkspaceLayoutDefaults` was written |
+
+## Verify-on-build (before spec'ing a fix)
+
+Two CD reports are NOT explained by the code as written; confirm empirically on a running
+build before treating them as bugs:
+- **Shared zoom across a split** (F4) — split a reader/preview, zoom one half, watch the other.
+- **Split affects both columns** — the code splits per focused slot in `.widescreen`; if the
+  report reproduces, capture which `LayoutMode` and pane it happens in (likely the legacy path).
+
+## Design decisions (need the design lead's ruling before the big fixes)
+
+1. **Generalize to a pane list?** (F7) The reliability fixes (per-instance pin, one
+   renderer) are safe on the current fixed-slot model. But "three previews side-by-side"
+   and freely-saved workspaces need the plan to become an **ordered pane list** (kind +
+   content per entry) instead of four Bools. Recommend **yes**, sequenced *after* the two
+   safe fixes land — it's the larger change and the layout options (Mail default included)
+   fall out of it. Confirm the direction and the cap (max panes per row; is 2×2 split kept
+   as-is, or does a list of N make split redundant for "more of a kind"?).
+2. **Zoom: independent, shared, or syncable?** (F4) Code is per-pane independent. Options:
+   (a) keep independent (each split half zooms alone); (b) shared for split halves of the
+   *same* document; (c) independent by default with an opt-in "sync zoom" toggle. Recommend
+   **(c)**, pending the live repro that says what you're actually seeing today.
+3. **Retire the legacy renderer?** (F1) Confirm every layout mode should route through the
+   pane-list path (a `.none`/`.standard` mode becomes a shorter *list*), so behavior can't
+   diverge by mode. Recommend **yes**.
+4. **Entities & Claims = one view system?** (F5) Confirm they should share data-lifecycle,
+   selection, reset, and pin — differing only in row content + open-target. Recommend
+   **yes** (it also fixes the claims-reset bug as a side effect).
 
 ## Open questions (for the design lead)
 
