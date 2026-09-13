@@ -67,10 +67,15 @@ per claim, not a fixed language pair.
 
 ## Behaviors
 
-- `kg.read.order.chronological` [MISSING] — claims ordered by their event/attestation date
+- `kg.read.order.chronological` [OK] — claims ordered by their event/attestation date
   (undated claims sectioned at the end, not dropped), so a life reads front to back.
-- `kg.read.order.by-source` [MISSING] — claims grouped by source document (fondo → legajo →
-  expediente order), so a reader can follow one record at a time.
+  Pinned: `fichero-server/tests/unit/knowledge/test_readable_representation.py`
+  (`test_chronological_orders_by_time_start`, `_puts_undated_last_and_stable`,
+  `_falls_back_to_date_values_when_no_time_start`, `_uses_earliest_of_multiple_date_values`).
+- `kg.read.order.by-source` [OK] — claims grouped by source document (fondo → legajo →
+  expediente order), so a reader can follow one record at a time. Pinned:
+  `test_readable_representation.py` (`test_by_source_groups_by_document_then_offset`,
+  `_puts_sourceless_claims_last`).
 - `kg.read.biography` [PARTIAL] — an entity-scoped multi-claim life narrative (extends
   `paragraph.py` from paragraph to biography: sectioning, connective prose, dedup across claims).
 - `kg.read.genre.regest` [MISSING] — one dated paragraph per document, in order (calendar of docs).
