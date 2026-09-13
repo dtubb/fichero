@@ -17,14 +17,24 @@ backend but isn't surfaced, or isn't tested at every layer, is not done.
 ## What already exists (inventory — build ON this, don't replace)
 - **SPARQL endpoints in Settings** [OK] — `KnowledgeSettingsView` manages the SPARQL
   endpoints the enrichment queries (Wikidata default, user-addable, no silent fallback).
+  Pinned: fichero-server/tests/unit/kg/test_wikidata_enrich_routes.py::test_sparql_endpoints_default_when_unset,
+  fichero-server/tests/unit/kg/test_wikidata_enrich_routes.py::test_sparql_endpoints_malformed_falls_back_to_default,
+  fichero-server/tests/unit/kg/test_wikidata_enrich_routes.py::test_put_sparql_endpoints_keeps_default_and_persists,
+  fichero-server/tests/unit/kg/test_wikidata_enrich_routes.py::test_put_sparql_endpoints_rejects_unknown_selection.
 - **SPARQL / RDF graph** [OK] — rdflib-backed; `KGQueryConsoleView` runs live SPARQL
   (`kg_sparql`); the graph rebuilds to DuckDB for external tooling.
 - **Wikidata enrichment** [OK backend/service] — `EntityService+Enrichment` preview →
   import selected statements as **authority-sourced claims** (gated by the external-
   enrichment switch; a 403 surfaces when disabled). CLI: import-wikidata-statements.
+  Pinned: fichero-server/tests/unit/kg/test_wikidata_enrich_routes.py::test_preview_is_opt_in,
+  fichero-server/tests/unit/kg/test_wikidata_enrich_routes.py::test_import_marks_claims_wikidata_sourced,
+  fichero/Tests/Unit/general/Transport/EntityServiceTransportTests.swift::testEnrichPreviewRoutesThroughTransport,
+  fichero/Tests/Unit/general/Transport/EntityServiceTransportTests.swift::testEnrichImportRoutesThroughTransport.
 - **PyKEEN link prediction** [OK backend/service] — train a link-prediction model on the
   library's claims; `EntityService+KnowledgeGraph` predict / stored / verify;
   `HeuristicReviewSheet` reviews predicted links → import as claims. CLI: train-pykeen.
+  Pinned: fichero-server/tests/unit/kg/test_pykeen_predictor.py::test_skips_training_below_minimum_corpus
+  (corpus-size guard).
 - **Authority linking** [OK] — `EntityStore+Authority` (sameAs to authority ids).
 - **Gazetteer geo** [OK backend] — offline gazetteer + opt-in Nominatim (`media/geo.py`).
 - **W3C Web Annotation export** [OK] — `/api/documents/{id}/annotations…` (JSON-LD for

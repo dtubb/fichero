@@ -109,9 +109,17 @@ per claim, not a fixed language pair.
 - `kg.read.no-llm` [MISSING, hard] — NO generative model anywhere in the path. Every sentence is
   produced by deterministic rules/templates/grammar from stored claims; a guard test asserts the
   render module imports/calls no LLM client and that output is a pure function of its claim input.
-- `kg.read.language-of-svo` [MISSING] — each sentence renders in the language of its claim/SVO
+- `kg.read.language-of-svo` [PARTIAL] — each sentence renders in the language of its claim/SVO
   (the source's language); connective/structuring prose follows the entity's dominant claim
   language. Never machine-translate a claim into another language (that would be fabrication).
+  Spanish and English realisation are proven: `test_realises_single_claim_in_spanish`,
+  `test_realises_aggregated_count_and_places_in_english`,
+  `test_unknown_language_falls_back_to_english_glue`.
+  Pinned: fichero-server/tests/unit/knowledge/test_readable_representation.py::test_realises_single_claim_in_spanish,
+  fichero-server/tests/unit/knowledge/test_readable_representation.py::test_realises_aggregated_count_and_places_in_english,
+  fichero-server/tests/unit/knowledge/test_readable_representation.py::test_unknown_language_falls_back_to_english_glue.
+  UNtested: a third language requires only a new lexicon table (no code change) — this
+  extensibility claim itself has no test proving a third language "just works" without code.
 - `kg.read.background` [MISSING] — the representation is computed in the background and stored
   (auto-throttled, like embeddings — the machine stays usable), not synthesized per web request.
 

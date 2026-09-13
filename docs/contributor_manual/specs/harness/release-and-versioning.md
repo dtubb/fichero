@@ -33,7 +33,7 @@ sub-number, `N = (count of existing v<DATE>* tags) + 1`):
 |-------|-------|------|-------|
 | App marketing version | `fichero/Configs/Version.xcconfig` → `MARKETING_VERSION` | `YYYY.MM.DD[.N][-beta]` (zero-padded, **UNQUOTED**) | The single source of the app version (#3234); `project.pbxproj` carries no version literals. `CURRENT_PROJECT_VERSION` is a plain increasing build integer. |
 | Engine version | `fichero-server/pyproject.toml` → briefcase `version` **and** `[project] version` | `YYYY.M.D[.N]` PEP 440 (**no** zero-pad; `-beta` → `bN`) | Both fields must match each other. |
-| OpenAPI schema version | all **three** `openapi.json` copies → `info.version` | = the engine version | Kept in sync by `fichero-server/scripts/sync_openapi_schema.sh`; agreement checked by `check_openapi_shadow_types.py`. |
+| OpenAPI schema version | all **three** `openapi.json` copies → `info.version` | = the engine version | Kept in sync by `fichero-server/scripts/sync_openapi_schema.sh` (which refuses a backwards move via `check_openapi_version_regression.py`, run only inside the sync, not as a standalone gate check). **No script yet verifies, as a standalone guardrail, that the three already-committed copies agree with each other** — `check_openapi_shadow_types.py` checks something unrelated (Swift types shadowing generated schema NAMES, not `info.version`). This cross-copy agreement checker is NOT YET BUILT; the rule above remains intent until it exists. |
 
 **Zero-pad difference is intentional, not a bug:** the app date is zero-padded (`2026.09.08`) because
 Apple accepts it; the engine strips leading zeros (`2026.9.8`) because PEP 440 forbids them
@@ -48,7 +48,12 @@ Guardrails that enforce this (run in `verify_all`):
 - `scripts/check_engine_version_stamp.py` — the embed phase records what engine it actually embedded
   (`FicheroEmbeddedEngineVersion` / `FicheroExpectedEngineVersion` in `Info.plist`) and the app checks
   it against `/api/health` at launch, so a stale engine can't masquerade as current.
-- `scripts/check_openapi_shadow_types.py` — the three OpenAPI copies agree.
+- `scripts/check_openapi_shadow_types.py` — checks Swift types don't shadow generated OpenAPI
+  schema NAMES; it does **not** check that the three `openapi.json` copies' `info.version`
+  agree with each other. **A standalone gate check for that cross-copy `info.version`
+  agreement does not exist yet** (`check_openapi_version_regression.py` only guards against
+  going backward during a sync, and is not itself invoked by `verify_all`) — this is a real
+  gap, not yet built, corrected here after an earlier miscitation.
 
 ## The release lane (process)
 

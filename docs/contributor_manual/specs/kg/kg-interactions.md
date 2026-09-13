@@ -66,13 +66,32 @@ Every behavior ships tested on the legs it touches, or it is not done:
 | Backend pytest | ✅ CRUD + contracts | batch-delete, export serialization+validation, version history, comment |
 | MCP | ✅ create/delete/query | comment, export, merge, version read via MCP |
 | CLI | ⚠️ dedupe + claim CRUD | export selection, merge, comment, version parity |
-| **Mac XCUITest** | ❌ inspector-load only | **select→delete/edit/rename/merge/comment/export end-to-end** |
+| **Mac XCUITest** | ⚠️ inspector-load (flagship navigation+render test) only | `performAccessibilityAudit()` on the KG surfaces; NOT table CRUD (see correction below) |
 | **iPad/iOS** | ❌ canary only | the touch path for the KG tables (#4250 CLI/MCP/iOS legs) |
 | Load/background | ❌ (#4634) | delete/export 1k–10k bounded, no peg |
 
-**Priority test gaps:** Mac XCUITest for the table CRUD (where "click delete → row gone" is
-proven end-to-end) and the iPad/iOS leg. Ties #4542 (wire `ux_smoke.py` into the gate),
-#4250 (iPad/iOS/CLI/MCP legs), #4634 (load).
+**Correction (verified this session, 2026-09-13): table CRUD is the WRONG layer for Mac
+XCUITest.** XCUITest cannot reliably drive SwiftUI context-menu item activation on macOS
+(the menu opens, but `.tap()` on a menu item does not fire it) or `.draggable`/
+`.dropDestination` drags (the gesture performs no real NSDragging session). So
+"select→delete/edit/rename/merge…end-to-end" and "click delete → row gone" — anything
+routed through a context-menu verb or a drag — must NOT be pinned as an XCUITest
+requirement; that test would be unreliable/flaky by construction, not by lack of effort.
+These CRUD behaviors are pinned at the **ACTION/UNIT layer** instead: drive the store/model
+method directly (e.g. the delete/edit/rename/merge action on `EntityStore`/`ClaimStore` or
+equivalent) and assert the resulting observable state (row/claim gone, renamed, merged) —
+this is exactly what "Backend pytest ✅ CRUD" and "Swift unit ✅ pure-rule + availability +
+transport" above already cover for their layers, and is what worker: MCP/CLI legs also test.
+Mac XCUITest's reliable job for the KG tables is **navigation + rendering** (does the
+inspector load and show the right content — the flagship inspector-load test) and
+`performAccessibilityAudit()` (labels/traits/contrast), not driving context-menu verbs or
+drags.
+
+**Priority test gaps:** action/unit-layer coverage for KG table delete/edit/rename/merge
+(store-level, not XCUITest), comment, and export selection; the iPad/iOS touch leg (which
+uses native touch gestures, not context-menu `.tap()`, and may not hit the same XCUITest
+limitation — unverified, needs its own check before assuming XCUITest works there either).
+Ties #4542 (wire `ux_smoke.py` into the gate), #4250 (iPad/iOS/CLI/MCP legs), #4634 (load).
 
 ## Open questions
 - Comments: a first-class `Comment` record (threaded?) or a claim of a "comment" type?
