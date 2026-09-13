@@ -2,9 +2,10 @@
 
 > Design-led (Testing Constitution). The Fichero creative director owns this intent;
 > tests enforce it; code makes them pass. One line per behavior, each to be cited by its
-> pinning test. **Status: DRAFT — brainstorm captured 2026-09-12; GROUNDED in a read-only
-> code map 2026-09-13 (see Current architecture + Findings F1–F7). Awaiting the design
-> lead's ruling on the design decisions below before tests/code.**
+> pinning test. **Status: DRAFT (most behaviors are [GAP]) — but the DESIGN DIRECTION is
+> RATIFIED 2026-09-13 (see Design decisions). Grounded in a read-only code map + Findings
+> F1–F7. Fix sequence: F5 reset [done] → F3 pin → F6 plan==render → then pane-list
+> generalization (F7), legacy renderer retired, entities/claims unified.**
 > Tags: **[OK]** today · **[BROKEN]** regression, code contradicts the line · **[GAP]**
 > intended, never built.
 >
@@ -299,25 +300,21 @@ build before treating them as bugs:
 - **Split affects both columns** — the code splits per focused slot in `.widescreen`; if the
   report reproduces, capture which `LayoutMode` and pane it happens in (likely the legacy path).
 
-## Design decisions (need the design lead's ruling before the big fixes)
+## Design decisions — RATIFIED 2026-09-13 (creative director)
 
-1. **Generalize to a pane list?** (F7) The reliability fixes (per-instance pin, one
-   renderer) are safe on the current fixed-slot model. But "three previews side-by-side"
-   and freely-saved workspaces need the plan to become an **ordered pane list** (kind +
-   content per entry) instead of four Bools. Recommend **yes**, sequenced *after* the two
-   safe fixes land — it's the larger change and the layout options (Mail default included)
-   fall out of it. Confirm the direction and the cap (max panes per row; is 2×2 split kept
-   as-is, or does a list of N make split redundant for "more of a kind"?).
-2. **Zoom: independent, shared, or syncable?** (F4) Code is per-pane independent. Options:
-   (a) keep independent (each split half zooms alone); (b) shared for split halves of the
-   *same* document; (c) independent by default with an opt-in "sync zoom" toggle. Recommend
-   **(c)**, pending the live repro that says what you're actually seeing today.
-3. **Retire the legacy renderer?** (F1) Confirm every layout mode should route through the
-   pane-list path (a `.none`/`.standard` mode becomes a shorter *list*), so behavior can't
-   diverge by mode. Recommend **yes**.
-4. **Entities & Claims = one view system?** (F5) Confirm they should share data-lifecycle,
-   selection, reset, and pin — differing only in row content + open-target. Recommend
-   **yes** (it also fixes the claims-reset bug as a side effect).
+1. **Generalize to a pane list — YES, after the safe fixes.** (F7) The plan becomes an
+   **ordered pane list** (kind + content per entry) instead of four Bools, enabling
+   two-of-a-kind (3 previews side-by-side: original · words · reader), arbitrary
+   compositions, and saved workspaces; the Mail default becomes just a starting list.
+   Sequenced *after* F3 (pin) + F6 (plan==render) land. Open sub-question kept: the cap
+   (max panes per row) and whether 2×2 split stays once a list can add more of a kind.
+2. **Zoom — independent + opt-in sync.** (F4) Each split half zooms alone (matches the
+   code); a "sync zoom" toggle links them on request. Still confirm the live repro of the
+   "shared zoom" report first, in case there's an actual bug to fix underneath.
+3. **Retire the legacy renderer — YES, one renderer.** (F1) Every layout mode routes through
+   the pane-list path (`.none`/`.standard` = a shorter list); behavior can't diverge by mode.
+4. **Entities & Claims — YES, one view system.** (F5) Shared data-lifecycle, selection,
+   reset, pin — differing only in row content + open-target. F5 already aligned their reset.
 
 ## Open questions (for the design lead)
 
