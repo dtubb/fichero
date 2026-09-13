@@ -127,8 +127,16 @@ extension ContentView {
         // reading workspace. In the compact (iPhone) flow the reader is a single
         // navigation stack, not split panes, so the toggles do nothing and are
         // hidden (#2813).
-        if supportsReadingWorkspace
-            && !Self.shouldUseCompactNavigationFlow(horizontalSizeClass: horizontalSizeClass) {
+        // Pane toggles show for ANY library selection (Entities/Claims included —
+        // they are library sub-views with the same panes), not only non-KG library.
+        // Gating the group on `supportsReadingWorkspace` (which excludes KG
+        // collections) made the toggles AND the Workspaces menu vanish for
+        // Entities/Claims, with nothing left to bring panes back (spec F1/F2,
+        // panes.toolbar.toggles-consistent). The Workspaces menu is un-gated below.
+        if Self.showsPaneToggles(
+            sidebarMode: sidebarMode,
+            compactFlow: Self.shouldUseCompactNavigationFlow(horizontalSizeClass: horizontalSizeClass)
+        ) {
             // The view-mode picker LEFT the toolbar (Daniel, 2026-08-23): it
             // is the library pane head's lens now (LibraryView+PaneHead).
 
@@ -198,19 +206,26 @@ extension ContentView {
                 }
             }
 
-            // Search is the SYSTEM toolbar search item now (Daniel,
-            // 2026-08-29: "not proper macOS search… use the default one") —
-            // registered in ContentView+InspectorContainer/+ToolbarSearch.
+        }
 
-            // ONE item, not three (Daniel, 2026-09-01). Split/New Tab,
-            // Workspaces and Layouts were three identified toolbar items
-            // asking the same question — how is this window arranged — so a
-            // user had to know which of three menus held the verb they
-            // wanted. They are sections of the Workspaces menu now; the body
-            // is in ContentView+LayoutChooser.swift.
-            //
-            // NEVER gated: this menu hosts the Toolbar Buttons submenu, so it
-            // is the way every other button comes back.
+        // Search is the SYSTEM toolbar search item now (Daniel,
+        // 2026-08-29: "not proper macOS search… use the default one") —
+        // registered in ContentView+InspectorContainer/+ToolbarSearch.
+
+        // ONE item, not three (Daniel, 2026-09-01). Split/New Tab,
+        // Workspaces and Layouts were three identified toolbar items
+        // asking the same question — how is this window arranged — so a
+        // user had to know which of three menus held the verb they
+        // wanted. They are sections of the Workspaces menu now; the body
+        // is in ContentView+LayoutChooser.swift.
+        //
+        // NEVER gated on selection: this menu hosts the Toolbar Buttons submenu,
+        // so it is the way every other button comes back. It was mistakenly inside
+        // the selection gate above (the bug its own comment warned against); now it
+        // is gated only on the compact nav-stack flow (spec panes.toolbar.toggles-consistent).
+        if Self.showsWorkspacesMenu(
+            compactFlow: Self.shouldUseCompactNavigationFlow(horizontalSizeClass: horizontalSizeClass)
+        ) {
             ToolbarItem(id: ContentToolbarID.workspacesMenu, placement: .automatic) {
                 workspacesMenu
             }

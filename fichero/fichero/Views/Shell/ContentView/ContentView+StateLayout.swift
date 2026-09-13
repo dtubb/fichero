@@ -12,6 +12,29 @@ extension ContentView {
         sidebarMode == .library && !isKGLibrarySelection
     }
 
+    /// Whether the toolbar's pane-visibility toggles (library/preview/reader/chat)
+    /// are offered. Pure + `nonisolated` so it is unit-testable off-view (spec:
+    /// panes-magnifiers-workspaces `panes.toolbar.toggles-consistent`).
+    ///
+    /// The toggles show for ANY library selection — Entity and Claim collections
+    /// included, since they are library sub-views hosting the same panes — not only
+    /// non-KG library. Gating the toggle GROUP on `supportsReadingWorkspace` (which
+    /// excludes `isKGLibrarySelection`) made the whole group AND the Workspaces menu
+    /// vanish when Entities/Claims was selected, leaving no toolbar affordance to
+    /// bring panes back (CD 2026-09-13). Selection kind does not belong here.
+    nonisolated static func showsPaneToggles(sidebarMode: SidebarMode, compactFlow: Bool) -> Bool {
+        sidebarMode == .library && !compactFlow
+    }
+
+    /// Whether the Workspaces menu is offered. It hosts the Toolbar-Buttons submenu
+    /// — the recovery path for every other button — so it is NEVER gated on
+    /// selection or sidebar mode; only the compact nav-stack flow hides it. (Its
+    /// own comment already said "NEVER gated"; it was mistakenly inside the
+    /// selection gate.)
+    nonisolated static func showsWorkspacesMenu(compactFlow: Bool) -> Bool {
+        !compactFlow
+    }
+
     /// Available display modes for the current sidebar mode.
     /// Library is icon-only in 0.0.1 unless advanced views are explicitly enabled.
     var availableViewDisplayModes: [ViewDisplayMode] {
