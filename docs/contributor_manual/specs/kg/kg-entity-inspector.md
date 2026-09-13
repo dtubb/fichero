@@ -4,7 +4,12 @@
 > creative director owns this intent; tests enforce it; code makes the tests pass.
 > One line per behavior; each maps to a pinning test cited by name in the test's
 > docstring.
-> Status: APPROVED (option a). F2+F3+F5 landed (eb5b868c6, 7ee417fbc, 1eb9b9557). D (empty-state) remains; field-based builder migration follow-up.
+> Status: APPROVED (option a). F2+F3+F5 landed (eb5b868c6, 7ee417fbc, 1eb9b9557).
+> Spec-audit 2026-09-13 retagged stale [BROKEN] lines to [OK] + added test citations.
+> Remaining TEST GAPS (code landed, no pinning test): F3 `statements.loads-via-store` +
+> `resyncs-on-change`; also uncited/untested: `select.routes-to-entities-tab`,
+> `select.never-another-entity`, `rekey.on-focus-change`, `xsurface.same-line`.
+> Field-based builder migration is a follow-up.
 >
 > Tags: **[OK]** behaves this way today · **[BROKEN]** regression, code contradicts
 > the line · **[GAP]** intended behavior never built. Untagged = design intent whose
@@ -33,11 +38,14 @@ Surfaces: `DocumentInspector` (+`Sections`), `DocumentInspectorEntitiesTab`
 
 - `kg.entity.select.focuses` — [OK] selecting an entity anywhere (entities table,
   ontology list, force graph, Entities tab row) sets `KGFocusState.focusedEntityId`
-  to that entity and clears any focused claim.
-- `kg.entity.select.inspector-shows-entity` — **[BROKEN]** while an entity is focused
-  the inspector shows that entity, even when no document is selected (the Entities
-  collection and the Knowledge Graph mode select an entity, not a file). Today the
-  inspector falls to `emptyState` ("No selection") because its `document` is nil. (F2)
+  to that entity and clears any focused claim. Pinned:
+  `Tests/Unit/general/Models/KGFocusStateTests.swift`.
+- `kg.entity.select.inspector-shows-entity` — **[OK]** (F2 landed, eb5b868c6) while an
+  entity is focused the inspector shows that entity, even when no document is selected
+  (the Entities collection and the Knowledge Graph mode select an entity, not a file).
+  Was: fell to `emptyState` ("No selection") because its `document` was nil. Pinned:
+  `Tests/Unit/general/Views/Inspector/DocumentInspectorArmTests.swift` (the extracted
+  pure `DocumentInspector.inspectorArm(...)` decision).
 - `kg.entity.select.routes-to-entities-tab` — [OK] when a document IS shown, focusing
   an entity switches the inspector to the Entities tab and selects that entity's row
   in the list. (`DocumentInspector.swift:98-102`, `syncSelectionToFocusedEntity`)
@@ -47,10 +55,12 @@ Surfaces: `DocumentInspector` (+`Sections`), `DocumentInspectorEntitiesTab`
 
 ### B. Statements list
 
-- `kg.entity.statements.loads-via-store` — **[BROKEN]** the entity's claims are
-  fetched through `ClaimStore.loadClaims(forEntity:)` (the observable data layer),
-  not a direct `entityService.listClaims` call from the view. Today
-  `EntityDigestContent.loadClaims` bypasses the store. (F3)
+- `kg.entity.statements.loads-via-store` — **[OK-code, TEST GAP]** (F3 code landed,
+  7ee417fbc) the entity's claims are fetched through `ClaimStore.loadClaims(forEntity:)`
+  (the observable data layer), not a direct `entityService.listClaims` call from the
+  view. NO pinning test verifies this yet — the nearest, `KnowledgeGraphInspectorSectionTests.testOntologyBrowserEntityClaimsRouteThroughClaimStore`,
+  is a source-scrape over a DIFFERENT file (`OntologyBrowser+Detail.swift`). Needs a
+  behavior test on `EntityDigestContent`'s load path.
 - `kg.entity.statements.subject-or-object` — [OK-backend] the list contains every
   claim where the entity is subject OR object (`GET /api/claims?entity_id=…`), not
   only claims where it is the subject.
@@ -63,10 +73,11 @@ Surfaces: `DocumentInspector` (+`Sections`), `DocumentInspectorEntitiesTab`
   when the document cannot be resolved; never an empty badge.
 - `kg.entity.statements.sorted-newest-first` — [OK-ontology] rows are ordered
   newest-first (`createdAt` descending), matching the ontology detail panel.
-- `kg.entity.statements.resyncs-on-change` — **[GAP]** the list refreshes when any
-  claim mutates anywhere (`ClaimStore.changeToken`), so an edit, merge, delete or
-  curation change on another surface is visible here without reselecting. Today
-  `EntityDigestContent` has no `changeToken` observer. (F3)
+- `kg.entity.statements.resyncs-on-change` — **[OK-code, TEST GAP]** (F3 code landed,
+  7ee417fbc) the list refreshes when any claim mutates anywhere (`ClaimStore.changeToken`),
+  so an edit, merge, delete or curation change on another surface is visible here without
+  reselecting. NO `changeToken`-observer behavior test for `EntityDigestContent` exists
+  yet — pinning test needed.
 - `kg.entity.statements.loading-state` — while claims load, a progress indicator
   shows and no stale list from a previous entity is visible.
 
@@ -86,12 +97,12 @@ Surfaces: `DocumentInspector` (+`Sections`), `DocumentInspectorEntitiesTab`
   location — `ClaimSourceRequest.Precision.pageOnly`).
 - `kg.entity.source.no-document-no-navigation` — [OK] a claim with no source
   document produces no request; the row is inert rather than navigating to nothing.
-- `kg.entity.source.one-anchor-builder` — **[BROKEN]** every entity-statement surface
-  builds its request through `ClaimSourceRequest.request(for:)` (the precision-aware
-  builder). Today the ontology card, the KG inspector quick-look, the row `openClaim`
-  path and the ontology detail panel use `ClaimSummaryCard.openClaimSourceRequest(for:)`,
-  which forwards a zero-length span and a bbox together without the precision rule —
-  two builders that can disagree about whether a highlight is drawn. (F5)
+- `kg.entity.source.one-anchor-builder` — **[OK]** (F5 landed, 1eb9b9557; field-based
+  builder migration is a follow-up) every entity-statement surface builds its request
+  through the precision-aware builder, so no two surfaces disagree about whether a
+  highlight is drawn for the same claim. Pinned:
+  `Tests/Unit/general/Models/ClaimSourceRequestTests.swift::sameAnchorAcrossBuilders`
+  (calls both builders on fixture claims and diffs outputs — the cross-surface invariant).
 - `kg.entity.source.open-entity-is-search` — [OK] OPENING the entity itself (double-
   click / "Open") is the scoped mention search, not a jump to one arbitrary claim's
   page (ruled 2026-09-05, option A). An entity has no page; its statements do. This
@@ -99,9 +110,10 @@ Surfaces: `DocumentInspector` (+`Sections`), `DocumentInspectorEntitiesTab`
 
 ### D. Empty state and re-keying
 
-- `kg.entity.empty.no-claims` — an entity with zero claims shows "No statements
+- `kg.entity.empty.no-claims` — **[OK]** an entity with zero claims shows "No statements
   about <name> yet" (not a blank pane, not a spinner, not the previous entity's
-  rows).
+  rows). Pinned: `Tests/Unit/general/Views/Inspector/EntityDigestStatementsStateTests.swift`
+  (pure `EntityDigestContent.statementsState(...)`).
 - `kg.entity.empty.load-error` — a failed load shows the error inline with a way to
   retry; it does not fall back to a stale list.
 - `kg.entity.rekey.on-focus-change` — the statements view is keyed on
@@ -117,9 +129,10 @@ Surfaces: `DocumentInspector` (+`Sections`), `DocumentInspectorEntitiesTab`
   the inspector entity pane, the ontology `ClaimSummaryCard`, and the entity digest:
   one composer (`ClaimSummaryCard.svoTriple` + `ClaimLine.text`), tested once as an
   invariant over a fixture claim set, not per surface.
-- `kg.entity.xsurface.same-anchor` — the same claim yields an identical
+- `kg.entity.xsurface.same-anchor` — **[OK]** the same claim yields an identical
   `ClaimSourceNavigationRequest` (document, page, span/bbox, precision) from every
-  surface — the one-builder line above, asserted as an invariant.
+  surface — the one-builder line above, asserted as an invariant. Pinned:
+  `Tests/Unit/general/Models/ClaimSourceRequestTests.swift::sameAnchorAcrossBuilders`.
 
 ## First wave to pin (proposed — awaiting the creative director)
 
