@@ -100,6 +100,38 @@ The north star is a single model, reached by finishing the migration — not a r
 6. **Plan == render.** A pane the plan says has content must actually render it, or the plan
    must not claim it (close the #4525 gap).
 
+## CD runtime review 2026-09-13 (design-lead testing) — findings from a live build
+
+Findings from the creative director running the chat-in-sidebar build. Chat-in-sidebar
+itself works (committed c4a22c2b5). The rest are the workspace/pane defects to pin+fix.
+
+- `panes.chat.toggle-in-sidebar-top` — **[GAP]** the chat show/hide toggle should sit at the
+  TOP of the sidebar, to the LEFT of the sidebar (panel) button — not the sparkles button in
+  the main toolbar.
+- `panes.sidebar-button.in-sidebar-section` — **[GAP]** the sidebar toggle button belongs IN
+  the sidebar's own top-left section (Xcode-style), not floating in the main window toolbar's
+  left group.
+- `panes.split.asymmetric` — **[GAP/BROKEN]** splitting a preview vertically then horizontally
+  makes a **2×2 grid of 4**; the CD wants asymmetric nesting ("2 over 1" — two panes on top,
+  one below). The current split caps at a symmetric 2×2 (`SplittablePane.swift:156-166`) and
+  every sub-pane renders the same content. Needs nested/asymmetric split (part of F7).
+- `panes.library.horizontal-and-entities-parity` — **[BROKEN]** in the horizontal library
+  layout: the **Entities** view "takes over" — no library shown — while **Claims** keeps the
+  library; also mis-aligned on the left, and it disappears. Entities and Claims compose the
+  pane plan differently (the F5/one-view-system divergence surfacing again in layout).
+- `panes.toolbar.toggles-consistent` — **[BROKEN]** in some layouts the toolbar's pane-toggle
+  icons (preview / library / reader on/off) DISAPPEAR, so panes can't be toggled — a strong
+  signal the modes don't share one toolbar/composition path (F1/F2, the two-renderer + naming
+  divergence). One toolbar, always offering the same pane toggles for the current pane list.
+- `panes.claim.source-is-document` — **[BROKEN]** the Claims table's **Source** column shows a
+  raw id ("Source 2a614b56…"); it must show the actual **document name**, be **draggable**, and
+  **click-through to the source** (open it in reader/preview) — the same source-navigation the
+  entity statements use (`kg-entity-inspector` `source.row-click-navigates`).
+
+**The 2-column target (CD, restated):** LEFT column = the browser (library / entities / claims)
+on top with a reader beneath it; RIGHT column = the preview (source image). Chat in the sidebar.
+This is the Mail default below, expressed in the eventual pane-list model.
+
 ## Default composition (Mail-style) — RATIFIED 2026-09-12
 
 The default window is a three-region Mail-style layout. It prioritises the primary source
