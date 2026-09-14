@@ -43,6 +43,34 @@ struct PaneListTests {
         }
     }
 
+    // MARK: - fromVisibility (the one mode-independent derivation)
+
+    @Test("each visibility flag independently controls its pane, in order")
+    func visibilityFlagsControlPanesInOrder() {
+        #expect(PaneList.fromVisibility(library: true, preview: true, reading: true, chat: true).kinds
+                == [.library, .preview, .reading, .chat])
+        #expect(PaneList.fromVisibility(library: false, preview: false, reading: false, chat: false).nodes.isEmpty)
+        // Order is leading→trailing regardless of which are on.
+        let lp = PaneList.fromVisibility(library: true, preview: true, reading: false, chat: false)
+        #expect(lp.nodes.map { node -> PaneKind? in
+            if case let .leaf(_, k, _) = node { return k }; return nil
+        } == [.library, .preview])
+    }
+
+    @Test("flipping ANY single flag changes the visible pane set (fixes inert toggles in every mode)")
+    func flippingAnyFlagChangesTheSet() {
+        // The reliability contract: because this ONE derivation is what every mode
+        // uses, flipping a flag can never be a no-op (as it was in .standard/.none,
+        // which read only the library flag).
+        let base = (library: true, preview: false, reading: false, chat: false)
+        #expect(PaneList.fromVisibility(library: base.library, preview: true, reading: base.reading, chat: base.chat).kinds
+                != PaneList.fromVisibility(library: base.library, preview: false, reading: base.reading, chat: base.chat).kinds)
+        #expect(PaneList.fromVisibility(library: base.library, preview: base.preview, reading: true, chat: base.chat).kinds
+                != PaneList.fromVisibility(library: base.library, preview: base.preview, reading: false, chat: base.chat).kinds)
+        #expect(PaneList.fromVisibility(library: base.library, preview: base.preview, reading: base.reading, chat: true).kinds
+                != PaneList.fromVisibility(library: base.library, preview: base.preview, reading: base.reading, chat: false).kinds)
+    }
+
     // MARK: - scope (different libraries / previews side by side)
 
     @Test("two preview leaves with different scopes coexist")

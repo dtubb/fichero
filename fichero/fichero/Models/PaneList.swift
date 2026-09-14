@@ -129,4 +129,21 @@ struct PaneList: Codable, Sendable, Hashable {
         }
         return PaneList(nodes + [.leaf(kind)])
     }
+
+    /// The visible top-level panes derived from the window's visibility flags, in
+    /// leading→trailing order (library · preview · reading · chat). This is the ONE
+    /// derivation every layout mode uses — so a flag (a toggle) controls its pane
+    /// in EVERY mode, not only widescreen (spec §F7, the inert-toggle fix; today
+    /// `.standard`/`.none` read only the library flag). Mode-independent BY
+    /// CONSTRUCTION: "modes" differ only in their default flags and width/collapse
+    /// behaviour, never in WHICH flags they honour. Each leaf follows the current
+    /// selection (`.current`); scope-pinning is a later composition on top.
+    static func fromVisibility(library: Bool, preview: Bool, reading: Bool, chat: Bool) -> PaneList {
+        var nodes: [PaneNode] = []
+        if library { nodes.append(.leaf(.library)) }
+        if preview { nodes.append(.leaf(.preview)) }
+        if reading { nodes.append(.leaf(.reading)) }
+        if chat { nodes.append(.leaf(.chat)) }
+        return PaneList(nodes)
+    }
 }
