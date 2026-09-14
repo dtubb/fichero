@@ -152,11 +152,21 @@ itself works (committed c4a22c2b5). The rest are the workspace/pane defects to p
 - `panes.kg.clickable-lists-and-sidebar` — **[GAP, post-F7]** richer click-through
   interactions in the claims/entities lists AND the sidebar (click things to act/navigate).
   Deferred by the CD until F7 lands.
-- `panes.kg.left-alignment` — **[BROKEN]** Claims/Entities content extends under the sidebar
-  ("all the way to the left"). The 12pt `browserLeadingInset` is applied consistently, so the
-  cause is shell content-column placement, not the inset — needs a live diagnosis (screenshot)
-  before fixing. Surfaced when the entities-parity fix made Entities share Claims' pre-existing
-  left-alignment issue.
+- `panes.content-column-under-sidebar` — **[BROKEN, F7]** (screenshots confirm) the content
+  column starts at the window's LEFT EDGE (x=0) and runs UNDER the sidebar: with the sidebar
+  shown, the leftmost columns are covered; hide the sidebar and the full content appears. CD
+  2026-09-14: this is NOT KG-specific — **Claims, Entities, workflows, and images all do it**,
+  so it's the general content-column placement in the renderer, not a per-view bug. The column
+  isn't reserving the sidebar's width. An F7 issue (one renderer that lays the content column
+  out consistently for every view).
+- `panes.vertical-no-breadcrumb` — **[BROKEN, F7]** the vertical split/pane has no breadcrumb
+  bar (the horizontal one does). Another renderer-consistency gap → F7.
+- `panes.kg.filter-targets-active-view` — **[BROKEN]** two disconnected entity-filter controls:
+  the main view (`EntitiesLibraryContent`/`ClaimsLibraryContent`) uses a LOCAL `@State filterText`,
+  while the inspector + ontology surfaces read the shared `EntitySearchState` bus (a `@State` on
+  ContentView). So the bottom-toolbar "Filter Entities" (which drives the bus) filters the
+  INSPECTOR's entity digest, not the clicked main list. One filter must target the active view.
+  (Another KG-vs-inspector divergence → F7 one-view-system.)
 
 ### Reliability sweep (same-class latent bugs, 2026-09-13 overnight) — F7/NEEDS-CD
 
