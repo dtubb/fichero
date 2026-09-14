@@ -215,6 +215,11 @@ extension ContentView {
             // the preview split — they own the full content area themselves.
             contentWithOptionalModeRail
                 .frame(maxWidth: .infinity)
+                // Clip to the content column so list/grid/table rows never paint
+                // past it and bleed under the shell sidebar — the same guard the
+                // widescreen library pane already has (spec panes.content-column-
+                // under-sidebar; the legacy branches lacked it).
+                .clipped()
                 .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .content; paneFocusHint = .content })
         } else {
             // Folders now show the current layout so the WebKit/reading
@@ -230,6 +235,7 @@ extension ContentView {
                     if showDocumentGrid {
                         contentWithOptionalModeRail
                             .frame(maxWidth: .infinity)
+                            .clipped()  // no bleed under the sidebar (see above)
                             .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .content; paneFocusHint = .content })
                     } else {
                         // Grid hidden (#616): show only the preview/editor at full width.
@@ -243,6 +249,7 @@ extension ContentView {
                         PlatformVSplitView {
                             contentWithOptionalModeRail
                                 .frame(minHeight: 150, idealHeight: 180)
+                                .clipped()  // no bleed under the sidebar (see above)
                                 .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .content; paneFocusHint = .content })
 
                             previewView
