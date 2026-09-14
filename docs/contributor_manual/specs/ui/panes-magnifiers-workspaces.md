@@ -142,6 +142,22 @@ itself works (committed c4a22c2b5). The rest are the workspace/pane defects to p
   (the existing `ClaimSourceRequest.request(for:)` cursor entity statements use). Pinned:
   `ClaimSourceLabelTests`.
 
+### Post-F7 design refinements (CD, 2026-09-14) — capture, revisit after F7
+
+- `panes.kg.select-shows-item-inspector` — **[GAP, post-F7]** clicking a claim or entity row
+  auto-opens the full **document inspector** (with its source) today (works, but heavy). The
+  CD wants selection to instead show a **focused inspector for THAT claim/entity** — the
+  item's own inspector, not the whole document+source surface. (Ties `kg-entity-inspector`;
+  a claim inspector is the claim-side equivalent.)
+- `panes.kg.clickable-lists-and-sidebar` — **[GAP, post-F7]** richer click-through
+  interactions in the claims/entities lists AND the sidebar (click things to act/navigate).
+  Deferred by the CD until F7 lands.
+- `panes.kg.left-alignment` — **[BROKEN]** Claims/Entities content extends under the sidebar
+  ("all the way to the left"). The 12pt `browserLeadingInset` is applied consistently, so the
+  cause is shell content-column placement, not the inset — needs a live diagnosis (screenshot)
+  before fixing. Surfaced when the entities-parity fix made Entities share Claims' pre-existing
+  left-alignment issue.
+
 ### Reliability sweep (same-class latent bugs, 2026-09-13 overnight) — F7/NEEDS-CD
 
 A sweep for the same bug class as the fixed findings surfaced deeper, design-entangled
