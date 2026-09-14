@@ -86,33 +86,48 @@ extension EnvironmentValues {
 }
 
 extension ContentView {
-    /// The centre row's panes, derived from the SAME plan the old HStack
-    /// branched on — one place states which panes exist and how they size.
+    /// The centre row's panes. Which panes exist + their order now come from the
+    /// F7 `PaneList` model (`PaneList.fromVisibility`) — the single, mode-independent
+    /// source of truth — and this maps each pane KIND to its PaneSpec width. Behaviour
+    /// is identical to the old plan-branched build (same panes, same order, same
+    /// widths); this just routes "which panes" through the pane-list model so the
+    /// renderer and the model agree, ahead of the full one-renderer step (spec §F7).
+    ///
+    /// Reading's presence matches the plan's own rule: it rides after the preview
+    /// (`showsCanvasReadingDivider`) when a preview is up, else it stands alone
+    /// (`showsReadingPane`). Chat is NOT a centre pane (panes.chat.below-sidebar) —
+    /// it lives beneath the sidebar — so it is never in this list.
     var widescreenPaneSpecs: [PaneSpec] {
         let plan = adaptiveWidescreenPanePlan
-        var specs: [PaneSpec] = []
-        if plan.showsLibraryPane {
-            // list-only is full width; a fixed column only when a reading
-            // surface shares the row (#1516 / #2006).
-            let fixed: CGFloat? = (plan.showsCanvasPane || plan.showsReadingPane)
-                ? clampedWidescreenContentPaneWidth : nil
-            specs.append(PaneSpec(kind: .library, fixedWidth: fixed))
+        let readingPresent = plan.showsCanvasPane ? plan.showsCanvasReadingDivider : plan.showsReadingPane
+        let list = PaneList.fromVisibility(
+            library: plan.showsLibraryPane,
+            preview: plan.showsCanvasPane,
+            reading: readingPresent,
+            chat: false
+        )
+        let kinds = list.nodes.compactMap { node -> PaneKind? in
+            if case let .leaf(_, kind, _) = node { return kind }
+            return nil
         }
-        if plan.showsCanvasPane {
-            specs.append(PaneSpec(kind: .preview, fixedWidth: nil))
-            if plan.showsCanvasReadingDivider {
-                specs.append(PaneSpec(kind: .reading, fixedWidth: CGFloat(pageContentPaneWidth)))
+        let hasPreview = kinds.contains(.preview)
+        let hasReading = kinds.contains(.reading)
+        return kinds.map { kind in
+            switch kind {
+            case .library:
+                // list-only is full width; a fixed column only when a reading
+                // surface shares the row (#1516 / #2006).
+                let fixed: CGFloat? = (hasPreview || hasReading) ? clampedWidescreenContentPaneWidth : nil
+                return PaneSpec(kind: .library, fixedWidth: fixed)
+            case .preview:
+                return PaneSpec(kind: .preview, fixedWidth: nil)
+            case .reading:
+                // A width only when it rides after a preview; standalone = full.
+                return PaneSpec(kind: .reading, fixedWidth: hasPreview ? CGFloat(pageContentPaneWidth) : nil)
+            case .chat:
+                return PaneSpec(kind: .chat, fixedWidth: nil)  // not reached — chat is not in the list
             }
-        } else if plan.showsReadingPane {
-            specs.append(PaneSpec(kind: .reading, fixedWidth: nil))
         }
-        // Chat is NO LONGER a centre pane (spec panes.chat.below-sidebar): it
-        // lives beneath the sidebar folder tree now, mounted by
-        // `ContentView.sidebarContent`. `showChatPane` still gates it — it just
-        // shows/hides the sidebar region instead of appending a row pane, so the
-        // sparkles toggle needs no change. The `if plan.showsChatPane { append
-        // .chat }` that used to be here is intentionally gone.
-        return specs
     }
 
     /// The widescreen centre row, rendered from `widescreenPaneSpecs`.
