@@ -38,6 +38,27 @@ final class AboutInfoTests: XCTestCase {
         XCTAssertEqual(AboutInfo.dateStyleVersion("1.2"), "1.2")  // non-date passes through
     }
 
+    /// `dateStyleVersion` (the display re-padding) pinned directly: single-digit
+    /// month/day gain a leading zero; a beta suffix is preserved (b1 drops the
+    /// number, b2+ keeps it); and anything not date-shaped passes through untouched
+    /// so a non-calendar version is never mangled.
+    func testDateStyleVersionPadsSingleDigitMonthAndDay() {
+        XCTAssertEqual(AboutInfo.dateStyleVersion("2026.9.3"), "2026.09.03")
+        XCTAssertEqual(AboutInfo.dateStyleVersion("2026.09.03"), "2026.09.03")  // already padded, idempotent
+        XCTAssertEqual(AboutInfo.dateStyleVersion("2026.12.31"), "2026.12.31")
+    }
+
+    func testDateStyleVersionPreservesBetaSuffix() {
+        XCTAssertEqual(AboutInfo.dateStyleVersion("2026.9.3b1"), "2026.09.03-beta")
+        XCTAssertEqual(AboutInfo.dateStyleVersion("2026.9.3b2"), "2026.09.03-beta.2")
+    }
+
+    func testDateStyleVersionPassesThroughNonDateShapes() {
+        XCTAssertEqual(AboutInfo.dateStyleVersion("1.2.3"), "1.2.3")   // year not 4 digits
+        XCTAssertEqual(AboutInfo.dateStyleVersion("1.0"), "1.0")       // too few parts
+        XCTAssertEqual(AboutInfo.dateStyleVersion("dev"), "dev")       // not numeric
+    }
+
     func testEngineVersionLineIsOmittedWhenMissing() {
         XCTAssertNil(AboutInfo.engineVersionLine(nil))
     }

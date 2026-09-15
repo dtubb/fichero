@@ -193,17 +193,20 @@ struct AboutView: View {
 
             Text(appName)
                 .font(.title.weight(.semibold))
+                .accessibilityIdentifier("about.appName")
 
             Text(versionLine)
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .textSelection(.enabled)
+                .accessibilityIdentifier("about.version")
 
             if let engineVersionLine {
                 Text(engineVersionLine)
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
+                    .accessibilityIdentifier("about.serverVersion")
             }
 
             Text(tagline)
@@ -226,10 +229,16 @@ struct AboutView: View {
 
             HStack(spacing: 12) {
                 Link("Fichero on GitHub", destination: AboutLinks.repository)
+                    .help("Open the Fichero source repository on GitHub")
+                    .accessibilityIdentifier("about.link.github")
                 Link("AGPL-3.0 License", destination: AboutLinks.license)
+                    .help("Read Fichero's AGPL-3.0 license on GitHub")
+                    .accessibilityIdentifier("about.link.license")
                 Button("Acknowledgements") {
                     isAcknowledgementsPresented = true
                 }
+                .help("View the open-source projects Fichero is built on")
+                .accessibilityIdentifier("about.button.acknowledgements")
             }
             .font(.caption)
         }
@@ -326,6 +335,8 @@ private struct AcknowledgementsView: View {
                                             .foregroundStyle(.secondary)
                                     }
                                 }
+                                .help("Open the \(acknowledgement.name) project website")
+                                .accessibilityIdentifier("about.ack.\(acknowledgement.versionKey)")
                             }
                         }
                     }
@@ -337,6 +348,8 @@ private struct AcknowledgementsView: View {
                     Button("Done") {
                         dismiss()
                     }
+                    .help("Close acknowledgements")
+                    .accessibilityIdentifier("about.acknowledgements.done")
                 }
             }
         }
@@ -354,6 +367,7 @@ struct AboutWindowMenuButton: View {
         Button("About Fichero") {
             openWindow(id: "about")
         }
+        .accessibilityIdentifier("about.menu.open")
     }
 }
 #endif
