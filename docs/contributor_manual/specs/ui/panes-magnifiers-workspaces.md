@@ -698,8 +698,14 @@ Creative director, running the app (the one-renderer + old split/close wiring st
   rows**, not just the focused pane (screenshot: a 2×N grid appears from one split). The split
   scope is shared, not per-pane instance. This is the F7 "split focused-only isolation" leg — the
   first-wave pinning test in the Test matrix, still unproven and now confirmed broken live.
-- `panes.close.this-pane-only` — **[BROKEN]** Closing a pane sometimes closes the **entire row**,
-  not just that pane. Same root: close acts on a shared scope, not the focused pane instance.
+- `panes.close.this-pane-only` — **[FIXED 2026-09-15, applied path]** Closing a pane in an applied
+  workspace now removes THAT leaf from the stored `PaneList` (`removingLeaf(id)`, which collapses a
+  singleton split to its survivor and removes a top-level pane in one operation) — never the whole
+  row. Wired through a `\.paneCloseAction` environment seam that `PaneHead`'s X prefers over the
+  legacy scope-shared close (commit ba575a64e; model pinned by PaneListTests). The legacy
+  visibility-Bool path is unchanged and retires with the always-a-PaneList step. The **split** button
+  in an applied workspace still routes through the SplittablePane mechanism, not
+  `PaneList.splittingLeaf` — wiring that symmetrically is the next close/split increment.
 - `panes.head.consistent-minimal` — **[BROKEN]** Pane heads are constructed differently: the
   Library and Reader heads draw a bottom divider LINE and a taller margin; the Preview head draws
   none. Unify every pane to ONE head component in the **preview's minimal, line-less, tight style**
