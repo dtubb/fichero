@@ -116,7 +116,7 @@ struct WorkspaceCommandsSection: View {
             // The v2 workspaces are the ONE built-in system (spec workspaces.one-system): real 2D
             // PaneList compositions, applied to the focused window's `activePaneList` via the
             // command bus. ⌘⌥1–6 switch between them. (The legacy `BuiltInWorkspace` show/hide
-            // presets are retired from the menus; their enum + tests are removed in a follow-up.)
+            // presets — enum, wiring and tests — are deleted; this is the one built-in system.)
             ForEach(BuiltInWorkspaceLayout.allCases) { layout in
                 Button {
                     commands?.applyWorkspaceLayout(layout)

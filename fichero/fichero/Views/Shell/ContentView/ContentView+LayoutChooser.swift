@@ -345,19 +345,6 @@ extension ContentView {
         WindowWorkspaceStore.shared.setToolbarVisibility(snapshot.toolbar)
     }
 
-    /// Applies one of the built-in arrangements. It touches ONLY what a
-    /// built-in can honestly know — panes, both window bars, toolbar buttons
-    /// — leaving widths, splits, kind overrides and the view mode as the user
-    /// has them.
-    func applyBuiltInWorkspace(_ workspace: BuiltInWorkspace) {
-        withAnimation(FrameAnimation.snappy) {
-            applyPaneVisibilityPlan(workspace.panes)
-            showWorkflowBar = workspace.showsWorkflowBar
-            showAnnotationBar = workspace.showsMarkupBar
-        }
-        WindowWorkspaceStore.shared.setToolbarVisibility(workspace.toolbar)
-    }
-
     /// A preset touches ONLY pane visibility — widths, kind overrides and
     /// splits stay as the user has them.
     func applyLayoutPreset(_ preset: WindowLayoutPreset) {
@@ -394,7 +381,6 @@ extension ContentView {
             },
             applyWorkspace: { applyLayoutSnapshot($0.layout) },
             applyWorkspaceLayout: { applyWorkspaceLayout($0) },
-            applyBuiltIn: { applyBuiltInWorkspace($0) },
             applyPreset: { applyLayoutPreset($0) }
         )
     }
@@ -415,6 +401,5 @@ struct WindowLayoutCommands: Equatable {
     /// Apply a v2 built-in workspace (the one built-in system) to the focused window — sets its
     /// `activePaneList` (spec workspaces.one-system). This is what ⌘⌥1–6 drives from the menu bar.
     let applyWorkspaceLayout: @MainActor (BuiltInWorkspaceLayout) -> Void
-    let applyBuiltIn: @MainActor (BuiltInWorkspace) -> Void
     let applyPreset: @MainActor (WindowLayoutPreset) -> Void
 }

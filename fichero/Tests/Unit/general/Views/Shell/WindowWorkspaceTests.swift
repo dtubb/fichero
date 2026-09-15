@@ -230,47 +230,11 @@ final class WindowWorkspaceTests: XCTestCase {
         XCTAssertFalse(ToolbarVisibilityPlan.minimal.showLayoutsMenu)
     }
 
-    // MARK: - Built-in workspaces
-
-    func testBuiltInWorkspacesAreValidPaneSets() {
-        for workspace in BuiltInWorkspace.allCases {
-            XCTAssertTrue(
-                workspace.panes.isValid,
-                "\(workspace.title) hides every content pane — #1696 refuses it"
-            )
-        }
-    }
-
-    func testCataloguingIsTheOnlyBuiltInThatBringsTheWorkflowBar() {
-        XCTAssertTrue(BuiltInWorkspace.cataloguing.showsWorkflowBar)
-        XCTAssertFalse(BuiltInWorkspace.reading.showsWorkflowBar)
-        XCTAssertFalse(BuiltInWorkspace.everything.showsWorkflowBar)
-    }
-
-    func testBuiltInMatchesOnlyWhenPanesToolbarAndBarsAllAgree() {
-        let reading = BuiltInWorkspace.reading
-        XCTAssertTrue(reading.matches(
-            panes: reading.panes, toolbar: reading.toolbar,
-            workflowBar: false, markupBar: true
-        ))
-        // Same panes, but the user turned the Layouts button back on.
-        XCTAssertFalse(reading.matches(
-            panes: reading.panes, toolbar: .everything,
-            workflowBar: false, markupBar: true
-        ))
-        // Same panes and toolbar, but the workflow bar is up.
-        XCTAssertFalse(reading.matches(
-            panes: reading.panes, toolbar: reading.toolbar,
-            workflowBar: true, markupBar: true
-        ))
-        // Same panes, toolbar and workflow bar — but the markup bar is down,
-        // and Reading brings it. A checkmark on an arrangement the window is
-        // not actually in is the bug this closes.
-        XCTAssertFalse(reading.matches(
-            panes: reading.panes, toolbar: reading.toolbar,
-            workflowBar: false, markupBar: false
-        ))
-    }
+    // The built-in workspaces are now the v2 PaneList compositions
+    // (`BuiltInWorkspaceLayout`), covered by `BuiltInWorkspaceLayoutTests`. The
+    // legacy `BuiltInWorkspace` show/hide presets — and the tests that pinned
+    // their pane sets, bars and ⌘⌥ slots — were retired with the enum (spec
+    // workspaces.one-system). Snapshot/saved-workspace tests below still stand.
 
     // MARK: - The markup bar is part of the arrangement (Daniel, 2026-09-02)
 
@@ -301,16 +265,6 @@ final class WindowWorkspaceTests: XCTestCase {
             WindowLayoutSnapshot.self, from: Data(json.utf8))
         XCTAssertFalse(decoded.showAnnotationBar)
         XCTAssertFalse(decoded.showWorkflowBar)
-    }
-
-    func testEachBuiltInNamesItsOwnBars() {
-        // Reading is a desk you annotate at; Cataloguing is one you run
-        // workflows from. Neither may leave the other's bar wherever it
-        // happened to be.
-        XCTAssertTrue(BuiltInWorkspace.reading.showsMarkupBar)
-        XCTAssertFalse(BuiltInWorkspace.cataloguing.showsMarkupBar)
-        XCTAssertFalse(BuiltInWorkspace.everything.showsMarkupBar)
-        XCTAssertTrue(BuiltInWorkspace.cataloguing.showsWorkflowBar)
     }
 
     // MARK: - Menu rows carry a glyph
@@ -350,29 +304,6 @@ final class WindowWorkspaceTests: XCTestCase {
         XCTAssertTrue(help.contains("reader"))
         XCTAssertTrue(help.contains("markup bar"))
         XCTAssertTrue(help.contains("1 split pane"))
-    }
-
-    func testBuiltInsAreDistinctArrangements() {
-        let all = BuiltInWorkspace.allCases
-        // The best-nine's first six ship today (spec; #7–9 pend a per-pane view mode).
-        XCTAssertEqual(all.count, 6)
-        XCTAssertEqual(Set(all.map(\.title)).count, all.count, "titles must be unique")
-        // Every built-in is a genuinely different pane set from every other.
-        for outer in all.indices {
-            for inner in all.indices where inner > outer {
-                XCTAssertNotEqual(
-                    all[outer].panes, all[inner].panes,
-                    "\(all[outer].title) and \(all[inner].title) have identical pane sets")
-            }
-        }
-    }
-
-    func testBuiltInsBindTheFirstNineToCommandOptionNumbers() {
-        // ⌘⌥1–9: declaration order is the shortcut order (spec, the best-nine).
-        for (index, workspace) in BuiltInWorkspace.allCases.enumerated() where index < 9 {
-            XCTAssertEqual(workspace.shortcutNumber, index + 1)
-        }
-        XCTAssertEqual(BuiltInWorkspace.library.shortcutNumber, 1)
     }
 
     // MARK: - Rename (the Workspace Manager's rename field)
