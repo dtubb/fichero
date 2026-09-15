@@ -578,6 +578,24 @@ Behavior-preserving increments, each build+unit-gated; the CD verifies each visu
 5. **Workspace Manager dialog + ⌘⌥1–9** (2026-09-14 ratified): add/delete/rename/bind, keyboard
    + VoiceOver reachable.
 
+## Decisions needed to continue (2026-09-14) — for the CD
+
+The one-renderer and the first six built-in workspaces (⌘⌥1–6) shipped; these block the rest:
+
+1. **The ⌘⌥1–9 shortcut model** (blocks saved-workspace rebinding + the Manager). Two shapes:
+   - **(A) per-workspace `shortcutNumber`** — each workspace optionally owns a number; the app
+     resolves conflicts. Simple to store, but two workspaces can claim the same key.
+   - **(B, recommended) a slot→workspace MAP** — the nine ⌘⌥ slots are a single app-wide
+     mapping the Manager edits; each slot points at exactly one workspace (built-in OR saved),
+     so there are no conflicts by construction and the built-ins are just the default mapping.
+   Today built-ins own ⌘⌥1–6 by list position (a special case of B). Recommend B.
+2. **Workspaces #7–9** (Compare, Claims, Entities). Compare needs two preview panes with
+   different scopes (only `PaneList` expresses that, not the six-Bool plan); Claims/Entities
+   need the library pane's *view mode* to be part of the workspace. Both imply moving saved
+   workspaces onto `PaneList` + adding a per-pane view-mode/scope. Ruling needed on that model.
+3. **The Manager dialog** — data ops exist (save/remove/rename); the dialog UI is built once
+   the CD can verify it visually (RenderPreview is toolchain-blocked in the agent environment).
+
 ## Open questions (for the design lead)
 
 - **Naming.** What do we call editing directly inline within a pane, where each pane may
