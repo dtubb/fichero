@@ -282,9 +282,19 @@ the browse→read flow down the centre.
 
 ### A. Pane composition & split
 
-- `panes.split.focused-column-only` — **[BROKEN]** splitting a pane (vertical or
-  horizontal) splits the **focused** pane, not every column at once. Today a vertical split
-  applies to both columns rather than the one selected.
+- `panes.split.focused-only` — **[PARTIAL]** splitting a pane (vertical or horizontal) splits
+  the **focused** pane, not every column at once. Model + routing fixed (2026-09-15,
+  33cbcdf92): `PaneList.splittingLeaf(id:axis:)` splits only the targeted leaf, and
+  `PaneSpec.slot` makes each pane's split key per-instance (was per-kind), so same-kind panes
+  no longer share one split cell. REMAINING: instance-precise focus (routing still targets the
+  first pane of the focused kind) needs the stored pane list + per-instance focus. Pinned:
+  `Tests/Unit/general/Models/PaneListTests.swift` ("splitting a pane splits ONLY that pane…").
+- `panes.close.this-pane-only` — **[PARTIAL]** closing a pane removes only that pane; its
+  siblings survive and a split that loses a child collapses to the survivor, not the whole
+  row. Model op done + tested (`PaneList.removingLeaf(id:)`); the VIEW still closes a
+  window-level kind Bool (`setPaneVisible`), so the row-collapse fix lands with the stored
+  pane list (next). Pinned: `Tests/Unit/general/Models/PaneListTests.swift` ("closing a pane
+  removes ONLY that pane…", "…collapses to the survivor — the row does not disappear").
 - `panes.split.independent-mode-per-pane` — **[BROKEN]** each pane holds its own view mode;
   changing one pane to Entities or Claims does not clear or convert the others. Today
   switching a pane's node-type to entity/claim in the entities view removes them from the
