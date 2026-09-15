@@ -738,6 +738,11 @@ Creative director, running the app (the one-renderer + old split/close wiring st
   those, and the reader / image-preview / image-editor publishers now gate their `focusedSceneValue`
   on the flag (library already did). Only the PRIMARY of each kind publishes; the duplicates render
   content only. Compare ships in its full designed form again.
+  **Completion (88ad63eea):** a duplicate leaf mounts its own unsplit `SplittablePane`, whose primary
+  re-published `isSecondarySplitPane = false` and defeated the flag — so `SplittablePane` now ORs an
+  inherited-secondary flag into every `splitPane` (`isSecondary || inheritedSecondary`), keeping a
+  duplicate leaf's whole subtree secondary. Without this the flag never reached the publishers and the
+  loop returned. Runtime-confirm with a ⌘R on Compare (env propagation isn't unit-testable).
 
 **Testing this class (design-led answer, "why can a test do these"):** the fault is a **Scene-level
 focused-value collision**, and where it lives dictates the test:
