@@ -621,6 +621,18 @@ The one-renderer and the first six built-in workspaces (⌘⌥1–6) shipped; th
 3. **The Manager dialog** — data ops exist (save/remove/rename); the dialog UI is built once
    the CD can verify it visually (RenderPreview is toolchain-blocked in the agent environment).
 
+## Resolved 2026-09-15 (creative director)
+
+- **Save = layout only.** A saved workspace (and each built-in) captures the pane composition +
+  per-pane config, NOT the live selection; panes re-fill from context. Pinning a specific
+  document (Compare's A/B) is an explicit per-pane opt-in (`PaneScope.documentId`).
+- **Magnifier zoom = independent + a sync toggle.** Each pane zooms alone; a "sync zoom" toggle
+  links panes in a workspace on request (matches the code). Confirms the 2026-09-13 ruling.
+- **Word-boxes default = recognised text inside each box** (proof the transcription in place); a
+  pane-head switch drops to outlines-only.
+- **Claim/Knowledge subjects = the full set** — people, places, organizations, events, concepts,
+  citations, works, dates-as-subjects (supersedes the "richer subject types" open question).
+
 ## Open questions (for the design lead)
 
 - **Naming.** What do we call editing directly inline within a pane, where each pane may
