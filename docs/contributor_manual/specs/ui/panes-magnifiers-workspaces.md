@@ -676,6 +676,38 @@ workspaces store a `PaneList`, the window is *always* a `PaneList`, the Bool-vis
 (4) split/close act on the focused leaf instance (`panes.split.focused-only` /
 `panes.close.this-pane-only`). Tests grow with each step and cite the behavior id they pin.
 
+### Increment 3 — RATIFIED 2026-09-15 (evening, CD): PaneList is the ONE split model
+
+> "We might want 3 columns, one long below — or even four columns and 2 below. And remember: one
+> system, not multiple systems."
+
+- `workspaces.pane-list-is-the-split-model` — **[RATIFIED]** the window is ALWAYS a `PaneList`, and
+  ALL splits — including the rich compositions the CD wants (3 columns over one wide pane; 4 columns
+  over 2) — are expressed by `PaneList`'s NESTED splits, e.g. `3-cols-over-1-wide` =
+  `split(.vertical, [ split(.horizontal, [a, b, c]), d ])`; `4-over-2` =
+  `split(.vertical, [ split(.horizontal, [a,b,c,d]), split(.horizontal, [e,f]) ])`. Nesting already
+  expresses everything `SplittablePane`'s in-slot 3-per-axis / 2×2 grid did, and more, so the head
+  "+" and the window Split commands must build these into the `activePaneList` (`splittingLeaf` +
+  friends), NOT the leaf's own `SplittablePane`. The `SplittablePane` split mechanism is then RETIRED
+  — its 3-per-axis/grid model is the "second system" this consolidation removes. One model, one place
+  splits live, and a workspace saves exactly what you see.
+- Consequence: `PaneNode` may need equal-flex weights (or explicit ratios) so "one long below" reads
+  as a greedy row under three short columns — the height policy `verticallyFramedPane` fakes today
+  becomes per-node data on the `PaneList`. Split/close then act on the focused leaf uniformly
+  (close already does, via `\.paneCloseAction` → `removingLeaf`; split gains the twin
+  `\.paneSplitAction` → `splittingLeaf`).
+
+### Pane-linkage color coding — IDEA 2026-09-15 (CD), for design
+
+- `panes.linkage-color` — **[GAP/IDEA]** In a multi-column workspace (Compare especially) it isn't
+  obvious which library/list drives which preview/reader. Idea: tint each linked pane GROUP with a
+  soft background color — the Xcode-theme-picker model (colored row bands) — so "this list → this
+  preview → this reader" reads at a glance. Each `PaneScope` group (a column's library + the panes
+  that follow its selection) shares one tint; unlinked/independent panes stay neutral. Needs a design
+  pass: how tints are assigned (per column? per scope link?), how quiet they stay (Golden-Gate
+  restraint — a wash, not a highlight), and dark-mode behavior. Captured from the CD's Xcode
+  theme-picker reference.
+
 ## Open questions (for the design lead)
 
 - **Naming.** What do we call editing directly inline within a pane, where each pane may

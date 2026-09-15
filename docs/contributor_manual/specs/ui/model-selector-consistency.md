@@ -113,7 +113,20 @@ dead empty menu (mirrors `SidebarContextMenuPolicyTests`' never-silently-empty r
 
 ---
 
-## Open questions (for the design lead)
+## RATIFIED 2026-09-15 (evening, CD)
+
+- **Adopt the shared spine.** One shared ROW (the island's `ModelFamilyMark` / `ModelPickerRow`) +
+  one pure list-builder (generalize `WorkflowBarModelPicker`'s tier-first / provider-grouped /
+  provider+model-deduped / vision+cost builder). Every surface — island, workflow bar, chat,
+  comparison, nodes — renders both; Settings reuses the ROW inside its management chrome. The ~7
+  divergent pickers collapse to one spine. Land subtractively (shared row → shared builder →
+  per-surface adoption), each step pinned by a pure list-builder test. Keep the builder PURE (the
+  island fetches its own cache outside the `LibraryWorkspaceRoot` env, #4448) — don't bake an
+  environment read into it.
+- **Platform = iPad / Mac / iOS first-class** (matches [[menus-and-commands]]): the shared row +
+  builder must render correctly on all three; test each.
+
+## Open questions (still open)
 
 1. **Chip vs menu vs sheet** — the island is a chip→popover; the workflow bar is a `Menu`. Should the
    workflow bar adopt the chip+popover, or keep a `Menu` that renders the shared rows? (Both can share

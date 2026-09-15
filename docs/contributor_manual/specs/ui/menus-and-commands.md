@@ -202,17 +202,26 @@ either way (shared components), but scope of the cross-platform tests depends on
 
 ---
 
-## Open questions (for the design lead)
+## RATIFIED 2026-09-15 (evening, CD)
 
-1. **Workspaces: new top-level menu, or a tightened View ▸ Workspaces submenu?** A top-level menu is
-   more discoverable and matches its first-class status; a submenu keeps the bar shorter.
-2. **Sort's home** — View ▸ Sort submenu, or nearer the data (a toolbar sort control is the primary
+- **Workspaces stay under View.** "Workspaces are View, I think." So it's a tightened **View ▸
+  Workspaces** submenu (⌘⌥1–6 + Save/Manage), NOT a new top-level menu — even though Xcode-style
+  top-level menus were considered. View still sheds its non-appearance items (Sort, etc.); Workspaces
+  is appearance and belongs there, just organized rather than dumped inline.
+- **Platform = iPad / Mac / iOS first-class NOW.** Build and test the command surfaces on all three,
+  not Mac-first. The shared `Focused*Button` / `*MenuItems` components render in a `CommandMenu`
+  (Mac / iPad menu bar) or a toolbar `Menu` / `.contextMenu` (iPhone) unchanged; tests cover each
+  platform's surface. This raises the bar on every menu change — no macOS-only command bodies.
+
+## Open questions (still open)
+
+1. **Sort's home** — View ▸ Sort submenu, or nearer the data (the toolbar sort control is the primary
    already)? Where should the *menu* copy live?
-3. **How far to unify contextual menus now?** The catalog is the end state; is a full migration in
-   scope, or do we convert the worst offenders (creation verbs, delete, export) first and leave the
-   long tail?
-4. **Reader/Image verbs** — keep them context-published from the active pane (current pattern) and
-   *mirror* into the bar, or hoist definitions into the catalog with the pane as the run-context?
+2. **How far to unify contextual menus now?** Reuse the existing components everywhere is the end
+   state; is a full migration in scope, or convert the worst offenders (creation verbs, delete,
+   export) first and leave the long tail?
+3. **Reader/Image verbs** — keep them context-published from the active pane (current pattern) and
+   *mirror* into the bar, or centralize as shared components with the pane as run-context?
 
 ---
 
