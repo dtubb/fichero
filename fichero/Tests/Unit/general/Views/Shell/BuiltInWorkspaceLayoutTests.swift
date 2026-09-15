@@ -58,27 +58,62 @@ struct BuiltInWorkspaceLayoutTests {
         #expect(previews.contains { $0.config.previewWordBoxes == true })
     }
 
-    @Test("Compare is two symmetric witness columns — page over reader each")
+    @Test("Compare is two symmetric witness columns — page over reader over navigation each")
     func compareIsTwoColumns() {
         let nodes = BuiltInWorkspaceLayout.compare.panes.nodes
         #expect(nodes.count == 2)
         for node in nodes {
-            // Two panes per column (page over reader). The per-column library/related nav is
-            // deferred until the library pane is instance-safe (panes.instance-safe).
-            #expect(node.leafCount == 2)
-            #expect(node.kinds == [.preview, .reading])
+            // Three panes per column, the CD's witness stack: page over reader over its navigation.
+            #expect(node.leafCount == 3)
+            #expect(node.kinds == [.preview, .reading, .library])
         }
     }
 
-    @Test("no built-in mounts two library panes until the library pane is instance-safe")
-    func noBuiltInHasTwoLibraryPanes() {
-        // A guard test: two library content views in one window loop on shared window state
-        // (spec panes.instance-safe, CD live 2026-09-15). Until that's fixed, no default may mount
-        // more than one library pane. This catches the regression at the DATA level.
-        for layout in BuiltInWorkspaceLayout.allCases {
-            let libraryCount = allLeaves(layout.panes).filter { $0.kind == .library }.count
-            #expect(libraryCount <= 1, "\(layout.title) mounts \(libraryCount) library panes")
+    /// Every leaf's (id, kind), splits flattened — for the instance-safety guard, which reasons
+    /// about which panes publish window-scoped focus keys.
+    private func allLeafIDs(_ list: PaneList) -> [(id: UUID, kind: PaneKind)] {
+        var out: [(id: UUID, kind: PaneKind)] = []
+        func walk(_ node: PaneNode) {
+            switch node {
+            case let .leaf(id, kind, _, _): out.append((id: id, kind: kind))
+            case let .split(_, _, children): children.forEach(walk)
+            }
         }
+        list.nodes.forEach(walk)
+        return out
+    }
+
+    @Test("every built-in is instance-safe: at most one PRIMARY pane per kind")
+    func everyBuiltInIsInstanceSafe() {
+        // The structural guard that replaces "no two libraries" (spec panes.instance-safe): a
+        // window-scoped focused value admits ONE publisher per key, so a workspace with two
+        // same-kind panes must flag every duplicate secondary (PaneList.secondaryLeafIDs →
+        // \.isSecondarySplitPane). This asserts the model half directly: among the leaves that
+        // are NOT flagged secondary (the primaries — the publishers), each kind appears at most
+        // once. If it doesn't, that layout WILL loop the scene graph. Deterministic, pure, and
+        // canvas-bug-immune (a Scene-less ImageRenderer can't reproduce the focused-value fault).
+        for layout in BuiltInWorkspaceLayout.allCases {
+            let panes = layout.panes
+            let secondary = panes.secondaryLeafIDs()
+            let primaries = allLeafIDs(panes).filter { !secondary.contains($0.id) }
+            var perKind: [PaneKind: Int] = [:]
+            for pane in primaries { perKind[pane.kind, default: 0] += 1 }
+            for (kind, count) in perKind {
+                #expect(count == 1, "\(layout.title) has \(count) primary \(kind) panes — it will loop")
+            }
+        }
+    }
+
+    @Test("Compare flags one duplicate of each kind secondary (preview, reader, library)")
+    func compareFlagsDuplicatesSecondary() {
+        // The two-witness Compare mounts two each of preview / reader / library; exactly the SECOND
+        // of each must be secondary so only one publishes per key (the render-loop fix).
+        let panes = BuiltInWorkspaceLayout.compare.panes
+        #expect(panes.secondaryLeafIDs().count == 3)
+        let secondaryKinds = allLeafIDs(panes)
+            .filter { panes.secondaryLeafIDs().contains($0.id) }
+            .map(\.kind)
+        #expect(Set(secondaryKinds) == [.preview, .reading, .library])
     }
 
     @Test("Catalogue and Claims dock an inspector; the others don't")

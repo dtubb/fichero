@@ -216,6 +216,30 @@ struct PaneList: Codable, Sendable, Hashable {
         PaneList(nodes.map { $0.splittingLeaf(id, axis: axis) })
     }
 
+    /// The leaf ids that must render as SECONDARY panes — every leaf whose kind already appeared
+    /// earlier in traversal order. A window-scoped `focusedSceneValue` admits only ONE publisher
+    /// per key; two same-kind panes each mount their own `SplittablePane` and both publish the
+    /// SAME keys every frame → SwiftUI's "FocusedValue update tried to update multiple times per
+    /// frame" fault → recursive scene invalidation (the applied-workspace render loop that
+    /// beachballed Compare, CD live 2026-09-15; spec panes.instance-safe). Flagging every
+    /// duplicate secondary routes it through the already-proven non-publishing branch
+    /// (`\.isSecondarySplitPane`). Pure and total — this is the structural guard a unit test
+    /// asserts, so a default that would loop fails at the MODEL level before it can beachball.
+    func secondaryLeafIDs() -> Set<UUID> {
+        var seenKinds: Set<PaneKind> = []
+        var secondary: Set<UUID> = []
+        func walk(_ node: PaneNode) {
+            switch node {
+            case let .leaf(id, kind, _, _):
+                if seenKinds.contains(kind) { secondary.insert(id) } else { seenKinds.insert(kind) }
+            case let .split(_, _, children):
+                children.forEach(walk)
+            }
+        }
+        nodes.forEach(walk)
+        return secondary
+    }
+
     /// The visible top-level panes derived from the window's visibility flags, in
     /// leading→trailing order (library · preview · reading · chat). This is the ONE
     /// derivation every layout mode uses — so a flag (a toggle) controls its pane

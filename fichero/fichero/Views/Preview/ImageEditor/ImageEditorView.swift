@@ -78,6 +78,10 @@ struct ImageEditorView: View {
     @State var showPasteManyConfirm = false
 
     @Environment(AnnotationStore.self) var annotationStore
+    // A SECONDARY preview pane must not co-publish the window-scoped \.previewSelectAll /
+    // \.imageEditUndoAction keys — one publisher per key, or the scene loops (spec
+    // panes.instance-safe). Set on every duplicate leaf by PaneSpec.paneNodeView.
+    @Environment(\.isSecondarySplitPane) private var isSecondarySplitPane
 
     /// Editable docs in the current multi-selection (for batch-apply).
     var selectedEditableDocs: [Document] {
@@ -102,7 +106,7 @@ struct ImageEditorView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
+        editorFocusPublishes(on: VStack(spacing: 0) {
             toolbar
             Divider()
             // ONE steps list, in the window Inspector's Edits facet — which
@@ -110,31 +114,7 @@ struct ImageEditorView: View {
             // (Daniel, 2026-09-02: the beside-canvas copy duplicated the
             // Inspector's panel one divider apart; see his 9:50pm screenshot).
             canvas
-        }
-        // ⌘A over a shown image selects the WHOLE image (Daniel, 2026-08-23).
-        // The marquee already speaks normalized image space, so "everything"
-        // is the unit rect — no new selection concept, just its full extent.
-        // Published rather than key-handled here: `SelectAllButton` owns the
-        // chord and asks which pane has focus.
-        .focusedSceneValue(
-            \.previewSelectAll,
-            FocusedLibraryAction(
-                isEnabled: model.preview != nil,
-                run: { marqueeSelection = CGRect(x: 0, y: 0, width: 1, height: 1) }
-            )
-        )
-        // ⌘Z while editing an image undoes the last committed edit step
-        // (Daniel, 2026-08-31). Published on its own key so the Edit menu's
-        // `UndoLastActionButton` routes here ahead of navigation-back — a bare
-        // `.keyboardShortcut` on the toolbar button loses to the menu's key
-        // equivalent on macOS.
-        .focusedSceneValue(
-            \.imageEditUndoAction,
-            FocusedLibraryAction(
-                isEnabled: !model.chain.isEmpty && !model.isBusy,
-                run: { Task { await model.undoLastStep() } }
-            )
-        )
+        })
         .task(id: document.id) {
             // External selection changed (host drove a new document).
             activeDocumentID = document.id
@@ -185,6 +165,43 @@ struct ImageEditorView: View {
             Button("OK", role: .cancel) { model.errorMessage = nil }
         } message: {
             Text(model.errorMessage ?? "")
+        }
+    }
+
+    /// Publish the editor's window-scoped focus keys — ONLY from the PRIMARY preview pane. A second
+    /// preview in the window (Compare) mounts its own pane; without this gate both publish
+    /// \.previewSelectAll / \.imageEditUndoAction every frame and the scene graph loops (spec
+    /// panes.instance-safe). Mirrors the library/reader primary-only guard.
+    @ViewBuilder
+    private func editorFocusPublishes(on content: some View) -> some View {
+        if isSecondarySplitPane {
+            content
+        } else {
+            content
+                // ⌘A over a shown image selects the WHOLE image (Daniel, 2026-08-23).
+                // The marquee already speaks normalized image space, so "everything"
+                // is the unit rect — no new selection concept, just its full extent.
+                // Published rather than key-handled here: `SelectAllButton` owns the
+                // chord and asks which pane has focus.
+                .focusedSceneValue(
+                    \.previewSelectAll,
+                    FocusedLibraryAction(
+                        isEnabled: model.preview != nil,
+                        run: { marqueeSelection = CGRect(x: 0, y: 0, width: 1, height: 1) }
+                    )
+                )
+                // ⌘Z while editing an image undoes the last committed edit step
+                // (Daniel, 2026-08-31). Published on its own key so the Edit menu's
+                // `UndoLastActionButton` routes here ahead of navigation-back — a bare
+                // `.keyboardShortcut` on the toolbar button loses to the menu's key
+                // equivalent on macOS.
+                .focusedSceneValue(
+                    \.imageEditUndoAction,
+                    FocusedLibraryAction(
+                        isEnabled: !model.chain.isEmpty && !model.isBusy,
+                        run: { Task { await model.undoLastStep() } }
+                    )
+                )
         }
     }
 }

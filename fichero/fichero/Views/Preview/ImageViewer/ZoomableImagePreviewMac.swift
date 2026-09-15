@@ -137,6 +137,11 @@ struct ZoomableImagePreview: View {
     /// The pane head's chrome seam (Daniel, 2026-08-29): paging + renditions
     /// publish here so the head renders them. Optional — headless hosts skip.
     @Environment(PreviewPaneChrome.self) var paneChrome: PreviewPaneChrome?
+    // A SECONDARY preview pane (a workspace's second preview, e.g. Compare) must not co-publish
+    // the window-scoped \.imageZoomActions / \.previewSelectAll keys — one publisher per key, or
+    // the scene loops (spec panes.instance-safe). The applied-workspace renderer sets this for
+    // every duplicate leaf (PaneSpec.paneNodeView).
+    @Environment(\.isSecondarySplitPane) private var isSecondarySplitPane
 
     /// ⌥ summons the loupe temporarily while it is toggled off (Daniel,
     /// 2026-08-29); releasing ⌥ lets it go.
@@ -247,25 +252,38 @@ struct ZoomableImagePreview: View {
     /// blew the type-checker budget — the same pathology the library window
     /// hit — and each layer keeps its chain small enough to check.
     var body: some View {
-        keyboardLayer
-            .focusedSceneValue(\.imageZoomActions, ImageZoomActions(
-                zoomIn: zoomIn,
-                zoomOut: zoomOut,
-                actualSize: actualSize,
-                zoomToFit: fitToWindow,
-                canZoomIn: scale < maxScale,
-                canZoomOut: scale > minScale
-            ))
-            // ⌘A over the preview (Daniel, 2026-08-31): the armed tool decides
-            // — text tool selects every WORD, select tool every displayed box.
-            // Published, not key-handled: `SelectAllButton` owns the chord.
-            .focusedSceneValue(
-                \.previewSelectAll,
-                FocusedLibraryAction(
-                    isEnabled: ocrGeometry?.boxes.isEmpty == false,
-                    run: { selectAllGeometryForArmedTool() }
+        previewFocusPublishes(on: keyboardLayer)
+    }
+
+    /// Publish the preview's window-scoped focus keys — ONLY from the PRIMARY preview pane. Two
+    /// previews in one window (Compare) each mount their own pane; without this gate both publish
+    /// \.imageZoomActions / \.previewSelectAll every frame and the scene graph loops (spec
+    /// panes.instance-safe). Mirrors the library/reader primary-only guard.
+    @ViewBuilder
+    private func previewFocusPublishes(on content: some View) -> some View {
+        if isSecondarySplitPane {
+            content
+        } else {
+            content
+                .focusedSceneValue(\.imageZoomActions, ImageZoomActions(
+                    zoomIn: zoomIn,
+                    zoomOut: zoomOut,
+                    actualSize: actualSize,
+                    zoomToFit: fitToWindow,
+                    canZoomIn: scale < maxScale,
+                    canZoomOut: scale > minScale
+                ))
+                // ⌘A over the preview (Daniel, 2026-08-31): the armed tool decides
+                // — text tool selects every WORD, select tool every displayed box.
+                // Published, not key-handled: `SelectAllButton` owns the chord.
+                .focusedSceneValue(
+                    \.previewSelectAll,
+                    FocusedLibraryAction(
+                        isEnabled: ocrGeometry?.boxes.isEmpty == false,
+                        run: { selectAllGeometryForArmedTool() }
+                    )
                 )
-            )
+        }
     }
 
     /// Layer 1: content + lifecycle (tasks, appear/disappear, chrome publish).

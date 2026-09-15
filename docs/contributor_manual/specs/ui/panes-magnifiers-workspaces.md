@@ -643,6 +643,39 @@ The one-renderer and the first six built-in workspaces (⌘⌥1–6) shipped; th
 - **Claim/Knowledge subjects = the full set** — people, places, organizations, events, concepts,
   citations, works, dates-as-subjects (supersedes the "richer subject types" open question).
 
+## RATIFIED 2026-09-15 — ONE system, enforced by tests (creative director)
+
+> "Don't have two workspace systems, two rendering systems, etc. We want one system, well done."
+
+The pane/workspace feature shipped as a **half-finished migration** (spec §"Current architecture"):
+a legacy Bool-visibility system (`BuiltInWorkspace` presets, `WindowLayoutPreset` "Layouts",
+`WindowLayoutSnapshot`, the `showXPane` toggles) running *alongside* the F7 `PaneList` model. Two
+systems for one job is the reliability root. This ruling closes it: there is exactly ONE of each,
+and a **guardrail test** keeps the second from growing back.
+
+- `workspaces.one-system` — **[RATIFIED → enforced]** A workspace **is a `PaneList`** — built-in or
+  saved, there is one model. The built-in defaults are `BuiltInWorkspaceLayout` (the six v2
+  compositions, ⌘⌥1–6); user workspaces are saved `PaneList`s (⌘⌥7–9). The legacy
+  `BuiltInWorkspace` enum and the `WindowLayoutPreset` "Layouts" presets are **deleted**, not
+  hidden. *Enforced:* `BuiltInWorkspaceSystemTests.noLegacyWorkspaceSystem` — a source guardrail
+  that greps the app target and fails if `BuiltInWorkspace`/`WindowLayoutPreset`/`applyBuiltIn`/
+  `applyLayoutPreset` reappear (their deletion is also compile-time). One list of defaults in the
+  menus, never three competing lists.
+- `panes.one-renderer` — **[RATIFIED → enforced]** The window centre is drawn by ONE path: a
+  `PaneList` → `paneComposition`/`paneListRow`. No per-mode `PlatformVSplitView`/`previewView`
+  second renderer, and no mode that bypasses the pane list. *Enforced:* every layout mode resolves
+  through `PaneList.forLayout`/`activePaneList` (unit-tested), and a guardrail fails if a raw
+  `previewView`/legacy split renderer is reintroduced in the centre-routing path. The applied
+  workspace (`activePaneList`) and the derived default share the same `paneComposition` code.
+- `panes.instance-safe` stays enforced by `everyBuiltInIsInstanceSafe` (below) — one system does not
+  mean one pane; two same-kind panes are fine, and the structural guard keeps them loop-free.
+
+**Migration order (each increment built + committed before the next):** (1) instance-safety fix;
+(2) delete the legacy built-in/preset lists + wire ⌘⌥1–6 to `BuiltInWorkspaceLayout`; (3) saved
+workspaces store a `PaneList`, the window is *always* a `PaneList`, the Bool-visibility path retired;
+(4) split/close act on the focused leaf instance (`panes.split.focused-only` /
+`panes.close.this-pane-only`). Tests grow with each step and cite the behavior id they pin.
+
 ## Open questions (for the design lead)
 
 - **Naming.** What do we call editing directly inline within a pane, where each pane may
@@ -675,30 +708,40 @@ Creative director, running the app (the one-renderer + old split/close wiring st
   its head (the kind/preview icon) should let the user move that pane elsewhere in the composition
   (reorder / re-nest). A direct-manipulation complement to the pane list. New.
 
-- `panes.instance-safe` — **[BROKEN]** a pane's CONTENT view must be safe to mount more than once
-  in one window. Applying a workspace with **two library panes** (Compare's per-column nav)
-  beachballs: repeated `makeNSView` (NSViews remounting in a loop), "Fetched 8 artifacts / Loaded 0
-  annotations" repeating, a 32-second sidebar→content update. Root (hypothesis, under
-  investigation): the heavy content views (library especially) read+WRITE window-level shared state
-  (selection / `pinnedPreviewDocument` / a Bool), so a second instance ping-pongs it → infinite
-  re-render. Until fixed: no workspace mounts >1 library pane (guarded by a DATA test,
-  `BuiltInWorkspaceLayoutTests.noBuiltInHasTwoLibraryPanes`); Compare ships as page+reader columns.
-  The real fix makes the content instance-safe (per-instance state, no shared write-on-render).
+- `panes.instance-safe` — **[FIXED 2026-09-15]** a workspace may mount more than one pane of the
+  same kind in one window (Compare: two previews, two readers, two libraries). Applying it used to
+  beachball: repeated `makeNSView`, "Fetched 8 artifacts / Loaded 0 annotations" repeating, a
+  32-second sidebar→content update.
+  **Root cause (confirmed, not the earlier selection/shared-state hypothesis):** a window-scoped
+  `focusedSceneValue` admits exactly ONE publisher per key. Each pane-list leaf mounts its own
+  unsplit `SplittablePane`, so two same-kind leaves both have `isSecondarySplitPane == false` and
+  both publish the SAME scene keys (`\.librarySelectAll`, `\.readerLens`, `\.imageZoomActions`, …)
+  every frame → SwiftUI's *"FocusedValue update tried to update multiple times per frame"* fault →
+  recursive scene-graph invalidation → the remount storm. It's the exact fault the intra-`SplittablePane`
+  library split already fixed via `\.isSecondarySplitPane` (LibraryView+KeyboardShortcuts,
+  `applyFocusedActions`); the applied-workspace path defeated that guard because each leaf is its own
+  pane, never marked secondary.
+  **Fix:** `PaneList.secondaryLeafIDs()` flags every leaf whose kind already appeared earlier in
+  traversal order; `PaneSpec.paneNodeView` injects `.environment(\.isSecondarySplitPane, true)` on
+  those, and the reader / image-preview / image-editor publishers now gate their `focusedSceneValue`
+  on the flag (library already did). Only the PRIMARY of each kind publishes; the duplicates render
+  content only. Compare ships in its full designed form again.
 
-**Testing this class (design-led answer, "why can a test do these"):** a runtime **re-render /
-remount loop** is NOT catchable by a pure unit test — it's a view-runtime feedback, not a value.
-Three layers cover it, weakest-to-strongest realism:
-1. **Structural DATA guard (have it now):** a unit test asserts the composition can't contain a
-   known-unsafe shape (e.g. `noBuiltInHasTwoLibraryPanes`). Cheap, catches the KNOWN trigger, not a
-   general loop.
-2. **Render-with-timeout snapshot (feasible):** render the real composition via `ImageRenderer` in a
-   normal test target and assert it completes within a deadline — a render loop blows the timeout.
-   (The `#Preview` canvas is out — Xcode-27 arm64e bug — but `ImageRenderer` runs in the normal
-   runtime.) Needs the pane content's environment; scope to what a test can inject.
-3. **XCUITest apply-workspace-and-stay-responsive (strongest, slowest):** apply each workspace, then
-   assert the app answers within N seconds (a beachball fails it). Belongs in the click-around leg.
-Add the guard now; the ImageRenderer render-timeout is the highest-value next test once the
-instance-safety fix lands (so it doesn't just time out on the known bug).
+**Testing this class (design-led answer, "why can a test do these"):** the fault is a **Scene-level
+focused-value collision**, and where it lives dictates the test:
+1. **Structural DATA guard (the guardrail — have it now):** the loop is deterministic from the
+   `PaneList` shape, so a pure unit test asserts instance-safety at the model level —
+   `BuiltInWorkspaceLayoutTests.everyBuiltInIsInstanceSafe`: among the leaves NOT flagged secondary
+   (the publishers), each kind appears at most once. A default that would loop fails here before it
+   can ever render. `compareFlagsDuplicatesSecondary` pins that Compare marks one of each kind
+   secondary. Fast, deterministic, and immune to the arm64e canvas bug.
+2. **XCUITest apply-workspace-and-stay-responsive (the only runtime reproduction):** apply each
+   workspace against a real `WindowGroup` Scene, then assert a follow-up interaction completes within
+   N seconds (a beachball fails it). Belongs in the click-around leg.
+   **NOT `ImageRenderer`/`#Preview` (corrected):** a snapshot render has no Scene and no
+   `@FocusedValue` environment, so it CANNOT reproduce a "multiple updates per frame" fault — a
+   render-with-timeout would pass green while the app hangs. Snapshots are the wrong tool for this
+   class; the structural guard is the right one.
 
 These are per-instance-state defects (spec §"Per-instance pane state for every kind", F3): split
 count and close must key on the pane's own slot, resolved from `focusedPane`, not a window- or

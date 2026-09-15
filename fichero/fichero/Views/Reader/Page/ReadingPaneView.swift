@@ -55,6 +55,11 @@ struct ReadingPaneView: View {
     @Environment(ClaimFocusState.self) var claimFocusState
     @Environment(AnnotationStore.self) var annotationStore
     @Environment(\.splitAxisActions) private var splitAxisActions
+    // A SECONDARY reader pane (a workspace's second reader, e.g. Compare) must not co-publish the
+    // window-scoped reader focus keys — one publisher per key, or the scene loops (spec
+    // panes.instance-safe). Same flag an in-pane split already sets; the applied-workspace
+    // renderer sets it for every duplicate leaf (PaneSpec.paneNodeView).
+    @Environment(\.isSecondarySplitPane) private var isSecondarySplitPane
     /// Drives the compact (iPhone) collapse of the side-by-side page split — a
     /// fixed-width transcript beside the source doesn't fit at compact width
     /// (#3666). Always `.regular` on macOS, so the desktop layout is unchanged.
@@ -462,23 +467,11 @@ struct ReadingPaneView: View {
         // whenever both panes were mounted — the multiple-times-per-frame
         // fault survived the active-surface gating. One key, one publisher;
         // the menu prefers the preview's actions and falls back to these.
-        return head
-            .focusedSceneValue(\.readerLens, publishedReaderLens)
-            // What File ▸ Export ▸ Markdown/Word act on (Daniel, 2026-09-03).
-            // Published from the pane, so the commands are live exactly when a
-            // reader is — and they name the documents the pane is SHOWING,
-            // per the visible-surface selection ruling.
-            .focusedSceneValue(\.readerExportTargets, readerExportTargets)
-            .focusedSceneValue(\.readerZoomActions, ImageZoomActions(
-                zoomIn: { webZoom = min(3.0, webZoom + 0.1) },
-                zoomOut: { webZoom = max(0.5, webZoom - 0.1) },
-                actualSize: { webZoom = 1.0 },
-                zoomToFit: { webZoom = 1.0 },
-                canZoomIn: webZoom < 3.0,
-                canZoomOut: webZoom > 0.5
-            ))
+        return readerFocusPublishes(on: head)
             // "Open in New Tab/Window" (#3582) followed the chrome up from the
             // retired bottom bar: right-click the HEAD to pop this document out.
+            // (Per-pane — a context menu is not a window-scoped singleton, so it
+            // stays on secondary panes too.)
             .contextMenu {
                 if let docId = effectiveDocument?.id {
                     OpenInMenuItems(
@@ -492,6 +485,34 @@ struct ReadingPaneView: View {
                     ReaderExportMenuItems()
                 }
             }
+    }
+
+    /// Publish the reader's window-scoped focus keys — but ONLY from the PRIMARY reader pane. A
+    /// window-scoped `focusedSceneValue` admits one publisher per key; a workspace's second reader
+    /// (Compare) mounts its own `SplittablePane`, so without this gate both publish the same keys
+    /// every frame and the scene graph loops (spec panes.instance-safe). Mirrors the library's
+    /// `applyFocusedActions` primary/secondary split. The context menu below is per-pane and stays.
+    @ViewBuilder
+    private func readerFocusPublishes(on content: some View) -> some View {
+        if isSecondarySplitPane {
+            content
+        } else {
+            content
+                .focusedSceneValue(\.readerLens, publishedReaderLens)
+                // What File ▸ Export ▸ Markdown/Word act on (Daniel, 2026-09-03).
+                // Published from the pane, so the commands are live exactly when a
+                // reader is — and they name the documents the pane is SHOWING,
+                // per the visible-surface selection ruling.
+                .focusedSceneValue(\.readerExportTargets, readerExportTargets)
+                .focusedSceneValue(\.readerZoomActions, ImageZoomActions(
+                    zoomIn: { webZoom = min(3.0, webZoom + 0.1) },
+                    zoomOut: { webZoom = max(0.5, webZoom - 0.1) },
+                    actualSize: { webZoom = 1.0 },
+                    zoomToFit: { webZoom = 1.0 },
+                    canZoomIn: webZoom < 3.0,
+                    canZoomOut: webZoom > 0.5
+                ))
+        }
     }
 
     /// The proxy icon's payload: this document's transcript as Markdown, or

@@ -89,13 +89,24 @@ enum BuiltInWorkspaceLayout: String, CaseIterable, Identifiable, Sendable {
                 ])
             ])
         case .compare:
-            // Two witness columns — each the page over its reader. The per-column library/related
-            // nav the CD designed needs the library pane to be instance-safe (two library views in
-            // one window currently loop on shared window state — spec panes.instance-safe); it
-            // returns once that lands. For now Compare collates page+reader, which is the core.
+            // Two witness columns as the CD designed — each the page over its reader over its
+            // navigation: column A browses the LIBRARY, column B its RELATED files. Two previews,
+            // two readers and two libraries in one window is now instance-safe: the applied-list
+            // renderer flags every duplicate leaf secondary (PaneList.secondaryLeafIDs →
+            // \.isSecondarySplitPane) so only the primary of each kind publishes the window-scoped
+            // focus keys — the fix for the render loop that used to beachball here (spec
+            // panes.instance-safe, CD live 2026-09-15).
             return PaneList([
-                .split(.vertical, [.leaf(.preview), .leaf(.reading)]),
-                .split(.vertical, [.leaf(.preview), .leaf(.reading)])
+                .split(.vertical, [
+                    .leaf(.preview),
+                    .leaf(.reading),
+                    .leaf(.library, config: PaneConfig(libraryLayout: "list"))
+                ]),
+                .split(.vertical, [
+                    .leaf(.preview),
+                    .leaf(.reading),
+                    .leaf(.library, config: PaneConfig(libraryContentKind: "related", libraryLayout: "list"))
+                ])
             ])
         case .catalogue:
             return PaneList([
