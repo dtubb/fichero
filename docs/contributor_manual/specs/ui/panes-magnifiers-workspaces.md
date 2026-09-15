@@ -533,29 +533,54 @@ A read-only code map found the workspace feature is **already LIVE**, not a stub
 - **Dead flags:** `ToolbarVisibilityPlan.showSplitMenu/showLayoutsMenu` (decode-only) and
   `LayoutMode.keyboardShortcut` (unbound metadata) — delete on the way through.
 
-## The best nine workspaces — PROPOSED 2026-09-14 (⌘⌥1–9), for CD ratification
+## The best nine workspaces — v2 DESIGN 2026-09-15 (⌘⌥1–9)
 
-One built-in catalog, a spectrum browse→read→close-read→analyse→everything. Each is a `PaneList`
-(top-level nodes = a horizontal row; a `split` nests along its axis). ⌘⌥1–9 are all free today.
+The v1 built-ins (shipped 41880cde9) only show/hide panes. The CD's brief (2026-09-15): make them
+**real compositions** — Mail-style and other genuinely useful arrangements grounded in who uses the
+app (an archivist browsing; a reader; a transcriber who wants the page image, its word boxes, and an
+editor at once; someone on a width-sensitive script who needs those stacked vertically; a cataloguer;
+a KG researcher; a collator). Each workspace is a `PaneList`. The sidebar (with chat beneath) is
+always present and is NOT a centre pane. `H[…]` is a horizontal row, `V[…]` a vertical stack.
 
-| # | Shortcut | Name | Pane list (composition) |
-|---|---|---|---|
-| 1 | ⌘⌥1 | **Library** | `[library]` — the list alone, full width (browse) |
-| 2 | ⌘⌥2 | **Reader** | `[library · reader]` — list beside the transcription (the Mail default) |
-| 3 | ⌘⌥3 | **Source** | `[library · preview]` — list beside the full-height page image |
-| 4 | ⌘⌥4 | **Close Reading** | `[library · preview · reader]` — original · image · words, side by side |
-| 5 | ⌘⌥5 | **Compare** | `[library · split(h,[preview(A) · preview(B)])]` — two sources, different scopes |
-| 6 | ⌘⌥6 | **Cataloguing** | `[library · preview · inspector]` (+ workflow bar) |
-| 7 | ⌘⌥7 | **Claims** | `[claims · preview]` — claims table beside the source of the selected claim |
-| 8 | ⌘⌥8 | **Entities** | `[entities · preview]` — entities table beside its source pages |
-| 9 | ⌘⌥9 | **Everything** | all panes on |
+| # | ⌘⌥ | Name | Composition | Persona |
+|---|---|---|---|---|
+| 1 | 1 | **Mail** | `H[ library(docs,list) · preview(image) ]` full-height source | browse + glance (default) |
+| 2 | 2 | **Read** | `H[ library(docs,list) · reading ]` | reader |
+| 3 | 3 | **Study** | `H[ library(docs,list) · preview(image) · reading ]` | close reader |
+| 4 | 4 | **Transcribe** | `H[ preview(image) · preview(words) · reading ]` | transcriber |
+| 5 | 5 | **Transcribe · Tall** | `V[ preview(image) · preview(words) · reading ]` | width-sensitive scripts |
+| 6 | 6 | **Compare** | `H[ preview(image)@A · preview(image)@B ]` | collation |
+| 7 | 7 | **Catalog** | `H[ library(docs,table) · preview(image) · inspector(source) ]` | cataloguer |
+| 8 | 8 | **Knowledge** | `H[ library(claims,table) · preview(image) · inspector(knowledge) ]` | KG research |
+| 9 | 9 | **Everything** | `H[ library · preview · reading · inspector ]` | all surfaces |
 
-Notes: (a) #7/#8 make claims & entities *first-class workspaces* rendered by the one path, not
-bespoke screens (spec §"Entities and Claims are one view system"). (b) `inspector` (#6/#9) is a
-pane kind the model must gain — today it is a `NavigationSplitView` sibling, not a `PaneKind`;
-folding it in is part of "one path". (c) The Workspace Manager dialog (2026-09-14 ratified) lets
-the CD add/delete/rename these and rebind the ⌘⌥N keys — the nine are defaults, not fixtures set
-in stone. Each also seeds a design-led test fixture.
+Grounded in the surface inventory (2026-09-15): `preview(words)` = the preview pane with the OCR
+word-box overlay on (`OCRGeometryOverlay`, today a global `imagePreview.inlineTextEnabled`);
+`library(claims|entities)` = the library pane on the `LibraryContentKind` axis (sidebar-driven today);
+`inspector(...)` = the `.inspector()` sibling's `InspectorSection` (source/notes/knowledge/artifacts);
+`@A/@B` = `PaneScope.documentId` pins (already in the model); `V[…]` = `SplitAxis.vertical` (already
+rendered).
+
+### Model changes the v2 workspaces need (the PaneList migration)
+
+A pane leaf must carry **per-pane configuration**, not just kind + scope — this is the heart of the
+migration (CD-approved 2026-09-15):
+
+1. **`PaneKind.inspector`** (new) + a `kindContent` branch that hosts the existing inspector content
+   as a centre pane (today it is a `NavigationSplitView` sibling).
+2. **Library-pane config on the leaf:** `contentKind` (documents / entities / claims — the existing
+   `LibraryContentKind` axis) and `displayMode` (the existing `LibraryLayout`). So one leaf renders
+   "library, claims, as a table."
+3. **Preview-pane config on the leaf:** `lens` (preview / edit) and a `wordBoxes` overlay flag —
+   making today's global `imagePreview.inlineTextEnabled` per-pane, so Transcribe can show a plain
+   image beside a word-box image.
+4. **Saved workspaces become `PaneList`** (replacing `WindowLayoutSnapshot`'s six Bools), applied by
+   setting the window's pane list. Collapse `BuiltInWorkspace` + `WindowLayoutPreset` into these nine.
+
+Shortcuts: a **slot→workspace map** (CD-approved 2026-09-15) — the nine ⌘⌥ slots are one app-wide
+mapping the Manager edits; each slot points at exactly one workspace (built-in or saved); no
+conflicts by construction; the nine above are the default mapping. The Workspace Manager dialog
+(add / delete / rename / rebind slot) is built now, CD to verify visually.
 
 ## F7 implementation plan — one renderer (2026-09-14)
 
