@@ -475,6 +475,109 @@ build before treating them as bugs:
 4. **Entities & Claims — YES, one view system.** (F5) Shared data-lifecycle, selection,
    reset, pin — differing only in row content + open-target. F5 already aligned their reset.
 
+## Design decisions — RATIFIED 2026-09-14 (creative director)
+
+**Every layout is one workspace.** There is no "bottom preview mode" vs "side preview mode" —
+those are the *same* nestable pane list drawn two ways, and the fact that one has pane heads
+(breadcrumb, close) and the other doesn't is the F1 two-renderer bug, not a feature. The
+reliability north star lands as: **one pane-list model, one renderer, and layouts are just
+saved instances of it.** Worked examples the creative director wants expressible (all the same
+model, different nesting):
+
+- a table above a reader, beside a tall full-height preview;
+- three previews side by side;
+- a list at the top with a related-files list to its right, then three previews below it;
+- three previews across the top with one long-thin library beneath;
+- three previews and a reader, with a long-thin library.
+
+5. **Workspace Manager — a dialog.** A simple manager to **add, delete, and rename** workspaces
+   and **assign each a keyboard shortcut, ⌘⌥1 through ⌘⌥9**. Built-in starting workspaces (the
+   Mail default, three-up preview, reader+preview) ship as ordinary entries the user can keep,
+   edit, or delete — nothing is privileged. Pressing a bound shortcut switches the window's pane
+   list to that workspace. This is the surface on top of the F7 pane-list model (a workspace IS
+   a `PaneList`, already `Codable`).
+6. **Workspaces double as the test fixtures (design-led testing).** Each ratified workspace is a
+   named `PaneList` fixture; the tests assert the *spec's* workspace composes and renders as
+   specified (kinds, order, split axis, pane heads present), never the code's internals. Adding
+   a workspace to the manager adds a fixture; a test that breaks means the renderer diverged
+   from the spec, which is exactly the F1 divergence we're closing.
+7. **Accessibility is first-class, not a follow-up.** ⌘⌥1–9 workspace switching; full keyboard
+   navigation *between* panes (focus ring moves pane→pane) and *within* the focused pane; every
+   pane head (breadcrumb, close, kind switch) reachable and labelled for VoiceOver. A workspace
+   the keyboard can't drive is not done.
+
+## Existing machinery — inventory 2026-09-14 (what to keep, what to retire)
+
+A read-only code map found the workspace feature is **already LIVE**, not a stub — so F7 is a
+*consolidation*, not a build-from-zero:
+
+- **Catalog + persistence exist.** `WindowWorkspace.swift` defines `SavedWindowWorkspace`
+  (id·name·savedAt·`WindowLayoutSnapshot`) and `WindowWorkspaceCatalog`; `WindowWorkspaceStore`
+  (`.shared`, `@Observable`) persists them to `UserDefaults` (`window.workspaces`). Save / apply
+  / remove all work (`ContentView+LayoutChooser.swift` `captureLayoutSnapshot` /
+  `applyLayoutSnapshot`).
+- **The Workspaces toolbar icon is live.** `ContentView+Toolbar.swift:229` → `workspacesMenu`
+  (`ContentView+LayoutChooser.swift:90`), SF Symbol **`rectangle.grid.1x2`**, a populated
+  dropdown (Layouts · Split · Built-ins · Saved · Save Current… · Delete · Toolbar Buttons). A
+  menu-bar twin exists (`WindowLayoutCommands` → `WorkspaceCommandsSection`).
+- **TWO redundant built-in sets — RETIRE the overlap.** `BuiltInWorkspace`
+  (`.reading/.cataloguing/.everything`, with bars+toolbar) and `WindowLayoutPreset`
+  (`.libraryOnly/.reading/.everything`, visibility-only) overlap by name and intent. This is the
+  "old system" to remove: collapse both into ONE built-in catalog (the nine below).
+- **The model split is the core debt.** Saved workspaces persist a `WindowLayoutSnapshot` (six
+  `showXPane` Bools + `splits:[String:PaneSplitCounts]` + `paneKindOverrides`), while the F7
+  model is `PaneList` (Models/PaneList.swift). **They are not connected.** F7 = a saved
+  workspace becomes a `PaneList` (already `Codable`), applied by *setting the window's pane list*,
+  which the one renderer draws — so workspaces, claims, entities, reader and preview all render
+  through the single path.
+- **Dead flags:** `ToolbarVisibilityPlan.showSplitMenu/showLayoutsMenu` (decode-only) and
+  `LayoutMode.keyboardShortcut` (unbound metadata) — delete on the way through.
+
+## The best nine workspaces — PROPOSED 2026-09-14 (⌘⌥1–9), for CD ratification
+
+One built-in catalog, a spectrum browse→read→close-read→analyse→everything. Each is a `PaneList`
+(top-level nodes = a horizontal row; a `split` nests along its axis). ⌘⌥1–9 are all free today.
+
+| # | Shortcut | Name | Pane list (composition) |
+|---|---|---|---|
+| 1 | ⌘⌥1 | **Library** | `[library]` — the list alone, full width (browse) |
+| 2 | ⌘⌥2 | **Reader** | `[library · reader]` — list beside the transcription (the Mail default) |
+| 3 | ⌘⌥3 | **Source** | `[library · preview]` — list beside the full-height page image |
+| 4 | ⌘⌥4 | **Close Reading** | `[library · preview · reader]` — original · image · words, side by side |
+| 5 | ⌘⌥5 | **Compare** | `[library · split(h,[preview(A) · preview(B)])]` — two sources, different scopes |
+| 6 | ⌘⌥6 | **Cataloguing** | `[library · preview · inspector]` (+ workflow bar) |
+| 7 | ⌘⌥7 | **Claims** | `[claims · preview]` — claims table beside the source of the selected claim |
+| 8 | ⌘⌥8 | **Entities** | `[entities · preview]` — entities table beside its source pages |
+| 9 | ⌘⌥9 | **Everything** | all panes on |
+
+Notes: (a) #7/#8 make claims & entities *first-class workspaces* rendered by the one path, not
+bespoke screens (spec §"Entities and Claims are one view system"). (b) `inspector` (#6/#9) is a
+pane kind the model must gain — today it is a `NavigationSplitView` sibling, not a `PaneKind`;
+folding it in is part of "one path". (c) The Workspace Manager dialog (2026-09-14 ratified) lets
+the CD add/delete/rename these and rebind the ⌘⌥N keys — the nine are defaults, not fixtures set
+in stone. Each also seeds a design-led test fixture.
+
+## F7 implementation plan — one renderer (2026-09-14)
+
+Behavior-preserving increments, each build+unit-gated; the CD verifies each visually:
+
+1. **Pure seam [done, this pass].** `PaneList.forLayout(mode:showsPreview:showsDocumentGrid:widescreen:)`
+   reproduces `centerContentRouting`'s branch structure AS DATA; `.standard` bottom-preview becomes
+   a `split(.vertical,[library,preview])`. Unit-tested in `PaneListTests` (mode→composition, the
+   "same system" contract that preview is a pane in both side and bottom modes).
+2. **One node renderer.** Generalize `widescreenPaneRow` into `paneRow(_ list: PaneList)` that
+   renders a node recursively — leaf → `kindContent` (its head chrome + `.clipped()`); split →
+   H/VStack of children along the axis with the existing `ResizableDivider`. Route `centerContent`
+   through `paneRow(PaneList.forLayout(...))` for the non-compact path; the compact reader flow is
+   unchanged. Retire the `centerContentRouting` switch and its raw `PlatformVSplitView`. Result:
+   bottom preview gains the breadcrumb/close head and the clip, and toggles act in every mode.
+3. **Inspector as a `PaneKind`.** Add `.inspector` so #6/#9 compose in the list rather than as a
+   `NavigationSplitView` sibling.
+4. **Workspaces on `PaneList`.** `SavedWindowWorkspace.layout` gains/derives a `PaneList`; apply
+   sets the window's pane list; collapse `BuiltInWorkspace`+`WindowLayoutPreset` into the nine.
+5. **Workspace Manager dialog + ⌘⌥1–9** (2026-09-14 ratified): add/delete/rename/bind, keyboard
+   + VoiceOver reachable.
+
 ## Open questions (for the design lead)
 
 - **Naming.** What do we call editing directly inline within a pane, where each pane may

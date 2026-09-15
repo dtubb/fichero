@@ -7,6 +7,12 @@ import Testing
 /// reliability + composability rely on, off-view.
 struct PaneListTests {
 
+    /// The leaf kinds of a node list, in order (splits are skipped — these helpers
+    /// assert top-level composition). Keeps the pattern-match in one place.
+    private func leafKinds(_ nodes: [PaneNode]) -> [PaneKind] {
+        nodes.compactMap { if case let .leaf(_, kind, _) = $0 { return kind }; return nil }
+    }
+
     // MARK: - toggling (the reliability contract: a toggle ALWAYS changes the list)
 
     @Test("toggling a kind that's absent appends it")
@@ -51,10 +57,8 @@ struct PaneListTests {
                 == [.library, .preview, .reading, .chat])
         #expect(PaneList.fromVisibility(library: false, preview: false, reading: false, chat: false).nodes.isEmpty)
         // Order is leading→trailing regardless of which are on.
-        let lp = PaneList.fromVisibility(library: true, preview: true, reading: false, chat: false)
-        #expect(lp.nodes.map { node -> PaneKind? in
-            if case let .leaf(_, k, _) = node { return k }; return nil
-        } == [.library, .preview])
+        let libraryPreview = PaneList.fromVisibility(library: true, preview: true, reading: false, chat: false)
+        #expect(leafKinds(libraryPreview.nodes) == [.library, .preview])
     }
 
     @Test("flipping ANY single flag changes the visible pane set (fixes inert toggles in every mode)")
@@ -62,27 +66,31 @@ struct PaneListTests {
         // The reliability contract: because this ONE derivation is what every mode
         // uses, flipping a flag can never be a no-op (as it was in .standard/.none,
         // which read only the library flag).
-        let base = (library: true, preview: false, reading: false, chat: false)
-        #expect(PaneList.fromVisibility(library: base.library, preview: true, reading: base.reading, chat: base.chat).kinds
-                != PaneList.fromVisibility(library: base.library, preview: false, reading: base.reading, chat: base.chat).kinds)
-        #expect(PaneList.fromVisibility(library: base.library, preview: base.preview, reading: true, chat: base.chat).kinds
-                != PaneList.fromVisibility(library: base.library, preview: base.preview, reading: false, chat: base.chat).kinds)
-        #expect(PaneList.fromVisibility(library: base.library, preview: base.preview, reading: base.reading, chat: true).kinds
-                != PaneList.fromVisibility(library: base.library, preview: base.preview, reading: base.reading, chat: false).kinds)
+        let previewOff = PaneList.fromVisibility(library: true, preview: false, reading: false, chat: false).kinds
+        let previewOn = PaneList.fromVisibility(library: true, preview: true, reading: false, chat: false).kinds
+        #expect(previewOn != previewOff)
+
+        let readingOff = PaneList.fromVisibility(library: true, preview: false, reading: false, chat: false).kinds
+        let readingOn = PaneList.fromVisibility(library: true, preview: false, reading: true, chat: false).kinds
+        #expect(readingOn != readingOff)
+
+        let chatOff = PaneList.fromVisibility(library: true, preview: false, reading: false, chat: false).kinds
+        let chatOn = PaneList.fromVisibility(library: true, preview: false, reading: false, chat: true).kinds
+        #expect(chatOn != chatOff)
     }
 
     // MARK: - scope (different libraries / previews side by side)
 
     @Test("two preview leaves with different scopes coexist")
     func sameKindDifferentScopesCoexist() {
-        let a = PaneScope(libraryId: "lib-A")
-        let b = PaneScope(libraryId: "lib-B")
-        let list = PaneList([.leaf(.preview, scope: a), .leaf(.preview, scope: b)])
+        let scopeA = PaneScope(libraryId: "lib-A")
+        let scopeB = PaneScope(libraryId: "lib-B")
+        let list = PaneList([.leaf(.preview, scope: scopeA), .leaf(.preview, scope: scopeB)])
         // Two of a kind is representable — impossible in the four-Bool model.
         #expect(list.nodes.count == 2)
         #expect(list.kinds == [.preview])
-        #expect(a != b)
-        #expect(a.isPinned && b.isPinned)
+        #expect(scopeA != scopeB)
+        #expect(scopeA.isPinned && scopeB.isPinned)
         #expect(PaneScope.current.isPinned == false)
     }
 
@@ -93,10 +101,82 @@ struct PaneListTests {
         // 2 over 1: a vertical split of [ a horizontal split of [a, b], c ].
         let node = PaneNode.split(.vertical, [
             .split(.horizontal, [.leaf(.preview), .leaf(.preview)]),
-            .leaf(.reading),
+            .leaf(.reading)
         ])
         #expect(node.leafCount == 3)
         #expect(node.kinds == [.preview, .reading])
+    }
+
+    // MARK: - forLayout (the ONE renderer: every LayoutMode composes as a PaneList)
+
+    /// The single top-level node, or nil.
+    private func onlyNode(_ list: PaneList) -> PaneNode? {
+        list.nodes.count == 1 ? list.nodes.first : nil
+    }
+
+    @Test("a non-library/search mode owns the whole area as one library pane, in every mode")
+    func nonLibraryModeIsOneLibraryPane() {
+        for mode in [LayoutMode.none, .standard, .widescreen] {
+            let list = PaneList.forLayout(
+                mode: mode, showsPreview: false, showsDocumentGrid: true,
+                widescreen: WidescreenVisibility(library: true, preview: true, reading: true))
+            #expect(list.kinds == [.library])
+            #expect(list.nodes.count == 1)
+        }
+    }
+
+    @Test(".none shows library alone (grid) or preview alone (grid hidden)")
+    func noneMode() {
+        #expect(PaneList.forLayout(
+            mode: .none, showsPreview: true, showsDocumentGrid: true,
+            widescreen: WidescreenVisibility(library: false, preview: false, reading: false)).kinds == [.library])
+        #expect(PaneList.forLayout(
+            mode: .none, showsPreview: true, showsDocumentGrid: false,
+            widescreen: WidescreenVisibility(library: false, preview: false, reading: false)).kinds == [.preview])
+    }
+
+    @Test(".standard bottom-preview is a VERTICAL split of library over preview (so it gets a pane head)")
+    func standardIsVerticalSplit() {
+        let list = PaneList.forLayout(
+            mode: .standard, showsPreview: true, showsDocumentGrid: true,
+            widescreen: WidescreenVisibility(library: false, preview: false, reading: false))
+        guard case let .split(_, axis, children)? = onlyNode(list) else {
+            Issue.record("standard+grid should be a single split node"); return
+        }
+        #expect(axis == .vertical)
+        #expect(leafKinds(children) == [.library, .preview])
+    }
+
+    @Test(".standard with the grid hidden collapses to preview alone")
+    func standardGridHidden() {
+        let list = PaneList.forLayout(
+            mode: .standard, showsPreview: true, showsDocumentGrid: false,
+            widescreen: WidescreenVisibility(library: false, preview: false, reading: false))
+        #expect(list.kinds == [.preview])
+        #expect(list.nodes.count == 1)
+    }
+
+    @Test(".widescreen is the horizontal visibility list, in order")
+    func widescreenMatchesVisibility() {
+        let list = PaneList.forLayout(
+            mode: .widescreen, showsPreview: true, showsDocumentGrid: true,
+            widescreen: WidescreenVisibility(library: true, preview: true, reading: true))
+        #expect(leafKinds(list.nodes) == [.library, .preview, .reading])
+    }
+
+    @Test("the preview is a pane in BOTH side (widescreen) and bottom (standard) — the 'same system' contract")
+    func previewIsInThePaneSystemInBothModes() {
+        // The CD's report: side preview has a pane head, bottom preview didn't, because
+        // bottom preview bypassed the pane system. After F7 both place a .preview leaf in
+        // the pane list, so both get the same head/clip from the one renderer.
+        let side = PaneList.forLayout(
+            mode: .widescreen, showsPreview: true, showsDocumentGrid: true,
+            widescreen: WidescreenVisibility(library: true, preview: true, reading: false))
+        let bottom = PaneList.forLayout(
+            mode: .standard, showsPreview: true, showsDocumentGrid: true,
+            widescreen: WidescreenVisibility(library: false, preview: false, reading: false))
+        #expect(side.kinds.contains(.preview))
+        #expect(bottom.kinds.contains(.preview))
     }
 
     // MARK: - Codable (a saved workspace IS a PaneList)
@@ -105,7 +185,7 @@ struct PaneListTests {
     func codableRoundTrip() throws {
         let list = PaneList([
             .leaf(.library, scope: PaneScope(libraryId: "L", folderId: "F")),
-            .split(.horizontal, [.leaf(.preview), .leaf(.reading)]),
+            .split(.horizontal, [.leaf(.preview), .leaf(.reading)])
         ])
         let data = try JSONEncoder().encode(list)
         let decoded = try JSONDecoder().decode(PaneList.self, from: data)

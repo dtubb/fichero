@@ -255,6 +255,89 @@ extension ContentView {
         }
     }
 
+    // MARK: - The ONE renderer (spec §F7: one rendering path)
+
+    /// Map the pure-model `PaneKind` to the view's `PaneSpec.Kind`. They carry the same four
+    /// cases today; this is the seam where the F2 vocabulary unification lands.
+    private func paneSpecKind(_ kind: PaneKind) -> PaneSpec.Kind {
+        switch kind {
+        case .library: .library
+        case .preview: .preview
+        case .reading: .reading
+        case .chat: .chat
+        }
+    }
+
+    /// Compose the window's centre from a `PaneList` — the SINGLE rendering path every layout
+    /// mode and every saved workspace flows through (spec §F7, RATIFIED 2026-09-13/14). Each
+    /// leaf draws via `kindContent`, so it carries the SAME pane head (breadcrumb, close) and
+    /// `.clipped()` guard the widescreen side panes have — which is why a `.standard` bottom
+    /// preview now gets the head it lacked ("not using the same system", CD 2026-09-14). A
+    /// split node arranges its children along its axis (vertical = the old `PlatformVSplitView`,
+    /// which is itself just a `VStack(spacing:0)`). A multi-pane HORIZONTAL top level delegates
+    /// to the proven `widescreenPaneRow`, which owns the fixed-width + resizable-divider logic.
+    @ViewBuilder
+    func paneComposition(_ list: PaneList) -> some View {
+        if list.nodes.count == 1 {
+            paneNodeView(list.nodes[0], keyPath: "0")
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            // A horizontal row of >1 top-level panes.
+            // ponytail: only `.widescreen` produces multi-pane rows today, and `widescreenPaneRow`
+            // already renders them from the pane list. Fold its width logic into `paneNodeView`
+            // when a saved workspace needs custom column widths on a non-widescreen row.
+            widescreenPaneRow
+        }
+    }
+
+    /// Render one node. AnyView because the recursion (node → split → node) can't ride an
+    /// opaque `some View` return, and erasing at the boundary is the #4331 crash guard anyway.
+    private func paneNodeView(_ node: PaneNode, keyPath: String) -> AnyView {
+        switch node {
+        case let .leaf(_, kind, _):
+            // kindContent already returns AnyView (head chrome + clip + focus gesture).
+            return kindContent(
+                kind: paneSpecKind(kind),
+                slotId: "pane-\(keyPath)-\(kind.rawValue)",
+                fixedWidth: nil
+            )
+        case let .split(_, axis, children):
+            return paneSplitView(axis: axis, children: children, keyPath: keyPath)
+        }
+    }
+
+    /// A split node: children stacked along the axis. Vertical reproduces the legacy
+    /// `.standard` heights (library rides short at the top, the preview/reader below is greedy).
+    private func paneSplitView(axis: SplitAxis, children: [PaneNode], keyPath: String) -> AnyView {
+        let indexed = Array(children.enumerated())
+        switch axis {
+        case .vertical:
+            return AnyView(VStack(spacing: 0) {
+                ForEach(indexed, id: \.offset) { idx, child in
+                    verticallyFramedPane(child, keyPath: "\(keyPath).\(idx)")
+                }
+            })
+        case .horizontal:
+            return AnyView(HStack(spacing: 0) {
+                ForEach(indexed, id: \.offset) { idx, child in
+                    paneNodeView(child, keyPath: "\(keyPath).\(idx)")
+                }
+            })
+        }
+    }
+
+    /// Height policy for a vertical split, preserving the old `.standard` split proportions.
+    /// ponytail: kind-based heights; replace with per-pane weights on `PaneNode` when workspaces
+    /// need custom vertical ratios.
+    @ViewBuilder
+    private func verticallyFramedPane(_ child: PaneNode, keyPath: String) -> some View {
+        if case let .leaf(_, kind, _) = child, kind == .library {
+            paneNodeView(child, keyPath: keyPath).frame(minHeight: 150, idealHeight: 180)
+        } else {
+            paneNodeView(child, keyPath: keyPath).frame(minHeight: 400, idealHeight: 720)
+        }
+    }
+
     /// The assistant chat surface — the SAME `ChatView` the old centre pane
     /// rendered, now mounted beneath the sidebar folder tree
     /// (spec panes.chat.below-sidebar). ONE mount definition, called from

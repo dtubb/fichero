@@ -205,76 +205,37 @@ extension ContentView {
         // The library/search LIST is the root of a NavigationStack; tapping a
         // leaf document PUSHES the reader (the SAME EditorView the regular
         // content pane shows in its preview slot) with a Back button to return.
-        // The macOS/iPad-regular split path is the `else` chain below and is
-        // UNCHANGED — `usesCompactReaderFlow` is compile-time `false` on macOS
-        // (shouldUseCompactNavigationFlow) and only ever true at compact width.
+        // `usesCompactReaderFlow` is compile-time `false` on macOS and only ever
+        // true at compact width; the regular path below is the ONE renderer.
         if usesCompactReaderFlow {
             compactLibraryReaderStack
-        } else if !showsPreviewPane {
-            // Non-library/search modes (activity, workflows, chat, etc.) never use
-            // the preview split — they own the full content area themselves.
-            contentWithOptionalModeRail
-                .frame(maxWidth: .infinity)
-                // Clip to the content column so list/grid/table rows never paint
-                // past it and bleed under the shell sidebar — the same guard the
-                // widescreen library pane already has (spec panes.content-column-
-                // under-sidebar; the legacy branches lacked it).
-                .clipped()
-                .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .content; paneFocusHint = .content })
         } else {
-            // Folders now show the current layout so the WebKit/reading
-            // pane remains visible for folder-level aggregate content (#1405).
-            let layout: LayoutMode = currentLayoutMode
-            // Group + .animation gives SwiftUI a stable outer identity so the
-            // first .none → .standard/.widescreen transition (when the user
-            // first activates a doc from full-grid) animates smoothly instead
-            // of remounting + flashing every grid cell. (#770/#778 follow-up)
+            // ONE rendering path (spec §F7, RATIFIED 2026-09-13/14). The centre is
+            // a `PaneList` — derived per mode by `PaneList.forLayout` (pure, unit-
+            // tested) — drawn by `paneComposition`. This RETIRES the per-mode
+            // switch and its raw `PlatformVSplitView`/`previewView`, which rendered
+            // the bottom preview with NO pane head (breadcrumb/close) and no clip.
+            // Every pane — library, preview, reader, and every saved workspace —
+            // now flows through the same builder, so heads, clip and toggles behave
+            // identically in every mode. The Group+animation keeps a stable outer
+            // identity so the first .none → .standard/.widescreen transition
+            // animates instead of remounting every grid cell (#770/#778).
+            let plan = adaptiveWidescreenPanePlan
+            let readingPresent = plan.showsCanvasPane ? plan.showsCanvasReadingDivider : plan.showsReadingPane
+            let list = PaneList.forLayout(
+                mode: currentLayoutMode,
+                showsPreview: showsPreviewPane,
+                showsDocumentGrid: showDocumentGrid,
+                widescreen: WidescreenVisibility(
+                    library: plan.showsLibraryPane,
+                    preview: plan.showsCanvasPane,
+                    reading: readingPresent
+                )
+            )
             Group {
-                switch layout {
-                case .none:
-                    if showDocumentGrid {
-                        contentWithOptionalModeRail
-                            .frame(maxWidth: .infinity)
-                            .clipped()  // no bleed under the sidebar (see above)
-                            .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .content; paneFocusHint = .content })
-                    } else {
-                        // Grid hidden (#616): show only the preview/editor at full width.
-                        previewView
-                            .frame(maxWidth: .infinity)
-                            .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview })
-                    }
-
-                case .standard:
-                    if showDocumentGrid {
-                        PlatformVSplitView {
-                            contentWithOptionalModeRail
-                                .frame(minHeight: 150, idealHeight: 180)
-                                .clipped()  // no bleed under the sidebar (see above)
-                                .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .content; paneFocusHint = .content })
-
-                            previewView
-                                .frame(minHeight: 400, idealHeight: 720)
-                        }
-                        .frame(maxWidth: .infinity)
-                    } else {
-                        previewView
-                            .frame(maxWidth: .infinity)
-                            .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview })
-                    }
-
-                case .widescreen:
-                    // Library/list, document canvas, and reading/WebKit are
-                    // independently toggleable per-window (#1448). The row is
-                    // rendered from a PANE LIST now (pane system step 1, #13):
-                    // same panes, same sizing, same dividers — see PaneSpec —
-                    // but each pane is erased at its own boundary instead of
-                    // multiplying into one composed generic (the #4331 class),
-                    // and chat/terminal later arrive by adding specs, not
-                    // branches.
-                    widescreenPaneRow
-                }
+                paneComposition(list)
             }
-            .animation(.easeInOut(duration: 0.18), value: layout)
+            .animation(.easeInOut(duration: 0.18), value: currentLayoutMode)
         }
     }
 }

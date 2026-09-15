@@ -110,7 +110,7 @@ struct PaneList: Codable, Sendable, Hashable {
 
     /// Whether any TOP-LEVEL leaf of `kind` exists (what a kind toggle acts on).
     func containsTopLevelLeaf(of kind: PaneKind) -> Bool {
-        nodes.contains { if case let .leaf(_, k, _) = $0 { return k == kind }; return false }
+        nodes.contains { if case let .leaf(_, leafKind, _) = $0 { return leafKind == kind }; return false }
     }
 
     /// Toggle a top-level pane of `kind`: remove every top-level leaf of that kind
@@ -122,7 +122,7 @@ struct PaneList: Codable, Sendable, Hashable {
     func toggling(_ kind: PaneKind) -> PaneList {
         if containsTopLevelLeaf(of: kind) {
             let kept = nodes.filter {
-                if case let .leaf(_, k, _) = $0 { return k != kind }
+                if case let .leaf(_, leafKind, _) = $0 { return leafKind != kind }
                 return true
             }
             return PaneList(kept)
@@ -146,4 +146,52 @@ struct PaneList: Codable, Sendable, Hashable {
         if chat { nodes.append(.leaf(.chat)) }
         return PaneList(nodes)
     }
+
+    /// The pane composition for a legacy `LayoutMode`, as DATA — so every mode renders
+    /// through the ONE pane renderer instead of `centerContentRouting`'s hand-branched
+    /// `switch` (spec §F7 "one renderer", RATIFIED 2026-09-13/14). This reproduces that
+    /// switch's structure exactly, so the migration is behavior-preserving:
+    ///
+    ///   - a non-library/search mode (`showsPreview == false`) owns the whole area → one
+    ///     library(content) pane;
+    ///   - `.none` → library alone (grid) or preview alone (grid hidden);
+    ///   - `.standard` → library OVER preview, a VERTICAL split (the "bottom preview"); the
+    ///     split node is what gives that preview the SAME pane head — breadcrumb, close,
+    ///     clip — the widescreen side preview has and the legacy `PlatformVSplitView` lacked
+    ///     ("not using the same system", CD 2026-09-14);
+    ///   - `.widescreen` → the horizontal visibility list (library · preview · reading).
+    ///
+    /// Rendering rule the renderer honours: TOP-LEVEL nodes lay out horizontally (a row); a
+    /// `.split` node arranges its children along its own axis. That one recursion subsumes
+    /// both the old widescreen HStack and the old standard VSplit.
+    static func forLayout(
+        mode: LayoutMode,
+        showsPreview: Bool,
+        showsDocumentGrid: Bool,
+        widescreen: WidescreenVisibility
+    ) -> PaneList {
+        guard showsPreview else { return PaneList([.leaf(.library)]) }
+        switch mode {
+        case .none:
+            return PaneList([.leaf(showsDocumentGrid ? .library : .preview)])
+        case .standard:
+            guard showsDocumentGrid else { return PaneList([.leaf(.preview)]) }
+            return PaneList([.split(.vertical, [.leaf(.library), .leaf(.preview)])])
+        case .widescreen:
+            return .fromVisibility(
+                library: widescreen.library,
+                preview: widescreen.preview,
+                reading: widescreen.reading,
+                chat: false
+            )
+        }
+    }
+}
+
+/// The three widescreen pane-visibility flags, grouped so `PaneList.forLayout` reads as one
+/// "widescreen inputs" argument (and stays within the tuple-size / parameter-count limits).
+struct WidescreenVisibility: Sendable, Hashable {
+    var library: Bool
+    var preview: Bool
+    var reading: Bool
 }
