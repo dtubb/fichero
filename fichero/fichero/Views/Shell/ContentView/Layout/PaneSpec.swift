@@ -30,6 +30,7 @@ struct PaneSpec: Identifiable, Equatable {
         case library
         case preview
         case reading
+        case inspector
         case chat
 
         var title: String {
@@ -37,6 +38,7 @@ struct PaneSpec: Identifiable, Equatable {
             case .library: "Library"
             case .preview: "Preview"
             case .reading: "Reader"
+            case .inspector: "Inspector"
             case .chat: "Chat"
             }
         }
@@ -46,6 +48,7 @@ struct PaneSpec: Identifiable, Equatable {
             case .library: "books.vertical"
             case .preview: "photo"
             case .reading: "book"
+            case .inspector: "sidebar.trailing"
             case .chat: "bubble.left.and.bubble.right"
             }
         }
@@ -124,6 +127,9 @@ extension ContentView {
             case .reading:
                 // A width only when it rides after a preview; standalone = full.
                 return PaneSpec(kind: .reading, fixedWidth: hasPreview ? CGFloat(pageContentPaneWidth) : nil)
+            case .inspector:
+                // Docks right, full height, flexible — no fixed column.
+                return PaneSpec(kind: .inspector, fixedWidth: nil)
             case .chat:
                 return PaneSpec(kind: .chat, fixedWidth: nil)  // not reached — chat is not in the list
             }
@@ -239,6 +245,17 @@ extension ContentView {
                 return AnyView(reading.frame(width: width))
             }
             return AnyView(reading.frame(maxWidth: .infinity))
+        case .inspector:
+            // The document inspector as a CENTRE PANE (spec §"v2 workspaces": the inspector
+            // docks in the pane list, always on the right). Reserving the kind so workspaces can
+            // compose it and the model stays total; hosting the real InspectorView content here
+            // is the next increment (it needs the selected document + service environment, the
+            // same boundary the sidebar chat re-injects).
+            return AnyView(
+                PaneEmptyStateView(reason: "Inspector")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .inspector; paneFocusHint = .inspector })
+            )
         case .chat:
             // Chat is no longer a centre pane — it lives beneath the sidebar
             // (spec panes.chat.below-sidebar). The kind stays in the enum so the
@@ -264,6 +281,7 @@ extension ContentView {
         case .library: .library
         case .preview: .preview
         case .reading: .reading
+        case .inspector: .inspector
         case .chat: .chat
         }
     }

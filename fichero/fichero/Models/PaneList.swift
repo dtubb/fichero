@@ -23,6 +23,7 @@ enum PaneKind: String, Codable, CaseIterable, Sendable, Hashable {
     case library
     case preview
     case reading
+    case inspector
     case chat
 }
 
