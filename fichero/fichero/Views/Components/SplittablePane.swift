@@ -213,6 +213,14 @@ struct SplittablePane<Content: View>: View {
     /// nil (e.g. previews, panes outside the centre row) simply opts out.
     @Environment(\.paneSplitCoordinator) private var splitCoordinator
 
+    /// Whether the WHOLE pane is already a secondary copy — set from above when an applied workspace
+    /// mounts this pane as a duplicate same-kind leaf (spec panes.instance-safe,
+    /// `ContentView.paneNodeView`). Its own unsplit primary would otherwise force
+    /// `isSecondarySplitPane = false` and defeat the guard, so `splitPane` ORs this in: a duplicate
+    /// leaf keeps ALL its sub-panes secondary, while a normal pane's primary/secondary split is
+    /// unchanged (false OR the split's own value).
+    @Environment(\.isSecondarySplitPane) private var inheritedSecondary
+
     /// Number of panes in the active left/right layout.
     @SceneStorage private var verticalPaneCount: Int
     /// Number of panes in the active top/bottom layout.
@@ -516,7 +524,11 @@ struct SplittablePane<Content: View>: View {
     @ViewBuilder
     private func splitPane(isSecondary: Bool) -> some View {
         content()
-            .environment(\.isSecondarySplitPane, isSecondary)
+            // OR the inherited flag: if the whole pane is a duplicate leaf (applied workspace),
+            // every sub-pane — including this SplittablePane's own "primary" — stays secondary, so
+            // the window-scoped focused-value guard holds (spec panes.instance-safe). A normal
+            // pane inherits false, so its primary/secondary split is unchanged.
+            .environment(\.isSecondarySplitPane, isSecondary || inheritedSecondary)
             .environment(\.splitAxisActions, splitAxisActions)
     }
 
