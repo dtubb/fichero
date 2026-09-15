@@ -332,7 +332,13 @@ extension ContentView {
         let secondaryIDs = list.secondaryLeafIDs()
         HStack(spacing: 0) {
             ForEach(Array(list.nodes.enumerated()), id: \.offset) { index, node in
-                paneNodeView(node, keyPath: "\(index)", secondaryIDs: secondaryIDs)
+                paneNodeView(
+                    node, keyPath: "\(index)", secondaryIDs: secondaryIDs,
+                    // Closing a pane removes THIS leaf from the stored list (spec
+                    // panes.close.this-pane-only) — @State's nonmutating setter writes back, so
+                    // capturing self here is safe. nil on the legacy path leaves close unchanged.
+                    closeLeaf: { id in activePaneList = activePaneList?.removingLeaf(id) }
+                )
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -340,14 +346,19 @@ extension ContentView {
 
     /// Render one node. AnyView because the recursion (node → split → node) can't ride an
     /// opaque `some View` return, and erasing at the boundary is the #4331 crash guard anyway.
-    private func paneNodeView(_ node: PaneNode, keyPath: String, secondaryIDs: Set<UUID> = []) -> AnyView {
+    private func paneNodeView(
+        _ node: PaneNode, keyPath: String, secondaryIDs: Set<UUID> = [],
+        closeLeaf: ((UUID) -> Void)? = nil
+    ) -> AnyView {
         switch node {
         case let .leaf(id, kind, _, _):
             // kindContent already returns AnyView (head chrome + clip + focus gesture). A DUPLICATE
             // same-kind leaf renders secondary so its subtree suppresses the window-scoped
             // focused-value publishes the primary owns (spec panes.instance-safe); the flag is the
-            // SAME `\.isSecondarySplitPane` an in-pane split already uses.
-            return AnyView(
+            // SAME `\.isSecondarySplitPane` an in-pane split already uses. On the applied path
+            // `closeLeaf` also publishes this leaf's close action, so the head's X removes THIS pane
+            // (spec panes.close.this-pane-only), not the whole row.
+            var leaf = AnyView(
                 kindContent(
                     kind: paneSpecKind(kind),
                     slotId: "pane-\(keyPath)-\(kind.rawValue)",
@@ -355,26 +366,42 @@ extension ContentView {
                 )
                 .environment(\.isSecondarySplitPane, secondaryIDs.contains(id))
             )
+            if let closeLeaf {
+                leaf = AnyView(leaf.environment(\.paneCloseAction, PaneCloseAction { closeLeaf(id) }))
+            }
+            return leaf
         case let .split(_, axis, children):
-            return paneSplitView(axis: axis, children: children, keyPath: keyPath, secondaryIDs: secondaryIDs)
+            return paneSplitView(
+                axis: axis, children: children, keyPath: keyPath,
+                secondaryIDs: secondaryIDs, closeLeaf: closeLeaf
+            )
         }
     }
 
     /// A split node: children stacked along the axis. Vertical reproduces the legacy
     /// `.standard` heights (library rides short at the top, the preview/reader below is greedy).
-    private func paneSplitView(axis: SplitAxis, children: [PaneNode], keyPath: String, secondaryIDs: Set<UUID> = []) -> AnyView {
+    private func paneSplitView(
+        axis: SplitAxis, children: [PaneNode], keyPath: String,
+        secondaryIDs: Set<UUID> = [], closeLeaf: ((UUID) -> Void)? = nil
+    ) -> AnyView {
         let indexed = Array(children.enumerated())
         switch axis {
         case .vertical:
             return AnyView(VStack(spacing: 0) {
                 ForEach(indexed, id: \.offset) { idx, child in
-                    verticallyFramedPane(child, keyPath: "\(keyPath).\(idx)", secondaryIDs: secondaryIDs)
+                    verticallyFramedPane(
+                        child, keyPath: "\(keyPath).\(idx)",
+                        secondaryIDs: secondaryIDs, closeLeaf: closeLeaf
+                    )
                 }
             })
         case .horizontal:
             return AnyView(HStack(spacing: 0) {
                 ForEach(indexed, id: \.offset) { idx, child in
-                    paneNodeView(child, keyPath: "\(keyPath).\(idx)", secondaryIDs: secondaryIDs)
+                    paneNodeView(
+                        child, keyPath: "\(keyPath).\(idx)",
+                        secondaryIDs: secondaryIDs, closeLeaf: closeLeaf
+                    )
                 }
             })
         }
@@ -384,11 +411,16 @@ extension ContentView {
     /// ponytail: kind-based heights; replace with per-pane weights on `PaneNode` when workspaces
     /// need custom vertical ratios.
     @ViewBuilder
-    private func verticallyFramedPane(_ child: PaneNode, keyPath: String, secondaryIDs: Set<UUID> = []) -> some View {
+    private func verticallyFramedPane(
+        _ child: PaneNode, keyPath: String,
+        secondaryIDs: Set<UUID> = [], closeLeaf: ((UUID) -> Void)? = nil
+    ) -> some View {
         if case let .leaf(_, kind, _, _) = child, kind == .library {
-            paneNodeView(child, keyPath: keyPath, secondaryIDs: secondaryIDs).frame(minHeight: 150, idealHeight: 180)
+            paneNodeView(child, keyPath: keyPath, secondaryIDs: secondaryIDs, closeLeaf: closeLeaf)
+                .frame(minHeight: 150, idealHeight: 180)
         } else {
-            paneNodeView(child, keyPath: keyPath, secondaryIDs: secondaryIDs).frame(minHeight: 400, idealHeight: 720)
+            paneNodeView(child, keyPath: keyPath, secondaryIDs: secondaryIDs, closeLeaf: closeLeaf)
+                .frame(minHeight: 400, idealHeight: 720)
         }
     }
 

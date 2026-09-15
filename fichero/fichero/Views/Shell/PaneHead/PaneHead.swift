@@ -76,6 +76,12 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
     /// "close on left for all automatically, split and pin on the right
     /// automatically") — adopters wire nothing.
     @Environment(\.splitAxisActions) private var splitAxisActions
+    /// When an APPLIED workspace owns this pane (spec panes.close.this-pane-only), the X removes
+    /// THIS leaf from the window's `PaneList` — `removingLeaf(id)` collapses a singleton split to
+    /// its survivor and removes a top-level pane in one operation, so it takes priority over both
+    /// the split-collapse and the legacy whole-pane `onClose`. nil outside the applied path, where
+    /// the existing behaviour stands. Set per-leaf by `ContentView.paneNodeView`.
+    @Environment(\.paneCloseAction) private var paneCloseAction
 
     var body: some View {
         VStack(alignment: .leading, spacing: PaneHeadMetrics.rowSpacing) {
@@ -129,9 +135,14 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
     private var identityCapsule: some View {
         capsule {
             HStack(spacing: 6) {
-                if onClose != nil || isInSplit {
+                if paneCloseAction != nil || onClose != nil || isInSplit {
                     Button {
-                        if let actions = splitAxisActions, isInSplit {
+                        // An applied workspace removes THIS leaf from the PaneList (handles
+                        // split-collapse AND removal); else collapse the in-pane split; else the
+                        // legacy whole-pane hide.
+                        if let paneCloseAction {
+                            paneCloseAction.run()
+                        } else if let actions = splitAxisActions, isInSplit {
                             actions.onCollapseSplit()
                         } else {
                             onClose?()
