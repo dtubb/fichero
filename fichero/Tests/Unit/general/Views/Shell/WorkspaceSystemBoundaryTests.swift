@@ -64,6 +64,35 @@ final class WorkspaceSystemBoundaryTests: XCTestCase {
             "The default centre renders through paneComposition — the same one renderer.")
     }
 
+    /// BUG2 regression guard (spec panes.close.this-pane-only): in an applied workspace the pane
+    /// head's X must remove THIS leaf from the stored PaneList, never the whole row. The wiring is a
+    /// `\.paneCloseAction` environment seam — `paneListRow` publishes `removingLeaf(id)` per leaf and
+    /// `PaneHead`'s X prefers it. If either half is dropped, close silently reverts to closing the
+    /// row. (View wiring isn't unit-runnable; this pins the seam at the source.)
+    func testAppliedWorkspaceCloseRemovesOnlyThatLeaf() throws {
+        let paneSpec = try Self.appSource("Views/Shell/ContentView/Layout/PaneSpec.swift")
+        XCTAssertTrue(
+            paneSpec.contains("activePaneList?.removingLeaf(id)"),
+            "paneListRow must close a pane by removing its leaf from the stored PaneList.")
+        XCTAssertTrue(
+            paneSpec.contains("PaneCloseAction { closeLeaf(id) }"),
+            "paneNodeView must publish the per-leaf close action on the applied path.")
+
+        let paneHead = try Self.appSource("Views/Shell/PaneHead/PaneHead.swift")
+        XCTAssertTrue(
+            paneHead.contains("@Environment(\\.paneCloseAction)"),
+            "PaneHead must read the applied-workspace close action.")
+        // The X shows whenever an applied close action is present, and calls it — checked ahead of
+        // the split-collapse / legacy onClose (the `if let paneCloseAction { paneCloseAction.run() }`
+        // branch is first in the button action).
+        XCTAssertTrue(
+            paneHead.contains("if paneCloseAction != nil || onClose != nil || isInSplit"),
+            "The head's X must appear when an applied close action is present.")
+        XCTAssertTrue(
+            paneHead.contains("paneCloseAction.run()"),
+            "The head's X must call the applied close action (spec panes.close.this-pane-only).")
+    }
+
     // MARK: - Source helpers (mirror MenuShortcutBoundaryTests)
 
     private static func appSwiftFiles() throws -> [String] {

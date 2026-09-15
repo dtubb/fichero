@@ -694,10 +694,16 @@ workspaces store a `PaneList`, the window is *always* a `PaneList`, the Bool-vis
 
 Creative director, running the app (the one-renderer + old split/close wiring still in place):
 
-- `panes.split.focused-only` — **[BROKEN]** Split Right / Split Below splits **every column / all
-  rows**, not just the focused pane (screenshot: a 2×N grid appears from one split). The split
-  scope is shared, not per-pane instance. This is the F7 "split focused-only isolation" leg — the
-  first-wave pinning test in the Test matrix, still unproven and now confirmed broken live.
+- `panes.split.focused-only` — **[FIXED, model + isolation]** Splitting one pane splits ONLY that
+  pane (pinned by PaneListTests "splitting a pane splits ONLY that pane"; the live per-slot
+  `@SceneStorage` isolation landed 2026-08-24). **Open (increment 3 design question):** in an applied
+  workspace the head "+" still splits via the leaf's own `SplittablePane` (which supports up to 3
+  panes per axis + a 2×2 grid within one slot), NOT `PaneList.splittingLeaf` (a binary split node).
+  So a split made inside an applied workspace is not stored in the `PaneList` and won't save with the
+  workspace. Wiring split symmetrically with close (`\.paneCloseAction`'s twin) needs the `PaneList`
+  model to represent SplittablePane's 3-per-axis / grid splits, or a CD ruling that applied
+  workspaces use the simpler binary split. Deferred to the always-a-PaneList increment; the current
+  behaviour is not broken (splits work per-pane), only un-stored.
 - `panes.close.this-pane-only` — **[FIXED 2026-09-15, applied path]** Closing a pane in an applied
   workspace now removes THAT leaf from the stored `PaneList` (`removingLeaf(id)`, which collapses a
   singleton split to its survivor and removes a top-level pane in one operation) — never the whole
