@@ -62,6 +62,16 @@ final class WindowWorkspaceStore {
         persist()
     }
 
+    /// Rename a saved workspace (the Manager's rename field). No-op that returns
+    /// nil when the catalog refuses it (empty name, unknown id, or a name another
+    /// workspace already wears); persists only when something changed.
+    @discardableResult
+    func rename(id: UUID, to name: String) -> SavedWindowWorkspace? {
+        guard let renamed = catalog.rename(id: id, to: name) else { return nil }
+        persist()
+        return renamed
+    }
+
     private func persistToolbarVisibility() {
         // Best-effort, same reasoning as `persist()`: keeping the previous
         // stored configuration beats wiping the user's toolbar.

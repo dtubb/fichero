@@ -374,4 +374,40 @@ final class WindowWorkspaceTests: XCTestCase {
         }
         XCTAssertEqual(BuiltInWorkspace.library.shortcutNumber, 1)
     }
+
+    // MARK: - Rename (the Workspace Manager's rename field)
+
+    func testRenameChangesTheNameKeepingIdentityAndLayout() throws {
+        var catalog = WindowWorkspaceCatalog()
+        let saved = catalog.save(name: "Draft", layout: snapshot())
+        let id = try XCTUnwrap(saved).id
+        let renamed = catalog.rename(id: id, to: "  Final  ")
+        XCTAssertEqual(renamed?.id, id, "identity survives a rename")
+        XCTAssertEqual(renamed?.name, "Final", "the new name is trimmed")
+        XCTAssertEqual(catalog.workspaces.first { $0.id == id }?.name, "Final")
+    }
+
+    func testRenameRefusesEmptyAndLeavesTheCatalogUnchanged() throws {
+        var catalog = WindowWorkspaceCatalog()
+        let id = try XCTUnwrap(catalog.save(name: "Keep", layout: snapshot())).id
+        XCTAssertNil(catalog.rename(id: id, to: "   "))
+        XCTAssertEqual(catalog.workspaces.first { $0.id == id }?.name, "Keep")
+    }
+
+    func testRenameRefusesANameAnotherWorkspaceAlreadyWears() throws {
+        var catalog = WindowWorkspaceCatalog()
+        catalog.save(name: "Reading", layout: snapshot())
+        let id = try XCTUnwrap(catalog.save(name: "Cataloguing", layout: snapshot())).id
+        // Case-insensitive collision — the confusing-twin guard save() uses.
+        XCTAssertNil(catalog.rename(id: id, to: "reading"))
+        XCTAssertEqual(catalog.workspaces.first { $0.id == id }?.name, "Cataloguing")
+        XCTAssertEqual(catalog.workspaces.count, 2)
+    }
+
+    func testRenameAnUnknownIdIsANoOp() {
+        var catalog = WindowWorkspaceCatalog()
+        catalog.save(name: "Only", layout: snapshot())
+        XCTAssertNil(catalog.rename(id: UUID(), to: "Whatever"))
+        XCTAssertEqual(catalog.workspaces.map(\.name), ["Only"])
+    }
 }

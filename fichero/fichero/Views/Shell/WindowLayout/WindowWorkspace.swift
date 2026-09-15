@@ -239,6 +239,29 @@ struct WindowWorkspaceCatalog: Codable, Equatable, Sendable {
         workspaces.removeAll { $0.id == id }
     }
 
+    /// Rename the workspace with `id`, keeping its identity, layout and saved
+    /// date — for the Workspace Manager's rename field. Returns the updated
+    /// workspace, or nil when: the name is empty, no workspace has that id, or
+    /// ANOTHER workspace already wears that name (case-insensitive) — the same
+    /// confusing-twin guard `save` applies, refused here rather than merged
+    /// because a rename must not silently swallow a second arrangement. Re-sorts
+    /// by name so the menus stay alphabetical.
+    @discardableResult
+    mutating func rename(id: UUID, to rawName: String) -> SavedWindowWorkspace? {
+        let name = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return nil }
+        guard workspaces.contains(where: { $0.id == id }) else { return nil }
+        let collides = workspaces.contains {
+            $0.id != id && $0.name.compare(name, options: [.caseInsensitive]) == .orderedSame
+        }
+        guard !collides else { return nil }
+        for index in workspaces.indices where workspaces[index].id == id {
+            workspaces[index].name = name
+        }
+        workspaces.sort { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+        return workspaces.first { $0.id == id }
+    }
+
     func encoded() throws -> Data {
         try JSONEncoder().encode(self)
     }
