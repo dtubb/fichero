@@ -353,9 +353,25 @@ final class WindowWorkspaceTests: XCTestCase {
     }
 
     func testBuiltInsAreDistinctArrangements() {
-        let plans = BuiltInWorkspace.allCases.map(\.panes)
-        XCTAssertEqual(Set(BuiltInWorkspace.allCases.map(\.title)).count, 3)
-        XCTAssertNotEqual(plans[0], plans[1])
-        XCTAssertNotEqual(plans[1], plans[2])
+        let all = BuiltInWorkspace.allCases
+        // The best-nine's first six ship today (spec; #7–9 pend a per-pane view mode).
+        XCTAssertEqual(all.count, 6)
+        XCTAssertEqual(Set(all.map(\.title)).count, all.count, "titles must be unique")
+        // Every built-in is a genuinely different pane set from every other.
+        for outer in all.indices {
+            for inner in all.indices where inner > outer {
+                XCTAssertNotEqual(
+                    all[outer].panes, all[inner].panes,
+                    "\(all[outer].title) and \(all[inner].title) have identical pane sets")
+            }
+        }
+    }
+
+    func testBuiltInsBindTheFirstNineToCommandOptionNumbers() {
+        // ⌘⌥1–9: declaration order is the shortcut order (spec, the best-nine).
+        for (index, workspace) in BuiltInWorkspace.allCases.enumerated() where index < 9 {
+            XCTAssertEqual(workspace.shortcutNumber, index + 1)
+        }
+        XCTAssertEqual(BuiltInWorkspace.library.shortcutNumber, 1)
     }
 }

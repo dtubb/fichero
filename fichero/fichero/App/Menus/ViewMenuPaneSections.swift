@@ -102,6 +102,13 @@ struct PaneToggleButton: View {
 struct WorkspaceCommandsSection: View {
     @FocusedValue(\.windowLayoutCommands) private var commands
 
+    /// ⌘⌥N for a built-in at position N (1–9), else nil. The pure position lives
+    /// on `BuiltInWorkspace.shortcutNumber`; the SwiftUI shortcut is minted here.
+    static func shortcut(for workspace: BuiltInWorkspace) -> KeyboardShortcut? {
+        guard let number = workspace.shortcutNumber, (1...9).contains(number) else { return nil }
+        return KeyboardShortcut(KeyEquivalent(Character(String(number))), modifiers: [.command, .option])
+    }
+
     var body: some View {
         Section("Workspaces") {
             // The built-in arrangements first (Daniel, 2026-08-31: "can we
@@ -114,6 +121,9 @@ struct WorkspaceCommandsSection: View {
                 } label: {
                     Label(workspace.title, systemImage: workspace.systemImage)
                 }
+                // ⌘⌥1–9 switch to the built-in workspace at that position
+                // (spec, the best-nine). The optional overload no-ops past nine.
+                .keyboardShortcut(Self.shortcut(for: workspace))
                 .disabled(commands == nil)
             }
 
