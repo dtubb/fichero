@@ -92,7 +92,6 @@ extension ContentView {
             workspaceLayoutsSection
             layoutsSection
             splitSection
-            builtInWorkspaceSection
             savedWorkspaceSection
             Divider()
             Button("Save Current as Workspace…") {
@@ -127,10 +126,11 @@ extension ContentView {
         }
     }
 
-    /// The v2 PaneList-backed workspaces (spec §"v2 workspace design", the best-nine). Applying one
-    /// stores it as the window's pane list (`activePaneList`), which the centre renders directly;
-    /// "Default Layout" clears back to the legacy visibility layout. (⌘⌥1–6 is wired next; kept off
-    /// here for now to avoid a double binding with the old built-ins' menu-bar shortcuts.)
+    /// The v2 PaneList-backed workspaces — the ONE built-in workspace system (spec
+    /// workspaces.one-system). Applying one stores it as the window's pane list (`activePaneList`),
+    /// which the centre renders directly; "Default Layout" clears back to the legacy visibility
+    /// layout. ⌘⌥1–6 are bound in the menu bar (`WorkspaceCommandsSection`), which routes through
+    /// the window command bus; this toolbar menu shows the same set without duplicating the keys.
     @ViewBuilder
     private var workspaceLayoutsSection: some View {
         Section("Workspaces") {
@@ -157,31 +157,6 @@ extension ContentView {
     /// Clear the applied workspace — back to the legacy visibility-Bool layout.
     func clearWorkspaceLayout() {
         activePaneList = nil
-    }
-
-    /// The three that ship. Computed, never stored, so they cannot be
-    /// deleted and choosing one again IS the reset.
-    @ViewBuilder
-    private var builtInWorkspaceSection: some View {
-        let panes = currentPaneVisibilityPlan
-        let toolbar = WindowWorkspaceStore.shared.toolbarVisibility
-        Section("Default") {
-            ForEach(BuiltInWorkspace.allCases) { workspace in
-                Button {
-                    applyBuiltInWorkspace(workspace)
-                } label: {
-                    if workspace.matches(
-                        panes: panes, toolbar: toolbar,
-                        workflowBar: showWorkflowBar, markupBar: showAnnotationBar
-                    ) {
-                        Label(workspace.title, systemImage: "checkmark")
-                    } else {
-                        Label(workspace.title, systemImage: workspace.systemImage)
-                    }
-                }
-                .help(workspace.help)
-            }
-        }
     }
 
     /// The user's own, checkmarked when the window matches what they saved.
@@ -418,6 +393,7 @@ extension ContentView {
                 chromeUX.showSaveWorkspacePrompt = true
             },
             applyWorkspace: { applyLayoutSnapshot($0.layout) },
+            applyWorkspaceLayout: { applyWorkspaceLayout($0) },
             applyBuiltIn: { applyBuiltInWorkspace($0) },
             applyPreset: { applyLayoutPreset($0) }
         )
@@ -436,6 +412,9 @@ struct WindowLayoutCommands: Equatable {
 
     let saveWorkspace: @MainActor () -> Void
     let applyWorkspace: @MainActor (SavedWindowWorkspace) -> Void
+    /// Apply a v2 built-in workspace (the one built-in system) to the focused window — sets its
+    /// `activePaneList` (spec workspaces.one-system). This is what ⌘⌥1–6 drives from the menu bar.
+    let applyWorkspaceLayout: @MainActor (BuiltInWorkspaceLayout) -> Void
     let applyBuiltIn: @MainActor (BuiltInWorkspace) -> Void
     let applyPreset: @MainActor (WindowLayoutPreset) -> Void
 }

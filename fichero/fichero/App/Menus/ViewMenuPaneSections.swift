@@ -102,28 +102,28 @@ struct PaneToggleButton: View {
 struct WorkspaceCommandsSection: View {
     @FocusedValue(\.windowLayoutCommands) private var commands
 
-    /// ⌘⌥N for a built-in at position N (1–9), else nil. The pure position lives
-    /// on `BuiltInWorkspace.shortcutNumber`; the SwiftUI shortcut is minted here.
-    static func shortcut(for workspace: BuiltInWorkspace) -> KeyboardShortcut? {
-        guard let number = workspace.shortcutNumber, (1...9).contains(number) else { return nil }
+    /// ⌘⌥N for the v2 workspace at slot N (1–6), else nil. The pure position lives on
+    /// `BuiltInWorkspaceLayout.defaultSlot`; the SwiftUI shortcut is minted here. ⌘⌥7–9 stay free
+    /// for user workspaces (spec §"v2 workspace design", the slot→workspace map).
+    static func shortcut(for layout: BuiltInWorkspaceLayout) -> KeyboardShortcut? {
+        let number = layout.defaultSlot
+        guard (1...9).contains(number) else { return nil }
         return KeyboardShortcut(KeyEquivalent(Character(String(number))), modifiers: [.command, .option])
     }
 
     var body: some View {
         Section("Workspaces") {
-            // The built-in arrangements first (Daniel, 2026-08-31: "can we
-            // have some defaults?") — the menu-bar twins of the toolbar's one
-            // Workspaces button. These carry the toolbar and BOTH window bars
-            // with them; the presets below still touch pane visibility only.
-            ForEach(BuiltInWorkspace.allCases) { workspace in
+            // The v2 workspaces are the ONE built-in system (spec workspaces.one-system): real 2D
+            // PaneList compositions, applied to the focused window's `activePaneList` via the
+            // command bus. ⌘⌥1–6 switch between them. (The legacy `BuiltInWorkspace` show/hide
+            // presets are retired from the menus; their enum + tests are removed in a follow-up.)
+            ForEach(BuiltInWorkspaceLayout.allCases) { layout in
                 Button {
-                    commands?.applyBuiltIn(workspace)
+                    commands?.applyWorkspaceLayout(layout)
                 } label: {
-                    Label(workspace.title, systemImage: workspace.systemImage)
+                    Label(layout.title, systemImage: layout.systemImage)
                 }
-                // ⌘⌥1–9 switch to the built-in workspace at that position
-                // (spec, the best-nine). The optional overload no-ops past nine.
-                .keyboardShortcut(Self.shortcut(for: workspace))
+                .keyboardShortcut(Self.shortcut(for: layout))
                 .disabled(commands == nil)
             }
 
