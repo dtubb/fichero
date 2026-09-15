@@ -209,6 +209,15 @@ extension ContentView {
         // true at compact width; the regular path below is the ONE renderer.
         if usesCompactReaderFlow {
             compactLibraryReaderStack
+        } else if let applied = activePaneList {
+            // An APPLIED workspace is the window's source of truth (spec §"v2 workspace design"):
+            // render the stored pane list directly, bypassing the legacy visibility-Bool path.
+            // Close/split will mutate `activePaneList` by leaf id (pane-scoped). `nil` falls through
+            // to the unchanged default below.
+            Group {
+                paneListRow(applied)
+            }
+            .animation(.easeInOut(duration: 0.18), value: applied)
         } else {
             // ONE rendering path (spec §F7, RATIFIED 2026-09-13/14). The centre is
             // a `PaneList` — derived per mode by `PaneList.forLayout` (pure, unit-

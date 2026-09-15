@@ -89,17 +89,13 @@ enum BuiltInWorkspaceLayout: String, CaseIterable, Identifiable, Sendable {
                 ])
             ])
         case .compare:
+            // Two witness columns — each the page over its reader. The per-column library/related
+            // nav the CD designed needs the library pane to be instance-safe (two library views in
+            // one window currently loop on shared window state — spec panes.instance-safe); it
+            // returns once that lands. For now Compare collates page+reader, which is the core.
             return PaneList([
-                .split(.vertical, [
-                    .leaf(.preview),
-                    .leaf(.reading),
-                    .leaf(.library, config: PaneConfig(libraryLayout: "list"))
-                ]),
-                .split(.vertical, [
-                    .leaf(.preview),
-                    .leaf(.reading),
-                    .leaf(.library, config: PaneConfig(libraryContentKind: "related"))
-                ])
+                .split(.vertical, [.leaf(.preview), .leaf(.reading)]),
+                .split(.vertical, [.leaf(.preview), .leaf(.reading)])
             ])
         case .catalogue:
             return PaneList([

@@ -58,15 +58,26 @@ struct BuiltInWorkspaceLayoutTests {
         #expect(previews.contains { $0.config.previewWordBoxes == true })
     }
 
-    @Test("Compare is two symmetric witness columns of three panes each")
+    @Test("Compare is two symmetric witness columns — page over reader each")
     func compareIsTwoColumns() {
         let nodes = BuiltInWorkspaceLayout.compare.panes.nodes
         #expect(nodes.count == 2)
         for node in nodes {
-            #expect(node.leafCount == 3)
-            #expect(node.kinds.contains(.preview))
-            #expect(node.kinds.contains(.reading))
-            #expect(node.kinds.contains(.library))
+            // Two panes per column (page over reader). The per-column library/related nav is
+            // deferred until the library pane is instance-safe (panes.instance-safe).
+            #expect(node.leafCount == 2)
+            #expect(node.kinds == [.preview, .reading])
+        }
+    }
+
+    @Test("no built-in mounts two library panes until the library pane is instance-safe")
+    func noBuiltInHasTwoLibraryPanes() {
+        // A guard test: two library content views in one window loop on shared window state
+        // (spec panes.instance-safe, CD live 2026-09-15). Until that's fixed, no default may mount
+        // more than one library pane. This catches the regression at the DATA level.
+        for layout in BuiltInWorkspaceLayout.allCases {
+            let libraryCount = allLeaves(layout.panes).filter { $0.kind == .library }.count
+            #expect(libraryCount <= 1, "\(layout.title) mounts \(libraryCount) library panes")
         }
     }
 

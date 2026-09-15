@@ -675,6 +675,31 @@ Creative director, running the app (the one-renderer + old split/close wiring st
   its head (the kind/preview icon) should let the user move that pane elsewhere in the composition
   (reorder / re-nest). A direct-manipulation complement to the pane list. New.
 
+- `panes.instance-safe` — **[BROKEN]** a pane's CONTENT view must be safe to mount more than once
+  in one window. Applying a workspace with **two library panes** (Compare's per-column nav)
+  beachballs: repeated `makeNSView` (NSViews remounting in a loop), "Fetched 8 artifacts / Loaded 0
+  annotations" repeating, a 32-second sidebar→content update. Root (hypothesis, under
+  investigation): the heavy content views (library especially) read+WRITE window-level shared state
+  (selection / `pinnedPreviewDocument` / a Bool), so a second instance ping-pongs it → infinite
+  re-render. Until fixed: no workspace mounts >1 library pane (guarded by a DATA test,
+  `BuiltInWorkspaceLayoutTests.noBuiltInHasTwoLibraryPanes`); Compare ships as page+reader columns.
+  The real fix makes the content instance-safe (per-instance state, no shared write-on-render).
+
+**Testing this class (design-led answer, "why can a test do these"):** a runtime **re-render /
+remount loop** is NOT catchable by a pure unit test — it's a view-runtime feedback, not a value.
+Three layers cover it, weakest-to-strongest realism:
+1. **Structural DATA guard (have it now):** a unit test asserts the composition can't contain a
+   known-unsafe shape (e.g. `noBuiltInHasTwoLibraryPanes`). Cheap, catches the KNOWN trigger, not a
+   general loop.
+2. **Render-with-timeout snapshot (feasible):** render the real composition via `ImageRenderer` in a
+   normal test target and assert it completes within a deadline — a render loop blows the timeout.
+   (The `#Preview` canvas is out — Xcode-27 arm64e bug — but `ImageRenderer` runs in the normal
+   runtime.) Needs the pane content's environment; scope to what a test can inject.
+3. **XCUITest apply-workspace-and-stay-responsive (strongest, slowest):** apply each workspace, then
+   assert the app answers within N seconds (a beachball fails it). Belongs in the click-around leg.
+Add the guard now; the ImageRenderer render-timeout is the highest-value next test once the
+instance-safety fix lands (so it doesn't just time out on the known bug).
+
 These are per-instance-state defects (spec §"Per-instance pane state for every kind", F3): split
 count and close must key on the pane's own slot, resolved from `focusedPane`, not a window- or
 row-shared coordinator. Fix design-led: add the failing pinning test (splitting pane A leaves pane

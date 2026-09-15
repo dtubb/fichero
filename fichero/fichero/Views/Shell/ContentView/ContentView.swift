@@ -365,6 +365,12 @@ struct ContentView: View {
     @SceneStorage("sidebar.chat.height") var sidebarChatHeight: Double = 260
     @SceneStorage("showReadingPane") var showReadingPane: Bool =
         WorkspaceLayoutDefaults.showReadingPane
+    /// The window's ACTIVE pane composition once a workspace is applied (spec §"v2 workspace
+    /// design"): the stored, instance-identified source of truth the centre renders from. `nil`
+    /// = follow the legacy visibility Bools via `PaneList.forLayout` (the unchanged default). Set
+    /// by applying a workspace (the Workspaces menu / ⌘⌥1–6); close and split will mutate THIS by
+    /// leaf id, which is what makes them pane-scoped (spec panes.close.this-pane-only / .split.focused-only).
+    @State var activePaneList: PaneList?
     // Summoned search (#4521): the engine-search field in the library's mini
     // toolbar appears only while this is on — toggled by the toolbar's search
     // button, and turned on automatically when something fires a search

@@ -89,6 +89,7 @@ extension ContentView {
     /// ship with the app so the menu is useful before anything is saved.
     var workspacesMenu: some View {
         Menu {
+            workspaceLayoutsSection
             layoutsSection
             splitSection
             builtInWorkspaceSection
@@ -124,6 +125,38 @@ extension ContentView {
                 + "and markup bars, and toolbar buttons — so you can apply it "
                 + "later.")
         }
+    }
+
+    /// The v2 PaneList-backed workspaces (spec §"v2 workspace design", the best-nine). Applying one
+    /// stores it as the window's pane list (`activePaneList`), which the centre renders directly;
+    /// "Default Layout" clears back to the legacy visibility layout. (⌘⌥1–6 is wired next; kept off
+    /// here for now to avoid a double binding with the old built-ins' menu-bar shortcuts.)
+    @ViewBuilder
+    private var workspaceLayoutsSection: some View {
+        Section("Workspaces") {
+            ForEach(BuiltInWorkspaceLayout.allCases) { layout in
+                Button {
+                    applyWorkspaceLayout(layout)
+                } label: {
+                    Label(layout.title, systemImage: layout.systemImage)
+                }
+                .help(layout.summary)
+            }
+            if activePaneList != nil {
+                Button("Default Layout") { clearWorkspaceLayout() }
+                    .help("Return to the standard visibility-based layout")
+            }
+        }
+    }
+
+    /// Apply a v2 workspace as the window's STORED pane list (spec §"v2 workspace design").
+    func applyWorkspaceLayout(_ layout: BuiltInWorkspaceLayout) {
+        activePaneList = layout.panes
+    }
+
+    /// Clear the applied workspace — back to the legacy visibility-Bool layout.
+    func clearWorkspaceLayout() {
+        activePaneList = nil
     }
 
     /// The three that ship. Computed, never stored, so they cannot be

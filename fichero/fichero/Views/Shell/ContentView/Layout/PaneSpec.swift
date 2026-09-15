@@ -316,6 +316,24 @@ extension ContentView {
         }
     }
 
+    /// Render an APPLIED workspace pane list — every level through the recursive node renderer
+    /// (top-level nodes lay out as a horizontal row; a split arranges its children along its
+    /// axis), so a STORED `PaneList` (`activePaneList`) is the source of truth. Unlike
+    /// `paneComposition`, this never delegates the multi-pane row to `widescreenPaneRow` (which
+    /// reads the legacy visibility plan) — the applied list is authoritative.
+    /// ponytail: equal-flex panes, no resizable dividers/fixed widths yet; porting
+    /// `widescreenPaneRow`'s width+divider logic here is the follow-up that retires the second
+    /// renderer. Each top-level node is keyed by its index so its split state stays per-instance.
+    @ViewBuilder
+    func paneListRow(_ list: PaneList) -> some View {
+        HStack(spacing: 0) {
+            ForEach(Array(list.nodes.enumerated()), id: \.offset) { index, node in
+                paneNodeView(node, keyPath: "\(index)")
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
     /// Render one node. AnyView because the recursion (node → split → node) can't ride an
     /// opaque `some View` return, and erasing at the boundary is the #4331 crash guard anyway.
     private func paneNodeView(_ node: PaneNode, keyPath: String) -> AnyView {
