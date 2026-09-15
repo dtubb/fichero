@@ -225,7 +225,16 @@ extension LibraryView {
             // worked. Extracted as a modifier rather than an inline `.alert`
             // because this body is already near the type-checker's limit.
             .modifier(LibraryDropAlertModifier(windowState: windowState))
-            .focusedSceneValue(\.runWorkflowOnSelection, runWorkflowOnSelectionAction)
+            // Only the PRIMARY library pane publishes this SCENE-scoped key: two library panes in
+            // one window (Compare) both publishing it is the "FocusedValue update multiple times per
+            // frame" fault (spec panes.instance-safe) — the same class the libraryImportAction churn
+            // below hit. A nil value doesn't contribute, so the secondary pane stays silent. (The
+            // import key below is `.focusedValue` — focus-tree resolved, not the scene slot — so it
+            // needs no gate.)
+            .focusedSceneValue(
+                \.runWorkflowOnSelection,
+                isSecondarySplitPane ? nil : runWorkflowOnSelectionAction
+            )
             // Data-menu Import… while the LIBRARY pane (not the sidebar) has
             // focus (#4452). Deliberately the narrow `libraryImportAction`
             // key, not `sidebarActions` — see that key's doc comment for why
