@@ -647,6 +647,39 @@ The one-renderer and the first six built-in workspaces (⌘⌥1–6) shipped; th
 - **Workspace scope.** Does a saved workspace capture a live selection (these four people)
   or only the pane layout, rehydrating selection from context?
 
+## CD runtime review 2026-09-15 (live build) — split/close not pane-scoped
+
+Creative director, running the app (the one-renderer + old split/close wiring still in place):
+
+- `panes.split.focused-only` — **[BROKEN]** Split Right / Split Below splits **every column / all
+  rows**, not just the focused pane (screenshot: a 2×N grid appears from one split). The split
+  scope is shared, not per-pane instance. This is the F7 "split focused-only isolation" leg — the
+  first-wave pinning test in the Test matrix, still unproven and now confirmed broken live.
+- `panes.close.this-pane-only` — **[BROKEN]** Closing a pane sometimes closes the **entire row**,
+  not just that pane. Same root: close acts on a shared scope, not the focused pane instance.
+- `panes.head.drag-to-rearrange` — **[GAP, requested]** Dragging a pane by the icon at the LEFT of
+  its head (the kind/preview icon) should let the user move that pane elsewhere in the composition
+  (reorder / re-nest). A direct-manipulation complement to the pane list. New.
+
+These are per-instance-state defects (spec §"Per-instance pane state for every kind", F3): split
+count and close must key on the pane's own slot, resolved from `focusedPane`, not a window- or
+row-shared coordinator. Fix design-led: add the failing pinning test (splitting pane A leaves pane
+B's split count unchanged; closing pane A leaves the row intact) BEFORE the fix. The wiring of the
+six workspaces (apply + ⌘⌥1–6 + Manager) rides on the same per-instance renderer, so this is fixed
+first.
+
+## MCP-controllable layout — RATIFIED 2026-09-15 (CD)
+
+The pane layout must be **adjustable from MCP**, not just the SwiftUI UI — because a workspace IS a
+`PaneList` (Codable), the same data an agent would send (spec [[agent-chat-model-is-a-user]],
+[[one-audited-action-layer]]). So the window's current pane list lives in an **observable, settable
+store** (one endpoint the UI mutates), and MCP exposes typed tools over it:
+- apply a named built-in workspace (`BuiltInWorkspaceLayout`) or a raw `PaneList` to a window;
+- split / close / reorder a specific pane (by slot) — the same per-instance operations the UI does;
+- read the current pane list back (so an agent can see the composition it's arranging).
+This makes the layout scriptable and testable end-to-end (the cross-surface invariant: UI == MCP),
+and is why the per-instance split/close fix matters for BOTH surfaces at once.
+
 ## Preview harness
 
 `WorkspaceLayoutPreview` (`fichero/fichero/Views/Shell/WindowLayout/WorkspaceLayoutPreview.swift`,
