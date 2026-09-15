@@ -647,6 +647,14 @@ The one-renderer and the first six built-in workspaces (⌘⌥1–6) shipped; th
 - **Workspace scope.** Does a saved workspace capture a live selection (these four people)
   or only the pane layout, rehydrating selection from context?
 
+## Preview harness
+
+`WorkspaceLayoutPreview` (`fichero/fichero/Views/Shell/WindowLayout/WorkspaceLayoutPreview.swift`,
+`#if DEBUG`) renders every `BuiltInWorkspaceLayout` as a labelled mini window from the real
+`PaneList` data — the fast, no-boot canvas surface for verifying and screenshotting the six
+compositions (spec template §"Preview harness"). Its `#Preview` "Workspaces — the six defaults"
+is the source for the manuals' workspace screenshots.
+
 ## Cross-references
 
 - `kg-entity-inspector.md` — the entity pane's statements → source model.

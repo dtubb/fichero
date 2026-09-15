@@ -80,6 +80,23 @@ A feature is met by readers who never read each other's docs — cover the ones 
   job for this audience is only to keep the *facts* the maintainer documents accurate to what
   shipped (behaviors, a11y ids, screenshots) — not to author the prose.
 
+## Preview harness (fast visual verification + doc screenshots)
+
+Every UI surface ships a lightweight SwiftUI `#Preview` that renders the design from the spec's own
+DATA (not the live app), `#if DEBUG`-gated, so the composition can be verified and SCREENSHOTTED in
+the Xcode canvas in seconds without booting the app. It:
+- **pins the design visually** — the picture mirrors the shipping renderer's layout rule, so a
+  glance (or a snapshot test) catches divergence the unit tests can't see;
+- **renders instantly** — no `AppState`/`LibraryManager` boot — so design iteration is a canvas
+  refresh, not a full app run (and it works even when the real surface needs a running backend);
+- **is the SOURCE of the manuals' screenshots** — capture the preview and drop it into
+  `docs/assets/<surface>/`; the reference + contributor manuals then illustrate the surface from the
+  same harness the design is verified against, so the docs stay in sync by construction.
+
+Name it `<Surface>LayoutPreview` / `<Surface>Preview` beside the surface's pure model. Example
+(this pattern's origin): `WorkspaceLayoutPreview` renders every `BuiltInWorkspaceLayout` as a
+labelled mini window — the workspace spec's verification surface and its manual screenshots.
+
 ## Accessibility identifiers (required for the click-around leg)
 
 List the stable a11y ids the UI test will drive — add them to the views AS YOU BUILD:
