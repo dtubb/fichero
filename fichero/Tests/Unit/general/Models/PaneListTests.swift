@@ -10,7 +10,7 @@ struct PaneListTests {
     /// The leaf kinds of a node list, in order (splits are skipped — these helpers
     /// assert top-level composition). Keeps the pattern-match in one place.
     private func leafKinds(_ nodes: [PaneNode]) -> [PaneKind] {
-        nodes.compactMap { if case let .leaf(_, kind, _) = $0 { return kind }; return nil }
+        nodes.compactMap { if case let .leaf(_, kind, _, _) = $0 { return kind }; return nil }
     }
 
     // MARK: - toggling (the reliability contract: a toggle ALWAYS changes the list)
@@ -190,5 +190,36 @@ struct PaneListTests {
         let data = try JSONEncoder().encode(list)
         let decoded = try JSONDecoder().decode(PaneList.self, from: data)
         #expect(decoded == list)
+    }
+
+    // MARK: - Per-pane config (v2 workspaces: a leaf carries presentation)
+
+    @Test("an unconfigured pane reports isConfigured == false and stays behaviourally default")
+    func unconfiguredPaneIsDefault() {
+        #expect(PaneConfig.none.isConfigured == false)
+        // The convenience leaf carries no override.
+        if case let .leaf(_, _, _, config) = PaneNode.leaf(.library) {
+            #expect(config == .none)
+        } else {
+            Issue.record("leaf(.library) should be a leaf")
+        }
+    }
+
+    @Test("a configured leaf (claims-as-table, word-box preview) round-trips through JSON")
+    func configuredLeavesRoundTrip() throws {
+        let list = PaneList([
+            .leaf(.library, config: PaneConfig(libraryContentKind: "claims", libraryLayout: "table")),
+            .leaf(.preview, config: PaneConfig(previewLens: "preview", previewWordBoxes: true))
+        ])
+        let decoded = try JSONDecoder().decode(PaneList.self, from: JSONEncoder().encode(list))
+        #expect(decoded == list)
+        // The presentation survived, not just the kinds.
+        if case let .leaf(_, _, _, config) = decoded.nodes[0] {
+            #expect(config.libraryContentKind == "claims")
+            #expect(config.libraryLayout == "table")
+            #expect(config.isConfigured)
+        } else {
+            Issue.record("first node should be a configured library leaf")
+        }
     }
 }

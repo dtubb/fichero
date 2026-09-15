@@ -107,7 +107,7 @@ extension ContentView {
             chat: false
         )
         let kinds = list.nodes.compactMap { node -> PaneKind? in
-            if case let .leaf(_, kind, _) = node { return kind }
+            if case let .leaf(_, kind, _, _) = node { return kind }
             return nil
         }
         let hasPreview = kinds.contains(.preview)
@@ -294,7 +294,7 @@ extension ContentView {
     /// opaque `some View` return, and erasing at the boundary is the #4331 crash guard anyway.
     private func paneNodeView(_ node: PaneNode, keyPath: String) -> AnyView {
         switch node {
-        case let .leaf(_, kind, _):
+        case let .leaf(_, kind, _, _):
             // kindContent already returns AnyView (head chrome + clip + focus gesture).
             return kindContent(
                 kind: paneSpecKind(kind),
@@ -331,7 +331,7 @@ extension ContentView {
     /// need custom vertical ratios.
     @ViewBuilder
     private func verticallyFramedPane(_ child: PaneNode, keyPath: String) -> some View {
-        if case let .leaf(_, kind, _) = child, kind == .library {
+        if case let .leaf(_, kind, _, _) = child, kind == .library {
             paneNodeView(child, keyPath: keyPath).frame(minHeight: 150, idealHeight: 180)
         } else {
             paneNodeView(child, keyPath: keyPath).frame(minHeight: 400, idealHeight: 720)

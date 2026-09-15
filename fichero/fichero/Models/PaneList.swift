@@ -47,6 +47,44 @@ struct PaneScope: Codable, Sendable, Hashable {
     var isPinned: Bool { libraryId != nil || documentId != nil || folderId != nil }
 }
 
+/// Per-pane PRESENTATION — the difference between "library" and "library showing claims as a
+/// table", or "preview" and "preview with word boxes". This is what turns a workspace from a
+/// show/hide preset into a real composition (spec §"v2 workspace design"). Stored as stable raw
+/// strings (not the app enums) so the pure model stays decoupled and a saved workspace's JSON
+/// survives an enum rename — the same lenient-string discipline `WindowLayoutSnapshot` uses; the
+/// renderer maps them to `LibraryContentKind` / `LibraryLayout` / `PreviewLens` with a fallback.
+/// All-nil = "follow the window default", so an unconfigured pane behaves exactly as before.
+struct PaneConfig: Codable, Sendable, Hashable {
+    /// Library pane — what it browses: "documents" | "entities" | "claims" (`LibraryContentKind`).
+    var libraryContentKind: String?
+    /// Library pane — how it lays out: a `LibraryLayout` rawValue ("icons"/"list"/"table"/…).
+    var libraryLayout: String?
+    /// Preview pane — "preview" | "edit" (`PreviewLens`).
+    var previewLens: String?
+    /// Preview pane — draw the OCR word-box overlay (today a global `imagePreview.inlineTextEnabled`).
+    var previewWordBoxes: Bool?
+
+    init(
+        libraryContentKind: String? = nil,
+        libraryLayout: String? = nil,
+        previewLens: String? = nil,
+        previewWordBoxes: Bool? = nil
+    ) {
+        self.libraryContentKind = libraryContentKind
+        self.libraryLayout = libraryLayout
+        self.previewLens = previewLens
+        self.previewWordBoxes = previewWordBoxes
+    }
+
+    /// Follow the window default on every axis (an unconfigured pane).
+    static let none = PaneConfig()
+
+    /// Whether this pane overrides any presentation default.
+    var isConfigured: Bool {
+        libraryContentKind != nil || libraryLayout != nil || previewLens != nil || previewWordBoxes != nil
+    }
+}
+
 /// The split axis of a pane's sub-panes.
 enum SplitAxis: String, Codable, Sendable, Hashable {
     case horizontal
@@ -58,19 +96,20 @@ enum SplitAxis: String, Codable, Sendable, Hashable {
 /// Nesting is what expresses ASYMMETRIC layouts, e.g. "2 over 1":
 ///   .split(.vertical, [.split(.horizontal, [a, b]), c])
 indirect enum PaneNode: Codable, Sendable, Hashable, Identifiable {
-    case leaf(id: UUID, kind: PaneKind, scope: PaneScope)
+    case leaf(id: UUID, kind: PaneKind, scope: PaneScope, config: PaneConfig)
     case split(id: UUID, axis: SplitAxis, children: [PaneNode])
 
     var id: UUID {
         switch self {
-        case let .leaf(id, _, _): return id
+        case let .leaf(id, _, _, _): return id
         case let .split(id, _, _): return id
         }
     }
 
-    /// A fresh leaf pane of `kind`, following the current selection.
-    static func leaf(_ kind: PaneKind, scope: PaneScope = .current) -> PaneNode {
-        .leaf(id: UUID(), kind: kind, scope: scope)
+    /// A fresh leaf pane of `kind`, following the current selection, with no presentation
+    /// override (`config` all-nil) unless one is given.
+    static func leaf(_ kind: PaneKind, scope: PaneScope = .current, config: PaneConfig = .none) -> PaneNode {
+        .leaf(id: UUID(), kind: kind, scope: scope, config: config)
     }
 
     /// A split of `children` along `axis`.
@@ -81,7 +120,7 @@ indirect enum PaneNode: Codable, Sendable, Hashable, Identifiable {
     /// Every kind this node (recursively) contains.
     var kinds: Set<PaneKind> {
         switch self {
-        case let .leaf(_, kind, _): return [kind]
+        case let .leaf(_, kind, _, _): return [kind]
         case let .split(_, _, children): return children.reduce(into: []) { $0.formUnion($1.kinds) }
         }
     }
@@ -110,7 +149,7 @@ struct PaneList: Codable, Sendable, Hashable {
 
     /// Whether any TOP-LEVEL leaf of `kind` exists (what a kind toggle acts on).
     func containsTopLevelLeaf(of kind: PaneKind) -> Bool {
-        nodes.contains { if case let .leaf(_, leafKind, _) = $0 { return leafKind == kind }; return false }
+        nodes.contains { if case let .leaf(_, leafKind, _, _) = $0 { return leafKind == kind }; return false }
     }
 
     /// Toggle a top-level pane of `kind`: remove every top-level leaf of that kind
@@ -122,7 +161,7 @@ struct PaneList: Codable, Sendable, Hashable {
     func toggling(_ kind: PaneKind) -> PaneList {
         if containsTopLevelLeaf(of: kind) {
             let kept = nodes.filter {
-                if case let .leaf(_, leafKind, _) = $0 { return leafKind != kind }
+                if case let .leaf(_, leafKind, _, _) = $0 { return leafKind != kind }
                 return true
             }
             return PaneList(kept)
