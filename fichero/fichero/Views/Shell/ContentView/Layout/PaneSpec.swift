@@ -57,8 +57,14 @@ struct PaneSpec: Identifiable, Equatable {
     let kind: Kind
     /// Fixed width when a divider governs this pane; nil = flexible.
     var fixedWidth: CGFloat?
+    /// The pane's POSITION in the row. This is what makes the slot id — and therefore the split
+    /// @SceneStorage and the split-command routing key — per-INSTANCE instead of per-KIND. Before
+    /// this, `id == kind.rawValue`, so two panes of the same kind shared one split cell and one
+    /// broadcast match: splitting/closing one hit them all (spec CD 2026-09-15,
+    /// panes.split.focused-only). Position-scoping isolates each pane.
+    var slot: Int = 0
 
-    var id: String { kind.rawValue }
+    var id: String { "\(slot)-\(kind.rawValue)" }
 }
 
 /// Injected per pane SLOT so the head's kind icon can switch what the slot
@@ -115,23 +121,25 @@ extension ContentView {
         }
         let hasPreview = kinds.contains(.preview)
         let hasReading = kinds.contains(.reading)
-        return kinds.map { kind in
+        return kinds.enumerated().map { index, kind in
+            // `slot: index` gives each pane a position-unique id, so its split state and the
+            // split-command routing key are per-instance, not shared across same-kind panes.
             switch kind {
             case .library:
                 // list-only is full width; a fixed column only when a reading
                 // surface shares the row (#1516 / #2006).
                 let fixed: CGFloat? = (hasPreview || hasReading) ? clampedWidescreenContentPaneWidth : nil
-                return PaneSpec(kind: .library, fixedWidth: fixed)
+                return PaneSpec(kind: .library, fixedWidth: fixed, slot: index)
             case .preview:
-                return PaneSpec(kind: .preview, fixedWidth: nil)
+                return PaneSpec(kind: .preview, fixedWidth: nil, slot: index)
             case .reading:
                 // A width only when it rides after a preview; standalone = full.
-                return PaneSpec(kind: .reading, fixedWidth: hasPreview ? CGFloat(pageContentPaneWidth) : nil)
+                return PaneSpec(kind: .reading, fixedWidth: hasPreview ? CGFloat(pageContentPaneWidth) : nil, slot: index)
             case .inspector:
                 // Docks right, full height, flexible — no fixed column.
-                return PaneSpec(kind: .inspector, fixedWidth: nil)
+                return PaneSpec(kind: .inspector, fixedWidth: nil, slot: index)
             case .chat:
-                return PaneSpec(kind: .chat, fixedWidth: nil)  // not reached — chat is not in the list
+                return PaneSpec(kind: .chat, fixedWidth: nil, slot: index)  // not reached — chat is not in the list
             }
         }
     }

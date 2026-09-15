@@ -657,6 +657,10 @@ Creative director, running the app (the one-renderer + old split/close wiring st
   first-wave pinning test in the Test matrix, still unproven and now confirmed broken live.
 - `panes.close.this-pane-only` — **[BROKEN]** Closing a pane sometimes closes the **entire row**,
   not just that pane. Same root: close acts on a shared scope, not the focused pane instance.
+- `panes.head.consistent-minimal` — **[BROKEN]** Pane heads are constructed differently: the
+  Library and Reader heads draw a bottom divider LINE and a taller margin; the Preview head draws
+  none. Unify every pane to ONE head component in the **preview's minimal, line-less, tight style**
+  (Golden-Gate restraint) — vertical space is precious, less is more. No per-kind head chrome.
 - `panes.head.drag-to-rearrange` — **[GAP, requested]** Dragging a pane by the icon at the LEFT of
   its head (the kind/preview icon) should let the user move that pane elsewhere in the composition
   (reorder / re-nest). A direct-manipulation complement to the pane list. New.

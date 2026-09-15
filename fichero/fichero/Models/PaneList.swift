@@ -133,6 +133,38 @@ indirect enum PaneNode: Codable, Sendable, Hashable, Identifiable {
         case let .split(_, _, children): return children.reduce(0) { $0 + $1.leafCount }
         }
     }
+
+    /// This node with the leaf `id` removed, or nil if it empties (spec panes.close.this-pane-only).
+    /// A split left with ONE child collapses to that child (no orphan split); one that empties
+    /// returns nil. Every OTHER pane keeps its identity — the fix for "closing a pane closes the
+    /// whole row": removing one leaf leaves its siblings untouched.
+    func removingLeaf(_ target: UUID) -> PaneNode? {
+        switch self {
+        case let .leaf(id, _, _, _):
+            return id == target ? nil : self
+        case let .split(id, axis, children):
+            let kept = children.compactMap { $0.removingLeaf(target) }
+            if kept.isEmpty { return nil }
+            if kept.count == 1 { return kept[0] }
+            return .split(id: id, axis: axis, children: kept)
+        }
+    }
+
+    /// This node with the leaf `id` replaced by a split of [that leaf, a fresh duplicate] along
+    /// `axis` (spec panes.split.focused-only). Every OTHER pane is untouched — the fix for
+    /// "splitting one pane splits them all". A no-op if `id` isn't a leaf in this node.
+    func splittingLeaf(_ target: UUID, axis: SplitAxis) -> PaneNode {
+        switch self {
+        case let .leaf(id, kind, scope, config):
+            guard id == target else { return self }
+            return .split(axis, [
+                .leaf(id: id, kind: kind, scope: scope, config: config),
+                .leaf(kind, scope: scope, config: config)  // the duplicate gets a fresh id
+            ])
+        case let .split(id, axis: splitAxis, children):
+            return .split(id: id, axis: splitAxis, children: children.map { $0.splittingLeaf(target, axis: axis) })
+        }
+    }
 }
 
 /// A window's centre composition: an ordered list of top-level pane nodes
@@ -168,6 +200,20 @@ struct PaneList: Codable, Sendable, Hashable {
             return PaneList(kept)
         }
         return PaneList(nodes + [.leaf(kind)])
+    }
+
+    /// Remove the single pane with `id`, leaving every other pane and the split structure intact
+    /// (spec panes.close.this-pane-only). The per-instance close: closing one pane never drops its
+    /// siblings or collapses the row — a split that loses a child collapses to the survivor.
+    func removingLeaf(_ id: UUID) -> PaneList {
+        PaneList(nodes.compactMap { $0.removingLeaf(id) })
+    }
+
+    /// Split the single pane with `id` along `axis` — replace it with a split of [the pane, a fresh
+    /// duplicate] — leaving every OTHER pane untouched (spec panes.split.focused-only). The
+    /// per-instance split: splitting one pane never splits the others.
+    func splittingLeaf(_ id: UUID, axis: SplitAxis) -> PaneList {
+        PaneList(nodes.map { $0.splittingLeaf(id, axis: axis) })
     }
 
     /// The visible top-level panes derived from the window's visibility flags, in

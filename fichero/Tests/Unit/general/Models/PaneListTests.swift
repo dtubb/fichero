@@ -179,6 +179,63 @@ struct PaneListTests {
         #expect(bottom.kinds.contains(.preview))
     }
 
+    // MARK: - per-instance split / close (the isolation fix, spec CD 2026-09-15)
+
+    @Test("closing a pane removes ONLY that pane — its siblings survive (panes.close.this-pane-only)")
+    func closingKeepsSiblings() {
+        let paneA = UUID(); let paneB = UUID()
+        let list = PaneList([
+            .leaf(id: paneA, kind: .preview, scope: .current, config: .none),
+            .leaf(id: paneB, kind: .preview, scope: .current, config: .none)
+        ])
+        let after = list.removingLeaf(paneA)
+        #expect(after.nodes.count == 1)
+        #expect(after.nodes.first?.id == paneB)  // the other preview is untouched, not dropped
+    }
+
+    @Test("closing a pane in a split collapses to the survivor — the row does not disappear")
+    func closingCollapsesSingletonSplit() {
+        let lib = UUID(); let prev = UUID()
+        let list = PaneList([
+            .split(.vertical, [
+                .leaf(id: lib, kind: .library, scope: .current, config: .none),
+                .leaf(id: prev, kind: .preview, scope: .current, config: .none)
+            ])
+        ])
+        let after = list.removingLeaf(prev)
+        #expect(after.nodes.count == 1)
+        #expect(after.nodes.first?.id == lib)   // survivor promoted, whole row NOT closed
+        #expect(after.kinds == [.library])
+    }
+
+    @Test("splitting a pane splits ONLY that pane; the others are untouched (panes.split.focused-only)")
+    func splittingLeavesOthersUntouched() {
+        let paneA = UUID(); let paneB = UUID(); let paneC = UUID()
+        let list = PaneList([
+            .leaf(id: paneA, kind: .library, scope: .current, config: .none),
+            .leaf(id: paneB, kind: .preview, scope: .current, config: .none),
+            .leaf(id: paneC, kind: .reading, scope: .current, config: .none)
+        ])
+        let after = list.splittingLeaf(paneB, axis: .horizontal)
+        #expect(after.nodes.count == 3)
+        #expect(after.nodes[0].id == paneA)     // library untouched
+        #expect(after.nodes[2].id == paneC)     // reader untouched
+        guard case let .split(_, axis, children) = after.nodes[1] else {
+            Issue.record("the split target should now be a split"); return
+        }
+        #expect(axis == .horizontal)
+        #expect(children.count == 2)
+        #expect(children.allSatisfy { $0.kinds == [.preview] })
+        #expect(after.nodes.reduce(0) { $0 + $1.leafCount } == 4)  // exactly one more pane
+    }
+
+    @Test("removing or splitting an id that isn't present is a no-op")
+    func missingIdIsNoOp() {
+        let list = PaneList([.leaf(.library), .leaf(.preview)])
+        #expect(list.removingLeaf(UUID()).kinds == list.kinds)
+        #expect(list.splittingLeaf(UUID(), axis: .vertical).kinds == list.kinds)
+    }
+
     // MARK: - Codable (a saved workspace IS a PaneList)
 
     @Test("a pane list round-trips through JSON identically (workspace persistence)")
