@@ -80,6 +80,78 @@ of "the app's commands" that both surfaces consume, so consistency is manual and
 
 ---
 
+## Menu bar STRUCTURE — proposed 2026-09-15 (workflow-grounded, Apple HIG) — FOR CD REVIEW
+
+> CD: "The top-level menus don't seem enough — how it is now isn't clear. A user might be browsing,
+> reading, transcribing, updating data, exporting… Review the app and think through what should be
+> there." Reviewed against Apple's Menus & Actions HIG and the guide's workflow (Parts I–IX).
+
+**The problem isn't only that View is a junk drawer — it's that the menu bar doesn't mirror what the
+user DOES.** Today: `Fichero · File · Edit · View · Go · Data · Format`. "Data" is really "create
+things" (New Chat/Workflow/…), the reading/annotating/knowledge verbs are scattered in View, and
+there's no menu that reads like a stage of the work. Apple HIG: *organize items to reflect how people
+use the app; important items first; group logically; submenus sparingly (one level, ≤~5 items) and
+only when a term repeats.*
+
+**Proposed menu bar — top level maps to the WORKFLOW (READ → THINK → WRITE, EPIC #2108):**
+
+`Fichero · File · Edit · View · Go · Read · Knowledge · Window · Help`
+
+Two domain menus (**Read**, **Knowledge**) carry the archival workflow; the rest are the macOS
+standards, each cleaned to its true job. Title-case labels; verbs for actions; ellipsis where more
+input is needed; toggled items use one changeable label (Show/Hide); icons only where they clarify,
+uniform per group.
+
+- **File** — get sources in and out (Parts III, IX). New Library…, Open…, Open Recent ▸, Close
+  Library · New Window, Duplicate Window · **Import ▸** (Link/Copy/Move Files…, New Folder) · **Export
+  ▸** (Markdown…, Word…, BibTeX…, Markdown Static Site…) · Grant Folder Access… · Print…
+- **Edit** — change the selection. Undo/Redo · Cut/Copy/Paste · Delete · Select All · Rename · Find…
+  (the app's own search surfaces own ⌘F; keep the routed Select All / Undo from `MenuShortcutBoundaryTests`.)
+- **View** — how it LOOKS (Part V, appearance only). As Icons/List/Columns/Gallery (⌘1–4) · **Sort By
+  ▸** · **Preview ▸** (Side/Bottom/Hide, Representation) · Show/Hide Sidebar · Show/Hide Inspector
+  (⌘⌥I) · Panes ▸ · **Workspaces ▸** (⌘⌥1–6, Save…, Manage…) · Enter Full Screen. (Submenus, per the
+  ratified nesting.)
+- **Go** — move around. Back/Forward · Enclosing Folder · Reveal in Sidebar · recent locations.
+- **Read** — the reading & annotating surface (Parts IV, VI). **Reader Lens ▸** (Content, Translation,
+  Artifact…) · **Representation ▸** · **Annotate ▸** (markup tools, ruler) · **Extract ▸** (Run OCR,
+  Run NLP, Detect Language) · Zoom (In/Out/Actual Size/Fit) · **Magnifier ▸** (Loupe, panel) · Next/
+  Previous Page. Everything you do WHILE reading a source lives here, not scattered in View.
+- **Knowledge** — making & querying meaning (Parts VII, VIII; the AI/data workflow). New Claim, New
+  Entity · Knowledge Graph View · **Workflows ▸** (New Workflow/Chain/Comparison/Schedule/Trigger, Run
+  Workflow on Selection…) · **Chat ▸** (New Chat) · **Search ▸** (Search, Saved Searches). This is
+  today's "Data" menu, renamed and completed to read as the meaning-making stage — and its items are
+  the SAME shared `Focused*Button` components the toolbar "+" renders (no twin definitions).
+- **Window / Help** — standard.
+
+**Rationale (HIG):** every top-level menu is now a stage a user recognizes ("I'm reading" → Read;
+"I'm building claims / running workflows" → Knowledge; "I'm getting things in/out" → File). Repeated
+terms (Sort by…, Reader lens…, New …) collapse into submenus. Nothing is buried in a 12-section View.
+Two domain menus keep the bar short (HIG: be mindful of length) while covering the whole guide.
+
+**Alternatives to weigh:** (a) add a third domain menu **Organize** (Part V verbs: New Folder, Tag,
+Move, Group) if Read+Knowledge feel overloaded; (b) keep Import under a top-level **Sources** menu
+rather than File. Flagged for the CD.
+
+**Open (per CD): per-view filters + metadata** — each view mode has its own filters/metadata; do those
+get menu homes (e.g. View ▸ Filter ▸ per active view) or stay in-surface? Decide with this structure.
+
+### Tests against THIS spec (crucial — CD)
+
+The beachball lesson applies to menus: **test the design, not the code.** Each ruling above gets a
+spec test so a regression fails CI, not the CD by hand:
+- `menus.bar-structure` — a source/policy test (the `MenuShortcutBoundaryTests` shape) asserts the
+  menu bar declares exactly these top-level menus and that each named command lives in its ruled
+  home (e.g. Reader Lens under **Read**, New Workflow under **Knowledge**, Sort under **View ▸ Sort**),
+  NOT in a generic dump. Fails if a command drifts back to the wrong menu.
+- `menus.submenu-nesting` — asserts View composes its groups as `Menu` submenus (Workspaces/Sort/
+  Preview/Layout), not flat sections.
+- `menus.no-hand-rolled-duplicates` / `menus.data-and-plus-agree` (below) — the "+" and Knowledge
+  menu render the same shared components.
+- A behavior/XCUITest (the workspace-responsiveness pattern) opens each top-level menu and asserts it
+  presents its ruled items and stays responsive — the runtime check structural tests can't give.
+
+---
+
 ## Grounded in existing machinery (reviewed 2026-09-15) — build on this, do NOT invent a catalog
 
 A code + docs + tests + agent-work review shows the app **already has** the "one source, many
