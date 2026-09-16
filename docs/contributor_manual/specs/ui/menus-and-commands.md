@@ -18,6 +18,39 @@ Legend (as the panes spec): **[OK]** matches today · **[BROKEN]** code contradi
 
 ---
 
+## Changelog 2026-09-16 (dfa937946) — the first structural cut shipped
+
+A slice of this spec's proposed structure landed in the CD live-testing pass. **The spec Status stays
+DRAFT** — these are behavior markers, not a ratification:
+
+- **`Read` + `Knowledge` top-level menus** replace the old `CommandMenu("Data")`, so the menu bar reads
+  `Fichero · File · Edit · View · Go · Read · Knowledge · Window · Help` — the workflow-mapped bar.
+  (`ReadKnowledgeMenuCommands`, wired at `FicheroApp.swift` in the `after: .toolbar` region.)
+- **⌘F = Search** is the native library search field (`.searchable` owns ⌘F — **no menu twin**, so no
+  second owner of the chord).
+- **⌘⌥F = Find in Page** moved to the **Edit** menu (`ShowFindBarButton` in the `.textEditing` group),
+  beside the native ⌘F Search — two distinct finds where macOS users expect them. This also freed the
+  ⌘⌥F chord that was previously double-minted (the "Find in Artifact" twin), which is renamed
+  **Find in Page** on both sites.
+- **Enter Full Screen → ⌃⌘F** (was ⌘⌥F, at `ContentView+RootLayout.swift`) — the macOS-standard chord,
+  and it clears ⌘⌥F for Find in Page.
+- **Import + New Folder → File ▸ Import** (moved out of Knowledge; `FocusedNewFolderButton` +
+  `FocusedImportFilesButton` under a File `Menu("Import")`) — getting sources in/out is File's job.
+- **View submenus:** Reader Lens / Workflows / Chat / KG-view-mode compose as `Menu` flyouts (the
+  ratified nesting), not flat sections.
+- **Legacy "Layouts" preset section removed** from `WorkspaceCommandsSection` (the
+  `WindowLayoutPreset` pane-visibility presets that sat beside the workspaces) — a workspace IS the
+  layout ([[panes-magnifiers-workspaces]] `workspaces.one-system`).
+- **Shortcut-uniqueness is now ENFORCED** by `Tests/Unit/general/Views/Shell/MenuShortcutUniquenessTests.swift`
+  — it enumerates every ⌘⌥ chord the app mints and fails if two commands claim one (the ⌘⌥1→loupe and
+  double-minted ⌘⌥F defects). Complements the older `MenuShortcutBoundaryTests`.
+
+Still **[PROPOSED]** / unbuilt: the AddItemMenu/Data dedupe, the context-menu component reuse, and
+Sort/Workspaces re-homing. A **top-level** Workspaces menu (and top-level Find/Workflows menus) were
+**declined** — Workspaces stays a View submenu, Find lives in Edit.
+
+---
+
 ## Intent (the design)
 
 A command exists **once** and appears wherever it is useful — the menu bar (discovery, keyboard
@@ -96,6 +129,11 @@ only when a term repeats.*
 **Proposed menu bar — top level maps to the WORKFLOW (READ → THINK → WRITE, EPIC #2108):**
 
 `Fichero · File · Edit · View · Go · Read · Knowledge · Window · Help`
+
+> **[OK] SHIPPED (dfa937946, 2026-09-16):** this top-level bar is the live structure — `Read` and
+> `Knowledge` (`ReadKnowledgeMenuCommands`) replace the former `CommandMenu("Data")`. The remaining
+> per-menu item placements below are still the proposal; only the top-level bar and the
+> Import/Find/Full-Screen moves (see Changelog) have landed.
 
 Two domain menus (**Read**, **Knowledge**) carry the archival workflow; the rest are the macOS
 standards, each cleaned to its true job. Title-case labels; verbs for actions; ellipsis where more
@@ -264,10 +302,13 @@ either way (shared components), but scope of the cross-platform tests depends on
 - `menus.natural-home` — **[PROPOSED]** appearance/layout only under View; Sort and Workspaces are
   NOT in the View dump. *Test:* a source/policy assertion on which sections `ViewMenuCommands`
   composes (it must not compose `SortSection`/`WorkspaceCommandsSection` once re-homed).
-- `menus.shortcut-uniqueness` — **[PROPOSED]** no two commands share a key equivalent in one scope
-  (the ⌘⌥1–6 double-bind class the workspace consolidation hit). *Test:* EXTEND
-  `MenuShortcutBoundaryTests` — it already enforces single-owner ⌘Z and ⌘I/⌘F non-collision; add the
-  ⌘⌥‹digit› workspace slots.
+- `menus.shortcut-uniqueness` — **[OK]** (enforced 2026-09-16, dfa937946) no two commands share a key
+  equivalent in one scope (the ⌘⌥1→loupe and double-minted ⌘⌥F "Find in Artifact"/"Find in Page"
+  defects the workspace consolidation hit). *Enforced:*
+  `Tests/Unit/general/Views/Shell/MenuShortcutUniquenessTests.swift` enumerates every ⌘⌥ chord the app
+  mints — the workspace slots map to ⌘⌥1–5 in declaration order, all distinct, none is the loupe's
+  ⌘⌥L — and a source-scan fails if any ⌘⌥ literal chord is claimed by two commands. Complements the
+  older `MenuShortcutBoundaryTests` (single-owner ⌘Z, ⌘I/⌘F non-collision).
 - `menus.context-matches-bar` — **[PROPOSED]** a verb in both a context menu and the menu bar is the
   SAME component (same label/icon/shortcut/enablement). *Test:* the `SidebarContextMenuPolicyTests`
   pure-function shape — assert the context menu's verb list is drawn from the shared components.

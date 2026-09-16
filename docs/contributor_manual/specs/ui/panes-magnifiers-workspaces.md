@@ -13,6 +13,21 @@
 > model — the reliability fix is to *finish it* (one renderer, one vocabulary, a real pane
 > list, per-instance pane state), not to patch symptoms. See F1–F7.
 >
+> **Changelog 2026-09-16 (dfa937946, CD live-testing pass).** The always-a-`PaneList` step landed:
+> `activePaneList` now **SEEDS to Read**, so the F7 `PaneList` path is *always* the render path and the
+> legacy visibility-Bool fallback no longer renders. This closes the two-libraries / close-both /
+> split-both cluster at the root (they were the legacy path showing through a nil-defaulted `@State`).
+> Also shipped: the built-in set is now **five** (Read · Browse · Transcribe · Transcribe·Tall ·
+> Compare; ⌘⌥1–5 — Catalogue + Claims dropped, no separate Default Layout); the layout-recursion
+> crash is fixed (`WorkspaceSplitStack` GeometryReader + clamp + single per-child frame); the
+> Transcribe/Compare library strip is pinned to 72pt (`PaneConfig.paneExtent`); split-then-close-both
+> is fixed (PaneHead close-ladder reorder); the kind-switcher is wired on the applied path
+> (`PaneList.changingLeafKind` + `\.paneKindSwitcher`); `\.isSolePane` collapses a lone pane's head
+> close; pane heads are consistent liquid-glass (`PaneFilterBar.showsSeparator` default off, ChatView
+> Divider removed); and the loupe now requires Option to be the *sole* modifier (so ⌘⌥1 no longer
+> summons it). Pinned by `BuiltInWorkspaceLayoutTests`, `MenuShortcutUniquenessTests`,
+> `PaneInstanceIndependenceTests`. The spec Status stays DRAFT.
+>
 > This is an AREA spec for how a window is *composed* — the pane system that hosts every
 > view mode (source/preview, transcription/words, entities, claims, graph/canvas,
 > inspector). It sits above the per-mode specs (`kg-tables`, `kg-entity-inspector`,
@@ -289,12 +304,14 @@ the browse→read flow down the centre.
   no longer share one split cell. REMAINING: instance-precise focus (routing still targets the
   first pane of the focused kind) needs the stored pane list + per-instance focus. Pinned:
   `Tests/Unit/general/Models/PaneListTests.swift` ("splitting a pane splits ONLY that pane…").
-- `panes.close.this-pane-only` — **[PARTIAL]** closing a pane removes only that pane; its
-  siblings survive and a split that loses a child collapses to the survivor, not the whole
-  row. Model op done + tested (`PaneList.removingLeaf(id:)`); the VIEW still closes a
-  window-level kind Bool (`setPaneVisible`), so the row-collapse fix lands with the stored
-  pane list (next). Pinned: `Tests/Unit/general/Models/PaneListTests.swift` ("closing a pane
-  removes ONLY that pane…", "…collapses to the survivor — the row does not disappear").
+- `panes.close.this-pane-only` — **[OK]** (applied path always live 2026-09-16, dfa937946) closing a
+  pane removes only that pane; its siblings survive and a split that loses a child collapses to the
+  survivor, not the whole row. The VIEW now always renders the stored `PaneList` (seed = Read), so the
+  close routes through `\.paneCloseAction` → `removingLeaf(id:)` rather than the legacy `setPaneVisible`
+  Bool. Split-then-close-both is fixed by reordering the PaneHead close ladder so an active in-slot
+  split collapses by one before the leaf is removed. Pinned:
+  `Tests/Unit/general/Models/PaneListTests.swift` ("closing a pane removes ONLY that pane…",
+  "…collapses to the survivor — the row does not disappear") + `PaneInstanceIndependenceTests`.
 - `panes.split.independent-mode-per-pane` — **[BROKEN]** each pane holds its own view mode;
   changing one pane to Entities or Claims does not clear or convert the others. Today
   switching a pane's node-type to entity/claim in the entities view removes them from the
@@ -345,9 +362,13 @@ the browse→read flow down the centre.
 
 ### E. Default layout & chat placement
 
-- `panes.layout.mail-default` — **[GAP]** a fresh window opens in the Mail-style default:
-  sidebar+chat (left) · library-browser-top + reader(s)-bottom (centre horizontal split) ·
-  full-height source (right).
+- `panes.layout.mail-default` — **[PARTIAL]** (seed built 2026-09-16, dfa937946) a fresh window now
+  seeds a real built-in `PaneList` — `activePaneList` defaults to **Read** — so the window always
+  opens in a composed workspace via the F7 path (no more nil-defaulted legacy fallback). The specific
+  *Mail-style* composition below is **superseded as the seed by Read** (library+reader beside a
+  full-height preview); the sidebar+chat left column and full-height right source hold, but the exact
+  centre split described here is the Browse/Read arrangement, not a distinct "Mail" default. Pinned:
+  `BuiltInWorkspaceLayoutTests` (Read is the default; one library leaf over reader, beside preview).
 - `panes.chat.below-sidebar` — **[BROKEN]** the chat history and its input live in the left
   sidebar beneath the folder tree, in a collapsible split region; the input is attached to
   the chat history. Today the chat prompt sits at the bottom of the centre column, under the
@@ -543,26 +564,35 @@ A read-only code map found the workspace feature is **already LIVE**, not a stub
 - **Dead flags:** `ToolbarVisibilityPlan.showSplitMenu/showLayoutsMenu` (decode-only) and
   `LayoutMode.keyboardShortcut` (unbound metadata) — delete on the way through.
 
-## The best nine workspaces — v2 DESIGN 2026-09-15 (⌘⌥1–9)
+## The built-in workspaces — v2 SHIPPED 2026-09-16 (FIVE, ⌘⌥1–5)
 
 The v1 built-ins (shipped 41880cde9) only show/hide panes. The CD's brief (2026-09-15): make them
 **real compositions** — Mail-style and other genuinely useful arrangements grounded in who uses the
 app (an archivist browsing; a reader; a transcriber who wants the page image, its word boxes, and an
-editor at once; someone on a width-sensitive script who needs those stacked vertically; a cataloguer;
-a KG researcher; a collator). Each workspace is a `PaneList`. The sidebar (with chat beneath) is
-always present and is NOT a centre pane. `H[…]` is a horizontal row, `V[…]` a vertical stack.
+editor at once; someone on a width-sensitive script who needs those stacked vertically; a collator).
+Each workspace is a `PaneList`. The sidebar (with chat beneath) is always present and is NOT a centre
+pane. `H[…]` is a horizontal row, `V[…]` a vertical stack.
 
-| # | ⌘⌥ | Name | Composition | Persona |
-|---|---|---|---|---|
-| 1 | 1 | **Mail** | `H[ library(docs,list) · preview(image) ]` full-height source | browse + glance (default) |
-| 2 | 2 | **Read** | `H[ library(docs,list) · reading ]` | reader |
-| 3 | 3 | **Study** | `H[ library(docs,list) · preview(image) · reading ]` | close reader |
-| 4 | 4 | **Transcribe** | `H[ preview(image) · preview(words) · reading ]` | transcriber |
-| 5 | 5 | **Transcribe · Tall** | `V[ preview(image) · preview(words) · reading ]` | width-sensitive scripts |
-| 6 | 6 | **Compare** | `H[ preview(image)@A · preview(image)@B ]` | collation |
-| 7 | 7 | **Catalog** | `H[ library(docs,table) · preview(image) · inspector(source) ]` | cataloguer |
-| 8 | 8 | **Knowledge** | `H[ library(claims,table) · preview(image) · inspector(knowledge) ]` | KG research |
-| 9 | 9 | **Everything** | `H[ library · preview · reading · inspector ]` | all surfaces |
+**SHIPPED (dfa937946, CD live 2026-09-16): the built-in set is FIVE, ⌘⌥1–5.** `BuiltInWorkspaceLayout`
+enumerates exactly `read · browse · transcribe · transcribeTall · compare`. **Catalogue and Claims were
+dropped** (the cataloguer / KG-research personas), and there is **no separate "Default Layout"** — a
+fresh window seeds to **Read** (see the seed changelog below). Inspector is kept as an available
+add-on pane, not one of the five defaults. Pinned:
+`Tests/Unit/general/Views/Shell/BuiltInWorkspaceLayoutTests.swift`
+(`allCases.count == 5`; `compare.defaultSlot == 5`; Read composes exactly ONE library leaf;
+Transcribe·Tall is three-long).
+
+| # | ⌘⌥ | Name | Composition | Persona | Built |
+|---|---|---|---|---|---|
+| 1 | 1 | **Read** | `[ library(docs,table) · reading ]` beside `preview(image)` | reader (default seed) | **[OK]** |
+| 2 | 2 | **Browse** | `H[ library(docs,icons) · preview(image) · reading ]` | archivist browsing | **[OK]** |
+| 3 | 3 | **Transcribe** | `V[ H[ preview(image) · reading ] · library(icons strip) ]` | transcriber | **[OK]** |
+| 4 | 4 | **Transcribe · Tall** | `V[ H[ preview(image) · preview(words) · reading/editor ] · library(icons strip) ]` (three-long over strip) | width-sensitive scripts | **[OK]** |
+| 5 | 5 | **Compare** | `V[ H[ preview(image)@A · preview(image)@B · reading ] · library(icons strip) ]` | collation | **[OK]** |
+
+The removed Catalog / Knowledge / Everything workspaces (former #7–9) are **not built**; ⌘⌥6–9 are
+free for user-saved workspaces (the slot→workspace map). Their compositions above are retained only as
+design history for when the cataloguer / KG-research personas return.
 
 Grounded in the surface inventory (2026-09-15): `preview(words)` = the preview pane with the OCR
 word-box overlay on (`OCRGeometryOverlay`, today a global `imagePreview.inlineTextEnabled`);
@@ -654,8 +684,9 @@ systems for one job is the reliability root. This ruling closes it: there is exa
 and a **guardrail test** keeps the second from growing back.
 
 - `workspaces.one-system` — **[RATIFIED → enforced]** A workspace **is a `PaneList`** — built-in or
-  saved, there is one model. The built-in defaults are `BuiltInWorkspaceLayout` (the six v2
-  compositions, ⌘⌥1–6); user workspaces are saved `PaneList`s (⌘⌥7–9). The legacy
+  saved, there is one model. The built-in defaults are `BuiltInWorkspaceLayout` (**FIVE v2
+  compositions as of 2026-09-16, ⌘⌥1–5** — Read · Browse · Transcribe · Transcribe·Tall · Compare;
+  Catalogue + Claims dropped); user workspaces are saved `PaneList`s (⌘⌥6–9). The legacy
   `BuiltInWorkspace` enum and the `WindowLayoutPreset` "Layouts" presets are **deleted**, not
   hidden. *Enforced:* `BuiltInWorkspaceSystemTests.noLegacyWorkspaceSystem` — a source guardrail
   that greps the app target and fails if `BuiltInWorkspace`/`WindowLayoutPreset`/`applyBuiltIn`/
@@ -740,14 +771,18 @@ Creative director, running the app (the one-renderer + old split/close wiring st
   workspace now removes THAT leaf from the stored `PaneList` (`removingLeaf(id)`, which collapses a
   singleton split to its survivor and removes a top-level pane in one operation) — never the whole
   row. Wired through a `\.paneCloseAction` environment seam that `PaneHead`'s X prefers over the
-  legacy scope-shared close (commit ba575a64e; model pinned by PaneListTests). The legacy
-  visibility-Bool path is unchanged and retires with the always-a-PaneList step. The **split** button
-  in an applied workspace still routes through the SplittablePane mechanism, not
-  `PaneList.splittingLeaf` — wiring that symmetrically is the next close/split increment.
-- `panes.head.consistent-minimal` — **[BROKEN]** Pane heads are constructed differently: the
-  Library and Reader heads draw a bottom divider LINE and a taller margin; the Preview head draws
-  none. Unify every pane to ONE head component in the **preview's minimal, line-less, tight style**
-  (Golden-Gate restraint) — vertical space is precious, less is more. No per-kind head chrome.
+  legacy scope-shared close (commit ba575a64e; model pinned by PaneListTests). **UPDATE 2026-09-16
+  (dfa937946): the always-a-`PaneList` step landed — `activePaneList` seeds to Read, so the window is
+  always the stored `PaneList` and the legacy visibility-Bool path no longer renders.** Split-then-
+  close-both is also fixed (the PaneHead close-ladder now collapses an active in-slot split by one
+  before removing the whole leaf). The **split** button in an applied workspace still routes through
+  the SplittablePane mechanism, not `PaneList.splittingLeaf` — wiring that symmetrically is the next
+  close/split increment.
+- `panes.head.consistent-minimal` — **[OK]** (fixed 2026-09-16, dfa937946) every pane head is now the
+  same consistent liquid-glass style with no per-kind chrome: `PaneFilterBar.showsSeparator` defaults
+  OFF (no Library/Reader hairline), and the ChatView standalone `Divider` was removed. `\.isSolePane`
+  additionally collapses the head's close control when a pane is the only one. (The preview's minimal,
+  line-less, tight style is now the shared one — Golden-Gate restraint.)
 - `panes.head.drag-to-rearrange` — **[GAP, requested]** Dragging a pane by the icon at the LEFT of
   its head (the kind/preview icon) should let the user move that pane elsewhere in the composition
   (reorder / re-nest). A direct-manipulation complement to the pane list. New.
@@ -775,6 +810,12 @@ Creative director, running the app (the one-renderer + old split/close wiring st
   inherited-secondary flag into every `splitPane` (`isSecondary || inheritedSecondary`), keeping a
   duplicate leaf's whole subtree secondary. Without this the flag never reached the publishers and the
   loop returned. Runtime-confirm with a ⌘R on Compare (env propagation isn't unit-testable).
+  **Layout-recursion crash also fixed (2026-09-16, dfa937946):** `WorkspaceSplitStack` stacked a
+  `frame(width: fixed)` + `frame(maxHeight: .infinity)`, feeding an unbounded proposal into nested
+  AppKit panes → infinite `_layoutSubtree` recursion. Rewritten with `GeometryReader` + clamp + a
+  single per-child frame. The Transcribe/Compare library strip is pinned to 72pt via
+  `PaneConfig.paneExtent` while content flexes. Pinned by `PaneInstanceIndependenceTests` +
+  `BuiltInWorkspaceLayoutTests` (film-strip pin).
 
 **Testing this class (design-led answer, "why can a test do these"):** the fault is a **Scene-level
 focused-value collision**, and where it lives dictates the test:
@@ -815,9 +856,10 @@ and is why the per-instance split/close fix matters for BOTH surfaces at once.
 
 `WorkspaceLayoutPreview` (`fichero/fichero/Views/Shell/WindowLayout/WorkspaceLayoutPreview.swift`,
 `#if DEBUG`) renders every `BuiltInWorkspaceLayout` as a labelled mini window from the real
-`PaneList` data — the fast, no-boot canvas surface for verifying and screenshotting the six
-compositions (spec template §"Preview harness"). Its `#Preview` "Workspaces — the six defaults"
-is the source for the manuals' workspace screenshots.
+`PaneList` data — the fast, no-boot canvas surface for verifying and screenshotting the built-in
+compositions (spec template §"Preview harness"). Its `#Preview` "Workspaces — the defaults"
+is the source for the manuals' workspace screenshots. (As of 2026-09-16 the built-in set is FIVE,
+⌘⌥1–5.)
 
 ## Cross-references
 

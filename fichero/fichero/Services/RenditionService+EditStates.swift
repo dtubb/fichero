@@ -95,8 +95,20 @@ extension DocumentRendition {
     }
 
     /// Ops that re-frame the image, so a box normalised to the node's frame no
-    /// longer lands where it did.
-    static let frameChangingOps: Set<String> = ["crop", "rotate", "straighten"]
+    /// longer lands where it did. This MUST mirror every pixel-moving op the engine
+    /// defines (`fichero-server/.../ingest/image_editing.py`): if one is missing,
+    /// an edited page built from only that op computes `hasOwnFrame: false`, the
+    /// overlay frame-gate opens, and highlights / region boxes / OCR readings all
+    /// draw over re-framed pixels — "the boxes end up in the wrong spot" (CD
+    /// 2026-09-16). Flips and auto-crop were missing; a flip mirrors x→1−x−w so
+    /// edge words are maximally wrong while centred ones look fine.
+    /// TODO: make the ENGINE stamp `frame_status` per rendition and read that one
+    /// field instead of hand-maintaining this list (spec reader-overlay-frame-identity).
+    static let frameChangingOps: Set<String> = [
+        "crop", "auto_crop_border",
+        "rotate", "straighten",
+        "flip_horizontal", "flip_vertical"
+    ]
 }
 
 extension RenditionService {

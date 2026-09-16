@@ -61,6 +61,30 @@ struct RenditionEditStatesTests {
         #expect(edited(["crop"]).hasOwnFrame)
         #expect(edited(["enhance", "rotate"]).hasOwnFrame)
         #expect(edited(["straighten"]).hasOwnFrame)
+        // Flips and auto-crop ALSO move pixels (CD 2026-09-16: "highlights/boxes/readings end up
+        // in the wrong spot"). They were MISSING from `frameChangingOps`, so an edited page built
+        // only from them computed hasOwnFrame:false → the overlay frame-gate opened → all three
+        // overlays drew over mirrored/cropped pixels. A flip mirrors x→1−x−w, so edge words are
+        // maximally wrong while centred ones look fine. These pin the engine's full reframing set.
+        #expect(edited(["flip_horizontal"]).hasOwnFrame)
+        #expect(edited(["flip_vertical"]).hasOwnFrame)
+        #expect(edited(["auto_crop_border"]).hasOwnFrame)
+        #expect(edited(["enhance", "flip_horizontal"]).hasOwnFrame)
+    }
+
+    @Test("frameChangingOps mirrors the engine's pixel-moving ops (a missing one misplaces overlays)")
+    func frameChangingOpsCoversEngineReframingSet() {
+        // The client list MUST include every engine op that re-frames the image
+        // (fichero-server/.../ingest/image_editing.py). If the engine adds a reframing op and this
+        // set isn't updated, overlays silently misplace on pages edited with it — the exact 2026-09-16
+        // regression. Enhance-family ops (same frame) must NOT be here.
+        let reframing = ["crop", "auto_crop_border", "rotate", "straighten", "flip_horizontal", "flip_vertical"]
+        for op in reframing {
+            #expect(DocumentRendition.frameChangingOps.contains(op), "\(op) re-frames but isn't gated")
+        }
+        for safe in ["enhance", "grayscale", "denoise", "remove_background", "adaptive_binarize"] {
+            #expect(!DocumentRendition.frameChangingOps.contains(safe), "\(safe) keeps the frame — don't gate it")
+        }
     }
 
     @Test("edit-state ids name their state and their document")
