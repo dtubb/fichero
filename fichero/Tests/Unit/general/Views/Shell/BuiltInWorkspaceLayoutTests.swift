@@ -29,10 +29,19 @@ struct BuiltInWorkspaceLayoutTests {
         #expect(BuiltInWorkspaceLayout.read.defaultSlot == 1)
     }
 
-    @Test("Read is three columns — library, preview, reader")
-    func readIsThreeColumns() {
+    @Test("Read is the default: library over reader, beside the preview")
+    func readIsLibraryOverReaderBesidePreview() {
+        // CD 2026-09-16: 1 library above 1 reader (a vertical split), beside 1 preview.
+        let nodes = BuiltInWorkspaceLayout.read.panes.nodes
+        #expect(nodes.count == 2)
+        guard case let .split(_, axis, children) = nodes.first else {
+            Issue.record("Read should open with a vertical split (library over reader)"); return
+        }
+        #expect(axis == .vertical)
+        #expect(children.map(\.kinds) == [[.library], [.reading]])
+        // The preview is the second top-level column.
+        #expect(nodes.last?.kinds == [.preview])
         #expect(BuiltInWorkspaceLayout.read.panes.kinds == [.library, .preview, .reading])
-        #expect(BuiltInWorkspaceLayout.read.panes.nodes.count == 3)
     }
 
     @Test("Browse nests a column-browser over a reader, beside the page")

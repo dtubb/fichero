@@ -67,10 +67,15 @@ enum BuiltInWorkspaceLayout: String, CaseIterable, Identifiable, Sendable {
     var panes: PaneList {
         switch self {
         case .read:
+            // The default (CD 2026-09-16): 1 library above 1 reader, beside 1 preview — a left
+            // column of library-over-reader, the page on the right. Single instances of each kind,
+            // so it's inherently instance-safe.
             return PaneList([
-                .leaf(.library, config: PaneConfig(libraryLayout: "list")),
-                .leaf(.preview),
-                .leaf(.reading)
+                .split(.vertical, [
+                    .leaf(.library, config: PaneConfig(libraryLayout: "list")),
+                    .leaf(.reading)
+                ]),
+                .leaf(.preview)
             ])
         case .browse:
             return PaneList([

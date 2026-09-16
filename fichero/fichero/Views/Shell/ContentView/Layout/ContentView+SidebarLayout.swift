@@ -214,10 +214,13 @@ extension ContentView {
             // render the stored pane list directly, bypassing the legacy visibility-Bool path.
             // Close/split will mutate `activePaneList` by leaf id (pane-scoped). `nil` falls through
             // to the unchanged default below.
-            Group {
-                paneListRow(applied)
-            }
-            .animation(.easeInOut(duration: 0.18), value: applied)
+            //
+            // NO `.animation(value: applied)` here (crash fix 2026-09-16): animating a whole
+            // pane-composition swap ran the transition inside an NSAnimationContext layout pass, and
+            // resolving a pane-head menu item's SF Symbol through CUICatalog mid-animation crashed
+            // (-[NSCache objectForKey:] in CUICatalog, the ⌘⌥4 Compare crash the CD reported).
+            // Switching workspaces is an instant composition change, not an animated one.
+            paneListRow(applied)
         } else {
             // ONE rendering path (spec §F7, RATIFIED 2026-09-13/14). The centre is
             // a `PaneList` — derived per mode by `PaneList.forLayout` (pure, unit-
