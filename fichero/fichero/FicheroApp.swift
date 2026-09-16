@@ -494,40 +494,14 @@ struct FicheroApp: App {
             // replacement that keeps the system sidebar items suppressed.
             GoMenuCommands()
 
-            // Data menu — declared after View, before Format
-            CommandMenu("Data") {
-                FocusedNewFolderButton()
-
-                FocusedImportFilesButton()
-
-                if featureManager.isChatEnabled
-                    || featureManager.isWorkflowsEnabled {
-                    Divider()
-                }
-
-                if featureManager.isChatEnabled {
-                    FocusedNewChatButton()
-                }
-
-                if featureManager.isWorkflowsEnabled {
-                    FocusedNewWorkflowButton()
-                }
-
-                if featureManager.allFeaturesEffectivelyEnabled {
-                    FocusedNewComparisonButton()
-                    FocusedNewChainButton()
-                }
-
-                if featureManager.isAutomationEnabled {
-                    Divider()
-                    FocusedNewScheduleButton()
-                }
-
-                if featureManager.isWorkflowRunOnSelectionEnabled {
-                    Divider()
-                    FocusedRunWorkflowOnSelectionButton()
-                }
-            }
+            // Read + Knowledge menus — declared after View/Go, before Format
+            // (menus-and-commands spec: `… View · Go · Read · Knowledge · …`).
+            // The former `CommandMenu("Data")` is renamed to Knowledge and its
+            // verbs organized into Workflows ▸ / Chat ▸ flyouts; the reading
+            // verbs (Reader Lens, Zoom) move out of View into Read. Composed as
+            // ONE CommandsBuilder element so this stays under the 10-entry
+            // arity cap (#3347), same as GoMenuCommands / FormatMenuCommands.
+            ReadKnowledgeMenuCommands()
 
             // One CommandsBuilder element (arity limit): Format's system
             // commands + Show Ruler, which lives in Format not View (#4121

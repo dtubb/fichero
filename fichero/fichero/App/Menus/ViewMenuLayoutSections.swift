@@ -30,7 +30,9 @@ struct LibraryLayoutSection: View {
 
     var body: some View {
         if shouldShowViewOptions {
-            Section("View") {
+            // No inner title: the parent flyout is already "View ▸ Layout ▸",
+            // so a "View"/"Layout" header here would read redundantly.
+            Section {
                 if availableLayouts.contains(.icons) {
                     LibraryLayoutButton(
                         layout: .icons,
@@ -155,7 +157,9 @@ struct SortSection: View {
 
     var body: some View {
         if shouldShow {
-            Section("Sort By") {
+            // No inner title: the parent flyout is "View ▸ Sort ▸", so a
+            // "Sort By" header here would read as "Sort ▸ Sort By".
+            Section {
                 // The focused value carries the search context now, so this
                 // menu offers Relevance exactly when the toolbar's does — and
                 // never over a browsed folder, where it would name a ranking
@@ -241,7 +245,9 @@ struct PreviewModeSection: View {
             // AND "Show Side"/"Show Bottom" — a live collision. ⌃⌘ is the pane
             // family (the inspector toggle is ⌃⌘I); sidebar MODES take ⌃⌘
             // NUMBERS, so ⌃⌘ letters here don't collide with those either.
-            Section("Preview") {
+            // No inner title: the parent flyout is "View ▸ Preview ▸", so a
+            // "Preview" header here would read as "Preview ▸ Preview".
+            Section {
                 if availablePreviewModes.contains(.widescreen) {
                     PreviewModeButton(
                         mode: .widescreen,

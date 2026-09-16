@@ -15,7 +15,9 @@ struct ReaderLensSection: View {
     @FocusedValue(\.readerLens) private var readerLens
 
     var body: some View {
-        Section("Reader") {
+        // No inner title: this renders inside the "Read ▸ Reader Lens ▸"
+        // flyout, so a "Reader" header here would read redundantly.
+        Section {
             ForEach(ReaderLens.allCases) { lens in
                 Button {
                     readerLens?.set(lens)

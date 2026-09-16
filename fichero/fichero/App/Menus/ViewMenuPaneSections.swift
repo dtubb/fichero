@@ -112,7 +112,11 @@ struct WorkspaceCommandsSection: View {
     }
 
     var body: some View {
-        Section("Workspaces") {
+        // No inner title: the parent flyout is "View ▸ Workspaces ▸", so a
+        // "Workspaces" header here would read as "Workspaces ▸ Workspaces".
+        // The "Layouts" section below keeps its title — it distinguishes the
+        // pane-visibility presets from the workspaces above.
+        Section {
             // The v2 workspaces are the ONE built-in system (spec workspaces.one-system): real 2D
             // PaneList compositions, applied to the focused window's `activePaneList` via the
             // command bus. ⌘⌥1–6 switch between them. (The legacy `BuiltInWorkspace` show/hide

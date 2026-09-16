@@ -59,43 +59,46 @@ struct ViewMenuCommands: View {
     @Environment(ViewSettings.self) var viewSettings
 
     var body: some View {
+        // RATIFIED 2026-09-15 (CD): the View menu's groups are SUBMENUS, not a
+        // stack of ~12 flat sections. Opening View now shows a short list —
+        // Layout ▸ / Sort ▸ / Preview ▸ / Workspaces ▸ plus the top-level
+        // Sidebar / Inspector / Pane toggles — instead of a junk drawer. The
+        // ⌘1–6 / ⌘⌥1–6 / ⌃⌘I shortcuts live on the LEAF items inside the
+        // submenus, so muscle memory is unchanged. Reading/annotating verbs
+        // (Reader Lens, Zoom/Magnifier) moved to the Read menu and the KG
+        // view-mode switcher moved to the Knowledge menu (menus-and-commands
+        // spec); this menu is appearance & layout only now.
         SidebarModeSection()
 
         Divider()
 
-        LibraryLayoutSection(viewSettings: viewSettings)
+        Menu("Layout") {
+            LibraryLayoutSection(viewSettings: viewSettings)
+        }
 
-        Divider()
+        Menu("Sort") {
+            SortSection()
+        }
 
-        SortSection()
-
-        Divider()
-
-        PreviewModeSection(viewSettings: viewSettings)
-
-        Divider()
-
-        RepresentationSection()
-
-        KnowledgeGraphViewModeSection()
-
-        Divider()
-
-        ImagePreviewMenuCommands()
+        Menu("Preview") {
+            PreviewModeSection(viewSettings: viewSettings)
+            RepresentationSection()
+        }
 
         Divider()
 
         InspectorButton()
-
-        ReaderLensSection()
 
         CanvasViewSection()
 
         PaneVisibilitySection()
 
         // Workspaces + layout presets (Daniel, 2026-08-29): the menu-bar
-        // twins of the toolbar's Workspaces and Views-chooser buttons.
-        WorkspaceCommandsSection()
+        // twins of the toolbar's Workspaces and Views-chooser buttons — now a
+        // flyout (RATIFIED: "Workspaces ▸ …", not inline).
+        Menu("Workspaces") {
+            WorkspaceCommandsSection()
+        }
 
         Divider()
 
