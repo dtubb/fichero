@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+## 2026-09-15
+
+**Workspaces — one built-in system.** The six v2 `BuiltInWorkspaceLayout` compositions (Read/Browse/
+Transcribe/Compare/Catalogue/Claims) are now the only built-in workspaces, switched by ⌘⌥1–6 via a
+new `applyWorkspaceLayout` command-bus verb; the legacy `BuiltInWorkspace` show/hide presets and
+`WindowLayoutPreset` menu lists were removed. A source guardrail (`WorkspaceSystemBoundaryTests`)
+keeps the second system from growing back.
+
+**Multi-pane instance-safety (the Compare beachball).** Two same-kind panes in one window looped on
+duplicate window-scoped `focusedSceneValue` publishers and shared library state. Fixed:
+`PaneList.secondaryLeafIDs()` + `\.isSecondarySplitPane` gate the library/reader/image publishers and
+`runWorkflowOnSelection`; `SplittablePane` inherits the secondary flag so it reaches the publishers.
+Compare ships as page+reader witnesses for now (the two-library nav returns once the library pane's
+store-mutating lifecycle is gated per-instance — root-caused, tracked).
+
+**Close-pane.** In an applied workspace the pane-head ✕ removes just that leaf (`\.paneCloseAction` →
+`PaneList.removingLeaf`), not the whole row.
+
+**Model-selector spine (increment 1).** Extracted a shared model row + a pure list-builder
+(`SharedModelListBuilder`, 13 spec tests) toward one picker across the island / workflow bar /
+Settings.
+
+**Design-lead tests + specs.** New spec-behavior + accessibility UITests apply each workspace and
+assert responsiveness (would have caught the beachball) + per-kind pane a11y identifiers. Specs
+ratified: PaneList is the one split model; View reorganizes into submenus with Read/Knowledge domain
+menus (proposed, HIG-reviewed); model-selector shared spine; iPad/Mac/iOS first-class.
+
 ## 2026-09-12
 
 **New — Documentation overhaul.** The contributor manual, reference manual, and user guide now live in organized subdirectories with clear handoffs between them. Specifications are grouped by area (harness, testing, KG, transport, UI, docs) for easier navigation.

@@ -2,6 +2,20 @@
 
 *Full commit-level history, day by day, lives in [`CHANGELOG.md`](CHANGELOG.md).*
 
+## 2026.09.15
+
+**Workspaces, one system.** The window's layouts are now a single, coherent set of six
+workspaces — Read, Browse, Transcribe, Compare, Catalogue, and Claims — each a real two-dimensional
+arrangement of panes, and each switchable from the keyboard with ⌘⌥1 through ⌘⌥6 (or the Workspaces
+menu). The old, overlapping "show/hide" presets are gone; there's one way to arrange the window now.
+
+**The Compare workspace no longer freezes.** Opening two documents side by side used to spin the
+beachball; that whole class of multi-pane hang is fixed, and closing a pane now closes just that
+pane instead of the whole column.
+
+Under the hood this release adds a suite of tests that *apply* each workspace and check the app stays
+responsive — so this kind of freeze gets caught automatically from now on, rather than in use.
+
 ## 2026.09.08
 
 Two builds in one day. An earlier rebuild fixed a packaging regression —
