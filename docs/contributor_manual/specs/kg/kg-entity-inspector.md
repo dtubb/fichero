@@ -6,9 +6,15 @@
 > docstring.
 > Status: APPROVED (option a). F2+F3+F5 landed (eb5b868c6, 7ee417fbc, 1eb9b9557).
 > Spec-audit 2026-09-13 retagged stale [BROKEN] lines to [OK] + added test citations.
-> Remaining TEST GAPS (code landed, no pinning test): F3 `statements.loads-via-store` +
-> `resyncs-on-change`; also uncited/untested: `select.routes-to-entities-tab`,
-> `select.never-another-entity`, `rekey.on-focus-change`, `xsurface.same-line`.
+> TEST GAPS now pinned (2026-09-16) in
+> `Tests/Unit/general/Views/Inspector/EntityInspectorPinningTests.swift`:
+> F3 `statements.loads-via-store` (`entityLoadRoutesThroughStoreScope` +
+> `digestLoadsViaClaimStore`) + `statements.resyncs-on-change`
+> (`digestObservesChangeToken` + `storeExposesChangeToken`);
+> `select.routes-to-entities-tab` (`focusRoutesToEntitiesTab`);
+> `select.never-another-entity` + `rekey.on-focus-change`
+> (`entityArmRekeysAndClearsOnFocusChange` + `digestStatementsRekeyOnEntity`);
+> `xsurface.same-line` (`sameLineAcrossSurfaces` + `surfacesRouteThroughOneComposer`).
 > Field-based builder migration is a follow-up.
 >
 > Tags: **[OK]** behaves this way today · **[BROKEN]** regression, code contradicts
@@ -49,18 +55,21 @@ Surfaces: `DocumentInspector` (+`Sections`), `DocumentInspectorEntitiesTab`
 - `kg.entity.select.routes-to-entities-tab` — [OK] when a document IS shown, focusing
   an entity switches the inspector to the Entities tab and selects that entity's row
   in the list. (`DocumentInspector.swift:98-102`, `syncSelectionToFocusedEntity`)
+  Pinned: `EntityInspectorPinningTests.focusRoutesToEntitiesTab`.
 - `kg.entity.select.never-another-entity` — the entity pane shows the focused entity,
   or the empty state — never the previous entity's statements under a new header
-  (the #965 class). Pinned by re-keying (section D).
+  (the #965 class). Pinned by re-keying (section D):
+  `EntityInspectorPinningTests.entityArmRekeysAndClearsOnFocusChange`.
 
 ### B. Statements list
 
-- `kg.entity.statements.loads-via-store` — **[OK-code, TEST GAP]** (F3 code landed,
-  7ee417fbc) the entity's claims are fetched through `ClaimStore.loadClaims(forEntity:)`
-  (the observable data layer), not a direct `entityService.listClaims` call from the
-  view. NO pinning test verifies this yet — the nearest, `KnowledgeGraphInspectorSectionTests.testOntologyBrowserEntityClaimsRouteThroughClaimStore`,
-  is a source-scrape over a DIFFERENT file (`OntologyBrowser+Detail.swift`). Needs a
-  behavior test on `EntityDigestContent`'s load path.
+- `kg.entity.statements.loads-via-store` — **[OK]** (F3 code landed,
+  7ee417fbc; pinned 2026-09-16) the entity's claims are fetched through
+  `ClaimStore.loadClaims(forEntity:)` (the observable data layer), not a direct
+  `entityService.listClaims` call from the view. Pinned:
+  `EntityInspectorPinningTests.entityLoadRoutesThroughStoreScope` (the store owns
+  the entity scope) + `.digestLoadsViaClaimStore` (the digest prefers the store,
+  keeping the direct fetch only as the no-store fallback).
 - `kg.entity.statements.subject-or-object` — [OK-backend] the list contains every
   claim where the entity is subject OR object (`GET /api/claims?entity_id=…`), not
   only claims where it is the subject.
@@ -73,11 +82,13 @@ Surfaces: `DocumentInspector` (+`Sections`), `DocumentInspectorEntitiesTab`
   when the document cannot be resolved; never an empty badge.
 - `kg.entity.statements.sorted-newest-first` — [OK-ontology] rows are ordered
   newest-first (`createdAt` descending), matching the ontology detail panel.
-- `kg.entity.statements.resyncs-on-change` — **[OK-code, TEST GAP]** (F3 code landed,
-  7ee417fbc) the list refreshes when any claim mutates anywhere (`ClaimStore.changeToken`),
-  so an edit, merge, delete or curation change on another surface is visible here without
-  reselecting. NO `changeToken`-observer behavior test for `EntityDigestContent` exists
-  yet — pinning test needed.
+- `kg.entity.statements.resyncs-on-change` — **[OK]** (F3 code landed,
+  7ee417fbc; pinned 2026-09-16) the list refreshes when any claim mutates anywhere
+  (`ClaimStore.changeToken`), so an edit, merge, delete or curation change on another
+  surface is visible here without reselecting. Pinned:
+  `EntityInspectorPinningTests.digestObservesChangeToken` (the digest re-loads on a
+  token bump) + `.storeExposesChangeToken`; the token movement itself is pinned by
+  `ClaimChangeDeliveryTests`.
 - `kg.entity.statements.loading-state` — while claims load, a progress indicator
   shows and no stale list from a previous entity is visible.
 
@@ -118,7 +129,9 @@ Surfaces: `DocumentInspector` (+`Sections`), `DocumentInspectorEntitiesTab`
   retry; it does not fall back to a stale list.
 - `kg.entity.rekey.on-focus-change` — the statements view is keyed on
   `focusedEntityId` (`.task(id:)`), so changing focus re-fetches and the list
-  belongs to the new entity; the old list is dropped, not appended.
+  belongs to the new entity; the old list is dropped, not appended. Pinned:
+  `EntityInspectorPinningTests.entityArmRekeysAndClearsOnFocusChange` +
+  `.digestStatementsRekeyOnEntity`.
 - `kg.entity.rekey.clear-focus-clears-pane` — when focus clears (`KGFocusState.clear`,
   selection emptied) the entity pane goes away and the inspector returns to its
   document (or the ordinary empty state).
@@ -128,7 +141,9 @@ Surfaces: `DocumentInspector` (+`Sections`), `DocumentInspectorEntitiesTab`
 - `kg.entity.xsurface.same-line` — the same claim renders the same statement line in
   the inspector entity pane, the ontology `ClaimSummaryCard`, and the entity digest:
   one composer (`ClaimSummaryCard.svoTriple` + `ClaimLine.text`), tested once as an
-  invariant over a fixture claim set, not per surface.
+  invariant over a fixture claim set, not per surface. Pinned:
+  `EntityInspectorPinningTests.sameLineAcrossSurfaces` (composer invariant) +
+  `.surfacesRouteThroughOneComposer` (no surface hand-rolls its own).
 - `kg.entity.xsurface.same-anchor` — **[OK]** the same claim yields an identical
   `ClaimSourceNavigationRequest` (document, page, span/bbox, precision) from every
   surface — the one-builder line above, asserted as an invariant. Pinned:

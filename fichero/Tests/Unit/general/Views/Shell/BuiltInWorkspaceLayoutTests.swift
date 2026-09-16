@@ -92,8 +92,7 @@ struct BuiltInWorkspaceLayoutTests {
         let libraryLeaves = allLeaves(BuiltInWorkspaceLayout.read.panes).filter { $0.kind == .library }
         #expect(
             libraryLeaves.count == 1,
-            "Read composes \(libraryLeaves.count) library panes — the spec is exactly one (two "
-            + "libraries in one window is the reported bug)."
+            "Read composes \(libraryLeaves.count) library panes — the spec is exactly one (two libraries in one window is the reported bug)."
         )
     }
 

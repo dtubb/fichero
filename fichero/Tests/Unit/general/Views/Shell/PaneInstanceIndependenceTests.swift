@@ -37,8 +37,7 @@ struct PaneInstanceIndependenceTests {
             let ids = allLeafIDs(layout.panes).map(\.id)
             #expect(
                 Set(ids).count == ids.count,
-                "\(layout.title) has \(ids.count) leaves but \(Set(ids).count) distinct ids — "
-                + "panes share identity, so one close/split would target all of them."
+                "\(layout.title) has \(ids.count) leaves but \(Set(ids).count) distinct ids — panes share identity, so one close/split would target all of them."
             )
         }
     }
@@ -54,8 +53,7 @@ struct PaneInstanceIndependenceTests {
                 let after = allLeafIDs(panes.removingLeaf(target.id))
                 #expect(
                     after.count == leaves.count - 1,
-                    "\(layout.title): closing one pane changed the count by "
-                    + "\(leaves.count - after.count), not 1 — it closed more than the target."
+                    "\(layout.title): closing one pane changed the count by \(leaves.count - after.count), not 1 — it closed more than the target."
                 )
                 #expect(
                     !after.contains { $0.id == target.id },
@@ -65,8 +63,7 @@ struct PaneInstanceIndependenceTests {
                 for sibling in leaves where sibling.id != target.id {
                     #expect(
                         survivingIDs.contains(sibling.id),
-                        "\(layout.title): closing the \(target.kind) pane also dropped a \(sibling.kind) "
-                        + "sibling — the 'close both' bug."
+                        "\(layout.title): closing the \(target.kind) pane also dropped a \(sibling.kind) sibling — the 'close both' bug."
                     )
                 }
             }
@@ -85,16 +82,14 @@ struct PaneInstanceIndependenceTests {
                 // A split replaces the target leaf with [target, one fresh duplicate] → +1 leaf.
                 #expect(
                     after.count == leaves.count + 1,
-                    "\(layout.title): splitting one pane changed the count by "
-                    + "\(after.count - leaves.count), not 1 — it split more than the target."
+                    "\(layout.title): splitting one pane changed the count by \(after.count - leaves.count), not 1 — it split more than the target."
                 )
                 // Every ORIGINAL leaf id survives (the target keeps its identity; siblings untouched).
                 let afterIDs = Set(after.map(\.id))
                 for original in leaves {
                     #expect(
                         afterIDs.contains(original.id),
-                        "\(layout.title): splitting the \(target.kind) pane disturbed the "
-                        + "\(original.kind) pane's identity — the 'split both' bug."
+                        "\(layout.title): splitting the \(target.kind) pane disturbed the \(original.kind) pane's identity — the 'split both' bug."
                     )
                 }
                 // Exactly one NEW id was introduced (the duplicate), and it duplicates the target kind.
@@ -141,8 +136,7 @@ struct PaneInstanceIndependenceTests {
             let keys = appliedStorageKeys(layout.panes)
             #expect(
                 Set(keys.leafKeys).count == keys.leafKeys.count,
-                "\(layout.title): two panes derive the SAME SplittablePane storage key "
-                + "\(keys.leafKeys) — splitting/closing one would hit both (per-kind key, the bug)."
+                "\(layout.title): two panes derive the SAME SplittablePane storage key \(keys.leafKeys) — splitting/closing one would hit both (per-kind key, the bug)."
             )
             #expect(
                 Set(keys.splitKeys).count == keys.splitKeys.count,

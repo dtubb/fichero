@@ -101,9 +101,7 @@ struct MenuShortcutUniquenessTests {
                 .sorted()
                 .joined(separator: ", ")
             Issue.record(
-                "⌘⌥\(key.uppercased()) is bound by \(files.count) different commands — \(sites). "
-                + "Two commands sharing one ⌘⌥ chord means the wrong one can fire (the ⌘⌥1→loupe "
-                + "bug class). Give each command its own chord (spec: shortcut uniqueness)."
+                "⌘⌥\(key.uppercased()) is bound by \(files.count) different commands — \(sites). Two commands sharing one ⌘⌥ chord means the wrong one can fire (the ⌘⌥1→loupe bug class). Give each command its own chord (spec: shortcut uniqueness)."
             )
         }
         let collisions = filesByKey.filter { $0.value.count > 1 }.keys.sorted()
@@ -125,8 +123,7 @@ struct MenuShortcutUniquenessTests {
         let overlap = slotKeys.intersection(literalKeys).sorted()
         #expect(
             overlap.isEmpty,
-            "static ⌘⌥ literals collide with workspace slots ⌘⌥\(overlap.joined(separator: ",")) — "
-            + "the exact 'workspace shortcut fires the wrong command' defect (spec workspaces.one-system)."
+            "static ⌘⌥ literals collide with workspace slots ⌘⌥\(overlap.joined(separator: ",")) — the exact 'workspace shortcut fires the wrong command' defect (spec workspaces.one-system)."
         )
     }
 
