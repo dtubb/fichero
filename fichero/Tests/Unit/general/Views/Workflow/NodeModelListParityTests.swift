@@ -74,11 +74,25 @@ final class NodeModelListParityTests: XCTestCase {
 
     /// `nodeconfig.model.same-labels-as-settings` — source gate on the Settings
     /// side: it goes through the same shared mapping, so neither surface can
-    /// drift its label rule alone.
+    /// drift its label rule alone. As of 2026-09-16 Settings' Defaults picker is
+    /// `SettingsSharedModelPicker` (the island-style one-step `SharedModelRow`
+    /// popover, replacing the Provider→Model drill-down), still fed from the SAME
+    /// `configuredModelInfos` source the node popover uses — so the parity holds
+    /// through the shared row/choice, not the old `ModelPicker.ModelChoice`.
     func testSettingsUsesSharedMapping() throws {
         let url = try AppSource.root()
-            .appendingPathComponent("Views/Settings/AI/AISettingsView+Helpers.swift")
+            .appendingPathComponent("Views/Settings/AI/SettingsSharedModelPicker.swift")
         let source = try String(contentsOf: url, encoding: .utf8)
-        XCTAssertTrue(source.contains("ModelPicker.ModelChoice.configured("))
+        // The shared ROW + choice type (the one mapping both surfaces converge on).
+        XCTAssertTrue(source.contains("SharedModelRow"),
+                      "Settings must render the shared row, like the island/comparison")
+        XCTAssertTrue(source.contains("SharedModelChoice"),
+                      "Settings must map through the shared choice type")
+        // The SAME configured-model source Settings and the node popover share —
+        // not the catalog Settings withholds.
+        XCTAssertTrue(source.contains("configuredModelInfos"),
+                      "labels come from the shared configured-model source, as in the node popover")
+        XCTAssertFalse(source.contains("listAvailableModels("),
+                       "Settings must not offer catalog models it withholds")
     }
 }

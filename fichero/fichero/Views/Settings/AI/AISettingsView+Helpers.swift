@@ -19,15 +19,19 @@ extension AISettingsView {
         store.defaults.temperature.isEmpty ? "0.7" : store.defaults.temperature
     }
 
-    /// One Defaults slot's provider+model chooser, on the SHARED ModelPicker so
-    /// Settings uses the same picker as the node popover and workflow bar
-    /// (Daniel, 2026-09-06). Settings keys providers by providerType (so the
-    /// ProviderOption id IS the providerType) and shows the model's fullName;
-    /// the tier filter and its "N models withheld" help are preserved.
+    /// One Defaults slot's model chooser, on the SHARED picker row so a model in
+    /// Settings looks identical to the same model in the document island and the
+    /// workflow bar (spec RATIFIED 2026-09-15). This is now ONE step — a single
+    /// chip opening a popover of `SharedModelRow`s — replacing the old
+    /// Provider→Model two-dropdown drill-down (`ModelPicker`, "Spine B") the
+    /// creative director's ruling forbids. The real view lives in
+    /// `SettingsSharedModelPicker`; the seam and its two bindings are unchanged,
+    /// so the `.onChange` provider handlers in `AISettingsView+Tabs` keep working.
     ///
-    /// Aliases/Apple-Vision are OFF here — the Defaults tiers ARE the aliases,
-    /// and provider filtering by vision stays off (the model list is already
-    /// tier-filtered, matching the prior behavior).
+    /// `models` is the caller's already-loaded list for the selected provider;
+    /// it seeds the popover so the current provider's models show before the
+    /// full fetch lands. The tier filter and its "N models withheld" help move
+    /// into the child unchanged.
     @ViewBuilder
     func settingsModelPicker(
         providerSelection: Binding<String>,
@@ -35,49 +39,13 @@ extension AISettingsView {
         models: [ModelInfo],
         tier: TierCapability = .any
     ) -> some View {
-        // De-duplicate by providerType so option IDs are unique even if the
-        // backend returns multiple rows of the same type.
-        let uniqueProviders = Array(
-            Dictionary(grouping: appState.providers, by: { $0.providerType })
-                .compactMapValues { $0.first }
-                .values
-        ).sorted(by: { $0.name < $1.name })
-
-        // Only the currently-selected provider's models are loaded (into
-        // `models`); attach them to that option, tier-filtered, labelled by
-        // fullName. A capability mismatch simply isn't listed (#1290).
-        let filtered = models.filter { tier.matches($0) }
-        let hidden = models.count - filtered.count
-        let selectedType = providerSelection.wrappedValue
-
-        let options = uniqueProviders.map { provider in
-            ModelPicker.ProviderOption(
-                id: provider.providerType,
-                name: provider.name,
-                providerType: provider.providerType,
-                available: true,
-                supportsVision: true,
-                models: provider.providerType == selectedType
-                    ? filtered.map { ModelPicker.ModelChoice.configured(modelId: $0.modelId, label: $0.fullName) }
-                    : []
-            )
-        }
-
-        ModelPicker(
-            providers: options,
-            selectedProviderId: providerSelection,
-            selectedModelId: modelSelection,
-            showDefault: true,
-            defaultLabel: "None",
-            showAliases: false,
-            showAppleVision: false,
-            requiresVision: false
+        SettingsSharedModelPicker(
+            appState: appState,
+            providerSelection: providerSelection,
+            modelSelection: modelSelection,
+            tier: tier,
+            seedModels: models
         )
-        .help(hidden > 0
-              ? "\(hidden) of this provider's \(models.count) models are not "
-                + "offered here because their catalog entry does not claim the "
-                + "capability this slot needs."
-              : "Every model configured for this provider fits this slot.")
     }
 
     /// Capability requirement for a Defaults tier — used by settingsModelPicker
