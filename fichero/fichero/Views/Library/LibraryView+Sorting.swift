@@ -289,6 +289,13 @@ extension LibraryView {
     /// The store refetches only if the request actually changed, so calling
     /// this on a Name -> Type change costs nothing.
     func syncServerListingSort() {
+        // Only the PRIMARY library pane drives the SERVER listing sort. A secondary library pane (a
+        // workspace's second library, e.g. the two-witness Compare — spec panes.instance-safe) mounts
+        // over the SAME DocumentStore; if it also writes `setListingSort` there are two writers over
+        // one store → refresh/loadCollections storm (the ⌘⌥4 reload loop the root-cause found). The
+        // secondary reads the primary's listing instead. Foundation for restoring the two-library
+        // Compare (#4663); inert for every current workspace (all single-library = primary).
+        guard !isSecondarySplitPane else { return }
         let field = LibrarySortField(rawValue: sortFieldRaw) ?? .name
         let sort = ListingSort.forLibrarySort(field: field, ascending: sortAscending)
         Task { await documentStore.setListingSort(sort) }
