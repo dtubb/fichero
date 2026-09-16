@@ -473,6 +473,14 @@ struct FicheroApp: App {
 
                 FocusedDeleteButton()
                     .keyboardShortcut(.delete, modifiers: [.command])
+
+                Divider()
+
+                // Find section (CD 2026-09-16): ⌘F "Search" is the native library
+                // search field (`.searchable` owns ⌘F — no menu twin, so no second
+                // owner of the chord); ⌘⌥F "Find in Page" finds within the focused
+                // document. Two distinct finds, both here where macOS users expect them.
+                ShowFindBarButton()
             }
 
             // View menu items

@@ -475,9 +475,14 @@ extension ZoomableImagePreview {
         guard optionMonitor == nil else { return }
         optionMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { event in
             MainActor.assumeIsolated {  // local monitors fire on main
-                let optionHeld = event.modifierFlags.contains(.option)
-                if loupeTransient != (optionHeld && !loupeEnabled) {
-                    loupeTransient = optionHeld && !loupeEnabled
+                // Option MUST be the sole chord modifier: a ⌘⌥ chord (workspace ⌘⌥1–6,
+                // loupe ⌘⌥L, …) also holds Option, and a bare `.contains(.option)` used to
+                // pop the transient loupe on any of them (CD 2026-09-16: "⌘⌥1 turns on the
+                // loupe"). Require exactly Option — not Option+anything.
+                let chord = event.modifierFlags.intersection([.command, .option, .control, .shift])
+                let optionOnly = chord == .option
+                if loupeTransient != (optionOnly && !loupeEnabled) {
+                    loupeTransient = optionOnly && !loupeEnabled
                 }
             }
             return event

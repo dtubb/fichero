@@ -82,6 +82,17 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
     /// the split-collapse and the legacy whole-pane `onClose`. nil outside the applied path, where
     /// the existing behaviour stands. Set per-leaf by `ContentView.paneNodeView`.
     @Environment(\.paneCloseAction) private var paneCloseAction
+    /// The window's ONLY pane collapses its close affordance — there is nothing to close (the
+    /// ≥1-pane invariant), so a lone pane wears the least chrome (CD 2026-09-16).
+    @Environment(\.isSolePane) private var isSolePane
+
+    /// Whether the head shows its close ✕: an active in-slot split can always collapse by one; a
+    /// pane that is not the sole pane can be removed; the sole pane shows no ✕.
+    private var showsClose: Bool {
+        if isInSplit { return true }
+        if isSolePane { return false }
+        return paneCloseAction != nil || onClose != nil
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: PaneHeadMetrics.rowSpacing) {
@@ -135,15 +146,17 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
     private var identityCapsule: some View {
         capsule {
             HStack(spacing: 6) {
-                if paneCloseAction != nil || onClose != nil || isInSplit {
+                if showsClose {
                     Button {
-                        // An applied workspace removes THIS leaf from the PaneList (handles
-                        // split-collapse AND removal); else collapse the in-pane split; else the
-                        // legacy whole-pane hide.
-                        if let paneCloseAction {
-                            paneCloseAction.run()
-                        } else if let actions = splitAxisActions, isInSplit {
+                        // Close ONE thing at a time (CD 2026-09-16: "split, then close one, it closes
+                        // both"). An ACTIVE in-slot split collapses by one FIRST — even on the applied
+                        // path — because `paneCloseAction` (remove the whole leaf) would otherwise drop
+                        // both split halves at once. Only a pane that is NOT split removes its leaf;
+                        // else the legacy whole-pane hide.
+                        if let actions = splitAxisActions, isInSplit {
                             actions.onCollapseSplit()
+                        } else if let paneCloseAction {
+                            paneCloseAction.run()
                         } else {
                             onClose?()
                         }

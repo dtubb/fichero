@@ -93,6 +93,60 @@ final class WorkspaceSystemBoundaryTests: XCTestCase {
             "The head's X must call the applied close action (spec panes.close.this-pane-only).")
     }
 
+    /// BUG3 regression guard (spec panes.split.focused-only): splitting one pane in an applied
+    /// workspace must split THAT pane only, and — like close — must do so through the authoritative
+    /// `PaneList` model. Close was fixed this way: `paneListRow` publishes `activePaneList?.removingLeaf(id)`
+    /// per leaf and `PaneHead` calls it (`\.paneCloseAction`). The SYMMETRIC split verb —
+    /// `PaneList.splittingLeaf(id, axis:)` — EXISTS in the model but is wired to NOTHING: no app
+    /// source calls it and no `paneSplitAction` seam exists, so an applied-workspace split falls back
+    /// to the shared `SplittablePane` @SceneStorage mechanism instead of mutating the stored list.
+    /// This FAILS today and passes once split is routed through the model like close is.
+    func testAppliedWorkspaceSplitIsWiredThroughThePaneListModel() throws {
+        var callers: [String] = []
+        for path in try Self.appSwiftFiles() {
+            // The model's own definition file is where `splittingLeaf` is declared; a real WIRING is
+            // a caller ANYWHERE else (a menu/pane-head action mutating `activePaneList`).
+            guard path != "Models/PaneList.swift" else { continue }
+            let source = AppSource.codeOnly(try Self.appSource(path))
+            if source.contains("splittingLeaf(") { callers.append(path) }
+        }
+        XCTAssertFalse(
+            callers.isEmpty,
+            "PaneList.splittingLeaf is dead — no app code calls it, so an applied-workspace split "
+            + "cannot target one pane through the model the way close does (spec panes.split.focused-only). "
+            + "Wire it symmetrically to close: a per-leaf `activePaneList?.splittingLeaf(id, axis:)` "
+            + "seam (a `PaneSplitAction` mirroring `PaneCloseAction`)."
+        )
+    }
+
+    /// BUG5 regression guard (spec workspaces.one-system): "Layouts" and "Workspaces" must not be
+    /// TWO parallel built-in arrangement systems. Today the app ships both — the `BuiltInWorkspaceLayout`
+    /// PaneList compositions (⌘⌥1–6) AND a separate `WindowLayoutPreset` "Layouts" system that applies
+    /// visibility Bools on a NON-PaneList path — and lists them side by side in the same menus. The
+    /// legacy `BuiltInWorkspace` enum was already deleted to make one system; `WindowLayoutPreset` is
+    /// the surviving parallel one. This FAILS while both are enumerated in the arrangement menus.
+    ///
+    /// NOTE: the consolidation direction (fold the presets into the one PaneList workspace system) is
+    /// the manager's call; this pins only that two built-in arrangement systems must not be presented
+    /// in parallel — the invariant the CD's "there should be ONE" ruling states.
+    func testNoParallelLayoutPresetSystemBesideWorkspaces() throws {
+        let menuFiles = [
+            "App/Menus/ViewMenuPaneSections.swift",
+            "Views/Shell/ContentView/ContentView+LayoutChooser.swift"
+        ]
+        for path in menuFiles {
+            let source = AppSource.codeOnly(try Self.appSource(path))
+            let listsWorkspaces = source.contains("BuiltInWorkspaceLayout.allCases")
+            let listsPresets = source.contains("WindowLayoutPreset.allCases")
+            XCTAssertFalse(
+                listsWorkspaces && listsPresets,
+                "\(path) presents BOTH the workspace system (BuiltInWorkspaceLayout) and a parallel "
+                + "'Layouts' preset system (WindowLayoutPreset) — the two-systems bug (spec "
+                + "workspaces.one-system: there must be ONE built-in arrangement system)."
+            )
+        }
+    }
+
     // MARK: - Source helpers (mirror MenuShortcutBoundaryTests)
 
     private static func appSwiftFiles() throws -> [String] {

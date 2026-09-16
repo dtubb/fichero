@@ -4,6 +4,17 @@ import SwiftUI
 /// that's taken by `DocumentKGSurface.Pane`).
 enum ContentPane: CaseIterable {
     case grid, canvas, reading
+
+    /// The `PaneList` kind this legacy visibility pane maps to, so a show/hide toggle can mutate
+    /// the applied workspace (spec workspaces.one-system). `grid` is the library; `canvas` is the
+    /// preview/page.
+    var paneKind: PaneKind {
+        switch self {
+        case .grid: .library
+        case .canvas: .preview
+        case .reading: .reading
+        }
+    }
 }
 
 /// Visibility of the three middle content panes as ONE value, so the
@@ -72,6 +83,13 @@ extension ContentView {
     /// holds everywhere. Writes only the bools that actually change (no
     /// wholesale re-render).
     func setPaneVisible(_ pane: ContentPane, _ visible: Bool) {
+        // With a workspace always applied, the applied `PaneList` is what renders — so a
+        // show/hide toggle must mutate IT, or it does nothing (the bug the seed would otherwise
+        // introduce). One choke point covers every toggle site (spec workspaces.one-system).
+        if let list = activePaneList {
+            let nextList = list.settingVisible(pane.paneKind, visible)
+            if nextList != list { activePaneList = nextList }
+        }
         let next = paneVisibility.settingVisible(pane, visible)
         if next.grid != showDocumentGrid { showDocumentGrid = next.grid }
         if next.canvas != showDocumentCanvas { showDocumentCanvas = next.canvas }

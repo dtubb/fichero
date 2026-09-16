@@ -117,11 +117,13 @@ extension ContentView {
             // presentation, not two.
 
         // Distraction-free full-window reading (#2520). Top-level overlay so it
-        // covers sidebar, inspector, and toolbar; ⌥⌘F enters, Esc exits.
+        // covers sidebar, inspector, and toolbar; ⌃⌘F enters (the macOS-standard
+        // full-screen chord), Esc exits. Moved off ⌘⌥F, which is now Find in Page
+        // (CD 2026-09-16 — ⌘⌥F was double-bound with Find in Artifact).
         .overlay { immersiveReadingOverlay }
         .background {
             Button("Enter Full-Screen Reading", action: enterImmersiveReading)
-                .keyboardShortcut("f", modifiers: [.command, .option])
+                .keyboardShortcut("f", modifiers: [.command, .control])
                 .opacity(0)
                 .disabled(immersiveReadingDocument == nil)
         }

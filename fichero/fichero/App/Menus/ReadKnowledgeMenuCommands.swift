@@ -33,15 +33,9 @@ struct ReadKnowledgeMenuCommands: Commands {
         // MARK: Knowledge — making & querying meaning (spec Part VII/VIII).
         // This is the former "Data" menu, renamed and organized into flyouts.
         CommandMenu("Knowledge") {
-            // New Folder + Import stay here for now (they were in "Data"); the
-            // spec's eventual home for them is File ▸ Import, deferred to keep
-            // this change to menu re-homing without touching File's arity-
-            // capped body.
-            FocusedNewFolderButton()
-
-            FocusedImportFilesButton()
-
-            Divider()
+            // New Folder + Import moved to File ▸ Import (CD 2026-09-16,
+            // menus-and-commands spec) — getting things in/out is File's job,
+            // not Knowledge's.
 
             // The global Knowledge-Graph view-mode switcher
             // (List/Graph/Chart/Timeline/Map) — the spec's "Knowledge Graph

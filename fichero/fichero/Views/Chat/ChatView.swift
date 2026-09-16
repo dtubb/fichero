@@ -134,7 +134,8 @@ struct ChatView: View {
             }
             .safeAreaInset(edge: .top, spacing: 0) { chatPaneHead }
 
-            Divider()
+            // No hairline above the bottom bar (CD 2026-09-16): the bar's own Liquid Glass defines
+            // its edge, matching the clean Preview pane — one consistent, line-free head/bar look.
             chatBottomBar
         }
         .sheet(isPresented: $showAttachSheet) {

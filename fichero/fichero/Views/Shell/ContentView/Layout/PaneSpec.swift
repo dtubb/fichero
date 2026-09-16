@@ -94,6 +94,20 @@ extension EnvironmentValues {
     }
 }
 
+private struct IsSolePaneKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    /// True when this pane is the window's ONLY pane — the head then collapses its close affordance
+    /// (nothing to close; the ≥1-pane invariant), so a single pane wears the least chrome (CD
+    /// 2026-09-16: "collapse better if there is just one").
+    var isSolePane: Bool {
+        get { self[IsSolePaneKey.self] }
+        set { self[IsSolePaneKey.self] = newValue }
+    }
+}
+
 extension ContentView {
     /// The centre row's panes. Which panes exist + their order now come from the
     /// F7 `PaneList` model (`PaneList.fromVisibility`) — the single, mode-independent
@@ -294,6 +308,18 @@ extension ContentView {
         }
     }
 
+    /// The inverse of `paneSpecKind` — the head's kind menu delivers a `PaneSpec.Kind`, which the
+    /// applied-path kind-switch turns back into a model `PaneKind` to mutate the leaf.
+    private func paneKind(_ specKind: PaneSpec.Kind) -> PaneKind {
+        switch specKind {
+        case .library: .library
+        case .preview: .preview
+        case .reading: .reading
+        case .inspector: .inspector
+        case .chat: .chat
+        }
+    }
+
     /// Compose the window's centre from a `PaneList` — the SINGLE rendering path every layout
     /// mode and every saved workspace flows through (spec §F7, RATIFIED 2026-09-13/14). Each
     /// leaf draws via `kindContent`, so it carries the SAME pane head (breadcrumb, close) and
@@ -334,10 +360,16 @@ extension ContentView {
         // path is now fully resizable (CD 2026-09-16). Closing a pane removes THIS leaf from the
         // stored list (spec panes.close.this-pane-only); @State's nonmutating setter makes capturing
         // self safe.
+        let solePane = list.leafCount == 1
+        let extents = childExtents(list.nodes, axis: .horizontal)
         let columns = list.nodes.enumerated().map { index, node in
-            paneNodeView(
-                node, keyPath: "\(index)", secondaryIDs: secondaryIDs,
-                closeLeaf: { id in activePaneList = activePaneList?.removingLeaf(id) }
+            WorkspaceSplitStack.Child(
+                paneNodeView(
+                    node, keyPath: "\(index)", secondaryIDs: secondaryIDs, isSole: solePane,
+                    closeLeaf: { id in activePaneList = activePaneList?.removingLeaf(id) },
+                    changeKind: { id, kind in activePaneList = activePaneList?.changingLeafKind(id, to: kind) }
+                ),
+                extent: extents[index]
             )
         }
         WorkspaceSplitStack(axis: .horizontal, storageKey: "root", children: columns)
@@ -346,8 +378,9 @@ extension ContentView {
     /// Render one node. AnyView because the recursion (node → split → node) can't ride an
     /// opaque `some View` return, and erasing at the boundary is the #4331 crash guard anyway.
     private func paneNodeView(
-        _ node: PaneNode, keyPath: String, secondaryIDs: Set<UUID> = [],
-        closeLeaf: ((UUID) -> Void)? = nil
+        _ node: PaneNode, keyPath: String, secondaryIDs: Set<UUID> = [], isSole: Bool = false,
+        closeLeaf: ((UUID) -> Void)? = nil,
+        changeKind: ((UUID, PaneKind) -> Void)? = nil
     ) -> AnyView {
         switch node {
         case let .leaf(id, kind, _, config):
@@ -364,6 +397,8 @@ extension ContentView {
                     fixedWidth: nil
                 )
                 .environment(\.isSecondarySplitPane, secondaryIDs.contains(id))
+                // Sole pane → the head collapses its close affordance (spec panes.head.sole-collapse).
+                .environment(\.isSolePane, isSole)
                 // Per-kind accessibility identifier so design-lead tests can assert exactly which
                 // panes a workspace mounts (spec §Accessibility; WorkspaceAccessibilityUITests):
                 // "pane.library" / "pane.preview" / "pane.reading" / "pane.inspector" / "pane.chat".
@@ -380,11 +415,20 @@ extension ContentView {
             if let closeLeaf {
                 leaf = AnyView(leaf.environment(\.paneCloseAction, PaneCloseAction { closeLeaf(id) }))
             }
+            // The head's far-left kind menu (`PaneKindSelector`) is inert until a `\.paneKindSwitcher`
+            // is present. Inject it on the applied path so switching a pane's kind mutates THIS leaf
+            // in the stored list (spec panes.head.kind-switch) — the same per-leaf seam as close.
+            if let changeKind {
+                let switcher = PaneKindSwitcher(slotId: "pane-\(keyPath)-\(kind.rawValue)") { specKind in
+                    changeKind(id, paneKind(specKind))
+                }
+                leaf = AnyView(leaf.environment(\.paneKindSwitcher, switcher))
+            }
             return leaf
         case let .split(_, axis, children):
             return paneSplitView(
                 axis: axis, children: children, keyPath: keyPath,
-                secondaryIDs: secondaryIDs, closeLeaf: closeLeaf
+                secondaryIDs: secondaryIDs, closeLeaf: closeLeaf, changeKind: changeKind
             )
         }
     }
@@ -394,15 +438,39 @@ extension ContentView {
     /// vertical one). Extents persist per split position via the `keyPath` storage key.
     private func paneSplitView(
         axis: SplitAxis, children: [PaneNode], keyPath: String,
-        secondaryIDs: Set<UUID> = [], closeLeaf: ((UUID) -> Void)? = nil
+        secondaryIDs: Set<UUID> = [], closeLeaf: ((UUID) -> Void)? = nil,
+        changeKind: ((UUID, PaneKind) -> Void)? = nil
     ) -> AnyView {
+        let extents = childExtents(children, axis: axis)
         let views = children.enumerated().map { idx, child in
-            paneNodeView(
-                child, keyPath: "\(keyPath).\(idx)",
-                secondaryIDs: secondaryIDs, closeLeaf: closeLeaf
+            WorkspaceSplitStack.Child(
+                paneNodeView(
+                    child, keyPath: "\(keyPath).\(idx)",
+                    secondaryIDs: secondaryIDs, closeLeaf: closeLeaf, changeKind: changeKind
+                ),
+                extent: extents[idx]
             )
         }
         return AnyView(WorkspaceSplitStack(axis: axis, storageKey: keyPath, children: views))
+    }
+
+    /// Per-child extent for a split's children (nil = FLEX): a child whose leaf declares
+    /// `PaneConfig.paneExtent` (a film strip) is pinned to that size and the FIRST non-pinned child
+    /// flexes; with no pinned child, the LAST child flexes and the earlier ones are resizable columns
+    /// at a default extent. This is what makes the Transcribe/Compare library strip stay narrow while
+    /// the page/reader above fill (CD 2026-09-16), without a strip elsewhere shrinking a real column.
+    private func childExtents(_ nodes: [PaneNode], axis: SplitAxis) -> [Double?] {
+        let pins: [Double?] = nodes.map { node in
+            if case let .leaf(_, _, _, config) = node { return config.paneExtent }
+            return nil
+        }
+        let defaultExtent: Double = axis == .horizontal ? 360 : 300
+        if pins.contains(where: { $0 != nil }) {
+            let flexIndex = pins.firstIndex { $0 == nil } ?? 0
+            return nodes.indices.map { idx in pins[idx] ?? (idx == flexIndex ? nil : defaultExtent) }
+        }
+        let last = nodes.count - 1
+        return nodes.indices.map { idx in idx == last ? nil : defaultExtent }
     }
 
     /// The assistant chat surface — the SAME `ChatView` the old centre pane

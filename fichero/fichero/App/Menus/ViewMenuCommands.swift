@@ -109,8 +109,9 @@ struct ViewMenuCommands: View {
         ShowWorkflowBarButton()
 
         ShowWorkflowBarLabelsButton()
-
-        ShowFindBarButton()
+        // ShowFindBarButton (Find in Page, ⌘⌥F) moved to the Edit menu (CD
+        // 2026-09-16): Find is Edit-menu chrome, and it sits beside the native
+        // ⌘F library Search there. See FicheroApp's `.textEditing` group.
         // ShowRulerButton moved to the Format menu (#4121 View-menu diet):
         // the ruler is text-formatting chrome (TextEdit/Pages precedent),
         // not view state — see FicheroApp's TextFormattingCommands group.

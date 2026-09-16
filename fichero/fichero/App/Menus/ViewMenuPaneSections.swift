@@ -149,20 +149,9 @@ struct WorkspaceCommandsSection: View {
             }
             .disabled(commands == nil)
         }
-
-        // The Layouts button's twin, in its own section so its "Reading" and
-        // "Everything" read as pane sets rather than as duplicates of the
-        // workspaces above: a preset touches pane VISIBILITY only.
-        Section("Layouts") {
-            ForEach(WindowLayoutPreset.allCases) { preset in
-                Button {
-                    commands?.applyPreset(preset)
-                } label: {
-                    Label(preset.title, systemImage: preset.systemImage)
-                }
-                .disabled(commands == nil)
-            }
-        }
+        // The legacy "Layouts" preset section (WindowLayoutPreset) is gone (CD 2026-09-16): a
+        // workspace IS the layout, so showing pane-visibility presets beside the workspaces was the
+        // "why are layouts different from workspaces" duplication (spec workspaces.one-system).
     }
 }
 
@@ -287,13 +276,13 @@ struct ShowFindBarButton: View {
                 from: item
             )
         } label: {
-            Label("Find in Artifact", systemImage: "magnifyingglass")
+            Label("Find in Page", systemImage: "magnifyingglass")
         }
         .keyboardShortcut("f", modifiers: [.command, .option])
         #else
         Button {
         } label: {
-            Label("Find in Artifact", systemImage: "magnifyingglass")
+            Label("Find in Page", systemImage: "magnifyingglass")
         }
         .keyboardShortcut("f", modifiers: [.command, .option])
         .disabled(true)

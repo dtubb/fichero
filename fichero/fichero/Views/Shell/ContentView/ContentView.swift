@@ -365,12 +365,14 @@ struct ContentView: View {
     @SceneStorage("sidebar.chat.height") var sidebarChatHeight: Double = 260
     @SceneStorage("showReadingPane") var showReadingPane: Bool =
         WorkspaceLayoutDefaults.showReadingPane
-    /// The window's ACTIVE pane composition once a workspace is applied (spec §"v2 workspace
-    /// design"): the stored, instance-identified source of truth the centre renders from. `nil`
-    /// = follow the legacy visibility Bools via `PaneList.forLayout` (the unchanged default). Set
-    /// by applying a workspace (the Workspaces menu / ⌘⌥1–6); close and split will mutate THIS by
-    /// leaf id, which is what makes them pane-scoped (spec panes.close.this-pane-only / .split.focused-only).
-    @State var activePaneList: PaneList?
+    /// The window's ACTIVE pane composition — the ONE source of truth the centre renders from
+    /// (spec workspaces.one-system). Seeded to the Mail-style **Read** default so a fresh window
+    /// opens in a real workspace and the legacy visibility-Bool path never renders (spec
+    /// panes.layout.mail-default; CD 2026-09-16 — the nil default was WHY a fresh window showed
+    /// two libraries and closed/split both: those bugs are the inactive legacy path showing
+    /// through). Re-set by applying a workspace (⌘⌥1–5); close/split mutate THIS by leaf id, which
+    /// is what makes them pane-scoped (spec panes.close.this-pane-only / .split.focused-only).
+    @State var activePaneList: PaneList? = BuiltInWorkspaceLayout.read.panes
     // Summoned search (#4521): the engine-search field in the library's mini
     // toolbar appears only while this is on — toggled by the toolbar's search
     // button, and turned on automatically when something fires a search

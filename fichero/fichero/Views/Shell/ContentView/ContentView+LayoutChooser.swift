@@ -90,7 +90,6 @@ extension ContentView {
     var workspacesMenu: some View {
         Menu {
             workspaceLayoutsSection
-            layoutsSection
             splitSection
             savedWorkspaceSection
             Divider()
@@ -128,9 +127,10 @@ extension ContentView {
 
     /// The v2 PaneList-backed workspaces — the ONE built-in workspace system (spec
     /// workspaces.one-system). Applying one stores it as the window's pane list (`activePaneList`),
-    /// which the centre renders directly; "Default Layout" clears back to the legacy visibility
-    /// layout. ⌘⌥1–6 are bound in the menu bar (`WorkspaceCommandsSection`), which routes through
-    /// the window command bus; this toolbar menu shows the same set without duplicating the keys.
+    /// which the centre renders directly. There is no "Default Layout" escape hatch any more: a
+    /// window is ALWAYS a workspace (seeded to Read), so there is no legacy visibility layout to
+    /// fall back to (CD 2026-09-16). ⌘⌥1–5 are bound in the menu bar (`WorkspaceCommandsSection`);
+    /// this toolbar menu shows the same set without duplicating the keys.
     @ViewBuilder
     private var workspaceLayoutsSection: some View {
         Section("Workspaces") {
@@ -142,21 +142,12 @@ extension ContentView {
                 }
                 .help(layout.summary)
             }
-            if activePaneList != nil {
-                Button("Default Layout") { clearWorkspaceLayout() }
-                    .help("Return to the standard visibility-based layout")
-            }
         }
     }
 
     /// Apply a v2 workspace as the window's STORED pane list (spec §"v2 workspace design").
     func applyWorkspaceLayout(_ layout: BuiltInWorkspaceLayout) {
         activePaneList = layout.panes
-    }
-
-    /// Clear the applied workspace — back to the legacy visibility-Bool layout.
-    func clearWorkspaceLayout() {
-        activePaneList = nil
     }
 
     /// The user's own, checkmarked when the window matches what they saved.
@@ -263,29 +254,6 @@ extension ContentView {
             && workspace.layout.toolbar == toolbar
             && workspace.layout.showWorkflowBar == showWorkflowBar
             && workspace.layout.showAnnotationBar == showAnnotationBar
-    }
-
-    // MARK: Layouts
-
-    /// The compound layouts (Xcode's "Editor Only / Canvas / Assistant"
-    /// idiom): checkmarked presets built from the pane set. A SECTION now
-    /// (Daniel, 2026-09-01) rather than its own toolbar item — "which views
-    /// this window shows" is the first question the Workspaces menu answers.
-    @ViewBuilder
-    var layoutsSection: some View {
-        let current = currentPaneVisibilityPlan
-        Section("Layouts") {
-            ForEach(WindowLayoutPreset.allCases) { preset in
-                Button {
-                    applyLayoutPreset(preset)
-                } label: {
-                    Label(preset.title,
-                          systemImage: preset.matches(current)
-                              ? "checkmark" : preset.systemImage)
-                }
-                .help("Show the \(preset.title) arrangement of panes")
-            }
-        }
     }
 
     // MARK: Capture / apply

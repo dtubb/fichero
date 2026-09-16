@@ -161,6 +161,15 @@ struct FileMenuCommands: View {
                 FocusedOpenInNewTabButton()
                 FocusedOpenInNewWindowButton()
                 #endif
+
+                // Import ▸ — getting things IN belongs in File, not Knowledge
+                // (menus-and-commands spec: "File owns get-things-in-and-out";
+                // CD 2026-09-16). Nested here because the outer Group is at the
+                // 10-entry arity cap; the submenu renders inline in File.
+                Menu("Import") {
+                    FocusedNewFolderButton()
+                    FocusedImportFilesButton()
+                }
             }
 
             Divider()

@@ -2,9 +2,10 @@
 import Foundation
 import Testing
 
-/// spec: panes-magnifiers-workspaces §"v2 workspace design" — the six default workspaces AS DATA.
-/// These pin each composition (kinds, nesting, per-pane config) so a default is a data change and
-/// a saved workspace is the same `PaneList` shape.
+/// spec: panes-magnifiers-workspaces §"v2 workspace design" — the FIVE default workspaces AS DATA
+/// (Read, Browse, Transcribe, Transcribe·Tall, Compare; CD 2026-09-16 dropped Catalogue + Claims —
+/// Claims is a library content-filter, not a layout). These pin each composition (kinds, nesting,
+/// per-pane config) so a default is a data change and a saved workspace is the same `PaneList` shape.
 struct BuiltInWorkspaceLayoutTests {
 
     /// Every leaf (kind + config) anywhere in a list, splits flattened.
@@ -20,13 +21,14 @@ struct BuiltInWorkspaceLayoutTests {
         return out
     }
 
-    @Test("the six defaults map to ⌘⌥1–6 in declaration order")
-    func slotsAreOneThroughSix() {
-        #expect(BuiltInWorkspaceLayout.allCases.count == 6)
+    @Test("the five defaults map to ⌘⌥1–5 in declaration order")
+    func slotsAreOneThroughFive() {
+        #expect(BuiltInWorkspaceLayout.allCases.count == 5)
         for (index, layout) in BuiltInWorkspaceLayout.allCases.enumerated() {
             #expect(layout.defaultSlot == index + 1)
         }
         #expect(BuiltInWorkspaceLayout.read.defaultSlot == 1)
+        #expect(BuiltInWorkspaceLayout.compare.defaultSlot == 5)
     }
 
     @Test("Read is the default: library over reader, beside the preview")
@@ -78,6 +80,32 @@ struct BuiltInWorkspaceLayoutTests {
         let previews = allLeaves(BuiltInWorkspaceLayout.compare.panes).filter { $0.kind == .preview }
         #expect(previews.count == 2)
         #expect(children.last?.kinds == [.library])
+    }
+
+    @Test("Read renders EXACTLY ONE library leaf (over reader, beside preview)")
+    func readRendersExactlyOneLibraryLeaf() {
+        // spec panes.read.one-library (CD live 2026-09-16: "Read shows TWO library panes"). The spec
+        // is ONE library — over the reader, beside the preview. `readIsLibraryOverReaderBesidePreview`
+        // asserts `.kinds`, but that is a SET: a second library leaf would still collapse to the same
+        // {.library,.preview,.reading} and pass. Counting LEAVES is the assertion that actually
+        // catches a duplicated library in the composition.
+        let libraryLeaves = allLeaves(BuiltInWorkspaceLayout.read.panes).filter { $0.kind == .library }
+        #expect(
+            libraryLeaves.count == 1,
+            "Read composes \(libraryLeaves.count) library panes — the spec is exactly one (two "
+            + "libraries in one window is the reported bug)."
+        )
+    }
+
+    @Test("no built-in composes more than one library pane (the SET test can't see a duplicate)")
+    func noBuiltInComposesTwoLibraries() {
+        // Strengthens `noBuiltInMountsTwoLibraries` with the exact reason it must hold: two library
+        // leaves render two library tables in one window (spec panes.read.one-library) — the leaf
+        // COUNT, not the kind-set, is the guard.
+        for layout in BuiltInWorkspaceLayout.allCases {
+            let count = allLeaves(layout.panes).filter { $0.kind == .library }.count
+            #expect(count <= 1, "\(layout.title) composes \(count) library panes — spec is at most one.")
+        }
     }
 
     @Test("no built-in mounts two library panes until the library pane is instance-safe")
@@ -138,19 +166,63 @@ struct BuiltInWorkspaceLayoutTests {
         #expect(Set(secondaryKinds) == [.preview])
     }
 
-    @Test("Catalogue and Claims dock an inspector; the others don't")
-    func inspectorOnlyWhereIntended() {
-        for layout in BuiltInWorkspaceLayout.allCases {
-            let hasInspector = layout.panes.kinds.contains(.inspector)
-            let shouldHave = layout == .catalogue || layout == .claims
-            #expect(hasInspector == shouldHave, "\(layout.title) inspector presence")
+    @Test("Transcribe·Tall is three-long (page · word-boxes · editor) over the icon strip")
+    func transcribeTallIsThreeLong() {
+        // CD 2026-09-16: the detailed-transcription triptych — page, its word-box overlay, and the
+        // editor across the top, over the library strip.
+        let nodes = BuiltInWorkspaceLayout.transcribeTall.panes.nodes
+        #expect(nodes.count == 1)
+        guard case let .split(_, .vertical, children) = nodes.first else {
+            Issue.record("Transcribe·Tall should open with a vertical split"); return
         }
+        #expect(children.first?.kinds == [.preview, .reading])  // three-long top row
+        #expect(children.last?.kinds == [.library])             // icon strip below
+        // Two previews across the top; the middle one carries the word-box overlay.
+        let previews = allLeaves(BuiltInWorkspaceLayout.transcribeTall.panes).filter { $0.kind == .preview }
+        #expect(previews.count == 2)
+        #expect(previews.contains { $0.config.previewWordBoxes == true })
     }
 
-    @Test("Claims points the library at claims content")
-    func claimsBrowsesClaims() {
-        let library = allLeaves(BuiltInWorkspaceLayout.claims.panes).first { $0.kind == .library }
-        #expect(library?.config.libraryContentKind == "claims")
+    @Test("the library strip is a NARROW pinned pane in Transcribe/Tall/Compare, not a normal column")
+    func stripLibraryIsPinnedNarrow() {
+        // CD 2026-09-16: "the library at the bottom [should be] just icons, and very narrow, like a
+        // film script — say 72px." The strip is the LAST child of a vertical split and must carry a
+        // small `paneExtent`; without it the strip flexed to ~2/3 of the height (the reported bug).
+        for layout in [BuiltInWorkspaceLayout.transcribe, .transcribeTall, .compare] {
+            let strip = allLeaves(layout.panes).first { $0.kind == .library }
+            #expect(strip?.config.paneExtent == 72, "\(layout.title)'s library strip must pin ~72pt")
+            #expect(strip?.config.libraryLayout == "icons", "\(layout.title)'s strip is icons")
+        }
+        // Browse's library is a NORMAL column (icons, but not a pinned strip) — a strip pin there
+        // would shrink a real column to a sliver.
+        let browseLibrary = allLeaves(BuiltInWorkspaceLayout.browse.panes).first { $0.kind == .library }
+        #expect(browseLibrary?.config.paneExtent == nil, "Browse's library is a column, not a strip")
+    }
+
+    @Test("changing a leaf's kind touches only that leaf, preserving id/scope/config")
+    func changingLeafKindIsPerPane() {
+        // spec panes.head.kind-switch — the head kind menu must change ONLY the clicked pane
+        // (the same per-pane discipline as close/split), preserving its identity.
+        let panes = BuiltInWorkspaceLayout.read.panes
+        let target = allLeafIDs(panes).first { $0.kind == .reading }!
+        let changed = panes.changingLeafKind(target.id, to: .inspector)
+        // The reader became an inspector; the same id survived; everything else is untouched.
+        let changedLeaves = allLeafIDs(changed)
+        #expect(changedLeaves.first { $0.id == target.id }?.kind == .inspector)
+        #expect(changed.kinds.contains(.inspector))
+        #expect(!changed.kinds.contains(.reading))
+        // Library + preview are still there, unchanged.
+        #expect(changed.kinds.contains(.library))
+        #expect(changed.kinds.contains(.preview))
+    }
+
+    @Test("no built-in docks an inspector (it's an add-on pane, not a default)")
+    func noBuiltInDocksInspector() {
+        // CD 2026-09-16: Inspector stays as an available RIGHT-docked pane, but none of the five
+        // defaults mount one (Catalogue/Claims, which used to, are gone).
+        for layout in BuiltInWorkspaceLayout.allCases {
+            #expect(!layout.panes.kinds.contains(.inspector), "\(layout.title) should not dock an inspector")
+        }
     }
 
     @Test("every default round-trips through JSON (a workspace is a PaneList)")

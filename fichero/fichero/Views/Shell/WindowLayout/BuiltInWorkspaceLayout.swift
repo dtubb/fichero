@@ -16,12 +16,11 @@ import Foundation
 /// Names describe what each is for (CD: not app-metaphors). The declaration order is the default
 /// ⌘⌥1–6 slot order; ⌘⌥7–9 are left for user workspaces (the slot→workspace map, CD-approved).
 enum BuiltInWorkspaceLayout: String, CaseIterable, Identifiable, Sendable {
-    case read        // ⌘⌥1  library · source · reader        (today's three columns)
-    case browse      // ⌘⌥2  [ library·columns / reader ] · source
-    case transcribe  // ⌘⌥3  image · [ word-boxes / editor ]
-    case compare     // ⌘⌥4  [ page A / reader / library ] · [ page B / reader / related ]
-    case catalogue   // ⌘⌥5  library·table · [ source / reader ] · inspector
-    case claims      // ⌘⌥6  library·claims · source · inspector
+    case read           // ⌘⌥1  [ library·table / reader ] · preview
+    case browse         // ⌘⌥2  library·icons · preview · reader
+    case transcribe     // ⌘⌥3  [ preview | reader ] over library·icons
+    case transcribeTall // ⌘⌥4  [ preview | word-boxes | editor ] over library·icons (three-long)
+    case compare        // ⌘⌥5  [ page A | page B | reader ] over library·icons
 
     var id: String { rawValue }
 
@@ -30,9 +29,8 @@ enum BuiltInWorkspaceLayout: String, CaseIterable, Identifiable, Sendable {
         case .read: "Read"
         case .browse: "Browse"
         case .transcribe: "Transcribe"
+        case .transcribeTall: "Transcribe · Tall"
         case .compare: "Compare"
-        case .catalogue: "Catalogue"
-        case .claims: "Claims"
         }
     }
 
@@ -41,21 +39,19 @@ enum BuiltInWorkspaceLayout: String, CaseIterable, Identifiable, Sendable {
         case .read: "text.book.closed"
         case .browse: "sidebar.squares.left"
         case .transcribe: "text.viewfinder"
+        case .transcribeTall: "rectangle.split.3x1"
         case .compare: "rectangle.split.2x1"
-        case .catalogue: "tray.full"
-        case .claims: "quote.bubble"
         }
     }
 
     /// One-line description of the arrangement (for the Manager and menus).
     var summary: String {
         switch self {
-        case .read: "Library, page and reader in three columns."
-        case .browse: "A column browser over a reader, the full-height page beside."
-        case .transcribe: "The page, its word-boxes and the editor."
-        case .compare: "Two witnesses side by side — each with its page, reader and navigation."
-        case .catalogue: "The table, the page over a reader, metadata docked right."
-        case .claims: "Claims beside the source, the knowledge panel docked right."
+        case .read: "The table over a reader, the page beside."
+        case .browse: "Icons, then the page, then the reader."
+        case .transcribe: "The page and the editor over a strip of pages."
+        case .transcribeTall: "The page, its word-boxes and the editor, over a strip of pages."
+        case .compare: "Two witnesses side by side with the reader, over a strip of pages."
         }
     }
 
@@ -90,7 +86,22 @@ enum BuiltInWorkspaceLayout: String, CaseIterable, Identifiable, Sendable {
             return PaneList([
                 .split(.vertical, [
                     .split(.horizontal, [.leaf(.preview), .leaf(.reading)]),
-                    .leaf(.library, config: PaneConfig(libraryLayout: "icons"))
+                    .leaf(.library, config: PaneConfig(libraryLayout: "icons", paneExtent: 72))
+                ])
+            ])
+        case .transcribeTall:
+            // Three-long (CD 2026-09-16): the page, its word-box overlay, and the editor across the
+            // top, over the strip of pages. The middle preview carries the OCR word boxes — the
+            // detailed-transcription triptych. Two previews are instance-safe (the focused-value
+            // guard flags the second secondary).
+            return PaneList([
+                .split(.vertical, [
+                    .split(.horizontal, [
+                        .leaf(.preview),
+                        .leaf(.preview, config: PaneConfig(previewWordBoxes: true)),
+                        .leaf(.reading)
+                    ]),
+                    .leaf(.library, config: PaneConfig(libraryLayout: "icons", paneExtent: 72))
                 ])
             ])
         case .compare:
@@ -100,27 +111,8 @@ enum BuiltInWorkspaceLayout: String, CaseIterable, Identifiable, Sendable {
             return PaneList([
                 .split(.vertical, [
                     .split(.horizontal, [.leaf(.preview), .leaf(.preview), .leaf(.reading)]),
-                    .leaf(.library, config: PaneConfig(libraryLayout: "icons"))
+                    .leaf(.library, config: PaneConfig(libraryLayout: "icons", paneExtent: 72))
                 ])
-            ])
-        case .catalogue:
-            // The inspector option (e.g. related files): library over reader on the left; preview
-            // over the inspector on the right, so the bottom-right inspector shows related files.
-            return PaneList([
-                .split(.vertical, [
-                    .leaf(.library, config: PaneConfig(libraryLayout: "table")),
-                    .leaf(.reading)
-                ]),
-                .split(.vertical, [
-                    .leaf(.preview),
-                    .leaf(.inspector)
-                ])
-            ])
-        case .claims:
-            return PaneList([
-                .leaf(.library, config: PaneConfig(libraryContentKind: "claims", libraryLayout: "table")),
-                .leaf(.preview),
-                .leaf(.inspector)
             ])
         }
     }

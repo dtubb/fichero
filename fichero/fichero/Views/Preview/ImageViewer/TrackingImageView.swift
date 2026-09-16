@@ -106,7 +106,9 @@ class TrackingImageView: NSImageView {
         // while ⌥ is held (Daniel, 2026-09-01: "it should live where you
         // leave it; it should move when option is pressed"). ⌥ is the one
         // leash: it also summons the transient loupe (ZoomableImagePreview).
-        if loupeEnabled, !loupeLocked, event.modifierFlags.contains(.option) {
+        // Option must be the SOLE modifier so a ⌘⌥ chord doesn't drag the loupe.
+        let followChord = event.modifierFlags.intersection([.command, .option, .control, .shift])
+        if loupeEnabled, !loupeLocked, followChord == .option {
             loupePosition = location
             loupeViewPosition = location
             needsDisplay = true

@@ -34,19 +34,27 @@ struct PaneFilterBar<Content: View>: View {
     }
 
     let placement: MiniToolbarPlacement
+    /// Draw the hairline between the bar and the pane content. Default OFF (CD 2026-09-16): the
+    /// floating Liquid-Glass bar defines its own edge, so the extra `Divider()` was the "line" that
+    /// made library/reader/chat look heavier than the clean Preview pane. The rule the CD likes —
+    /// no line, glass, a bar only when it earns one — is the default; a caller can still ask for the
+    /// separator where a hard edge genuinely reads better.
+    let showsSeparator: Bool
     let content: Content
 
     init(
         placement: MiniToolbarPlacement = .bottom,
+        showsSeparator: Bool = false,
         @ViewBuilder content: () -> Content
     ) {
         self.placement = placement
+        self.showsSeparator = showsSeparator
         self.content = content()
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            if placement == .bottom {
+            if placement == .bottom && showsSeparator {
                 Divider()
             }
             #if os(visionOS)
@@ -68,7 +76,7 @@ struct PaneFilterBar<Content: View>: View {
                 .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 8))
             }
             #endif
-            if placement == .top {
+            if placement == .top && showsSeparator {
                 Divider()
             }
         }
