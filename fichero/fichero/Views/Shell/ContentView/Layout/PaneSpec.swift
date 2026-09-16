@@ -351,7 +351,7 @@ extension ContentView {
         closeLeaf: ((UUID) -> Void)? = nil
     ) -> AnyView {
         switch node {
-        case let .leaf(id, kind, _, _):
+        case let .leaf(id, kind, _, config):
             // kindContent already returns AnyView (head chrome + clip + focus gesture). A DUPLICATE
             // same-kind leaf renders secondary so its subtree suppresses the window-scoped
             // focused-value publishes the primary owns (spec panes.instance-safe); the flag is the
@@ -370,6 +370,14 @@ extension ContentView {
                 // "pane.library" / "pane.preview" / "pane.reading" / "pane.inspector" / "pane.chat".
                 .accessibilityIdentifier("pane.\(kind.rawValue)")
             )
+            // The workspace's per-pane library layout (Read = table, Browse = icons, …): publish it
+            // so THIS library pane renders in the workspace's mode instead of the window's global one
+            // (spec §"v2 workspace design", per-pane config).
+            if kind == .library,
+               let raw = config.libraryLayout,
+               let mode = ViewDisplayMode(paneLibraryLayout: raw) {
+                leaf = AnyView(leaf.environment(\.paneLibraryLayout, mode))
+            }
             if let closeLeaf {
                 leaf = AnyView(leaf.environment(\.paneCloseAction, PaneCloseAction { closeLeaf(id) }))
             }

@@ -40,8 +40,13 @@ struct LibraryView: View {
     /// library as 3D both become 3D" — the window value is shared, so a
     /// secondary split pane keeps its own choice here).
     @State var paneDisplayModeOverride: ViewDisplayMode?
-    /// What THIS pane shows: its own override, else the window's mode.
-    var displayMode: ViewDisplayMode { paneDisplayModeOverride ?? defaultDisplayMode }
+    /// The layout an applied workspace requests for THIS library pane (Read = table, Browse = icons,
+    /// …), published by `ContentView.paneNodeView`; nil outside a workspace. Preferred over the
+    /// window's global mode, but a per-pane override the user set still wins.
+    @Environment(\.paneLibraryLayout) private var paneLibraryLayout
+    /// What THIS pane shows: its own user override, else the workspace's requested layout, else the
+    /// window's mode.
+    var displayMode: ViewDisplayMode { paneDisplayModeOverride ?? paneLibraryLayout ?? defaultDisplayMode }
     /// Routes a lens pick through ContentView's one mode-change seam.
     var onChangeDisplayMode: ((ViewDisplayMode) -> Void)?
     /// Hides the library list pane (the toolbar toggle's seam). nil when

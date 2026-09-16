@@ -159,3 +159,38 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
 // `.table` renders as the multi-column table view (`LibraryView.tableView`);
 // its user-facing name is "Column" (Mail-style, #1613) while the enum case and
 // rawValue stay `.table`/"Table".
+
+// MARK: - Per-pane library layout (workspace PaneConfig → display mode)
+
+extension ViewDisplayMode {
+    /// Map a workspace `PaneConfig.libraryLayout` string to a display mode, so a workspace can set
+    /// its library pane's layout (Read = table, Browse = icons, …). Case-insensitive; nil for an
+    /// unknown value (the pane then falls back to the window's global mode).
+    init?(paneLibraryLayout raw: String) {
+        switch raw.lowercased() {
+        case "icon", "icons":            self = .icon
+        case "list":                     self = .list
+        case "table", "column", "columns-table": self = .table
+        case "columns", "millercolumns": self = .columns
+        case "grid", "datagrid":         self = .grid
+        case "cards":                    self = .cards
+        case "timeline":                 self = .timeline
+        default:                         return nil
+        }
+    }
+}
+
+/// The library display mode a workspace's library pane requests (spec §"v2 workspace design",
+/// per-pane config). Set per-library-leaf by `ContentView.paneNodeView` on the applied-workspace
+/// path; `LibraryView` prefers it over the window's global mode (but under an explicit per-pane
+/// override the user set). nil everywhere else — the global mode stands.
+private struct PaneLibraryLayoutKey: EnvironmentKey {
+    static let defaultValue: ViewDisplayMode? = nil
+}
+
+extension EnvironmentValues {
+    var paneLibraryLayout: ViewDisplayMode? {
+        get { self[PaneLibraryLayoutKey.self] }
+        set { self[PaneLibraryLayoutKey.self] = newValue }
+    }
+}
