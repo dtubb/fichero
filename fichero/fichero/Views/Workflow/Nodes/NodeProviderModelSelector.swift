@@ -11,11 +11,24 @@ func configuredNodeProviderId(_ node: WorkflowNode) -> String? {
     node.providerName ?? node.config?["provider_name"]?.stringValue
 }
 
-/// Provider and model selection for workflow nodes — a thin WRAPPER around the
-/// shared `ModelPicker` (the one picker used across the node popover, AI Settings
-/// and the workflow bar). The picker is pure UI over the two bindings; this
-/// wrapper owns the NODE side effects — mapping a provider/model selection onto
-/// `WorkflowNode`'s config/providerName/modelName/usesLLM — via `.onChange`.
+/// Provider and model selection for workflow nodes — the one-step `SharedModelRow`
+/// picker (spec RATIFIED 2026-09-15,
+/// docs/contributor_manual/specs/ui/model-selector-consistency.md), replacing the
+/// old Provider→Model two-dropdown DRILL-DOWN (`ModelPicker`, "Spine B"). A single
+/// chip opens a popover that lists every configured model grouped by provider,
+/// each drawn by `SharedModelRow` — the same row Settings, the island and the
+/// workflow bar draw. Choosing a row writes BOTH bindings at once (provider then
+/// model), and the NODE side effects — mapping a provider/model selection onto
+/// `WorkflowNode`'s config/providerName/modelName/usesLLM — still live here in the
+/// unchanged `.onChange`/`apply` seam.
+///
+/// Source parity, not builder parity (the `SettingsSharedModelPicker` precedent):
+/// the pure `SharedModelListBuilder` takes `[LLMProvider]` and SHORTENS names,
+/// but this view's source is `[ProviderOption]` whose `ModelChoice`s already carry
+/// the configured `fullName`-based labels the parity test (`NodeModelListParityTests`)
+/// pins — the SAME `listProviderModels` source Settings uses. So only the ROW
+/// converges here; each configured `ModelChoice` is re-dressed as the shared
+/// `SharedModelChoice`, keeping the labels the drill-down showed.
 struct NodeProviderModelSelector: View {
     /// Kept as an alias so existing call sites (`NodePopover`) that name
     /// `NodeProviderModelSelector.ProviderOption` keep compiling; the type now
@@ -33,18 +46,19 @@ struct NodeProviderModelSelector: View {
     let toolSupportsAppleVision: Bool
     let onLoadProviders: () async -> Void
 
+    @State private var isPresented = false
+
     var body: some View {
-        ModelPicker(
-            providers: providers,
-            selectedProviderId: $selectedProviderId,
-            selectedModelId: $selectedModelId,
-            isLoading: isLoadingProviders,
-            showDefault: true,
-            showAliases: true,
-            showAppleVision: toolSupportsAppleVision,
-            requiresVision: toolRequiresVision
-        )
-        // Side effects live here, at the call site — the picker only moves the
+        Button {
+            isPresented.toggle()
+        } label: {
+            chipLabel
+        }
+        .buttonStyle(.bordered)
+        .popover(isPresented: $isPresented, arrowEdge: .bottom) {
+            pickerList
+        }
+        // Side effects live here, at the call site — the popover only moves the
         // bindings. This is the exact provider→node mapping that used to sit
         // inside the picker's onChange; behavior is unchanged.
         .onChange(of: selectedProviderId) { _, newValue in
@@ -57,6 +71,208 @@ struct NodeProviderModelSelector: View {
             node.modelName = newValue
             logger.info("Model selected: \(newValue)")
         }
+    }
+
+    // MARK: - Chip
+
+    @ViewBuilder
+    private var chipLabel: some View {
+        HStack(spacing: 6) {
+            if let current = currentModelChoice {
+                ModelFamilyMark(model: current.model, provider: current.provider)
+                Text(current.displayName)
+                    .lineLimit(1)
+            } else {
+                Text(currentSpecialLabel)
+                    .lineLimit(1)
+                    .foregroundStyle(selectedProviderId.isEmpty ? .secondary : .primary)
+            }
+            Spacer(minLength: 4)
+            Image(systemName: "chevron.up.chevron.down")
+                .imageScale(.small)
+                .foregroundStyle(.secondary)
+        }
+        .frame(minWidth: 220, alignment: .leading)
+    }
+
+    // MARK: - Popover list
+
+    @ViewBuilder
+    private var pickerList: some View {
+        List {
+            // Leading one-tap choices: Default, Apple Vision (when the tool
+            // offers it) and the capability-tier aliases. These select a provider
+            // sentinel with no model; `apply` fills the rest.
+            Section {
+                specialRow(displayName: "Default", isCurrent: selectedProviderId.isEmpty) {
+                    select(provider: "", model: "")
+                }
+                if toolSupportsAppleVision {
+                    specialRow(
+                        displayName: "Apple Vision (On-Device)",
+                        isCurrent: selectedProviderId == appleVisionProviderId
+                    ) {
+                        select(provider: appleVisionProviderId, model: "")
+                    }
+                }
+                ForEach(aliasOptions) { alias in
+                    specialRow(displayName: alias.label, isCurrent: selectedProviderId == alias.id) {
+                        select(provider: alias.id, model: "")
+                    }
+                }
+            }
+
+            if isLoadingProviders {
+                Section {
+                    ProgressView()
+                        .frame(maxWidth: .infinity, alignment: .center)
+                }
+            } else if availableProviders.isEmpty {
+                // No-providers fallback (Default + aliases above stay selectable).
+                Section {
+                    Text(toolRequiresVision
+                         ? "No vision-capable providers available"
+                         : "No providers configured")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+            } else {
+                ForEach(availableProviders) { provider in
+                    Section(provider.name) {
+                        ForEach(provider.models) { model in
+                            SharedModelRow(
+                                choice: modelChoice(provider: provider, model: model),
+                                isCurrent: provider.id == selectedProviderId
+                                    && model.id == selectedModelId
+                            ) {
+                                select(provider: provider.id, model: model.id)
+                            }
+                            .listRowInsets(EdgeInsets(top: 2, leading: 8, bottom: 2, trailing: 8))
+                        }
+                    }
+                }
+            }
+        }
+        .frame(minWidth: 360, minHeight: 320)
+    }
+
+    /// A leading sentinel row (Default / Apple Vision / alias) on the shared row.
+    /// Provider+model are blank so the row shows only its label — the trailing
+    /// provider text and family mark are for concrete models, not sentinels.
+    @ViewBuilder
+    private func specialRow(
+        displayName: String,
+        isCurrent: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        SharedModelRow(
+            choice: SharedModelChoice(
+                provider: "", model: "", displayName: displayName,
+                tier: nil, supportsVision: nil, pricing: nil
+            ),
+            isCurrent: isCurrent,
+            action: action
+        )
+        .listRowInsets(EdgeInsets(top: 2, leading: 8, bottom: 2, trailing: 8))
+    }
+
+    private func select(provider: String, model: String) {
+        isPresented = false
+        if provider == selectedProviderId {
+            // Provider unchanged → its `.onChange`/`apply` won't run, so there is
+            // no auto-first-model to fight; just move the model binding.
+            selectedModelId = model
+            return
+        }
+        // Provider changed → its `.onChange` runs `apply`, which auto-selects the
+        // provider's first model. Defer the chosen model to the next main-actor
+        // hop so it lands AFTER `apply` and wins — a specific pick must beat the
+        // auto-first. Sentinels (empty model) let `apply` set the model itself.
+        selectedProviderId = provider
+        guard !model.isEmpty else { return }
+        let target = model
+        Task { @MainActor in selectedModelId = target }
+    }
+
+    // MARK: - Derived lists
+
+    /// Capability-tier aliases, always offered (the node picker always showed
+    /// them); the vision aliases join only for a vision-requiring tool.
+    private struct AliasOption: Identifiable {
+        let id: String
+        let label: String
+    }
+
+    private var aliasOptions: [AliasOption] {
+        var options = [
+            AliasOption(id: smallAliasProviderId, label: "$small (default small model)"),
+            AliasOption(id: largeAliasProviderId, label: "$large (default large model)")
+        ]
+        if toolRequiresVision {
+            options += [
+                AliasOption(id: visionSmallAliasProviderId, label: "$vision_small (default small vision model)"),
+                AliasOption(id: visionMediumAliasProviderId, label: "$vision_medium (default vision model)"),
+                AliasOption(id: visionLargeAliasProviderId, label: "$vision_large (default large vision model)")
+            ]
+        }
+        return options
+    }
+
+    /// Providers offered as concrete rows — the same filter the drill-down used:
+    /// enabled only, the catalog Apple row hidden when the tool offers explicit
+    /// Apple Vision, and vision-only tools restricted to vision-capable providers.
+    private var availableProviders: [ProviderOption] {
+        providers.filter { provider in
+            guard provider.available else { return false }
+            if toolSupportsAppleVision, provider.providerType == "apple" { return false }
+            if toolRequiresVision { return provider.supportsVision }
+            return true
+        }
+    }
+
+    /// Re-dress one configured `ModelChoice` as the shared choice the row renders.
+    /// The label is the configured name (as the drill-down showed), falling back
+    /// to the shortened id only if a row somehow has no name. Vision maps
+    /// true→true and false→nil (a provider that never claimed vision is "unknown",
+    /// not a definite "no", 2026-09-01); pricing is nil — the configured list
+    /// carries no catalog prices, and absent beats invented.
+    private func modelChoice(provider: ProviderOption, model: ModelPicker.ModelChoice) -> SharedModelChoice {
+        SharedModelChoice(
+            provider: provider.id,
+            model: model.id,
+            displayName: model.name.isEmpty ? ModelChipToolbarItem.shorten(model.id) : model.name,
+            tier: nil,
+            supportsVision: provider.supportsVision ? true : nil,
+            pricing: nil
+        )
+    }
+
+    /// The concrete provider+model currently selected, if any — drives the chip's
+    /// family mark and name. Nil for Default / Apple Vision / alias selections
+    /// (those show `currentSpecialLabel` instead).
+    private var currentModelChoice: SharedModelChoice? {
+        guard !selectedProviderId.isEmpty,
+              selectedProviderId != appleVisionProviderId,
+              !isModelAliasProviderId(selectedProviderId),
+              !selectedModelId.isEmpty,
+              let provider = providers.first(where: { $0.id == selectedProviderId })
+        else { return nil }
+        let label = provider.models.first(where: { $0.id == selectedModelId })?.name
+            ?? ModelChipToolbarItem.shorten(selectedModelId)
+        return SharedModelChoice(
+            provider: provider.id, model: selectedModelId, displayName: label,
+            tier: nil, supportsVision: nil, pricing: nil
+        )
+    }
+
+    /// Chip text for the non-model selections (and a provider chosen before its
+    /// model resolves).
+    private var currentSpecialLabel: String {
+        if selectedProviderId.isEmpty { return "Default" }
+        if selectedProviderId == appleVisionProviderId { return "Apple Vision" }
+        if isModelAliasProviderId(selectedProviderId) { return selectedProviderId }
+        if let provider = providers.first(where: { $0.id == selectedProviderId }) { return provider.name }
+        return "Default"
     }
 
     /// The provider→node mapping, pure so it is unit-testable
