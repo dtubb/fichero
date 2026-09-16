@@ -46,4 +46,22 @@ final class WorkflowReadOnlySavePolicyTests: XCTestCase {
             "a read-only refusal must never read as an unexpected response"
         )
     }
+
+    // MARK: - Opening a node config never writes config (F4-residual)
+
+    /// spec: workflow-node-config nodeconfig.roundtrip.open-is-read-only — the transcribe config
+    /// normalises a legacy language code on open (es → es-ES); that seed must NOT trip the pickers'
+    /// config-writing onChange, or merely OPENING the node autosaves it. The load guards those writes.
+    func testTranscribeConfigLoadDoesNotWriteConfig() throws {
+        let url = try AppSource.root()
+            .appendingPathComponent("Views/Workflow/Nodes/NodeConfigs/TranscribeNodeConfig.swift")
+        let source = try String(contentsOf: url, encoding: .utf8)
+        // The load raises the guard...
+        XCTAssertTrue(source.contains("isLoadingConfig = true"),
+                      "loadInitialState must mark the load so onChange writes are suppressed")
+        // ...and the config-writing onChange handlers check it (both language + max-image writes).
+        let guardCount = source.components(separatedBy: "guard !isLoadingConfig else { return }").count - 1
+        XCTAssertGreaterThanOrEqual(guardCount, 2,
+                                    "both config-writing onChange handlers must guard on the load flag")
+    }
 }

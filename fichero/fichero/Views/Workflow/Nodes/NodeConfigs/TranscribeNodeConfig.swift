@@ -74,6 +74,12 @@ struct TranscribeNodeConfig: View {
 
     @State private var language: String = TranscribeLanguageChoice.defaultCode
     @State private var maxImageDimension: Double = TranscribeNodeConfig.defaultMaxImageDimension
+    /// True while `loadInitialState` seeds the @State from config on open. The pickers' `.onChange`
+    /// handlers write config, so without this guard the on-open language NORMALISE (a legacy "es" →
+    /// "es-ES") would look like a user edit and autosave on open — violating open-is-read-only
+    /// (workflow-node-config F4-residual, CD). Cleared a main-hop later, after the load's onChange
+    /// deliveries, so a genuine user pick still writes.
+    @State private var isLoadingConfig = false
 
     /// Whether the run will go through an LLM, so the LLM-only fields (prompt,
     /// image size) apply. Spec `nodeconfig.fields.transcribe.prompt.llm-only`.
@@ -112,6 +118,7 @@ struct TranscribeNodeConfig: View {
                 }
                 .pickerStyle(.menu)
                 .onChange(of: language) { _, newValue in
+                    guard !isLoadingConfig else { return }   // on-open normalise is not a user edit
                     if node.config == nil {
                         node.config = [:]
                     }
@@ -140,6 +147,7 @@ struct TranscribeNodeConfig: View {
                     }
                     .pickerStyle(.menu)
                     .onChange(of: maxImageDimension) { _, newValue in
+                        guard !isLoadingConfig else { return }   // on-open seed is not a user edit
                         if node.config == nil {
                             node.config = [:]
                         }
@@ -168,6 +176,7 @@ struct TranscribeNodeConfig: View {
     }
 
     private func loadInitialState() {
+        isLoadingConfig = true
         if let configValue = node.config?["language"],
            case .string(let lang) = configValue {
             language = TranscribeLanguageChoice.normalize(lang)
@@ -177,5 +186,7 @@ struct TranscribeNodeConfig: View {
            case .int(let dimension) = configValue {
             maxImageDimension = Double(dimension)
         }
+        // Clear AFTER this cycle's onChange deliveries so the seeding above never counts as an edit.
+        Task { @MainActor in isLoadingConfig = false }
     }
 }
