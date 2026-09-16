@@ -64,4 +64,17 @@ final class WorkflowReadOnlySavePolicyTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(guardCount, 2,
                                     "both config-writing onChange handlers must guard on the load flag")
     }
+
+    /// spec: workflow-node-config nodeconfig.roundtrip.open-is-read-only — the Search node seeds
+    /// `selectedSearchId` from config on open, and its onChange rewrites `search_id`/`query`; that
+    /// seed must not autosave merely because the node was opened.
+    func testSearchConfigLoadDoesNotWriteConfig() throws {
+        let url = try AppSource.root()
+            .appendingPathComponent("Views/Workflow/Nodes/NodeConfigs/SearchNodeConfig.swift")
+        let source = try String(contentsOf: url, encoding: .utf8)
+        XCTAssertTrue(source.contains("isLoadingConfig = true"),
+                      "loadInitialState must mark the load so the search_id/query onChange is suppressed")
+        XCTAssertTrue(source.contains("guard !isLoadingConfig else { return }"),
+                      "the search-id onChange must guard on the load flag")
+    }
 }

@@ -7,6 +7,11 @@ struct SearchNodeConfig: View {
     @Environment(SavedSearchService.self) var savedSearchService
 
     @State private var selectedSearchId: String = ""
+    /// True while `loadInitialState` seeds `selectedSearchId` from config on open, so the picker's
+    /// `.onChange` (which rewrites `search_id`/`query`) doesn't fire an autosave merely because the
+    /// node was OPENED (workflow-node-config open-is-read-only; the F4-residual pattern). Cleared a
+    /// main-hop later so a genuine pick still writes.
+    @State private var isLoadingConfig = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -22,6 +27,7 @@ struct SearchNodeConfig: View {
             }
             .pickerStyle(.menu)
             .onChange(of: selectedSearchId) { _, newValue in
+                guard !isLoadingConfig else { return }   // on-open seed is not a user edit
                 if node.config == nil {
                     node.config = [:]
                 }
@@ -57,9 +63,12 @@ struct SearchNodeConfig: View {
     }
 
     private func loadInitialState() {
+        isLoadingConfig = true
         if let configValue = node.config?["search_id"],
            case .string(let id) = configValue {
             selectedSearchId = id
         }
+        // Clear AFTER this cycle's onChange delivery so the seed above never counts as an edit.
+        Task { @MainActor in isLoadingConfig = false }
     }
 }
