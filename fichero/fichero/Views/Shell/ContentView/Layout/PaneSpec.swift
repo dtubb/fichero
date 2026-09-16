@@ -365,6 +365,10 @@ extension ContentView {
                     fixedWidth: nil
                 )
                 .environment(\.isSecondarySplitPane, secondaryIDs.contains(id))
+                // Per-kind accessibility identifier so design-lead tests can assert exactly which
+                // panes a workspace mounts (spec §Accessibility; WorkspaceAccessibilityUITests):
+                // "pane.library" / "pane.preview" / "pane.reading" / "pane.inspector" / "pane.chat".
+                .accessibilityIdentifier("pane.\(kind.rawValue)")
             )
             if let closeLeaf {
                 leaf = AnyView(leaf.environment(\.paneCloseAction, PaneCloseAction { closeLeaf(id) }))
