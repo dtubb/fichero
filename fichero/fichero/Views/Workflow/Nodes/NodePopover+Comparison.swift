@@ -78,6 +78,11 @@ extension NodePopover {
                     node.providerName = provider
                     node.modelName = model
                     node.usesLLM = true
+                    // Also move the picker's own selection, or the chip keeps showing the OLD model
+                    // until the popover is reopened (spec nodeconfig.compare.apply-updates-picker,
+                    // F13 — applying a comparison result looked like it did nothing).
+                    selectedProviderId = provider
+                    selectedModelId = model
                 }
             )
         }

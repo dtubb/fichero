@@ -158,17 +158,28 @@ struct WorkflowNodeView: View {
         return state.status == .running || state.status == .parallelRunning
     }
 
-    /// Subtitle showing model/engine configuration
+    /// Subtitle showing model/engine configuration.
     private var nodeSubtitle: String? {
-        // Check for vision_mode config (transcribe, describe tools)
-        if let visionMode = node.config?["vision_mode"]?.stringValue {
-            if visionMode == "apple" {
-                return "Apple Vision"
-            }
-            // For "llm" mode, fall through to show model name
+        Self.nodeSubtitle(
+            modelName: node.modelName,
+            providerName: node.providerName,
+            visionMode: node.config?["vision_mode"]?.stringValue
+        )
+    }
+
+    /// Pure subtitle rule (extracted so it's testable, spec nodeconfig.canvas.subtitle):
+    /// Apple Vision wins; then a concrete model; then an ALIAS ($small / $large / $vision_large)
+    /// rendered readably — the alias case used to render a BLANK subtitle (F9b).
+    static func nodeSubtitle(modelName: String?, providerName: String?, visionMode: String?) -> String? {
+        if visionMode == "apple" { return "Apple Vision" }
+        if let model = modelName, !model.isEmpty { return model }
+        if let provider = providerName, provider.hasPrefix("$") {
+            return provider.dropFirst()
+                .split(separator: "_")
+                .map { $0.prefix(1).uppercased() + $0.dropFirst() }
+                .joined(separator: " · ")
         }
-        // Show model name if set
-        return node.modelName
+        return nil
     }
 
     /// Background color for icon based on status
