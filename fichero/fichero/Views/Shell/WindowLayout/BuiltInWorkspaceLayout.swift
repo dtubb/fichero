@@ -89,24 +89,16 @@ enum BuiltInWorkspaceLayout: String, CaseIterable, Identifiable, Sendable {
                 ])
             ])
         case .compare:
-            // Two witness columns as the CD designed — each the page over its reader over its
-            // navigation: column A browses the LIBRARY, column B its RELATED files. Two previews,
-            // two readers and two libraries in one window is now instance-safe: the applied-list
-            // renderer flags every duplicate leaf secondary (PaneList.secondaryLeafIDs →
-            // \.isSecondarySplitPane) so only the primary of each kind publishes the window-scoped
-            // focus keys — the fix for the render loop that used to beachball here (spec
-            // panes.instance-safe, CD live 2026-09-15).
+            // Two witness columns — each the page over its reader. Two previews + two readers is
+            // safe (the focused-value guard, panes.instance-safe); TWO LIBRARY panes is NOT yet —
+            // the library content view loops on shared data/selection state (loadLibraryData +
+            // SidebarItemBuilder reload storm, CD live 2026-09-15, ⌘⌥4 beachball). The per-column
+            // library/related nav the CD designed returns once the library pane is data-instance-safe
+            // (spec panes.instance-safe-library). For now Compare collates page + reader per witness,
+            // which is the core of a comparison.
             return PaneList([
-                .split(.vertical, [
-                    .leaf(.preview),
-                    .leaf(.reading),
-                    .leaf(.library, config: PaneConfig(libraryLayout: "list"))
-                ]),
-                .split(.vertical, [
-                    .leaf(.preview),
-                    .leaf(.reading),
-                    .leaf(.library, config: PaneConfig(libraryContentKind: "related", libraryLayout: "list"))
-                ])
+                .split(.vertical, [.leaf(.preview), .leaf(.reading)]),
+                .split(.vertical, [.leaf(.preview), .leaf(.reading)])
             ])
         case .catalogue:
             return PaneList([

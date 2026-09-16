@@ -58,14 +58,28 @@ struct BuiltInWorkspaceLayoutTests {
         #expect(previews.contains { $0.config.previewWordBoxes == true })
     }
 
-    @Test("Compare is two symmetric witness columns — page over reader over navigation each")
+    @Test("Compare is two symmetric witness columns — page over reader each")
     func compareIsTwoColumns() {
         let nodes = BuiltInWorkspaceLayout.compare.panes.nodes
         #expect(nodes.count == 2)
         for node in nodes {
-            // Three panes per column, the CD's witness stack: page over reader over its navigation.
-            #expect(node.leafCount == 3)
-            #expect(node.kinds == [.preview, .reading, .library])
+            // Two panes per column (page over reader). The per-column library/related NAV the CD
+            // designed is deferred: TWO library panes loop (loadLibraryData / focused-value storm,
+            // CD live 2026-09-15, ⌘⌥4 beachball) until the library pane is instance-safe. Two
+            // previews + two readers is fine (Transcribe proves two previews).
+            #expect(node.leafCount == 2)
+            #expect(node.kinds == [.preview, .reading])
+        }
+    }
+
+    @Test("no built-in mounts two library panes until the library pane is instance-safe")
+    func noBuiltInMountsTwoLibraries() {
+        // The library content view loops when mounted twice in one window (shared data/selection +
+        // focused-value collision → the ⌘⌥4 beachball). Until that's fixed at the source, a DATA
+        // guard keeps every default to at most one library pane — the reliability line.
+        for layout in BuiltInWorkspaceLayout.allCases {
+            let libraryCount = allLeaves(layout.panes).filter { $0.kind == .library }.count
+            #expect(libraryCount <= 1, "\(layout.title) mounts \(libraryCount) library panes — it will loop")
         }
     }
 
@@ -104,16 +118,16 @@ struct BuiltInWorkspaceLayoutTests {
         }
     }
 
-    @Test("Compare flags one duplicate of each kind secondary (preview, reader, library)")
+    @Test("Compare flags one duplicate of each kind secondary (preview, reader)")
     func compareFlagsDuplicatesSecondary() {
-        // The two-witness Compare mounts two each of preview / reader / library; exactly the SECOND
-        // of each must be secondary so only one publishes per key (the render-loop fix).
+        // The two-witness Compare mounts two each of preview / reader; exactly the SECOND of each
+        // must be secondary so only one publishes per window-scoped key (the focused-value fix).
         let panes = BuiltInWorkspaceLayout.compare.panes
-        #expect(panes.secondaryLeafIDs().count == 3)
+        #expect(panes.secondaryLeafIDs().count == 2)
         let secondaryKinds = allLeafIDs(panes)
             .filter { panes.secondaryLeafIDs().contains($0.id) }
             .map(\.kind)
-        #expect(Set(secondaryKinds) == [.preview, .reading, .library])
+        #expect(Set(secondaryKinds) == [.preview, .reading])
     }
 
     @Test("Catalogue and Claims dock an inspector; the others don't")
