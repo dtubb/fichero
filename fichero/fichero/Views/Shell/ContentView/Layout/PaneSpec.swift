@@ -330,18 +330,17 @@ extension ContentView {
         // same-kind panes (Compare) must flag every duplicate SECONDARY so it doesn't co-publish
         // and loop the scene graph (spec panes.instance-safe). Computed once, from the list shape.
         let secondaryIDs = list.secondaryLeafIDs()
-        HStack(spacing: 0) {
-            ForEach(Array(list.nodes.enumerated()), id: \.offset) { index, node in
-                paneNodeView(
-                    node, keyPath: "\(index)", secondaryIDs: secondaryIDs,
-                    // Closing a pane removes THIS leaf from the stored list (spec
-                    // panes.close.this-pane-only) — @State's nonmutating setter writes back, so
-                    // capturing self here is safe. nil on the legacy path leaves close unchanged.
-                    closeLeaf: { id in activePaneList = activePaneList?.removingLeaf(id) }
-                )
-            }
+        // The top-level columns, as RESIZABLE widths (WorkspaceSplitStack) — the applied-workspace
+        // path is now fully resizable (CD 2026-09-16). Closing a pane removes THIS leaf from the
+        // stored list (spec panes.close.this-pane-only); @State's nonmutating setter makes capturing
+        // self safe.
+        let columns = list.nodes.enumerated().map { index, node in
+            paneNodeView(
+                node, keyPath: "\(index)", secondaryIDs: secondaryIDs,
+                closeLeaf: { id in activePaneList = activePaneList?.removingLeaf(id) }
+            )
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        WorkspaceSplitStack(axis: .horizontal, storageKey: "root", children: columns)
     }
 
     /// Render one node. AnyView because the recursion (node → split → node) can't ride an
@@ -390,50 +389,20 @@ extension ContentView {
         }
     }
 
-    /// A split node: children stacked along the axis. Vertical reproduces the legacy
-    /// `.standard` heights (library rides short at the top, the preview/reader below is greedy).
+    /// A split node: children laid out along the axis in a RESIZABLE `WorkspaceSplitStack`, so every
+    /// split in an applied workspace can be dragged (widths for a horizontal split, heights for a
+    /// vertical one). Extents persist per split position via the `keyPath` storage key.
     private func paneSplitView(
         axis: SplitAxis, children: [PaneNode], keyPath: String,
         secondaryIDs: Set<UUID> = [], closeLeaf: ((UUID) -> Void)? = nil
     ) -> AnyView {
-        let indexed = Array(children.enumerated())
-        switch axis {
-        case .vertical:
-            return AnyView(VStack(spacing: 0) {
-                ForEach(indexed, id: \.offset) { idx, child in
-                    verticallyFramedPane(
-                        child, keyPath: "\(keyPath).\(idx)",
-                        secondaryIDs: secondaryIDs, closeLeaf: closeLeaf
-                    )
-                }
-            })
-        case .horizontal:
-            return AnyView(HStack(spacing: 0) {
-                ForEach(indexed, id: \.offset) { idx, child in
-                    paneNodeView(
-                        child, keyPath: "\(keyPath).\(idx)",
-                        secondaryIDs: secondaryIDs, closeLeaf: closeLeaf
-                    )
-                }
-            })
+        let views = children.enumerated().map { idx, child in
+            paneNodeView(
+                child, keyPath: "\(keyPath).\(idx)",
+                secondaryIDs: secondaryIDs, closeLeaf: closeLeaf
+            )
         }
-    }
-
-    /// Height policy for a vertical split, preserving the old `.standard` split proportions.
-    /// ponytail: kind-based heights; replace with per-pane weights on `PaneNode` when workspaces
-    /// need custom vertical ratios.
-    @ViewBuilder
-    private func verticallyFramedPane(
-        _ child: PaneNode, keyPath: String,
-        secondaryIDs: Set<UUID> = [], closeLeaf: ((UUID) -> Void)? = nil
-    ) -> some View {
-        if case let .leaf(_, kind, _, _) = child, kind == .library {
-            paneNodeView(child, keyPath: keyPath, secondaryIDs: secondaryIDs, closeLeaf: closeLeaf)
-                .frame(minHeight: 150, idealHeight: 180)
-        } else {
-            paneNodeView(child, keyPath: keyPath, secondaryIDs: secondaryIDs, closeLeaf: closeLeaf)
-                .frame(minHeight: 400, idealHeight: 720)
-        }
+        return AnyView(WorkspaceSplitStack(axis: axis, storageKey: keyPath, children: views))
     }
 
     /// The assistant chat surface — the SAME `ChatView` the old centre pane
