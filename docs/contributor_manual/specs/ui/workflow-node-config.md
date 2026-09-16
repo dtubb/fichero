@@ -9,6 +9,29 @@
 > the line · **[GAP]** intended behavior never built. Untagged = design intent
 > whose current state is not yet pinned either way.
 
+> **Changelog 2026-09-16 — wave-1 + safe-wave fixes landed.** The behaviors below
+> flipped from [BROKEN]/[GAP] to [OK], each now pinned by a named test:
+> F1 effective/ghost prompt visible before registry (`shows-effective-prompt`,
+> `visible-before-registry` — `NodePromptEditorTests`); F2 transcribe prompt shows
+> for auto/llm/provider-present (`transcribe.prompt.llm-only` — `TranscribeNodeConfigTests`);
+> F4 default is a ghost, opening is read-only for the prompt (`default-is-ghost-not-text`
+> — `NodePromptEditorTests` / `WorkflowReadOnlySavePolicyTests`); F6 `usesLLM` is a
+> stable tool fact and the preview shows for LLM tools (`uses-llm-is-tool-fact`,
+> `preview.shown-for-llm-tools` — `NodeProviderModelSelectorVisionModeTests`); F7
+> node model list == Settings list, same labels (`same-list-as-settings`,
+> `same-labels-as-settings` — `NodeModelListParityTests`); F13 Compare-Models Apply
+> updates the picker (`compare-apply-updates-picker` —
+> `NodeSubtitleAndApplyTests.testCompareApplyUpdatesPickerSelection`); F9b canvas
+> alias/Apple subtitle no longer blank (`subtitle-reflects-provider` —
+> `NodeSubtitleAndApplyTests`). Commits: `719094241` (F1/F2/F4/F6), `9388a2679`
+> (F7 shared one-step picker), `5559a5908` (F13/F9b). The Findings entries below
+> describe the pre-fix state and are kept as historical code evidence. Still open
+> (NEEDS-EYES): F3 auto-mode chip label, F5 folder/collection prompt (server
+> decision), F8 vision-requirement-from-server, F9a canvas icon/colour registry
+> drift, F11 stale removed-provider warning, F16 kraken model field, and the
+> E-section config-summary list row — plus the F4 residual noted on
+> `open-is-read-only` (transcribe legacy-language normalise-on-open).
+
 ## Intent (the design)
 
 The node popover is the ONE place a step is configured. Opening it shows every
@@ -37,14 +60,14 @@ Common chrome (every tool)
 Transcribe (`transcribe`)
 - `nodeconfig.fields.transcribe.language` — [OK] Language/Locale picker; legacy codes (`es`, `es_mx`) normalise to canonical (`es-ES`, `es-MX`); `auto` allowed. (Pinned: `TranscribeNodeConfigTests`.)
 - `nodeconfig.fields.transcribe.image-size.llm-only` — Max Image Size appears whenever the run will go through an LLM, hidden when Apple Vision / Kraken will read the page.
-- `nodeconfig.fields.transcribe.prompt.llm-only` — **[BROKEN]** the Prompt editor appears whenever the run will go through an LLM — including `vision_mode = "auto"` (the server default for new nodes) and `$vision_*` alias selections. Today it is gated on the literal `vision_mode == "llm"`, so new nodes and alias-configured nodes show no prompt at all. (F2)
+- `nodeconfig.fields.transcribe.prompt.llm-only` — **[OK]** the Prompt editor appears whenever the run will go through an LLM — including `vision_mode = "auto"` (the server default for new nodes) and `$vision_*` alias selections; `TranscribeNodeConfig.showsLLMFields` now treats llm/auto and any chosen provider/alias as LLM paths, while apple/kraken hide the LLM fields. (F2; pinned: `TranscribeNodeConfigTests`.)
 - `nodeconfig.fields.transcribe.kraken-model` — [GAP] when the engine offers `kraken` mode, the `kraken_model` choice the server schema declares is offered; today the custom view omits it.
 
 Describe (`describe`)
 - `nodeconfig.fields.describe.detail-level` — [OK] segmented Brief/Detailed/Comprehensive → `detail_level`.
 - `nodeconfig.fields.describe.focus` — [OK] optional Focus text → `focus`; clearing removes the key.
 - `nodeconfig.fields.describe.thinking-mode` — [OK] Thinking Mode picker; `off` removes `thinking_mode`.
-- `nodeconfig.fields.describe.prompt` — [OK-shape / BROKEN-content] Prompt editor always shown (LLM-only tool); content rules in section B.
+- `nodeconfig.fields.describe.prompt` — [OK] Prompt editor always shown (LLM-only tool); now routed through the shared `NodePromptEditor`, so the effective/ghost content rules in section B (F1/F4) apply.
 
 Summarize File / Folder / Collection
 - `nodeconfig.fields.summarize.style` — [OK] segmented style → `style` (file/folder: brief/detailed/bullets; collection: executive/detailed/narrative).
@@ -73,36 +96,36 @@ Zoom (`zoom`)
 
 ### B. Prompt text — surfaced and editable
 
-- `nodeconfig.prompt.shows-effective-prompt` — **[BROKEN]** the editor's initial text is the prompt the run will actually send for the CURRENT config (server `POST /tools/{tool}/prompt`, which applies the tool's `prompt_builder` to language/style/detail…), not the frozen registry default. Today `NodePopover.backendPrompt` is declared and threaded into Transcribe/Describe but never fetched, so only `toolInfo.defaultPrompt` is ever shown. (F1)
-- `nodeconfig.prompt.visible-before-registry` — **[BROKEN]** if the tool registry has not loaded when the popover opens, the prompt appears once it does; today the editor initialises once in `onAppear` and never repopulates. (F1)
-- `nodeconfig.prompt.default-is-ghost-not-text` — **[BROKEN]** when the node has no `prompt` override, the default is rendered as a placeholder (ghosted, as `DynamicConfigView.promptEditor` already does) and `config.prompt` stays ABSENT. Today Transcribe/Describe copy the default into the editor as real text, which the `onChange` then writes to `config["prompt"]` — so merely opening the popover pins a stale default as a user override (autosaved 300 ms later) and detaches the prompt from later Language/Detail edits. On the server a set `prompt` is also treated as a custom prompt, which changes transcribe's page-content behaviour. (F4)
+- `nodeconfig.prompt.shows-effective-prompt` — **[OK]** the editor's initial text is the prompt the run will actually send for the CURRENT config, not the frozen registry default: `NodePopover` now fetches the server-assembled default (config minus the node's own override, via `WorkflowNode.defaultPromptConfigDict`) on open and 300 ms after any prompt edit. (F1; pinned: `NodePromptEditorTests`.)
+- `nodeconfig.prompt.visible-before-registry` — **[OK]** if the tool registry has not loaded when the popover opens, the prompt appears once it does; the ghost falls back to the registry default live rather than initialising once in `onAppear`. (F1; pinned: `NodePromptEditorTests`.)
+- `nodeconfig.prompt.default-is-ghost-not-text` — **[OK]** when the node has no `prompt` override, the default is rendered as a placeholder (ghost) and `config.prompt` stays ABSENT. The new `NodePromptEditor` + pure `NodePromptOverride` reducer replace the hand-rolled Transcribe/Describe/Summarize-file editors, so only a user edit writes `config.prompt`; merely opening the popover no longer pins a stale default (no autosave) and the prompt tracks later Language/Detail edits. (F4; pinned: `NodePromptEditorTests` / `WorkflowReadOnlySavePolicyTests`.)
 - `nodeconfig.prompt.edit-writes-override` — [OK] typing writes `config.prompt`; clearing to empty removes the key ("Reset to default").
 - `nodeconfig.prompt.reset-affordance` — one explicit "Reset to default" action when an override exists (present in `DynamicConfigView`, absent in the hand-rolled editors).
 - `nodeconfig.prompt.one-editor-component` — all prompt editing goes through one component (the `DynamicConfigView.promptEditor` pattern); Transcribe/Describe/Summarize-file stop hand-rolling divergent editors.
 - `nodeconfig.prompt.preview.assembled` — [OK] the Prompt Preview disclosure fetches the assembled prompt (config included, arrays and nested values converted recursively), re-fetches 300 ms after any config change while open, and offers Copy.
-- `nodeconfig.prompt.preview.shown-for-llm-tools` — **[BROKEN]** the preview shows for every LLM tool regardless of provider choice. Today it is gated on `node.usesLLM`, which the selector flips to `false` when "Default" is chosen — so a Default-provider summarize node loses its preview. (F6)
+- `nodeconfig.prompt.preview.shown-for-llm-tools` — **[OK]** the preview shows for every LLM tool regardless of provider choice; `node.usesLLM` is now a stable tool fact (no longer flipped to `false` on "Default"), so a Default-provider summarize node keeps its preview. (F6; pinned: `NodeProviderModelSelectorVisionModeTests`.)
 - `nodeconfig.prompt.preview.never-empty` — **[BROKEN]** a tool with no prompt states "This tool has no prompt" instead of rendering an empty box (folder/collection summaries today). (F5)
 
 ### C. Provider / model selection — cross-surface invariant with Settings
 
 - `nodeconfig.model.one-picker` — [OK] popover, AI Settings and workflow bar all render `ModelPicker`; per-surface differences are flags, not forks.
-- `nodeconfig.model.same-list-as-settings` — **[BROKEN]** the popover lists exactly the models Settings lists for a provider: the user-configured models (`listProviderModels(providerId:)`). Today the popover loads the full catalog (`listAvailableModels(providerType:)`), offering models Settings deliberately withholds because the provider's API does not serve them — the very runtime-404 class Settings was fixed to prevent. (F7)
-- `nodeconfig.model.same-labels-as-settings` — **[BROKEN]** a model is labelled the same everywhere (Settings shows `fullName`, the popover shows the raw id). (F7)
+- `nodeconfig.model.same-list-as-settings` — **[OK]** the popover lists exactly the models Settings lists for a provider: the user-configured models (`listProviderModels(providerId:)`), loaded through the one shared `ModelPicker.ModelChoice.configured` mapping Settings also uses, via the shared one-step picker. (F7; pinned: `NodeModelListParityTests`.)
+- `nodeconfig.model.same-labels-as-settings` — **[OK]** a model is labelled the same everywhere: the configured `fullName`, not the raw id. (F7; pinned: `NodeModelListParityTests`.)
 - `nodeconfig.model.default-entry` — [OK] "Default" (tag `""`) clears `providerName`/`modelName` and the model picker hides; the runtime resolves the tier default.
 - `nodeconfig.model.aliases` — [OK] `$small`/`$large` always; `$vision_small/medium/large` only for vision tools; choosing one persists the alias as `providerName`, clears `modelName`, hides the model picker. (Pinned: `NodeProviderModelSelectorVisionModeTests`.)
 - `nodeconfig.model.apple-vision-entry` — [OK] tools that support on-device OCR list "Apple Vision (On-Device)"; choosing it sets `vision_mode = "apple"` and clears provider/model; the catalog's Apple Intelligence row is hidden to avoid a duplicate Apple choice.
 - `nodeconfig.model.vision-only-filter` — [OK] a vision tool lists only vision-capable providers, shows vision aliases, and says "No vision-capable providers available" when none.
 - `nodeconfig.model.vision-requirement-from-server` — **[GAP]** which tools need vision / support Apple Vision comes from the served tool definition (server already knows `supports_apple_vision`, `requires_generative_model`, category); today the popover keeps two hard-coded sets (`visionTools`, `appleVisionTools`) that drift from the registry — the pattern #4477 forbade for port conversions. (F8)
-- `nodeconfig.model.uses-llm-is-tool-fact` — **[BROKEN]** `node.usesLLM` describes the TOOL and never changes with the provider choice. Today choosing "Default" on a non-vision LLM tool sets it `false`, after which `shouldShowProviderSection` is false on reopen: the provider section, Compare Models button and Prompt Preview all vanish and the user can never pick a provider for that node again. (F6)
+- `nodeconfig.model.uses-llm-is-tool-fact` — **[OK]** `node.usesLLM` describes the TOOL and never changes with the provider choice; `NodeProviderModelSelector.apply` (pure static) no longer sets `usesLLM=false` on "Default", so the provider section, Compare Models button and Prompt Preview survive reopen. (F6; pinned: `NodeProviderModelSelectorVisionModeTests`.)
 - `nodeconfig.model.auto-mode-representation` — **[BROKEN]** a transcribe node whose `vision_mode` is `"auto"` (server default for new nodes) shows "Default" in the picker AND its LLM-only fields (prompt, image size), since auto resolves to LLM unless the resolved provider is Apple. Today it shows Default with the LLM fields hidden. (F2/F3)
 - `nodeconfig.model.provider-switch-picks-first-model` — [OK] selecting an LLM provider auto-selects its first model so the node is never provider-without-model.
 - `nodeconfig.model.stale-provider-visible` — **[BROKEN]** if the node's saved provider is no longer among the loaded providers (disabled/removed), the picker shows the stale value with a warning; today it silently shows "Default" while `providerName` still carries the stale id the run will use. (F11)
-- `nodeconfig.model.compare-apply-updates-picker` — **[BROKEN]** applying a Compare Models result updates the visible provider/model selection immediately; today only the node fields change and the picker is stale until reopen. (F13)
+- `nodeconfig.model.compare-apply-updates-picker` — **[OK]** applying a Compare Models result updates the visible provider/model selection immediately; `NodeComparisonSheet`'s `onApply` now moves both `selectedProviderId`/`selectedModelId` as well as the node fields, so the chip no longer stays on the old model until reopen. (F13; pinned: `NodeSubtitleAndApplyTests.testCompareApplyUpdatesPickerSelection`.)
 - `nodeconfig.model.reload` — [OK] the header refresh re-loads providers; loading shows a spinner; an empty list says "No providers configured".
 
 ### D. Config round-trip (edit → persist → reopen)
 
-- `nodeconfig.roundtrip.open-is-read-only` — **[BROKEN]** opening and closing a popover without touching anything leaves `node` byte-identical (no autosave fires). Today Transcribe/Describe write the default prompt (F4) and Transcribe normalises + rewrites `language` on open; Search rewrites `search_id`/`query` on open. Normalisation of legacy values is allowed only as an explicit, visible migration — not a side effect of looking.
+- `nodeconfig.roundtrip.open-is-read-only` — **[BROKEN-partial]** opening and closing a popover without touching anything should leave `node` byte-identical (no autosave fires). The prompt half of F4 is fixed — Transcribe/Describe no longer write the default prompt on open (via `NodePromptEditor`, no autosave), pinned by `WorkflowReadOnlySavePolicyTests`. RESIDUAL (being addressed separately): Transcribe still normalises + rewrites legacy `language` on open, and Search rewrites `search_id`/`query` on open. Normalisation of legacy values is allowed only as an explicit, visible migration — not a side effect of looking.
 - `nodeconfig.roundtrip.every-field` — each field in section A reads its saved value on open and shows it (language, image size, prompt override, style, max length, thinking mode, toggles, entity types, file ids, collection id, search id, provider, model). (One parameterised test per node type.)
 - `nodeconfig.roundtrip.legacy-values` — [OK] legacy shapes still load: `doc:`-prefixed file ids are stripped; `provider_name` inside `config` is read when the typed field is empty; legacy language codes normalise.
 - `nodeconfig.roundtrip.autosave` — [OK] any real edit autosaves after a 300 ms debounce; autosave never fires for a locked system preset.
@@ -112,7 +135,7 @@ Zoom (`zoom`)
 
 ### E. Canvas representations agree with the config
 
-- `nodeconfig.canvas.subtitle-reflects-provider` — [BROKEN-partial] the node subtitle states what will answer: "Apple Vision", the model name, or the alias (`$vision_large`). Today an alias node shows no subtitle at all (`modelName` is nil for aliases).
+- `nodeconfig.canvas.subtitle-reflects-provider` — [OK] the node subtitle states what will answer: "Apple Vision", the model name, or the alias rendered readably ("Vision · Large"). The rule is extracted to a pure static (`WorkflowNodeView.nodeSubtitle`) that falls back to the alias when `modelName` is nil, so alias nodes are no longer blank. (F9b; pinned: `NodeSubtitleAndApplyTests`.)
 - `nodeconfig.canvas.icon-color-from-registry` — [BROKEN-partial] icon/colour come from the served registry on every canvas representation; `WorkflowNodeCard`/`WorkflowNodeRow` still carry their own hard-coded maps (the canvas node already reads the registry).
 - `nodeconfig.canvas.list-row-shows-config-summary` — [GAP] the list row shows the same provider/model summary as the canvas subtitle instead of the (x, y) position badge.
 

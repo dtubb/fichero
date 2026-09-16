@@ -7,6 +7,9 @@ import SwiftUI
 struct ExtractEntitiesNodeConfig: View {
     @Binding var node: WorkflowNode
 
+    let toolInfo: ToolInfo?
+    let backendPrompt: String?
+
     @State private var entityTypes: Set<String> = ["people", "organizations", "locations", "dates"]
     @State private var includeContext: Bool = false
     @State private var customTypes: [LibraryEntityTypeItem] = []
@@ -33,6 +36,14 @@ struct ExtractEntitiesNodeConfig: View {
             Text("Shows surrounding text for each entity")
                 .font(.caption2)
                 .foregroundColor(.secondary)
+
+            // Prompt: ghost default (for the current targets), override on
+            // edit — the one shared editor; nothing here writes config on appear.
+            NodePromptEditor(
+                node: $node,
+                backendPrompt: backendPrompt,
+                registryPrompt: toolInfo?.defaultPrompt
+            )
         }
         .task { await loadRegistryTypes() }
         .onAppear { loadInitialState() }

@@ -62,4 +62,18 @@ final class NodeSubtitleAndApplyTests: XCTestCase {
         XCTAssertTrue(source.contains("selectedModelId = model"),
                       "Compare apply must move the model selection so the chip updates")
     }
+
+    // MARK: F5/entities — the Extract-Entities node exposes the shared prompt editor
+
+    func testEntitiesNodeComposesPromptEditor() throws {
+        // The server honors a `prompt` override for extract_entities, but the node had no editor.
+        // It now composes the same NodePromptEditor as Describe/SummarizeFile (spec F5/entities).
+        let url = try AppSource.root()
+            .appendingPathComponent("Views/Workflow/Nodes/NodeConfigs/ExtractEntitiesNodeConfig.swift")
+        let source = try String(contentsOf: url, encoding: .utf8)
+        XCTAssertTrue(source.contains("NodePromptEditor"),
+                      "entities node must compose the shared prompt editor")
+        XCTAssertTrue(source.contains("backendPrompt"),
+                      "entities node must thread the backend prompt so the ghost shows the effective prompt")
+    }
 }

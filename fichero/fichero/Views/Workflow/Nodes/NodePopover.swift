@@ -138,7 +138,11 @@ struct NodePopover: View {
         case "summarize_collection":
             SummarizeCollectionNodeConfig(node: $node)
         case "extract_entities":
-            ExtractEntitiesNodeConfig(node: $node)
+            ExtractEntitiesNodeConfig(
+                node: $node,
+                toolInfo: toolInfo,
+                backendPrompt: backendPrompt
+            )
         case "zoom":
             // Live tile-grid preview above the schema-driven fields so
             // rows/overlap/scale edits are immediately visible (#4323).
