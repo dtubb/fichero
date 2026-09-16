@@ -44,41 +44,40 @@ struct BuiltInWorkspaceLayoutTests {
         #expect(BuiltInWorkspaceLayout.read.panes.kinds == [.library, .preview, .reading])
     }
 
-    @Test("Browse nests a column-browser over a reader, beside the page")
-    func browseNestsVertically() {
+    @Test("Browse is icon view, preview, reader — three columns (like we had it)")
+    func browseIsThreeColumns() {
         let nodes = BuiltInWorkspaceLayout.browse.panes.nodes
-        guard case let .split(_, axis, children) = nodes.first else {
-            Issue.record("browse should open with a split"); return
+        #expect(nodes.map(\.kinds) == [[.library], [.preview], [.reading]])
+        if case let .leaf(_, _, _, config) = nodes.first {
+            #expect(config.libraryLayout == "icons")
         }
-        #expect(axis == .vertical)
+    }
+
+    @Test("Transcribe is icons along the bottom, preview + reader above")
+    func transcribeIconsBottom() {
+        // One column: a vertical split whose TOP is a horizontal preview|reader and BOTTOM is the
+        // library (icons).
+        let nodes = BuiltInWorkspaceLayout.transcribe.panes.nodes
+        #expect(nodes.count == 1)
+        guard case let .split(_, axis, children) = nodes.first, axis == .vertical else {
+            Issue.record("transcribe should open with a vertical split"); return
+        }
         #expect(children.count == 2)
-        if case let .leaf(_, kind, _, config) = children.first {
-            #expect(kind == .library)
-            #expect(config.libraryLayout == "columns")
-        } else {
-            Issue.record("first child should be the library leaf")
-        }
+        #expect(children.first?.kinds == [.preview, .reading])   // top row (a horizontal split)
+        #expect(children.last?.kinds == [.library])              // bottom strip
     }
 
-    @Test("Transcribe shows a word-box preview beside the plain page")
-    func transcribeHasWordBoxes() {
-        let previews = allLeaves(BuiltInWorkspaceLayout.transcribe.panes).filter { $0.kind == .preview }
-        #expect(previews.count == 2)
-        #expect(previews.contains { $0.config.previewWordBoxes == true })
-    }
-
-    @Test("Compare is two symmetric witness columns — page over reader each")
-    func compareIsTwoColumns() {
+    @Test("Compare is icons along the bottom, TWO previews + a reader above")
+    func compareTwoPreviewsOverIcons() {
         let nodes = BuiltInWorkspaceLayout.compare.panes.nodes
-        #expect(nodes.count == 2)
-        for node in nodes {
-            // Two panes per column (page over reader). The per-column library/related NAV the CD
-            // designed is deferred: TWO library panes loop (loadLibraryData / focused-value storm,
-            // CD live 2026-09-15, ⌘⌥4 beachball) until the library pane is instance-safe. Two
-            // previews + two readers is fine (Transcribe proves two previews).
-            #expect(node.leafCount == 2)
-            #expect(node.kinds == [.preview, .reading])
+        #expect(nodes.count == 1)
+        guard case let .split(_, .vertical, children) = nodes.first else {
+            Issue.record("compare should open with a vertical split"); return
         }
+        // Top row: two previews + a reader (horizontal). Bottom: library icons.
+        let previews = allLeaves(BuiltInWorkspaceLayout.compare.panes).filter { $0.kind == .preview }
+        #expect(previews.count == 2)
+        #expect(children.last?.kinds == [.library])
     }
 
     @Test("no built-in mounts two library panes until the library pane is instance-safe")
@@ -127,16 +126,16 @@ struct BuiltInWorkspaceLayoutTests {
         }
     }
 
-    @Test("Compare flags one duplicate of each kind secondary (preview, reader)")
+    @Test("Compare flags the second preview secondary (only one publisher per key)")
     func compareFlagsDuplicatesSecondary() {
-        // The two-witness Compare mounts two each of preview / reader; exactly the SECOND of each
-        // must be secondary so only one publishes per window-scoped key (the focused-value fix).
+        // Compare mounts two previews; the SECOND must be secondary so only one publishes the
+        // window-scoped preview focus keys (the focused-value instance-safety fix).
         let panes = BuiltInWorkspaceLayout.compare.panes
-        #expect(panes.secondaryLeafIDs().count == 2)
+        #expect(panes.secondaryLeafIDs().count == 1)
         let secondaryKinds = allLeafIDs(panes)
             .filter { panes.secondaryLeafIDs().contains($0.id) }
             .map(\.kind)
-        #expect(Set(secondaryKinds) == [.preview, .reading])
+        #expect(Set(secondaryKinds) == [.preview])
     }
 
     @Test("Catalogue and Claims dock an inspector; the others don't")

@@ -66,50 +66,55 @@ enum BuiltInWorkspaceLayout: String, CaseIterable, Identifiable, Sendable {
     /// The composition.
     var panes: PaneList {
         switch self {
+        // CD 2026-09-16 — the workspace set redesigned from the CD's Mail-referenced sketch. NOTE:
+        // per-pane `libraryLayout` (table vs icons) is not yet read by the renderer (it uses the
+        // window's global layout); wiring that is the next step so these actually look different.
         case .read:
-            // The default (CD 2026-09-16): 1 library above 1 reader, beside 1 preview — a left
-            // column of library-over-reader, the page on the right. Single instances of each kind,
-            // so it's inherently instance-safe.
+            // Default (Mail-style): table at top, reader below, preview to the right.
             return PaneList([
                 .split(.vertical, [
-                    .leaf(.library, config: PaneConfig(libraryLayout: "list")),
+                    .leaf(.library, config: PaneConfig(libraryLayout: "table")),
                     .leaf(.reading)
                 ]),
                 .leaf(.preview)
             ])
         case .browse:
+            // Icon view (vertical column), then preview, then reader — "like we had it".
             return PaneList([
-                .split(.vertical, [
-                    .leaf(.library, config: PaneConfig(libraryLayout: "columns")),
-                    .leaf(.reading)
-                ]),
-                .leaf(.preview)
+                .leaf(.library, config: PaneConfig(libraryLayout: "icons")),
+                .leaf(.preview),
+                .leaf(.reading)
             ])
         case .transcribe:
+            // Icons along the bottom, preview above and reader to its right.
             return PaneList([
-                .leaf(.preview),
                 .split(.vertical, [
-                    .leaf(.preview, config: PaneConfig(previewWordBoxes: true)),
-                    .leaf(.reading)
+                    .split(.horizontal, [.leaf(.preview), .leaf(.reading)]),
+                    .leaf(.library, config: PaneConfig(libraryLayout: "icons"))
                 ])
             ])
         case .compare:
-            // Two witness columns — each the page over its reader. Two previews + two readers is
-            // safe (the focused-value guard, panes.instance-safe); TWO LIBRARY panes is NOT yet —
-            // the library content view loops on shared data/selection state (loadLibraryData +
-            // SidebarItemBuilder reload storm, CD live 2026-09-15, ⌘⌥4 beachball). The per-column
-            // library/related nav the CD designed returns once the library pane is data-instance-safe
-            // (spec panes.instance-safe-library). For now Compare collates page + reader per witness,
-            // which is the core of a comparison.
+            // Icons along the bottom, with TWO previews and one reader above (two witnesses side by
+            // side + the reader). Two previews are instance-safe (the focused-value guard flags the
+            // second secondary); the ⌘⌥4 crash was the animated swap, now removed (5bd6cf61a).
             return PaneList([
-                .split(.vertical, [.leaf(.preview), .leaf(.reading)]),
-                .split(.vertical, [.leaf(.preview), .leaf(.reading)])
+                .split(.vertical, [
+                    .split(.horizontal, [.leaf(.preview), .leaf(.preview), .leaf(.reading)]),
+                    .leaf(.library, config: PaneConfig(libraryLayout: "icons"))
+                ])
             ])
         case .catalogue:
+            // The inspector option (e.g. related files): library over reader on the left; preview
+            // over the inspector on the right, so the bottom-right inspector shows related files.
             return PaneList([
-                .leaf(.library, config: PaneConfig(libraryLayout: "table")),
-                .split(.vertical, [.leaf(.preview), .leaf(.reading)]),
-                .leaf(.inspector)
+                .split(.vertical, [
+                    .leaf(.library, config: PaneConfig(libraryLayout: "table")),
+                    .leaf(.reading)
+                ]),
+                .split(.vertical, [
+                    .leaf(.preview),
+                    .leaf(.inspector)
+                ])
             ])
         case .claims:
             return PaneList([
