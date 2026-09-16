@@ -157,6 +157,17 @@ struct ChatModelPicker: View, Equatable {
     @Binding var selectedProvider: String
     @Binding var selectedModel: String
 
+    /// Popover open state. Not part of the value's identity, so it stays out of
+    /// the Equatable comparison below — SwiftUI still skips the body unless the
+    /// selection or provider list changed (the perf note above the struct).
+    @State private var isPresented = false
+    #if os(macOS)
+    // SwiftUI's own settings action — no AppKit bridge, so this file stays
+    // inside the cross-platform rule (check_appkit_imports). The "AI Settings…"
+    // footer matches the island's picker (ModelChipToolbarItem.modelPicker).
+    @Environment(\.openSettings) private var openSettings
+    #endif
+
     nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
         // Equatable's requirement is nonisolated, but the compared properties
         // are main-actor (View members). SwiftUI diffs on the main actor, so
@@ -168,44 +179,84 @@ struct ChatModelPicker: View, Equatable {
         }
     }
 
+    /// The pickable list, from the ONE shared builder every model surface reads
+    /// (spec RATIFIED 2026-09-15), so chat cannot drift its own list or labels.
+    /// The chat toolbar has no Settings-tier defaults on hand (they are not
+    /// passed in), so `tierDefaults` is empty — the builder then returns every
+    /// configured model, provider-grouped and alphabetical, which is exactly
+    /// what chat offered before, only now via the shared code path.
+    private var choices: [SharedModelChoice] {
+        SharedModelListBuilder.build(providers: providers, tierDefaults: [])
+    }
+
     var body: some View {
-        Menu {
-            ForEach(providers) { provider in
-                if provider.available {
-                    Section(provider.name) {
-                        ForEach(provider.models, id: \.self) { model in
-                            Button {
-                                selectedProvider = provider.id
-                                selectedModel = model
-                            } label: {
-                                HStack {
-                                    Text(model)
-                                    if selectedProvider == provider.id && selectedModel == model {
-                                        Image(systemName: "checkmark")
-                                    }
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    Section {
-                        Text("\(provider.name) (not configured)")
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
+        Button {
+            isPresented.toggle()
         } label: {
             // Icon only (Daniel, 2026-08-23: the bar "doesn't need to say
-            // what the model is") — the choice lives in the menu and the
+            // what the model is") — the choice lives in the popover and the
             // hover help.
             Image(systemName: "cpu")
                 .font(.caption)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(Color(.controlBackgroundColor))
-            .cornerRadius(6)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color(.controlBackgroundColor))
+                .cornerRadius(6)
         }
-        .menuStyle(.borderlessButton)
+        .buttonStyle(.plain)
         .disabled(providers.isEmpty)
+        // A POPOVER that PICKS, rendering the SHARED row — the same face the
+        // island, Settings and the comparison sheet show — not a bespoke Menu.
+        .popover(isPresented: $isPresented, arrowEdge: .bottom) {
+            picker
+        }
+    }
+
+    @ViewBuilder
+    private var picker: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    if choices.isEmpty {
+                        VStack(spacing: 8) {
+                            Text("No models available. Add a provider in AI Settings.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 12)
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 180)
+                    }
+                    ForEach(choices) { choice in
+                        SharedModelRow(
+                            choice: choice,
+                            isCurrent: choice.provider == selectedProvider
+                                && choice.model == selectedModel
+                        ) {
+                            // Provider first, then model — the same write order
+                            // the old Menu used.
+                            selectedProvider = choice.provider
+                            selectedModel = choice.model
+                            isPresented = false
+                        }
+                    }
+                }
+                .padding(.vertical, 6)
+            }
+            .frame(maxHeight: 320)
+            #if os(macOS)
+            Divider()
+            Button("AI Settings…") {
+                isPresented = false
+                openSettings()
+            }
+            .buttonStyle(.plain)
+            .font(.caption)
+            .foregroundStyle(.tint)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            #endif
+        }
+        .frame(minWidth: 230)
     }
 }
