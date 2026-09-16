@@ -204,10 +204,13 @@ either way (shared components), but scope of the cross-platform tests depends on
 
 ## RATIFIED 2026-09-15 (evening, CD)
 
-- **Workspaces stay under View.** "Workspaces are View, I think." So it's a tightened **View ▸
-  Workspaces** submenu (⌘⌥1–6 + Save/Manage), NOT a new top-level menu — even though Xcode-style
-  top-level menus were considered. View still sheds its non-appearance items (Sort, etc.); Workspaces
-  is appearance and belongs there, just organized rather than dumped inline.
+- **View is organized into SUBMENUS, not flat sections.** The junk-drawer fix is nesting: each group
+  becomes a flyout — **View ▸ Workspaces ▸** (⌘⌥1–6 + Save/Manage), **View ▸ Sort ▸**, **View ▸
+  Preview ▸**, **View ▸ Layout ▸**, etc. — so opening View shows a short list of submenu titles
+  instead of ~12 stacked sections. "They should all be submenus — not Workspaces [inline] but
+  Workspaces ▸ …". Workspaces stays under View (not a new top-level menu; Xcode-style top-level was
+  considered and declined). The keyboard shortcuts (⌘⌥1–6, ⌘1–4, ⌘⌥I) live on the leaf items inside
+  the submenus, so muscle memory is unchanged.
 - **Platform = iPad / Mac / iOS first-class NOW.** Build and test the command surfaces on all three,
   not Mac-first. The shared `Focused*Button` / `*MenuItems` components render in a `CommandMenu`
   (Mac / iPad menu bar) or a toolbar `Menu` / `.contextMenu` (iPhone) unchanged; tests cover each
@@ -215,6 +218,10 @@ either way (shared components), but scope of the cross-platform tests depends on
 
 ## Open questions (still open)
 
+0. **Per-view filters + metadata in menus?** Each view mode (library layouts, KG, canvas, reader…)
+   has its own filters and metadata controls. Should those get menu homes too — e.g. View ▸ Filter ▸
+   … per active view — or stay in-surface (toolbar/inspector)? (CD: "maybe they're in menus too, not
+   sure.") Decide alongside the submenu structure.
 1. **Sort's home** — View ▸ Sort submenu, or nearer the data (the toolbar sort control is the primary
    already)? Where should the *menu* copy live?
 2. **How far to unify contextual menus now?** Reuse the existing components everywhere is the end

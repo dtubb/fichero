@@ -118,11 +118,16 @@ dead empty menu (mirrors `SidebarContextMenuPolicyTests`' never-silently-empty r
 - **Adopt the shared spine.** One shared ROW (the island's `ModelFamilyMark` / `ModelPickerRow`) +
   one pure list-builder (generalize `WorkflowBarModelPicker`'s tier-first / provider-grouped /
   provider+model-deduped / vision+cost builder). Every surface — island, workflow bar, chat,
-  comparison, nodes — renders both; Settings reuses the ROW inside its management chrome. The ~7
-  divergent pickers collapse to one spine. Land subtractively (shared row → shared builder →
-  per-surface adoption), each step pinned by a pure list-builder test. Keep the builder PURE (the
-  island fetches its own cache outside the `LibraryWorkspaceRoot` env, #4448) — don't bake an
-  environment read into it.
+  comparison, nodes — renders both. The ~7 divergent pickers collapse to one spine. Land
+  subtractively (shared row → shared builder → per-surface adoption), each step pinned by a pure
+  list-builder test. Keep the builder PURE (the island fetches its own cache outside the
+  `LibraryWorkspaceRoot` env, #4448) — don't bake an environment read into it.
+- **Settings uses the SAME picker — direct, one-step selection.** In the Settings window you choose a
+  model the SAME way as the island: the shared picker (chip → popover of the shared rows), picked
+  directly — NOT "open a menu, then a submenu" to drill to a model. Settings keeps its management
+  affordances (add/remove providers, keys, filters) around that picker, but the act of CHOOSING the
+  active/default model is the one shared component, so it looks and behaves identically to the island.
+  (This supersedes "Settings reuses the ROW only" — it reuses the whole picker for selection.)
 - **Platform = iPad / Mac / iOS first-class** (matches [[menus-and-commands]]): the shared row +
   builder must render correctly on all three; test each.
 
