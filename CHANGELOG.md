@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 2026-09-16
+
+**Workspace switch crash fixed** (the ⌘⌥4 CUICatalog crash was the animated composition swap — removed). Six workspaces redesigned to the CD's sketch. Menu bar reorganized: View submenus + Read/Knowledge menus. Model-picker spine wired into WorkflowBar + comparison sheet.
+
 ## 2026-09-15
 
 **Workspaces — one built-in system.** The six v2 `BuiltInWorkspaceLayout` compositions (Read/Browse/

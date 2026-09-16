@@ -2,6 +2,14 @@
 
 *Full commit-level history, day by day, lives in [`CHANGELOG.md`](CHANGELOG.md).*
 
+## 2026.09.16
+
+**Workspaces you can trust.** Switching workspaces no longer crashes — the ⌘⌥1–6 shortcuts move
+between six redesigned layouts (a Mail-style default: your library table with the reader below and
+the page beside it; icon-browsing; transcription; side-by-side compare; and an inspector layout for
+related files). Menus are reorganized too: the View menu is tidied into submenus, and new **Read**
+and **Knowledge** menus gather the reading and knowledge commands.
+
 ## 2026.09.15
 
 **Workspaces, one system.** The window's layouts are now a single, coherent set of six
