@@ -39,52 +39,39 @@ extension WorkflowBarPolicy {
     ///
     /// `providers` empty (the cache has not answered yet) falls back to the
     /// tiers alone, so the menu is never emptier than it was before the fetch.
+    ///
+    /// The list itself is now the SHARED builder's — `SharedModelListBuilder`
+    /// IS this function's own tier-first/provider-grouped/provider+model-deduped
+    /// logic, lifted out verbatim so every model surface reads one list (spec
+    /// RATIFIED 2026-09-15). This wrapper only re-dresses each shared choice in
+    /// the workflow bar's `WorkflowBarModelChoice`, whose `label` the bar's
+    /// menu, tier-suffix matching and pin persistence still read.
     static func pinnableModels(
         providers: [LLMProvider],
         tierDefaults: [TierDefault]
     ) -> [WorkflowBarModelChoice] {
-        var seen = Set<String>()
-        var choices: [WorkflowBarModelChoice] = []
-
-        func visionFlag(provider: String, model: String) -> Bool? {
-            guard let entry = providers.first(where: { $0.id == provider }) else {
-                // Not in the cache: the catalog says NOTHING about it, which
-                // is not the same as saying no.
-                return nil
+        let shared = SharedModelListBuilder.build(
+            providers: providers,
+            tierDefaults: tierDefaults.map {
+                SharedModelListBuilder.TierDefault(
+                    tier: $0.tier, provider: $0.provider, model: $0.model)
             }
-            if let detail = entry.modelDetails.first(where: { $0.modelId == model }) {
-                return detail.supportsVision
-            }
-            return entry.supportsVision
-        }
-
-        func append(provider: String, model: String, tier: String?) {
-            let model = model.trimmingCharacters(in: .whitespaces)
-            guard !model.isEmpty else { return }
-            let key = "\(provider)/\(model)"
-            guard !seen.contains(key) else { return }
-            seen.insert(key)
-            let short = ModelChipToolbarItem.shorten(model)
+        )
+        return shared.map { choice in
             // The tier is the more useful annotation when there is one — it
-            // says WHY this model is at the top of the list.
-            let suffix = tier ?? provider
-            choices.append(WorkflowBarModelChoice(
-                label: suffix.isEmpty ? short : "\(short)  ·  \(suffix)",
-                provider: provider,
-                model: model,
-                supportsVision: visionFlag(provider: provider, model: model),
-                tier: tier
-            ))
+            // says WHY this model is at the top of the list; otherwise the
+            // provider names it. Same `"<short>  ·  <suffix>"` label the bar
+            // has always shown.
+            let suffix = choice.tier ?? choice.provider
+            return WorkflowBarModelChoice(
+                label: suffix.isEmpty
+                    ? choice.displayName
+                    : "\(choice.displayName)  ·  \(suffix)",
+                provider: choice.provider,
+                model: choice.model,
+                supportsVision: choice.supportsVision,
+                tier: choice.tier
+            )
         }
-
-        for tier in tierDefaults {
-            append(provider: tier.provider, model: tier.model, tier: tier.tier)
-        }
-        for provider in providers {
-            for model in provider.models.sorted() {
-                append(provider: provider.id, model: model, tier: nil)
-            }
-        }
-        return choices
     }
 }
