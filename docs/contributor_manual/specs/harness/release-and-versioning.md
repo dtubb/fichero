@@ -1,6 +1,7 @@
 # Release & Versioning — Design Spec (#TBD)
 
 > Milestone: release-and-versioning
+> Manual: docs/contributor_manual/guide/17-the-release-lane.md
 >
 > Design-led. **Status: DRAFT — for the design lead's review.** How a build gets a version, how
 > the three stamps stay in agreement, and how a release reaches users. Grounded in the actual

@@ -1,6 +1,9 @@
 # Dev Orchestration Harness — how we work — Design Spec (#TBD)
 
 > Milestone: dev-orchestration-harness
+> Manual: TBD — the contributor manual has no "how the agent team works" page. It needs one:
+> the manager/worker split, how a lane is dispatched, which model each role runs, and how work
+> is claimed so two lanes never take the same issue. `AGENTS.md` holds the rules today.
 >
 > Design-led. **Status: DRAFT — model RATIFIED by the design lead 2026-09-12** (Fabel manager, sonnet/opus
 > workers). Stays DRAFT until its enforcement lands — a guardrail asserting the routing policy is

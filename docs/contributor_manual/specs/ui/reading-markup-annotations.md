@@ -8,6 +8,10 @@ related: [reader-overlay-frame-identity]
 
 # Reading markup & annotations
 
+> Manual: TBD — the user manual's reading section needs "Marking up a source": highlighting, the
+> check gesture (✓ → ✓✓ → ✓✓✓ → clear) and that it is a check rather than a star, notes and tags,
+> reviewing your markup per page, and turning a highlight into a claim.
+
 Reading is work: a reader highlights, checks/rates, notes, and tags a source, and that markup becomes
 durable, queryable, and promotable into knowledge. This spec pins the annotation **data model and
 behaviors** — kinds, the check cycle, the review representation, promotion to a claim, export. It is

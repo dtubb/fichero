@@ -1,6 +1,7 @@
 # Git / Worktree / GitHub Workflow — Design Spec (#TBD)
 
 > Milestone: git-worktree-workflow
+> Manual: docs/contributor_manual/guide/10-setup-and-day-to-day-development.md
 >
 > Design-led. **Status: DRAFT — for the design lead's review.** How the repo, the worktrees, and GitHub fit
 > together — so it's ONE tracked repo, clear, and nothing lives outside git. Grounded in the actual

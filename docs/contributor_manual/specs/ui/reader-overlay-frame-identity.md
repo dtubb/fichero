@@ -7,6 +7,10 @@ created: 2026-09-16
 
 # Reader overlay frame identity
 
+> Manual: TBD — this is invisible when it works, so the manual needs only the consequence, in the
+> transcribing section: if you crop, rotate, or straighten a page, your existing highlights and
+> boxes stay on the same ink — and what to do if one ever looks displaced.
+
 Highlights, region/word boxes, and OCR "readings" must draw over the **same pixels they were
 measured on**. When they don't, they "end up in the wrong spot" (CD, 2026-09-16). This spec fixes
 the identity rule that decides whether an overlay is still valid on a given rendition, and locks the

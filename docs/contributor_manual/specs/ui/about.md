@@ -1,6 +1,8 @@
 # About — Design Spec (#2557)
 
 > Milestone: about
+> Manual: TBD — a short "About Fichero" note in the user manual's closing matter: what the About
+> window shows (version, build, licence, the credits it carries) and where to report a problem.
 
 > Design-led (Testing Constitution). Creative director owns intent; tests enforce it; code
 > makes them pass. **Status: DRAFT — awaiting approval before it counts as ratified intent.**

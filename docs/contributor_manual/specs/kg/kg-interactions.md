@@ -1,5 +1,9 @@
 # KG Interactions, Standards & Cross-Surface Testing — Design Spec (#4643 · #4641 · #4636)
 
+> Manual: TBD — the user manual's knowledge-graph section needs the *handling* half: dragging an
+> entity or claim into a note, workspace, or folder; multi-select; and what the table's right-click
+> menu offers — the Finder-like gestures a reader expects to work everywhere.
+>
 > Design-led (Testing Constitution). Creative director owns intent; tests enforce it.
 > **Status: DRAFT — awaiting approval.** An AREA spec (per the "split by area" ruling,
 > 2026-09-09): interaction + standards + test-leg concerns for the KG tables live here, so

@@ -1,5 +1,9 @@
 # Segment Representations — Design Spec (#4635 · epic #4639)
 
+> Manual: TBD — pairs with the archival-data-model section: a reader needs to be told that one
+> patch of a page can carry several readings (the OCR's, the VLM's, their own correction), how to
+> see them side by side, and which one counts as the transcription.
+>
 > Design-led (Testing Constitution). The Fichero creative director owns this intent;
 > tests enforce it; code makes them pass. One line per behavior, each cited by its
 > pinning test. **Status: DRAFT — awaiting creative-director approval before tests/code.**

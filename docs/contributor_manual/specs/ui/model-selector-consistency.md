@@ -8,6 +8,10 @@ related: [ai-settings-redesign-proposal, menus-and-commands]
 
 # Model / Provider Selector — Consistency Spec
 
+> Manual: TBD — the user manual's AI section needs "Choosing a model": that the picker is the same
+> control everywhere it appears (island, workflow bar, Settings), what local vs remote means for
+> privacy and cost, and how to add a provider key.
+>
 > **DRAFT for review 2026-09-15.** CD brief: "The model/API-key node selector isn't consistent
 > between the document island (top of window), the workflow bar, and the Settings window. The one in
 > the document island looks best — be consistent with it. It's design-lead testing, so review it."

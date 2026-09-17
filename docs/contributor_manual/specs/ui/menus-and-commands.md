@@ -8,6 +8,10 @@ related: [panes-workspaces]
 
 # Menus & Commands — Design Spec
 
+> Manual: TBD — the user manual needs a "Menus and keyboard shortcuts" reference: what lives under
+> each menu, the shortcuts worth learning (Search vs Find in Page, the workspace switches), and the
+> rule that a contextual menu offers the same verbs as the menu bar.
+>
 > **DRAFT for review 2026-09-15.** The creative director's brief: "The menus are all in the View
 > menu and not well organized. We want them consistent with contextual menus, but things properly
 > placed like in the menu bar. Review everything and work out a better way." This spec is a

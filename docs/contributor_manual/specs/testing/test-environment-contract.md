@@ -1,5 +1,7 @@
 # Test Environment Contract — config parity with briefcase + per feature-gate
 
+> Manual: docs/contributor_manual/guide/11-testing.md
+>
 > Design-led (Testing Constitution). Creative director owns intent; tests enforce it.
 > **Status: DRAFT — awaiting approval.** First spec authored from `_TEMPLATE.md`.
 > Tags: [OK] built · [MISSING] not built · [PARTIAL] exists / not enforced.

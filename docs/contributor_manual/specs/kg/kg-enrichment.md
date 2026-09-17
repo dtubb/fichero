@@ -1,5 +1,9 @@
 # KG Enrichment, RDF & Linked Data — Design Spec (#4641 · #4624)
 
+> Manual: TBD — the user manual needs an "Enriching your knowledge graph" section: pulling matches
+> from shared authorities (Wikidata/gazetteers), what a suggested link is before you accept it,
+> and how to export your graph as standards RDF so other tools can read it.
+>
 > Design-led (Testing Constitution). The Fichero creative director owns this intent;
 > tests enforce it; code makes them pass. **Status: DRAFT — awaiting approval before
 > tests/code.** Tags: [OK] built today · [MISSING] not built · [PARTIAL] backend/service

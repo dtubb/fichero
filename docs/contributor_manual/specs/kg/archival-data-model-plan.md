@@ -1,5 +1,9 @@
 # Archival Data Model — Development Plan
 
+> Manual: TBD — the user manual needs a "How Fichero stores what it reads" section: what a
+> segment is, how a page's regions/lines/words relate, and why that shape lets a claim point back
+> at the exact ink it came from. Written for a researcher, not a developer.
+>
 > **Status: DRAFT for discussion** (Fichero creative director, 2026-09-08 night).
 > This consolidates the segment/archival design captured across issues #4635–#4642
 > and #1755 into ONE staged plan to develop and then talk through. Design-led

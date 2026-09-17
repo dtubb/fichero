@@ -1,6 +1,8 @@
 # Docs Citations & Bibliography — crediting the work we build on — Design Spec (#TBD)
 
 > Milestone: docs-citations-bibliography
+> Manual: TBD — a "Credits & bibliography" page the docs site can link from every manual: the DH
+> methods, projects, and code libraries Fichero builds on, each with its licence and citation.
 >
 > Design-led (Testing Constitution). **Status: DRAFT — awaiting creative-director approval.**
 > Tags: [OK] built · [PARTIAL] exists · [MISSING] not built.

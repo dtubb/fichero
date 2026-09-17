@@ -1,6 +1,7 @@
 # UI Testing Strategy — Design Spec (#TBD)
 
 > Milestone: ui-testing-strategy
+> Manual: docs/contributor_manual/guide/11-testing.md
 >
 > Design-led. **Status: DRAFT — for the design lead's review.** How Fichero verifies its UI across
 > **macOS, iOS, and iPadOS** without the fragility we have today. Grounded in an honest assessment of

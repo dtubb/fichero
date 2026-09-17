@@ -45,7 +45,14 @@ MANUAL_GRANDFATHERED = {
 
 
 def _is_scaffold(p: pathlib.Path) -> bool:
-    return p.name.startswith("_")
+    """Templates (`_TEMPLATE.md`) and ALL-CAPS index/digest docs are not specs.
+
+    `OPEN-QUESTIONS.md` collects every spec's open questions and `README.md` indexes
+    the folder — neither describes a surface, so neither can own a manual section.
+    ALL-CAPS is the existing convention for these (it already separates TESTING.md
+    and DOC-TEMPLATE.md from the specs beside them).
+    """
+    return p.name.startswith("_") or p.stem.isupper()
 
 
 def _specs() -> list[pathlib.Path]:
