@@ -1,7 +1,7 @@
 @testable import Fichero
 import XCTest
 
-/// F3 (panes-magnifiers-workspaces spec): the preview pane's pin must resolve
+/// F3 (panes-workspaces spec): the preview pane's pin must resolve
 /// PER split half, so pinning one half of a split preview does not pin the
 /// other. The pin now lives as `@State` inside `PreviewSplitPaneHost` (one per
 /// SplittablePane sub-instance), and the pin DECISION — pinned snapshot wins

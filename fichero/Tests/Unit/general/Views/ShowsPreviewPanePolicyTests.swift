@@ -1,7 +1,7 @@
 @testable import Fichero
 import XCTest
 
-/// spec: panes-magnifiers-workspaces — `panes.library.horizontal-and-entities-parity`
+/// spec: panes-workspaces — `panes.library.horizontal-and-entities-parity`
 /// (the "Entities view takes over, no library; Claims keeps it" fix).
 ///
 /// The preview-pane policy must NOT depend on which library collection is selected.

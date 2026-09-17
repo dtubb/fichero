@@ -3,7 +3,7 @@ title: Menus & Commands — Design Spec
 status: DRAFT
 owner: creative director
 tags: [menus, commands, macos-hig, contextual-menus, keyboard-shortcuts]
-related: [panes-magnifiers-workspaces]
+related: [panes-workspaces]
 ---
 
 # Menus & Commands — Design Spec
@@ -40,7 +40,7 @@ DRAFT** — these are behavior markers, not a ratification:
   ratified nesting), not flat sections.
 - **Legacy "Layouts" preset section removed** from `WorkspaceCommandsSection` (the
   `WindowLayoutPreset` pane-visibility presets that sat beside the workspaces) — a workspace IS the
-  layout ([[panes-magnifiers-workspaces]] `workspaces.one-system`).
+  layout ([[panes-workspaces]] `workspaces.one-system`).
 - **Shortcut-uniqueness is now ENFORCED** by `Tests/Unit/general/Views/Shell/MenuShortcutUniquenessTests.swift`
   — it enumerates every ⌘⌥ chord the app mints and fails if two commands claim one (the ⌘⌥1→loupe and
   double-minted ⌘⌥F defects). Complements the older `MenuShortcutBoundaryTests`.
@@ -61,7 +61,7 @@ because they render from the **same definition**. Commands live in their **natur
 layout, and feature menus (Data) on the domain. The View menu is not a junk drawer.
 
 This is the same "one system, well done" principle the workspace spec ratified
-([[panes-magnifiers-workspaces]] §`workspaces.one-system`): **one source, many surfaces.**
+([[panes-workspaces]] §`workspaces.one-system`): **one source, many surfaces.**
 
 ---
 
@@ -250,7 +250,7 @@ and extract the few missing ones in the same mold.
 - **Workspaces** — **[PROPOSED new top-level menu]**, or a tightened View ▸ Workspaces submenu: the
   six built-ins (⌘⌥1–6), saved workspaces (⌘⌥7–9), Save Workspace…, Manage Workspaces… It is a
   first-class concept (it rearranges the whole window) and deserves to not be buried among toggles.
-  Pairs 1:1 with [[panes-magnifiers-workspaces]] `workspaces.one-system`.
+  Pairs 1:1 with [[panes-workspaces]] `workspaces.one-system`.
 - **Data** — the domain feature verbs (New Chat/Workflow/…, Run Workflow on Selection). This becomes
   the *single* definition; the toolbar "+" renders the SAME catalog subset instead of its own copy.
 - **Go** — navigation (Back/Forward, parent, reveal). *(Exists.)*
@@ -279,7 +279,7 @@ make it automatic — this is a reason to reuse, not rebuild:
   per verb.
 - **Existing compact pattern to follow, not duplicate**: the app already forks layout by width via
   `usesCompactReaderFlow` (compile-time false on macOS, true at compact width — see
-  [[panes-magnifiers-workspaces]]). Menus follow the same rule: the component is shared; only WHICH
+  [[panes-workspaces]]). Menus follow the same rule: the component is shared; only WHICH
   container hosts it (a `CommandMenu` vs a toolbar `Menu`/`.contextMenu`) is chosen per size class.
 - **Guardrail**: a verb must not exist on ONE platform only by accident. A source/policy test asserts
   each creation + selection verb has a reusable component (so both a `CommandMenu` and a

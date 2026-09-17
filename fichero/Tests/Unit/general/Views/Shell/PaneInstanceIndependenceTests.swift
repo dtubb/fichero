@@ -2,7 +2,7 @@
 import Foundation
 import Testing
 
-/// spec: panes-magnifiers-workspaces §panes.close.this-pane-only + §panes.split.focused-only
+/// spec: panes-workspaces §panes.close.this-pane-only + §panes.split.focused-only
 /// (CD live 2026-09-15/16): "closing one pane closes BOTH" and "splitting one pane splits BOTH."
 /// The root cause of both is a pane target keyed per-KIND instead of per-INSTANCE, so one verb hits
 /// every same-kind pane. This suite pins the MODEL guarantee that a close/split targets EXACTLY ONE

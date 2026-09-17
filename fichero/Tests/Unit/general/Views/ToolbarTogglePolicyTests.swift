@@ -1,7 +1,7 @@
 @testable import Fichero
 import XCTest
 
-/// spec: panes-magnifiers-workspaces `panes.toolbar.toggles-consistent`
+/// spec: panes-workspaces `panes.toolbar.toggles-consistent`
 /// (the "toolbar pane-toggle icons disappear in some layouts" fix).
 ///
 /// The pane-toggle group and the Workspaces menu used to sit inside one gate

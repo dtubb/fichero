@@ -2,7 +2,7 @@
 import Foundation
 import Testing
 
-/// spec: panes-magnifiers-workspaces §F7 — the pure pane-list model that replaces
+/// spec: panes-workspaces §F7 — the pure pane-list model that replaces
 /// WidescreenPanePlan's four Bools. These pin the composition contracts the F7
 /// reliability + composability rely on, off-view.
 struct PaneListTests {

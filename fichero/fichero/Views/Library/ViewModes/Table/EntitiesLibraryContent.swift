@@ -68,7 +68,7 @@ struct EntitiesLibraryContent: View {
         // `.task` fires once for the view's lifetime and would NOT refire when
         // the environment store changes — leaving the new library's table
         // un-loaded. The parallel of the Claims F5 fix, so both tables behave
-        // identically (spec: panes-magnifiers-workspaces F5 / entities==claims).
+        // identically (spec: panes-workspaces F5 / entities==claims).
         .task(id: ObjectIdentifier(store)) { await store.loadEntities(limit: 25000) }
         .sheet(isPresented: $showingCreateSheet) {
             // Reuse the Ontology create/edit sheet; it reads its own EntityService

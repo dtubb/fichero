@@ -3,7 +3,7 @@ import Foundation
 import SwiftUI
 import Testing
 
-/// spec: panes-magnifiers-workspaces §"v2 workspace design" + §"Accessibility is first-class"
+/// spec: panes-workspaces §"v2 workspace design" + §"Accessibility is first-class"
 /// (`workspaces.one-system`, ⌘⌥1–6 reachability) AND the shortcut-collision bug the CD hit live
 /// (2026-09-16): "⌘⌥1 opens the LOUPE instead of applying the Read workspace." A workspace slot and
 /// a magnifier verb (or ANY two commands) sharing one ⌘⌥ chord is a defect — the wrong command

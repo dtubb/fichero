@@ -2,7 +2,7 @@
 import Foundation
 import Testing
 
-/// spec: panes-magnifiers-workspaces — F5 (the Claims table must reset when the
+/// spec: panes-workspaces — F5 (the Claims table must reset when the
 /// active library changes).
 ///
 /// The bug: the claims table reloaded on `.task(id: folderId)`, and the

@@ -1,6 +1,6 @@
 import XCTest
 
-/// spec: panes-magnifiers-workspaces §"RATIFIED 2026-09-15 — ONE system, enforced by tests"
+/// spec: panes-workspaces §"RATIFIED 2026-09-15 — ONE system, enforced by tests"
 /// (`workspaces.one-system`). Source guardrails, the `MenuShortcutBoundaryTests` shape: the pane /
 /// workspace feature shipped as a half-finished migration with TWO built-in systems (the legacy
 /// `BuiltInWorkspace` show/hide presets alongside the `BuiltInWorkspaceLayout` PaneList

@@ -3,7 +3,7 @@ import FicheroAPIClient
 import Foundation
 import Testing
 
-/// spec: panes-magnifiers-workspaces — `panes.claim.source-is-document`.
+/// spec: panes-workspaces — `panes.claim.source-is-document`.
 ///
 /// The Claims library table's Source column must read as the source DOCUMENT's
 /// name, not a raw id ("Source 2a614b56…"). The bug was that resolution only

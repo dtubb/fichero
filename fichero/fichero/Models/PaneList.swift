@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Pane-list model (F7)
 //
-// spec: docs/contributor_manual/specs/ui/panes-magnifiers-workspaces.md §F7.
+// spec: docs/contributor_manual/specs/ui/panes-workspaces.md §F7.
 //
 // The reliable, composable replacement for `WidescreenPanePlan`'s four `showsXPane`
 // Bools. A window's centre is an ORDERED LIST of panes; each pane carries a KIND

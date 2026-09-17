@@ -25,7 +25,7 @@ struct ClaimsTableView: View {
         let values: ClaimTableRow
         let sourceName: String
         /// The drag payload for the source DOCUMENT, so the Source cell drags out
-        /// exactly like a library row (spec: panes-magnifiers-workspaces
+        /// exactly like a library row (spec: panes-workspaces
         /// panes.claim.source-is-document). `nil` when the source document isn't
         /// resolved — nothing honest to drag.
         var sourceDrag: LibraryItemDrag? = nil
@@ -98,7 +98,7 @@ struct ClaimsTableView: View {
                 // ClaimSourceNavigationState cursor, see `.onChange(of: selection)`
                 // below), the label reads as the page name never a raw id, and the
                 // cell DRAGS the source document like any library row when it
-                // resolves (spec: panes-magnifiers-workspaces
+                // resolves (spec: panes-workspaces
                 // panes.claim.source-is-document). Inline (not a helper) so it
                 // lives in the column's own @ViewBuilder with no scope surprises.
                 let label = Label(item.sourceName, systemImage: "doc.text")

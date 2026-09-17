@@ -30,7 +30,7 @@ struct ClaimsLibraryContent: View {
     /// The library the cached `model` was built for. `EntityService` is per-library
     /// and captured permanently by `LibraryClaimsModel.init`, so a library switch
     /// must rebuild the model — otherwise the table keeps loading the PREVIOUS
-    /// library's claims (spec: panes-magnifiers-workspaces F5). `nil` until first
+    /// library's claims (spec: panes-workspaces F5). `nil` until first
     /// build. See `.task(id:)` below. The active library id comes from the existing
     /// `windowState` (declared below) — a library-wide Claims row keeps
     /// `folderId == nil` before AND after a switch, so keying the reload on
@@ -58,7 +58,7 @@ struct ClaimsLibraryContent: View {
     /// document isn't in the folder-scoped `documents` (the library-wide claims
     /// table shows claims whose source lives anywhere in the library). Without
     /// this the Source column fell back to a raw "Source 2a614b56…" id (spec:
-    /// panes-magnifiers-workspaces panes.claim.source-is-document).
+    /// panes-workspaces panes.claim.source-is-document).
     @Environment(DocumentStore.self) private var documentStore
 
     private struct EditingClaim: Identifiable {
@@ -272,7 +272,7 @@ struct ClaimsLibraryContent: View {
     /// loaded set (so a library-wide claim's source resolves even outside the
     /// browsed folder) with the folder-scoped `documents` overlaid so the
     /// freshest copy of a visible row wins. This is what fixes the raw-id Source
-    /// column (spec: panes-magnifiers-workspaces panes.claim.source-is-document).
+    /// column (spec: panes-workspaces panes.claim.source-is-document).
     private var docsById: [String: Document] {
         var map = documentStore.knownDocumentsById()
         for doc in documents { map[doc.id] = doc }

@@ -569,7 +569,7 @@ final class DocumentStore {
     /// simply absent, so callers fall back honestly rather than inventing a
     /// name. Used by the claims table to resolve a claim's source document to
     /// its real name even when that document isn't in the currently-browsed
-    /// folder (spec: panes-magnifiers-workspaces panes.claim.source-is-document).
+    /// folder (spec: panes-workspaces panes.claim.source-is-document).
     ///
     /// O(loaded documents), built per call — the caller (a table render) already
     /// does O(rows) work, and the loaded set is bounded by what's been fetched.

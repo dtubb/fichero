@@ -4,7 +4,7 @@ import SwiftUI
 /// A lightweight, dependency-free wireframe of a `PaneList` — nested placeholder panes coloured by
 /// kind — for eyeballing and SCREENSHOTTING workspace compositions in the Xcode canvas without
 /// booting the app. This is the design-verification surface for the workspace spec
-/// (panes-magnifiers-workspaces §"v2 workspace design"): each default renders as a mini window you
+/// (panes-workspaces §"v2 workspace design"): each default renders as a mini window you
 /// can inspect and capture. The SHIPPING renderer is `ContentView.paneComposition`; this only
 /// mirrors its layout rule (top-level nodes = a horizontal row; a split arranges its children along
 /// its axis) so the picture matches what the app draws. `#if DEBUG` — never ships in Release.

@@ -2,7 +2,7 @@
 import Foundation
 import Testing
 
-/// spec: panes-magnifiers-workspaces §"v2 workspace design" — the FIVE default workspaces AS DATA
+/// spec: panes-workspaces §"v2 workspace design" — the FIVE default workspaces AS DATA
 /// (Read, Browse, Transcribe, Transcribe·Tall, Compare; CD 2026-09-16 dropped Catalogue + Claims —
 /// Claims is a library content-filter, not a layout). These pin each composition (kinds, nesting,
 /// per-pane config) so a default is a data change and a saved workspace is the same `PaneList` shape.

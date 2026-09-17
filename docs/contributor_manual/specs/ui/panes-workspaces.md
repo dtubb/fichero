@@ -1,6 +1,6 @@
-# Panes, Magnifiers & Workspaces — Design Spec
+# Panes & Workspaces — Design Spec
 
-> Milestone: panes-magnifiers-workspaces
+> Milestone: panes-workspaces
 > Manual: TBD — a "Workspaces" section for Part I (Getting Started): what a workspace is, the
 > five built-ins and their ⌘⌥1–5 shortcuts, how to split/close/resize a pane, and how the
 > pane head's left icon changes what a pane shows.
@@ -328,18 +328,25 @@ the browse→read flow down the centre.
 - `panes.compose-three-plus` — **[GAP]** a window supports three or more panes, and any
   pane may hide its image while another shows it.
 
-### B. Magnifier & synchronized zoom
+### B. Cross-pane zoom & magnifier state
 
-- `panes.magnifier.follow-mouse` — **[GAP]** a pane's bottom magnifier bar can track the
-  pointer, magnifying the region under the mouse.
+> SCOPE (creative-director, 2026-09-17): the magnifier/loupe ITSELF is a **Preview / source**
+> feature — how it tracks the pointer, magnifies, parks and resizes belongs to
+> [[preview-magnifier]], not here. What is a PANE concern is only how that state behaves across
+> MORE THAN ONE pane: whether each pane holds its own, and whether they sync. This spec owns the
+> plumbing; the preview spec owns the instrument.
+
 - `panes.magnifier.per-pane-open-state` — **[GAP]** each pane's magnifier opens and closes
-  independently — one pane magnified while another is not.
+  independently — one pane magnified while another is not. (Pane-scoped state; the magnifier's
+  own behavior is `preview-magnifier`.)
 - `panes.zoom.sync-across-panes` — **[GAP]** when synchronization is on, zoom/magnification
   in one pane drives the corresponding region in the others (original ↔ words), so the loupe
-  is shared; sync is toggleable, off by default.
+  is shared; sync is toggleable, off by default. This is the ONE genuinely cross-pane magnifier
+  behavior — it cannot live in the preview spec because it is about panes relating to each other.
 - `panes.words.fill-bounding-box` — **[GAP]** on request, transcribed words expand to fill
-  their segment's bounding box, occupying the same geometry as the underlying ink (ties
-  `segment-representations` — the `text` representation rendered into the segment anchor).
+  their segment's bounding box, occupying the same geometry as the underlying ink. Owned by
+  `segment-representations` (the `text` representation rendered into the segment anchor); listed
+  here only because it is observed in a pane.
 
 ### C. Unified entity ↔ claims view system
 

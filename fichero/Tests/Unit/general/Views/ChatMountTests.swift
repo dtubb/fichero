@@ -1,7 +1,7 @@
 @testable import Fichero
 import XCTest
 
-/// Spec: panes-magnifiers-workspaces `panes.chat.below-sidebar`. The assistant
+/// Spec: panes-workspaces `panes.chat.below-sidebar`. The assistant
 /// chat moved out of the centre column into a region beneath the sidebar folder
 /// tree; `ContentView.chatSurface` mounts ONE `ChatView` there. The only pure
 /// decision in that relocation is WHICH conversation the surface shows — it

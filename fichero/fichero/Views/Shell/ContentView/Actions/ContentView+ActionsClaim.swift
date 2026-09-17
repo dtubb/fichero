@@ -71,7 +71,7 @@ extension ContentView {
 
     /// Whether the preview pane shows, given the view mode and layout mode.
     /// Extracted pure so the policy is unit-testable off-view (spec:
-    /// panes-magnifiers-workspaces — the "Entities view takes over" fix).
+    /// panes-workspaces — the "Entities view takes over" fix).
     ///
     /// Selection KIND no longer changes this. An earlier `isEntityLibrarySelection`
     /// special-case returned `false` here for the Entities collection, so entities

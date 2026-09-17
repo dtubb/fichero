@@ -142,7 +142,7 @@ struct LibraryItemDrag: Codable, Equatable, Transferable {
     /// document out (the library table/list/icon rows AND the claims table's
     /// Source cell). Extracted from `LibraryView.libraryItemDrag(for:)` so the
     /// claims Source column drags a document exactly as a library row does
-    /// (spec: panes-magnifiers-workspaces panes.claim.source-is-document — a
+    /// (spec: panes-workspaces panes.claim.source-is-document — a
     /// claim's source IS a document, so it drags like one).
     static func forDocument(_ document: Document, libraryId: UUID?) -> LibraryItemDrag {
         let kind: Kind = switch document.docType {

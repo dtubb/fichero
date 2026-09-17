@@ -82,7 +82,7 @@ final class LibraryClaimsModel {
     /// the folder scope. The library-wide Claims row keeps `folderId == nil`
     /// before AND after a library switch, so keying the reload on `folderId`
     /// alone never refired across libraries and the table showed the PREVIOUS
-    /// library's claims (spec: panes-magnifiers-workspaces F5). Folding the
+    /// library's claims (spec: panes-workspaces F5). Folding the
     /// library id in makes a switch change the key even when the folder scope
     /// does not. `nonisolated` + pure so the reset rule is unit-testable off-main.
     nonisolated static func reloadKey(libraryId: UUID, folderId: String?) -> String {
@@ -91,7 +91,7 @@ final class LibraryClaimsModel {
 
     /// The human label for a claim's SOURCE column: the resolved document name,
     /// else a short non-raw id, never an empty cell (spec:
-    /// panes-magnifiers-workspaces panes.claim.source-is-document). The claim's
+    /// panes-workspaces panes.claim.source-is-document). The claim's
     /// source IS a document, so the column reads as that document's name.
     ///
     /// `resolve` maps a source document id → its display name (nil when the

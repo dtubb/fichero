@@ -14,7 +14,7 @@ extension ContentView {
 
     /// Whether the toolbar's pane-visibility toggles (library/preview/reader/chat)
     /// are offered. Pure + `nonisolated` so it is unit-testable off-view (spec:
-    /// panes-magnifiers-workspaces `panes.toolbar.toggles-consistent`).
+    /// panes-workspaces `panes.toolbar.toggles-consistent`).
     ///
     /// The toggles show for ANY library selection — Entity and Claim collections
     /// included, since they are library sub-views hosting the same panes — not only

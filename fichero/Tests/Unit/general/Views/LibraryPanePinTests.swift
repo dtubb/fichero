@@ -1,7 +1,7 @@
 @testable import Fichero
 import XCTest
 
-/// F3 (spec: panes-magnifiers-workspaces): the library pane's pin must resolve
+/// F3 (spec: panes-workspaces): the library pane's pin must resolve
 /// PER split half, so pinning one half of a split library does not pin the
 /// other. The pin now lives as `@State` inside `LibrarySplitPaneHost` (one per
 /// SplittablePane sub-instance), and both the pin DECISION (pinned snapshot
