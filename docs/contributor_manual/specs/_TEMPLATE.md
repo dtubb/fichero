@@ -1,6 +1,7 @@
 # <Surface> — Design Spec (#<issue>)
 
 > Milestone: <surface>
+> Manual: docs/user_manual/guide/Part <N>. <Part name>/<section>/<file>.md
 
 > Copy this file to `docs/contributor_manual/specs/<surface>.md` (or `specs/<area>/<surface>.md`)
 > to start a surface under design-led testing. Delete this quote block and fill every
@@ -9,12 +10,22 @@
 > Design-led (Testing Constitution). Creative director owns intent; tests enforce it; code
 > makes them pass. **Status: DRAFT — awaiting approval before tests/code.**
 > Flip to `Status: APPROVED` only after the creative director approves the intent; an
-> APPROVED spec MUST: carry a filled Test matrix; be cited by ≥1 test; and declare a
+> APPROVED spec MUST: carry a filled Test matrix; be cited by ≥1 test; declare a
 > `Milestone: <name>` matching a GitHub milestone of the SAME name (spec name == milestone
 > name == test tag — guardrails `check_specs_have_tests.py` + `check_spec_milestones.py`
-> enforce). Create/rename the milestone when you approve the spec, and point its description
-> back at this file (the link is bidirectional). Tag the tests to match: Swift `@Tag` in
+> enforce); and declare a `Manual: <path>` pointing at the user-manual section that tells a
+> USER about this surface (guardrail `check_spec_manual_refs.py`). Create/rename the milestone
+> when you approve the spec, and point its description back at this file (the link is
+> bidirectional). Tag the tests to match: Swift `@Tag` in
 > `fichero/Tests/Unit/general/TestTags.swift`, pytest markers in `fichero-server/pyproject.toml`.
+>
+> THREE ANCHORS, no orphans (creative-director, 2026-09-17). Every spec ties to:
+>   1. a GitHub **milestone** — where its issues live (the work),
+>   2. a user-**manual** section — how a user is told about it (the promise),
+>   3. ≥1 **test** citing its behavior ids (the proof).
+> A surface with no manual section is not finished: if the manual does not cover it yet, say so
+> here (`Manual: TBD — <what the section must explain>`) and file an issue on the manual
+> milestone. "TBD" is allowed on a DRAFT and blocks APPROVED, so the gap is visible, never silent.
 > Tags: [OK] built · [MISSING] not built · [PARTIAL] exists elsewhere / not wired.
 
 ## Intent (the design)

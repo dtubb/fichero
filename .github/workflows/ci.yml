@@ -51,6 +51,17 @@ jobs:
           PYTHONPATH: fichero-server/src:fichero-cli/src:fichero-mcp/src
         run: python scripts/check_features_freshness.py
 
+      # Spec discipline: every APPROVED spec is tracked by a GitHub milestone, points at the
+      # user-manual section that explains it, and is cited by >=1 test. These ran only in
+      # verify-all (which auto-discovers scripts/check_*.py) and so never gated a PR —
+      # the reason spec/milestone/manual coverage drifted (creative-director, 2026-09-17).
+      # Offline-deterministic: the milestone check only WARNS when a milestone is missing.
+      - name: Spec discipline (milestone + manual + tests)
+        run: |
+          python scripts/check_spec_milestones.py
+          python scripts/check_spec_manual_refs.py
+          python scripts/check_specs_have_tests.py
+
       - name: pytest (unit, skip ML/embedding)
         env:
           PYTHONPATH: fichero-server/src:fichero-cli/src:fichero-mcp/src

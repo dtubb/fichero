@@ -87,13 +87,28 @@ the coverage ratchet (`scripts/check_coverage_ratchet.py` + `coverage-baseline.j
 fails any run whose coverage drops — baselines move only by deliberate
 `--update-baseline` commits.
 
-**Design-led surfaces carry ONE name across three places** (guardrails enforce, all in the gate):
-a spec `docs/contributor_manual/specs/<name>.md`, a GitHub milestone named `<name>` (its description
-points back at the spec), and a test tag of the same area name **front and back** — Swift `@Tag`
-in `fichero/Tests/Unit/general/TestTags.swift`, pytest marker in `fichero-server/pyproject.toml`.
+**Design-led surfaces carry ONE name across FOUR places** (guardrails enforce, all in the gate
+AND in CI): a spec `docs/contributor_manual/specs/<name>.md`, a GitHub milestone named `<name>`
+(its description points back at the spec), a **user-manual section** that tells a USER about the
+surface, and a test tag of the same area name **front and back** — Swift `@Tag` in
+`fichero/Tests/Unit/general/TestTags.swift`, pytest marker in `fichero-server/pyproject.toml`.
 `scripts/check_specs_have_tests.py` binds spec↔test; `scripts/check_spec_milestones.py` binds
-spec↔milestone. Approving a spec means: flip `Status: APPROVED`, declare `Milestone: <name>`,
-create/rename that milestone, and cite the spec from ≥1 test. See `docs/contributor_manual/TEST-TEMPLATE.md`.
+spec↔milestone; `scripts/check_spec_manual_refs.py` binds spec↔manual.
+
+Approving a spec means: flip `Status: APPROVED`, declare `Milestone: <name>`, declare
+`Manual: <path>` (not TBD), create/rename that milestone, and cite the spec from ≥1 test.
+See `docs/contributor_manual/TEST-TEMPLATE.md` and `specs/_TEMPLATE.md`.
+
+**No orphans, both directions** (creative-director, 2026-09-17). The three checks above only look
+OUTWARD from a spec; they cannot see a milestone with no design behind it, or a shipped surface the
+manual never mentions. Run `python scripts/audit_spec_milestone_manual.py` for the bidirectional
+coverage table (milestone→spec→manual, and spec→milestone/manual). Rules of thumb:
+- A **surface** milestone (something a user sees: a view, a pane, an editor) MUST earn a spec and a
+  manual section. Work with neither is work nobody designed and nobody was told about.
+- A **workstream** bucket (Bugs, Docs, Performance, Ratchets, Hygiene, Testing) is a lane, not a
+  design — it does not need a spec. Do not manufacture ceremony for these.
+- `Manual: TBD — <what the section must explain>` is the sanctioned way to record a known gap on a
+  DRAFT: visible and filed, never silent. TBD blocks APPROVED.
 
 ---
 
