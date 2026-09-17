@@ -53,7 +53,10 @@ struct ReadingPaneView: View {
     @Environment(WorkflowExecutionObserver.self) var executionObserver: WorkflowExecutionObserver?
     @Environment(KGFocusState.self) var kgFocusState
     @Environment(ClaimFocusState.self) var claimFocusState
-    @Environment(AnnotationStore.self) var annotationStore
+    // OPTIONAL by house rule (#4513): a reader surface must DEGRADE when a store is absent, never
+    // trap. Non-optional here traps ("No Observable object of type …") wherever the reader mounts
+    // outside the library tree — and the Read workspace now mounts a reader at launch.
+    @Environment(AnnotationStore.self) var annotationStore: AnnotationStore?
     @Environment(\.splitAxisActions) private var splitAxisActions
     // A SECONDARY reader pane (a workspace's second reader, e.g. Compare) must not co-publish the
     // window-scoped reader focus keys — one publisher per key, or the scene loops (spec

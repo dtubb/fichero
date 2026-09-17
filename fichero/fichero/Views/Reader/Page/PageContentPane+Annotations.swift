@@ -7,7 +7,7 @@ extension PageContentPane {
     /// Saved annotations on the focused page (page- or document-scoped to it).
     var pageAnnotations: [DocumentAnnotation] {
         guard let id = pageDoc?.id else { return [] }
-        return annotationStore.annotations.filter { $0.pageId == id || $0.documentId == id }
+        return annotationStore?.annotations.filter { $0.pageId == id || $0.documentId == id } ?? []
     }
 
     /// In-bounds UTF-16 highlight ranges for the current content.
@@ -20,7 +20,7 @@ extension PageContentPane {
 
     func loadAnnotations() {
         guard let id = pageDoc?.id else { return }
-        Task { await annotationStore.loadAnnotations(for: .page(id), force: true) }
+        Task { await annotationStore?.loadAnnotations(for: .page(id), force: true) }
     }
 
     /// UTF-16 substring for a selection range, used as the highlight's text.
@@ -35,7 +35,7 @@ extension PageContentPane {
         guard let doc = pageDoc, let range = selectionRange else { return }
         let quoted = selectedText(range)
         Task {
-            _ = await annotationStore.addNote(
+            _ = await annotationStore?.addNote(
                 scope: .page(doc.id),
                 text: quoted,
                 charStart: range.lowerBound,
@@ -53,7 +53,7 @@ extension PageContentPane {
         let range = selectionRange
         let quoted = range.map(selectedText) ?? ""
         Task {
-            _ = await annotationStore.addNote(
+            _ = await annotationStore?.addNote(
                 scope: .page(doc.id),
                 text: quoted,
                 charStart: range?.lowerBound,
@@ -67,7 +67,7 @@ extension PageContentPane {
     func addBookmark() {
         guard let doc = pageDoc else { return }
         Task {
-            _ = await annotationStore.addNote(scope: .page(doc.id), text: "", kind: .bookmark)
+            _ = await annotationStore?.addNote(scope: .page(doc.id), text: "", kind: .bookmark)
         }
     }
 
@@ -83,7 +83,7 @@ extension PageContentPane {
         let range = selectionRange
         isComposingNote = false
         Task {
-            _ = await annotationStore.addNote(
+            _ = await annotationStore?.addNote(
                 scope: .page(doc.id),
                 text: trimmed,
                 charStart: range?.lowerBound,

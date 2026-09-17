@@ -9,7 +9,9 @@ struct PageContentPane: View {
     @Environment(ClaimFocusState.self) var claimFocusState
     @Environment(DocumentService.self) var documentService
     @Environment(DocumentStore.self) var documentStore: DocumentStore
-    @Environment(AnnotationStore.self) var annotationStore: AnnotationStore
+    // OPTIONAL by house rule (#4513): degrade, never trap, when the store is absent — the Read
+    // workspace mounts this reader at launch, outside the tree that guarantees the store.
+    @Environment(AnnotationStore.self) var annotationStore: AnnotationStore?
     @State var editState = PageContentPaneEditState()
     @State var sourceHighlight: PageContentClaimSourceHighlight?
     @State var sourceHighlightToken = UUID()
@@ -208,7 +210,7 @@ struct PageContentPane: View {
             // selection in the page's own transcript.
             postReaderSelection(newRange, documentId: pageDoc?.id, content: pageContent)
         }
-        .onChange(of: annotationStore.changeToken) { _, _ in
+        .onChange(of: annotationStore?.changeToken) { _, _ in
             loadAnnotations()
         }
         .onChange(of: pageContent) { _, newContent in

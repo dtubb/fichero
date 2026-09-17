@@ -125,11 +125,11 @@ extension ReadingPaneView {
                 case .annotations:
                     AnnotationsInspectorPane(
                         document: doc,
-                        annotations: annotationStore.annotations,
+                        annotations: annotationStore?.annotations ?? [],
                         focused: focusedAnnotation
                     )
                     .task(id: doc.id) {
-                        await annotationStore.loadAnnotations(for: annotationScope(for: doc), force: true)
+                        await annotationStore?.loadAnnotations(for: annotationScope(for: doc), force: true)
                     }
                 case .notes:
                     DocumentNotesTab(document: doc)
