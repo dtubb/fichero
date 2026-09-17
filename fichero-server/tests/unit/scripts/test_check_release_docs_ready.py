@@ -78,3 +78,25 @@ def test_version_present_in_both_files_passes():
     problems = docs_ready("2026.09.08", notes, changelog)
 
     assert problems == []
+
+
+def test_dotted_release_heading_in_changelog_is_named_as_leakage():
+    """The 2026-09-17 regression: the stamp wrote a dotted RELEASE heading into
+    the per-DAY changelog, so this gate could not find the dashed day and
+    reported a missing section instead of the real fault. Now it names it."""
+    notes = "# Release Notes\n\n## 2026.09.17\n\nShip-day prose.\n"
+    changelog = "# Changelog\n\n## Unreleased\n\n## 2026.09.17\n\n## 2026-09-17\n\n- fix(x): y\n"
+
+    problems = docs_ready("2026.09.17", notes, changelog)
+
+    assert any("dotted" in p and "2026.09.17" in p for p in problems)
+
+
+def test_dashed_only_changelog_has_no_leakage_problem():
+    """The counter-fixture: a clean per-day changelog must not trip the rule."""
+    notes = "# Release Notes\n\n## 2026.09.17\n\nShip-day prose.\n"
+    changelog = "# Changelog\n\n## Unreleased\n\n## 2026-09-17\n\n- fix(x): y\n"
+
+    problems = docs_ready("2026.09.17", notes, changelog)
+
+    assert problems == []

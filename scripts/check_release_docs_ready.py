@@ -94,14 +94,35 @@ def docs_ready(version: str, notes_text: str, changelog_text: str) -> list[str]:
     elif not changelog_body.strip():
         problems.append(f"CHANGELOG.md's '## {changelog_date}' section is empty")
 
+    # Dotted headings are RELEASE headings; CHANGELOG is a per-DAY file. The
+    # 2026-09-17 failure: set-release-version.sh promoted '## Unreleased' into
+    # '## 2026.09.17', which this gate then could not find as '## 2026-09-17'
+    # — the stamp wrote the one heading the gate rejects. Name the leakage
+    # instead of reporting a missing section (release-and-versioning.md).
+    leaked = re.findall(r"^##[ \t]+(\d{4}\.\d{2}\.\d{2}\S*)[ \t]*$", changelog_text, re.MULTILINE)
+    if leaked:
+        problems.append(
+            "CHANGELOG.md carries dotted RELEASE headings "
+            f"({', '.join(sorted(set(leaked)))}) — it is per-DAY, so headings must be "
+            "dashed (2026-09-17). Dotted sections belong in RELEASE_NOTES.md."
+        )
+
     return problems
 
 
 def _run_guardrail(script_name: str) -> bool:
+    # Inherit the caller's PYTHONPATH rather than replacing it (2026-09-17):
+    # hard-coding server/src alone dropped fichero-cli and fichero-mcp, which
+    # the capability check imports — the guardrail then failed on an import,
+    # not on stale docs.
+    inherited = os.environ.get("PYTHONPATH", "")
+    paths = [p for p in inherited.split(os.pathsep) if p]
+    if "fichero-server/src" not in inherited:
+        paths.insert(0, "fichero-server/src")
     result = subprocess.run(
         [sys.executable, str(ROOT / "scripts" / script_name)],
         cwd=ROOT,
-        env={**os.environ, "PYTHONPATH": "fichero-server/src"},
+        env={**os.environ, "PYTHONPATH": os.pathsep.join(paths)},
     )
     return result.returncode == 0
 

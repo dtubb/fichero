@@ -249,26 +249,34 @@ retitle_release_notes "$APP_VERSION" "$DRY_RUN"
 # CHANGELOG.md promises "full commit-level history, day by day" — and then
 # went six releases stale because NOTHING in the release flow touched it.
 # The stamp now refuses to proceed unless the changelog has a section for
-# this version (retitling '## Unreleased' counts: rename it and start a
+# this day (retitling '## Unreleased' counts: rename it and start a
 # fresh Unreleased above it).
+#
+# DASHED, not dotted (2026-09-17): the stamp used to promote Unreleased into
+# '## 2026.09.17' — a RELEASE heading — while check_release_docs_ready.py
+# demands the CALENDAR day '## 2026-09-17', so every release preflight failed
+# on a heading the stamp itself had just written. The release spec is the
+# arbiter: a release date is dotted, a calendar day is dashed, and CHANGELOG
+# carries only days.
+CL_DATE="${DATE//./-}"
 if [ ! -f "$ROOT/CHANGELOG.md" ]; then
   echo "error: CHANGELOG.md is missing — the stamp gate cannot judge (blind, not green)." >&2
   exit 2
 fi
-if ! grep -qE "^## (Unreleased|$APP_VERSION)\b" "$ROOT/CHANGELOG.md"; then
-  echo "error: CHANGELOG.md has neither '## Unreleased' nor '## $APP_VERSION'." >&2
+if ! grep -qE "^## (Unreleased|$CL_DATE)\b" "$ROOT/CHANGELOG.md"; then
+  echo "error: CHANGELOG.md has neither '## Unreleased' nor '## $CL_DATE'." >&2
   echo "       Backfill the day-by-day entries before stamping (2026-08-27 rule:" >&2
   echo "       the changelog rots the moment the release flow stops checking it)." >&2
   exit 1
 fi
 if grep -qE "^## Unreleased\b" "$ROOT/CHANGELOG.md" && [ "$DRY_RUN" != true ] \
-   && ! grep -qE "^## ${APP_VERSION//./\\.}\$" "$ROOT/CHANGELOG.md"; then
-  # The second grep (2026-09-03): re-stamping the SAME version must not
+   && ! grep -qE "^## $CL_DATE\$" "$ROOT/CHANGELOG.md"; then
+  # The second grep (2026-09-03): re-stamping the SAME day must not
   # promote the fresh Unreleased into a duplicate heading.
   # $ROOT-anchored, not Path("CHANGELOG.md") (2026-09-02): the relative path
   # resolved against the CALLER's cwd — a fixture test running from the repo
   # root promoted headings into the real repo's changelog.
-  CL_V="$APP_VERSION" CL_FILE="$ROOT/CHANGELOG.md" python3 - <<'PY'
+  CL_V="$CL_DATE" CL_FILE="$ROOT/CHANGELOG.md" python3 - <<'PY'
 import os, pathlib
 p = pathlib.Path(os.environ["CL_FILE"])
 s = p.read_text()

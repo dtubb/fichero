@@ -267,7 +267,15 @@ echo
 echo "── Preflight: release docs readiness ──"
 # Release lane step 3 (release-and-versioning.md): a release cannot ship with
 # stale or missing docs. Fails fast, before any signing/build work starts.
-if ! PYTHONPATH="$ROOT_DIR/fichero-server/src" python3 "$ROOT_DIR/scripts/check_release_docs_ready.py"; then
+# The PROJECT python, not a bare `python3` (2026-09-17): the gate shells out to
+# the docs guardrails via sys.executable, and the system interpreter has no
+# pydantic — so check_capability_reference_current.py died with
+# ModuleNotFoundError and the lane read it as "docs not ready". All three src
+# trees are on the path because the capability check imports the CLI and MCP
+# surfaces too, not just the server.
+RELEASE_DOCS_PY="$("$ROOT_DIR/scripts/find_project_python.sh" "$ROOT_DIR")"
+if ! PYTHONPATH="$ROOT_DIR/fichero-server/src:$ROOT_DIR/fichero-cli/src:$ROOT_DIR/fichero-mcp/src" \
+     "$RELEASE_DOCS_PY" "$ROOT_DIR/scripts/check_release_docs_ready.py"; then
   echo "error: release docs are not ready — see failures above." >&2
   echo "       Fix RELEASE_NOTES.md / CHANGELOG.md / docs freshness, then re-run." >&2
   exit 1
