@@ -1,5 +1,10 @@
 # Panes, Magnifiers & Workspaces — Design Spec
 
+> Milestone: panes-magnifiers-workspaces
+> Manual: TBD — a "Workspaces" section for Part I (Getting Started): what a workspace is, the
+> five built-ins and their ⌘⌥1–5 shortcuts, how to split/close/resize a pane, and how the
+> pane head's left icon changes what a pane shows.
+
 > Design-led (Testing Constitution). The Fichero creative director owns this intent;
 > tests enforce it; code makes them pass. One line per behavior, each to be cited by its
 > pinning test. **Status: DRAFT (most behaviors are [GAP]) — but the DESIGN DIRECTION is
