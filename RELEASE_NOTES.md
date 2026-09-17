@@ -2,6 +2,36 @@
 
 *Full commit-level history, day by day, lives in [`CHANGELOG.md`](CHANGELOG.md).*
 
+## 2026.09.17
+
+**It opens, and the panes behave.** A crash on launch is fixed: a window could die before it drew
+anything. Workspaces settled into **five** layouts on **⌘⌥1–5** — Read (your table over the reader,
+the page beside it), Browse, Transcribe, Transcribe · Tall, and Compare. *(Yesterday's note promised
+six on ⌘⌥1–6; Catalogue and Claims were dropped — browsing claims is a way of filtering your library,
+not a layout.)*
+
+Panes now do what you'd expect. Split one and close half of it, and only that half closes. Drag the
+dividers to resize. In Transcribe and Compare the strip of pages along the bottom is a **narrow film
+strip** instead of eating a third of the window. The icon at the left of a pane's header changes what
+that pane shows, so you can turn a reader into a page view without rebuilding your layout. Headers
+are quieter too — the hairline under them is gone, so every pane reads like the page view did.
+
+**Marks land where you put them.** Highlights, bounding boxes and transcribed words no longer drift
+on pages you had flipped or auto-cropped — Fichero was drawing them against the original pixels.
+
+**Choosing a model takes one step.** Settings, chat and workflow nodes all use the same picker now:
+one list, with the model's family, price and whether it can read images — no more choosing a provider
+and then hunting through a second menu.
+
+**Finding things.** ⌘F searches your library; ⌘⌥F finds inside the page you're reading; full-screen
+reading moved to ⌃⌘F. New Folder and Import now sit in the File menu. Holding ⌥ with a keyboard
+shortcut no longer summons the loupe by mistake.
+
+**Workflow nodes.** Applying a model from Compare now updates the node instead of looking like it did
+nothing; nodes using a capability like *large* or *vision* show that on the canvas instead of a blank
+line; the entity-extraction node gained its prompt box; and simply opening a node no longer quietly
+rewrites its settings.
+
 ## 2026.09.16
 
 **Workspaces you can trust.** Switching workspaces no longer crashes — the ⌘⌥1–6 shortcuts move
