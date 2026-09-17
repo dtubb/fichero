@@ -21,8 +21,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 VERIFY_ALL = ROOT / "scripts" / "verify_all.sh"
-CHECKLIST = ROOT / "docs" / "contributor" / "qa" / "remote-pairing-smoke-checklist.md"
-CAPTURE_MATRIX = ROOT / "docs" / "contributor" / "qa" / "capture-smoke-matrix.md"
+# contributor_manual, not contributor (2026-09-17): the docs rename updated the
+# strings in this file's error messages but not these two path constants, so the
+# guardrail reported BLIND on files that had simply moved — a guard pin orphaned
+# by a file move, which is the failure mode that hides real regressions.
+CHECKLIST = ROOT / "docs" / "contributor_manual" / "qa" / "remote-pairing-smoke-checklist.md"
+CAPTURE_MATRIX = ROOT / "docs" / "contributor_manual" / "qa" / "capture-smoke-matrix.md"
 
 
 def _read(path: Path) -> str:

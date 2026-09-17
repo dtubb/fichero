@@ -16,7 +16,11 @@ FEATURES_YAML = ROOT / "features.yaml"
 GENERATOR = ROOT / "scripts" / "gen_feature_tiers.py"
 GENERATED_SWIFT = ROOT / "fichero" / "fichero" / "Models" / "FeatureTiers.generated.swift"
 GENERATED_PYTHON = ROOT / "fichero-server" / "src" / "fichero_server" / "api" / "feature_tiers_generated.py"
-GENERATED_DOC = ROOT / "docs" / "user" / "features.md"
+# reference_manual, not user (2026-09-17): features.md is GENERATED from features.yaml,
+# so it belongs in the reference manual, and that is where gen_feature_tiers.py writes it.
+# This constant was orphaned by the docs rename — promoting a feature checked the wrong
+# path for staleness.
+GENERATED_DOC = ROOT / "docs" / "reference_manual" / "features.md"
 GENERATED_OUTPUTS = (GENERATED_SWIFT, GENERATED_PYTHON, GENERATED_DOC)
 GENERATED_RELATIVE_OUTPUTS = tuple(path.relative_to(ROOT) for path in GENERATED_OUTPUTS)
 TIER_ORDER = {"dev": 1, "alpha": 2, "beta": 3, "release": 4}

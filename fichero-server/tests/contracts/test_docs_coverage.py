@@ -8,7 +8,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 OPENAPI = ROOT / "fichero-server" / "tests" / "contracts" / "openapi.json"
-DOCS_DIR = ROOT / "docs" / "contributor" / "api-reference"
+# contributor_manual, not contributor (2026-09-17): orphaned by the docs rename.
+# The assertion message was updated to the new path but this constant was not,
+# so the glob found nothing and the allowlist read raised FileNotFoundError.
+DOCS_DIR = ROOT / "docs" / "contributor_manual" / "api-reference"
 ALLOWLIST = DOCS_DIR / "path_allowlist.json"
 
 

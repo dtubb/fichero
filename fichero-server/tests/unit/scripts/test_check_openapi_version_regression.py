@@ -149,7 +149,11 @@ def _fake_tree(tmp_path: Path, exported_version: str) -> tuple[Path, Path]:
     api_root = tmp_path / "fichero-server"
     (api_root / "scripts").mkdir(parents=True)
     (api_root / "tests" / "contracts").mkdir(parents=True)
-    (tmp_path / "docs" / "contributor" / "api-reference").mkdir(parents=True)
+    # contributor_manual: the path sync_openapi_schema.sh actually publishes to.
+    # It was left as `contributor` by the docs rename, which made the "nothing
+    # downstream ran" assertion below check a path the script never touches —
+    # vacuously true, and therefore proving nothing.
+    (tmp_path / "docs" / "contributor_manual" / "api-reference").mkdir(parents=True)
 
     for name in ("sync_openapi_schema.sh", "check_openapi_version_regression.py"):
         target = api_root / "scripts" / name
@@ -188,7 +192,9 @@ def test_sync_aborts_and_restores_when_export_walks_the_version_back(tmp_path):
     assert spec.read_text() == original
     # And nothing downstream may have run.
     assert not (tmp_path / "cli-generator-ran").exists()
-    assert not (tmp_path / "docs" / "contributor" / "api-reference" / "openapi.json").exists()
+    assert not (
+        tmp_path / "docs" / "contributor_manual" / "api-reference" / "openapi.json"
+    ).exists()
 
 
 def test_sync_proceeds_on_a_forward_bump(tmp_path):
@@ -203,6 +209,13 @@ def test_sync_proceeds_on_a_forward_bump(tmp_path):
 
     assert json.loads(spec.read_text())["info"]["version"] == "2026.7.21b1"
     assert (tmp_path / "cli-generator-ran").exists(), result.stdout + result.stderr
+    # The POSITIVE half of the published-schema pair. Without it, the abort
+    # test's `not ...exists()` is unfalsifiable: a path the script never writes
+    # is absent on both paths. Asserting it IS written on a forward bump is what
+    # makes the absence on the abort path mean something.
+    assert (
+        tmp_path / "docs" / "contributor_manual" / "api-reference" / "openapi.json"
+    ).exists(), result.stdout + result.stderr
 
 
 def test_help_documents_the_interpreter_requirement():
