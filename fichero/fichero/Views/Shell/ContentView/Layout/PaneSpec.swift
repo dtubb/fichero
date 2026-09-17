@@ -403,6 +403,21 @@ extension ContentView {
                 // panes a workspace mounts (spec §Accessibility; WorkspaceAccessibilityUITests):
                 // "pane.library" / "pane.preview" / "pane.reading" / "pane.inspector" / "pane.chat".
                 .accessibilityIdentifier("pane.\(kind.rawValue)")
+                // An applied pane is a HOSTING BOUNDARY: the window/app objects injected upstream
+                // (ContentView+Navigation, ContentView+RootLayout) do not reliably cross it, so a
+                // pane's subtree can die on a non-optional @Environment read. Exactly the 2026-08-11
+                // failure — "the horizontal library split's second pane died on
+                // WorkflowExecutionObserver" — and the crash Daniel hit at launch once the Read
+                // workspace began mounting a reader on startup (2026-09-17).
+                // ALL of them, never a hand-picked list: re-injecting what is already in scope is a
+                // no-op; omitting one is a trap. Same set the other two boundaries re-inject.
+                .environment(artifactService)
+                .environment(windowState)
+                .environment(executionObserver)
+                .environment(kgFocusState)
+                .environment(claimFocusState)
+                .environment(viewSettings)
+                .environment(appState)
             )
             // The workspace's per-pane library layout (Read = table, Browse = icons, …): publish it
             // so THIS library pane renders in the workspace's mode instead of the window's global one
