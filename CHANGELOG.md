@@ -2,6 +2,42 @@
 
 ## Unreleased
 
+## 2026-09-17
+
+**Panes are one system.** The applied pane path is now the only path: `ContentView` seeds
+`activePaneList` from `BuiltInWorkspaceLayout.read`, so Read no longer shows two libraries, closing
+one pane no longer closes both, and splitting one no longer splits both. Compare / Transcribe /
+Transcribe·Tall carry a 72px icon **film strip** of the library along the bottom
+(`PaneConfig.paneExtent`), and `WorkspaceSplitStack` sizes children from one clamped extent instead
+of stacked conflicting frames — which is what drove AppKit's `_layoutSubtreeWithOldSize:` into
+infinite recursion. Pane heads gained a **kind switcher** (turn a Reader into a Preview or a
+Library in place), collapse their chrome when sole, and close the split rather than the window when
+they are half of one.
+
+**Launch crash fixed.** Each applied pane re-injects the full set of window/app objects at its
+hosting boundary — the crash was `No Observable object of type WorkflowExecutionObserver found`, not
+the annotation store it was first blamed on. Reader surfaces now read `AnnotationStore` optionally
+and degrade instead of trapping (house rule #4513).
+
+**Loupe no longer steals ⌘⌥ chords.** The Option monitor requires Option as the *sole* modifier, so
+⌘⌥1–5 switch workspaces instead of popping the magnifier.
+
+**Reader overlay frame identity.** `DocumentRendition.frameChangingOps` gates whether a rendition
+owns its own frame, so highlights and bounding boxes drawn on a cropped/rotated rendition land where
+the ink is. The check cycle (✓ → ✓✓ → ✓✓✓ → clear) is extracted to `AnnotationCheckCycle` as one
+pure, tested rule.
+
+**Spec discipline is a gate again.** Every spec now declares three anchors — a milestone, a manual
+section, and a citing test. New guardrails `check_spec_manual_refs.py` and
+`audit_spec_milestone_manual.py` enforce the first two; both run in `verify_all.sh` and in CI. The
+panes spec was bound to milestone #284, and the magnifier was split out of it into its own
+`preview-magnifier` spec (it is a reading instrument on a source, not a window feature).
+
+**Release stamp fixed.** `set-release-version.sh` wrote a dotted *release* heading into
+`CHANGELOG.md`, which is a per-*day* file — so `check_release_docs_ready.py` rejected the very
+heading the stamp had just written and no release could clear preflight. The stamp now writes the
+dashed calendar day, and the readiness gate fails on dotted leakage.
+
 ## 2026-09-16
 
 **Workspace switch crash fixed** (the ⌘⌥4 CUICatalog crash was the animated composition swap — removed). Six workspaces redesigned to the CD's sketch. Menu bar reorganized: View submenus + Read/Knowledge menus. Model-picker spine wired into WorkflowBar + comparison sheet.

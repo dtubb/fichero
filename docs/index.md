@@ -8,11 +8,11 @@ hide:
   <img src="assets/icon.png" alt="Fichero icon" width="256">
 </p>
 
-# Fichero: AI for archives
+# Fichero: For archives
 
-Fichero is a Mac app to read archives and other structured and unstructured research material. On the one hand, can help you transcribe handwritten documents and generate structured data from using automatic text recognition, and as well as to navigate, search, and edit the results. To learn more about how Fichero works, please read the [FAQ](user_manual/guide/Part I. Getting Started/4-frequently-asked-questions.md) and the User Manual, which I am writing. 
+Fichero is a Mac app to read and work with archives. It can help transcribe handwritten documents, or generate structured data from using Automatic Text Recognition (ATR). It can also help you navigate, search, and edit the results. To learn more about how Fichero works, please read the [FAQ](user_manual/guide/Part I. Getting Started/4-frequently-asked-questions.md) and the User Manual.
 
-**Fichero is open source, but it is in early days. It is Public *Alpha*.** Read the manual. 
+**Fichero is open source, but it is in early days. It is Public *Alpha*.** 
 
 <div style="text-align: center" markdown>
 
@@ -24,14 +24,6 @@ macOS 26+, Apple Silicon.
 
 <!-- screenshot slot: hero image of the main window -->
 <!-- <p align="center"><img src="assets/screenshot-library.png" alt="Fichero library" width="900"></p> -->
-
----
-
-<!-- 
-
-## Watch
-
-video slot: short demo embed(s). Keep empty until there is one. -->
 
 ---
 
@@ -102,8 +94,7 @@ video slot: short demo embed(s). Keep empty until there is one. -->
 
 </div>
 
-Fichero is [open source](https://github.com/dtubb/fichero), released under the
-[AGPL-3.0](https://www.gnu.org/licenses/agpl-3.0.html).
+Fichero is [open source](https://github.com/dtubb/fichero) under [AGPL-3.0](https://www.gnu.org/licenses/agpl-3.0.html).
 
 ---
 

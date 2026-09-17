@@ -1,13 +1,15 @@
 # Fichero Documentation
 
-This folder contains the website of Fichero, which is the documentation for [Fichero](../README.md), [`../fichero/README.md`](../fichero/README.md)].  [‘Index.md’](index.md) is hte front page of the documentation and the website at https://www.tubb.ca/apps/fichero. This folder also contains the [Fichero User Manual](user_manual/README.md), the Fichero [Reference Manual](reference_manual/features.md), and the Fichero Contributor Manual [README.md](contributor_manual/README.md). 
+Start with **[What is Fichero?](user_manual/guide/Part%20I.%20Getting%20Started/1-introduction/1-philosophy-of-fichero.md)**, then the **[User Guide](user_manual/README.md)** for installing Fichero and working with sources.
 
-## Where to start?
+This folder is both the source for the Fichero website (built with MkDocs) and the documentation for [Fichero](../README.md) itself. `docs/` is the folder MkDocs builds the site from (`docs_dir: docs` in [`../mkdocs.yml`](../mkdocs.yml)). The docs are browsable as source on GitHub, or on the site: https://tubb.ca/apps/fichero.
 
-Start with the**[What is Fichero?](user_manual/guide/Part I. Getting Started/1-introduction/3-what-is-fichero.md)**, then turn the the **[User Guide](user_manual/README.md)** on how to install Fichero, and add, read, and use it to work with sources. It is authored by Daniel Tubb, the maintainer, in Tinderbox and exported here.
+This `README.md` is the GitHub folder landing page. [`index.md`](index.md) is the published homepage. `mkdocs.yml` excludes this `README.md` from the site.
 
-The [Reference Manual](reference_manual/features.md) contains an index of the app, its different user interface elements, keyboard shortcuts, import and export formats. It is generated programmatically from the app's source code.
+This folder contains three manuals, plus the release-notes plumbing for the homepage:
 
-The **[Contributor Guide](contributor_manual/README.md)** is written mostly by AI coding agents, and contains instructions on how to contribute to the Fichero project and its architecture.
-
-- **[Contributors](contributors.md)** is about the people who have contributed in different ways to making or testing Ficheros.
+- **[`user_manual/`](user_manual/README.md)**: the User Guide. Authored by Daniel Tubb in Tinderbox and exported here, organized as folders = Parts (`guide/Part I. Getting Started/`, `guide/Part II. Projects/`, …).
+- **[`reference_manual/`](reference_manual/features.md)**: the Reference Manual: the app's UI elements, keyboard shortcuts, glossary, and the full workflow/tool reference. Generated programmatically from the app's source code.
+- **[`contributor_manual/`](contributor_manual/README.md)**: the Contributor Guide: architecture, setup, testing, and release process. Written mostly by AI coding agents, largely unreviewed by a human.
+- **[`contributors.md`](contributors.md)**:  the people who have contributed to making or testing Fichero.
+- **`_latest.md`** / **`_releases.md`**: generated release-note snippets (by `scripts/gen_site_releases.py`) pulled into `index.md`.
