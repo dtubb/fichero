@@ -54,15 +54,7 @@ extension ContentView {
                         // this ContentView holds (second crash of the night
                         // was a service missing from a hand-picked list; the
                         // rule is ALL of them).
-                        .environment(windowState)
-                        .environment(executionObserver)
-                        .environment(kgFocusState)
-                        .environment(claimFocusState)
-                        .environment(viewSettings)
-                        .environment(appState)
-                        .environment(errorService)
-                        .environment(featureManager)
-                        .environment(libraryManager)
+                        .modifier(windowEnvironment)
                         // The per-window REQUEST BUSES don't cross the
                         // .inspector boundary either (same non-inheritance as
                         // the services above). They are injected once on the

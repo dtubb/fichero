@@ -151,16 +151,7 @@ extension ContentView {
         // artifactService alone was exactly the hand-picked-list mistake
         // the inspector boundary comment already warns about). This is the
         // same set inspectorContainerView re-injects.
-        .environment(artifactService)
-        .environment(windowState)
-        .environment(executionObserver)
-        .environment(kgFocusState)
-        .environment(claimFocusState)
-        .environment(viewSettings)
-        .environment(appState)
-        .environment(errorService)
-        .environment(featureManager)
-        .environment(libraryManager)
+        .modifier(windowEnvironment)
         // Keep the library surface inside the content column across every
         // preview/sidebar layout variant; without this, list/table rows can
         // paint under the shell sidebar or off the left window edge (#3336).

@@ -411,13 +411,13 @@ extension ContentView {
                 // workspace began mounting a reader on startup (2026-09-17).
                 // ALL of them, never a hand-picked list: re-injecting what is already in scope is a
                 // no-op; omitting one is a trap. Same set the other two boundaries re-inject.
-                .environment(artifactService)
-                .environment(windowState)
-                .environment(executionObserver)
-                .environment(kgFocusState)
-                .environment(claimFocusState)
-                .environment(viewSettings)
-                .environment(appState)
+                //
+                // 2026-09-17, second pass: this said "ALL" while injecting SEVEN. A workflow pane
+                // reads WorkflowStore, which was not among them, so mounting one trapped in
+                // EnvironmentValues.subscript.getter (EXC_BREAKPOINT) with no app frame in the
+                // stack to name it. It now applies the ONE shared list
+                // (ContentView+WindowEnvironment) so all three boundaries cannot diverge again.
+                .modifier(windowEnvironment)
             )
             // The workspace's per-pane library layout (Read = table, Browse = icons, …): publish it
             // so THIS library pane renders in the workspace's mode instead of the window's global one
