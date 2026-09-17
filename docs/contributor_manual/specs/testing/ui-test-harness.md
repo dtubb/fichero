@@ -1,6 +1,7 @@
 # UI-Test Harness — Design Spec (#TBD)
 
 > Milestone: ui-test-harness
+> Manual: docs/contributor_manual/guide/11-testing.md
 >
 > Design-led (Testing Constitution). Creative director owns intent; tests enforce it; code
 > makes them pass. **Status: APPROVED — 2026-09-09.** Rulings recorded below; tests-first, then

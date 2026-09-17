@@ -1,6 +1,7 @@
 # Xcode Build/Test/Run Configs — Design Spec (#TBD)
 
 > Milestone: xcode-build-configs
+> Manual: docs/contributor_manual/guide/10-setup-and-day-to-day-development.md
 
 > Design-led (Testing Constitution). **Status: APPROVED — 2026-09-09** (invariants verified from
 > the project this session). A guardrail pins them so config drift is a red test, not a debugging

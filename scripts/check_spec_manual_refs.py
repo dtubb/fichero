@@ -32,15 +32,17 @@ TBD_RE = re.compile(r"^\s*TBD\b", re.IGNORECASE)
 # Specs approved BEFORE the manual-reference rule (2026-09-17). They graduate off this list by
 # gaining a `Manual:` header as their area is next worked — the same "sorted over time" pattern
 # check_spec_milestones.py uses. Do NOT add new specs here; new APPROVED specs must declare one.
+#
+# The three CONTRIBUTOR-facing specs graduated 2026-09-17: their audience reads the contributor
+# manual, and the page that documents each already existed, so there was nothing to wait for.
+# The five that remain are USER-facing, and the user manual is authored in Tinderbox by the
+# design lead — they graduate when their section is written, not before.
 MANUAL_GRANDFATHERED = {
     "kg-tables",
     "kg-entity-inspector",
     "kg-readable-representation",
     "sidebar-crud",
     "workflow-node-config",
-    "ui-test-harness",
-    "xcode-build-configs",
-    "transport-http-uds",
 }
 
 

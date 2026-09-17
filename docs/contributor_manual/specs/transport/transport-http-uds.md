@@ -1,6 +1,7 @@
 # Engine Transport: HTTPS / UDS / in-memory — Design Spec (#4486)
 
 > Milestone: transport-http-uds
+> Manual: docs/contributor_manual/guide/16-the-embedded-engine.md
 
 > Design-led (Testing Constitution). **Status: APPROVED — 2026-09-09.** Rewritten into
 > template format from `agent-work/status/2026-08-04-uds-harness-4437.md` and the code contract
