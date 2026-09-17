@@ -47,7 +47,11 @@ def _cluster(**overrides) -> HpcClusterConfig:
 
 class TestClusterConfig:
     def test_valid_config_passes(self):
-        _cluster().validate()  # no raise
+        # validate() -> None and raises HpcConfigError on a bad field. A
+        # well-formed cluster must therefore return None; asserting it states
+        # the claim instead of relying on "the line did not throw", which reads
+        # as a test with no assertion at all.
+        assert _cluster().validate() is None
 
     @pytest.mark.parametrize(
         "field", ["name", "host_alias", "username", "remote_base_dir", "partition"]

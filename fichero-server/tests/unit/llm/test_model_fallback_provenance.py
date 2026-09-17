@@ -144,10 +144,12 @@ def test_collection_is_scoped_and_does_not_leak_between_runs():
 def test_recording_outside_a_collector_is_harmless():
     """A call made with no run in scope logs and returns — it must not raise:
     an accounting concern may never fail the work it is accounting for."""
-    _record_model_fallback(
+    # -> None. Asserting the return states the claim ("it completed, it did not
+    # raise") rather than leaving a call with no assertion behind it.
+    assert _record_model_fallback(
         from_config=APPLE, to_config=SONNET,
         error=GuardrailViolationError("declined"), kind="chat",
-    )
+    ) is None
 
 
 # The run-choice fallback (_run_choice_fallback_config) and the tier ladder were
