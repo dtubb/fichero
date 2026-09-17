@@ -79,6 +79,15 @@ XCODE_PROJECT="fichero/fichero.xcodeproj"
 # valid throughout — that has always addressed the target.
 UNIT_SCHEME="Fichero (Dev Embedded)"
 UNIT_PLAN="fichero"
+# Debug, not the scheme's own "Dev Embedded" (2026-09-17). FicheroTests imports
+# FicheroAPIClient, a local SPM package, and needs it built with -enable-testing.
+# ENABLE_TESTABILITY is set at TARGET level on the app (pbxproj 1087, 1823) but
+# NOT at project level for "Dev Embedded", and Xcode-integrated packages inherit
+# the PROJECT-level setting — so the package builds untestable and the test
+# target fails with "Unable to resolve Swift module dependency to a compatible
+# module: 'FicheroAPIClient' ... built without '-enable-testing'". Debug carries
+# testability, and build-for-testing under it succeeds. Verified both ways.
+UNIT_CONFIG="Debug"
 # The one surviving iOS-family scheme; it carries `fichero` and `fichero-ipad`.
 IOS_SCHEME="fichero-ios"
 UI_SCHEME="Fichero (Dev Local)"
@@ -498,7 +507,7 @@ xcode_build_for_testing() {
   GATE_FOOTPRINT_OVERRIDE_MB="${GATE_FOOTPRINT_BUILD_MB:-8192}" \
   run_gated "build-for-testing" "${GATE_TIMEOUT_BUILD:-3600}" \
     xcodebuild -project "$XCODE_PROJECT" -scheme "$UNIT_SCHEME" \
-      -testPlan "$UNIT_PLAN" \
+      -testPlan "$UNIT_PLAN" -configuration "$UNIT_CONFIG" \
       -destination 'platform=macOS' -derivedDataPath "$GATE_DERIVED" \
       -jobs 4 -skipPackagePluginValidation build-for-testing
 }
@@ -531,7 +540,7 @@ run_unit_phase() {
     env TEST_RUNNER_FICHERO_HERMETIC_ENGINE=1 \
         "TEST_RUNNER_SWT_SWIFT_TESTING_ENABLED=$swt" \
     xcodebuild -project "$XCODE_PROJECT" -scheme "$UNIT_SCHEME" \
-      -testPlan "$UNIT_PLAN" \
+      -testPlan "$UNIT_PLAN" -configuration "$UNIT_CONFIG" \
       -destination 'platform=macOS' -derivedDataPath "$GATE_DERIVED" \
       -skipPackagePluginValidation "$@" test-without-building
 }
