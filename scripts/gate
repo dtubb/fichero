@@ -67,7 +67,20 @@ WATCH_INTERVAL="${GATE_WATCH_INTERVAL:-5}"
 DRYRUN="${GATE_DRYRUN:-0}"
 
 XCODE_PROJECT="fichero/fichero.xcodeproj"
-UNIT_SCHEME="FicheroTests"
+# Schemes, re-pinned 2026-09-17. The 2026-09-09 scheme prune (917592673) deleted
+# BOTH "FicheroTests" and "Fichero (Dev Local iOS)" without updating this file,
+# so `gate build`, `gate unit`, `gate ios` and `gate ipad` had all been failing
+# with xcodebuild rc=65 ("does not contain a scheme named ...") for eight days —
+# the serialized harness every lane is told to use could not build at all.
+#
+# FicheroTests is a TARGET, not a scheme. The unit tests reach it through the
+# `fichero` TEST PLAN (which lists FicheroTests + FicheroUITests), and that plan
+# is carried by the Dev Embedded scheme. -only-testing:FicheroTests/... stays
+# valid throughout — that has always addressed the target.
+UNIT_SCHEME="Fichero (Dev Embedded)"
+UNIT_PLAN="fichero"
+# The one surviving iOS-family scheme; it carries `fichero` and `fichero-ipad`.
+IOS_SCHEME="fichero-ios"
 UI_SCHEME="Fichero (Dev Local)"
 GATE_DERIVED="${GATE_DERIVED:-build/gate-derived}"
 SWIFT_TESTS_DIR="fichero/Tests/Unit"
@@ -485,6 +498,7 @@ xcode_build_for_testing() {
   GATE_FOOTPRINT_OVERRIDE_MB="${GATE_FOOTPRINT_BUILD_MB:-8192}" \
   run_gated "build-for-testing" "${GATE_TIMEOUT_BUILD:-3600}" \
     xcodebuild -project "$XCODE_PROJECT" -scheme "$UNIT_SCHEME" \
+      -testPlan "$UNIT_PLAN" \
       -destination 'platform=macOS' -derivedDataPath "$GATE_DERIVED" \
       -jobs 4 -skipPackagePluginValidation build-for-testing
 }
@@ -517,6 +531,7 @@ run_unit_phase() {
     env TEST_RUNNER_FICHERO_HERMETIC_ENGINE=1 \
         "TEST_RUNNER_SWT_SWIFT_TESTING_ENABLED=$swt" \
     xcodebuild -project "$XCODE_PROJECT" -scheme "$UNIT_SCHEME" \
+      -testPlan "$UNIT_PLAN" \
       -destination 'platform=macOS' -derivedDataPath "$GATE_DERIVED" \
       -skipPackagePluginValidation "$@" test-without-building
 }
@@ -652,7 +667,7 @@ cmd_ios() {
   # runs headless and cannot depend on whatever devices this machine has.
   GATE_FOOTPRINT_OVERRIDE_MB="${GATE_FOOTPRINT_IOS_MB:-8192}" \
   run_gated "ios-compile" "${GATE_TIMEOUT_IOS:-3600}" \
-    xcodebuild -project "$XCODE_PROJECT" -scheme "$UNIT_SCHEME" \
+    xcodebuild -project "$XCODE_PROJECT" -scheme "$IOS_SCHEME" \
       -destination 'generic/platform=iOS Simulator' \
       -derivedDataPath "$GATE_DERIVED/ios" \
       -skipPackagePluginValidation build
@@ -698,7 +713,7 @@ print(names[0] if names else "")' 2>/dev/null)"
   # associated with the iOS schemes, so no Mac-scheme borrowing (#4505).
   GATE_FOOTPRINT_OVERRIDE_MB="${GATE_FOOTPRINT_IPAD_MB:-8192}" \
   run_gated "ipad-tests" "${GATE_TIMEOUT_IPAD:-5400}" \
-    xcodebuild -project "$XCODE_PROJECT" -scheme "Fichero (Dev Local iOS)" \
+    xcodebuild -project "$XCODE_PROJECT" -scheme "$IOS_SCHEME" \
       -testPlan fichero-ipad -destination "$dest" \
       -derivedDataPath "$GATE_DERIVED/ipad" \
       -skipPackagePluginValidation \
@@ -901,6 +916,42 @@ cmd_self_test() {
   out="$(env -u GATE_LOCK_HELD GATE_MIN_FREE_GB=999999 "$0" wrap -- true 2>&1)"; rc=$?
   [[ $rc -ne 0 && "$out" == *"PREFLIGHT REFUSED"* && "$out" != *"waiting for lock"* ]]
   check "preflight: a heavy subcommand refuses pre-lock on a full disk (#4434)" $?
+
+  # 2e. Every scheme this file NAMES must exist in the project (2026-09-17).
+  #     The 2026-09-09 scheme prune deleted "FicheroTests" and "Fichero (Dev
+  #     Local iOS)" and nothing noticed for eight days: the gate only discovers
+  #     a dead scheme when someone runs a ten-minute build that dies on rc=65.
+  #     One `-list` here turns that into an instant, named failure. Plans are
+  #     checked the same way — a plan that stops being carried by its scheme is
+  #     the same silent break wearing different clothes.
+  #     Matched as WHOLE LINES against the parsed section, never as substrings:
+  #     xcodebuild prints its package-resolution list first, so a loose
+  #     `*"fichero"*` matches "FicheroAPIClient" and passes for a scheme that
+  #     does not exist. An empty section is reported BLIND rather than failing
+  #     every name, so "xcodebuild could not answer" never reads as "missing".
+  local scheme_list
+  scheme_list="$(xcodebuild -project "$XCODE_PROJECT" -list 2>/dev/null \
+    | sed -n '/Schemes:/,$p' | sed '1d' \
+    | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | grep -v '^$')"
+  if [[ -z "$scheme_list" ]]; then
+    check "BLIND: xcodebuild -list produced no Schemes section" 1
+  else
+    local named
+    for named in "$UNIT_SCHEME" "$IOS_SCHEME" "$UI_SCHEME"; do
+      grep -Fxq -- "$named" <<<"$scheme_list"
+      check "scheme exists in the project: $named" $?
+    done
+  fi
+  local plan_list
+  plan_list="$(xcodebuild -project "$XCODE_PROJECT" -scheme "$UNIT_SCHEME" -showTestPlans 2>/dev/null \
+    | sed -n '/Test plans associated/,$p' | sed '1d' \
+    | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | grep -v '^$')"
+  if [[ -z "$plan_list" ]]; then
+    check "BLIND: no test-plan list for '$UNIT_SCHEME'" 1
+  else
+    grep -Fxq -- "$UNIT_PLAN" <<<"$plan_list"
+    check "test plan '$UNIT_PLAN' is carried by '$UNIT_SCHEME'" $?
+  fi
 
   # 3. Lock contention: hold the lock with a trivial sleep, then a --no-wait
   #    caller must fail fast with 75, and a waiting caller must queue+succeed.
