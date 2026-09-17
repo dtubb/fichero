@@ -226,3 +226,31 @@ struct SettingsSharedModelPicker: View {
         }
     }
 }
+
+// MARK: - Previews
+
+// The chip as Settings' Defaults rows show it. `seedModels: []` is deliberate: the
+// picker must render its label from the CURRENT selection before any catalog loads —
+// an empty seed is the state a user actually sees on first open, so it is the state
+// worth pinning.
+#Preview("Defaults chip — vision tier") {
+    SettingsSharedModelPicker(
+        appState: AppState(),
+        providerSelection: .constant("anthropic"),
+        modelSelection: .constant("claude-sonnet-5"),
+        tier: .vision,
+        seedModels: []
+    )
+    .padding()
+}
+
+#Preview("Defaults chip — nothing chosen yet") {
+    SettingsSharedModelPicker(
+        appState: AppState(),
+        providerSelection: .constant(""),
+        modelSelection: .constant(""),
+        tier: .text,
+        seedModels: []
+    )
+    .padding()
+}

@@ -73,3 +73,60 @@ struct SharedModelRow: View {
         .help(disabledReason ?? "\(choice.model) — \(choice.provider)")
     }
 }
+
+// MARK: - Previews
+
+/// The four states worth seeing side by side: current, plain, priced, and refused.
+/// The refusal row is the one that matters — it must stay READABLE and keep its
+/// reason, because a greyed row with no explanation is the bug this row guards.
+#Preview("Rows — current, priced, and refused") {
+    VStack(alignment: .leading, spacing: 2) {
+        SharedModelRow(
+            choice: SharedModelChoice(
+                provider: "anthropic",
+                model: "claude-sonnet-5",
+                displayName: "claude-sonnet-5",
+                tier: "Vision",
+                supportsVision: true
+            ),
+            isCurrent: true,
+            action: {}
+        )
+        SharedModelRow(
+            choice: SharedModelChoice(
+                provider: "mlx",
+                model: "qwen2.5-vl-7b",
+                displayName: "qwen2.5-vl-7b",
+                tier: "Small",
+                supportsVision: true
+            ),
+            isCurrent: false,
+            action: {}
+        )
+        SharedModelRow(
+            choice: SharedModelChoice(
+                provider: "openrouter",
+                model: "anthropic/claude-opus-5",
+                displayName: "claude-opus-5",
+                tier: "Large",
+                supportsVision: true,
+                pricing: SharedModelPricing(inputPerMillion: 15, outputPerMillion: 75)
+            ),
+            isCurrent: false,
+            action: {}
+        )
+        SharedModelRow(
+            choice: SharedModelChoice(
+                provider: "openai",
+                model: "o1-mini",
+                displayName: "o1-mini",
+                supportsVision: false
+            ),
+            isCurrent: false,
+            disabledReason: "This model does not read images.",
+            action: {}
+        )
+    }
+    .padding(8)
+    .frame(width: 320)
+}

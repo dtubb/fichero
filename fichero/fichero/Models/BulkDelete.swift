@@ -33,7 +33,7 @@ enum BulkDelete {
                 for id in wave {
                     group.addTask { (id, await delete(id)) }
                 }
-                for await (id, ok) in group where ok {
+                for await (id, deleted) in group where deleted {
                     succeeded.append(id)
                 }
             }

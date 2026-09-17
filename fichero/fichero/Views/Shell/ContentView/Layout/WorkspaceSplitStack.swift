@@ -89,13 +89,18 @@ struct WorkspaceSplitStack: View {
         }
     }
 
+    /// How one child is laid out: filling the remainder, or pinned to a stored
+    /// extent with a divider on the side facing the flex.
+    /// Sibling of `ChildPlan`, not nested inside it — three levels of nesting
+    /// (stack > plan > sizing) buys nothing and trips `nesting`.
+    private enum ChildSizing {
+        case flex
+        case sized(Binding<Double>, dividerBefore: Bool)
+    }
+
     private struct ChildPlan {
         let view: AnyView
-        let sizing: Sizing
-        enum Sizing {
-            case flex
-            case sized(Binding<Double>, dividerBefore: Bool)
-        }
+        let sizing: ChildSizing
     }
 
     /// A sized child, clamped to the available space so it can never propose an unbounded/over-large
@@ -128,4 +133,64 @@ struct WorkspaceSplitStack: View {
             axis: axis == .horizontal ? .horizontal : .vertical
         )
     }
+}
+
+// MARK: - Previews
+
+/// A stand-in pane. Real panes are AppKit-backed; a coloured block renders the SAME
+/// layout question (does each child get a bounded proposal?) without an engine.
+private func previewPane(_ label: String, _ tint: Color) -> AnyView {
+    AnyView(
+        tint.opacity(0.22)
+            .overlay(Text(label).font(.caption).foregroundStyle(.secondary))
+    )
+}
+
+#Preview("Horizontal — sized library + flexing content") {
+    WorkspaceSplitStack(
+        axis: .horizontal,
+        storageKey: "preview.horizontal",
+        children: [
+            .init(previewPane("Library", .blue), extent: 360),
+            .init(previewPane("Reader", .green))
+        ]
+    )
+    .frame(width: 900, height: 500)
+}
+
+#Preview("Film strip — 72pt library under the content") {
+    WorkspaceSplitStack(
+        axis: .vertical,
+        storageKey: "preview.filmstrip",
+        children: [
+            .init(previewPane("Transcribe", .green)),
+            .init(previewPane("Film strip", .orange), extent: 72)
+        ]
+    )
+    .frame(width: 900, height: 500)
+}
+
+// The crash case (CD, 2026-09-16): a stack NESTED inside another stack is what fed an
+// unbounded proposal into the AppKit panes and sent `_layoutSubtreeWithOldSize:` into
+// infinite recursion. If the one-frame-per-child rule ever regresses, this preview is
+// where it shows up first — cheaply, without launching the app.
+#Preview("Nested — compare over a film strip") {
+    WorkspaceSplitStack(
+        axis: .vertical,
+        storageKey: "preview.nested.outer",
+        children: [
+            .init(AnyView(
+                WorkspaceSplitStack(
+                    axis: .horizontal,
+                    storageKey: "preview.nested.inner",
+                    children: [
+                        .init(previewPane("Page A", .blue), extent: 360),
+                        .init(previewPane("Page B", .purple))
+                    ]
+                )
+            )),
+            .init(previewPane("Film strip", .orange), extent: 72)
+        ]
+    )
+    .frame(width: 900, height: 500)
 }

@@ -454,3 +454,19 @@ private struct PreviewSplitPaneHost<Content: View>: View {
         content($pinnedPreviewDocument)
     }
 }
+
+// MARK: - Previews
+
+// Same shape as `LibrarySplitPaneHost`: no chrome of its own, it just holds the pinned
+// document for the preview half. The preview shows the binding round-tripping.
+#Preview("Preview split pane host — the pinned document it carries") {
+    PreviewSplitPaneHost { pinned in
+        VStack(spacing: 8) {
+            Text(pinned.wrappedValue == nil ? "No pinned document" : "Document pinned")
+                .font(.callout)
+            Button("Clear pin") { pinned.wrappedValue = nil }
+        }
+        .padding()
+        .frame(width: 280, height: 120)
+    }
+}

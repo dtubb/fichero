@@ -24,10 +24,8 @@ struct SharedModelPricing: Equatable {
     let inputPerMillion: Double
     let outputPerMillion: Double
 
-    init(inputPerMillion: Double, outputPerMillion: Double) {
-        self.inputPerMillion = inputPerMillion
-        self.outputPerMillion = outputPerMillion
-    }
+    // The memberwise initializer Swift synthesizes is identical to the one that
+    // used to be written out here, so it was deleted rather than maintained.
 }
 
 /// One configured model as any picker surface renders it: the family it

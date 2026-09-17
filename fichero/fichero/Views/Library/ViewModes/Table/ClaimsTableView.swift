@@ -28,7 +28,7 @@ struct ClaimsTableView: View {
         /// exactly like a library row (spec: panes-workspaces
         /// panes.claim.source-is-document). `nil` when the source document isn't
         /// resolved — nothing honest to drag.
-        var sourceDrag: LibraryItemDrag? = nil
+        var sourceDrag: LibraryItemDrag?
         var id: String { node.id }
     }
 
@@ -42,10 +42,10 @@ struct ClaimsTableView: View {
     /// Delete the given claims — the host wires this to `LibraryClaimsModel.delete`,
     /// which deletes server-side and drops the rows in place. Optional so a preview
     /// or a read-only host can render the table without a delete path.
-    var onDelete: (([Components.Schemas.KnowledgeClaim]) -> Void)? = nil
+    var onDelete: (([Components.Schemas.KnowledgeClaim]) -> Void)?
     /// Edit one claim — the host presents the existing EditClaimSheet (PATCH). Optional
     /// so a read-only host can render the table without an edit path.
-    var onEdit: ((Components.Schemas.KnowledgeClaim) -> Void)? = nil
+    var onEdit: ((Components.Schemas.KnowledgeClaim) -> Void)?
 
     @State private var sortOrder: [KeyPathComparator<Item>] = [
         KeyPathComparator(\Item.values.subject, order: .forward)

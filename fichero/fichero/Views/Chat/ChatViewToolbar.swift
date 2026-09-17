@@ -205,6 +205,11 @@ struct ChatModelPicker: View, Equatable {
         }
         .buttonStyle(.plain)
         .disabled(providers.isEmpty)
+        // The icon carries no text, so VoiceOver would announce only "button".
+        // The label says what it DOES; the value says which model is current,
+        // so the chip reads the same way to a screen reader as it looks.
+        .accessibilityLabel("Choose model")
+        .accessibilityValue(selectedModel.isEmpty ? "No model selected" : selectedModel)
         // A POPOVER that PICKS, rendering the SHARED row — the same face the
         // island, Settings and the comparison sheet show — not a bespoke Menu.
         .popover(isPresented: $isPresented, arrowEdge: .bottom) {

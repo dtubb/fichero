@@ -58,7 +58,12 @@ struct KnowledgeSettingsView: View {
 
     private var endpointsSection: some View {
         Section("SPARQL Endpoints") {
-            Text("The endpoint the Wikidata enrichment queries for an entity's statements. A failed endpoint surfaces a clear error — never a silent fallback.")
+            // Multi-line literal with a trailing `\` so the rendered string is
+            // still ONE line — the wrap is in the source, not in the UI.
+            Text("""
+                The endpoint the Wikidata enrichment queries for an entity's statements. \
+                A failed endpoint surfaces a clear error — never a silent fallback.
+                """)
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Picker("Default endpoint", selection: $selectedURL) {
@@ -166,7 +171,7 @@ struct KnowledgeSettingsView: View {
     private func save() async {
         let payload: [String: Any] = [
             "endpoints": endpoints.map { ["name": $0.name, "url": $0.url] },
-            "selected_url": selectedURL,
+            "selected_url": selectedURL
         ]
         do {
             let body = try JSONSerialization.data(withJSONObject: payload)

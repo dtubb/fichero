@@ -563,6 +563,8 @@ final class DocumentStore {
         }
     }
 
+    // ponytail: rebuilt each call; memoize on `revision` if a profile shows it hot.
+    //
     /// A best-effort id → document map over every document currently loaded in
     /// any cache — the browsed folder, top-level collections, lazily-loaded
     /// children, and workspaces. Best-effort: a document not yet fetched is
@@ -573,7 +575,6 @@ final class DocumentStore {
     ///
     /// O(loaded documents), built per call — the caller (a table render) already
     /// does O(rows) work, and the loaded set is bounded by what's been fetched.
-    // ponytail: rebuilt each call; memoize on `revision` if a profile shows it hot.
     func knownDocumentsById() -> [String: Document] {
         var map: [String: Document] = [:]
         for doc in collections { map[doc.id] = doc }

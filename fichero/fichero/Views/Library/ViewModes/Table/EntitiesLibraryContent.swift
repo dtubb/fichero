@@ -19,7 +19,7 @@ struct EntitiesLibraryContent: View {
     /// The library's active ⌘F query, so the entities table narrows with the same
     /// search box — and so a search that matched only entities can auto-surface
     /// the matching ones (E: "if there's stuff to show, show it").
-    var searchQuery: String? = nil
+    var searchQuery: String?
     @Binding var selection: Set<String>
     /// Focus the entity + open its detail/editor — supplied by LibraryView, which
     /// owns the KG focus state and the detail binding.

@@ -108,15 +108,21 @@ enum AboutLinks {
 enum AboutAcknowledgements {
     static let entries: [Acknowledgement] = [
         // App — Swift / Apple
-        .init(name: "SwiftUI & AppKit", license: "Apple platform frameworks", url: URL(string: "https://developer.apple.com/xcode/swiftui/")!, layer: .app),
+        .init(name: "SwiftUI & AppKit", license: "Apple platform frameworks",
+              url: URL(string: "https://developer.apple.com/xcode/swiftui/")!, layer: .app),
         .init(name: "Sparkle", license: "MIT License", url: URL(string: "https://sparkle-project.org")!, layer: .app),
         .init(name: "PythonKit", license: "Apache License 2.0", url: URL(string: "https://github.com/pvieito/PythonKit")!, layer: .app),
-        .init(name: "Swift OpenAPI Generator", license: "Apache License 2.0", url: URL(string: "https://github.com/apple/swift-openapi-generator")!, layer: .app),
+        .init(name: "Swift OpenAPI Generator", license: "Apache License 2.0",
+              url: URL(string: "https://github.com/apple/swift-openapi-generator")!, layer: .app),
         .init(name: "SwiftNIO", license: "Apache License 2.0", url: URL(string: "https://github.com/apple/swift-nio")!, layer: .app),
-        .init(name: "Swift Crypto & Certificates", license: "Apache License 2.0", url: URL(string: "https://github.com/apple/swift-crypto")!, layer: .app),
-        .init(name: "Swift Collections, Algorithms & Numerics", license: "Apache License 2.0", url: URL(string: "https://github.com/apple/swift-collections")!, layer: .app),
-        .init(name: "Swift Argument Parser", license: "Apache License 2.0", url: URL(string: "https://github.com/apple/swift-argument-parser")!, layer: .app),
-        .init(name: "AsyncHTTPClient", license: "Apache License 2.0", url: URL(string: "https://github.com/swift-server/async-http-client")!, layer: .app),
+        .init(name: "Swift Crypto & Certificates", license: "Apache License 2.0",
+              url: URL(string: "https://github.com/apple/swift-crypto")!, layer: .app),
+        .init(name: "Swift Collections, Algorithms & Numerics", license: "Apache License 2.0",
+              url: URL(string: "https://github.com/apple/swift-collections")!, layer: .app),
+        .init(name: "Swift Argument Parser", license: "Apache License 2.0",
+              url: URL(string: "https://github.com/apple/swift-argument-parser")!, layer: .app),
+        .init(name: "AsyncHTTPClient", license: "Apache License 2.0",
+              url: URL(string: "https://github.com/swift-server/async-http-client")!, layer: .app),
         .init(name: "OpenAPIKit", license: "MIT License", url: URL(string: "https://github.com/mattpolzin/OpenAPIKit")!, layer: .app),
         .init(name: "Yams", license: "MIT License", url: URL(string: "https://github.com/jpsim/Yams")!, layer: .app),
 
@@ -129,13 +135,16 @@ enum AboutAcknowledgements {
         .init(name: "LanceDB", license: "Apache License 2.0", url: URL(string: "https://lancedb.com")!, layer: .engine),
         .init(name: "LangChain", license: "MIT License", url: URL(string: "https://www.langchain.com")!, layer: .engine),
         .init(name: "LangGraph", license: "MIT License", url: URL(string: "https://langchain-ai.github.io/langgraph")!, layer: .engine),
-        .init(name: "Model Context Protocol (MCP)", license: "MIT License", url: URL(string: "https://modelcontextprotocol.io")!, layer: .engine, distribution: "mcp"),
+        .init(name: "Model Context Protocol (MCP)", license: "MIT License",
+              url: URL(string: "https://modelcontextprotocol.io")!, layer: .engine, distribution: "mcp"),
         .init(name: "spaCy", license: "MIT License", url: URL(string: "https://spacy.io")!, layer: .engine),
         .init(name: "Kreuzberg", license: "MIT License", url: URL(string: "https://github.com/Goldziher/kreuzberg")!, layer: .engine),
         .init(name: "PyMuPDF", license: "AGPL-3.0 License", url: URL(string: "https://pymupdf.readthedocs.io")!, layer: .engine),
-        .init(name: "pypdfium2", license: "Apache-2.0 / BSD-3-Clause", url: URL(string: "https://github.com/pypdfium2-team/pypdfium2")!, layer: .engine),
+        .init(name: "pypdfium2", license: "Apache-2.0 / BSD-3-Clause",
+              url: URL(string: "https://github.com/pypdfium2-team/pypdfium2")!, layer: .engine),
         .init(name: "Pillow", license: "HPND License", url: URL(string: "https://python-pillow.org")!, layer: .engine),
-        .init(name: "OpenCV", license: "Apache License 2.0", url: URL(string: "https://opencv.org")!, layer: .engine, distribution: "opencv-python-headless"),
+        .init(name: "OpenCV", license: "Apache License 2.0",
+              url: URL(string: "https://opencv.org")!, layer: .engine, distribution: "opencv-python-headless"),
         .init(name: "fastembed", license: "Apache License 2.0", url: URL(string: "https://github.com/qdrant/fastembed")!, layer: .engine),
         .init(name: "NumPy", license: "BSD-3-Clause License", url: URL(string: "https://numpy.org")!, layer: .engine),
         .init(name: "httpx", license: "BSD-3-Clause License", url: URL(string: "https://www.python-httpx.org")!, layer: .engine),
@@ -145,7 +154,8 @@ enum AboutAcknowledgements {
         .init(name: "PyObjC", license: "MIT License", url: URL(string: "https://pyobjc.readthedocs.io")!, layer: .engine),
 
         // On-device AI — provisioned at runtime by the local-inference runtimes
-        .init(name: "MLX (mlx-lm, mlx-vlm, mlx-whisper)", license: "MIT License", url: URL(string: "https://github.com/ml-explore/mlx")!, layer: .onDevice, distribution: "mlx-lm"),
+        .init(name: "MLX (mlx-lm, mlx-vlm, mlx-whisper)", license: "MIT License",
+              url: URL(string: "https://github.com/ml-explore/mlx")!, layer: .onDevice, distribution: "mlx-lm"),
         .init(name: "Kraken", license: "Apache License 2.0", url: URL(string: "https://kraken.re")!, layer: .onDevice),
         .init(name: "Whisper", license: "MIT License", url: URL(string: "https://github.com/openai/whisper")!, layer: .onDevice)
     ]

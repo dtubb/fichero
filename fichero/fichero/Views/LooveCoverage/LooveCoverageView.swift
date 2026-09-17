@@ -69,7 +69,12 @@ struct LooveCoverageView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Language Coverage")
                         .font(.title2.bold())
-                    Text("How well each model's tokenizer can read each script — a measure of tokenizer coverage, not model intelligence or task quality.")
+                    // Multi-line literal with a trailing `\` — the wrap is in the
+                    // source, the rendered string is still one line.
+                    Text("""
+                        How well each model's tokenizer can read each script — \
+                        a measure of tokenizer coverage, not model intelligence or task quality.
+                        """)
                         .font(.callout)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -528,7 +533,12 @@ private struct LanguageSearchPopover: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Add a language column")
                 .font(.headline)
-            Text("Type a language name or ISO code. Coverage is scored from published data where it exists, and honestly marked “unknown” where it doesn't.")
+            // Multi-line literal with a trailing `\` — the wrap is in the source,
+            // the rendered string is still one line.
+            Text("""
+                Type a language name or ISO code. Coverage is scored from published \
+                data where it exists, and honestly marked “unknown” where it doesn't.
+                """)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

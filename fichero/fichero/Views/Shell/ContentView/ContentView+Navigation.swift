@@ -457,3 +457,21 @@ private struct LibrarySplitPaneHost<Content: View>: View {
             }
     }
 }
+
+// MARK: - Previews
+
+// The host draws nothing of its own — it holds a library pin and clears it when the
+// token bumps. So the preview renders the STATE it carries: what a pane sees through
+// the binding, and that clearing flows back. `private` types are visible to a
+// `#Preview` in the same file.
+#Preview("Library split pane host — the pin it carries") {
+    LibrarySplitPaneHost(clearToken: 0) { pinned in
+        VStack(spacing: 8) {
+            Text(pinned.wrappedValue == nil ? "No pinned library" : "Library pinned")
+                .font(.callout)
+            Button("Clear pin") { pinned.wrappedValue = nil }
+        }
+        .padding()
+        .frame(width: 280, height: 120)
+    }
+}

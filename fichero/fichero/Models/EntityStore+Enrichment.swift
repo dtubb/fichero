@@ -20,7 +20,7 @@ struct WikidataStatementRow: Identifiable, Hashable {
         var payload: [String: Any] = [
             "property_id": propertyId,
             "property_label": propertyLabel,
-            "value_label": valueLabel,
+            "value_label": valueLabel
         ]
         if let valueQID { payload["value_qid"] = valueQID }
         if let valueURL { payload["value_url"] = valueURL }

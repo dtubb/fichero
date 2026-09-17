@@ -54,7 +54,13 @@ struct WikidataEnrichmentSheet: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Enrich from Wikidata")
                 .font(.headline)
-            Text("Import selected Wikidata statements about “\(entity.canonicalName)” as claims. Imported claims are marked Wikidata-sourced — external assertions, not read in this corpus.")
+            // Multi-line literal with a trailing `\` so the rendered string is
+            // still ONE line — the wrap is in the source, not in the UI.
+            Text("""
+                Import selected Wikidata statements about “\(entity.canonicalName)” as claims. \
+                Imported claims are marked Wikidata-sourced — external assertions, \
+                not read in this corpus.
+                """)
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

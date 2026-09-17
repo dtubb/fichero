@@ -45,7 +45,7 @@ enum OCRGeometrySelection {
     /// wins — so a fresh alignment shows on its own and never permanently masks
     /// a later Detect Regions run.
     static let geometryBearingTypes = [
-        "text_geometry", "transcription", "aligned_transcript", "regions",
+        "text_geometry", "transcription", "aligned_transcript", "regions"
     ]
 
     /// Key the producer writes alongside a geometry artifact, letting an empty

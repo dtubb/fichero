@@ -438,7 +438,7 @@ struct ContentView: View {
     @State var transientSearchScopeIsFolder = false
     // The DISPLAY NAME of the library the showing results actually came
     // from (Daniel, 2026-09-01: the chrome named a different library than
-    /// the results). `runTransientSearch` resolves its library with a
+    // the results). `runTransientSearch` resolves its library with a
     // `?? globalLibrary` fallback, while the toolbar island named
     // `windowState.library` with no fallback — when the window's libraryId
     // does not resolve those are two DIFFERENT libraries, and the chrome
