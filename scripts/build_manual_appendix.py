@@ -72,7 +72,10 @@ def shrink_code_styles(xml: str) -> str:
 def collect_inputs(scratch: Path) -> list[Path]:
     chapters = sorted(GUIDE.glob("[0-9][0-9]-*.md"))
     if not chapters:
-        sys.exit(f"error: no chapters in {GUIDE} — run sync_manuscript.py user first")
+        sys.exit(
+            f"error: no chapters in {GUIDE} — the User Guide is authored in Tinderbox "
+            "and exported there; export it before building the appendix."
+        )
     for req in (REFERENCE / "index.md", REFERENCE / "workflows/index.md", REFERENCE / "tools/index.md"):
         if not req.exists():
             sys.exit(f"error: {req} missing — run generate_capability_reference.py first")
