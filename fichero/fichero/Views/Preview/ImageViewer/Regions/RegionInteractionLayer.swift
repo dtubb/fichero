@@ -525,9 +525,9 @@ extension RegionInteractionLayer {
                     && Self.sameExtent(annotation.regionRect, bbox)
             }
             if let existing {
-                let next = (existing.rating ?? 1) + 1
+                let next = AnnotationCheckCycle.next(existing.rating ?? 1)
                 _ = await annotationStore.delete(id: existing.id)
-                guard next <= 3 else { return }  // ✓✓✓ → clear
+                guard let next else { return }  // ✓✓✓ → clear
                 _ = await annotationStore.addNote(
                     scope: .document(docId), text: "",
                     bbox: bbox, renditionId: frame, kind: .rating, rating: next
@@ -537,7 +537,8 @@ extension RegionInteractionLayer {
                 // a triple-check can carry a code.
                 _ = await annotationStore.addNote(
                     scope: .document(docId), text: "",
-                    bbox: bbox, renditionId: frame, kind: .rating, rating: 1,
+                    bbox: bbox, renditionId: frame, kind: .rating,
+                    rating: AnnotationCheckCycle.next(nil) ?? 1,
                     tags: windowState.takePendingMarkupTags()
                 )
             }
