@@ -396,6 +396,14 @@ the browse→read flow down the centre.
   split collapses by one before the leaf is removed. Pinned:
   `Tests/Unit/general/Models/PaneListTests.swift` ("closing a pane removes ONLY that pane…",
   "…collapses to the survivor — the row does not disappear") + `PaneInstanceIndependenceTests`.
+- `panes.head.kind-switcher-everywhere` — **[BROKEN]** (#4706, reported 2026-09-18) every pane head
+  that renders a leaf kind mounts the kind selector, so ANY pane can become a Library, Source or
+  Reader. Today only the Library and Preview heads mount `PaneKindSelector`; the Reader head shows
+  its lens menu alone and the chat dock has its own switcher, although every leaf already receives
+  the switcher through `\.paneKindSwitcher` (`PaneSpec.swift:318-321`). Placeholder kinds
+  (`.inspector`, `.chat`) stay out of the list until they are real leaves (#4705, increments 6–7);
+  the chat head gains the selector when chat becomes a pane. *Test:* a source guardrail that every
+  pane head mounts `PaneKindSelector`, plus a pure test of `selectableKinds`.
 - `panes.split.independent-mode-per-pane` — **[BROKEN]** each pane holds its own view mode;
   changing one pane to Entities or Claims does not clear or convert the others. Today
   switching a pane's node-type to entity/claim in the entities view removes them from the
