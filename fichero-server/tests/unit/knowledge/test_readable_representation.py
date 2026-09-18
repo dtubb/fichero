@@ -209,3 +209,146 @@ def test_unknown_language_falls_back_to_english_glue():
     b = _svo("Ana", "witnessed", "a sale", claim_location="Quibdó")
     agg = aggregate_claims([a, b])[0]
     assert render_aggregation(agg, language="xx") == "Ana witnessed 2 times (at Nóvita and Quibdó)."
+
+
+# ---- The entry composer: render_entry(db, entity_id) — #4832 ------------------------
+
+
+def _entity(db, canonical_name, **kw):
+    from fichero_server.models.knowledge import KnowledgeEntity
+    ent = KnowledgeEntity(canonical_name=canonical_name, **kw)
+    db.save(ent)
+    return ent
+
+
+def test_render_entry_offsets_slice_back_to_the_exact_sentence_text(db):
+    from fichero_server.knowledge.readable import render_entry
+    ana = _entity(db, "Ana")
+    a = _svo("Ana", "nació en", "Quibdó", subject_entity_id=ana.id, entity_ids=[ana.id])
+    b = _svo("Ana", "murió en", "Nóvita", subject_entity_id=ana.id, entity_ids=[ana.id])
+    db.save(a)
+    db.save(b)
+
+    sentences = render_entry(db, ana.id)
+    paragraph = " ".join(s["text"] for s in sentences)
+    for s in sentences:
+        assert paragraph[s["start"] : s["end"]] == s["text"]
+
+
+def test_render_entry_every_sentence_carries_its_claim_id(db):
+    from fichero_server.knowledge.readable import render_entry
+    ana = _entity(db, "Ana")
+    a = _svo("Ana", "nació en", "Quibdó", subject_entity_id=ana.id, entity_ids=[ana.id])
+    db.save(a)
+
+    sentences = render_entry(db, ana.id)
+    assert len(sentences) == 1
+    assert sentences[0]["claim_ids"] == [a.id]
+
+
+def test_render_entry_keeps_the_true_subject_when_the_page_entity_is_the_object(db):
+    """A claim on the OBJECT's page must never make the page entity its subject --
+    the wrong-subject defect this whole plan exists to remove."""
+    from fichero_server.knowledge.readable import render_entry
+    seller = _entity(db, "Marta Escobar")
+    buyer = _entity(db, "Pedro Mosquera")
+    sale = _svo(
+        "Marta Escobar",
+        "sold",
+        "the mine to Pedro Mosquera",
+        subject_entity_id=seller.id,
+        entity_ids=[seller.id, buyer.id],
+    )
+    db.save(sale)
+
+    sentences = render_entry(db, buyer.id)
+    assert len(sentences) == 1
+    assert sentences[0]["text"] == "Marta Escobar sold the mine to Pedro Mosquera."
+    assert sentences[0]["role"] == "object"
+    assert sentences[0]["revoiced"] is False
+
+    # on the SELLER's page the same claim keeps the same true subject too
+    seller_sentences = render_entry(db, seller.id)
+    assert seller_sentences[0]["text"] == sentences[0]["text"]
+    assert seller_sentences[0]["role"] == "subject"
+
+
+def test_render_entry_spanish_claim_stays_spanish(db):
+    from fichero_server.knowledge.readable import render_entry
+    ana = _entity(db, "Ana")
+    claim = _svo(
+        "Ana", "nació en", "Quibdó", subject_entity_id=ana.id, entity_ids=[ana.id],
+        source_languages=["es"],
+    )
+    db.save(claim)
+
+    sentences = render_entry(db, ana.id)
+    assert sentences[0]["language"] == "es"
+    assert sentences[0]["text"] == "Ana nació en Quibdó."
+
+
+def test_render_entry_language_is_none_when_claim_carries_none(db):
+    """Unknown stays unknown -- never a guessed language label."""
+    from fichero_server.knowledge.readable import render_entry
+    ana = _entity(db, "Ana")
+    claim = _svo("Ana", "nació en", "Quibdó", subject_entity_id=ana.id, entity_ids=[ana.id])
+    db.save(claim)
+    assert render_entry(db, ana.id)[0]["language"] is None
+
+
+def test_render_entry_object_role_needs_a_whole_word_match(db):
+    """A page for "Ana" is a mention, not the object, of a claim about Anastasia."""
+    from fichero_server.knowledge.readable import render_entry
+    ana = _entity(db, "Ana")
+    juan = _entity(db, "Juan")
+    about_other = _svo("Juan", "pagó a", "Anastasia Mena", subject_entity_id=juan.id,
+                       entity_ids=[juan.id, ana.id])
+    about_ana = _svo("Juan", "pagó a", "Ana", subject_entity_id=juan.id,
+                     entity_ids=[juan.id, ana.id])
+    db.save(about_other)
+    db.save(about_ana)
+    roles = {s["text"]: s["role"] for s in render_entry(db, ana.id)}
+    assert roles["Juan pagó a Anastasia Mena."] == "mention"
+    assert roles["Juan pagó a Ana."] == "object"
+
+
+def test_render_entry_orders_by_date_then_created_at_then_id(db):
+    from fichero_server.knowledge.readable import render_entry
+    ana = _entity(db, "Ana")
+    late = _svo(
+        "Ana", "witnessed", "a sale", subject_entity_id=ana.id, entity_ids=[ana.id],
+        time_start="1799-01-01",
+    )
+    early = _svo(
+        "Ana", "witnessed", "a will", subject_entity_id=ana.id, entity_ids=[ana.id],
+        time_start="1780-01-01",
+    )
+    undated = _svo(
+        "Ana", "witnessed", "a deed", subject_entity_id=ana.id, entity_ids=[ana.id],
+    )
+    # save in a deliberately scrambled order
+    db.save(late)
+    db.save(undated)
+    db.save(early)
+
+    sentences = render_entry(db, ana.id)
+    assert [s["claim_ids"][0] for s in sentences] == [early.id, late.id, undated.id]
+
+
+def test_render_entry_ordering_is_stable_across_repeated_calls(db):
+    from fichero_server.knowledge.readable import render_entry
+    ana = _entity(db, "Ana")
+    a = _svo("Ana", "witnessed", "a will", subject_entity_id=ana.id, entity_ids=[ana.id])
+    b = _svo("Ana", "witnessed", "a sale", subject_entity_id=ana.id, entity_ids=[ana.id])
+    db.save(a)
+    db.save(b)
+
+    first = [s["claim_ids"][0] for s in render_entry(db, ana.id)]
+    second = [s["claim_ids"][0] for s in render_entry(db, ana.id)]
+    assert first == second
+
+
+def test_render_entry_no_claims_returns_empty_list(db):
+    from fichero_server.knowledge.readable import render_entry
+    ana = _entity(db, "Ana")
+    assert render_entry(db, ana.id) == []

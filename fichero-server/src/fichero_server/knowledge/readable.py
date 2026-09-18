@@ -23,17 +23,20 @@ See docs/contributor_manual/specs/kg-readable-representation.md for the pipeline
 """
 from __future__ import annotations
 
+import re
+
 from dataclasses import dataclass
 from enum import Enum
 from typing import Sequence
 
 from fichero_server.knowledge.paragraph import (
     _claim_object,
+    _claim_sentence,
     _claim_subject,
     _claim_verb,
     _normalize,
 )
-from fichero_server.models.knowledge import KnowledgeClaim
+from fichero_server.models.knowledge import KnowledgeClaim, KnowledgeEntity
 
 
 class Ordering(str, Enum):
@@ -201,3 +204,99 @@ def render_aggregation(agg: "Aggregation", language: str = "es") -> str:
     if agg.places:
         body = f"{body} ({glue['at']} {_join_list(agg.places, glue['and'])})"
     return body if body.endswith(".") else body + "."
+
+
+# --- the entry composer (kg.read.biography, #4832 — this delivery) -------------------
+#
+# render_entry(db, entity_id) is the FIRST caller of stages 1/2/5/6 above, and the seam
+# `kg.read.one-renderer` names as the target: the app is meant to draw sentences[] from
+# this, replacing its own bespoke loops. Deliberately ONE sentence per claim for now
+# (not wired to stage 3's aggregate_claims) so `claim_ids` stays trivially exact — the
+# aggregation-keeps-objects fix (kg.read.aggregation-keeps-objects) is real work for the
+# route delivery, not this function.
+
+
+def _entry_sort_key(claim: KnowledgeClaim) -> tuple[bool, str, object, str]:
+    """claim date, then created_at, then id (team instruction) -- fully deterministic
+    regardless of DB scan order, unlike `order_claims`'s stable-sort-preserves-input
+    behavior for same-date claims."""
+    start = claim.time_start
+    if not start and claim.date_values:
+        starts = [dv.start for dv in claim.date_values if dv.start]
+        if starts:
+            start = min(starts)
+    return (not bool(start), start or "", claim.created_at, claim.id)
+
+
+def _entity_role(claim: KnowledgeClaim, entity_id: str, entity_names: list[str]) -> str:
+    """subject | object | mention -- which part the PAGE entity plays in `claim`.
+
+    No object-entity link is stored at extraction time yet
+    (`kg.read.object-slot-has-no-role` is an open, named GAP), so "object" is inferred
+    here by checking whether the page entity's own canonical name or an alias appears
+    in the claim's object phrase -- a pragmatic stand-in, not the eventual stored role.
+    """
+    if claim.subject_entity_id == entity_id:
+        return "subject"
+    obj = _claim_object(claim)
+    if obj:
+        obj_norm = _normalize(obj)
+        # Whole-word match: a page for "Ana" is not the object of a claim
+        # about "Anastasia".
+        if any(
+            name and re.search(rf"(?<!\w){re.escape(_normalize(name))}(?!\w)", obj_norm)
+            for name in entity_names
+        ):
+            return "object"
+    return "mention"
+
+
+def render_entry(db, entity_id: str) -> list[dict]:
+    """The entry composer -- ONE paragraph of `entity_id`'s claims, sentence-by-sentence,
+    each carrying enough to make it clickable to its claim(s) and, later, to open its
+    highlighted source (kg.read.sentence-opens-source-highlighted).
+
+    Deterministic; calls no model. Each sentence states its OWN claim's true subject via
+    the SAME subject/verb/object resolver `paragraph.py`'s renderer already uses
+    (`_claim_sentence`, which reads `subject_canonical`/`svo_subject` -- the same fields
+    the app's svoTriple reads) -- it never substitutes the page entity for a claim's real
+    subject. Re-centring on the page's entity (ruling 2, #4837) is OUT of scope here:
+    `revoiced` is always False, the seam that later work flips per-sentence once an
+    inverse-phrasing table exists. A sentence renders in ITS OWN claim's source language
+    (`source_languages[0]`; ``None`` when a claim carries none), never translated
+    (ruling 4).
+
+    Returns ``[]`` for an entity with no claims. `start`/`end` are character offsets into
+    the paragraph these sentences join into (`" ".join(s["text"] for s in sentences)`),
+    so a caller can always verify ``paragraph[s["start"]:s["end"]] == s["text"]``.
+    """
+    entity = db.get(KnowledgeEntity, entity_id)
+    entity_names = [entity.canonical_name, *entity.aliases] if entity else []
+
+    # ponytail: scans every claim; filter in the query before a route calls this.
+    claims = select_entry_claims(db.all(KnowledgeClaim), entity_id)
+    claims = sorted(claims, key=_entry_sort_key)
+
+    sentences: list[dict] = []
+    cursor = 0
+    for claim in claims:
+        text = _claim_sentence(claim)
+        if not text:
+            continue
+        start = cursor if not sentences else cursor + 1  # +1 for the joining space
+        end = start + len(text)
+        sentences.append(
+            {
+                "text": text,
+                "start": start,
+                "end": end,
+                # None when the claim records no language: unknown stays
+                # unknown, never a guessed label a later step would trust.
+                "language": claim.source_languages[0] if claim.source_languages else None,
+                "claim_ids": [claim.id],
+                "role": _entity_role(claim, entity_id, entity_names),
+                "revoiced": False,
+            }
+        )
+        cursor = end
+    return sentences
