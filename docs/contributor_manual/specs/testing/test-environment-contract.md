@@ -1,5 +1,6 @@
 # Test Environment Contract — config parity with briefcase + per feature-gate
 
+> Milestone: test-environment-contract
 > Manual: docs/contributor_manual/guide/11-testing.md
 >
 > Design-led (Testing Constitution). Creative director owns intent; tests enforce it.

@@ -8,6 +8,7 @@ related: [reader-overlay-frame-identity]
 
 # Reading markup & annotations
 
+> Milestone: reading-markup-annotations
 > Manual: TBD — the user manual's reading section needs "Marking up a source": highlighting, the
 > check gesture (✓ → ✓✓ → ✓✓✓ → clear) and that it is a check rather than a star, notes and tags,
 > reviewing your markup per page, and turning a highlight into a claim.

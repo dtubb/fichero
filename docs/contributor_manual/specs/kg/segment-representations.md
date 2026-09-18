@@ -1,5 +1,6 @@
 # Segment Representations — Design Spec (#4635 · epic #4639)
 
+> Milestone: segment-representations
 > Manual: TBD — pairs with the archival-data-model section: a reader needs to be told that one
 > patch of a page can carry several readings (the OCR's, the VLM's, their own correction), how to
 > see them side by side, and which one counts as the transcription.
@@ -89,7 +90,8 @@ exportable = not done. Every behavior below names which spine segment it lands o
 ### E. Export
 - `segment.export.map` [MISSING] — a segment's transcription serializes to at least one
   standard (ALTO or PageXML) with its anchor geometry intact; the export map slot is real,
-  not aspirational. (Full Exporter Manager = #4640.)
+  not aspirational. (This is one slice of the broader, cross-cutting Exporter Manager
+  epic, → #4640 — not segment-representations-only work.)
 
 ## The first slice (slice-0, smallest honest end-to-end)
 
