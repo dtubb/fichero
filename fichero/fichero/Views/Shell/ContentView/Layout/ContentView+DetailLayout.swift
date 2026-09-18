@@ -300,7 +300,15 @@ extension ContentView {
                 multiDocuments: readerStack,
                 // The active library-search terms, so the reader lights up
                 // where the selected result matched (Daniel, 2026-09-01).
-                searchHighlightQuery: chromeUX.readerFindQuery
+                searchHighlightQuery: chromeUX.readerFindQuery,
+                // #4705 "4b-1" (#4803): the Reader now consults the matrix
+                // instead of trusting whatever `readerDocument` still holds
+                // from the last document selection — the fix for the
+                // stale-Reader bug. Same no-`entitySelection`-passed style
+                // as this file's other two `PaneContentPlan.plan(for:)`
+                // call sites (the preview/inspector empty-reason reads
+                // below).
+                readerCell: PaneContentPlan.plan(for: viewMode).reader
             ))
         }
         // Native focus rings OFF in this pane: macOS 14+ makes scroll views

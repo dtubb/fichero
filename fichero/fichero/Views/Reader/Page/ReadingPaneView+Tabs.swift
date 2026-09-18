@@ -8,15 +8,37 @@ extension ReadingPaneView {
     /// WebKit/native surfaces (reader IA fold). Page = read the source (image /
     /// PDF with loupe #2419 / transcript); Knowledge = the WebKit KG surface;
     /// Notes = the reading layer (highlights/notes/bookmarks).
+    ///
+    /// #4705 "4b-1" (`m2p.reader-consults-the-plan`, #4803): gated FIRST on
+    /// `readerCell.readerPageRoute`, ahead of the Page/Knowledge/Notes split
+    /// — the #4803 bug was that NONE of the three tabs ever asked whether
+    /// the current selection has a reader view at all, so a
+    /// schedule/trigger/chain/batches/automation/activity selection kept
+    /// showing whichever tab's content the PREVIOUSLY selected document had
+    /// (fix-then-sweep-for-siblings: Page alone was the reported case, but
+    /// Notes/Knowledge shared the identical `effectiveDocument`-driven
+    /// fallback and the same stale risk). `.documentDriven` is the ONLY
+    /// route that reaches the existing per-tab content below, byte-for-byte
+    /// unchanged — `doc.isWorkflowNode`/`loadReaderWorkflow()` are untouched.
     @ViewBuilder
     var readerTabContent: some View {
-        switch readerTab {
-        case .page:
-            pageTabContent
-        case .knowledge:
-            knowledgeTabContent
-        case .notes:
-            notesTabContent
+        switch readerCell.readerPageRoute {
+        case .documentDriven:
+            switch readerTab {
+            case .page:
+                pageTabContent
+            case .knowledge:
+                knowledgeTabContent
+            case .notes:
+                notesTabContent
+            }
+        case .empty(let reason):
+            PaneEmptyStateView(reason: reason)
+        case .unmounted(let surface):
+            // 4b-1: nothing produces this yet — 4b-2's `.runHistory` will be
+            // the first. An honest placeholder that NAMES the surface,
+            // never a blank, per the same rule `.empty` follows above.
+            PaneEmptyStateView(reason: "The Reader has no \(surface.rawValue) rendition yet.")
         }
     }
 

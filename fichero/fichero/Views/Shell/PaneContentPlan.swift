@@ -34,6 +34,38 @@ enum PaneContentPlan {
             if case .empty(let reason) = self { return reason }
             return nil
         }
+
+        /// #4705 "4b-1" (`m2p.reader-consults-the-plan`, #4803): which of the
+        /// Reader's branches this cell selects, once the Reader actually asks
+        /// the plan instead of routing off a resolved `Document` alone (the
+        /// #4803 bug — a schedule/trigger/chain/batches/automation/activity
+        /// selection used to leave the Reader showing whatever document was
+        /// PREVIOUSLY open, because nothing cleared it and nothing consulted
+        /// this cell). `.documentDriven` is the ONLY two surfaces the
+        /// Reader's existing `effectiveDocument`/`doc.isWorkflowNode` chain is
+        /// verified against; a THIRD surface reaching the Reader before its
+        /// own mount exists is `.unmounted`, never silently routed through
+        /// code that was never proven to handle it.
+        var readerPageRoute: ReaderPageRoute {
+            switch self {
+            case .surface(.documentReader), .surface(.workflowRecipe):
+                return .documentDriven
+            case .empty(let reason):
+                return .empty(reason)
+            case .surface(let other):
+                return .unmounted(other)
+            }
+        }
+    }
+
+    /// #4705 "4b-1": the three-way split `PaneContentPlan.Cell.readerPageRoute`
+    /// resolves to. `.unmounted` deliberately keeps the surface it didn't
+    /// recognize, so its placeholder can name what is missing instead of
+    /// rendering a blank.
+    enum ReaderPageRoute: Equatable {
+        case documentDriven
+        case empty(String)
+        case unmounted(PaneSurface)
     }
 
     /// The four #4525 surfaces. Preview, Reader and Inspector remain three
@@ -208,7 +240,12 @@ extension AppViewMode {
             return PaneContentPlan.Plan(
                 library: .surface(.libraryBrowser),
                 preview: .surface(.documentPreview),
-                reader: .empty("A conversation has no reader view."),
+                // Chat keeps Library + Source + Reader (modes-to-panes ruling):
+                // the documents a conversation is about stay readable beside
+                // it. This cell said `.empty` until 4b-1 made the Reader
+                // actually consult it — enforcing that would have blanked the
+                // Reader for every chat user.
+                reader: .surface(.documentReader),
                 inspector: .surface(.chatScope)
             )
         case .comparison:

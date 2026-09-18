@@ -126,6 +126,16 @@ struct PaneContentPlanTests {
         #expect(PaneContentPlan.plan(for: .automation).preview.emptyReason != nil)
     }
 
+    /// #4803 / 4b-1: once the Reader obeys its plan cell, a wrong cell is a
+    /// visible regression. Chat keeps its Reader — the documents a
+    /// conversation is about stay readable beside it.
+    @Test("chat keeps a document-driven Reader")
+    func chatKeepsADocumentDrivenReader() {
+        let cell = PaneContentPlan.plan(for: .chat(nil)).reader
+        #expect(cell == .surface(.documentReader))
+        #expect(cell.readerPageRoute == .documentDriven)
+    }
+
     /// #4705 increment 4a: schedule/trigger/chain/batches/activity all
     /// render their existing detail view directly in Source/Preview
     /// (`.nodeDetail`) — the Library pane stays the plain navigator beside
@@ -235,6 +245,30 @@ struct PaneContentPlanTests {
                 }
             }
         }
+    }
+
+    // MARK: - Reader-page routing (#4705 "4b-1", `m2p.reader-consults-the-plan`, #4803)
+
+    /// Every `PaneSurface` (wrapped in `.surface`) + a representative `.empty`
+    /// case: `.documentReader`/`.workflowRecipe` are the ONLY two surfaces the
+    /// Reader's existing `effectiveDocument`-driven chain is verified
+    /// against — everything else must come back `.unmounted`, never silently
+    /// routed through code that was never proven to handle it.
+    @Test("readerPageRoute recognizes only documentReader/workflowRecipe as document-driven")
+    func readerPageRouteRecognizesOnlyTheTwoDocumentDrivenSurfaces() {
+        let documentDrivenSurfaces: Set<PaneSurface> = [.documentReader, .workflowRecipe]
+        for surface in PaneSurface.allCases {
+            let cell = PaneContentPlan.Cell.surface(surface)
+            if documentDrivenSurfaces.contains(surface) {
+                #expect(cell.readerPageRoute == .documentDriven, "\(surface)")
+            } else {
+                #expect(cell.readerPageRoute == .unmounted(surface), "\(surface)")
+            }
+        }
+        #expect(
+            PaneContentPlan.Cell.empty("A schedule has no reader view.").readerPageRoute
+                == .empty("A schedule has no reader view.")
+        )
     }
 
     // MARK: - Split policy (#4705 increment 2)

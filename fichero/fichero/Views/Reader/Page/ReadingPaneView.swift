@@ -34,6 +34,16 @@ struct ReadingPaneView: View {
     /// there is one highlighter, not a search-specific second one. Empty
     /// outside a search; the user's own typing in the find bar always wins.
     var searchHighlightQuery: String = ""
+    /// #4705 "4b-1" (`m2p.reader-consults-the-plan`, #4803): the current
+    /// selection's Reader-pane cell — `PaneContentPlan.plan(for: viewMode)
+    /// .reader`, computed by the pane host, which already knows `viewMode`.
+    /// This is the ONE value the Reader needs; the whole `AppViewMode` enum
+    /// deliberately stays OUT of this file (it would couple the Reader to
+    /// every selection kind it does not render). Defaulted to
+    /// `.surface(.documentReader)` — today's implicit behavior — so every
+    /// call site this property does not name explicitly keeps compiling
+    /// unchanged.
+    var readerCell: PaneContentPlan.Cell = .surface(.documentReader)
 
     @Environment(APIClient.self) var apiClient
     /// THIS window's artifact service (2026-09-02): the lens loader used to
