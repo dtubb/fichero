@@ -439,16 +439,16 @@ async def merge_entities(
     return EntityAuditResponse.model_validate(result.result)
 
 
-@kg_entities_router.patch(
-    "/batch-curation",
-    response_model=BatchEntityCurationResponse,
-    summary="Batch set entity curation state",
-)
-async def batch_set_entity_curation_state(
-    request: BatchEntityCurationRequest,
-    db: Database = Depends(get_library_database_for_write),
-    actor: str = Depends(request_actor),
+def batch_set_entity_curation_state_impl(
+    db: Database, request: "BatchEntityCurationRequest", actor: str
 ) -> BatchEntityCurationResponse:
+    """Extracted verbatim from the former bare `PATCH /batch-curation`
+    route (#4831) -- same 404-on-missing, same skip-if-unchanged, same
+    `MutationLog` per changed entity via `_log_entity_curation_mutation`
+    (which already requires a real `actor`, #4415). Mirrors the shape
+    `batch_set_claim_curation_state_impl` (claim.batch_curation) already
+    has -- same naming, same `undoable=False` action below.
+    """
     entities: list[KnowledgeEntity] = []
     for entity_id in request.entity_ids:
         entity = db.get(KnowledgeEntity, entity_id)
@@ -475,17 +475,49 @@ async def batch_set_entity_curation_state(
     return BatchEntityCurationResponse(updated=len(updated_ids), entity_ids=updated_ids)
 
 
-@router.post("/split", response_model=EntityAuditResponse)
-async def split_entity(
-    request: EntitySplitRequest,
+@kg_entities_router.patch(
+    "/batch-curation",
+    response_model=BatchEntityCurationResponse,
+    summary="Batch set entity curation state",
+)
+async def batch_set_entity_curation_state(
+    request: BatchEntityCurationRequest,
     db: Database = Depends(get_library_database_for_write),
-    x_fichero_library_path: str = Depends(require_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
     actor: str = Depends(request_actor),
-) -> EntityAuditResponse:
-    """Split one entity into a primary + new split-off entities."""
+) -> BatchEntityCurationResponse:
+    # Thin caller of `entity.batch_curation` (#4831). Same declared params
+    # as before -- `request_actor` takes only `Request` (no Header/Query
+    # sub-dependency), so it never added anything to the OpenAPI schema;
+    # `library_path` was never an explicit param on this route either,
+    # so it is derived from `db` here, the same way #4829's
+    # `entity.link_authority` route already does.
+    from pathlib import Path
+
+    ctx = ActionContext(actor=actor, library_path=str(Path(db.path).parent))
+    result = registry.invoke(
+        db, "entity.batch_curation", request.model_dump(mode="json"), ctx
+    )
+    return BatchEntityCurationResponse.model_validate(result.result)
+
+
+def split_entity_impl(db: Database, request: "EntitySplitRequest") -> EntityMergeAudit:
+    """Split one entity into a primary + new split-off entities. Extracted
+    verbatim from the former bare `/split` route (#4831) -- same
+    reconciliation, same `EntityMergeAudit` shape `merge_entities_impl`
+    writes (its sibling), just the inverse operation type.
+
+    TWO PRE-EXISTING BEHAVIORS CARRIED FORWARD UNCHANGED, NOT FIXED HERE
+    (reported, not silently patched, per the #4831 review instruction):
+    1. `created_by="human"` is a LITERAL, never the real actor -- the exact
+       #4415-class lie that comment already fixed for `merge_entities_impl`
+       (which threads a real `actor` param into `created_by`) but evidently
+       missed for split. A workflow-driven split would record "human" too.
+    2. `audit.reversal_id = audit.id` (self-referencing) immediately after
+       creation -- copied verbatim from `merge_entities_impl`, which has
+       the identical line. Whatever this means (or doesn't), it is
+       consistent between merge and split, so this extraction preserves
+       parity rather than silently diverging from its sibling.
+    """
     primary = db.get(KnowledgeEntity, request.primary_entity_id)
     if primary is None:
         raise HTTPException(
@@ -527,18 +559,34 @@ async def split_entity(
     audit.reversal_id = audit.id
     db.save(audit)
     db.save(primary)
+    return audit
 
-    # Observable data layer (#1863): split changes the entity set — refresh
-    # every window's KG stores. Best-effort.
-    emit_change(
-        x_fichero_library_path,
-        type="entity.split",
-        entity_ids=[primary.id, *split_ids],
+
+@router.post("/split", response_model=EntityAuditResponse)
+async def split_entity(
+    request: EntitySplitRequest,
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str = Depends(require_library_path),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+    actor: str = Depends(request_actor),
+) -> EntityAuditResponse:
+    """Split one entity into a primary + new split-off entities."""
+    # Thin caller of `entity.split` (#4831). Same declared params as
+    # before -- none of them were `Depends(action_context)`, so building
+    # `ActionContext` from them directly here adds NOTHING new to the
+    # OpenAPI schema (confirmed via `build_openapi_schema()`). The one-
+    # line docstring above is kept (not moved to a comment) because it
+    # was already the route's OpenAPI `description` before this change --
+    # removing it would itself be a diff.
+    ctx = ActionContext(
         actor=actor,
+        library_path=x_fichero_library_path,
         origin_window=x_fichero_origin_window,
-        origin_user=actor,
     )
-    return _audit_response(audit)
+    result = registry.invoke(db, "entity.split", request.model_dump(mode="json"), ctx)
+    return EntityAuditResponse.model_validate(result.result)
 
 
 def undo_entity_operation_impl(db: Database, audit_id: str) -> EntityMergeAudit:
@@ -1492,6 +1540,35 @@ def _action_unmerge_entities(
 
 
 @action(
+    "entity.split",
+    EntitySplitRequest,
+    domains=["entity"],
+    # `undo_entity_operation_impl` (backing `entity.unmerge`) ALREADY
+    # handles `operation_type == split` (mirrors merge) -- undo is real
+    # here, unlike `entity.link_authority`.
+    undoable=True,
+    # Identical shape to merge's own invert: both write `after =
+    # {"entity_merge_audit_id": ...}`, and `entity.unmerge` dispatches on
+    # the audit's own `operation_type` -- one invert function correctly
+    # serves both actions, no `_invert_split` needed.
+    invert=_invert_merge,
+)
+def _action_split_entity(
+    db: Database, params: "EntitySplitRequest", ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    audit = split_entity_impl(db, params)
+    entity_ids = [audit.target_entity_id, *audit.source_entity_ids]
+    spec = ChangeSpec(
+        domains=["entity"],
+        target_ids=entity_ids,
+        after={"entity_merge_audit_id": audit.id},
+        emit_type="entity.split",
+        entity_ids=entity_ids,
+    )
+    return audit.model_dump(mode="json"), spec
+
+
+@action(
     "entity.link_authority",
     LinkAuthorityParams,
     domains=["entity"],
@@ -1514,6 +1591,29 @@ def _action_link_authority(
         entity_ids=[params.entity_id],
     )
     return audit.model_dump(mode="json"), spec
+
+
+@action(
+    "entity.batch_curation",
+    BatchEntityCurationRequest,
+    domains=["entity"],
+    undoable=False,
+)
+def _action_batch_entity_curation(
+    db: Database, params: "BatchEntityCurationRequest", ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    response = batch_set_entity_curation_state_impl(db, params, ctx.actor)
+    spec = ChangeSpec(
+        domains=["entity"],
+        target_ids=response.entity_ids,
+        after={
+            "curation_state": params.curation_state.value,
+            "updated_ids": response.entity_ids,
+        },
+        emit_type="entity.updated" if response.entity_ids else None,
+        entity_ids=response.entity_ids,
+    )
+    return response.model_dump(mode="json"), spec
 
 
 # Resolve forward refs in EntityAuditListResponse (declared in models.py with

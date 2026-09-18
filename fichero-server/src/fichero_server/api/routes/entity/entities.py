@@ -1571,24 +1571,48 @@ async def add_entity_aliases(
     actor: str = Depends(request_actor),
 ) -> KnowledgeEntity:
     """Add aliases to an existing entity."""
+    # Thin caller of `entity.update` (#4831), NOT a second action -- adding
+    # aliases is a strict subset of what `entity.update` already does (a
+    # full-field replace: `update_entity_impl` overwrites `aliases` with
+    # whatever list it is given). There is no separate "add aliases"
+    # capability to audit, just this one common ADDITIVE case of the
+    # existing one, so the honest fix is routing through it rather than
+    # registering `entity.add_aliases` alongside `entity.update` for the
+    # same underlying write. Every other field is resent unchanged so this
+    # stays additive-only, matching the route's prior behavior exactly.
+    # (The one-line docstring above is kept, not moved into this comment,
+    # because it was already the route's OpenAPI `description` before
+    # this change -- removing it would itself be a diff, #4829's lesson.)
     entity = db.get(KnowledgeEntity, entity_id)
     if entity is None:
         raise HTTPException(status_code=404, detail=f"Entity not found: {entity_id}")
     merged = set(entity.aliases)
     merged.update(a.strip() for a in request.aliases if a.strip())
-    entity.aliases = sorted(merged)
-    entity.updated_at = utc_now()
-    db.save(entity)
 
-    emit_change(
-        x_fichero_library_path,
-        type="entity.updated",
-        entity_ids=[entity_id],
+    # Same declared params as before -- none were `Depends(action_context)`,
+    # so building `ActionContext` from them directly adds nothing new to
+    # the OpenAPI schema (confirmed via `build_openapi_schema()`).
+    ctx = ActionContext(
         actor=actor,
+        library_path=x_fichero_library_path,
         origin_window=x_fichero_origin_window,
-        origin_user=actor,
     )
-    return entity
+    result = registry.invoke(
+        db,
+        "entity.update",
+        {
+            "entity_id": entity_id,
+            "canonical_name": entity.canonical_name,
+            "entity_type": entity.entity_type,
+            "aliases": sorted(merged),
+            "description": entity.description,
+            "language": entity.language,
+            "metadata": entity.metadata,
+            "source_document_ids": entity.source_document_ids,
+        },
+        ctx,
+    )
+    return KnowledgeEntity.model_validate(result.result)
 
 
 # =============================================================================

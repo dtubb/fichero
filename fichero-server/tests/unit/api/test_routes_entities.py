@@ -524,6 +524,55 @@ class TestAddAliases:
         r = client.post("/api/entities/no-such-id/aliases", json={"aliases": ["alias"]})
         assert r.status_code == 404
 
+    def test_add_aliases_preserves_existing_aliases(self, client, db):
+        """Additive, not a replace -- the whole reason this stays a thin
+        caller of entity.update rather than a second action (#4831)."""
+        entity = _make_entity(db, "Alice")
+        entity.aliases = ["Al"]
+        db.save(entity)
+
+        r = client.post(f"/api/entities/{entity.id}/aliases", json={"aliases": ["Ally"]})
+
+        assert r.status_code == 200
+        assert set(r.json()["aliases"]) == {"Al", "Ally"}
+
+    def test_add_aliases_now_routes_through_entity_update_action(self, client, db):
+        """#4831 -- was a bare route, now a thin caller of `entity.update`."""
+        from fichero_server.models import ActionAudit
+
+        entity = _make_entity(db, "Alice")
+
+        r = client.post(f"/api/entities/{entity.id}/aliases", json={"aliases": ["Al"]})
+
+        assert r.status_code == 200
+        audits = [row for row in db.all(ActionAudit) if row.action_name == "entity.update"]
+        assert len(audits) == 1
+        assert audits[0].target_ids == [entity.id]
+
+    def test_add_aliases_action_is_invokable_directly(self, db):
+        from fichero_server.actions.registry import ActionContext, registry
+
+        entity = _make_entity(db, "Alice")
+        ctx = ActionContext(actor="mcp-agent", library_path="/lib/test.fichero")
+
+        result = registry.invoke(
+            db, "entity.update",
+            {
+                "entity_id": entity.id,
+                "canonical_name": entity.canonical_name,
+                "entity_type": entity.entity_type,
+                "aliases": ["direct-alias"],
+                "description": entity.description,
+                "language": entity.language,
+                "metadata": entity.metadata,
+                "source_document_ids": entity.source_document_ids,
+            },
+            ctx,
+        )
+
+        assert result.ok is True
+        assert db.get(KnowledgeEntity, entity.id).aliases == ["direct-alias"]
+
 
 # ---------------------------------------------------------------------------
 # GET /api/entities/alias-map
