@@ -1,0 +1,166 @@
+[
+  {
+    "file": "fichero-server/src/fichero_server/api/routes/kg/claim_search.py",
+    "function": "embed_claims",
+    "class": "violation",
+    "reason": "#4831 sweep 2026-09-18 \u2014 bare mutating route, no registry.invoke() call in its own body",
+    "issue": 4831
+  },
+  {
+    "file": "fichero-server/src/fichero_server/api/routes/kg/entity_curation.py",
+    "function": "embed_entities",
+    "class": "violation",
+    "reason": "#4831 sweep 2026-09-18 \u2014 bare mutating route, no registry.invoke() call in its own body",
+    "issue": 4831
+  },
+  {
+    "file": "fichero-server/src/fichero_server/api/routes/kg/entity_curation.py",
+    "function": "put_external_authority_settings",
+    "class": "violation",
+    "reason": "#4831 sweep 2026-09-18 \u2014 bare mutating route, no registry.invoke() call in its own body",
+    "issue": 4831
+  },
+  {
+    "file": "fichero-server/src/fichero_server/api/routes/kg/entity_curation.py",
+    "function": "refresh_external_authority",
+    "class": "violation",
+    "reason": "#4831 sweep 2026-09-18 \u2014 bare mutating route, no registry.invoke() call in its own body",
+    "issue": 4831
+  },
+  {
+    "file": "fichero-server/src/fichero_server/api/routes/kg/entity_curation.py",
+    "function": "enrich_import",
+    "class": "violation",
+    "reason": "#4831 sweep 2026-09-18 \u2014 bare mutating route, no registry.invoke() call in its own body",
+    "issue": 4831
+  },
+  {
+    "file": "fichero-server/src/fichero_server/api/routes/kg/inclusion.py",
+    "function": "upsert_inclusion",
+    "class": "violation",
+    "reason": "#4831 sweep 2026-09-18 \u2014 bare mutating route, no registry.invoke() call in its own body",
+    "issue": 4831
+  },
+  {
+    "file": "fichero-server/src/fichero_server/api/routes/kg/mutations.py",
+    "function": "undo_mutation",
+    "class": "violation",
+    "reason": "#4831 sweep 2026-09-18 \u2014 bare mutating route, no registry.invoke() call in its own body",
+    "issue": 4831
+  },
+  {
+    "file": "fichero-server/src/fichero_server/api/routes/kg/predictions.py",
+    "function": "generate_heuristic_predictions",
+    "class": "violation",
+    "reason": "#4831 sweep 2026-09-18 \u2014 bare mutating route, no registry.invoke() call in its own body",
+    "issue": 4831
+  },
+  {
+    "file": "fichero-server/src/fichero_server/api/routes/kg/predictions.py",
+    "function": "apply_prediction_run",
+    "class": "violation",
+    "reason": "#4831 sweep 2026-09-18 \u2014 bare mutating route, no registry.invoke() call in its own body",
+    "issue": 4831
+  },
+  {
+    "file": "fichero-server/src/fichero_server/api/routes/kg/pykeen.py",
+    "function": "train",
+    "class": "violation",
+    "reason": "#4831 sweep 2026-09-18 \u2014 bare mutating route, no registry.invoke() call in its own body",
+    "issue": 4831
+  },
+  {
+    "file": "fichero-server/src/fichero_server/api/routes/kg/pykeen.py",
+    "function": "create_prediction_review",
+    "class": "violation",
+    "reason": "#4831 sweep 2026-09-18 \u2014 bare mutating route, no registry.invoke() call in its own body",
+    "issue": 4831
+  },
+  {
+    "file": "fichero-server/src/fichero_server/api/routes/kg/pykeen.py",
+    "function": "decide_prediction_review",
+    "class": "violation",
+    "reason": "#4831 sweep 2026-09-18 \u2014 bare mutating route, no registry.invoke() call in its own body",
+    "issue": 4831
+  },
+  {
+    "file": "fichero-server/src/fichero_server/api/routes/kg/pykeen.py",
+    "function": "delete_trained_model",
+    "class": "violation",
+    "reason": "#4831 sweep 2026-09-18 \u2014 bare mutating route, no registry.invoke() call in its own body",
+    "issue": 4831
+  },
+  {
+    "file": "fichero-server/src/fichero_server/api/routes/kg/pykeen.py",
+    "function": "verify_prediction",
+    "class": "violation",
+    "reason": "#4831 sweep 2026-09-18 \u2014 bare mutating route, no registry.invoke() call in its own body",
+    "issue": 4831
+  },
+  {
+    "file": "fichero-server/src/fichero_server/api/routes/kg/rebuild.py",
+    "function": "reset_kg",
+    "class": "violation",
+    "reason": "#4831 sweep 2026-09-18 \u2014 bare mutating route, no registry.invoke() call in its own body",
+    "issue": 4831
+  },
+  {
+    "file": "fichero-server/src/fichero_server/api/routes/kg/rebuild.py",
+    "function": "rebuild_kg",
+    "class": "violation",
+    "reason": "#4831 sweep 2026-09-18 \u2014 bare mutating route, no registry.invoke() call in its own body",
+    "issue": 4831
+  },
+  {
+    "file": "fichero-server/src/fichero_server/api/routes/kg/review.py",
+    "function": "accept_pair",
+    "class": "violation",
+    "reason": "#4831 sweep 2026-09-18 \u2014 bare mutating route, no registry.invoke() call in its own body",
+    "issue": 4831
+  },
+  {
+    "file": "fichero-server/src/fichero_server/api/routes/kg/review.py",
+    "function": "reject_pair",
+    "class": "violation",
+    "reason": "#4831 sweep 2026-09-18 \u2014 bare mutating route, no registry.invoke() call in its own body",
+    "issue": 4831
+  },
+  {
+    "file": "fichero-server/src/fichero_server/api/routes/kg/review.py",
+    "function": "queue_pair",
+    "class": "violation",
+    "reason": "#4831 sweep 2026-09-18 \u2014 bare mutating route, no registry.invoke() call in its own body",
+    "issue": 4831
+  },
+  {
+    "file": "fichero-server/src/fichero_server/api/routes/kg/triangulation.py",
+    "function": "recompute_triangulation",
+    "class": "violation",
+    "reason": "#4831 sweep 2026-09-18 \u2014 bare mutating route, no registry.invoke() call in its own body",
+    "issue": 4831
+  },
+  {
+    "file": "fichero-server/src/fichero_server/api/routes/kg/render.py",
+    "function": "render_paragraph",
+    "class": "by-design",
+    "reason": "read-only: composes existing KnowledgeClaim rows into prose via db.get() only, no db.save/delete anywhere in the body \u2014 POST is used because the request body carries a list of claim_ids, not because it mutates."
+  },
+  {
+    "file": "fichero-server/src/fichero_server/api/routes/kg/sparql.py",
+    "function": "sparql_query",
+    "class": "by-design",
+    "reason": "read-only by construction: rejects any mutating SPARQL verb (INSERT/DELETE/DROP/CLEAR/LOAD/CREATE/COPY/MOVE/ADD) before running the query, per its own docstring (\"Read-only; mutating verbs are rejected\")."
+  },
+  {
+    "file": "fichero-server/src/fichero_server/api/routes/kg/sparql.py",
+    "function": "sparql_query_legacy",
+    "class": "by-design",
+    "reason": "same read-only-by-construction guard as sparql_query (legacy path alias)."
+  },
+  {
+    "file": "fichero-server/src/fichero_server/api/routes/kg/entity_curation.py",
+    "function": "enrich_preview",
+    "class": "by-design",
+    "reason": "read-only: fetches candidate Wikidata statements via SPARQL and returns them for the user to review before import \u2014 no db.save/delete anywhere in the body. The mutating sibling, enrich_import, is a real violation, allowlisted separately."
+  }
+]
