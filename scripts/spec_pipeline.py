@@ -55,6 +55,14 @@ TEST_ROOTS = [pathlib.Path("fichero/Tests"), pathlib.Path("fichero-server/tests"
 AGENT_WORK_DIR = pathlib.Path("agent-work")
 BASELINE_PATH = pathlib.Path("scripts/spec_pipeline_baseline.json")
 GH_REPO = "dtubb/fichero"
+# `gh issue list --limit N` silently returns at most N issues — no truncation signal of its
+# own. With ~4100 issues in this repo, a low limit was invisible data loss: rules c/e/f/g
+# only ever saw the newest ~1000 and reported green on the rest by simply never looking
+# (2026-09-18 bug). GH_ISSUE_FETCH_LIMIT must stay comfortably above the repo's total open+
+# closed issue count; `_check_not_truncated` fails loud (exit 2) if the fetch ever returns
+# exactly this many, rather than silently trusting a possibly-truncated page.
+GH_ISSUE_FETCH_LIMIT = 10_000
+GH_ISSUE_FETCH_TIMEOUT = 120  # a full 10k-issue fetch measured ~23s; generous margin
 
 # Seed order (creative director, 2026-09-18): surfaces before workstream buckets, in this
 # order; anything not listed sorts alphabetically after it. Edit this list, not the code
@@ -269,6 +277,20 @@ def _cache_tempfile(data: object, prefix: str) -> None:
         pass
 
 
+def _check_not_truncated(data: list, limit: int, source: str) -> None:
+    """A fetch that returns exactly `limit` results proves nothing about whether more exist
+    behind it — treat that as truncated, not as "here's everything." Same
+    never-green-by-absence register as a missing `gh`: print and exit 2 rather than silently
+    trusting a possibly-partial page."""
+    if len(data) >= limit:
+        print(
+            f"FAIL spec_pipeline: {source} returned {len(data)} results, equal to the fetch "
+            f"limit ({limit}) — truncated, blind to whatever comes after it, not green. "
+            f"Raise the limit."
+        )
+        raise SystemExit(2)
+
+
 def get_issues(offline: bool) -> list[dict] | None:
     """All issues (state=all) for GH_REPO, or None when running --offline.
 
@@ -288,9 +310,10 @@ def get_issues(offline: bool) -> list[dict] | None:
         raise SystemExit(2)
     try:
         proc = subprocess.run(
-            ["gh", "issue", "list", "--repo", GH_REPO, "--state", "all", "--limit", "1000",
+            ["gh", "issue", "list", "--repo", GH_REPO, "--state", "all",
+             "--limit", str(GH_ISSUE_FETCH_LIMIT),
              "--json", "number,state,milestone,labels,title,assignees"],
-            capture_output=True, text=True, timeout=30,
+            capture_output=True, text=True, timeout=GH_ISSUE_FETCH_TIMEOUT,
         )
     except (subprocess.SubprocessError, OSError) as exc:
         print(f"FAIL spec_pipeline: `gh issue list` failed: {exc}")
@@ -303,6 +326,7 @@ def get_issues(offline: bool) -> list[dict] | None:
     except json.JSONDecodeError as exc:
         print(f"FAIL spec_pipeline: `gh issue list` returned invalid JSON: {exc}")
         raise SystemExit(2)
+    _check_not_truncated(data, GH_ISSUE_FETCH_LIMIT, "`gh issue list`")
     _cache_tempfile(data, "spec_pipeline_issues_")
     return data
 
@@ -315,6 +339,11 @@ def get_milestones(offline: bool) -> list[dict] | None:
     never-green-by-absence contract as `get_issues`: exits 2 rather than reporting success
     on a failed/missing `gh`. Tests inject via SPEC_PIPELINE_FAKE_MILESTONES or by
     monkeypatching this function directly.
+
+    Audited for `get_issues`'s truncation trap (2026-09-18): `per_page=100` here is a PAGE
+    size, not a result cap — `--paginate` follows every `Link` header until GitHub says
+    there is no next page, so this call cannot silently stop early the way a bare `--limit`
+    can. No `_check_not_truncated` needed.
     """
     if offline:
         return None

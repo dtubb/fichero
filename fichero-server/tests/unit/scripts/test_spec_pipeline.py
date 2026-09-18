@@ -640,3 +640,57 @@ def test_env_var_fake_milestones_injection(tmp_path, monkeypatch):
     monkeypatch.setenv("SPEC_PIPELINE_FAKE_MILESTONES", str(fake_path))
     result = _mod.get_milestones(offline=False)
     assert result == fake
+
+
+# --- truncation guard (2026-09-18 bug): `gh issue list --limit N` returning exactly N
+# results proves nothing about what comes after — a low limit against a large repo (4139
+# issues here, limit was 1000) made rules c/e/f/g silently blind to everything older than
+# the fetch window while `check` still reported green. `_check_not_truncated` must fail
+# loud, and `get_issues` must actually call it.
+
+def test_check_not_truncated_raises_when_result_count_equals_limit():
+    with pytest.raises(SystemExit) as exc_info:
+        _mod._check_not_truncated([{"n": 1}, {"n": 2}, {"n": 3}], limit=3, source="test fetch")
+    assert exc_info.value.code == 2
+
+
+def test_check_not_truncated_raises_when_result_count_exceeds_limit():
+    # Shouldn't happen with a real `--limit`, but the check is a >= guard, not a ==
+    # coincidence check — prove it doesn't require an exact match.
+    with pytest.raises(SystemExit) as exc_info:
+        _mod._check_not_truncated([{"n": 1}, {"n": 2}, {"n": 3}, {"n": 4}], limit=3, source="test fetch")
+    assert exc_info.value.code == 2
+
+
+def test_check_not_truncated_passes_when_below_limit():
+    _mod._check_not_truncated([{"n": 1}, {"n": 2}], limit=3, source="test fetch")  # no raise
+
+
+def _fake_gh_process(stdout: str, returncode: int = 0):
+    class _FakeCompletedProcess:
+        pass
+
+    proc = _FakeCompletedProcess()
+    proc.returncode = returncode
+    proc.stdout = stdout
+    proc.stderr = ""
+    return proc
+
+
+def test_get_issues_fails_when_fetch_hits_the_limit(monkeypatch):
+    monkeypatch.setattr(_mod, "GH_ISSUE_FETCH_LIMIT", 2)
+    monkeypatch.setattr(_mod.shutil, "which", lambda name: "/usr/bin/gh")
+    fake_issues = [{"number": 1, "state": "OPEN"}, {"number": 2, "state": "OPEN"}]
+    monkeypatch.setattr(_mod.subprocess, "run", lambda *a, **k: _fake_gh_process(json.dumps(fake_issues)))
+    with pytest.raises(SystemExit) as exc_info:
+        _mod.get_issues(offline=False)
+    assert exc_info.value.code == 2
+
+
+def test_get_issues_passes_when_fetch_is_below_the_limit(monkeypatch):
+    monkeypatch.setattr(_mod, "GH_ISSUE_FETCH_LIMIT", 3)
+    monkeypatch.setattr(_mod.shutil, "which", lambda name: "/usr/bin/gh")
+    fake_issues = [{"number": 1, "state": "OPEN"}, {"number": 2, "state": "OPEN"}]
+    monkeypatch.setattr(_mod.subprocess, "run", lambda *a, **k: _fake_gh_process(json.dumps(fake_issues)))
+    result = _mod.get_issues(offline=False)
+    assert result == fake_issues

@@ -60,8 +60,9 @@ only as correct as the answer to "did this rendition re-frame?" — carried by `
   `hasOwnFrame: true` (skip = blank) rather than `false` (draw), so a future engine op can never
   silently misplace overlays. Today the default is draw (false).
 - `frame.pdf-marks-gated` **[GAP]** (#4715) — saved annotation MARKS on the PDF surface
-  (`PDFPageWithToolbar.swift`) are not frame-gated (follow-up #5 from the 2026-09-03 review). PDF OCR
-  boxes themselves are handled (rotation + cropBox offset).
+  (`PDFPageWithToolbar.swift`) are not frame-gated (a numbered follow-up in the 2026-09-03
+  review's own findings list, not a GitHub issue number). PDF OCR boxes themselves are
+  handled (rotation + cropBox offset).
 
 ## Test matrix
 

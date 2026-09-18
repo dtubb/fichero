@@ -56,12 +56,13 @@ transform); this pins WHAT a mark is and how it behaves. Grounded in the ruling 
   `tests/unit/api/test_routes_iiif.py` (`test_manifest_is_presentation3_and_points_at_annotation_page`
   and the anchor-export tests below it) — the test existed already, just uncited here.
 - `markup.tags.coding` **[OK]** — `Annotation.tags: list[str]` exists (knowledge.py:1428) and marks
-  carry tags; ruling #4's "code and query by tag" is built:
+  carry tags; the design ruling's "code and query by tag" is built:
   `api/routes/document/annotations.py:~211` (`tag: str | None = Query(...)` param) and `:~230`
   (`if tag is not None: rows = [r for r in rows if tag in (r.tags or [])]`). Pinned:
   `tests/unit/api/test_annotations.py:~179` (`test_list_filter_by_tag`).
 - `markup.review.library-wide` **[GAP]** (#4718) — the per-document `annotations` representation exists, but a
-  LIBRARY-WIDE review surface (all checked/rated lines across sources) is still queued (ruling #5).
+  LIBRARY-WIDE review surface (all checked/rated lines across sources) is still queued (a
+  ruling from the design doc's numbered list, not a GitHub issue number).
 
 ## Test matrix
 

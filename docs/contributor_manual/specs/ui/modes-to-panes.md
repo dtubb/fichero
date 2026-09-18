@@ -174,7 +174,7 @@ fourth type.
   still only reaches the user via `DocumentKGSurface` (Reader), unchanged; that promotion is
   future work, tracked separately, not blocked by anything here. The W3C SPARQL console the
   retired `OntologyBrowser` also hosted was EXTRACTED, not retired (creative director,
-  2026-06-25 ruling #2593/#2614: "SPARQL is wanted and must be made VISIBLE; never delete it")
+  2026-06-25 ruling: SPARQL is wanted, must stay visible, and is never deleted → #2593, → #2614)
   — its own file (`Views/SPARQLConsole/SPARQLConsoleView.swift`) and window
   (`Window("SPARQL Console", id: "sparql-console")`, `FicheroApp.swift`), reached from the
   Knowledge menu. The "predict entities" flow (`HeuristicReviewSheet`) was NOT recovered — it
@@ -273,7 +273,7 @@ increments 2, 4, and 5.
   filter helpers with a caller outside itself — `parseHiddenKinds`/`filterEntities`/`isDateEntity`
   had none and retired with the file) before deleting the 6 confirmed-safe `OntologyBrowser*`
   files and their 2 test files. **The SPARQL console (#3298) was EXTRACTED, not deleted** — a
-  standing creative-director ruling (2026-06-25, #2593/#2614) requires it stay visible; it was
+  standing creative-director ruling (2026-06-25 → #2593, → #2614) requires it stay visible; it was
   NOT part of the review's original delete list and surfaced only once the deletion exposed it
   had no other caller. Now its own file/window, reached from the Knowledge menu. **Persistence:**
   a window saved with `sidebarMode == "knowledgeGraph"` restores to `.library` — routed through
