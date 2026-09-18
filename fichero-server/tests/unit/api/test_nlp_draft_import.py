@@ -12,8 +12,6 @@ skips, visibly, when it is not available.
 
 from __future__ import annotations
 
-from concurrent.futures import wait
-
 import pytest
 
 from fichero_server.importers import derivatives
@@ -37,6 +35,22 @@ from fichero_server.models.knowledge import (
     KnowledgeClaim,
     KnowledgeEntity,
 )
+
+
+def _drain(futures, timeout: float = 30) -> None:
+    """Wait for every future with a HARD per-future timeout that RAISES on
+    a hang (team-lead review, 2026-09-18): the old `concurrent.futures.wait
+    (futures, timeout=N)` does not raise when a future never completes --
+    it just returns, and the test's own assertion then fails with an
+    unhelpful diff while the underlying stuck WORKER THREAD keeps running
+    forever, later hanging pytest's own process exit while it waits to
+    join that thread (the exact background-suite hang this review traced
+    to an unlocked concurrent spaCy pipeline call in `spacy_svo.py`).
+    `future.result(timeout=...)` raises `TimeoutError` immediately and by
+    name, turning a silent hang into a fast, diagnosable test failure.
+    """
+    for future in futures:
+        future.result(timeout=timeout)
 
 
 def _stub_ner(text, language=None):
@@ -399,7 +413,7 @@ class TestSettingGatesQueueing:
         doc = _text_doc(db)
 
         futures = derivatives.queue_derivatives([doc], library_path=test_package)
-        wait(futures, timeout=30)
+        _drain(futures)
 
         assert called == []
 
@@ -413,7 +427,7 @@ class TestSettingGatesQueueing:
         doc = _text_doc(db)
 
         futures = derivatives.queue_derivatives([doc], library_path=test_package)
-        wait(futures, timeout=30)
+        _drain(futures)
 
         assert called == [doc.id]
 
@@ -591,7 +605,7 @@ class TestSharesTheBoundedExecutor:
         doc = _text_doc(db)
 
         futures = derivatives.queue_derivatives([doc], library_path=test_package)
-        wait(futures, timeout=30)
+        _drain(futures)
 
         assert len({id(e) for e in seen_executors}) == 1
         assert derivatives.MAX_CONCURRENT_DERIVATIVES == 2  # unchanged ceiling

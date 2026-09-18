@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import logging
 import re
+import threading
 from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import Any
@@ -45,10 +46,105 @@ logger = logging.getLogger(__name__)
 #: difference this corpus will not notice.
 MODELS = {"es": "es_core_news_sm", "en": "en_core_web_sm"}
 
-#: Dependency labels that name a clause's subject and its object side, in the
-#: Universal Dependencies scheme both models use.
-_SUBJECT_DEPS = frozenset({"nsubj", "nsubj:pass"})
-_OBJECT_DEPS = ("obj", "obl", "iobj", "attr", "xcomp", "ccomp")
+# ---------------------------------------------------------------------------
+# Per-language dependency-label vocabulary (kg-readable review, 2026-09-18).
+#
+# The single UD-shaped set that used to live here claimed "both models use
+# Universal Dependencies" -- FALSE, verified by RUNNING both real models on
+# the review's sample sentences, not assumed from memory: en_core_web_sm
+# speaks a ClearNLP-derived scheme (`dobj`/`pobj`/`nsubjpass`/`dative`/
+# `agent`), never UD's `obj`/`obl`/`nsubj:pass`. Old `_OBJECT_DEPS` matched
+# almost nothing in English -- "Juan Asprilla sold the mine to Pedro
+# Mosquera" proposed an EMPTY object, and the English passive ("nsubjpass")
+# was never even in `_SUBJECT_DEPS`, so it produced no triple at all.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class _LangDeps:
+    """One language's dependency-label vocabulary for the SPECIFIC small
+    model this module loads -- not the UD label list in the abstract."""
+
+    #: Active-clause grammatical subject.
+    subject: frozenset[str]
+    #: Passive-clause grammatical subject (the patient) -- a dep label
+    #: DISTINCT from `subject` only where this parser bothers to mark it
+    #: (English: `nsubjpass`). Empty where it doesn't (Spanish: plain
+    #: `nsubj` either way; passive is detected structurally instead, see
+    #: `_is_passive_clause`).
+    passive_subject: frozenset[str]
+    #: Direct-child object dependencies for an ACTIVE clause.
+    object: frozenset[str]
+    #: The dep label this parser gives an agent-introducing adposition
+    #: ("by") as a DIRECT CHILD of the passive verb, when it has one.
+    #: English has it ("agent"). Spanish's small model has no dedicated
+    #: label -- verified: "vendida ... por Juan Asprilla" puts "Juan" at
+    #: plain `obj`, same as any other object.
+    agent_dep: str | None
+    #: Prepositions (accent-folded) that introduce a passive agent, for a
+    #: language with no dedicated `agent_dep` (Spanish "por"). Detected via
+    #: a `case` grandchild of an object-dep child, not a top-level label.
+    agent_prepositions: frozenset[str]
+    #: Deps whose entire subtree is a relative clause -- never part of the
+    #: antecedent's own span.
+    relative_clause: frozenset[str]
+
+
+_RELATIVE_CLAUSE_DEPS = frozenset({"relcl", "acl", "acl:relcl"})
+
+_LANG_DEPS: dict[str, _LangDeps] = {
+    # Verified 2026-09-18 against real en_core_web_sm output:
+    #   "Juan Asprilla sold the mine to Pedro Mosquera." -> nsubj / dobj /
+    #     prep(to) + pobj(Mosquera) -- the PP object is TWO levels below
+    #     the verb, not a direct child, hence the separate prep-walk below.
+    #   "The mine was sold by Juan Asprilla." -> nsubjpass(mine) /
+    #     auxpass(was) / agent(by) -> pobj(Asprilla).
+    #   "Juan Asprilla gave Pedro Mosquera two slaves." -> dative(Mosquera)
+    #     / dobj(slaves).
+    "en": _LangDeps(
+        subject=frozenset({"nsubj"}),
+        passive_subject=frozenset({"nsubjpass"}),
+        object=frozenset({"dobj", "dative", "attr", "oprd", "ccomp", "xcomp"}),
+        agent_dep="agent",
+        agent_prepositions=frozenset(),
+        relative_clause=_RELATIVE_CLAUSE_DEPS,
+    ),
+    # Verified 2026-09-18 against real es_core_news_sm output:
+    #   "Juan Asprilla vendió la mina a Pedro Mosquera." -> nsubj(Juan) /
+    #     obj(mina) AND obj(Pedro) -- both direct-a-marked objects land at
+    #     plain `obj`, so this DOES propose two triples (mine, Pedro), same
+    #     shape as the pre-existing "one row per object child" behavior
+    #     `dedupe_proposals`/downstream aggregation already handle.
+    #   "La mina fue vendida por Juan Asprilla." -> nsubj(mina, the
+    #     PATIENT -- this small model never uses nsubjpass for Spanish) /
+    #     aux(fue) / obj(Juan) with a `case` child "por" -- the agent, at
+    #     plain `obj`, not a dedicated label.
+    #   "Se le entregó la escritura." -> nsubj(escritura) / obj(le, a
+    #     clitic) -- the clitic must never become the claim's object; see
+    #     the pronoun-object filter in `propose_triples`, not here.
+    "es": _LangDeps(
+        subject=frozenset({"nsubj"}),
+        passive_subject=frozenset(),
+        object=frozenset({"obj", "obl", "iobj", "attr", "xcomp", "ccomp"}),
+        agent_dep=None,
+        agent_prepositions=frozenset({"por"}),
+        relative_clause=_RELATIVE_CLAUSE_DEPS,
+    ),
+}
+
+# "ser" forms, for detecting a Spanish `ser`-passive ("fue vendida") without
+# lemma access (`_pipeline` loads with `exclude=["lemmatizer"]`; verified
+# empirically that `token.lemma_` comes back EMPTY for content words without
+# it -- only spaCy's small rule table for common AUX still resolves a few,
+# not enough to rely on). A small, closed, accent-folded list is safe here
+# specifically because "ser" is a closed, highly irregular paradigm -- unlike
+# a content verb, the whole conjugation fits in one set. This is what tells
+# a `ser`-passive apart from a `haber`-perfect ("había vendido"), which also
+# puts a participle under an `aux` child in this parser's output.
+_SPANISH_SER_FORMS = frozenset({
+    "es", "son", "era", "eran", "fue", "fueron", "sido", "siendo",
+    "sera", "seran", "sea", "sean", "fuera", "fueran", "seria", "serian",
+})
 
 
 @dataclass
@@ -97,6 +193,28 @@ def _pipeline(language: str):
         return None
 
 
+# A spaCy ``Language`` object is NOT thread-safe -- calling ``nlp(text)``
+# mutates shared per-pipe state and the shared Vocab/StringStore (the exact
+# hazard `knowledge/spacy_ner.py`'s own `_spacy_lock` already documents and
+# guards against for ITS pipeline cache). This module's `_pipeline(language)`
+# is a SEPARATE cache holding a SEPARATE `Language` instance per language,
+# with no lock of its own -- and it is called from `propose_triples` (via
+# `importers/nlp_draft.py::run_nlp_draft`) on the derivatives module's
+# bounded 2-worker executor, the same concurrent context `spacy_ner.py`'s
+# lock exists for. Two worker threads calling `nlp(text)` on the SAME
+# cached `Language` object at once corrupts its internal state -- observed
+# 2026-09-18 as a background test hanging the whole pytest PROCESS at exit
+# (a worker thread parked forever inside spaCy's C extension, at ~0% CPU,
+# which then blocked interpreter shutdown from joining it). A SEPARATE lock
+# from `spacy_ner._spacy_lock` on purpose: the two modules load INDEPENDENT
+# `Language` objects for unrelated purposes, so serialising them against
+# each other would only slow both down for no correctness reason -- each
+# module's own cache needs its own lock around its own calls, not a shared
+# global one (that would be solving a different, wider problem than the one
+# actually observed).
+_spacy_svo_lock = threading.Lock()
+
+
 def _span_text(tokens: list[Any]) -> str:
     """A contiguous slice of the ORIGINAL text covering ``tokens``.
 
@@ -112,14 +230,65 @@ def _span_text(tokens: list[Any]) -> str:
     return doc.text[start:end].strip()
 
 
-def _subject_span(token: Any) -> list[Any]:
+def _subject_span(token: Any, relative_deps: frozenset[str] = _RELATIVE_CLAUSE_DEPS) -> list[Any]:
     """The subject with its modifiers — "Andres xptoval Hernandez Varela",
-    not "Andres" — but without the relative clauses hanging off it."""
-    return [
-        tok
-        for tok in token.subtree
-        if tok.dep_ not in ("relcl", "acl", "acl:relcl")
-    ]
+    not "Andres" — WITHOUT any relative clause hanging off it.
+
+    kg-readable review (2026-09-18): the old filter dropped only the
+    relative clause's OWN head token (whose dep_ IS "relcl"/"acl") and left
+    every word UNDER it in the span, since a clause's internal children
+    ("la", "mina" inside "que compró la mina") carry their OWN dep labels
+    (det/obj), not the clause head's. "Pedro, que compró la mina," survived
+    as a subject nearly whole. Now the WHOLE subtree under a relative-clause
+    child is excluded, not just its head.
+    """
+    excluded: set[int] = set()
+    for child in token.children:
+        if child.dep_ in relative_deps:
+            excluded.update(t.i for t in child.subtree)
+    return [tok for tok in token.subtree if tok.i not in excluded]
+
+
+def _is_passive_clause(token: Any, lang_deps: _LangDeps, language: str) -> bool:
+    """Whether ``token`` (a VERB/AUX clause head) is passive voice."""
+    if lang_deps.passive_subject and any(
+        c.dep_ in lang_deps.passive_subject for c in token.children
+    ):
+        return True
+    if language == "es":
+        from fichero_server.knowledge.svo_quality import fold
+
+        has_ser_aux = any(
+            c.dep_ in ("aux", "auxpass", "cop") and fold(c.text) in _SPANISH_SER_FORMS
+            for c in token.children
+        )
+        is_participle = "Part" in (token.morph.get("VerbForm") or [])
+        return has_ser_aux and is_participle
+    return False
+
+
+def _find_agent(token: Any, lang_deps: _LangDeps) -> list[Any] | None:
+    """The STATED agent of a passive clause, or ``None`` when none is
+    named — the review: "must NOT invent one where it is not". A patient-
+    only passive ("The mine was sold.") returns ``None`` here and the
+    caller drops the clause rather than guessing a subject."""
+    if lang_deps.agent_dep:
+        for child in token.children:
+            if child.dep_ == lang_deps.agent_dep:
+                pobj = next((g for g in child.children if g.dep_ == "pobj"), None)
+                if pobj is not None:
+                    return list(pobj.subtree)
+        return None
+    if lang_deps.agent_prepositions:
+        from fichero_server.knowledge.svo_quality import fold
+
+        for child in token.children:
+            if child.dep_ not in ("obj", "obl"):
+                continue
+            marker = next((g for g in child.children if g.dep_ == "case"), None)
+            if marker is not None and fold(marker.text) in lang_deps.agent_prepositions:
+                return [t for t in child.subtree if t.i != marker.i]
+    return None
 
 
 def propose_triples(
@@ -131,30 +300,115 @@ def propose_triples(
     a proposal is `svo_quality`'s job, and one module deciding both what is
     findable and what is acceptable would make the two impossible to measure
     apart.
+
+    Passive voice (kg-readable review, 2026-09-18): yields the LOGICAL
+    subject (subject=agent, object=patient) when the clause states its
+    agent ("The mine was sold by Juan Asprilla" -> subject Juan Asprilla,
+    object the mine); a passive with NO stated agent produces no triple at
+    all, never a guessed one. Pro-drop / no-subject clauses are COUNTED
+    (logged) and skipped, never silently dropped without a trace, and
+    never bound to a PREVIOUS sentence's subject -- that binding, when it
+    happens at all, is `_entity_writer`'s job downstream, restricted to
+    the SAME sentence.
     """
     nlp = _pipeline(language)
     if nlp is None or not (text or "").strip():
         return []
 
-    doc = nlp(text)
+    lang_deps = _LANG_DEPS.get(language, _LANG_DEPS["es"])
+    # Serialise the actual parse call only (see `_spacy_svo_lock`'s
+    # docstring) -- everything below reads the returned `Doc`, which is
+    # this call's own, not shared with a concurrent caller.
+    with _spacy_svo_lock:
+        doc = nlp(text)
     out: list[ProposedTriple] = []
+    skipped_no_subject = 0
+
+    def _finish() -> list[ProposedTriple]:
+        if skipped_no_subject:
+            logger.info(
+                "propose_triples: skipped %d clause(s) with no identifiable "
+                "subject (pro-drop, or a passive with no stated agent) on "
+                "this page (language=%r) -- kept OUT of the claim stream, "
+                "never auto-bound to a prior subject (kg-readable review)",
+                skipped_no_subject, language,
+            )
+        return out
+
     for token in doc:
         if token.pos_ not in ("VERB", "AUX"):
             continue
-        subjects = [c for c in token.children if c.dep_ in _SUBJECT_DEPS]
-        if not subjects:
-            continue
-        objects = [c for c in token.children if c.dep_ in _OBJECT_DEPS]
+
         # Auxiliaries belong to the verb phrase: "ha de dar", not "dar".
         verb_tokens = sorted(
             [token, *[c for c in token.children if c.dep_ in ("aux", "aux:pass", "cop")]],
             key=lambda t: t.i,
         )
         verb = _span_text(verb_tokens)
-        for subject in subjects:
-            subject_text = _span_text(_subject_span(subject))
-            for obj in objects or [None]:
-                object_text = _span_text(list(obj.subtree)) if obj is not None else ""
+
+        is_passive = _is_passive_clause(token, lang_deps, language)
+        if is_passive:
+            agent_tokens = _find_agent(token, lang_deps)
+            if agent_tokens is None:
+                skipped_no_subject += 1
+                continue
+            patient = next(
+                (
+                    c for c in token.children
+                    if c.dep_ in (lang_deps.subject | lang_deps.passive_subject)
+                ),
+                None,
+            )
+            subject_spans = [agent_tokens]
+            objects_text = (
+                [_span_text(_subject_span(patient, lang_deps.relative_clause))]
+                if patient is not None and patient.pos_ != "PRON" else [""]
+            )
+        else:
+            subjects = [c for c in token.children if c.dep_ in lang_deps.subject]
+            if not subjects:
+                skipped_no_subject += 1
+                continue
+            subject_spans = [_subject_span(s, lang_deps.relative_clause) for s in subjects]
+            object_children = [c for c in token.children if c.dep_ in lang_deps.object]
+            # English attaches a PP's true object TWO levels down (verb ->
+            # prep -> pobj) -- "sold the mine TO Pedro Mosquera" -- unlike
+            # Spanish, which attaches "a Pedro Mosquera" as a direct `obj`
+            # child. Verified against the real parse, not assumed.
+            # The PREPOSITION stays in the object text ("to Pedro Mosquera",
+            # never a bare "Pedro Mosquera"): a triple's object slot has no
+            # role, so a bare recipient reads as the thing sold -- "Juan
+            # Asprilla sold Pedro Mosquera" is a false and, in this corpus,
+            # a grave claim. Same shape Spanish ("a Pedro Mosquera") and the
+            # English `dative` path already produce. A pronominal pobj ("to
+            # him") names nobody and is skipped, like any pronoun object.
+            for c in token.children:
+                if c.dep_ == "prep" and any(
+                    g.dep_ == "pobj" and g.pos_ != "PRON" for g in c.children
+                ):
+                    object_children.append(c)
+            # A pronominal/clitic object names nobody -- the SAME principle
+            # #4666 applies to a pronominal subject, now applied to the
+            # other side of the triple ("la escritura | entregó | le" --
+            # "le" is a clitic, not a referent). Filtered on the TOKEN's
+            # own POS tag, not a lexical word list: a lexical check here
+            # (`is_pronoun_subject` on the rendered text) collided with
+            # real nouns that happen to share a pronoun's spelling --
+            # English "mine" the excavation vs. "mine" the possessive
+            # pronoun dropped "the mine" as an object on the review's own
+            # sample sentence. spaCy's POS tag tells the two apart; a
+            # lexical list cannot.
+            object_children = [c for c in object_children if c.pos_ != "PRON"]
+            objects_text = (
+                [_span_text(list(o.subtree)) for o in object_children]
+                if object_children else [""]
+            )
+
+        for subject_tokens in subject_spans:
+            subject_text = _span_text(subject_tokens)
+            if not subject_text:
+                continue
+            for object_text in objects_text:
                 if not subject_text or not (verb or object_text):
                     continue
                 sent = token.sent
@@ -166,12 +420,12 @@ def propose_triples(
                         sentence=sent.text.strip(),
                         char_start=sent.start_char,
                         char_end=sent.end_char,
-                        meta={"dep": obj.dep_ if obj is not None else "none"},
+                        meta={"passive": is_passive},
                     )
                 )
                 if len(out) >= max_triples:
-                    return out
-    return out
+                    return _finish()
+    return _finish()
 
 
 # ---------------------------------------------------------------------------
@@ -356,7 +610,9 @@ def _page_morphology(text: str, language: str) -> dict[str, tuple[str, str]]:
     if nlp is None or not (text or "").strip():
         return {}
     out: dict[str, tuple[str, str]] = {}
-    for token in nlp(text):
+    with _spacy_svo_lock:
+        parsed = nlp(text)
+    for token in parsed:
         key = token.text.casefold()
         if key in out:
             continue

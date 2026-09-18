@@ -49,10 +49,17 @@ class TestPronounSubjectResolution:
         )
         return list(db.query(KnowledgeClaim))
 
-    def test_pronoun_after_a_named_subject_repeats_the_name(self, tmp_path):
+    def test_pronoun_after_a_named_subject_in_the_same_sentence_repeats_the_name(
+        self, tmp_path
+    ):
+        """Task 6 / kg-readable review: the running antecedent now only
+        resolves within the SAME sentence — both items carry the identical
+        `source_text`, representing two clauses of one compound sentence
+        ("Hindenburg fled the frontier and they crossed the border.")."""
+        same_sentence = "Hindenburg fled the frontier and they crossed the border."
         items = [
-            {"name": "Hindenburg", "verb": "fled", "object": "the frontier", "source_text": ""},
-            {"name": "they", "verb": "crossed", "object": "the border", "source_text": ""},
+            {"name": "Hindenburg", "verb": "fled", "object": "the frontier", "source_text": same_sentence},
+            {"name": "they", "verb": "crossed", "object": "the border", "source_text": same_sentence},
         ]
         claims = self._claims(tmp_path, items)
         assert len(claims) == 2
@@ -61,6 +68,32 @@ class TestPronounSubjectResolution:
             "the pronoun subject must repeat the named antecedent, never stay 'they'"
         )
         assert all((c.svo_subject or "").lower() != "they" for c in claims)
+
+    def test_pronoun_in_a_different_sentence_is_dropped_not_guessed(self, tmp_path):
+        """Task 6 / kg-readable review: a wrong antecedent is worse than a
+        missing claim. Cross-sentence binding (two DIFFERENT source_texts,
+        or no source_text to prove sameness at all) must drop the pronoun
+        item, never silently bind it to a distant named subject the way
+        the old item-list-order antecedent did."""
+        items = [
+            {"name": "Hindenburg", "verb": "fled", "object": "the frontier", "source_text": "Hindenburg fled the frontier."},
+            {"name": "they", "verb": "crossed", "object": "the border", "source_text": "They crossed the border the next day."},
+        ]
+        claims = self._claims(tmp_path, items)
+        assert len(claims) == 1
+        assert claims[0].subject_canonical == "Hindenburg"
+
+    def test_pronoun_with_no_source_text_at_all_is_never_bound(self, tmp_path):
+        """Empty source_text on both sides cannot prove "same sentence" --
+        treated as unverifiable, not as a free pass (the old fixture shape,
+        which used to resolve regardless of sentence boundary)."""
+        items = [
+            {"name": "Hindenburg", "verb": "fled", "object": "the frontier", "source_text": ""},
+            {"name": "they", "verb": "crossed", "object": "the border", "source_text": ""},
+        ]
+        claims = self._claims(tmp_path, items)
+        assert len(claims) == 1
+        assert claims[0].subject_canonical == "Hindenburg"
 
     def test_first_person_pronoun_resolves_to_the_author(self, tmp_path):
         items = [{"name": "I", "verb": "wrote", "object": "a letter", "source_text": ""}]

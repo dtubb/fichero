@@ -2457,7 +2457,20 @@ def _write_kg_rows(
     # `author_label` (computed above from source_metadata.authors) seeds the
     # first-person fallback so a diary's "I wrote …" attributes to the diarist
     # rather than vanishing.
+    #
+    # kg-readable review (2026-09-18): the running antecedent used to bind
+    # across ANY distance -- item-list order, not text order, and across
+    # sentence boundaries ("He appeared" after an unrelated row about a
+    # mine bound to the mine). `antecedent_sentence` tracks the
+    # `source_text` (the verbatim sentence/quote) the CURRENT antecedent
+    # came from; a pronoun only resolves to it when the pronoun's OWN item
+    # carries the identical `source_text` -- i.e., genuinely the same
+    # sentence, not merely "came after it in this list". A wrong
+    # antecedent is worse than a missing claim (Task 6): when source_text
+    # is absent or differs, the pronoun is treated as having NO antecedent
+    # (falls through to the author fallback, else drops), never guessed.
     antecedent: str | None = None
+    antecedent_sentence: str | None = None
 
     def clean_claim_text(value: Any) -> str:
         text = str(value or "")
@@ -2498,12 +2511,27 @@ def _write_kg_rows(
             or item.get("fecha")
             or ""
         )
+        # Identity key for "same sentence" (Task 6 / kg-readable review):
+        # the item's own verbatim source_text. Two items with the SAME
+        # non-empty source_text came from the same quoted sentence; an
+        # empty or differing one means the antecedent cannot be trusted,
+        # so it is treated as absent rather than guessed.
+        item_sentence = str(item.get("source_text") or "").strip()
+
         if is_pronoun_subject(canonical):
             # Resolve to the actual name rather than dropping: the running
-            # antecedent (last named subject) first, then — only for a
-            # first-person pronoun — the document's author. A row keeps the
-            # named subject and repeats it (Daniel), never a bare "they".
-            resolved = antecedent
+            # antecedent (last named subject, SAME SENTENCE ONLY) first,
+            # then — only for a first-person pronoun — the document's
+            # author. A row keeps the named subject and repeats it
+            # (Daniel), never a bare "they". A cross-sentence antecedent
+            # is worse than no antecedent (Task 6): the pronoun is treated
+            # as unresolved, not guessed, once the sentence changes.
+            same_sentence = (
+                antecedent is not None
+                and item_sentence
+                and item_sentence == antecedent_sentence
+            )
+            resolved = antecedent if same_sentence else None
             if resolved is None and author_label and _is_first_person_subject(canonical):
                 resolved = author_label
             if resolved:
@@ -2514,12 +2542,14 @@ def _write_kg_rows(
                 )
                 logger.info(
                     "_write_kg_rows: dropped pronoun-subject item %r on %s "
-                    "(no antecedent or author to resolve it against, #4666)",
+                    "(no same-sentence antecedent or author to resolve it "
+                    "against, #4666 / kg-readable review)",
                     canonical, container_id,
                 )
                 continue
         elif canonical:
             antecedent = canonical
+            antecedent_sentence = item_sentence
         # SVO predicate (new schema). `verb` + `object` compose the
         # claim text as a real sentence; the legacy `context` is still
         # accepted for any in-flight cache hits or human-authored items

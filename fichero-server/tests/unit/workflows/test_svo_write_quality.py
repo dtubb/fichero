@@ -125,13 +125,28 @@ class TestPronounSubjectsNeverLand:
         # Before the fix the first pronoun became the running antecedent, so
         # every later pronoun on the page resolved to "they" and the browser
         # showed one subject for the whole document.
+        #
+        # Task 6 / kg-readable review: the antecedent now only resolves
+        # WITHIN the same sentence (same `source_text`). The second "ellos"
+        # shares its sentence with "Andres" (one compound sentence) and
+        # resolves to him; the first "ellos" is its own, unrelated sentence
+        # with no antecedent at all and is dropped regardless.
         _write_kg_rows(
             db,
             PEOPLE_SECTION,
             [
-                {"name": "ellos", "verb": "dijeron", "object": "la verdad"},
-                {"name": "Andres", "verb": "otorgó", "object": "poder"},
-                {"name": "ellos", "verb": "firmaron", "object": "la carta"},
+                {
+                    "name": "ellos", "verb": "dijeron", "object": "la verdad",
+                    "source_text": "Ellos dijeron la verdad.",
+                },
+                {
+                    "name": "Andres", "verb": "otorgó", "object": "poder",
+                    "source_text": "Andres otorgó poder y ellos firmaron la carta.",
+                },
+                {
+                    "name": "ellos", "verb": "firmaron", "object": "la carta",
+                    "source_text": "Andres otorgó poder y ellos firmaron la carta.",
+                },
             ],
             page.id,
             page_label="533r",

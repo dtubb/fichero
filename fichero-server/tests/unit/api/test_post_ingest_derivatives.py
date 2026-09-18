@@ -13,7 +13,6 @@ be bounded, and must announce itself per document so a row updates in place.
 
 from __future__ import annotations
 
-from concurrent.futures import wait
 from pathlib import Path
 
 import pytest
@@ -26,6 +25,17 @@ from fichero_server.importers.derivatives import (
     queue_derivatives,
 )
 from fichero_server.models import Document, DocType, FileType, Status
+
+
+def _drain(futures, timeout: float = 30) -> None:
+    """Wait for every future with a HARD per-future timeout that RAISES on
+    a hang, instead of `concurrent.futures.wait(futures, timeout=N)`'s
+    silent return-without-raising (team-lead review, 2026-09-18 -- a
+    background suite hang traced to an unlocked concurrent spaCy pipeline
+    call left a worker thread stuck forever; `wait()` alone never surfaced
+    it as a fast, named test failure)."""
+    for future in futures:
+        future.result(timeout=timeout)
 
 
 def _jpeg_bytes(size: tuple[int, int] = (64, 48)) -> bytes:
@@ -86,7 +96,7 @@ class TestTheStageProducesADerivative:
         self, ingested_image, test_package, db
     ):
         futures = queue_derivatives([ingested_image], library_path=test_package)
-        wait(futures, timeout=60)
+        _drain(futures, timeout=60)
 
         assert [f.result() for f in futures] != [None]
         assert db.get(Document, ingested_image.id).status == Status.completed
@@ -175,7 +185,7 @@ class TestTheSplitAndItsBounds:
             )
             assert futures == [], "must not submit before the commit"
 
-        wait(futures, timeout=60)
+        _drain(futures, timeout=60)
         assert futures, "the commit must release the queued work"
         assert db.get(Document, ingested_image.id).status == Status.completed
 

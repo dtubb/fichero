@@ -53,6 +53,13 @@ PRONOUN_SUBJECTS = frozenset(
         "ese", "esa", "eso", "esos", "esas",
         "aquel", "aquella", "aquello", "aquellos", "aquellas",
         "quien", "quienes", "alguien", "nadie", "uno", "una",
+        # Relative pronouns (kg-readable review, 2026-09-18): "que" is the
+        # single most common Spanish relative marker ("Pedro, que compró la
+        # mina, ...") and was missing entirely -- "quien"/"quienes" were
+        # already here, but a relative-clause subject surviving as "que"
+        # is exactly the #4671 defect this gate exists to catch. "cual"/
+        # "cuales" ("el cual" etc.) and "cuyo" family ("whose") join it.
+        "que", "cual", "cuales", "cuyo", "cuya", "cuyos", "cuyas",
         # Portuguese / French neighbours that show up in mixed corpora
         "eles", "elas", "nos", "voce", "voces",
         "il", "elle", "ils", "elles", "nous", "vous", "je",

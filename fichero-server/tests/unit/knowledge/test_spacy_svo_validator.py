@@ -223,3 +223,114 @@ class TestFirstPersonEndings:
         from fichero_server.knowledge.svo_quality import is_first_person_verb
 
         assert is_first_person_verb("sign", "en") is None
+
+
+# ---------------------------------------------------------------------------
+# Concurrency (team-lead review, 2026-09-18): a spaCy `Language` object is
+# NOT thread-safe. `propose_triples`/`_page_morphology` share ONE cached
+# `Language` instance per language across every caller; the derivatives
+# module's bounded executor runs UP TO 2 workers concurrently, and BOTH
+# can call `propose_triples` for two different documents at once via
+# `importers/nlp_draft.py::run_nlp_draft`. Before this fix, no lock
+# protected that shared instance (unlike `knowledge/spacy_ner.py`'s
+# `_spacy_lock`, added earlier for the identical reason) -- two concurrent
+# `nlp(text)` calls on the same object corrupted its internal state and
+# hung a worker thread forever, which in turn hung the whole pytest
+# PROCESS at exit (joining a thread that would never finish). This test
+# fails FAST (a hard per-thread join timeout) rather than hanging the
+# suite the way the bug itself did.
+# ---------------------------------------------------------------------------
+
+
+@needs_model
+class TestConcurrentCallsDoNotHang:
+    def test_propose_triples_survives_concurrent_calls_from_multiple_threads(self):
+        import threading
+
+        from fichero_server.knowledge.spacy_svo import propose_triples
+
+        sentences = [
+            "Juan Asprilla vendió la mina a Pedro Mosquera.",
+            "La mina fue vendida por Juan Asprilla.",
+            "Adolfo Hurtado doy fe que conozco a los comparecientes.",
+            MODERN,
+        ]
+        errors: list[BaseException] = []
+
+        def _worker(sentence: str) -> None:
+            try:
+                for _ in range(5):
+                    propose_triples(sentence, language="es")
+            except BaseException as exc:  # noqa: BLE001 - captured, not swallowed
+                errors.append(exc)
+
+        threads = [
+            threading.Thread(target=_worker, args=(s,), daemon=True)
+            for s in sentences * 3  # several threads racing on the SAME
+            # cached pipeline, not just one thread per sentence
+        ]
+        for t in threads:
+            t.start()
+        for t in threads:
+            # A hard join timeout: if the lock fix regresses, this test
+            # FAILS in seconds rather than hanging the process the way
+            # the original bug did.
+            t.join(timeout=20)
+            assert not t.is_alive(), (
+                "a worker thread is still alive after 20s -- concurrent "
+                "spaCy pipeline access is hanging again"
+            )
+        assert not errors, errors
+
+    def test_page_morphology_survives_concurrent_calls(self):
+        import threading
+
+        from fichero_server.knowledge.spacy_svo import _page_morphology
+
+        pages = [MODERN, CACIQUES, "Juan Asprilla vendió la mina."]
+        errors: list[BaseException] = []
+
+        def _worker(page: str) -> None:
+            try:
+                for _ in range(5):
+                    _page_morphology(page, "es")
+            except BaseException as exc:  # noqa: BLE001 - captured, not swallowed
+                errors.append(exc)
+
+        threads = [
+            threading.Thread(target=_worker, args=(p,), daemon=True)
+            for p in pages * 4
+        ]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=20)
+            assert not t.is_alive(), (
+                "a worker thread is still alive after 20s -- concurrent "
+                "spaCy pipeline access is hanging again"
+            )
+        assert not errors, errors
+
+
+class TestEnglishRecipientKeepsItsPreposition:
+    """A recipient is never emitted as a bare direct object: the object slot
+    has no role, so "sold | Pedro Mosquera" reads as the person being sold."""
+
+    def test_recipient_object_keeps_to(self):
+        props = propose_triples(
+            "Juan Asprilla sold the mine to Pedro Mosquera.", language="en"
+        )
+        if not props:
+            pytest.skip("en_core_web_sm not installed")
+        objects = {p.object for p in props}
+        assert "the mine" in objects
+        assert "to Pedro Mosquera" in objects
+        assert "Pedro Mosquera" not in objects
+
+    def test_pronoun_recipient_is_dropped(self):
+        props = propose_triples(
+            "Juan Asprilla sold the mine to him.", language="en"
+        )
+        if not props:
+            pytest.skip("en_core_web_sm not installed")
+        assert {p.object for p in props} == {"the mine"}
