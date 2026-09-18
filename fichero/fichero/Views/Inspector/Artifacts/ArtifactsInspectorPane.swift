@@ -77,7 +77,11 @@ struct ArtifactsInspectorPane: View {
     @Environment(DocumentService.self) private var documentService
     @Environment(DocumentStore.self) private var documentStore: DocumentStore
     @Environment(LibraryManager.self) var libraryManager
-    @Environment(WorkflowExecutionObserver.self) private var executionObserver
+    /// OPTIONAL on purpose (#4703): this view can update from a host that does not
+    /// inherit the window's environment (toolbar item / inspector column) — a
+    /// non-optional read here trapped the app ~25 s after launch when restored scene
+    /// state re-rooted the content tree. Degrade; never trap.
+    @Environment(WorkflowExecutionObserver.self) private var executionObserver: WorkflowExecutionObserver?
     @Environment(\.openWindow) private var openWindow
     @Environment(\.supportsMultipleWindows) private var supportsMultipleWindows
     /// Per-window source-navigation bus (#3437).
@@ -206,10 +210,10 @@ struct ArtifactsInspectorPane: View {
             )
             focused.resolve(in: store.items)
         }
-        .onChange(of: executionObserver.fileCompletedCount) { _, _ in
+        .onChange(of: executionObserver?.fileCompletedCount) { _, _ in
             Task { await store.reload() }
         }
-        .onChange(of: executionObserver.workflowCompletedCount) { _, _ in
+        .onChange(of: executionObserver?.workflowCompletedCount) { _, _ in
             Task { await store.reload() }
         }
         // "Produced by" → the run's trace (#4319/#4320).

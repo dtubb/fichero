@@ -16,7 +16,11 @@ import SwiftUI
 /// CONTENT varies with state, the item itself never appears/disappears).
 struct StatusIslandToolbarItem: View {
     @Environment(AppState.self) private var appState
-    @Environment(WorkflowExecutionObserver.self) private var executionObserver
+    /// OPTIONAL on purpose (#4703): this view can update from a host that does not
+    /// inherit the window's environment (toolbar item / inspector column) — a
+    /// non-optional read here trapped the app ~25 s after launch when restored scene
+    /// state re-rooted the content tree. Degrade; never trap.
+    @Environment(WorkflowExecutionObserver.self) private var executionObserver: WorkflowExecutionObserver?
     @Environment(ActivityStore.self) private var activityStore
     /// Optional: the island renders before any library is open (#4203).
     @Environment(LibraryManager.self) private var libraryManager: LibraryManager?
@@ -93,7 +97,7 @@ struct StatusIslandToolbarItem: View {
             isImporting: isImporting,
             importProgress: importProgress,
             backendWorkLabel: activityStore.backendWork.map(Self.label(for:)),
-            runningWorkflows: executionObserver.activeExecutions.count,
+            runningWorkflows: executionObserver?.activeExecutions.count ?? 0,
             selection: selection
         )
         // Icon + standard body type (Daniel, bedtime 2026-08-23): the island

@@ -86,7 +86,11 @@ struct WorkflowInspector: View {
     }
 
     @State private var surfaceTab: WorkflowSurfaceTab = .tools
-    @Environment(WorkflowExecutionObserver.self) private var executionObserver
+    /// OPTIONAL on purpose (#4703): this view can update from a host that does not
+    /// inherit the window's environment (toolbar item / inspector column) — a
+    /// non-optional read here trapped the app ~25 s after launch when restored scene
+    /// state re-rooted the content tree. Degrade; never trap.
+    @Environment(WorkflowExecutionObserver.self) private var executionObserver: WorkflowExecutionObserver?
 
     private var availableTabs: [WorkflowInspectorTab] {
         var tabs: [WorkflowInspectorTab] = [.builtin]
@@ -228,8 +232,9 @@ struct WorkflowInspector: View {
 
     /// This workflow's executions from the shared observer, running first.
     private var workflowRuns: [WorkflowExecution] {
-        let all = Array(executionObserver.activeExecutions.values)
-            + Array(executionObserver.completedExecutions.values)
+        let all = executionObserver.map {
+            Array($0.activeExecutions.values) + Array($0.completedExecutions.values)
+        } ?? []
         return all
             .filter { $0.id == workflow.id }
             .sorted { $0.startTime > $1.startTime }

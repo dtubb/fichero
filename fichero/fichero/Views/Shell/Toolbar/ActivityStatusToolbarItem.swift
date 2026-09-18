@@ -16,7 +16,11 @@ import SwiftUI
 /// never the `ToolbarItem` itself (#3163 guard — see
 /// `EngineStatusToolbarItem`'s doc comment for why).
 struct ActivityStatusToolbarItem: View {
-    @Environment(WorkflowExecutionObserver.self) private var executionObserver
+    /// OPTIONAL on purpose (#4703): this view can update from a host that does not
+    /// inherit the window's environment (toolbar item / inspector column) — a
+    /// non-optional read here trapped the app ~25 s after launch when restored scene
+    /// state re-rooted the content tree. Degrade; never trap.
+    @Environment(WorkflowExecutionObserver.self) private var executionObserver: WorkflowExecutionObserver?
     @Environment(ActivityStore.self) private var activityStore
     @Environment(\.openWindow) private var openWindow
 
@@ -29,7 +33,7 @@ struct ActivityStatusToolbarItem: View {
     @State private var showPopover = false
 
     private var activeWorkflows: [WorkflowExecution] {
-        Array(executionObserver.activeExecutions.values)
+        executionObserver.map { Array($0.activeExecutions.values) } ?? []
     }
 
     /// Count of distinct active tasks — workflows + the single backend-work

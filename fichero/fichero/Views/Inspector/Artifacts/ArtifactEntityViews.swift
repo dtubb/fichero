@@ -24,7 +24,11 @@ struct ArtifactEntitiesView: View {
     var visibleTypes: Set<String> = ["people", "places", "organizations", "dates", "events", "keywords"]
 
     @Environment(ArtifactService.self) var artifactService
-    @Environment(WorkflowExecutionObserver.self) var executionObserver
+    /// OPTIONAL on purpose (#4703): this view can update from a host that does not
+    /// inherit the window's environment (toolbar item / inspector column) — a
+    /// non-optional read here trapped the app ~25 s after launch when restored scene
+    /// state re-rooted the content tree. Degrade; never trap.
+    @Environment(WorkflowExecutionObserver.self) var executionObserver: WorkflowExecutionObserver?
     /// Optional on purpose (#4513's lesson): this view mounts in library
     /// rows/cells; if it is ever hosted in a scene that doesn't inject
     /// AppState, a non-optional read is a fatal error. Missing AppState only
@@ -72,8 +76,8 @@ struct ArtifactEntitiesView: View {
         .onChange(of: documentId) { store.ensureLoaded(documentId) }
         // Workflow completion refetches ONLY the documents that run touched —
         // idempotent across the many rows that each observe this counter.
-        .onChange(of: executionObserver.workflowCompletedCount) {
-            store.reconcileCompletions(executionObserver)
+        .onChange(of: executionObserver?.workflowCompletedCount) {
+            if let executionObserver { store.reconcileCompletions(executionObserver) }
         }
         // Reads that failed while the engine was down/starting retry once when
         // it comes ready (#4507). Idempotent across the N rows observing this.
@@ -195,7 +199,11 @@ struct ArtifactEntityCell: View {
     let entityType: String
 
     @Environment(ArtifactService.self) var artifactService
-    @Environment(WorkflowExecutionObserver.self) var executionObserver
+    /// OPTIONAL on purpose (#4703): this view can update from a host that does not
+    /// inherit the window's environment (toolbar item / inspector column) — a
+    /// non-optional read here trapped the app ~25 s after launch when restored scene
+    /// state re-rooted the content tree. Degrade; never trap.
+    @Environment(WorkflowExecutionObserver.self) var executionObserver: WorkflowExecutionObserver?
     /// Optional for the same #4513 reason as `ArtifactEntitiesView`'s.
     @Environment(AppState.self) private var appState: AppState?
 
@@ -242,8 +250,8 @@ struct ArtifactEntityCell: View {
         .padding(.vertical, 2)
         .onAppear { store.ensureLoaded(documentId) }
         .onChange(of: documentId) { store.ensureLoaded(documentId) }
-        .onChange(of: executionObserver.workflowCompletedCount) {
-            store.reconcileCompletions(executionObserver)
+        .onChange(of: executionObserver?.workflowCompletedCount) {
+            if let executionObserver { store.reconcileCompletions(executionObserver) }
         }
         // A table can show per-type cells without the entities row, so the
         // cell carries its own engine-ready retry hook too (#4507). The store
