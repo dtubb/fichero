@@ -263,7 +263,25 @@ def _is_passive_clause(token: Any, lang_deps: _LangDeps, language: str) -> bool:
             for c in token.children
         )
         is_participle = "Part" in (token.morph.get("VerbForm") or [])
-        return has_ser_aux and is_participle
+        if has_ser_aux and is_participle:
+            return True
+        # Impersonal/passive "se" ("Se vendió la mina", "Se le entregó la
+        # escritura", "Se dice que...") -- verified against real
+        # es_core_news_sm parses (#4836 follow-up, 2026-09-18): this small
+        # model tags that construction's own "se" `expl:pass`, a dep label
+        # DISTINCT from a true reflexive/pronominal verb's "se" ("Juan se
+        # fue a Quito"), which came back `expl:pv` on the SAME model. Both
+        # labels held across every sample tried (three se-passives, one
+        # true reflexive, one "se dice que" impersonal report verb) -- a
+        # small, clean sample, not a large-corpus guarantee, but the two
+        # constructions never shared a label in it. Treating this clause as
+        # passive routes it through the SAME agent search below that
+        # already refuses to promote a bare patient when no agent is
+        # stated -- the fix this behavior needs, with no new object logic:
+        # a se-passive/impersonal with no "por <agent>" produces NO triple
+        # (counted in `skipped_no_subject`), never the patient as subject.
+        if any(c.dep_ == "expl:pass" for c in token.children):
+            return True
     return False
 
 

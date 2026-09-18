@@ -334,3 +334,51 @@ class TestEnglishRecipientKeepsItsPreposition:
         if not props:
             pytest.skip("en_core_web_sm not installed")
         assert {p.object for p in props} == {"the mine"}
+
+
+class TestSpanishImpersonalSeNeverPromotesThePatient:
+    """#4836 follow-up: an impersonal/passive "se" clause with no stated
+    agent must yield NO triple -- never the patient promoted to subject.
+    Distinguished from a true reflexive/pronominal "se" by the "se" token's
+    OWN dep label (`expl:pass` vs `expl:pv`), verified against the real
+    es_core_news_sm parse, not a verb word list."""
+
+    def test_se_passive_with_dative_clitic_yields_no_triple(self):
+        props = propose_triples("Se le entregó la escritura.", language="es")
+        if not _has_model():
+            pytest.skip("es_core_news_sm not installed")
+        assert props == []
+
+    def test_se_passive_with_recipient_yields_no_triple(self):
+        props = propose_triples(
+            "Se vendió la mina a Pedro Mosquera.", language="es"
+        )
+        if not _has_model():
+            pytest.skip("es_core_news_sm not installed")
+        assert props == []
+
+    def test_se_passive_plural_with_place_yields_no_triple(self):
+        props = propose_triples(
+            "Se vendieron dos esclavos en Popayán.", language="es"
+        )
+        if not _has_model():
+            pytest.skip("es_core_news_sm not installed")
+        assert props == []
+
+    def test_true_reflexive_keeps_its_real_subject(self):
+        props = propose_triples("Juan se fue a Quito.", language="es")
+        if not _has_model():
+            pytest.skip("es_core_news_sm not installed")
+        assert ("Juan", "fue", "a Quito") in {
+            (p.subject, p.verb, p.object) for p in props
+        }
+
+    def test_se_dice_impersonal_report_verb_yields_no_triple_but_keeps_the_embedded_clause(self):
+        props = propose_triples(
+            "Se dice que Pedro compró la mina.", language="es"
+        )
+        if not _has_model():
+            pytest.skip("es_core_news_sm not installed")
+        triples = {(p.subject, p.verb, p.object) for p in props}
+        assert ("Pedro", "compró", "la mina") in triples
+        assert all(subj == "Pedro" for subj, _, _ in triples)
