@@ -51,6 +51,16 @@ transform); this pins WHAT a mark is and how it behaves. Grounded in the ruling 
 - `markup.promote-to-claim` **[OK]** — `POST …/annotations/{id}/promote-to-claim` yields a
   `KnowledgeClaim` while the annotation persists as a distinct surface mark (annotations.py:569).
   Pinned: `test_routes_annotations_actions.py`.
+- `markup.promote-to-artifact` **[GAP]** (#579) an annotation (highlight, underline, margin
+  note, pin-point) should also be promotable to a first-class, queryable, workflow-addressable
+  `Artifact` — distinct from `markup.promote-to-claim` above, which promotes to a
+  `KnowledgeClaim`, a different model entirely. Verified NOT built: `Artifact`
+  (`models/__init__.py:672-687`) is scoped to AI/ML PROCESSING outputs (transcription, entity
+  extraction, summaries, segmentation suggestions) — no annotation→`Artifact` conversion path
+  exists anywhere in `annotations.py`. A highlight surviving a PDF re-ingest, becoming
+  full-text-searchable, or being addressable by a workflow ("all highlights from this paper")
+  are real capabilities `markup.promote-to-claim` doesn't provide (a claim is a KG proposition,
+  not a workflow input). Not built.
 - `markup.export.w3c-annotationpage` **[OK]** — `GET …/{doc}/annotations.jsonld` emits a valid W3C
   AnnotationPage; a span-within-region uses `refinedBy`/`refines` (documents.py:1295). Pinned:
   `tests/unit/api/test_routes_iiif.py` (`test_manifest_is_presentation3_and_points_at_annotation_page`
@@ -84,15 +94,19 @@ transform); this pins WHAT a mark is and how it behaves. Grounded in the ruling 
   contextual strip — #2038 asks for a placement this spec's existing behaviors don't cover (a
   UI-chrome question, not a data-model one).
 
-**#2102** ("Annotation mode: highlights/notes/comments on a page, region-anchored, comments tied
-to citation+source, stored hermeneutically") reads as largely covered by behaviors already
-above, not a remaining gap: the closed kind vocabulary already includes `comment`
-(`markup.kinds.closed-vocabulary`), region-anchoring is built (`markup.images-support-full-
-kind-set` above, plus the PDF-side equivalent), and `markup.promote-to-claim` is exactly the
-"stored hermeneutically, alongside claims with provenance" mechanism #2102 asks for. Not
-independently verified this pass: whether a comment can be tied to a CITATION specifically
-(vs. a bare source region) — that's the one sub-claim this spec's existing behaviors don't
-obviously name. Flagged for verify-close, not closed here.
+- `markup.comment-tied-to-citation` — **[GAP]** (#2102) a comment/annotation should be tied to a
+  CITATION specifically (a comment about a cited passage), not only to a bare source region.
+  Most of #2102's own ask ("annotation mode: highlights/notes/comments on a page, region-
+  anchored, stored hermeneutically") reads as already covered by behaviors above, not a
+  remaining gap: the closed kind vocabulary already includes `comment`
+  (`markup.kinds.closed-vocabulary`), region-anchoring is built
+  (`markup.images-support-full-kind-set` above, plus the PDF-side equivalent), and
+  `markup.promote-to-claim` is the "stored hermeneutically, alongside claims with provenance"
+  mechanism #2102 asks for — those parts are verify-close candidates, not decided here. **This
+  ONE sub-claim is confirmed NOT built, not just unverified:** `Annotation`
+  (`models/knowledge.py:1352-1391`) anchors to a document/page/region/rendition — there is no
+  `citation_id`-shaped field anywhere on it, so a comment cannot be linked to a specific
+  citation today, only to the source region it happens to sit on. Not built.
 
 ## Test matrix
 
@@ -111,6 +125,8 @@ obviously name. Flagged for verify-close, not closed here.
 | review.library-wide | — | ❌ [GAP] |
 | images-support-full-kind-set | AnnotationBoxGateTests, AnnotationCheckCycleTests | ✅ |
 | inspector-bottom-tool-placement | — | ❌ [GAP] |
+| promote-to-artifact | — | ❌ [GAP] |
+| comment-tied-to-citation | — | ❌ [GAP] |
 
 ## Open questions
 
