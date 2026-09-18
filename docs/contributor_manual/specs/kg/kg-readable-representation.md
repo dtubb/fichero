@@ -159,7 +159,7 @@ often the wrong subject; not multilingual.
   its TRUE subject — never a false sentence. No inverse-phrasing table exists anywhere yet (this
   is stage 4, `kg.read.lexicalisation` below) — until it does, re-centring MUST fall back to the
   true subject, which is a smaller, immediate fix distinct from building the table.
-- `kg.read.render-uses-claim-subject` — **[BROKEN]** (#4835) (RENDER layer specifically, the largest and
+- `kg.read.render-uses-claim-subject` — **[OK]** (b6052b42a, interim — the app's loop now states each claim's own subject via the same resolver the claim rows use; pinned by `EntityClickthroughTests.objectSideClaimRendersTrueSubject`, `EntityClickthroughTests.noSentenceContainsThePronoun`, `EntityClickthroughTests.emptySubjectClaimsAreSkipped`; the loop itself retires with the Reader rendition). Before the fix: (RENDER layer specifically, the largest and
   cheapest of three wrong-subject causes — fix first) `EntityDigestView.swift:663`'s ternary
   never reads the claim's own subject; `ClaimLine.swift:54` on the SAME screen gets it right
   (drops the subject only when it equals the group subject). Fixing this one line — read
