@@ -67,13 +67,19 @@ per claim, not a fixed language pair.
 
 ## Behaviors
 
-- `kg.read.order.chronological` [OK] — claims ordered by their event/attestation date
-  (undated claims sectioned at the end, not dropped), so a life reads front to back.
-  Pinned: `fichero-server/tests/unit/knowledge/test_readable_representation.py`
+- `kg.read.order.chronological` [PARTIAL, unwired] — claims ordered by their event/
+  attestation date (undated claims sectioned at the end, not dropped), so a life reads
+  front to back. The function exists and is unit-pinned, but `order_claims`
+  (`fichero-server/src/fichero_server/knowledge/readable.py:89`) has ZERO callers outside
+  itself/its own tests — nothing in the API routes wires it to a request, so the ordering
+  is not reachable by a reader today. Pinned:
+  `fichero-server/tests/unit/knowledge/test_readable_representation.py`
   (`test_chronological_orders_by_time_start`, `_puts_undated_last_and_stable`,
   `_falls_back_to_date_values_when_no_time_start`, `_uses_earliest_of_multiple_date_values`).
-- `kg.read.order.by-source` [OK] — claims grouped by source document (fondo → legajo →
-  expediente order), so a reader can follow one record at a time. Pinned:
+- `kg.read.order.by-source` [PARTIAL, unwired] — claims grouped by source document
+  (fondo → legajo → expediente order), so a reader can follow one record at a time. Same
+  gap as `order.chronological`: `order_claims` has no caller outside its own tests, so
+  this mode is not wired to the biography route either. Pinned:
   `test_readable_representation.py` (`test_by_source_groups_by_document_then_offset`,
   `_puts_sourceless_claims_last`).
 - `kg.read.biography` [PARTIAL] — an entity-scoped multi-claim life narrative (extends

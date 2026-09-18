@@ -22,40 +22,56 @@ Surfaces: `EntitiesLibraryContent` / `EntitiesTableView`, `ClaimsLibraryContent`
 ## Behaviors
 
 ### A. Filter (#4625)
-- `kg.tables.filter.text` [MISSING] — a per-table filter field narrows rows by text
-  (entities: name + type; claims: subject/verb/object + date + source name).
-- `kg.tables.filter.entity-type` [MISSING] — an entity-**type** picker (person / place /
-  organization / …) filters the entity table.
-- `kg.tables.filter.claim-type` [MISSING] — a claim **type / curation-state** picker
-  filters the claim table.
-- `kg.tables.filter.combines-with-search` — the per-table filter AND the shared ⌘F query
-  both apply (intersection); neither clobbers the other.
-- `kg.tables.filter.empty-state` — a filter that matches nothing shows "No matches",
-  never a blank table or a spinner.
+- `kg.tables.filter.text` [OK] — a per-table filter field narrows rows by text.
+  Built: `EntitiesLibraryContent.swift:~136` (`TextField("Filter entities", ...)` feeding
+  `entityMatches`), `ClaimsLibraryContent.swift:~163` (`TextField("Filter claims", ...)`
+  feeding `claimMatches`).
+- `kg.tables.filter.entity-type` [OK] — an entity-**type** picker filters the entity
+  table. Built: `EntitiesLibraryContent.swift:~127-146` (`availableTypes` + type `Menu`).
+- `kg.tables.filter.claim-type` [PARTIAL] — a claim **type** picker filters the claim
+  table (built: `ClaimsLibraryContent.swift:~151-176`, `availableTypes`/type `Menu`
+  filtering `claimType`), but there is no curation-state picker — the spec line
+  originally promised "type / curation-state" and only type shipped.
+- `kg.tables.filter.combines-with-search` [OK] — the per-table filter AND the shared ⌘F
+  query both apply (intersection); neither clobbers the other. Built: `entityMatches`
+  (`EntitiesLibraryContent.swift:~109-123`) / `claimMatches`
+  (`ClaimsLibraryContent.swift:~136-151`) both check `search` and `filterText`.
+- `kg.tables.filter.empty-state` [OK] — a filter that matches nothing shows "No matches",
+  never a blank table or a spinner. Built: `ClaimsLibraryContent.swift:~192-203`
+  (`emptyMessage`); `EntitiesLibraryContent` has the parallel empty state.
 - `kg.tables.filter.pushdown` (later) — for large sets, push the filter to the list
   endpoint (`q` / `entity_type` / `claim_type` already exist) instead of client-side only.
 
 ### B. Entity CRUD (#4624)
-- `kg.tables.entity.create` [MISSING in table] — a "New Entity" affordance creates an
-  entity (canonical name + type), selects the new row, and enters rename. (Exists only in
-  the Ontology `NewEntitySheet` today.)
-- `kg.tables.entity.rename-inline` [MISSING] — the canonical name is editable from the
-  table (inline or a quick editor), not only via the Ontology sheet.
+- `kg.tables.entity.create` [OK] — a "New Entity" affordance creates an entity (canonical
+  name + type), selects the new row, and enters rename. Built:
+  `EntitiesLibraryContent.swift:~77` (`showingCreateSheet`/`handleCreatedEntity`), id
+  `kg.entity.new`.
+- `kg.tables.entity.rename-inline` [OK] — the canonical name is editable from the table.
+  Built: `EntitiesTableView.swift:~118-125` (inline `TextField` + `commitRename`).
 - `kg.tables.entity.retype` [OK] — entity type is editable (keep).
 - `kg.tables.entity.delete` [OK] — delete removes the entity and its claim links, undoable.
 - `kg.tables.entity.curate` [OK] — bless / reject / merge stay.
 
 ### C. Claim CRUD (#4624)
-- `kg.tables.claim.create` [MISSING everywhere] — a "New Claim" affordance hand-authors a
-  claim (subject / verb / object, optional source document + page), wiring **POST
-  /api/claims** — no Swift `createClaim` exists today (service + store + view all new).
+- `kg.tables.claim.create` [OK] — a "New Claim" affordance hand-authors a claim, wiring
+  POST /api/claims. Built: `NewClaimSheet.swift` (view), `EntityService+
+  ClaimEntityCRUD.swift:~117` (`createClaim`), wired from `ClaimsLibraryContent.swift`
+  (`showingCreateSheet`), id `kg.claim.new`.
 - `kg.tables.claim.create.source-optional-flagged` — a hand-authored claim MAY have no
   source (a working hypothesis / synthesis), but it is clearly marked "no source" and
   treated as lower-provenance; it is never silently indistinguishable from a sourced claim.
 - `kg.tables.claim.edit` [PARTIAL] — subject/verb/object + fields editable **from the
-  claim table** (today only via the Ontology `ClaimSummaryCard`).
-- `kg.tables.claim.delete` [PARTIAL] — delete **from the table** (`ClaimStore.delete`
-  exists; the table has no affordance wired).
+  claim table** is built: `ClaimsTableView.swift:~166-183` wires an `onEdit` menu item
+  (`kg.claim.menu.edit`) that opens the same editor the Ontology `ClaimSummaryCard` used.
+  Left [PARTIAL] because the row-level `claimMenu` doc-comment still says "edit / curate
+  arrive in later kg-tables waves" — that comment is stale, not the CRUD gap the spec
+  originally meant; not personally re-verified whether every field is reachable inline.
+- `kg.tables.claim.delete` [PARTIAL] — delete **from the table** is built:
+  `ClaimsTableView.swift:~166-183` (`onDelete` menu item, `kg.claim.menu.delete`) →
+  `ClaimsLibraryContent.swift:~254-268` (`deleteClaims`, one audited delete per id, reloads
+  on failure). Left [PARTIAL] pending `kg.scale.batch-delete` (sequential per-id calls, no
+  batch endpoint yet — see Scale section below).
 - `kg.tables.claim.curate` [PARTIAL] — bless / reject / merge from the table.
 
 ### D. Cross-cutting (both tables)
@@ -151,9 +167,14 @@ A researcher can hand-author a claim/entity, not just curate AI output — a rea
 workflow. So `claim.create` (POST /api/claims) and `entity.create` in the table are in
 scope, with `crud.validation` guarding the input.
 
-## Findings (from the CRUD-matrix scout, this session)
+## Findings (from the CRUD-matrix scout, this session) — HISTORICAL, superseded 2026-09-17
 Backend CRUD is COMPLETE (entities + claims: create/read/update/delete + curation). The
 gaps are all UI wiring: claim **create** missing (no service/store/view); claim
 edit/delete exist but are wired only into the Ontology cards, not the claim TABLE; the
 entity table lacks create + inline rename. Filters are client-side on the shared ⌘F query
 only — no dedicated field. (Details on #4624 / #4625.)
+
+This is now FALSE — claim create, entity create, entity inline rename, and per-table
+filter fields (text + entity-type/claim-type) all shipped since this scout ran; see the
+retagged behaviors in sections A/B/C above for current evidence. Kept for history, not as
+current status.

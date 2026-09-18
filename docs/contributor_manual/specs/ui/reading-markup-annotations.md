@@ -52,10 +52,13 @@ transform); this pins WHAT a mark is and how it behaves. Grounded in the ruling 
   Pinned: `test_routes_annotations_actions.py`.
 - `markup.export.w3c-annotationpage` **[OK]** — `GET …/{doc}/annotations.jsonld` emits a valid W3C
   AnnotationPage; a span-within-region uses `refinedBy`/`refines` (documents.py:1295). Pinned:
-  cite the annotations.jsonld route test (add if absent).
-- `markup.tags.coding` **[GAP]** — `Annotation.tags: list[str]` exists (knowledge.py:1428) and marks
-  carry tags, but there is NO tag-filter endpoint yet (ruling #4's "code and query by tag"). Behavior
-  to build: `GET …/annotations?tag=<t>` filters by coding tag.
+  `tests/unit/api/test_routes_iiif.py` (`test_manifest_is_presentation3_and_points_at_annotation_page`
+  and the anchor-export tests below it) — the test existed already, just uncited here.
+- `markup.tags.coding` **[OK]** — `Annotation.tags: list[str]` exists (knowledge.py:1428) and marks
+  carry tags; ruling #4's "code and query by tag" is built:
+  `api/routes/document/annotations.py:~211` (`tag: str | None = Query(...)` param) and `:~230`
+  (`if tag is not None: rows = [r for r in rows if tag in (r.tags or [])]`). Pinned:
+  `tests/unit/api/test_annotations.py:~179` (`test_list_filter_by_tag`).
 - `markup.review.library-wide` **[GAP]** — the per-document `annotations` representation exists, but a
   LIBRARY-WIDE review surface (all checked/rated lines across sources) is still queued (ruling #5).
 
@@ -71,8 +74,8 @@ transform); this pins WHAT a mark is and how it behaves. Grounded in the ruling 
 | list.min-rating-filter | test_annotations.py | ✅ |
 | delete.soft-reversible | test_routes_annotations_actions.py | ✅ |
 | promote-to-claim | test_routes_annotations_actions.py | ✅ |
-| export.w3c-annotationpage | (route test — verify/add) | ⚠ |
-| tags.coding | — | ❌ [GAP] |
+| export.w3c-annotationpage | test_routes_iiif.py (`test_manifest_is_presentation3_and_points_at_annotation_page`) | ✅ |
+| tags.coding | test_annotations.py (`test_list_filter_by_tag`) | ✅ |
 | review.library-wide | — | ❌ [GAP] |
 
 ## Open questions

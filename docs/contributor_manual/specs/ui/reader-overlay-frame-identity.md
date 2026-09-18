@@ -34,20 +34,27 @@ only as correct as the answer to "did this rendition re-frame?" — carried by `
 
 ## Behaviors
 
-- `frame.reframing-ops-gated` **[OK 2026-09-16]** — `DocumentRendition.frameChangingOps` lists EVERY
+- `frame.reframing-ops-gated` **[OK 2026-09-17]** — `DocumentRendition.frameChangingOps` lists EVERY
   engine op that moves pixels: `crop`, `auto_crop_border`, `rotate`, `straighten`, `flip_horizontal`,
-  `flip_vertical`. An edited page built from any of them computes `hasOwnFrame: true`, so node-frame
-  overlays SKIP it rather than draw over re-framed pixels. (Flips + auto-crop were missing → the
-  reported bug; a flip mirrors `x→1−x−w`, so edge words were maximally wrong while centred ones
-  looked fine.) Pinned by `RenditionEditStatesTests.frameHonesty` +
-  `.frameChangingOpsCoversEngineReframingSet`.
+  `flip_vertical`, `auto_deskew`. An edited page built from any of them computes `hasOwnFrame: true`,
+  so node-frame overlays SKIP it rather than draw over re-framed pixels. (Flips + auto-crop were
+  missing → the reported bug; a flip mirrors `x→1−x−w`, so edge words were maximally wrong while
+  centred ones looked fine. `auto_deskew` was ALSO missing until 2026-09-17 — same class of bug, one
+  op over: it rotates by a detected angle through the same dispatch branch as `rotate`/`straighten`,
+  `media/image_ops.py:253-254`, produced by `workflows/tools/deskew_images.py`.) Pinned by
+  `RenditionEditStatesTests.frameHonesty` + `.frameChangingOpsCoversEngineReframingSet`.
 - `frame.same-frame-ops-draw` **[OK]** — enhance-family ops (`enhance`, `grayscale`, `denoise`,
-  `remove_background`, `adaptive_binarize`) keep the frame, so overlays keep drawing. Same tests.
+  `remove_background`, `adaptive_binarize`, `sharpen`) keep the frame, so overlays keep drawing. Same
+  tests.
 - `frame.engine-authoritative` **[GAP]** — the client list is a hand-maintained MIRROR of the
-  engine's op vocabulary (`fichero-server/.../ingest/image_editing.py`). It can fall behind again.
-  Target: the engine stamps `frame_status` (`same`/`reframed`/`unknown`) on each rendition it
-  produces (the interactive editor path does not today — only the importer manifest does), and the
-  client reads that one field, deleting `frameChangingOps`.
+  engine's op vocabulary (`api/routes/ingest/image_editing.py` for the op registry/validation,
+  `media/image_ops.py` for the actual pixel dispatch — not `ingest/image_editing.py`, which doesn't
+  exist at that path). It can fall behind again (that is exactly how `auto_deskew` went missing: it
+  isn't even in `image_editing.py`'s `_OPERATION_MODELS`/`_PARAMETERLESS_OPERATIONS` validation set,
+  only in `image_ops.py`'s dispatch and the workflow that appends it to a saved chain). Target: the
+  engine stamps `frame_status` (`same`/`reframed`/`unknown`) on each rendition it produces (the
+  interactive editor path does not today — only the importer manifest does), and the client reads
+  that one field, deleting `frameChangingOps`.
 - `frame.fail-closed` **[GAP]** — an op the client does not recognize should count as
   `hasOwnFrame: true` (skip = blank) rather than `false` (draw), so a future engine op can never
   silently misplace overlays. Today the default is draw (false).
