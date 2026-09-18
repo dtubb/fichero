@@ -68,20 +68,30 @@ struct PaneConfig: Codable, Sendable, Hashable {
     /// height in a vertical one. Set on a film-strip pane (the narrow library-icons strip at the
     /// bottom of Transcribe/Compare, ~72pt) so it stays narrow while the content flexes (CD
     /// 2026-09-16). `nil` = follow the normal sizing (resizable column, or flex if it's the tail).
+    /// A HARD pin — wins over `paneFraction` on the same leaf, and (in `WorkspaceSplitStack`)
+    /// ignores any stored drag state (#4688).
     var paneExtent: Double?
+    /// Preferred PROPORTIONAL extent — a share (0–1) of the parent split's own extent — for a
+    /// content pane that should hold its proportion across a 13" laptop and a 32" display instead
+    /// of a flat point value (#4688, CD 2026-09-17: "think through % ... for the various default
+    /// workspaces"). Seeds a resizable column in `WorkspaceSplitStack`; a drag persists over it the
+    /// same way an absolute default used to. Ignored when `paneExtent` is also set.
+    var paneFraction: Double?
 
     init(
         libraryContentKind: String? = nil,
         libraryLayout: String? = nil,
         previewLens: String? = nil,
         previewWordBoxes: Bool? = nil,
-        paneExtent: Double? = nil
+        paneExtent: Double? = nil,
+        paneFraction: Double? = nil
     ) {
         self.libraryContentKind = libraryContentKind
         self.libraryLayout = libraryLayout
         self.previewLens = previewLens
         self.previewWordBoxes = previewWordBoxes
         self.paneExtent = paneExtent
+        self.paneFraction = paneFraction
     }
 
     /// Follow the window default on every axis (an unconfigured pane).
@@ -90,7 +100,7 @@ struct PaneConfig: Codable, Sendable, Hashable {
     /// Whether this pane overrides any presentation default.
     var isConfigured: Bool {
         libraryContentKind != nil || libraryLayout != nil || previewLens != nil
-            || previewWordBoxes != nil || paneExtent != nil
+            || previewWordBoxes != nil || paneExtent != nil || paneFraction != nil
     }
 }
 

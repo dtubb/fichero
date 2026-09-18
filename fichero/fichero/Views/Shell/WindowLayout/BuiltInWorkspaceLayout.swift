@@ -67,25 +67,41 @@ enum BuiltInWorkspaceLayout: String, CaseIterable, Identifiable, Sendable {
         // window's global layout); wiring that is the next step so these actually look different.
         case .read:
             // Default (Mail-style): table at top, reader below, preview to the right.
+            // #4688 (CD 2026-09-17, "think through % for the various default workspaces"): the
+            // table needs less height than the reader it summarizes — 40:60 gives the reader most
+            // of the column while the table still shows several rows. The reader has no fraction
+            // of its own; it's the LAST child of this split so it just flexes into the remaining
+            // 60% (WorkspaceSplitStack's "last child flexes" rule) — one number to tune, not two
+            // that could drift apart.
             return PaneList([
                 .split(.vertical, [
-                    .leaf(.library, config: PaneConfig(libraryLayout: "table")),
+                    .leaf(.library, config: PaneConfig(libraryLayout: "table", paneFraction: 0.4)),
                     .leaf(.reading)
                 ]),
                 .leaf(.preview)
             ])
         case .browse:
             // Icon view (vertical column), then preview, then reader — "like we had it".
+            // #4688: three peers, none should dominate, but the icon strip is a NAVIGATION aid
+            // (thumbnails) while preview/reader are the actual reading surfaces, so icons get the
+            // smallest share — 30:35:35. Reader is the last child and flexes to the remainder
+            // (~35%), so it can't drift out of step with preview's 35%.
             return PaneList([
-                .leaf(.library, config: PaneConfig(libraryLayout: "icons")),
-                .leaf(.preview),
+                .leaf(.library, config: PaneConfig(libraryLayout: "icons", paneFraction: 0.30)),
+                .leaf(.preview, config: PaneConfig(paneFraction: 0.35)),
                 .leaf(.reading)
             ])
         case .transcribe:
             // Icons along the bottom, preview above and reader to its right.
+            // #4688: page and editor are equal-weight transcription partners — 50:50. The film
+            // strip stays a HARD absolute 72pt (`paneExtent`, unchanged) — a strip of page icons
+            // is a deliberate fixed-size affordance, not a fraction of the display (CD 2026-09-16).
             return PaneList([
                 .split(.vertical, [
-                    .split(.horizontal, [.leaf(.preview), .leaf(.reading)]),
+                    .split(.horizontal, [
+                        .leaf(.preview, config: PaneConfig(paneFraction: 0.5)),
+                        .leaf(.reading)
+                    ]),
                     .leaf(.library, config: PaneConfig(libraryLayout: "icons", paneExtent: 72))
                 ])
             ])
@@ -94,11 +110,16 @@ enum BuiltInWorkspaceLayout: String, CaseIterable, Identifiable, Sendable {
             // top, over the strip of pages. The middle preview carries the OCR word boxes — the
             // detailed-transcription triptych. Two previews are instance-safe (the focused-value
             // guard flags the second secondary).
+            // #4688: all three panes are equally-weighted reading surfaces here (no natural
+            // "primary" the way Read's table/reader split has one) — equal thirds. Only the first
+            // two carry an explicit 0.33 (WorkspaceSplitStack's two-@SceneStorage-slot limit means
+            // at most two resizable columns per split anyway); reading is last and flexes to the
+            // remaining ~34%.
             return PaneList([
                 .split(.vertical, [
                     .split(.horizontal, [
-                        .leaf(.preview),
-                        .leaf(.preview, config: PaneConfig(previewWordBoxes: true)),
+                        .leaf(.preview, config: PaneConfig(paneFraction: 0.33)),
+                        .leaf(.preview, config: PaneConfig(previewWordBoxes: true, paneFraction: 0.33)),
                         .leaf(.reading)
                     ]),
                     .leaf(.library, config: PaneConfig(libraryLayout: "icons", paneExtent: 72))
@@ -108,9 +129,16 @@ enum BuiltInWorkspaceLayout: String, CaseIterable, Identifiable, Sendable {
             // Icons along the bottom, with TWO previews and one reader above (two witnesses side by
             // side + the reader). Two previews are instance-safe (the focused-value guard flags the
             // second secondary); the ⌘⌥4 crash was the animated swap, now removed (5bd6cf61a).
+            // #4688: the two witnesses being compared are the point of this workspace, so they get
+            // the lion's share equally (40:40) and the reader — reference context, not the primary
+            // task here — gets the last, flexing ~20%.
             return PaneList([
                 .split(.vertical, [
-                    .split(.horizontal, [.leaf(.preview), .leaf(.preview), .leaf(.reading)]),
+                    .split(.horizontal, [
+                        .leaf(.preview, config: PaneConfig(paneFraction: 0.4)),
+                        .leaf(.preview, config: PaneConfig(paneFraction: 0.4)),
+                        .leaf(.reading)
+                    ]),
                     .leaf(.library, config: PaneConfig(libraryLayout: "icons", paneExtent: 72))
                 ])
             ])

@@ -282,10 +282,16 @@ extension ContentView {
                     closeLeaf: { id in activePaneList = activePaneList.removingLeaf(id) },
                     changeKind: { id, kind in activePaneList = activePaneList.changingLeafKind(id, to: kind) }
                 ),
-                extent: extents[index]
+                sizing: extents[index]
             )
         }
-        WorkspaceSplitStack(axis: .horizontal, storageKey: "root", children: columns)
+        // The leading node's own id makes the key workspace-unique (#4688): a bare "root" (or a
+        // tree-position string) is the SAME for every applied workspace, so Read's inner split and
+        // Transcribe's film strip — both at position "0" — shared one @SceneStorage slot. A node's
+        // id is fresh per applied `PaneList`, so two different workspaces' top-level rows never
+        // collide even though they're both "root".
+        let storageKey = WorkspaceSplitStack.storageKey(keyPath: "root", leadingChildID: list.nodes.first?.id)
+        WorkspaceSplitStack(axis: .horizontal, storageKey: storageKey, children: columns)
     }
 
     /// Render one node. AnyView because the recursion (node → split → node) can't ride an
@@ -381,29 +387,51 @@ extension ContentView {
                     child, keyPath: "\(keyPath).\(idx)",
                     secondaryIDs: secondaryIDs, closeLeaf: closeLeaf, changeKind: changeKind
                 ),
-                extent: extents[idx]
+                sizing: extents[idx]
             )
         }
-        return AnyView(WorkspaceSplitStack(axis: axis, storageKey: keyPath, children: views))
+        // Same workspace-unique-key fix as `paneListRow` (#4688): `keyPath` alone is a tree
+        // POSITION, identical across every workspace, so two different workspaces' splits at the
+        // same position collided. The leading child's own id (fresh per applied `PaneList`) makes
+        // this key unique per workspace, not just per position.
+        let storageKey = WorkspaceSplitStack.storageKey(keyPath: keyPath, leadingChildID: children.first?.id)
+        return AnyView(WorkspaceSplitStack(axis: axis, storageKey: storageKey, children: views))
     }
 
-    /// Per-child extent for a split's children (nil = FLEX): a child whose leaf declares
-    /// `PaneConfig.paneExtent` (a film strip) is pinned to that size and the FIRST non-pinned child
-    /// flexes; with no pinned child, the LAST child flexes and the earlier ones are resizable columns
-    /// at a default extent. This is what makes the Transcribe/Compare library strip stay narrow while
-    /// the page/reader above fill (CD 2026-09-16), without a strip elsewhere shrinking a real column.
-    private func childExtents(_ nodes: [PaneNode], axis: SplitAxis) -> [Double?] {
-        let pins: [Double?] = nodes.map { node in
-            if case let .leaf(_, _, _, config) = node { return config.paneExtent }
-            return nil
+    /// Per-child SIZING for a split's children: HARD-pinned (`PaneConfig.paneExtent` — the film
+    /// strip, absolute points, ignores stored drag state), PROPORTIONAL (`PaneConfig.paneFraction`
+    /// — a resizable column seeded from a fraction of the stack's own extent), or FLEX (fills
+    /// whatever the sized/pinned siblings leave over). An extent always wins over a fraction on the
+    /// same leaf (`Sizing.preferred`, pure + unit-tested).
+    ///
+    /// With a pin present, the FIRST non-pinned child flexes — this is what makes the
+    /// Transcribe/Compare library strip stay a hard 72pt while the content above fills the rest
+    /// (CD 2026-09-16). With no pin anywhere, the LAST child flexes and the earlier ones are
+    /// proportional (CD 2026-09-17: "think through % for the various default workspaces") — the
+    /// two-@SceneStorage-slot limit in `WorkspaceSplitStack` caps a split at two resizable columns,
+    /// which every built-in respects.
+    private func childExtents(_ nodes: [PaneNode], axis: SplitAxis) -> [WorkspaceSplitStack.Sizing] {
+        let preferences: [WorkspaceSplitStack.Sizing?] = nodes.map { node in
+            guard case let .leaf(_, _, _, config) = node else { return nil }
+            return WorkspaceSplitStack.Sizing.preferred(extent: config.paneExtent, fraction: config.paneFraction)
         }
-        let defaultExtent: Double = axis == .horizontal ? 360 : 300
-        if pins.contains(where: { $0 != nil }) {
-            let flexIndex = pins.firstIndex { $0 == nil } ?? 0
-            return nodes.indices.map { idx in pins[idx] ?? (idx == flexIndex ? nil : defaultExtent) }
+        // ponytail: only a SPLIT-type sibling (never a leaf in the five built-ins) falls back to
+        // this — a reasonable share of a typical window, not a value the CD specified per-workspace
+        // (unlike every leaf fraction above, which IS the CD's number).
+        let fallbackFraction = 0.4
+        let isPinned: (WorkspaceSplitStack.Sizing?) -> Bool = { if case .fixed? = $0 { return true }; return false }
+        if preferences.contains(where: isPinned) {
+            let flexIndex = preferences.firstIndex { !isPinned($0) } ?? 0
+            return preferences.indices.map { idx in
+                if isPinned(preferences[idx]) { return preferences[idx]! }
+                if idx == flexIndex { return .flex }
+                return preferences[idx] ?? .fraction(fallbackFraction)
+            }
         }
-        let last = nodes.count - 1
-        return nodes.indices.map { idx in idx == last ? nil : defaultExtent }
+        let last = preferences.count - 1
+        return preferences.indices.map { idx in
+            idx == last ? .flex : (preferences[idx] ?? .fraction(fallbackFraction))
+        }
     }
 
     /// The assistant chat surface — the SAME `ChatView` the old centre pane

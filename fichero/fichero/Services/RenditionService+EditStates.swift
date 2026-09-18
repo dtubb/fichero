@@ -109,7 +109,13 @@ extension DocumentRendition {
     static let frameChangingOps: Set<String> = [
         "crop", "auto_crop_border",
         "rotate", "straighten",
-        "flip_horizontal", "flip_vertical"
+        "flip_horizontal", "flip_vertical",
+        // auto_deskew rotates by a detected angle through the SAME dispatch
+        // branch as rotate/straighten (media/image_ops.py:253-254) — it is
+        // produced by workflows/tools/deskew_images.py and was missing here,
+        // the flip bug (CD 2026-09-16) one op over: a deskewed page reported
+        // hasOwnFrame:false and overlays drew on the rotated pixels.
+        "auto_deskew"
     ]
 }
 

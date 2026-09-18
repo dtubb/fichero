@@ -2,10 +2,10 @@ import SwiftUI
 
 /// A RESIZABLE stack for an applied workspace's splits. Lays 1–N child panes out along `axis`.
 ///
-/// Each child is either SIZED — a default extent along the axis, resizable via a `ResizableDivider`
-/// (the resizable columns) — or FLEXING (`extent == nil`), which fills the remainder. A film-strip
-/// pane passes a small extent (e.g. 72) so the library strip stays narrow while the content flexes
-/// (CD 2026-09-16: "the strip should be very narrow, like a film script").
+/// Each child is FLEX (fills the remainder), a HARD PIN (`Sizing.fixed`, absolute points — the film
+/// strip, which should never grow with the display), or PROPORTIONAL (`Sizing.fraction`, a share of
+/// the stack's own extent, resizable via a `ResizableDivider` once dragged) (#4688, CD 2026-09-17:
+/// "think through % ... for the various default workspaces").
 ///
 /// EVERYTHING is wrapped in a `GeometryReader` and every extent is CLAMPED to the available space —
 /// the pattern `SplittablePane` uses. The previous version stacked TWO frames on each fixed child
@@ -14,35 +14,76 @@ import SwiftUI
 /// never converged → the infinite-layout-recursion crash the CD hit (2026-09-16). One frame per child,
 /// clamped, no `fixed → .infinity` pair.
 struct WorkspaceSplitStack: View {
-    /// One child of the stack. `extent == nil` ⇒ this pane FLEXES; a non-nil extent is the default
-    /// resizable size along the axis (small for a film strip).
+    /// One child of the stack's SIZING preference along the axis.
+    enum Sizing: Equatable {
+        /// Fills whatever the sized/pinned siblings leave over.
+        case flex
+        /// A HARD pin, absolute points — never resizable, never reads or writes the per-position
+        /// stored drag state (#4688). The film strip: "a strip of page icons should not grow with
+        /// the display" (CD 2026-09-16).
+        case fixed(Double)
+        /// A proportional seed — a share (0–1) of the stack's own extent — for a RESIZABLE column:
+        /// seeded from this fraction the first time it's laid out, then a drag persists over it via
+        /// `@SceneStorage`, same as an absolute default used to.
+        case fraction(Double)
+
+        /// A leaf's sizing preference from its `PaneConfig`: an absolute `paneExtent` always wins
+        /// over a `paneFraction` on the same leaf. `nil` = no preference — the caller's flex/fallback
+        /// rule decides. Pure: this is the "extent wins" contract WorkspaceSplitStackTests assert
+        /// directly, without a ContentView or a PaneNode tree.
+        static func preferred(extent: Double?, fraction: Double?) -> Sizing? {
+            if let extent { return .fixed(extent) }
+            if let fraction { return .fraction(fraction) }
+            return nil
+        }
+    }
+
+    /// One child of the stack.
     struct Child {
         let view: AnyView
-        let extent: Double?
+        let sizing: Sizing
 
-        init(_ view: AnyView, extent: Double? = nil) {
+        init(_ view: AnyView, sizing: Sizing = .flex) {
             self.view = view
-            self.extent = extent
+            self.sizing = sizing
         }
     }
 
     let axis: SplitAxis
     let children: [Child]
 
-    // Up to two SIZED child slots persist their extent per split position. Every built-in split has
-    // at most two sized children (the third pane, if any, flexes), so two slots suffice.
+    // Up to two SIZED (proportional/resizable) child slots persist their extent per split position.
+    // Every built-in split has at most two resizable children (a HARD-pinned film strip never uses
+    // a slot, and the third pane, if any, flexes), so two slots suffice.
     // ponytail: two @SceneStorage slots, not an array — @SceneStorage needs fixed properties; a
-    // 3rd sized child would reuse slot 1 (never happens in the five built-ins).
+    // 3rd resizable child would fall back to resolving fresh from its fraction every render (never
+    // happens in the five built-ins).
     @SceneStorage private var extent0: Double
     @SceneStorage private var extent1: Double
+
+    /// Sentinel meaning "never seeded or dragged" — @SceneStorage needs a concrete `Double` at
+    /// init, before the `GeometryReader` below knows the stack's actual `total`, so a proportional
+    /// slot can't be seeded with real points until the first layout pass. `seedIfNeeded` backfills
+    /// it once `total` is known; `resolvedExtents` also treats it as "use the fraction" so there is
+    /// no flash of a bogus value before that first layout pass runs.
+    private static let unset: Double = -1
 
     init(axis: SplitAxis, storageKey: String, children: [Child]) {
         self.axis = axis
         self.children = children
-        let sized = children.compactMap(\.extent)
-        let fallback: Double = axis == .horizontal ? 360 : 300
-        self._extent0 = SceneStorage(wrappedValue: sized.first ?? fallback, "wsplit.\(storageKey).0")
-        self._extent1 = SceneStorage(wrappedValue: sized.dropFirst().first ?? fallback, "wsplit.\(storageKey).1")
+        self._extent0 = SceneStorage(wrappedValue: Self.unset, "wsplit.\(storageKey).0")
+        self._extent1 = SceneStorage(wrappedValue: Self.unset, "wsplit.\(storageKey).1")
+    }
+
+    /// A workspace-unique storage-key component (#4688): `keyPath` alone is a tree POSITION
+    /// ("0", "0.1", …), identical across every workspace, so Read's inner split and Transcribe's
+    /// film strip — both at position "0" — shared one @SceneStorage slot ("drag Read's divider
+    /// once, switch to Transcribe → the strip is the dragged height, not 72"). `leadingChildID` is a
+    /// `PaneNode`'s own id, freshly generated per applied `PaneList`, so two different workspaces'
+    /// splits at the same tree position never collide. `keyPath` stays in the key too, purely for
+    /// human-readable debugging (e.g. in a `defaults read`).
+    static func storageKey(keyPath: String, leadingChildID: UUID?) -> String {
+        "\(keyPath)-\(leadingChildID?.uuidString ?? keyPath)"
     }
 
     var body: some View {
@@ -56,61 +97,102 @@ struct WorkspaceSplitStack: View {
                 }
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
+            .onAppear { seedIfNeeded(total: Double(total)) }
         }
     }
 
-    /// The children interleaved with dividers. A divider sits between a SIZED child and the flexing
-    /// content, on the side facing the flex, so dragging it resizes the sized pane. Sized children
-    /// BEFORE the flex get the divider after them (drag toward trailing to grow); a sized child
-    /// AFTER the flex (a trailing strip) gets the divider before it (drag toward leading to grow).
+    /// Backfill an unseeded resizable slot with its fraction of the NOW-known stack extent — the
+    /// one-time proportional seed a plain `@SceneStorage` default can't express (see `unset`).
+    /// Never touches a slot that's already seeded or already user-dragged.
+    private func seedIfNeeded(total: Double) {
+        guard total > 0 else { return }
+        var slot = 0
+        for child in children {
+            guard case let .fraction(fraction) = child.sizing else { continue }
+            defer { slot += 1 }
+            if slot == 0, extent0 == Self.unset { extent0 = fraction * total }
+            else if slot == 1, extent1 == Self.unset { extent1 = fraction * total }
+        }
+    }
+
+    /// The stored slot value for each `.fraction` child, in child order — `nil` for a slot never
+    /// seeded/dragged yet (so `resolvedExtents` falls back to its fraction of `total`), and `nil`
+    /// for every non-`.fraction` child (fixed/flex have no stored slot).
+    private func storedOverrides() -> [Double?] {
+        var slot = 0
+        return children.map { child in
+            guard case .fraction = child.sizing else { return nil }
+            defer { slot += 1 }
+            let raw = slot == 0 ? extent0 : (slot == 1 ? extent1 : Self.unset)
+            return raw == Self.unset ? nil : raw
+        }
+    }
+
+    /// The children interleaved with dividers. A divider sits between a resizable child and the
+    /// flexing content, on the side facing the flex, so dragging it resizes the resizable pane.
+    /// Resizable children BEFORE the flex get the divider after them (drag toward trailing to
+    /// grow); one AFTER the flex (a trailing strip) gets the divider before it (drag toward
+    /// leading to grow). A HARD-pinned child (the film strip) never gets a divider — it's fixed,
+    /// full stop (#4688).
     @ViewBuilder private func arranged(total: CGFloat) -> some View {
-        let flexIndex = children.firstIndex { $0.extent == nil } ?? max(0, children.count - 1)
-        // Assign the two stored slots to sized children in order.
+        let resolved = Self.resolvedExtents(children.map(\.sizing), storedOverrides: storedOverrides(), total: Double(total))
+        let flexIndex = children.firstIndex { child in
+            if case .flex = child.sizing { return true }
+            return false
+        } ?? max(0, children.count - 1)
+
         var slot = 0
         let plans: [ChildPlan] = children.enumerated().map { index, child in
-            if child.extent == nil {
-                return ChildPlan(view: child.view, sizing: .flex)
+            switch child.sizing {
+            case .flex:
+                return ChildPlan(view: child.view, layout: .flex)
+            case .fixed:
+                return ChildPlan(view: child.view, layout: .fixed(resolved[index] ?? 0))
+            case .fraction:
+                let binding = slot == 0 ? $extent0 : $extent1
+                slot += 1
+                return ChildPlan(
+                    view: child.view,
+                    layout: .resizable(binding, display: resolved[index] ?? 0, dividerBefore: index > flexIndex)
+                )
             }
-            let binding = slot == 0 ? $extent0 : $extent1
-            slot += 1
-            return ChildPlan(view: child.view, sizing: .sized(binding, dividerBefore: index > flexIndex))
         }
         ForEach(Array(plans.enumerated()), id: \.offset) { _, plan in
-            switch plan.sizing {
+            switch plan.layout {
             case .flex:
                 plan.view.frame(maxWidth: .infinity, maxHeight: .infinity)
-            case let .sized(binding, dividerBefore):
-                // A sized child BEFORE the flex is the leading panel (drag its trailing divider to
-                // grow); a sized strip AFTER the flex is the trailing panel (drag its leading divider).
+            case let .fixed(value):
+                sized(plan.view, value: value)
+            case let .resizable(binding, display, dividerBefore):
                 if dividerBefore { divider(binding, edge: .trailing, total: total) }
-                sized(plan.view, binding, total: total)
+                sized(plan.view, value: display)
                 if !dividerBefore { divider(binding, edge: .leading, total: total) }
             }
         }
     }
 
-    /// How one child is laid out: filling the remainder, or pinned to a stored
-    /// extent with a divider on the side facing the flex.
+    /// How one child is laid out this render: filling the remainder, pinned to a fixed points
+    /// value, or resizable — bound to a stored slot, displayed at its resolved (clamped) extent,
+    /// with a divider on the side facing the flex.
     /// Sibling of `ChildPlan`, not nested inside it — three levels of nesting
-    /// (stack > plan > sizing) buys nothing and trips `nesting`.
-    private enum ChildSizing {
+    /// (stack > plan > layout) buys nothing and trips `nesting`.
+    private enum ChildLayout {
         case flex
-        case sized(Binding<Double>, dividerBefore: Bool)
+        case fixed(Double)
+        case resizable(Binding<Double>, display: Double, dividerBefore: Bool)
     }
 
     private struct ChildPlan {
         let view: AnyView
-        let sizing: ChildSizing
+        let layout: ChildLayout
     }
 
-    /// A sized child, clamped to the available space so it can never propose an unbounded/over-large
-    /// size into its AppKit content (the crash guard). ONE frame — the fixed axis is set, the cross
-    /// axis fills; no stacked `fixed → .infinity` pair.
-    @ViewBuilder private func sized(_ view: AnyView, _ extent: Binding<Double>, total: CGFloat) -> some View {
-        let value = clamp(extent.wrappedValue, total: total)
-        // ONE frame node: pin the axis via min == max, flex the cross axis. (`.frame(width:maxHeight:)`
-        // mixes two frame overloads and won't compile; the stacked `.frame(width:).frame(maxHeight:)`
-        // pair is the one that fed the unbounded proposal into AppKit and crashed. This is neither.)
+    /// A sized child at its resolved extent — already clamped, so this is a single, unconditional
+    /// frame. ONE frame node: pin the axis via min == max, flex the cross axis. (`.frame(width:
+    /// maxHeight:)` mixes two frame overloads and won't compile; the stacked
+    /// `.frame(width:).frame(maxHeight:)` pair is the one that fed the unbounded proposal into
+    /// AppKit and crashed. This is neither.)
+    @ViewBuilder private func sized(_ view: AnyView, value: Double) -> some View {
         if axis == .horizontal {
             view.frame(minWidth: value, maxWidth: value, maxHeight: .infinity)
         } else {
@@ -118,16 +200,53 @@ struct WorkspaceSplitStack: View {
         }
     }
 
-    /// Clamp an extent to [48, total − 48] so neither side collapses and nothing exceeds the stack.
-    private func clamp(_ value: Double, total: CGFloat) -> Double {
-        guard total > 96 else { return value }
-        return min(max(value, 48), Double(total) - 48)
+    /// Resolve every child's on-screen extent for a stack of `total` points along its axis: a fixed
+    /// child's own points, or (fraction × total) for a proportional one — `storedOverrides` (a
+    /// previously seeded or dragged resizable column) substitutes for the fraction at that index
+    /// when present. The SUM of every sized (fixed + fraction) child is then bounded to leave at
+    /// least `flexMinimum` for whatever flexes, scaling every sized child down proportionally if
+    /// needed but never below `minPerPane` — this is what stops two 360pt-equivalent children
+    /// summing to more than a 600pt stack (#4688), and replaces the old single-value `clamp` that
+    /// also wrongly passed the raw value through whenever `total <= 96`.
+    ///
+    /// Pure — no SwiftUI, no view mounting. `WorkspaceSplitStackTests` calls this directly at
+    /// several stack sizes.
+    static func resolvedExtents(
+        _ sizings: [Sizing],
+        storedOverrides: [Double?] = [],
+        total: Double,
+        minPerPane: Double = 48,
+        flexMinimum: Double = 48
+    ) -> [Double?] {
+        guard total > 0 else { return sizings.map { _ in nil } }
+        let requested: [Double?] = sizings.enumerated().map { index, sizing in
+            switch sizing {
+            case .flex:
+                return nil
+            case let .fixed(points):
+                return points
+            case let .fraction(fraction):
+                if index < storedOverrides.count, let stored = storedOverrides[index] { return stored }
+                return fraction * total
+            }
+        }
+        let sizedValues = requested.compactMap { $0 }
+        guard !sizedValues.isEmpty else { return requested }
+        let rawSum = sizedValues.reduce(0, +)
+        // Never bound below every pane's own minimum, or the clamp would fight itself.
+        let minSum = Double(sizedValues.count) * minPerPane
+        let budget = max(minSum, total - flexMinimum)
+        let scale = rawSum > budget ? budget / rawSum : 1.0
+        return requested.map { value in
+            guard let value else { return nil }
+            return max(minPerPane, value * scale)
+        }
     }
 
     private func divider(_ extent: Binding<Double>, edge: ResizableDivider.Edge, total: CGFloat) -> some View {
         ResizableDivider(
             width: extent,
-            minWidth: axis == .horizontal ? 48 : 48,
+            minWidth: 48,
             maxWidth: max(96, Double(total) - 48),
             edge: edge,
             axis: axis == .horizontal ? .horizontal : .vertical
@@ -146,12 +265,12 @@ private func previewPane(_ label: String, _ tint: Color) -> AnyView {
     )
 }
 
-#Preview("Horizontal — sized library + flexing content") {
+#Preview("Horizontal — proportional library + flexing content") {
     WorkspaceSplitStack(
         axis: .horizontal,
         storageKey: "preview.horizontal",
         children: [
-            .init(previewPane("Library", .blue), extent: 360),
+            .init(previewPane("Library", .blue), sizing: .fraction(0.4)),
             .init(previewPane("Reader", .green))
         ]
     )
@@ -164,7 +283,7 @@ private func previewPane(_ label: String, _ tint: Color) -> AnyView {
         storageKey: "preview.filmstrip",
         children: [
             .init(previewPane("Transcribe", .green)),
-            .init(previewPane("Film strip", .orange), extent: 72)
+            .init(previewPane("Film strip", .orange), sizing: .fixed(72))
         ]
     )
     .frame(width: 900, height: 500)
@@ -184,12 +303,12 @@ private func previewPane(_ label: String, _ tint: Color) -> AnyView {
                     axis: .horizontal,
                     storageKey: "preview.nested.inner",
                     children: [
-                        .init(previewPane("Page A", .blue), extent: 360),
+                        .init(previewPane("Page A", .blue), sizing: .fraction(0.4)),
                         .init(previewPane("Page B", .purple))
                     ]
                 )
             )),
-            .init(previewPane("Film strip", .orange), extent: 72)
+            .init(previewPane("Film strip", .orange), sizing: .fixed(72))
         ]
     )
     .frame(width: 900, height: 500)

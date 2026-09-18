@@ -74,15 +74,30 @@ struct RenditionEditStatesTests {
 
     @Test("frameChangingOps mirrors the engine's pixel-moving ops (a missing one misplaces overlays)")
     func frameChangingOpsCoversEngineReframingSet() {
-        // The client list MUST include every engine op that re-frames the image
-        // (fichero-server/.../ingest/image_editing.py). If the engine adds a reframing op and this
-        // set isn't updated, overlays silently misplace on pages edited with it — the exact 2026-09-16
-        // regression. Enhance-family ops (same frame) must NOT be here.
-        let reframing = ["crop", "auto_crop_border", "rotate", "straighten", "flip_horizontal", "flip_vertical"]
+        // The client list MUST include every engine op that re-frames the image. Each entry below
+        // names where the engine defines/dispatches it, so a coverage test can't itself go stale by
+        // hand-typing an expectation that silently drops an op (that is exactly how auto_deskew went
+        // missing: this list didn't know about media/image_ops.py:253's rotate-dispatch branch).
+        // If the engine adds a reframing op, add it BOTH here and to `frameChangingOps`, or overlays
+        // silently misplace on pages edited with it — the exact 2026-09-16 regression.
+        let reframing = [
+            "crop", "auto_crop_border", // media/image_ops.py:274,285
+            "rotate", "straighten", // media/image_ops.py:253 dispatch branch
+            "flip_horizontal", "flip_vertical", // media/image_ops.py:288-290
+            "auto_deskew" // media/image_ops.py:253 dispatch branch; produced by workflows/tools/deskew_images.py
+        ]
         for op in reframing {
             #expect(DocumentRendition.frameChangingOps.contains(op), "\(op) re-frames but isn't gated")
         }
-        for safe in ["enhance", "grayscale", "denoise", "remove_background", "adaptive_binarize"] {
+        #expect(
+            DocumentRendition.frameChangingOps == Set(reframing),
+            "frameChangingOps has an op not in this fixture (or vice versa) — update both together"
+        )
+        // Same-frame ops (media/image_ops.py dispatch: sharpen:296, enhance:300, grayscale:323,
+        // denoise:309, remove_background:319, adaptive_binarize:311). "threshold" and
+        // "background_clean" are PARAMS of remove_background/fuzzy_clean, not op kinds — there is no
+        // such op name to assert against.
+        for safe in ["enhance", "grayscale", "denoise", "remove_background", "adaptive_binarize", "sharpen"] {
             #expect(!DocumentRendition.frameChangingOps.contains(safe), "\(safe) keeps the frame — don't gate it")
         }
     }
