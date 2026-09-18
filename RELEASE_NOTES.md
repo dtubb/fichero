@@ -4,6 +4,11 @@
 
 ## 2026.09.17
 
+- Workspaces: one pane model, persisted across relaunch; stable divider positions; Split from the menu.
+- Menus: shortcut collisions fixed; real Redo; Zoom to Fit is ⌘9.
+- AI selector: consistent rows everywhere; a failed model fetch never changes your selection.
+- Launch: roughly 10 seconds faster to ready on the development machine.
+
 **It opens, and the panes behave.** A crash on launch is fixed: a window could die before it drew
 anything. Workspaces settled into **five** layouts on **⌘⌥1–5** — Read (your table over the reader,
 the page beside it), Browse, Transcribe, Transcribe · Tall, and Compare. *(Yesterday's note promised

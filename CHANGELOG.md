@@ -2,6 +2,37 @@
 
 ## Unreleased
 
+**Workspaces are one model, and they persist.** Pane visibility derives from the applied pane list
+(the three legacy Bools are gone); View ▸ Split routes through the model; the applied composition
+survives relaunch; saved workspaces carry their pane list (a corrupt one no longer voids the
+catalog); built-in layouts have stable pane ids so divider positions survive re-applying a
+workspace; proportional splits stay proportional until you drag. Dead widescreen code deleted.
+
+**Menus.** Six shortcut collisions with system chords fixed; Redo (⌘⇧Z) is real and never re-offers
+an already-redone action; Zoom to Fit moves to ⌘9 (⌘= was also catching ⌘+); Back/Forward are
+owned by the Go menu. The shortcut-uniqueness guardrail is honest (Format-menu chords are not
+system-reserved) and understands `#if`.
+
+**AI selector / Settings.** Four ship blockers: the island chip uses the shared row; a failed model
+fetch never blanks or auto-picks the selection (guarded at the call site); API-key save/remove
+errors surface; tier-filtered rows are shown greyed, not removed.
+
+**Launch.** Both sides instrumented; the engine cold start is ~3.5 s to serving, not the "~23 s"
+the comments claimed. Five awaited steps left the spawn path; the orphan-engine sweep is awaited
+again (detached, it could kill the engine it had just spawned); provider seed stays before the
+lifespan yield; the embeddings prewarm — which held the GIL for 5–8 s and starved the readiness
+probe — waits until the app is ready and the request stream is quiet. Time-to-ready on the dev
+machine: ~25 s → ~14 s. Fallback observer on every scene root (#4703).
+
+**Engine / harness.** Bookmark-resolution log spam fixed (#4700); worktree PYTHONPATH exported by
+verify_all (#4699); `gate unit` skips the UI target, refuses on a locked screen (hosts never
+handshake — #4695), kills a host that never starts, and labels every phase with a verdict.
+Contributor TESTING.md documents it. Doc guardrails: one broken spec link fixed, planned targets
+allowlisted, two testing pages in the nav.
+
+Not executed tonight: the Swift test suites (locked screen); builds are green. Known open: #4703
+(state-dependent crash ~25 s after launch), #4684 (NSTableView reentrancy, one warning per launch).
+
 ## 2026-09-17
 
 **Panes are one system.** The applied pane path is now the only path: `ContentView` seeds
