@@ -24,22 +24,52 @@ extension LibraryWindow {
             currentLibraryId=\(libraryManager.currentLibraryId?.uuidString ?? "nil")
             """)
 
-        // Priority 0: a WindowSeed (Duplicate Window, #2262) clones an existing
-        // window's library + selection + active lens. Write the #2273
+        // Priority 0a: a WindowSeed (Duplicate Window, #2262) clones an existing
+        // window's library + selection + active lens.
+        let seededId = seed.flatMap(resolveSeedLibrary)
+
+        // Priority 0b: cross-window "Open in New Tab/Window" hand-off (#1685).
+        let pendingId = libraryManager.pendingWindowLibraryIds.first.flatMap { pendingId in
+            libraryManager.getLibrary(id: pendingId) != nil ? pendingId : nil
+        }
+
+        // Priority 0c: restore the library this scene was showing last time.
+        let restoredId = persistedLibraryId
+            .flatMap { UUID(uuidString: $0) }
+            .flatMap { restoredId in
+                libraryManager.getLibrary(id: restoredId) != nil ? restoredId : nil
+            }
+
+        // Priority 1: currentLibraryId (set by handleOpenURL / restoreSavedLibraries).
+        let currentId = libraryManager.currentLibraryId.flatMap { currentId in
+            libraryManager.getLibrary(id: currentId) != nil ? currentId : nil
+        }
+
+        // Priority 2: first open library, if any exist (restored on app launch).
+        let firstOpenId = libraryManager.openLibraries.first?.id
+
+        // Priority 3: Global — the pure function's final fallback. Always
+        // resolves: `LibraryManager.shared.init` loads Global synchronously,
+        // before any window can read it (#4783 — replaces `noLibraryView`).
+        let resolvedId = Self.resolvedLibraryID(
+            seed: seededId,
+            pendingWindow: pendingId,
+            restored: restoredId,
+            current: currentId,
+            firstOpen: firstOpenId,
+            global: LibraryManager.globalLibraryId
+        )
+
+        // Side effects belong to whichever source actually won — evaluated in
+        // the same priority order `resolvedLibraryID` uses. Write the #2273
         // scene-storage keys BEFORE the library mounts so ContentView restores
-        // into the cloned state, then assign the seeded library via the shared
-        // assignLibrary path (which also persists it for next launch).
-        if let seed, let resolvedId = resolveSeedLibrary(seed) {
+        // into the cloned state.
+        if let seededId, resolvedId == seededId, let seed {
             sceneSelectedItemId = seed.selectedItemId
             sceneViewModeType = seed.viewModeType ?? "library"
             sceneViewModeItemId = seed.viewModeItemId
-            assignLibrary(id: resolvedId)
             libraryWindowLogger.info("Seeded duplicated window from library: \(resolvedId)")
-            return
-        }
-
-        if let pendingId = libraryManager.pendingWindowLibraryIds.first,
-           libraryManager.getLibrary(id: pendingId) != nil {
+        } else if let pendingId, resolvedId == pendingId {
             libraryWindowLogger.info("Consuming pendingWindowLibraryId: \(pendingId)")
             libraryManager.pendingWindowLibraryIds.removeFirst()
             // Claim the "focus this doc" intent for THIS fresh window only, so a
@@ -49,48 +79,42 @@ extension LibraryWindow {
             // window is the newly opened one.
             windowState.pendingOpenDocumentId = libraryManager.pendingOpenDocumentId
             libraryManager.pendingOpenDocumentId = nil
-            assignLibrary(id: pendingId)
-            return
+        } else if let restoredId, resolvedId == restoredId {
+            libraryWindowLogger.info("Restoring persisted libraryId: \(resolvedId)")
+        } else if let currentId, resolvedId == currentId {
+            libraryWindowLogger.info("Using currentLibraryId: \(resolvedId)")
+        } else if let firstOpenId, resolvedId == firstOpenId {
+            libraryWindowLogger.info("Using first library: \(resolvedId)")
+        } else {
+            libraryWindowLogger.info("No open/restorable library — showing Global (#4783)")
         }
 
-        // Priority 0: Restore the library this scene was showing last time.
-        if let persistedLibraryId,
-           let restoredId = UUID(uuidString: persistedLibraryId),
-           libraryManager.getLibrary(id: restoredId) != nil {
-            libraryWindowLogger.info("Restoring persisted libraryId: \(restoredId)")
-            assignLibrary(id: restoredId)
-            return
-        }
+        assignLibrary(id: resolvedId)
+    }
 
-        // Priority 1: Use currentLibraryId (set by handleOpenURL or restoreSavedLibraries)
-        if let currentId = libraryManager.currentLibraryId,
-           libraryManager.getLibrary(id: currentId) != nil {
-            libraryWindowLogger.info("Using currentLibraryId: \(currentId)")
-            assignLibrary(id: currentId)
-            return
-        }
-
-        // Priority 2: Use first open library if any exist (restored on app launch)
-        if let first = libraryManager.openLibraries.first {
-            libraryWindowLogger.info("Using first library: \(first.displayName)")
-            assignLibrary(id: first.id)
-            return
-        }
-
-        // Priority 3: No library - show welcome screen
-        libraryWindowLogger.info("No library available - showing welcome screen")
+    /// The single source of truth for which library THIS window shows.
+    /// Resolution never fails: `global` is the final fallback and is always
+    /// real — `LibraryManager.shared.init` loads it synchronously before any
+    /// window can read it. Every other candidate has ALREADY been validated
+    /// to exist by the caller (`nil` otherwise); this only picks between them
+    /// in priority order. This is what makes the "Create a new library or
+    /// open an existing one" prompt (`noLibraryView`, #4783) provably
+    /// unreachable rather than merely un-rendered today.
+    static func resolvedLibraryID(
+        seed: UUID?,
+        pendingWindow: UUID?,
+        restored: UUID?,
+        current: UUID?,
+        firstOpen: UUID?,
+        global: UUID
+    ) -> UUID {
+        seed ?? pendingWindow ?? restored ?? current ?? firstOpen ?? global
     }
 
     func assignLibrary(id: UUID) {
         windowState.libraryId = id
         persistedLibraryId = id.uuidString
         libraryWindowLogger.info("Assigned library: \(id)")
-    }
-
-    func createNewLibrary() {
-        let library = libraryManager.createNewLibrary()
-        assignLibrary(id: library.id)
-        libraryWindowLogger.info("Created and assigned new library: \(library.displayName)")
     }
 
     // MARK: - Actions

@@ -118,11 +118,14 @@ runner's `tempfile.gettempdir()`), NOT `/var/folders` as the Evidence section fi
 - `harness.ios-sim-same-socket` [MISSING] (#4782) — no iOS/iPad UI test target constructs a
   `UITestEngineHarness` or dials `FICHERO_FORCE_UDS_PATH` on a Simulator destination; nothing
   verifies a Simulator process can `connect()` the Mac runner's socket.
-- `empty-library-screen.removed` [PARTIAL] (#4783) — mitigated but not removed:
-  `LibraryWindow` now seeds the Global library at init so the empty state is rarely hit on a fresh
-  launch, but `libraryWindowContent`'s `else { noLibraryView }` branch and the `noLibraryView`
-  takeover screen itself (`LibraryWindow.swift:288-320`) still exist, unlike the ruling's "remove
-  entirely."
+- `empty-library-screen.removed` [OK] (#4783) — removed, not just mitigated: `noLibraryView` and
+  its mount branch are deleted from `LibraryWindow.swift`; every window/tab resolution goes through
+  `LibraryWindow.resolvedLibraryID` (`LibraryWindow+Actions.swift`), whose final fallback is the
+  Global library — always real, loaded synchronously by `LibraryManager.shared.init` before any
+  window can read it. Pinned by `LaunchWindowSeedTests.testTheCreateOrOpenPromptIsGoneNotJustUnreachable`
+  (source-level: neither `noLibraryView` nor its prompt text exist) and
+  `testResolvedLibraryIDAlwaysResolves` (the resolution table: nil/stale/closed/valid/restored ids
+  all land on a real library).
 
 ## Test matrix
 

@@ -219,8 +219,9 @@ struct FicheroApp: App {
 
         // Materialize saved libraries BEFORE the scene graph builds (launch
         // speed, #4036): the first window frame then mounts the real library
-        // shell instead of `noLibraryView`. This no longer races the engine
-        // bind — restore is local-only now; data loads and registry writes
+        // shell showing whatever this restores (Global, if nothing else, per
+        // #4783 — the bespoke "no library" screen is gone). This no longer
+        // races the engine bind — restore is local-only now; data loads and registry writes
         // defer/fail-soft until the authenticated probe flips ready (see
         // `restoreSavedLibraries`'s doc comment).
         //

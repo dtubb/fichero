@@ -206,16 +206,106 @@ final class LaunchWindowSeedTests: XCTestCase {
         XCTAssertFalse(directWrites.isEmpty, "found no assignments at all — this guard went blind")
     }
 
-    /// `noLibraryView` still EXISTS as a fallback, and that is fine — but if it
-    /// is ever reachable again on launch, this issue is back. Pinned so the
-    /// fallback cannot quietly become the normal path a second time.
-    func testTheCreateOrOpenPromptIsAFallbackNotTheLaunchState() throws {
+    /// #4783: the "Create a new library or open an existing one" screen
+    /// (`noLibraryView`) is gone, not merely unreachable. Resolution is now
+    /// proven total by `resolvedLibraryID` (see the table test below), so
+    /// there is no remaining case for a bespoke empty-state screen to cover.
+    func testTheCreateOrOpenPromptIsGoneNotJustUnreachable() throws {
         let window = try Self.appSource("App/LibraryWindow.swift")
 
-        XCTAssertTrue(window.contains("noLibraryView"), "the fallback may exist")
+        XCTAssertFalse(window.contains("noLibraryView"), "the fallback screen must not exist (#4783)")
+        XCTAssertFalse(
+            window.contains("Create a new library or open an existing one"),
+            "the create/open prompt text must not exist (#4783)"
+        )
         XCTAssertTrue(
             window.contains("WindowState(libraryId: LibraryManager.globalLibraryId)"),
-            "but launch must seed a library that resolves, so the fallback is not what launch shows"
+            "launch must still seed a library that resolves"
+        )
+    }
+
+    /// A live window WAS seen stuck on the unresolved branch, so it must be
+    /// diagnosable rather than a silent forever-spinner: a one-shot `.notice`
+    /// log (persisted, unlike `.info`) naming the unresolved id.
+    func testTheUnresolvedLibraryBranchLogsDiagnostics() throws {
+        let window = try Self.appSource("App/LibraryWindow.swift")
+
+        XCTAssertTrue(
+            window.contains("libraryWindowLogger.notice("),
+            "the unresolved branch must log at .notice (persisted), not silently spin (#4783)"
+        )
+        XCTAssertTrue(
+            window.contains("loggedUnresolvedLibraryOnce"),
+            "the notice must be gated to fire once, not on every re-render"
+        )
+    }
+
+    // MARK: - resolvedLibraryID always resolves (#4783)
+
+    /// The single decision rule behind `initializeWindow`, tested as a table:
+    /// whatever mix of nil / stale / valid candidates a window is handed, the
+    /// result is always a real id. `global` never needs to be reached through
+    /// a chain of failures to be trusted — it's the function's own guarantee.
+    func testResolvedLibraryIDAlwaysResolves() {
+        let global = LibraryManager.globalLibraryId
+        let seeded = UUID()
+        let pending = UUID()
+        let restored = UUID()
+        let current = UUID()
+        let firstOpen = UUID()
+
+        // Nil seed, nothing else available — falls all the way to global.
+        XCTAssertEqual(
+            LibraryWindow.resolvedLibraryID(
+                seed: nil, pendingWindow: nil, restored: nil, current: nil, firstOpen: nil, global: global
+            ),
+            global
+        )
+
+        // A stale/unknown seed id is already nil by the time it reaches this
+        // function (the caller validates); same result as no seed at all.
+        XCTAssertEqual(
+            LibraryWindow.resolvedLibraryID(
+                seed: nil, pendingWindow: nil, restored: nil, current: nil, firstOpen: firstOpen, global: global
+            ),
+            firstOpen
+        )
+
+        // A closed library's restored id, likewise pre-invalidated to nil —
+        // current still wins over global.
+        XCTAssertEqual(
+            LibraryWindow.resolvedLibraryID(
+                seed: nil, pendingWindow: nil, restored: nil, current: current, firstOpen: firstOpen, global: global
+            ),
+            current
+        )
+
+        // A valid restored id wins over current and firstOpen.
+        XCTAssertEqual(
+            LibraryWindow.resolvedLibraryID(
+                seed: nil, pendingWindow: nil, restored: restored, current: current, firstOpen: firstOpen,
+                global: global
+            ),
+            restored
+        )
+
+        // A pending cross-window hand-off wins over a restored id.
+        XCTAssertEqual(
+            LibraryWindow.resolvedLibraryID(
+                seed: nil, pendingWindow: pending, restored: restored, current: current, firstOpen: firstOpen,
+                global: global
+            ),
+            pending
+        )
+
+        // A valid seed (Duplicate Window) outranks everything, including a
+        // pending hand-off.
+        XCTAssertEqual(
+            LibraryWindow.resolvedLibraryID(
+                seed: seeded, pendingWindow: pending, restored: restored, current: current, firstOpen: firstOpen,
+                global: global
+            ),
+            seeded
         )
     }
 

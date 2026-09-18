@@ -50,6 +50,11 @@ struct LibraryWindow: View {
 
     @State private var hasInitialized = false
     @State private var showingFileImporter = false
+    // #4783: the "provably unreachable" branch in `libraryWindowContent` was
+    // seen live once, so it must be diagnosable, not just theoretically
+    // impossible. Guards the one-shot `.notice` log in that branch so a
+    // window stuck there logs ONCE, not every re-render.
+    @State private var loggedUnresolvedLibraryOnce = false
     // ponytail: NEVER auto-present a sheet in the same update cycle that flips
     // `isBackendRunning` — that's when DocumentTabView swaps ContentView in and
     // the window's NSToolbar does its FIRST full layout. Presenting mid-layout
@@ -87,7 +92,7 @@ struct LibraryWindow: View {
         //
         // This was `UUID()` — a fresh random id that `getLibrary(id:)` can
         // never resolve, so `windowState.library` was nil on the first frame of
-        // every launch and the window rendered `noLibraryView`: "Create a new
+        // every launch and the window rendered the old no-library prompt: "Create a new
         // library or open an existing one to get started". A wall in front of
         // the app, asking a question whose answer is almost always "the one I
         // had last time", before showing anything.
@@ -118,9 +123,46 @@ struct LibraryWindow: View {
                     executionObserver: executionObserver
                 )
             } else {
-                // No library open yet — returning users see a simple create/open prompt.
-                // First-run users are handled by the FirstRunWindow sheet below.
-                noLibraryView
+                // Theoretically unreachable by the id-resolution proof (#4783):
+                // `windowState.libraryId` is always Global on the first frame (see
+                // `init` below) and every later write goes through
+                // `resolvedLibraryID`, whose final fallback IS Global — which
+                // `LibraryManager.shared.init` loads synchronously before any
+                // window can read it. But that proof is about the ID; this branch
+                // is reached when the id is set yet `libraryManager.getLibrary(id:)`
+                // still returns nil for it — e.g. the LIBRARY OBJECT it names was
+                // closed/unregistered out from under this window, or hasn't been
+                // (re-)registered yet. That gap is exactly what the creative
+                // director hit live, so — unlike the deleted no-library prompt
+                // takeover screen — it must recover and be diagnosable, not silent.
+                //
+                // Recovery: `windowState.library` reads `libraryManager.openLibraries`
+                // (an `@Observable` stored property) through `getLibrary(id:)`, and
+                // that read happens while THIS view's body is being evaluated —
+                // SwiftUI's observation tracking attaches to any `@Observable`
+                // property read during body evaluation, however indirectly it's
+                // reached. So whenever `libraryManager.openLibraries` next mutates
+                // (a library loads/re-registers) OR `windowState.libraryId` changes
+                // (`assignLibrary` fires again), this view re-evaluates and takes
+                // the `if` branch once the id resolves — it is not a dead end.
+                //
+                // A native `ProgressView` — the same loading affordance used
+                // throughout the app — covers the wait honestly without inventing
+                // new chrome; the one-shot `.notice` below makes a STUCK window
+                // (never recovers) diagnosable from a sysdiagnose instead of
+                // reading as a silent forever-spinner.
+                ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .onAppear {
+                        guard !loggedUnresolvedLibraryOnce else { return }
+                        loggedUnresolvedLibraryOnce = true
+                        libraryWindowLogger.notice("""
+                            libraryWindowContent unresolved (#4783): libraryId=\(windowState.libraryId, privacy: .public), \
+                            isGlobal=\(windowState.libraryId == LibraryManager.globalLibraryId), \
+                            openLibraries=\(libraryManager.openLibraries.count), \
+                            globalRegistered=\(libraryManager.globalLibrary != nil)
+                            """)
+                    }
             }
         }
     }
@@ -277,47 +319,6 @@ struct LibraryWindow: View {
         }
     }
 
-}
-
-// MARK: - Empty state (no library open, first-run already completed)
-
-private extension LibraryWindow {
-    /// Returning-user empty state: shown when no library is open and the
-    /// first-run wizard has already been completed.  First-time users see
-    /// the FirstRunWindow sheet instead (which handles library creation).
-    var noLibraryView: some View {
-        VStack(spacing: 24) {
-            Image(systemName: "doc.richtext")
-                .font(.largeTitle.weight(.semibold))
-                .foregroundColor(.accentColor)
-
-            Text("Fichero")
-                .font(.largeTitle)
-                .fontWeight(.semibold)
-
-            Text("Create a new library or open an existing one to get started.")
-                .font(.body)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-
-            HStack(spacing: 16) {
-                LibrarySetupActionsRow(
-                    primaryTitle: "New Library",
-                    primaryIcon: "plus",
-                    primaryAction: createNewLibrary,
-                    selectedLabel: nil
-                )
-                .buttonStyle(.borderedProminent)
-
-                Button { showingFileImporter = true } label: {
-                    Label("Open Library", systemImage: "folder")
-                }
-                .buttonStyle(.bordered)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(40)
-    }
 }
 
 private struct WindowAccessor: NSViewRepresentable {
