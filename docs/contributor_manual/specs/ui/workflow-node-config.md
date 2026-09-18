@@ -61,7 +61,7 @@ Transcribe (`transcribe`)
 - `nodeconfig.fields.transcribe.language` — [OK] Language/Locale picker; legacy codes (`es`, `es_mx`) normalise to canonical (`es-ES`, `es-MX`); `auto` allowed. (Pinned: `TranscribeNodeConfigTests`.)
 - `nodeconfig.fields.transcribe.image-size.llm-only` — Max Image Size appears whenever the run will go through an LLM, hidden when Apple Vision / Kraken will read the page.
 - `nodeconfig.fields.transcribe.prompt.llm-only` — **[OK]** the Prompt editor appears whenever the run will go through an LLM — including `vision_mode = "auto"` (the server default for new nodes) and `$vision_*` alias selections; `TranscribeNodeConfig.showsLLMFields` now treats llm/auto and any chosen provider/alias as LLM paths, while apple/kraken hide the LLM fields. (F2; pinned: `TranscribeNodeConfigTests`.)
-- `nodeconfig.fields.transcribe.kraken-model` — [GAP] when the engine offers `kraken` mode, the `kraken_model` choice the server schema declares is offered; today the custom view omits it.
+- `nodeconfig.fields.transcribe.kraken-model` — [GAP] (#4707) when the engine offers `kraken` mode, the `kraken_model` choice the server schema declares is offered; today the custom view omits it.
 
 Describe (`describe`)
 - `nodeconfig.fields.describe.detail-level` — [OK] segmented Brief/Detailed/Comprehensive → `detail_level`.
@@ -75,15 +75,15 @@ Summarize File / Folder / Collection
 - `nodeconfig.fields.summarize.thinking-mode` — [OK] Thinking Mode picker on all three.
 - `nodeconfig.fields.summarize-folder.include-themes` — [OK] toggle → `include_themes`.
 - `nodeconfig.fields.summarize-collection.include-statistics` — [OK] toggle → `include_statistics`.
-- `nodeconfig.fields.summarize-file.prompt` — **[BROKEN]** the prompt editor shows the tool's default (ghosted) so the user can see what they are overriding; today it is an empty box labelled "Custom Prompt (optional)". (F5)
-- `nodeconfig.fields.summarize-folder+collection.prompt` — **[GAP]** these two have no prompt surface at all, and the server builds their prompt from an f-string with no override and no `prompt_builder`, so even the Prompt Preview shows an empty string. Design decision needed: make the prompt editable end-to-end (server `prompt_builder` + `inputs.get("prompt")`), or state in the popover that this tool's prompt is fixed. Never an empty preview. (F5)
+- `nodeconfig.fields.summarize-file.prompt` — **[OK]** the prompt editor shows the tool's default (ghosted) so the user can see what they are overriding: `SummarizeFileNodeConfig` now composes the shared `NodePromptEditor` (`backendPrompt` + `toolInfo?.defaultPrompt`). Fixed in `719094241`; pinned by `NodePromptEditorTests`. (F5)
+- `nodeconfig.fields.summarize-folder+collection.prompt` — **[GAP]** (#4708) these two have no prompt surface at all, and the server builds their prompt from an f-string with no override and no `prompt_builder`, so even the Prompt Preview shows an empty string. Design decision needed: make the prompt editable end-to-end (server `prompt_builder` + `inputs.get("prompt")`), or state in the popover that this tool's prompt is fixed. Never an empty preview. (F5)
 
 Extract Entities (`extract_entities`)
 - `nodeconfig.fields.entities.targets` — [OK] built-in targets plus library-registered custom types as checkboxes → `entity_types` (sorted array).
 - `nodeconfig.fields.entities.add-custom` — [OK] adding a target registers it in the library, checks it, clears the field; failure is shown inline, not swallowed.
 - `nodeconfig.fields.entities.remove-custom` — [OK] the chip disappears only after the backend confirms; built-ins have no remove button.
 - `nodeconfig.fields.entities.include-context` — [OK] toggle → `include_context`.
-- `nodeconfig.fields.entities.prompt` — **[GAP]** the server honours a `prompt` override for this tool, but the popover offers no editor; the prompt is invisible except via the collapsed preview. (F5)
+- `nodeconfig.fields.entities.prompt` — **[OK]** the server honours a `prompt` override for this tool, and the popover now offers an editor: `ExtractEntitiesNodeConfig` composes the shared `NodePromptEditor` (`backendPrompt` + `toolInfo?.defaultPrompt`), matching Describe/SummarizeFile. Fixed in `a265cf7f3`; pinned by `NodeSubtitleAndApplyTests.testEntitiesNodeComposesPromptEditor`. (F5)
 
 Sources: Files / Collection / Search
 - `nodeconfig.fields.files.selection-default` — [OK] with no pinned files the node states it uses the library selection at run time, with a "Pin specific files…" affordance.
@@ -104,7 +104,7 @@ Zoom (`zoom`)
 - `nodeconfig.prompt.one-editor-component` — all prompt editing goes through one component (the `DynamicConfigView.promptEditor` pattern); Transcribe/Describe/Summarize-file stop hand-rolling divergent editors.
 - `nodeconfig.prompt.preview.assembled` — [OK] the Prompt Preview disclosure fetches the assembled prompt (config included, arrays and nested values converted recursively), re-fetches 300 ms after any config change while open, and offers Copy.
 - `nodeconfig.prompt.preview.shown-for-llm-tools` — **[OK]** the preview shows for every LLM tool regardless of provider choice; `node.usesLLM` is now a stable tool fact (no longer flipped to `false` on "Default"), so a Default-provider summarize node keeps its preview. (F6; pinned: `NodeProviderModelSelectorVisionModeTests`.)
-- `nodeconfig.prompt.preview.never-empty` — **[BROKEN]** a tool with no prompt states "This tool has no prompt" instead of rendering an empty box (folder/collection summaries today). (F5)
+- `nodeconfig.prompt.preview.never-empty` — **[BROKEN]** (#4709) a tool with no prompt states "This tool has no prompt" instead of rendering an empty box (folder/collection summaries today). (F5)
 
 ### C. Provider / model selection — cross-surface invariant with Settings
 
@@ -115,11 +115,11 @@ Zoom (`zoom`)
 - `nodeconfig.model.aliases` — [OK] `$small`/`$large` always; `$vision_small/medium/large` only for vision tools; choosing one persists the alias as `providerName`, clears `modelName`, hides the model picker. (Pinned: `NodeProviderModelSelectorVisionModeTests`.)
 - `nodeconfig.model.apple-vision-entry` — [OK] tools that support on-device OCR list "Apple Vision (On-Device)"; choosing it sets `vision_mode = "apple"` and clears provider/model; the catalog's Apple Intelligence row is hidden to avoid a duplicate Apple choice.
 - `nodeconfig.model.vision-only-filter` — [OK] a vision tool lists only vision-capable providers, shows vision aliases, and says "No vision-capable providers available" when none.
-- `nodeconfig.model.vision-requirement-from-server` — **[GAP]** which tools need vision / support Apple Vision comes from the served tool definition (server already knows `supports_apple_vision`, `requires_generative_model`, category); today the popover keeps two hard-coded sets (`visionTools`, `appleVisionTools`) that drift from the registry — the pattern #4477 forbade for port conversions. (F8)
+- `nodeconfig.model.vision-requirement-from-server` — **[GAP]** (#4710) which tools need vision / support Apple Vision comes from the served tool definition (server already knows `supports_apple_vision`, `requires_generative_model`, category); today the popover keeps two hard-coded sets (`visionTools`, `appleVisionTools`) that drift from the registry — the pattern #4477 forbade for port conversions. (F8)
 - `nodeconfig.model.uses-llm-is-tool-fact` — **[OK]** `node.usesLLM` describes the TOOL and never changes with the provider choice; `NodeProviderModelSelector.apply` (pure static) no longer sets `usesLLM=false` on "Default", so the provider section, Compare Models button and Prompt Preview survive reopen. (F6; pinned: `NodeProviderModelSelectorVisionModeTests`.)
-- `nodeconfig.model.auto-mode-representation` — **[BROKEN]** a transcribe node whose `vision_mode` is `"auto"` (server default for new nodes) shows "Default" in the picker AND its LLM-only fields (prompt, image size), since auto resolves to LLM unless the resolved provider is Apple. Today it shows Default with the LLM fields hidden. (F2/F3)
+- `nodeconfig.model.auto-mode-representation` — **[BROKEN]** (#4711) a transcribe node whose `vision_mode` is `"auto"` (server default for new nodes) shows "Default" in the picker AND its LLM-only fields (prompt, image size), since auto resolves to LLM unless the resolved provider is Apple. Today it shows Default with the LLM fields hidden. (F2/F3)
 - `nodeconfig.model.provider-switch-picks-first-model` — [OK] selecting an LLM provider auto-selects its first model so the node is never provider-without-model.
-- `nodeconfig.model.stale-provider-visible` — **[BROKEN]** if the node's saved provider is no longer among the loaded providers (disabled/removed), the picker shows the stale value with a warning; today it silently shows "Default" while `providerName` still carries the stale id the run will use. (F11)
+- `nodeconfig.model.stale-provider-visible` — **[BROKEN]** (#4712) if the node's saved provider is no longer among the loaded providers (disabled/removed), the picker shows the stale value with a warning; today it silently shows "Default" while `providerName` still carries the stale id the run will use. (F11)
 - `nodeconfig.model.compare-apply-updates-picker` — **[OK]** applying a Compare Models result updates the visible provider/model selection immediately; `NodeComparisonSheet`'s `onApply` now moves both `selectedProviderId`/`selectedModelId` as well as the node fields, so the chip no longer stays on the old model until reopen. (F13; pinned: `NodeSubtitleAndApplyTests.testCompareApplyUpdatesPickerSelection`.)
 - `nodeconfig.model.reload` — [OK] the header refresh re-loads providers; loading shows a spinner; an empty list says "No providers configured".
 
@@ -136,8 +136,8 @@ Zoom (`zoom`)
 ### E. Canvas representations agree with the config
 
 - `nodeconfig.canvas.subtitle-reflects-provider` — [OK] the node subtitle states what will answer: "Apple Vision", the model name, or the alias rendered readably ("Vision · Large"). The rule is extracted to a pure static (`WorkflowNodeView.nodeSubtitle`) that falls back to the alias when `modelName` is nil, so alias nodes are no longer blank. (F9b; pinned: `NodeSubtitleAndApplyTests`.)
-- `nodeconfig.canvas.icon-color-from-registry` — [BROKEN-partial] icon/colour come from the served registry on every canvas representation; `WorkflowNodeCard`/`WorkflowNodeRow` still carry their own hard-coded maps (the canvas node already reads the registry).
-- `nodeconfig.canvas.list-row-shows-config-summary` — [GAP] the list row shows the same provider/model summary as the canvas subtitle instead of the (x, y) position badge.
+- `nodeconfig.canvas.icon-color-from-registry` — [BROKEN-partial] (#4749) icon/colour come from the served registry on every canvas representation; `WorkflowNodeCard`/`WorkflowNodeRow` still carry their own hard-coded maps (the canvas node already reads the registry).
+- `nodeconfig.canvas.list-row-shows-config-summary` — [GAP] (#4713) the list row shows the same provider/model summary as the canvas subtitle instead of the (x, y) position badge.
 
 ## First wave to pin (proposed — awaiting the design lead)
 

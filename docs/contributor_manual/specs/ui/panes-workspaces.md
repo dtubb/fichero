@@ -205,13 +205,13 @@ the Mail default. The Mail layout is just one composition the reliable system ca
 Findings from the creative director running the chat-in-sidebar build. Chat-in-sidebar
 itself works (committed c4a22c2b5). The rest are the workspace/pane defects to pin+fix.
 
-- `panes.chat.toggle-in-sidebar-top` — **[GAP]** the chat show/hide toggle should sit at the
-  TOP of the sidebar, to the LEFT of the sidebar (panel) button — not the sparkles button in
-  the main toolbar.
-- `panes.sidebar-button.in-sidebar-section` — **[GAP]** the sidebar toggle button belongs IN
+- `panes.chat.toggle-in-sidebar-top` — **[GAP]** (→ #4705 increment 6) the chat show/hide toggle
+  should sit at the TOP of the sidebar, to the LEFT of the sidebar (panel) button — not the
+  sparkles button in the main toolbar.
+- `panes.sidebar-button.in-sidebar-section` — **[GAP]** (#4735) the sidebar toggle button belongs IN
   the sidebar's own top-left section (Xcode-style), not floating in the main window toolbar's
   left group.
-- `panes.split.asymmetric` — **[GAP/BROKEN]** splitting a preview vertically then horizontally
+- `panes.split.asymmetric` — **[GAP/BROKEN]** (#4737) splitting a preview vertically then horizontally
   makes a **2×2 grid of 4**; the CD wants asymmetric nesting ("2 over 1" — two panes on top,
   one below). The current split caps at a symmetric 2×2 (`SplittablePane.swift:156-166`) and
   every sub-pane renders the same content. Needs nested/asymmetric split (part of F7).
@@ -235,24 +235,24 @@ itself works (committed c4a22c2b5). The rest are the workspace/pane defects to p
 
 ### Post-F7 design refinements (CD, 2026-09-14) — capture, revisit after F7
 
-- `panes.kg.select-shows-item-inspector` — **[GAP, post-F7]** clicking a claim or entity row
+- `panes.kg.select-shows-item-inspector` — **[GAP, post-F7]** (→ #4705 increment 7) clicking a claim or entity row
   auto-opens the full **document inspector** (with its source) today (works, but heavy). The
   CD wants selection to instead show a **focused inspector for THAT claim/entity** — the
   item's own inspector, not the whole document+source surface. (Ties `kg-entity-inspector`;
   a claim inspector is the claim-side equivalent.)
-- `panes.kg.clickable-lists-and-sidebar` — **[GAP, post-F7]** richer click-through
+- `panes.kg.clickable-lists-and-sidebar` — **[GAP, post-F7]** (#4742) richer click-through
   interactions in the claims/entities lists AND the sidebar (click things to act/navigate).
   Deferred by the CD until F7 lands.
-- `panes.content-column-under-sidebar` — **[BROKEN, F7]** (screenshots confirm) the content
+- `panes.content-column-under-sidebar` — **[BROKEN, F7]** (#4743) (screenshots confirm) the content
   column starts at the window's LEFT EDGE (x=0) and runs UNDER the sidebar: with the sidebar
   shown, the leftmost columns are covered; hide the sidebar and the full content appears. CD
   2026-09-14: this is NOT KG-specific — **Claims, Entities, workflows, and images all do it**,
   so it's the general content-column placement in the renderer, not a per-view bug. The column
   isn't reserving the sidebar's width. An F7 issue (one renderer that lays the content column
   out consistently for every view).
-- `panes.vertical-no-breadcrumb` — **[BROKEN, F7]** the vertical split/pane has no breadcrumb
+- `panes.vertical-no-breadcrumb` — **[BROKEN, F7]** (#4744) the vertical split/pane has no breadcrumb
   bar (the horizontal one does). Another renderer-consistency gap → F7.
-- `panes.kg.filter-targets-active-view` — **[BROKEN]** two disconnected entity-filter controls:
+- `panes.kg.filter-targets-active-view` — **[BROKEN]** (#4745) two disconnected entity-filter controls:
   the main view (`EntitiesLibraryContent`/`ClaimsLibraryContent`) uses a LOCAL `@State filterText`,
   while the inspector + ontology surfaces read the shared `EntitySearchState` bus (a `@State` on
   ContentView). So the bottom-toolbar "Filter Entities" (which drives the bus) filters the
@@ -264,19 +264,17 @@ itself works (committed c4a22c2b5). The rest are the workspace/pane defects to p
 A sweep for the same bug class as the fixed findings surfaced deeper, design-entangled
 defects (the toggle half of the CD's "can't turn preview/library/reader on or off"):
 
-- `panes.toggles.inert-outside-widescreen` — **[BROKEN, F1/F7]** the Preview/Reader/Chat
-  toolbar toggles are **no-ops in `.standard`/`.none` layout modes**: `centerContentRouting`
-  (`ContentView+SidebarLayout.swift:170-197`) reads only `showDocumentGrid`, never
-  `showDocumentCanvas`/`showReadingPane`/`showChatPane` — those flags are honored ONLY by
-  the widescreen pane-list path. Worse, turning a pane ON force-sets
-  `currentLayoutMode = .widescreen` (`ContentView+ActionsUI.swift:86-102`) — an unrequested
-  reflow riding on a toggle; turning OFF is just inert. This is the two-renderer divergence
-  (F1); the honest fix is F7 (one renderer, all modes honor the pane list), OR a CD ruling on
-  what a toggle should DO in non-widescreen. Testable seam: a pure
-  `visiblePanes(layoutMode:showDocumentGrid:showDocumentCanvas:showReadingPane:showChatPane:)`
-  whose result must change when EACH flag flips, for EVERY LayoutMode (fails today for
-  `.none`/`.standard`).
-- `panes.dead-toggle-policy` — **[BROKEN, cleanup]** `ReadingWorkspacePaneTogglePolicy`
+- `panes.toggles.inert-outside-widescreen` — **[OK, 2026-09-18]** (fixed 73478d926, 9d428aee9,
+  fe5b282c4) the Preview/Reader/Chat toolbar toggles are no longer no-ops outside widescreen —
+  `centerContentRouting` (the layoutMode-gated legacy renderer this bug depended on) is DELETED
+  (confirmed: only a doc comment referencing it remains, `PaneSpec.swift:21`), and the toggle
+  buttons (`ContentView+Toolbar.swift:186,195,207,256`) read/write `paneVisibility`/
+  `activePaneList` directly — derived from the pane list, not gated by `LayoutMode`. A repo-wide
+  search for `currentLayoutMode = .widescreen` (the force-reflow this line complained about)
+  found zero remaining call sites. Pinned: `ToolbarSurfaceLitStateTests.paneTogglesLight` (the
+  toolbar reads `paneVisibility`, not a layoutMode-gated Bool) — same fix cluster as
+  `panes.visibility.derived-from-list` above.
+- `panes.dead-toggle-policy` — **[BROKEN, cleanup]** (#4747) `ReadingWorkspacePaneTogglePolicy`
   (`Models/LayoutMode.swift:237-253`) documents the exact intended behavior for the above
   ("a toggle from None/Standard enters the widescreen workspace and shows that pane") but has
   **zero call sites** — the real toggle path reimplements only its ON-half inline. A second
@@ -398,21 +396,22 @@ the browse→read flow down the centre.
   "…collapses to the survivor — the row does not disappear") + `PaneInstanceIndependenceTests`.
 - `panes.head.kind-switcher-everywhere` — **[BROKEN]** (#4706, reported 2026-09-18) every pane head
   that renders a leaf kind mounts the kind selector, so ANY pane can become a Library, Source or
-  Reader. Today only the Library and Preview heads mount `PaneKindSelector`; the Reader head shows
-  its lens menu alone and the chat dock has its own switcher, although every leaf already receives
-  the switcher through `\.paneKindSwitcher` (`PaneSpec.swift:318-321`). Placeholder kinds
+  Reader. Cause (verified): the Reader head mounts `PaneKindSelector` with `collapsesKindIntoLens: true`
+  (the one-icon ruling), whose merged-lens path never consulted `\.paneKindSwitcher`; Library /
+  Preview / Chat take the adaptive path, which does. Every leaf already receives the switcher
+  (`PaneSpec.swift:318-321`). Placeholder kinds
   (`.inspector`, `.chat`) stay out of the list until they are real leaves (#4705, increments 6–7);
   the chat head gains the selector when chat becomes a pane. *Test:* a source guardrail that every
   pane head mounts `PaneKindSelector`, plus a pure test of `selectableKinds`.
-- `panes.split.independent-mode-per-pane` — **[BROKEN]** each pane holds its own view mode;
+- `panes.split.independent-mode-per-pane` — **[BROKEN]** (#4720) each pane holds its own view mode;
   changing one pane to Entities or Claims does not clear or convert the others. Today
   switching a pane's node-type to entity/claim in the entities view removes them from the
   other panes.
-- `panes.open-view-arbitrarily` — **[GAP]** any pane can be set to any view mode (source /
+- `panes.open-view-arbitrarily` — **[GAP]** (#4722) any pane can be set to any view mode (source /
   words / entities / claims / graph / inspector) directly, without routing through a
   document selection. Today there is no way to open an entity or claim view arbitrarily in
   a window.
-- `panes.compose-three-plus` — **[GAP]** a window supports three or more panes, and any
+- `panes.compose-three-plus` — **[GAP]** (#4724) a window supports three or more panes, and any
   pane may hide its image while another shows it.
 - `panes.visibility.derived-from-list` — **[OK, 2026-09-18]** which content panes show
   (library/preview/reading) is a PURE derivation of `activePaneList.kinds`
@@ -457,21 +456,21 @@ the browse→read flow down the centre.
 > MORE THAN ONE pane: whether each pane holds its own, and whether they sync. This spec owns the
 > plumbing; the preview spec owns the instrument.
 
-- `panes.magnifier.per-pane-open-state` — **[GAP]** each pane's magnifier opens and closes
+- `panes.magnifier.per-pane-open-state` — **[GAP]** (#4725) each pane's magnifier opens and closes
   independently — one pane magnified while another is not. (Pane-scoped state; the magnifier's
   own behavior is `preview-magnifier`.)
-- `panes.zoom.sync-across-panes` — **[GAP]** when synchronization is on, zoom/magnification
+- `panes.zoom.sync-across-panes` — **[GAP]** (#4726) when synchronization is on, zoom/magnification
   in one pane drives the corresponding region in the others (original ↔ words), so the loupe
   is shared; sync is toggleable, off by default. This is the ONE genuinely cross-pane magnifier
   behavior — it cannot live in the preview spec because it is about panes relating to each other.
-- `panes.words.fill-bounding-box` — **[GAP]** on request, transcribed words expand to fill
+- `panes.words.fill-bounding-box` — **[GAP]** (#4728) on request, transcribed words expand to fill
   their segment's bounding box, occupying the same geometry as the underlying ink. Owned by
   `segment-representations` (the `text` representation rendered into the segment anchor); listed
   here only because it is observed in a pane.
 
 ### C. Unified entity ↔ claims view system
 
-- `panes.kg.one-view-system` — **[BROKEN]** the entities view and the claims view are the
+- `panes.kg.one-view-system` — **[BROKEN]** (→ #4705 increment 3) the entities view and the claims view are the
   same pane-system view, sharing selection grammar, split, magnifier, and workspace
   persistence. Today they are separate implementations that behave differently.
 - `panes.kg.library-change-resets` — **[OK]** (fixed 5b709aca0) switching the active library
@@ -479,16 +478,16 @@ the browse→read flow down the centre.
   composite `library|folder` key and rebuild the cached model on a library switch; Entities
   key on `ObjectIdentifier(store)`. Pinned:
   `Tests/Unit/general/Views/Library/ClaimsLibraryReloadKeyTests.swift`.
-- `panes.entity.sources-pane` — **[GAP]** an entity pane can show **all source pages** the
+- `panes.entity.sources-pane` — **[GAP]** (#4729) an entity pane can show **all source pages** the
   entity appears on — scroll through them, see the same name across four documents, judge
   whether it is one person. (An entity is a name; its statements/sources are where it
   lives — see `kg-entity-inspector`.)
-- `panes.claim.sources-pane` — **[GAP]** a claim (or a page's set of claims) can show its
+- `panes.claim.sources-pane` — **[GAP]** (#4730) a claim (or a page's set of claims) can show its
   source pages in a preview pane, each anchored to the passage.
 
 ### D. Workspaces
 
-- `panes.workspace.save` — **[OK, composition; GAP, live selection/sync]** "Save Current as
+- `panes.workspace.save` — **[OK, composition; GAP, live selection/sync]** (#4731 for the GAP half) "Save Current as
   Workspace…" captures the REAL pane composition, not a lie: `WindowLayoutSnapshot.paneList:
   PaneList?` (`WindowWorkspace.swift`) is set to `activePaneList` (`captureLayoutSnapshot`,
   `ContentView+LayoutChooser.swift`) — this was the field that was missing (§"Existing
@@ -525,25 +524,25 @@ the browse→read flow down the centre.
 
 ### E. Default layout & chat placement
 
-- `panes.layout.mail-default` — **[PARTIAL]** (seed built 2026-09-16, dfa937946) a fresh window now
+- `panes.layout.mail-default` — **[OK]** (seed built 2026-09-16, dfa937946; pinned `BuiltInWorkspaceLayoutTests`) a fresh window now
   seeds a real built-in `PaneList` — `activePaneList` defaults to **Read** — so the window always
   opens in a composed workspace via the F7 path (no more nil-defaulted legacy fallback). The specific
   *Mail-style* composition below is **superseded as the seed by Read** (library+reader beside a
   full-height preview); the sidebar+chat left column and full-height right source hold, but the exact
   centre split described here is the Browse/Read arrangement, not a distinct "Mail" default. Pinned:
   `BuiltInWorkspaceLayoutTests` (Read is the default; one library leaf over reader, beside preview).
-- `panes.chat.below-sidebar` — **[BROKEN]** the chat history and its input live in the left
+- `panes.chat.below-sidebar` — **[BROKEN]** (→ #4705 increment 6) the chat history and its input live in the left
   sidebar beneath the folder tree, in a collapsible split region; the input is attached to
   the chat history. Today the chat prompt sits at the bottom of the centre column, under the
   image/reader, rather than under the chat text.
-- `panes.chat.collapsible-split` — **[GAP]** the sidebar↔chat divider drags to resize and
+- `panes.chat.collapsible-split` — **[GAP]** (→ #4705 increment 6) the sidebar↔chat divider drags to resize and
   collapses the chat region when only navigating.
-- `panes.library.horizontal-icon-strip` — **[BROKEN/GAP]** the library browser renders as a
+- `panes.library.horizontal-icon-strip` — **[BROKEN/GAP]** (#4732) the library browser renders as a
   horizontal thumbnail strip (icon/list, Mail message-list style) at the top of the centre
   column ("I want the icon view back — horizontal, like in Mail").
-- `panes.reader.one-or-two-below-browser` — **[GAP]** below the browser strip sit one or two
+- `panes.reader.one-or-two-below-browser` — **[GAP]** (#4733) below the browser strip sit one or two
   readers (transcription / summary / metadata), driven by the browser selection.
-- `panes.source.full-height-right` — **[GAP]** the source image occupies the full-height
+- `panes.source.full-height-right` — **[GAP]** (#4734) the source image occupies the full-height
   right column by default.
 
 ## Known bugs to fix (already observed by the creative director)
@@ -918,7 +917,7 @@ workspaces store a `PaneList`, the window is *always* a `PaneList`, the Bool-vis
 
 ### Pane-linkage color coding — IDEA 2026-09-15 (CD), for design
 
-- `panes.linkage-color` — **[GAP/IDEA]** In a multi-column workspace (Compare especially) it isn't
+- `panes.linkage-color` — **[GAP/IDEA]** (#4666) In a multi-column workspace (Compare especially) it isn't
   obvious which library/list drives which preview/reader. Idea: tint each linked pane GROUP with a
   soft background color — the Xcode-theme-picker model (colored row bands) — so "this list → this
   preview → this reader" reads at a glance. Each `PaneScope` group (a column's library + the panes
@@ -968,7 +967,7 @@ Creative director, running the app (the one-renderer + old split/close wiring st
   OFF (no Library/Reader hairline), and the ChatView standalone `Divider` was removed. `\.isSolePane`
   additionally collapses the head's close control when a pane is the only one. (The preview's minimal,
   line-less, tight style is now the shared one — Golden-Gate restraint.)
-- `panes.head.drag-to-rearrange` — **[GAP, requested]** Dragging a pane by the icon at the LEFT of
+- `panes.head.drag-to-rearrange` — **[GAP, requested]** (#4748) Dragging a pane by the icon at the LEFT of
   its head (the kind/preview icon) should let the user move that pane elsewhere in the composition
   (reorder / re-nest). A direct-manipulation complement to the pane list. New.
 

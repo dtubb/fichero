@@ -40,9 +40,9 @@ pane (`panes.magnifier.per-pane-open-state`, `panes.zoom.sync-across-panes`).
 - `magnifier.states-its-power` **[OK]** — the loupe shows a `N.Nx · NNNpx` badge so magnification
   is never guessed.
 - `magnifier.right-click-dismiss` **[OK]** — right-clicking a placed loupe removes it.
-- `magnifier.follow-mouse-bar` **[GAP]** — a bottom magnifier BAR that tracks the pointer and
+- `magnifier.follow-mouse-bar` **[GAP]** (#4716) — a bottom magnifier BAR that tracks the pointer and
   magnifies the strip under it (distinct from the round loupe), for scanning a line of text.
-- `magnifier.per-source-memory` **[GAP]** — a source remembers its loupe size/magnification, so
+- `magnifier.per-source-memory` **[GAP]** (#4717) — a source remembers its loupe size/magnification, so
   returning to a hand you were working resumes where you were.
 
 ## Test matrix

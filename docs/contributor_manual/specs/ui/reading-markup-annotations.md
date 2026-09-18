@@ -59,7 +59,7 @@ transform); this pins WHAT a mark is and how it behaves. Grounded in the ruling 
   `api/routes/document/annotations.py:~211` (`tag: str | None = Query(...)` param) and `:~230`
   (`if tag is not None: rows = [r for r in rows if tag in (r.tags or [])]`). Pinned:
   `tests/unit/api/test_annotations.py:~179` (`test_list_filter_by_tag`).
-- `markup.review.library-wide` **[GAP]** — the per-document `annotations` representation exists, but a
+- `markup.review.library-wide` **[GAP]** (#4718) — the per-document `annotations` representation exists, but a
   LIBRARY-WIDE review surface (all checked/rated lines across sources) is still queued (ruling #5).
 
 ## Test matrix

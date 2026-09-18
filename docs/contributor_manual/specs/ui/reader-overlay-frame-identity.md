@@ -46,7 +46,7 @@ only as correct as the answer to "did this rendition re-frame?" — carried by `
 - `frame.same-frame-ops-draw` **[OK]** — enhance-family ops (`enhance`, `grayscale`, `denoise`,
   `remove_background`, `adaptive_binarize`, `sharpen`) keep the frame, so overlays keep drawing. Same
   tests.
-- `frame.engine-authoritative` **[GAP]** — the client list is a hand-maintained MIRROR of the
+- `frame.engine-authoritative` **[GAP]** (#4681) — the client list is a hand-maintained MIRROR of the
   engine's op vocabulary (`api/routes/ingest/image_editing.py` for the op registry/validation,
   `media/image_ops.py` for the actual pixel dispatch — not `ingest/image_editing.py`, which doesn't
   exist at that path). It can fall behind again (that is exactly how `auto_deskew` went missing: it
@@ -55,10 +55,10 @@ only as correct as the answer to "did this rendition re-frame?" — carried by `
   engine stamps `frame_status` (`same`/`reframed`/`unknown`) on each rendition it produces (the
   interactive editor path does not today — only the importer manifest does), and the client reads
   that one field, deleting `frameChangingOps`.
-- `frame.fail-closed` **[GAP]** — an op the client does not recognize should count as
+- `frame.fail-closed` **[GAP]** (#4714) — an op the client does not recognize should count as
   `hasOwnFrame: true` (skip = blank) rather than `false` (draw), so a future engine op can never
   silently misplace overlays. Today the default is draw (false).
-- `frame.pdf-marks-gated` **[GAP]** — saved annotation MARKS on the PDF surface
+- `frame.pdf-marks-gated` **[GAP]** (#4715) — saved annotation MARKS on the PDF surface
   (`PDFPageWithToolbar.swift`) are not frame-gated (follow-up #5 from the 2026-09-03 review). PDF OCR
   boxes themselves are handled (rotation + cropBox offset).
 
