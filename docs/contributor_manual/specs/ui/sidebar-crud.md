@@ -95,6 +95,14 @@ Both issues are already on this milestone (#291); no new issues were needed.
   stands: `SidebarActions.swift:224` (and `:85`) call `documentStore.refresh()`
   unconditionally per item in a batch-delete loop — a wholesale `loadCollections` per
   deleted item, not the one-splice-then-one-rebuild the behavior promises.
+- `delete.trash-browsable` — **[GAP]** (#2077) a deleted item is reachable in a browsable Trash
+  surface (restore, or purge permanently) and soft-delete extends beyond Document to claim/
+  entity/annotation/note/workflow. Verified: the backend routes exist for Document only
+  (`GET /trash`, `POST /{doc_id}/restore`, `DELETE /{doc_id}/purge` — `documents.py:739,1585,
+  1601`); no Swift Trash view exists (`grep -rl "TrashView" fichero/fichero/Views` = empty) and
+  no other type has the soft-delete/restore/purge pattern. This is the FRONTEND-and-other-types
+  remainder `delete.subtree-only`/`.selection-safe`/`.multi` above don't cover — those pin the
+  Document-delete MECHANICS; this pins whether a deleted item can be found and undone again.
 
 ## First worked example (this PR — the delete behaviors)
 

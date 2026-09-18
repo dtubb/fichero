@@ -215,6 +215,11 @@ itself works (committed c4a22c2b5). The rest are the workspace/pane defects to p
   makes a **2×2 grid of 4**; the CD wants asymmetric nesting ("2 over 1" — two panes on top,
   one below). The current split caps at a symmetric 2×2 (`SplittablePane.swift:156-166`) and
   every sub-pane renders the same content. Needs nested/asymmetric split (part of F7).
+- `panes.minimap-secondary-pane` — **[GAP]** (#1932) a secondary split pane can act as a MINIMAP
+  of the primary — a zoomed-out overview, especially for the WebKit/KG view. The split/side-by-
+  side half of this request is substantially covered already (`panes.split.asymmetric`,
+  `panes.split.independent-mode-per-pane`, `panes.compose-three-plus`) — the minimap-specific
+  rendering mode is the part none of those name.
 - `panes.library.horizontal-and-entities-parity` — **[OK]** (fixed a7d349724) the Entities view
   no longer "takes over" — entity/claim/folder library selections all keep the same panes. Was:
   `showsPreviewPane` special-cased only entities→false (full-width takeover) while Claims kept
@@ -486,9 +491,31 @@ the browse→read flow down the centre.
   lives — see `kg-entity-inspector`.)
 - `panes.claim.sources-pane` — **[GAP]** (#4730) a claim (or a page's set of claims) can show its
   source pages in a preview pane, each anchored to the passage.
+- `panes.inspector-always-visible` — **[GAP]** (#1199) the inspector is a stable, always-present
+  rightmost pane across every view (library, reading, KG graph, workflow) — never hidden, never
+  replaced by a takeover. Not built: `.inspector` is a PLACEHOLDER kind today, not a real leaf
+  (`panes.head.kind-switcher-everywhere`'s own text: "placeholder kinds (`.inspector`, `.chat`)
+  stay out of the list until they are real leaves"); the spec's own Migration order already names
+  "Inspector as a `PaneKind`" as a planned step (§Migration item 3) — this behavior is that
+  step's acceptance criterion, not new scope.
+- `panes.inspector-chrome-icon-tabs` — **[GAP]** (#1854) every right-hand inspector surface
+  (document inspector, WebKit/KG view, image/preview) renders its tabs as a compact SF-Symbols
+  icon tab-bar (Xcode-style) with a centered "No Selection" placeholder when nothing is selected,
+  rather than each surface inventing its own chrome. Pure presentation, not a content change —
+  distinct from `panes.inspector-always-visible` above (whether the inspector exists at all vs.
+  how its own tabs look once it does).
 
 ### D. Workspaces
 
+- `panes.workspace.crud-contract` — **[OK]** (verify-close candidate; TL-2's original ask, filed
+  before this backend existed) a workspace's `curated_items` support atomic add/remove/reorder
+  and resolve their aliases to full objects, library-canonical (never copied). Built:
+  `PATCH /{doc_id}/workspace` (`documents.py:997`) and `GET /{doc_id}/workspace/items`
+  (`documents.py:1015`, resolving `curated_items` via `_normalize_curated_items`) both exist.
+  Pinned: `test_routes_documents_workspace.py::test_workspace_patch_add_remove_reorder_items`,
+  `::test_workspace_items_resolve_document_alias_targets`,
+  `::test_list_workspaces_returns_only_workspace_docs`,
+  `::test_document_and_agent_workspaces_have_distinct_endpoints`.
 - `panes.workspace.save` — **[PARTIAL]** "Save Current as
   Workspace…" captures the REAL pane composition, not a lie: `WindowLayoutSnapshot.paneList:
   PaneList?` (`WindowWorkspace.swift`) is set to `activePaneList` (`captureLayoutSnapshot`,
@@ -542,7 +569,8 @@ the browse→read flow down the centre.
   image/reader, rather than under the chat text.
 - `panes.chat.collapsible-split` — **[GAP]** (→ #4705 increment 6) the sidebar↔chat divider drags to resize and
   collapses the chat region when only navigating.
-- `panes.library.horizontal-icon-strip` — **[BROKEN/GAP]** (#4732) the library browser renders as a
+- `panes.library.horizontal-icon-strip` — **[BROKEN/GAP]** (#4732, → #1856 — a duplicate request
+  on a different milestone, not folded in) the library browser renders as a
   horizontal thumbnail strip (icon/list, Mail message-list style) at the top of the centre
   column ("I want the icon view back — horizontal, like in Mail").
 - `panes.reader.one-or-two-below-browser` — **[GAP]** (#4733) below the browser strip sit one or two

@@ -63,6 +63,36 @@ transform); this pins WHAT a mark is and how it behaves. Grounded in the ruling 
 - `markup.review.library-wide` **[GAP]** (#4718) — the per-document `annotations` representation exists, but a
   LIBRARY-WIDE review surface (all checked/rated lines across sources) is still queued (a
   ruling from the design doc's numbered list, not a GitHub issue number).
+- `markup.images-support-full-kind-set` **[OK]** — images get the SAME annotation tools PDF
+  pages do: highlight (with underline/strikethrough sub-modes), note (inline text entry), line,
+  bookmark, and the check-cycle rating — not a narrower subset.
+  `ZoomableImagePreviewMac+Annotations.swift`'s `createAnnotation`/`requestAnnotation` handle all
+  of `.highlight, .note, .line, .bookmark`; word-snap box-gating (`AnnotationWordSnap.gatedRects`)
+  anchors highlight/underline/strikethrough/bookmark to recognized text the same way on images as
+  on PDF pages, and refuses (with a stated reason) a drag over box-less canvas rather than saving
+  an unanchored mark. The image-annotation request describing a narrower subset predates this
+  build-out and reads as satisfied by it, not a remaining gap — flagged for verify-close in the
+  triage rather than closed here.
+  Pinned: `AnnotationBoxGateTests` (4 cases: word-snap anchoring, line-only geometry anchoring,
+  box-less-canvas refusal, empty-geometry refusal), `AnnotationCheckCycleTests` (the rating half,
+  already cited above).
+- `markup.inspector-bottom-tool-placement` **[GAP]** (#2038) — annotation/markup/rotate/image-edit
+  tools should live as CONTEXTUAL TOOLS at the inspector's bottom, scoped to the shown object,
+  rather than scattered across surfaces. Verified: the annotation tools that exist today
+  (`requestAnnotation`'s highlight/note/line/bookmark) are armed from the reader toolbar per that
+  code's own doc comment (`ZoomableImagePreviewMac+Annotations.swift:9`), not an inspector-bottom
+  contextual strip — #2038 asks for a placement this spec's existing behaviors don't cover (a
+  UI-chrome question, not a data-model one).
+
+**#2102** ("Annotation mode: highlights/notes/comments on a page, region-anchored, comments tied
+to citation+source, stored hermeneutically") reads as largely covered by behaviors already
+above, not a remaining gap: the closed kind vocabulary already includes `comment`
+(`markup.kinds.closed-vocabulary`), region-anchoring is built (`markup.images-support-full-
+kind-set` above, plus the PDF-side equivalent), and `markup.promote-to-claim` is exactly the
+"stored hermeneutically, alongside claims with provenance" mechanism #2102 asks for. Not
+independently verified this pass: whether a comment can be tied to a CITATION specifically
+(vs. a bare source region) — that's the one sub-claim this spec's existing behaviors don't
+obviously name. Flagged for verify-close, not closed here.
 
 ## Test matrix
 
@@ -79,6 +109,8 @@ transform); this pins WHAT a mark is and how it behaves. Grounded in the ruling 
 | export.w3c-annotationpage | test_routes_iiif.py (`test_manifest_is_presentation3_and_points_at_annotation_page`) | ✅ |
 | tags.coding | test_annotations.py::TestAnnotationList::test_list_filter_by_tag | ✅ |
 | review.library-wide | — | ❌ [GAP] |
+| images-support-full-kind-set | AnnotationBoxGateTests, AnnotationCheckCycleTests | ✅ |
+| inspector-bottom-tool-placement | — | ❌ [GAP] |
 
 ## Open questions
 
