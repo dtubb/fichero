@@ -383,6 +383,8 @@ nav:
               - Provider API Keys: contributor_manual/specs/ai/provider-keys.md
           - Docs:
               - Docs Citations & Bibliography: contributor_manual/specs/docs/docs-citations-bibliography.md
+          - Importer:
+              - Importer: contributor_manual/specs/importer/importer.md
           - Harness:
               - Dev Orchestration Harness: contributor_manual/specs/harness/dev-orchestration-harness.md
               - Spec Pipeline: contributor_manual/specs/harness/spec-pipeline.md
