@@ -283,5 +283,35 @@
     "rule": "g",
     "spec": "-",
     "key": "Workflows - Transcribe"
+  },
+  {
+    "rule": "h",
+    "spec": "docs/contributor_manual/specs/harness/dev-orchestration-harness.md",
+    "key": "convention:orch.verify-gate"
+  },
+  {
+    "rule": "h",
+    "spec": "docs/contributor_manual/specs/harness/git-worktree-workflow.md",
+    "key": "convention:git.cleanup-merged-worktrees"
+  },
+  {
+    "rule": "h",
+    "spec": "docs/contributor_manual/specs/harness/git-worktree-workflow.md",
+    "key": "convention:git.commit-never-stash"
+  },
+  {
+    "rule": "h",
+    "spec": "docs/contributor_manual/specs/harness/git-worktree-workflow.md",
+    "key": "convention:git.integration-gate"
+  },
+  {
+    "rule": "h",
+    "spec": "docs/contributor_manual/specs/harness/git-worktree-workflow.md",
+    "key": "convention:git.one-repo"
+  },
+  {
+    "rule": "h",
+    "spec": "docs/contributor_manual/specs/harness/git-worktree-workflow.md",
+    "key": "convention:git.updated-via-github"
   }
 ]

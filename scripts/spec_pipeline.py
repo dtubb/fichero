@@ -96,6 +96,32 @@ WORKSTREAM_BUCKETS = {
 
 BROKEN_LIKE_TAGS = {"BROKEN", "GAP/BROKEN", "GAP", "PARTIAL", "MISSING"}
 
+# --- Rule (h): [CONVENTION] governance ---------------------------------------------------
+#
+# CONVENTION states a norm ("how we work"), not a claim about code — exempt from rule (d)'s
+# test-citation requirement the same way an [OK] with a real test is exempt from rule (a)'s
+# issue requirement. But an unguarded escape hatch from "cite a test" is worse than no tag at
+# all, so every [CONVENTION] behavior is itself tracked as a rule-(h) finding (a ledger entry,
+# same shrink-only baseline as every other rule — the CURRENT count becomes the ceiling; a
+# NEW convention fails `check` until someone deliberately re-baselines), and two shapes of
+# misuse are their own distinct findings on top of that ledger entry:
+#   - used outside docs/contributor_manual/specs/harness/ (a process spec) — CONVENTION is
+#     for how the team/agents WORK, not an excuse to skip testing a product behavior;
+#   - carries no reason clause explaining why no test can pin it — a bare tag with nothing
+#     to challenge is unreviewable.
+# A substring, not a prefix: SPECS_DIR is repo-relative in production but tests monkeypatch
+# it to an absolute tmp path, so a startswith() check on the full spec_path would only work
+# in production. "/specs/harness/" is stable in both.
+CONVENTION_ALLOWED_DIR = "/specs/harness/"
+# A cheap, deliberately loose recognizer for "this behavior explains why it can't be
+# tested" — not a grader of the reasoning's quality, just a presence check so a bare
+# `[CONVENTION]` with no explanation at all is caught.
+CONVENTION_REASON_RE = re.compile(
+    r"no test|not a code path|no code path|not testable|human[/ -]agent discipline|"
+    r"manual discipline|nothing .*(?:prove|disprove|observe)|true by definition",
+    re.IGNORECASE,
+)
+
 # Rules whose findings are the kind a docs lane clears in bulk (find/cite a test, or
 # reopen/close an issue) rather than code work — `queue --kind retag` filters to these.
 RETAG_RULES = {"b", "d", "e"}
@@ -122,7 +148,7 @@ BEHAVIOR_ID_RE = _broken.BEHAVIOR_ID_RE
 # - TAG_RE_ALL also matches [OK] and [PROPOSED] (that script never needs to see those).
 # - MILESTONE_RE / STATUS_RE mirror check_spec_milestones.py's one-liners; not worth an
 #   import for two regexes.
-TAG_RE_ALL = re.compile(r"\*{0,2}\[(OK|BROKEN|GAP(?:/BROKEN)?|PARTIAL|MISSING|PROPOSED)[^\]]*\]\*{0,2}")
+TAG_RE_ALL = re.compile(r"\*{0,2}\[(OK|BROKEN|GAP(?:/BROKEN)?|PARTIAL|MISSING|PROPOSED|CONVENTION)[^\]]*\]\*{0,2}")
 # An issue citation, with an optional leading arrow: "#1234" or "→ #1234" (a superseding
 # pointer to another tracked epic increment — legitimately cross-milestone, see rule c).
 ISSUE_CITATION_RE = re.compile(r"(→\s*)?#(\d+)")
@@ -750,6 +776,32 @@ def _collect_findings(offline: bool, strict: bool) -> tuple[list[Finding], list[
             infos.extend(f.message for f in orphan_findings)
         failures.extend(_milestone_orphan_findings(behaviors, milestones or []))
 
+    # Rule (h): every [CONVENTION] behavior is a tracked ledger entry (shrink-only ceiling —
+    # ONLY entry NOT gated on a check for correctness: it fires even for a compliant one, so
+    # the count itself is what needs a deliberate --update-baseline to grow), plus two
+    # narrower findings for misuse.
+    for b in behaviors:
+        if b.tag != "CONVENTION":
+            continue
+        failures.append(Finding(
+            "h", f"convention:{b.id}", b.spec_path,
+            f"{b.spec_path}:{b.line}: `{b.id}` [CONVENTION] — registered (rule h ledger; "
+            f"the count is a shrink-only ceiling, re-baseline deliberately to add one)."
+        ))
+        if CONVENTION_ALLOWED_DIR not in b.spec_path:
+            failures.append(Finding(
+                "h", f"convention-outside-harness:{b.id}", b.spec_path,
+                f"{b.spec_path}:{b.line}: `{b.id}` [CONVENTION] used outside a "
+                f"specs/harness/ process spec — CONVENTION is for process/harness specs, not "
+                f"an escape hatch from testing a product behavior (rule h)."
+            ))
+        if not CONVENTION_REASON_RE.search(b.text):
+            failures.append(Finding(
+                "h", f"convention-no-reason:{b.id}", b.spec_path,
+                f"{b.spec_path}:{b.line}: `{b.id}` [CONVENTION] carries no reason clause "
+                f"explaining why no test can pin it (rule h)."
+            ))
+
     # Rule (d): [OK] with no test cited at all, or a cited test/method that does not exist.
     test_index = _build_test_index()
     for b in behaviors:
@@ -846,7 +898,7 @@ def cmd_check(offline: bool, strict: bool, update_baseline: bool) -> int:
 
 # --- status ---------------------------------------------------------------------------
 
-TAG_COLUMNS = ["OK", "BROKEN", "GAP/BROKEN", "PARTIAL", "GAP", "MISSING", "PROPOSED"]
+TAG_COLUMNS = ["OK", "BROKEN", "GAP/BROKEN", "PARTIAL", "GAP", "MISSING", "PROPOSED", "CONVENTION"]
 
 
 def cmd_status() -> int:

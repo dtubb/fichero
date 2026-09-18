@@ -494,6 +494,78 @@ def test_rule_g_allowlist_entry_without_reason_fails(tmp_path, monkeypatch, caps
     assert "has no `reason`" in out
 
 
+# --- rule (h): [CONVENTION] governance --------------------------------------------------
+
+CONVENTION_SPEC_HARNESS_OK = """# Spec
+
+## Behaviors
+
+- `h.thing` — **[CONVENTION]** a human discipline, not a code path — no test can pin it.
+"""
+
+CONVENTION_SPEC_NO_REASON = """# Spec
+
+## Behaviors
+
+- `h.thing` — **[CONVENTION]** a bare tag with nothing explaining itself.
+"""
+
+
+def test_rule_h_convention_in_harness_with_reason_is_registered_only(tmp_path, monkeypatch, capsys):
+    _seed(tmp_path, CONVENTION_SPEC_HARNESS_OK, rel="harness/example.md")
+    _fake_issues(monkeypatch, [])
+    rc = _check()
+    out = capsys.readouterr().out
+    assert rc == 1  # not yet baselined
+    assert "`h.thing` [CONVENTION] — registered" in out
+    assert "outside" not in out
+    assert "no reason clause" not in out
+
+
+def test_rule_h_convention_outside_harness_fails(tmp_path, monkeypatch, capsys):
+    _seed(tmp_path, CONVENTION_SPEC_HARNESS_OK, rel="ui/example.md")
+    _fake_issues(monkeypatch, [])
+    rc = _check()
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "used outside a specs/harness/ process spec" in out
+
+
+def test_rule_h_convention_with_no_reason_fails(tmp_path, monkeypatch, capsys):
+    _seed(tmp_path, CONVENTION_SPEC_NO_REASON, rel="harness/example.md")
+    _fake_issues(monkeypatch, [])
+    rc = _check()
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "carries no reason clause" in out
+
+
+def test_rule_h_compliant_convention_can_be_baselined_and_stays_green(tmp_path, monkeypatch):
+    _seed(tmp_path, CONVENTION_SPEC_HARNESS_OK, rel="harness/example.md")
+    _fake_issues(monkeypatch, [])
+    assert _check(update_baseline=True) == 0
+    assert _check() == 0  # registered, baselined, no location/reason problems
+
+
+def test_rule_h_new_convention_fails_the_shrink_only_ceiling(tmp_path, monkeypatch):
+    _seed(tmp_path, CONVENTION_SPEC_HARNESS_OK, rel="harness/example.md")
+    _fake_issues(monkeypatch, [])
+    assert _check(update_baseline=True) == 0
+    # A second convention appears, unbaselined — the ceiling must not silently absorb it.
+    second = CONVENTION_SPEC_HARNESS_OK.replace("h.thing", "h.another-thing")
+    _seed(tmp_path, second, rel="harness/second.md")
+    assert _check() == 1
+
+
+def test_rule_h_does_not_count_convention_as_a_tagged_ok_behavior(tmp_path, monkeypatch):
+    # CONVENTION is excluded from rule (d)'s test-citation requirement (only [OK] triggers it).
+    _seed(tmp_path, CONVENTION_SPEC_HARNESS_OK, rel="harness/example.md")
+    _fake_issues(monkeypatch, [])
+    behaviors = _mod.load_behaviors()
+    assert behaviors[0].tag == "CONVENTION"
+    assert not any(f.rule == "d" for f in _mod._collect_findings(offline=False, strict=False)[0])
+
+
 # --offline: never green-by-absence.
 def test_offline_reports_blindness_and_only_runs_offline_rules(tmp_path, monkeypatch, capsys):
     _seed(tmp_path, RULE_B_SPEC)  # would fail rule (b) online; offline can't see it

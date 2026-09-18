@@ -54,27 +54,48 @@ Retagged 2026-09-18: a spec behavior needs a tag the pipeline can hold it to. Tw
 seven are genuinely source-inspectable (a script's own content proves or disproves the
 claim) and now cite a real test. The other five are **CONVENTION** — a human/agent
 discipline about how git is used, not a code path — nothing in the repo tree can prove or
-disprove them, so tagging them `[OK]` and citing a fake test would be dishonest. See "Marking
-a convention" below for the proposed spec-format fix.
+disprove them AS STATED, so tagging them `[OK]` and citing a fake test would be dishonest.
+`spec_pipeline.py` now recognizes `CONVENTION` as a real tag (rule h): each one is a tracked
+ledger entry under a shrink-only baseline ceiling, allowed only in `specs/harness/`, and
+must carry a reason clause (enforced — see "Marking a convention" below). Each was
+challenged (2026-09-18, per creative-director instruction): is it REALLY untestable, or
+just currently untested?
 
 - `git.one-repo` — **[CONVENTION]** all worktrees share `~/code/fichero/.git`; only `main`
   pushes to origin. True by definition of `git worktree` (there is only one `.git`, ever) —
-  not a code path that could regress independently of git itself.
+  not a code path that could regress independently of git itself. Challenged: a script
+  COULD run `git rev-parse --git-common-dir` from every worktree and assert they agree, but
+  that's checking git's own invariant, not this repo's discipline — stays CONVENTION.
 - `git.branch-off-origin-main` [OK] — lanes branch off fetched `origin/main` via
   `spawn-worker.sh`. Pinned:
   `test_git_worktree_workflow.py::test_spawn_worker_fetches_origin_before_creating_the_worktree`.
 - `git.integration-gate` — **[CONVENTION]** multi-lane work gates on `integration` before
   `main`. A manager decision about WHEN to gate, not a code path — `verify_all.sh` runs the
-  same way regardless of which branch invokes it.
+  same way regardless of which branch invokes it. Challenged: no code path decides "2+
+  lanes landing together" vs. "one lane gates alone" — genuinely a judgment call, stays
+  CONVENTION.
 - `git.commit-never-stash` — **[CONVENTION]** interrupted work is a WIP commit, not a stash.
   A per-agent discipline (this very worker's standing instructions say the same thing) —
-  no test can observe whether a human/agent chose to stash.
+  no test can observe whether a human/agent chose to stash. Challenged (NOT fully
+  untestable, per creative-director instruction): a cheap script COULD pin the OUTCOME —
+  `git stash list` across the shared stash stack should be empty (or hold only a
+  short-lived, uniquely-tagged entry mid-restore) between sessions; a lingering anonymous
+  stash entry is evidence the discipline was violated. Proposed, not built:
+  `scripts/check_no_orphan_stashes.py` asserting `git stash list` is empty (or every entry
+  matches a known short-lived tag pattern) when run between sessions/in CI. This pins the
+  discipline's observable trace, not the command itself (git has no pre-stash hook to
+  intercept the command directly).
 - `git.cleanup-merged-worktrees` — **[CONVENTION]** merged lanes removed + branch deleted; no
   rot. Describes a manual cleanup step taken after a merge — there is no code path to pin,
-  only a habit (the spec's own "open question 2" already proposes a rot-detection guardrail
-  as FUTURE work, distinct from testing this convention itself).
+  only a habit. Challenged: this ONE is close to testable, and the spec's own "open question
+  2" already names it — proposed, not built: a guardrail cross-referencing `git worktree
+  list` against `git branch --merged main`, flagging any worktree whose branch is already
+  merged (rot) as a warning. Stays CONVENTION until that guardrail exists; once it does,
+  this behavior should retag to OK or PARTIAL, citing it.
 - `git.updated-via-github` — **[CONVENTION]** "what's next" comes from milestones/ROADMAP,
   not a shared branch. Describes where a human/agent looks for work — not a code path.
+  Challenged: no artifact in the repo records WHERE an agent looked for its next task, so
+  there is nothing to assert against — stays CONVENTION.
 - `git.shared-venv` [OK] — ONE `.venv` at the canonical checkout (`~/code/fichero/.venv`), shared
   by all worktrees; worktrees have none of their own. Correctness comes from
   **`PYTHONPATH=fichero-server/src` relative to the worktree you're in**, which forces that tree's
@@ -84,19 +105,33 @@ a convention" below for the proposed spec-format fix.
   PYTHONPATH discipline stops holding (costs a `uv venv + pip install -e` per ephemeral worktree).
   Pinned: `test_git_worktree_workflow.py::test_no_shell_script_hardcodes_the_canonical_venv_path`.
 
-### Marking a convention (proposal, not yet in the spec format)
+### Marking a convention (built, 2026-09-18 — `spec_pipeline.py` rule h)
 
-`spec_pipeline.py`'s tag vocabulary is `OK`/`BROKEN`/`GAP`/`PARTIAL`/`MISSING`/`PROPOSED` —
-none of them mean "true by construction / a human discipline, not a code path." Tagging one
-of the five above `[OK]` demands a test that cannot exist; leaving them untagged makes them
-invisible to the pipeline's own bookkeeping (queue/status never see them at all). Proposal:
-add a **`CONVENTION`** tag, exempt from rule (d)'s test-citation requirement the same way an
-`[OK]`-tagged behavior with a test is exempt from rule (a)'s issue requirement — a behavior
-so tagged states a norm, not a claim about code, and the pipeline should say so rather than
-silently drop it or force a fake citation. Used above ahead of that change landing; `check`
-currently treats an unrecognized tag word as untagged (skipped, not tracked) — the CD/tool
-owner decides whether to add real `CONVENTION` support or use a different existing tag for
-this class.
+`spec_pipeline.py`'s tag vocabulary was `OK`/`BROKEN`/`GAP`/`PARTIAL`/`MISSING`/`PROPOSED` —
+none of them meant "true by construction / a human discipline, not a code path." Tagging one
+of the five above `[OK]` demands a test that cannot exist; leaving them untagged made them
+invisible to the pipeline's own bookkeeping (queue/status never saw them at all). Built:
+`CONVENTION` is now a real tag, exempt from rule (d)'s test-citation requirement the same
+way an `[OK]`-tagged behavior with a test is exempt from rule (a)'s issue requirement — a
+behavior so tagged states a norm, not a claim about code. Guarded (rule h), so it can't
+become a silent escape hatch from "cite a test":
+- **counted separately** — `status`'s per-spec table has its own `CONVENTION` column;
+  `check`'s summary breaks illegal-state counts down `by rule`, so `h` is visible on its own.
+- **location-gated** — allowed only in a spec under `docs/contributor_manual/specs/harness/`
+  (a process/harness spec); used anywhere else, it's its own rule-h finding — CONVENTION is
+  for how the team/agents work, not a way to skip testing a product behavior.
+- **reason-gated** — a `[CONVENTION]` bullet with no explanation of why no test can pin it is
+  its own rule-h finding (a cheap keyword check — see `CONVENTION_REASON_RE` in
+  `spec_pipeline.py` — this checks a reason is PRESENT, not that it's good; a human still
+  reads it).
+- **shrink-only ceiling** — every `[CONVENTION]` behavior, even a fully compliant one, is
+  itself a tracked rule-h "ledger" finding, so the CURRENT count of conventions becomes the
+  baseline ceiling exactly like every other rule here; a NEW convention tag anywhere fails
+  `check` until someone runs `check --update-baseline` to deliberately accept the raised
+  count — CONVENTION can't quietly proliferate.
+Pinned: `docs/contributor_manual/specs/harness/spec-pipeline.md`'s own behaviors cite the
+fixture tests for all three checks (registration, location, reason) plus the shrink-only
+ceiling behavior.
 
 ## Rulings + open questions
 

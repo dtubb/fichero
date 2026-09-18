@@ -112,6 +112,24 @@ second markdown-bullet parser — one parser, one bug surface.
   `test_spec_pipeline.py::test_rule_g_allowlist_stale_entry_fails_when_milestone_gone`,
   `test_spec_pipeline.py::test_rule_g_allowlist_entry_now_specced_fails`,
   `test_spec_pipeline.py::test_rule_g_allowlist_entry_without_reason_fails`.
+- `pipeline.check.rule-h-convention-governance` — **[OK]** `[CONVENTION]` is a real tag
+  (2026-09-18, replacing the earlier unrecognized-string workaround in
+  `git-worktree-workflow.md`) for a behavior that states a human/agent norm, not a claim
+  about code — exempt from rule (d)'s test-citation requirement, but guarded so it can't
+  become a silent escape hatch: (1) every `[CONVENTION]` behavior is itself a rule-h
+  "registered" finding, so the CURRENT count is a shrink-only baseline ceiling — a NEW
+  convention anywhere fails `check` until deliberately re-baselined; (2) allowed only in a
+  spec under `specs/harness/` (a process/harness spec) — used elsewhere, that's its own
+  rule-h finding; (3) a `[CONVENTION]` bullet with no reason clause explaining why no test
+  can pin it (a cheap keyword presence check, `CONVENTION_REASON_RE`) is its own rule-h
+  finding. `status`'s per-spec table carries its own `CONVENTION` column, so the tag is
+  counted separately from the ordinary tag vocabulary. Pinned by
+  `test_spec_pipeline.py::test_rule_h_convention_in_harness_with_reason_is_registered_only`,
+  `test_spec_pipeline.py::test_rule_h_convention_outside_harness_fails`,
+  `test_spec_pipeline.py::test_rule_h_convention_with_no_reason_fails`,
+  `test_spec_pipeline.py::test_rule_h_compliant_convention_can_be_baselined_and_stays_green`,
+  `test_spec_pipeline.py::test_rule_h_new_convention_fails_the_shrink_only_ceiling`,
+  `test_spec_pipeline.py::test_rule_h_does_not_count_convention_as_a_tagged_ok_behavior`.
 - `pipeline.check.offline-blind-not-green` — **[OK]** `--offline` skips every
   GitHub-dependent rule (b, c, e, f, g) and prints `OFFLINE: blind to rules …` rather than
   reporting success by omission; offline-only rules (a, d) still run and can still fail.
@@ -184,6 +202,7 @@ second markdown-bullet parser — one parser, one bug surface.
 | Milestone fully cited | every OPEN issue on a spec's milestone is cited by some behavior | `check` rule (f), INFO / `--strict` |
 | Milestone ↔ spec mirrored | a live (not dead-closed), non-allowlisted GH milestone has a spec; spec's milestone exists on GH | `check` rule (g) |
 | Non-spec milestone allowlist is honest | an allowlisted milestone still exists, has no spec, and carries a reason | `check` rule (g), `scripts/spec_pipeline_non_spec_milestones.json` |
+| Convention tag is guarded | `[CONVENTION]` lives under `specs/harness/`, carries a reason clause, and its count only grows via a deliberate re-baseline | `check` rule (h) |
 | No new debt | today's illegal-state set == baseline, modulo a shrink | `check` baseline ratchet |
 | Ready to dispatch | broken-family, OPEN, unclaimed issue | `queue` (default `--kind code`) |
 | Worker briefed | queue item rendered with rules + retag instruction | `brief` |

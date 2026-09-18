@@ -77,9 +77,14 @@ it token-efficiently with fabel/opus?
   own the cross-cutting verify; unverified worker output blocks. This is a manager discipline about
   WHO runs the gate and WHEN a merge is allowed — the same `verify_all.sh` runs identically no
   matter who invokes it, so there is no code path that could regress independently of a human/
-  agent choosing to skip this step. See `git-worktree-workflow.md`'s "Marking a convention"
-  section for the same class of tag and the proposal to add real `CONVENTION` support to
-  `spec_pipeline.py`.
+  agent choosing to skip this step. Challenged (2026-09-18, per creative-director instruction —
+  is it really untestable?): close to testable in ONE narrow sense — proposed, not built: a
+  guardrail could grep every merge/release/land script (`scripts/*merge*.sh`, `release-all.sh`)
+  for a `verify_all.sh` invocation appearing before any `git push origin main`, catching a NEW
+  script that lands code without gating. That would pin "no script bypasses the gate", not "I
+  personally ran it" (still a human/agent choice this repo can't observe). Stays CONVENTION.
+  See `git-worktree-workflow.md`'s "Marking a convention" section for the tag's real,
+  rule-h-guarded semantics in `spec_pipeline.py`.
 - `orch.subagent-vs-tmux` [PROPOSED] — subagents for bounded tasks, tmux only for cross-turn lanes.
 
 ## Open questions for the design lead
