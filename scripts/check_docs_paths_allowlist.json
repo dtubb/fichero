@@ -1,9 +1,15 @@
 {
-  "_doc": "Repo paths named in docs that do not exist, on purpose (build artifacts, or things described as deleted). Every other absent path is a bug. See AGENTS.md.",
+  "_doc": "Repo paths named in docs that do not exist, on purpose (build artifacts, deleted things, or planned targets a DRAFT/not-yet-implemented spec names forward — each spec already tags the behavior [MISSING] or DRAFT itself). Every other absent path is a bug. See AGENTS.md.",
   "known_absent_paths": [
     "build/verify_all_needs_fixing.json",
     "fichero-server/build/fichero-backend/macos/app/FicheroBackend.app",
     "fichero/build/xcode/Products/Release",
-    "fichero/build/xcode/Products/Release/Fichero.app"
+    "fichero/build/xcode/Products/Release/Fichero.app",
+    "docs/assets/about",
+    "docs/references.bib",
+    "scripts/check_doc_citations.py",
+    "fichero-server/tests/unit/scripts/test_check_doc_citations.py",
+    "fichero/Tests/UI/general/UITestHarnessTests.swift",
+    "scripts/check_test_env_parity.py"
   ]
 }

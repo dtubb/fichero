@@ -88,7 +88,7 @@ transform); this pins WHAT a mark is and how it behaves. Grounded in the ruling 
 ## References
 
 - `agent-work/design/reading-markup-coding-system.md` (rulings)
-- Engine: `fichero-server/.../models/knowledge.py` (AnnotationKind/Annotation), `api/routes/document/annotations.py`,
+- Engine: `fichero-server/src/fichero_server/models/knowledge.py` (AnnotationKind/Annotation), `api/routes/document/annotations.py`,
   `api/routes/system/views.py` (annotations representation), `api/routes/document/documents.py` (jsonld export)
 - Client: `fichero/fichero/Models/AnnotationStore.swift`, `Services/AnnotationService+*.swift`,
   `Views/Preview/ImageViewer/Regions/ZoomableImagePreviewMac+Annotations.swift` (check cycle)

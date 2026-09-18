@@ -335,6 +335,8 @@ nav:
       - Security Model: contributor_manual/security-model.md
       - Setup & Contributing: contributor_manual/setup-and-contributing.md
       - Testing: contributor_manual/TESTING.md
+      - Testing Constitution: contributor_manual/TESTING-CONSTITUTION.md
+      - Test Template: contributor_manual/TEST-TEMPLATE.md
       - Writing the Guides: contributor_manual/writing-the-guides.md
       # BEGIN contributor-guide chapters (committed pages; the .docx round-trip
       # that once generated them was retired 2026-09-12 with sync_manuscript.py)
