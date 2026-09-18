@@ -226,7 +226,7 @@ Inspector content, not as a rival top-level surface.
   3-pane container should retire once the Plan tab (`ResearchTasksPane`) and a Compare-tab
   browser rendition (open question below) cover its panes; today both the old container and
   the new tab exist side by side. No dedicated issue found for the `ResearchWorkspaceView`
-  retirement specifically — **ISSUE NEEDED** (distinct from #4705's Library-pane-mount rule,
+  retirement specifically — (#4719) (distinct from #4705's Library-pane-mount rule,
   which covers only where it must never mount, not its retirement).
 - `research.chat-single-mount` — **[PARTIAL]** owned by `modes-to-panes.md`'s
   `m2p.chat-single-mount`; listed here because it blocks a workspace's chat from being
@@ -240,7 +240,7 @@ Inspector content, not as a rival top-level surface.
 - `research.per-model-tool-grants` — **[GAP]** no settings pane exists for an owner to grant
   or deny individual tools per model identity; role is the only boundary. Tracked by #2887
   (pluggable agent harness, scoped tools) — no issue found specifically for a per-model
-  grant/deny UI — **ISSUE NEEDED**.
+  grant/deny UI — (#4721).
 - `research.browser-pane-trust-boundary` — **[OK]** `ResearchBrowserPane`'s only library
   crossing is the audited `browser-save` action; no library/KG read tool is exposed to the
   embedded WebView (`ResearchBrowserPane.swift:6-13`).
@@ -255,7 +255,7 @@ Inspector content, not as a rival top-level surface.
   here). Tracked by #2526.
 - `research.knowledge-tab-not-browsable` — **[PARTIAL]** shows honest reference counts, not
   a browsable entity/claim list, because the engine does not return identities on a chat
-  reply yet (`ChatView.swift:246-260`). No dedicated issue found — **ISSUE NEEDED**.
+  reply yet (`ChatView.swift:246-260`). No dedicated issue found — (#4723).
 
 ## Test matrix
 
@@ -267,7 +267,7 @@ Inspector content, not as a rival top-level surface.
 | Backend (pytest) | y | `DocumentStore.createWorkspace` → folder + `workspace_kind=agent` marker | `fichero-server/tests/**` workspace CRUD tests (not enumerated here — see `docs/reference_manual` endpoint reference) |
 | MCP | n | Research has no MCP-specific contract beyond the shared action registry | — |
 | CLI | n | no CLI surface for Research specifically | — |
-| Click-around (XCUITest, Mac) | y | open a chat → Plan tab invitation → Save as Workspace → Plan tab shows tasks | `fichero/Tests/UI/**` (no dedicated suite found — **ISSUE NEEDED** if none exists at test-writing time) |
+| Click-around (XCUITest, Mac) | y | open a chat → Plan tab invitation → Save as Workspace → Plan tab shows tasks | `fichero/Tests/UI/**` (no dedicated suite yet — #4727) |
 | iPhone (iOS) | y | chat dock/compact flow touch path | `fichero/Tests/UI/ios` (shared with chat's existing compact tests, not enumerated here) |
 | iPad | y | same as iPhone leg, iPad idiom | `fichero/Tests/UI/ipad` |
 | Load (#4634) | n | Research has no dedicated load profile beyond chat's own | — |
@@ -310,7 +310,7 @@ This spec proposes (not yet added — **[PROPOSED]**, neither exists):
    milestone or `modes-to-panes.md`'s?** Recommendation: `modes-to-panes.md`'s migration
    (it already owns the Library-pane-mount allowlist that names
    `ResearchWorkspaceView(` explicitly) — this spec should not duplicate that increment
-   plan, only track the behavior id and point at the **ISSUE NEEDED** gap for the retirement
+   plan, only track the behavior id and point at #4719 for the retirement
    itself.
 
 ## Sources folded in
