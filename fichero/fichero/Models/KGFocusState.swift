@@ -86,3 +86,47 @@ final class KGFocusState {
         }
     }
 }
+
+// MARK: - Cross-window handoff (#4850)
+
+/// `KGFocusState` is PER-WINDOW (`ContentView` owns one, `@State var
+/// kgFocusState = KGFocusState()`) since #4850: a single process-wide
+/// `.shared` instance meant a click in one window's Entities table also drove
+/// a DIFFERENT window's Inspector — which resolves entities against ITS OWN
+/// library — against the wrong one, surfacing as a false "Entity Unavailable".
+///
+/// "Open in New Window/Tab" (#1685) still needs a one-shot handoff: the new
+/// window's own `KGFocusState` does not exist until the window finishes
+/// opening, so there is nowhere per-window to write the initial focus to yet.
+/// `.shared` is repurposed as EXACTLY that — a single-value mailbox, written
+/// once by the opener and consumed once by the new window's first appearance,
+/// never read by anything else. A THIRD window opened later must never
+/// inherit a stale handoff, so consuming always clears it.
+extension KGFocusState {
+    /// Stash the focus a newly-opened window should start with. Call
+    /// immediately before `WindowOpener.open(...)`.
+    static func handOffToNewWindow(
+        entityId: String?,
+        claimId: String?,
+        sourceDocumentId: String?,
+        sourcePageLabel: String?
+    ) {
+        shared.focusedEntityId = entityId
+        shared.focusedClaimId = claimId
+        shared.sourceDocumentId = sourceDocumentId
+        shared.sourcePageLabel = sourcePageLabel
+    }
+
+    /// Read and clear a pending hand-off, if any. Call once, from the
+    /// receiving window's own `KGFocusState` instance (never from `.shared`
+    /// itself, which would be a no-op self-copy-then-clear).
+    func consumePendingHandoff() {
+        guard self !== Self.shared else { return }
+        guard Self.shared.focusedEntityId != nil || Self.shared.focusedClaimId != nil else { return }
+        focusedEntityId = Self.shared.focusedEntityId
+        focusedClaimId = Self.shared.focusedClaimId
+        sourceDocumentId = Self.shared.sourceDocumentId
+        sourcePageLabel = Self.shared.sourcePageLabel
+        Self.shared.clear()
+    }
+}

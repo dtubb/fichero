@@ -36,4 +36,36 @@ final class DocumentInspectorArmTests: XCTestCase {
             .empty
         )
     }
+
+    // MARK: - #4850: cancellation is not a failure, and a real failure names its cause
+
+    /// `EntityInspectorArm` is a private nested struct with no seam to mount
+    /// and cancel a real `.task` from outside this file — source-scan, the
+    /// same limitation this codebase's other SwiftUI-async views accept
+    /// elsewhere (e.g. `ChatViewBoundaryTests`). Pins that a cancelled fetch
+    /// (the focused entity changed again before this one returned) never
+    /// reaches `loadFailed = true`.
+    func testEntityInspectorArmGuardsCancellationBeforeMarkingFailure() throws {
+        let source = try AppSource.code("Views/Inspector/Document/DocumentInspector.swift")
+        guard let taskStart = source.range(of: ".task(id: entityId) {"),
+              let catchStart = source.range(of: "} catch {", range: taskStart.upperBound..<source.endIndex),
+              let taskEnd = source.range(of: "\n            }", range: catchStart.upperBound..<source.endIndex)
+        else {
+            XCTFail("could not locate EntityInspectorArm's .task(id: entityId) catch block")
+            return
+        }
+        let catchBody = source[catchStart.upperBound..<taskEnd.lowerBound]
+        XCTAssertTrue(
+            catchBody.contains("guard !Task.isCancelled else { return }"),
+            "a cancelled fetch must never be shown as a failure"
+        )
+        XCTAssertTrue(
+            catchBody.contains("entityInspectorArmLogger.error("),
+            "a real failure must be logged with a typed error, not silently discarded"
+        )
+        XCTAssertTrue(
+            catchBody.contains("libraryPath"),
+            "the failure reason must name which library the request used, so a cross-library mismatch is visible, not just 'Entity Unavailable'"
+        )
+    }
 }

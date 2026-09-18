@@ -1,5 +1,8 @@
 import FicheroAPIClient
+import OSLog
 import SwiftUI
+
+private let entityInspectorArmLogger = Logger(subsystem: "app.fichero.fichero", category: "EntityInspectorArm")
 
 /// Shared Tahoe glass-strip background for the inspector chrome strips (#3061 /
 /// #2550): Liquid Glass on macOS/iOS, `.regularMaterial` on visionOS — mirrors
@@ -200,6 +203,7 @@ struct DocumentInspector: View {
         let entityService: EntityService
         @State private var entity: Components.Schemas.KnowledgeEntity?
         @State private var loadFailed = false
+        @State private var loadFailureReason: String?
 
         var body: some View {
             Group {
@@ -209,7 +213,7 @@ struct DocumentInspector: View {
                     ContentUnavailableView(
                         "Entity Unavailable",
                         systemImage: "person.crop.circle.badge.exclamationmark",
-                        description: Text("Could not load this entity.")
+                        description: Text(loadFailureReason ?? "Could not load this entity.")
                     )
                 } else {
                     ProgressView()
@@ -218,10 +222,21 @@ struct DocumentInspector: View {
             }
             .task(id: entityId) {
                 loadFailed = false
+                loadFailureReason = nil
                 entity = nil
                 do {
                     entity = try await entityService.getEntity(entityId)
                 } catch {
+                    // A superseded fetch (the focused entity changed again
+                    // before this one returned, or the arm itself was torn
+                    // down) is not a failure — #4850's checklist line: never
+                    // show a cancelled task as an error.
+                    guard !Task.isCancelled else { return }
+                    let libraryPath = entityService.client.currentLibraryPath ?? "no library open"
+                    entityInspectorArmLogger.error(
+                        "Failed to load entity \(entityId, privacy: .public) from library \(libraryPath, privacy: .public): \(String(describing: error), privacy: .public)"
+                    )
+                    loadFailureReason = "Couldn't load this entity from \(libraryPath) — \(error.localizedDescription)"
                     loadFailed = true
                 }
             }

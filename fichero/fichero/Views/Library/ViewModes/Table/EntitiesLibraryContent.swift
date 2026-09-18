@@ -49,7 +49,6 @@ struct EntitiesLibraryContent: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            filterBar
             EntitiesTableView(
                 items: items,
                 selection: $selection,
@@ -57,6 +56,11 @@ struct EntitiesLibraryContent: View {
                 emptyMessage: emptyMessage,
                 actions: actions
             )
+            // #4850: the filter bar belongs at the BOTTOM, matching the
+            // Library pane's own filter (`MiniToolbarPlacement.
+            // preferredForReader` — "bottom of library and reader is where
+            // we can filter"). Was first in this VStack (top).
+            filterBar
         }
         // A high limit: we filter to the folder client-side, so the library-wide
         // list must be complete enough not to drop the folder's entities (the
@@ -130,7 +134,9 @@ struct EntitiesLibraryContent: View {
 
     @ViewBuilder
     private var filterBar: some View {
-        HStack(spacing: 8) {
+        // Reuses the shared bottom-toolbar-strip component (#4362) instead of
+        // a hand-placed HStack, matching the Library pane's own filter chrome.
+        PaneFilterBar(placement: .bottom) {
             Image(systemName: "line.3.horizontal.decrease.circle")
                 .foregroundStyle(.secondary)
             TextField("Filter entities", text: $filterText)
@@ -158,8 +164,6 @@ struct EntitiesLibraryContent: View {
             .help("Create an entity by hand")
             .accessibilityIdentifier("kg.entity.new")
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
     }
 
     private var emptyMessage: String {

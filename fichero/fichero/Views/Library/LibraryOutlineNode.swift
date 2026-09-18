@@ -169,23 +169,66 @@ extension LibraryOutlineNode {
         return ids
     }
 
-    /// Classify an outline node id back to its child-row type, or nil for a
-    /// document row / unrecognised id. Matches the id shapes minted in `id`:
-    /// item rows ("<doc>:entity:<id>") and group rows ("<doc>:entities").
-    /// NOTE: a document id may itself contain colons (default-workflow
-    /// subfolders are "container:<name>"), so callers must treat "not a
-    /// known marker" as "not a child row" — never assume colon ⇒ child.
-    static func childRowType(forNodeId id: String) -> ChildType? {
-        let parts = id.split(separator: ":")
-        guard parts.count >= 2 else { return nil }
-        switch parts[1] {
-        case "page", "pages": return .pages
-        case "artifact", "artifacts": return .artifacts
-        case "entity", "entities": return .entities
-        case "note", "notes": return .notes
-        case "claim", "claims": return .claims
-        default: return nil
+    /// The parsed shape of an outline node id (#4850). `id` mints three
+    /// shapes: a document row (`"<documentId>"`), a group row
+    /// (`"<documentId>:<pluralType>"`), or an item row
+    /// (`"<documentId>:<singularType>:<itemId>"`). `itemId` is non-nil ONLY
+    /// for an item row — a group row's `childType` is set with `itemId` nil.
+    struct ParsedNodeId: Equatable {
+        let documentId: String
+        let childType: ChildType?
+        let itemId: String?
+    }
+
+    /// Item-row markers, singular, each with its trailing colon so the
+    /// itemId after it is found by searching the WHOLE string from the
+    /// RIGHT — never the first colon. A document id may itself contain
+    /// colons (default-workflow subfolders are "container:<name>"), so the
+    /// marker actually minted by `id` (the LAST one in the string) is the
+    /// only reliable split point. This is the same class of bug #4850
+    /// found: a composite id like "<doc>:entity:<id>" reaching code that
+    /// expected a bare entity id.
+    private static let itemMarkers: [(marker: String, type: ChildType)] = [
+        (":page:", .pages), (":artifact:", .artifacts), (":entity:", .entities), (":claim:", .claims)
+    ]
+
+    /// Group-row markers, plural, matched as a SUFFIX (a group row has
+    /// nothing after the type word).
+    private static let groupMarkers: [(marker: String, type: ChildType)] =
+        ChildType.allCases.map { (":\($0.rawValue)", $0) }
+
+    /// Parse a node id into its document id, child type (if any), and item
+    /// id (if it's an item row). Item markers are checked before group
+    /// markers, since an item row's shape is a strict superset of a group
+    /// row's (both start "<doc>:<word>"; only an item row has content
+    /// after it). Residual ambiguity, same as the old `childRowType`'s own
+    /// note: a document id that itself happens to contain a marker
+    /// substring (e.g. a folder literally named "entity" immediately
+    /// followed by another colon segment) is not distinguishable from a
+    /// real item row by string shape alone — not solved here, not worse
+    /// than before.
+    static func parse(nodeId: String) -> ParsedNodeId {
+        for (marker, type) in itemMarkers {
+            if let range = nodeId.range(of: marker, options: .backwards) {
+                let documentId = String(nodeId[nodeId.startIndex..<range.lowerBound])
+                let itemId = String(nodeId[range.upperBound...])
+                return ParsedNodeId(documentId: documentId, childType: type, itemId: itemId)
+            }
         }
+        for (marker, type) in groupMarkers where nodeId.hasSuffix(marker) {
+            let documentId = String(nodeId.dropLast(marker.count))
+            return ParsedNodeId(documentId: documentId, childType: type, itemId: nil)
+        }
+        return ParsedNodeId(documentId: nodeId, childType: nil, itemId: nil)
+    }
+
+    /// Classify an outline node id back to its child-row type, or nil for a
+    /// document row / unrecognised id. Re-expressed on `parse(nodeId:)`
+    /// (#4850) — was its own naive `split(separator: ":")` taking
+    /// `parts[1]`, which had the identical colon-bearing-document-id
+    /// fragility `parse` fixes, just for a TYPE lookup rather than an id.
+    static func childRowType(forNodeId id: String) -> ChildType? {
+        parse(nodeId: id).childType
     }
 }
 

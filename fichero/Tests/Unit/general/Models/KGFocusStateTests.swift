@@ -105,4 +105,77 @@ final class KGFocusStateTests: XCTestCase {
         state.requestGraphReveal(entityId: "e-1")
         XCTAssertEqual(state.graphRevealRequestToken, afterFirst + 1)
     }
+
+    // MARK: - Cross-window handoff (#4850)
+
+    override func tearDown() {
+        // `.shared` is a real, process-wide singleton — clear it so one
+        // test's handoff can never leak into the next.
+        KGFocusState.shared.clear()
+        super.tearDown()
+    }
+
+    /// The core #4850 fix, pinned structurally: the entity inspector's
+    /// library-resolving `entityService` and the entities table's own must
+    /// come from the SAME per-window source — `ContentView` owns its
+    /// `kgFocusState` (`@State`), it does not read the app-wide `.shared`
+    /// singleton (`@Environment`). Source-scan because the actual defect was
+    /// architectural (which object a whole window's subtree inherits), not a
+    /// single computable value a fresh `KGFocusState()` could pin on its own.
+    func testContentViewOwnsItsOwnPerWindowKGFocusState() throws {
+        let source = try AppSource.code("Views/Shell/ContentView/ContentView.swift")
+        XCTAssertTrue(
+            source.contains("@State var kgFocusState = KGFocusState()"),
+            "ContentView must OWN a fresh per-window KGFocusState, matching entitySearchState/claimSourceNavigationState — not read the app-wide .shared singleton via @Environment"
+        )
+        XCTAssertFalse(
+            source.contains("@Environment(KGFocusState.self) var kgFocusState"),
+            "a click in one window's Entities table must never drive a different window's Inspector again"
+        )
+    }
+
+    /// A window opened via "Open in New Window/Tab" (#1685) must still
+    /// auto-focus the claim/entity that opened it — the ONE case the shared
+    /// singleton is deliberately still used for, now as an explicit one-shot
+    /// mailbox rather than an ambiently-read value.
+    func testHandOffToNewWindowIsConsumedByTheReceivingWindowOnly() {
+        let opener = KGFocusState()
+        opener.focusClaim(claimId: "cl-1", entityId: "e-1")
+
+        KGFocusState.handOffToNewWindow(
+            entityId: "e-1", claimId: "cl-1", sourceDocumentId: "d-1", sourcePageLabel: "12r"
+        )
+
+        let newWindow = KGFocusState()
+        newWindow.consumePendingHandoff()
+        XCTAssertEqual(newWindow.focusedEntityId, "e-1")
+        XCTAssertEqual(newWindow.focusedClaimId, "cl-1")
+        XCTAssertEqual(newWindow.sourceDocumentId, "d-1")
+        XCTAssertEqual(newWindow.sourcePageLabel, "12r")
+    }
+
+    /// A pending hand-off is consumed exactly ONCE — a THIRD window (or the
+    /// same window re-appearing) must never inherit a stale value.
+    func testHandOffIsClearedAfterConsumingSoAThirdWindowGetsNothing() {
+        KGFocusState.handOffToNewWindow(
+            entityId: "e-1", claimId: nil, sourceDocumentId: nil, sourcePageLabel: nil
+        )
+
+        let secondWindow = KGFocusState()
+        secondWindow.consumePendingHandoff()
+        XCTAssertEqual(secondWindow.focusedEntityId, "e-1")
+
+        let thirdWindow = KGFocusState()
+        thirdWindow.consumePendingHandoff()
+        XCTAssertNil(thirdWindow.focusedEntityId, "the hand-off must be consumed once, not re-readable")
+    }
+
+    /// No pending hand-off — a window opened normally (not via Open in New
+    /// Window) must not pick up stale focus from an unrelated prior hand-off.
+    func testConsumePendingHandoffIsANoOpWhenNothingIsPending() {
+        let window = KGFocusState()
+        window.consumePendingHandoff()
+        XCTAssertNil(window.focusedEntityId)
+        XCTAssertNil(window.focusedClaimId)
+    }
 }

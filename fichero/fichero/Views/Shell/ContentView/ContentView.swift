@@ -149,7 +149,15 @@ struct ContentView: View {
     @Environment(SavedSearchService.self) var savedSearchService
     @Environment(WorkflowStreamService.self) var workflowStreamService
     @Environment(WorkflowExecutionObserver.self) var executionObserver
-    @Environment(KGFocusState.self) var kgFocusState
+    /// #4850: owned per-window, matching `entitySearchState`/
+    /// `claimSourceNavigationState` below — was `@Environment(KGFocusState.self)`,
+    /// which resolved to the app-wide `KGFocusState.shared` every window
+    /// injected, so a click in one window's Entities table also drove a
+    /// DIFFERENT window's Inspector against its own (wrong) library. See
+    /// `KGFocusState`'s "Cross-window handoff" extension for how "Open in
+    /// New Window" still hands its initial focus across without the shared
+    /// instance being read by anything else.
+    @State var kgFocusState = KGFocusState()
     @Environment(ArtifactService.self) var artifactService
     @Environment(EntityService.self) var entityService
     @Environment(KGCurationService.self) var kgCurationService

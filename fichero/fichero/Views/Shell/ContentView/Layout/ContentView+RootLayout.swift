@@ -346,6 +346,10 @@ extension ContentView {
         .onAppear {
             handleOnAppear()
             syncFocusedDocumentSelection(detailDocument)
+            // #4850: consume a pending "Open in New Window" focus hand-off,
+            // if this window was just opened for one — see KGFocusState's
+            // "Cross-window handoff" extension.
+            kgFocusState.consumePendingHandoff()
         }
         .onChange(of: documentStore.collections) { old, new in
             handleCollectionsChange(old: old, new: new)

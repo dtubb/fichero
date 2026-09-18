@@ -83,6 +83,76 @@ struct LibraryOutlineDeleteSkipTests {
         // subfolders) — an unknown marker must read as "not a child row".
         #expect(LibraryOutlineNode.childRowType(forNodeId: "system-default-workflows:books") == nil)
     }
+}
+
+/// #4850 — `LibraryOutlineNode.parse(nodeId:)`: an entity/claim item row's
+/// COMPOSITE id ("<doc>:entity:<id>") leaked into `ContentView.
+/// handleBrowserSelectionChange`, which passed it whole to
+/// `kgFocusState.focusEntity(entityId:)` — the engine then 404'd on
+/// `GET /api/entities/<doc>:entity:<id>`. `parse` is the one place that
+/// splits an outline id back into its parts, from the RIGHT, so a
+/// colon-bearing document id ("container:<name>") never corrupts the split.
+/// Spec: kg-entity-inspector `kg.entity.select.inspector-shows-entity`.
+@Suite("Outline node id parsing (#4850)")
+struct LibraryOutlineNodeParseTests {
+
+    @Test("a plain document id parses with no child type and no item id")
+    func plainDocumentId() {
+        let parsed = LibraryOutlineNode.parse(nodeId: "d1")
+        #expect(parsed.documentId == "d1")
+        #expect(parsed.childType == nil)
+        #expect(parsed.itemId == nil)
+    }
+
+    @Test("a colon-bearing document id (container subfolder) survives an item row split")
+    func colonBearingDocumentIdItemRow() {
+        // "container:<name>" is a real document-id shape (default-workflow
+        // subfolders) — the whole point of splitting from the RIGHT.
+        let parsed = LibraryOutlineNode.parse(nodeId: "container:diaries:entity:e-1")
+        #expect(parsed.documentId == "container:diaries")
+        #expect(parsed.childType == .entities)
+        #expect(parsed.itemId == "e-1")
+    }
+
+    @Test("a colon-bearing document id survives a group row split")
+    func colonBearingDocumentIdGroupRow() {
+        let parsed = LibraryOutlineNode.parse(nodeId: "container:diaries:claims")
+        #expect(parsed.documentId == "container:diaries")
+        #expect(parsed.childType == .claims)
+        #expect(parsed.itemId == nil)
+    }
+
+    @Test("an entity item row parses to the BARE entity id, not the composite")
+    func entityItemRowYieldsBareId() {
+        let parsed = LibraryOutlineNode.parse(nodeId: "d1:entity:e-42")
+        #expect(parsed.childType == .entities)
+        #expect(parsed.itemId == "e-42")
+    }
+
+    @Test("a claim item row parses to the BARE claim id, not the composite")
+    func claimItemRowYieldsBareId() {
+        let parsed = LibraryOutlineNode.parse(nodeId: "d1:claim:c-7")
+        #expect(parsed.childType == .claims)
+        #expect(parsed.itemId == "c-7")
+    }
+
+    @Test("a group row (no item) carries a child type but no item id")
+    func groupRowHasNoItemId() {
+        let parsed = LibraryOutlineNode.parse(nodeId: "d1:entities")
+        #expect(parsed.childType == .entities)
+        #expect(parsed.itemId == nil)
+    }
+
+    @Test("an unrecognised marker still reads as a plain document id, never a guess")
+    func unrecognisedMarkerIsNotAChildRow() {
+        let parsed = LibraryOutlineNode.parse(nodeId: "system-default-workflows:books")
+        #expect(parsed.childType == nil)
+        #expect(parsed.itemId == nil)
+    }
+}
+
+@Suite("Child-row skip note (#4198)")
+struct LibraryOutlineSkipNoteTests {
 
     @Test func skipNoteIsNilForEmptyOrDocumentOnlySelections() {
         #expect(LibraryView.skippedChildRowNote(for: []) == nil)

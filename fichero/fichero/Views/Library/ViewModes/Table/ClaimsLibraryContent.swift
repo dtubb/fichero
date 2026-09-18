@@ -68,7 +68,6 @@ struct ClaimsLibraryContent: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            filterBar
             ClaimsTableView(
                 items: items,
                 selection: $selection,
@@ -78,6 +77,9 @@ struct ClaimsLibraryContent: View {
                 onDelete: deleteClaims,
                 onEdit: { claimToEdit = $0 }
             )
+            // #4850: bottom, matching the Entities table and the Library
+            // pane's own filter — was first in this VStack (top).
+            filterBar
         }
         // Reload on BOTH the active library AND the folder scope. Keying on
         // `folderId` alone left the library-wide row (folderId == nil) stuck on
@@ -157,7 +159,10 @@ struct ClaimsLibraryContent: View {
 
     @ViewBuilder
     private var filterBar: some View {
-        HStack(spacing: 8) {
+        // Reuses the shared bottom-toolbar-strip component (#4362) instead of
+        // a hand-placed HStack, matching the Entities table and the Library
+        // pane's own filter chrome.
+        PaneFilterBar(placement: .bottom) {
             Image(systemName: "line.3.horizontal.decrease.circle")
                 .foregroundStyle(.secondary)
             TextField("Filter claims", text: $filterText)
@@ -185,8 +190,6 @@ struct ClaimsLibraryContent: View {
             .help("Assert a claim by hand")
             .accessibilityIdentifier("kg.claim.new")
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
     }
 
     private var emptyMessage: String {

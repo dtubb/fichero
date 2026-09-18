@@ -124,62 +124,8 @@ extension ContentView {
         // plain value param, `BatchRunView`/`ActivityDetailView` read their
         // own environment stores) — no split-race, so no `isSecondarySplitPane`
         // gate is needed here, unlike `.workflow` above.
-        } else if case .chain(let selectedChain) = viewMode {
-            Group {
-                if let selectedChain {
-                    ChainEditorView(chain: selectedChain)
-                } else {
-                    // Relocated from the old Library-pane takeover, not
-                    // deleted — still an honest "nothing to edit yet" state.
-                    ContentUnavailableView(
-                        "Create Chain",
-                        systemImage: "link.badge.plus",
-                        description: Text("Chain creation view")
-                    )
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview })
-        } else if case .batches = viewMode {
-            // Batch-mode GUI (#3536): run a workflow across many folders
-            // separately — one run per folder, each tracked in Activity.
-            BatchRunView()
-                .frame(maxWidth: .infinity)
-                .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview })
-        } else if case .schedule(let selectedSchedule) = viewMode {
-            Group {
-                if let selectedSchedule {
-                    ScheduleDetailView(schedule: selectedSchedule)
-                } else {
-                    ScheduleEditorView(existingSchedule: nil)
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview })
-        } else if case .trigger(let selectedTrigger) = viewMode {
-            Group {
-                if let selectedTrigger {
-                    TriggerDetailView(trigger: selectedTrigger)
-                } else {
-                    TriggerEditorView(existingTrigger: nil)
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview })
-        } else if case .activity(let selectedRun) = viewMode {
-            Group {
-                if let selectedRun {
-                    // The SAME component the compact flow and
-                    // `ActivityDetailWindow.swift` already trust — replaces
-                    // the deleted `ActivityWindowLauncherView`'s separate
-                    // window.
-                    ActivityDetailView(selectedRun: selectedRun)
-                } else {
-                    PaneEmptyStateView(reason: "Select a run in the sidebar to see its details.")
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview })
+        } else if Self.isNodeDetailOrRunHistoryMode(viewMode) {
+            nodeDetailOrRunHistoryContent(for: viewMode)
         // Finder's stacked multi-selection preview (#95) — same gate as the
         // standard-layout preview pane.
         } else if stackDocuments.count > 1 {
@@ -223,6 +169,107 @@ extension ContentView {
                 },
                 selectedDocumentIDs: browserSelection
             )
+            .frame(maxWidth: .infinity)
+            .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview })
+        }
+    }
+
+    /// Whether `mode` is one of the five node-detail/run-history view modes
+    /// `nodeDetailOrRunHistoryContent(for:)` renders (#4850 lint delivery —
+    /// extracted so `widescreenCanvasPaneContent` fits SwiftLint's
+    /// `function_body_length` error threshold; no behavior change, just a
+    /// pure predicate over the SAME five `case` matches that used to be
+    /// chained `else if` branches inline).
+    private static func isNodeDetailOrRunHistoryMode(_ mode: AppViewMode) -> Bool {
+        switch mode {
+        case .chain, .batches, .schedule, .trigger, .activity: return true
+        default: return false
+        }
+    }
+
+    /// #4705 increment 4a's schedule/trigger/chain/batches/activity block —
+    /// dispatches to the two extracted halves (#4850 lint delivery, no
+    /// behavior change): `nodeDetailContent` (chain/batches/schedule/
+    /// trigger) and `runHistoryContent` (activity). Split in two, not one,
+    /// so neither trips SwiftLint's `function_body_length` WARNING
+    /// threshold either (50 lines) — a single combined function fixed the
+    /// ERROR but still warned.
+    @ViewBuilder
+    private func nodeDetailOrRunHistoryContent(for mode: AppViewMode) -> some View {
+        if case .activity = mode {
+            runHistoryContent(for: mode)
+        } else {
+            nodeDetailContent(for: mode)
+        }
+    }
+
+    /// The chain/batches/schedule/trigger node-detail views. Each renders
+    /// its existing detail view here; the Library pane stays the
+    /// navigator. None of these views holds a shared window-level binding,
+    /// so no `isSecondarySplitPane` gate is needed here, unlike `.workflow`
+    /// in the caller.
+    @ViewBuilder
+    private func nodeDetailContent(for mode: AppViewMode) -> some View {
+        if case .chain(let selectedChain) = mode {
+            Group {
+                if let selectedChain {
+                    ChainEditorView(chain: selectedChain)
+                } else {
+                    // Relocated from the old Library-pane takeover, not
+                    // deleted — still an honest "nothing to edit yet" state.
+                    ContentUnavailableView(
+                        "Create Chain",
+                        systemImage: "link.badge.plus",
+                        description: Text("Chain creation view")
+                    )
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview })
+        } else if case .batches = mode {
+            // Batch-mode GUI (#3536): run a workflow across many folders
+            // separately — one run per folder, each tracked in Activity.
+            BatchRunView()
+                .frame(maxWidth: .infinity)
+                .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview })
+        } else if case .schedule(let selectedSchedule) = mode {
+            Group {
+                if let selectedSchedule {
+                    ScheduleDetailView(schedule: selectedSchedule)
+                } else {
+                    ScheduleEditorView(existingSchedule: nil)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview })
+        } else if case .trigger(let selectedTrigger) = mode {
+            Group {
+                if let selectedTrigger {
+                    TriggerDetailView(trigger: selectedTrigger)
+                } else {
+                    TriggerEditorView(existingTrigger: nil)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview })
+        }
+    }
+
+    /// The activity/run-history detail view.
+    @ViewBuilder
+    private func runHistoryContent(for mode: AppViewMode) -> some View {
+        if case .activity(let selectedRun) = mode {
+            Group {
+                if let selectedRun {
+                    // The SAME component the compact flow and
+                    // `ActivityDetailWindow.swift` already trust — replaces
+                    // the deleted `ActivityWindowLauncherView`'s separate
+                    // window.
+                    ActivityDetailView(selectedRun: selectedRun)
+                } else {
+                    PaneEmptyStateView(reason: "Select a run in the sidebar to see its details.")
+                }
+            }
             .frame(maxWidth: .infinity)
             .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview })
         }

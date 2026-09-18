@@ -42,10 +42,17 @@ extension ClaimSummaryCard {
     }
 
     func openClaimInNewWindow(asTab: Bool) {
-        // Follow-up (#1685): like entities, a brand-new window only reacts to
-        // focusedClaimId via .onChange, so deterministic auto-focus on first
-        // mount would need a one-shot on-appear consumer of KGFocusState.
         focusClaim()
+        // #4850: `focusClaim()` above now writes to THIS window's own
+        // per-window `kgFocusState`, not a cross-window singleton — the new
+        // window (which doesn't exist yet) needs its own explicit hand-off,
+        // consumed once on its first appear (`ContentView+RootLayout.swift`).
+        KGFocusState.handOffToNewWindow(
+            entityId: focusedEntityId,
+            claimId: claim.id,
+            sourceDocumentId: claim.sourceDocumentId,
+            sourcePageLabel: claim.sourcePageLabel
+        )
         let libraryId = LibraryManager.shared.currentLibraryId ?? LibraryManager.globalLibraryId
         WindowOpener.open(libraryId: libraryId, asTab: asTab, using: openWindow)
     }

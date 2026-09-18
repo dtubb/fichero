@@ -137,6 +137,56 @@ extension ContentView {
         let primaryId = shellPrimarySelectionId(
             in: newSelection, orderedBy: selectedDocuments
         )
+        // #4850: classify the row FIRST, from its OWN id — not from the
+        // ambient "which collection is the sidebar showing" flag below,
+        // which says nothing about what THIS particular selected row is and
+        // let an entity/claim row's COMPOSITE outline id
+        // ("<doc>:entity:<id>"/"<doc>:claim:<id>") leak into code built for
+        // a bare id. Also fixes a case the old ambient flag never covered:
+        // an entity/claim row disclosed under a document while browsing
+        // the DOCUMENTS collection (not the Entities/Claims collection)
+        // used to fall straight into the document-promotion path below
+        // with a composite id.
+        if let primaryId {
+            let parsed = LibraryOutlineNode.parse(nodeId: primaryId)
+            switch parsed.childType {
+            case .entities:
+                // The table's own `.onChange` (`EntitiesTableView.swift:169-181`
+                // → `openEntityFromLibrary`, `LibraryView+Selection.swift:321`)
+                // already focuses this row with the bare `entity.id` — this
+                // is now the SAME value, not a second writer: whichever of
+                // the two fires last writes the identical id, so the stale-
+                // composite race is gone. The table is the PRIMARY writer;
+                // this branch exists so any future entity surface that is
+                // not the table still resolves correctly.
+                if let itemId = parsed.itemId {
+                    kgFocusState.focusEntity(entityId: itemId)
+                }
+                NavTrace.log("selChange.entityFocus", "nil")
+                detailDocument = nil
+                return
+            case .claims:
+                // #4850: a claim row's composite id is not a document id —
+                // it must never reach the document-fetch path below.
+                // The claims table's own `.onChange`
+                // (`ClaimsTableView.swift:137-154`) already opens the claim
+                // via `onOpenSource` → `ClaimsLibraryContent.openSource`
+                // (`:253`), which posts to `ClaimSourceNavigationState`
+                // (`cursor?.request(request)`) — NOT `detailDocument`. So
+                // this handler does not touch `detailDocument` either;
+                // doing so would blank whatever the Preview pane was
+                // legitimately showing for no reason tied to opening a claim.
+                return
+            case .pages, .artifacts, .notes, nil:
+                // Unchanged (#4850 kept to entity/claim; filed separately):
+                // these fall through to the ambient-flag branch and the
+                // document-promotion path below exactly as before — a
+                // page/artifact/note row's composite id still reaches
+                // `documentService.getDocument`/`BrowserSelectionPreviewPolicy`
+                // there, same as it did before this delivery.
+                break
+            }
+        }
         if isEntityLibrarySelection {
             guard let firstId = primaryId else {
                 kgFocusState.clear()
@@ -144,7 +194,9 @@ extension ContentView {
                 return
             }
             kgFocusState.focusEntity(entityId: firstId)
-            NavTrace.log("selChange.entityClear", "nil")
+            // #4850: this branch FOCUSES an entity — the old label
+            // "selChange.entityClear" described the opposite of what runs here.
+            NavTrace.log("selChange.entityFocus", "nil")
             detailDocument = nil
             return
         }
