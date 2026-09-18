@@ -85,12 +85,13 @@ takeover regression shared with every other sidebar mode.
   leaving the Library visible with nothing new to select — the Library-takeover defect
   epic → #4705 tracks generally (increment 4 names retiring this exact mode). Owned by
   `modes-to-panes.md`; automation is one instance of it, not a separate bug.
-- `automation.run-history.rendition` [GAP] — a schedule/trigger's run history currently
-  lives inside its detail view (`TriggerDetailView+ExecutionHistory.swift`), not the
-  Reader pane `modes-to-panes.md` calls for. A related (not this behavior's own) issue
-  proposes the analogous split for workflow runs generally, on the workflows surface.
-  **(#4741)** — corrected 2026-09-18: was mis-cited to #4739 (that issue is
-  `automation.audit-trail`'s, below), #4741 is this behavior's own issue by title.
+- `automation.run-history.rendition` [OK] (ba7871c09, #4741 closed) — a schedule's or trigger's run
+  history renders in the Reader pane as `modes-to-panes.md` calls for, through shared read-only
+  views (`ScheduleRunHistoryView`, `TriggerRunHistoryView`) that the Preview detail view mounts
+  too — one renderer, two mounts. Pinned: `PaneContentPlanTests.automationKindsLandOnTheRunHistoryReaderSurface`,
+  `PaneContentPlanTests.readerSubjectFromNamesTheRightEntity`. No render test yet (the same
+  honest coverage gap as the workflow run log). Whether Preview keeps its copy is an open
+  question for the creative director, recorded in `modes-to-panes.md`.
 - `automation.audit-trail` [GAP] — a schedule/trigger create/edit/pause/run is not routed
   through `actions/registry.py`'s typed audited-action layer, so an automation run is not
   an actor in the audit log. **(#4739).**

@@ -296,8 +296,8 @@ fourth type.
   `PaneSurface` + `.empty`) — no automated SwiftUI-render test yet asserting the Reader actually
   mounts `PaneEmptyStateView` for a live schedule selection (a coverage gap, flagged, same
   honesty precedent as `m2p.workflow-reader-is-run-log`).
-- `m2p.automation-run-history-in-reader` — **[GAP]** (→ #4741, the `automation` spec's own issue; sha pending gate — flips to
-  **[OK]** once green): a schedule/trigger/activity selection must show its run history in the
+- `m2p.automation-run-history-in-reader` — **[OK]** (ba7871c09; → #4741 closed, the `automation`
+  spec's own issue): a schedule/trigger/activity selection must show its run history in the
   Reader, not the honest-but-now-obsolete `.empty("A schedule has no reader view.")` (etc.) the
   matrix stated before this landed. Fixed by extracting `ScheduleDetailView`'s/
   `TriggerDetailView`'s run-history sections into `ScheduleRunHistoryView`/
@@ -433,7 +433,7 @@ increments 2, 4, and 5.
   default it), so this is a `[GAP]`, flagged for whoever eventually wires it, not a live
   regression from 4b-1. `.comparison`'s `.empty("A comparison has no reader view.")` was
   checked and confirmed accurate — no `.comparison` selection site writes `detailDocument`.
-- **4b-2. `.runHistory` — DONE (2026-09-18, sha pending gate), #4741.** Extracted
+- **4b-2. `.runHistory` — DONE (2026-09-18, ba7871c09), #4741.** Extracted
   `ScheduleDetailView.runHistorySection`/`runRow`/`runStatusColor`/`loadRuns` verbatim into a
   new `ScheduleRunHistoryView(scheduleId: String)`, and `TriggerDetailView.
   executionHistorySection`/`executionRow`/`executionStatusColor`/`loadExecutions` (formerly
