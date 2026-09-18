@@ -184,7 +184,9 @@ struct CanvasCameraCommandGuardTests {
     func shortcutsAreBound() throws {
         let source = try appSource(menuPath)
         #expect(source.contains("Zoom to Fit"))
-        #expect(source.contains(".keyboardShortcut(\"=\", modifiers: [.command])"))
+        // 0918d6fd5: Zoom to Fit moved to ⌘9 (menus-and-commands.md, 2026-09-17)
+        // — ⌘= collided with ⌘⇧= (Zoom In's ⌘+) on the same physical key.
+        #expect(source.contains(".keyboardShortcut(\"9\", modifiers: [.command])"))
         #expect(source.contains(".keyboardShortcut(\"[\", modifiers: [.command])"))
         #expect(source.contains(".keyboardShortcut(\"]\", modifiers: [.command])"))
     }

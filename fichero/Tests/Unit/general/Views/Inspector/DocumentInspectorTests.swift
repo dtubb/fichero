@@ -54,8 +54,11 @@ final class DocumentInspectorTests: XCTestCase {
     func testArtifactsPaneReloadsOnWorkflowSignals() throws {
         let source = try Self.appSource("Views/Inspector/Artifacts/ArtifactsInspectorPane.swift")
 
-        XCTAssertTrue(source.contains(".onChange(of: executionObserver.fileCompletedCount)"))
-        XCTAssertTrue(source.contains(".onChange(of: executionObserver.workflowCompletedCount)"))
+        // 48498334c (#4703) made the environment observer optional; the
+        // inspector reads it with optional chaining now.
+        XCTAssertTrue(source.contains("@Environment(WorkflowExecutionObserver.self) private var executionObserver: WorkflowExecutionObserver?"))
+        XCTAssertTrue(source.contains(".onChange(of: executionObserver?.fileCompletedCount)"))
+        XCTAssertTrue(source.contains(".onChange(of: executionObserver?.workflowCompletedCount)"))
         XCTAssertTrue(source.contains("Task { await store.reload() }"))
     }
 

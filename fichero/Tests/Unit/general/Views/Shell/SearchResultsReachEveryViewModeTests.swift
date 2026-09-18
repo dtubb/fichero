@@ -38,13 +38,21 @@ final class SearchResultsReachEveryViewModeTests: XCTestCase {
         XCTAssertTrue(navigation.contains("LibraryPanePin.effectiveDocuments("))
         XCTAssertTrue(navigation.contains("pinned: pinnedLibrary.wrappedValue"))
 
+        // F3 (per-split-pane pin ownership): the pin no longer lives on ContentView itself, so
+        // `runToolbarSearch` can no longer nil it directly. It bumps the cross-cutting
+        // `libraryPinClearToken`; each `LibrarySplitPaneHost` (one per split half) observes that
+        // token and clears its OWN `pinnedLibrary` — see `ContentView+Navigation.swift`'s doc
+        // comment above `LibrarySplitPaneHost`. Pin both ends of that reset channel.
         let run = try XCTUnwrap(
             actions.components(separatedBy: "func runToolbarSearch(").dropFirst().first
         )
         XCTAssertTrue(
-            String(run.prefix(6000)).contains("pinnedLibrary = nil"),
+            String(run.prefix(6000)).contains("libraryPinClearToken &+= 1"),
             "A pin the results cannot be seen through is worse than no pin."
         )
+        XCTAssertTrue(navigation.contains(".onChange(of: clearToken)"))
+        XCTAssertTrue(navigation.contains("LibraryPanePin.shouldClear("))
+        XCTAssertTrue(navigation.contains("pinnedLibrary = nil"))
     }
 
     /// The dataset renderers re-query rather than rendering the handed-in

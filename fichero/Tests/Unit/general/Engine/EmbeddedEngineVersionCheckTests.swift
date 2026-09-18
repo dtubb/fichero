@@ -162,7 +162,10 @@ struct EmbeddedEngineVersionCheckTests {
     @Test("The check runs on the ready path and drives the banner")
     func readyPathRunsTheCheck() throws {
         let readiness = try source("App/AppState+Readiness.swift")
-        #expect(readiness.contains("await verifyEmbeddedEngineVersion()"))
+        // ed436c69a (#4690) made loadProviders()/verifyEmbeddedEngineVersion()
+        // fire-and-forget after markReady; the check still runs, just off the
+        // critical path and through a weak-self Task.
+        #expect(readiness.contains("await self?.verifyEmbeddedEngineVersion()"))
         #expect(readiness.contains("engineVersionWarning ="))
 
         let notice = try source("Views/Shell/EngineVersionMismatchNotice.swift")

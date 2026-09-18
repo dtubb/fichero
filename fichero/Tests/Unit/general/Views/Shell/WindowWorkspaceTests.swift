@@ -195,14 +195,24 @@ final class WindowWorkspaceTests: XCTestCase {
         catalog.save(name: "Good", layout: good)
         catalog.save(name: "Bad", layout: bad)
 
-        var json = try XCTUnwrap(String(data: catalog.encoded(), encoding: .utf8))
-        // Corrupt ONLY "Bad"'s paneList value in place — computed the same way it was encoded, so
-        // this is a targeted single-field corruption, not a hand-written guess at the JSON shape.
-        let badPaneListJSON = try XCTUnwrap(String(data: JSONEncoder().encode(badList), encoding: .utf8))
-        XCTAssertTrue(json.contains(badPaneListJSON), "test setup: expected Bad's encoded paneList verbatim in the catalog")
-        json = json.replacingOccurrences(of: badPaneListJSON, with: "\"not a pane list\"")
+        // Corrupt ONLY "Bad"'s paneList value in place. A string replace on the encoded JSON's
+        // TEXT is not robust — JSONEncoder gives no key-ordering guarantee, so a standalone
+        // re-encode of `badList` is not guaranteed to appear byte-for-byte inside the catalog's
+        // own encoding of the same value. Walk the decoded JSON OBJECT graph instead and swap in
+        // a wrong-typed value at the right key, which is order-independent.
+        var root = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: catalog.encoded()) as? [String: Any]
+        )
+        var workspaces = try XCTUnwrap(root["workspaces"] as? [[String: Any]])
+        let badIndex = try XCTUnwrap(workspaces.firstIndex { ($0["name"] as? String) == "Bad" })
+        var badLayout = try XCTUnwrap(workspaces[badIndex]["layout"] as? [String: Any])
+        XCTAssertNotNil(badLayout["paneList"], "test setup: expected Bad's layout to carry a paneList")
+        badLayout["paneList"] = "not a pane list" // wrong type: a String where PaneList is expected
+        workspaces[badIndex]["layout"] = badLayout
+        root["workspaces"] = workspaces
 
-        let restored = WindowWorkspaceCatalog.decoded(from: try XCTUnwrap(json.data(using: .utf8)))
+        let json = try XCTUnwrap(JSONSerialization.data(withJSONObject: root))
+        let restored = WindowWorkspaceCatalog.decoded(from: json)
         XCTAssertNotNil(restored, "A malformed paneList anywhere must not void the whole catalog.")
         XCTAssertEqual(Set(restored?.workspaces.map(\.name) ?? []), ["Bad", "Good"])
         XCTAssertEqual(restored?.workspaces.first { $0.name == "Good" }?.layout.paneList, goodList)
