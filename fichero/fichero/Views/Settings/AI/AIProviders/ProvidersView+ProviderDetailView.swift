@@ -19,6 +19,13 @@ struct ProviderDetailView: View {
     @State private var isLoadingModels = false
     @State private var modelsLoadError: String?
 
+    /// Save/remove-key failure, shown inline under the field. Test-connection
+    /// and load-models already surface their errors this way (`testError`,
+    /// `modelsLoadError`); a swallowed key-save error left the field filled
+    /// with no explanation, so the user could not tell a saved key from a
+    /// failed save.
+    @State private var keyError: String?
+
     @Environment(ProviderAPIService.self) var providerService
     // The on-device catalog + runtime provisioning for a LOCAL provider now live
     // INSIDE its row (Daniel, 2026-09-05). Reached through the app-wide store so
@@ -216,6 +223,16 @@ struct ProviderDetailView: View {
                                     removeAPIKey()
                                 }
                             }
+
+                            if let keyError {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .foregroundColor(.orange)
+                                    Text(keyError)
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
                         } else {
                             Text("No API key configured")
                                 .foregroundColor(.orange)
@@ -234,6 +251,16 @@ struct ProviderDetailView: View {
                                 saveAPIKey()
                             }
                             .disabled(apiKey.isEmpty || isSaving)
+
+                            if let keyError {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .foregroundColor(.orange)
+                                    Text(keyError)
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
                         }
 
                         Text("Keys are stored securely in macOS Keychain")
@@ -414,6 +441,7 @@ extension ProviderDetailView {
 
     private func saveAPIKey() {
         isSaving = true
+        keyError = nil
         Task {
             do {
                 try await providerService.setAPIKey(providerType: provider.providerType, apiKey: apiKey)
@@ -421,18 +449,24 @@ extension ProviderDetailView {
                 await onUpdate()
             } catch {
                 providersViewLogger.error("Save key failed: \(String(describing: error))")
+                // The field stays filled on failure — clearing it here would
+                // hide the very key that did NOT save, with only a log line
+                // to explain why it is gone.
+                keyError = error.localizedDescription
             }
             isSaving = false
         }
     }
 
     private func removeAPIKey() {
+        keyError = nil
         Task {
             do {
                 try await providerService.deleteAPIKey(providerType: provider.providerType)
                 await onUpdate()
             } catch {
                 providersViewLogger.error("Remove key failed: \(String(describing: error))")
+                keyError = error.localizedDescription
             }
         }
     }

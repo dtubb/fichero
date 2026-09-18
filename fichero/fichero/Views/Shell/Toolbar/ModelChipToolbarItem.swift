@@ -66,15 +66,16 @@ struct ModelChipToolbarItem: View {
     /// a provider that ships no such model, and the flag is exactly the thing
     /// that goes missing for a model newer than the catalog. A greyed row
     /// with a reason can be argued with; an absent row cannot.
-    private var pickableModels: [(provider: String, model: String, vision: Bool)] {
-        WorkflowRunProviderCache.shared.providers.flatMap { provider in
-            provider.models.map { model -> (String, String, Bool) in
-                let visionCapable = provider.modelDetails
-                    .first { $0.modelId == model }?.supportsVision
-                    ?? provider.supportsVision
-                return (provider.id, model, visionCapable)
-            }
-        }
+    ///
+    /// Built by the ONE shared list-builder (spec RATIFIED 2026-09-15,
+    /// docs/contributor_manual/specs/ui/model-selector-consistency.md) so this
+    /// surface can never drift from the workflow bar's tier-first,
+    /// provider+model-deduped list.
+    private var pickableModels: [SharedModelChoice] {
+        SharedModelListBuilder.build(
+            providers: WorkflowRunProviderCache.shared.providers,
+            tierDefaults: []
+        )
     }
 
     /// What the popover says when it has no rows — THREE answers, not two
@@ -105,17 +106,22 @@ struct ModelChipToolbarItem: View {
 
     /// Why this row cannot be picked for the tier the chip resolves, or nil
     /// when it can. The ONLY gate, and it states itself.
-    private func disabledReason(vision: Bool) -> String? {
-        guard prefersVision, !vision else { return nil }
+    ///
+    /// `supportsVision == false` is a definite catalog "no"; `nil` means the
+    /// catalog does not say, which is NOT a "no" (Daniel, 2026-09-01) — only a
+    /// definite false may grey a row.
+    private func disabledReason(for choice: SharedModelChoice) -> String? {
+        guard prefersVision, choice.supportsVision == false else { return nil }
         return "This selection is a page, so the run needs a model that can "
             + "read images. The catalog does not list image input for this model."
     }
 
-    /// Catalog pricing per model id, fetched once per provider when the
-    /// popover opens (Daniel, 2026-08-29: "a bit more details — logo, and
-    /// cost... maybe vision or not"). Missing rows just show no price —
-    /// absent beats invented.
-    @State private var modelPricing: [String: (input: Double, output: Double)] = [:]
+    /// Catalog pricing per `provider/model` (the shared choice's dedupe key —
+    /// the same model id direct vs. routed is priced differently), fetched
+    /// once per provider when the popover opens (Daniel, 2026-08-29: "a bit
+    /// more details — logo, and cost... maybe vision or not"). Missing rows
+    /// just show no price — absent beats invented.
+    @State private var modelPricing: [String: SharedModelPricing] = [:]
 
     private func loadPricing() async {
         let providers = Set(pickableModels.map(\.provider))
@@ -124,8 +130,10 @@ struct ModelChipToolbarItem: View {
                 .listAvailableModels(providerType: providerType) else { continue }
             for entry in catalog where entry.inputCostPerMillion > 0
                 || entry.outputCostPerMillion > 0 {
-                modelPricing[entry.modelId] =
-                    (entry.inputCostPerMillion, entry.outputCostPerMillion)
+                modelPricing["\(providerType)/\(entry.modelId)"] = SharedModelPricing(
+                    inputPerMillion: entry.inputCostPerMillion,
+                    outputPerMillion: entry.outputCostPerMillion
+                )
             }
         }
     }
@@ -211,14 +219,12 @@ struct ModelChipToolbarItem: View {
                         }
                         .frame(maxWidth: .infinity, minHeight: 180)
                     }
-                    ForEach(pickableModels, id: \.model) { choice in
-                        ModelPickerRow(
-                            model: choice.model,
-                            provider: choice.provider,
-                            isCurrent: choice.model == currentModel,
-                            supportsVision: choice.vision,
-                            pricing: modelPricing[choice.model],
-                            disabledReason: disabledReason(vision: choice.vision)
+                    ForEach(pickableModels) { choice in
+                        SharedModelRow(
+                            choice: choice.withPricing(modelPricing[choice.id]),
+                            isCurrent: choice.provider == currentProvider
+                                && choice.model == currentModel,
+                            disabledReason: disabledReason(for: choice)
                         ) {
                             select((choice.provider, choice.model))
                         }
@@ -400,64 +406,5 @@ struct ModelFamilyMark: View {
                 .frame(width: side, height: side)
                 .background(.quaternary.opacity(0.5), in: Circle())
         }
-    }
-}
-
-/// One configured model in the chip's picker. A concrete type on purpose —
-/// see the metadata note above `modelPicker`.
-private struct ModelPickerRow: View {
-    let model: String
-    let provider: String
-    let isCurrent: Bool
-    var supportsVision: Bool = false
-    var pricing: (input: Double, output: Double)?
-    /// Non-nil when the row is not pickable for this selection — greys the
-    /// row and becomes its tooltip, so the reason travels with the refusal.
-    var disabledReason: String?
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 6) {
-                Image(systemName: "checkmark")
-                    .font(.system(size: 9, weight: .semibold))
-                    .opacity(isCurrent ? 1 : 0)
-                // The same family mark the chip wears — the row's logo is
-                // what lets the eye find "the Claude one" without reading
-                // (Daniel, 2026-08-29: "the popover should have icons as
-                // well").
-                ModelFamilyMark(model: model, provider: provider)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(ModelChipToolbarItem.shorten(model))
-                        .font(.callout)
-                    if let pricing {
-                        // The catalog's per-million figures, in/out — enough
-                        // to tell the cheap step from the expensive one.
-                        Text(String(format: "$%.2f in · $%.2f out / M",
-                                    pricing.input, pricing.output))
-                            .font(.system(size: 9))
-                            .foregroundStyle(.tertiary)
-                            .monospacedDigit()
-                    }
-                }
-                Spacer(minLength: 12)
-                if supportsVision {
-                    Image(systemName: "eye")
-                        .font(.system(size: 9))
-                        .foregroundStyle(.secondary)
-                        .help("Can read images")
-                }
-                Text(provider)
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 5)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .disabled(disabledReason != nil)
-        .opacity(disabledReason == nil ? 1 : 0.45)
-        .help(disabledReason ?? "\(model) — \(provider)")
     }
 }

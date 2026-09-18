@@ -73,6 +73,18 @@ extension AISettingsView {
             }
         }
 
+        /// The capability name shown in a greyed row's disabled reason
+        /// ("Not marked for text — edit its capabilities in Models &
+        /// Providers"). `.any` never disables a row, so it needs no label.
+        var displayName: String {
+            switch self {
+            case .text: return "text"
+            case .vision: return "vision"
+            case .audio: return "audio"
+            case .any: return "any"
+            }
+        }
+
         func matches(_ model: ModelInfo) -> Bool {
             let accepted = acceptedCapabilities
             if accepted.isEmpty { return true }  // .any
@@ -125,23 +137,47 @@ extension AISettingsView {
         }
     }
 
-    /// Provider-change companion — clears the model selection immediately,
-    /// loads the new list, then auto-picks a model. Fixes #936: stale picker
-    /// after provider change + requires-tab-cycle to load.
+    /// Provider-change companion — loads the new list, then keeps the prior
+    /// selection if it is still valid. Fixes #936: stale picker after
+    /// provider change + requires-tab-cycle to load.
+    ///
+    /// Never blanks or auto-picks (house rule: never substitute a different
+    /// choice silently — `prefer-raise-over-silent-fallback`):
+    /// - the selection is NOT cleared before the fetch. Blanking it
+    ///   synchronously triggers `.onChange(of: store.defaults)` to persist
+    ///   model="" as an unserialised save that a slower fetch then raced —
+    ///   and if the fetch failed, "" is what stuck, silently losing the
+    ///   user's pick.
+    /// - on fetch error, the prior selection is left exactly as it was and
+    ///   the error is surfaced via `loadError`, instead of the list (and the
+    ///   selection) going blank.
+    /// - when the saved model is absent from the new list, the selection is
+    ///   left AS-IS rather than auto-picked to `list.first` — a silent
+    ///   substitution is worse than a picker that shows "not in this
+    ///   provider's list" until the user chooses again.
     ///
     /// Race guard (#1344): if the current selection is already valid in the
     /// new list (e.g. restored from a saved default after loadDefaults runs),
-    /// we preserve it rather than blindly picking the first item. Only falls
-    /// back to first-item auto-pick when the saved model is absent from the
-    /// new list or when no model was previously selected.
+    /// it is preserved rather than touched at all.
+    ///
+    /// Pure and `nonisolated static` so a regression to the old `list.first`
+    /// auto-pick (or to blanking on failure) fails a test rather than a user's
+    /// saved model. It always returns `current` — the "what should we do
+    /// instead" answer is "nothing"; a picker with an absent model shows it as
+    /// unrecognised in the current list rather than have it changed for you.
+    nonisolated static func selectionAfterModelLoad(
+        current: String,
+        loadedModels: [ModelInfo]
+    ) -> String {
+        current
+    }
+
     func loadModelsResettingSelection(
         for providerType: String,
         into models: Binding<[ModelInfo]>,
         selecting selection: Binding<String>,
-        ) {
-        let priorSelection = selection.wrappedValue
-        selection.wrappedValue = ""
-
+        loadError: Binding<String?> = .constant(nil)
+    ) {
         guard !providerType.isEmpty else {
             models.wrappedValue = []
             return
@@ -160,18 +196,18 @@ extension AISettingsView {
                     .listProviderModels(providerId: provider.id)
                 let list = Self.configuredModelInfos(from: configured, providerType: providerType)
                 models.wrappedValue = list
-                // Prefer the already-saved selection if it still exists in
-                // the new list; fall back to first model otherwise.
-                if !priorSelection.isEmpty, list.contains(where: { $0.modelId == priorSelection }) {
-                    selection.wrappedValue = priorSelection
-                } else if let first = list.first {
-                    selection.wrappedValue = first.modelId
-                }
+                loadError.wrappedValue = nil
+                selection.wrappedValue = Self.selectionAfterModelLoad(
+                    current: selection.wrappedValue, loadedModels: list
+                )
             } catch {
                 settingsLogger.error(
                     "Failed to load models for \(providerType): \(error.localizedDescription)"
                 )
-                models.wrappedValue = []
+                loadError.wrappedValue = error.localizedDescription
+                // The selection and the previously-loaded list are left as
+                // they were — a failed refresh must not erase a working
+                // configuration.
             }
         }
     }

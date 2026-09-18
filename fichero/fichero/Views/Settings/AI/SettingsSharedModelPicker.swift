@@ -58,11 +58,9 @@ struct SettingsSharedModelPicker: View {
             }
             await loadAll()
         }
-        .help(hiddenCount > 0
-              ? "\(hiddenCount) configured \(hiddenCount == 1 ? "model is" : "models are") "
-                + "not offered here because their catalog entry does not claim "
-                + "the capability this slot needs."
-              : "Every configured model that fits this slot is listed.")
+        .help("Every configured model is listed; a model not marked for this "
+              + "slot's capability is shown greyed, with the reason as its "
+              + "tooltip — never hidden.")
     }
 
     // MARK: - Chip
@@ -106,13 +104,14 @@ struct SettingsSharedModelPicker: View {
 
             ForEach(providerGroups, id: \.providerType) { group in
                 Section(group.name) {
-                    ForEach(group.choices) { choice in
+                    ForEach(group.rows, id: \.choice.id) { row in
                         SharedModelRow(
-                            choice: choice,
-                            isCurrent: choice.provider == providerSelection
-                                && choice.model == modelSelection
+                            choice: row.choice,
+                            isCurrent: row.choice.provider == providerSelection
+                                && row.choice.model == modelSelection,
+                            disabledReason: row.disabledReason
                         ) {
-                            select(provider: choice.provider, model: choice.model)
+                            select(provider: row.choice.provider, model: row.choice.model)
                         }
                         .listRowInsets(EdgeInsets(top: 2, leading: 8, bottom: 2, trailing: 8))
                     }
@@ -133,11 +132,17 @@ struct SettingsSharedModelPicker: View {
 
     // MARK: - Derived lists
 
-    /// One provider and its tier-filtered, row-ready choices.
+    /// One provider and its rows — EVERY configured model, never filtered out
+    /// (mark-never-remove, spec RATIFIED 2026-09-15): a row whose capabilities
+    /// don't fit this slot's tier is still listed, just greyed with a reason
+    /// (`disabledReason`), the same way the island greys a non-vision model
+    /// for a vision selection. Dropping the row entirely — the old
+    /// behaviour — made a vision-capable frontier model saved with only
+    /// `["vision"]` unpickable for $medium/$large ("why isn't Opus here").
     private struct ProviderGroup {
         let providerType: String
         let name: String
-        let choices: [SharedModelChoice]
+        let rows: [(choice: SharedModelChoice, disabledReason: String?)]
     }
 
     private var providerGroups: [ProviderGroup] {
@@ -150,22 +155,18 @@ struct SettingsSharedModelPicker: View {
         ).sorted(by: { $0.name < $1.name })
 
         return uniqueProviders.compactMap { provider in
-            let infos = (modelsByType[provider.providerType] ?? [])
-                .filter { tier.matches($0) }
+            let infos = modelsByType[provider.providerType] ?? []
             guard !infos.isEmpty else { return nil }
             return ProviderGroup(
                 providerType: provider.providerType,
                 name: provider.name,
-                choices: infos.map(Self.choice(from:))
+                rows: infos.map { info in
+                    let reason = tier.matches(info) ? nil :
+                        "Not marked for \(tier.displayName) — edit its capabilities "
+                        + "in Models & Providers"
+                    return (Self.choice(from: info), reason)
+                }
             )
-        }
-    }
-
-    /// Models loaded but filtered out by the tier requirement, across all
-    /// providers — the "N withheld" count the slot's `.help` reports.
-    private var hiddenCount: Int {
-        modelsByType.values.reduce(0) { total, infos in
-            total + infos.count - infos.filter { tier.matches($0) }.count
         }
     }
 
