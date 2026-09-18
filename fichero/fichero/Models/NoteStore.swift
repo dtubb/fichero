@@ -32,6 +32,33 @@ final class NoteStore: ObservableDomainStore {
         case all(kind: String, tag: String, query: String)
     }
 
+    /// Whether `note` belongs in the CURRENTLY-VISIBLE `scope` (#4824) — used
+    /// by the mutators below to decide whether a just-created/updated note
+    /// should be spliced into `notes` in place, or left out because it
+    /// belongs to a different scope than the one on screen. Pure + tested.
+    static func belongs(_ note: NoteItem, to scope: Scope) -> Bool {
+        switch scope {
+        case .none:
+            return false
+        case .document(let id):
+            return (note.linkedDocumentIds ?? []).contains(id)
+        case .page(let id):
+            return note.pageId == id
+        case .folder(let id):
+            return note.folderId == id
+        case .entity(let id):
+            return (note.linkedEntityIds ?? []).contains(id)
+        case .all(let kind, let tag, let query):
+            // A full-text `query` (or a `tag`) can't be re-evaluated
+            // client-side from the returned item alone — skip the splice
+            // rather than risk showing a note that doesn't actually match.
+            // A plain "all notes of this kind" browse (empty tag/query) is
+            // the one case that's safe to check.
+            guard query.isEmpty, tag.isEmpty else { return false }
+            return kind.isEmpty || note.kind?.rawValue == kind
+        }
+    }
+
     // ─── Published domain state (views read these directly) ───
     private(set) var notes: [NoteItem] = []
     private(set) var isLoading = false
@@ -107,51 +134,68 @@ final class NoteStore: ObservableDomainStore {
 
     // MARK: - Named actions (map 1:1 to the audited action layer, #1848)
 
+    /// #4824: the service already maintains its own correctly-spliced
+    /// `NoteService.notes` — these mutators used to throw that away with an
+    /// `await reload()` (a full server re-fetch) right after. They now splice
+    /// the STORE's own `notes` directly from the returned item, gated by
+    /// `belongs(_:to:)` so a note created/edited for a DIFFERENT scope than
+    /// the one on screen doesn't leak into the current list.
     @discardableResult
     func createForDocument(_ documentId: String, body: String) async throws -> NoteItem {
         let note = try await noteService.create(body: body, linkedDocumentId: documentId)
-        await reload()
+        if Self.belongs(note, to: scope) { notes.insert(note, at: 0) }
         return note
     }
 
     @discardableResult
     func createForPage(_ pageId: String, body: String) async throws -> NoteItem {
         let note = try await noteService.create(body: body, pageId: pageId)
-        await reload()
+        if Self.belongs(note, to: scope) { notes.insert(note, at: 0) }
         return note
     }
 
     @discardableResult
     func createForFolder(_ folderId: String, body: String) async throws -> NoteItem {
         let note = try await noteService.create(body: body, folderId: folderId)
-        await reload()
+        if Self.belongs(note, to: scope) { notes.insert(note, at: 0) }
         return note
     }
 
     @discardableResult
     func createForEntity(_ entityId: String, body: String, kind: String = "reference") async throws -> NoteItem {
         let note = try await noteService.create(body: body, linkedEntityId: entityId, kind: kind)
-        await reload()
+        if Self.belongs(note, to: scope) { notes.insert(note, at: 0) }
         return note
     }
 
     @discardableResult
     func createFree(body: String, kind: String) async throws -> NoteItem {
         let note = try await noteService.createFree(body: body, kind: kind)
-        await reload()
+        if Self.belongs(note, to: scope) { notes.insert(note, at: 0) }
         return note
     }
 
+    /// An edit can also move a note OUT of the visible scope (e.g. a kind
+    /// change on a `.all(kind:...)` browse) — `belongs` decides whether the
+    /// row stays, updates in place, or drops out of the current list.
     @discardableResult
     func update(noteId: String, body: String) async throws -> NoteItem {
         let updated = try await noteService.update(noteId: noteId, body: body)
-        await reload()
+        if let idx = notes.firstIndex(where: { $0.id == noteId }) {
+            if Self.belongs(updated, to: scope) {
+                notes[idx] = updated
+            } else {
+                notes.remove(at: idx)
+            }
+        } else if Self.belongs(updated, to: scope) {
+            notes.insert(updated, at: 0)
+        }
         return updated
     }
 
     func delete(noteId: String) async throws {
         try await noteService.delete(noteId: noteId)
-        await reload()
+        notes.removeAll { $0.id == noteId }
     }
 
     // MARK: - Links (#1433 — note↔note relations, read-through to the service)

@@ -100,31 +100,42 @@ final class AnnotationStore: ObservableDomainStore {
             tags: tags,
             linkedClaimIds: linkedClaimIds
         )
-        if result != nil { annotations = annotationService.annotations }
+        if let result { annotations.insert(result, at: 0) }
         return result
     }
 
-    /// Fetch the latest server copy for one annotation and merge it into the list.
+    /// Fetch the latest server copy for one annotation and merge it into the
+    /// list in place (#4824 — `AnnotationService.getAnnotation` already
+    /// splices its own array correctly; the store used to throw that away by
+    /// reassigning `annotations = annotationService.annotations` wholesale).
     @discardableResult
     func getAnnotation(id: String) async -> DocumentAnnotation? {
         let result = await annotationService.getAnnotation(id: id)
-        annotations = annotationService.annotations
+        if let result {
+            if let idx = annotations.firstIndex(where: { $0.id == result.id }) {
+                annotations[idx] = result
+            } else {
+                annotations.insert(result, at: 0)
+            }
+        }
         return result
     }
 
-    /// Patch an annotation's text and update the in-memory copy.
+    /// Patch an annotation's text and update the in-memory copy in place.
     @discardableResult
     func updateText(id: String, text: String) async -> DocumentAnnotation? {
         let result = await annotationService.updateText(id: id, text: text)
-        if result != nil { annotations = annotationService.annotations }
+        if let result, let idx = annotations.firstIndex(where: { $0.id == id }) {
+            annotations[idx] = result
+        }
         return result
     }
 
-    /// Delete an annotation and remove it from the list.
+    /// Delete an annotation and remove it from the list in place.
     @discardableResult
     func delete(id: String) async -> Bool {
         let success = await annotationService.delete(id: id)
-        if success { annotations = annotationService.annotations }
+        if success { annotations.removeAll { $0.id == id } }
         return success
     }
 
@@ -140,13 +151,20 @@ final class AnnotationStore: ObservableDomainStore {
         try await annotationService.cropRegion(request)
     }
 
-    /// Promote a highlight/note to a KnowledgeClaim and refresh.
+    /// Promote a highlight/note to a KnowledgeClaim, then merge the updated
+    /// copy (its `linkedClaimIds` now set) into the list in place. The
+    /// promote endpoint itself returns no annotation body, so a follow-up
+    /// `getAnnotation` fetch (a single, scoped request — not a list reload)
+    /// supplies the item to splice.
     @discardableResult
     func promoteToClaim(id: String) async -> Bool {
         let success = await annotationService.promoteToClaim(id: id)
-        if success {
-            await annotationService.getAnnotation(id: id)
-            annotations = annotationService.annotations
+        if success, let updated = await annotationService.getAnnotation(id: id) {
+            if let idx = annotations.firstIndex(where: { $0.id == updated.id }) {
+                annotations[idx] = updated
+            } else {
+                annotations.insert(updated, at: 0)
+            }
         }
         return success
     }
