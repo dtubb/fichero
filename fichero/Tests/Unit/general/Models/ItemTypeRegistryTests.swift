@@ -23,6 +23,12 @@ final class ItemTypeRegistryTests: XCTestCase {
         XCTAssertNotNil(folder?.keyboardShortcut)
     }
 
+    // #4705 "5a": workspace-registry and ResearchProjectListView-cleanup
+    // coverage MOVED to `SidebarWorkspaceNodeTests.swift`, the dedicated
+    // (and more complete) workspace-node test file — this file already had
+    // `testRegistryOffersWorkspaceWhenHandlerInjected` covering the same
+    // registry entry; avoid a duplicate pin here.
+
     func testHandlerActuallyExecutes() {
         let registry = ItemTypeRegistry()
         var fired = false

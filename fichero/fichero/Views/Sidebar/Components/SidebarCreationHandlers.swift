@@ -40,24 +40,42 @@ extension SidebarView {
         }
     }
 
-    /// Create a new saved workspace (#4308/#4335): a workspace node (folder +
-    /// `is_workspace`) in the CURRENT window's library, selected in the
-    /// sidebar, opening the Research surface. `createWorkspace` reloads the
-    /// document collections, so the node appears in this window's tree
-    /// immediately; other windows follow through the document change stream.
+    /// Create a new saved workspace (folder + `is_workspace`) in the CURRENT
+    /// window's library — #4705 "5a"/#4812: REUSES `handleCreateNewFolder`'s
+    /// own placement contract (Finder semantics, #4121: nest into the
+    /// selected folder, library root as the fallback) and its select-only
+    /// completion (`createFolder(_:)` below) — a workspace is an ordinary
+    /// folder now, not a route into the Research surface (that diversion,
+    /// and the matching one in `routeDocumentSelection`, retired with 5a:
+    /// the need it served is 5b/5c's, a research PROJECT's own rendition,
+    /// not this document row's). `createWorkspace` reloads the document
+    /// collections, so the node appears in this window's tree immediately;
+    /// other windows follow through the document change stream.
     func createNewWorkspace() {
         guard let library = libraryManager.getLibrary(id: windowState.libraryId)
             ?? libraryManager.globalLibrary else {
             logger.error("No library available for workspace creation")
             return
         }
+        // Same context rule as `handleCreateNewFolder` below: nest into the
+        // SELECTED folder; with no folder selected it lands at the library
+        // root.
+        let parentId: String?
+        if let selectedId = selectedItemId,
+           let selected = cachedItem(id: selectedId),
+           case .document(let doc) = selected.itemType, doc.docType == .folder {
+            parentId = doc.id
+        } else {
+            parentId = nil
+        }
 
         Task {
             do {
-                let workspace = try await library.documentStore.createWorkspace(name: "New Workspace")
+                let workspace = try await library.documentStore.createWorkspace(name: "New Workspace", parentId: parentId)
                 rebuildCaches()
+                // Select only — same as `createFolder(_:)`'s completion below;
+                // no `sidebarMode` override, so it browses like any folder.
                 selectedItemId = "doc:\(workspace.id)"
-                sidebarMode = .research
                 logger.info("Created new workspace: \(workspace.id)")
             } catch {
                 logger.error("Failed to create workspace: \(error.localizedDescription)")

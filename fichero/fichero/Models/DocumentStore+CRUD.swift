@@ -38,12 +38,19 @@ extension DocumentStore {
 
     /// Create a new workspace: make a folder, then flag it `is_workspace` via
     /// the workspace PATCH. An empty body only sets the flag — curated_items
-    /// stay empty until the user adds aliases (#1617).
+    /// stay empty until the user adds aliases (#1617). #4705 "5a"/#4812:
+    /// `parentId` REUSES `createFolder`'s own placement contract (nest into
+    /// the given parent, library root when nil) rather than always landing
+    /// at root — a workspace is an ordinary folder, so it follows the same
+    /// placement rule `handleCreateNewFolder` already gives every other
+    /// folder (sidebar-crud's → `create.folder.lands-under-context`). The
+    /// marker PATCH is keyed on the created folder's own id, so honoring a
+    /// non-root `parentId` here needs no separate server-side wiring — it is
+    /// the SAME `createFolder` call every other folder already uses.
     @discardableResult
-    func createWorkspace(name: String) async throws -> Document {
-        let folder = try await createFolder(name: name)
+    func createWorkspace(name: String, parentId: String? = nil) async throws -> Document {
+        let folder = try await createFolder(name: name, parentId: parentId)
         try await documentService.markAsWorkspace(folderId: folder.id)
-        await loadWorkspaces()
         return folder
     }
 

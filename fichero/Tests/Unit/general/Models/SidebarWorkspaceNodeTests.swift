@@ -2,12 +2,21 @@
 import XCTest
 
 /// #4308 (workspace half) + #4335 — workspaces are first-class sidebar nodes.
+/// #4705 "5a"/#4812 (2026-09-18): the "opens the Research surface" half of
+/// this is RETIRED — a workspace is an ordinary folder `Document`
+/// (`isWorkspace: Bool` is a marker, not a different routing kind); the
+/// sidebar already shows it wherever its parent is visible, with its own
+/// icon, and selecting/creating one now behaves exactly like any folder.
+/// The "opens Research" need moved to 5b/5c (a research PROJECT's own
+/// chat/tasks/browser rendition — a `ResearchProject`, a different model
+/// with no folder/Document link at all).
 ///
 /// A workspace is a folder document with `is_workspace=true` (the engine's
-/// `PATCH /{doc_id}/workspace` seam). Creation now flows through the + menu
+/// `PATCH /{doc_id}/workspace` seam). Creation flows through the + menu
 /// (`ItemTypeRegistry.createWorkspace` → `SidebarView.createNewWorkspace`),
-/// inserts the node in the CURRENT library, selects it, and opens the
-/// Research surface; selecting a workspace row routes there too.
+/// REUSES `handleCreateNewFolder`'s own placement contract (Finder
+/// semantics, #4121: nest into the selected folder, library root as the
+/// fallback), inserts the node in the CURRENT library, and selects it.
 @MainActor
 final class SidebarWorkspaceNodeTests: XCTestCase {
 
@@ -53,37 +62,63 @@ final class SidebarWorkspaceNodeTests: XCTestCase {
 
     // MARK: - Routing + creation seams (source contract)
 
-    /// Selecting a workspace node opens the Research surface, never the plain
-    /// folder browse — and the case must precede the generic document case.
-    func testWorkspaceSelectionRoutesToResearchSurface() throws {
+    /// #4705 "5a"/#4812: selecting a workspace node no longer diverts to the
+    /// Research surface — no special `isWorkspace` branch survives in
+    /// `routeDocumentSelection` at all; a workspace document falls through
+    /// to the SAME generic library branch every other document/folder gets.
+    func testWorkspaceSelectionNoLongerDivertsToResearch() throws {
         let source = try appSource("Views/Sidebar/Sections/SidebarView+SelectionHandling.swift")
-        let workspaceBranch = source.range(of: "if doc.isWorkspace {")
-        let libraryFallback = source.range(of: "viewMode = .library(doc)")
-        XCTAssertNotNil(workspaceBranch, "#4308: workspace rows need their own routing branch")
-        if let workspaceBranch, let libraryFallback {
-            XCTAssertTrue(workspaceBranch.lowerBound < libraryFallback.lowerBound)
-        }
-        XCTAssertTrue(source.contains("sidebarMode = .research"))
+        XCTAssertFalse(
+            source.contains("if doc.isWorkspace {"),
+            "#4812: a workspace is an ordinary folder now — no dedicated routing branch"
+        )
+        XCTAssertFalse(
+            source.contains("Routing workspace node"),
+            "the retired branch's log line must not survive either"
+        )
     }
 
-    /// Creation inserts in the CURRENT window's library, selects the node, and
-    /// opens Research (#4335: create → appear → select).
-    func testCreateNewWorkspaceTargetsCurrentLibraryAndSelects() throws {
+    /// #4705 "5a"/#4812: creation REUSES `handleCreateNewFolder`'s placement
+    /// contract (nest into the selected folder; library root as the
+    /// fallback) via a `parentId` on `createWorkspace`, and selects the
+    /// result without forcing `sidebarMode` — it browses like any folder
+    /// (create → appear → select, never "→ Research").
+    func testCreateNewWorkspaceReusesFolderPlacementAndSelects() throws {
         let source = try appSource("Views/Sidebar/Components/SidebarCreationHandlers.swift")
         XCTAssertTrue(source.contains("func createNewWorkspace()"))
         XCTAssertTrue(
             source.contains("libraryManager.getLibrary(id: windowState.libraryId)"),
             "creation targets the current window's library, falling back to global"
         )
-        XCTAssertTrue(source.contains("documentStore.createWorkspace(name:"))
+        XCTAssertTrue(
+            source.contains("documentStore.createWorkspace(name: \"New Workspace\", parentId: parentId)"),
+            "placement must be a parameter on the SAME createWorkspace call, not a second code path"
+        )
+        XCTAssertTrue(
+            source.contains("case .document(let doc) = selected.itemType, doc.docType == .folder"),
+            "the parentId must come from the SAME selected-folder check handleCreateNewFolder uses"
+        )
         XCTAssertTrue(source.contains("selectedItemId = \"doc:\\(workspace.id)\""))
-        XCTAssertTrue(source.contains("sidebarMode = .research"))
+        XCTAssertFalse(
+            source.contains("sidebarMode = .research"),
+            "#4812: creation must not force the Research takeover any more"
+        )
     }
 
     /// The handler is actually wired into the registry at sidebar setup.
     func testRegistryWiringIncludesWorkspace() throws {
         let source = try appSource("Views/Sidebar/Components/SidebarObservers.swift")
         XCTAssertTrue(source.contains("itemRegistry.createWorkspace = createNewWorkspace"))
+    }
+
+    /// #4705 "5a": the redundant workspace-creation UI is gone from
+    /// `ResearchProjectListView` — `createNewWorkspace()`/the registry above
+    /// was already the real, wired create path.
+    func testResearchProjectListViewHasNoWorkspaceUI() throws {
+        let source = try appSource("Views/Chat/Research/ResearchProjectListView.swift")
+        XCTAssertFalse(source.contains("workspacesSection"))
+        XCTAssertFalse(source.contains("newWorkspaceForm"))
+        XCTAssertFalse(source.contains("showingNewWorkspace"))
     }
 
     private func appSource(_ relativePath: String) throws -> String {

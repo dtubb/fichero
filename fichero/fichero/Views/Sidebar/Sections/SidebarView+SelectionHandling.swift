@@ -292,10 +292,17 @@ extension SidebarView {
     }
 
     /// One typed routing seam for every document-row flavor (#4335): alias →
-    /// its target (#2591), workflow mirror → the editor (#4292), workspace →
-    /// the Research surface (#4308), everything else → the library view.
-    /// Order matters: the specialized flavors must win over the generic
-    /// library fallback.
+    /// its target (#2591), workflow mirror → the editor (#4292), everything
+    /// else (including a workspace folder — #4705 "5a", #4812) → the library
+    /// view. Order matters: the specialized flavors must win over the
+    /// generic library fallback.
+    ///
+    /// A workspace USED to divert here to the Research surface (#4308/#4335,
+    /// 229f76368: "selecting a workspace routes to the Research surface") —
+    /// that need is now 5b/5c's (a research project's own chat/tasks/browser
+    /// rendition), not this document-row's. A workspace is an ordinary
+    /// folder `Document` (`isWorkspace: Bool` is a marker, not a different
+    /// KIND of row) and selects exactly like any other folder now.
     private func routeDocumentSelection(_ doc: Document, libraryId: UUID?) {
         if doc.isAlias {
             // Finder semantics (#2591): selecting an alias opens its TARGET.
@@ -307,21 +314,6 @@ extension SidebarView {
         }
         if doc.isWorkflowNode {
             routeWorkflowMirrorSelection(doc, libraryId: libraryId)
-            return
-        }
-        if doc.isWorkspace {
-            // #4308/#4335: a workspace node opens the Research surface (the
-            // agent workspace), not the plain folder browse.
-            //
-            // #4525 (V7): it must ALSO set `viewMode` — the Research interceptor
-            // switches the content column on `sidebarMode` while the preview,
-            // reader and inspector switch on `viewMode`, so setting only one
-            // axis left every pane showing the PREVIOUS selection. The
-            // workspace rides `.library(doc)`: the inspector shows the
-            // workspace node itself instead of a stale surface.
-            sidebarViewLogger.info("Routing workspace node \(doc.id) to the Research surface")
-            sidebarMode = .research
-            viewMode = .library(doc)
             return
         }
         sidebarViewLogger.info("Switching to library view with document: \(doc.name)")

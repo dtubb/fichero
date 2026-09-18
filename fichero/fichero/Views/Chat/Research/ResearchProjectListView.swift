@@ -2,14 +2,11 @@ import SwiftUI
 
 struct ResearchProjectListView: View {
     @Environment(ResearchService.self) var researchService
-    @Environment(DocumentStore.self) var documentStore: DocumentStore
 
     @State private var showingNewProject = false
     @State private var newProjectName = ""
     @State private var projectsToDelete: [ResearchProject] = []
     @State private var showingDeleteConfirm = false
-    @State private var showingNewWorkspace = false
-    @State private var newWorkspaceName = ""
     @State private var selectedProjectIds: Set<String> = []
 
     var body: some View {
@@ -17,59 +14,24 @@ struct ResearchProjectListView: View {
             Spacer().frame(height: 12)
             projectList
             Divider()
-            workspacesSection
-            Divider()
             bottomToolbar
         }
-        // Load existing projects + workspaces when the Research surface appears.
-        // Without this the lists were always empty and previously-created items
-        // were invisible — which read as "can't add" (#1614, #1617).
+        // Load existing projects when the Research surface appears. Without
+        // this the list was always empty and previously-created projects
+        // were invisible — which read as "can't add" (#1614).
+        //
+        // Workspaces section DELETED (#4705 5a), not moved anywhere: a
+        // workspace is already an ordinary folder `Document` (`isWorkspace:
+        // Bool`) and already appears in the ordinary library tree wherever
+        // its parent folder is visible — a SECOND, flat "all my workspaces"
+        // list here would show the same folder twice with the same id
+        // (undefined SwiftUI List selection/diffing), and duplicates the
+        // tree the Library pane already shows. If a flat "all workspaces"
+        // view is ever wanted, it is a Library filter/smart search, not
+        // sidebar plumbing.
         .task {
             await researchService.loadProjects()
-            await documentStore.loadWorkspaces()
         }
-    }
-
-    // MARK: - Workspaces section (#1617)
-
-    private var workspacesSection: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text("Workspaces")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 12)
-                .padding(.top, 6)
-
-            if documentStore.workspaces.isEmpty {
-                Text("No workspaces yet — create one below.")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 6)
-            } else {
-                ForEach(documentStore.workspaces) { workspace in
-                    workspaceRow(workspace)
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private func workspaceRow(_ workspace: Document) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: "square.stack.3d.up.fill")
-                .foregroundStyle(.purple)
-            Text(workspace.name)
-                .font(.body)
-            Spacer()
-            if !workspace.curatedItems.isEmpty {
-                Text("\(workspace.curatedItems.count)")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 2)
     }
 
     @ViewBuilder
@@ -184,13 +146,8 @@ struct ResearchProjectListView: View {
             .disabled(selectedProjectIds.isEmpty)
             .help("Delete selected research projects")
 
-            Button {
-                showingNewWorkspace = true
-            } label: {
-                Label("New Workspace", systemImage: "square.stack.3d.up.badge.a")
-            }
-            .buttonStyle(.plain)
-            .help("New Workspace")
+            // Workspaces are created from the sidebar's creation menu
+            // (`SidebarCreationHandlers.createNewWorkspace()`), not here.
 
             Spacer()
         }
@@ -198,9 +155,6 @@ struct ResearchProjectListView: View {
         .frame(height: 32)
         .popover(isPresented: $showingNewProject) {
             newProjectForm
-        }
-        .popover(isPresented: $showingNewWorkspace) {
-            newWorkspaceForm
         }
         .confirmationDialog(
             "Delete Project?",
@@ -248,34 +202,6 @@ struct ResearchProjectListView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(newProjectName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            }
-        }
-        .padding()
-    }
-
-    private var newWorkspaceForm: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("New Workspace").font(.headline)
-            TextField("Workspace name", text: $newWorkspaceName)
-                .textFieldStyle(.roundedBorder)
-                .frame(width: 240)
-            HStack {
-                Button("Cancel") { showingNewWorkspace = false }
-                Button("Create") {
-                    let name = newWorkspaceName.trimmingCharacters(in: .whitespacesAndNewlines)
-                    guard !name.isEmpty else { return }
-                    Task {
-                        do {
-                            _ = try await documentStore.createWorkspace(name: name)
-                        } catch {
-                            documentStore.error = error
-                        }
-                    }
-                    newWorkspaceName = ""
-                    showingNewWorkspace = false
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(newWorkspaceName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
         .padding()
