@@ -195,17 +195,55 @@ often the wrong subject; not multilingual.
   (drops the subject only when it equals the group subject). Fixing this one line — read
   `subjectCanonical`, keep "they"/re-centring only behind a verb's inverse-table entry — resolves
   most of the "wrong subject" complaint without touching extraction or resolution at all.
-- `kg.read.extraction-subject-accurate` — **[BROKEN]** (#4836) (EXTRACTION layer) verified by running
-  `propose_triples`/`filter_proposals` on real sentences: (i) English dependency labels are
-  mis-mapped — `spacy_svo.py:50-51` expects Universal-Dependencies labels (`nsubj:pass`) but
-  `en_core_web_sm` emits `dobj`/`pobj`/`nsubjpass`, so EVERY English object comes back empty and
-  English passives are lost entirely; (ii) a relative pronoun ("que") is kept as a subject —
-  not in the pronoun gate (`svo_quality.py:233-244`); (iii) a relative clause's subtree leaks
-  into the subject span (`spacy_svo.py:115-122` filters the `relcl` head token, not its
-  subtree); (iv) Spanish null-subject ("pro-drop") sentences yield NO triple at all
-  (`if not subjects: continue`, `:145-146`) — silently dropped, not flagged for review;
-  (v) a pronoun subject is rebound to the last named subject in ITEM-LIST order, not by anything
-  in the text (`extractors.py:2460, 2501-2521`).
+- `kg.read.extraction-subject-accurate` — **[PARTIAL]** (#4836, kept OPEN — see below) (EXTRACTION
+  layer) 7c6f1aae5 fixed most of what this behavior tracked, verified by running the cited
+  tests for real (59 passed): (i) English dependency labels are now per-language and correct —
+  `en_core_web_sm`'s real scheme (`dobj`/`dative`/`nsubjpass`/`agent`, never UD's
+  `obj`/`obl`/`nsubj:pass`) is its own `_LangDeps` table, so English objects are no longer empty
+  and English passives are no longer lost; (ii)/(iii) a relative pronoun ("que"/"cual"/"cuyo"
+  family) is now in the pronoun gate and a relative clause's whole subtree is excluded from the
+  subject span; (iv) a passive now yields its logical subject only when the agent is stated —
+  with no agent, no triple, and subjectless clauses are counted/logged, never silently bound to
+  an earlier sentence's subject; (v) a pronoun subject resolves ONLY to a NAMED antecedent in
+  the SAME sentence (matched by identical `source_text`) — cross-sentence binding, or no
+  `source_text` to prove sameness, drops the item rather than guessing. A recipient also now
+  keeps its preposition ("to Pedro Mosquera") rather than reading as the bare object — see
+  `kg.read.object-slot-has-no-role` below for the ongoing scope of that specific gap. Pinned:
+  `test_spacy_svo_validator.py::TestEnglishRecipientKeepsItsPreposition` (both tests),
+  `test_pronoun_subject_resolution.py::TestPronounSubjectResolution` (all 6),
+  `test_svo_write_quality.py::TestPronounSubjectsNeverLand` (all 3).
+
+  **Kept OPEN, one case still BROKEN:** a Spanish impersonal "se" passive
+  ("Se le entregó la escritura") still proposes the deed ("la escritura") as the subject with
+  an EMPTY object — verified by reading the code and its own comment
+  (`spacy_svo.py:120-122`): this small Spanish model marks "escritura" plain `nsubj` (never
+  `nsubjpass` — Spanish has no such label in this parser) and "le" as a clitic object dropped
+  by the pronoun-object filter, so the row survives as "the deed [was handed over]" with no
+  recipient and a subject a reader has no way to tell apart from an ordinary active-voice
+  subject. No test exercises this sentence; nothing in 7c6f1aae5 addresses it. This is why the
+  behavior stays [PARTIAL] and #4836 stays open rather than closing — the render/pronoun/
+  relative-clause/passive-with-agent fixes are real and tested, but this ONE wrong-subject
+  shape survives them.
+
+  **Concurrency fix is PARTIAL, not proven, and said so honestly:** the cached spaCy
+  `Language` object had no lock while two derivative workers could parse concurrently
+  (`_page_morphology`/`propose_triples` share one instance per language); a lock now wraps both
+  parse call sites. `TestConcurrentCallsDoNotHang` (both tests) drains worker threads with a
+  hard join timeout so a regression FAILS FAST rather than hanging the whole pytest process the
+  way the original bug did — but per the fixing commit's own message, "the race did not
+  reproduce deterministically, so the regression tests guard the shape, not the race." A test
+  that cannot force the race it's guarding against is real coverage of the SYMPTOM (a hang) and
+  not proof the underlying data-corruption race is fixed — kept honest here as PARTIAL evidence,
+  not [OK].
+- `kg.read.object-slot-has-no-role` — **[GAP]** (#4832) a proposed triple's object slot carries
+  no ROLE — a recipient ("to Pedro Mosquera") and a patient ("the mine") differ today only by
+  whichever preposition survived in the text, not by a stored, queryable distinction the entry
+  composer (`kg.read.biography`) could render on. Stated as INTENT for the composer work, not a
+  regression: the recipient-keeps-its-preposition fix above (7c6f1aae5) makes the text itself
+  honest, but a renderer still cannot ask "which object is the recipient?" without re-parsing
+  the preposition string — a role field (recipient/patient/instrument/etc., seeded from what
+  each language's dependency label already distinguishes at extraction time) is the composer's
+  own work to add. Not built.
 - `kg.read.resolution-avoids-bad-merges` — **[PARTIAL]** (#4842, RESOLUTION layer, smallest of the
   three contributors) `upsert_entity`'s fuzzy fallback (`SequenceMatcher` ≥ 0.78 when vectors are
   absent, `_entity_writer.py:550-553`) can fold a father/son or namesake pair; the guards
