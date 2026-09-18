@@ -17,40 +17,98 @@ struct EntityClickthroughTests {
 
     // MARK: - Biography sentences are claims, not prose soup
 
+    /// `subject` defaults non-nil (#4835 requires a COMPLETE SVO triple via
+    /// `ClaimSummaryCard.svoTriple(for:)`) so existing callers that only care
+    /// about verb/object skip logic keep getting a renderable claim; tests
+    /// that care about the subject pass their own.
     private func claim(
-        id: String? = "c1", verb: String? = "otorgó", object: String? = "poder"
+        id: String? = "c1", subject: String? = "Andrés", verb: String? = "otorgó", object: String? = "poder"
     ) -> Components.Schemas.KnowledgeClaim {
         var value = Components.Schemas.KnowledgeClaim(id: id, text: "t")
+        value.subjectCanonical = subject
         value.predicateVerb = verb
         value.objectPhrase = object
         return value
     }
 
-    @Test("each biography sentence keeps hold of the claim it renders")
-    func sentencesCarryTheirClaims() {
+    /// #4835: each sentence uses the CLAIM'S OWN subject, never a pronoun and
+    /// never the page entity's name. The second claim's subject deliberately
+    /// differs from the first — proving the fix, since the OLD code would
+    /// have rendered "they compareció ante mí" here regardless of whose
+    /// claim it actually was.
+    @Test("each biography sentence uses the claim's own subject, never a pronoun")
+    func sentencesUseTheClaimsOwnSubject() {
         let pairs = EntityDigestContent.biographySentences(
-            entityName: "Andrés",
-            claims: [claim(id: "a"), claim(id: "b", verb: "compareció", object: "ante mí")]
+            claims: [
+                claim(id: "a", subject: "Andrés"),
+                claim(id: "b", subject: "Pedro Mosquera", verb: "compareció", object: "ante mí")
+            ]
         )
         #expect(pairs.count == 2)
         #expect(pairs[0].sentence == "Andrés otorgó poder.")
         #expect(pairs[0].claim.id == "a")
-        // Second and later sentences use the pronoun, as the prose always did.
-        #expect(pairs[1].sentence == "they compareció ante mí.")
+        #expect(pairs[1].sentence == "Pedro Mosquera compareció ante mí.")
         #expect(pairs[1].claim.id == "b")
     }
 
     @Test("a claim with neither verb nor object produces no sentence")
-    func emptyClaimsAreSkippedNotPadded() {
+    func emptyVerbAndObjectClaimsAreSkippedNotPadded() {
         let pairs = EntityDigestContent.biographySentences(
-            entityName: "Andrés",
-            claims: [claim(verb: nil, object: nil), claim(id: "real")]
+            claims: [claim(id: "empty", verb: nil, object: nil), claim(id: "real")]
         )
         #expect(pairs.count == 1)
         #expect(pairs[0].claim.id == "real")
-        // The skipped claim must not have consumed the "first sentence names
-        // the entity" slot — the surviving sentence still leads with the name.
-        #expect(pairs[0].sentence.hasPrefix("Andrés"))
+    }
+
+    /// #4835: a claim missing its OWN subject is skipped, not rendered with a
+    /// guessed one — `ClaimSummaryCard.svoTriple(for:)` returns `nil` for an
+    /// incomplete triple, which is the honest fallback this reuses rather
+    /// than inventing a second one.
+    @Test("a claim with an empty subject is skipped, not given a guessed one")
+    func emptySubjectClaimsAreSkipped() {
+        let pairs = EntityDigestContent.biographySentences(
+            claims: [claim(id: "no-subject", subject: nil), claim(id: "after")]
+        )
+        #expect(pairs.count == 1)
+        #expect(pairs[0].claim.id == "after")
+    }
+
+    /// #4835's actual bug report: on the OBJECT's own digest page, the claim
+    /// must still say who really did it — never substitute the page entity.
+    @Test("a claim where the page entity is the OBJECT still renders the TRUE subject")
+    func objectSideClaimRendersTrueSubject() {
+        let pairs = EntityDigestContent.biographySentences(
+            claims: [claim(
+                id: "sale", subject: "Andrés Restrepo",
+                verb: "sold the mine to", object: "Pedro Mosquera"
+            )]
+        )
+        #expect(pairs.count == 1)
+        #expect(pairs[0].sentence == "Andrés Restrepo sold the mine to Pedro Mosquera.")
+        #expect(!pairs[0].sentence.hasPrefix("Pedro Mosquera"))
+    }
+
+    @Test("no biography sentence ever falls back to the pronoun 'they'")
+    func noSentenceContainsThePronoun() {
+        let pairs = EntityDigestContent.biographySentences(
+            claims: [
+                claim(id: "a", subject: "Andrés"),
+                claim(id: "b", subject: "Pedro Mosquera", verb: "compareció", object: "ante mí"),
+                claim(id: "c", subject: "María López", verb: "otorgó", object: "testamento")
+            ]
+        )
+        #expect(pairs.allSatisfy { !$0.sentence.contains("they") })
+    }
+
+    /// Source-scan companion to the behavioral tests above: the literal
+    /// string is gone from the function body, not merely unreachable.
+    @Test("biographySentences' body contains no hard-coded pronoun literal")
+    func biographySentencesSourceHasNoHardCodedPronoun() throws {
+        let digest = try AppSource.code("Views/Inspector/Knowledge/EntityDigestView.swift")
+        let start = try #require(digest.range(of: "static func biographySentences"))
+        let bodyEnd = try #require(digest.range(of: "\n    }", range: start.upperBound..<digest.endIndex))
+        let body = digest[start.upperBound..<bodyEnd.lowerBound]
+        #expect(!body.contains("\"they\""))
     }
 
     // MARK: - The three repaired click paths call the cursor

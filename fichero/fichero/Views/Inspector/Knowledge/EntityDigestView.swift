@@ -375,9 +375,7 @@ struct EntityDigestContent: View {
     /// A claim with no id stays plain text — a link that goes nowhere is
     /// worse than no link.
     private var biographyAttributed: AttributedString {
-        let pairs = Self.biographySentences(
-            entityName: entity.canonicalName, claims: claims
-        )
+        let pairs = Self.biographySentences(claims: claims)
         guard !pairs.isEmpty else {
             return AttributedString("No biography data available.")
         }
@@ -643,25 +641,25 @@ struct EntityDigestContent: View {
     }
 
     /// The per-sentence pairing behind the prose — static so the mapping is
-    /// testable without mounting the view. One sentence per claim that has a
-    /// verb or object; claims with neither are skipped, not padded.
+    /// testable without mounting the view. One sentence per claim with a
+    /// COMPLETE SVO triple; claims without one are skipped, not padded and
+    /// never given a guessed subject (#4835).
     static func biographySentences(
-        entityName: String,
         claims: [Components.Schemas.KnowledgeClaim]
     ) -> [(sentence: String, claim: Components.Schemas.KnowledgeClaim)] {
-        var first = true
         var pairs: [(String, Components.Schemas.KnowledgeClaim)] = []
         for claim in claims {
-            let verb = claim.predicateVerb ?? ""
-            let object = claim.objectPhrase ?? ""
-
-            // Skip BEFORE spending the "first sentence names the entity"
-            // slot — a claim that renders nothing must not demote the first
-            // real sentence to "they".
-            if verb.isEmpty && object.isEmpty { continue }
-
-            let subject = first ? entityName : "they"
-            first = false
+            // #4835: the claim's OWN subject, never the page entity's name —
+            // `ClaimSummaryCard.svoTriple(for:)` is the SAME resolver
+            // `provenanceSummary` (this file, a few hundred lines up) already
+            // uses for this exact screen; one source of truth, not a second
+            // resolver. It requires a COMPLETE triple (subject/verb/object
+            // all present, neither subject nor object an opaque id) — a claim
+            // missing any of the three is skipped rather than rendered with a
+            // guessed subject (a pronoun, or the page entity's name). Re-centring
+            // (the page entity becomes the subject via a verb's inverse-table
+            // entry) is a later, engine-side plan step, not this one.
+            guard let svo = ClaimSummaryCard.svoTriple(for: claim) else { continue }
 
             // No bracketed citation (#4393). It was built from the STORAGE
             // filename and looked up only in `currentDocuments`, so it printed
@@ -669,15 +667,13 @@ struct EntityDigestContent: View {
             // that document was not loaded — a citation that changes depending
             // on what else is on screen is worse than none. Provenance belongs
             // on the row, where it can be navigated to.
-            pairs.append(("\(subject) \(verb) \(object).", claim))
+            pairs.append(("\(svo.subject) \(svo.verb) \(svo.object).", claim))
         }
         return pairs
     }
 
     private var composedBiography: String {
-        let sentences = Self.biographySentences(
-            entityName: entity.canonicalName, claims: claims
-        ).map(\.sentence)
+        let sentences = Self.biographySentences(claims: claims).map(\.sentence)
         return sentences.isEmpty ? "No biography data available." : sentences.joined(separator: " ")
     }
 
