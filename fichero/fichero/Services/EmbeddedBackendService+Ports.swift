@@ -365,15 +365,14 @@ extension EmbeddedBackendService {
         // spawned in a previous session is ours to reap whichever way it was
         // reached, and reaping it is what frees a stale socket (#4400).
         //
-        // Fire-and-forget (#4690): a stale UDS socket is unlinked at bind
-        // (`__main__.py:471,486`), so the spawn path needs nothing from this
-        // sweep on the UDS transport — awaiting the pgrep+ps round trip here
-        // only delayed every spawn for a cleanup the bind already handles. On
-        // the HTTPS transport the port-conflict wait below (`waitForPortToClear`)
-        // still gives the kill time to land before we decide the port is stuck.
-        Task.detached(priority: .userInitiated) {
+        // AWAITED on purpose (#4690 review, 2026-09-18): the sweep kills any
+        // engine whose FICHERO_PARENT_PID is THIS app — which is only safe
+        // while none of ours exists yet. Briefly made fire-and-forget, it
+        // could land after our own spawn and SIGTERM the engine we just
+        // started. The pgrep+ps round trip is not in the measured launch cost.
+        await Task.detached(priority: .userInitiated) {
             Self.terminateOrphanEngines()
-        }
+        }.value
         // Below here is all about 8765, which a UDS engine never binds.
         guard Self.portPreflightApplies(transportMode: EngineConfig.transportMode) else {
             return .spawnOurs
