@@ -109,13 +109,24 @@ extension ContentView {
             // presentation, not two.
 
         // Distraction-free full-window reading (#2520). Top-level overlay so it
-        // covers sidebar, inspector, and toolbar; ⌃⌘F enters (the macOS-standard
-        // full-screen chord), Esc exits. Moved off ⌘⌥F, which is now Find in Page
-        // (CD 2026-09-16 — ⌘⌥F was double-bound with Find in Artifact).
+        // covers sidebar, inspector, and toolbar; ⌃⌘R enters, Esc exits.
+        //
+        // Menu audit 2026-09-17: this was ⌃⌘F, which IS the real macOS system
+        // "Enter Full Screen" chord (not a coincidental look-alike) — AppKit's
+        // own Enter Full Screen menu item claims ⌃⌘F globally, so this command's
+        // key equivalent silently raced the system's. Rebound to ⌃⌘R (free —
+        // see MenuShortcutUniquenessTests' denylist).
+        //
+        // Still `.opacity(0)` with no menu-bar item: `enterImmersiveReading()`
+        // flips ContentView's own `@State isImmersiveReading`, which is
+        // view-local, not `@FocusedValue`-published. Giving this a real Read/
+        // View menu entry needs a `.focusedSceneValue` publish from
+        // ContentView.swift, outside this file's edit scope for this pass —
+        // left as a follow-up rather than adding a dead menu item.
         .overlay { immersiveReadingOverlay }
         .background {
             Button("Enter Full-Screen Reading", action: enterImmersiveReading)
-                .keyboardShortcut("f", modifiers: [.command, .control])
+                .keyboardShortcut("r", modifiers: [.command, .control])
                 .opacity(0)
                 .disabled(immersiveReadingDocument == nil)
         }

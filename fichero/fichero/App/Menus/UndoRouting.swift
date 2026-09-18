@@ -76,6 +76,13 @@ enum FocusedTextResponder {
 
     static func undo() { editableTextView?.undoManager?.undo() }
 
+    /// The ⌘⇧Z counterpart to `canUndo`/`undo()` (menu audit 2026-09-17: Redo
+    /// never existed, so a focused text editor's typing had no way back once
+    /// undone).
+    static var canRedo: Bool { editableTextView?.undoManager?.canRedo ?? false }
+
+    static func redo() { editableTextView?.undoManager?.redo() }
+
     /// Hand ⌘A back to the editor that has focus (#4376) — the same
     /// give-it-back move `undo()` makes for ⌘Z.
     static func selectAll() { editableTextView?.selectAll(nil) }
@@ -83,8 +90,44 @@ enum FocusedTextResponder {
     static var isEditing: Bool { false }
     static var canUndo: Bool { false }
     static func undo() {}
+    static var canRedo: Bool { false }
+    static func redo() {}
     static func selectAll() {}
     #endif
+}
+
+// MARK: - ⌘⇧Z (menu audit 2026-09-17)
+
+/// Where ⌘⇧Z should land — the Redo counterpart of `UndoRoute`/`UndoRoutingPolicy`.
+///
+/// Scoped narrower than Undo on purpose: only a focused text editor and the
+/// audited-action log have a real "redo" to offer today. Navigation history
+/// has no forward-of-undo concept of its own (Go ▸ Forward already covers
+/// stepping forward), and the image editor's undo chain (#4409) has no
+/// recorded redo step — so those routes are simply absent rather than faked.
+enum RedoRoute: Equatable {
+    /// A text editor has focus — its own undo manager owns ⌘⇧Z.
+    case focusedTextEditor
+    /// No text focus; the audited backend log has a reversed action to
+    /// re-apply (undoing ITS inverse row re-does the original).
+    case auditedAction
+    /// Nothing to redo — the menu item is disabled.
+    case none
+}
+
+/// Pure focus→route policy, the same shape as `UndoRoutingPolicy`.
+enum RedoRoutingPolicy {
+    static func route(
+        isTextEditing: Bool,
+        textRedoAvailable: Bool,
+        hasAuditedRedo: Bool
+    ) -> RedoRoute {
+        if isTextEditing {
+            return textRedoAvailable ? .focusedTextEditor : .none
+        }
+        if hasAuditedRedo { return .auditedAction }
+        return .none
+    }
 }
 
 // MARK: - ⌘A (#4376)

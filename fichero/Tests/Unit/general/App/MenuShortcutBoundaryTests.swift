@@ -106,12 +106,23 @@ final class MenuShortcutBoundaryTests: XCTestCase {
         )
     }
 
-    /// The Edit menu still replaces `.undoRedo` (one Undo item, not two) — the
-    /// fix is the route inside it, not removing the replacement.
-    func testEditMenuStillReplacesUndoRedoWithASingleUndoItem() throws {
+    /// The Edit menu still replaces `.undoRedo` (routed Undo AND Redo, not
+    /// SwiftUI's view-local pair) — the fix is the route inside it, not
+    /// removing the replacement.
+    ///
+    /// Menu audit 2026-09-17: this test used to pin the ABSENCE of Redo (the
+    /// group supplied `UndoLastActionButton()` alone) — a focused text editor
+    /// could undo a sentence but never get it back. It now pins the PRESENCE
+    /// of both, so a future edit can't silently drop Redo again.
+    func testEditMenuReplacesUndoRedoWithRoutedUndoAndRedo() throws {
         let source = try Self.appSource("FicheroApp.swift")
         XCTAssertTrue(source.contains("CommandGroup(replacing: .undoRedo)"))
         XCTAssertTrue(source.contains("UndoLastActionButton()"))
+        XCTAssertTrue(
+            source.contains("RedoLastActionButton()"),
+            "The Edit menu must supply a routed Redo alongside Undo (menu audit 2026-09-17) — "
+                + "SwiftUI's default .undoRedo replacement must never be left Undo-only."
+        )
     }
 
     /// The preview arrangements collided with the library layouts (Daniel,
@@ -122,6 +133,10 @@ final class MenuShortcutBoundaryTests: XCTestCase {
     /// now ⌃⌘ letters: a DIFFERENT modifier set AND off the ⌘-number range, so
     /// the two menus can't share a chord. Sidebar MODES take ⌃⌘ numbers, so the
     /// ⌃⌘ letters here don't collide with those either.
+    ///
+    /// "Show Side Preview" moved AGAIN off ⌃⌘S (menu audit 2026-09-17): that
+    /// chord is the macOS HIG Show/Hide Sidebar shortcut, which this app had no
+    /// command for — a collision with a command that doesn't exist yet.
     func testPreviewArrangementsDoNotCollideWithLibraryLayoutNumbers() throws {
         let source = try Self.appSource("App/Menus/ViewMenuLayoutSections.swift")
 
@@ -131,9 +146,13 @@ final class MenuShortcutBoundaryTests: XCTestCase {
         XCTAssertTrue(source.contains("shortcut: \"6\""))   // as Columns
 
         // Preview arrangements moved OFF the ⌘-number range onto ⌃⌘ letters.
-        XCTAssertTrue(source.contains("shortcut: \"s\""))   // Show Side
+        XCTAssertTrue(source.contains("shortcut: \"j\""))   // Show Side (was "s" — the HIG sidebar chord)
         XCTAssertTrue(source.contains("shortcut: \"b\""))   // Show Bottom
         XCTAssertTrue(source.contains("shortcut: \"h\""))   // Hide
+        XCTAssertFalse(
+            source.contains("shortcut: \"s\""),
+            "\"Show Side Preview\" must not sit on ⌃⌘S — that's the HIG Show/Hide Sidebar chord (menu audit 2026-09-17)."
+        )
         XCTAssertFalse(
             source.contains("shortcut: \"7\""),
             "The preview arrangements were on ⌘5/⌘6/⌘7 and collided with the layout "

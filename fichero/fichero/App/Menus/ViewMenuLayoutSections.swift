@@ -247,13 +247,20 @@ struct PreviewModeSection: View {
             // NUMBERS, so ⌃⌘ letters here don't collide with those either.
             // No inner title: the parent flyout is "View ▸ Preview ▸", so a
             // "Preview" header here would read as "Preview ▸ Preview".
+            //
+            // Menu audit 2026-09-17: "Show Side Preview" was ⌃⌘S — the macOS
+            // HIG chord for Show/Hide Sidebar, which this app has no command
+            // for at all (`toggleSidebar()` in ContentView+ActionsUI.swift has
+            // zero callers). Freed to ⌃⌘J so a future Show/Hide Sidebar
+            // command can claim ⌃⌘S; see MenuShortcutUniquenessTests' denylist,
+            // which blocks ⌃⌘S until that command exists.
             Section {
                 if availablePreviewModes.contains(.widescreen) {
                     PreviewModeButton(
                         mode: .widescreen,
                         label: "Show Side Preview",
                         icon: "rectangle.split.2x1",
-                        shortcut: "s",
+                        shortcut: "j",
                         current: viewSettings.previewMode
                     ) {
                         viewSettings.previewMode = .widescreen

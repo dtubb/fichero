@@ -63,7 +63,7 @@ struct ViewMenuCommands: View {
         // stack of ~12 flat sections. Opening View now shows a short list —
         // Layout ▸ / Sort ▸ / Preview ▸ / Workspaces ▸ plus the top-level
         // Sidebar / Inspector / Pane toggles — instead of a junk drawer. The
-        // ⌘1–6 / ⌘⌥1–6 / ⌃⌘I shortcuts live on the LEAF items inside the
+        // ⌘1–6 / ⌘⌥1–5 / ⌃⌘I shortcuts live on the LEAF items inside the
         // submenus, so muscle memory is unchanged. Reading/annotating verbs
         // (Reader Lens, Zoom/Magnifier) moved to the Read menu and the KG
         // view-mode switcher moved to the Knowledge menu (menus-and-commands

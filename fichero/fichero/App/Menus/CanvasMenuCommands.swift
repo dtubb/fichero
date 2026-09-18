@@ -19,6 +19,11 @@ struct CanvasViewSection: View {
 
     var body: some View {
         Section("Canvas") {
+            // Menu audit 2026-09-17: ⌘= is shared with the image/reader
+            // preview's own "Zoom to Fit" (ImagePreviewMenuCommands.swift) —
+            // deliberately: `hasFocusedCanvas` here and `hasActiveImagePreview`
+            // there are mutually exclusive, so one verb keeps one chord across
+            // both contexts instead of ⌘= here and ⌘9 there.
             Button("Zoom to Fit") {
                 canvasActions?.zoomToFit()
             }

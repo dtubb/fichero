@@ -8,6 +8,8 @@ related: [panes-workspaces]
 
 # Menus & Commands — Design Spec
 
+> Milestone: menus-and-commands
+
 > Manual: TBD — the user manual needs a "Menus and keyboard shortcuts" reference: what lives under
 > each menu, the shortcuts worth learning (Search vs Find in Page, the workspace switches), and the
 > rule that a contextual menu offers the same verbs as the menu bar.
@@ -37,7 +39,9 @@ DRAFT** — these are behavior markers, not a ratification:
   ⌘⌥F chord that was previously double-minted (the "Find in Artifact" twin), which is renamed
   **Find in Page** on both sites.
 - **Enter Full Screen → ⌃⌘F** (was ⌘⌥F, at `ContentView+RootLayout.swift`) — the macOS-standard chord,
-  and it clears ⌘⌥F for Find in Page.
+  and it clears ⌘⌥F for Find in Page. **Superseded 2026-09-17** (see the Changelog entry below): ⌃⌘F
+  turned out to BE the real system Enter Full Screen chord, not a look-alike, so this command now
+  collided with AppKit's own menu item — moved again, to ⌃⌘R.
 - **Import + New Folder → File ▸ Import** (moved out of Knowledge; `FocusedNewFolderButton` +
   `FocusedImportFilesButton` under a File `Menu("Import")`) — getting sources in/out is File's job.
 - **View submenus:** Reader Lens / Workflows / Chat / KG-view-mode compose as `Menu` flyouts (the
@@ -47,7 +51,62 @@ DRAFT** — these are behavior markers, not a ratification:
   layout ([[panes-workspaces]] `workspaces.one-system`).
 - **Shortcut-uniqueness is now ENFORCED** by `Tests/Unit/general/Views/Shell/MenuShortcutUniquenessTests.swift`
   — it enumerates every ⌘⌥ chord the app mints and fails if two commands claim one (the ⌘⌥1→loupe and
-  double-minted ⌘⌥F defects). Complements the older `MenuShortcutBoundaryTests`.
+  double-minted ⌘⌥F defects). Complements the older `MenuShortcutBoundaryTests`. **Broadened
+  2026-09-17** (see below): the claim above was overstated — the original scan only matched the
+  literal `[.command, .option]` array order and missed `toolButton(key:)` mints, `KeyboardShortcut(`
+  constructor calls, every OTHER modifier family, and had no system-reserved denylist. It is now one
+  table-driven scan across `App/` and `Views/Shell/`, covering every modifier family and checking
+  against a macOS system-reserved chord list — the claim is true now for the reason it names.
+
+---
+
+## Changelog 2026-09-17 — Fabel review fixes: real system-shortcut collisions, missing Redo
+
+A Fabel review of the whole menu/shortcut surface found several LIVE collisions with macOS's own
+key equivalents (not just app-internal double-minting), plus a missing Redo. Fixed:
+
+- **⌘⌥T "Select Text"** (`PreviewHeadControls.swift`) collided with the system Show/Hide Toolbar
+  chord (the app's own `.toolbar` group is present) — moved to **⌘⌥U**.
+- **⌘⌥H "Highlight"** (`PreviewHeadControls.swift`) collided with system Hide Others — moved to
+  **⌘⌥Y** (mnemonic: yellow, the default highlight color).
+- **⌘⌥D "Line"** (`PreviewHeadControls.swift`) — chosen originally only to avoid the Loupe's ⌘⌥L,
+  it was ITSELF a second, uncaught collision with the system's Turn Dock Hiding On/Off — moved to
+  **⌘⌥G**.
+- **⌃⌘F "Enter Full-Screen Reading"** (`ContentView+RootLayout.swift`) collided with the real system
+  Enter Full Screen chord (not a look-alike) — moved to **⌃⌘R**. It remains a hidden, menu-less
+  `.opacity(0)` button: promoting it to a real Read/View menu item needs a `.focusedSceneValue`
+  publish from `ContentView.swift`, left as a follow-up.
+- **⌃⌘S "Show Side Preview"** (`ViewMenuLayoutSections.swift`) sat on the HIG Show/Hide Sidebar
+  chord while no Show/Hide Sidebar command existed (`toggleSidebar()` in
+  `ContentView+ActionsUI.swift` has zero callers) — moved to **⌃⌘J**, freeing ⌃⌘S. Wiring an actual
+  Show/Hide Sidebar command onto ⌃⌘S needs the same `.focusedSceneValue` publish as above and is
+  also left as a follow-up; `MenuShortcutUniquenessTests` denylists ⌃⌘S in the meantime so nothing
+  squats on it by accident.
+- **Toolbar "Inspector (⌘⌥I)" help text** (`ContentView+Toolbar.swift`) named the wrong chord — the
+  real one is **⌃⌘I** (`ViewMenuPaneSections.swift`); ⌘⌥I is "Copy Files". Text corrected.
+- **Two "Zoom to Fit" chords for one verb** — Canvas (⌘=) vs Read ▸ Zoom (⌘9) — unified onto **⌘=**
+  everywhere: the two commands are gated by mutually-exclusive focused values, so sharing the
+  physical chord is safe and gives the verb one muscle-memory chord instead of two.
+- **File ▸ Import ▸ Import double nesting** (`FileMenuCommands.swift`) — flattened; New Folder and
+  the Import submenu (Link/Copy/Move) now render as siblings, not double-wrapped.
+- **Redo did not exist.** `CommandGroup(replacing: .undoRedo)` supplied `UndoLastActionButton()`
+  alone, so a focused text editor could undo a sentence but never get it back. Added
+  `RedoLastActionButton` (`FocusedCommandButtons+UndoNavigation.swift`) on **⌘⇧Z**, routed the same
+  way as Undo (`RedoRoute`/`RedoRoutingPolicy` in `UndoRouting.swift`): a focused text editor's own
+  undo manager, else the audited-action log's newest still-undoable INVERSE row (undoing an undo
+  re-applies the original — no new backend endpoint needed).
+- Stale **"six workspaces" / "⌘⌥1–6"** text corrected to **five / ⌘⌥1–5** across this spec,
+  `ViewMenuCommands.swift`, `ViewMenuPaneSections.swift`, `ContentView+LayoutChooser.swift` (comments
+  only), and `MenuShortcutUniquenessTests.swift`. Stale **"Library layout (⌘1–4)"** corrected to the
+  real ⌘1–6. A stale "Search" button reference in `FocusedCommandButtons.swift`'s module doc-comment
+  (no such button exists) removed.
+
+**Known, deliberately NOT fixed in this pass** (different file ownership / out of this lane's scope):
+the ⌘'/⌘⇧' Back/Forward chords are minted independently in THREE places — the Go menu
+(`FocusedCommandButtons+UndoNavigation.swift`, the intended single owner), the main toolbar
+(`ContentView+Toolbar.swift`), and `OntologyBrowser+Toolbar.swift` — with no single owner. Fixing it
+means deleting the toolbar `.keyboardShortcut` mints while keeping the buttons themselves clickable;
+flagged for whoever owns those two files next.
 
 Still **[PROPOSED]** / unbuilt: the AddItemMenu/Data dedupe, the context-menu component reuse, and
 Sort/Workspaces re-homing. A **top-level** Workspaces menu (and top-level Find/Workflows menus) were
@@ -80,16 +139,16 @@ stacks ~12 sections behind one menu:
 | Section | Belongs in View? | Note |
 |---|---|---|
 | Sidebar mode | yes | appearance |
-| Library layout (⌘1–4) | yes | list/grid/table/graph |
+| Library layout (⌘1–6) | yes | list/grid/table/graph |
 | **Sort** | **weak** | sorting is data ordering, not appearance; buried here |
 | Preview mode | yes | |
 | Representation | yes | which rendition is shown |
 | Knowledge-graph view mode | yes | |
-| Inspector (⌘⌥I) | yes | |
+| Inspector (⌃⌘I) | yes | |
 | **Reader lens ("Showing")** | partial | what the reader renders — view-ish, but deep |
 | Canvas view | yes | |
 | Pane visibility | yes | |
-| **Workspaces (⌘⌥1–6)** | **no** | a top-level concern; competes with the pane toggles |
+| **Workspaces (⌘⌥1–5)** | **no** | a top-level concern; competes with the pane toggles |
 | Workflow bar / labels / Find bar | yes | chrome toggles |
 
 Twelve sections, five dividers, in one menu. A user hunting for Sort or Workspaces scrolls past
@@ -149,9 +208,9 @@ uniform per group.
   ▸** (Markdown…, Word…, BibTeX…, Markdown Static Site…) · Grant Folder Access… · Print…
 - **Edit** — change the selection. Undo/Redo · Cut/Copy/Paste · Delete · Select All · Rename · Find…
   (the app's own search surfaces own ⌘F; keep the routed Select All / Undo from `MenuShortcutBoundaryTests`.)
-- **View** — how it LOOKS (Part V, appearance only). As Icons/List/Columns/Gallery (⌘1–4) · **Sort By
+- **View** — how it LOOKS (Part V, appearance only). As Icons/List/Columns/Gallery (⌘1–6) · **Sort By
   ▸** · **Preview ▸** (Side/Bottom/Hide, Representation) · Show/Hide Sidebar · Show/Hide Inspector
-  (⌘⌥I) · Panes ▸ · **Workspaces ▸** (⌘⌥1–6, Save…, Manage…) · Enter Full Screen. (Submenus, per the
+  (⌃⌘I) · Panes ▸ · **Workspaces ▸** (⌘⌥1–5, Save…, Manage…) · Enter Full Screen. (Submenus, per the
   ratified nesting.)
 - **Go** — move around. Back/Forward · Enclosing Folder · Reveal in Sidebar · recent locations.
 - **Read** — the reading & annotating surface (Parts IV, VI). **Reader Lens ▸** (Content, Translation,
@@ -248,11 +307,11 @@ and extract the few missing ones in the same mold.
 - **Edit** — selection & mutation: Undo/Redo, Cut/Copy/Paste, **Delete**, Select All, Rename, Find.
   Today Delete/Select-All are published per-surface via `@FocusedValue` but not gathered under Edit;
   gather them.
-- **View** — appearance & layout ONLY: Sidebar mode, Library layout (⌘1–4), Preview/Representation/
+- **View** — appearance & layout ONLY: Sidebar mode, Library layout (⌘1–6), Preview/Representation/
   KG view mode, Inspector, Canvas, Pane visibility, chrome toggles (Workflow/Find bars). **Move Sort
   out** (to a View ▸ Sort submenu or Edit-adjacent, TBD) and **move Workspaces out** (see below).
 - **Workspaces** — **[PROPOSED new top-level menu]**, or a tightened View ▸ Workspaces submenu: the
-  six built-ins (⌘⌥1–6), saved workspaces (⌘⌥7–9), Save Workspace…, Manage Workspaces… It is a
+  five built-ins (⌘⌥1–5), saved workspaces (⌘⌥7–9), Save Workspace…, Manage Workspaces… It is a
   first-class concept (it rearranges the whole window) and deserves to not be buried among toggles.
   Pairs 1:1 with [[panes-workspaces]] `workspaces.one-system`.
 - **Data** — the domain feature verbs (New Chat/Workflow/…, Run Workflow on Selection). This becomes
@@ -322,11 +381,11 @@ either way (shared components), but scope of the cross-platform tests depends on
 ## RATIFIED 2026-09-15 (evening, CD)
 
 - **View is organized into SUBMENUS, not flat sections.** The junk-drawer fix is nesting: each group
-  becomes a flyout — **View ▸ Workspaces ▸** (⌘⌥1–6 + Save/Manage), **View ▸ Sort ▸**, **View ▸
+  becomes a flyout — **View ▸ Workspaces ▸** (⌘⌥1–5 + Save/Manage), **View ▸ Sort ▸**, **View ▸
   Preview ▸**, **View ▸ Layout ▸**, etc. — so opening View shows a short list of submenu titles
   instead of ~12 stacked sections. "They should all be submenus — not Workspaces [inline] but
   Workspaces ▸ …". Workspaces stays under View (not a new top-level menu; Xcode-style top-level was
-  considered and declined). The keyboard shortcuts (⌘⌥1–6, ⌘1–4, ⌘⌥I) live on the leaf items inside
+  considered and declined). The keyboard shortcuts (⌘⌥1–5, ⌘1–6, ⌃⌘I) live on the leaf items inside
   the submenus, so muscle memory is unchanged.
 - **Platform = iPad / Mac / iOS first-class NOW.** Build and test the command surfaces on all three,
   not Mac-first. The shared `Focused*Button` / `*MenuItems` components render in a `CommandMenu`

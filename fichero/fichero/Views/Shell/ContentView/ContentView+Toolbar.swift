@@ -278,7 +278,9 @@ extension ContentView {
                   systemImage: ToolbarSymbols.inspector)
                 .toolbarSurfaceLit(showInspectorSidebar)
         }
-        .help(showInspectorSidebar ? "Hide Inspector (⌘⌥I)" : "Show Inspector (⌘⌥I)")
+        // The menu-bar chord is ⌃⌘I (ViewMenuPaneSections.swift InspectorButton) — ⌘⌥I is
+        // "Copy Files" (FocusedImportFilesButton). This text drifted from the real shortcut.
+        .help(showInspectorSidebar ? "Hide Inspector (⌃⌘I)" : "Show Inspector (⌃⌘I)")
     }
 
     /// PRINCIPAL zone: breadcrumb lozenge + scoped search (#2309/#2039).

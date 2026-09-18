@@ -239,8 +239,12 @@ struct PreviewMarkupToolsRow: View {
             icon: PreviewMarkupTool.textSelect.icon,
             label: PreviewMarkupTool.textSelect.label,
             identifier: "previewMarkupTextSelect",
-            key: "t",
-            help: "Select Text — drag over recognised text to select it (⌘⌥T)",
+            // Menu audit 2026-09-17: ⌘⌥T is the system Show/Hide Toolbar chord
+            // (AppKit's own `.toolbar` group is present in this app), so the
+            // old ⌘⌥T here raced it. "u" is free (MenuShortcutUniquenessTests'
+            // denylist).
+            key: "u",
+            help: "Select Text — drag over recognised text to select it (⌘⌥U)",
             mode: .textSelect
         ) {
             NotificationCenter.default.post(
@@ -294,11 +298,13 @@ struct PreviewMarkupToolsRow: View {
             icon: PreviewMarkupTool.line.icon,
             label: PreviewMarkupTool.line.label,
             identifier: "previewMarkupLine",
-            // ⌘⌥D ("draw a line"): ⌘⌥L is the Loupe toggle on this same
-            // surface (ImagePreviewMenuCommands), and SwiftUI lets duplicate
-            // shortcuts collide silently.
-            key: "d",
-            help: "Line — drag to draw a line on the page (⌘⌥D)",
+            // Was ⌘⌥D ("draw a line"), chosen only to avoid ⌘⌥L (the Loupe
+            // toggle on this same surface). Menu audit 2026-09-17: ⌘⌥D is
+            // ITSELF a macOS system default ("Turn Dock Hiding On/Off"), a
+            // second collision nobody had caught. "g" avoids both (still not
+            // ⌘⌥L; see MenuShortcutUniquenessTests' denylist).
+            key: "g",
+            help: "Line — drag to draw a line on the page (⌘⌥G)",
             mode: .line
         ) {
             NotificationCenter.default.post(
@@ -439,8 +445,11 @@ struct PreviewMarkupToolsRow: View {
                         : AnyShapeStyle(highlightStyle.tint))
             }
             .buttonStyle(.borderless)
-            .keyboardShortcut("h", modifiers: [.command, .option])
-            .help("Highlight — drag over words to highlight them in \(highlightStyle.label) (⌘⌥H)")
+            // Menu audit 2026-09-17: ⌘⌥H is the system Hide Others chord —
+            // rebound to ⌘⌥Y ("yellow", the default highlight color; free
+            // per MenuShortcutUniquenessTests' denylist).
+            .keyboardShortcut("y", modifiers: [.command, .option])
+            .help("Highlight — drag over words to highlight them in \(highlightStyle.label) (⌘⌥Y)")
             .accessibilityLabel("Highlight, \(highlightStyle.label)")
             .accessibilityIdentifier("previewMarkupHighlight")
 

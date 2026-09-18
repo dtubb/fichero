@@ -367,7 +367,7 @@ struct WindowLayoutCommands: Equatable {
     let saveWorkspace: @MainActor () -> Void
     let applyWorkspace: @MainActor (SavedWindowWorkspace) -> Void
     /// Apply a v2 built-in workspace (the one built-in system) to the focused window — sets its
-    /// `activePaneList` (spec workspaces.one-system). This is what ⌘⌥1–6 drives from the menu bar.
+    /// `activePaneList` (spec workspaces.one-system). This is what ⌘⌥1–5 drives from the menu bar.
     let applyWorkspaceLayout: @MainActor (BuiltInWorkspaceLayout) -> Void
     let applyPreset: @MainActor (WindowLayoutPreset) -> Void
 }

@@ -164,12 +164,14 @@ struct FileMenuCommands: View {
 
                 // Import ▸ — getting things IN belongs in File, not Knowledge
                 // (menus-and-commands spec: "File owns get-things-in-and-out";
-                // CD 2026-09-16). Nested here because the outer Group is at the
-                // 10-entry arity cap; the submenu renders inline in File.
-                Menu("Import") {
-                    FocusedNewFolderButton()
-                    FocusedImportFilesButton()
-                }
+                // CD 2026-09-16). Menu audit 2026-09-17: this used to wrap
+                // both buttons in a SECOND `Menu("Import")`, but
+                // `FocusedImportFilesButton` already IS a complete
+                // `Menu("Import")` (Link/Copy/Move) — so File showed
+                // "Import ▸ Import ▸ …", double-nested. Flattened: New Folder
+                // and the Import submenu render as siblings directly in File.
+                FocusedNewFolderButton()
+                FocusedImportFilesButton()
             }
 
             Divider()

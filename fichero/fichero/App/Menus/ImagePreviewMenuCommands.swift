@@ -55,10 +55,18 @@ struct ImagePreviewMenuCommands: View {
         .keyboardShortcut("0", modifiers: [.command])
         .disabled(!hasActiveImagePreview)
 
+        // Menu audit 2026-09-17: was ⌘9, a different chord from Canvas's own
+        // "Zoom to Fit" (⌘=, CanvasMenuCommands.swift `CanvasViewSection`) —
+        // one verb, two chords to remember depending on what's focused. Moved
+        // onto the SAME ⌘= as Canvas: the two are gated by disjoint focused
+        // values (`hasActiveImagePreview` here, `hasFocusedCanvas` there) that
+        // can never both be true at once, so sharing the physical key
+        // equivalent is safe (see MenuShortcutUniquenessTests' allowlist) and
+        // gives "Zoom to Fit" one chord everywhere instead of two.
         Button("Zoom to Fit") {
             zoomActions?.zoomToFit()
         }
-        .keyboardShortcut("9", modifiers: [.command])
+        .keyboardShortcut("=", modifiers: [.command])
         .disabled(!hasActiveImagePreview)
 
         Button("Zoom In") {

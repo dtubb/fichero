@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import OSLog
 import SwiftUI
 
@@ -181,5 +182,79 @@ struct UndoLastActionButton: View {
         alert.alertStyle = .warning
         alert.runModal()
         #endif
+    }
+}
+
+// MARK: - Redo (menu audit 2026-09-17)
+
+/// ⌘⇧Z — the Redo `CommandGroup(replacing: .undoRedo)` never supplied. Before
+/// this, only `UndoLastActionButton` replaced SwiftUI's default undo/redo
+/// items, so the app had exactly one ⌘Z Undo and NO Redo at all — a focused
+/// text editor (a claim's notes, a chat draft) could undo a sentence but never
+/// get it back.
+///
+/// Deliberately narrower than `UndoLastActionButton`: only two of Undo's four
+/// routes have a real redo counterpart today (see `RedoRoute`). Text editing
+/// hands off to the field's own `NSTextView.undoManager`, same as Undo. The
+/// audited-action log has no separate "redo" endpoint (#1848) — but undoing an
+/// undo re-applies the original forward action, so the redo TARGET is the
+/// newest still-undoable row that is ITSELF an inverse (`inverseOf` set) —
+/// `AuditStore.nextUndoableEntry` explicitly SKIPS these same rows "because
+/// those are redo targets, not further undos" (its own doc comment). This
+/// button is the other half of that sentence, without adding an endpoint.
+@MainActor
+struct RedoLastActionButton: View {
+    private var auditStore: AuditStore? {
+        LibraryManager.shared.globalLibrary?.auditStore
+    }
+
+    private var logger: Logger {
+        Logger(subsystem: "app.fichero.fichero", category: "ActionUndo")
+    }
+
+    var body: some View {
+        Button("Redo") {
+            performRedo()
+        }
+        .keyboardShortcut("z", modifiers: [.command, .shift])
+        .disabled(!isEnabled)
+    }
+
+    /// The newest still-undoable audit row that is itself an inverse — undoing
+    /// IT re-applies the forward action it reversed. Reads `auditStore.entries`
+    /// directly rather than adding a redo-specific store method.
+    private var nextRedoableEntry: Components.Schemas.AuditLogEntry? {
+        auditStore?.entries.first { $0.undoable && !$0.undone && $0.inverseOf != nil }
+    }
+
+    private var route: RedoRoute {
+        RedoRoutingPolicy.route(
+            isTextEditing: FocusedTextResponder.isEditing,
+            textRedoAvailable: FocusedTextResponder.canRedo,
+            hasAuditedRedo: nextRedoableEntry != nil
+        )
+    }
+
+    private var isEnabled: Bool { route != .none }
+
+    private func performRedo() {
+        switch route {
+        case .none:
+            return
+        case .focusedTextEditor:
+            FocusedTextResponder.redo()
+            return
+        case .auditedAction:
+            break
+        }
+        guard let auditStore, let entry = nextRedoableEntry else { return }
+        Task {
+            let didRedo = await auditStore.undo(entry.id)
+            if didRedo {
+                logger.info("⌘⇧Z redo succeeded")
+            } else {
+                logger.error("⌘⇧Z redo found nothing to reverse or failed")
+            }
+        }
     }
 }

@@ -102,7 +102,7 @@ struct PaneToggleButton: View {
 struct WorkspaceCommandsSection: View {
     @FocusedValue(\.windowLayoutCommands) private var commands
 
-    /// ⌘⌥N for the v2 workspace at slot N (1–6), else nil. The pure position lives on
+    /// ⌘⌥N for the v2 workspace at slot N (1–5), else nil. The pure position lives on
     /// `BuiltInWorkspaceLayout.defaultSlot`; the SwiftUI shortcut is minted here. ⌘⌥7–9 stay free
     /// for user workspaces (spec §"v2 workspace design", the slot→workspace map).
     static func shortcut(for layout: BuiltInWorkspaceLayout) -> KeyboardShortcut? {
@@ -119,7 +119,7 @@ struct WorkspaceCommandsSection: View {
         Section {
             // The v2 workspaces are the ONE built-in system (spec workspaces.one-system): real 2D
             // PaneList compositions, applied to the focused window's `activePaneList` via the
-            // command bus. ⌘⌥1–6 switch between them. (The legacy `BuiltInWorkspace` show/hide
+            // command bus. ⌘⌥1–5 switch between them. (The legacy `BuiltInWorkspace` show/hide
             // presets — enum, wiring and tests — are deleted; this is the one built-in system.)
             ForEach(BuiltInWorkspaceLayout.allCases) { layout in
                 Button {
