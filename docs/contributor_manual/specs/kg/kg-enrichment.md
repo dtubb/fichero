@@ -49,20 +49,20 @@ backend but isn't surfaced, or isn't tested at every layer, is not done.
 ## The gaps (what this spec adds)
 
 ### A. JSON-LD for the KG (entities/claims) — export + import, VALIDATED
-- `kg.jsonld.export` [MISSING] — export entities + claims as **JSON-LD** with a real
+- `kg.jsonld.export` [MISSING] (#4753) — export entities + claims as **JSON-LD** with a real
   `@context` (schema.org / Linked Art / CIDOC-CRM mapping). The exporter has JSONL/Parquet
   but **no JSON-LD** for the KG today (only annotations are JSON-LD, via IIIF).
-- `kg.jsonld.export.validated` [MISSING] — the export is **validated against its spec**
+- `kg.jsonld.export.validated` [MISSING] (#4754) — the export is **validated against its spec**
   before it's handed over: JSON-LD expands/compacts cleanly against the `@context`, and
   (where a shape is declared) passes **SHACL/ShEx**. A malformed export never ships — it
   raises (prefer-raise), never a silent half-file.
-- `kg.jsonld.import` [MISSING] — import JSON-LD back (round-trip), mapping external terms
+- `kg.jsonld.import` [MISSING] (#4755) — import JSON-LD back (round-trip), mapping external terms
   onto Fichero's entity/claim model; imported statements are **authority/provenance-
   tagged** (created_by = the source), never silently merged as first-party.
-- `kg.jsonld.roundtrip` [MISSING] — export → import → export is stable (the invariant test).
+- `kg.jsonld.roundtrip` [MISSING] (#4756) — export → import → export is stable (the invariant test).
 
 ### B. Enrichment sources — unified in Settings, ALL selectable
-- `kg.enrich.sources.settings` [PARTIAL] — Settings has SPARQL endpoints; extend to a
+- `kg.enrich.sources.settings` [PARTIAL] (#4757) — Settings has SPARQL endpoints; extend to a
   unified **Enrichment Sources** area where **every source below is individually
   togglable + configurable** (endpoint/API key where needed), under the external-
   enrichment master switch. Ruling (creative director, 2026-09-09): **all selectable.**
@@ -114,7 +114,7 @@ Wikidata (hub, on) · VIAF (persons) · GeoNames (modern places) · Pleiades (an
 Getty TGN (historical places) · Getty AAT (concepts) · PeriodO (periods) · Nominatim (geo
 fallback, already on). The rest ship off-by-default, one toggle away.
 
-- `kg.enrich.per-type` [MISSING] — a source is offered for the entity types it serves
+- `kg.enrich.per-type` [MISSING] (#4758) — a source is offered for the entity types it serves
   (places → GeoNames/Pleiades/TGN; persons/orgs → VIAF/LoC/GND/ISNI; concepts → Getty AAT;
   periods → PeriodO), so the UI never suggests a nonsensical lookup.
 - `kg.enrich.provenance` — every enriched value is authority-sourced + provenance-tagged
@@ -122,10 +122,10 @@ fallback, already on). The rest ship off-by-default, one toggle away.
   carry several `sameAs` ids at once (Wikidata + VIAF + GeoNames).
 
 ### C. Surface the enrichment/prediction UX everywhere
-- `kg.enrich.ux` [PARTIAL] — Wikidata enrich preview/import + PyKEEN predictions have
+- `kg.enrich.ux` [PARTIAL] (#4759) — Wikidata enrich preview/import + PyKEEN predictions have
   services + a review sheet; ensure they're reachable from the **entity inspector and the
   KG tables** (an "Enrich…" / "Suggested links" affordance), not only the Ontology browser.
-- `kg.enrich.mcp-cli` [PARTIAL] — expose enrich-preview/import + predict via MCP + CLI so
+- `kg.enrich.mcp-cli` [PARTIAL] (#4760) — expose enrich-preview/import + predict via MCP + CLI so
   an agent can enrich (some CLI exists: wikidata import, pykeen train).
 
 ## D. Testing matrix — Swift + UX + backend, per capability (creative-director mandate)

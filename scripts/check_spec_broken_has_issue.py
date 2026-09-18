@@ -33,10 +33,6 @@ SPECS_DIR = pathlib.Path("docs/contributor_manual/specs")
 # NOT stay in this set (this guardrail enforces that itself: see `_check_grandfather_is_live`),
 # so the list can only shrink. Do NOT add new files here — new debt must ship with an issue.
 GRANDFATHERED_FILES = {
-    "kg/kg-readable-representation.md",
-    "kg/kg-tables.md",
-    "kg/kg-enrichment.md",
-    "kg/segment-representations.md",
     "testing/ui-testing-strategy.md",
     "testing/ui-test-harness.md",
     "testing/test-environment-contract.md",

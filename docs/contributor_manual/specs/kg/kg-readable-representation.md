@@ -67,7 +67,7 @@ per claim, not a fixed language pair.
 
 ## Behaviors
 
-- `kg.read.order.chronological` [PARTIAL, unwired] — claims ordered by their event/
+- `kg.read.order.chronological` [PARTIAL, unwired] (#4648) — claims ordered by their event/
   attestation date (undated claims sectioned at the end, not dropped), so a life reads
   front to back. The function exists and is unit-pinned, but `order_claims`
   (`fichero-server/src/fichero_server/knowledge/readable.py:89`) has ZERO callers outside
@@ -76,18 +76,18 @@ per claim, not a fixed language pair.
   `fichero-server/tests/unit/knowledge/test_readable_representation.py`
   (`test_chronological_orders_by_time_start`, `_puts_undated_last_and_stable`,
   `_falls_back_to_date_values_when_no_time_start`, `_uses_earliest_of_multiple_date_values`).
-- `kg.read.order.by-source` [PARTIAL, unwired] — claims grouped by source document
+- `kg.read.order.by-source` [PARTIAL, unwired] (#4648) — claims grouped by source document
   (fondo → legajo → expediente order), so a reader can follow one record at a time. Same
   gap as `order.chronological`: `order_claims` has no caller outside its own tests, so
   this mode is not wired to the biography route either. Pinned:
   `test_readable_representation.py` (`test_by_source_groups_by_document_then_offset`,
   `_puts_sourceless_claims_last`).
-- `kg.read.biography` [PARTIAL] — an entity-scoped multi-claim life narrative (extends
+- `kg.read.biography` [PARTIAL] (#4750) — an entity-scoped multi-claim life narrative (extends
   `paragraph.py` from paragraph to biography: sectioning, connective prose, dedup across claims).
-- `kg.read.genre.regest` [MISSING] — one dated paragraph per document, in order (calendar of docs).
-- `kg.read.genre.gazetteer` [MISSING] — a place's assertions gathered as an entry.
-- `kg.read.genre.index-concordance` [MISSING] — name/term → its attestations, sorted.
-- `kg.read.confidence-visible` [MISSING] — certainty surfaces as **hedge words + corroboration**
+- `kg.read.genre.regest` [MISSING] (#4653) — one dated paragraph per document, in order (calendar of docs).
+- `kg.read.genre.gazetteer` [MISSING] (#4653) — a place's assertions gathered as an entry.
+- `kg.read.genre.index-concordance` [MISSING] (#4653) — name/term → its attestations, sorted.
+- `kg.read.confidence-visible` [MISSING] (#4751) — certainty surfaces as **hedge words + corroboration**
   (ruling 2): hedge words tuned to confidence, PLUS a triangulation signal — how many independent
   sources assert the factoid and whether any contradict — and always the linked sources. The
   point is to show the render is evidence, not an oracle; a bare confidence dot/number can mislead
@@ -96,26 +96,26 @@ per claim, not a fixed language pair.
   flat fact.
 - `kg.read.provenance-linked` [OK, extend] — every statement keeps its citation marker → source
   anchor (paragraph.py already does markers; ensure biography-scale keeps them 1:1).
-- `kg.read.cite-to-segment` [MISSING] — a citation resolves not just to a document/page but to the
+- `kg.read.cite-to-segment` [MISSING] (#4652) — a citation resolves not just to a document/page but to the
   **page SEGMENT** (the bbox/region the claim was extracted from), so a click lands the reader on
   the exact spot in the source. The `SourceAnchor` already carries region data — the marker must
   round-trip to it.
-- `kg.read.expose-kg-on-hover` [MISSING] — hover/click on a statement reveals **what the KG knows**
+- `kg.read.expose-kg-on-hover` [MISSING] (#4652) — hover/click on a statement reveals **what the KG knows**
   behind it — location, dates, roles, confidence, the raw SVO — rendered readably (not raw JSON),
   as the bridge from prose back to structure back to source.
-- `kg.read.audit-history` [MISSING] — expose the factoid's HISTORY, not just its current state:
+- `kg.read.audit-history` [MISSING] (#4660) — expose the factoid's HISTORY, not just its current state:
   the original extracted names before canonicalisation, how entities were merged (`merged_into_id`),
   the `curation_state` (blessed / rejected / merged) and who/when (`created_by`, `created_at`,
   `attribution_chain`). Much of this is already stored — the render surfaces it readably so a
   reader can see how a factoid came to read the way it does, not just trust it.
-- `kg.read.generation-provenance` [MISSING] — the render is no-LLM, but the underlying CLAIM was
+- `kg.read.generation-provenance` [MISSING] (#4652) — the render is no-LLM, but the underlying CLAIM was
   extracted by a model+prompt+run; that generation provenance (which model, which prompt version,
   which run) is exposed alongside the source, so a reader sees not just *where* the factoid came
   from but *how it was made*. Ties to run-scope provenance logging.
-- `kg.read.no-llm` [MISSING, hard] — NO generative model anywhere in the path. Every sentence is
+- `kg.read.no-llm` [MISSING, hard] (#4652) — NO generative model anywhere in the path. Every sentence is
   produced by deterministic rules/templates/grammar from stored claims; a guard test asserts the
   render module imports/calls no LLM client and that output is a pure function of its claim input.
-- `kg.read.language-of-svo` [PARTIAL] — each sentence renders in the language of its claim/SVO
+- `kg.read.language-of-svo` [PARTIAL] (#4651) — each sentence renders in the language of its claim/SVO
   (the source's language); connective/structuring prose follows the entity's dominant claim
   language. Never machine-translate a claim into another language (that would be fabrication).
   Spanish and English realisation are proven: `test_realises_single_claim_in_spanish`,
@@ -126,7 +126,7 @@ per claim, not a fixed language pair.
   fichero-server/tests/unit/knowledge/test_readable_representation.py::test_unknown_language_falls_back_to_english_glue.
   UNtested: a third language requires only a new lexicon table (no code change) — this
   extensibility claim itself has no test proving a third language "just works" without code.
-- `kg.read.background` [MISSING] — the representation is computed in the background and stored
+- `kg.read.background` [MISSING] (#4752) — the representation is computed in the background and stored
   (auto-throttled, like embeddings — the machine stays usable), not synthesized per web request.
 
 ## Build: the Reiter & Dale NLG pipeline (six small, testable Python stages)

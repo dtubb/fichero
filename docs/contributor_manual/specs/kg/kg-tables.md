@@ -28,7 +28,7 @@ Surfaces: `EntitiesLibraryContent` / `EntitiesTableView`, `ClaimsLibraryContent`
   feeding `claimMatches`).
 - `kg.tables.filter.entity-type` [OK] — an entity-**type** picker filters the entity
   table. Built: `EntitiesLibraryContent.swift:~127-146` (`availableTypes` + type `Menu`).
-- `kg.tables.filter.claim-type` [PARTIAL] — a claim **type** picker filters the claim
+- `kg.tables.filter.claim-type` [PARTIAL] (#4768) — a claim **type** picker filters the claim
   table (built: `ClaimsLibraryContent.swift:~151-176`, `availableTypes`/type `Menu`
   filtering `claimType`), but there is no curation-state picker — the spec line
   originally promised "type / curation-state" and only type shipped.
@@ -61,18 +61,25 @@ Surfaces: `EntitiesLibraryContent` / `EntitiesTableView`, `ClaimsLibraryContent`
 - `kg.tables.claim.create.source-optional-flagged` — a hand-authored claim MAY have no
   source (a working hypothesis / synthesis), but it is clearly marked "no source" and
   treated as lower-provenance; it is never silently indistinguishable from a sourced claim.
-- `kg.tables.claim.edit` [PARTIAL] — subject/verb/object + fields editable **from the
-  claim table** is built: `ClaimsTableView.swift:~166-183` wires an `onEdit` menu item
-  (`kg.claim.menu.edit`) that opens the same editor the Ontology `ClaimSummaryCard` used.
-  Left [PARTIAL] because the row-level `claimMenu` doc-comment still says "edit / curate
-  arrive in later kg-tables waves" — that comment is stale, not the CRUD gap the spec
-  originally meant; not personally re-verified whether every field is reachable inline.
-- `kg.tables.claim.delete` [PARTIAL] — delete **from the table** is built:
+- `kg.tables.claim.edit` [OK] — subject/verb/object + fields editable **from the
+  claim table** is built: `ClaimsTableView.swift:~168-172` wires an `onEdit` menu item
+  (`kg.claim.menu.edit`) that opens the existing `EditClaimSheet` (S·V·O + type +
+  epistemic status, PATCH `/api/claims/{id}`), reused rather than re-parsed. Shipped
+  in `a166ad3ee` (2026-09-08, "feat(kg-tables): edit a claim from the claims table
+  (#4624)"). The row-level `claimMenu` doc-comment's "edit / curate arrive in later
+  kg-tables waves" is stale for edit (curate is the real remaining gap — see
+  `kg.tables.claim.curate` below). Pinned:
+  `fichero/Tests/Unit/general/Views/Library/ClaimsTableCreateTests.swift::testClaimsTableOffersEditReusingTheExistingSVOEditor`.
+- `kg.tables.claim.delete` [PARTIAL] (#4643) — delete **from the table** is built:
   `ClaimsTableView.swift:~166-183` (`onDelete` menu item, `kg.claim.menu.delete`) →
   `ClaimsLibraryContent.swift:~254-268` (`deleteClaims`, one audited delete per id, reloads
   on failure). Left [PARTIAL] pending `kg.scale.batch-delete` (sequential per-id calls, no
   batch endpoint yet — see Scale section below).
-- `kg.tables.claim.curate` [PARTIAL] — bless / reject / merge from the table.
+- `kg.tables.claim.curate` [PARTIAL] (#4691) — bless / reject / merge from the table.
+  Verified against code (2026-09-18): `ClaimsTableView.swift:158-184` (`claimMenu`) offers
+  only Edit and Delete — no bless/reject/merge menu item. Curation is reachable only via
+  batch MCP tools, not the table row menu (`#4691`, table row "claim curate … from table
+  ✗ `ClaimsTableView.swift:158` 'Delete only, for now'").
 
 ### D. Cross-cutting (both tables)
 - `kg.tables.crud.cross-surface` (creative-director ruling, 2026-09-08) — every KG CRUD
@@ -111,7 +118,7 @@ The tables must behave like a **first-class Mac library view** at archive scale 
 entities/claims), not a small demo table. What's missing:
 
 ### Bulk operations at scale
-- `kg.scale.batch-delete` [MISSING backend] — deleting N rows is N sequential per-id DELETEs
+- `kg.scale.batch-delete` [MISSING backend] (#4643) — deleting N rows is N sequential per-id DELETEs
   today (1000 rows = 1000 round-trips) AND aborts mid-loop on one failure, leaving the UX
   showing already-deleted rows (drift). Batch endpoints EXIST for transition / upsert /
   curation (`/api/claims/batch/transition`, `/api/entities/batch`, `/api/kg/claims/batch-
@@ -120,7 +127,7 @@ entities/claims), not a small demo table. What's missing:
 - `kg.scale.bulk-correctness` — a bulk op prunes exactly the rows that SUCCEEDED (partial
   failure never drifts the UX); interim client fix = bounded-concurrent deletes collecting
   successes (reuse the `BatchService` maxConcurrent task-group pattern) until the endpoint lands.
-- `kg.scale.normalize-names` [MISSING] — a bulk "normalize / canonicalize names" op over a
+- `kg.scale.normalize-names` [MISSING] (#4643) — a bulk "normalize / canonicalize names" op over a
   selection (or the whole library) via a provider/AI: fold "Matheo del Mazo" / "Mateo del
   Mazo" to a canonical form + merge. A batch curation/enrichment action, not per-row.
 - `kg.scale.progress-cancel` — a long bulk op shows progress and is cancellable; bounded so
@@ -131,9 +138,9 @@ entities/claims), not a small demo table. What's missing:
   ⌘-click; keep it.
 - `kg.view.keyboard-delete` [MISSING] — ⌘⌫ deletes the selection; ⌘A selects all — same
   selection grammar as every other library mode (`check_selection_grammar`, #4436).
-- `kg.view.type-icons` [MISSING] — rows use the per-type icons that ALREADY exist
+- `kg.view.type-icons` [MISSING] (#4643) — rows use the per-type icons that ALREADY exist
   (`KnowledgeGraphSupport`: person/place/org/event/concept/date), not one flat glyph.
-- `kg.view.pagination` [MISSING at 10k] — the table loads up to 25 000 client-side; at
+- `kg.view.pagination` [MISSING at 10k] (#4643) — the table loads up to 25 000 client-side; at
   10k+ push filter/scope to the list endpoint (`filter.pushdown`) and page, so memory and
   first-paint stay bounded.
 

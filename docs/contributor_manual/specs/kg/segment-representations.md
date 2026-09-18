@@ -46,12 +46,12 @@ exportable = not done. Every behavior below names which spine segment it lands o
 ## Behaviors
 
 ### A. Backend — the read model
-- `segment.read.list` [PARTIAL] — list a document/page's segments (anchor + defaults);
+- `segment.read.list` [PARTIAL] (#4762) — list a document/page's segments (anchor + defaults);
   builds on the Kraken segmenter that already persists baseline geometry.
-- `segment.read.representations` [MISSING] — for one segment, return its available
+- `segment.read.representations` [MISSING] (#4763) — for one segment, return its available
   representations (kind + version + provenance), lazily producing the cheap ones
   (`image-crop` via existing `_segment_image`; `text` from its transcription).
-- `segment.read.transcriptions` [MISSING] — a segment's transcriptions, each carrying
+- `segment.read.transcriptions` [MISSING] (#4764) — a segment's transcriptions, each carrying
   language/script/edition/version, newest-version resolvable.
 - `segment.rep.versioned` — a new crop / new embedding is a NEW version; prior versions
   are never overwritten (provenance/version slot at finest grain).
@@ -59,7 +59,7 @@ exportable = not done. Every behavior below names which spine segment it lands o
   absent, never faked (no empty vector, no placeholder crop). (Ties: prefer-raise.)
 
 ### B. Front end — the inspector
-- `segment.inspector.shows-representations` [MISSING] — selecting a segment in the
+- `segment.inspector.shows-representations` [MISSING] (#4765) — selecting a segment in the
   inspector shows its representations (the crop image, the text, which vectors exist) and
   its transcriptions (with language/script/edition badges).
 - `segment.inspector.source-anchor` — the crop and text resolve to the same on-page
@@ -68,10 +68,10 @@ exportable = not done. Every behavior below names which spine segment it lands o
   inspector shows which version is current and that older ones exist.
 
 ### C. AI / MCP / CLI — made available to an agent
-- `segment.mcp.get` [MISSING] — an MCP tool returns a segment with requested
+- `segment.mcp.get` [MISSING] (#4766) — an MCP tool returns a segment with requested
   representations (`image+text`, or `vector`, or `text`→for-export). An AI can be *given*
   "these segments with their images" in one call.
-- `segment.cli.get` [MISSING] — the same over the CLI (never curl/DuckDB direct).
+- `segment.cli.get` [MISSING] (#4767) — the same over the CLI (never curl/DuckDB direct).
 - `segment.access.consumer-chooses` — the consumer names which representations it wants;
   the server produces/returns only those (an index wants vectors, an agent wants
   image+text, an exporter wants text).
