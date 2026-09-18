@@ -423,7 +423,10 @@ free once the pane list (F7) exists — a default is just a starting list.
 
 ## Findings (code evidence, 2026-09-13)
 
-Paths relative to `fichero/fichero/`. From a read-only code map; every line verified.
+Paths relative to `fichero/fichero/`. From a read-only code map; every line verified **at the
+time of the audit**. HISTORICAL: F1's second renderer and the symbols it names
+(`widescreenPaneRow`, `centerContentRouting`'s raw switch) were deleted 2026-09-17 (#4683). The
+findings stand as the record of why the migration was needed, not as a description of the code now.
 
 - **F1 — Two centre renderers.** `Views/Shell/ContentView/Layout/PaneSpec.swift:15-46,78-225`
   (`PaneSpec`, `widescreenPaneSpecs`, `widescreenPaneRow`) runs only in
@@ -638,11 +641,14 @@ conflicts by construction; the nine above are the default mapping. The Workspace
 
 Behavior-preserving increments, each build+unit-gated; the CD verifies each visually:
 
-1. **Pure seam [done, this pass].** `PaneList.forLayout(mode:showsPreview:showsDocumentGrid:widescreen:)`
+1. **Pure seam [done, then deleted 2026-09-17].** `PaneList.forLayout(mode:showsPreview:showsDocumentGrid:widescreen:)`
+   was the bridge from the Bool-driven modes to a `PaneList`; once a workspace was always applied
+   it had no production caller and went with the second renderer (#4683). Historical:
    reproduces `centerContentRouting`'s branch structure AS DATA; `.standard` bottom-preview becomes
    a `split(.vertical,[library,preview])`. Unit-tested in `PaneListTests` (mode→composition, the
    "same system" contract that preview is a pane in both side and bottom modes).
-2. **One node renderer.** Generalize `widescreenPaneRow` into `paneRow(_ list: PaneList)` that
+2. **One node renderer [done as `paneListRow`; `widescreenPaneRow` deleted 2026-09-17].**
+   Original plan: generalize `widescreenPaneRow` into `paneRow(_ list: PaneList)` that
    renders a node recursively — leaf → `kindContent` (its head chrome + `.clipped()`); split →
    H/VStack of children along the axis with the existing `ResizableDivider`. Route `centerContent`
    through `paneRow(PaneList.forLayout(...))` for the non-compact path; the compact reader flow is
@@ -704,12 +710,20 @@ and a **guardrail test** keeps the second from growing back.
   that greps the app target and fails if `BuiltInWorkspace`/`WindowLayoutPreset`/`applyBuiltIn`/
   `applyLayoutPreset` reappear (their deletion is also compile-time). One list of defaults in the
   menus, never three competing lists.
-- `panes.one-renderer` — **[RATIFIED → enforced]** The window centre is drawn by ONE path: a
-  `PaneList` → `paneComposition`/`paneListRow`. No per-mode `PlatformVSplitView`/`previewView`
-  second renderer, and no mode that bypasses the pane list. *Enforced:* every layout mode resolves
-  through `PaneList.forLayout`/`activePaneList` (unit-tested), and a guardrail fails if a raw
-  `previewView`/legacy split renderer is reintroduced in the centre-routing path. The applied
-  workspace (`activePaneList`) and the derived default share the same `paneComposition` code.
+- `panes.one-renderer` — **[RATIFIED → enforced, tightened 2026-09-17]** The window centre is
+  drawn by ONE path: `paneListRow(activePaneList)`. `activePaneList` is **non-optional** — a
+  workspace is always applied — so there is no fallback branch and nothing to fall back to. The
+  earlier two-path shape (`paneComposition` for a derived default, `paneListRow` for an applied
+  workspace) was deleted (#4683): the derived default had been unreachable since the workspace seed
+  landed, and an unreachable second renderer is where drift hides. Deleted with it:
+  `PaneList.forLayout`, `WidescreenVisibility`, `widescreenPaneRow`, `paneDivider`,
+  `paneContent(for:)`. *Enforced:* `WorkspaceSystemBoundaryTests` asserts the routing file
+  contains `paneListRow(activePaneList)` and contains neither `paneComposition(` nor
+  `PaneList.forLayout(`, and asserts `activePaneList` is declared non-optional — so reintroducing
+  either the second renderer or the Optional that kept it alive fails a test by name.
+  *Known residue, tracked:* menu Split still routes through the retired `widescreenPaneSpecs`
+  slot ids and posts to nothing (#4685); the three legacy visibility Bools still drive toolbar and
+  menu state without driving rendering (#4687). One renderer is true; one *model* is not yet.
 - `panes.instance-safe` stays enforced by `everyBuiltInIsInstanceSafe` (below) — one system does not
   mean one pane; two same-kind panes are fine, and the structural guard keeps them loop-free.
 
