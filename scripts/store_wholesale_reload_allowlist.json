@@ -1,200 +1,325 @@
 [
   {
     "file": "fichero/fichero/Models/ArtifactStore.swift",
-    "method": "delete",
-    "reason": "known offender traced 2026-09-18, ArtifactStore.delete calls reload() after every delete instead of splicing the removed ids out",
-    "issue": 1961
-  },
-  {
-    "file": "fichero/fichero/Models/ArtifactStore.swift",
     "method": "apply",
+    "class": "violation",
     "reason": "known offender traced 2026-09-18, change-stream events carry only document_ids not item ids so a per-row splice is not cheap today",
     "issue": 1961
   },
   {
     "file": "fichero/fichero/Models/AnnotationStore.swift",
-    "method": "addNote",
-    "reason": "known offender traced 2026-09-18, reassigns the whole annotations array from the (already correctly spliced) service array instead of trusting the splice",
-    "issue": 1970
-  },
-  {
-    "file": "fichero/fichero/Models/AnnotationStore.swift",
-    "method": "updateText",
-    "reason": "known offender traced 2026-09-18, same wholesale-reassignment pattern as addNote",
-    "issue": 1970
-  },
-  {
-    "file": "fichero/fichero/Models/AnnotationStore.swift",
-    "method": "delete",
-    "reason": "known offender traced 2026-09-18, same wholesale-reassignment pattern as addNote",
-    "issue": 1970
-  },
-  {
-    "file": "fichero/fichero/Models/AnnotationStore.swift",
-    "method": "promoteToClaim",
-    "reason": "known offender traced 2026-09-18, same wholesale-reassignment pattern as addNote",
-    "issue": 1970
-  },
-  {
-    "file": "fichero/fichero/Models/AnnotationStore.swift",
     "method": "apply",
+    "class": "violation",
     "reason": "known offender traced 2026-09-18, same change-stream-lacks-item-ids constraint as ArtifactStore.apply",
     "issue": 1970
   },
   {
     "file": "fichero/fichero/Models/ActionStore.swift",
     "method": "createAction",
-    "reason": "NEW finding, #4824 sweep 2026-09-18 — reassigns actions wholesale from actionsService.actions instead of splicing; not yet triaged into its own issue",
+    "class": "violation",
+    "reason": "#4824 sweep 2026-09-18 \u2014 reassigns actions wholesale from actionsService.actions instead of splicing",
     "issue": 4824
   },
   {
     "file": "fichero/fichero/Models/ActionStore.swift",
     "method": "deleteAction",
-    "reason": "NEW finding, #4824 sweep 2026-09-18 — same pattern as createAction",
+    "class": "violation",
+    "reason": "#4824 sweep 2026-09-18 \u2014 same pattern as createAction",
     "issue": 4824
   },
   {
     "file": "fichero/fichero/Models/ActionStore.swift",
     "method": "apply",
-    "reason": "NEW finding, #4824 sweep 2026-09-18 — scheduleReload() on every change-stream event, same class-wide pattern as ArtifactStore.apply",
+    "class": "violation",
+    "reason": "#4824 sweep 2026-09-18 \u2014 scheduleReload() on every change-stream event, same class-wide pattern as ArtifactStore.apply",
     "issue": 4824
   },
   {
     "file": "fichero/fichero/Models/BackupStore.swift",
     "method": "create",
-    "reason": "NEW finding, #4824 sweep 2026-09-18 — calls load() after creating a backup instead of appending in place",
+    "class": "violation",
+    "reason": "#4824 sweep 2026-09-18 \u2014 calls load() after creating a backup instead of appending in place",
     "issue": 4824
   },
   {
     "file": "fichero/fichero/Models/BackupStore.swift",
     "method": "delete",
-    "reason": "NEW finding, #4824 sweep 2026-09-18 — calls load() after deleting a backup instead of removing in place",
+    "class": "violation",
+    "reason": "#4824 sweep 2026-09-18 \u2014 calls load() after deleting a backup instead of removing in place",
     "issue": 4824
   },
   {
     "file": "fichero/fichero/Models/CitationStore.swift",
     "method": "apply",
-    "reason": "NEW finding, #4824 sweep 2026-09-18 — scheduleReload() on change-stream events, class-wide pattern",
+    "class": "violation",
+    "reason": "#4824 sweep 2026-09-18 \u2014 scheduleReload() on change-stream events, class-wide pattern",
     "issue": 4824
   },
   {
     "file": "fichero/fichero/Models/ClaimStore.swift",
     "method": "delete",
-    "reason": "NEW finding, #4824 sweep 2026-09-18 — calls reload() after deleting a claim instead of removing it in place",
+    "class": "violation",
+    "reason": "#4824 sweep 2026-09-18 \u2014 calls reload() after deleting a claim instead of removing it in place",
     "issue": 4824
   },
   {
     "file": "fichero/fichero/Models/ClaimStore.swift",
     "method": "apply",
-    "reason": "NEW finding, #4824 sweep 2026-09-18 — scheduleReload() on change-stream events, class-wide pattern",
+    "class": "violation",
+    "reason": "#4824 sweep 2026-09-18 \u2014 created/updated/merged/linked events call scheduleReload(); only the deleted branch splices in place",
     "issue": 4824
   },
   {
     "file": "fichero/fichero/Models/InterpretationStore.swift",
     "method": "create",
-    "reason": "NEW finding, #4824 sweep 2026-09-18 — calls reload() after creating an interpretation instead of appending in place",
+    "class": "violation",
+    "reason": "#4824 sweep 2026-09-18 \u2014 calls reload() after creating an interpretation instead of appending in place",
     "issue": 4824
   },
   {
     "file": "fichero/fichero/Models/InterpretationStore.swift",
     "method": "update",
-    "reason": "NEW finding, #4824 sweep 2026-09-18 — calls reload() after updating instead of splicing by index",
+    "class": "violation",
+    "reason": "#4824 sweep 2026-09-18 \u2014 calls reload() after updating instead of splicing by index",
     "issue": 4824
   },
   {
     "file": "fichero/fichero/Models/InterpretationStore.swift",
     "method": "apply",
-    "reason": "NEW finding, #4824 sweep 2026-09-18 — scheduleReload() on change-stream events, class-wide pattern",
+    "class": "violation",
+    "reason": "#4824 sweep 2026-09-18 \u2014 scheduleReload() on change-stream events, class-wide pattern",
     "issue": 4824
   },
   {
     "file": "fichero/fichero/Models/KnownLibraryRegistryStore.swift",
     "method": "remove",
-    "reason": "NEW finding, #4824 sweep 2026-09-18 — falls back to refresh() on a failed/errored removal instead of leaving the optimistic in-place removal as-is",
-    "issue": 4824
-  },
-  {
-    "file": "fichero/fichero/Models/NoteStore.swift",
-    "method": "createForDocument",
-    "reason": "NEW finding, #4824 sweep 2026-09-18 — every NoteStore create/update/delete method calls reload() instead of splicing; one shared root cause across the whole file",
-    "issue": 4824
-  },
-  {
-    "file": "fichero/fichero/Models/NoteStore.swift",
-    "method": "createForPage",
-    "reason": "NEW finding, #4824 sweep 2026-09-18 — see createForDocument, same file-wide pattern",
-    "issue": 4824
-  },
-  {
-    "file": "fichero/fichero/Models/NoteStore.swift",
-    "method": "createForFolder",
-    "reason": "NEW finding, #4824 sweep 2026-09-18 — see createForDocument, same file-wide pattern",
-    "issue": 4824
-  },
-  {
-    "file": "fichero/fichero/Models/NoteStore.swift",
-    "method": "createForEntity",
-    "reason": "NEW finding, #4824 sweep 2026-09-18 — see createForDocument, same file-wide pattern",
-    "issue": 4824
-  },
-  {
-    "file": "fichero/fichero/Models/NoteStore.swift",
-    "method": "createFree",
-    "reason": "NEW finding, #4824 sweep 2026-09-18 — see createForDocument, same file-wide pattern",
-    "issue": 4824
-  },
-  {
-    "file": "fichero/fichero/Models/NoteStore.swift",
-    "method": "update",
-    "reason": "NEW finding, #4824 sweep 2026-09-18 — see createForDocument, same file-wide pattern",
-    "issue": 4824
-  },
-  {
-    "file": "fichero/fichero/Models/NoteStore.swift",
-    "method": "delete",
-    "reason": "NEW finding, #4824 sweep 2026-09-18 — see createForDocument, same file-wide pattern",
+    "class": "violation",
+    "reason": "#4824 sweep 2026-09-18 \u2014 falls back to refresh() on a failed/errored removal instead of leaving the optimistic in-place removal as-is",
     "issue": 4824
   },
   {
     "file": "fichero/fichero/Models/NoteStore.swift",
     "method": "apply",
-    "reason": "NEW finding, #4824 sweep 2026-09-18 — scheduleReload() on change-stream events, class-wide pattern",
+    "class": "violation",
+    "reason": "#4824 sweep 2026-09-18 \u2014 scheduleReload() on change-stream events, class-wide pattern",
     "issue": 4824
   },
   {
     "file": "fichero/fichero/Models/ReferenceStore.swift",
     "method": "apply",
-    "reason": "NEW finding, #4824 sweep 2026-09-18 — scheduleReload() on change-stream events, class-wide pattern",
+    "class": "violation",
+    "reason": "#4824 sweep 2026-09-18 \u2014 scheduleReload() on change-stream events, class-wide pattern (events carry no reference_ids to splice a create/update by)",
     "issue": 4824
   },
   {
     "file": "fichero/fichero/Models/ResearchStore.swift",
     "method": "apply",
-    "reason": "NEW finding, #4824 sweep 2026-09-18 — scheduleReload() on change-stream events, class-wide pattern",
-    "issue": 4824
-  },
-  {
-    "file": "fichero/fichero/Models/SearchStore.swift",
-    "method": "applySearchResponse",
-    "reason": "NEW finding, #4824 sweep 2026-09-18 — flagged but categorically different from the others: a fresh search legitimately replaces the whole result set (there is no prior item to splice against); needs the maintainer's ruling on whether this is exempt by design, not silently exempted here",
-    "issue": 4824
-  },
-  {
-    "file": "fichero/fichero/Models/SearchStore.swift",
-    "method": "applySearchFailure",
-    "reason": "NEW finding, #4824 sweep 2026-09-18 — same as applySearchResponse: a failed search clearing to [] is arguably not a list re-render bug; needs a ruling",
+    "class": "violation",
+    "reason": "#4824 sweep 2026-09-18 \u2014 scheduleReload() on change-stream events, class-wide pattern",
     "issue": 4824
   },
   {
     "file": "fichero/fichero/Models/UsersStore.swift",
     "method": "createUser",
-    "reason": "NEW finding, #4824 sweep 2026-09-18 — calls reload() after creating a user instead of appending in place",
+    "class": "violation",
+    "reason": "#4824 sweep 2026-09-18 \u2014 calls reload() after creating a user instead of appending in place",
     "issue": 4824
   },
   {
     "file": "fichero/fichero/Models/UsersStore.swift",
     "method": "createInvite",
-    "reason": "NEW finding, #4824 sweep 2026-09-18 — calls loadInvites() after creating an invite instead of appending in place",
+    "class": "violation",
+    "reason": "#4824 sweep 2026-09-18 \u2014 calls loadInvites() after creating an invite instead of appending in place",
     "issue": 4824
+  },
+  {
+    "file": "fichero/fichero/Models/SearchStore.swift",
+    "method": "applySearchResponse",
+    "class": "by-design",
+    "reason": "by-design 2026-09-18 ruling: a fresh search result set replaces the whole `results` list because the QUERY's identity changed \u2014 there is no prior item to splice against"
+  },
+  {
+    "file": "fichero/fichero/Models/SearchStore.swift",
+    "method": "applySearchFailure",
+    "class": "by-design",
+    "reason": "by-design 2026-09-18 ruling: a failed search clearing `results` to [] is the same query-identity-changed case as applySearchResponse, not a list re-render bug"
+  },
+  {
+    "file": "fichero/fichero/Models/ActionStore.swift",
+    "method": "importAction",
+    "class": "violation",
+    "reason": "#4824 structural re-scan 2026-09-18 \u2014 reassigns actions wholesale from actionsService.actions; missed by the old lexical verb-list check because 'import' isn't a mutating verb it recognized",
+    "issue": 4824
+  },
+  {
+    "file": "fichero/fichero/Models/AuditStore.swift",
+    "method": "undo",
+    "class": "violation",
+    "reason": "#4824 structural re-scan 2026-09-18 \u2014 calls load() after an undo instead of splicing the reverted entry in place; 'undo' isn't in the old verb list",
+    "issue": 4824
+  },
+  {
+    "file": "fichero/fichero/Models/AuditStore.swift",
+    "method": "undoLast",
+    "class": "violation",
+    "reason": "#4824 structural re-scan 2026-09-18 \u2014 same pattern as undo (delegates to it)",
+    "issue": 4824
+  },
+  {
+    "file": "fichero/fichero/Models/BatchStore.swift",
+    "method": "runFolderBatch",
+    "class": "violation",
+    "reason": "#4824 structural re-scan 2026-09-18 \u2014 calls load() after creating+executing a batch instead of splicing it in; 'run' isn't in the old verb list",
+    "issue": 4824
+  },
+  {
+    "file": "fichero/fichero/Models/CitationStore.swift",
+    "method": "associate",
+    "class": "violation",
+    "reason": "#4824 structural re-scan 2026-09-18 \u2014 calls reload() after associating citations with a target document; 'associate' isn't in the old verb list",
+    "issue": 4824
+  },
+  {
+    "file": "fichero/fichero/Models/ClaimStore.swift",
+    "method": "setCuration",
+    "class": "violation",
+    "reason": "#4824 structural re-scan 2026-09-18 \u2014 calls reload() after setting curation state on specific claim ids instead of patching them in place; 'setCuration' isn't in the old verb list \u2014 NOT by-design, this mutates existing rows, not the list's scope/query/sort",
+    "issue": 4824
+  },
+  {
+    "file": "fichero/fichero/Models/ClaimStore.swift",
+    "method": "patch",
+    "class": "violation",
+    "reason": "#4824 structural re-scan 2026-09-18 \u2014 mostly correct (splices the returned claim in place by id) but falls back to reload() when the id isn't found in the current scope; that fallback path is still debt, not by-design",
+    "issue": 4824
+  },
+  {
+    "file": "fichero/fichero/Models/ClaimStore.swift",
+    "method": "merge",
+    "class": "violation",
+    "reason": "#4824 structural re-scan 2026-09-18 \u2014 calls reload() after merging two specific claims instead of splicing the survivor and removing the absorbed row; 'merge' isn't in the old verb list",
+    "issue": 4824
+  },
+  {
+    "file": "fichero/fichero/Models/ClaimStore.swift",
+    "method": "link",
+    "class": "violation",
+    "reason": "#4824 structural re-scan 2026-09-18 \u2014 calls reload() after linking two specific claims instead of splicing; 'link' isn't in the old verb list",
+    "issue": 4824
+  },
+  {
+    "file": "fichero/fichero/Models/KnownLibraryRegistryStore.swift",
+    "method": "noteOpenedLibrary",
+    "class": "violation",
+    "reason": "#4824 structural re-scan 2026-09-18 \u2014 calls refresh() after recording one opened library instead of appending it in place; 'noteOpenedLibrary' isn't in the old verb list",
+    "issue": 4824
+  },
+  {
+    "file": "fichero/fichero/Models/ReferenceStore.swift",
+    "method": "runExtractor",
+    "class": "violation",
+    "reason": "#4824 structural re-scan 2026-09-18 \u2014 calls reload() after running the bibliography extractor over one document instead of splicing the new rows; 'runExtractor' isn't in the old verb list",
+    "issue": 4824
+  },
+  {
+    "file": "fichero/fichero/Models/ReferenceStore.swift",
+    "method": "patchReference",
+    "class": "violation",
+    "reason": "#4824 structural re-scan 2026-09-18 \u2014 calls reload() after patching one reference's metadata instead of splicing it in place; 'patchReference' isn't in the old verb list",
+    "issue": 4824
+  },
+  {
+    "file": "fichero/fichero/Models/ReferenceStore.swift",
+    "method": "resolveReference",
+    "class": "violation",
+    "reason": "#4824 structural re-scan 2026-09-18 \u2014 calls reload() after resolving one reference's DOI/ISBN metadata instead of splicing it; 'resolveReference' isn't in the old verb list",
+    "issue": 4824
+  },
+  {
+    "file": "fichero/fichero/Models/UsersStore.swift",
+    "method": "setActive",
+    "class": "violation",
+    "reason": "#4824 structural re-scan 2026-09-18 \u2014 calls reload() after enabling/disabling one account instead of updating it in place; 'setActive' isn't in the old verb list \u2014 NOT by-design, this mutates one row, not the list's scope/query/sort",
+    "issue": 4824
+  },
+  {
+    "file": "fichero/fichero/Models/UsersStore.swift",
+    "method": "revokeInvite",
+    "class": "violation",
+    "reason": "#4824 structural re-scan 2026-09-18 \u2014 calls loadInvites() after revoking one invite instead of removing it in place; 'revoke' isn't in the old verb list",
+    "issue": 4824
+  },
+  {
+    "file": "fichero/fichero/Models/WorkspaceStore.swift",
+    "method": "save",
+    "class": "violation",
+    "reason": "#4824 structural re-scan 2026-09-18 \u2014 calls load(force: true) after saving one conversation as a workspace instead of appending it in place; 'save' isn't in the old verb list",
+    "issue": 4824
+  },
+  {
+    "file": "fichero/fichero/Models/ArtifactStore.swift",
+    "method": "setScope",
+    "class": "by-design",
+    "reason": "by-design 2026-09-18 ruling: pointing the store at a new document SCOPE has no prior item in the new scope to splice against; clearing to [] then reloading is correct. Distinct from ArtifactStore.delete/.apply (violations, #1961) \u2014 do not conflate"
+  },
+  {
+    "file": "fichero/fichero/Models/CitationStore.swift",
+    "method": "setScope",
+    "class": "by-design",
+    "reason": "by-design 2026-09-18 ruling: same document-SCOPE-change case as ArtifactStore.setScope"
+  },
+  {
+    "file": "fichero/fichero/Models/InterpretationStore.swift",
+    "method": "setScope",
+    "class": "by-design",
+    "reason": "by-design 2026-09-18 ruling: same document-SCOPE-change case as ArtifactStore.setScope"
+  },
+  {
+    "file": "fichero/fichero/Models/ReferenceStore.swift",
+    "method": "setScope",
+    "class": "by-design",
+    "reason": "by-design 2026-09-18 ruling: same document-SCOPE-change case as ArtifactStore.setScope"
+  },
+  {
+    "file": "fichero/fichero/Models/DocumentStore.swift",
+    "method": "selectCollection",
+    "class": "by-design",
+    "reason": "by-design 2026-09-18 ruling: selecting a different collection changes which folder's children are the list's SCOPE \u2014 loadChildren(of:) has no prior item to splice against"
+  },
+  {
+    "file": "fichero/fichero/Models/DocumentStore.swift",
+    "method": "setLibraryLevel",
+    "class": "by-design",
+    "reason": "by-design 2026-09-18 ruling: changing the library level changes the listing's SCOPE/QUERY, same identity-change case as selectCollection"
+  },
+  {
+    "file": "fichero/fichero/Models/DocumentStore.swift",
+    "method": "setListingSort",
+    "class": "by-design",
+    "reason": "by-design 2026-09-18 ruling: a new SORT order is a new ordering of the same scope \u2014 re-fetching sorted is correct, there is no per-item mutation to splice"
+  },
+  {
+    "file": "fichero/fichero/Models/SearchStore.swift",
+    "method": "performSearch",
+    "class": "by-design",
+    "reason": "by-design 2026-09-18 ruling: clearing results to [] at the start of a new QUERY is the same query-identity-changed case as applySearchResponse/applySearchFailure"
+  },
+  {
+    "file": "fichero/fichero/Models/SearchStore.swift",
+    "method": "resync",
+    "class": "by-design",
+    "reason": "by-design 2026-09-18 ruling: an explicit RESYNC is a deliberate full re-fetch by design, not a per-item mutation"
+  },
+  {
+    "file": "fichero/fichero/Models/WorkflowStore.swift",
+    "method": "resync",
+    "class": "by-design",
+    "reason": "by-design 2026-09-18 ruling: an explicit RESYNC is a deliberate full re-fetch by design, same case as SearchStore.resync"
+  },
+  {
+    "file": "fichero/fichero/Models/ActivityStore.swift",
+    "method": "rebuildRuns",
+    "class": "by-design",
+    "reason": "by-design 2026-09-18 ruling: rebuildRuns re-derives the sorted run list (and its failure sidecar) from a fresh fetch \u2014 a SORT/derivation of the whole set, not a per-item mutation"
   }
 ]

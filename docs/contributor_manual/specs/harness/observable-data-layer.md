@@ -40,34 +40,73 @@ that "flashes," and clicks that "land on the wrong row" all trace back to.
   tests the checker itself; it self-verifies via its own baseline list, the same pattern
   `check_preview_coverage.py` uses. Filed #4825 for the new violation.
 - `observable.store-mutator-updates-in-place` — **[BROKEN]** (#4824) inside a mutating method
-  (add/create/update/delete/remove/rename/move/promote/apply), a store must splice the
-  affected item into its published collection in place — never call its own
-  `reload()`/`refresh()`/`load…()`, never reassign the whole collection
-  (`items = …`/`annotations = …`). Verified BROKEN across the codebase, not a theoretical
-  risk: `scripts/check_store_wholesale_reload.py` scanned 38 `@Observable` store classes and
-  found 33 distinct (file, method) violations, seeded into
-  `scripts/store_wholesale_reload_allowlist.json` as accepted debt pending fixes —
-  `ArtifactStore.delete`/`.apply`, `AnnotationStore`'s five mutators + `.apply`, and 26 more
-  across `ActionStore`, `BackupStore`, `CitationStore`, `ClaimStore`, `InterpretationStore`,
-  `KnownLibraryRegistryStore`, `NoteStore` (all 8 of its mutators), `ReferenceStore`,
-  `ResearchStore`, and `UsersStore`. Pinned:
+  that changes ONE item — whatever the method is named; a lexical add/create/update/delete/
+  remove/rename/move/promote/apply verb-list was tried first and missed `AnnotationStore
+  .getAnnotation`, which reassigned the store's array exactly like its named siblings — a
+  store must splice the affected item into its published collection in place — never call its
+  own `reload()`/`refresh()`/`load…()`, never reassign the whole collection
+  (`items = …`/`annotations = …`). The rule is now STRUCTURAL: every non-private method of a
+  store class other than the load/reload/refresh family is scanned, regardless of its name.
+  Verified BROKEN across the codebase, not a theoretical risk: `scripts/check_store_wholesale
+  _reload.py`'s structural re-scan (2026-09-18) found **35 distinct (file, method) violations**
+  across `ActionStore`, `ArtifactStore.apply`, `AnnotationStore.apply`, `AuditStore`,
+  `BackupStore`, `BatchStore`, `CitationStore`, `ClaimStore`, `InterpretationStore`,
+  `KnownLibraryRegistryStore`, `NoteStore.apply`, `ReferenceStore`, `ResearchStore`, and
+  `UsersStore` — seeded into `scripts/store_wholesale_reload_allowlist.json` as accepted debt
+  pending fixes. `ArtifactStore.delete`, `AnnotationStore`'s five item mutators (including
+  `getAnnotation`), and all 7 of `NoteStore`'s create/update/delete mutators are FIXED
+  (b615abb14, splicing in place) and no longer appear in this count — the earlier 33-violation
+  figure included them; today's 35 is the count with those removed and the structural re-scan's
+  new finds added. Pinned:
   `test_check_store_wholesale_reload.py::test_fires_on_reload_call_inside_delete`,
   `::test_fires_on_whole_array_reassignment_in_update`,
   `::test_does_not_fire_on_index_splice_append_or_remove_all`,
   `::test_does_not_fire_inside_load_or_reload_itself`,
   `::test_handles_multiline_function_signature`,
+  `::test_fires_on_get_method_that_reassigns_wholesale`,
+  `::test_does_not_fire_inside_a_private_helper`,
   `::test_does_not_fire_on_a_non_store_class`, `::test_zero_stores_found_fails`,
-  `::test_allowlisted_finding_passes`, `::test_stale_allowlist_entry_fails`,
+  `::test_allowlisted_finding_passes`, `::test_stale_violation_entry_fails`,
+  `::test_missing_class_field_fails`, `::test_violation_entry_without_issue_fails`,
   `::test_allowlist_entry_without_reason_fails`.
+- `observable.wholesale-replacement-only-on-identity-change` — **[OK]** this piece of the
+  broader wholesale-reload work is fully built and tested even while the parent tracking issue
+  stays open for the remaining violations: a store
+  replacing its WHOLE published collection is only ever correct when the collection's own
+  IDENTITY changed — its scope (which document/entity it is showing), its query (what a search
+  matched), its sort order, or an explicit user-triggered resync. In every one of those cases
+  there is no prior item to splice against, so a full re-fetch is the right behavior, not an
+  instance of `observable.store-mutator-updates-in-place`. Read every flagged method by hand
+  (not by name) to draw this line (2026-09-18 ruling): **13 distinct (file, method) methods are
+  by-design** — `ArtifactStore`/`CitationStore`/`InterpretationStore`/`ReferenceStore.setScope`
+  (pointing at a new document), `DocumentStore.selectCollection`/`.setLibraryLevel`
+  (new folder/level scope), `DocumentStore.setListingSort` (new sort order),
+  `SearchStore.performSearch`/`.applySearchResponse`/`.applySearchFailure`/`.resync` and
+  `WorkflowStore.resync` (a new query or an explicit resync), and `ActivityStore.rebuildRuns`
+  (re-derives the sorted run list from a fresh fetch). The allowlist enforces the line: a
+  `by-design` entry requires a `reason` naming which axis changed, cites no issue, and is
+  refused outright if the method's own name looks like a single-item mutator
+  (add/create/update/delete/remove/rename/patch/merge/link/set…) unless that reason explicitly
+  justifies it — `ClaimStore.setCuration` and `UsersStore.setActive`, both `set…`-named, were
+  checked against this and are genuine violations (they patch one existing row, not the list's
+  scope/query/sort), not by-design. Pinned:
+  `test_check_store_wholesale_reload.py::test_by_design_entry_passes_and_is_not_counted_as_debt`,
+  `::test_by_design_entry_without_reason_fails`,
+  `::test_by_design_on_single_item_verb_without_justification_fails`,
+  `::test_stale_by_design_entry_fails`.
 - `observable.change-stream-applies-granularly` — **[PARTIAL]** (#4824) an incoming change-stream
   event should update only the row(s) it names, not trigger a scope-wide reload. Traced
   (2026-09-18): some stores genuinely do this — `ArtifactStore.update(id:documentId:content:)`
   splices the updated artifact into `items` by index; `AnnotationService`'s own
   `updateText`/`delete` methods splice correctly too (`AnnotationService+Update.swift:26`,
-  `+Delete.swift:18`). But every `apply(_ event:)` this pass read calls `scheduleReload()` for
-  `created`/`updated`/`deleted` verbs — a full scope re-fetch, not a per-row splice — because
-  (per `ArtifactStore`'s own doc comment) artifact events carry only `document_ids`, not item
-  ids, so a cheap per-row splice from the event alone isn't possible today. Open question below.
+  `+Delete.swift:18`), and `ClaimStore.apply`'s `deleted` branch splices by id. But every
+  `apply(_ event:)` this pass read still calls `scheduleReload()` for its `created`/`updated`
+  verbs (and `ClaimStore.apply` also for `merged`/`linked`) — a full scope re-fetch, not a
+  per-row splice — because (per `ArtifactStore`'s own doc comment) most domain events carry
+  only `document_ids`, not item ids, so a cheap per-row splice from the event alone isn't
+  possible today. These `apply` methods are classed `violation`, not `by-design`: an incoming
+  event doesn't change the list's identity, it changes one row the list already contains. Open
+  question below.
 - `observable.no-per-item-refresh-loop` — **[BROKEN]** (→ #4696, sidebar-crud's own tracker,
   not this milestone's) a caller must never loop over several changed items calling a store's
   `refresh()`/`reload()` once PER ITEM — that is the same wholesale-rerender cost multiplied by
@@ -99,17 +138,16 @@ rather than only being tracked.
    (the event payload gains item-level ids) or the CLIENT side (a scoped re-fetch of just the
    named document's rows, still cheaper than the current full-scope reload)? #4824 raises this
    without resolving it.
-2. `SearchStore.applySearchResponse`/`.applySearchFailure` reassign the whole `results` array
-   on every search — flagged by `check_store_wholesale_reload.py` but NOT asserted here as a
-   violation: a fresh search legitimately has no prior row to splice against, so replacing the
-   whole result set may be the correct behavior for this one store, not an instance of the
-   rule this spec pins. Needs a ruling on whether "apply" as a mutating-verb match should
-   exempt a store whose entire job is producing a NEW result set each call, or whether this
-   genuinely regresses selection the same way the others do.
-3. `observable.no-per-item-refresh-loop`: worth its own guardrail (a source-scan for a
+2. `observable.no-per-item-refresh-loop`: worth its own guardrail (a source-scan for a
    `store.refresh()`/`.reload()` call inside a `for`/`ForEach` loop body), or is `SidebarActions.swift`'s
    instance narrow enough to fix directly without a new standing check?
-4. Is `docs/contributor_manual/architecture/fichero/observable_data_layer.md` (the existing
+3. Is `docs/contributor_manual/architecture/fichero/observable_data_layer.md` (the existing
    architecture doc `check_view_endpoint_access.py` already cites) folded into this spec, or
    do the two stay separate (architecture doc = the rule in prose, this spec = the rule made
    testable)?
+
+**Answered 2026-09-18:** `SearchStore.applySearchResponse`/`.applySearchFailure`/`.performSearch`/
+`.resync` reassigning the whole `results` array is BY-DESIGN, not a violation — a fresh search
+or an explicit resync has no prior row to splice against (see
+`observable.wholesale-replacement-only-on-identity-change` above). Filed as its own allowlist
+class rather than a special-cased exemption from the mutating-verb scan.
