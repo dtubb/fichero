@@ -2,24 +2,25 @@ import FicheroAPIClient
 import Observation
 import SwiftUI
 
-// Force-directed graph model + simulation extracted from OntologyBrowser.swift
-// (#1703). Nodes = entities, edges = co-occurrence in claims. The simulation
-// is a Coulomb/Hooke layout that converges in ~4 seconds and then freezes.
+// Force-directed graph model + simulation (#1703). Nodes = entities, edges =
+// co-occurrence in claims. The simulation is a Coulomb/Hooke layout that
+// converges in ~4 seconds and then freezes.
+//
+// Recovered under its own name (#4705 increment 3 fallout, 2026-09-18): this
+// was `OntologyBrowserGraphModel.swift`, a misleading name — it never
+// defined the retired `OntologyBrowser`'s own model, it defined the GRAPH
+// ENGINE `ForceDirectedGraphView` (a surviving, independent consumer) needs.
+// Deleting it alongside `OntologyBrowser*` broke the build
+// (`ForceDirectedGraphView.swift:42: cannot find 'GraphSimulation' in
+// scope`). Restored verbatim, minus `OntologyBrowserLoadState` (confirmed
+// zero references anywhere in the surviving tree — it genuinely was
+// `OntologyBrowser`'s own load state, unlike everything else in this file).
+// Placed next to `ForceDirectedGraphView.swift`, its actual consumer.
+//
 // swiftlint:disable identifier_name
 // Force-directed physics uses standard short names (i, j, dx, dy, fx, fy)
 // for clarity in the math. Re-enabled after the private struct
 // definitions at the end of the file.
-
-@MainActor
-@Observable
-final class OntologyBrowserLoadState {
-    var entities: [Components.Schemas.KnowledgeEntity] = []
-    var claimCounts: [String: Int] = [:]
-    var loadError: String?
-    var isLoading = false
-    var entityClaims: [Components.Schemas.KnowledgeClaim] = []
-    var isLoadingClaims = false
-}
 
 // MARK: - Model
 

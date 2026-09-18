@@ -62,7 +62,12 @@ manager picks `type:bug` + `client:swiftui`/`backend` + area label + milestone.
 
 | Mode | View dir | Milestone |
 |---|---|---|
-| **Knowledge Graph** (OntologyBrowser, graph viz) | `Views/KnowledgeGraph/` | KG & Hermeneutics |
+<!-- Knowledge Graph mode row REMOVED (#4705 increment 3, 2026-09-18): the
+     sidebar mode + its OntologyBrowser UI retired; entity/claim browsing
+     lives in the library-wide Entities/Claims tables now (no separate
+     "mode"). The SPARQL console it hosted was extracted, not deleted — its
+     own window (Views/SPARQLConsole/SPARQLConsoleView.swift), opened from
+     the Knowledge menu. -->
 | **Mind Palace** (spatial 2D/3D) | `Views/MindPalace/` | Mind Palace |
 | **Research** (browser + chat + tasks) | `Views/Chat/Research/` | Researcher |
 | **Chat** | `Views/Chat/` | Chat |

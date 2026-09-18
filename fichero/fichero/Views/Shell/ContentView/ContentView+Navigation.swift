@@ -169,10 +169,10 @@ extension ContentView {
         // #2960: ViewSettings is @Observable via @Environment, which has no
         // projected binding — @Bindable gives `$viewSettings.libraryLayout`.
         @Bindable var viewSettings = viewSettings
-        // Knowledge Graph mode intercepts before normal viewMode routing. (#498)
-        if sidebarMode == .knowledgeGraph {
-            OntologyBrowser()
-        } else
+        // Knowledge Graph mode intercept DELETED (#4705 increment 3): the
+        // `.knowledgeGraph` sidebar mode retired; entity/claim browsing
+        // lives in the library-wide Entities/Claims tables via the ordinary
+        // `.library` routing below.
         // Research mode intercepts before normal viewMode routing.
         // The project list lives HERE in the content column (a leading rail),
         // NOT in the shell sidebar — the persistent library sidebar stays

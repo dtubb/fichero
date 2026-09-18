@@ -14,6 +14,7 @@ import SwiftUI
 /// window publishes it, exactly as the View-menu sections do.
 struct ReadKnowledgeMenuCommands: Commands {
     private let featureManager = FeatureManager.shared
+    @Environment(\.openWindow) private var openWindow
 
     var body: some Commands {
         // MARK: Read — the reading & annotating surface (spec Part IV/VI).
@@ -37,10 +38,24 @@ struct ReadKnowledgeMenuCommands: Commands {
             // menus-and-commands spec) — getting things in/out is File's job,
             // not Knowledge's.
 
-            // The global Knowledge-Graph view-mode switcher
-            // (List/Graph/Chart/Timeline/Map) — the spec's "Knowledge Graph
-            // View" item. Reused from the View menu unchanged.
-            KnowledgeGraphViewModeSection()
+            // The "Knowledge Graph View" item (List/Graph/Chart/Timeline/Map
+            // switcher for the KG sidebar mode's OntologyBrowser) DELETED
+            // (#4705 increment 3, creative director 2026-09-18): the KG
+            // sidebar mode retires; entity/claim browsing lives in the
+            // library-wide Entities/Claims tables, which have no equivalent
+            // mode switcher to offer here.
+
+            // The W3C SPARQL query console (#3298) — recovered into its own
+            // window (#4705 increment 3, CD 2026-06-25 ruling #2593/#2614:
+            // "SPARQL is wanted and must be made VISIBLE; never delete it")
+            // when the KG sidebar mode that used to host it as a sheet
+            // retired. No keyboard shortcut — a query console is not a
+            // muscle-memory verb.
+            Button("SPARQL Console…") {
+                openWindow(id: "sparql-console")
+            }
+
+            Divider()
 
             // Workflows ▸ — the creation verbs + Run Workflow on Selection,
             // each self-gated exactly as the former Data menu gated them.

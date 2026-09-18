@@ -7,9 +7,10 @@ import Foundation
 /// handler (`MainContentModifiers.handleSidebarModeChange` in
 /// `ContentViewModifiers.swift`) normalizes identically. Before this, the
 /// inspector kept rendering a surface that belonged to the OLD sidebar
-/// mode — e.g. switching to Research (⌃⌘8) or Knowledge Graph (⌃⌘9) while a
-/// chat was selected left `ChatInspector` ("Chat Scope") on screen, because
-/// `viewMode` was deliberately left untouched for those two modes.
+/// mode — e.g. switching to Research (⌃⌘8) while a chat was selected left
+/// `ChatInspector` ("Chat Scope") on screen, because `viewMode` was
+/// deliberately left untouched for that mode. (The Knowledge Graph mode
+/// this originally also named retired in #4705 increment 3.)
 enum ViewModeNormalization {
     /// If `current` already carries a meaningful selection in `sidebarMode`'s
     /// family (the #1475 preservation rule: a mode flip must never stomp the
@@ -34,18 +35,19 @@ enum ViewModeNormalization {
         case .workflows: return .workflow(nil)
         case .automation: return .automation
         case .activity: return .activity(nil)
-        case .research, .knowledgeGraph:
-            // No dedicated AppViewMode case for these takeover modes, but
+        case .research:
+            // No dedicated AppViewMode case for this takeover mode, but
             // viewMode still MUST be reset to a neutral default — leaving a
             // stale .chat/.workflow view behind is exactly the "Chat Scope
             // leak" this normalization exists to close, because
             // Preview/Inspector switch on viewMode independently of
             // sidebarMode. contentView intercepts on sidebarMode itself for
-            // the actual Research/KG surface, and DocumentInspector (what
+            // the actual Research surface, and DocumentInspector (what
             // `.library(nil)` renders) is an honest, correctly-kinded
             // fallback there — never a WRONG surface the way ChatInspector
             // was — so .library(nil) (the same neutral default every other
-            // reset falls back to) is safe here.
+            // reset falls back to) is safe here. (`.knowledgeGraph` DELETED,
+            // #4705 increment 3 — the KG sidebar mode retired.)
             return .library(nil)
         }
     }
@@ -76,7 +78,7 @@ enum ViewModeNormalization {
         case .activity:
             if case .activity(let selected) = view { return selected != nil }
             return false
-        case .research, .knowledgeGraph:
+        case .research:
             return false
         }
     }

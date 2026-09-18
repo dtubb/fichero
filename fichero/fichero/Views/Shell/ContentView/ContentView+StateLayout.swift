@@ -63,7 +63,7 @@ extension ContentView {
                 return [.icon, .list]
             }
             return [.icon, .list, .table]
-        case .chat, .automation, .activity, .research, .knowledgeGraph:
+        case .chat, .automation, .activity, .research:
             return [.icon]
         }
     }

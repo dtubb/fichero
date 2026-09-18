@@ -74,19 +74,11 @@ struct EntityClickthroughTests {
         #expect(String(header.prefix(1200)).contains("entitySearchState?.request("))
     }
 
-    @Test("the Ontology browser's navigate closure navigates, not just focuses")
-    func ontologyClosurePostsTheSourceRequest() throws {
-        let detail = try AppSource.code(
-            "Views/Library/ViewModes/Graph/Ontology/OntologyBrowser+Detail.swift"
-        )
-        let closure = try #require(
-            detail.components(separatedBy: "onNavigateToSource: { claim in").dropFirst().first
-        )
-        // Focus alone assigns properties on a shared object and navigates
-        // nowhere — the #4666 defect, which survived here as an injected
-        // override preempting the card's fixed path.
-        #expect(String(closure.prefix(900)).contains("claimSourceNavigationState?.request("))
-    }
+    // `ontologyClosurePostsTheSourceRequest` DELETED (#4705 increment 3): it
+    // read `OntologyBrowser+Detail.swift`, which is gone with the KG sidebar
+    // mode's own entity-detail panel. The #4666 defect class it pinned
+    // (focus-without-navigate) is still covered for the surviving
+    // click-through surfaces by this file's other tests.
 
     // MARK: - Attestations are navigable, not just counted (#4672)
 

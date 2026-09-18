@@ -19,5 +19,6 @@ The test ingests `tubb2020shift.pdf`, runs the Catalogue workflow, then verifies
 
 - KG entities exist for the document/page scope.
 - Source-backed claims exist.
-- At least one claim has source page labels for OntologyBrowser click-through.
+- At least one claim has source page labels for the Entities/Claims table click-through (#4705
+  increment 3: OntologyBrowser retired; entity/claim browsing lives in the library-wide tables now).
 - Citation lookup does not 500.

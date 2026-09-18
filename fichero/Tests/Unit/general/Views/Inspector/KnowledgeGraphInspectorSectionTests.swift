@@ -455,30 +455,16 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         XCTAssertTrue(storeSource.contains("func entities(forDocument documentId: String)"))
     }
 
-    func testOntologyBrowserLibraryListUsesEntityStoreAndClaimStoreActions() throws {
-        let browserSource = try Self.appSource(
-            "Views/Library/ViewModes/Graph/Ontology/OntologyBrowser.swift"
-        )
-        let listSource = try Self.appSource(
-            "Views/Library/ViewModes/Graph/Ontology/OntologyBrowser+List.swift"
-        )
+    // `testOntologyBrowserLibraryListUsesEntityStoreAndClaimStoreActions`
+    // DELETED (#4705 increment 3): the `OntologyBrowser`/`OntologyBrowser+List`
+    // sources it read are gone. Its `ContradictionTriageSheet` assertions —
+    // still a live file — are preserved below as their own test rather than
+    // lost with the rest.
+    func testContradictionTriageSheetUsesClaimStoreActions() throws {
         let triageSource = try Self.appSource(
             "Views/Library/ViewModes/Graph/Ontology/Claim/ContradictionTriageSheet.swift"
         )
-        // entityService.listEntities(...) / fetchClaimCounts() live in the +Loading.swift sibling.
-        let storeSource = try [
-            Self.appSource("Models/EntityStore.swift"),
-            Self.appSource("Models/EntityStore+Loading.swift")
-        ].joined(separator: "\n")
 
-        XCTAssertTrue(browserSource.contains("@Environment(EntityStore.self) var entityStore"))
-        XCTAssertTrue(browserSource.contains("entityStore.libraryEntities"))
-        XCTAssertTrue(listSource.contains("try await entityStore.delete(entityIds: [entityId])"))
-        XCTAssertTrue(listSource.contains("await entityStore.loadEntities(limit: Self.entityListLimit)"))
-        XCTAssertTrue(listSource.contains("await entityStore.loadEntities(query: searchText"))
-        XCTAssertFalse(listSource.contains("LibraryManager.shared.globalLibrary!"))
-        XCTAssertTrue(storeSource.contains("entityService.listEntities(query: searchQuery, limit: limit)"))
-        XCTAssertTrue(storeSource.contains("entityService.fetchClaimCounts()"))
         XCTAssertTrue(triageSource.contains("@Environment(ClaimStore.self) private var claimStore"))
         XCTAssertTrue(triageSource.contains("try await claimStore.patch(claimId: claimId, curationState: state)"))
         XCTAssertFalse(triageSource.contains("library.entityService.patchClaim"))
@@ -1132,9 +1118,14 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
 
     // MARK: - SPARQL console (#3298)
 
+    /// #4705 increment 3: re-pointed at `SPARQLConsoleView.swift` — the
+    /// console was recovered into its own file/window when the KG sidebar
+    /// mode that used to host it as an `OntologyBrowser` sheet retired (CD
+    /// 2026-06-25 ruling #2593/#2614: SPARQL must stay visible, never
+    /// deleted). Same invariant, same store, new home.
     func testSparqlConsoleUsesTypedQueryOpsThroughAStore() throws {
         let source = try Self.appSource(
-            "Views/Library/ViewModes/Graph/Ontology/OntologyBrowser+Sheets.swift"
+            "Views/SPARQLConsole/SPARQLConsoleView.swift"
         )
         let storeSource = try Self.appSource("Models/KGQueryStore.swift")
 
@@ -1147,20 +1138,12 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         XCTAssertTrue(source.contains("response.truncated"))
     }
 
-    // MARK: - OntologyBrowser store routing (#3300)
-
-    func testOntologyBrowserEntityClaimsRouteThroughClaimStore() throws {
-        let source = try Self.appSource(
-            "Views/Library/ViewModes/Graph/Ontology/OntologyBrowser+Detail.swift"
-        )
-
-        // The entity-detail claims load goes through ClaimStore (observable data
-        // layer), not a LibraryManager.shared singleton + per-doc
-        // documentKnowledgeGraph fan-out (#3300).
-        XCTAssertTrue(source.contains("claimStore.loadClaims(forEntity:"))
-        XCTAssertFalse(source.contains("LibraryManager.shared.globalLibrary"))
-        XCTAssertFalse(source.contains("documentKnowledgeGraph("))
-    }
+    // `testOntologyBrowserEntityClaimsRouteThroughClaimStore` DELETED (#4705
+    // increment 3): it read `OntologyBrowser+Detail.swift`, which is gone —
+    // the entity-detail claims-load behaviour it pinned (#3300) retired with
+    // the KG sidebar mode's own entity-detail panel; the surviving entity
+    // surfaces (`EntityDigestView`, the Inspector's entity tab) have their
+    // own ClaimStore-routing coverage elsewhere.
 
     // MARK: - Native List conversion (#3425, item 14)
 

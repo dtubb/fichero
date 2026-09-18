@@ -207,21 +207,9 @@ struct SidebarModeSection: View {
                     sidebarMode?.wrappedValue = .research
                 }
             }
-
-            if featureManager.isKnowledgeGraphEnabled {
-                Divider()
-
-                // Knowledge Graph mode — entity list + per-entity KG (OntologyBrowser).
-                SidebarModeButton(
-                    mode: .knowledgeGraph,
-                    label: SidebarMode.knowledgeGraph.label,
-                    icon: SidebarMode.knowledgeGraph.icon,
-                    shortcut: SidebarMode.knowledgeGraph.shortcutNumber,
-                    current: currentMode
-                ) {
-                    sidebarMode?.wrappedValue = .knowledgeGraph
-                }
-            }
+            // Knowledge Graph mode menu item DELETED (#4705 increment 3, creative
+            // director 2026-09-18: the KG sidebar mode retires — its entity/claim
+            // browsing lives in the library-wide Entities/Claims tables now).
         }
     }
 }

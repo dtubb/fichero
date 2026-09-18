@@ -15,7 +15,7 @@ struct LibraryLayoutSection: View {
         switch mode {
         case .library:
             return true
-        case .chat, .workflows, .automation, .activity, .research, .knowledgeGraph:
+        case .chat, .workflows, .automation, .activity, .research:
             return false
         }
     }
@@ -223,7 +223,7 @@ struct PreviewModeSection: View {
             return [.none, .standard, .widescreen]
         case .chat:
             return [.none, .standard, .widescreen]
-        case .workflows, .automation, .activity, .research, .knowledgeGraph:
+        case .workflows, .automation, .activity, .research:
             return []
         }
     }
@@ -363,33 +363,9 @@ struct RepresentationSection: View {
     }
 }
 
-// MARK: - Knowledge Graph View Mode Section
-
-/// Global Knowledge Graph view-mode switcher (List/Graph/Chart/Timeline/Map),
-/// surfaced as View-menu items instead of a segmented icon row inside the KG
-/// pane toolbar (#2436, same principle as `RepresentationSection`). Reads/writes
-/// the focused `OntologyBrowser`'s active mode via FocusedValues, so it's
-/// per-window and disables when the KG browser is not focused.
-struct KnowledgeGraphViewModeSection: View {
-    @FocusedValue(\.knowledgeGraphViewMode) private var knowledgeGraphViewMode
-
-    private var current: OntologyBrowser.ViewMode? {
-        knowledgeGraphViewMode?.current
-    }
-
-    var body: some View {
-        Section("Knowledge Graph View") {
-            ForEach(OntologyBrowser.ViewMode.allCases) { mode in
-                Button {
-                    knowledgeGraphViewMode?.select(mode)
-                } label: {
-                    Label(mode.label, systemImage: mode.icon)
-                    if current == mode {
-                        Image(systemName: "checkmark")
-                    }
-                }
-                .disabled(knowledgeGraphViewMode == nil)
-            }
-        }
-    }
-}
+// Knowledge Graph View Mode Section DELETED (#4705 increment 3): it switched
+// the focused `OntologyBrowser`'s own List/Graph/Chart/Timeline/Map mode via
+// FocusedValues — with `OntologyBrowser` retired there is no subject left for
+// it to control. The `\.knowledgeGraphViewMode` FocusedValues entry and its
+// `KnowledgeGraphViewModeFocus` wrapper (both `OntologyBrowser`-only) retire
+// alongside it.

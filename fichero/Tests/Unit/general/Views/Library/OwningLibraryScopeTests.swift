@@ -81,17 +81,18 @@ final class OwningLibraryScopeTests: XCTestCase {
     /// `LibraryManager.library(owningService:)`, which exists for exactly this
     /// and matches by object identity so it cannot drift.
     ///
-    /// AT THE FLOOR. Every runtime read is gone; the two that remain are
-    /// `#Preview` scaffolding in `OntologyBrowser.swift`
-    /// (`.environment(LibraryManager.shared.globalLibrary!.claimStore)` and
-    /// its sibling), which never runs in the app. They are deliberately NOT
-    /// "fixed": preview code wants a concrete library to build a preview
-    /// with, and changing it to make a number look better would be the number
-    /// leading the code.
+    /// AT THE FLOOR, and now ZERO — not two. The two `#Preview` scaffolding
+    /// matches this test used to allow lived in `OntologyBrowser.swift`
+    /// itself, which retired whole (#4705 increment 3: the KG sidebar mode
+    /// and its browser UI). The surviving Ontology files
+    /// (`Entity/`/`Claim/`/`ForceDirectedGraphView*`/`SpeakerComparisonView*`
+    /// — still reachable from `EntityDigestView`/`DocumentInspectorEntitiesTab`
+    /// /`DocumentKGSurface`/the library tables) never carried a primary
+    /// `globalLibrary` read of their own.
     ///
-    /// EQUALITY, not `<=`, now that it is exact: a drop to 1 or 0 means
-    /// somebody edited the previews, which is worth a failing test asking
-    /// why — and a rise means a runtime read came back.
+    /// EQUALITY, not `<=`: a rise above 0 means a runtime read came back —
+    /// that surface is per-library, so resolving the RESERVED-id library
+    /// there reads, or writes, somebody else's graph.
     func testTheOntologyBrowserHasNoRuntimeGlobalLibraryReadsLeft() throws {
         let root = try AppSource.root().appendingPathComponent(
             "Views/Library/ViewModes/Graph/Ontology"
@@ -107,14 +108,14 @@ final class OwningLibraryScopeTests: XCTestCase {
             total += Self.primaryReads(in: source).count
         }
         XCTAssertEqual(
-            total, 2,
+            total, 0,
             """
-            The Ontology browser's runtime `globalLibrary` reads are all gone; \
-            the only two matches left are #Preview scaffolding. More than 2 \
-            means a runtime read came back — that surface is per-library, so \
-            resolving the RESERVED-id library there reads, or writes, \
-            somebody else's graph. Fewer than 2 means the previews changed, \
-            which is fine but should be deliberate.
+            The Ontology directory's runtime `globalLibrary` reads must stay \
+            at zero (#4705 increment 3 retired the two #Preview matches this \
+            count used to allow, along with OntologyBrowser.swift itself). A \
+            rise means a runtime read came back — that surface is per-library, \
+            so resolving the RESERVED-id library there reads, or writes, \
+            somebody else's graph.
             """
         )
     }
@@ -130,7 +131,8 @@ final class OwningLibraryScopeTests: XCTestCase {
             "Views/Library/ViewModes/Graph/Ontology/Entity/EntitySourceGroupsView.swift",
             "Views/Library/ViewModes/Graph/Ontology/Entity/EntityDetailView+Audit.swift",
             "Views/Library/ViewModes/Graph/Ontology/Claim/ContradictionTriageSheet.swift",
-            "Views/Library/ViewModes/Graph/Ontology/OntologyBrowser+Toolbar.swift",
+            // `OntologyBrowser+Toolbar.swift` DELETED (#4705 increment 3, the
+            // KG sidebar mode retired with it).
             "Views/Library/ViewModes/Graph/Ontology/Entity/EntityMergeSheet.swift"
         ]
         for path in paths {

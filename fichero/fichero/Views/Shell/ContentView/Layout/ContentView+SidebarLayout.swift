@@ -104,7 +104,7 @@ extension ContentView {
             ideal: sidebarWidth,
             max: 600
         )
-        .focusedSceneValue(\.sidebarMode, $sidebarMode)
+        .focusedSceneValue(\.sidebarMode, sidebarModeBinding)
         // NOTE: \.showInspector is published from the detail column in
         // ContentView.navigationSplitColumn (always present), NOT here — the
         // sidebar leaves the hierarchy when collapsed, which disabled ⌘⌥I
@@ -121,7 +121,7 @@ extension ContentView {
     @ViewBuilder
     private var sidebarTree: some View {
         SidebarView(
-            sidebarMode: $sidebarMode,
+            sidebarMode: sidebarModeBinding,
             viewMode: $viewMode,
             selectionState: sidebarSelectionState,
             libraryManager: LibraryManager.shared,

@@ -192,7 +192,12 @@ enum SidebarMode: String, CaseIterable {
     case automation   // 5: Schedules + triggers
     case activity       // 6: All workflow runs (running + completed + failed) with logs/errors
     case research       // 8: Research projects + workspace
-    case knowledgeGraph // 9: Entity / ontology browser (#498)
+    // `.knowledgeGraph` (9) DELETED (#4705 increment 3, creative director
+    // 2026-09-18: "The ⌃⌘1…9 Sidebar-mode entries are removed [for KG now;
+    // the rest retire with increments 4-6]") — entity/claim browsing lives
+    // in the library-wide Entities/Claims tables. ⌃⌘9 is free; `restored
+    // (from:)` below still degrades a persisted "knowledgeGraph" string to
+    // `.library` rather than crashing on restore.
 
     /// SF Symbol icon name for this mode
     var icon: String {
@@ -203,7 +208,6 @@ enum SidebarMode: String, CaseIterable {
         case .research: "flask"
         case .automation: "gearshape.2"
         case .activity: "clock"
-        case .knowledgeGraph: "point.3.connected.trianglepath.dotted"
         }
     }
 
@@ -216,7 +220,6 @@ enum SidebarMode: String, CaseIterable {
         case .research: "Research"
         case .automation: "Automation"
         case .activity: "Activity"
-        case .knowledgeGraph: "Knowledge Graph"
         }
     }
 
@@ -229,7 +232,6 @@ enum SidebarMode: String, CaseIterable {
         case .automation: "5"
         case .activity: "6"
         case .research: "8"
-        case .knowledgeGraph: "9"
         }
     }
 
@@ -249,10 +251,19 @@ enum SidebarMode: String, CaseIterable {
             body = "Automation — schedules and triggers that run workflows automatically"
         case .activity:
             body = "Activity — monitor running and recent background jobs"
-        case .knowledgeGraph:
-            body = "Knowledge Graph — explore entities and how they connect"
         }
         return "\(body) (⌘\(shortcutNumber))"
+    }
+
+    /// Tolerant decode for a persisted raw value (#4705 increment 3a) — a
+    /// retired case's string (`"knowledgeGraph"`, increment 3b) or anything
+    /// else that isn't a current case degrades to `.library` instead of
+    /// leaning on `@SceneStorage`'s own unproven `RawRepresentable` fallback
+    /// (the #4703 restored-state crash class). Mirrors the existing
+    /// `"search"` pattern for `AppViewMode` (`ContentView+Persistence.swift:
+    /// 69-72`).
+    static func restored(from rawValue: String) -> SidebarMode {
+        SidebarMode(rawValue: rawValue) ?? .library
     }
 }
 
@@ -401,16 +412,9 @@ extension FocusedValues {
     /// focused-value churn (#2032).
     @Entry var documentRepresentation: DocumentRepresentationFocus?
 
-    /// The active view mode of the global Knowledge Graph browser
-    /// (List/Graph/Chart/Timeline/Map), published by the focused
-    /// `OntologyBrowser`. Drives the View-menu "Knowledge Graph View" items and
-    /// the iOS toolbar View menu so the KG mode switcher lives in the menu /
-    /// main toolbar instead of a segmented icon row inside the KG pane toolbar
-    /// (#2436, same principle as `documentRepresentation`). Nil when the KG
-    /// browser is not focused, so the menu items disable.
-    ///
-    /// Uses the Equatable `KnowledgeGraphViewModeFocus` wrapper (not a raw
-    /// `Binding`) so SwiftUI dedupes it and the switcher does not republish a
-    /// "new" focused value every `body` pass.
-    @Entry var knowledgeGraphViewMode: KnowledgeGraphViewModeFocus?
+    // `knowledgeGraphViewMode` DELETED (#4705 increment 3): it published the
+    // focused `OntologyBrowser`'s own List/Graph/Chart/Timeline/Map mode,
+    // consumed only by the now-deleted `KnowledgeGraphViewModeSection`
+    // (`ViewMenuLayoutSections.swift`). `KnowledgeGraphViewModeFocus` was
+    // defined in `OntologyBrowser.swift` and retires with it.
 }

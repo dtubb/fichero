@@ -7,10 +7,11 @@ import Testing
 /// The regular-width Library leaf's mode router (`ContentView+Navigation.
 /// swift`'s `contentView`) still mounts several bespoke full-width takeover
 /// views today — `allowedTakeovers` below is that full list, MINUS
-/// `WorkflowEditor(`, which increment 2 removed from the regular-width
-/// `.workflow` arm (it moved to the Preview pane). Each later increment
-/// drops one more token from this allowlist; when it is empty (increment 8),
-/// the Library pane never mounts a mode surface at all.
+/// `WorkflowEditor(` (increment 2, moved to the Preview pane) and
+/// `OntologyBrowser(` (increment 3, the whole KG sidebar mode + its
+/// intercept deleted). Each later increment drops one more token from this
+/// allowlist; when it is empty (increment 8), the Library pane never mounts
+/// a mode surface at all.
 ///
 /// This scans ONLY the `.workflow` case's REGULAR-width branch — not the
 /// whole file, and not the compact-flow branch inside the same case, which
@@ -24,13 +25,20 @@ struct LibraryPaneNeverMountsModeSurfaceTests {
 
     /// Tokens still permitted anywhere in `contentView`'s router — every
     /// bespoke takeover view the #4705 review inventoried, minus
-    /// `WorkflowEditor(` (increment 2). Shrinks by one per completed
-    /// increment (3-5).
+    /// `WorkflowEditor(` (increment 2) and `OntologyBrowser(` (increment 3).
+    /// Shrinks by one more per completed increment (4-5).
     private static let allowedTakeovers = [
-        "OntologyBrowser(", "ResearchWorkspaceView(", "BatchRunView(",
+        "ResearchWorkspaceView(", "BatchRunView(",
         "ChainEditorView(", "ScheduleDetailView(", "TriggerDetailView(",
         "ComparisonDetailView(", "ActivityWindowLauncherView(",
     ]
+
+    /// The bare identifier — not just a constructor call — must not appear
+    /// anywhere in the app target once increment 3 deletes `OntologyBrowser`
+    /// itself: a lingering type reference (a property type, a static member
+    /// access without `(`, an extension) would compile against nothing and
+    /// is exactly the gap a `(`-only scan misses.
+    private static let deletedBareIdentifiers = ["OntologyBrowser"]
 
     private static let navigationFile = "Views/Shell/ContentView/ContentView+Navigation.swift"
 
@@ -155,5 +163,37 @@ struct LibraryPaneNeverMountsModeSurfaceTests {
                 "\(token) is no longer in ContentView+Navigation.swift — drop it from allowedTakeovers so this guardrail's shrinking list stays honest"
             )
         }
+    }
+
+    /// #4705 increment 3: `OntologyBrowser` itself — not just its
+    /// constructor call — must not appear ANYWHERE in the app target's real
+    /// code. A `(`-only scan misses a lingering type reference (a stored
+    /// property's type, a static member access, an extension declaration) —
+    /// exactly the gap that would have hidden `KnowledgeGraphViewModeSection`
+    /// still referencing `OntologyBrowser.ViewMode` if that struct had not
+    /// also been deleted alongside it.
+    @Test("OntologyBrowser (bare identifier) does not appear anywhere in the app target")
+    func deletedTypesDoNotLingerAnywhere() throws {
+        let root = try AppSource.root()
+        guard let enumerator = FileManager.default.enumerator(
+            at: root, includingPropertiesForKeys: nil
+        ) else {
+            Issue.record("Could not enumerate \(root.path)")
+            return
+        }
+
+        var offenders: [String] = []
+        for case let url as URL in enumerator where url.pathExtension == "swift" {
+            let relative = AppSource.relativePath(of: url, under: root)
+            let source = AppSource.codeOnly(try String(contentsOf: url, encoding: .utf8))
+            for identifier in Self.deletedBareIdentifiers where source.contains(identifier) {
+                offenders.append("\(relative): \(identifier)")
+            }
+        }
+
+        #expect(
+            offenders.isEmpty,
+            "A deleted #4705-increment-3 type still appears in real code: \(offenders.joined(separator: ", "))"
+        )
     }
 }

@@ -472,7 +472,9 @@ extension ContentView {
             showInspectorSidebar = true
             focusedPane = .inspector
         case "kg", "knowledge graph", "knowledge-graph":
-            sidebarMode = .knowledgeGraph
+            // #4705 increment 3: the KG sidebar mode retired; "kg" now opens
+            // the library-wide Entities table instead.
+            sidebarMode = .library
             showSidebar = true
             sidebarSelectionState.selectedItemId = "entities-browser"
             focusedPane = .content

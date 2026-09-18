@@ -478,11 +478,13 @@ extension ContentView {
             .onChange(of: kgFocusState.sourcePageLabel) { _, _ in
                 handleKGFocusChanged()
             }
-            // "Show in Graph" from the inspector switches to the Knowledge Graph
-            // force graph, focused on the requested entity (#3452). The focus is
-            // already set by requestGraphReveal; we just flip the mode.
+            // "Show in Graph" from the inspector reveals the entity in the
+            // library-wide Entities table (#4705 increment 3: the KG sidebar
+            // mode/force-graph retired). The focus is already set by
+            // requestGraphReveal; we just navigate there.
             .onChange(of: kgFocusState.graphRevealRequestToken) { _, _ in
-                sidebarMode = .knowledgeGraph
+                sidebarMode = .library
+                sidebarSelectionState.selectedItemId = "entities-browser"
             }
             .onChange(of: viewDisplayMode) { _, newMode in
                 handleViewDisplayModeChange(newMode)
@@ -502,7 +504,7 @@ extension ContentView {
                     conversationService: conversationService,
                     savedSearchService: savedSearchService,
                     appState: appState,
-                    sidebarMode: $sidebarMode,
+                    sidebarMode: sidebarModeBinding,
                     viewMode: $viewMode,
                     browserSelection: $browserSelection,
                     detailDocument: $detailDocument,

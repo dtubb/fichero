@@ -105,7 +105,7 @@ extension ContentView {
         switch sidebarMode {
         case .library, .workflows:
             return true
-        case .chat, .automation, .activity, .research, .knowledgeGraph:
+        case .chat, .automation, .activity, .research:
             return false
         }
     }

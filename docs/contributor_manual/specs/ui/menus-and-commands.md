@@ -104,14 +104,14 @@ key equivalents (not just app-internal double-minting), plus a missing Redo. Fix
   (no such button exists) removed.
 
 **Known, deliberately NOT fixed in this pass** (different file ownership / out of this lane's scope):
-the ⌘'/⌘⇧' Back/Forward chords are minted independently in THREE places — the Go menu
+the ⌘'/⌘⇧' Back/Forward chords were minted independently in THREE places — the Go menu
 (`FocusedCommandButtons+UndoNavigation.swift`, the intended single owner), the main toolbar
-(`ContentView+Toolbar.swift`), and `OntologyBrowser+Toolbar.swift` — with no single owner. Fixing it
-means deleting the toolbar `.keyboardShortcut` mints while keeping the buttons themselves clickable;
-flagged for whoever owns those two files next. **Fixed 2026-09-18** for the first two (see the
-Changelog entry below) — `ContentView+Toolbar.swift` no longer mints the chord, only
-`FocusedCommandButtons+UndoNavigation.swift` does. `OntologyBrowser+Toolbar.swift` is a separate
-surface, still open.
+(`ContentView+Toolbar.swift`), and `OntologyBrowser+Toolbar.swift` — with no single owner. **Fixed
+2026-09-18** for the first two (see the Changelog entry below) — `ContentView+Toolbar.swift` no
+longer mints the chord, only `FocusedCommandButtons+UndoNavigation.swift` does. The third mint
+resolved a different way, not by a chord fix: `OntologyBrowser+Toolbar.swift` was DELETED whole
+(#4705 increment 3, 2026-09-18 — the KG sidebar mode retired), taking its independent mint down
+with it. The Go menu is the sole remaining owner.
 
 Still **[PROPOSED]** / unbuilt: the AddItemMenu/Data dedupe, the context-menu component reuse, and
 Sort/Workspaces re-homing. A **top-level** Workspaces menu (and top-level Find/Workflows menus) were
@@ -137,8 +137,8 @@ producing false positives. Also found and fixed: Redo re-offering itself after r
   independent mints with no single owner. The toolbar's `.keyboardShortcut` calls
   (`ContentView+Toolbar.swift`) are removed — the toolbar Back/Forward buttons are click-only mirrors
   of the Go menu's `NavigateBackButton`/`NavigateForwardButton`
-  (`FocusedCommandButtons+UndoNavigation.swift`), the sole remaining owner. `OntologyBrowser+Toolbar.swift`
-  is a separate surface, still open.
+  (`FocusedCommandButtons+UndoNavigation.swift`), the sole remaining owner. The third mint
+  (`OntologyBrowser+Toolbar.swift`) is resolved separately, below.
 - **Redo (⌘⇧Z) no longer re-offers itself after redoing.** `RedoLastActionButton.performRedo` reversed
   a redo target the same way as any other row (`AuditStore.undo(_:)`), which writes a NEW audit row
   that is itself `inverseOf`-set and not yet undone — structurally identical in shape to a genuine
@@ -168,6 +168,20 @@ producing false positives. Also found and fixed: Redo re-offering itself after r
   entirely: the scanner now proves the two bodies can never both compile, instead of needing a
   human-maintained exception. (This also fixed a real gap: the prior grouping counted DISTINCT FILES
   per chord, so two mints of the same chord in one file were invisible; every mint site counts now.)
+- **The Knowledge menu's "Knowledge Graph View" item is gone; "SPARQL Console…" replaces it**
+  (#4705 increment 3: the KG sidebar mode + its `OntologyBrowser` UI retired — creative director,
+  "the ⌃⌘1…9 Sidebar-mode entries are removed"). `KnowledgeGraphViewModeSection`
+  (`ViewMenuLayoutSections.swift`) — the List/Graph/Chart/Timeline/Map switcher for `OntologyBrowser`'s
+  own mode — retired with its subject; there is no entities-table equivalent to offer in its place.
+  The W3C SPARQL console it also hosted as a sheet is NOT retired (creative director, 2026-06-25
+  ruling #2593/#2614: "SPARQL is wanted and must be made VISIBLE; never delete it") — recovered into
+  its own file (`Views/SPARQLConsole/SPARQLConsoleView.swift`) and its own `Window("SPARQL Console",
+  id: "sparql-console")` scene, opened via the new Knowledge-menu button, no keyboard shortcut. The
+  "predict entities" flow the KG sidebar mode also carried (`HeuristicReviewSheet`, backed by
+  `kg_predictions`/heuristic) was NOT recovered — it had no caller outside the deleted
+  `OntologyBrowser+Sheets.swift`/`+Toolbar.swift`/`+List.swift` and is now unreachable anywhere in the
+  app, confirming #4759's finding; routed to #4791/#4759 for a product decision, not silently dropped
+  here.
 
 ---
 
@@ -275,8 +289,9 @@ uniform per group.
   Run NLP, Detect Language) · Zoom (In/Out/Actual Size/Fit) · **Magnifier ▸** (Loupe, panel) · Next/
   Previous Page. Everything you do WHILE reading a source lives here, not scattered in View.
 - **Knowledge** — making & querying meaning (Parts VII, VIII; the AI/data workflow). New Claim, New
-  Entity · Knowledge Graph View · **Workflows ▸** (New Workflow/Chain/Comparison/Schedule/Trigger, Run
-  Workflow on Selection…) · **Chat ▸** (New Chat) · **Search ▸** (Search, Saved Searches). This is
+  Entity · SPARQL Console… (#3298, its own window) · **Workflows ▸** (New Workflow/Chain/Comparison/
+  Schedule/Trigger, Run Workflow on Selection…) · **Chat ▸** (New Chat) · **Search ▸** (Search, Saved
+  Searches). "Knowledge Graph View" retired with the KG sidebar mode (#4705 increment 3). This is
   today's "Data" menu, renamed and completed to read as the meaning-making stage — and its items are
   the SAME shared `Focused*Button` components the toolbar "+" renders (no twin definitions).
 - **Window / Help** — standard.

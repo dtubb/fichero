@@ -99,7 +99,7 @@ the ruling this table exists to make assertable.
 | `.workflow(x)` | Library browser — **[PROPOSED]** | Workflow canvas (`WorkflowEditor`) — **[PROPOSED]**, today full-width in Library (`Nav:286-294`) | Last/current run log — **[PROPOSED]**, today an honest empty state (`ReadingPaneView+Tabs.swift:155-169`) | Palette · node · runs (`WorkflowInspector`, 3 tabs) — **[OK]** already correct (`Detail:384-390`) |
 | `.chat` | Library browser — **[OK]** already correct (`Nav:237-244`) | document preview | thread/document | Sources · Plan · Knowledge · Compare (`ChatInspector`/`ChatSurfaceTab`) — **[PARTIAL]**, correct kind but duplicated (§Inspector policy) |
 | research (project selection) | Library browser — **[PROPOSED]**, today a bespoke `HStack{ResearchProjectListView\|ResearchWorkspaceView}` (`Nav:201-221`) | document preview | thread/document (via chat's Plan tab) | Sources · Plan · Knowledge · Compare — **[PROPOSED]** |
-| `.comparison` | Library browser — **[PROPOSED]** | document preview | — | Compare tab folded into chat's Inspector — **[PROPOSED]**; `ComparisonDetailView`/`AppViewMode.comparison` retire |
+| `.comparison` | — **RETIRED** (CD 2026-09-18): `AppViewMode.comparison`/`ComparisonDetailView` are deleted (increment 4); comparison becomes two sibling artifacts shown as two Reader panes with a diff lens, not a mode/node/view of its own — see `m2p.comparison-is-panes-and-diff-lens` | | | |
 | `.chain` | Library browser — **[PROPOSED]**, today `ChainEditorView`/stub (`Nav:310-319`) | node detail (chain) | — | honest empty (`Detail:392`) |
 | `.batches` / `.batch` | Library browser — **[PROPOSED]**, today `BatchRunView()`/placeholder (`Nav:321-331`) | node detail | — | honest empty; `.batch` case retires (`SelH:283` restore already maps `"batch"`→`.activity`) |
 | `.automation` | Library browser — **[PROPOSED]**, today a placeholder (`Nav:333-338`) | node detail (nothing selected → Library alone, no takeover) | — | "Nothing to Show" (`Plan:139-145`) |
@@ -148,7 +148,7 @@ fourth type.
   `SidebarMode` × representative-`AppViewMode` table (`normalizedResultBelongsToNewMode`)
   plus the two regression pins (`chatToResearchDropsChatViewMode`,
   `chatToKnowledgeGraphDropsChatViewMode`).
-- `m2p.workflow-canvas-in-preview` — **[OK]** (increment 2) selecting a workflow renders its
+- `m2p.workflow-canvas-in-preview` — **[OK]** (increment 2, 91b3d388c) selecting a workflow renders its
   canvas in the Source/Preview pane, not the Library pane; the Library stays the navigator
   beside it. A pin still wins first; at most one `WorkflowEditor` mount per workflow
   (`PaneSurface.allowsSplit` declines the split affordance, `\.isSecondarySplitPane` refuses
@@ -158,7 +158,7 @@ fourth type.
   preview `.workflowCanvas`), `PaneContentPlanTests.onlyWorkflowCanvasRefusesSplit`, and
   `LibraryPaneNeverMountsModeSurfaceTests.regularWidthWorkflowArmNeverMountsEditor` (the
   shrinking-allowlist guardrail, `WorkflowEditor(` dropped).
-- `m2p.workflow-reader-is-run-log` — **[OK]** (increment 2) the Reader shows the workflow's
+- `m2p.workflow-reader-is-run-log` — **[OK]** (increment 2, 91b3d388c) the Reader shows the workflow's
   run log (`WorkflowOutputLog`, an existing component with its own honest "no run yet" empty
   state, previously unused in production), replacing the old "Workflows Have No Transcript"
   dead end; a loading spinner covers the async fetch gap so the pane never goes blank. Pinned
@@ -166,12 +166,24 @@ fourth type.
   `.workflowRecipe`) at the policy level — NOTE: no automated SwiftUI-render test exists yet
   asserting `ReadingPaneView` actually mounts `WorkflowOutputLog` for a `.workflow` selection
   (a coverage gap, flagged for follow-up, not silently claimed as pinned).
-- `m2p.kg-graph-retires-as-library-takeover` — **[PROPOSED]** `SidebarMode.knowledgeGraph`
-  and `OntologyBrowser` no longer mount inside the Library pane; timeline/map become
-  ordinary Library view modes on the Entities collection, and the force-directed graph
-  survives only as a Preview rendition of one focused entity. Pinned by
-  `SidebarModeTests.allCases` (no `.knowledgeGraph` case) + a guardrail asserting
-  `OntologyBrowser` does not appear in the app target.
+- `m2p.kg-graph-retires-as-library-takeover` — **[OK]** (increment 3) `SidebarMode.knowledgeGraph`
+  and `OntologyBrowser` no longer mount inside the Library pane, or exist anywhere in the app
+  target; timeline/map are (and already were, independent of this increment) ordinary Library
+  view modes on the Entities collection. The force-directed graph surviving as a Preview
+  rendition of one focused entity is NOT part of this increment — `ForceDirectedGraphView`
+  still only reaches the user via `DocumentKGSurface` (Reader), unchanged; that promotion is
+  future work, tracked separately, not blocked by anything here. The W3C SPARQL console the
+  retired `OntologyBrowser` also hosted was EXTRACTED, not retired (creative director,
+  2026-06-25 ruling #2593/#2614: "SPARQL is wanted and must be made VISIBLE; never delete it")
+  — its own file (`Views/SPARQLConsole/SPARQLConsoleView.swift`) and window
+  (`Window("SPARQL Console", id: "sparql-console")`, `FicheroApp.swift`), reached from the
+  Knowledge menu. The "predict entities" flow (`HeuristicReviewSheet`) was NOT recovered — it
+  had no caller outside the deleted files and is now unreachable anywhere, confirming #4759;
+  routed to #4791/#4759 for a product decision, not silently dropped. Pinned by
+  `SidebarModeRestoreTests.allCasesCountIsSix` (no `.knowledgeGraph` case),
+  `LibraryPaneNeverMountsModeSurfaceTests.deletedTypesDoNotLingerAnywhere` (bare-identifier
+  guardrail), and `KnowledgeGraphInspectorSectionTests.testSparqlConsoleUsesTypedQueryOpsThroughAStore`
+  (re-pointed at the new console file, same invariant).
 - `m2p.automation-nodes-in-preview` — **[PROPOSED]** schedule / trigger / chain / batches /
   activity selections render their detail in Source/Preview, never the Library pane; an
   automation selection with nothing chosen leaves the Library showing, not a placeholder
@@ -186,17 +198,19 @@ fourth type.
   `backendConversationId`, `ChatView.swift:61-66`) is lifted out of `@State` into the
   per-window model before chat becomes movable. Pinned by `ChatPlacementTests` (never two
   mounts) + a guardrail "`ChatView(` appears in exactly one builder".
-- `m2p.chat-scope-inspector-only` — **[PROPOSED]** chat's Sources tab lives ONLY in the
-  Inspector (`ChatInspector`); the dock's duplicate Sources tab
-  (`ChatView.swift:196` mounting a second `ChatInspector`) is deleted, keeping the
-  cited-sources ledger inside Conversation and the composer's pin menu for the quick case.
-  Pinned by a guardrail: `ChatInspector(` appears in exactly one call site outside its own
-  file.
-- `m2p.comparison-folds-into-chat-compare` — **[PROPOSED]** `AppViewMode.comparison` and
-  `ComparisonDetailView`'s standalone mount retire; a saved comparison opens as a
-  conversation with the Compare tab selected (`ModelComparisonView` is already reachable
-  from `ChatView.swift:241` and `WorkflowEditor.swift:263`). Pinned by the matrix row +
-  guardrail.
+- `m2p.chat-scope-lives-in-both` — **[PROPOSED]**, renamed from `m2p.chat-scope-inspector-only`
+  (creative director, 2026-09-18, supersedes it): chat scope lives in BOTH the Inspector's
+  Sources tab (`ChatInspector`) AND the chat dock's own Sources view — the dock's Sources tab
+  is NOT deleted. Pinned by a guardrail asserting BOTH mounts exist (the inverse of the old
+  "exactly one call site outside its own file" rule).
+- `m2p.comparison-is-panes-and-diff-lens` — **[PROPOSED]**, renamed from
+  `m2p.comparison-folds-into-chat-compare` (creative director, 2026-09-18, supersedes it):
+  `AppViewMode.comparison` and `ComparisonDetailView` are DELETED (increment 4, not 6) — but
+  chat's Compare tab is NOT where comparison lives either. A "run with A and B" action leaves
+  two sibling artifacts; the Compare workspace shows them in two Reader panes with a diff
+  lens — comparison is about two prompts'/workflows' outputs, not a conversation. Pinned by a
+  matrix row (no `.comparison` surface) + a guardrail that `ComparisonDetailView` does not
+  appear in the app target + a Reader diff-lens test once the lens exists.
 - `m2p.inspector-empty-shows-container-info` — **[PROPOSED]** with nothing selected, the
   Inspector shows the CONTAINER's info (the current folder/library), never a "Nothing to
   Show" placeholder; the `.inspector` pane kind stays hidden from the kind-switcher menu
@@ -249,25 +263,37 @@ increments 2, 4, and 5.
   Workflow" placeholder (`Nav:296-304`). Needs the no-collapse ruling below (open question 2)
   or selecting a workflow in a Browse workspace with no Preview leaf shows nothing. Test:
   `m2p.workflow-canvas-in-preview`, `m2p.library-is-always-navigator` (drop `WorkflowEditor(`).
-- **3. Delete Knowledge Graph MODE.** Remove `SidebarMode.knowledgeGraph`, `Nav:173-175`,
-  the menu item (`ViewMenuCommands.swift:212-224`), the Ontology view-mode menu
-  (`ViewMenuLayoutSections.swift:370-390`); re-point "Show in Graph"
-  (`ContentView+RootLayout.swift:484`) and AppleScript `kg`
-  (`ContentView+StateEvents.swift:474-478`) at the per-library entities table. Move
-  `isOcrGarbage` + the date/filter helpers the tables use BEFORE deleting `OntologyBrowser*`
-  and its two test files. **Persistence:** a window saved with `sidebarMode ==
-  "knowledgeGraph"` must restore to `.library` — route restore through a
-  `SidebarMode.restored(from:)` rather than relying on `RawRepresentable.init(rawValue:)`'s
-  default-fallback behavior. Test: `m2p.kg-graph-retires-as-library-takeover` + a
-  restore-table test (pattern: `"search"`, `ContentView+Persistence.swift:69-72`).
+- **3. Delete Knowledge Graph MODE — DONE (2026-09-18).** Removed `SidebarMode.knowledgeGraph`,
+  `Nav:173-175`, the menu item (`ViewMenuCommands.swift`), the Ontology view-mode menu
+  (`ViewMenuLayoutSections.swift`, `KnowledgeGraphViewModeSection` + its
+  `\.knowledgeGraphViewMode` FocusedValues entry); re-pointed "Show in Graph"
+  (`ContentView+RootLayout.swift`) and AppleScript `kg` (`ContentView+StateEvents.swift`) at
+  the library-wide entities table (`sidebarSelectionState.selectedItemId = "entities-browser"`).
+  Moved `isOcrGarbage` to `Models/EntityNameHeuristics.swift` (the only one of `OntologyBrowser`'s
+  filter helpers with a caller outside itself — `parseHiddenKinds`/`filterEntities`/`isDateEntity`
+  had none and retired with the file) before deleting the 6 confirmed-safe `OntologyBrowser*`
+  files and their 2 test files. **The SPARQL console (#3298) was EXTRACTED, not deleted** — a
+  standing creative-director ruling (2026-06-25, #2593/#2614) requires it stay visible; it was
+  NOT part of the review's original delete list and surfaced only once the deletion exposed it
+  had no other caller. Now its own file/window, reached from the Knowledge menu. **Persistence:**
+  a window saved with `sidebarMode == "knowledgeGraph"` restores to `.library` — routed through
+  `SidebarMode.restored(from:)` (not `RawRepresentable.init(rawValue:)`'s unproven default
+  fallback), landed in increment 3a ahead of the deletion itself. Test:
+  `m2p.kg-graph-retires-as-library-takeover` + `SidebarModeRestoreTests` (the restore table).
 - **4. Automation / schedule / trigger / chain / batches / activity / batch → Preview-pane
-  node detail.** Same move as increment 2, row by row. Delete `AppViewMode.batch` (SelH:283
-  already redirects to `.activity`), the `.automation` placeholder arm, the "Create Chain"
-  stub (`Nav:313-318`). Files: `Nav`, `Detail`, `Plan`, `Models/SidebarViewTypes.swift`,
-  `SelH`, `ContentView+Persistence.swift`. **Persistence:** `restoreViewMode`
+  node detail. Also: Comparison retires (CD 2026-09-18 ruling).** Same move as increment 2,
+  row by row. Delete `AppViewMode.batch` (SelH:283 already redirects to `.activity`), the
+  `.automation` placeholder arm, the "Create Chain" stub (`Nav:313-318`). Delete
+  `AppViewMode.comparison` and `ComparisonDetailView`'s mount (`Nav:245-250`) — comparison
+  becomes two sibling artifacts shown as two Reader panes with a diff lens (not a mode, not
+  chat's Compare tab; see `m2p.comparison-is-panes-and-diff-lens`) — the diff-lens UI itself
+  is a separate, not-yet-scoped follow-up; this increment only removes the retired mode/view.
+  Files: `Nav`, `Detail`, `Plan`, `Models/SidebarViewTypes.swift`, `SelH`,
+  `ContentView+Persistence.swift`. **Persistence:** `restoreViewMode`
   (`ContentView+Persistence.swift:60-100`) keeps accepting the retired strings (`"batch"`,
-  `"batches"`, `"automation"`) exactly as it already does for `"search"`. Test:
-  `m2p.automation-nodes-in-preview` + a restore-table test.
+  `"batches"`, `"automation"`, `"comparison"`) exactly as it already does for `"search"`.
+  Test: `m2p.automation-nodes-in-preview`, `m2p.comparison-is-panes-and-diff-lens` + a
+  restore-table test.
 - **5. Research stops being a centre takeover.** Delete the `HStack` container +
   `ResearchProjectListView` mount (`Nav:176-222` regular arm); projects become sidebar
   selections; workspace content reached via chat's Plan tab or a Preview rendition. Files:
@@ -277,12 +303,16 @@ increments 2, 4, and 5.
 - **6. Chat movable as a pane.** Lift `ChatView`'s `@State currentConversation` /
   `backendConversationId` (`ChatView.swift:61-66`) into the per-window model; add
   `ChatPlacement.resolve(paneListHasChatLeaf:showChatPane:) -> .dock | .pane(leafID) |
-  .hidden`; replace the `.chat` placeholder (`PaneSpec:167-179`); de-duplicate the Sources
-  tab vs. `ChatInspector`. Files: `Views/Chat/*`, `PaneSpec`, `ContentView+SidebarLayout.swift`.
-  Persistence: `showChatPane`, `sidebar.chat.height` unchanged; confirm `chatPaneWidth`
-  (`ContentView.swift:360`) still has a reader before keeping it. Also delivers
-  `m2p.pane-head-parity` for Chat. Test: `m2p.chat-single-mount`,
-  `m2p.chat-scope-inspector-only`, `m2p.comparison-folds-into-chat-compare`.
+  .hidden`; replace the `.chat` placeholder (`PaneSpec:167-179`). The Sources tab vs.
+  `ChatInspector` do NOT de-duplicate (CD 2026-09-18 supersedes the earlier "Inspector only"
+  plan: chat scope lives in BOTH places — see `m2p.chat-scope-lives-in-both`). Comparison is
+  NOT this increment's concern either (CD 2026-09-18: it retired in increment 4 as panes + a
+  diff lens, never folded into chat's Compare tab — see
+  `m2p.comparison-is-panes-and-diff-lens`). Files: `Views/Chat/*`, `PaneSpec`,
+  `ContentView+SidebarLayout.swift`. Persistence: `showChatPane`, `sidebar.chat.height`
+  unchanged; confirm `chatPaneWidth` (`ContentView.swift:360`) still has a reader before
+  keeping it. Also delivers `m2p.pane-head-parity` for Chat. Test: `m2p.chat-single-mount`,
+  `m2p.chat-scope-lives-in-both`.
 - **7. Inspector as a real leaf.** Last — it anchors the inspector toggle and the system
   search toolbar item (`ContentView+InspectorContainer.swift:35-103,60-86`). Ship the leaf
   only once the toolbar-anchor risk (§Risks) is resolved without a double mount. Test:
@@ -344,36 +374,41 @@ accident of `Codable` synthesis.
 - **Restoration.** Covered above (§Persistence) — every retired case needs a tolerant
   decode or a saved window restores into a crash or blank.
 
-## Open questions for the creative director
+## Rulings (creative director, 2026-09-18, second round — close the five former open questions)
 
-Only these five remain open; everything else in the epic's Rulings paragraph is decided
-and written above as a rule.
+All five questions this section used to ask are now decided. None of the five is [OK] yet on
+its own — each lands with the increment named below; this section records the DECISION, not
+the implementation status (see the Behaviors list above and the Migration increments for that).
 
-1. **Do ⌃⌘1…9 survive as "modes"?** Review's recommendation: **no modes; the chords become
-   "reveal + focus that sidebar section"** of the one tree. Tradeoff: muscle memory is
-   preserved, but the Sidebar menu loses its checkmark/radio semantics
-   (`SidebarModeButton`), and per-mode sidebar widths/display modes
-   (`ContentView+StateLayout.swift:55-68`) go away.
-2. **Selecting a workflow in a workspace with no Source/Preview leaf (e.g. Browse).**
-   Review's recommendation: **nothing automatic** — the Library stays, the Inspector shows
-   the workflow inspector, and an explicit Open (double-click / Return) adds a Preview leaf,
-   the same verb as opening a document. This is the no-collapse-by-selection ruling applied
-   at its sharpest edge: a layout that rearranged itself on selection would violate
-   "the workspace is the source of truth." Tradeoff: one extra gesture vs. an
-   auto-rearranging layout.
-3. **Where does chat scope live?** Review's recommendation: **Inspector only** — delete the
-   dock's Sources tab, keep the cited-sources ledger inside Conversation. Tradeoff: with the
-   Inspector closed, scope is one toggle away; the composer's pin menu still covers the
-   quick case.
-4. **Does Comparison fold entirely into chat's Compare tab?** Review's recommendation:
-   **yes** — delete `AppViewMode.comparison`; a saved comparison opens as a conversation with
-   Compare selected. Tradeoff: saved-comparison sidebar rows need a small adapter to open
-   that way.
-5. **What does the Inspector show with nothing selected, and when does it become a real
-   leaf?** Review's recommendation: nothing selected → the **container's own Info** (folder/
-   library), never "Nothing to Show"; keep the Inspector as the native trailing column for
-   now, and hide the `.inspector` kind from the kind-switcher menu until increment 7 makes
-   it a real leaf. Tradeoff: the switcher entry stays absent for six increments.
+1. **⌃⌘1…9 do NOT survive as "modes."** The Sidebar-mode menu entries are **removed** — not
+   "reveal that sidebar section," not filters, removed outright. Superseded the review's own
+   "reveal + focus" recommendation. Only ⌃⌘9's removal (the KG entry) is part of THIS epic's
+   current scope (increment 3, done); the other six chords (⌃⌘1/3/4/5/6/8) retire with their
+   own modes across increments 4-6, not before — `SidebarModeButton`'s checkmark/radio
+   semantics and the per-mode sidebar widths/display modes
+   (`ContentView+StateLayout.swift:55-68`) go with them. **Zoom to Fit stays ⌘9** — a
+   different chord, no collision.
+2. **A workflow selected in a workspace with no Source/Preview leaf: an Open affordance adds
+   the pane; nothing moves automatically.** Confirms the review's own recommendation — the
+   Library stays, the Inspector shows the workflow inspector, an explicit Open (double-click
+   / Return) adds a Preview leaf, the same verb as opening a document. The no-collapse-by-
+   selection ruling applied at its sharpest edge: an auto-rearranging layout would violate
+   "the workspace is the source of truth."
+3. **Chat scope lives in BOTH the Inspector's Sources tab AND the chat dock's Sources view.**
+   Supersedes the review's "Inspector only" recommendation — retitled to
+   `m2p.chat-scope-lives-in-both` below (no more "delete the dock's duplicate Sources tab").
+4. **Comparison = panes + a diff lens. No Comparison view, node or window.** A "run with A
+   and B" action leaves two sibling artifacts; the Compare workspace shows them in two Reader
+   panes with a diff lens. `ComparisonDetailView` and `AppViewMode.comparison` are DELETED
+   (increment 4's scope) — but chat's Compare tab is NOT their replacement either; comparison
+   is about two prompts' or two workflows' outputs, not a conversation. Supersedes the
+   review's "folds into chat's Compare tab" recommendation — retitled to
+   `m2p.comparison-is-panes-and-diff-lens` below, moved to increment 4 (not 6). Loove stays
+   its own window (a diagnostic matrix, unrelated).
+5. **Inspector with nothing selected = the container's Info.** Confirms the review's own
+   recommendation — never "Nothing to Show"; the Inspector stays the native trailing column
+   for now, and the `.inspector` pane kind stays hidden from the kind-switcher menu
+   (`PaneSpec.Kind.selectableKinds`) until increment 7 makes it a real leaf.
 
 ## Test matrix
 

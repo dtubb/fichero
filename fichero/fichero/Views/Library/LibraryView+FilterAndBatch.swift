@@ -101,7 +101,7 @@ extension LibraryView {
         // `canonicalName.localizedLowercase` for both sides on every comparison —
         // O(n log n) allocations; now each key is built a single time.
         var rows = entities
-            .filter { !OntologyBrowser.isOcrGarbage($0.canonicalName) }
+            .filter { !EntityNameHeuristics.isOcrGarbage($0.canonicalName) }
             .map { entity in
                 (
                     entity: entity,

@@ -94,7 +94,7 @@ extension ContentView {
                 return [.none, .standard]
             }
             return [.none, .standard, .widescreen]
-        case .workflows, .automation, .activity, .research, .knowledgeGraph:
+        case .workflows, .automation, .activity, .research:
             return []
         }
     }

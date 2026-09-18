@@ -828,6 +828,28 @@ extension FicheroApp {
         .defaultSize(width: 1080, height: 640)
         .commandsRemoved()
         .defaultPosition(.center)
+
+        // SPARQL console (#3298, #4705 increment 3): its own window, opened
+        // from the Knowledge menu's "SPARQL Console…" item via
+        // `openWindow(id: "sparql-console")`. Recovered from the retired
+        // `OntologyBrowser`'s sheet (creative director 2026-06-25 ruling
+        // #2593/#2614: SPARQL must stay visible, never deleted). Self-contained
+        // like `loove-coverage` — `KGQueryStore` is an app-level store
+        // (`AppState.kgQueryStore`, built from the API client, not
+        // library-scoped), so no `.libraryServiceEnvironment(library)` is
+        // needed. Windows-menu entry suppressed like every sibling diagnostic
+        // window; reached only from the Knowledge menu.
+        Window("SPARQL Console", id: "sparql-console") {
+            SPARQLConsoleView()
+                .environment(appState.kgQueryStore)
+                // #4703: app-level fallback observer on every scene root — a
+                // non-optional @Environment(WorkflowExecutionObserver.self) read
+                // anywhere under this scene must never trap.
+                .environment(appExecutionObserver)
+        }
+        .defaultSize(width: 720, height: 560)
+        .commandsRemoved()
+        .defaultPosition(.center)
     }
 }
 

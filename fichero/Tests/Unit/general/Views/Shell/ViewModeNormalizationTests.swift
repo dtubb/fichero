@@ -66,19 +66,12 @@ struct ViewModeNormalizationTests {
         }
     }
 
-    @Test("a selected chat switching to Knowledge Graph no longer keeps a chat view mode")
-    func chatToKnowledgeGraphDropsChatViewMode() {
-        let normalized = ViewModeNormalization.normalizedViewMode(
-            current: .chat(nil),
-            forNewSidebarMode: .knowledgeGraph
-        )
-        if case .chat = normalized {
-            Issue.record("expected a non-chat view mode after switching to Knowledge Graph")
-        }
-        if case .comparison = normalized {
-            Issue.record("expected a non-chat view mode after switching to Knowledge Graph")
-        }
-    }
+    // `chatToKnowledgeGraphDropsChatViewMode` DELETED (#4705 increment 3):
+    // `.knowledgeGraph` is no longer a `SidebarMode` case to construct. The
+    // regression it pinned (a stale `.chat` view mode surviving a sidebar
+    // switch) is still covered generally by
+    // `normalizedResultBelongsToNewMode` above, and concretely for the
+    // surviving takeover mode by `chatToResearchDropsChatViewMode`.
 
     // MARK: - Pinned behaviour: unchanged from the pre-#4705 handleSidebarModeChange
 

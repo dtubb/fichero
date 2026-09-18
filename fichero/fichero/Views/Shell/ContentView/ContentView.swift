@@ -345,7 +345,42 @@ struct ContentView: View {
         LayoutMode(rawValue: WorkspaceLayoutDefaults.layoutModeRaw(
             default: LayoutMode.widescreen.rawValue
         )) ?? .widescreen
-    @SceneStorage("sidebarMode") var sidebarMode: SidebarMode = .library
+    /// #4705 increment 3a: raw storage, NOT `SidebarMode` directly. A
+    /// window saved before a `SidebarMode` case retires (`"knowledgeGraph"`,
+    /// increment 3b) would need `SidebarMode(rawValue:)` to resolve on
+    /// restore — whether `@SceneStorage`'s own `RawRepresentable` decode
+    /// falls back to the default on a failed match or does something worse
+    /// is unproven (the #4703 restored-state crash class), so this routes
+    /// through the explicit, tested `SidebarMode.restored(from:)` instead of
+    /// relying on it. `sidebarMode` below is the ONE read/write surface —
+    /// every other property in this file keeps using `@SceneStorage`
+    /// directly because none of their types have ever retired a case.
+    @SceneStorage("sidebarMode") private var sidebarModeRaw: String = SidebarMode.library.rawValue
+
+    /// The single decoded read/write surface for `sidebarMode` — both get
+    /// and set funnel through `sidebarModeRaw`, so there is exactly ONE
+    /// place a write actually happens (`sidebarModeBinding` below reuses
+    /// this same setter rather than writing `sidebarModeRaw` a second way).
+    var sidebarMode: SidebarMode {
+        get { SidebarMode.restored(from: sidebarModeRaw) }
+        nonmutating set { sidebarModeRaw = newValue.rawValue }
+    }
+
+    /// The `$sidebarMode` projection a computed property cannot synthesize.
+    /// The three call sites that used to write THIS property's own
+    /// `$sidebarMode` (`ContentView+SidebarLayout.swift` ×2,
+    /// `ContentView+RootLayout.swift`) now use this instead — same two-way
+    /// binding, built by hand, routed through the same setter above. (Two
+    /// other `$sidebarMode` sites elsewhere — `ContentViewModifiers.swift`'s
+    /// `MainContentModifiers.body` and `SidebarView.swift`'s `#Preview` —
+    /// project a DIFFERENT, same-named `@Binding`/`@State` local to those
+    /// scopes, not this property; they are untouched.)
+    var sidebarModeBinding: Binding<SidebarMode> {
+        Binding(
+            get: { sidebarMode },
+            set: { sidebarMode = $0 }
+        )
+    }
 
     // Column visibility persistence
     @AppStorage("sidebarWidth") var sidebarWidth: Double = 280
