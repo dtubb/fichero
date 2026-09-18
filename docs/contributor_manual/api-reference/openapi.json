@@ -26758,7 +26758,7 @@
           "knowledge-graph"
         ],
         "summary": "Export the library knowledge graph as RDF",
-        "description": "Materializes the entity + claim store as RDF and serializes it for external linked-data tooling. Supports N-Triples, Turtle, JSON-LD, and RDF/XML.",
+        "description": "Materializes the entity + claim store as RDF and serializes it for external linked-data tooling. Supports N-Triples, Turtle, JSON-LD, and RDF/XML. `context` selects a named JSON-LD @context profile (json-ld only, ignored otherwise) -- only 'schema-org' ships today; see knowledge.jsonld_context for why Linked Art / CIDOC-CRM are deferred. The graph is built once per library and cached in memory (`_cached_rdf_graph`) -- by design, not a streaming path: a Fichero library's KG is documented (knowledge.triples) as a few thousand entities / low-five-digit claims, well under a second to build and small enough to hold entirely in memory. This is NOT the same streaming contract as the bulk document exporter (export_service.iter_export_records) and should not be made to match it.",
         "operationId": "export_rdf_api_kg_export_rdf_get",
         "parameters": [
           {
@@ -26778,6 +26778,19 @@
               "title": "Format"
             },
             "description": "RDF serialization format."
+          },
+          {
+            "name": "context",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "const": "schema-org",
+              "type": "string",
+              "description": "Named @context profile for json-ld output. Ignored for other formats.",
+              "default": "schema-org",
+              "title": "Context"
+            },
+            "description": "Named @context profile for json-ld output. Ignored for other formats."
           }
         ],
         "responses": {
@@ -42825,6 +42838,11 @@
             "type": "string",
             "nullable": true,
             "title": "Model Tested"
+          },
+          "verified": {
+            "type": "boolean",
+            "nullable": true,
+            "title": "Verified"
           }
         },
         "type": "object",

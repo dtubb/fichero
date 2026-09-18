@@ -7438,12 +7438,14 @@ def register_generated_openapi_commands(
     @target_app.command("export-the-library-knowledge-graph-as-rdf")
     def kg_export_the_library_knowledge_graph_as_rdf_get(
         ctx: typer.Context,
+        context: Optional[str] = typer.Option(None, "--context", help="Query parameter: context."),
         format: Optional[str] = typer.Option(None, "--format", help="Query parameter: format."),
     ) -> None:
         """Export the library knowledge graph as RDF (GET /api/kg/export/rdf)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = "/api/kg/export/rdf"
             params = {
+                "context": context,
                 "format": format,
             }
             return client.request("GET", endpoint_path, params=params)
