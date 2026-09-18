@@ -46,50 +46,52 @@ Surfaces: `DocumentInspector` (+`Sections`), `DocumentInspectorEntitiesTab`
 
 - `kg.entity.select.focuses` — [OK] selecting an entity anywhere (entities table,
   ontology list, force graph, Entities tab row) sets `KGFocusState.focusedEntityId`
-  to that entity and clears any focused claim. Pinned:
-  `Tests/Unit/general/Models/KGFocusStateTests.swift`.
+  to that entity and clears any focused claim. Pinned: `KGFocusStateTests`
+  (`Tests/Unit/general/Models/KGFocusStateTests.swift`).
 - `kg.entity.select.inspector-shows-entity` — **[OK]** (F2 landed, eb5b868c6) while an
   entity is focused the inspector shows that entity, even when no document is selected
   (the Entities collection and the Knowledge Graph mode select an entity, not a file).
   Was: fell to `emptyState` ("No selection") because its `document` was nil. Pinned:
-  `Tests/Unit/general/Views/Inspector/DocumentInspectorArmTests.swift` (the extracted
+  `DocumentInspectorArmTests`
+  (`Tests/Unit/general/Views/Inspector/DocumentInspectorArmTests.swift` — the extracted
   pure `DocumentInspector.inspectorArm(...)` decision).
 - `kg.entity.select.routes-to-entities-tab` — [OK] when a document IS shown, focusing
   an entity switches the inspector to the Entities tab and selects that entity's row
   in the list. (`DocumentInspector.swift:98-102`, `syncSelectionToFocusedEntity`)
-  Pinned: `EntityInspectorPinningTests.focusRoutesToEntitiesTab`.
+  Pinned: `EntityInspectorPinningTests` (`focusRoutesToEntitiesTab`).
 - `kg.entity.select.never-another-entity` — the entity pane shows the focused entity,
   or the empty state — never the previous entity's statements under a new header
-  (the #965 class). Pinned by re-keying (section D):
-  `EntityInspectorPinningTests.entityArmRekeysAndClearsOnFocusChange`.
+  (the #965 class). Pinned by re-keying (section D): `EntityInspectorPinningTests`
+  (`entityArmRekeysAndClearsOnFocusChange`).
 
 ### B. Statements list
 
 - `kg.entity.statements.loads-via-store` — **[OK]** (F3 code landed,
   7ee417fbc; pinned 2026-09-16) the entity's claims are fetched through
   `ClaimStore.loadClaims(forEntity:)` (the observable data layer), not a direct
-  `entityService.listClaims` call from the view. Pinned:
-  `EntityInspectorPinningTests.entityLoadRoutesThroughStoreScope` (the store owns
-  the entity scope) + `.digestLoadsViaClaimStore` (the digest prefers the store,
-  keeping the direct fetch only as the no-store fallback).
-- `kg.entity.statements.subject-or-object` — [OK-backend] the list contains every
-  claim where the entity is subject OR object (`GET /api/claims?entity_id=…`), not
-  only claims where it is the subject.
+  `entityService.listClaims` call from the view. Pinned: `EntityInspectorPinningTests`
+  (`entityLoadRoutesThroughStoreScope` — the store owns the entity scope;
+  `digestLoadsViaClaimStore` — the digest prefers the store, keeping the direct fetch
+  only as the no-store fallback).
+- `kg.entity.statements.subject-or-object` — [PARTIAL] (implemented, unpinned;
+  #4802) the list contains every claim where the entity is subject OR object
+  (`GET /api/claims?entity_id=…`), not only claims where it is the subject.
 - `kg.entity.statements.row-shows-svo` — [OK] each row renders the typed triple via
   `ClaimLine.text(...)` with the focused entity as `groupSubject`, so its own name is
   omitted when redundant and kept when the claim is about someone else; a claim with
-  no triple falls back to its text.
+  no triple falls back to its text. Pinned: `ClaimLineTests`.
 - `kg.entity.statements.row-shows-source-label` — each row names where it was said:
   the source document's display name and page label when known; "Source <id>…" only
   when the document cannot be resolved; never an empty badge.
-- `kg.entity.statements.sorted-newest-first` — [OK-ontology] rows are ordered
-  newest-first (`createdAt` descending), matching the ontology detail panel.
+- `kg.entity.statements.sorted-newest-first` — [PARTIAL] (implemented, unpinned;
+  #4802) rows are ordered newest-first (`createdAt` descending), matching the
+  ontology detail panel.
 - `kg.entity.statements.resyncs-on-change` — **[OK]** (F3 code landed,
   7ee417fbc; pinned 2026-09-16) the list refreshes when any claim mutates anywhere
   (`ClaimStore.changeToken`), so an edit, merge, delete or curation change on another
-  surface is visible here without reselecting. Pinned:
-  `EntityInspectorPinningTests.digestObservesChangeToken` (the digest re-loads on a
-  token bump) + `.storeExposesChangeToken`; the token movement itself is pinned by
+  surface is visible here without reselecting. Pinned: `EntityInspectorPinningTests`
+  (`digestObservesChangeToken` — the digest re-loads on a token bump;
+  `storeExposesChangeToken`); the token movement itself is pinned by
   `ClaimChangeDeliveryTests`.
 - `kg.entity.statements.loading-state` — while claims load, a progress indicator
   shows and no stale list from a previous entity is visible.
@@ -99,34 +101,38 @@ Surfaces: `DocumentInspector` (+`Sections`), `DocumentInspectorEntitiesTab`
 - `kg.entity.source.row-click-navigates` — [OK] selecting a statement row posts a
   `ClaimSourceNavigationRequest` on the window's `ClaimSourceNavigationState`; the
   shell resolves the page child to its parent, selects it, and scrolls the reader to
-  the page (`handleOpenClaimSource`).
+  the page (`handleOpenClaimSource`). Pinned: `ClaimSourceRequestTests`.
 - `kg.entity.source.highlights-span` — [OK] a claim with a recorded non-empty
-  character span (`sourceCharStart < sourceCharEnd`) highlights that passage.
+  character span (`sourceCharStart < sourceCharEnd`) highlights that passage. Pinned:
+  `ClaimSourceRequestTests`.
 - `kg.entity.source.highlights-region` — [OK] a claim with a recorded region
   (`sourceAnchor.rect`, four values) and no span highlights that bbox on the page
-  image.
+  image. Pinned: `ClaimSourceRequestTests`.
 - `kg.entity.source.page-only-no-highlight` — [OK] a claim with a document but no
   span and no region opens the page and draws NO highlight (never approximate a
-  location — `ClaimSourceRequest.Precision.pageOnly`).
+  location — `ClaimSourceRequest.Precision.pageOnly`). Pinned: `ClaimSourceRequestTests`.
 - `kg.entity.source.no-document-no-navigation` — [OK] a claim with no source
   document produces no request; the row is inert rather than navigating to nothing.
+  Pinned: `ClaimSourceRequestTests`.
 - `kg.entity.source.one-anchor-builder` — **[OK]** (F5 landed, 1eb9b9557; field-based
   builder migration is a follow-up) every entity-statement surface builds its request
   through the precision-aware builder, so no two surfaces disagree about whether a
-  highlight is drawn for the same claim. Pinned:
-  `Tests/Unit/general/Models/ClaimSourceRequestTests.swift::sameAnchorAcrossBuilders`
-  (calls both builders on fixture claims and diffs outputs — the cross-surface invariant).
-- `kg.entity.source.open-entity-is-search` — [OK] OPENING the entity itself (double-
-  click / "Open") is the scoped mention search, not a jump to one arbitrary claim's
-  page (ruled 2026-09-05, option A). An entity has no page; its statements do. This
-  is why no `EntitySourceRequest` type is proposed — see Findings F6.
+  highlight is drawn for the same claim. Pinned: `ClaimSourceRequestTests`
+  (`sameAnchorAcrossBuilders` — calls both builders on fixture claims and diffs
+  outputs — the cross-surface invariant).
+- `kg.entity.source.open-entity-is-search` — [PARTIAL] (implemented, unpinned;
+  #4802) OPENING the entity itself (double-click / "Open") is the scoped mention
+  search, not a jump to one arbitrary claim's page (ruled 2026-09-05, option A). An
+  entity has no page; its statements do. This is why no `EntitySourceRequest` type
+  is proposed — see Findings F6.
 
 ### D. Empty state and re-keying
 
 - `kg.entity.empty.no-claims` — **[OK]** an entity with zero claims shows "No statements
   about <name> yet" (not a blank pane, not a spinner, not the previous entity's
-  rows). Pinned: `Tests/Unit/general/Views/Inspector/EntityDigestStatementsStateTests.swift`
-  (pure `EntityDigestContent.statementsState(...)`).
+  rows). Pinned: `EntityDigestStatementsStateTests`
+  (`Tests/Unit/general/Views/Inspector/EntityDigestStatementsStateTests.swift` — pure
+  `EntityDigestContent.statementsState(...)`).
 - `kg.entity.empty.load-error` — a failed load shows the error inline with a way to
   retry; it does not fall back to a stale list.
 - `kg.entity.rekey.on-focus-change` — the statements view is keyed on
@@ -149,7 +155,7 @@ Surfaces: `DocumentInspector` (+`Sections`), `DocumentInspectorEntitiesTab`
 - `kg.entity.xsurface.same-anchor` — **[OK]** the same claim yields an identical
   `ClaimSourceNavigationRequest` (document, page, span/bbox, precision) from every
   surface — the one-builder line above, asserted as an invariant. Pinned:
-  `Tests/Unit/general/Models/ClaimSourceRequestTests.swift::sameAnchorAcrossBuilders`.
+  `ClaimSourceRequestTests` (`sameAnchorAcrossBuilders`).
 
 ## First wave to pin (proposed — awaiting the creative director)
 

@@ -22,46 +22,51 @@ Surfaces: `EntitiesLibraryContent` / `EntitiesTableView`, `ClaimsLibraryContent`
 ## Behaviors
 
 ### A. Filter (#4625)
-- `kg.tables.filter.text` [OK] — a per-table filter field narrows rows by text.
+- `kg.tables.filter.text` [OK] (Pinned: `ClaimsFilterTests`, `EntitiesFilterTests`.) — a per-table filter field narrows rows by text.
   Built: `EntitiesLibraryContent.swift:~136` (`TextField("Filter entities", ...)` feeding
   `entityMatches`), `ClaimsLibraryContent.swift:~163` (`TextField("Filter claims", ...)`
   feeding `claimMatches`).
 - `kg.tables.filter.entity-type` [OK] — an entity-**type** picker filters the entity
   table. Built: `EntitiesLibraryContent.swift:~127-146` (`availableTypes` + type `Menu`).
+  Pinned: `EntitiesFilterTests`.
 - `kg.tables.filter.claim-type` [PARTIAL] (#4768) — a claim **type** picker filters the claim
   table (built: `ClaimsLibraryContent.swift:~151-176`, `availableTypes`/type `Menu`
   filtering `claimType`), but there is no curation-state picker — the spec line
   originally promised "type / curation-state" and only type shipped.
-- `kg.tables.filter.combines-with-search` [OK] — the per-table filter AND the shared ⌘F
+- `kg.tables.filter.combines-with-search` [OK] (Pinned: `ClaimsFilterTests`,
+  `EntitiesFilterTests`.) — the per-table filter AND the shared ⌘F
   query both apply (intersection); neither clobbers the other. Built: `entityMatches`
   (`EntitiesLibraryContent.swift:~109-123`) / `claimMatches`
   (`ClaimsLibraryContent.swift:~136-151`) both check `search` and `filterText`.
-- `kg.tables.filter.empty-state` [OK] — a filter that matches nothing shows "No matches",
+- `kg.tables.filter.empty-state` [OK] (Pinned: `ClaimsFilterTests`, `EntitiesFilterTests`.) — a filter that matches nothing shows "No matches",
   never a blank table or a spinner. Built: `ClaimsLibraryContent.swift:~192-203`
   (`emptyMessage`); `EntitiesLibraryContent` has the parallel empty state.
 - `kg.tables.filter.pushdown` (later) — for large sets, push the filter to the list
   endpoint (`q` / `entity_type` / `claim_type` already exist) instead of client-side only.
 
 ### B. Entity CRUD (#4624)
-- `kg.tables.entity.create` [OK] — a "New Entity" affordance creates an entity (canonical
+- `kg.tables.entity.create` [OK] (Pinned: `EntitiesTableCreateTests`.) — a "New Entity" affordance creates an entity (canonical
   name + type), selects the new row, and enters rename. Built:
   `EntitiesLibraryContent.swift:~77` (`showingCreateSheet`/`handleCreatedEntity`), id
   `kg.entity.new`.
 - `kg.tables.entity.rename-inline` [OK] — the canonical name is editable from the table.
-  Built: `EntitiesTableView.swift:~118-125` (inline `TextField` + `commitRename`).
-- `kg.tables.entity.retype` [OK] — entity type is editable (keep).
+  Built: `EntitiesTableView.swift:~118-125` (inline `TextField` + `commitRename`). Pinned:
+  `EntitiesTableCreateTests`.
+- `kg.tables.entity.retype` [OK] — entity type is editable (keep). Pinned:
+  `KGInspectorCRUDUITests`.
 - `kg.tables.entity.delete` [OK] — delete removes the entity and its claim links, undoable.
-- `kg.tables.entity.curate` [OK] — bless / reject / merge stay.
+  Pinned: `KGInspectorCRUDUITests`.
+- `kg.tables.entity.curate` [PARTIAL] (implemented, unpinned; #4801) — bless / reject / merge stay.
 
 ### C. Claim CRUD (#4624)
-- `kg.tables.claim.create` [OK] — a "New Claim" affordance hand-authors a claim, wiring
+- `kg.tables.claim.create` [OK] (Pinned: `ClaimsTableCreateTests`.) — a "New Claim" affordance hand-authors a claim, wiring
   POST /api/claims. Built: `NewClaimSheet.swift` (view), `EntityService+
   ClaimEntityCRUD.swift:~117` (`createClaim`), wired from `ClaimsLibraryContent.swift`
   (`showingCreateSheet`), id `kg.claim.new`.
 - `kg.tables.claim.create.source-optional-flagged` — a hand-authored claim MAY have no
   source (a working hypothesis / synthesis), but it is clearly marked "no source" and
   treated as lower-provenance; it is never silently indistinguishable from a sourced claim.
-- `kg.tables.claim.edit` [OK] — subject/verb/object + fields editable **from the
+- `kg.tables.claim.edit` [OK] (Pinned: `ClaimsTableCreateTests`.) — subject/verb/object + fields editable **from the
   claim table** is built: `ClaimsTableView.swift:~168-172` wires an `onEdit` menu item
   (`kg.claim.menu.edit`) that opens the existing `EditClaimSheet` (S·V·O + type +
   epistemic status, PATCH `/api/claims/{id}`), reused rather than re-parsed. Shipped
@@ -135,7 +140,7 @@ entities/claims), not a small demo table. What's missing:
 
 ### First-class library view affordances
 - `kg.view.contiguous-selection` [OK] — Set-based selection gives shift-click range +
-  ⌘-click; keep it.
+  ⌘-click; keep it. Pinned: `SelectionGrammarTests`.
 - `kg.view.keyboard-delete` [MISSING] — ⌘⌫ deletes the selection; ⌘A selects all — same
   selection grammar as every other library mode, enforced by `check_selection_grammar.py`.
   Was mis-cited to the four-selection-implementations root-cause issue (long since closed —

@@ -59,23 +59,30 @@ takeover regression shared with every other sidebar mode.
 ## Behaviors
 
 - `automation.schedule.crud` [OK] — create/read/update/delete a schedule end-to-end
-  (`scheduler.py:297,707,761` → `schedules.py` routes → `AutomationAPIService`).
+  (`scheduler.py:297,707,761` → `schedules.py` routes → `AutomationAPIService`). Pinned:
+  `test_routes_schedules.py` (`TestCreateSchedule`, `TestGetSchedule`, `TestDeleteSchedule`,
+  `TestListSchedules`).
 - `automation.trigger.crud` [OK] — same for file-watch triggers (`file_watcher.py` → `triggers.py`).
+  Pinned: `test_routes_triggers.py` (`TestCreateTrigger`, `TestGetTrigger`, `TestDeleteTrigger`,
+  `TestListTriggers`).
 - `automation.schedule.pause-resume` [OK] — `scheduler.py:661,681`, exposed as
-  `/pause`/`/resume` (`schedules.py`); same for triggers.
+  `/pause`/`/resume` (`schedules.py`); same for triggers. Pinned: `test_routes_schedules.py`
+  (`TestPauseResumeSchedule`), `test_routes_triggers.py` (`TestPauseResumeTrigger`).
 - `automation.run-now` [OK] — a schedule or trigger can be run immediately without waiting
   for its timer/watch (`WorkflowScheduler.trigger_now` `:831`, `POST /schedules/{id}/trigger`).
+  Pinned: `test_routes_schedules.py` (`TestTriggerSchedule`).
 - `automation.run-history.backend` [OK] — `get_schedule_runs` (`:792`) / trigger
-  `/executions` return a persisted run history.
-- `automation.creation-affordance` [OK] — "New Schedule"/"New Trigger" reachable from
-  `AddItemMenu.swift:92,96`.
+  `/executions` return a persisted run history. Pinned: `test_routes_schedules.py`
+  (`TestScheduleRuns`), `test_routes_triggers.py` (`TestTriggerExecutions`).
+- `automation.creation-affordance` [PARTIAL] (implemented, unpinned; #4799) — "New
+  Schedule"/"New Trigger" reachable from `AddItemMenu.swift:92,96`.
 - `automation.feature-gated` [OK] — dev-tier flag, off by default; promote-to-beta is
-  #255 (OPEN), not a defect.
+  #255 (OPEN), not a defect. Pinned: `FeatureManagerTests`.
 - `automation.sidebar-node.dead-end` [BROKEN] — with the flag on and zero schedules/
   triggers created, selecting Automation from the View menu replaces the Library pane's
   content with a "Select a schedule or trigger in the sidebar" placeholder instead of
   leaving the Library visible with nothing new to select — the Library-takeover defect
-  epic #4705 tracks generally (increment 4 names retiring this exact mode). Owned by
+  epic → #4705 tracks generally (increment 4 names retiring this exact mode). Owned by
   `modes-to-panes.md`; automation is one instance of it, not a separate bug.
 - `automation.run-history.rendition` [GAP] — a schedule/trigger's run history currently
   lives inside its detail view (`TriggerDetailView+ExecutionHistory.swift`), not the
