@@ -142,6 +142,20 @@ Surfaces: `DocumentInspector` (+`Sections`), `DocumentInspectorEntitiesTab`
   `EntityDigestContent.statementsState(...)`).
 - `kg.entity.empty.load-error` — a failed load shows the error inline with a way to
   retry; it does not fall back to a stale list.
+- `kg.entity.load-failure-names-its-reason` — **[BROKEN]** (#4850) when the ENTITY itself
+  fails to load (distinct from `kg.entity.empty.load-error` above, which is about the
+  statements list failing once an entity is already showing), the inspector must name WHY —
+  not found, could not decode, engine unreachable — with a Retry, and a cancelled load (the
+  user's selection changed mid-fetch) must never be shown as a failure at all. Verified
+  BROKEN: `DocumentInspector.EntityInspectorArm`'s `.task(id:)`
+  (`DocumentInspector.swift:218-226`) does `catch { loadFailed = true }` — the typed error is
+  neither logged nor inspected, so a 404, a decode failure, a cancelled task, and a timeout are
+  all indistinguishable, all rendering the same generic "Entity Unavailable / Could not load
+  this entity." Reported from maintainer testing as intermittent — consistent with a cancelled
+  `.task(id:)` (a fast reselect) being reported as a failure, one of the candidates named in
+  the issue, not confirmed as THE cause since the error is thrown away before anyone can tell.
+  Also open, not decided here: what Preview and Reader should show for a selected entity —
+  today both say "No selection" regardless.
 - `kg.entity.rekey.on-focus-change` — the statements view is keyed on
   `focusedEntityId` (`.task(id:)`), so changing focus re-fetches and the list
   belongs to the new entity; the old list is dropped, not appended. Pinned:

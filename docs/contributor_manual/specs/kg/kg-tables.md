@@ -235,11 +235,18 @@ entities/claims), not a small demo table. What's missing:
   be the FULL row, not just the label text, so the existing selection grammar
   (`kg.view.contiguous-selection` above) is easy to invoke for bulk curation — today a
   narrower click target makes multi-select fiddly even though the underlying grammar works.
-- `kg.view.keyboard-delete` [MISSING] — ⌘⌫ deletes the selection; ⌘A selects all — same
-  selection grammar as every other library mode, enforced by `check_selection_grammar.py`.
-  Was mis-cited to the four-selection-implementations root-cause issue (long since closed —
-  that unified only the CLICK grammar, not keyboard delete/select-all); the actual remainder
-  is filed as #4794.
+- `kg.view.keyboard-delete` — **[BROKEN]** (#4794, #4851) ⌘⌫ deletes the selection; ⌘A selects
+  all — same selection grammar as every other library mode, enforced by
+  `check_selection_grammar.py`. Was mis-cited to the four-selection-implementations root-cause
+  issue (long since closed — that unified only the CLICK grammar, not keyboard delete/
+  select-all); the actual remainder was filed as #4794, and #4851 is the SAME ⌘A gap reported
+  again from tonight's maintainer testing with a sharper diagnosis — not a separate defect.
+  Retagged from [MISSING] to BROKEN: verified on disk that ⌘A is not merely unimplemented but
+  actively routed elsewhere — `LibraryView+TableView.swift` is the only file in the tree
+  wiring a Select-All shortcut; neither `EntitiesTableView.swift` nor `ClaimsTableView.swift`
+  handles `selectAll` at all, so a window-level ⌘A reaches the document browser's own
+  selection and leaves the KG table's selection exactly where it was (one row), matching
+  #4851's own diagnosis exactly.
 - `kg.view.type-icons` [MISSING] (#4643) — rows use the per-type icons that ALREADY exist
   (`KnowledgeGraphSupport`: person/place/org/event/concept/date), not one flat glyph.
 - `kg.view.pagination` [MISSING at 10k] (#4643) — the table loads up to 25 000 client-side; at

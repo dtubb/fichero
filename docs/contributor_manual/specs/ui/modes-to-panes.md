@@ -324,6 +324,28 @@ fourth type.
   `PaneSurface` + `.empty`) — no automated SwiftUI-render test yet asserting the Reader actually
   mounts `PaneEmptyStateView` for a live schedule selection (a coverage gap, flagged, same
   honesty precedent as `m2p.workflow-reader-is-run-log`).
+- `m2p.scroll-updates-page-focus-only` — **[OK]** a reader page signal must never
+  disagree about how much of the window it may re-point: scrolling past a page (the viewport
+  drifting) and clicking a page (an instruction) both move the shared page-focus cursor that
+  drives the preview and inspector, but NEITHER ever re-roots `detailDocument` — the previewed/
+  active document stays pinned to its container (the parent PDF/folder) so the WebKit
+  transcript is never torn down and reloaded by a click or scroll meant to move within it.
+  `ReaderPageSignal` (`ReaderPageActivationState.swift:37-62`) states this as a value
+  (`movesPageFocus`/`movesBrowserSelection`/`rerootsPreviewedDocument`) rather than two
+  hand-written branches, which is what makes the invariant assertable at all. Pinned:
+  `ReaderPageActivationTests.neitherSignalRerootsThePreviewedDocument`,
+  `.bothSignalsMovePageFocus`, `.bothSignalsMoveTheBrowserSelection`. The legacy issue asking
+  for this decoupling is a verify-close candidate — the code and its own comments name that
+  issue by number as the ruling this mechanism implements — flagged for the maintainer rather
+  than closed here.
+- `m2p.inspector-names-its-selection-scope` — **[GAP]** (#1762) the Inspector should visibly
+  NAME the scope it's showing — Page / Folder / N Pages / Selection — not just silently render
+  different content for each. Verified: `m2p.inspector-follows-selection` (above) proves the
+  RIGHT CONTENT KIND mounts per selection, and `ContentView+StateDisplay.swift:158`'s
+  `"\(browserSelection.count) items selected"` is an adjacent but DIFFERENT mechanism — a pane
+  head / status-area count string, not the Inspector itself naming its own scope. No title or
+  header was found anywhere under `Views/Inspector/` that reads "Page"/"Folder"/"N Pages"/
+  "Selection" as the Inspector's own identity. Not built.
 - `m2p.automation-run-history-in-reader` — **[OK]** (ba7871c09; → #4741 closed, the `automation`
   spec's own issue): a schedule/trigger/activity selection must show its run history in the
   Reader, not the honest-but-now-obsolete `.empty("A schedule has no reader view.")` (etc.) the

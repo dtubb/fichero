@@ -495,6 +495,32 @@ the browse→read flow down the centre.
   exclusively from `ResizableDivider`'s own drag handler. Pinned:
   `WorkspaceSplitStackSeedingTests` (an unseeded fraction re-resolves proportionally across two
   different totals; a real stored override still wins regardless of total).
+- `panes.split.peers-open-even` — **[BROKEN]** (#4849) the rule stated precisely: when a
+  horizontal split has 2, 3, or 4 SIBLING peer panes and the user has not yet dragged a
+  divider, the columns open EQUAL — each is 1/n of the row. A user's drag still wins
+  afterwards, same as `panes.split.fraction-not-seeded` above. A deliberately UNEQUAL built-in
+  layout (for example a narrow Library navigator beside wider content) is not a peer split and
+  keeps its own specified weights — the even rule is the default for PEERS, not a blanket
+  override of every split. Verified BROKEN: `PaneSpec.childExtents` (`PaneSpec.swift:382-404`)
+  seeds every non-last sibling from its own `paneFraction` (or a `0.4` fallback) and always
+  flexes only the LAST child — with three or four siblings the seeded fractions do not divide
+  the row evenly, so the flexing pane ends up a different width from the rest. Compounding it:
+  `WorkspaceSplitStack` persists at most TWO resizable/proportional child slots via
+  `@SceneStorage` (`WorkspaceSplitStack.swift:55-58`) — a third or fourth resizable sibling has
+  no slot and re-resolves fresh from its fraction every render rather than sharing the
+  persisted-drag benefit the first two get. Reported from maintainer testing: a four-pane row
+  opened as two narrow previews, one wider preview, and a wide reader — exactly this shape.
+- `panes.strip.fixed-extent-is-content-not-whole-pane` — **[BROKEN]** (#4848) a HARD-pinned
+  pane extent (`PaneConfig(paneExtent:)`) describes the visible CONTENT the user is meant to
+  see — a strip of page icons, say — not the whole pane including its own head and footer
+  chrome. Verified BROKEN: every built-in bottom Library strip is pinned at
+  `PaneConfig(libraryLayout: "icons", paneExtent: 72)` (`BuiltInWorkspaceLayout.swift:115, 137,
+  155`), and `PaneSpec.childExtents` (`PaneSpec.swift:382-404`) treats that `72` as the pane's
+  TOTAL extent — the pane head and footer bar together already use roughly that much, leaving
+  the icon strip itself almost no room. Fix direction: the fixed extent should describe the
+  icon strip's own content height, with the pane's actual extent computed as that content
+  height plus its head/footer chrome — not the reverse. Reported from maintainer testing: a
+  bottom-strip workspace showed only the pane head and footer bar, no page icons at all.
 - `panes.split.minimap` — **[GAP]** (#1932) a split pane can act as a minimap of another pane's
   content — especially the WebKit/KG graph view, where a small secondary pane shows an overview
   of the whole document/graph while the main pane is zoomed in. Splitting and side-by-side

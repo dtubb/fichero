@@ -121,6 +121,23 @@ often the wrong subject; not multilingual.
   test count alone would suggest. Target state: ONE renderer, in the engine (`readable.py`'s
   successor, the entry composer below); the app draws what it is given; (B)/(C)/(D)'s bespoke
   loops retire once the Reader rendition (`kg.read.lives-in-reader`) replaces them.
+- `kg.read.statements-join-as-sentences` — **[BROKEN]** (#4852) joining several claim
+  statements about one entity into a list must read as sentences, never as fragments glued
+  with punctuation that collides with the text's own. Verified on disk: the live source is
+  `KnowledgeGraphInspectorSection.digestMarkup(displayName:contexts:)`
+  (`KnowledgeGraphInspectorSection+Grouping.swift`), which prints the entity's name in bold
+  and then its contexts joined with a literal `"; "`. The contexts are mixed in kind: the
+  first is a verb-phrase fragment ("es llamado Antonio (nombre propio)"), the rest are whole
+  sentences that repeat the subject and already end in a full stop — producing "Antonio
+  Mondragon es llamado Antonio (nombre propio); Antonio es clasificado como Negro
+  (esclavo).; Antonio es esclavo de...". Two defects, then: a semicolon join over text that
+  is already punctuated, and contexts that are sometimes fragments and sometimes sentences.
+  Fix direction: whole sentences only, joined with a space, never punctuation the text
+  already carries. `EntitySourceGroupsView` has a similar `"; "` join but is NOT live: its
+  only mount is `EntityDetailView`, which nothing mounts, so the unreachable framing in
+  `kg/kg-entity-inspector.md` holds (→ #4828). Longer term this view should render from
+  `render_entry`/the entity-readable route (`kg.read.biography`), which already returns whole
+  sentences with offsets and claim ids — one renderer, not six.
 
 ### B. Ruling 1 — the claim is the unit of editing
 
@@ -156,7 +173,13 @@ often the wrong subject; not multilingual.
   `focusKGSourcePreview` (`ContentView+SourceNavigation.swift:147`) already reveals a source
   WITHOUT changing the current selection — that is the existing seam to build this on, not a new
   mechanism. The span/region/page-only precision rules `ClaimSourceRequest` already computes
-  (`ClaimSourceRequest.swift:53-68`) are correct and reusable as-is.
+  (`ClaimSourceRequest.swift:53-68`) are correct and reusable as-is. **Sharpened (2026-09-18,
+  maintainer testing session):** a single click must highlight BOTH representations of the same
+  span at once — the passage in the Reader's WebKit TRANSCRIPT text and the corresponding
+  region on the source IMAGE — not one or the other depending on which surface happens to be
+  showing, and neither highlight changes the current selection. This is the concrete,
+  dual-surface form the "one gesture" ruling takes once there are two source renditions
+  (transcript text and page image) to keep in sync, not a new requirement beyond it.
 - `kg.read.source-request-declares-intent` — **[GAP]** (#4834) `ClaimSourceNavigationRequest
   .destination` silently defaults to `.reader` at every one of its five construction sites
   feeding one shared request bus — the fix drops that default and makes `destination` a
@@ -327,14 +350,23 @@ and tested, reachable from no screen.
   Not started (`readable.py:20-21` says so in its own docstring). **The per-language `inverse`
   map is seeded from verbs that actually occur most frequently in the maintainer's own
   libraries — a read-only frequency count through the running app, not an invented verb list.**
-- `kg.read.biography` — **[PARTIAL] — the keystone, not built** (#4750) nothing composes the six
-  stages into an entry today — no route, no caller, confirmed by grep. This IS the fix for
-  `kg.read.one-renderer`: `render_entry(entity_id, ordering)` returning
-  `sentences: [{text, start, end, language, claim_ids: [...], role: subject|object|mention,
-  revoiced: bool}]` plus citations, served at `GET /api/entities/{id}/readable`, fixing
-  aggregation (keep objects, never cross languages, language per claim) and wiring stage 5
-  (referring expressions) in along the way. This is the sentence-record CONTRACT the rest of
-  this spec (and the Reader rendition, `kg.read.lives-in-reader`) is written against.
+- `kg.read.biography` — **[PARTIAL] — the read route now exists** (#4750, cc2da29ae) the entry
+  composer has a real, tested read endpoint: `GET /api/kg/entities/{id}/readable` returns
+  `{entity_id, paragraph, sentences[]}`, each sentence carrying its text, offsets into the
+  paragraph, a nullable language, its claim ids, the page entity's role, and a `revoiced` flag
+  — an unknown entity 404s rather than returning an empty paragraph. `render_entry` now fetches
+  by query (unioning BOTH ways a claim belongs to an entity — linked in `entity_ids`, or named
+  as subject, since the two fields drift in real libraries) instead of scanning every claim in
+  the table. Pinned: `test_routes_kg_render_readable.py::TestGetEntityReadable` (all 5:
+  `test_404_for_unknown_entity`, `test_returns_the_shape`,
+  `test_offsets_slice_into_the_paragraph`, `test_null_language_round_trips`,
+  `test_a_claim_belonging_to_another_entity_is_not_returned`). **Still not [OK]:** this commit
+  is the ROUTE and the query-not-scan fix, not the aggregation fix — whether `render_aggregation`
+  now keeps objects (`kg.read.aggregation-keeps-objects`) and never crosses languages
+  (`kg.read.aggregation-never-crosses-languages`) was not re-verified here and those two
+  behaviors are unchanged by this citation. Nothing in the APP calls this route yet — the
+  Reader rendition (`kg.read.lives-in-reader`) is still the unbuilt other half; until it lands,
+  the app's five renderers (`kg.read.one-renderer`) are unchanged by this route existing.
 - `kg.read.genre.regest` [MISSING] (#4653) — one dated paragraph per document, in order (calendar of docs).
 - `kg.read.genre.gazetteer` [MISSING] (#4653) — a place's assertions gathered as an entry.
 - `kg.read.genre.index-concordance` [MISSING] (#4653) — name/term → its attestations, sorted.
