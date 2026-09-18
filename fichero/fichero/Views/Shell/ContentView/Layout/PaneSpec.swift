@@ -158,71 +158,6 @@ extension ContentView {
         }
     }
 
-    /// The widescreen centre row, rendered from `widescreenPaneSpecs`.
-    var widescreenPaneRow: some View {
-        let specs = widescreenPaneSpecs
-        return HStack(spacing: 0) {
-            ForEach(Array(specs.enumerated()), id: \.element.id) { index, spec in
-                if index > 0 {
-                    paneDivider(between: specs[index - 1].kind, and: spec.kind)
-                }
-                paneContent(for: spec)
-            }
-        }
-        .frame(maxWidth: .infinity)
-    }
-
-    /// The divider (if any) between two adjacent panes. The library's
-    /// divider drags the library column (`widescreenContentPaneWidth`); the
-    /// preview↔reading divider drags the reading column
-    /// (`pageContentPaneWidth`) — the same two bindings the old HStack wired.
-    @ViewBuilder
-    private func paneDivider(between leading: PaneSpec.Kind, and trailing: PaneSpec.Kind) -> some View {
-        switch (leading, trailing) {
-        case (.library, _):
-            ResizableDivider(
-                width: $widescreenContentPaneWidth,
-                minWidth: ContentView.contentListMinWidth,
-                maxWidth: 900,
-                edge: .leading,
-                isDragging: $dividerDragInFlight
-            )
-        case (.preview, .reading):
-            ResizableDivider(
-                width: $pageContentPaneWidth,
-                minWidth: ContentView.readingPaneMinWidth,
-                maxWidth: 900,
-                edge: .trailing,
-                isDragging: $dividerDragInFlight
-            )
-        case (_, .chat):
-            ResizableDivider(
-                width: $chatPaneWidth,
-                minWidth: ContentView.chatPaneMinWidth,
-                maxWidth: 700,
-                edge: .trailing,
-                isDragging: $dividerDragInFlight
-            )
-        default:
-            EmptyView()
-        }
-    }
-
-    /// One pane's content — AnyView by construction: each pane's generic
-    /// ends at its own boundary instead of multiplying into the row's.
-    /// The SLOT's kind can be overridden (Daniel, 2026-08-23): any slot can
-    /// host any pane kind, switched from its head's kind icon; multiple
-    /// instances of a kind may coexist.
-    private func paneContent(for spec: PaneSpec) -> AnyView {
-        let effectiveKind = paneKindOverrides[spec.id] ?? spec.kind
-        return AnyView(
-            kindContent(kind: effectiveKind, slotId: spec.id, fixedWidth: spec.fixedWidth)
-                .environment(\.paneKindSwitcher, PaneKindSwitcher(slotId: spec.id) { newKind in
-                    paneKindOverrides[spec.id] = newKind == spec.kind ? nil : newKind
-                })
-        )
-    }
-
     /// `slotId` survives a kind override (2026-08-24): the split state is
     /// keyed "<slot>-<kind>", so two slots hosting the SAME kind split
     /// independently — the per-window "canvas" key made splitting one
@@ -320,28 +255,6 @@ extension ContentView {
         }
     }
 
-    /// Compose the window's centre from a `PaneList` — the SINGLE rendering path every layout
-    /// mode and every saved workspace flows through (spec §F7, RATIFIED 2026-09-13/14). Each
-    /// leaf draws via `kindContent`, so it carries the SAME pane head (breadcrumb, close) and
-    /// `.clipped()` guard the widescreen side panes have — which is why a `.standard` bottom
-    /// preview now gets the head it lacked ("not using the same system", CD 2026-09-14). A
-    /// split node arranges its children along its axis (vertical = the old `PlatformVSplitView`,
-    /// which is itself just a `VStack(spacing:0)`). A multi-pane HORIZONTAL top level delegates
-    /// to the proven `widescreenPaneRow`, which owns the fixed-width + resizable-divider logic.
-    @ViewBuilder
-    func paneComposition(_ list: PaneList) -> some View {
-        if list.nodes.count == 1 {
-            paneNodeView(list.nodes[0], keyPath: "0")
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else {
-            // A horizontal row of >1 top-level panes.
-            // ponytail: only `.widescreen` produces multi-pane rows today, and `widescreenPaneRow`
-            // already renders them from the pane list. Fold its width logic into `paneNodeView`
-            // when a saved workspace needs custom column widths on a non-widescreen row.
-            widescreenPaneRow
-        }
-    }
-
     /// Render an APPLIED workspace pane list — every level through the recursive node renderer
     /// (top-level nodes lay out as a horizontal row; a split arranges its children along its
     /// axis), so a STORED `PaneList` (`activePaneList`) is the source of truth. Unlike
@@ -366,8 +279,8 @@ extension ContentView {
             WorkspaceSplitStack.Child(
                 paneNodeView(
                     node, keyPath: "\(index)", secondaryIDs: secondaryIDs, isSole: solePane,
-                    closeLeaf: { id in activePaneList = activePaneList?.removingLeaf(id) },
-                    changeKind: { id, kind in activePaneList = activePaneList?.changingLeafKind(id, to: kind) }
+                    closeLeaf: { id in activePaneList = activePaneList.removingLeaf(id) },
+                    changeKind: { id, kind in activePaneList = activePaneList.changingLeafKind(id, to: kind) }
                 ),
                 extent: extents[index]
             )

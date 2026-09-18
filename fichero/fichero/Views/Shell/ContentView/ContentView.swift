@@ -372,7 +372,11 @@ struct ContentView: View {
     /// two libraries and closed/split both: those bugs are the inactive legacy path showing
     /// through). Re-set by applying a workspace (⌘⌥1–5); close/split mutate THIS by leaf id, which
     /// is what makes them pane-scoped (spec panes.close.this-pane-only / .split.focused-only).
-    @State var activePaneList: PaneList? = BuiltInWorkspaceLayout.read.panes
+    // NON-optional (2026-09-17, #4683): a workspace is ALWAYS applied. Nothing ever assigned
+    // nil, and `removingLeaf` returns a non-optional PaneList, so the Optional existed only to
+    // keep an unreachable pre-workspace renderer alive in the routing. Making it non-optional
+    // deletes that branch by construction — there is one renderer, not one plus a fallback.
+    @State var activePaneList: PaneList = BuiltInWorkspaceLayout.read.panes
     // Summoned search (#4521): the engine-search field in the library's mini
     // toolbar appears only while this is on — toggled by the toolbar's search
     // button, and turned on automatically when something fires a search

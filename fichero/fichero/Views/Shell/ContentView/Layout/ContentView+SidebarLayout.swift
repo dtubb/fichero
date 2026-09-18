@@ -209,45 +209,20 @@ extension ContentView {
         // true at compact width; the regular path below is the ONE renderer.
         if usesCompactReaderFlow {
             compactLibraryReaderStack
-        } else if let applied = activePaneList {
+        } else {
             // An APPLIED workspace is the window's source of truth (spec §"v2 workspace design"):
-            // render the stored pane list directly, bypassing the legacy visibility-Bool path.
-            // Close/split will mutate `activePaneList` by leaf id (pane-scoped). `nil` falls through
-            // to the unchanged default below.
+            // render the stored pane list directly. There is no second renderer — `activePaneList`
+            // is non-optional, so this is THE centre (spec panes.one-renderer, #4683). The
+            // pre-workspace visibility-Bool path (adaptiveWidescreenPanePlan -> PaneList.forLayout
+            // -> paneComposition) was deleted with it: it had been unreachable since the workspace
+            // seed landed, and an unreachable second renderer is where drift hides.
             //
-            // NO `.animation(value: applied)` here (crash fix 2026-09-16): animating a whole
+            // NO `.animation(value:)` here (crash fix 2026-09-16): animating a whole
             // pane-composition swap ran the transition inside an NSAnimationContext layout pass, and
             // resolving a pane-head menu item's SF Symbol through CUICatalog mid-animation crashed
             // (-[NSCache objectForKey:] in CUICatalog, the ⌘⌥4 Compare crash the CD reported).
             // Switching workspaces is an instant composition change, not an animated one.
-            paneListRow(applied)
-        } else {
-            // ONE rendering path (spec §F7, RATIFIED 2026-09-13/14). The centre is
-            // a `PaneList` — derived per mode by `PaneList.forLayout` (pure, unit-
-            // tested) — drawn by `paneComposition`. This RETIRES the per-mode
-            // switch and its raw `PlatformVSplitView`/`previewView`, which rendered
-            // the bottom preview with NO pane head (breadcrumb/close) and no clip.
-            // Every pane — library, preview, reader, and every saved workspace —
-            // now flows through the same builder, so heads, clip and toggles behave
-            // identically in every mode. The Group+animation keeps a stable outer
-            // identity so the first .none → .standard/.widescreen transition
-            // animates instead of remounting every grid cell (#770/#778).
-            let plan = adaptiveWidescreenPanePlan
-            let readingPresent = plan.showsCanvasPane ? plan.showsCanvasReadingDivider : plan.showsReadingPane
-            let list = PaneList.forLayout(
-                mode: currentLayoutMode,
-                showsPreview: showsPreviewPane,
-                showsDocumentGrid: showDocumentGrid,
-                widescreen: WidescreenVisibility(
-                    library: plan.showsLibraryPane,
-                    preview: plan.showsCanvasPane,
-                    reading: readingPresent
-                )
-            )
-            Group {
-                paneComposition(list)
-            }
-            .animation(.easeInOut(duration: 0.18), value: currentLayoutMode)
+            paneListRow(activePaneList)
         }
     }
 }

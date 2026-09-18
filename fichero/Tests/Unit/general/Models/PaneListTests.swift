@@ -107,77 +107,10 @@ struct PaneListTests {
         #expect(node.kinds == [.preview, .reading])
     }
 
-    // MARK: - forLayout (the ONE renderer: every LayoutMode composes as a PaneList)
-
-    /// The single top-level node, or nil.
-    private func onlyNode(_ list: PaneList) -> PaneNode? {
-        list.nodes.count == 1 ? list.nodes.first : nil
-    }
-
-    @Test("a non-library/search mode owns the whole area as one library pane, in every mode")
-    func nonLibraryModeIsOneLibraryPane() {
-        for mode in [LayoutMode.none, .standard, .widescreen] {
-            let list = PaneList.forLayout(
-                mode: mode, showsPreview: false, showsDocumentGrid: true,
-                widescreen: WidescreenVisibility(library: true, preview: true, reading: true))
-            #expect(list.kinds == [.library])
-            #expect(list.nodes.count == 1)
-        }
-    }
-
-    @Test(".none shows library alone (grid) or preview alone (grid hidden)")
-    func noneMode() {
-        #expect(PaneList.forLayout(
-            mode: .none, showsPreview: true, showsDocumentGrid: true,
-            widescreen: WidescreenVisibility(library: false, preview: false, reading: false)).kinds == [.library])
-        #expect(PaneList.forLayout(
-            mode: .none, showsPreview: true, showsDocumentGrid: false,
-            widescreen: WidescreenVisibility(library: false, preview: false, reading: false)).kinds == [.preview])
-    }
-
-    @Test(".standard bottom-preview is a VERTICAL split of library over preview (so it gets a pane head)")
-    func standardIsVerticalSplit() {
-        let list = PaneList.forLayout(
-            mode: .standard, showsPreview: true, showsDocumentGrid: true,
-            widescreen: WidescreenVisibility(library: false, preview: false, reading: false))
-        guard case let .split(_, axis, children)? = onlyNode(list) else {
-            Issue.record("standard+grid should be a single split node"); return
-        }
-        #expect(axis == .vertical)
-        #expect(leafKinds(children) == [.library, .preview])
-    }
-
-    @Test(".standard with the grid hidden collapses to preview alone")
-    func standardGridHidden() {
-        let list = PaneList.forLayout(
-            mode: .standard, showsPreview: true, showsDocumentGrid: false,
-            widescreen: WidescreenVisibility(library: false, preview: false, reading: false))
-        #expect(list.kinds == [.preview])
-        #expect(list.nodes.count == 1)
-    }
-
-    @Test(".widescreen is the horizontal visibility list, in order")
-    func widescreenMatchesVisibility() {
-        let list = PaneList.forLayout(
-            mode: .widescreen, showsPreview: true, showsDocumentGrid: true,
-            widescreen: WidescreenVisibility(library: true, preview: true, reading: true))
-        #expect(leafKinds(list.nodes) == [.library, .preview, .reading])
-    }
-
-    @Test("the preview is a pane in BOTH side (widescreen) and bottom (standard) — the 'same system' contract")
-    func previewIsInThePaneSystemInBothModes() {
-        // The CD's report: side preview has a pane head, bottom preview didn't, because
-        // bottom preview bypassed the pane system. After F7 both place a .preview leaf in
-        // the pane list, so both get the same head/clip from the one renderer.
-        let side = PaneList.forLayout(
-            mode: .widescreen, showsPreview: true, showsDocumentGrid: true,
-            widescreen: WidescreenVisibility(library: true, preview: true, reading: false))
-        let bottom = PaneList.forLayout(
-            mode: .standard, showsPreview: true, showsDocumentGrid: true,
-            widescreen: WidescreenVisibility(library: false, preview: false, reading: false))
-        #expect(side.kinds.contains(.preview))
-        #expect(bottom.kinds.contains(.preview))
-    }
+    // The `forLayout` suite was deleted with the API it described (#4683): the pre-workspace
+    // renderer derived a PaneList from the legacy visibility plan, and that path became
+    // unreachable once a workspace is always applied. The behaviour those tests pinned now lives
+    // in the BuiltInWorkspaceLayout compositions and `fromVisibility`, which are covered above.
 
     // MARK: - per-instance split / close (the isolation fix, spec CD 2026-09-15)
 

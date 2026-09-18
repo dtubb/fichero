@@ -86,10 +86,8 @@ extension ContentView {
         // With a workspace always applied, the applied `PaneList` is what renders — so a
         // show/hide toggle must mutate IT, or it does nothing (the bug the seed would otherwise
         // introduce). One choke point covers every toggle site (spec workspaces.one-system).
-        if let list = activePaneList {
-            let nextList = list.settingVisible(pane.paneKind, visible)
-            if nextList != list { activePaneList = nextList }
-        }
+        let nextList = activePaneList.settingVisible(pane.paneKind, visible)
+        if nextList != activePaneList { activePaneList = nextList }
         let next = paneVisibility.settingVisible(pane, visible)
         if next.grid != showDocumentGrid { showDocumentGrid = next.grid }
         if next.canvas != showDocumentCanvas { showDocumentCanvas = next.canvas }

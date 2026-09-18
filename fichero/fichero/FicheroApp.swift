@@ -293,7 +293,15 @@ struct FicheroApp: App {
     /// as requestBusesAndAppleScript (401d08ecd), applied at the widest
     /// boundary: the window root every scene shares.
     private func libraryWindowRoot(seed: WindowSeed?) -> AnyView {
-        AnyView(libraryWindowRootContent(seed: seed))
+        // App-level FALLBACK observer beneath the window tree (2026-09-17).
+        // `LibraryWorkspaceRoot` injects the per-window observer and OVERRIDES
+        // this wherever it renders — but anything mounted before/outside that
+        // root (the no-library prompt, the backend gate, a detached hosting
+        // boundary) had no observer at all and trapped on a non-optional
+        // `@Environment(WorkflowExecutionObserver.self)` read. Injecting the
+        // fallback here costs nothing (an inner injection wins) and removes the
+        // whole class of "found nothing at this boundary".
+        AnyView(libraryWindowRootContent(seed: seed).environment(appExecutionObserver))
     }
 
     @ViewBuilder
@@ -658,6 +666,7 @@ struct FicheroApp: App {
         // isn't the front segment — hence the crash guard from #2051.
         Settings {
             SettingsView()
+                .environment(appExecutionObserver)
                 .environment(appState)
                 .environment(backendService)
                 .environment(libraryManager)

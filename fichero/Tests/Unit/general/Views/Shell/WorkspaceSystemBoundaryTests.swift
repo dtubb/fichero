@@ -51,17 +51,36 @@ final class WorkspaceSystemBoundaryTests: XCTestCase {
             "The menu must not iterate the retired BuiltInWorkspace enum — one built-in list only.")
     }
 
-    /// The centre renders through ONE path (`panes.one-renderer`): an applied workspace draws via
-    /// `paneListRow`/`paneComposition` over a `PaneList`, never a resurrected per-mode raw renderer
-    /// in the routing. Guards the routing file names the single path.
+    /// The centre renders through ONE path (`panes.one-renderer`). This used to assert that BOTH
+    /// branches of the routing named a renderer — the applied `paneListRow` and a default
+    /// `paneComposition`. The second branch was unreachable (`activePaneList` is seeded non-nil and
+    /// nothing can clear it) and was deleted with the pre-workspace renderer (#4683), so the
+    /// property to guard is now stronger: there is exactly ONE renderer and no fallback to drift
+    /// back into.
     func testCentreRoutesThroughTheSinglePaneListRenderer() throws {
         let source = try Self.appSource("Views/Shell/ContentView/Layout/ContentView+SidebarLayout.swift")
         XCTAssertTrue(
-            source.contains("paneListRow(applied)"),
-            "An applied workspace renders through paneListRow (the single PaneList renderer).")
+            source.contains("paneListRow(activePaneList)"),
+            "The centre renders the stored PaneList through paneListRow — the single renderer.")
+        XCTAssertFalse(
+            source.contains("paneComposition("),
+            "The pre-workspace renderer is deleted; a second centre renderer must not return.")
+        XCTAssertFalse(
+            source.contains("PaneList.forLayout("),
+            "The centre must not derive a pane list from the legacy visibility plan.")
+    }
+
+    /// The Optional on `activePaneList` was what kept the unreachable branch alive: nothing ever
+    /// assigned nil, so `PaneList?` bought only a dead `else`. Non-optional is the invariant
+    /// ("a workspace is ALWAYS applied") expressed in the type (#4683).
+    func testActivePaneListIsNonOptionalSoThereIsNoFallbackBranch() throws {
+        let source = try Self.appSource("Views/Shell/ContentView/ContentView.swift")
         XCTAssertTrue(
-            source.contains("paneComposition(list)"),
-            "The default centre renders through paneComposition — the same one renderer.")
+            source.contains("var activePaneList: PaneList = BuiltInWorkspaceLayout"),
+            "activePaneList is non-optional — a workspace is always applied.")
+        XCTAssertFalse(
+            source.contains("var activePaneList: PaneList?"),
+            "Re-introducing the Optional re-introduces an unreachable fallback renderer.")
     }
 
     /// BUG2 regression guard (spec panes.close.this-pane-only): in an applied workspace the pane
@@ -72,7 +91,7 @@ final class WorkspaceSystemBoundaryTests: XCTestCase {
     func testAppliedWorkspaceCloseRemovesOnlyThatLeaf() throws {
         let paneSpec = try Self.appSource("Views/Shell/ContentView/Layout/PaneSpec.swift")
         XCTAssertTrue(
-            paneSpec.contains("activePaneList?.removingLeaf(id)"),
+            paneSpec.contains("activePaneList.removingLeaf(id)"),
             "paneListRow must close a pane by removing its leaf from the stored PaneList.")
         XCTAssertTrue(
             paneSpec.contains("PaneCloseAction { closeLeaf(id) }"),
@@ -114,7 +133,7 @@ final class WorkspaceSystemBoundaryTests: XCTestCase {
             callers.isEmpty,
             "PaneList.splittingLeaf is dead — no app code calls it, so an applied-workspace split "
             + "cannot target one pane through the model the way close does (spec panes.split.focused-only). "
-            + "Wire it symmetrically to close: a per-leaf `activePaneList?.splittingLeaf(id, axis:)` "
+            + "Wire it symmetrically to close: a per-leaf `activePaneList.splittingLeaf(id, axis:)` "
             + "seam (a `PaneSplitAction` mirroring `PaneCloseAction`)."
         )
     }
