@@ -1132,7 +1132,6 @@
       "Models/LayoutMode.swift::BrowserSelectionPreviewPolicy",
       "Models/LayoutMode.swift::CanvasDocumentPolicy",
       "Models/LayoutMode.swift::LayoutMode",
-      "Models/LayoutMode.swift::ReadingWorkspacePaneTogglePolicy",
       "Models/LayoutMode.swift::SpatialDocumentSelection",
       "Models/LayoutMode.swift::WidescreenPanePlan",
       "Models/LibraryManager+Helpers.swift::backendDidBecomeReady",

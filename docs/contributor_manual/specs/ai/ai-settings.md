@@ -135,7 +135,12 @@ left to point at.
   MLX renders the identical green dot as a ready one, because no `runtime_state` field
   exists on `ProviderResponse` to tell them apart. This is a verified sub-symptom of #4303's
   broader "MLX appears non-functional" report — a user has no visual signal that MLX needs
-  provisioning before it will work.
+  provisioning before it will work. Unchanged by the recent Test Connection three-state fix
+  landed on the provider-keys milestone (`provider-keys.md`): that fix reworked the DETAIL
+  view's test-result icon (`KeyTestOutcome`), not this row. `ProviderSettingsRow`'s own status
+  dot (the provider LIST, distinct from the detail view) uses the identical stateless
+  boolean — `isLocalProvider || provider.hasApiKey ? Color.green : Color.orange` — and still
+  never reads a Test Connection result (verified in code today).
 - `settings.embeddings-download-works` — **[GAP]** (#4304) starting an embeddings download
   from Settings must actually deliver a usable model. Reported broken (field issue); this
   pass did not trace the failure in `local_models.py`'s `download_model` route to a root

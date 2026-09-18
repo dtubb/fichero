@@ -102,39 +102,52 @@ the value from the original migration, unaffected by anything Settings has done 
 
 ### Verification (#4816)
 
-- `keys.test-connection-real-probe` — **[BROKEN]** (#4816, engine half committed 35c4b53f1 —
-  stays BROKEN: the Settings three-state rendering isn't built yet, see
-  `keys.untested-provider-reports-not-verified` below) Test Connection must only report
-  success when the app made a real network call to the provider and the provider confirmed
-  the key, and a wrong/rate-limited/down endpoint must never read as a bad key. Updated
-  provider breakdown (engine side): **real probes now** — `apple_vision`, `apple_intelligence`
-  (system checks), `ollama`, `lmstudio` (server reachability, no key involved), `openai`,
-  `huggingface`, `google`, `groq`, `deepl` (the five original probes — the engine lane is
-  applying the same "only 401/403 means a bad key" rule to these right now, confirmed present
-  and green in this pass — see the pinned tests below), plus NINE newly added:
-  `openrouter`, `anthropic` (now a real authenticated request, no longer prefix-only),
+- `keys.test-connection-real-probe` — **[OK]** (bca344581 app half; 35c4b53f1 + 5a9676909
+  engine; #4816 closed) Test Connection only reports success when the app made a real network
+  call to the provider and the provider confirmed the key, and a wrong/rate-limited/down
+  endpoint never reads as a bad key. Provider breakdown (engine side): **real probes** —
+  `apple_vision`, `apple_intelligence` (system checks), `ollama`, `lmstudio` (server
+  reachability, no key involved), `openai`, `huggingface`, `google`, `groq`, `deepl` (the five
+  original probes, now applying the same "only 401/403 means a bad key" rule), plus NINE
+  added: `openrouter`, `anthropic` (a real authenticated request, no longer prefix-only),
   `mistral`, `together`, `deepseek`, `xai`, `perplexity`, `fireworks`, `cohere`. **Still
-  unverifiable from here**: `azure`, `bedrock`, `dashscope` — these report a distinct
-  "saved, could not verify" state rather than a false green check (the fix's actual shape,
-  not a stub). The rule throughout: only a `401`/`403` (or a provider's own documented
-  bad-key status — Google's `400`, kept as its real signal) means the key is bad; any OTHER
-  non-2xx status means "could not verify," never "invalid." Pinned once the app half lands:
+  unverifiable from here**: `azure`, `bedrock`, `dashscope` — these report a distinct "saved,
+  could not verify" state rather than a false green check. The rule throughout: only a
+  `401`/`403` (or a provider's own documented bad-key status — Google's `400`, kept as its
+  real signal) means the key is bad; any OTHER non-2xx status means "could not verify," never
+  "invalid." On the app side, `KeyTestOutcome.from(success:verified:)` is the pure derivation
+  (read `KeyTestOutcomeTests.swift` in full — exhaustive over all 6 `(success, verified)`
+  combinations, including a `nil` `verified` from an engine with no opinion yet correctly
+  landing on "saved, not verified," never a positive claim) that
+  `ProvidersView+ProviderDetailView.swift` now renders from instead of `result.success` alone.
+  Pinned:
   `test_routes_provider_keys.py::test_connection_test_real_probe_success_sets_verified`,
   `::test_connection_test_real_probe_401_fails_unverified`,
   `::test_connection_test_real_probe_network_failure_reports_connectivity`,
   `::test_connection_test_real_probe_non_auth_status_is_unverified_not_failed`,
-  `::test_connection_test_key_never_appears_in_response_or_logs` (all 5 read in full and
-  confirmed to assert exactly this; ran for real, 76 passed).
-- `keys.untested-provider-reports-not-verified` — **[GAP]** (#4816) an untested provider must
-  report a distinct "not verified" state and render as neutral, never a green check — this IS
-  now built on the engine side (`ConnectionTestResponse.verified: bool | None`, a third
-  state distinct from `success`), verified via
-  `test_connection_test_untested_provider_reports_saved_not_verified`
-  ("Key saved — this provider cannot be verified from here", `azure`/`bedrock`/`dashscope`).
-  Stays [GAP] because the SETTINGS UI half is not built: `ProvidersView+ProviderDetailView.swift`
-  still renders `result.success` as a binary green/red checkmark with no neutral state — the
-  engine now emits the distinction, the client doesn't read it yet. Pinned once the app half
-  lands: `test_routes_provider_keys.py::test_connection_test_untested_provider_reports_saved_not_verified`.
+  `::test_connection_test_key_never_appears_in_response_or_logs`,
+  `KeyTestOutcomeTests.testSuccessAndVerifiedTrueIsVerified`,
+  `.testSuccessAndVerifiedFalseIsSavedNotVerified`,
+  `.testSuccessAndVerifiedNilIsSavedNotVerified`,
+  `.testFailureAndVerifiedTrueIsStillFailed`,
+  `.testFailureAndVerifiedFalseIsFailed`, `.testFailureAndVerifiedNilIsFailed`.
+- `keys.untested-provider-reports-not-verified` — **[OK]** (bca344581, #4816 closed) an
+  untested provider reports a distinct "not verified" state and renders as neutral, never a
+  green check — built on both sides now: the engine emits `ConnectionTestResponse.verified:
+  bool | None` as a third state distinct from `success`
+  (`test_connection_test_untested_provider_reports_saved_not_verified`, "Key saved — this
+  provider cannot be verified from here", `azure`/`bedrock`/`dashscope`); the app derives
+  `KeyTestOutcome` from the pair rather than keying its icon on `result.success` alone. Pinned:
+  `test_routes_provider_keys.py::test_connection_test_untested_provider_reports_saved_not_verified`,
+  `KeyTestOutcomeTests.testSavedNotVerifiedTintIsNeverGreen`,
+  `.testVerifiedTintIsGreenAndFailedTintIsRed`, `.testEachOutcomeHasADistinctIcon`,
+  `.testProviderDetailViewDoesNotKeyTheTestIconOnSuccessAlone` (a source-scan guarding the
+  regression directly: the old binary `result.success ? "checkmark..." : "xmark..."` ternary
+  must never come back). **What remains, honestly:** the PROVIDER LIST row's own status dot
+  (`ProviderSettingsRow`) is unaffected by any of this — it is stateless and never sees a Test
+  Connection result at all, still `isLocalProvider || provider.hasApiKey ? .green : .orange`
+  (verified in code today). That gap belongs to `ai/ai-settings.md`'s local-runtime honest
+  status behavior on the ai-settings milestone, a different behavior, unchanged by this fix.
 
 ### Security
 
