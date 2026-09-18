@@ -126,9 +126,14 @@ Inspector content, not as a rival top-level surface.
   - **Plan tab is the continuum seam.** With `researchProject` present it renders
     `ResearchTasksPane(project:)`; with none, an invitation to `saveAsWorkspace()`
     (`ChatView.swift:210-231`).
-  - **Compare tab** reuses `ModelComparisonView()` verbatim (`ChatView.swift:241`) — the
-    standalone Model Comparison surface is already a facet of chat, not a rival top-level
-    mode.
+  - **Compare tab — SUPERSEDED (creative-director ruling, 2026-09-18).** This tab used to
+    reuse `ModelComparisonView()` verbatim (`ChatView.swift:241`); that design is retired.
+    Comparison is now panes + a diff lens, not a chat surface: a "run with A and B" action
+    leaves two sibling artifacts, and the Compare workspace shows them in two Reader panes
+    with a diff lens — no Comparison view, node, or window, and chat's Compare tab is not
+    its home either. See `research.compare-folds-into-chat` below. → #4705 (modes-to-panes
+    epic owns the pane-side implementation and the `ComparisonDetailView`/
+    `AppViewMode.comparison` deletion).
   - **Knowledge tab** surfaces entity/claim reference COUNTS from
     `ConversationKnowledgeSummary`, honestly labeled as not yet a browsable list
     (`ChatView.swift:255-259`) — the engine does not return entity/claim identities on a
@@ -218,9 +223,16 @@ Inspector content, not as a rival top-level surface.
   implicit-scope indicator (`ChatViewToolbar.swift:70-83`) shows what the chat is grounded on
   by default; the composer's pin menu (`ChatView.swift:296-330`) layers explicit pinned
   documents on top.
-- `research.sources-tab-is-chat-scope` — **[PARTIAL]** (implemented, unpinned; #4798) the
-  Sources tab is `ChatInspector` plus the cited ledger (`ChatView.swift:186-207`); there is
-  no separate "Chat Scope" concept outside this tab.
+- `research.sources-tab-is-chat-scope` — **[PARTIAL]** (implemented, unpinned; #4798)
+  **updated for creative-director ruling 2026-09-18, point 3:** chat scope lives in BOTH the
+  Inspector's Sources tab AND the chat dock's own Sources view — this supersedes an earlier
+  review recommendation to collapse to "Inspector only." Today's code has `ChatInspector`
+  plus the cited ledger (`ChatView.swift:186-207`) as the one built surface; a genuinely
+  separate chat-dock Sources view (distinct from the Inspector mount) is not yet built.
+  `modes-to-panes.md`'s `m2p.chat-scope-inspector-only` still names the two `ChatInspector`
+  mount call sites (tab content + attach sheet) a duplicate BUG to collapse to one — that
+  needs re-reading against this newer "both places" ruling before its fix lands, since
+  collapsing to Inspector-only would now be the wrong direction.
 - `research.project-is-sidebar-node` — **[GAP]** research projects should be sidebar nodes
   like workflows (`modes-to-panes.md`'s `m2p.research-is-sidebar-node`), not the bespoke
   `ResearchProjectListView` sidebar-mode list that exists today. Tracked by → #4705 (the
@@ -251,12 +263,12 @@ Inspector content, not as a rival top-level surface.
   once `ResearchWorkspaceView` retires (a Preview rendition? a Compare-tab-style facet?) is
   undecided — see Open Questions. Tracked by #2886 (embedded WebKit browser + Safari MCP,
   needs-design) and #4043 (agent-driven visible browser renders in the Reader, needs-design).
-- `research.compare-folds-into-chat` — **[PARTIAL]** (implemented, unpinned; #4798)
-  `ModelComparisonView` is already mounted
-  from the Compare tab (`ChatView.swift:241`); `modes-to-panes.md`'s
-  `m2p.comparison-folds-into-chat-compare` covers retiring the standalone
-  `AppViewMode.comparison`/`ComparisonDetailView` mount (**[PROPOSED]** there, not restated
-  here). Tracked by #2526.
+- `research.compare-folds-into-chat` — **SUPERSEDED (creative-director ruling, 2026-09-18):**
+  this behavior described chat's Compare tab reusing `ModelComparisonView()` as Comparison's
+  home. That design is retired: Comparison is now panes + a diff lens (a "run with A and B"
+  action leaves two sibling artifacts shown in two Reader panes), never a chat tab, node, or
+  window. Superseded by → #4705 increment 4 (modes-to-panes owns the pane-side design and
+  the `ComparisonDetailView`/`AppViewMode.comparison` deletion). Not re-specified here.
 - `research.knowledge-tab-not-browsable` — **[PARTIAL]** shows honest reference counts, not
   a browsable entity/claim list, because the engine does not return identities on a chat
   reply yet (`ChatView.swift:246-260`). No dedicated issue found — (#4723).
@@ -284,7 +296,7 @@ This spec proposes (not yet added — **[PROPOSED]**, neither exists):
   `fichero-server/pyproject.toml`'s `markers` list, matching the Swift tag by name (house
   convention — same area names front and back).
 
-## Open questions (max 6)
+## Open questions (max 7)
 
 1. **Where does the embedded browser render once `ResearchWorkspaceView` retires?**
    Recommendation: a Preview-pane rendition of the focused research node (matches
@@ -316,6 +328,12 @@ This spec proposes (not yet added — **[PROPOSED]**, neither exists):
    `ResearchWorkspaceView(` explicitly) — this spec should not duplicate that increment
    plan, only track the behavior id and point at #4719 for the retirement
    itself.
+7. **Several chats, each scoped to a part of the project — one workspace, many
+   conversations?** Raised by the creative director (2026-09-18, latitude + method
+   comment on #4705) as a real possibility: chat = node, scope = its own Sources tab, once
+   increment 6's one-mount-per-conversation state work (lifting conversation state out of
+   `ChatView`'s `@State`) is the prerequisite. Not yet designed — this spec owns the
+   question, not the answer.
 
 ## Sources folded in
 

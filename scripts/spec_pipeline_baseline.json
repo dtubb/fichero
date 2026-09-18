@@ -167,16 +167,6 @@
   {
     "rule": "d",
     "spec": "docs/contributor_manual/specs/testing/ui-test-harness.md",
-    "key": "empty-library-screen.removed"
-  },
-  {
-    "rule": "d",
-    "spec": "docs/contributor_manual/specs/testing/ui-test-harness.md",
-    "key": "harness.content-renders"
-  },
-  {
-    "rule": "d",
-    "spec": "docs/contributor_manual/specs/testing/ui-test-harness.md",
     "key": "harness.engine-binds"
   },
   {
@@ -252,17 +242,7 @@
   {
     "rule": "d",
     "spec": "docs/contributor_manual/specs/ui/about.md",
-    "key": "about.acknowledgements.grouped"
-  },
-  {
-    "rule": "d",
-    "spec": "docs/contributor_manual/specs/ui/about.md",
     "key": "about.acknowledgements.live-version"
-  },
-  {
-    "rule": "d",
-    "spec": "docs/contributor_manual/specs/ui/about.md",
-    "key": "about.acknowledgements.rows"
   },
   {
     "rule": "d",
@@ -277,47 +257,7 @@
   {
     "rule": "d",
     "spec": "docs/contributor_manual/specs/ui/about.md",
-    "key": "about.links.canonical"
-  },
-  {
-    "rule": "d",
-    "spec": "docs/contributor_manual/specs/ui/about.md",
     "key": "about.server.omitted-when-unknown"
-  },
-  {
-    "rule": "d",
-    "spec": "docs/contributor_manual/specs/ui/about.md",
-    "key": "about.server.repadded"
-  },
-  {
-    "rule": "d",
-    "spec": "docs/contributor_manual/specs/ui/about.md",
-    "key": "about.settings.touch-tab"
-  },
-  {
-    "rule": "d",
-    "spec": "docs/contributor_manual/specs/ui/about.md",
-    "key": "about.version.formats"
-  },
-  {
-    "rule": "d",
-    "spec": "docs/contributor_manual/specs/ui/about.md",
-    "key": "about.window.single-instance"
-  },
-  {
-    "rule": "d",
-    "spec": "docs/contributor_manual/specs/ui/modes-to-panes.md",
-    "key": "m2p.kg-graph-retires-as-library-takeover"
-  },
-  {
-    "rule": "d",
-    "spec": "docs/contributor_manual/specs/ui/modes-to-panes.md",
-    "key": "m2p.workflow-canvas-in-preview"
-  },
-  {
-    "rule": "d",
-    "spec": "docs/contributor_manual/specs/ui/modes-to-panes.md",
-    "key": "m2p.workflow-reader-is-run-log"
   },
   {
     "rule": "d",
@@ -362,17 +302,7 @@
   {
     "rule": "d",
     "spec": "docs/contributor_manual/specs/ui/reader-overlay-frame-identity.md",
-    "key": "frame.reframing-ops-gated"
-  },
-  {
-    "rule": "d",
-    "spec": "docs/contributor_manual/specs/ui/reader-overlay-frame-identity.md",
     "key": "frame.same-frame-ops-draw"
-  },
-  {
-    "rule": "d",
-    "spec": "docs/contributor_manual/specs/ui/reading-markup-annotations.md",
-    "key": "markup.export.w3c-annotationpage"
   },
   {
     "rule": "d",

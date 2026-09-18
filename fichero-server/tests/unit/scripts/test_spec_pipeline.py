@@ -217,6 +217,129 @@ def test_rule_d_ok_with_real_test_passes(tmp_path, monkeypatch):
     assert _check() == 0
 
 
+# --- rule (d) recognizer shapes (creative-director, 2026-09-18 follow-up): a spec citing
+# `FooTests.method` or a pytest node id is MORE precise than a bare class name, and that
+# precision should be verified, not discarded — a cited method that doesn't exist in its
+# class IS a real finding, not just a reformatting nuisance.
+
+SWIFT_TEST_CLASS_WITH_METHODS = """struct FooTests {
+    func testAlpha() {}
+    func testBeta() {}
+}
+"""
+
+PYTEST_CLASS_WITH_METHODS = """class TestFoo:
+    def test_alpha(self):
+        pass
+
+    def test_beta(self):
+        pass
+
+
+def test_top_level():
+    pass
+"""
+
+
+def test_rule_d_bare_pytest_style_class_resolves(tmp_path, monkeypatch):
+    _seed(tmp_path, RULE_D_MISSING_TEST.replace("NoSuchTests", "TestFoo"))
+    _seed_test_file(tmp_path, "fichero-server/tests/test_foo.py", PYTEST_CLASS_WITH_METHODS)
+    _fake_issues(monkeypatch, [])
+    assert _check() == 0
+
+
+def test_rule_d_class_dot_method_resolves_when_method_exists(tmp_path, monkeypatch):
+    _seed(tmp_path, RULE_D_MISSING_TEST.replace("Pinned by `NoSuchTests`.", "Pinned by `FooTests.testAlpha`."))
+    _seed_test_file(tmp_path, "fichero/Tests/FooTests.swift", SWIFT_TEST_CLASS_WITH_METHODS)
+    _fake_issues(monkeypatch, [])
+    assert _check() == 0
+
+
+def test_rule_d_class_dot_method_fails_when_method_missing(tmp_path, monkeypatch):
+    # The class is real; the cited METHOD is not — this must still fail, not silently pass
+    # just because the class resolves.
+    _seed(tmp_path, RULE_D_MISSING_TEST.replace("Pinned by `NoSuchTests`.", "Pinned by `FooTests.testNoSuchMethod`."))
+    _seed_test_file(tmp_path, "fichero/Tests/FooTests.swift", SWIFT_TEST_CLASS_WITH_METHODS)
+    _fake_issues(monkeypatch, [])
+    assert _check() == 1
+
+
+def test_rule_d_class_dot_method_fails_when_class_missing(tmp_path, monkeypatch):
+    _seed(tmp_path, RULE_D_MISSING_TEST.replace("Pinned by `NoSuchTests`.", "Pinned by `GhostTests.testAlpha`."))
+    _fake_issues(monkeypatch, [])
+    assert _check() == 1
+
+
+def test_rule_d_swift_path_ending_in_tests_swift_resolves(tmp_path, monkeypatch):
+    _seed(tmp_path, RULE_D_MISSING_TEST.replace(
+        "Pinned by `NoSuchTests`.",
+        "Pinned by `fichero/Tests/Unit/general/FooTests.swift`."))
+    _seed_test_file(tmp_path, "fichero/Tests/Unit/general/FooTests.swift", SWIFT_TEST_CLASS_WITH_METHODS)
+    _fake_issues(monkeypatch, [])
+    assert _check() == 0
+
+
+def test_rule_d_swift_path_ending_in_tests_swift_fails_when_missing(tmp_path, monkeypatch):
+    _seed(tmp_path, RULE_D_MISSING_TEST.replace(
+        "Pinned by `NoSuchTests`.",
+        "Pinned by `fichero/Tests/Unit/general/GhostTests.swift`."))
+    _fake_issues(monkeypatch, [])
+    assert _check() == 1
+
+
+def test_rule_d_pytest_bare_file_resolves(tmp_path, monkeypatch):
+    _seed(tmp_path, RULE_D_MISSING_TEST.replace("Pinned by `NoSuchTests`.", "Pinned by `test_foo.py`."))
+    _seed_test_file(tmp_path, "fichero-server/tests/test_foo.py", PYTEST_CLASS_WITH_METHODS)
+    _fake_issues(monkeypatch, [])
+    assert _check() == 0
+
+
+def test_rule_d_pytest_node_id_class_and_method_resolves(tmp_path, monkeypatch):
+    _seed(tmp_path, RULE_D_MISSING_TEST.replace(
+        "Pinned by `NoSuchTests`.", "Pinned by `test_foo.py::TestFoo::test_alpha`."))
+    _seed_test_file(tmp_path, "fichero-server/tests/test_foo.py", PYTEST_CLASS_WITH_METHODS)
+    _fake_issues(monkeypatch, [])
+    assert _check() == 0
+
+
+def test_rule_d_pytest_node_id_fails_when_method_missing(tmp_path, monkeypatch):
+    _seed(tmp_path, RULE_D_MISSING_TEST.replace(
+        "Pinned by `NoSuchTests`.", "Pinned by `test_foo.py::TestFoo::test_no_such_method`."))
+    _seed_test_file(tmp_path, "fichero-server/tests/test_foo.py", PYTEST_CLASS_WITH_METHODS)
+    _fake_issues(monkeypatch, [])
+    assert _check() == 1
+
+
+def test_rule_d_pytest_node_id_top_level_function_resolves(tmp_path, monkeypatch):
+    _seed(tmp_path, RULE_D_MISSING_TEST.replace(
+        "Pinned by `NoSuchTests`.", "Pinned by `test_foo.py::test_top_level`."))
+    _seed_test_file(tmp_path, "fichero-server/tests/test_foo.py", PYTEST_CLASS_WITH_METHODS)
+    _fake_issues(monkeypatch, [])
+    assert _check() == 0
+
+
+def test_rule_d_pytest_node_id_fails_when_top_level_function_missing(tmp_path, monkeypatch):
+    _seed(tmp_path, RULE_D_MISSING_TEST.replace(
+        "Pinned by `NoSuchTests`.", "Pinned by `test_foo.py::test_does_not_exist`."))
+    _seed_test_file(tmp_path, "fichero-server/tests/test_foo.py", PYTEST_CLASS_WITH_METHODS)
+    _fake_issues(monkeypatch, [])
+    assert _check() == 1
+
+
+def test_rule_d_source_symbol_dot_method_is_not_a_test_citation(tmp_path, monkeypatch):
+    # `WorkflowSavePolicy.canAutoSave` is a SOURCE reference, not a test — the class name
+    # doesn't look like a test class (no "Tests" suffix / "Test" prefix), so it must not be
+    # treated as an (unresolvable) test citation. This behavior cites a real class
+    # separately so it still passes overall.
+    spec = RULE_D_MISSING_TEST.replace(
+        "Pinned by `NoSuchTests`.",
+        "See `WorkflowSavePolicy.canAutoSave`. Pinned by `FooTests`.")
+    _seed(tmp_path, spec)
+    _seed_test_file(tmp_path, "fichero/Tests/FooTests.swift", SWIFT_TEST_CLASS_WITH_METHODS)
+    _fake_issues(monkeypatch, [])
+    assert _check() == 0
+
+
 # Rule (e): [OK] citing an issue that is still OPEN.
 RULE_E_SPEC = """# Spec
 

@@ -113,11 +113,81 @@ TAG_RE_ALL = re.compile(r"\*{0,2}\[(OK|BROKEN|GAP(?:/BROKEN)?|PARTIAL|MISSING|PR
 ISSUE_CITATION_RE = re.compile(r"(→\s*)?#(\d+)")
 MILESTONE_RE = re.compile(r"Milestone:\s*(\S+)")
 STATUS_RE = re.compile(r"Status:\s*(DRAFT|APPROVED)")
-# Backticked identifiers ending in "Tests" (a Swift/pytest suite name) or a "test_*.py" file.
-TEST_RE = re.compile(r"`([A-Za-z_][A-Za-z0-9_]*Tests)`|`(test_[A-Za-z0-9_]+\.py)`")
 # 7-12 hex chars, at least one a-f letter (otherwise it's just a run of digits: an issue
 # number, a date, a line count — not a sha).
 SHA_RE = re.compile(r"\b[0-9a-f]{7,12}\b")
+
+# --- Test citations (rule d): four shapes, each backtick-delimited -----------------------
+#
+# Specs overwhelmingly cite tests MORE precisely than a bare class name — `FooTests.method`,
+# several `methodName`s under one `FooTests`, or a pytest node id — and that precision is
+# worth keeping (creative-director instruction, 2026-09-18): a cited METHOD that doesn't
+# exist in its class is itself a real finding, not just a formatting mismatch. So rule (d)
+# resolves, not just pattern-matches:
+#   1. `FooTests` / `TestFoo`               — bare class (Swift XCTest/Testing, or pytest)
+#   2. `FooTests.method` / `TestFoo.method` — class + method; BOTH must exist, together
+#   3. `path/FooTests.swift`                — a path ending in Tests.swift that exists
+#   4. `test_x.py`, `test_x.py::Cls::meth`, `test_x.py::meth` — pytest file / node id
+#
+# A "test class" is any identifier ending in "Tests" or starting with "Test" — narrow
+# enough that ordinary source symbols cited in the same prose (`WorkflowSavePolicy`,
+# `ClaimStore.patch`) never match rung 2's dotted form.
+_TEST_CLASS_NAME = r"(?:[A-Za-z_][A-Za-z0-9_]*Tests|Test[A-Za-z0-9_]*)"
+CITATION_CLASS_METHOD_RE = re.compile(rf"`({_TEST_CLASS_NAME})\.([A-Za-z_][A-Za-z0-9_]*)`")
+CITATION_CLASS_RE = re.compile(rf"`({_TEST_CLASS_NAME})`")
+CITATION_SWIFT_PATH_RE = re.compile(r"`([\w./+-]+Tests\.swift)`")
+CITATION_PYTEST_NODE_RE = re.compile(
+    r"`([\w./+-]*test_[A-Za-z0-9_]+\.py)(?:::([A-Za-z_][A-Za-z0-9_]*))?(?:::([A-Za-z_][A-Za-z0-9_]*))?`"
+)
+
+
+@dataclass(frozen=True)
+class TestCitation:
+    raw: str  # the whole backtick-delimited citation, for display
+    kind: str  # "class", "class_method", "path", "pytest_node"
+    cls: str | None = None
+    method: str | None = None
+    file: str | None = None
+
+
+def _parse_test_citations(block: str) -> list[TestCitation]:
+    """Every test citation in a behavior block, across all four recognized shapes."""
+    citations: list[TestCitation] = []
+    method_spans: set[tuple[int, int]] = set()
+    for m in CITATION_CLASS_METHOD_RE.finditer(block):
+        citations.append(TestCitation(m.group(0), "class_method", cls=m.group(1), method=m.group(2)))
+        method_spans.add(m.span())
+    for m in CITATION_CLASS_RE.finditer(block):
+        if m.span() in method_spans:
+            continue  # already captured as the class half of a class.method citation
+        citations.append(TestCitation(m.group(0), "class", cls=m.group(1)))
+    for m in CITATION_SWIFT_PATH_RE.finditer(block):
+        citations.append(TestCitation(m.group(0), "path", file=m.group(1)))
+    for m in CITATION_PYTEST_NODE_RE.finditer(block):
+        file_, a, b = m.group(1), m.group(2), m.group(3)
+        if b:
+            citations.append(TestCitation(m.group(0), "pytest_node", file=file_, cls=a, method=b))
+        elif a:
+            # "file.py::Something" — a class (pytest convention: starts uppercase / "Test")
+            # or a bare test function (lowercase, e.g. "test_foo").
+            if a[:1].isupper():
+                citations.append(TestCitation(m.group(0), "pytest_node", file=file_, cls=a))
+            else:
+                citations.append(TestCitation(m.group(0), "pytest_node", file=file_, method=a))
+        else:
+            citations.append(TestCitation(m.group(0), "path", file=file_))
+    return citations
+
+
+def _citation_display_name(c: TestCitation) -> str:
+    return c.cls or c.file or c.raw
+
+
+def _citation_key(c: TestCitation) -> str:
+    """A baseline-stable identity for a citation — the semantic name, not the raw
+    backtick-quoted text (which would churn the baseline key on every reformatting)."""
+    base = c.cls or c.file or c.raw
+    return f"{base}.{c.method}" if c.method else base
 
 
 @dataclass
@@ -174,10 +244,10 @@ def load_behaviors() -> list[Behavior]:
             if not tag_m:
                 continue  # untagged bullet — not a behavior the pipeline tracks
             tag = tag_m.group(1)
-            citations = ISSUE_CITATION_RE.findall(block)  # [(arrow_or_empty, digits), ...]
-            issues = sorted({int(n) for _, n in citations})
-            plain_issues = sorted({int(n) for arrow, n in citations if not arrow})
-            tests = sorted({t for pair in TEST_RE.findall(block) for t in pair if t})
+            issue_citations = ISSUE_CITATION_RE.findall(block)  # [(arrow_or_empty, digits), ...]
+            issues = sorted({int(n) for _, n in issue_citations})
+            plain_issues = sorted({int(n) for arrow, n in issue_citations if not arrow})
+            tests = sorted({_citation_display_name(c) for c in _parse_test_citations(block)})
             shas = sorted({s for s in SHA_RE.findall(block) if any(c in "abcdef" for c in s)})
             behaviors.append(
                 Behavior(behavior_id, rel, start_line, tag, status, milestone,
@@ -302,28 +372,143 @@ def _is_unclaimed(issue: dict) -> bool:
 
 
 # --- Test-tree index (rule d) -------------------------------------------------------------
+#
+# Resolves each of the four citation shapes above against the real test tree: a class name
+# must exist; a class.method pair must BOTH exist, the method inside that class specifically
+# (not just anywhere); a path/pytest-file must exist by basename; a pytest node id resolves
+# its class and/or method the same way. "Best-effort" line-scanning, not a real parser — it
+# tracks Swift brace depth and Python indentation to bound each class's body, which is
+# accurate for this codebase's actual formatting without pulling in a Swift/Python AST lib.
 
-_IDENT_RE = re.compile(r"\b(?:func|def|struct|class)\s+([A-Za-z_][A-Za-z0-9_]*)")
+_SWIFT_CLASS_RE = re.compile(r"\b(?:class|struct)\s+([A-Za-z_][A-Za-z0-9_]*)")
+_SWIFT_FUNC_RE = re.compile(r"\bfunc\s+([A-Za-z_][A-Za-z0-9_]*)")
+_PY_CLASS_RE = re.compile(r"^(\s*)class\s+([A-Za-z_][A-Za-z0-9_]*)")
+_PY_DEF_RE = re.compile(r"^(\s*)def\s+([A-Za-z_][A-Za-z0-9_]*)")
 
 
-def _build_test_index() -> set[str]:
-    """Every test filename stem/name and every func/def/struct/class identifier under
-    TEST_ROOTS — used to resolve a cited test name (rule d)."""
-    index: set[str] = set()
+@dataclass
+class TestIndex:
+    known_names: set[str] = field(default_factory=set)  # any class OR file stem/name seen
+    class_methods: dict[str, set[str]] = field(default_factory=dict)  # class -> its methods
+    file_basenames: set[str] = field(default_factory=set)  # every *.swift/*.py filename
+    py_top_level_funcs: dict[str, set[str]] = field(default_factory=dict)  # filename -> defs
+
+
+def _index_swift_classes(text: str, idx: TestIndex) -> None:
+    lines = text.splitlines()
+    i, n = 0, len(lines)
+    while i < n:
+        m = _SWIFT_CLASS_RE.search(lines[i])
+        if not m:
+            i += 1
+            continue
+        name = m.group(1)
+        idx.known_names.add(name)
+        depth = lines[i].count("{") - lines[i].count("}")
+        methods: set[str] = set()
+        j = i + 1
+        while j < n and depth > 0:
+            depth += lines[j].count("{") - lines[j].count("}")
+            fm = _SWIFT_FUNC_RE.search(lines[j])
+            if fm:
+                methods.add(fm.group(1))
+            j += 1
+        idx.class_methods.setdefault(name, set()).update(methods)
+        i = j if j > i else i + 1
+
+
+def _index_python_classes_and_funcs(text: str, filename: str, idx: TestIndex) -> None:
+    lines = text.splitlines()
+    n = len(lines)
+    top_level: set[str] = set()
+    i = 0
+    while i < n:
+        cm = _PY_CLASS_RE.match(lines[i])
+        if cm:
+            indent = len(cm.group(1))
+            name = cm.group(2)
+            idx.known_names.add(name)
+            methods: set[str] = set()
+            j = i + 1
+            while j < n:
+                line = lines[j]
+                if not line.strip():
+                    j += 1
+                    continue
+                if len(line) - len(line.lstrip()) <= indent:
+                    break
+                dm = _PY_DEF_RE.match(line)
+                if dm:
+                    methods.add(dm.group(2))
+                j += 1
+            idx.class_methods.setdefault(name, set()).update(methods)
+            i = j if j > i else i + 1
+            continue
+        dm = _PY_DEF_RE.match(lines[i])
+        if dm and len(dm.group(1)) == 0:
+            top_level.add(dm.group(2))
+        i += 1
+    idx.py_top_level_funcs.setdefault(filename, set()).update(top_level)
+
+
+def _build_test_index() -> TestIndex:
+    idx = TestIndex()
     for root in TEST_ROOTS:
         if not root.exists():
             continue
         for f in root.rglob("*"):
             if f.suffix not in (".swift", ".py"):
                 continue
-            index.add(f.stem)
-            index.add(f.name)  # covers a literal "test_*.py" citation
+            idx.file_basenames.add(f.name)
+            idx.known_names.add(f.stem)
+            idx.known_names.add(f.name)
             try:
                 text = f.read_text(encoding="utf-8", errors="ignore")
             except OSError:
                 continue
-            index.update(_IDENT_RE.findall(text))
-    return index
+            if f.suffix == ".swift":
+                _index_swift_classes(text, idx)
+            else:
+                _index_python_classes_and_funcs(text, f.name, idx)
+    return idx
+
+
+def _resolve_test_citation(c: TestCitation, idx: TestIndex) -> str | None:
+    """None if the citation resolves against the test tree; otherwise the problem."""
+    if c.kind == "class":
+        if c.cls not in idx.known_names and c.cls not in idx.class_methods:
+            return f"test class `{c.cls}` not found"
+        return None
+    if c.kind == "class_method":
+        methods = idx.class_methods.get(c.cls)
+        if methods is None:
+            return f"test class `{c.cls}` not found"
+        if c.method not in methods:
+            return f"`{c.cls}` has no method `{c.method}`"
+        return None
+    if c.kind == "path":
+        if pathlib.Path(c.file).name not in idx.file_basenames:
+            return f"test file `{c.file}` not found"
+        return None
+    if c.kind == "pytest_node":
+        base = pathlib.Path(c.file).name
+        if base not in idx.file_basenames:
+            return f"test file `{c.file}` not found"
+        if c.cls:
+            methods = idx.class_methods.get(c.cls)
+            if methods is None and c.cls not in idx.known_names:
+                return f"test class `{c.cls}` not found"
+            if c.method and methods is not None and c.method not in methods:
+                return f"`{c.cls}` has no method `{c.method}`"
+            return None
+        if c.method:
+            all_methods = {m for ms in idx.class_methods.values() for m in ms}
+            top_level = idx.py_top_level_funcs.get(base, set())
+            if c.method not in top_level and c.method not in all_methods:
+                return f"`{c.file}` has no test `{c.method}`"
+            return None
+        return None
+    return None
 
 
 # --- check: the state machine -------------------------------------------------------------
@@ -457,25 +642,26 @@ def _collect_findings(offline: bool, strict: bool) -> tuple[list[Finding], list[
             infos.extend(f.message for f in orphan_findings)
         failures.extend(_milestone_orphan_findings(behaviors, milestones or []))
 
-    # Rule (d): [OK] with no test, or a cited test that doesn't exist.
+    # Rule (d): [OK] with no test cited at all, or a cited test/method that does not exist.
     test_index = _build_test_index()
     for b in behaviors:
         if b.tag != "OK":
             continue
-        if not b.tests:
+        citations = _parse_test_citations(b.text)
+        if not citations:
             failures.append(Finding(
                 "d", b.id, b.spec_path,
                 f"{b.spec_path}:{b.line}: `{b.id}` [OK] cites no test — add a pinning test "
                 f"and cite its name (rule d)."
             ))
             continue
-        for t in b.tests:
-            if t not in test_index:
+        for c in citations:
+            problem = _resolve_test_citation(c, test_index)
+            if problem:
                 failures.append(Finding(
-                    "d", f"{b.id}:{t}", b.spec_path,
-                    f"{b.spec_path}:{b.line}: `{b.id}` [OK] cites test `{t}` which does not "
-                    f"exist anywhere under {TEST_ROOTS[0]} or {TEST_ROOTS[1]} — fix the "
-                    f"citation or ship the test (rule d)."
+                    "d", f"{b.id}:{_citation_key(c)}", b.spec_path,
+                    f"{b.spec_path}:{b.line}: `{b.id}` [OK] cites {c.raw} — {problem} — fix "
+                    f"the citation or ship the test (rule d)."
                 ))
 
     return failures, infos, len(behaviors), len({b.spec_path for b in behaviors})
