@@ -97,16 +97,11 @@ extension ContentView {
         let nextList = activePaneList.settingVisible(pane.paneKind, visible)
         guard nextList != activePaneList else { return }
         activePaneList = nextList
-        let next = paneVisibility  // re-derives from the just-updated activePaneList
-        if next.grid != showDocumentGrid { showDocumentGrid = next.grid }
-        if next.canvas != showDocumentCanvas { showDocumentCanvas = next.canvas }
-        if next.reading != showReadingPane { showReadingPane = next.reading }
-        // …and remember it for the next window and the next launch
-        // (Daniel, 2026-09-04: "panes reset each time"). This is the ONE
-        // deliberate mutation path, which is exactly what makes the layout safe
-        // to record here: the programmatic reveals that also move the sidebar
-        // and inspector are deliberately not mirrored.
-        WorkspaceLayoutDefaults.remember(next, chat: showChatPane)
+        syncLegacyPaneVisibilityBools()
+        // …and remember the legacy Bool-visibility SHAPE too (Daniel, 2026-09-04: "panes reset
+        // each time") — `chat` isn't part of `PaneList`, so it needs this separate remember call
+        // alongside the funnel's PaneList one above.
+        WorkspaceLayoutDefaults.remember(paneVisibility, chat: showChatPane)
     }
 
     /// A `Bool` binding for `pane` whose setter routes through the invariant —
@@ -119,16 +114,20 @@ extension ContentView {
         )
     }
 
-    /// Mirror the DERIVED `paneVisibility` onto the legacy `@SceneStorage` Bools, for every
-    /// `activePaneList` writer that isn't `setPaneVisible` itself (pane-head close/kind-switch,
-    /// `applyWorkspaceLayout`, a saved-workspace apply — #4687). Keeps the handful of sites
-    /// outside this change's file scope that still read the Bools directly (pane-focus cycling,
-    /// min-width, the forced-widescreen recovery net) from drifting away from what actually
-    /// mounted.
+    /// Mirror the DERIVED `paneVisibility` onto the legacy `@SceneStorage` Bools (#4687), and
+    /// remember the applied `PaneList` for the next launch (#4686). EVERY writer of
+    /// `activePaneList` — `setPaneVisible`, `applyWorkspaceLayout`, a saved-workspace apply,
+    /// `splitFocusedLeaf`, pane-head close/kind-switch — ends by calling this ONE function, so
+    /// there is exactly one place that keeps the Bools and the remembered launch state honest;
+    /// a new writer that skips it is the bug class this funnel exists to close off.
     func syncLegacyPaneVisibilityBools() {
         let visibility = paneVisibility
         if visibility.grid != showDocumentGrid { showDocumentGrid = visibility.grid }
         if visibility.canvas != showDocumentCanvas { showDocumentCanvas = visibility.canvas }
         if visibility.reading != showReadingPane { showReadingPane = visibility.reading }
+        // Every writer of `activePaneList` calls this ONE function, so it's also the ONE place
+        // to remember the composition for the next launch (#4686) — a single write site instead
+        // of one per call site.
+        WorkspaceLayoutDefaults.rememberPaneList(activePaneList)
     }
 }

@@ -52,6 +52,10 @@ extension ContentView {
     func splitFocusedLeaf(_ axis: SplitAxis) {
         guard let id = focusedLeafID else { return }
         activePaneList = activePaneList.splittingLeaf(id, axis: axis)
+        // A split doesn't change the KIND set, but every `activePaneList` writer still ends in
+        // the one funnel (#4686/#4687) — this is what makes a split's composition survive the
+        // next launch.
+        syncLegacyPaneVisibilityBools()
     }
 
     /// Tabs and splits, as a SECTION of the Workspaces menu (Daniel,

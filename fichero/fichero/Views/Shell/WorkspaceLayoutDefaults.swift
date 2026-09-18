@@ -104,4 +104,28 @@ enum WorkspaceLayoutDefaults {
         // Refuse it here rather than opening an empty content area.
         return remembered.isAnyVisible ? remembered : PaneVisibility(grid: true, canvas: true, reading: true)
     }
+
+    // MARK: - The last-applied PaneList (#4686)
+
+    /// A separate raw key, NOT a `Key` case: every `Key` above is a Bool remembered through
+    /// `pane`/`setPane`, and `testOnlyTheDeliberatelyChosenSurfacesAreRemembered` inventories
+    /// exactly that Bool set. The applied composition is JSON `Data`, a different shape, so it
+    /// gets its own key rather than forcing that inventory to carry a non-Bool entry.
+    private static let appliedPaneListKey = "workspace.appliedPaneList"
+
+    /// The last `PaneList` a window applied (⌘⌥N, a saved-workspace apply, a split/close/kind
+    /// change), or `nil` when nothing has ever been remembered — a fresh install, or a store
+    /// written before this existed. The caller decides the fallback (the Read default), the same
+    /// "absent is not a value" contract `pane(_:default:)` uses for the Bools.
+    static func rememberedPaneList(in store: UserDefaults = .standard) -> PaneList? {
+        guard let data = store.data(forKey: appliedPaneListKey) else { return nil }
+        return try? JSONDecoder().decode(PaneList.self, from: data)
+    }
+
+    /// Remember `list` as the one to restore on the next launch (#4686 — "make sure workspace is
+    /// saved when we quit" was ALSO true of the applied composition, not only pane visibility).
+    static func rememberPaneList(_ list: PaneList, in store: UserDefaults = .standard) {
+        guard let data = try? JSONEncoder().encode(list) else { return }
+        store.set(data, forKey: appliedPaneListKey)
+    }
 }

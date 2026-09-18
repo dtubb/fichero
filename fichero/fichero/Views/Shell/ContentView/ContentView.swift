@@ -376,7 +376,11 @@ struct ContentView: View {
     // nil, and `removingLeaf` returns a non-optional PaneList, so the Optional existed only to
     // keep an unreachable pre-workspace renderer alive in the routing. Making it non-optional
     // deletes that branch by construction — there is one renderer, not one plus a fallback.
-    @State var activePaneList: PaneList = BuiltInWorkspaceLayout.read.panes
+    // Seeded from `WorkspaceLayoutDefaults` (#4686), the SAME mount-time pattern the three Bools
+    // below use (`WorkspaceLayoutDefaults.showDocumentGrid` etc.) — falls back to the Read
+    // default when nothing was ever remembered (first run, or a store predating this).
+    @State var activePaneList: PaneList =
+        WorkspaceLayoutDefaults.rememberedPaneList() ?? BuiltInWorkspaceLayout.read.panes
     // Summoned search (#4521): the engine-search field in the library's mini
     // toolbar appears only while this is on — toggled by the toolbar's search
     // button, and turned on automatically when something fires a search

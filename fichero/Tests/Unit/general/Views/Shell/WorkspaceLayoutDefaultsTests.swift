@@ -157,4 +157,99 @@ final class WorkspaceLayoutDefaultsTests: XCTestCase {
             "Seeding without a write-back remembers the first-run layout forever."
         )
     }
+
+    // MARK: - The last-applied PaneList (#4686)
+
+    /// Encode/decode round trip through an isolated store — the same shape as every other
+    /// remembered value here, just Data instead of a Bool.
+    func testRememberedPaneListRoundTripsThroughUserDefaults() {
+        let list = PaneList([.leaf(.library), .leaf(.preview), .leaf(.reading)])
+        WorkspaceLayoutDefaults.rememberPaneList(list, in: store)
+        let restored = WorkspaceLayoutDefaults.rememberedPaneList(in: store)
+        XCTAssertEqual(restored, list)
+        // Ids round-trip too — a restored workspace re-applies the SAME leaves, not fresh ones.
+        XCTAssertEqual(restored?.nodes.map(\.id), list.nodes.map(\.id))
+    }
+
+    /// Nothing remembered yet (a fresh install, or a store predating #4686) answers nil — the
+    /// caller's job to fall back to the Read default, the same "absent is not a value" contract
+    /// `pane(_:default:)` already uses for the Bools.
+    func testNoRememberedPaneListReturnsNilSoTheCallerCanFallBackToRead() {
+        XCTAssertNil(WorkspaceLayoutDefaults.rememberedPaneList(in: store))
+    }
+
+    /// The mount-time seed is wired: `ContentView.activePaneList` seeds from
+    /// `rememberedPaneList()`, falling back to the Read default (spec workspaces
+    /// non-optionality untouched). The WRITE-BACK side is one funnel
+    /// (`PaneVisibility.syncLegacyPaneVisibilityBools()`, #4686/#4687) — pinned separately below
+    /// by `testEveryActivePaneListWriterCallsTheOneFunnel`, not here.
+    func testThePaneListSeedIsWired() throws {
+        let contentView = try String(
+            contentsOf: AppSource.root()
+                .appendingPathComponent("Views/Shell/ContentView/ContentView.swift"),
+            encoding: .utf8
+        )
+        XCTAssertTrue(
+            contentView.contains(
+                "WorkspaceLayoutDefaults.rememberedPaneList() ?? BuiltInWorkspaceLayout.read.panes"),
+            "activePaneList must mount from the remembered list, falling back to Read when absent."
+        )
+        let paneVisibility = try String(
+            contentsOf: AppSource.root().appendingPathComponent("Views/Shell/PaneVisibility.swift"),
+            encoding: .utf8
+        )
+        XCTAssertTrue(
+            paneVisibility.contains("WorkspaceLayoutDefaults.rememberPaneList(activePaneList)"),
+            "The funnel is where the applied composition gets remembered for the next launch."
+        )
+    }
+
+    /// Structural guardrail (#4686/#4687): every KNOWN `activePaneList` mutation site must be
+    /// followed, within a few lines, by the ONE funnel (`syncLegacyPaneVisibilityBools()`) that
+    /// syncs the legacy Bools AND remembers the composition for the next launch. A new writer
+    /// that skips it silently reintroduces both the stale-checkmark bug and the
+    /// forgets-on-relaunch bug at once.
+    func testEveryActivePaneListWriterCallsTheOneFunnel() throws {
+        let paneVisibility = try String(
+            contentsOf: AppSource.root().appendingPathComponent("Views/Shell/PaneVisibility.swift"),
+            encoding: .utf8
+        )
+        let layoutChooser = try String(
+            contentsOf: AppSource.root()
+                .appendingPathComponent("Views/Shell/ContentView/ContentView+LayoutChooser.swift"),
+            encoding: .utf8
+        )
+        let paneSpec = try String(
+            contentsOf: AppSource.root()
+                .appendingPathComponent("Views/Shell/ContentView/Layout/PaneSpec.swift"),
+            encoding: .utf8
+        )
+
+        assertFunnelFollows(paneVisibility, after: "activePaneList = nextList")
+        assertFunnelFollows(layoutChooser, after: "activePaneList = layout.panes")
+        assertFunnelFollows(layoutChooser, after: "activePaneList = paneList")
+        assertFunnelFollows(layoutChooser, after: "activePaneList = BuiltInWorkspaceLayout.read.panes")
+        assertFunnelFollows(layoutChooser, after: "activePaneList = activePaneList.splittingLeaf(id, axis: axis)")
+        assertFunnelFollows(paneSpec, after: "activePaneList = activePaneList.removingLeaf(id)")
+        assertFunnelFollows(paneSpec, after: "activePaneList = activePaneList.changingLeafKind(id, to: kind)")
+    }
+
+    /// `source` must contain `marker`, and `"syncLegacyPaneVisibilityBools()"` must appear within
+    /// `window` characters after it — a source-level "the funnel is right here, not forgotten a
+    /// few refactors later" check.
+    private func assertFunnelFollows(
+        _ source: String, after marker: String, window: Int = 500,
+        file: StaticString = #filePath, line: UInt = #line
+    ) {
+        guard let range = source.range(of: marker) else {
+            XCTFail("Mutation site moved or was renamed — marker not found: \(marker)", file: file, line: line)
+            return
+        }
+        let snippet = String(source[range.upperBound...].prefix(window))
+        XCTAssertTrue(
+            snippet.contains("syncLegacyPaneVisibilityBools()"),
+            "No funnel call within \(window) characters after: \(marker)",
+            file: file, line: line
+        )
+    }
 }

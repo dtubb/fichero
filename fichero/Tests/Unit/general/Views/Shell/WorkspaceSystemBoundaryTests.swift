@@ -73,11 +73,19 @@ final class WorkspaceSystemBoundaryTests: XCTestCase {
     /// The Optional on `activePaneList` was what kept the unreachable branch alive: nothing ever
     /// assigned nil, so `PaneList?` bought only a dead `else`. Non-optional is the invariant
     /// ("a workspace is ALWAYS applied") expressed in the type (#4683).
+    /// Checks the NON-OPTIONALITY (the actual invariant, "a workspace is always applied"), not
+    /// the literal seed expression — #4686 changed the seed from a bare `BuiltInWorkspaceLayout`
+    /// literal to `WorkspaceLayoutDefaults.rememberedPaneList() ?? BuiltInWorkspaceLayout...`
+    /// (mirroring how the three legacy Bools are seeded), which is still a non-optional default,
+    /// just no longer a single literal.
     func testActivePaneListIsNonOptionalSoThereIsNoFallbackBranch() throws {
         let source = try Self.appSource("Views/Shell/ContentView/ContentView.swift")
         XCTAssertTrue(
-            source.contains("var activePaneList: PaneList = BuiltInWorkspaceLayout"),
+            source.contains("var activePaneList: PaneList ="),
             "activePaneList is non-optional — a workspace is always applied.")
+        XCTAssertTrue(
+            source.contains("BuiltInWorkspaceLayout.read.panes"),
+            "The Read default must still be the seed's fallback (spec panes.layout.mail-default).")
         XCTAssertFalse(
             source.contains("var activePaneList: PaneList?"),
             "Re-introducing the Optional re-introduces an unreachable fallback renderer.")
