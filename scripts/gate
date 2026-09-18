@@ -48,6 +48,12 @@
 # (--phase xctest|swift-testing|all) so one leaking phase cannot ride on the
 # other's budget.
 #
+# `gate unit`/`gate ui` refuse up front if the screen is LOCKED (a test host
+# launched then never gets its IDE session and hangs — #4695), and their test
+# hosts are killed as `handshake-timeout` if no `Running tests…`/`Test Case`
+# line appears within GATE_HOST_HANDSHAKE_S (default 120s), instead of riding
+# the full per-run timeout.
+#
 # Test/dev seams (used by --self-test; harmless otherwise):
 #   GATE_DRYRUN=1              print heavy commands instead of exec'ing them
 #   GATE_LOCK_FILE=path        alternate lock file
@@ -175,6 +181,28 @@ PYEOF
   return $rc
 }
 
+# --------------------------- screen-lock preflight (#4695) -----------------
+# A test HOST (XCTest or XCUITest) launched while the screen is LOCKED never
+# gets its IDE session: main thread parks forever in
+# -[XCTestDriver _prepareTestConfigurationAndIDESession] -> XCTWaiter, 0 cases,
+# 0% CPU — caught with a stack on 2026-09-17 (#4695). That host would
+# otherwise burn its full per-phase timeout (up to 3600s) before the gate
+# notices. Refuse in one line instead.
+# GATE_FAKE_SCREEN_LOCKED overrides the real ioreg read (self-test seam).
+preflight_screen_unlocked() {
+  local fake="${GATE_FAKE_SCREEN_LOCKED:-}" locked
+  if [[ -n "$fake" ]]; then
+    locked="$fake"
+  else
+    locked="$(ioreg -n Root -d1 2>/dev/null | grep -c '"CGSSessionScreenIsLocked" = Yes')"
+  fi
+  if [[ "$locked" != "0" ]]; then
+    echo "gate: PREFLIGHT REFUSED — screen is locked; a test host launched now would hang waiting for its IDE session instead of running (#4695). Unlock the screen and re-run." >&2
+    return 78  # EX_CONFIG
+  fi
+  return 0
+}
+
 # --------------------------- locking ---------------------------------------
 # macOS ships no flock(1); acquire the lock in python and re-exec ourselves
 # with the flocked fd inherited (a flock lives on the open file description,
@@ -267,18 +295,46 @@ run_gated() {
     return 0
   fi
   echo "gate: [$label] starting (timeout ${timeout}s, watchdog every ${WATCH_INTERVAL}s)"
-  "$@" &
+  # Handshake watchdog (#4695): callers that launch a test HOST (an
+  # xcodebuild ... test-without-building/test invocation) set
+  # GATE_HOST_HANDSHAKE_S so a host that connects to xcodebuild but never
+  # gets its IDE session — 0 cases, parked in
+  # _prepareTestConfigurationAndIDESession — is killed within that budget
+  # instead of riding the full per-run timeout. Detected by tee'ing the
+  # child's output and watching for the first "Running tests…"/"Test Case"
+  # line, which only appears once the host has actually connected.
+  local handshake_s="${GATE_HOST_HANDSHAKE_S:-}" handshake_log="" handshake_seen=0
+  if [[ -n "$handshake_s" ]]; then
+    handshake_log="$(mktemp "${TMPDIR:-/tmp}/gate-handshake-XXXXXX.log")"
+    "$@" > >(tee "$handshake_log") 2>&1 &
+  else
+    "$@" &
+  fi
   local pid=$!
-  trap 'kill_tree '"$pid"'; exit 130' INT TERM
+  trap 'kill_tree '"$pid"'; [[ -n "$handshake_log" ]] && rm -f "$handshake_log"; exit 130' INT TERM
   local start=$SECONDS strikes=0 reason=""
   while kill -0 "$pid" 2>/dev/null; do
     sleep "$WATCH_INTERVAL"
     kill -0 "$pid" 2>/dev/null || break
+    if [[ -n "$handshake_s" && "$handshake_seen" -eq 0 ]]; then
+      if grep -qE 'Running tests…|Running tests\.\.\.|Test Case '\''' "$handshake_log" 2>/dev/null; then
+        handshake_seen=1
+      elif (( SECONDS - start > handshake_s )); then
+        reason="handshake-timeout — host pid $pid produced no 'Running tests…'/'Test Case' line within ${handshake_s}s (#4695)"
+        kill_tree "$pid"
+        wait "$pid" 2>/dev/null
+        echo "gate: [$label] KILLED — $reason" >&2
+        [[ -n "$handshake_log" ]] && rm -f "$handshake_log"
+        trap - INT TERM
+        return 124
+      fi
+    fi
     if (( SECONDS - start > timeout )); then
       reason="timeout after ${timeout}s"
       kill_tree "$pid"
       wait "$pid" 2>/dev/null
       echo "gate: [$label] KILLED — $reason" >&2
+      [[ -n "$handshake_log" ]] && rm -f "$handshake_log"
       trap - INT TERM
       return 124
     fi
@@ -297,6 +353,7 @@ run_gated() {
       kill_tree "$pid"
       wait "$pid" 2>/dev/null
       echo "gate: [$label] KILLED — $reason" >&2
+      [[ -n "$handshake_log" ]] && rm -f "$handshake_log"
       trap - INT TERM
       return 137
     fi
@@ -310,6 +367,7 @@ run_gated() {
       kill_tree "$pid"
       wait "$pid" 2>/dev/null
       echo "gate: [$label] KILLED — $reason" >&2
+      [[ -n "$handshake_log" ]] && rm -f "$handshake_log"
       trap - INT TERM
       return 137
     elif (( level == 3 )); then
@@ -320,6 +378,7 @@ run_gated() {
         kill_tree "$pid"
         wait "$pid" 2>/dev/null
         echo "gate: [$label] KILLED — $reason" >&2
+        [[ -n "$handshake_log" ]] && rm -f "$handshake_log"
         trap - INT TERM
         return 137
       fi
@@ -329,6 +388,7 @@ run_gated() {
   done
   wait "$pid"
   local rc=$?
+  [[ -n "$handshake_log" ]] && rm -f "$handshake_log"
   trap - INT TERM
   echo "gate: [$label] finished rc=$rc"
   return "$rc"
@@ -536,6 +596,7 @@ run_unit_phase() {
   local phase="$1" swt="$2"; shift 2
   # TEST_RUNNER_ vars propagate into the test host: hermetic engine (#4246) —
   # never reuse a dev engine on :8765; always self-provision + tear down.
+  GATE_HOST_HANDSHAKE_S="${GATE_HOST_HANDSHAKE_S:-300}" \
   run_gated "unit-$phase" "${GATE_TIMEOUT_TEST:-3600}" \
     env TEST_RUNNER_FICHERO_HERMETIC_ENGINE=1 \
         "TEST_RUNNER_SWT_SWIFT_TESTING_ENABLED=$swt" \
@@ -549,6 +610,7 @@ run_unit_phase() {
 # session (#4695 — caught with a stack 2026-09-17). UI tests are `gate ui`.
 
 cmd_unit() {
+  preflight_screen_unlocked || return $?
   local area="" filter="" phase="all"
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -653,11 +715,13 @@ cmd_perf() {
 }
 
 cmd_ui() {
+  preflight_screen_unlocked || return $?
   local plan="${1:?gate ui <testplan> (e.g. fichero, fichero-embedded)}"
   # The UI leg legitimately stacks three footprints (in-invocation build,
   # hosted unit suite, UI runner + app) — first real run brushed 4208MB with
   # no leak. 6144 default still catches the 13GB+ runaway class.
   GATE_FOOTPRINT_OVERRIDE_MB="${GATE_FOOTPRINT_UI_MB:-6144}" \
+  GATE_HOST_HANDSHAKE_S="${GATE_HOST_HANDSHAKE_S:-300}" \
   run_gated "ui-$plan" "${GATE_TIMEOUT_UI:-5400}" \
     xcodebuild -project "$XCODE_PROJECT" -scheme "$UI_SCHEME" \
       -testPlan "$plan" -destination 'platform=macOS' \
@@ -965,6 +1029,17 @@ cmd_self_test() {
     check "test plan '$UNIT_PLAN' is carried by '$UNIT_SCHEME'" $?
   fi
 
+  # 2f. Screen-lock preflight (#4695): must refuse `unit`/`ui` when the screen
+  #     reads locked, and pass through untouched when unlocked. Driven via
+  #     GATE_FAKE_SCREEN_LOCKED so this never depends on this machine's real
+  #     lock state.
+  out="$(GATE_FAKE_SCREEN_LOCKED=1 GATE_DRYRUN=1 "$0" unit --area sidebar 2>&1)"; rc=$?
+  [[ $rc -eq 78 && "$out" == *"PREFLIGHT REFUSED"* && "$out" == *"locked"* ]]
+  check "screen-lock preflight: unit refuses on a locked screen (exit 78, #4695)" $?
+  out="$(GATE_FAKE_SCREEN_LOCKED=0 GATE_DRYRUN=1 "$0" unit --area sidebar 2>&1)"; rc=$?
+  [[ $rc -eq 0 && "$out" != *"PREFLIGHT REFUSED"* ]]
+  check "screen-lock preflight: unit proceeds when unlocked" $?
+
   # 3. Lock contention: hold the lock with a trivial sleep, then a --no-wait
   #    caller must fail fast with 75, and a waiting caller must queue+succeed.
   #    (env -u GATE_LOCK_HELD: the self-test itself runs under the real gate
@@ -1019,6 +1094,18 @@ cmd_self_test() {
   env -u GATE_LOCK_HELD GATE_LOCK_FILE="$tmp/to.lock" GATE_TIMEOUT=1 GATE_WATCH_INTERVAL=0.3 \
     "$0" wrap -- sleep 30 >/dev/null 2>&1
   [[ $? -eq 124 ]]; check "per-run timeout kills (rc 124)" $?
+
+  # 7b. Handshake watchdog (#4695): a host that never prints the connection
+  #     handshake within GATE_HOST_HANDSHAKE_S is killed and reported as
+  #     handshake-timeout well before the full per-run timeout; a host that
+  #     prints it in time is left alone.
+  out="$(env -u GATE_LOCK_HELD GATE_LOCK_FILE="$tmp/hs1.lock" GATE_HOST_HANDSHAKE_S=1 \
+    GATE_WATCH_INTERVAL=0.3 GATE_TIMEOUT=30 "$0" wrap -- sleep 30 2>&1)"; rc=$?
+  [[ $rc -eq 124 && "$out" == *"handshake-timeout"* ]]
+  check "watchdog: handshake-timeout kills a silent host before the full timeout (#4695)" $?
+  out="$(env -u GATE_LOCK_HELD GATE_LOCK_FILE="$tmp/hs2.lock" GATE_HOST_HANDSHAKE_S=1 \
+    GATE_WATCH_INTERVAL=0.3 GATE_TIMEOUT=30 "$0" wrap -- bash -c 'echo "Running tests..."; sleep 2' 2>&1)"; rc=$?
+  [[ $rc -eq 0 ]]; check "watchdog: a host that prints the handshake in time is not killed" $?
 
   # 8. Reentrancy: a nested gate call under a held lock must not deadlock.
   env -u GATE_LOCK_HELD GATE_LOCK_FILE="$tmp/re.lock" \
