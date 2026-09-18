@@ -86,7 +86,9 @@ key equivalents (not just app-internal double-minting), plus a missing Redo. Fix
   real one is **⌃⌘I** (`ViewMenuPaneSections.swift`); ⌘⌥I is "Copy Files". Text corrected.
 - **Two "Zoom to Fit" chords for one verb** — Canvas (⌘=) vs Read ▸ Zoom (⌘9) — unified onto **⌘=**
   everywhere: the two commands are gated by mutually-exclusive focused values, so sharing the
-  physical chord is safe and gives the verb one muscle-memory chord instead of two.
+  physical chord is safe and gives the verb one muscle-memory chord instead of two. **Superseded
+  2026-09-18** (see the Changelog entry below): ⌘= turned out to be the wrong shared chord — AppKit's
+  key-equivalent matching let it also intercept ⌘+ — so both sites moved to **⌘9** instead.
 - **File ▸ Import ▸ Import double nesting** (`FileMenuCommands.swift`) — flattened; New Folder and
   the Import submenu (Link/Copy/Move) now render as siblings, not double-wrapped.
 - **Redo did not exist.** `CommandGroup(replacing: .undoRedo)` supplied `UndoLastActionButton()`
@@ -106,11 +108,66 @@ the ⌘'/⌘⇧' Back/Forward chords are minted independently in THREE places �
 (`FocusedCommandButtons+UndoNavigation.swift`, the intended single owner), the main toolbar
 (`ContentView+Toolbar.swift`), and `OntologyBrowser+Toolbar.swift` — with no single owner. Fixing it
 means deleting the toolbar `.keyboardShortcut` mints while keeping the buttons themselves clickable;
-flagged for whoever owns those two files next.
+flagged for whoever owns those two files next. **Fixed 2026-09-18** for the first two (see the
+Changelog entry below) — `ContentView+Toolbar.swift` no longer mints the chord, only
+`FocusedCommandButtons+UndoNavigation.swift` does. `OntologyBrowser+Toolbar.swift` is a separate
+surface, still open.
 
 Still **[PROPOSED]** / unbuilt: the AddItemMenu/Data dedupe, the context-menu component reuse, and
 Sort/Workspaces re-homing. A **top-level** Workspaces menu (and top-level Find/Workflows menus) were
 **declined** — Workspaces stays a View submenu, Find lives in Edit.
+
+---
+
+## Changelog 2026-09-18 — adversarial review of the 2026-09-17 pass: a live AppKit collision, a double-mint, a redo bug, and a false-positive-prone guardrail
+
+A follow-up review of the 2026-09-17 fixes (above) found the unification itself introduced one new
+live collision, left one double-mint only partially fixed, and the guardrail's own denylist was
+producing false positives. Also found and fixed: Redo re-offering itself after redoing. Fixed:
+
+- **Zoom to Fit moved from ⌘= to ⌘9** (`CanvasMenuCommands.swift`, `ImagePreviewMenuCommands.swift`).
+  The 2026-09-17 unification onto ⌘= was itself a live bug: AppKit's key-equivalent matching for an
+  item whose modifier mask omits `.shift` checks `charactersIgnoringModifiers`, which strips Shift
+  back to the UNSHIFTED base character even when Shift IS held — so the bare-⌘= "Zoom to Fit" item
+  also intercepted ⌘⇧= (i.e. ⌘+) and won the match ahead of "Zoom In" (earlier in the menu). ⌘9 shares
+  no physical key with the ⌘+/⌘- zoom chords, so it cannot repeat that. The two commands' deliberate
+  cross-file sharing (`hasFocusedCanvas` / `hasActiveImagePreview` mutually exclusive) is unchanged,
+  just on a safe chord.
+- **Back/Forward (⌘'/⌘⇧') has one chord owner now.** The 2026-09-17 entry above flagged three
+  independent mints with no single owner. The toolbar's `.keyboardShortcut` calls
+  (`ContentView+Toolbar.swift`) are removed — the toolbar Back/Forward buttons are click-only mirrors
+  of the Go menu's `NavigateBackButton`/`NavigateForwardButton`
+  (`FocusedCommandButtons+UndoNavigation.swift`), the sole remaining owner. `OntologyBrowser+Toolbar.swift`
+  is a separate surface, still open.
+- **Redo (⌘⇧Z) no longer re-offers itself after redoing.** `RedoLastActionButton.performRedo` reversed
+  a redo target the same way as any other row (`AuditStore.undo(_:)`), which writes a NEW audit row
+  that is itself `inverseOf`-set and not yet undone — structurally identical in shape to a genuine
+  redo target, so a naive filter offered it right back: a SECOND ⌘⇧Z undid the redo it had just
+  performed instead of being a no-op. Fixed with `AuditStore.nextRedoable(in:)`: a redo target must be
+  an inverse of a genuine FORWARD action (`inverseOf == nil`), never an inverse of another inverse.
+  Pure-tested in `Tests/Unit/general/Models/AuditStoreRedoTests.swift` (press undo → redo → redo again
+  leaves state "redone", not "undone").
+- **The system-reserved chord list is now exactly the eight chords AppKit owns UNCONDITIONALLY**
+  (`MenuShortcutUniquenessTests.systemReservedChords`): **⌘⌥H** (Hide Others), **⌘⌥T** (Show/Hide
+  Toolbar), **⌘⌥D** (Turn Dock Hiding On/Off), **⌃⌘F** (Enter Full Screen), **⌃⌘S** (reserved,
+  unwired — no Show/Hide Sidebar command exists yet), **⌘H** (Hide Fichero), **⌘Q** (Quit Fichero),
+  **⌘,** (Preferences…). The Format-menu chords (⌘T/⌘I/⌘B/⌘U/⌘+/⌘-) that used to sit in this same list
+  are REMOVED — they are NOT system-reserved. They are SwiftUI's built-in `TextFormattingCommands()`
+  (wrapped by `FormatMenuCommands`), which only claims a live key equivalent while a focused text view
+  accepts it; denylisting them unconditionally produced false positives against always-enabled
+  commands reusing the same key with no text editor focused — File's ⌘T "New Window", Image Preview's
+  ⌘+/⌘- "Zoom In"/"Zoom Out", and the sidebar's ⌘I "Link Files…" all tripped the guardrail though none
+  of them can ever fire at the same moment as the Format item they were flagged against.
+- **The shortcut-uniqueness guardrail is now `#if`-aware.** `MenuShortcutUniquenessTests` tracks
+  `#if`/`#elseif`/`#else`/`#endif` nesting per file and tags every mint with its conditional-
+  compilation branch path; two mints of the same chord collide only if their branch paths are NOT
+  proven mutually exclusive (same branch, or one at file scope alongside any branch — different,
+  unrelated `#if` conditions are never assumed exclusive either). This is what let
+  `ShowFindBarButton`'s ⌘⌥F — declared once inside `#if canImport(AppKit)` and once in the matching
+  `#else` (`ViewMenuPaneSections.swift`) — drop out of the manual `allowedSharedChords` allowlist
+  entirely: the scanner now proves the two bodies can never both compile, instead of needing a
+  human-maintained exception. (This also fixed a real gap: the prior grouping counted DISTINCT FILES
+  per chord, so two mints of the same chord in one file were invisible; every mint site counts now.)
 
 ---
 
@@ -371,7 +428,10 @@ either way (shared components), but scope of the cross-platform tests depends on
   `Tests/Unit/general/Views/Shell/MenuShortcutUniquenessTests.swift` enumerates every ⌘⌥ chord the app
   mints — the workspace slots map to ⌘⌥1–5 in declaration order, all distinct, none is the loupe's
   ⌘⌥L — and a source-scan fails if any ⌘⌥ literal chord is claimed by two commands. Complements the
-  older `MenuShortcutBoundaryTests` (single-owner ⌘Z, ⌘I/⌘F non-collision).
+  older `MenuShortcutBoundaryTests` (single-owner ⌘Z, ⌘I/⌘F non-collision). **Made `#if`-aware
+  2026-09-18** (see Changelog): the scan tracks `#if`/`#elseif`/`#else` branch nesting per mint and
+  only flags a chord shared across branches that are NOT provably mutually exclusive, so one command
+  declared once per platform branch (`#if canImport(AppKit) / #else`) is not a false collision.
 - `menus.context-matches-bar` — **[PROPOSED]** a verb in both a context menu and the menu bar is the
   SAME component (same label/icon/shortcut/enablement). *Test:* the `SidebarContextMenuPolicyTests`
   pure-function shape — assert the context menu's verb list is drawn from the shared components.
