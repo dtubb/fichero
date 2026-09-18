@@ -2,6 +2,45 @@ import FicheroAPIClient
 import OSLog
 import SwiftUI
 
+/// #4816 (Swift half): a `ConnectionTestResponse` no longer collapses to a
+/// binary green/red check. A successful HTTP round-trip does not prove the
+/// KEY itself was verified — some providers (OpenRouter and others) accept
+/// any non-empty key at the connect step; only a 401/403 proves a bad one.
+/// The engine now reports that distinction via `verified: Bool?`. This is a
+/// pure derivation, deliberately free of `View`, so it is testable without
+/// standing up `ProviderDetailView`.
+enum KeyTestOutcome: Equatable {
+    /// The round-trip succeeded AND the engine positively verified the key.
+    case verified
+    /// The round-trip itself failed (network, auth, etc).
+    case failed
+    /// The round-trip succeeded but the engine could not verify the key —
+    /// e.g. the provider accepts any non-empty key at this step. Neither a
+    /// pass nor a fail: shown neutral, never green.
+    case savedNotVerified
+
+    static func from(success: Bool, verified: Bool?) -> KeyTestOutcome {
+        guard success else { return .failed }
+        return verified == true ? .verified : .savedNotVerified
+    }
+
+    var systemImage: String {
+        switch self {
+        case .verified: "checkmark.circle.fill"
+        case .failed: "xmark.circle.fill"
+        case .savedNotVerified: "questionmark.circle"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .verified: .green
+        case .failed: .red
+        case .savedNotVerified: .secondary
+        }
+    }
+}
+
 struct ProviderDetailView: View {
     let provider: Components.Schemas.ProviderResponse
     let catalogEntry: Components.Schemas.ProviderCatalogResponse?
@@ -119,9 +158,11 @@ struct ProviderDetailView: View {
                         Spacer()
 
                         if let result = testResult {
+                            // #4816: three states, not two — see `KeyTestOutcome`.
+                            let outcome = KeyTestOutcome.from(success: result.success, verified: result.verified)
                             HStack(spacing: 4) {
-                                Image(systemName: result.success ? "checkmark.circle.fill" : "xmark.circle.fill")
-                                    .foregroundColor(result.success ? .green : .red)
+                                Image(systemName: outcome.systemImage)
+                                    .foregroundColor(outcome.tint)
                                 if let latency = result.latencyMs {
                                     Text(String(format: "%.0fms", latency))
                                         .font(.caption)
