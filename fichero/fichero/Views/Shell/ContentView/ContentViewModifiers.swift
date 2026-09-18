@@ -259,65 +259,19 @@ struct MainContentModifiers: ViewModifier {
         }
     }
 
-    /// Whether the current view already belongs to `mode`'s family WITH an
-    /// explicit selection — the #1475 preservation rule, shared by the
-    /// workflows/automation/activity arms so a mode change can never stomp
-    /// the editor the same click just selected.
-    static func viewBelongsToMode(_ view: AppViewMode, mode: SidebarMode) -> Bool {
-        switch mode {
-        case .library:
-            if case .library = view { return true }
-            return false
-        case .chat:
-            if case .chat = view { return true }
-            if case .comparison = view { return true }
-            return false
-        case .workflows:
-            return workflowsFamilyHolds(view)
-        case .automation:
-            return automationFamilyHolds(view)
-        case .activity:
-            if case .activity(let selected) = view { return selected != nil }
-            return false
-        case .research, .knowledgeGraph:
-            return false
-        }
-    }
-
-    private static func workflowsFamilyHolds(_ view: AppViewMode) -> Bool {
-        if case .workflow(let selected) = view { return selected != nil }
-        if case .chain(let selected) = view { return selected != nil }
-        if case .batches = view { return true }
-        return false
-    }
-
-    private static func automationFamilyHolds(_ view: AppViewMode) -> Bool {
-        if case .automation = view { return true }
-        if case .schedule(let selected) = view { return selected != nil }
-        if case .trigger(let selected) = view { return selected != nil }
-        return false
-    }
-
+    /// The ONE place a `sidebarMode` change is observed (registered below in
+    /// `ChangeHandlerModifiers`) — every sidebarMode writer (View menu,
+    /// "Show in Graph", the AppleScript `kg` command, restore) funnels
+    /// through here, so `ViewModeNormalization.normalizedViewMode` is the
+    /// single sidebarMode → viewMode policy applied everywhere (#4705
+    /// increment 0: closes the stale-inspector "Chat Scope" leak, where
+    /// switching to Research/Knowledge Graph used to leave `viewMode`
+    /// untouched).
     private func handleSidebarModeChange(_ newMode: SidebarMode) {
-        // ONE family rule (#1475, generalized 2026-08-10 after Daniel's "it
-        // never shows the node editor"): the mirror-click routing sets BOTH
-        // sidebarMode and viewMode, then this handler fired on the mode flip
-        // and overwrote the freshly selected editor back to its mode's nil
-        // default — the 'Select a Workflow' placeholder every time. If the
-        // current view already belongs to the new mode's family, this
-        // handler has nothing to normalize.
-        if Self.viewBelongsToMode(viewMode, mode: newMode) { return }
-        switch newMode {
-        case .library: viewMode = .library(nil)
-        case .chat: viewMode = .chat(nil)
-        case .workflows: viewMode = .workflow(nil)
-        case .automation: viewMode = .automation
-        case .activity: viewMode = .activity(nil)
-        case .research, .knowledgeGraph:
-            // No ViewMode case; contentView intercepts on sidebarMode, so
-            // leave viewMode untouched.
-            break
-        }
+        viewMode = ViewModeNormalization.normalizedViewMode(
+            current: viewMode,
+            forNewSidebarMode: newMode
+        )
     }
 
     // handleBrowserSelectionChange DELETED (2026-08-08 night review, finding A):
