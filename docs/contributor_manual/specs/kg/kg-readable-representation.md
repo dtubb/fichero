@@ -121,7 +121,7 @@ often the wrong subject; not multilingual.
   test count alone would suggest. Target state: ONE renderer, in the engine (`readable.py`'s
   successor, the entry composer below); the app draws what it is given; (B)/(C)/(D)'s bespoke
   loops retire once the Reader rendition (`kg.read.lives-in-reader`) replaces them.
-- `kg.read.statements-join-as-sentences` — **[BROKEN]** (#4852) joining several claim
+- `kg.read.statements-join-as-sentences` — **[PARTIAL]** (#4852) FIXED in e71bb070b and open until the maintainer confirms it live: the Inspector's text digest is built as one whole sentence per claim from the claim's own subject, verb and object, joined with a space, so ".;" cannot occur; a claim without a complete triple is skipped. Pinned: `fichero/Tests/Unit/general/Views/Inspector/KGSectionGroupingTests.swift` (suite `KGSectionGroupingTests`). What follows describes the defect as found. joining several claim
   statements about one entity into a list must read as sentences, never as fragments glued
   with punctuation that collides with the text's own. Verified on disk: the live source is
   `KnowledgeGraphInspectorSection.digestMarkup(displayName:contexts:)`
@@ -166,7 +166,7 @@ often the wrong subject; not multilingual.
   the caller never re-fetches or guesses at the server's normalized result. Design/planning only
   (code lane, 2026-09-18) — nothing built; this is the 7b slice of
   `kg.read.edit-unit-is-the-claim` above.
-- `kg.read.sentence-opens-source-highlighted` — **[GAP]** (#4834) editing and source-reveal are two
+- `kg.read.sentence-opens-source-highlighted` — **[PARTIAL]** (#4834) BUILT in e71bb070b for the claim excerpt, the biography sentence, the digest sentences and the statement row (double-click and Open Source); NOT yet for claim cards, the Entities and Claims table rows or the graph tab, which still open the Reader. Pinned: `fichero/Tests/Unit/general/Views/Library/ClaimSourceLandingTests.swift` (suite `ClaimSourceLandingTests`). editing and source-reveal are two
   SEPARATE gestures today (edit → `EditClaimSheet`; navigate → `ClaimSourceNavigationState`
   → `handleOpenClaimSource`, `ContentView+StateEvents.swift:397-446`). The ruling wants ONE
   gesture: open the claim editor AND reveal the highlighted source together.
@@ -180,7 +180,7 @@ often the wrong subject; not multilingual.
   showing, and neither highlight changes the current selection. This is the concrete,
   dual-surface form the "one gesture" ruling takes once there are two source renditions
   (transcript text and page image) to keep in sync, not a new requirement beyond it.
-- `kg.read.source-request-declares-intent` — **[GAP]** (#4834) `ClaimSourceNavigationRequest
+- `kg.read.source-request-declares-intent` — **[PARTIAL]** (#4834) BUILT in e71bb070b: `destination` has no default and every construction site states one; open until the remaining knowledge surfaces move off `.reader`. Pinned: `fichero/Tests/Unit/general/Models/ClaimSourceRequestTests.swift` (suite `ClaimSourceRequestTests`) and `fichero/Tests/Unit/general/Views/Inspector/SourceNavigationContractTests.swift` (suite `SourceNavigationContractTests`). `ClaimSourceNavigationRequest
   .destination` silently defaults to `.reader` at every one of its five construction sites
   feeding one shared request bus — the fix drops that default and makes `destination` a
   REQUIRED argument. KNOWLEDGE surfaces (the biography, claim cards, entity/claim rows, KG
@@ -195,7 +195,7 @@ often the wrong subject; not multilingual.
   your place" bug possible at all — this is the concrete mechanism behind
   `kg.read.lives-in-reader`'s "reveal without losing your place" property. Design/planning only
   (code lane, 2026-09-18) — nothing built; app source is frozen while the maintainer tests.
-- `kg.read.span-reuses-existing-location-resolver` — **[GAP]** (#4834) the sentence-click-to-
+- `kg.read.span-reuses-existing-location-resolver` — **[PARTIAL]** (#4834) BUILT in e71bb070b: one `locationService.resolve` feeds both the Reader passage channel and the source-image region, with no new engine call; open until the maintainer confirms both highlights live. Pinned: `fichero/Tests/Unit/general/Views/Library/ClaimSourceLandingTests.swift` (suite `ClaimSourceLandingTests`). the sentence-click-to-
   highlight path needs NO new engine call: `revealResolvedSource` already calls the existing
   location resolver (`POST /api/locations/resolve`); its `ResolvedLocation` already carries
   page/bbox/char-range, today only `resolvedDocumentId` is read from it. The fix is reading more
