@@ -22,7 +22,7 @@ class TestWorkflowFolders:
         paths = [f["path"] for f in items]
         # The route's spine: you find the regions before you read them, and you
         # read them before you catalogue them.
-        assert paths.index("/Detect Regions") < paths.index("/Transcribe")
+        assert paths.index("/Detect Segments") < paths.index("/Transcribe")
         assert paths.index("/Transcribe") < paths.index("/Catalogue")
 
     def test_every_folder_carries_a_glyph_and_a_name(self, client):
