@@ -178,7 +178,10 @@ final class AnnotationServiceTests: XCTestCase {
         ].joined(separator: "\n")
 
         XCTAssertTrue(documentReader.contains("await annotationStore.loadAnnotations(for: .document(document.id), force: true)"))
-        XCTAssertTrue(pageContent.contains("await annotationStore.loadAnnotations(for: .page(id), force: true)"))
+        // Optional-chained since dbf5b983d (2026-09-17): reader surfaces read AnnotationStore
+        // OPTIONALLY so a missing store degrades instead of trapping (house rule #4513).
+        // The forced reload is unchanged; only the receiver became `annotationStore?`.
+        XCTAssertTrue(pageContent.contains("await annotationStore?.loadAnnotations(for: .page(id), force: true)"))
         XCTAssertTrue(pdfToolbar.contains("await annotationStore.loadAnnotations(for: .document(documentId), force: true)"))
         XCTAssertTrue(imageViewer.contains("await annotationStore.loadAnnotations(for: .document(documentId), force: true)"))
     }
