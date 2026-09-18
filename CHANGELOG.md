@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 2026-09-18
+
 **Workspaces are one model, and they persist.** Pane visibility derives from the applied pane list
 (the three legacy Bools are gone); View ▸ Split routes through the model; the applied composition
 survives relaunch; saved workspaces carry their pane list (a corrupt one no longer voids the

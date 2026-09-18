@@ -2,7 +2,7 @@
 
 *Full commit-level history, day by day, lives in [`CHANGELOG.md`](CHANGELOG.md).*
 
-## 2026.09.17
+## 2026.09.18
 
 - Workspaces: one pane model, persisted across relaunch; stable divider positions; Split from the menu.
 - Menus: shortcut collisions fixed; real Redo; Zoom to Fit is ⌘9.
