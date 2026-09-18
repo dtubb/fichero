@@ -87,7 +87,7 @@ final class ClaimDisplayContractTests: XCTestCase {
     func testSelectingAClaimRequestsItsSourceOnTheSharedCursor() throws {
         let source = try AppSource.text(Self.digest)
 
-        XCTAssertTrue(source.contains("ClaimSourceRequest.request(for: claim)"))
+        XCTAssertTrue(source.contains("ClaimSourceRequest.request(for: claim, destination: .both)"))
         XCTAssertTrue(source.contains("claimSourceNavigationState?.request(request)"))
     }
 

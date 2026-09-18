@@ -12,12 +12,14 @@ enum AnnotationSourceNavigation {
               !documentId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return nil
         }
+        // #4834: navigational surface (annotation list/inspector) — `.reader` stated explicitly.
         return ClaimSourceNavigationRequest(
             documentId: documentId,
             pageLabel: annotation.pageLabel,
             charStart: annotation.charStart,
             charEnd: annotation.charEnd,
-            bbox: annotation.regionRect
+            bbox: annotation.regionRect,
+            destination: .reader
         )
     }
 }

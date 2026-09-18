@@ -33,7 +33,8 @@ final class SourceProvenanceTests: XCTestCase {
             documentId: "doc-1",
             pageLabel: "12",
             pageIndex: 11,
-            bbox: [0.1, 0.2, 0.5, 0.35]
+            bbox: [0.1, 0.2, 0.5, 0.35],
+            destination: .reader
         )
         let crop = SourceCropRequest(nav)
         XCTAssertEqual(crop.documentId, "doc-1")

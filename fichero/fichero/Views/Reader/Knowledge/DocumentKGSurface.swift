@@ -415,13 +415,18 @@ struct DocumentKGSurface: View {
                     // resolves the page, fills `ClaimFocusState` with the whole
                     // payload, and posts `.ficheroNavigateToPage` for the
                     // preview — four dropped arguments were the entire bug.
+                    // #4834: unchanged for now — this reveal happens INSIDE
+                    // the Reader's own KG graph tab, not one of this
+                    // delivery's two priority surfaces; stays `.reader`,
+                    // stated explicitly now that the field requires it.
                     if let request = ClaimSourceRequest.request(
                         claimId: claimId,
                         claimText: claimText,
                         sourceDocumentId: sourceDocId,
                         pageLabel: pageLabel,
                         charStart: charStart,
-                        charEnd: charEnd
+                        charEnd: charEnd,
+                        destination: .reader
                     ) {
                         claimSourceNavigationState?.request(request)
                     }
@@ -454,8 +459,10 @@ struct DocumentKGSurface: View {
                 DocumentInspectorRelatedTab(
                     document: doc,
                     onNavigateToSource: { relatedId in
+                        // #4834: a "related document" row is navigational —
+                        // unchanged, `.reader` stated explicitly.
                         claimSourceNavigationState?.request(
-                            ClaimSourceNavigationRequest(documentId: relatedId)
+                            ClaimSourceNavigationRequest(documentId: relatedId, destination: .reader)
                         )
                     }
                 )

@@ -74,12 +74,13 @@ enum ClaimSourceRequest {
     /// them, so a downstream consumer cannot accidentally highlight from a
     /// value this function did not vouch for.
     static func request(
-        for claim: Components.Schemas.KnowledgeClaim
+        for claim: Components.Schemas.KnowledgeClaim,
+        destination: SourceDestination
     ) -> ClaimSourceNavigationRequest? {
         let precision = precision(for: claim)
         guard precision != .unknown, let documentId = claim.sourceDocumentId else { return nil }
 
-        var request = ClaimSourceNavigationRequest(documentId: documentId)
+        var request = ClaimSourceNavigationRequest(documentId: documentId, destination: destination)
         request.claimId = claim.id
         // Highlight the VERBATIM source quote (sourceExcerpt), not the possibly
         // paraphrased/normalized claim text — the reader jumps to what is actually
@@ -87,7 +88,6 @@ enum ClaimSourceRequest {
         // the sibling flattened-payload builder and #3449's provenance-anchor intent.
         request.claimText = claim.sourceExcerpt ?? claim.text
         request.pageLabel = claim.sourcePageLabel
-        request.destination = .reader
 
         switch precision {
         case .span:
@@ -119,16 +119,16 @@ enum ClaimSourceRequest {
         sourceDocumentId: String?,
         pageLabel: String?,
         charStart: Int?,
-        charEnd: Int?
+        charEnd: Int?,
+        destination: SourceDestination
     ) -> ClaimSourceNavigationRequest? {
         guard let documentId = sourceDocumentId,
               !documentId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         else { return nil }
-        var request = ClaimSourceNavigationRequest(documentId: documentId)
+        var request = ClaimSourceNavigationRequest(documentId: documentId, destination: destination)
         request.claimId = claimId
         request.claimText = claimText
         request.pageLabel = pageLabel
-        request.destination = .reader
         if let charStart, let charEnd, charEnd > charStart {
             request.charStart = charStart
             request.charEnd = charEnd

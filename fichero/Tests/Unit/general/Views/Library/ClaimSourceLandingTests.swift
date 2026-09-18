@@ -133,6 +133,141 @@ struct ClaimSourceLandingTests {
         // passage-anchor guard, which failed on its own explanation.
         #expect(!AppSource.codeOnly(String(function.prefix(1200))).contains("currentDocuments"))
     }
+
+    // MARK: - #4834: a knowledge-surface reveal never becomes a selection
+
+    /// `kg.read.source-request-declares-intent` — a knowledge-surface reveal
+    /// (`.preview`/`.both`) must never write the sidebar mode, the browser
+    /// selection, or the inspector sidebar/pane focus. Only a `.reader`
+    /// (navigational) request may still do those.
+    @Test("a knowledge-surface reveal never writes sidebar mode or selection")
+    func knowledgeSurfaceRevealNeverWritesSidebarModeOrSelection() throws {
+        let handler = try String(
+            contentsOf: AppSource.root()
+                .appendingPathComponent("Views/Shell/ContentView/ContentView+StateEvents.swift"),
+            encoding: .utf8
+        )
+        let body = try #require(
+            handler.components(separatedBy: "func handleOpenClaimSource() {")
+                .dropFirst().first
+        )
+        let scope = AppSource.codeOnly(String(body.prefix(4000)))
+        // The isKnowledgeSurface guard must wrap every write that would
+        // change what's currently shown — not merely exist somewhere in
+        // the function.
+        let guardIndex = try #require(scope.range(of: "if !isKnowledgeSurface {"))
+        let guardScope = String(scope[guardIndex.upperBound...].prefix(300))
+        #expect(guardScope.contains("sidebarMode = .library"))
+        #expect(guardScope.contains("showInspectorSidebar = true"))
+        #expect(guardScope.contains("focusedPane = .inspector"))
+    }
+
+    /// `kg.read.span-reuses-existing-location-resolver` — both destinations
+    /// share the SAME `revealResolvedSource` call, which shares the SAME
+    /// `locationService.resolve` inside it (pinned separately below) — so a
+    /// `.both` request's passage and region highlights can never disagree
+    /// about which location they resolved.
+    @Test("both highlight channels are posted from the one resolved request")
+    func bothHighlightChannelsShareTheOneResolve() throws {
+        let handler = try String(
+            contentsOf: AppSource.root()
+                .appendingPathComponent("Views/Shell/ContentView/ContentView+StateEvents.swift"),
+            encoding: .utf8
+        )
+        let body = try #require(
+            handler.components(separatedBy: "func handleOpenClaimSource() {")
+                .dropFirst().first
+        )
+        let scope = AppSource.codeOnly(String(body.prefix(4000)))
+        // Neither highlight post is gated on destination — one resolve,
+        // both channels, every time; the ONLY thing destination gates is
+        // whether the selection itself moves.
+        let revealIndex = try #require(scope.range(of: "await revealResolvedSource(request)"))
+        let afterReveal = String(scope[revealIndex.upperBound...])
+        #expect(afterReveal.contains("postClaimPassageAnchor(documentId: docId)"))
+        #expect(afterReveal.contains("name: .ficheroNavigateToPage"))
+
+        let source = try String(
+            contentsOf: AppSource.root()
+                .appendingPathComponent("Views/Shell/ContentView/ContentView+SourceNavigation.swift"),
+            encoding: .utf8
+        )
+        #expect(source.contains("documentStore.locationService.resolve(request.asLocation)"))
+    }
+
+    /// A `.reader` (navigational) request still ends up on the selection-
+    /// changing path — the source outline, annotations and artifacts
+    /// inspector keep today's behavior exactly.
+    @Test("a .reader request still navigates through the selection-changing path")
+    func readerDestinationStillNavigates() throws {
+        let source = try String(
+            contentsOf: AppSource.root()
+                .appendingPathComponent("Views/Shell/ContentView/ContentView+SourceNavigation.swift"),
+            encoding: .utf8
+        )
+        let body = try #require(
+            source.components(separatedBy: "func revealResolvedSource(_ request: ClaimSourceNavigationRequest) async {")
+                .dropFirst().first
+        )
+        let scope = AppSource.codeOnly(String(body.prefix(900)))
+        #expect(scope.contains("if request.destination == .reader {"))
+        #expect(scope.contains("await navigateToResolvedSource(target)"))
+        #expect(scope.contains("sourceRevealDocument = target"))
+    }
+
+    /// `sourceRevealDocument`'s own declaration says the Inspector never
+    /// reads it — pinned here as a cross-file invariant so the two
+    /// properties cannot drift back into agreement by accident.
+    @Test("inspectorDocument never reads sourceRevealDocument")
+    func inspectorDocumentIgnoresSourceRevealDocument() throws {
+        let source = try String(
+            contentsOf: AppSource.root()
+                .appendingPathComponent("Views/Shell/ContentView/ContentView+StateSelection.swift"),
+            encoding: .utf8
+        )
+        let body = try #require(
+            source.components(separatedBy: "var inspectorDocument: Document? {")
+                .dropFirst().first
+        )
+        #expect(!AppSource.codeOnly(String(body.prefix(2000))).contains("sourceRevealDocument"))
+    }
+
+    /// A real selection change always outranks a pending knowledge-surface
+    /// reveal — both `.onChange` entry points clear it unconditionally,
+    /// before any early-return.
+    @Test("a real sidebar or browser selection change clears the reveal")
+    func realSelectionChangeClearsTheReveal() throws {
+        let source = try String(
+            contentsOf: AppSource.root()
+                .appendingPathComponent("Views/Shell/ContentView/ContentView+StateEvents.swift"),
+            encoding: .utf8
+        )
+        for signature in [
+            "func handleSidebarSelectionChange(_ newFolderId: String?) {",
+            "func handleBrowserSelectionChange(_ newSelection: Set<String>) {"
+        ] {
+            let body = try #require(source.components(separatedBy: signature).dropFirst().first)
+            let firstStatement = AppSource.codeOnly(String(body.prefix(400)))
+            #expect(firstStatement.contains("sourceRevealDocument = nil"), Comment(rawValue: signature))
+        }
+    }
+
+    /// `effectiveWorkflowRunSelection` — the ONE accessor every launch
+    /// surface reads — must never widen to include a document a reveal
+    /// merely showed, never selected.
+    @Test("a knowledge-surface reveal never reaches the workflow run selection")
+    func revealNeverReachesWorkflowRunSelection() throws {
+        let source = try String(
+            contentsOf: AppSource.root()
+                .appendingPathComponent("Views/Shell/ContentView/ContentView+StateEvents.swift"),
+            encoding: .utf8
+        )
+        let body = try #require(
+            source.components(separatedBy: "var effectiveWorkflowRunSelection: [String] {")
+                .dropFirst().first
+        )
+        #expect(!AppSource.codeOnly(String(body.prefix(400))).contains("sourceRevealDocument"))
+    }
 }
 
 /// A geocoded pin is drawn as a guess, because that is what it is (#4668).

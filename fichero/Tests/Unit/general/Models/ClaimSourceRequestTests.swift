@@ -57,8 +57,8 @@ struct ClaimSourceRequestTests {
             claim(charStart: nil, charEnd: nil),                        // page-only
         ]
         for c in fixtures {
-            let canonical = ClaimSourceRequest.request(for: c)
-            let card = ClaimSummaryCard.openClaimSourceRequest(for: c)
+            let canonical = ClaimSourceRequest.request(for: c, destination: .reader)
+            let card = ClaimSummaryCard.openClaimSourceRequest(for: c, destination: .reader)
             #expect(card?.documentId == canonical?.documentId)
             #expect(card?.charStart == canonical?.charStart)
             #expect(card?.charEnd == canonical?.charEnd)
@@ -73,7 +73,7 @@ struct ClaimSourceRequestTests {
     func spanClaimNavigatesAtSpanLevel() throws {
         #expect(ClaimSourceRequest.precision(for: claim()) == .span)
 
-        let request = try #require(ClaimSourceRequest.request(for: claim()))
+        let request = try #require(ClaimSourceRequest.request(for: claim(), destination: .reader))
         #expect(request.documentId == "doc-1")
         #expect(request.charStart == 120)
         #expect(request.charEnd == 180)
@@ -85,7 +85,7 @@ struct ClaimSourceRequestTests {
         let regional = claim(charStart: nil, charEnd: nil, bbox: [0.1, 0.2, 0.3, 0.4])
         #expect(ClaimSourceRequest.precision(for: regional) == .region)
 
-        let request = try #require(ClaimSourceRequest.request(for: regional))
+        let request = try #require(ClaimSourceRequest.request(for: regional, destination: .reader))
         #expect(request.bbox == [0.1, 0.2, 0.3, 0.4])
         #expect(request.charStart == nil)
     }
@@ -99,7 +99,7 @@ struct ClaimSourceRequestTests {
         #expect(ClaimSourceRequest.precision(for: vague) == .pageOnly)
         #expect(!ClaimSourceRequest.precision(for: vague).drawsHighlight)
 
-        let request = try #require(ClaimSourceRequest.request(for: vague))
+        let request = try #require(ClaimSourceRequest.request(for: vague, destination: .reader))
         #expect(request.pageLabel == "4", "it still goes to the page")
         #expect(request.charStart == nil)
         #expect(request.charEnd == nil)
@@ -120,7 +120,7 @@ struct ClaimSourceRequestTests {
                 for box in boxes {
                     let candidate = claim(charStart: start, charEnd: end, bbox: box)
                     let precision = ClaimSourceRequest.precision(for: candidate)
-                    guard let request = ClaimSourceRequest.request(for: candidate) else { continue }
+                    guard let request = ClaimSourceRequest.request(for: candidate, destination: .reader) else { continue }
                     let label = Comment(
                         rawValue: "\(String(describing: start))/"
                             + "\(String(describing: end))/\(String(describing: box))")
@@ -159,8 +159,8 @@ struct ClaimSourceRequestTests {
     @Test("a claim with no document produces no request at all")
     func noDocumentProducesNoRequest() {
         #expect(ClaimSourceRequest.precision(for: claim(documentId: nil)) == .unknown)
-        #expect(ClaimSourceRequest.request(for: claim(documentId: nil)) == nil)
-        #expect(ClaimSourceRequest.request(for: claim(documentId: "   ")) == nil)
+        #expect(ClaimSourceRequest.request(for: claim(documentId: nil), destination: .reader) == nil)
+        #expect(ClaimSourceRequest.request(for: claim(documentId: "   "), destination: .reader) == nil)
     }
 
     /// Every imprecise outcome explains itself; a silent navigation to the
@@ -196,7 +196,7 @@ struct ClaimSourceRequestTests {
         let digest = try Self.codeOnly(
             Self.appSource("Views/Inspector/Knowledge/EntityDigestView.swift"))
 
-        #expect(digest.contains("ClaimSourceRequest.request(for: claim)"))
+        #expect(digest.contains("ClaimSourceRequest.request(for: claim, destination: .both)"))
         #expect(digest.contains("claimSourceNavigationState?.request(request)"))
         // The same seam the outline writes to — not a parallel one.
         let outline = try Self.appSource("Views/Inspector/Source/SourceOutlineView.swift")

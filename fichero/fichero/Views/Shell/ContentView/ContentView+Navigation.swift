@@ -193,6 +193,32 @@ extension ContentView {
                 .padding(.vertical, 8)
                 .background(.bar)
             }
+            // #4834: a knowledge-surface reveal set `sourceRevealDocument`,
+            // but neither Preview nor the Reader is showing to display it —
+            // the click did something honest, it just has nowhere visible to
+            // land. Same affordance shape as above (a different trigger:
+            // this one is a live pending reveal, not a mode/surface pairing),
+            // deliberately not folded into `missingPreviewSurface`, which is
+            // scoped away from `.documentPreview` on purpose (a Reader-only
+            // workspace is a legitimate layout choice, not a takeover to
+            // retire) — a reveal is not a workspace choice, it is the direct
+            // consequence of the click that just happened.
+            if sourceRevealDocument != nil, !paneVisibility.canvas, !paneVisibility.reading {
+                HStack(spacing: 12) {
+                    Text("The source opened, but Preview and the Reader are both closed.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Open in \(PaneSpec.Kind.preview.title)") {
+                        setPaneVisible(.canvas, true)
+                    }
+                    .font(.body)
+                    .accessibilityIdentifier("library.openSourceRevealAffordance")
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(.bar)
+            }
         }
     }
 

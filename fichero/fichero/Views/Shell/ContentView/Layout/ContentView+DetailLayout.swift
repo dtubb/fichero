@@ -143,7 +143,7 @@ extension ContentView {
                     guard documentScrollSync.beginDriving(.pdf) else { return }
                     syncGridSelectionToPDFPage(index: index)
                 },
-                documentTitle: detailDocument?.name,
+                documentTitle: previewDocument?.name,
                 onClose: { setPaneVisible(.canvas, false) },
                 // Geometry lives on the PAGE child, not the parent PDF this
                 // pane renders from (#4418 follow-up).
@@ -152,10 +152,13 @@ extension ContentView {
             .frame(minWidth: ContentView.pdfCanvasMinWidth, maxWidth: .infinity)
             .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview })
         } else {
+            // #4834: `previewDocument`, not `detailDocument` directly — a
+            // knowledge-surface reveal must reach the canvas the same way
+            // it reaches the PDF branch above (`detailPDFDocumentId`).
             let canvasDocument = CanvasDocumentPolicy.documentForCanvas(
                 selectedDocumentIds: browserSelection,
                 documents: selectedDocuments,
-                detailDocument: detailDocument,
+                detailDocument: previewDocument,
                 inspectorDocument: inspectorDocument
             )
             EditorView(
@@ -294,9 +297,24 @@ extension ContentView {
     /// lens reachable for the folder — a folder-level translation is
     /// selectable the same way a page's is.
     var readerDocument: Document? {
+        // #4834: a knowledge-surface reveal wins first — same tier as
+        // `detailDocument` below, just checked before it, so a reveal is
+        // never shadowed by whatever the browser last had selected.
+        if let sourceRevealDocument { return sourceRevealDocument }
         if let detailDocument { return detailDocument }
         if case .library(let folder) = viewMode { return folder }
         return nil
+    }
+
+    /// What Preview shows — the reveal-aware sibling of `readerDocument`
+    /// (#4834). `widescreenCanvasPaneContent`'s PDF/canvas branches read
+    /// THIS, not `detailDocument` directly, so a knowledge-surface reveal
+    /// reaches Preview the same way it reaches the Reader. `inspectorDocument`
+    /// (`ContentView+StateSelection.swift`) deliberately never reads this —
+    /// that is what keeps a reveal from flipping the Inspector off whatever
+    /// entity/claim it has focused.
+    var previewDocument: Document? {
+        sourceRevealDocument ?? detailDocument
     }
 
     @ViewBuilder

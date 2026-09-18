@@ -124,25 +124,49 @@ extension ContentView {
 
     /// Resolve a source anchor to its parent document + page through the ONE
     /// engine route (#3577) — page-child → parent resolution no longer lives in
-    /// the app — then select it. Falls back to the legacy client-side walk if
-    /// the engine resolve fails so a reveal never breaks (no regression).
+    /// the app. `.reader` requests NAVIGATE (today's selection-changing
+    /// behavior, unchanged); `.preview`/`.both` requests REVEAL (#4834 —
+    /// Preview/Reader follow via `sourceRevealDocument`, selection and the
+    /// Inspector's focused entity/claim untouched). Falls back to the legacy
+    /// client-side walk if the engine resolve fails so a reveal never breaks
+    /// (no regression).
     @MainActor
     func revealResolvedSource(_ request: ClaimSourceNavigationRequest) async {
         do {
             let resolved = try await documentStore.locationService.resolve(request.asLocation)
             let target = try await documentStore.documentService.getDocument(resolved.resolvedDocumentId)
-            await navigateToResolvedSource(target)
+            if request.destination == .reader {
+                await navigateToResolvedSource(target)
+            } else {
+                sourceRevealDocument = target
+            }
         } catch {
             workflowLogger.warning(
                 "revealResolvedSource: engine resolve failed (\(error.localizedDescription)); falling back to client-side navigation"
             )
-            await navigateToSourcePage(request.documentId)
+            if request.destination == .reader {
+                await navigateToSourcePage(request.documentId)
+            } else {
+                await focusKGSourcePreview(request.documentId)
+            }
         }
     }
 
-    /// Focus the preview pane on a KG source without changing sidebar or
-    /// library-tree selection. Used by KGFocusState for ordinary row/graph
-    /// focus; explicit open-source buttons still use navigateToSourcePage.
+    /// Focus Preview/Reader on a KG source via `sourceRevealDocument` —
+    /// NEVER `detailDocument`/`browserSelection`/sidebar mode (#4834). Used
+    /// by KGFocusState for ordinary row/graph focus and as the client-side
+    /// fallback for a `.preview`/`.both` reveal; explicit `.reader`
+    /// open-source buttons use `navigateToSourcePage` instead, which DOES
+    /// change the selection.
+    ///
+    /// This used to write `detailDocument`, which — because
+    /// `inspectorDocument` falls back to `detailDocument` in some branches
+    /// and `DocumentInspector.inspectorArm` treats a shown document as
+    /// winning over a focused entity — flipped the docked Inspector off the
+    /// entity/claim it was showing on every ordinary KG focus change. That
+    /// flip is exactly what `handleBrowserSelectionChange`'s
+    /// `detailDocument = nil` (on an entity/claim selection, #4850) exists
+    /// to paper over on ITS path; this fixes it at the actual source.
     @MainActor
     func focusKGSourcePreview(_ sourceDocId: String) async {
         let source: Document
@@ -156,14 +180,14 @@ extension ContentView {
         let sourceIsPageChild = source.path?.isEmpty ?? true
         if sourceIsPageChild, let parentId = source.parentId, !parentId.isEmpty {
             do {
-                detailDocument = try await documentStore.documentService.getDocument(parentId)
+                sourceRevealDocument = try await documentStore.documentService.getDocument(parentId)
             } catch {
                 workflowLogger.warning(
                     "focusKGSourcePreview: couldn't fetch parent for \(sourceDocId): \(error.localizedDescription)"
                 )
             }
         } else {
-            detailDocument = source
+            sourceRevealDocument = source
         }
     }
 

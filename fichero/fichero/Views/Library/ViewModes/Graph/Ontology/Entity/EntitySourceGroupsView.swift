@@ -145,10 +145,14 @@ struct EntitySourceGroupsView: View {
                 .font(.callout)
                 .textSelection(.enabled)
                 .environment(\.openURL, OpenURLAction { url in
+                    // #4834: unchanged — reachable only from the currently
+                    // unreachable `EntityDetailView` group (#4828, kept
+                    // pending re-mount, not wired to any live path today);
+                    // `.reader` stated explicitly now that it's required.
                     guard url.scheme == Self.claimLinkScheme,
                           let claimId = url.host ?? url.pathComponents.dropFirst().first,
                           let claim = claims.first(where: { $0.id == claimId }),
-                          let request = ClaimSourceRequest.request(for: claim)
+                          let request = ClaimSourceRequest.request(for: claim, destination: .reader)
                     else { return .discarded }
                     claimSourceNavigationState?.request(request)
                     return .handled
@@ -177,7 +181,7 @@ struct EntitySourceGroupsView: View {
             var str = AttributedString(text.trimmingCharacters(in: .init(charactersIn: ".")))
             // Only link a clause that can actually reach its source — otherwise
             // it reads as tappable and dead-ends.
-            if let id = claim.id, ClaimSourceRequest.request(for: claim) != nil {
+            if let id = claim.id, ClaimSourceRequest.request(for: claim, destination: .reader) != nil {
                 // URLComponents, not a string-built URL: this is an INTERNAL link
                 // scheme for tappable prose, and the raw-networking guards ban
                 // string URL construction outright rather than guessing intent.

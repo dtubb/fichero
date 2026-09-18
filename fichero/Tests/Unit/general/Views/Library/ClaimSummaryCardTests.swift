@@ -20,7 +20,8 @@ final class ClaimSummaryCardTests: XCTestCase {
             charStart: 101,
             charEnd: 127,
             claimId: "claim-42",
-            excerpt: " Paris is the capital of France. "
+            excerpt: " Paris is the capital of France. ",
+            destination: .reader
         )
 
         XCTAssertEqual(request?.documentId, "doc-9")
@@ -38,7 +39,8 @@ final class ClaimSummaryCardTests: XCTestCase {
             charStart: 101,
             charEnd: 127,
             claimId: "claim-42",
-            excerpt: "Paris is the capital of France."
+            excerpt: "Paris is the capital of France.",
+            destination: .reader
         )
 
         XCTAssertNil(request)

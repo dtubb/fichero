@@ -459,6 +459,27 @@ extension ContentView {
             .onChange(of: claimSourceNavigationState.requestID) { _, _ in
                 handleOpenClaimSource()
             }
+            // #4834: a knowledge-surface reveal belongs to ONE entity/claim
+            // focus — when the focus itself changes (a different statement
+            // row, a different claim card), the OLD reveal is stale and
+            // must not outlive it. A new click on the SAME entity/claim
+            // overwrites `sourceRevealDocument` directly and does not fire
+            // this (the id does not change), so an in-place statement
+            // click is not clobbered by its own reveal.
+            .onChange(of: kgFocusState.focusedEntityId) { _, _ in
+                sourceRevealDocument = nil
+            }
+            // Guarded by `revealingClaimId` (see its declaration on
+            // ContentView): the in-flight reveal's OWN `focusClaim` call
+            // fires this same onChange, and a fast (e.g. cached) resolve
+            // could otherwise race its `sourceRevealDocument` set against
+            // this clear. Skip only when the new focus IS the claim the
+            // reveal itself just set; a change to any other claim still
+            // clears normally.
+            .onChange(of: kgFocusState.focusedClaimId) { _, newValue in
+                guard newValue != revealingClaimId else { return }
+                sourceRevealDocument = nil
+            }
             // #4373: a reader page click routes through the SAME selection path
             // a sidebar click uses, so the sidebar, preview and inspector all
             // update as observers rather than through a parallel navigation.

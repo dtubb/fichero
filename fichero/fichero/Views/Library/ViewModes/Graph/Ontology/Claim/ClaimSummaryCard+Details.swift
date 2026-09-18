@@ -298,7 +298,10 @@ extension ClaimSummaryCard {
         // Source-region quick-look (#2105/#3449): the cropped evidence + verbatim
         // span + attribution in a popover, and a Reveal that drives the Preview
         // pane to the page/bbox. Only when we can build a source anchor.
-        if let request = Self.openClaimSourceRequest(for: claim) {
+        // #4834: claim cards are priority-3 (inspector statement rows and
+        // entity digest come first); `.reader` stated explicitly, not this
+        // delivery's scope for `.both`.
+        if let request = Self.openClaimSourceRequest(for: claim, destination: .reader) {
             SourceProvenanceChip(
                 request: request,
                 attribution: ClaimAttribution(claim: claim),
@@ -368,6 +371,7 @@ extension ClaimSummaryCard {
                 .foregroundStyle(.secondary)
             ForEach(rows) { attestation in
                 Button {
+                    // #4834: claim-card row, priority-3, `.reader` stated explicitly.
                     if let request = Self.openClaimSourceRequest(
                         documentId: attestation.documentId,
                         pageLabel: attestation.pageLabel,
@@ -375,7 +379,8 @@ extension ClaimSummaryCard {
                         charEnd: attestation.charEnd,
                         claimId: claim.id,
                         excerpt: attestation.quote,
-                        bbox: attestation.bbox
+                        bbox: attestation.bbox,
+                        destination: .reader
                     ) {
                         claimSourceNavigationState?.request(request)
                     }
@@ -435,12 +440,14 @@ extension ClaimSummaryCard {
                 ForEach(rows) { corroboration in
                     if corroboration.isNavigable, let docId = corroboration.documentId {
                         Button {
+                            // #4834: claim-card row, priority-3, `.reader` stated explicitly.
                             if let request = Self.openClaimSourceRequest(
                                 documentId: docId,
                                 pageLabel: corroboration.pageLabel,
                                 charStart: corroboration.charStart,
                                 charEnd: corroboration.charEnd,
-                                claimId: claim.id
+                                claimId: claim.id,
+                                destination: .reader
                             ) {
                                 claimSourceNavigationState?.request(request)
                             }
@@ -534,7 +541,8 @@ extension ClaimSummaryCard {
         charEnd: Int? = nil,
         claimId: String? = nil,
         excerpt: String? = nil,
-        bbox: [Double]? = nil
+        bbox: [Double]? = nil,
+        destination: SourceDestination
     ) -> ClaimSourceNavigationRequest? {
         guard !documentId.isEmpty else { return nil }
         let cleanedPageLabel = pageLabel?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -546,21 +554,26 @@ extension ClaimSummaryCard {
             pageLabel: cleanedPageLabel?.isEmpty == false ? cleanedPageLabel : nil,
             charStart: charStart,
             charEnd: charEnd,
-            bbox: bbox.flatMap { $0.isEmpty ? nil : $0 }
+            bbox: bbox.flatMap { $0.isEmpty ? nil : $0 },
+            destination: destination
         )
     }
 
     static func openClaimSourceRequest(
-        for claim: Components.Schemas.KnowledgeClaim
+        for claim: Components.Schemas.KnowledgeClaim,
+        destination: SourceDestination
     ) -> ClaimSourceNavigationRequest? {
         // ONE builder, ONE precision rule (F5): delegate to the precision-aware
         // producer so a statement jumps to the same place from every surface —
         // instead of forwarding a span AND a bbox together, which let the same
         // claim highlight differently in the card vs the inspector.
         // (spec: kg-entity-inspector, kg.entity.source.one-anchor-builder / same-anchor)
-        ClaimSourceRequest.request(for: claim)
+        ClaimSourceRequest.request(for: claim, destination: destination)
     }
 
+    /// #4834: unchanged — the claim card's own explicit "open source" button
+    /// is priority 3 in this delivery's ordering (inspector rows and the
+    /// entity digest come first); `.reader` stated explicitly.
     func postOpenClaimSource(for claim: Components.Schemas.KnowledgeClaim) {
         // The claim's source page does NOT have to be in the folder you are
         // looking at (#4666). This used to require the source document to be
@@ -573,7 +586,7 @@ extension ClaimSummaryCard {
         // turned "go to the source" into silence.
         let docId = claim.sourceDocumentId ?? ""
         guard !docId.isEmpty,
-              let request = Self.openClaimSourceRequest(for: claim)
+              let request = Self.openClaimSourceRequest(for: claim, destination: .reader)
         else { return }
         claimSourceNavigationState?.request(request)
     }

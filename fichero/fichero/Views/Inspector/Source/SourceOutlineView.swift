@@ -95,7 +95,8 @@ struct SourceOutlineNode: Identifiable, Hashable {
               let documentId = row.sourceDocumentId,
               !documentId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         else { return nil }
-        return ClaimSourceNavigationRequest(documentId: documentId, pageLabel: row.pageLabel)
+        // #4834: navigational surface (source outline) — `.reader` stated explicitly.
+        return ClaimSourceNavigationRequest(documentId: documentId, pageLabel: row.pageLabel, destination: .reader)
     }
 }
 

@@ -39,12 +39,22 @@ extension ContentView {
     /// switch) with no panes to toggle yet — retires with increment 5.
     nonisolated static func showsPaneToggles(sidebarMode: SidebarMode, compactFlow: Bool) -> Bool {
         guard !compactFlow else { return false }
-        switch sidebarMode {
-        case .library, .chat, .workflows, .automation, .activity:
-            return true
-        case .research:
-            return false
-        }
+        return !isTakeoverMode(sidebarMode)
+    }
+
+    /// Whether `sidebarMode` is still a bespoke takeover with no real panes
+    /// to toggle (#4850/#4834 — extracted out of `showsPaneToggles` so a
+    /// second call site, the claim-source reveal's mode-switch guard, has
+    /// the SAME source of truth rather than a hand-listed duplicate). Mode-
+    /// only, deliberately independent of `compactFlow` — that axis is a
+    /// layout concern, not a statement about whether THIS mode has real
+    /// panes. Today only `.research` (retires with increment 5/5b — see
+    /// `showsPaneToggles`'s own doc comment for the full history). A
+    /// pinning test asserts this is EXACTLY `.research`; when that flips,
+    /// the test fails and forces removal of both this special-case and the
+    /// mode-switch guard it feeds, in the same commit.
+    nonisolated static func isTakeoverMode(_ sidebarMode: SidebarMode) -> Bool {
+        sidebarMode == .research
     }
 
     /// Whether the Workspaces menu is offered. It hosts the Toolbar-Buttons submenu

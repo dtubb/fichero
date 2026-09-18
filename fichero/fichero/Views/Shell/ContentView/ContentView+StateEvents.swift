@@ -16,6 +16,9 @@ extension ContentView {
     /// a persistence adapter (restore-once + write-through), not a second source.
     /// Restores per-folder view mode and drives the inspector from sidebar selection.
     func handleSidebarSelectionChange(_ newFolderId: String?) {
+        // #4834: a real sidebar selection always outranks a knowledge-
+        // surface reveal — clear it unconditionally, restore or not.
+        sourceRevealDocument = nil
         if isRestoringNavigationHistory { return }
         // Either KG collection (entities / claims), per-library or legacy, is a
         // library-wide table, not a folder listing — reset the browse context the
@@ -129,6 +132,9 @@ extension ContentView {
     /// Handles `.onChange(of: browserSelection)`.
     /// Persists browser selection to @SceneStorage.
     func handleBrowserSelectionChange(_ newSelection: Set<String>) {
+        // #4834: a real browser/table selection always outranks a
+        // knowledge-surface reveal.
+        sourceRevealDocument = nil
         // Persist browser selection to @SceneStorage
         if let encoded = try? JSONEncoder().encode(newSelection) {
             browserSelectionData = encoded
@@ -445,25 +451,41 @@ extension ContentView {
     }
 
     /// Handles typed source-open requests from inspector/KG/search surfaces.
-    /// Navigates to a claim's source document with the page scrolled into view.
+    ///
+    /// `.reader` requests NAVIGATE — today's behavior, unchanged except the
+    /// mode switch is now gated on `isTakeoverMode` instead of firing
+    /// unconditionally, so the one remaining bespoke takeover (`.research`)
+    /// is the only mode a reader-destined reveal still switches away from.
+    /// `.preview`/`.both` requests REVEAL (#4834): Preview and/or the
+    /// Reader's transcript show the source, through `sourceRevealDocument`,
+    /// WITHOUT writing the sidebar mode, `browserSelection`/`detailDocument`,
+    /// or the inspector sidebar/pane focus — a knowledge-surface click keeps
+    /// you exactly where you were. Both destinations share ONE
+    /// `locationService.resolve` (inside `revealResolvedSource`) and post to
+    /// BOTH highlight channels — the passage (`postClaimPassageAnchor`, the
+    /// Reader transcript) and the region (`.ficheroNavigateToPage`'s `bbox`,
+    /// the source image) — so a `.both` request always lights both, and a
+    /// `.reader`/`.preview` request lights whichever channel is honest for
+    /// what it asked to change. (#978/#979/#982/#2105/#3449)
     func handleOpenClaimSource() {
-        // Claim card source-doc link → navigate to the document
-        // with the page scrolled into view. The typed request carries
-        // documentId (required) + pageLabel / charStart / charEnd /
-        // claimId (all optional). For now this lights up doc
-        // selection + posts an internal navigation event the
-        // PDF preview will consume to scroll to pageLabel. The
-        // highlight-span overlay lands in a later phase (#995). (#978/#979/#982)
         guard let request = claimSourceNavigationState.currentRequest else { return }
         let docId = request.documentId
-        // Switch to library view if we're in another mode (KG /
-        // Activity / Workflow) — the source preview lives there.
-        if sidebarMode != .library {
-            sidebarMode = .library
+        let isKnowledgeSurface = request.destination != .reader
+
+        if !isKnowledgeSurface {
+            // Navigational surfaces legitimately ask to GO there — switch
+            // out of a bespoke takeover, but never for a knowledge-surface
+            // reveal, which must never move the sidebar.
+            if Self.isTakeoverMode(sidebarMode) {
+                sidebarMode = .library
+            }
+            showInspectorSidebar = true
+            focusedPane = .inspector
         }
-        showInspectorSidebar = true
-        focusedPane = .inspector
         if let claimId = request.claimId {
+            // Focus/highlight state, not selection (KGFocusState's own
+            // doc comment: "intentionally separate from document/sidebar
+            // selection") — safe to update for either destination.
             claimFocusState.selectClaim(
                 claimId: claimId,
                 claimText: request.claimText,
@@ -472,14 +494,23 @@ extension ContentView {
                 charStart: request.charStart,
                 charEnd: request.charEnd
             )
+            if isKnowledgeSurface {
+                revealingClaimId = claimId
+                kgFocusState.focusClaim(
+                    claimId: claimId,
+                    sourceDocumentId: docId,
+                    sourcePageLabel: request.pageLabel
+                )
+            }
         }
         recordClaimPassageAnchor(request)
-        // Resolve page-child source documents to their parent file and
-        // select it — now via the ONE engine route (#3577) instead of the
-        // inline client-side walk. Then forward the SAME page-navigation
-        // request that PDFPageView consumes for scrolling/highlighting.
+        // Resolve page-child source documents to their parent file — now via
+        // the ONE engine route (#3577) instead of the inline client-side
+        // walk — then either navigate or reveal per destination, and post
+        // to both highlight channels either way.
         Task { @MainActor in
             await revealResolvedSource(request)
+            if isKnowledgeSurface { revealingClaimId = nil }
             postClaimPassageAnchor(documentId: docId)
             var info: [String: Any] = ["documentId": docId]
             if let claimId = request.claimId { info["claimId"] = claimId }

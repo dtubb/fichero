@@ -76,7 +76,7 @@ struct ClaimSourceLabelTests {
             sourceCharStart: 10,
             sourceCharEnd: 25
         )
-        let request = ClaimSourceRequest.request(for: c)
+        let request = ClaimSourceRequest.request(for: c, destination: .reader)
         #expect(request?.documentId == "doc-42")
         #expect(request?.claimId == "c1")
     }
@@ -84,6 +84,6 @@ struct ClaimSourceLabelTests {
     @Test("a claim with no source has nowhere honest to navigate")
     func noSourceNoRequest() {
         let c = Components.Schemas.KnowledgeClaim(id: "c1", text: "loose text", sourceDocumentId: nil)
-        #expect(ClaimSourceRequest.request(for: c) == nil)
+        #expect(ClaimSourceRequest.request(for: c, destination: .reader) == nil)
     }
 }

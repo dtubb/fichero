@@ -28,17 +28,20 @@ final class SourceNavigationContractTests: XCTestCase {
         XCTAssertEqual(request.destination, .preview)
     }
 
-    func testDestinationDefaultsToReader() {
-        // Additive default preserves the legacy jump-to-page behaviour: callers
-        // that don't opt into preview still drive the reader.
-        let request = ClaimSourceNavigationRequest(documentId: "doc-1")
+    // #4834: `destination` is now a REQUIRED argument — the memberwise init
+    // no longer compiles without one, so the old "defaults to .reader" case
+    // can no longer exist. Every one of the ~25 construction sites now
+    // states its intent explicitly (spec: kg-readable-representation,
+    // `kg.read.source-request-declares-intent`).
+    func testDestinationHasNoDefaultAndReaderMustBeStatedExplicitly() {
+        let request = ClaimSourceNavigationRequest(documentId: "doc-1", destination: .reader)
         XCTAssertEqual(request.destination, .reader)
         XCTAssertNil(request.bbox)
         XCTAssertNil(request.pageIndex)
     }
 
     func testEquatableDistinguishesBbox() {
-        let base = ClaimSourceNavigationRequest(documentId: "doc-1", bbox: [0, 0, 1, 1])
+        let base = ClaimSourceNavigationRequest(documentId: "doc-1", bbox: [0, 0, 1, 1], destination: .reader)
         var other = base
         other.bbox = [0, 0, 1, 0.5]
         XCTAssertNotEqual(base, other)
@@ -62,7 +65,7 @@ final class SourceNavigationContractTests: XCTestCase {
 
     func testStateRejectsBlankDocumentId() {
         let state = ClaimSourceNavigationState()
-        state.request(ClaimSourceNavigationRequest(documentId: "   "))
+        state.request(ClaimSourceNavigationRequest(documentId: "   ", destination: .reader))
         XCTAssertEqual(state.requestID, 0)
         XCTAssertNil(state.currentRequest)
     }

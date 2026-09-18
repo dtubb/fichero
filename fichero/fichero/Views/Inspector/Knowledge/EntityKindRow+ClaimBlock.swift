@@ -256,7 +256,14 @@ extension EntityKindRow {
                claim: claim,
                sourceDocumentId: sourceDocumentId,
                sourcePageLabel: sourcePageLabel,
-               sourceExcerpt: sourceExcerpt
+               sourceExcerpt: sourceExcerpt,
+               // #4834: this button's own tap calls `navigate(sourceDocumentId)`
+               // directly, not through this request — `request` here only
+               // feeds the hover/long-press provenance POPOVER's Reveal
+               // action below, a distinct interaction from "click the
+               // statement" (`claimExcerptButton`). `.reader` unchanged for
+               // this delivery; not one of the two named priority surfaces.
+               destination: .reader
            ) {
             Button {
                 navigate(sourceDocumentId)
@@ -340,7 +347,11 @@ extension EntityKindRow {
                        claim: claimById[claimId],
                        sourceDocumentId: sourceDocumentId,
                        sourcePageLabel: sourcePageLabel,
-                       sourceExcerpt: excerpt
+                       sourceExcerpt: excerpt,
+                       // #4834 priority-1 surface: literally "click a
+                       // statement" (the claim's own quoted excerpt). Both
+                       // highlight channels, selection unchanged.
+                       destination: .both
                    ) {
                     claimSourceNavigationState?.request(request)
                 }
@@ -416,16 +427,18 @@ extension EntityKindRow {
         claim: Components.Schemas.KnowledgeClaim?,
         sourceDocumentId: String,
         sourcePageLabel: String?,
-        sourceExcerpt: String?
+        sourceExcerpt: String?,
+        destination: SourceDestination
     ) -> ClaimSourceNavigationRequest? {
         if let claim {
-            return ClaimSummaryCard.openClaimSourceRequest(for: claim)
+            return ClaimSummaryCard.openClaimSourceRequest(for: claim, destination: destination)
         }
         return ClaimSummaryCard.openClaimSourceRequest(
             documentId: sourceDocumentId,
             pageLabel: sourcePageLabel,
             claimId: claimId,
-            excerpt: sourceExcerpt
+            excerpt: sourceExcerpt,
+            destination: destination
         )
     }
 }

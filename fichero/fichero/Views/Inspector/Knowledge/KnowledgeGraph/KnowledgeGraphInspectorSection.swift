@@ -54,6 +54,11 @@ struct KnowledgeGraphInspectorSection: View {
     /// Crop fetch seam for the Space-key source quick-look (#3449/#3425). Optional
     /// so the preview is a safe no-op if a host hasn't injected the store.
     @Environment(AnnotationStore.self) var annotationStore: AnnotationStore?
+    // Promoted `private` → internal: textDigestView (in +Views) routes each
+    // digest sentence's click through this — the same request bus
+    // EntityKindRow+ClaimBlock and EntityDigestView use (#4834). Optional so
+    // previews/standalone uses without a host-injected bus still compile.
+    @Environment(ClaimSourceNavigationState.self) var claimSourceNavigationState: ClaimSourceNavigationState?
     // The @State below are promoted `private` → internal: read/written from the
     // +Views / +Toolbar / +Actions extension files.
     @State private var loadState = KnowledgeGraphInspectorLoadState()

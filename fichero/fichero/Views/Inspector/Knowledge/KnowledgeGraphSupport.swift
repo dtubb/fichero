@@ -111,7 +111,13 @@ struct ClaimSourceNavigationRequest: Equatable {
     /// the cropped-source popover and the page-highlight overlay.
     var bbox: [Double]?
     /// Where a reveal should take the user. Ignored by the inline popover.
-    var destination: SourceDestination = .reader
+    /// REQUIRED, no default (#4834): five construction paths silently
+    /// inherited `.reader` before a default existed to remove — a knowledge
+    /// surface (entity/claim statement) and a navigational surface (source
+    /// outline, annotations, artifacts) want different things, and a
+    /// default let that distinction go unstated at half the call sites.
+    /// Every constructor now states its own intent.
+    var destination: SourceDestination
 }
 
 extension SourceDestination {

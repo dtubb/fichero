@@ -25,7 +25,7 @@ final class InspectorNavigationScopingTests: XCTestCase {
         let windowA = ClaimSourceNavigationState()
         let windowB = ClaimSourceNavigationState()
 
-        windowA.request(ClaimSourceNavigationRequest(documentId: "doc-1", bbox: [0, 0, 1, 1]))
+        windowA.request(ClaimSourceNavigationRequest(documentId: "doc-1", bbox: [0, 0, 1, 1], destination: .reader))
 
         XCTAssertEqual(windowA.requestID, 1)
         XCTAssertEqual(windowA.currentRequest?.documentId, "doc-1")

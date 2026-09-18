@@ -136,13 +136,18 @@ extension ForceDirectedGraphView {
             // claimId + document + page (no char span), so this opens the page
             // without a highlight — honest, never a guessed passage. Reuses the
             // SAME cursor the claim card and biography use; no new nav path.
+            // #4834: unchanged for now — the force-graph edge click is a
+            // knowledge surface by the original inventory but not one of
+            // this delivery's two priority surfaces (inspector statement
+            // rows, entity digest); stays `.reader`, stated explicitly.
             if let request = ClaimSourceRequest.request(
                 claimId: hit.edge.claimId,
                 claimText: nil,
                 sourceDocumentId: hit.edge.sourceDocumentId,
                 pageLabel: hit.edge.pageLabel,
                 charStart: nil,
-                charEnd: nil
+                charEnd: nil,
+                destination: .reader
             ) {
                 claimSourceNavigationState?.request(request)
             }

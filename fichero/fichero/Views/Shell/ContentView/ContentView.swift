@@ -201,6 +201,32 @@ struct ContentView: View {
     // Runtime state - full objects for use in views
     @State var viewMode: AppViewMode = .library(nil)
     @State var detailDocument: Document?
+    /// The document a knowledge-surface click (#4834 — an entity/claim
+    /// statement, not a navigational row) wants Preview and Reader to show,
+    /// WITHOUT touching `detailDocument`/`selection`/`sidebarMode` and
+    /// WITHOUT flipping the Inspector off whatever entity/claim it has
+    /// focused. `previewDocument`/`readerDocument` prefer it over
+    /// `detailDocument`; `inspectorDocument` never reads it — the property
+    /// that keeps this from being a second selection. Carries no selection
+    /// semantics: no verb acts on it, `effectiveWorkflowRunSelection`
+    /// ignores it, it is not `@SceneStorage`-persisted, navigation history
+    /// does not record it. Cleared on any real selection change (sidebar,
+    /// browser/table row) and whenever `kgFocusState`'s entity/claim focus
+    /// changes, so it can never go stale or outlive the reveal that set it.
+    @State var sourceRevealDocument: Document?
+    /// The claim id a knowledge-surface reveal is CURRENTLY resolving, set
+    /// synchronously before the reveal's own `kgFocusState.focusClaim(...)`
+    /// call and cleared when the reveal finishes (#4834). Exists for one
+    /// race: `kgFocusState.focusClaim` fires the `.onChange` that clears
+    /// `sourceRevealDocument` (below), and that onChange's exact timing
+    /// relative to the reveal's own async resolve is not something SwiftUI
+    /// or Swift Concurrency promises — a resolve fast enough to finish
+    /// (e.g. a cached location) before the onChange is flushed could have
+    /// its freshly-set `sourceRevealDocument` wiped by a clear meant for a
+    /// DIFFERENT, later focus change. The onChange handlers skip the clear
+    /// when the new focused id is the one the in-flight reveal itself just
+    /// set — a real focus change to a DIFFERENT claim still clears normally.
+    @State var revealingClaimId: String?
     // Per-window instances (NOT `.shared`) so a search / source reveal in one
     // window never drives another (#3437). Injected into the subtree below.
     @State var entitySearchState = EntitySearchState()

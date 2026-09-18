@@ -260,10 +260,13 @@ struct ArtifactsInspectorPane: View {
             inspectedDocument: document,
             documentsById: knownDocumentsById
         )
+        // #4834: navigational surface (artifacts inspector) — keeps today's
+        // behavior, `.reader` stated explicitly now that it's required.
         claimSourceNavigationState?.request(
             ClaimSourceNavigationRequest(
                 documentId: provenance.sourceDocumentId,
-                pageLabel: provenance.pageLabel
+                pageLabel: provenance.pageLabel,
+                destination: .reader
             )
         )
     }

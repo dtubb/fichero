@@ -251,7 +251,9 @@ struct ClaimsLibraryContent: View {
     /// cursor — reusing `ClaimSourceRequest` (no new nav path). A claim with no
     /// honest destination simply doesn't navigate.
     private func openSource(_ claim: Components.Schemas.KnowledgeClaim) {
-        guard let request = ClaimSourceRequest.request(for: claim) else { return }
+        // #4834: Entities/Claims table rows are priority-4, out of this
+        // delivery's scope — `.reader` stated explicitly.
+        guard let request = ClaimSourceRequest.request(for: claim, destination: .reader) else { return }
         cursor?.request(request)
     }
 

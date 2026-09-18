@@ -58,4 +58,15 @@ final class ToolbarTogglePolicyTests: XCTestCase {
         XCTAssertTrue(ContentView.showsWorkspacesMenu(compactFlow: false))
         XCTAssertFalse(ContentView.showsWorkspacesMenu(compactFlow: true))
     }
+
+    /// #4834: `isTakeoverMode` was extracted out of `showsPaneToggles` so a
+    /// second call site (the claim-source reveal's mode-switch guard) shares
+    /// the SAME source of truth instead of a hand-listed duplicate. This
+    /// pins it to exactly `.research` — it must fail loudly, not silently
+    /// pass a wider surface through, the day the last takeover retires.
+    func testIsTakeoverModeIsExactlyResearch() {
+        for mode in SidebarMode.allCases {
+            XCTAssertEqual(ContentView.isTakeoverMode(mode), mode == .research, "\(mode)")
+        }
+    }
 }

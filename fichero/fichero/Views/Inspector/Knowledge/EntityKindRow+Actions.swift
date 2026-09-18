@@ -55,7 +55,11 @@ extension EntityKindRow {
                claim: claimById[claimId],
                sourceDocumentId: sourceDocumentId,
                sourcePageLabel: claimById[claimId]?.sourcePageLabel ?? item.sourcePageLabel,
-               sourceExcerpt: nil
+               sourceExcerpt: nil,
+               // #4834: a statement row in the Inspector is a KNOWLEDGE surface —
+               // double-click and "Open Source" reveal in both panes and leave
+               // the selection and the Inspector's entity alone.
+               destination: .both
            ) {
             claimSourceNavigationState.request(request)
             return

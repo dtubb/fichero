@@ -26,10 +26,23 @@ extension KnowledgeGraphInspectorSection {
                             .foregroundStyle(.secondary)
 
                         ForEach(entries) { entry in
-                            // Pre-rendered in recomputeGrouped (#3863).
+                            // Pre-rendered in recomputeGrouped (#3863). Each
+                            // sentence in `entry.attributed` carries its own
+                            // claim-id link (#4834/#4852) — this is the
+                            // maintainer's literal click target, not the
+                            // three small per-row buttons beside it.
                             Text(entry.attributed)
                                 .font(bodyTextFont)
                                 .fixedSize(horizontal: false, vertical: true)
+                                .environment(\.openURL, OpenURLAction { url in
+                                    guard url.scheme == KnowledgeGraphInspectorSection.digestClaimLinkScheme,
+                                          let claimId = url.host,
+                                          let claim = claimsById[claimId],
+                                          let request = ClaimSourceRequest.request(for: claim, destination: .both)
+                                    else { return .discarded }
+                                    claimSourceNavigationState?.request(request)
+                                    return .handled
+                                })
                         }
                     }
                 }
@@ -119,7 +132,10 @@ extension KnowledgeGraphInspectorSection {
             guard claimSelection.count == 1,
                   let id = claimSelection.first,
                   let claim = claimsById[id],
-                  ClaimSummaryCard.openClaimSourceRequest(for: claim) != nil else {
+                  // #4834: existence check only, feeds the Quick Look popover;
+                  // its own Reveal calls `onNavigateToSource` directly, not
+                  // this request's destination — `.reader` stated explicitly.
+                  ClaimSummaryCard.openClaimSourceRequest(for: claim, destination: .reader) != nil else {
                 return .ignored
             }
             spaceQuickLookClaimId = id
@@ -139,7 +155,7 @@ extension KnowledgeGraphInspectorSection {
     private var spaceQuickLookPopover: some View {
         if let id = spaceQuickLookClaimId,
            let claim = claimsById[id],
-           let request = ClaimSummaryCard.openClaimSourceRequest(for: claim) {
+           let request = ClaimSummaryCard.openClaimSourceRequest(for: claim, destination: .reader) {
             SourceProvenanceCard(
                 request: request,
                 attribution: ClaimAttribution(claim: claim),

@@ -358,7 +358,10 @@ struct EntityDigestContent: View {
                         guard url.scheme == Self.claimLinkScheme,
                               let claimId = url.host ?? url.pathComponents.dropFirst().first,
                               let claim = claims.first(where: { $0.id == claimId }),
-                              let request = ClaimSourceRequest.request(for: claim)
+                              // #4834 priority-2 surface: the biography
+                              // sentence IS the statement; both highlight
+                              // channels, selection unchanged.
+                              let request = ClaimSourceRequest.request(for: claim, destination: .both)
                         else { return .discarded }
                         claimSourceNavigationState?.request(request)
                         return .handled
@@ -461,8 +464,9 @@ struct EntityDigestContent: View {
                 .frame(minHeight: 80, maxHeight: 280)
                 .onChange(of: selectedAppearsRowId) { _, newSelection in
                     guard let newSelection else { return }
+                    // #4834: a document pick, not a statement click — `.reader` stated explicitly.
                     claimSourceNavigationState?.request(
-                        ClaimSourceNavigationRequest(documentId: newSelection)
+                        ClaimSourceNavigationRequest(documentId: newSelection, destination: .reader)
                     )
                 }
             }
@@ -525,7 +529,11 @@ struct EntityDigestContent: View {
                 .onChange(of: selectedClaimRowId) { _, newSelection in
                     guard let newSelection,
                           let claim = claims.first(where: { $0.id == newSelection }),
-                          let request = ClaimSourceRequest.request(for: claim) else { return }
+                          // #4834: this list mirrors SourceOutlineView's
+                          // shape (its own comment above) — a provenance ROW
+                          // selection, not the biography sentence named as
+                          // priority-2; `.reader` stated explicitly.
+                          let request = ClaimSourceRequest.request(for: claim, destination: .reader) else { return }
                     claimSourceNavigationState?.request(request)
                 }
             }

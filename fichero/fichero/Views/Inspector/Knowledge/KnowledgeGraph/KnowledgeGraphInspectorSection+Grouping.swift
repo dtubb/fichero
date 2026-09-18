@@ -32,13 +32,15 @@ extension KnowledgeGraphInspectorSection {
 
         textDigest = groups.map { kind, items in
             let entries = items.map { item -> TextDigestEntry in
-                // SwiftUI markdown bold for the entity name — rendered ONCE here, not
-                // per render inside the digest ForEach (#3863).
-                let raw = Self.digestMarkup(
+                // Bold entity name + one clickable sentence per claim —
+                // rendered ONCE here, not per render inside the digest
+                // ForEach (#3863).
+                let itemClaimIds = [item.claimId] + item.extraClaims.map(\.claimId)
+                let itemClaims = itemClaimIds.compactMap { byId[$0] }
+                let attributed = Self.digestAttributedString(
                     displayName: item.displayName,
-                    contexts: [item.context] + item.extraClaims.map(\.context)
+                    claims: itemClaims
                 )
-                let attributed = (try? AttributedString(markdown: raw)) ?? AttributedString(raw)
                 return TextDigestEntry(id: item.id, displayName: item.displayName, kind: kind, attributed: attributed)
             }
             return (kind, entries)
@@ -54,10 +56,62 @@ extension KnowledgeGraphInspectorSection {
         }
     }
 
-    /// The digest line's markdown: the entity name bolded, then its contexts joined
-    /// with "; ". Pure so the format is testable without rendering. (#3863)
-    static func digestMarkup(displayName: String, contexts: [String]) -> String {
-        "**\(displayName)** \(contexts.joined(separator: "; "))"
+    /// Custom scheme for the digest's per-sentence claim links; never leaves
+    /// the view. Same local-per-view convention as `EntityDigestView` and
+    /// `EntitySourceGroupsView` — each surface owns its own scheme constant
+    /// and `openURL` handler rather than sharing one across files.
+    static let digestClaimLinkScheme = "fichero-claim"
+
+    /// The digest line: the entity name bolded, then ONE sentence per claim,
+    /// each its own clickable run linking to that claim's id (#4834/#4852 —
+    /// the maintainer clicked a sentence in this exact text and nothing
+    /// happened; the three small per-row buttons beside it were never what
+    /// he was clicking).
+    ///
+    /// Each sentence is `ClaimSummaryCard.svoTriple(for:)`'s subject/verb/
+    /// object — the SAME resolver the entity-digest biography uses since
+    /// b6052b42a — never a guessed subject and never the page/group entity's
+    /// displayName. A claim with no COMPLETE triple (subject, verb and
+    /// object all present, neither an opaque id) is skipped, not padded and
+    /// not rendered as a fragment.
+    ///
+    /// Whole sentences only, joined with a single space (#4852): the old
+    /// `digestMarkup` joined raw `context` strings — a mix of verb-phrase
+    /// fragments ("es llamado Antonio...") and already-punctuated full
+    /// sentences — with "; ", which produced ".;" wherever a sentence met
+    /// the separator. `svoTriple` sentences always end in one period, so a
+    /// space is the only separator that can ever be correct here.
+    static func digestAttributedString(
+        displayName: String,
+        claims: [Components.Schemas.KnowledgeClaim]
+    ) -> AttributedString {
+        let bolded = (try? AttributedString(markdown: "**\(displayName)**")) ?? AttributedString(displayName)
+        var result = bolded
+        for claim in claims {
+            guard let svo = ClaimSummaryCard.svoTriple(for: claim), let claimId = claim.id else { continue }
+            var sentence = AttributedString(" \(svo.subject) \(svo.verb) \(svo.object).")
+            // URLComponents, not a string-built URL: an INTERNAL link scheme
+            // for tappable prose — same construction EntityDigestView and
+            // EntitySourceGroupsView use for their claim links.
+            var linkParts = URLComponents()
+            linkParts.scheme = digestClaimLinkScheme
+            linkParts.host = claimId
+            if let url = linkParts.url {
+                sentence.link = url
+                // Prose, not a wall of hyperlink-blue: body color + a subtle
+                // underline marks tappability, mirroring the biography.
+                sentence.foregroundColor = .primary
+                sentence.underlineStyle = .single
+                // VoiceOver reads a link's accessibility label from the run's
+                // plain text by default; nothing extra is needed here — the
+                // sentence text itself IS the label. Keyboard focus for an
+                // AttributedString link inside `Text` is handled by SwiftUI's
+                // native link-in-text focus machinery (the same path the
+                // biography and source-groups links already rely on).
+            }
+            result += sentence
+        }
+        return result
     }
 
     /// Build the visible, sorted `(kind, [GroupedItem])` sections from the canonical

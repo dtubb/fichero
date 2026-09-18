@@ -1067,7 +1067,7 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
             sourceExcerpt: "the verbatim quote"
         )
 
-        let request = ClaimSummaryCard.openClaimSourceRequest(for: claim)
+        let request = ClaimSummaryCard.openClaimSourceRequest(for: claim, destination: .reader)
 
         XCTAssertNotNil(request, "A claim with a source document should yield a provenance anchor")
         XCTAssertEqual(request?.documentId, "doc-9")
@@ -1084,7 +1084,7 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
             text: "Unsourced assertion"
         )
 
-        XCTAssertNil(ClaimSummaryCard.openClaimSourceRequest(for: claim))
+        XCTAssertNil(ClaimSummaryCard.openClaimSourceRequest(for: claim, destination: .reader))
     }
 
     // MARK: - Inline S/V/O editing (#3463)

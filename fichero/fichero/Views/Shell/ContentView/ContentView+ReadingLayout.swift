@@ -251,7 +251,10 @@ extension ContentView {
 
     /// Resolved parent-PDF document id for the currently previewed document, or nil.
     var detailPDFDocumentId: String? {
-        guard let doc = detailDocument else { return nil }
+        // #4834: `previewDocument` prefers a knowledge-surface reveal over
+        // `detailDocument` — same reason `widescreenCanvasPaneContent`'s
+        // canvas branch reads it instead of `detailDocument` directly.
+        guard let doc = previewDocument else { return nil }
         guard CanvasDocumentPolicy.shouldUsePDFCanvas(for: doc) else { return nil }
         if doc.fileType == .pdf { return doc.id }
         if doc.docType == .page {
