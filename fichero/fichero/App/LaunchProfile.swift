@@ -7,8 +7,12 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "LaunchP
 /// The launch timeline (#3946), emitted twice for two different readers:
 ///
 /// **A log line, for `log stream`** — every milestone carries elapsed-since-
-/// process-start, so one command answers "where did the 23 seconds go", and a
-/// phase duration is just the gap between two lines:
+/// process-start, so one command answers "where did the launch time go", and a
+/// phase duration is just the gap between two lines. (#4690: the dev-tree
+/// `import fichero_server.api.main` measures ~2.5s cold / ~1.5s warm; the
+/// BUNDLED engine's cold start is not yet measured — this timeline plus
+/// `_api_stamp()` on the engine side exist to answer that, not to confirm a
+/// number recalled from an earlier comment.)
 ///
 ///     log stream --info --predicate 'subsystem == "app.fichero.fichero"'
 ///
@@ -98,9 +102,18 @@ enum LaunchProfile {
     /// measures on its own.
     @MainActor private static var launchState: OSSignpostIntervalState?
 
+    /// Second interval, same start as `launchState`, closed at engine-ready
+    /// instead of shell-mount (#4690 measurement trap: `endLaunch` fires when
+    /// `ContentView`'s first frame appears, which is BEFORE the engine answers —
+    /// our own launch metric was excluding the expensive half). This one closes
+    /// at `markReady()` so "launch" duration actually covers the engine cold
+    /// start, not just SwiftUI shell-mount.
+    @MainActor private static var launchToEngineReadyState: OSSignpostIntervalState?
+
     @MainActor static func beginLaunch() {
         guard launchState == nil else { return }
         launchState = beginPhase("launch")
+        launchToEngineReadyState = beginPhase("launch-to-engine-ready")
     }
 
     /// Idempotent: only the FIRST frame closes the launch. `onAppear` fires again
@@ -110,6 +123,15 @@ enum LaunchProfile {
         guard let state = launchState else { return }
         launchState = nil
         endPhase("launch", state)
+    }
+
+    /// Closes the engine-ready interval — call once, right after `markReady()`.
+    /// Idempotent for the same reason as `endLaunch`: a heartbeat-recovery re-mark
+    /// must not re-close (or double-emit) this interval.
+    @MainActor static func endLaunchToEngineReady() {
+        guard let state = launchToEngineReadyState else { return }
+        launchToEngineReadyState = nil
+        endPhase("launch-to-engine-ready", state)
     }
 
     /// The kernel's start time for this process. Reading our OWN pid is permitted

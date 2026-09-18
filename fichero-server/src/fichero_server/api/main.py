@@ -20,8 +20,22 @@ import hashlib
 import hmac
 import os
 import sys
+import time
 import warnings
 from importlib.metadata import PackageNotFoundError, version as package_version
+
+# Sub-splits within this module's own import (route imports, tiered-route
+# registration, lifespan pre-yield) — see #4690. Relative to this module's
+# own import start, not __main__'s epoch; __main__'s "FastAPI app imported"
+# stamp already covers the whole of this file's import cost, this just opens
+# that interval up.
+_API_MAIN_EPOCH = time.monotonic()
+
+
+def _api_stamp(label: str) -> None:
+    logging.getLogger(__name__).info(
+        "engine-launch: %s @ %.0fms (api.main)", label, (time.monotonic() - _API_MAIN_EPOCH) * 1000
+    )
 
 # Disable tokenizers parallelism so the Rust tokenizer's thread pool
 # doesn't deadlock across a fork (subprocess spawns count). Must be set
@@ -789,7 +803,9 @@ async def lifespan(app: FastAPI):
         )
         for warning in remote_backend_status.warnings:
             logger.warning("Remote backend setup: %s", warning)
+    _api_stamp("legacy-state migration start")
     migrated_entries = migrate_legacy_server_state()
+    _api_stamp("legacy-state migration complete")
     if migrated_entries:
         logger.info(
             "Migrated %d legacy engine-state entries into canonical path",
@@ -809,12 +825,14 @@ async def lifespan(app: FastAPI):
     # the way through packaging. A missing capability announces itself now.
     _log_fm_bridge_presence()
 
-    # Seed built-in providers (Apple Vision/Transcribe) on first run
-    _seed_builtin_providers()
-
-    # One-time cleanup: collapse any duplicate provider rows left over
-    # from the pre-fix POST /providers behaviour (#704).
-    _collapse_duplicate_providers()
+    # #4690: provider seed/collapse moved off the pre-yield path, onto the
+    # existing warm-up executor below (`_warm_workflow_stack`), which already
+    # runs AFTER bind (#3950's rule: nothing blocking runs before the socket
+    # can answer). Both are blocking DuckDB I/O and both are already
+    # exception-safe internally (never block or fail startup), so moving them
+    # is a pure reordering — same DB writes, same idempotent effect, just no
+    # longer gating `yield` (and therefore no longer gating when uvicorn
+    # finishes startup and health can answer).
 
     # Pairing codes are process-local; warn if a non-standard launcher exposes
     # a detectable multi-worker configuration.
@@ -854,6 +872,21 @@ async def lifespan(app: FastAPI):
     # and would starve the event loop it ran on — the same mistake, and the
     # same fix, as Bonjour above (#3920).
     def _warm_workflow_stack() -> None:
+        # #4690: seed built-in providers (Apple Vision/Transcribe) and collapse
+        # any #704 duplicate provider rows here, off the pre-yield path — both
+        # are blocking DuckDB I/O with their own internal exception handling
+        # (never raise), so running them first on this executor thread keeps
+        # them off the bind path without changing their effect.
+        #
+        # `_seed_builtin_providers()` makes the first `get_app_db()` call of
+        # the process, which is also where app.duckdb actually opens (module
+        # import only constructs the empty DatabaseManager, no connection) —
+        # bracket it, since a slow first DB open was one of #4690's suspects
+        # for where the ~23s figure could be hiding.
+        _api_stamp("app db open + provider seed/collapse start")
+        _seed_builtin_providers()
+        _collapse_duplicate_providers()
+        _api_stamp("app db open + provider seed/collapse complete")
         try:
             # One call: _ensure_tools_loaded() imports the tools package, which
             # is what pulls langgraph, MCP and Quartz behind it. Going through
@@ -912,6 +945,7 @@ async def lifespan(app: FastAPI):
         None, _warm_workflow_stack
     )
 
+    _api_stamp("lifespan pre-yield complete")
     yield
     signal_sse_shutdown()
     # #4553 follow-up: the WORKFLOW SSE stream never participated in shutdown.
@@ -1600,6 +1634,8 @@ from fichero_server.api.routes.workflow import (  # noqa: E402
     workflows,
 )
 
+_api_stamp("route imports complete")
+
 RouteSpec = tuple[object, str, list[str]]
 
 _CORE_ROUTE_SPECS: list[RouteSpec] = [
@@ -1832,6 +1868,7 @@ def register_tiered_routes(feature_tier: str | None = None) -> str:
 
 
 ACTIVE_FEATURE_TIER = register_tiered_routes()
+_api_stamp("register_tiered_routes() complete")
 
 
 def tier_hidden_prefix(path: str, active_tier: str) -> tuple[str, str] | None:

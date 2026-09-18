@@ -231,8 +231,13 @@ extension EmbeddedBackendService {
 
     /// `releaseEmbedded`: spawn the bundled engine, app-authoritative token
     /// (#2862). The ONLY strategy that spawns and manages a lifecycle.
-    /// Briefcase-bundled engine cold-starts in ~25s on Apple Silicon (heavy ML
-    /// imports + DB init); 90s gives margin on slower I/O and contended startup.
+    /// Briefcase-bundled engine cold start is heavy ML imports + DB init, and
+    /// is NOT yet measured (#4690: the "~25s" this comment used to cite was
+    /// never actually measured — it propagated from an earlier comment; what
+    /// IS measured is the dev-tree `import fichero_server.api.main`, ~2.5s
+    /// cold / ~1.5s warm, which does not include the bundle's own packaging
+    /// overhead). 90s gives margin on slower I/O and contended startup
+    /// regardless of what the real bundled number turns out to be.
     private func spawnAndAdoptEmbeddedEngine() async throws {
         logger.info("Starting embedded backend...")
         status = .starting

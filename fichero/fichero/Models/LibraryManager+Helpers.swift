@@ -438,7 +438,10 @@ extension LibraryManager {
     /// Initialize the backend database for a library
     func initializeBackendDatabase(for library: LibraryReference) async {
         do {
-            _ = try await library.apiClient.healthCheck()  // generated health_check op (#3030)
+            // #4690: no health GET before this — readiness (health + auth) was
+            // already proven by the connect path that got us here (markReady
+            // does not flip until an authenticated /api/registry has 200'd),
+            // so this was a second, redundant round trip per library.
             // Actually initialize: POST /api/library (idempotent) runs the
             // engine's first-open work — migrations, workflow seeding —
             // HERE, in a call named for it. Before this, the name was a lie
@@ -463,25 +466,51 @@ extension LibraryManager {
         libraryManagerLogger.info("⏱ loadLibraryData documents loaded (\(docCount) items)")
 
         guard !Task.isCancelled else { return }
-        if FeatureManager.shared.isVisible(.workflows) {
-            await library.workflowStore.loadWorkflows()
-            libraryManagerLogger.info("⏱ loadLibraryData workflows loaded")
-        }
 
-        guard !Task.isCancelled else { return }
-        if FeatureManager.shared.isVisible(.chat) {
-            try? await library.conversationService.loadConversations()
-            libraryManagerLogger.info("⏱ loadLibraryData conversations loaded")
-        }
-
-        guard !Task.isCancelled else { return }
-        if FeatureManager.shared.isVisible(.modelComparison) {
-            await library.modelComparisonStore.loadHistory()
-            libraryManagerLogger.info("⏱ loadLibraryData comparisons loaded")
-        }
-
-        guard !Task.isCancelled else { return }
-        try? await library.savedSearchService.loadSavedSearches()
+        // #4690: these four loads are independent of each other (workflows,
+        // conversations, comparisons, saved searches all read different
+        // endpoints) — was four serial round trips per library, now overlapped
+        // so the slowest one sets the cost instead of their sum. A cancelled
+        // parent task still cancels these `async let` children (structured
+        // concurrency), so the per-call cancellation guards above did not need
+        // repeating here.
+        // Each closure below is inferred `() async -> Void` because it awaits
+        // internally — but calling an async closure is itself an async call
+        // and needs its own `await` at the `()` invocation, same as calling
+        // any other async function. `async let` gives the BINDING an implicit
+        // child-task context; it does not exempt a nested call from that rule.
+        //
+        // `FeatureManager.shared.isVisible(...)` is read HERE, on the caller's
+        // (Main) actor, once per gate — not inside the closures. Each closure
+        // runs in its own async-let child task, so a read from in there would
+        // be a cross-actor hop (implicitly async) instead of the plain
+        // synchronous check it is; capturing the already-resolved Bool avoids
+        // that hop entirely.
+        let showWorkflows = FeatureManager.shared.isVisible(.workflows)
+        let showChat = FeatureManager.shared.isVisible(.chat)
+        let showModelComparison = FeatureManager.shared.isVisible(.modelComparison)
+        async let workflowsLoaded: Void = await {
+            if showWorkflows {
+                await library.workflowStore.loadWorkflows()
+                libraryManagerLogger.info("⏱ loadLibraryData workflows loaded")
+            }
+        }()
+        async let conversationsLoaded: Void = await {
+            if showChat {
+                try? await library.conversationService.loadConversations()
+                libraryManagerLogger.info("⏱ loadLibraryData conversations loaded")
+            }
+        }()
+        async let comparisonsLoaded: Void = await {
+            if showModelComparison {
+                await library.modelComparisonStore.loadHistory()
+                libraryManagerLogger.info("⏱ loadLibraryData comparisons loaded")
+            }
+        }()
+        async let savedSearchesLoaded: Void = await {
+            try? await library.savedSearchService.loadSavedSearches()
+        }()
+        _ = await (workflowsLoaded, conversationsLoaded, comparisonsLoaded, savedSearchesLoaded)
         libraryManagerLogger.info("⏱ loadLibraryData exit — library: \(library.displayName)")
     }
 }

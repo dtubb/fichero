@@ -12,8 +12,15 @@ extension EmbeddedBackendService {
     /// How long a SPAWNED engine may stay alive without ever serving before we
     /// stop believing it. This is an INSANITY cap for a hung process, not a
     /// budget the engine is expected to fit inside: a real cold start is import
-    /// + lifespan + bind (~23s measured, and slower on a busy machine or a cold
-    /// file cache). Nothing normal should ever come near it.
+    /// + lifespan + bind, and slower still on a busy machine or a cold file
+    /// cache. (#4690: the "~23s" this comment used to cite was never actually
+    /// measured — it propagated from an earlier comment. What IS measured: the
+    /// dev-tree `import fichero_server.api.main` costs ~2.5s cold / ~1.5s warm;
+    /// the BUNDLED engine's cold start — the number this cap should really be
+    /// sized against — is not yet measured. The `_api_stamp()` timeline plus
+    /// this file's own milestones exist to get that number.) Nothing normal
+    /// should ever come near this cap regardless of what that number turns out
+    /// to be.
     static let spawnedEngineInsanityCap: TimeInterval = 300
 
     /// One step of the spawned-engine wait, as a pure decision (#3930).

@@ -200,10 +200,12 @@ extension EmbeddedBackendService {
 
         // #3936: the subprocess spawns the ~1GB engine and blocks on
         // `waitUntilExit()` for ~2.74s. On a cache HIT (above) we skip it, but on a
-        // MISS — every user's first launch, and EVERY dev launch (the mtime-keyed
-        // cache invalidates on each engine rebuild) — it used to freeze the main
-        // actor and stall first frame. Run it OFF the main actor; only the cheap
-        // cache lookup + pin re-derivation stay on main.
+        // MISS — every user's first launch, and any launch of an engine whose
+        // bundle version changed (the cache key is bundle-version keyed since
+        // #4038; mtime+size is only the fallback fingerprint when no version can
+        // be read) — it used to freeze the main actor and stall first frame. Run
+        // it OFF the main actor; only the cheap cache lookup + pin re-derivation
+        // stay on main.
         let material = try await Task.detached(priority: .userInitiated) {
             try Self.runEngineTLSPrep(
                 executablePath: executablePath,

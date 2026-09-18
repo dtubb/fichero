@@ -82,8 +82,19 @@ extension AppState {
         recordActiveEndpoint()
         backendAccessError = nil
         engine.markReady()
-        await loadProviders()
-        await verifyEmbeddedEngineVersion()
+        LaunchProfile.milestone("markReady")
+        LaunchProfile.endLaunchToEngineReady()
+        // Fire-and-forget (#4690): neither call gates anything the window needs.
+        // `loadProviders()` only populates the Providers list/first-run-setup
+        // flag (Settings ▸ Providers, not the library restore this method's
+        // caller is waiting on), and `verifyEmbeddedEngineVersion()` is
+        // explicitly a post-markReady correctness *report* (see its doc
+        // comment) — both were serial and awaited BEFORE library restore,
+        // adding their round trips to the critical path for no ordering reason.
+        Task { [weak self] in
+            await self?.loadProviders()
+            await self?.verifyEmbeddedEngineVersion()
+        }
     }
 
     /// Ask the engine that just became ready which version it is, and say so

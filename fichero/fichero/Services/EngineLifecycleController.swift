@@ -306,7 +306,12 @@ final class EngineLifecycleController {
         // Every connect path funnels through here (start, retry, auto-restart),
         // which is why it is the hook: reusing the existing supervisor rather
         // than adding a second mechanism that would have to be remembered.
-        await supplyProviderKeysToEngine()
+        // #4690: provider keys are independent of grants/restore — they gate
+        // nothing the library restore below needs — so they run concurrently
+        // with the grants-then-restore chain instead of serially before it.
+        // Grants must still precede restore (a sandboxed library open needs
+        // its bookmark re-sent first), so that ordering is unchanged.
+        async let keysSupplied: Void = supplyProviderKeysToEngine()
         #if os(macOS)
         // Re-send every persisted security-scoped bookmark NOW that the
         // engine is authenticated (2026-08-08): the launch-time grant
@@ -324,6 +329,7 @@ final class EngineLifecycleController {
         await libraryManager.refreshAfterBackendBecameReady()
         let restorationMs = Date().timeIntervalSince(restorationStart) * 1000
         logger.info("⏱ post-ready library restoration: \(restorationMs, format: .fixed(precision: 1))ms")
+        await keysSupplied
     }
 
     /// A process we didn't spawn holds :8765 → surface the in-window decision
