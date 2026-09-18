@@ -145,6 +145,29 @@ fallback, already on). The rest ship off-by-default, one toggle away.
 - `kg.enrich.provenance` — every enriched value is authority-sourced + provenance-tagged
   with WHICH source (rides #4636), never indistinguishable from hand/AI values; a value can
   carry several `sameAs` ids at once (Wikidata + VIAF + GeoNames).
+- `kg.enrich.geocode-place-entities` — **[GAP]** (#4600) location entities carry no
+  coordinates today (a Marshall-diary test found 281 unresolved place entities in one year
+  alone) — a typed geo attribute (lat/lon + precision + source, not a dict-of-`Any`) plus a
+  geocoding pass that resolves a canonical place name against an offline gazetteer subset
+  (GeoNames, bundled for the sandboxed engine, no network dependency for the common case) —
+  `Nominatim`/online GeoNames above are the enrichment-source path; this is specifically the
+  OFFLINE first-pass attribute + geocode that a Map view can render without live network
+  access. Distinct from `kg.enrich.per-type`'s source-selection UI.
+- `kg.enrich.imported-vs-extracted-layers` — **[GAP]** (#1674) imported entities (W3C/IIIF)
+  and extracted entities (spaCy/local, Apple Vision, LLM) must not collapse into one
+  indistinguishable set — each entity records which layer/pipeline produced it, so a user can
+  see provenance and choose what to trust, the same spirit as `kg.enrich.provenance` above but
+  for the entity's ORIGIN pipeline rather than an authority-enrichment source.
+- `kg.enrich.ontology-layer` — **[GAP]** (#1678) an ontology layer (proposed classes, types,
+  relationships, higher-order structures) that consumes REVIEWED entities/claims, persists its
+  own outputs with provenance and review state, and is inspectable/acceptable/rejectable
+  before Catalogue or anything else consumes it — kept separate from Catalogue/entity
+  extraction rather than hidden inside them.
+- `kg.enrich.graphrag-evaluation` — **[GAP, parked]** (#740) parked research question, not
+  committed to a milestone build: whether a laptop-friendly community-summary GraphRAG
+  (nano-graphrag pattern) adds enough value over hybrid retrieval + KG entity expansion to
+  justify its added indexing cost, at Fichero's local-model/corpus-size constraints. Filed so
+  it isn't forgotten, not because it's scheduled.
 
 ### C. Surface the enrichment/prediction UX everywhere
 - `kg.enrich.ux` [PARTIAL] (#4759, → #4828) — Wikidata enrich preview/import + PyKEEN predictions have

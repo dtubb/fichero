@@ -306,6 +306,20 @@ refs), `run_comparison.py`/`model_comparison.py` (the Compare Models feature).
   has regrown near-duplicate presets (e.g. multiple topologically-identical
   transcription presets; Catalogue exists in three shapes) — a pruning pass is
   design work, not a bug fix (2026-07-29 review F15). (#4738).
+- `workflows.defaults.transcribe-family-consistent-ensemble-pattern` — **[GAP]** the
+  transcribe preset family should share one pattern where the input is hard: cross-model
+  ensemble → critical review surfacing disagreement → resolve only the disputed spans →
+  keep uncertainty visible with provenance. Today each accuracy-critical transcriber
+  (Manuscript, Paleography, HTR, Auto-Detect, Spanish Script v1/v2) applies review/ensemble
+  ad hoc rather than a shared, documented graph shape; the plain/clean-input presets
+  (Transcribe, Transcribe Typescript, Clean Up Text) correctly stay simple and are not in
+  scope for this behavior. ISSUE: #3906.
+- `workflows.defaults.ensemble-workflow-validated-end-to-end` — **[GAP]** the paleography
+  ensemble workflow (the first concrete instance of the pattern above) needs a recorded,
+  numeric end-to-end validation, not just a passing test: gold-standard CER against a
+  paleographer-verified page, a real dispute-rate measurement on a harder (blotted/
+  procesal-encadenada) page, and a cheap-tier ($vision_small local model) calibration
+  measurement — with the numbers written into the workflow's own notes. ISSUE: #3905.
 - `workflows.defaults.chains-not-persisted` — **[GAP]** workflow chains
   assembled interactively are in-memory only — lost on restart, and can leak
   across libraries/users. ISSUE: #3181.

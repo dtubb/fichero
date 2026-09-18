@@ -56,7 +56,13 @@ Surfaces: `EntitiesLibraryContent` / `EntitiesTableView`, `ClaimsLibraryContent`
   `KGInspectorCRUDUITests`.
 - `kg.tables.entity.delete` [OK] — delete removes the entity and its claim links, undoable.
   Pinned: `KGInspectorCRUDUITests`.
-- `kg.tables.entity.curate` [PARTIAL] (implemented, unpinned; #4801) — bless / reject / merge stay.
+- `kg.tables.entity.curate` [PARTIAL] (implemented, unpinned; #4801, → #1765, → #1786) — bless
+  / reject / merge stay. → #1786 asked for entity rename + "Add entity" specifically — both
+  are now [OK] (`kg.tables.entity.rename-inline`/`.create` above); kept open as a verify-close
+  candidate rather than closed by this pass, since curate (bless/reject/merge) itself is still
+  only [PARTIAL]. → #1765 is the broader origin ask (approve/reject/edit entities AND claims,
+  `curation_state` end-to-end) — its "also in WebKit" clause is moot now the KG browser has
+  retired (#4828); what remains open is the inspector-only half this behavior tracks.
 
 ### Unreachable since the KG browser retired (#4828) — awaiting a re-mount-or-retire decision
 
@@ -65,16 +71,25 @@ retired; each is KEPT (not dead code — a feature whose entry point retired is 
 an unused renderer), pending a decision on where it re-mounts. None of these are built or
 tested against a NEW entry point yet — each stays [GAP] until re-mounted.
 
-- `kg.entity.menu.merge` — **[GAP]** (#4828) `EntityMergeSheet` merges duplicate entities.
-  Cross-references `kg.tables.entity.curate` above (#4801) rather than duplicating it — the
-  merge CAPABILITY is the same one that behavior already tracks; this entry is about the
-  sheet's own re-mount location specifically.
-- `kg.entity.menu.split` — **[GAP]** (#4828) `EntitySplitSheet` splits a conflated entity. Not
-  named in any of the three KG specs before this pass.
-- `kg.claim.contradiction-triage` — **[GAP]** (#4828) `ContradictionTriageSheet` triages
-  contradicting claims. Not named before this pass.
-- `kg.claim.review-queue` — **[GAP]** (#4828) `ClaimReviewQueueSheet`, a review queue for
-  unreviewed claims. Not named before this pass.
+- `kg.entity.menu.merge` — **[GAP]** (#4828, → #1675) `EntityMergeSheet` merges duplicate
+  entities. Cross-references `kg.tables.entity.curate` above (#4801) rather than duplicating
+  it — the merge CAPABILITY is the same one that behavior already tracks; this entry is about
+  the sheet's own re-mount location specifically. → #1675 asks for more than the sheet: a
+  reversible AUDIT TRAIL for merge/split decisions (source ids, who/why, undo/re-split), not
+  built yet on either side.
+- `kg.entity.menu.split` — **[GAP]** (#4828, → #1675) `EntitySplitSheet` splits a conflated
+  entity. Not named in any of the three KG specs before this pass. See #1675's audit-trail ask
+  above. → #1688 additionally asks for the SAME merge/unmerge/alias/edit surface reachable via
+  the CLI, not just the UI sheets — the CLI half is unbuilt on either side.
+- `kg.claim.contradiction-triage` — **[GAP]** (#4828, → #1677) `ContradictionTriageSheet`
+  triages contradicting claims. Not named before this pass. → #1677 is the broader ask: a
+  review UI covering EVERY workflow stage (transcript → imported entities → merge → KG →
+  ontology), of which contradiction triage is one stage.
+- `kg.claim.review-queue` — **[GAP]** (#4828, → #372) `ClaimReviewQueueSheet`, a review queue
+  for unreviewed claims. Not named before this pass. → #372 is the original ask (queue with
+  `unreviewed → shortlisted → curated/rejected` transitions, filter by person/topic, batch or
+  single-item) — `ClaimReviewQueueSheet` exists but is unreachable since the browser retired,
+  same as this behavior's own [GAP] tag says.
 - `kg.entity.kind-chart` — **[GAP]** (#4828) `EntityKindChartView`, entity counts by kind. Not
   named before this pass.
 - `kg.claim.speaker-comparison` — **[GAP]** (#4828) `SpeakerComparisonView`, claims compared
@@ -100,16 +115,47 @@ Enrichment's two unreachable views (`WikidataEnrichmentSheet`, `HeuristicReviewS
   kg-tables waves" is stale for edit (curate is the real remaining gap — see
   `kg.tables.claim.curate` below). Pinned:
   `fichero/Tests/Unit/general/Views/Library/ClaimsTableCreateTests.swift::testClaimsTableOffersEditReusingTheExistingSVOEditor`.
-- `kg.tables.claim.delete` [PARTIAL] (#4643) — delete **from the table** is built:
+- `kg.tables.claim.delete` [PARTIAL] (#4643, → #1787) — delete **from the table** is built:
   `ClaimsTableView.swift:~166-183` (`onDelete` menu item, `kg.claim.menu.delete`) →
   `ClaimsLibraryContent.swift:~254-268` (`deleteClaims`, one audited delete per id, reloads
   on failure). Left [PARTIAL] pending `kg.scale.batch-delete` (sequential per-id calls, no
-  batch endpoint yet — see Scale section below).
-- `kg.tables.claim.curate` [PARTIAL] (#4691) — bless / reject / merge from the table.
+  batch endpoint yet — see Scale section below). → #1787 asks that claim delete be wired
+  EVERYWHERE approve/reject/suppress live, single + multi, with confirm — the table's own
+  delete is built; approve/reject/suppress-with-confirm is `kg.tables.claim.curate` below,
+  still [PARTIAL].
+- `kg.tables.claim.curate` [PARTIAL] (#4691, → #1751) — bless / reject / merge from the table.
   Verified against code (2026-09-18): `ClaimsTableView.swift:158-184` (`claimMenu`) offers
   only Edit and Delete — no bless/reject/merge menu item. Curation is reachable only via
   batch MCP tools, not the table row menu (`#4691`, table row "claim curate … from table
-  ✗ `ClaimsTableView.swift:158` 'Delete only, for now'").
+  ✗ `ClaimsTableView.swift:158` 'Delete only, for now'"). → #1751 is a broader EPIC (unified
+  multi-select curate/enable/disable/group/delete/merge across files, folders, entities AND
+  claims) — kept open here for its entities/claims slice specifically; the files/folders half
+  is `sidebar-crud.md`'s territory, not this spec's.
+
+### C2. Deeper CRUD/UX asks not yet behaviors
+- `kg.tables.entity.descendant-aggregation-provenance` — **[GAP]** (#2020) when a folder/PDF
+  in the sidebar is selected, the entity panel aggregates the entities of the selection AND
+  all its children UNDIFFERENTIATED — no way to tell which document an entity came from.
+  Wanted: convert the flat List to a Table with a clickable "Found in" column (entity-grouped,
+  default includes-children), so descendant aggregation stays but gains provenance.
+- `kg.tables.schema-complete-field-display` — **[GAP]** (#1768) the inspector surfaces only a
+  few fields of the KG data model's rich schema; wanted: show the COMPLETE field set of a
+  claim/entity/artifact so a user can see everything that's actually available, not a curated
+  subset chosen ahead of time.
+- `kg.tables.entity.row-density-and-source-count` — **[GAP]** (#1788) entity rows are
+  full-width; lozenges should be text-width and flow/wrap into rows for information density,
+  and the source count shown per row should be accurate (some entities have several sources
+  and the count under-reports).
+- `kg.tables.crud.inline-not-modal` — **[GAP]** (#1888) claim/entity editing today happens in
+  modal sheets (`EditClaimSheet`, `OntologyBrowser`'s create sheet, `EntityMergeSheet`/
+  `EntitySplitSheet`) — the ask is inline editing / navigation-with-Back instead of a sheet
+  stack, matching the Finder-like direct-manipulation principle the rest of the tables follow.
+- `kg.tables.entity-resolution-registry` — **[GAP]** (#1761) a persisted "entity checker":
+  human merge/alias/reclassify/split fixes on existing entities should CONSTRAIN future
+  imports — re-importing the same folder should respect corrections already made rather than
+  re-creating the entities a human already fixed. Ties to the standing curation-persists-and-
+  constrains-imports ruling; this behavior is the KG-entity half specifically (the importer's
+  own NLP-draft half is `importer.md`'s `importer.nlp-never-overwrites-curated-rows`).
 
 ### D. Cross-cutting (both tables)
 - `kg.tables.crud.cross-surface` (creative-director ruling, 2026-09-08) — every KG CRUD
@@ -119,8 +165,13 @@ Enrichment's two unreachable views (`WikidataEnrichmentSheet`, `HeuristicReviewS
   behavior below is delivered in all surfaces or tracked as an explicit gap.
 - `kg.tables.crud.audited` — every create/edit/delete is ONE typed, audited backend action,
   reversible via the mutation log (one-audited-action-layer).
-- `kg.tables.crud.in-place` — a create/edit/delete updates that one row in place; the table
-  is not wholesale re-rendered (stores update one item, not the list).
+- `kg.tables.crud.in-place` — **[PARTIAL]** (#4389) a create/edit/delete updates that one row
+  in place; the table is not wholesale re-rendered (stores update one item, not the list).
+  Basic create/edit/delete honor this (sections B/C above), but **merging entities re-fetches
+  the whole inspector list** instead of updating the merged rows in place — a direct
+  counter-example, same class of regression `harness/observable-data-layer.md`'s
+  `observable.store-mutator-updates-in-place` tracks generally, filed here specifically
+  because it's the KG entity-merge path.
 - `kg.tables.crud.validation` — a create/edit is validated at the boundary (non-empty
   canonical name; a claim needs at least a subject or text); an invalid input is refused
   with an inline reason, not silently dropped.
@@ -133,8 +184,14 @@ Enrichment's two unreachable views (`WikidataEnrichmentSheet`, `HeuristicReviewS
   "Apple Vision created it → Sonnet 5.1 changed it → hand-edited by you" is visible.
 - `kg.tables.provenance.hand-edit-recorded` — a manual edit is recorded AS a human edit in
   the chain (never attributed to the model whose value it replaced).
-- `kg.tables.provenance.careful-versions` — versions are kept carefully so a prior value is
-  recoverable, not just overwritten. (Backend has a `MutationLog` for undo; surface it.)
+- `kg.tables.provenance.careful-versions` — **[GAP]** (#4644) versions are kept carefully so a
+  prior value is recoverable, not just overwritten. (Backend has a `MutationLog` for undo;
+  surface it.) #4644 is the broader ask this section's provenance/version display answers:
+  drag&drop reorganization, a full context menu (merge/combine/comment), select→export
+  JSON-LD, and surfacing claim provenance/geo/time alongside versioning. The export-JSON-LD
+  half is `kg-enrichment.md`'s `kg.jsonld.export` (already [OK]) wired to a table selection,
+  not a new export mechanism; drag&drop/context-menu/comment are UI affordances not yet built
+  on top of the CRUD this spec already tracks.
 - NOTE: this is the foundational **provenance + version model** now specced separately at
   **#4636** (full restorable history · reasoning capture · extensible actor roles
   extractor/editor/reviewer/end-user + representation types) — sibling of the anchor model
@@ -166,6 +223,10 @@ entities/claims), not a small demo table. What's missing:
 ### First-class library view affordances
 - `kg.view.contiguous-selection` [OK] — Set-based selection gives shift-click range +
   ⌘-click; keep it. Pinned: `SelectionGrammarTests`.
+- `kg.view.full-row-click-target` — **[GAP]** (#4607) the entities list's click target should
+  be the FULL row, not just the label text, so the existing selection grammar
+  (`kg.view.contiguous-selection` above) is easy to invoke for bulk curation — today a
+  narrower click target makes multi-select fiddly even though the underlying grammar works.
 - `kg.view.keyboard-delete` [MISSING] — ⌘⌫ deletes the selection; ⌘A selects all — same
   selection grammar as every other library mode, enforced by `check_selection_grammar.py`.
   Was mis-cited to the four-selection-implementations root-cause issue (long since closed —

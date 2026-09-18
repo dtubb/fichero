@@ -74,8 +74,12 @@ Surfaces: `DocumentInspector` (+`Sections`), `DocumentInspectorEntitiesTab`
   `digestLoadsViaClaimStore` — the digest prefers the store, keeping the direct fetch
   only as the no-store fallback).
 - `kg.entity.statements.subject-or-object` — [PARTIAL] (implemented, unpinned;
-  #4802) the list contains every claim where the entity is subject OR object
-  (`GET /api/claims?entity_id=…`), not only claims where it is the subject.
+  #4802, → #1775) the list contains every claim where the entity is subject OR object
+  (`GET /api/claims?entity_id=…`), not only claims where it is the subject. → #1775: a PLACE
+  entity should present "mentioned on [date]" for claims where it's the object of another
+  subject's action, not a fabricated subject-statement (e.g. "Andagoya left at 7 AM" reads as
+  the place doing the leaving) — this is a presentation/framing gap on top of the
+  subject-or-object inclusion this behavior already tracks, not solved by inclusion alone.
 - `kg.entity.statements.row-shows-svo` — [OK] each row renders the typed triple via
   `ClaimLine.text(...)` with the focused entity as `groupSubject`, so its own name is
   omitted when redundant and kept when the claim is about someone else; a claim with
@@ -151,7 +155,15 @@ Surfaces: `DocumentInspector` (+`Sections`), `DocumentInspectorEntitiesTab`
   one composer (`ClaimSummaryCard.svoTriple` + `ClaimLine.text`), tested once as an
   invariant over a fixture claim set, not per surface. Pinned:
   `EntityInspectorPinningTests.sameLineAcrossSurfaces` (composer invariant) +
-  `.surfacesRouteThroughOneComposer` (no surface hand-rolls its own).
+  `.surfacesRouteThroughOneComposer` (no surface hand-rolls its own). → #1936 is the origin
+  report (ontology view vs. interpretation view render the same claims/entities differently,
+  citations shown on some surfaces but not others) that this composer invariant answers on the
+  claim-LINE side; whether citation VISIBILITY itself is now consistent across every surface
+  named in #1936 was not re-audited in this pass — kept open rather than assumed closed.
+- `kg.entity.statements.list-container-native` — **[GAP]** (#1906) the KG-claims inspector
+  section uses a per-kind `DisclosureGroup` container, not a native `List(selection:)` — a
+  faithful swap needs the two paradigms (disclosure grouping vs. flat selectable list)
+  reconciled, build-verified, not just visually similar.
 - `kg.entity.xsurface.same-anchor` — **[OK]** the same claim yields an identical
   `ClaimSourceNavigationRequest` (document, page, span/bbox, precision) from every
   surface — the one-builder line above, asserted as an invariant. Pinned:
@@ -165,8 +177,12 @@ block, kind hide/show, mentions/biography), but five capabilities exist NOWHERE 
 app and are KEPT (not dead code), pending a decision on where each re-mounts. All stay [GAP]
 until re-mounted and tested against the new location.
 
-- `kg.entity.notes` — **[GAP]** (→ #4828) notes attached to an entity — add / list / delete
-  (`EntityDetailView+Notes.swift`'s `EntityNotesSection`).
+- `kg.entity.notes` — **[GAP]** (→ #4828, → #1682) notes attached to an entity — add / list /
+  delete (`EntityDetailView+Notes.swift`'s `EntityNotesSection`). → #1682: `EntityDetailView+
+  Notes` constructs `NoteService` directly instead of taking the current `APIClient`'s
+  `libraryPath`, the same class of stale-library-path bug fixed elsewhere for other panels —
+  a concrete pre-existing BUG in the code this behavior's re-mount will inherit if not fixed
+  first.
 - `kg.entity.alias-editing` — **[GAP]** (→ #4828) list/edit an entity's aliases
   (`EntityDetailView+Sections.swift`'s `aliasesSection`).
 - `kg.entity.raw-metadata-editing` — **[GAP]** (→ #4828) view AND edit an entity's raw metadata
@@ -182,6 +198,23 @@ until re-mounted and tested against the new location.
 - `kg.entity.claims-grouped-by-source` — **[GAP]** (→ #4828) group an entity's claims by their
   source document (`EntitySourceGroupsView.swift`, the `sourceGroupsMode` toggle in
   `EntityDetailView+Claims.swift`).
+
+### G. Entity ↔ library cross-navigation and the Map tab
+- `kg.entity.click-filters-library` — **[GAP]** (#1789) clicking an entity in the inspector
+  should drive the LIBRARY view to the documents that mention it (entity-as-filter) — the
+  reverse direction of `kg.entity.select.focuses` above (which goes library-selection →
+  entity-focus); this is entity-focus → library-filter, not yet built.
+- `kg.entity.map-tab.plots-locations` — **[GAP]** (#1780, #1754) a Map tab plotting
+  place-typed entities geographically, inferring country/region from the documents when not
+  explicit; the reading/WebKit view's Timeline (temporal) is the sibling gap, also unbuilt.
+  Depends on `kg-enrichment.md`'s `kg.enrich.geocode-place-entities` for the underlying
+  coordinates — this behavior is the UI side of plotting them, not the geocoding itself.
+- `kg.entity.map-tab.temporal-geo-filter` — **[GAP]** (#1203) extends the Map tab above with
+  sort-by-date and filter-by-time-range controls once the tab itself exists.
+- `kg.entity.detail-uses-semantic-fonts` — **[GAP]** (#4388) the entity detail view renders a
+  headline in `.system(size: 32, weight: ...)` (a hard-coded serif size), violating the
+  semantic-system-fonts rule (`.title`/`.body`, never `.system(size:)`) — a straightforward
+  fix once someone is in this file, not a design question.
 
 ## First wave to pin (proposed — awaiting the creative director)
 

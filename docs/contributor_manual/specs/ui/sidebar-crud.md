@@ -44,6 +44,18 @@ Both issues are already on this milestone (#291); no new issues were needed.
 - `read.expand.persists` — **[GAP]** (#4697) no test asserts expand/collapse state or
   selection survives a change-stream rebuild. `SidebarExpandSubtreeTests` pins what gets
   DESCENDED/cached on expand/collapse, not whether that state survives a rebuild.
+- `read.disclosure-triangle-visible-without-selection` — **[GAP]** (#3355) a folder/PDF with
+  children must show its disclosure triangle as soon as it renders, not only after the user
+  clicks it — today the triangle (and so the existence of nested children) is invisible until
+  the row has been selected at least once, which reads as "no children" for anything not yet
+  clicked. Distinct from `read.tree.shows-all` (which is about an EXPANDED folder's children
+  rendering) — this is about the disclosure affordance existing before expansion is even
+  attempted.
+- `read.filter-never-hides-selection` — **[GAP]** (#4099) applying a sidebar filter must never
+  hide the currently-selected row, even when the row no longer matches the filter text —
+  losing the selected row out from under the user reads as the app forgetting what was open.
+  No filter mechanism/test found for this specifically; distinct from the delete/rebuild
+  selection-resilience behaviors above, which cover deletion and rebuild gaps, not filtering.
 
 ### Update — rename
 - `rename.in-place` — **[GAP]** (#4697) `SidebarItemRow+Rename.swift`'s `commitRename` does
@@ -65,6 +77,12 @@ Both issues are already on this milestone (#291); no new issues were needed.
   (`SidebarItemRow+DropHandlers.swift:192-195`) guards `targetFolder.folderKind` and refuses
   (returns `false`, no-op) when the target isn't a folder; `folderKind` returns `nil` for a
   non-folder target. Pinned: `SidebarItemFactoryTests.folderKindDocumentFile`.
+- `move.cross-library-rejected-not-silently-dropped` — **[GAP]** (#2397) dragging an item from
+  one open library's sidebar tree onto another open library has no supported outcome today —
+  neither a cross-library move nor an explicit, honest refusal; the drop appears to simply do
+  nothing. Distinct from `move.onto-nonfolder-rejected`/`.no-cycle` (which cover in-library
+  drop targets) — this is about the SOURCE and TARGET being different libraries entirely,
+  which the move policy doesn't appear to consider at all yet.
 - `move.no-cycle` — **[OK]** `SidebarMovePolicy.isValidTarget`
   (`SidebarItemRow+Helpers.swift:8-25`) walks the target's ancestor chain and refuses when
   the source appears in it (self, direct child, or deep descendant), bounded against a

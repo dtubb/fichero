@@ -38,7 +38,13 @@ that "flashes," and clicks that "land on the wrong row" all trace back to.
   `LooveCoverage/LooveCoverageService.swift` calling `client.api.*` directly from a view — on
   top of an already-accepted `KNOWN_VIOLATIONS` migration backlog. No dedicated pytest file
   tests the checker itself; it self-verifies via its own baseline list, the same pattern
-  `check_preview_coverage.py` uses. Filed #4825 for the new violation.
+  `check_preview_coverage.py` uses. Filed #4825 for the new violation. Also tracked here:
+  #3186 (Document Inspector's KG claims section still bypasses domain stores — the same
+  violation class, KG-specific, found independently of the guardrail's own scan) and #1857
+  (`DocumentKGWebPane`, a WebKit `NSViewRepresentable`, pushes deltas into the page via
+  `evaluateJavaScript` on `updateNSView` today rather than OBSERVING entity/claim mutations
+  through a store and reactively re-injecting — a reactivity gap on the WebKit-embed side of
+  this same rule, not caught by `check_view_endpoint_access.py`'s Swift-only source scan).
 - `observable.store-mutator-updates-in-place` — **[BROKEN]** (#4824) inside a mutating method
   that changes ONE item — whatever the method is named; a lexical add/create/update/delete/
   remove/rename/move/promote/apply verb-list was tried first and missed `AnnotationStore
@@ -48,13 +54,16 @@ that "flashes," and clicks that "land on the wrong row" all trace back to.
   (`items = …`/`annotations = …`). The rule is now STRUCTURAL: every non-private method of a
   store class other than the load/reload/refresh family is scanned, regardless of its name.
   Verified BROKEN across the codebase, not a theoretical risk: `scripts/check_store_wholesale
-  _reload.py`'s structural re-scan (2026-09-18) found **35 distinct (file, method) violations**
-  across `ActionStore`, `ArtifactStore.apply`, `AnnotationStore.apply`, `AuditStore`,
-  `BackupStore`, `BatchStore`, `CitationStore`, `ClaimStore`, `InterpretationStore`,
-  `KnownLibraryRegistryStore`, `NoteStore.apply`, `ReferenceStore`, `ResearchStore`, and
-  `UsersStore` — seeded into `scripts/store_wholesale_reload_allowlist.json` as accepted debt
-  pending fixes. `ArtifactStore.delete`, `AnnotationStore`'s five item mutators (including
-  `getAnnotation`), and all 7 of `NoteStore`'s create/update/delete mutators are FIXED
+  _reload.py`'s structural re-scan (2026-09-18) found **34 distinct (file, method) violations**
+  (35 at last count, now 34 — `ClaimStore.delete`/`.link`/`.merge` and
+  `InterpretationStore.create` fixed in the code lane's second batch, 169ca6299, and dropped
+  from the allowlist) across `ActionStore`, `ArtifactStore.apply`, `AnnotationStore.apply`,
+  `AuditStore`, `BackupStore`, `BatchStore`, `CitationStore`, `ClaimStore`,
+  `InterpretationStore`, `KnownLibraryRegistryStore`, `NoteStore.apply`, `ReferenceStore`,
+  `ResearchStore`, and `UsersStore` — seeded into `scripts/store_wholesale_reload_allowlist.json`
+  as accepted debt pending fixes. `ArtifactStore.delete`, `AnnotationStore`'s five item
+  mutators (including `getAnnotation`), all 7 of `NoteStore`'s create/update/delete mutators,
+  and now `ClaimStore.delete`/`.link`/`.merge` and `InterpretationStore.create` are FIXED
   (b615abb14, splicing in place) and no longer appear in this count — the earlier 33-violation
   figure included them; today's 35 is the count with those removed and the structural re-scan's
   new finds added. Pinned:

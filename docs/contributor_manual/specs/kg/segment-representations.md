@@ -65,6 +65,12 @@ exportable = not done. Every behavior below names which spine segment it lands o
   its transcriptions (with language/script/edition badges).
 - `segment.inspector.source-anchor` — the crop and text resolve to the same on-page
   anchor as everything else (reuse the F5 `ClaimSourceRequest` invariant seam).
+- `segment.provenance.derived-from-split-page` — **[GAP]** (#1647) when a scanned page is
+  split into two logical pages (a left/right facing-page split), each resulting page's
+  segments must trace `derived_from` back to the ORIGINAL scan, not just to the split
+  half — so a segment's anchor/provenance chain survives a page-split the same way it
+  survives any other derived representation. Includes map-region support (a segment whose
+  source is a map, not running text, still anchors to a region of the original scan).
 - `segment.inspector.version-visible` — when a representation has multiple versions, the
   inspector shows which version is current and that older ones exist.
 

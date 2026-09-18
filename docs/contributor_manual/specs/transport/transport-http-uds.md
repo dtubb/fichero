@@ -41,10 +41,13 @@ remote host can't redirect a hermetic test).
   Pinned: `EngineTransportModeTests.inMemoryWinsOverUDS`.
 - `transport.uitest-owns` [OK] — `--uitesting` transport beats a saved remote host.
   Pinned: `EngineTransportModeTests.uiTestUDSOverrideWinsOverRemoteHost`.
-- `transport.same-result` [PARTIAL] (#4789) — engine gives identical read/write results across transports.
+- `transport.same-result` [PARTIAL] (#4789, → #2383) — engine gives identical read/write results across transports.
   Verified 2026-09-09: the gated suite's **equivalence sweep only parametrizes `uds_engine` +
   `https_engine`** (`test_transport_round_trips.py:179-200`); **in-memory is NOT in the sweep**. So
-  the cross-transport invariant is proven for UDS+HTTPS but NOT extended to in-memory.
+  the cross-transport invariant is proven for UDS+HTTPS but NOT extended to in-memory. → #2383:
+  a THIRD gap in the same family — `WKWebView` (the KG web panes) does not participate in
+  Fichero's pinned remote transport at all, so remote KG panes are disabled fail-closed rather
+  than routed through the same pinned transport every other surface uses.
 - `transport.inmemory-contract` [MISSING] (#4790) — the `.inMemory` transport the app actually uses is
   **PythonKit in-process**, and it has **no contract test**. `test_in_memory_asgi_round_trip()`
   (:209) exercises an ASGI in-memory app and its own comment admits it does NOT cover the

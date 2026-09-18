@@ -57,23 +57,9 @@
   },
   {
     "file": "fichero/fichero/Models/ClaimStore.swift",
-    "method": "delete",
-    "class": "violation",
-    "reason": "#4824 sweep 2026-09-18 \u2014 calls reload() after deleting a claim instead of removing it in place",
-    "issue": 4824
-  },
-  {
-    "file": "fichero/fichero/Models/ClaimStore.swift",
     "method": "apply",
     "class": "violation",
     "reason": "#4824 sweep 2026-09-18 \u2014 created/updated/merged/linked events call scheduleReload(); only the deleted branch splices in place",
-    "issue": 4824
-  },
-  {
-    "file": "fichero/fichero/Models/InterpretationStore.swift",
-    "method": "create",
-    "class": "violation",
-    "reason": "#4824 sweep 2026-09-18 \u2014 calls reload() after creating an interpretation instead of appending in place",
     "issue": 4824
   },
   {
@@ -191,20 +177,6 @@
     "method": "patch",
     "class": "violation",
     "reason": "#4824 structural re-scan 2026-09-18 \u2014 mostly correct (splices the returned claim in place by id) but falls back to reload() when the id isn't found in the current scope; that fallback path is still debt, not by-design",
-    "issue": 4824
-  },
-  {
-    "file": "fichero/fichero/Models/ClaimStore.swift",
-    "method": "merge",
-    "class": "violation",
-    "reason": "#4824 structural re-scan 2026-09-18 \u2014 calls reload() after merging two specific claims instead of splicing the survivor and removing the absorbed row; 'merge' isn't in the old verb list",
-    "issue": 4824
-  },
-  {
-    "file": "fichero/fichero/Models/ClaimStore.swift",
-    "method": "link",
-    "class": "violation",
-    "reason": "#4824 structural re-scan 2026-09-18 \u2014 calls reload() after linking two specific claims instead of splicing; 'link' isn't in the old verb list",
     "issue": 4824
   },
   {

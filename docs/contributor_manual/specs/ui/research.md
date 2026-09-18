@@ -212,7 +212,10 @@ Inspector content, not as a rival top-level surface.
 - `research.one-surface-named-research` — **[PARTIAL]** (implemented, unpinned; #4798) the
   surface is named Research; there is no separate "Researcher"/"Agent"/"Assistant" persona
   anywhere in the shipped UI (the `ChatSurfaceTab` doc comment states `chat = agent =
-  workspace`, `ChatView.swift:5-6`).
+  workspace`, `ChatView.swift:5-6`). Kept open as the origin audit for this ruling: → #2571
+  ("consolidate Researcher / Agent / Search surfaces… likely 3 endpoints → 1 model") first
+  raised the question this behavior now answers on the UI side; Search staying a distinct
+  retrieval primitive rather than folding into Research/chat is not itself decided here.
 - `research.chat-is-lightweight-end` — **[PARTIAL]** (implemented, unpinned; #4798) a plain
   `ChatView` with no `researchProject` works standalone; the Plan tab's invitation is the
   only place the workspace concept surfaces (`ChatView.swift:210-231`).
@@ -222,10 +225,6 @@ Inspector content, not as a rival top-level surface.
 - `research.workspace-is-folder-node` — **[OK]** `createWorkspace` marks an ordinary folder
   (`DocumentStore+CRUD.swift:43-48`); library items enter by alias
   (`Document.aliasTargetId`), never moved. Pinned: `SidebarWorkspaceNodeTests`.
-- `research.chat-context-aware` — **[PARTIAL]** (implemented, unpinned; #4798) the toolbar's
-  implicit-scope indicator (`ChatViewToolbar.swift:70-83`) shows what the chat is grounded on
-  by default; the composer's pin menu (`ChatView.swift:296-330`) layers explicit pinned
-  documents on top.
 - `research.sources-tab-is-chat-scope` — **[PARTIAL]** (implemented, unpinned; #4798)
   **updated for creative-director ruling 2026-09-18, point 3:** chat scope lives in BOTH the
   Inspector's Sources tab AND the chat dock's own Sources view — this supersedes an earlier
@@ -255,6 +254,28 @@ Inspector content, not as a rival top-level surface.
 - `research.agent-audited-tools` — **[PARTIAL]** (implemented, unpinned; #4798) the
   chat-tools loop is default-on, read-parity + allowlisted-write, every call routed through
   `ActionRegistry.invoke` (`chat.py:561-588`, `chat_tools.py:70-93`, `registry.py:156-210`).
+  The Fabel review that traced this subsystem end-to-end and filed most of this spec's other
+  tracked issues (→ #4705, #4719, #4721, #4723, #4798, → #4809, → #4810, → #4811) is → #3310 — kept
+  open as the tracking issue for its own remaining P1/P2 findings not yet individually filed
+  (web-capture writes bypassing the audited action layer; the SSRF-duplicate response-size
+  cap; missing DELETE routes for plans/tasks/steps/notes/sources/checklists; `ResearchStore`
+  swallowing errors via `try?`; sources/checklists misemitting `note.*` events instead of
+  `research.*`; client-supplied actor attribution on research rows). Also kept open here:
+  #4431 (audited + invertible research tools recovered from an orphaned worktree, `ca2587a52`
+  — the audited-action pattern applied to the research tool surface specifically) and #2280
+  ("agentic chat as a first-class control surface" — one action registry, three entry points:
+  MCP, App Intents/Siri, in-app chat, plus "chat builds workflows"). The MCP entry point is
+  real (chat-tools shares the action registry MCP already exposes); the App Intents/Siri entry
+  point and "chat builds workflows" are not verified built — narrower open scope than #2280's
+  original framing.
+- `research.chat-context-aware` — **[PARTIAL]** (implemented, unpinned; #4798) the toolbar's
+  implicit-scope indicator (`ChatViewToolbar.swift:70-83`) shows what the chat is grounded on
+  by default; the composer's pin menu (`ChatView.swift:296-330`) layers explicit pinned
+  documents on top. #1828 ("enable chat + query the unified index" — RAG + KG graph + full-text
+  + ontology + hermeneutic layers, hybrid retrieval with grounded citations) asked for exactly
+  this and looks substantially done — `ChatView` is already a RAG chat view per "What exists
+  today" above — commented on the issue with this evidence and listed as verify-close rather
+  than closed here.
 - `research.per-model-tool-grants` — **[GAP]** no settings pane exists for an owner to grant
   or deny individual tools per model identity; role is the only boundary. Tracked by #2887
   (pluggable agent harness, scoped tools) — no issue found specifically for a per-model
@@ -287,6 +308,17 @@ Inspector content, not as a rival top-level surface.
 - `research.knowledge-tab-not-browsable` — **[PARTIAL]** shows honest reference counts, not
   a browsable entity/claim list, because the engine does not return identities on a chat
   reply yet (`ChatView.swift:246-260`). No dedicated issue found — (#4723).
+- `research.manager-with-workers-orchestration` — **[GAP]** #2067, this spec's own origin
+  EPIC ("ONE surface — Researcher + RAG/Graph chat + Agent converge; manager-with-workers in
+  the sidebar"), describes a fuller orchestration runtime than what "What exists today" above
+  documents: a **manager agent** that decomposes a request and dispatches **worker**
+  sub-agents (#2069, `needs-design`), an **agent workspace** of sessions/tasks/milestones/
+  issues/scratchpad the agent reads and writes as it reasons (#2072), those tasks/milestones
+  **surfaced in the UI** (#2070), and **live visibility** into running sessions/subagents/
+  parallel workflows/plan/thinking so the agent is never a black box (#2073). None of this is
+  built — today's chat-tools loop is a single-agent tool-call loop, not manager-with-workers.
+  Also tracked here: #247 (promote Chat to release once its acceptance gate is satisfied) — a
+  release-readiness tracker for the surface this whole spec describes, not a design question.
 
 ## Test matrix
 

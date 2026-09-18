@@ -67,6 +67,14 @@ per claim, not a fixed language pair.
 
 ## Behaviors
 
+- `kg.read.clean-triples-before-render` — **[GAP]** (#3808) the raw SVO/KVO triples a
+  representation reads from are noisy — repeated near-duplicate labels for the same
+  entity/predicate, ungrouped multi-participant events — and today's readable-representation
+  layer renders straight from them. Cleaning belongs upstream of rendering: label-once
+  (canonicalize a repeated label to one form), dedup (collapse near-identical triples before
+  they reach a representation), and reified events (a multi-participant happening becomes one
+  event node with roles, not N separate flat triples). Every `kg.read.*` behavior below reads
+  cleaner once this lands; not built yet on either side.
 - `kg.read.order.chronological` [PARTIAL, unwired] (#4648) — claims ordered by their event/
   attestation date (undated claims sectioned at the end, not dropped), so a life reads
   front to back. The function exists and is unit-pinned, but `order_claims`
@@ -99,10 +107,13 @@ per claim, not a fixed language pair.
   `test_paragraph_rendering_helpers.py::test_render_narrative_merges_and_offsets_align` (asserts
   each marker's index maps 1:1 to its claim id, and every marker's recorded offset slices back to
   its own token in the rendered text — including multibyte superscript markers).
-- `kg.read.cite-to-segment` [MISSING] (#4652) — a citation resolves not just to a document/page but to the
+- `kg.read.cite-to-segment` [MISSING] (#4652, → #974) — a citation resolves not just to a document/page but to the
   **page SEGMENT** (the bbox/region the claim was extracted from), so a click lands the reader on
   the exact spot in the source. The `SourceAnchor` already carries region data — the marker must
-  round-trip to it.
+  round-trip to it. → #974 frames the same chain more broadly as a first-class KG edge type:
+  in-text marker → bibliography entry → claim, surfaced per-document AND library-wide (not just
+  per-document); the library-wide aggregation is additional scope beyond this behavior's
+  per-citation round-trip.
 - `kg.read.expose-kg-on-hover` [MISSING] (#4652) — hover/click on a statement reveals **what the KG knows**
   behind it — location, dates, roles, confidence, the raw SVO — rendered readably (not raw JSON),
   as the bridge from prose back to structure back to source.
