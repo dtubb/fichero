@@ -168,8 +168,11 @@ Inspector content, not as a rival top-level surface.
   `POST /api/research/tools/browser-save` — the module's own trust-boundary comment
   (`ResearchBrowserPane.swift:6-13`) is the strongest existing statement of "the agent's
   working folder stays isolated from open internet egress except through one audited
-  save action". Its home surface (a Preview rendition? an Inspector tab?) is not decided —
-  see Open Questions.
+  save action". Its home surface is DECIDED (creative-director ruling, 2026-09-18, third
+  round, `modes-to-panes.md` Rulings): it lives INSIDE the Source/Preview pane as
+  `PaneSurface.webBrowser` — no browser pane kind, no tab strip of its own — not an
+  Inspector tab. Design decided, not yet built; see `modes-to-panes.md`'s
+  `m2p.browser-is-a-source-rendition` (→ #4809).
 - `ResearchModels.swift` (`fichero/fichero/Models/ResearchModels.swift`) mirrors the
   backend's `research_models.py`: `ResearchProject` → `ResearchPlan` → `ResearchTask` /
   `ResearchNote` / `ResearchSource` / `ResearchChecklist`, plus `ResearchStep` (an
@@ -259,10 +262,21 @@ Inspector content, not as a rival top-level surface.
 - `research.browser-pane-trust-boundary` — **[PARTIAL]** (implemented, unpinned; #4798)
   `ResearchBrowserPane`'s only library crossing is the audited `browser-save` action; no
   library/KG read tool is exposed to the embedded WebView (`ResearchBrowserPane.swift:6-13`).
-- `research.embedded-browser-home-surface` — **[GAP]** where the embedded browser renders
-  once `ResearchWorkspaceView` retires (a Preview rendition? a Compare-tab-style facet?) is
-  undecided — see Open Questions. Tracked by #2886 (embedded WebKit browser + Safari MCP,
-  needs-design) and #4043 (agent-driven visible browser renders in the Reader, needs-design).
+- `research.embedded-browser-home-surface` — **ANSWERED (creative-director ruling,
+  2026-09-18, third round, recorded in `modes-to-panes.md`'s Rulings): the embedded
+  browser lives INSIDE the Source/Preview pane, no browser pane kind, no tab strip of its
+  own.** This behavior id retires in favor of `modes-to-panes.md`'s three:
+  `m2p.browser-is-a-source-rendition` (→ #4809, the placement itself),
+  `m2p.scratch-browsing-persists-nothing` (→ #4810, scratch navigation persists nothing),
+  `m2p.saving-a-source-makes-a-node` (→ #4811, only an explicit save makes a node). Not
+  re-specified here; this spec still owns the trust-boundary and audited-save framing
+  above. #2886/#4043 (needs-design, embedded-browser predecessors) are superseded by the
+  now-decided design. **Still genuinely open, not decided:** the ruling is about PAGES —
+  scratch browsing persists no pages/nodes — but whether cookies/logins (session state
+  needed to keep reading a site across visits) are ALSO scratch, or persist separately, is
+  not decided; pages being scratch is not the same claim as logins being scratch. See
+  `modes-to-panes.md`'s `m2p.scratch-browsing-persists-nothing` note and #4810 for the
+  options.
 - `research.compare-folds-into-chat` — **SUPERSEDED (creative-director ruling, 2026-09-18):**
   this behavior described chat's Compare tab reusing `ModelComparisonView()` as Comparison's
   home. That design is retired: Comparison is now panes + a diff lens (a "run with A and B"
@@ -299,15 +313,20 @@ This spec proposes (not yet added — **[PROPOSED]**, neither exists):
 
 ## Open questions (max 7)
 
-1. **Where does the embedded browser render once `ResearchWorkspaceView` retires?**
-   Recommendation: a Preview-pane rendition of the focused research node (matches
-   `modes-to-panes.md`'s "each surface renders its own rendition of the selected kind"),
-   not a sixth Inspector tab — the browser is a large interactive surface, not scope
-   metadata. Needs creative-director ratification.
+1. **Where does the embedded browser render once `ResearchWorkspaceView` retires?** —
+   RESOLVED (creative-director ruling, 2026-09-18, third round, `modes-to-panes.md`
+   Rulings): inside the Source/Preview pane as `PaneSurface.webBrowser`, no browser pane
+   kind, no tab strip of its own. See `research.embedded-browser-home-surface` above.
 2. **Does `ResearchBrowserPane`'s save action move to the chat composer's pin menu, or stay
-   a research-node-only capability?** Recommendation: keep it research-node-only — a plain
-   chat has no working folder to save into, so "Save to Library" without a destination
-   folder is a worse UX than the current project-scoped save.
+   a research-node-only capability?** Narrowed by the same ruling: only an explicit save
+   makes a node, and it takes one of two shapes — the page captured as a native
+   `.webarchive` (URL + capture time), or, preferred where the page supports it, the
+   page's EXTRACTED output saved as the artifact with the page recorded as its provenance
+   (`m2p.saving-a-source-makes-a-node`, → #4811). What remains open is narrower than
+   before: WHICH of the two save shapes a given save action offers/defaults to, and
+   whether that choice is per-page-type or user-chosen each time — not whether saving is
+   research-node-only (scratch browsing outside a workspace was never in scope) nor what a
+   save produces.
 3. **How does the Knowledge tab get browsable entity/claim identities?** Blocked on an
    engine change (return entity/claim IDs alongside `RetrievalInfo` on a chat reply), not a
    UI decision. Recommendation: file the engine issue rather than building a UI ahead of the
@@ -324,10 +343,10 @@ This spec proposes (not yet added — **[PROPOSED]**, neither exists):
    authority boundary for the DRAFT surface, and a per-tool UI is real design work of its
    own (#2887).
 6. **Does `research.plan-tab-is-only-plan-surface` retire `ResearchWorkspaceView` in this
-   milestone or `modes-to-panes.md`'s?** Recommendation: `modes-to-panes.md`'s migration
-   (it already owns the Library-pane-mount allowlist that names
-   `ResearchWorkspaceView(` explicitly) — this spec should not duplicate that increment
-   plan, only track the behavior id and point at #4719 for the retirement
+   milestone or `modes-to-panes.md`'s?** — ANSWERED: `modes-to-panes.md`'s, in increments
+   5a/5b/5c (`ResearchWorkspaceView`/`ResearchProjectListView` both retire there). This
+   spec does not duplicate that increment plan — it tracks the behavior id
+   (`research.plan-tab-is-only-plan-surface`) and points at #4719 for the retirement
    itself.
 7. **Several chats, each scoped to a part of the project — one workspace, many
    conversations?** Raised by the creative director (2026-09-18, latitude + method
