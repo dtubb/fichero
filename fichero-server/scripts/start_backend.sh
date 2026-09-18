@@ -42,18 +42,23 @@ for arg in "$@"; do
       echo "Default starts uvicorn without reload so the real app DuckDB is opened"
       echo "by one process only. Use --reload only with an isolated/test database."
       echo "--uds serves the engine on a Unix-domain socket (dev fast loop)."
-      echo "  Dialled ONLY by the Release-embedded app, or a Debug scheme that"
-      echo "  sets FICHERO_FORCE_UDS_PATH to the same socket path."
-      echo "  'Fichero (Dev Local)' is debugExternal and expects"
-      echo "  https://127.0.0.1:8765 — it will NOT reach a --uds engine (#4222)."
+      echo "  Default socket = the app container's tmp/fichero.sock — the SAME"
+      echo "  path the 'Fichero (Dev Local)' scheme dials via"
+      echo "  FICHERO_FORCE_UDS_PATH (#4222). Override with --uds=/path or"
+      echo "  FICHERO_UDS_PATH. A Dev Embedded app spawns its OWN engine on this"
+      echo "  socket — quit it first (pgrep -fl 'Fichero Server')."
       exit 0
       ;;
   esac
 done
 
-# Default dev UDS socket; the Debug app dials the same path via
-# FICHERO_FORCE_UDS_PATH. Short enough for the AF_UNIX sun_path (~104B) limit.
-FICHERO_UDS_PATH="${FICHERO_UDS_PATH:-/tmp/fichero.sock}"
+# Default dev UDS socket = the app container's tmp/fichero.sock, i.e. the path
+# the Dev Local scheme's FICHERO_FORCE_UDS_PATH dials (CD 2026-09-18: the old
+# /tmp/fichero.sock default meant "backend running but app won't connect",
+# #4222). Still under the AF_UNIX sun_path (~104B) limit for normal home
+# paths; override with FICHERO_UDS_PATH or --uds=/path if yours is longer.
+FICHERO_UDS_PATH="${FICHERO_UDS_PATH:-$HOME/Library/Containers/app.fichero.fichero/Data/tmp/fichero.sock}"
+if [ "${UDS_MODE:-false}" = true ]; then mkdir -p "$(dirname "$FICHERO_UDS_PATH")"; fi
 
 DEFAULTS_REMOTE_ENABLED=false
 DEFAULTS_PUBLIC_BASE_URL=""

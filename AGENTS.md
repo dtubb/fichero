@@ -27,13 +27,11 @@ call the tools on `PATH`. Run everything from the repo root of the tree you are 
 # sys.path seam, but lint them explicitly:
 PYTHONPATH=fichero-server/src:fichero-cli/src:fichero-mcp/src ruff check fichero-server/src/ fichero-cli/src/ fichero-mcp/src/
 PYTHONPATH=fichero-server/src pytest fichero-server/tests/unit/
-# Engine for the Dev Local scheme (Debug config never spawns one). UDS ONLY, and
-# the socket must be where the app dials — the CONTAINER path — because the
-# script's default is /tmp/fichero.sock and the Dev Local scheme's
-# FICHERO_FORCE_UDS_PATH is not (#4222). Check `pgrep -fl "Fichero Server"`
-# first: an engine already on that socket is a Dev Embedded app's own.
-FICHERO_UDS_PATH=~/Library/Containers/app.fichero.fichero/Data/tmp/fichero.sock \
-  ./fichero-server/scripts/start_backend.sh --uds
+# Engine for the Dev Local scheme (Debug config never spawns one). UDS only;
+# the default socket IS the container path the scheme dials (#4222), so no env
+# var is needed. Check `pgrep -fl "Fichero Server"` first: an engine already on
+# that socket is a Dev Embedded app's own — quit that app.
+./fichero-server/scripts/start_backend.sh --uds
 # CLI / MCP need the HTTPS engine instead (app quit, or a scratch library):
 bash fichero-server/scripts/start_backend.sh   # HTTPS :8765; app pins it fail-closed — never bare uvicorn/HTTP, #2538
 
