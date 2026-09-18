@@ -99,12 +99,12 @@ the ruling this table exists to make assertable.
 | `.workflow(x)` | Library browser — **[PROPOSED]** | Workflow canvas (`WorkflowEditor`) — **[PROPOSED]**, today full-width in Library (`Nav:286-294`) | Last/current run log — **[PROPOSED]**, today an honest empty state (`ReadingPaneView+Tabs.swift:155-169`) | Palette · node · runs (`WorkflowInspector`, 3 tabs) — **[OK]** already correct (`Detail:384-390`) |
 | `.chat` | Library browser — **[OK]** already correct (`Nav:237-244`) | document preview | thread/document | Sources · Plan · Knowledge · Compare (`ChatInspector`/`ChatSurfaceTab`) — **[PARTIAL]**, correct kind but duplicated (§Inspector policy) |
 | research (project selection) | Library browser — **[PROPOSED]**, today a bespoke `HStack{ResearchProjectListView\|ResearchWorkspaceView}` (`Nav:201-221`) | document preview | thread/document (via chat's Plan tab) | Sources · Plan · Knowledge · Compare — **[PROPOSED]** |
-| `.comparison` | — **RETIRED** (CD 2026-09-18): `AppViewMode.comparison`/`ComparisonDetailView` are deleted (increment 4); comparison becomes two sibling artifacts shown as two Reader panes with a diff lens, not a mode/node/view of its own — see `m2p.comparison-is-panes-and-diff-lens` | | | |
-| `.chain` | Library browser — **[PROPOSED]**, today `ChainEditorView`/stub (`Nav:310-319`) | node detail (chain) | — | honest empty (`Detail:392`) |
-| `.batches` / `.batch` | Library browser — **[PROPOSED]**, today `BatchRunView()`/placeholder (`Nav:321-331`) | node detail | — | honest empty; `.batch` case retires (`SelH:283` restore already maps `"batch"`→`.activity`) |
-| `.automation` | Library browser — **[PROPOSED]**, today a placeholder (`Nav:333-338`) | node detail (nothing selected → Library alone, no takeover) | — | "Nothing to Show" (`Plan:139-145`) |
-| schedule / trigger | Library browser — **[PROPOSED]**, today `ScheduleDetailView`/`ScheduleEditorView`/`TriggerDetailView`/`TriggerEditorView` (`Nav:340-352`) | node detail | — | honest empty |
-| `.activity` | Library browser — **[PROPOSED]**, today `ActivityWindowLauncherView` (`Nav:354-374`) | node detail (run) | — | honest empty |
+| `.comparison` | — **RETIRING** (CD 2026-09-18 ruling; scope clarified 2026-09-18: split OUT of increment 4a into increment 4c below): the comparison VIEW/mode/window (`AppViewMode.comparison`/`ComparisonDetailView`) retires, but the PRODUCING "run with A and B" action survives — it leaves two sibling artifacts shown as two Reader panes with a diff lens, not a mode/node/view of its own — see `m2p.comparison-is-panes-and-diff-lens`. Three sites still construct `.comparison` today | | | |
+| `.chain` | Library browser — **[OK]** (increment 4a, 9128ecdee) | node detail (chain, `ChainEditorView`) — **[OK]** (increment 4a); "Create Chain" empty state MOVED here, not deleted | — | honest empty |
+| `.batches` | Library browser — **[OK]** (increment 4a) | node detail (`BatchRunView`) — **[OK]** (increment 4a) | — | honest empty; `AppViewMode.batch` DELETED (increment 4a) — a persisted `"batch"` still restores to `.activity` (`ContentView+Persistence.swift`'s `case "batches", "batch":`) |
+| `.automation` | Library browser — **[OK]** (increment 4a) | node detail (nothing selected → Library alone, no takeover) — **[OK]** (increment 4a) | — | "Nothing to Show" (`Plan:139-145`) |
+| schedule / trigger | Library browser — **[OK]** (increment 4a) | node detail (`ScheduleDetailView`/`ScheduleEditorView`/`TriggerDetailView`/`TriggerEditorView`) — **[OK]** (increment 4a) | — | honest empty |
+| `.activity` | Library browser — **[OK]** (increment 4a); `ActivityWindowLauncherView` DELETED, replaced by `ActivityDetailView` mounted directly | node detail (run, `ActivityDetailView`) — **[OK]** (increment 4a); nothing selected → new honest empty state ("Select a run in the sidebar to see its details.") | — | honest empty |
 | KG map / timeline | existing Library **view modes** (`.timeline`, `.geoMap`, `ContentView+StatePreview.swift:306-318`) on the Entities collection — **[PROPOSED]** | — | — | entity inspector, when one entity is focused |
 | KG set-level graph | retires with `OntologyBrowser` — **[PROPOSED]**; an entity's ego-network may return later as a Source rendition, not a Library takeover | ego-network graph (future, one entity only) | — | entity inspector |
 | entity / claim row (KG table) | Library table row — **[OK]** already correct | document preview | — | entity inspector (a real inspector surface, ties `kg-entity-inspector`) |
@@ -130,15 +130,19 @@ fourth type.
 
 - `m2p.library-is-always-navigator` — **[PARTIAL]**, #4705: the matrix's `library` column has
   stated the constant `.surface(.libraryBrowser)` for every row since increment 1
-  (4132ca589), and increment 2 (this commit) made it TRUE at runtime for `.workflow`
-  (`WorkflowEditor` dropped from the regular-width arm's allowlist) — but `.comparison`,
-  `.chain`, `.batches`/`.batch`, `.automation`, `.schedule`/`.trigger`, `.activity` still
-  literally take over the Library pane pending increments 3-5, so the rule is not yet true
-  everywhere. Pinned by the **shrinking-allowlist source guardrail**
-  (`LibraryPaneNeverMountsModeSurfaceTests`, currently 8 tokens remaining, `WorkflowEditor(`
-  dropped this increment) with a fixture proving the rule actually fires (per the
-  guardrails-must-match-granularity ruling — never a rule that could pass vacuously), plus
-  `PaneContentPlanTests.theLibraryColumnIsAlwaysTheBrowser` for the stated-constant half.
+  (4132ca589); increment 2 made it TRUE at runtime for `.workflow`, increment 3 for the
+  retired KG graph mode, and increment 4a, 9128ecdee for
+  `.chain`/`.batches`/`.schedule`/`.trigger`/`.activity` (`BatchRunView(`/`ChainEditorView(`/
+  `ScheduleDetailView(`/`TriggerDetailView(`/`ActivityWindowLauncherView(` all dropped from
+  the regular-width arm's allowlist; `ActivityWindowLauncherView` deleted outright) — but
+  `.comparison` (retires in increment 4c) and research
+  (increment 5, `ResearchWorkspaceView(`) still literally take over the Library pane, so the
+  rule is not yet true everywhere. Pinned by the **shrinking-allowlist source guardrail**
+  (`LibraryPaneNeverMountsModeSurfaceTests`, currently 2 tokens remaining:
+  `ResearchWorkspaceView(`, `ComparisonDetailView(`) with a fixture proving the rule actually
+  fires (per the guardrails-must-match-granularity ruling — never a rule that could pass
+  vacuously), plus `PaneContentPlanTests.theLibraryColumnIsAlwaysTheBrowser` for the
+  stated-constant half.
 - `m2p.inspector-follows-selection` — **[OK]** (increment 0, a5528a977) the Inspector's
   surface is a pure function of the current selection kind and agrees with
   `PaneContentPlan`'s `.inspector` cell for every `SidebarMode` × `AppViewMode`
@@ -184,10 +188,17 @@ fourth type.
   `LibraryPaneNeverMountsModeSurfaceTests.deletedTypesDoNotLingerAnywhere` (bare-identifier
   guardrail), and `KnowledgeGraphInspectorSectionTests.testSparqlConsoleUsesTypedQueryOpsThroughAStore`
   (re-pointed at the new console file, same invariant).
-- `m2p.automation-nodes-in-preview` — **[PROPOSED]** schedule / trigger / chain / batches /
-  activity selections render their detail in Source/Preview, never the Library pane; an
-  automation selection with nothing chosen leaves the Library showing, not a placeholder
-  screen. Pinned by the matrix rows for those kinds + the shrinking allowlist guardrail.
+- `m2p.automation-nodes-in-preview` — **[OK]** (increment 4a, 9128ecdee) schedule /
+  trigger / chain / batches / activity selections render their detail in Source/Preview,
+  never the Library pane; an automation selection with nothing chosen leaves the Library
+  showing, not a placeholder screen. `AppViewMode.batch` and `ActivityWindowLauncherView` are
+  DELETED — zero remaining references to either, verified by type defined in file, not
+  textual constructor grep. Pinned by the matrix rows for those kinds +
+  `PaneContentPlanTests.nodeDetailModesLandInThePreviewSlot`, the shrinking-allowlist
+  guardrail (`LibraryPaneNeverMountsModeSurfaceTests`, 5 tokens dropped this increment) with
+  its `deletedBareIdentifiers` check for `ActivityWindowLauncherView`, and
+  `ContentViewPersistenceTests.testRetiredBatchStringStillRestoresToActivity` for the
+  persisted-`"batch"`-string tolerant decode.
 - `m2p.research-is-sidebar-node` — **[PROPOSED]** research projects are sidebar nodes like
   workflows, not a bespoke `HStack` container; a project's workspace content is reached via
   chat's Plan tab or a Preview rendition, and the Library pane never shows
@@ -204,13 +215,16 @@ fourth type.
   is NOT deleted. Pinned by a guardrail asserting BOTH mounts exist (the inverse of the old
   "exactly one call site outside its own file" rule).
 - `m2p.comparison-is-panes-and-diff-lens` — **[PROPOSED]**, renamed from
-  `m2p.comparison-folds-into-chat-compare` (creative director, 2026-09-18, supersedes it):
-  `AppViewMode.comparison` and `ComparisonDetailView` are DELETED (increment 4, not 6) — but
-  chat's Compare tab is NOT where comparison lives either. A "run with A and B" action leaves
-  two sibling artifacts; the Compare workspace shows them in two Reader panes with a diff
-  lens — comparison is about two prompts'/workflows' outputs, not a conversation. Pinned by a
-  matrix row (no `.comparison` surface) + a guardrail that `ComparisonDetailView` does not
-  appear in the app target + a Reader diff-lens test once the lens exists.
+  `m2p.comparison-folds-into-chat-compare` (creative director, 2026-09-18, supersedes it).
+  Scope clarified 2026-09-18: `AppViewMode.comparison`/`ComparisonDetailView` retirement moved
+  OUT of increment 4a into increment 4c — three sites still
+  construct `.comparison` today, none touched by 4a. When it lands: `AppViewMode.comparison`
+  and `ComparisonDetailView` are DELETED, but chat's Compare tab is NOT where comparison lives
+  either. A "run with A and B" action leaves two sibling artifacts; the Compare workspace
+  shows them in two Reader panes with a diff lens — comparison is about two
+  prompts'/workflows' outputs, not a conversation. Pinned by a matrix row (no `.comparison`
+  surface) + a guardrail that `ComparisonDetailView` does not appear in the app target + a
+  Reader diff-lens test once the lens exists.
 - `m2p.inspector-empty-shows-container-info` — **[PROPOSED]** with nothing selected, the
   Inspector shows the CONTAINER's info (the current folder/library), never a "Nothing to
   Show" placeholder; the `.inspector` pane kind stays hidden from the kind-switcher menu
@@ -280,20 +294,41 @@ increments 2, 4, and 5.
   `SidebarMode.restored(from:)` (not `RawRepresentable.init(rawValue:)`'s unproven default
   fallback), landed in increment 3a ahead of the deletion itself. Test:
   `m2p.kg-graph-retires-as-library-takeover` + `SidebarModeRestoreTests` (the restore table).
-- **4. Automation / schedule / trigger / chain / batches / activity / batch → Preview-pane
-  node detail. Also: Comparison retires (CD 2026-09-18 ruling).** Same move as increment 2,
-  row by row. Delete `AppViewMode.batch` (SelH:283 already redirects to `.activity`), the
-  `.automation` placeholder arm, the "Create Chain" stub (`Nav:313-318`). Delete
-  `AppViewMode.comparison` and `ComparisonDetailView`'s mount (`Nav:245-250`) — comparison
-  becomes two sibling artifacts shown as two Reader panes with a diff lens (not a mode, not
-  chat's Compare tab; see `m2p.comparison-is-panes-and-diff-lens`) — the diff-lens UI itself
-  is a separate, not-yet-scoped follow-up; this increment only removes the retired mode/view.
-  Files: `Nav`, `Detail`, `Plan`, `Models/SidebarViewTypes.swift`, `SelH`,
-  `ContentView+Persistence.swift`. **Persistence:** `restoreViewMode`
-  (`ContentView+Persistence.swift:60-100`) keeps accepting the retired strings (`"batch"`,
-  `"batches"`, `"automation"`, `"comparison"`) exactly as it already does for `"search"`.
-  Test: `m2p.automation-nodes-in-preview`, `m2p.comparison-is-panes-and-diff-lens` + a
-  restore-table test.
+- **4a. Automation / schedule / trigger / chain / batches / activity / batch → Preview-pane
+  node detail — DONE (9128ecdee, 2026-09-18).** Comparison is OUT of this increment's
+  scope — CD 2026-09-18 moved its retirement to increment 4c below
+  (§the `.comparison` matrix row, `m2p.comparison-is-panes-and-diff-lens`). Same move as
+  increment 2, row by row. Deleted `AppViewMode.batch` (`SelH` already redirected to
+  `.activity`), the `.automation` placeholder arm, the `.batch` construction sites; MOVED the
+  "Create Chain" empty state (`Nav:313-318`) to the Preview rendition rather than deleting it.
+  Deleted `ActivityWindowLauncherView` (zero remaining callers or bare references, verified by
+  type defined in file, not textual constructor grep — the GraphSimulation lesson from
+  increment 3). Files: `Nav`, `Detail`, `Plan`, `Models/SidebarViewTypes.swift`, `SelH`,
+  `ContentView+Persistence.swift`, `ContentView+StateDisplay.swift`,
+  `ContentView+StateSelection.swift`, `ShellLayoutPolicy.swift`,
+  `Views/Activity/ActivityViewHelpers.swift`. **Persistence:** `restoreViewMode`
+  (`ContentView+Persistence.swift:60-100`) keeps accepting the retired `"batch"` string
+  alongside `"batches"` — a session saved before the deletion still restores to `.activity`.
+  Test: `m2p.automation-nodes-in-preview`,
+  `PaneContentPlanTests.nodeDetailModesLandInThePreviewSlot`,
+  `LibraryPaneNeverMountsModeSurfaceTests` (allowlist shrunk to `ResearchWorkspaceView(`/
+  `ComparisonDetailView(`; `deletedBareIdentifiers` gained `ActivityWindowLauncherView`),
+  `ContentViewPersistenceTests.testRetiredBatchStringStillRestoresToActivity`.
+- **4b. Run history → Reader (not started).** A new Reader surface, `.runHistory`, following
+  the `WorkflowOutputLog` pattern (increment 2, `m2p.workflow-reader-is-run-log`) — an
+  activity/schedule/trigger selection's run history moves to a dedicated Reader rendition
+  instead of wherever it lands provisionally after 4a. Tracked on #4741. Files: `Plan`,
+  `Detail`, a new Reader component. Test: TBD once scoped.
+- **4c. Comparison + diff lens (not started).** `AppViewMode.comparison` and
+  `ComparisonDetailView` are DELETED; comparison becomes two sibling artifacts shown as two
+  Reader panes with a diff lens (not a mode, not chat's Compare tab; see
+  `m2p.comparison-is-panes-and-diff-lens`) — the diff-lens UI itself is a separate,
+  not-yet-scoped follow-up, this increment only removes the retired mode/view and adds the
+  matrix row. Split out of the original increment 4 (CD 2026-09-18: three sites still
+  construct `.comparison` today, none touched by 4a). Files: `Nav`, `Detail`, `Plan`,
+  `Models/SidebarViewTypes.swift`. **Persistence:** `restoreViewMode` keeps accepting the
+  retired `"comparison"` string exactly as it already does for `"search"`. Test:
+  `m2p.comparison-is-panes-and-diff-lens` + a restore-table test.
 - **5. Research stops being a centre takeover.** Delete the `HStack` container +
   `ResearchProjectListView` mount (`Nav:176-222` regular arm); projects become sidebar
   selections; workspace content reached via chat's Plan tab or a Preview rendition. Files:
@@ -306,8 +341,8 @@ increments 2, 4, and 5.
   .hidden`; replace the `.chat` placeholder (`PaneSpec:167-179`). The Sources tab vs.
   `ChatInspector` do NOT de-duplicate (CD 2026-09-18 supersedes the earlier "Inspector only"
   plan: chat scope lives in BOTH places — see `m2p.chat-scope-lives-in-both`). Comparison is
-  NOT this increment's concern either (CD 2026-09-18: it retired in increment 4 as panes + a
-  diff lens, never folded into chat's Compare tab — see
+  NOT this increment's concern either (CD 2026-09-18: it retires as panes + a diff lens in its
+  increment 4c — never folded into chat's Compare tab — see
   `m2p.comparison-is-panes-and-diff-lens`). Files: `Views/Chat/*`, `PaneSpec`,
   `ContentView+SidebarLayout.swift`. Persistence: `showChatPane`, `sidebar.chat.height`
   unchanged; confirm `chatPaneWidth` (`ContentView.swift:360`) still has a reader before
@@ -399,12 +434,13 @@ the implementation status (see the Behaviors list above and the Migration increm
    `m2p.chat-scope-lives-in-both` below (no more "delete the dock's duplicate Sources tab").
 4. **Comparison = panes + a diff lens. No Comparison view, node or window.** A "run with A
    and B" action leaves two sibling artifacts; the Compare workspace shows them in two Reader
-   panes with a diff lens. `ComparisonDetailView` and `AppViewMode.comparison` are DELETED
-   (increment 4's scope) — but chat's Compare tab is NOT their replacement either; comparison
-   is about two prompts' or two workflows' outputs, not a conversation. Supersedes the
-   review's "folds into chat's Compare tab" recommendation — retitled to
-   `m2p.comparison-is-panes-and-diff-lens` below, moved to increment 4 (not 6). Loove stays
-   its own window (a diagnostic matrix, unrelated).
+   panes with a diff lens. `ComparisonDetailView` and `AppViewMode.comparison` retire — but
+   chat's Compare tab is NOT their replacement either; comparison is about two prompts' or two
+   workflows' outputs, not a conversation. Supersedes the review's "folds into chat's Compare
+   tab" recommendation — retitled to `m2p.comparison-is-panes-and-diff-lens` below. Scope
+   clarified 2026-09-18: retirement moved OUT of increment 4a into increment 4c (ahead of
+   increment 6) — three sites still construct `.comparison`
+   today. Loove stays its own window (a diagnostic matrix, unrelated).
 5. **Inspector with nothing selected = the container's Info.** Confirms the review's own
    recommendation — never "Nothing to Show"; the Inspector stays the native trailing column
    for now, and the `.inspector` pane kind stays hidden from the kind-switcher menu

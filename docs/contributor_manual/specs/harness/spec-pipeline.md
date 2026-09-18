@@ -54,32 +54,32 @@ second markdown-bullet parser — one parser, one bug surface.
 
 - `pipeline.status` — **[OK]** `spec_pipeline.py status` prints a per-spec table of
   behavior counts by tag and always exits 0 (it's a report, not a gate). Pinned by
-  `test_status_counts_by_tag`, `test_status_exits_0_even_with_missing_specs_dir`.
+  `test_spec_pipeline.py::test_status_counts_by_tag`, `test_spec_pipeline.py::test_status_exits_0_even_with_missing_specs_dir`.
 - `pipeline.check.rule-a-broken-needs-issue` — **[OK]** a behavior tagged
   BROKEN/GAP/GAP-BROKEN/PARTIAL/MISSING with no cited issue is an illegal state, checked
   offline (delegates to `check_spec_broken_has_issue.py`'s parser). Pinned by
-  `test_rule_a_broken_with_no_issue_fails`.
+  `test_spec_pipeline.py::test_rule_a_broken_with_no_issue_fails`.
 - `pipeline.check.rule-b-stale-tag-closed-issue` — **[OK]** a broken-family behavior citing
   a CLOSED issue is an illegal state (stale tag or wrongly-closed issue). Pinned by
-  `test_rule_b_closed_issue_still_broken_fails`.
+  `test_spec_pipeline.py::test_rule_b_closed_issue_still_broken_fails`.
 - `pipeline.check.rule-c-milestone-mismatch` — **[OK]** a behavior citing an issue whose
   GitHub milestone differs from the spec's declared `Milestone:` is an illegal state — but
   ONLY for a plain `#N` citation. An arrow citation (e.g. `→ #NNNN increment K`, a
   deliberate pointer to another tracked epic increment) is legitimately cross-milestone and
   exempt.
-  Pinned by `test_rule_c_milestone_mismatch_fails`, `test_rule_c_arrow_citation_is_exempt`.
+  Pinned by `test_spec_pipeline.py::test_rule_c_milestone_mismatch_fails`, `test_spec_pipeline.py::test_rule_c_arrow_citation_is_exempt`.
 - `pipeline.check.rule-d-ok-needs-real-test` — **[OK]** a behavior tagged OK with no cited
   test, or citing a test name that resolves to no file/function anywhere under
   `fichero/Tests` or `fichero-server/tests`, is an illegal state. Pinned by
-  `test_rule_d_ok_with_no_test_fails`, `test_rule_d_ok_with_nonexistent_test_fails`,
-  `test_rule_d_ok_with_real_test_passes`.
+  `test_spec_pipeline.py::test_rule_d_ok_with_no_test_fails`, `test_spec_pipeline.py::test_rule_d_ok_with_nonexistent_test_fails`,
+  `test_spec_pipeline.py::test_rule_d_ok_with_real_test_passes`.
 - `pipeline.check.rule-e-ok-needs-closed-issue` — **[OK]** a behavior tagged OK citing an
   issue that is still OPEN is an illegal state (the fix isn't actually landed, or the tag is
-  premature). Pinned by `test_rule_e_ok_cites_open_issue_fails`,
-  `test_rule_e_ok_cites_closed_issue_passes`.
+  premature). Pinned by `test_spec_pipeline.py::test_rule_e_ok_cites_open_issue_fails`,
+  `test_spec_pipeline.py::test_rule_e_ok_cites_closed_issue_passes`.
 - `pipeline.check.rule-f-orphan-open-issue` — **[OK]** an OPEN issue on a spec's milestone
   cited by no behavior is reported as INFO by default, promoted to a failure with
-  `--strict`. Pinned by `test_queue_excludes_claimed_and_closed_issues` (queue side) — the
+  `--strict`. Pinned by `test_spec_pipeline.py::test_queue_excludes_claimed_and_closed_issues` (queue side) — the
   INFO/strict split itself is exercised structurally in `cmd_check`; see Open questions.
 - `pipeline.check.rule-g-milestone-spec-mirror` — **[OK]** a GitHub milestone shaped like a
   spec anchor with no spec, or a spec-declared milestone with no matching GitHub milestone,
@@ -87,67 +87,67 @@ second markdown-bullet parser — one parser, one bug surface.
   DEDICATED milestone listing (`get_milestones`, `gh api .../milestones?state=all`), not just
   milestones seen on issues — an empty milestone (zero issues) is otherwise invisible to a
   script that only calls `gh issue list`. Pinned by
-  `test_rule_g_empty_milestone_with_no_spec_fails`,
-  `test_rule_g_workstream_bucket_milestone_is_exempt`.
+  `test_spec_pipeline.py::test_rule_g_empty_milestone_with_no_spec_fails`,
+  `test_spec_pipeline.py::test_rule_g_workstream_bucket_milestone_is_exempt`.
 - `pipeline.check.offline-blind-not-green` — **[OK]** `--offline` skips every
   GitHub-dependent rule (b, c, e, f, g) and prints `OFFLINE: blind to rules …` rather than
   reporting success by omission; offline-only rules (a, d) still run and can still fail.
-  Pinned by `test_offline_reports_blindness_and_only_runs_offline_rules`,
-  `test_offline_still_catches_offline_rule_a`.
-- `pipeline.check.gh-failure-exits-2` — **[OK]** without `--offline`, a missing/failing `gh`
-  exits 2 rather than silently skipping the GitHub-dependent rules. Not yet pinned by an
-  isolated unit test (would require faking `gh`'s absence) — low-priority follow-up debt; the
-  code path mirrors the exact pattern `check_spec_milestones.py` already uses for its own
-  soft-skip, just made hard here.
+  Pinned by `test_spec_pipeline.py::test_offline_reports_blindness_and_only_runs_offline_rules`,
+  `test_spec_pipeline.py::test_offline_still_catches_offline_rule_a`.
+- `pipeline.check.gh-failure-exits-2` — **[OK]** without `--offline`, a missing `gh`
+  exits 2 rather than silently skipping the GitHub-dependent rules; the code path mirrors
+  the exact pattern `check_spec_milestones.py` already uses for its own soft-skip, just made
+  hard here. Pinned by `test_spec_pipeline.py::test_get_issues_fails_when_gh_is_missing`.
 - `pipeline.check.missing-specs-dir-exits-2` — **[OK]** every subcommand except `status` and
   `agent-work` exits 2 when the specs directory does not exist. Pinned by
-  `test_missing_specs_dir_exits_2`.
+  `test_spec_pipeline.py::test_missing_specs_dir_exits_2`.
 - `pipeline.check.baseline-ratchet` — **[OK]** `check` fails ONLY on an illegal state not yet
   in `scripts/spec_pipeline_baseline.json`, and ALSO fails when a baselined entry no longer
   occurs (fixed but not removed — shrink-only, same contract as
   `check_spec_broken_has_issue.py`'s `GRANDFATHERED_FILES`). The OK summary line reports "N
   baselined illegal state(s) remain (by rule: …)". Pinned by
-  `test_check_passes_against_its_own_baseline`,
-  `test_check_fails_on_new_illegal_state_not_in_baseline`,
-  `test_check_fails_when_baselined_entry_no_longer_occurs`.
+  `test_spec_pipeline.py::test_check_passes_against_its_own_baseline`,
+  `test_spec_pipeline.py::test_check_fails_on_new_illegal_state_not_in_baseline`,
+  `test_spec_pipeline.py::test_check_fails_when_baselined_entry_no_longer_occurs`.
 - `pipeline.check.update-baseline` — **[OK]** `check --update-baseline` writes the current
   illegal-state set to the baseline file, sorted by `(rule, spec, key)` for stable diffs;
   re-running it with nothing changed produces a byte-for-byte identical file. Pinned by
-  `test_update_baseline_writes_sorted_and_idempotent`.
+  `test_spec_pipeline.py::test_update_baseline_writes_sorted_and_idempotent`.
 - `pipeline.queue.deterministic-order` — **[OK]** the queue orders by
   (milestone priority from the `MILESTONE_PRIORITY` seed list, then alphabetical), then tag
   severity (BROKEN before PARTIAL before GAP/MISSING), then spec path/line — same inputs,
-  same output, every run. Pinned by `test_queue_orders_by_milestone_priority_then_tag_severity`.
+  same output, every run. Pinned by `test_spec_pipeline.py::test_queue_orders_by_milestone_priority_then_tag_severity`.
 - `pipeline.queue.only-open-unclaimed` — **[OK]** the queue excludes behaviors whose cited
   issue is CLOSED or already claimed (has an assignee or the `status:in-progress` label).
-  Pinned by `test_queue_excludes_claimed_and_closed_issues`.
+  Pinned by `test_spec_pipeline.py::test_queue_excludes_claimed_and_closed_issues`.
 - `pipeline.queue.json-and-limit` — **[OK]** `--json` emits the same items as structured
   data; `--limit N` truncates after sorting. Pinned by
-  `test_queue_orders_by_milestone_priority_then_tag_severity` (uses `--json`),
-  `test_queue_limit_truncates_after_sorting`.
+  `test_spec_pipeline.py::test_queue_orders_by_milestone_priority_then_tag_severity` (uses `--json`),
+  `test_spec_pipeline.py::test_queue_limit_truncates_after_sorting`.
 - `pipeline.queue.kind-retag` — **[OK]** `queue --kind retag` lists rule (b)/(d)/(e) findings
   — DOC-fixable debt (find/cite a pinning test, or reopen/close a mistagged issue) — grouped
   by spec, distinct from the default `--kind code` dispatch queue. A docs lane clears these
   in bulk without touching the code-work queue's ordering. Pinned by
-  `test_queue_retag_lists_rule_b_and_d_grouped_by_spec`, `test_queue_default_kind_is_code`.
+  `test_spec_pipeline.py::test_queue_retag_lists_rule_b_and_d_grouped_by_spec`, `test_spec_pipeline.py::test_queue_default_kind_is_code`.
 - `pipeline.brief.renders-full-context` — **[OK]** `brief <id>` prints the behavior text, its
   spec path:line, its cited issue + title, the standing worker rules (no xcodebuild/gate/
   commit, never bare git stash, `swiftc -parse` + `-typecheck`, one-literal test messages,
   `Self.`-qualified statics, PYTHONPATH for pytest), the test it must ship, the retag
-  instruction, and the claim command. Pinned by `test_brief_renders_behavior_issue_and_rules`.
+  instruction, and the claim command. Pinned by `test_spec_pipeline.py::test_brief_renders_behavior_issue_and_rules`.
 - `pipeline.brief.unknown-id-fails` — **[OK]** briefing an id that matches no behavior prints
-  a clear failure and exits 1. Pinned by `test_brief_unknown_behavior_fails`.
+  a clear failure and exits 1. Pinned by `test_spec_pipeline.py::test_brief_unknown_behavior_fails`.
 - `pipeline.agent-work.triage` — **[OK]** every `agent-work/**/*.md` file is classified
   FOLDED (a spec's body references its path or filename), HISTORICAL (a
   `Status: HISTORICAL` / leading `HISTORICAL` marker), or UNTRIAGED; counts + the UNTRIAGED
   list print, INFO only, never fails. Pinned by
-  `test_agent_work_triages_folded_historical_untriaged`,
-  `test_agent_work_missing_dir_is_info_only`.
+  `test_spec_pipeline.py::test_agent_work_triages_folded_historical_untriaged`,
+  `test_spec_pipeline.py::test_agent_work_missing_dir_is_info_only`.
 - `pipeline.not-in-gate` — **[OK]** the script is named `spec_pipeline.py`, not
   `check_*.py`, so `verify_all.sh`'s auto-discovery of `check_*.py` scripts never picks it up
-  — a network-dependent check cannot silently enter the offline gate. No dedicated test (it's
-  a naming convention, verified by inspection); `verify_all.sh`'s own discovery logic is
-  covered by its existing tests.
+  — a network-dependent check cannot silently enter the offline gate. Pinned by
+  `test_spec_pipeline.py::test_script_name_does_not_match_verify_all_check_glob`
+  (`fnmatch` against the exact `scripts/check_*.py` pattern `verify_all.sh` uses);
+  `verify_all.sh`'s own discovery logic is covered by its existing tests.
 
 ## The state table
 

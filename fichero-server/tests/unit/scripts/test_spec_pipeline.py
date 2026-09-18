@@ -694,3 +694,24 @@ def test_get_issues_passes_when_fetch_is_below_the_limit(monkeypatch):
     monkeypatch.setattr(_mod.subprocess, "run", lambda *a, **k: _fake_gh_process(json.dumps(fake_issues)))
     result = _mod.get_issues(offline=False)
     assert result == fake_issues
+
+
+# --- pipeline.check.gh-failure-exits-2: without --offline, a missing `gh` exits 2 rather
+# than silently skipping every GitHub-dependent rule (2026-09-18, spec-pipeline.md's own
+# rule-d burn-down).
+
+def test_get_issues_fails_when_gh_is_missing(monkeypatch):
+    monkeypatch.setattr(_mod.shutil, "which", lambda name: None)
+    with pytest.raises(SystemExit) as exc_info:
+        _mod.get_issues(offline=False)
+    assert exc_info.value.code == 2
+
+
+# --- pipeline.not-in-gate: the script's name must never match verify_all.sh's `check_*.py`
+# auto-discovery glob (`scripts/verify_all.sh`'s `for guardrail in scripts/check_*.py`) — a
+# rename back to that pattern would silently pull a network-dependent check into the offline
+# gate.
+
+def test_script_name_does_not_match_verify_all_check_glob():
+    import fnmatch
+    assert not fnmatch.fnmatch(_SCRIPT.name, "check_*.py")
