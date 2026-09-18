@@ -1,35 +1,5 @@
 [
   {
-    "rule": "b",
-    "spec": "docs/contributor_manual/specs/importer/importer.md",
-    "key": "importer.nlp-auto-at-import:4823"
-  },
-  {
-    "rule": "b",
-    "spec": "docs/contributor_manual/specs/importer/importer.md",
-    "key": "importer.nlp-language-picks-the-model:4823"
-  },
-  {
-    "rule": "b",
-    "spec": "docs/contributor_manual/specs/importer/importer.md",
-    "key": "importer.nlp-never-overwrites-curated-rows:4823"
-  },
-  {
-    "rule": "b",
-    "spec": "docs/contributor_manual/specs/importer/importer.md",
-    "key": "importer.nlp-one-coalesced-event-per-document:4823"
-  },
-  {
-    "rule": "b",
-    "spec": "docs/contributor_manual/specs/importer/importer.md",
-    "key": "importer.nlp-rows-marked-unreviewed:4823"
-  },
-  {
-    "rule": "b",
-    "spec": "docs/contributor_manual/specs/importer/importer.md",
-    "key": "importer.nlp-scoped-to-new-and-stranded-only:4823"
-  },
-  {
     "rule": "c",
     "spec": "docs/contributor_manual/specs/ui/panes-workspaces.md",
     "key": "panes.head.kind-switcher-everywhere:4705"

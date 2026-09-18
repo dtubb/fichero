@@ -166,8 +166,20 @@ Enrichment's two unreachable views (`WikidataEnrichmentSheet`, `HeuristicReviewS
   spine: **backend → UX (table) → AI (MCP) + CLI → tests → export**, not only the SwiftUI
   table. A capability that works in the table but not via MCP/CLI is NOT done. Each CRUD
   behavior below is delivered in all surfaces or tracked as an explicit gap.
-- `kg.tables.crud.audited` — every create/edit/delete is ONE typed, audited backend action,
-  reversible via the mutation log (one-audited-action-layer).
+- `kg.tables.crud.audited` — **[BROKEN]** (#4831) every create/edit/delete is ONE typed,
+  audited backend action, reversible via the mutation log (one-audited-action-layer, a
+  standing HARD rule). Verified BROKEN by a route-by-route sweep (2026-09-18) of every
+  `@router.post/put/patch/delete` under `api/routes/kg/` and `api/routes/entity/`: the table's
+  OWN create/edit/delete/curate paths ARE compliant (sections B/C above), but ~14 mutating
+  routes elsewhere in the same KG surface are bare — no `registry.invoke(` — including
+  `split_entity` (merge's own sibling), `batch_set_entity_curation_state`,
+  `add_entity_aliases`, `enrich_import`, the generic `undo_mutation` endpoint, both
+  `rebuild.py` routes (destructive), and the PyKEEN/prediction/review-pair routes. A capability
+  reachable from the table is audited; the same capability reachable another way (bulk MCP
+  tools, prediction review, direct API) may not be. This is the spec home for the
+  one-audited-action-layer rule as a TESTABLE claim — no other spec states it as a checked
+  behavior; `panes-workspaces.md`/`modes-to-panes.md`/`automation.md`/`research.md` reference
+  the rule in prose without a pinned behavior of their own.
 - `kg.tables.crud.in-place` — **[PARTIAL]** (#4389) a create/edit/delete updates that one row
   in place; the table is not wholesale re-rendered (stores update one item, not the list).
   Basic create/edit/delete honor this (sections B/C above), but **merging entities re-fetches

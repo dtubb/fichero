@@ -82,14 +82,15 @@ in the file's own status), never a silent nothing.
    import pay the ~19s model-load before the request finished). This IS the
    throttle-don't-disable ruling, correctly built — `auto_embed=False` reads like "off" but
    means "not synchronous."
-6. **Segmentation and NLP — both should be automatic, NEITHER is wired at all yet.** Nothing
-   in this pipeline invokes Kraken or a spaCy/NER pass — both exist elsewhere in the codebase
-   (a workflow tool, a Settings AI provider) but neither runs during import. Their TARGET
-   shapes differ, though: Kraken is fully automatic with no user-facing switch at all, ever;
-   the NLP layer is automatic BY DEFAULT but is meant to expose a real Settings toggle (beside
-   auto-extract/auto-embed) so a user can see and turn it off — "no toggle" was never the
-   ruling for NLP, only for Kraken. Corrected 2026-09-18 (an earlier version of this spec
-   conflated the two).
+6. **Segmentation and NLP — different states now.** Kraken segmentation is STILL not wired:
+   nothing in this pipeline invokes it, it exists only as an opt-in workflow tool a user runs
+   manually. **The NLP draft stage IS wired now** (177fc6cd3) — `derivatives._nlp_stage` runs
+   on the same bounded, background-QoS executor as thumbnails/embeds, scoped to new/
+   stranded-pending documents, gated on `auto_nlp_enabled()`. Their TARGET shapes still
+   differ: Kraken is fully automatic with no user-facing switch at all, ever; the NLP layer is
+   meant to default ON with a real Settings toggle beside auto-extract/auto-embed — it SHIPS
+   with that gate reading OFF until the Settings row and the purge UI exist (#4830) — "no
+   toggle" was never the ruling for NLP, only for Kraken.
 7. **Downstream.** Once a node exists, workflows (`ui/workflows.md`) run transcription/
    extraction/entity-resolution against it — manually, today, because steps 6's automatic
    drafts don't exist yet to seed them.
@@ -141,33 +142,85 @@ in the file's own status), never a silent nothing.
   wired: no reference to Kraken exists in `importers/ingest.py`, `api/routes/ingest/core.py`,
   or `importers/derivatives.py` — it exists only as an opt-in workflow tool
   (`detect_regions_kraken.json`) a user must run manually.
-- `importer.nlp-auto-at-import` — **[GAP]** (#4823, filed this pass) a free NLP draft
-  (spaCy parse in v1; NER and dateparser are follow-ups, not this pass's scope — issue numbers
-  pending) should run on every page at import, defaulting ON and exposed as a REAL Settings
-  toggle beside auto-extract/auto-embed (not merely "no toggle" the way Kraken is). Verified
-  not wired: no `spacy` reference exists anywhere in the import pipeline; spaCy exists only as
-  a Settings ▸ AI provider a user configures separately. The engine lane is building the
-  following against this issue right now; each is its own behavior below so the acceptance
-  criteria are checkable individually once landed, all [GAP] (#4823) until then:
-- `importer.nlp-rows-marked-unreviewed` — **[GAP]** (#4823) every row the NLP pass writes is
-  marked machine-proposed and unreviewed — never presented as if a human or an LLM already
-  confirmed it.
-- `importer.nlp-never-overwrites-curated-rows` — **[GAP]** (#4823) a row a human has touched,
-  or one an LLM/VLM workflow produced, is never overwritten or duplicated by a LATER NLP
-  pass — the draft layer only fills gaps, it never clobbers or races a more-authoritative
-  layer.
-- `importer.nlp-scoped-to-new-and-stranded-only` — **[GAP]** (#4823) the NLP stage runs for
-  newly imported documents and stranded-pending recovery only — it never sweeps an existing
-  library's already-processed documents just because the app opened.
-- `importer.nlp-language-picks-the-model` — **[GAP]** (#4823) the document's own language
+- `importer.nlp-auto-at-import` — **[PARTIAL]** (#4830 — the original filing issue for the
+  NLP-draft stage is closed, its engine half landed 177fc6cd3) the free NLP draft stage itself is BUILT: `run_nlp_draft`
+  (`fichero-server/src/fichero_server/importers/nlp_draft.py`) writes real entity/claim rows
+  through the one audited writer, wired into `derivatives._nlp_stage` on the same bounded,
+  background-QoS executor thumbnails/embeds already share. What keeps this [PARTIAL] rather
+  than [OK]: the ratified default is ON, but it SHIPS OFF —
+  `auto_nlp_enabled()`'s documented temporary default (`_DEFAULT_ENABLED`'s docstring) is False
+  until a real Settings row exists and a way to take rows back exists (the purge action below
+  covers "take rows back"; the Settings ▸ AI row itself, plus a maintainer's review of draft
+  output, is #4830, distinct from the original (now-closed) filing issue). Pinned (default-off, explicit on/off read):
+  `test_nlp_draft_import.py::TestSettingGatesQueueing::test_default_is_off_for_now`,
+  `::test_explicit_on_setting_is_read`, `::test_explicit_off_setting_is_read`,
+  `::test_setting_off_queues_no_nlp_stage`, `::test_setting_on_queues_the_nlp_stage`.
+- `importer.nlp-rows-marked-unreviewed` — **[OK]** (177fc6cd3) every row the NLP pass writes is
+  marked machine-proposed and unreviewed via the EXISTING `curation_state` field — no new
+  field, no migration — never presented as if a human or an LLM already confirmed it. Pinned:
+  `test_nlp_draft_import.py::TestTheStageProducesADraft::test_new_rows_are_unreviewed_drafts`.
+- `importer.nlp-never-overwrites-curated-rows` — **[OK]** (177fc6cd3) a row a human has
+  touched, or one an LLM/VLM workflow produced, is never overwritten or duplicated by a LATER
+  NLP pass — proven against the ACTUAL update/link/merge/authority-link paths, not a hand-set
+  metadata flag: renaming (`entity.update`), merging (`entity.merge`), an authority link, a
+  note reference, a claim link, or a corroborating LLM claim all independently protect a row
+  from the companion purge action, and curation itself survives a second identical NLP run
+  without duplicating. Pinned:
+  `test_nlp_draft_import.py::TestCurationSurvivesAndConstrains::test_a_human_reviewed_entity_is_not_reset_or_duplicated_by_a_rerun`,
+  `::test_a_claim_suppression_rule_prunes_the_draft_before_it_is_written`,
+  `test_nlp_draft_import.py::TestWriterIdempotency::test_the_same_page_proposed_twice_does_not_duplicate_rows`,
+  `test_nlp_draft_purge_action.py::TestSurvivorsAreNeverTouched::test_a_human_reviewed_entity_survives_the_purge`,
+  `::test_an_entity_also_evidenced_by_a_non_draft_claim_survives`,
+  `::test_a_claim_corroborated_by_another_extractor_survives`,
+  `::test_a_reviewed_claim_survives`,
+  `test_nlp_draft_purge_action.py::TestF2IndependentTouchProtection::test_a_renamed_but_unreviewed_entity_survives`,
+  `::test_an_entity_with_a_note_survives`,
+  `::test_an_entity_with_an_authority_link_survives`,
+  `::test_a_merge_survivor_survives`, `::test_a_claim_with_a_link_survives`.
+- `importer.nlp-scoped-to-new-and-stranded-only` — **[OK]** (177fc6cd3) the NLP stage runs for
+  newly imported documents and stranded-pending recovery only (`needs_nlp` mirrors the
+  existing `needs_embedding` population) — it never sweeps an existing library's
+  already-processed documents just because the app opened. Pinned:
+  `test_nlp_draft_import.py::TestExistingLibrariesAreNotSwept::test_needs_nlp_matches_needs_embedding_population`,
+  `::test_opening_a_library_with_only_completed_docs_queues_nothing`.
+- `importer.nlp-language-picks-the-model` — **[OK]** (177fc6cd3) the document's own language
   picks which NLP model runs (a Spanish source yields Spanish statements, per the
   statement-language-matches-document ruling); a missing model for a document's language is a
-  VISIBLE state the user can see, never a silent skip that leaves a page quietly undrafted.
-- `importer.nlp-one-coalesced-event-per-document` — **[GAP]** (#4823) the NLP pass emits ONE
+  VISIBLE state the user can see (an explicit error, never a silent empty result, and never a
+  silent fallback to English when the resolved language's model is missing). Pinned:
+  `test_nlp_draft_import.py::TestMissingModelIsVisible::test_model_not_installed_is_a_visible_error_not_a_silent_empty_result`,
+  `::test_missing_model_for_the_resolved_language_never_falls_back_to_english`,
+  `test_nlp_draft_import.py::TestNlpStageInDerivatives::test_missing_model_records_visible_metadata_never_flips_processed`.
+- `importer.nlp-one-coalesced-event-per-document` — **[OK]** (177fc6cd3) the NLP pass emits ONE
   coalesced change event per document, not one per row/sentence/entity it produces — the same
   no-per-item-flood discipline `observable.no-per-item-refresh-loop`
   (`harness/observable-data-layer.md`) names for the client side, applied here on the
-  producer side.
+  producer side; and emits NO event at all when nothing was written. Pinned:
+  `test_nlp_draft_import.py::TestChangeEventIsCoalescedOncePerDocument::test_one_call_for_the_whole_document`,
+  `::test_no_event_when_nothing_was_written`.
+- `importer.nlp-draft-quality-gate` — **[OK]** (177fc6cd3) `passes_draft_quality_gate` ports
+  the app's existing OCR-garbage heuristic (letter-ratio, length floor, stop-word/pronoun
+  exclusion, concept-type exclusion) to the draft layer, so OCR noise and function words never
+  become entity rows; a visible per-document cap (`_DRAFT_MAX_ENTITIES_PER_DOCUMENT`, default
+  200) truncates rather than silently exploding a noisy page, and the truncation is recorded
+  on the document's own metadata, not just logged. Pinned:
+  `test_nlp_draft_import.py::TestDraftQualityGate::test_the_gate_table` (18-row table: good
+  Spanish/accented/paleographic/multi-word names pass; OCR noise, timestamps, single letters,
+  all-numeric, low letter-ratio, stop words, and excluded types all fail),
+  `::test_a_garbage_span_never_reaches_the_writer`,
+  `::test_concept_type_is_excluded_from_the_draft_layer_entirely`,
+  `::test_per_document_cap_truncates_visibly`, `::test_truncation_is_recorded_on_the_document_visibly`.
+- `importer.nlp-audited-purge` — **[OK]** (177fc6cd3) `entity.purge_nlp_draft` is the audited
+  way back: dry-run by default (counts, deletes nothing), scoped to one document or the whole
+  library, idempotent (a second purge finds nothing), and removes ONLY rows nothing else has
+  touched — reporting `protected_count`/`protected_reasons` so a dry run shows exactly what it
+  will and won't remove before anyone commits to it. Routed through `registry.invoke`, the
+  same audited choke point every other action uses. Pinned:
+  `test_nlp_draft_purge_action.py::TestDryRunIsTheDefault::test_dry_run_counts_but_deletes_nothing`,
+  `test_nlp_draft_purge_action.py::TestRealPurgeRemovesDraftRows::test_document_scoped_purge_removes_the_draft`,
+  `::test_purge_clears_nlp_processed_at_so_a_rerun_is_possible`,
+  `::test_idempotent_second_purge_finds_nothing`, `::test_library_scoped_purge_spans_every_document`,
+  `test_nlp_draft_purge_action.py::TestF2IndependentTouchProtection::test_dry_run_reports_protected_breakdown`.
 - `importer.pdf-import-from-link-and-drop` — **[GAP]** (#2386) PDF import via a link and via
   drag/drop must both work. Reported broken; not independently re-verified in code this pass.
 - `importer.format-coverage-gaps` — **[GAP]** (#4206) audio/video files extract no text, ~110
@@ -195,7 +248,7 @@ in the file's own status), never a silent nothing.
 | Backend (pytest) | y | text extraction defaults, image-file skip | `fichero-server/tests/unit/importers/test_ingest_default_extract_text.py` |
 | Backend (pytest) | y | derivative stage produces output, failure is visible | `fichero-server/tests/unit/api/test_post_ingest_derivatives.py` |
 | Backend (pytest) | y | background QoS + bounded embed concurrency | `fichero-server/tests/unit/core/test_background_compute.py` |
-| Backend (pytest) | n | no test covers Kraken-at-import or NLP-at-import (neither is wired) | — (the two GAPs above) |
+| Backend (pytest) | y (NLP) / n (Kraken) | NLP-at-import IS covered now (62 tests, `importer.nlp-*` above); Kraken-at-import is still not wired | `test_nlp_draft_import.py`, `test_nlp_draft_purge_action.py` (NLP) — none yet (Kraken) |
 | Availability (Swift) | y | Data ▸ Import… reaches the focused pane; the bottom-bar/drag affordances exist | `fichero/Tests/Unit/general/App/LibraryImportFocusedValueTests.swift`, `.../Views/Library/LibraryImportAffordancesTests.swift` (not individually re-read this pass — named for completeness, not cited as proof of a behavior above) |
 | Click-around (XCUITest) | n | no dedicated drop-a-file-and-see-it-readable flow test found | — |
 
@@ -243,9 +296,10 @@ issue; the maintainer's call, not closed here · **recommend re-home** = a disti
 | 4206 | Format coverage: audio/video no text, sidecars missed, formats unverified | **cited** → `importer.format-coverage-gaps` |
 | 4210 | Row-per-record spreadsheet import: engine+CLI only, unreachable from app | related — a specific format's UI gap; stays on #188 |
 
-Moved onto `importer` (#307) by number: **#2386, #3308, #4203, #4206**, plus the two
-new issues filed this pass, **#4822** (`importer.segmentation-automatic-no-toggle`) and
-**#4823** (`importer.nlp-auto-at-import`). Everything else stays on #188. Nothing closed.
+Moved onto `importer` (#307) by number: **#2386, #3308, #4203, #4206**, plus **#4822**
+(`importer.segmentation-automatic-no-toggle`) and **#4830** (`importer.nlp-auto-at-import`'s
+remaining Settings-row/purge-UI/maintainer-review scope — the original NLP-draft filing issue
+from this pass shipped and closed at 177fc6cd3). Everything else stays on #188.
 
 ## Open questions
 
