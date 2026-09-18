@@ -160,6 +160,55 @@ final class WindowWorkspaceTests: XCTestCase {
         XCTAssertNil(decoded.paneList)
     }
 
+    /// SF10 review finding: a PRESENT-but-malformed `paneList` used to THROW out of
+    /// `init(from:)` — unlike absence, which `decodeIfPresent` alone already handles — and that
+    /// throw propagated through `JSONDecoder().decode(WindowLayoutSnapshot.self, ...)`. The
+    /// malformed value must degrade to `nil` (this one snapshot falls back to Read on apply)
+    /// exactly like absence does, not throw.
+    func testASnapshotWithMalformedPaneListDataStillDecodesWithPaneListNil() throws {
+        let json = """
+        {"panes":{"showSidebar":true,"showInspector":false,"showLibraryPane":true,
+        "showPreviewPane":true,"showReaderPane":true,"showChatPane":false},
+        "libraryPaneWidth":320,"readerPaneWidth":200,"chatPaneWidth":300,
+        "viewDisplayMode":"Icon","layoutMode":"Widescreen",
+        "paneList":"this is not a PaneList"}
+        """
+        let decoded = try JSONDecoder().decode(WindowLayoutSnapshot.self, from: Data(json.utf8))
+        XCTAssertNil(decoded.paneList)
+        // The REST of the snapshot survived the malformed field — it wasn't just "give up".
+        XCTAssertEqual(decoded.libraryPaneWidth, 320)
+        XCTAssertTrue(decoded.panes.showLibraryPane)
+    }
+
+    /// The actual SF10 bug: one saved workspace with malformed pane data used to void the WHOLE
+    /// catalog (`WindowWorkspaceCatalog.decoded(from:)` swallows any decode throw to `nil`),
+    /// deleting every OTHER saved workspace along with it.
+    func testOneWorkspaceWithMalformedPaneListDoesNotDeleteTheRestOfTheCatalog() throws {
+        let goodList = PaneList([.leaf(.library), .leaf(.reading)])
+        var good = snapshot()
+        good.paneList = goodList
+        var bad = snapshot()
+        let badList = PaneList([.leaf(.preview)])
+        bad.paneList = badList
+
+        var catalog = WindowWorkspaceCatalog()
+        catalog.save(name: "Good", layout: good)
+        catalog.save(name: "Bad", layout: bad)
+
+        var json = try XCTUnwrap(String(data: catalog.encoded(), encoding: .utf8))
+        // Corrupt ONLY "Bad"'s paneList value in place — computed the same way it was encoded, so
+        // this is a targeted single-field corruption, not a hand-written guess at the JSON shape.
+        let badPaneListJSON = try XCTUnwrap(String(data: JSONEncoder().encode(badList), encoding: .utf8))
+        XCTAssertTrue(json.contains(badPaneListJSON), "test setup: expected Bad's encoded paneList verbatim in the catalog")
+        json = json.replacingOccurrences(of: badPaneListJSON, with: "\"not a pane list\"")
+
+        let restored = WindowWorkspaceCatalog.decoded(from: try XCTUnwrap(json.data(using: .utf8)))
+        XCTAssertNotNil(restored, "A malformed paneList anywhere must not void the whole catalog.")
+        XCTAssertEqual(Set(restored?.workspaces.map(\.name) ?? []), ["Bad", "Good"])
+        XCTAssertEqual(restored?.workspaces.first { $0.name == "Good" }?.layout.paneList, goodList)
+        XCTAssertNil(restored?.workspaces.first { $0.name == "Bad" }?.layout.paneList)
+    }
+
     // MARK: - Toolbar visibility (Daniel, 2026-08-31)
 
     func testSnapshotCarriesTheToolbarConfigurationThroughJSON() throws {

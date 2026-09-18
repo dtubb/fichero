@@ -59,7 +59,14 @@ enum BuiltInWorkspaceLayout: String, CaseIterable, Identifiable, Sendable {
     /// slot→workspace map. ⌘⌥7–9 (beyond the six) are user-assignable.
     var defaultSlot: Int { (Self.allCases.firstIndex(of: self) ?? 0) + 1 }
 
-    /// The composition.
+    /// The composition. Every node uses `.stableLeaf`/`.stableSplit`, NOT the plain `.leaf`/
+    /// `.split` (SF6 review finding, fixed): the plain factories mint a fresh random `UUID()` on
+    /// EVERY access, so re-deriving the same built-in — navigating Read → Browse → Read, or a
+    /// relaunch re-seeding `activePaneList` from `WorkspaceLayoutDefaults.rememberedPaneList()`
+    /// against `BuiltInWorkspaceLayout.read.panes` — silently lost every dragged divider and
+    /// orphaned two `@SceneStorage` keys per apply, because `WorkspaceSplitStack`/`PaneSpec` key
+    /// their per-instance storage off a leaf's id. Each `named:` string is unique within its own
+    /// `case` (prefixed with `rawValue`, so it's also unique ACROSS built-ins) and never changes.
     var panes: PaneList {
         switch self {
         // CD 2026-09-16 — the workspace set redesigned from the CD's Mail-referenced sketch. NOTE:
@@ -74,11 +81,12 @@ enum BuiltInWorkspaceLayout: String, CaseIterable, Identifiable, Sendable {
             // 60% (WorkspaceSplitStack's "last child flexes" rule) — one number to tune, not two
             // that could drift apart.
             return PaneList([
-                .split(.vertical, [
-                    .leaf(.library, config: PaneConfig(libraryLayout: "table", paneFraction: 0.4)),
-                    .leaf(.reading)
+                .stableSplit(.vertical, named: "\(rawValue).topSplit", [
+                    .stableLeaf(.library, named: "\(rawValue).library",
+                                config: PaneConfig(libraryLayout: "table", paneFraction: 0.4)),
+                    .stableLeaf(.reading, named: "\(rawValue).reading")
                 ]),
-                .leaf(.preview)
+                .stableLeaf(.preview, named: "\(rawValue).preview")
             ])
         case .browse:
             // Icon view (vertical column), then preview, then reader — "like we had it".
@@ -87,9 +95,10 @@ enum BuiltInWorkspaceLayout: String, CaseIterable, Identifiable, Sendable {
             // smallest share — 30:35:35. Reader is the last child and flexes to the remainder
             // (~35%), so it can't drift out of step with preview's 35%.
             return PaneList([
-                .leaf(.library, config: PaneConfig(libraryLayout: "icons", paneFraction: 0.30)),
-                .leaf(.preview, config: PaneConfig(paneFraction: 0.35)),
-                .leaf(.reading)
+                .stableLeaf(.library, named: "\(rawValue).library",
+                            config: PaneConfig(libraryLayout: "icons", paneFraction: 0.30)),
+                .stableLeaf(.preview, named: "\(rawValue).preview", config: PaneConfig(paneFraction: 0.35)),
+                .stableLeaf(.reading, named: "\(rawValue).reading")
             ])
         case .transcribe:
             // Icons along the bottom, preview above and reader to its right.
@@ -97,12 +106,13 @@ enum BuiltInWorkspaceLayout: String, CaseIterable, Identifiable, Sendable {
             // strip stays a HARD absolute 72pt (`paneExtent`, unchanged) — a strip of page icons
             // is a deliberate fixed-size affordance, not a fraction of the display (CD 2026-09-16).
             return PaneList([
-                .split(.vertical, [
-                    .split(.horizontal, [
-                        .leaf(.preview, config: PaneConfig(paneFraction: 0.5)),
-                        .leaf(.reading)
+                .stableSplit(.vertical, named: "\(rawValue).outerSplit", [
+                    .stableSplit(.horizontal, named: "\(rawValue).topSplit", [
+                        .stableLeaf(.preview, named: "\(rawValue).preview", config: PaneConfig(paneFraction: 0.5)),
+                        .stableLeaf(.reading, named: "\(rawValue).reading")
                     ]),
-                    .leaf(.library, config: PaneConfig(libraryLayout: "icons", paneExtent: 72))
+                    .stableLeaf(.library, named: "\(rawValue).library",
+                                config: PaneConfig(libraryLayout: "icons", paneExtent: 72))
                 ])
             ])
         case .transcribeTall:
@@ -116,13 +126,15 @@ enum BuiltInWorkspaceLayout: String, CaseIterable, Identifiable, Sendable {
             // at most two resizable columns per split anyway); reading is last and flexes to the
             // remaining ~34%.
             return PaneList([
-                .split(.vertical, [
-                    .split(.horizontal, [
-                        .leaf(.preview, config: PaneConfig(paneFraction: 0.33)),
-                        .leaf(.preview, config: PaneConfig(previewWordBoxes: true, paneFraction: 0.33)),
-                        .leaf(.reading)
+                .stableSplit(.vertical, named: "\(rawValue).outerSplit", [
+                    .stableSplit(.horizontal, named: "\(rawValue).topSplit", [
+                        .stableLeaf(.preview, named: "\(rawValue).previewA", config: PaneConfig(paneFraction: 0.33)),
+                        .stableLeaf(.preview, named: "\(rawValue).previewB",
+                                    config: PaneConfig(previewWordBoxes: true, paneFraction: 0.33)),
+                        .stableLeaf(.reading, named: "\(rawValue).reading")
                     ]),
-                    .leaf(.library, config: PaneConfig(libraryLayout: "icons", paneExtent: 72))
+                    .stableLeaf(.library, named: "\(rawValue).library",
+                                config: PaneConfig(libraryLayout: "icons", paneExtent: 72))
                 ])
             ])
         case .compare:
@@ -133,13 +145,14 @@ enum BuiltInWorkspaceLayout: String, CaseIterable, Identifiable, Sendable {
             // the lion's share equally (40:40) and the reader — reference context, not the primary
             // task here — gets the last, flexing ~20%.
             return PaneList([
-                .split(.vertical, [
-                    .split(.horizontal, [
-                        .leaf(.preview, config: PaneConfig(paneFraction: 0.4)),
-                        .leaf(.preview, config: PaneConfig(paneFraction: 0.4)),
-                        .leaf(.reading)
+                .stableSplit(.vertical, named: "\(rawValue).outerSplit", [
+                    .stableSplit(.horizontal, named: "\(rawValue).topSplit", [
+                        .stableLeaf(.preview, named: "\(rawValue).previewA", config: PaneConfig(paneFraction: 0.4)),
+                        .stableLeaf(.preview, named: "\(rawValue).previewB", config: PaneConfig(paneFraction: 0.4)),
+                        .stableLeaf(.reading, named: "\(rawValue).reading")
                     ]),
-                    .leaf(.library, config: PaneConfig(libraryLayout: "icons", paneExtent: 72))
+                    .stableLeaf(.library, named: "\(rawValue).library",
+                                config: PaneConfig(libraryLayout: "icons", paneExtent: 72))
                 ])
             ])
         }

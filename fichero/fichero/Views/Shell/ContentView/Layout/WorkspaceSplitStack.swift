@@ -61,11 +61,14 @@ struct WorkspaceSplitStack: View {
     @SceneStorage private var extent0: Double
     @SceneStorage private var extent1: Double
 
-    /// Sentinel meaning "never seeded or dragged" — @SceneStorage needs a concrete `Double` at
-    /// init, before the `GeometryReader` below knows the stack's actual `total`, so a proportional
-    /// slot can't be seeded with real points until the first layout pass. `seedIfNeeded` backfills
-    /// it once `total` is known; `resolvedExtents` also treats it as "use the fraction" so there is
-    /// no flash of a bogus value before that first layout pass runs.
+    /// Sentinel meaning "never dragged" — @SceneStorage needs a concrete `Double` at init, before
+    /// the `GeometryReader` below knows the stack's actual `total`. NOTHING ever seeds this to a
+    /// resolved points value (SF3 review finding, fixed): converting a fraction to absolute
+    /// points on first appear meant a 0.4-fraction column, seeded once at a 1000pt window, stayed
+    /// pinned to 400pt forever — even after moving to a 2000pt display. `resolvedExtents` treats
+    /// `unset` as "use the fraction of `total`", recomputed fresh every render, so the display
+    /// value always tracks the CURRENT window size until an actual drag writes a real value here
+    /// (the `.fraction` case's `Binding` setter in `arranged`, below — never its getter).
     private static let unset: Double = -1
 
     init(axis: SplitAxis, storageKey: String, children: [Child]) {
@@ -97,21 +100,6 @@ struct WorkspaceSplitStack: View {
                 }
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
-            .onAppear { seedIfNeeded(total: Double(total)) }
-        }
-    }
-
-    /// Backfill an unseeded resizable slot with its fraction of the NOW-known stack extent — the
-    /// one-time proportional seed a plain `@SceneStorage` default can't express (see `unset`).
-    /// Never touches a slot that's already seeded or already user-dragged.
-    private func seedIfNeeded(total: Double) {
-        guard total > 0 else { return }
-        var slot = 0
-        for child in children {
-            guard case let .fraction(fraction) = child.sizing else { continue }
-            defer { slot += 1 }
-            if slot == 0, extent0 == Self.unset { extent0 = fraction * total }
-            else if slot == 1, extent1 == Self.unset { extent1 = fraction * total }
         }
     }
 
@@ -149,11 +137,27 @@ struct WorkspaceSplitStack: View {
             case .fixed:
                 return ChildPlan(view: child.view, layout: .fixed(resolved[index] ?? 0))
             case .fraction:
-                let binding = slot == 0 ? $extent0 : $extent1
+                // SF3 review finding: this used to be `$extent0`/`$extent1` directly — a plain
+                // pass-through to the raw @SceneStorage slot, which is WHY something had to seed
+                // that slot with an absolute-points value before the divider had anything sane to
+                // show or drag from. A COMPUTED binding instead: its getter is the already-resolved
+                // display value (the fraction of `total` until a real drag has written a stored
+                // override, per `resolvedExtents`/`storedOverrides` above), so nothing is ever
+                // seeded — the fraction re-resolves fresh against whatever `total` is THIS render.
+                // The setter is the only path that ever writes `extent0`/`extent1`, and it only
+                // fires from `ResizableDivider`'s own drag handler — never from a mere appearance.
+                let displayValue = resolved[index] ?? 0
+                let isFirstFractionSlot = slot == 0
+                let binding = Binding<Double>(
+                    get: { displayValue },
+                    set: { newValue in
+                        if isFirstFractionSlot { extent0 = newValue } else { extent1 = newValue }
+                    }
+                )
                 slot += 1
                 return ChildPlan(
                     view: child.view,
-                    layout: .resizable(binding, display: resolved[index] ?? 0, dividerBefore: index > flexIndex)
+                    layout: .resizable(binding, display: displayValue, dividerBefore: index > flexIndex)
                 )
             }
         }

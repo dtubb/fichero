@@ -1,4 +1,23 @@
+import CryptoKit
 import Foundation
+
+// MARK: - Deterministic ids (SF6 review finding — built-in workspace stability)
+
+extension UUID {
+    /// A UUID derived deterministically from `name`: the SAME `name` always produces the SAME
+    /// UUID (this process, the next launch, forever), unlike the random `UUID()` initializer.
+    /// RFC 4122 name-based hashing (the same idea as a v3/v5 namespace UUID), MD5-based — MD5 is
+    /// fine here, this is an IDENTITY key, not a security boundary. Used to give built-in
+    /// workspace panes a stable identity (`PaneNode.stableLeaf`/`.stableSplit`) instead of a fresh
+    /// random one on every access.
+    init(stableName name: String) {
+        let digest = Insecure.MD5.hash(data: Data(name.utf8))
+        var bytes = Array(digest)
+        bytes[6] = (bytes[6] & 0x0F) | 0x30 // version 3 (name-based, MD5) — cosmetic, not load-bearing
+        bytes[8] = (bytes[8] & 0x3F) | 0x80 // RFC 4122 variant — likewise cosmetic
+        self = NSUUID(uuidBytes: bytes) as UUID
+    }
+}
 
 // MARK: - Pane-list model (F7)
 //
@@ -134,6 +153,29 @@ indirect enum PaneNode: Codable, Sendable, Hashable, Identifiable {
     /// A split of `children` along `axis`.
     static func split(_ axis: SplitAxis, _ children: [PaneNode]) -> PaneNode {
         .split(id: UUID(), axis: axis, children: children)
+    }
+
+    /// A leaf whose id is DETERMINISTIC, derived from `name` (SF6 review finding) — for BUILT-IN
+    /// workspace definitions ONLY. `BuiltInWorkspaceLayout.panes` used the plain `.leaf(_:)` above,
+    /// which mints a FRESH random id on every single access; `WorkspaceSplitStack`/`PaneSpec` key
+    /// their per-instance storage (a dragged divider's width, a pane's own split state) off a
+    /// leaf's id, so re-deriving the SAME built-in composition (navigating Read → Browse → Read,
+    /// or simply relaunching) silently lost every drag and orphaned two `@SceneStorage` keys per
+    /// apply. Give `name` a value unique within one `BuiltInWorkspaceLayout` case (e.g.
+    /// `"\(rawValue).library"`) — the SAME name always yields the SAME id, in this process or the
+    /// next; a DIFFERENT name (a different pane, a different built-in) yields a different one.
+    /// Runtime mutations (`toggling`, `splittingLeaf`'s duplicate, `settingVisible`'s appended
+    /// leaf) must keep using the plain `.leaf(_:)` above — a stable id there would make two
+    /// toggled-on panes of the same kind collide instead of coexisting.
+    static func stableLeaf(
+        _ kind: PaneKind, named name: String, scope: PaneScope = .current, config: PaneConfig = .none
+    ) -> PaneNode {
+        .leaf(id: UUID(stableName: name), kind: kind, scope: scope, config: config)
+    }
+
+    /// The `stableLeaf` twin for a split node — see `stableLeaf` for why and when.
+    static func stableSplit(_ axis: SplitAxis, named name: String, _ children: [PaneNode]) -> PaneNode {
+        .split(id: UUID(stableName: name), axis: axis, children: children)
     }
 
     /// Every kind this node (recursively) contains.

@@ -1,4 +1,7 @@
 import Foundation
+import OSLog
+
+private let workspaceSnapshotDecodeLogger = Logger(subsystem: "app.fichero.fichero", category: "WindowWorkspace")
 
 // MARK: - Window workspaces (Daniel, 2026-08-29)
 //
@@ -159,8 +162,21 @@ extension WindowLayoutSnapshot {
         showAnnotationBar = try container.decodeIfPresent(
             Bool.self, forKey: .showAnnotationBar) ?? false
         // A brand-new key (#4686): absent from every snapshot saved before this change, so
-        // `decodeIfPresent` alone already returns nil for them — no shape migration needed.
-        paneList = try container.decodeIfPresent(PaneList.self, forKey: .paneList)
+        // `decodeIfPresent` alone already returns nil for them — no shape migration needed for
+        // ABSENCE. But `decodeIfPresent` still THROWS when the key is PRESENT with malformed data
+        // (SF10 review finding), and this whole `init(from:)` runs inside
+        // `WindowWorkspaceCatalog.decoded(from:)`'s `try? JSONDecoder().decode(...)` — a throw here
+        // propagates up and voids the ENTIRE catalog, deleting every OTHER saved workspace because
+        // one has a bad pane list. `try?` locally so a malformed `paneList` degrades to nil (this
+        // one snapshot falls back to Read on apply, per `applyLayoutSnapshot`) instead of taking
+        // the whole catalog down with it — the same leniency contract every field above already has.
+        if let decoded = try? container.decodeIfPresent(PaneList.self, forKey: .paneList) {
+            paneList = decoded
+        } else {
+            workspaceSnapshotDecodeLogger.notice(
+                "A saved workspace's pane list failed to decode — treating it as absent rather than losing the whole catalog.")
+            paneList = nil
+        }
     }
 }
 

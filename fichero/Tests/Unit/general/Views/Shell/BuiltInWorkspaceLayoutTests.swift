@@ -227,11 +227,61 @@ struct BuiltInWorkspaceLayoutTests {
     @Test("every default round-trips through JSON (a workspace is a PaneList)")
     func everyDefaultRoundTrips() throws {
         for layout in BuiltInWorkspaceLayout.allCases {
-            // Capture ONE instance: `.panes` mints fresh pane ids on each access, so comparing a
-            // decode against a second `.panes` call would differ only by UUID (the round-trip is fine).
+            // `.panes` now mints STABLE ids (SF6 fix, below) so this could compare two separate
+            // `.panes` calls directly — captured once anyway, since that's the more focused test
+            // of what THIS test is actually about (JSON round-tripping).
             let panes = layout.panes
             let decoded = try JSONDecoder().decode(PaneList.self, from: JSONEncoder().encode(panes))
             #expect(decoded == panes, "\(layout.title) should round-trip")
         }
+    }
+
+    // MARK: - Stable ids (SF6 review finding)
+
+    @Test("a built-in's ids are STABLE across repeated accesses, not re-minted each time")
+    func builtInIdsAreStableAcrossAccesses() {
+        // Before the fix: `.panes` called `.leaf`/`.split` (plain, random-UUID factories) fresh on
+        // every access, so two calls for the SAME built-in never matched. `WorkspaceSplitStack`/
+        // `PaneSpec` key a dragged divider's width and a pane's own split state off a leaf's id —
+        // re-deriving Read (navigating away and back, or a relaunch re-seeding from
+        // `BuiltInWorkspaceLayout.read.panes`) silently lost every drag and orphaned storage keys.
+        for layout in BuiltInWorkspaceLayout.allCases {
+            let first = Set(allLeafIDs(layout.panes).map(\.id))
+            let second = Set(allLeafIDs(layout.panes).map(\.id))
+            #expect(first == second, "\(layout.title)'s leaf ids must be identical across two accesses")
+        }
+    }
+
+    @Test("different built-ins never share an id")
+    func differentBuiltInsHaveDifferentIds() {
+        var seen: Set<UUID> = []
+        for layout in BuiltInWorkspaceLayout.allCases {
+            let ids = Set(allLeafIDs(layout.panes).map(\.id))
+            #expect(seen.isDisjoint(with: ids), "\(layout.title) shares an id with an earlier built-in")
+            seen.formUnion(ids)
+        }
+    }
+
+    @Test("splitting a built-in's leaf still mints a FRESH id for the new duplicate")
+    func splittingABuiltInLeafStillMintsAFreshId() {
+        // The stable-id fix is for the BUILT-IN DEFINITION only — a runtime split/toggle must
+        // still get a genuinely fresh identity, or two split-created panes of the same kind would
+        // collide instead of coexisting (spec panes.instance-safe).
+        let panes = BuiltInWorkspaceLayout.read.panes
+        let originalIDs = Set(allLeafIDs(panes).map(\.id))
+        let target = allLeafIDs(panes).first { $0.kind == .library }!
+        let split = panes.splittingLeaf(target.id, axis: .horizontal)
+        let newIDs = Set(allLeafIDs(split).map(\.id)).subtracting(originalIDs)
+        #expect(newIDs.count == 1, "splitting should add exactly one brand-new leaf id")
+    }
+
+    @Test("removing a built-in's leaf leaves every OTHER leaf's stable id untouched")
+    func removingABuiltInLeafKeepsOtherIdsStable() {
+        let panes = BuiltInWorkspaceLayout.read.panes
+        let target = allLeafIDs(panes).first { $0.kind == .preview }!
+        let after = panes.removingLeaf(target.id)
+        let survivingIDs = Set(allLeafIDs(after).map(\.id))
+        let expected = Set(allLeafIDs(panes).map(\.id)).subtracting([target.id])
+        #expect(survivingIDs == expected)
     }
 }
