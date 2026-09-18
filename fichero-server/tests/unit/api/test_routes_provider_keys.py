@@ -188,6 +188,55 @@ def test_connection_test_real_probe_no_key_unchanged(monkeypatch, provider_type,
     assert result.verified is not True
 
 
+# =============================================================================
+# Task 3 Part A: the "only an auth answer proves a bad key" rule applied
+# uniformly to the five pre-existing probes (openai, huggingface, google,
+# groq, deepl). Each provider's OWN bad-key status code(s) must still fail;
+# any OTHER non-200 must now report unverified, not failed.
+# =============================================================================
+
+_LEGACY_PROBE_BAD_KEY_STATUS: dict[str, tuple[int, ...]] = {
+    "openai": (401,),
+    "huggingface": (401,),
+    # Google's API-key errors surface as 400 (body reason API_KEY_INVALID),
+    # never 401/403 -- kept as its real bad-key signal, not touched by #4816.
+    "google": (400,),
+    "groq": (401,),
+    # DeepL answers a mismatched free/pro host with a bare 403; 401 also
+    # covered defensively (existing code already checked both).
+    "deepl": (401, 403),
+}
+
+
+@pytest.mark.parametrize("status_code", [404, 429, 500])
+@pytest.mark.parametrize("provider_type", list(_LEGACY_PROBE_BAD_KEY_STATUS))
+def test_legacy_probe_non_auth_status_is_unverified_not_failed(
+    monkeypatch, provider_type, status_code
+):
+    assert status_code not in _LEGACY_PROBE_BAD_KEY_STATUS[provider_type]
+    _mock_probe(monkeypatch, "a-key", response=_FakeResponse(status_code, {"models": [], "data": []}))
+
+    result = asyncio.run(routes.test_provider_connection(provider_type))
+
+    assert result.success is True
+    assert result.verified is False
+    assert str(status_code) in result.message
+
+
+@pytest.mark.parametrize("provider_type", list(_LEGACY_PROBE_BAD_KEY_STATUS))
+def test_legacy_probe_own_bad_key_status_still_fails(monkeypatch, provider_type):
+    """The uniform rule must not swallow a provider's REAL bad-key signal
+    (google's 400 in particular -- it is not 401/403, but it IS the bad-key
+    answer and must keep failing, not soften to 'could not verify')."""
+    for status_code in _LEGACY_PROBE_BAD_KEY_STATUS[provider_type]:
+        _mock_probe(monkeypatch, "a-dead-key", response=_FakeResponse(status_code))
+
+        result = asyncio.run(routes.test_provider_connection(provider_type))
+
+        assert result.success is False, f"{provider_type}/{status_code} must still fail"
+        assert result.verified is not True
+
+
 def test_connection_test_untested_provider_reports_saved_not_verified(monkeypatch):
     """(c) — azure/bedrock/dashscope-shaped providers: a saved key must never
     read as a verified pass again."""

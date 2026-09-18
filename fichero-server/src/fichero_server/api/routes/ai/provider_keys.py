@@ -442,11 +442,14 @@ async def test_provider_connection(
                         latency_ms=latency,
                     )
                 else:
+                    # Only 401 proves the key is bad (#4816 team-lead review,
+                    # applied uniformly to the pre-existing probes).
                     return ConnectionTestResponse(
-                        success=False,
+                        success=True,
                         provider_type=provider_type,
-                        message=f"API returned status {response.status_code}",
+                        message=f"Key saved — could not verify (provider returned status {response.status_code})",
                         latency_ms=latency,
+                        verified=False,
                     )
 
         elif provider_type == "anthropic":
@@ -523,10 +526,11 @@ async def test_provider_connection(
                     )
                 else:
                     return ConnectionTestResponse(
-                        success=False,
+                        success=True,
                         provider_type=provider_type,
-                        message=f"API returned status {response.status_code}",
+                        message=f"Key saved — could not verify (provider returned status {response.status_code})",
                         latency_ms=latency,
+                        verified=False,
                     )
 
         elif provider_type == "google":
@@ -554,6 +558,9 @@ async def test_provider_connection(
                         verified=True,
                     )
                 elif response.status_code == 400:
+                    # Google's API-key errors surface as 400 (the body's
+                    # `reason` is API_KEY_INVALID), not 401/403 -- this IS
+                    # the real bad-key signal for this provider, kept as-is.
                     return ConnectionTestResponse(
                         success=False,
                         provider_type=provider_type,
@@ -562,10 +569,11 @@ async def test_provider_connection(
                     )
                 else:
                     return ConnectionTestResponse(
-                        success=False,
+                        success=True,
                         provider_type=provider_type,
-                        message=f"API returned status {response.status_code}",
+                        message=f"Key saved — could not verify (provider returned status {response.status_code})",
                         latency_ms=latency,
+                        verified=False,
                     )
 
         elif provider_type == "groq":
@@ -600,10 +608,11 @@ async def test_provider_connection(
                     )
                 else:
                     return ConnectionTestResponse(
-                        success=False,
+                        success=True,
                         provider_type=provider_type,
-                        message=f"API returned status {response.status_code}",
+                        message=f"Key saved — could not verify (provider returned status {response.status_code})",
                         latency_ms=latency,
+                        verified=False,
                     )
 
         elif provider_type == "deepl":
@@ -652,10 +661,11 @@ async def test_provider_connection(
                         latency_ms=latency,
                     )
                 return ConnectionTestResponse(
-                    success=False,
+                    success=True,
                     provider_type=provider_type,
-                    message=f"API returned status {response.status_code}",
+                    message=f"Key saved — could not verify (provider returned status {response.status_code})",
                     latency_ms=latency,
+                    verified=False,
                 )
 
         elif provider_type == "openrouter":
