@@ -1,5 +1,7 @@
 # KG Tables — Design Spec (#4624 CRUD · #4625 filter)
 
+> Milestone: kg-tables
+
 > Design-led (Testing Constitution). The Fichero creative director owns this intent;
 > tests enforce it; code makes them pass. One line per behavior, each cited by its
 > pinning test. Status: APPROVED — creative director ratified; first-wave CRUD + filters shipped.

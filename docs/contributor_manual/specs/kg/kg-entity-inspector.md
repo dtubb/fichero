@@ -1,5 +1,7 @@
 # KG Entity Inspector — Design Spec
 
+> Milestone: kg-entity-inspector
+
 > Design-led spec (Testing Constitution, #4623, milestone Knowledge Graph). The
 > creative director owns this intent; tests enforce it; code makes the tests pass.
 > One line per behavior; each maps to a pinning test cited by name in the test's

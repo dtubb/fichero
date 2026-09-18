@@ -31,8 +31,6 @@ MILESTONE_RE = re.compile(r"Milestone:\s*(\S+)")
 # list by gaining a `Milestone:` header as their area is next worked — "sorted over time"
 # (creative-director). Do NOT add new specs here; new APPROVED specs must declare a milestone.
 MILESTONE_GRANDFATHERED = {
-    "kg-tables",
-    "kg-entity-inspector",
     "sidebar-crud",
     "workflow-node-config",
 }
