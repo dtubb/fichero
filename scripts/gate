@@ -71,6 +71,11 @@ cd "$REPO_ROOT" || exit 2
 LOCK_FILE="${GATE_LOCK_FILE:-/tmp/fichero-gate.lock}"
 WATCH_INTERVAL="${GATE_WATCH_INTERVAL:-5}"
 DRYRUN="${GATE_DRYRUN:-0}"
+# Set by run_gated on every return (PASS / TESTS FAILED / HOST NEVER STARTED /
+# PHASE TIMEOUT / FAILED / KILLED (...) / DRYRUN) — read by run_leg right
+# after invoking a leg so the part/verify-all summary tables can show WHY a
+# leg failed, not just its rc (#4695).
+GATE_LAST_VERDICT=""
 
 XCODE_PROJECT="fichero/fichero.xcodeproj"
 # Schemes, re-pinned 2026-09-17. The 2026-09-09 scheme prune (917592673) deleted
@@ -292,6 +297,7 @@ run_gated() {
   shift 2
   if [[ "$DRYRUN" = "1" ]]; then
     echo "gate DRYRUN [$label] (timeout ${timeout}s): $*"
+    GATE_LAST_VERDICT="DRYRUN"
     return 0
   fi
   echo "gate: [$label] starting (timeout ${timeout}s, watchdog every ${WATCH_INTERVAL}s)"
@@ -321,9 +327,10 @@ run_gated() {
         handshake_seen=1
       elif (( SECONDS - start > handshake_s )); then
         reason="handshake-timeout — host pid $pid produced no 'Running tests…'/'Test Case' line within ${handshake_s}s (#4695)"
+        GATE_LAST_VERDICT="HOST NEVER STARTED"
         kill_tree "$pid"
         wait "$pid" 2>/dev/null
-        echo "gate: [$label] KILLED — $reason" >&2
+        echo "gate: [$label] KILLED ($GATE_LAST_VERDICT) — $reason" >&2
         [[ -n "$handshake_log" ]] && rm -f "$handshake_log"
         trap - INT TERM
         return 124
@@ -331,9 +338,10 @@ run_gated() {
     fi
     if (( SECONDS - start > timeout )); then
       reason="timeout after ${timeout}s"
+      GATE_LAST_VERDICT="PHASE TIMEOUT"
       kill_tree "$pid"
       wait "$pid" 2>/dev/null
-      echo "gate: [$label] KILLED — $reason" >&2
+      echo "gate: [$label] KILLED ($GATE_LAST_VERDICT) — $reason" >&2
       [[ -n "$handshake_log" ]] && rm -f "$handshake_log"
       trap - INT TERM
       return 124
@@ -350,9 +358,10 @@ run_gated() {
     case "$fp" in ''|*[!0-9]*) fp=0 ;; esac
     if (( fp > ceiling )); then
       reason="process footprint ${fp}MB exceeded ceiling ${ceiling}MB"
+      GATE_LAST_VERDICT="KILLED (footprint)"
       kill_tree "$pid"
       wait "$pid" 2>/dev/null
-      echo "gate: [$label] KILLED — $reason" >&2
+      echo "gate: [$label] KILLED ($GATE_LAST_VERDICT) — $reason" >&2
       [[ -n "$handshake_log" ]] && rm -f "$handshake_log"
       trap - INT TERM
       return 137
@@ -364,9 +373,10 @@ run_gated() {
     esac
     if (( level >= 4 )); then
       reason="memory pressure level $level (hard critical) — instant kill"
+      GATE_LAST_VERDICT="KILLED (memory pressure)"
       kill_tree "$pid"
       wait "$pid" 2>/dev/null
-      echo "gate: [$label] KILLED — $reason" >&2
+      echo "gate: [$label] KILLED ($GATE_LAST_VERDICT) — $reason" >&2
       [[ -n "$handshake_log" ]] && rm -f "$handshake_log"
       trap - INT TERM
       return 137
@@ -375,9 +385,10 @@ run_gated() {
       echo "gate: [$label] memory pressure level 3 — strike $strikes/2" >&2
       if (( strikes >= 2 )); then
         reason="memory pressure level 3 twice in a row"
+        GATE_LAST_VERDICT="KILLED (memory pressure)"
         kill_tree "$pid"
         wait "$pid" 2>/dev/null
-        echo "gate: [$label] KILLED — $reason" >&2
+        echo "gate: [$label] KILLED ($GATE_LAST_VERDICT) — $reason" >&2
         [[ -n "$handshake_log" ]] && rm -f "$handshake_log"
         trap - INT TERM
         return 137
@@ -388,9 +399,27 @@ run_gated() {
   done
   wait "$pid"
   local rc=$?
+  # Classify a host that exited on its own (never killed by the watchdog
+  # above) instead of leaving the reader a bare rc to guess at (#4695's
+  # original ask): rc=0 is PASS; a nonzero rc from a test-host phase
+  # (GATE_HOST_HANDSHAKE_S set) is TESTS FAILED, UNLESS xcodebuild's own log
+  # shows it never actually ran anything — "TEST EXECUTE FAILED" / "hung
+  # before establishing connection" — in which case it's the same
+  # HOST NEVER STARTED bucket our own handshake watchdog reports, just caught
+  # after the fact instead of by our own timer. Non-test legs (lint/build/
+  # pytest/etc., no handshake log) get the generic FAILED.
+  if (( rc == 0 )); then
+    GATE_LAST_VERDICT="PASS"
+  elif [[ -n "$handshake_log" ]] && grep -qE 'TEST EXECUTE FAILED|hung before establishing connection' "$handshake_log" 2>/dev/null; then
+    GATE_LAST_VERDICT="HOST NEVER STARTED"
+  elif [[ -n "$handshake_s" ]]; then
+    GATE_LAST_VERDICT="TESTS FAILED"
+  else
+    GATE_LAST_VERDICT="FAILED"
+  fi
   [[ -n "$handshake_log" ]] && rm -f "$handshake_log"
   trap - INT TERM
-  echo "gate: [$label] finished rc=$rc"
+  echo "gate: [$label] finished rc=$rc ($GATE_LAST_VERDICT)"
   return "$rc"
 }
 
@@ -451,7 +480,7 @@ cmd_part() {
   resolve_area "$area"
 
   local failed=0
-  local -a LEG_NAMES=() LEG_RCS=() LEG_SECS=()
+  local -a LEG_NAMES=() LEG_RCS=() LEG_SECS=() LEG_VERDICTS=()
   echo "=== gate part: $area ==="
 
   # Self-test-only seam (#4451), mirroring GATE_FAKE_PRESSURE /
@@ -466,7 +495,7 @@ cmd_part() {
     local i
     for i in "${!LEG_NAMES[@]}"; do
       local verdict="PASS"
-      [[ "${LEG_RCS[$i]}" -ne 0 ]] && { verdict="FAIL(rc=${LEG_RCS[$i]})"; failed=1; }
+      [[ "${LEG_RCS[$i]}" -ne 0 ]] && { verdict="FAIL(rc=${LEG_RCS[$i]}${LEG_VERDICTS[$i]:+: ${LEG_VERDICTS[$i]}})"; failed=1; }
       printf "%-14s %-8s %ss\n" "${LEG_NAMES[$i]}" "$verdict" "${LEG_SECS[$i]}"
     done
     return $failed
@@ -539,7 +568,7 @@ cmd_part() {
     # (#4451, found right after #4451's own sibling fix landed run_leg at
     # top level — a leg not firing and a leg firing-but-not-failing are two
     # different bugs).
-    [[ "${LEG_RCS[$i]}" -ne 0 ]] && { verdict="FAIL(rc=${LEG_RCS[$i]})"; failed=1; }
+    [[ "${LEG_RCS[$i]}" -ne 0 ]] && { verdict="FAIL(rc=${LEG_RCS[$i]}${LEG_VERDICTS[$i]:+: ${LEG_VERDICTS[$i]}})"; failed=1; }
     printf "%-14s %-8s %ss\n" "${LEG_NAMES[$i]}" "$verdict" "${LEG_SECS[$i]}"
   done
   return $failed
@@ -646,15 +675,21 @@ cmd_unit() {
   xcode_build_for_testing || return $?
 
   local rc=0
+  # Track the WORST phase's verdict alongside rc (mirroring the `|| rc=$?`
+  # pattern below) — GATE_LAST_VERDICT is a single global, so without this a
+  # failing xctest phase followed by a passing swift-testing phase would
+  # leave the global reading "PASS" while rc still reports the failure
+  # (#4695: two separately-bounded phases must not blur into one number).
+  local verdict=""
   if [[ "$phase" == "xctest" || "$phase" == "all" ]]; then
     if [[ ${#xctest_only[@]} -gt 0 ]]; then
       # Full-suite runs pass no -only-testing list (hundreds of entries slow
       # xcodebuild's scheduler); Swift Testing is disabled via its env switch
       # so this invocation is XCTest-only either way.
       if [[ -z "$area" && -z "$filter" ]]; then
-        run_unit_phase "xctest" 0 || rc=$?
+        run_unit_phase "xctest" 0 || { rc=$?; verdict="$GATE_LAST_VERDICT"; }
       else
-        run_unit_phase "xctest" 0 "${xctest_only[@]}" || rc=$?
+        run_unit_phase "xctest" 0 "${xctest_only[@]}" || { rc=$?; verdict="$GATE_LAST_VERDICT"; }
       fi
     else
       echo "gate: unit-xctest — no XCTest files in selection, skipped"
@@ -662,11 +697,12 @@ cmd_unit() {
   fi
   if [[ "$phase" == "swift-testing" || "$phase" == "all" ]]; then
     if [[ ${#swt_only[@]} -gt 0 ]]; then
-      run_unit_phase "swift-testing" 1 "${swt_only[@]}" || rc=$?
+      run_unit_phase "swift-testing" 1 "${swt_only[@]}" || { rc=$?; verdict="$GATE_LAST_VERDICT"; }
     else
       echo "gate: unit-swift-testing — no Swift Testing files in selection, skipped"
     fi
   fi
+  [[ -n "$verdict" ]] && GATE_LAST_VERDICT="$verdict"
   return "$rc"
 }
 
@@ -805,14 +841,17 @@ cmd_transport() {
   # Python leg: the full round-trip matrix over UDS / HTTPS / in-memory ASGI
   # (#4245). Swift leg: the .inMemory PythonKit transport under swift test —
   # the acceptance test for the transport nobody was sure worked.
-  local py rc=0; py="$(find_python)"
+  local py rc=0 verdict=""; py="$(find_python)"
   run_gated "transport-python" "${GATE_TIMEOUT_TRANSPORT:-1800}" \
     env PYTHONPATH=fichero-server/src "$py" -m pytest -rf \
       fichero-server/tests/integration/test_transport_matrix.py \
-      fichero-server/tests/integration/test_transport_round_trips.py || rc=$?
+      fichero-server/tests/integration/test_transport_round_trips.py \
+    || { rc=$?; verdict="$GATE_LAST_VERDICT"; }
   run_gated "transport-swift-inmemory" "${GATE_TIMEOUT_TRANSPORT:-1800}" \
     swift test --package-path fichero/fichero-api-client \
-      --filter 'InMemoryTransportSmokeTests|TransportRoutingMatrixTests|TransportMatrixRoundTripTests' || rc=$?
+      --filter 'InMemoryTransportSmokeTests|TransportRoutingMatrixTests|TransportMatrixRoundTripTests' \
+    || { rc=$?; verdict="$GATE_LAST_VERDICT"; }
+  [[ -n "$verdict" ]] && GATE_LAST_VERDICT="$verdict"
   return "$rc"
 }
 
@@ -830,20 +869,26 @@ cmd_wrap() {
 }
 
 # run_leg — shared by cmd_verify_all AND cmd_part (#4449 fix): both record a
-# leg's name/rc/elapsed into LEG_NAMES/LEG_RCS/LEG_SECS, which each caller
-# must declare `local -a` before its first run_leg call (bash's dynamic
-# scoping resolves run_leg's unqualified array names to the caller's
-# locals). Previously nested INSIDE cmd_verify_all, so `gate part <area>`
-# hit "run_leg: command not found" on every invocation — undetected because
-# nothing exercised `gate part` until a worker actually tried it.
+# leg's name/rc/elapsed/verdict into LEG_NAMES/LEG_RCS/LEG_SECS/LEG_VERDICTS,
+# which each caller must declare `local -a` before its first run_leg call
+# (bash's dynamic scoping resolves run_leg's unqualified array names to the
+# caller's locals). Previously nested INSIDE cmd_verify_all, so `gate part
+# <area>` hit "run_leg: command not found" on every invocation — undetected
+# because nothing exercised `gate part` until a worker actually tried it.
 run_leg() {
   local name="$1"; shift
   local t0=$SECONDS
   echo
   echo "================ gate leg: $name ================"
+  # Reset before the call: GATE_LAST_VERDICT is a single global run_gated
+  # writes on every return, so a leg whose command never calls run_gated
+  # (the self-test's fake-fail seam, a plain `false`) must not inherit a
+  # stale verdict left over from an earlier leg (#4695).
+  GATE_LAST_VERDICT=""
   "$@"
   local rc=$?
   LEG_NAMES+=("$name"); LEG_RCS+=("$rc"); LEG_SECS+=($((SECONDS - t0)))
+  LEG_VERDICTS+=("$GATE_LAST_VERDICT")
   # Return the LEG's status, not 0.
   #
   # This used to `return 0` so verify-all could keep going and aggregate at the
@@ -860,7 +905,7 @@ run_leg() {
 
 # --------------------------- verify-all (#4251) -----------------------------
 cmd_verify_all() {
-  local -a LEG_NAMES=() LEG_RCS=() LEG_SECS=()
+  local -a LEG_NAMES=() LEG_RCS=() LEG_SECS=() LEG_VERDICTS=()
 
   # guardrails leg: verify_all.sh --fast (swiftlint + ruff + check_*.py +
   # version-date + OpenAPI sync). FICHERO_GATE=1 stops it re-wrapping itself.
@@ -897,7 +942,7 @@ cmd_verify_all() {
   local i fail=0
   for i in "${!LEG_NAMES[@]}"; do
     local verdict="PASS"
-    [[ "${LEG_RCS[$i]}" -ne 0 ]] && { verdict="FAIL(rc=${LEG_RCS[$i]})"; fail=1; }
+    [[ "${LEG_RCS[$i]}" -ne 0 ]] && { verdict="FAIL(rc=${LEG_RCS[$i]}${LEG_VERDICTS[$i]:+: ${LEG_VERDICTS[$i]}})"; fail=1; }
     printf "%-14s %-8s %ss\n" "${LEG_NAMES[$i]}" "$verdict" "${LEG_SECS[$i]}"
   done
   echo "================================================================="
@@ -1106,6 +1151,38 @@ cmd_self_test() {
   out="$(env -u GATE_LOCK_HELD GATE_LOCK_FILE="$tmp/hs2.lock" GATE_HOST_HANDSHAKE_S=1 \
     GATE_WATCH_INTERVAL=0.3 GATE_TIMEOUT=30 "$0" wrap -- bash -c 'echo "Running tests..."; sleep 2' 2>&1)"; rc=$?
   [[ $rc -eq 0 ]]; check "watchdog: a host that prints the handshake in time is not killed" $?
+
+  # 7c. Three-way verdict reporting (#4695 original ask): a reader must never
+  #     have to guess WHY a leg was nonzero from a bare rc. One case per
+  #     outcome, each read straight off run_gated's own completion line.
+  out="$(env -u GATE_LOCK_HELD GATE_LOCK_FILE="$tmp/v1.lock" GATE_HOST_HANDSHAKE_S=5 \
+    GATE_WATCH_INTERVAL=0.3 GATE_TIMEOUT=30 "$0" wrap -- bash -c 'echo "Running tests..."; exit 3' 2>&1)"; rc=$?
+  [[ $rc -eq 3 && "$out" == *"(TESTS FAILED)"* ]]
+  check "verdict: a host that ran and failed reports TESTS FAILED, not a bare rc (#4695)" $?
+  out="$(env -u GATE_LOCK_HELD GATE_LOCK_FILE="$tmp/v2.lock" GATE_HOST_HANDSHAKE_S=1 \
+    GATE_WATCH_INTERVAL=0.3 GATE_TIMEOUT=30 "$0" wrap -- sleep 30 2>&1)"; rc=$?
+  [[ $rc -eq 124 && "$out" == *"(HOST NEVER STARTED)"* ]]
+  check "verdict: a silent host reports HOST NEVER STARTED (#4695)" $?
+  out="$(env -u GATE_LOCK_HELD GATE_LOCK_FILE="$tmp/v3.lock" \
+    GATE_WATCH_INTERVAL=0.3 GATE_TIMEOUT=1 "$0" wrap -- sleep 30 2>&1)"; rc=$?
+  [[ $rc -eq 124 && "$out" == *"(PHASE TIMEOUT)"* ]]
+  check "verdict: a host that ran but did not finish reports PHASE TIMEOUT (#4695)" $?
+  # Same HOST NEVER STARTED bucket, caught by the log grep instead of our own
+  # timer — xcodebuild exited on its own having never actually run anything.
+  out="$(env -u GATE_LOCK_HELD GATE_LOCK_FILE="$tmp/v4.lock" GATE_HOST_HANDSHAKE_S=30 \
+    GATE_WATCH_INTERVAL=0.3 GATE_TIMEOUT=30 "$0" wrap -- bash -c \
+    'echo "** TEST EXECUTE FAILED **"; echo "hung before establishing connection."; exit 65' 2>&1)"; rc=$?
+  [[ $rc -eq 65 && "$out" == *"(HOST NEVER STARTED)"* ]]
+  check "verdict: xcodebuild's own TEST EXECUTE FAILED log line also reads as HOST NEVER STARTED (#4695)" $?
+
+  # 7d. run_leg propagates that verdict into LEG_VERDICTS (in-process; run_leg
+  #     and run_gated are plain functions, no lock or subprocess needed), which
+  #     is what the part/verify-all summary tables read instead of a bare rc.
+  local -a LEG_NAMES=() LEG_RCS=() LEG_SECS=() LEG_VERDICTS=()
+  GATE_HOST_HANDSHAKE_S=5 GATE_WATCH_INTERVAL=0.3 GATE_TIMEOUT=30 \
+    run_leg "fake-leg" run_gated "fake-leg-inner" 30 bash -c 'echo "Running tests..."; exit 3' >/dev/null 2>&1
+  [[ "${LEG_VERDICTS[0]:-}" == "TESTS FAILED" ]]
+  check "run_leg: propagates the verdict into the summary table, not just rc (#4695)" $?
 
   # 8. Reentrancy: a nested gate call under a held lock must not deadlock.
   env -u GATE_LOCK_HELD GATE_LOCK_FILE="$tmp/re.lock" \
