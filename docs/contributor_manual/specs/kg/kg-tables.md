@@ -58,6 +58,31 @@ Surfaces: `EntitiesLibraryContent` / `EntitiesTableView`, `ClaimsLibraryContent`
   Pinned: `KGInspectorCRUDUITests`.
 - `kg.tables.entity.curate` [PARTIAL] (implemented, unpinned; #4801) — bless / reject / merge stay.
 
+### Unreachable since the KG browser retired (#4828) — awaiting a re-mount-or-retire decision
+
+Six working views lost their only entry point when the KG sidebar mode and `OntologyBrowser`
+retired; each is KEPT (not dead code — a feature whose entry point retired is not the same as
+an unused renderer), pending a decision on where it re-mounts. None of these are built or
+tested against a NEW entry point yet — each stays [GAP] until re-mounted.
+
+- `kg.entity.menu.merge` — **[GAP]** (#4828) `EntityMergeSheet` merges duplicate entities.
+  Cross-references `kg.tables.entity.curate` above (#4801) rather than duplicating it — the
+  merge CAPABILITY is the same one that behavior already tracks; this entry is about the
+  sheet's own re-mount location specifically.
+- `kg.entity.menu.split` — **[GAP]** (#4828) `EntitySplitSheet` splits a conflated entity. Not
+  named in any of the three KG specs before this pass.
+- `kg.claim.contradiction-triage` — **[GAP]** (#4828) `ContradictionTriageSheet` triages
+  contradicting claims. Not named before this pass.
+- `kg.claim.review-queue` — **[GAP]** (#4828) `ClaimReviewQueueSheet`, a review queue for
+  unreviewed claims. Not named before this pass.
+- `kg.entity.kind-chart` — **[GAP]** (#4828) `EntityKindChartView`, entity counts by kind. Not
+  named before this pass.
+- `kg.claim.speaker-comparison` — **[GAP]** (#4828) `SpeakerComparisonView`, claims compared
+  per speaker. Not named before this pass.
+
+Enrichment's two unreachable views (`WikidataEnrichmentSheet`, `HeuristicReviewSheet`) are
+`kg/kg-enrichment.md`'s (→ #4759, already named there) — not duplicated here.
+
 ### C. Claim CRUD (#4624)
 - `kg.tables.claim.create` [OK] (Pinned: `ClaimsTableCreateTests`.) — a "New Claim" affordance hand-authors a claim, wiring
   POST /api/claims. Built: `NewClaimSheet.swift` (view), `EntityService+

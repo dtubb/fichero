@@ -37,10 +37,11 @@ in the file's own status), never a silent nothing.
   auto-provisions on first use and runs on every eligible page at import, as a free draft
   geometry layer VLM transcription later refines. Failure or offline degrades silently to no
   draft geometry — it never blocks the import.
-- **The free NLP layer is automatic, no toggle (with a visible setting).** A lightweight
-  parse/NER/date pass runs on every page at import, the same way embeddings do — a draft
-  layer a VLM workflow later cleans up. Exposed as a Settings toggle for the user to see, not
-  to have to enable.
+- **The free NLP layer is automatic BY DEFAULT, with a real visible toggle (unlike
+  Kraken).** A lightweight parse/NER/date pass runs on every page at import, the same way
+  embeddings do — a draft layer an LLM/VLM workflow later refines and the user curates. It IS
+  exposed as a Settings toggle beside auto-extract/auto-embed, defaulting ON, so a user can
+  see it and turn it off — a real switch, not merely a visible indicator.
 - **Curation persists across re-import.** A human's entity/claim corrections become rules the
   import-time entity checker consults on every later import, so re-importing more of a corpus
   doesn't reintroduce what was already fixed. (Lives downstream of raw import — see Out of
@@ -81,9 +82,14 @@ in the file's own status), never a silent nothing.
    import pay the ~19s model-load before the request finished). This IS the
    throttle-don't-disable ruling, correctly built — `auto_embed=False` reads like "off" but
    means "not synchronous."
-6. **Segmentation, NLP (should be automatic, NEITHER is wired at all).** Nothing in this
-   pipeline invokes Kraken or a spaCy/NER pass — both exist elsewhere in the codebase (a
-   workflow tool, a Settings AI provider) but neither runs during import.
+6. **Segmentation and NLP — both should be automatic, NEITHER is wired at all yet.** Nothing
+   in this pipeline invokes Kraken or a spaCy/NER pass — both exist elsewhere in the codebase
+   (a workflow tool, a Settings AI provider) but neither runs during import. Their TARGET
+   shapes differ, though: Kraken is fully automatic with no user-facing switch at all, ever;
+   the NLP layer is automatic BY DEFAULT but is meant to expose a real Settings toggle (beside
+   auto-extract/auto-embed) so a user can see and turn it off — "no toggle" was never the
+   ruling for NLP, only for Kraken. Corrected 2026-09-18 (an earlier version of this spec
+   conflated the two).
 7. **Downstream.** Once a node exists, workflows (`ui/workflows.md`) run transcription/
    extraction/entity-resolution against it — manually, today, because steps 6's automatic
    drafts don't exist yet to seed them.
@@ -136,9 +142,32 @@ in the file's own status), never a silent nothing.
   or `importers/derivatives.py` — it exists only as an opt-in workflow tool
   (`detect_regions_kraken.json`) a user must run manually.
 - `importer.nlp-auto-at-import` — **[GAP]** (#4823, filed this pass) a free NLP draft
-  (spaCy parse, NER, dateparser) should run on every page at import, exposed as a visible
-  Settings toggle. Verified not wired: no `spacy` reference exists anywhere in the import
-  pipeline; spaCy exists only as a Settings ▸ AI provider a user configures separately.
+  (spaCy parse in v1; NER and dateparser are follow-ups, not this pass's scope — issue numbers
+  pending) should run on every page at import, defaulting ON and exposed as a REAL Settings
+  toggle beside auto-extract/auto-embed (not merely "no toggle" the way Kraken is). Verified
+  not wired: no `spacy` reference exists anywhere in the import pipeline; spaCy exists only as
+  a Settings ▸ AI provider a user configures separately. The engine lane is building the
+  following against this issue right now; each is its own behavior below so the acceptance
+  criteria are checkable individually once landed, all [GAP] (#4823) until then:
+- `importer.nlp-rows-marked-unreviewed` — **[GAP]** (#4823) every row the NLP pass writes is
+  marked machine-proposed and unreviewed — never presented as if a human or an LLM already
+  confirmed it.
+- `importer.nlp-never-overwrites-curated-rows` — **[GAP]** (#4823) a row a human has touched,
+  or one an LLM/VLM workflow produced, is never overwritten or duplicated by a LATER NLP
+  pass — the draft layer only fills gaps, it never clobbers or races a more-authoritative
+  layer.
+- `importer.nlp-scoped-to-new-and-stranded-only` — **[GAP]** (#4823) the NLP stage runs for
+  newly imported documents and stranded-pending recovery only — it never sweeps an existing
+  library's already-processed documents just because the app opened.
+- `importer.nlp-language-picks-the-model` — **[GAP]** (#4823) the document's own language
+  picks which NLP model runs (a Spanish source yields Spanish statements, per the
+  statement-language-matches-document ruling); a missing model for a document's language is a
+  VISIBLE state the user can see, never a silent skip that leaves a page quietly undrafted.
+- `importer.nlp-one-coalesced-event-per-document` — **[GAP]** (#4823) the NLP pass emits ONE
+  coalesced change event per document, not one per row/sentence/entity it produces — the same
+  no-per-item-flood discipline `observable.no-per-item-refresh-loop`
+  (`harness/observable-data-layer.md`) names for the client side, applied here on the
+  producer side.
 - `importer.pdf-import-from-link-and-drop` — **[GAP]** (#2386) PDF import via a link and via
   drag/drop must both work. Reported broken; not independently re-verified in code this pass.
 - `importer.format-coverage-gaps` — **[GAP]** (#4206) audio/video files extract no text, ~110

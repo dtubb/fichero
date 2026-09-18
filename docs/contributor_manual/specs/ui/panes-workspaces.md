@@ -272,17 +272,32 @@ itself works (committed c4a22c2b5). The rest are the workspace/pane defects to p
   the location breadcrumb now lives ONLY in the window toolbar's principal lozenge, which does
   not depend on split orientation at all. There is no longer a per-pane copy that could be
   present on one orientation and missing on another. Recommend verify-close.
-- `panes.kg.filter-targets-active-view` — **[BROKEN]** (#4745, re-diagnosed 2026-09-18: STILL
-  BROKEN, confirmed unfixed) two disconnected entity-filter controls:
-  the main view (`EntitiesLibraryContent`/`ClaimsLibraryContent`) uses a LOCAL `@State filterText`,
-  while the inspector + ontology surfaces read the shared `EntitySearchState` bus (a `@State` on
-  ContentView). So the bottom-toolbar "Filter Entities" (which drives the bus) filters the
-  INSPECTOR's entity digest, not the clicked main list. One filter must target the active view.
-  Re-checked directly: `EntitiesLibraryContent.swift:32` and `ClaimsLibraryContent.swift:42`
-  both still declare their own local `filterText`; neither file references `EntitySearchState` —
-  the divergence is exactly as originally described, unchanged by any later work. (Ties
-  `panes.kg.one-view-system` above, → #4705 increment 3, itself still [BROKEN] — the
-  entities/claims unification that would resolve both hasn't landed.)
+- `panes.kg.filter-targets-active-view` — **[GAP]** (#4745, re-diagnosed a SECOND time
+  2026-09-18: the mechanism named above was wrong; corrected below, awaiting a product
+  decision, not a mechanical fix) TEXT search is NOT the divergence — traced symbol by
+  symbol: the ONE per-window search request (`activeSearchQuery`) is passed to BOTH tables
+  identically (`LibraryView+ContentBranches.swift`'s `claimsContent`/`entitiesContent`,
+  `searchQuery: activeSearchQuery` on each); each table's own local `filterText` is a
+  deliberate in-table REFINE that intersects it, already pinned by `EntitiesFilterTests`/
+  `ClaimsFilterTests`. The REAL divergence is entity-KIND VISIBILITY, two mechanisms that
+  never read each other: (A) the "Filter Entities" menu
+  (`LibraryView+EntityFiltering.swift`) — a multi-select hide/show per kind, persisted
+  app-wide and cross-window in `@AppStorage("inspector.kg.hiddenKinds")` — obeyed by the
+  list view AND the inspector (`KnowledgeGraphInspectorSection.swift` reads the same key).
+  (B) the Entities/Claims TABLES each keep their own private single-select
+  `@State filterType: String?` (verified: `EntitiesLibraryContent.swift:33`,
+  `ClaimsLibraryContent.swift:43`) and never read the hidden-kinds preference at all — so
+  hiding a kind everywhere else still shows it in the table, and the table's own type filter
+  means nothing elsewhere. **This is a product decision, not a bug to fix mechanically** —
+  three options: (a) additive, the tables also obey the hidden-kinds preference alongside
+  their own refine; (b) one control, replacing the tables' dropdown with the same
+  multi-select; (c) declare the boundary intentional (a persisted "never show Dates" and a
+  momentary "only People right now" are different intents). A separate, related question:
+  the hidden-kinds preference is app-global `@AppStorage` today — with independent
+  per-window/per-pane view modes coming (`panes.split.independent-mode-per-pane`, #4720),
+  should it become per-window or per-pane instead? (Ties `panes.kg.one-view-system` above,
+  → #4705 increment 3 — the underlying entities/claims unification is a separate, larger
+  question this filter-visibility decision doesn't have to wait for.)
 
 ### Reliability sweep (same-class latent bugs, 2026-09-13 overnight) — F7/NEEDS-CD
 
@@ -299,13 +314,18 @@ defects (the toggle half of the CD's "can't turn preview/library/reader on or of
   found zero remaining call sites. Pinned: `ToolbarSurfaceLitStateTests`
   (`paneTogglesLight` — the toolbar reads `paneVisibility`, not a layoutMode-gated Bool) —
   same fix cluster as `panes.visibility.derived-from-list` above.
-- `panes.dead-toggle-policy` — **[BROKEN, cleanup]** (#4747) `ReadingWorkspacePaneTogglePolicy`
-  (`Models/LayoutMode.swift:237-253`) documents the exact intended behavior for the above
-  ("a toggle from None/Standard enters the widescreen workspace and shows that pane") but has
-  **zero call sites** — the real toggle path reimplements only its ON-half inline. A second
-  "documented policy isn't the one running" instance (after the dead
-  `PaneContentPlan.plan(entitySelection:)`). Resolve WITH the above: wire it (covers OFF too)
-  or delete it — not before the direction is decided.
+- `panes.dead-toggle-policy` — **[OK]** (bca344581, #4747 closed) `ReadingWorkspacePaneTogglePolicy`
+  documented the exact intended behavior for the above ("a toggle from None/Standard enters
+  the widescreen workspace and shows that pane") but had zero call sites — the real toggle
+  path reimplemented only its ON-half inline. Resolved by DELETION, not wiring — the type and
+  its two self-only tests are removed entirely, matching the F7 plan's own stated direction
+  (the pane-list model's `toggling(kind:)` is the one toggle path now, not a second documented
+  policy nothing calls). Verified: `git log`'s own commit message confirms the removal;
+  `ReadingWorkspacePaneTogglePolicy` no longer exists anywhere in `fichero/fichero`. The
+  OFF-half the dead policy only documented is now covered by the SAME `toggling(kind:)` model
+  every other toggle already runs through. Pinned:
+  `PaneListTests.toggleAbsentAppends`, `.togglePresentRemoves`, `.toggleTwiceRoundTrips`,
+  `.toggleAlwaysChangesKinds`.
 
 **These confirm the reliability root is F1/F7:** the toolbar controls promise pane management
 the legacy renderer doesn't deliver. The reliable fix is one composition path (F7), which is
@@ -318,7 +338,8 @@ This is the Mail default below, expressed in the eventual pane-list model.
 ## F7 implementation plan (the reliability generalization) — for CD review
 
 F7 is the one change that makes the pane system reliable AND lets you experiment with
-layouts. It subsumes the toggle-inertness (#1), the dead policies (#2), the
+layouts. It subsumes the toggle-inertness (#1), the undocumented-vs-documented policy
+divergence (#2, resolved — bca344581 deleted the unwired policy), the
 widescreen-only pin/split (#3), the asymmetric split, and the 2-column target — because
 all of those are symptoms of *two renderers + a fixed-slot plan*. Incremental, not a
 rewrite; each step is independently shippable and testable.

@@ -147,9 +147,14 @@ fallback, already on). The rest ship off-by-default, one toggle away.
   carry several `sameAs` ids at once (Wikidata + VIAF + GeoNames).
 
 ### C. Surface the enrichment/prediction UX everywhere
-- `kg.enrich.ux` [PARTIAL] (#4759) — Wikidata enrich preview/import + PyKEEN predictions have
+- `kg.enrich.ux` [PARTIAL] (#4759, → #4828) — Wikidata enrich preview/import + PyKEEN predictions have
   services + a review sheet; ensure they're reachable from the **entity inspector and the
   KG tables** (an "Enrich…" / "Suggested links" affordance), not only the Ontology browser.
+  Confirmed unreachable (2026-09-18, → #4828, kg-tables milestone): `WikidataEnrichmentSheet`
+  and `HeuristicReviewSheet` both lost their only entry point with the KG browser, KEPT not
+  deleted. **Coupled to `kg/kg-entity-inspector.md`'s `kg.entity.authority-link-create`:** the
+  Wikidata enrichment sheet's own comment says it builds on the authority link, so the two
+  should re-mount together, not independently of each other.
 - `kg.enrich.mcp-cli` [PARTIAL] (#4760) — expose enrich-preview/import + predict via MCP + CLI so
   an agent can enrich (some CLI exists: wikidata import, pykeen train).
 

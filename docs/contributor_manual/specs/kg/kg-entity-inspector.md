@@ -157,6 +157,32 @@ Surfaces: `DocumentInspector` (+`Sections`), `DocumentInspectorEntitiesTab`
   surface — the one-builder line above, asserted as an invariant. Pinned:
   `ClaimSourceRequestTests` (`sameAnchorAcrossBuilders`).
 
+### F. Unreachable since the KG browser retired (#4828) — awaiting a re-mount-or-retire decision
+
+`EntityDetailView` lost its only entry point when the KG sidebar mode retired; a section-by-
+section audit found most of it superseded by this inspector already (history, the claims
+block, kind hide/show, mentions/biography), but five capabilities exist NOWHERE else in the
+app and are KEPT (not dead code), pending a decision on where each re-mounts. All stay [GAP]
+until re-mounted and tested against the new location.
+
+- `kg.entity.notes` — **[GAP]** (→ #4828) notes attached to an entity — add / list / delete
+  (`EntityDetailView+Notes.swift`'s `EntityNotesSection`).
+- `kg.entity.alias-editing` — **[GAP]** (→ #4828) list/edit an entity's aliases
+  (`EntityDetailView+Sections.swift`'s `aliasesSection`).
+- `kg.entity.raw-metadata-editing` — **[GAP]** (→ #4828) view AND edit an entity's raw metadata
+  as JSON (`EntityDetailView+Sections.swift`'s `metadataSection`,
+  `EntityDetailView+Metadata.swift`'s `saveMetadataJSON`).
+- `kg.entity.authority-link-create` — **[GAP]** (→ #4828) link an entity to an external
+  authority record. This inspector can DISPLAY a past authority-link audit event already, but
+  nothing anywhere can CREATE one any more — `EntityDetailView+Metadata.swift`'s
+  `authorityLinkButton`/`EntityAuthorityLinkSheet` is the only place that ever could. Coupled
+  to Wikidata enrichment (`kg/kg-enrichment.md`, → #4759) — the enrichment sheet's own
+  comment says it builds on the authority link, so the two should re-mount together, not
+  independently.
+- `kg.entity.claims-grouped-by-source` — **[GAP]** (→ #4828) group an entity's claims by their
+  source document (`EntitySourceGroupsView.swift`, the `sourceGroupsMode` toggle in
+  `EntityDetailView+Claims.swift`).
+
 ## First wave to pin (proposed — awaiting the creative director)
 
 1. `kg.entity.select.inspector-shows-entity` (F2) — the live complaint: click an
