@@ -80,18 +80,51 @@ struct MenuShortcutUniquenessTests {
     /// exclusive `@FocusedValue`s — never both enabled at once, so there is no actual ambiguity
     /// about which one fires. Each entry is a `key-modifiers` chord token; document the reason at
     /// BOTH call sites, not just here.
-    ///   - `"=-command"` — "Zoom to Fit": `CanvasViewSection.hasFocusedCanvas`
+    ///   - `"9-command"` — "Zoom to Fit": `CanvasViewSection.hasFocusedCanvas`
     ///     (CanvasMenuCommands.swift) vs `ImagePreviewMenuCommands.hasActiveImagePreview` — a pane is
-    ///     never both a canvas and an image/reader preview at once (menu audit 2026-09-17).
+    ///     never both a canvas and an image/reader preview at once (menu audit 2026-09-17). Moved off
+    ///     ⌘= (review 2026-09-17, #4693): a mask without `.shift` matches on
+    ///     `charactersIgnoringModifiers`, which un-shifts back to "=" even when Shift IS held, so a
+    ///     bare ⌘= item also intercepts ⌘⇧= (⌘+) ahead of "Zoom In"'s own key equivalent. ⌘9 shares no
+    ///     physical key with the +/- zoom chords, so it can't repeat that.
+    ///   - `"f-command+option"` — "Find in Page" (`ShowFindBarButton`,
+    ///     ViewMenuPaneSections.swift): ONE command declared twice inside an
+    ///     `#if canImport(AppKit) / #else` platform branch, not two commands.
+    ///     Surfaced by the per-site (not per-file) grouping fix below (#4693)
+    ///     — the scanner reads raw lines and has no `#if`/`#else` awareness, so
+    ///     it cannot tell "same command, two platform bodies" from a genuine
+    ///     duplicate; only one branch ever compiles for a given platform.
     private static let allowedSharedChords: Set<String> = [
-        "=-command",
+        "9-command",
+        "f-command+option",
     ]
 
     /// macOS chords the app must never claim as its own `NSMenuItem` key equivalent — either because
-    /// AppKit/the system already owns them (a second claim races the system's, the exact ⌘⌥T/⌘⌥H/⌃⌘F
-    /// bugs the menu audit found), or because the app has ruled the chord belongs to a command it
-    /// hasn't wired yet (⌃⌘S — see ViewMenuLayoutSections.swift's note: freed for a future Show/Hide
-    /// Sidebar command; nothing may squat on it meanwhile).
+    /// AppKit/the system already owns them UNCONDITIONALLY (a second claim races the system's, the
+    /// exact ⌘⌥T/⌘⌥H/⌃⌘F bugs the menu audit found), or because the app has ruled the chord belongs
+    /// to a command it hasn't wired yet (⌃⌘S — see ViewMenuLayoutSections.swift's note: freed for a
+    /// future Show/Hide Sidebar command; nothing may squat on it meanwhile). Each entry below is kept
+    /// because the chord is reserved REGARDLESS of what has focus:
+    ///   - `h-command+option` — "Hide Others" (fixed AppKit application-menu item).
+    ///   - `t-command+option` — "Show/Hide Toolbar" (fixed AppKit window-menu item).
+    ///   - `d-command+option` — "Turn Dock Hiding On/Off" (fixed system chord).
+    ///   - `f-command+control` — "Enter Full Screen" (fixed AppKit window-menu item).
+    ///   - `s-command+control` — reserved for a not-yet-wired Show/Hide Sidebar command (see above).
+    ///   - `h-command` — "Hide Fichero" (fixed AppKit application-menu item).
+    ///   - `q-command` — "Quit Fichero" (fixed AppKit application-menu item).
+    ///   - `,-command` — "Preferences…" (fixed AppKit application-menu item).
+    ///
+    /// Menu audit 2026-09-17 review (#4693): the Format-menu chords (⌘T/⌘I/⌘B/⌘U/⌘+/⌘-) used to live
+    /// in this table too, but they are NOT system-reserved — they are SwiftUI's built-in
+    /// `TextFormattingCommands()` (wrapped by `FormatMenuCommands`, ViewMenuPaneSections.swift), which
+    /// only registers a live key equivalent while a focused text view accepts it. Denylisting them
+    /// unconditionally produced false positives against always-enabled commands that happen to reuse
+    /// the same physical key while NO text editor has focus — File's "New Window" (⌘T) and Image
+    /// Preview's "Zoom In"/"Zoom Out" (⌘+/⌘-) and the sidebar's "Link Files…" (⌘I) all tripped this
+    /// test though none of them can ever fire at the same moment as the Format item they were flagged
+    /// against. If a REAL collision between a Format chord and a non-text command turns up, it belongs
+    /// in `allowedSharedChords` (documented per-site, like the Zoom-to-Fit entry below) or needs its
+    /// own focus-gating fix — not a blanket reservation here.
     private static let systemReservedChords: [String: String] = [
         "h-command+option": "Hide Others",
         "t-command+option": "Show/Hide Toolbar",
@@ -101,13 +134,6 @@ struct MenuShortcutUniquenessTests {
         "h-command": "Hide Fichero",
         "q-command": "Quit Fichero",
         ",-command": "Preferences…",
-        // Standard Format-menu chords (TextFormattingCommands is live — FormatMenuCommands wraps it).
-        "t-command": "Format ▸ Show Fonts",
-        "i-command": "Format ▸ Italic",
-        "b-command": "Format ▸ Bold",
-        "u-command": "Format ▸ Underline",
-        "+-command": "Format ▸ Bigger",
-        "--command": "Format ▸ Smaller",
     ]
 
     @Test("no two different commands claim the same shortcut, across the whole app")
@@ -115,25 +141,30 @@ struct MenuShortcutUniquenessTests {
         let mints = try allMints()
         #expect(!mints.isEmpty, "found no shortcut mints — the scan root or patterns are wrong")
 
-        var filesByChord: [String: Set<String>] = [:]
+        // Grouped by CHORD alone (not by distinct file first) — two mints of the
+        // same chord in the SAME file are just as real a double-bind as two
+        // mints across different files (menu audit 2026-09-17 review, #4693):
+        // the toolbar's ⌘' Back button and the Go menu's ⌘' Back button are two
+        // different files, but two `.keyboardShortcut` calls for the same
+        // command in one file would have been invisible to a files.count-based
+        // check. Every SITE counts, so `sites.count > 1` catches both shapes.
         var sitesByChord: [String: [Mint]] = [:]
         for mint in mints {
             let chord = "\(mint.key)-\(mint.modifiers)"
-            filesByChord[chord, default: []].insert(mint.file)
             sitesByChord[chord, default: []].append(mint)
         }
 
-        for (chord, files) in filesByChord where files.count > 1 && !Self.allowedSharedChords.contains(chord) {
-            let sites = sitesByChord[chord, default: []]
+        for (chord, sites) in sitesByChord where sites.count > 1 && !Self.allowedSharedChords.contains(chord) {
+            let siteList = sites
                 .map { "\($0.file):\($0.line)" }
                 .sorted()
                 .joined(separator: ", ")
-            let detail: String = "Shortcut \(chord) is bound by \(files.count) different files — \(sites). "
+            let detail: String = "Shortcut \(chord) is bound by \(sites.count) different mints — \(siteList). "
                 + "Two commands sharing one chord means the wrong one can fire (the ⌘⌥1→loupe bug class)."
             Issue.record("\(detail)")
         }
-        let collisions = filesByChord.keys
-            .filter { (filesByChord[$0]?.count ?? 0) > 1 && !Self.allowedSharedChords.contains($0) }
+        let collisions = sitesByChord.keys
+            .filter { (sitesByChord[$0]?.count ?? 0) > 1 && !Self.allowedSharedChords.contains($0) }
             .sorted()
         #expect(collisions.isEmpty, "colliding shortcuts: \(collisions)")
     }

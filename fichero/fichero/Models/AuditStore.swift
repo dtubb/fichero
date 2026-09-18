@@ -128,6 +128,30 @@ final class AuditStore {
         entries.first { $0.undoable && !$0.undone && $0.inverseOf == nil }
     }
 
+    /// Pure walk helper (testable without the network): the newest genuine
+    /// REDO target — a still-untouched inverse of a FORWARD action, never an
+    /// inverse of another inverse.
+    ///
+    /// Menu audit 2026-09-17 (#4700-class bug): `RedoLastActionButton` reverses
+    /// a redo target by calling `undo(_:)` on it, same as any other row. That
+    /// write creates a THIRD row (the inverse of the inverse) which is ALSO
+    /// `inverseOf`-set, undoable, and not yet undone — so a naive "any
+    /// untouched inverse" filter offers that third row right back as a further
+    /// "redo", and a second ⌘⇧Z undoes the redo it just performed instead of
+    /// being a no-op. Only an inverse whose OWN target was a forward action
+    /// (`inverseOf == nil`) is a real redo target; an inverse of an inverse is
+    /// the completed redo state, not a new one to offer.
+    static func nextRedoable(
+        in entries: [Components.Schemas.AuditLogEntry]
+    ) -> Components.Schemas.AuditLogEntry? {
+        let byId = Dictionary(uniqueKeysWithValues: entries.map { ($0.id, $0) })
+        return entries.first { entry in
+            guard entry.undoable, !entry.undone, let invId = entry.inverseOf else { return false }
+            guard let original = byId[invId] else { return false }
+            return original.inverseOf == nil
+        }
+    }
+
     /// Undo the most-recent still-undoable forward action, walking the audit log
     /// (#3444 multi-level undo). Loads the log first if it hasn't been fetched,
     /// so ⌘Z works without the Audit History view being open. `undo(_:)` reloads

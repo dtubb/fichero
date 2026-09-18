@@ -19,15 +19,21 @@ struct CanvasViewSection: View {
 
     var body: some View {
         Section("Canvas") {
-            // Menu audit 2026-09-17: ⌘= is shared with the image/reader
+            // Menu audit 2026-09-17: ⌘9 is shared with the image/reader
             // preview's own "Zoom to Fit" (ImagePreviewMenuCommands.swift) —
             // deliberately: `hasFocusedCanvas` here and `hasActiveImagePreview`
             // there are mutually exclusive, so one verb keeps one chord across
-            // both contexts instead of ⌘= here and ⌘9 there.
+            // both contexts. Review 2026-09-17 (#4693) moved this OFF ⌘= (was
+            // briefly unified there): AppKit's key-equivalent matching for an
+            // item whose mask omits `.shift` checks `charactersIgnoringModifiers`,
+            // which strips Shift back to the unshifted base character — so a
+            // ⌘= item ALSO matches ⌘⇧= (i.e. ⌘+), racing "Zoom In"'s own ⌘+ and
+            // winning because it appears earlier in the menu. ⌘9 shares no
+            // physical key with the +/- zoom chords, so it can't repeat that.
             Button("Zoom to Fit") {
                 canvasActions?.zoomToFit()
             }
-            .keyboardShortcut("=", modifiers: [.command])
+            .keyboardShortcut("9", modifiers: [.command])
             .disabled(!hasFocusedCanvas)
 
             Button("Jump Back") {

@@ -52,8 +52,13 @@ extension ContentView {
         //
         // Back/forward are OPTIONAL chrome (Daniel, 2026-08-31): a workspace
         // records which toolbar buttons show, and this is one of them. The
-        // ⌘' shortcuts and the menu-bar items are unaffected — hiding a
-        // button never removes a command.
+        // ⌘'/⌘⇧' chords live in ONE place — the Go menu's
+        // `NavigateBackButton`/`NavigateForwardButton`
+        // (FocusedCommandButtons+UndoNavigation.swift) — these toolbar buttons
+        // are a click-only mirror (menu audit 2026-09-17 review, #4693: a
+        // second `.keyboardShortcut` here double-minted the same chord, which
+        // `MenuShortcutUniquenessTests` now catches). Hiding the toolbar
+        // button never removes the menu command or its chord.
         if toolbarVisibility.showNavigation {
             ToolbarItem(id: ContentToolbarID.navigationBack, placement: .navigation) {
                 Button {
@@ -62,7 +67,6 @@ extension ContentView {
                     Label("Back", systemImage: ToolbarSymbols.navigateBack)
                 }
                 .help("Back (⌘')")
-                .keyboardShortcut("'", modifiers: [.command])
                 .disabled(!navigationHistory.canGoBack)
             }
 
@@ -73,7 +77,6 @@ extension ContentView {
                     Label("Forward", systemImage: ToolbarSymbols.navigateForward)
                 }
                 .help("Forward (⌘⇧')")
-                .keyboardShortcut("'", modifiers: [.command, .shift])
                 .disabled(!navigationHistory.canGoForward)
             }
         }

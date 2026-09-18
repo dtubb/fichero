@@ -221,10 +221,14 @@ struct RedoLastActionButton: View {
     }
 
     /// The newest still-undoable audit row that is itself an inverse — undoing
-    /// IT re-applies the forward action it reversed. Reads `auditStore.entries`
-    /// directly rather than adding a redo-specific store method.
+    /// IT re-applies the forward action it reversed. Delegates to
+    /// `AuditStore.nextRedoable(in:)` (menu audit 2026-09-17 / #4700-class fix):
+    /// a naive "any untouched inverse" filter also matches the row a redo
+    /// itself just wrote, so a second ⌘⇧Z would undo the redo instead of
+    /// being a no-op.
     private var nextRedoableEntry: Components.Schemas.AuditLogEntry? {
-        auditStore?.entries.first { $0.undoable && !$0.undone && $0.inverseOf != nil }
+        guard let auditStore else { return nil }
+        return AuditStore.nextRedoable(in: auditStore.entries)
     }
 
     private var route: RedoRoute {

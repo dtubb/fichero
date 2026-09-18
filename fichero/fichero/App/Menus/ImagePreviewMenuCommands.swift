@@ -55,18 +55,24 @@ struct ImagePreviewMenuCommands: View {
         .keyboardShortcut("0", modifiers: [.command])
         .disabled(!hasActiveImagePreview)
 
-        // Menu audit 2026-09-17: was ⌘9, a different chord from Canvas's own
-        // "Zoom to Fit" (⌘=, CanvasMenuCommands.swift `CanvasViewSection`) —
-        // one verb, two chords to remember depending on what's focused. Moved
-        // onto the SAME ⌘= as Canvas: the two are gated by disjoint focused
-        // values (`hasActiveImagePreview` here, `hasFocusedCanvas` there) that
-        // can never both be true at once, so sharing the physical key
-        // equivalent is safe (see MenuShortcutUniquenessTests' allowlist) and
-        // gives "Zoom to Fit" one chord everywhere instead of two.
+        // Menu audit 2026-09-17: shares ⌘9 with Canvas's own "Zoom to Fit"
+        // (CanvasMenuCommands.swift `CanvasViewSection`) — deliberately:
+        // `hasActiveImagePreview` here and `hasFocusedCanvas` there are
+        // mutually exclusive, so one verb keeps one chord across both
+        // contexts (see MenuShortcutUniquenessTests' allowlist).
+        //
+        // Review 2026-09-17 (#4693): this briefly sat on ⌘=, which put it on
+        // the SAME physical key as "Zoom In"'s ⌘+ (Shift-=). AppKit's
+        // key-equivalent matching for a mask that omits `.shift` checks
+        // `charactersIgnoringModifiers`, which strips Shift back to "=" even
+        // when Shift IS held — so the ⌘= item also matched ⌘⇧= (⌘+) and, being
+        // earlier in this menu, won the match: pressing ⌘+ silently ran "Zoom
+        // to Fit" instead of "Zoom In". ⌘9 shares no physical key with +/-, so
+        // it can't repeat that collision.
         Button("Zoom to Fit") {
             zoomActions?.zoomToFit()
         }
-        .keyboardShortcut("=", modifiers: [.command])
+        .keyboardShortcut("9", modifiers: [.command])
         .disabled(!hasActiveImagePreview)
 
         Button("Zoom In") {

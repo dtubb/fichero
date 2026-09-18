@@ -149,8 +149,15 @@ final class MenuShortcutBoundaryTests: XCTestCase {
         XCTAssertTrue(source.contains("shortcut: \"j\""))   // Show Side (was "s" — the HIG sidebar chord)
         XCTAssertTrue(source.contains("shortcut: \"b\""))   // Show Bottom
         XCTAssertTrue(source.contains("shortcut: \"h\""))   // Hide
+
+        // Scoped to the PreviewModeSection declaration (review 2026-09-17, #4693): a file-wide
+        // `contains("shortcut: \"s\"")` would also fail on an unrelated `shortcut: "s"` anywhere
+        // else in this file, not just a regression of the sidebar toggle this test guards.
+        let previewModeSection = try XCTUnwrap(
+            source.components(separatedBy: "struct PreviewModeSection").dropFirst().first
+        )
         XCTAssertFalse(
-            source.contains("shortcut: \"s\""),
+            previewModeSection.contains("shortcut: \"s\""),
             "\"Show Side Preview\" must not sit on ⌃⌘S — that's the HIG Show/Hide Sidebar chord (menu audit 2026-09-17)."
         )
         XCTAssertFalse(
