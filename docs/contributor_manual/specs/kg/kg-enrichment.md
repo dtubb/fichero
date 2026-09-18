@@ -50,17 +50,41 @@ backend but isn't surfaced, or isn't tested at every layer, is not done.
 ## The gaps (what this spec adds)
 
 ### A. JSON-LD for the KG (entities/claims) — export + import, VALIDATED
-- `kg.jsonld.export` [MISSING] (#4753) — export entities + claims as **JSON-LD** with a real
-  `@context` (schema.org / Linked Art / CIDOC-CRM mapping). The exporter has JSONL/Parquet
-  but **no JSON-LD** for the KG today (only annotations are JSON-LD, via IIIF).
-- `kg.jsonld.export.validated` [MISSING] (#4754) — the export is **validated against its spec**
-  before it's handed over: JSON-LD expands/compacts cleanly against the `@context`, and
-  (where a shape is declared) passes **SHACL/ShEx**. A malformed export never ships — it
-  raises (prefer-raise), never a silent half-file.
+- `kg.jsonld.export` **[OK]** (31e1a2f61) — export entities + claims as **JSON-LD** with a
+  real, named, selectable `@context`. Corrected history: #4753's premise was wrong — the
+  route (`GET /api/kg/export/rdf?format=json-ld`) already existed and already produced
+  JSON-LD before this fix; what was actually missing was a CURATED context (it used
+  rdflib's auto-generated one, whatever prefixes happened to be bound) rather than a real,
+  documented profile. That's what landed: a named `schema-org` context
+  (`knowledge.jsonld_context.JSONLD_CONTEXTS`), selectable via `?context=`, an unknown
+  profile rejected (422) rather than silently falling back. Linked Art / CIDOC-CRM profiles
+  are deliberately NOT advertised yet — tracked separately (needs the maintainer's domain review before
+  anyone implements them, not an engineering gap). Pinned:
+  `test_jsonld_export.py::test_export_entities_claims_as_jsonld_with_context`,
+  `::test_jsonld_context_is_selectable_and_named`,
+  `::test_jsonld_export_empty_graph_is_valid`,
+  `::test_export_round_trips_for_every_non_jsonld_format` (the other three formats —
+  nt/turtle/xml — had near-zero coverage before this pass),
+  `::test_jsonld_export_round_trips_to_isomorphic_graph`.
+- `kg.rdf-export-visible` — **[GAP]** (#4827) the RDF/JSON-LD export exists and is now tested,
+  but nothing in the app reaches it — no menu item, no Settings action, no button calls
+  `GET /api/kg/export/rdf`. An engine capability with no client entry point.
+- `kg.jsonld.export.validated` **[OK]** (31e1a2f61) — the export is validated before being
+  handed over: it round-trips (serialize → reparse) cleanly, and a malformed export never
+  ships — it raises (500, prefer-raise), never a silent half-file. Pinned:
+  `test_jsonld_export.py::test_malformed_export_raises_never_ships`,
+  `::test_validate_jsonld_export_raises_http_exception_directly`. **SHACL/ShEx remains
+  unbuilt** — no shape is declared for the KG yet; this is its own honest gap, not folded
+  into the [OK] above (no shape to validate against isn't the same claim as "the JSON-LD
+  itself round-trips cleanly").
 - `kg.jsonld.import` [MISSING] (#4755) — import JSON-LD back (round-trip), mapping external terms
   onto Fichero's entity/claim model; imported statements are **authority/provenance-
   tagged** (created_by = the source), never silently merged as first-party.
-- `kg.jsonld.roundtrip` [MISSING] (#4756) — export → import → export is stable (the invariant test).
+- `kg.jsonld.roundtrip` [MISSING] (#4756) — export → import → export is stable (the invariant
+  test). Scope note: `test_jsonld_export_round_trips_to_isomorphic_graph` (cited above) proves
+  only the SERIALIZE half of this invariant — reparsing Fichero's own JSON-LD reconstructs
+  the same graph structurally. It does not cover the IMPORT half at all (no Fichero-side
+  importer exists yet, `kg.jsonld.import` above), nor a real export→import→re-export cycle.
 
 ### B. Enrichment sources — unified in Settings, ALL selectable
 - `kg.enrich.sources.settings` [PARTIAL] (#4757) — Settings has SPARQL endpoints; extend to a

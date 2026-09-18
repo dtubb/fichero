@@ -196,6 +196,16 @@ def _parse_test_citations(block: str) -> list[TestCitation]:
     citations: list[TestCitation] = []
     method_spans: set[tuple[int, int]] = set()
     for m in CITATION_CLASS_METHOD_RE.finditer(block):
+        # A citation ending in `.swift`/`.py` is a PATH (shape 3), never a
+        # Class.method (shape 2) — `` `BatchServiceTests.swift` `` looks like
+        # class=BatchServiceTests, method=swift to this regex alone, but
+        # "swift" here is a file extension, not a method name. Shape 3's own
+        # regex (CITATION_SWIFT_PATH_RE) already resolves this citation
+        # correctly further down; without this guard BOTH fire, and the
+        # bogus class_method half fails resolution even though the file
+        # genuinely exists.
+        if m.group(2) in ("swift", "py"):
+            continue
         citations.append(TestCitation(m.group(0), "class_method", cls=m.group(1), method=m.group(2)))
         method_spans.add(m.span())
     for m in CITATION_CLASS_RE.finditer(block):

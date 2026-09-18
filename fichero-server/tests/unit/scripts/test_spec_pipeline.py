@@ -288,6 +288,20 @@ def test_rule_d_swift_path_ending_in_tests_swift_fails_when_missing(tmp_path, mo
     assert _check() == 1
 
 
+def test_rule_d_bare_swift_filename_is_a_path_not_a_class_dot_method(tmp_path, monkeypatch):
+    """`` `BatchServiceTests.swift` `` (a BARE filename, backtick directly before the
+    class-shaped name) must resolve as a path citation — CITATION_CLASS_METHOD_RE
+    alone would misread this as class=BatchServiceTests, method=swift, which then
+    fails to resolve (no method literally named `swift`) even though the file
+    genuinely exists."""
+    _seed(tmp_path, RULE_D_MISSING_TEST.replace(
+        "Pinned by `NoSuchTests`.",
+        "Pinned by `BatchServiceTests.swift`."))
+    _seed_test_file(tmp_path, "fichero/Tests/Unit/general/BatchServiceTests.swift", "struct BatchServiceTests {}")
+    _fake_issues(monkeypatch, [])
+    assert _check() == 0
+
+
 def test_rule_d_pytest_bare_file_resolves(tmp_path, monkeypatch):
     _seed(tmp_path, RULE_D_MISSING_TEST.replace("Pinned by `NoSuchTests`.", "Pinned by `test_foo.py`."))
     _seed_test_file(tmp_path, "fichero-server/tests/test_foo.py", PYTEST_CLASS_WITH_METHODS)

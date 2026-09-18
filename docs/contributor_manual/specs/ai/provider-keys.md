@@ -77,8 +77,8 @@ the value from the original migration, unaffected by anything Settings has done 
   `::testSetAPIKeySuccessButKeychainFailureThrowsDistinctErrorWithNoKeyMaterial`. Honest gap:
   the suite cannot re-read the WIRE body to independently confirm the engine received the
   trimmed value byte-for-byte — the generated client sends this POST as an upload task, whose
-  body a `URLProtocol` stub cannot see (the same limitation the batch-service transport tests
-  documents, a closed issue already tracking that limitation). What IS proven: `setAPIKey`
+  body a `URLProtocol` stub cannot see (the same limitation `BatchServiceTests.swift` already
+  documents). What IS proven: `setAPIKey`
   computes ONE `trimmed` local and passes that SAME value to both the engine call and the
   Keychain closure (a source contract, `testSetAPIKeyTrimsOnceForBothTheEngineAndTheKeychain`)
   plus the closure receiving the expected trimmed string dynamically — the closest honest
@@ -102,26 +102,39 @@ the value from the original migration, unaffected by anything Settings has done 
 
 ### Verification (#4816)
 
-- `keys.test-connection-real-probe` — **[BROKEN]** (#4816) Test Connection must only report
+- `keys.test-connection-real-probe` — **[BROKEN]** (#4816, engine half committed 35c4b53f1 —
+  stays BROKEN: the Settings three-state rendering isn't built yet, see
+  `keys.untested-provider-reports-not-verified` below) Test Connection must only report
   success when the app made a real network call to the provider and the provider confirmed
-  the key. `POST /api/providers/{provider}/test`
-  (`fichero-server/src/fichero_server/api/routes/ai/provider_keys.py:251-605`) has a real,
-  provider-specific probe for: `apple_vision`, `apple_intelligence` (a system check, not
-  network, but a genuine verification), `ollama`, `lmstudio` (server reachability probes,
-  no key involved), `openai`, `huggingface`, `google`, `groq`, `deepl` (each makes a real
-  authenticated HTTP call and reads the status code). `anthropic` makes NO network call —
-  it only checks the key starts with `sk-ant-` and reports success on format alone, the same
-  class of false positive as the bug, just narrower. Everything else — including
-  `openrouter`, plus `together`, `deepseek`, `mistral`, `cohere`, `dashscope`, `xai`,
-  `perplexity`, `fireworks`, `azure`, `bedrock` — falls to the `else` at `:568-582`: ANY
-  non-empty key (or `info.is_local`) returns `success=True`, `"Configuration valid
-  (connection not tested)"`. The Swift side renders `result.success` as a green checkmark
-  unconditionally (`ProvidersView+ProviderDetailView.swift:121-146`) — nothing distinguishes
-  a real pass from this fallback.
-- `keys.untested-provider-reports-not-verified` — **[GAP]** (#4816) an untested provider (the
-  `else` branch above, plus `anthropic`'s format-only check) must report a distinct
-  "not verified" state and render as neutral, never a green check — the exact fix #4816
-  proposes. Not built: `ConnectionTestResponse` has only `success: bool`, no third state.
+  the key, and a wrong/rate-limited/down endpoint must never read as a bad key. Updated
+  provider breakdown (engine side): **real probes now** — `apple_vision`, `apple_intelligence`
+  (system checks), `ollama`, `lmstudio` (server reachability, no key involved), `openai`,
+  `huggingface`, `google`, `groq`, `deepl` (the five original probes — the engine lane is
+  applying the same "only 401/403 means a bad key" rule to these right now, confirmed present
+  and green in this pass — see the pinned tests below), plus NINE newly added:
+  `openrouter`, `anthropic` (now a real authenticated request, no longer prefix-only),
+  `mistral`, `together`, `deepseek`, `xai`, `perplexity`, `fireworks`, `cohere`. **Still
+  unverifiable from here**: `azure`, `bedrock`, `dashscope` — these report a distinct
+  "saved, could not verify" state rather than a false green check (the fix's actual shape,
+  not a stub). The rule throughout: only a `401`/`403` (or a provider's own documented
+  bad-key status — Google's `400`, kept as its real signal) means the key is bad; any OTHER
+  non-2xx status means "could not verify," never "invalid." Pinned once the app half lands:
+  `test_routes_provider_keys.py::test_connection_test_real_probe_success_sets_verified`,
+  `::test_connection_test_real_probe_401_fails_unverified`,
+  `::test_connection_test_real_probe_network_failure_reports_connectivity`,
+  `::test_connection_test_real_probe_non_auth_status_is_unverified_not_failed`,
+  `::test_connection_test_key_never_appears_in_response_or_logs` (all 5 read in full and
+  confirmed to assert exactly this; ran for real, 76 passed).
+- `keys.untested-provider-reports-not-verified` — **[GAP]** (#4816) an untested provider must
+  report a distinct "not verified" state and render as neutral, never a green check — this IS
+  now built on the engine side (`ConnectionTestResponse.verified: bool | None`, a third
+  state distinct from `success`), verified via
+  `test_connection_test_untested_provider_reports_saved_not_verified`
+  ("Key saved — this provider cannot be verified from here", `azure`/`bedrock`/`dashscope`).
+  Stays [GAP] because the SETTINGS UI half is not built: `ProvidersView+ProviderDetailView.swift`
+  still renders `result.success` as a binary green/red checkmark with no neutral state — the
+  engine now emits the distinction, the client doesn't read it yet. Pinned once the app half
+  lands: `test_routes_provider_keys.py::test_connection_test_untested_provider_reports_saved_not_verified`.
 
 ### Security
 
@@ -134,7 +147,10 @@ the value from the original migration, unaffected by anything Settings has done 
   (`api/routes/ai/provider_keys.py:114,120`, logs only the provider name) and
   `keychain.py`'s `set_api_key`/`delete_api_key` debug/warning lines (`keychain.py:266-299`,
   also provider-name-only) — were read and confirmed to never log the key value either, but
-  neither has a dedicated test guarding it, hence PARTIAL rather than a blanket OK.
+  neither has a dedicated test guarding it, hence PARTIAL rather than a blanket OK. A second
+  pin lands with the Test Connection probe work: `test_routes_provider_keys.py::test_connection_test_key_never_appears_in_response_or_logs`
+  (a sentinel key never appears in the response body, its JSON serialization, or the log
+  capture, across a real probe path).
 - `keys.argv-exposure` — **[GAP]** (#4818) `keychain.py:253-265` passes the plaintext key as
   `-w <key>` in argv to `/usr/bin/security add-generic-password`, visible to any other
   process on the machine (e.g. `ps`) for the subprocess's brief lifetime. Needs a design
