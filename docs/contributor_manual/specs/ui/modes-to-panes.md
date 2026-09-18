@@ -209,6 +209,30 @@ fourth type.
   new `AppViewMode` case, just sidebar visibility over Documents that already exist. The
   Library pane never shows `ResearchProjectListView`/`ResearchWorkspaceView` once all three
   land. Pinned by the matrix row + the guardrail dropping `ResearchWorkspaceView(`.
+- `m2p.one-creatable-kinds-list-drives-both-menus` — **[BROKEN]** (#4853) ONE list of
+  creatable node kinds should drive both the sidebar's + menu and File > New, so they cannot
+  drift; each item creates the node in the selected folder and selects it, like New Folder.
+  Verified BROKEN at HEAD: `AddItemMenu.swift` (the sidebar + menu) includes "New Trigger";
+  `FocusedCommandButtons+CreationActions.swift` (File > New) offers Chat/Workflow/Chain/
+  Comparison/Schedule — no Trigger. Two independent hand-written lists, not one shared source.
+  With the Data menu retired, every node kind needs one menu-bar home; today Trigger has none
+  via File > New. No fix in flight for this file as of this pass. Also unverified this pass
+  (named in the issue, not independently traced): whether every existing + menu item actually
+  creates its node end to end.
+- `m2p.sidebar-menu-lists-modes-not-nodes` — **[GAP]** (#4854) the View menu's "Sidebar"
+  section should retire once the remaining `SidebarMode` cases fold into the node model — under
+  the ratified ruling, the Library is always the navigator and chats/workflows/schedules/
+  triggers/chains are nodes in its tree, not sidebar modes to switch between. Verified at HEAD:
+  `ViewMenuCommands.swift`'s `SidebarModeSection` (`:125-`) still renders Library/Chat/
+  Workflows/Automation/Research as mode-switch buttons with keyboard shortcuts — the Knowledge
+  Graph and batch modes already retired (`m2p.kg-graph-retires-as-library-takeover`), these
+  five have not. Per the issue's own framing this is an honest picture of an UNFINISHED
+  migration, not a bug introduced by this menu — tagged GAP (intended future state, not yet
+  built), not BROKEN. No fix in flight for this file as of this pass. Open design question,
+  not decided here: what replaces the keyboard shortcuts once the section goes — "reveal the
+  first node of this kind" and "a kind filter on the Library" are the two candidates the issue
+  itself names, and which kinds (citations, chains, triggers, schedules) deserve a top-level
+  presence at all is undecided.
 - `m2p.browser-is-a-source-rendition` — **[GAP]** (#4809): the embedded browser lives
   INSIDE the Source/Preview pane as `PaneSurface.webBrowser` — no browser pane kind, no tab
   strip of its own (creative-director ruling, 2026-09-18). Design decided, not yet built —

@@ -66,14 +66,20 @@ Surfaces: `EntitiesLibraryContent` / `EntitiesTableView`, `ClaimsLibraryContent`
   Cross-ref: `kg-readable-representation.md`'s `kg.read.edit-unit-is-the-claim` covers a
   DIFFERENT surface reaching the same `claim.patch` action — editing FROM a rendered sentence
   rather than from this table — the two should stay in sync as both land.
-
-### Unreachable since the KG browser retired (#4828) — awaiting a re-mount-or-retire decision
-
-Six working views lost their only entry point when the KG sidebar mode and `OntologyBrowser`
-retired; each is KEPT (not dead code — a feature whose entry point retired is not the same as
-an unused renderer), pending a decision on where it re-mounts. None of these are built or
-tested against a NEW entry point yet — each stays [GAP] until re-mounted.
-
+- `kg.merge.repoints-subject` — **[PARTIAL]** (#4859) a merge repoints a claim's
+  `subject_entity_id` to the survivor the same way it repoints `entity_ids`, and records each
+  replaced subject on the merge audit (`claim_subject_repoints`); unmerge restores exactly
+  those claims, and only where the subject still names the survivor, so a curator's later
+  correction is never overwritten. A merge never rewrites the subject's canonical name or the
+  claim's sentence: it says two records are one entity, not what the source said. Both
+  callers reach this code, `entity.merge` and `review.accept`. After a merge the readable
+  paragraph gives role `subject` on the survivor's page. Pinned:
+  `fichero-server/tests/unit/api/test_merge_repoints_subject.py::TestMergeRepointsSubjectViaEntityMergeAction`
+  and `::TestMergeRepointsSubjectViaReviewAccept`. PARTIAL, not OK, for two reasons that keep
+  #4859 open: `speaker_entity_id`, `subject_of_inquiry_entity_id`, `scribe_entity_id` and
+  `editor_entity_id` are resolved entity ids a merge still does not repoint; and rows merged
+  before this fix are not rewritten, which is the maintainer's decision (an audited,
+  scan-first repair action, never a batch rewrite).
 - `kg.entity.menu.merge` — **[GAP]** (#4828, → #1675) `EntityMergeSheet` merges duplicate
   entities. Cross-references `kg.tables.entity.curate` above (#4801) rather than duplicating
   it — the merge CAPABILITY is the same one that behavior already tracks; this entry is about
@@ -252,6 +258,14 @@ entities/claims), not a small demo table. What's missing:
 - `kg.view.pagination` [MISSING at 10k] (#4643) — the table loads up to 25 000 client-side; at
   10k+ push filter/scope to the list endpoint (`filter.pushdown`) and page, so memory and
   first-paint stay bounded.
+- `kg.view.filter-bar-at-bottom` — **[BROKEN]** (#4856) both tables' filter bar sits at the
+  BOTTOM, matching the Library pane's own filter placement, so all three agree. Verified
+  BROKEN at HEAD: `EntitiesLibraryContent.swift`'s `body` puts `filterBar` BEFORE
+  `EntitiesTableView` in its `VStack` (top of the stack); `ClaimsLibraryContent.swift` mirrors
+  it, `filterBar` before the claims table. **A fix is in flight, uncommitted in this tree**:
+  both files reorder to table-then-`filterBar`, using the existing `PaneFilterBar(placement:
+  .bottom)` mechanism the Library pane already uses — no new placement API, just the existing
+  one applied consistently. Not yet landed — retag once committed and tested.
 
 ### Test coverage for scale — Swift + UX + backend + LOAD (all required)
 | Behavior | Backend (pytest) | Swift (unit) | UX (XCUITest) | Load/background (#4634) |

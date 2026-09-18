@@ -146,16 +146,49 @@ Surfaces: `DocumentInspector` (+`Sections`), `DocumentInspectorEntitiesTab`
   fails to load (distinct from `kg.entity.empty.load-error` above, which is about the
   statements list failing once an entity is already showing), the inspector must name WHY —
   not found, could not decode, engine unreachable — with a Retry, and a cancelled load (the
-  user's selection changed mid-fetch) must never be shown as a failure at all. Verified
-  BROKEN: `DocumentInspector.EntityInspectorArm`'s `.task(id:)`
-  (`DocumentInspector.swift:218-226`) does `catch { loadFailed = true }` — the typed error is
-  neither logged nor inspected, so a 404, a decode failure, a cancelled task, and a timeout are
-  all indistinguishable, all rendering the same generic "Entity Unavailable / Could not load
-  this entity." Reported from maintainer testing as intermittent — consistent with a cancelled
-  `.task(id:)` (a fast reselect) being reported as a failure, one of the candidates named in
-  the issue, not confirmed as THE cause since the error is thrown away before anyone can tell.
-  Also open, not decided here: what Preview and Reader should show for a selected entity —
-  today both say "No selection" regardless.
+  user's selection changed mid-fetch) must never be shown as a failure at all. Verified BROKEN
+  at HEAD: `DocumentInspector.EntityInspectorArm`'s `.task(id:)` (`DocumentInspector.swift:
+  218-226`) does `catch { loadFailed = true }` — the typed error is neither logged nor
+  inspected, so a 404, a decode failure, a cancelled task, and a timeout are all
+  indistinguishable, all rendering the same generic "Entity Unavailable / Could not load this
+  entity." **Root cause corrected after further testing (see #4850's own comment thread — not
+  a cancelled-task race after all): the entity id reaching the inspector was sometimes the
+  composite outline-row id, not the entity's own id** — see
+  `kg.entity.focus-uses-the-bare-id` below, the real cause. **A fix is in flight, uncommitted
+  in this tree**: the catch now checks `Task.isCancelled` first (never shows a superseded
+  fetch as a failure), logs the typed error with the entity id and library path, and shows that
+  reason to the user instead of the generic message. Not yet landed — retag once committed and
+  tested. Still open, not decided here: what Preview and Reader should show for a selected
+  entity — today both say "No selection" regardless.
+- `kg.entity.focus-uses-the-bare-id` — **[BROKEN]** (#4850) the id that reaches
+  `KGFocusState.focusEntity(entityId:)` and the id the inspector requests must be the entity's
+  own bare id — never the composite outline-row id a table's `Item.id` happens to be minted as.
+  Verified BROKEN at HEAD: `EntitiesTableView`'s row identity is
+  `<documentId>:entity:<entityId>` (`LibraryOutlineNode.swift:100`), and that composite lands
+  in the shared selection set. TWO handlers fire on one selection change: the table's own
+  `.onChange` opens the entity with the real, bare `entity.id`; `ContentView
+  .handleBrowserSelectionChange` separately sees an entity-library selection and calls
+  `kgFocusState.focusEntity(entityId:)` with the COMPOSITE id. Whichever handler runs last
+  wins the race, so the inspector sometimes requests `/api/entities/<doc>:entity:<id>`, gets a
+  404, and shows "Entity Unavailable" — intermittent because it is a race between two writers
+  of one focus, not a load-time failure at all. No fix for this specific bug was found in the
+  working tree as of this pass (the composite-id minting and the two-writer race are both
+  still present at HEAD and uncommitted alike) — the other #4850 fixes in flight (error
+  reporting, per-window focus) land around this cause without yet closing it.
+- `kg.entity.focus-is-per-window` — **[BROKEN]** (#4850) each window owns its own entity
+  focus — a click in one window's Entities table must never drive a DIFFERENT window's
+  Inspector. Verified BROKEN at HEAD: `ContentView.kgFocusState` is
+  `@Environment(KGFocusState.self)`, resolving to one process-wide `KGFocusState.shared` every
+  window injects, so a focus change in one window is visible to all of them, each resolving it
+  against ITS OWN library. **A fix is in flight, uncommitted in this tree**: `ContentView`
+  switches to `@State var kgFocusState = KGFocusState()`, one instance per window. The one
+  deliberate exception, also part of the fix and stated so it is not re-litigated as a
+  regression: "Open in New Window" (a separate, already-closed feature) still needs a ONE-SHOT handoff of the initial focus,
+  since the new window's own `KGFocusState` doesn't exist until the window finishes opening —
+  `KGFocusState.shared` is repurposed as exactly that, a single-value mailbox written once by
+  the opener and consumed once by the new window's first appearance, cleared on consumption so
+  a third window opened later never inherits a stale handoff. Not yet landed — retag once
+  committed and tested.
 - `kg.entity.rekey.on-focus-change` — the statements view is keyed on
   `focusedEntityId` (`.task(id:)`), so changing focus re-fetches and the list
   belongs to the new entity; the old list is dropped, not appended. Pinned:

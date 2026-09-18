@@ -1105,6 +1105,19 @@ Creative director, running the app (the one-renderer + old split/close wiring st
   hidden" survives that architecture, or whether the issue's 2026-06-08 framing predates it and
   needs re-scoping to "never auto-collapsed below a size threshold" specifically, is a real
   open question — reshaped, needs maintainer triage, not decided by this pass.
+- `panes.head.names-its-own-window` — **[BROKEN]** (#4860) a pane head names the library ITS
+  OWN window (or, once panes carry their own scope, its own pane) is showing — never an
+  app-wide pointer that any window could have last written. Verified at HEAD
+  (`git show HEAD:.../LibraryView+PaneHead.swift`): the root crumb is built from
+  `LibraryManager.shared.currentLibraryId` (`:63`, `:77`), a property on the app-wide manager
+  written by app-level events (initial window open, the File menu, AppleScript, one window
+  action) — never by a sidebar selection in a specific window. With two window tabs on
+  different libraries, the crumb shows whichever window wrote last, not the library that
+  window is actually displaying — the same singleton-pointer mistake
+  `kg.entity.focus-is-per-window` (`kg-entity-inspector.md`) fixes for entity focus, found the
+  same day. No fix in flight for this file as of this pass. A deliberate app-level use of
+  `currentLibraryId` (which library File > New targets) is out of scope for this behavior and
+  should stay explicit, not folded into the same fix.
 
 - `panes.instance-safe` — **[FIXED 2026-09-15]** a workspace may mount more than one pane of the
   same kind in one window (Compare: two previews, two readers, two libraries). Applying it used to

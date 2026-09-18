@@ -290,6 +290,20 @@ often the wrong subject; not multilingual.
   already solves for a different call site. **Cross-spec note:** the exact matrix-row text for
   `ui/modes-to-panes.md` (code lane's file, not edited here) is given verbatim in this spec's
   Migration section below, for the maintainer to relay.
+- `kg.read.statements-lens-becomes-the-paragraph` — **[BROKEN]** (#4855) no lens should
+  describe itself using the OTHER lens's own words — Statements and Claims render the SAME
+  `KnowledgeClaim` rows two ways, and today each tooltip claims the other's territory. Verified
+  BROKEN at HEAD: `DocumentKGSurface.swift:101`'s `.digest` (the Reader's "Statements" lens)
+  reads "every subject-verb-object statement we know about this ENTITY," although the lens is
+  scoped to a DOCUMENT, not an entity; `.claims`'s tooltip (`:105`) reads "statements extracted
+  from the document, grouped by source" — genuinely different wording, but both are
+  KnowledgeClaim rows, one grouped by entity as WebKit prose, the other by source as a native
+  list, and neither tooltip says what actually tells them apart. Direction (this spec's own
+  ratified plan): Statements should BECOME the readable paragraph — sourced, clickable
+  sentences drawn from the entry composer (`kg.read.biography`, `GET /api/kg/entities/{id}
+  /readable`) — while Claims stays the structured, editable table; then the two differ in
+  KIND, prose versus data, instead of overlapping in the same "statement" language. No fix in
+  flight for this file as of this pass.
 
 ### E. Ruling 4 — source language only
 
