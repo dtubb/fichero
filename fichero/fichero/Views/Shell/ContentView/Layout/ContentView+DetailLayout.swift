@@ -116,6 +116,70 @@ extension ContentView {
                 .frame(maxWidth: .infinity)
                 .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview })
             }
+        // #4705 increment 4a: schedule/trigger/chain/batches/activity all
+        // render their existing detail view here — the Library pane stays
+        // the navigator (`Nav`'s router no longer takes it over for any of
+        // these). None of these views holds a shared window-level binding
+        // (`ScheduleDetailView`/`TriggerDetailView`/`ChainEditorView` take a
+        // plain value param, `BatchRunView`/`ActivityDetailView` read their
+        // own environment stores) — no split-race, so no `isSecondarySplitPane`
+        // gate is needed here, unlike `.workflow` above.
+        } else if case .chain(let selectedChain) = viewMode {
+            Group {
+                if let selectedChain {
+                    ChainEditorView(chain: selectedChain)
+                } else {
+                    // Relocated from the old Library-pane takeover, not
+                    // deleted — still an honest "nothing to edit yet" state.
+                    ContentUnavailableView(
+                        "Create Chain",
+                        systemImage: "link.badge.plus",
+                        description: Text("Chain creation view")
+                    )
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview })
+        } else if case .batches = viewMode {
+            // Batch-mode GUI (#3536): run a workflow across many folders
+            // separately — one run per folder, each tracked in Activity.
+            BatchRunView()
+                .frame(maxWidth: .infinity)
+                .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview })
+        } else if case .schedule(let selectedSchedule) = viewMode {
+            Group {
+                if let selectedSchedule {
+                    ScheduleDetailView(schedule: selectedSchedule)
+                } else {
+                    ScheduleEditorView(existingSchedule: nil)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview })
+        } else if case .trigger(let selectedTrigger) = viewMode {
+            Group {
+                if let selectedTrigger {
+                    TriggerDetailView(trigger: selectedTrigger)
+                } else {
+                    TriggerEditorView(existingTrigger: nil)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview })
+        } else if case .activity(let selectedRun) = viewMode {
+            Group {
+                if let selectedRun {
+                    // The SAME component the compact flow and
+                    // `ActivityDetailWindow.swift` already trust — replaces
+                    // the deleted `ActivityWindowLauncherView`'s separate
+                    // window.
+                    ActivityDetailView(selectedRun: selectedRun)
+                } else {
+                    PaneEmptyStateView(reason: "Select a run in the sidebar to see its details.")
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview })
         // Finder's stacked multi-selection preview (#95) — same gate as the
         // standard-layout preview pane.
         } else if stackDocuments.count > 1 {
@@ -335,7 +399,7 @@ extension ContentView {
                 }
             }
 
-        case .chat, .comparison, .workflow, .chain, .batches, .batch,
+        case .chat, .comparison, .workflow, .chain, .batches,
              .automation, .schedule, .trigger, .activity:
             // #4525 (V3): never a silent EmptyView — the pane stays mounted
             // and says why, from the ONE decided matrix. While the mode's
@@ -416,7 +480,7 @@ extension ContentView {
                 }
             )
 
-        case .chain, .batches, .batch, .automation, .schedule, .trigger, .activity:
+        case .chain, .batches, .automation, .schedule, .trigger, .activity:
             // #4525: the honest per-mode empty from the ONE decided matrix,
             // replacing both the generic "Select an item to inspect." stub and
             // the chain's WorkflowInspector bound to whatever workflow was

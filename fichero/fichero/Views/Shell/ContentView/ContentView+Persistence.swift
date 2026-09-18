@@ -92,6 +92,12 @@ extension ContentView {
             return .chain(nil)
 
         case "batches", "batch":
+            // "batch" is a RETIRED string (#4705 increment 4a deleted
+            // `AppViewMode.batch`) — a session saved before the deletion
+            // must still restore safely rather than falling through to
+            // `default`'s `.library(nil)`. Kept alongside "batches" since
+            // both already redirected to Activity before the case existed
+            // as a construction target anywhere.
             return .activity(nil)
 
         case "automation":
@@ -128,7 +134,7 @@ extension ContentView {
             return ("workflow", workflow?.id)
         case .chain(let chain):
             return ("chain", chain?.id)
-        case .batches, .batch:
+        case .batches:
             return ("activity", nil)
         case .automation:
             return ("automation", nil)

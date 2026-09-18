@@ -11,7 +11,7 @@ final class CompactShellPolicyTests: XCTestCase {
     /// domains — safe by construction (Swift 6).
     private nonisolated(unsafe) static let allModes: [AppViewMode] = [
         .library(nil), .chat(nil), .comparison(nil),
-        .workflow(nil), .chain(nil), .batches, .batch(nil),
+        .workflow(nil), .chain(nil), .batches,
         .automation, .schedule(nil), .trigger(nil), .activity(nil)
     ]
 
@@ -64,7 +64,7 @@ final class CompactShellPolicyTests: XCTestCase {
 
         let modeContentModes: [AppViewMode] = [
             .chat(nil), .comparison(nil), .workflow(nil), .chain(nil),
-            .batches, .batch(nil), .automation, .schedule(nil), .trigger(nil), .activity(nil)
+            .batches, .automation, .schedule(nil), .trigger(nil), .activity(nil)
         ]
         for mode in modeContentModes {
             XCTAssertEqual(route(mode, false), .modeContent, "\(mode)")

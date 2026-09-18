@@ -23,7 +23,7 @@ struct ViewModeNormalizationTests {
         ("workflow", .workflow(nil)),
         ("chain", .chain(nil)),
         ("batches", .batches),
-        ("batch", .batch(nil)),
+        // `.batch` DELETED (#4705 increment 4a) — see SidebarViewTypes.swift.
         ("automation", .automation),
         ("schedule", .schedule(nil)),
         ("trigger", .trigger(nil)),

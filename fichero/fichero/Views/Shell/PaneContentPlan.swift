@@ -88,11 +88,11 @@ enum PaneContentPlan {
 /// migration's Rulings inventory (spec `modes-to-panes.md`) identifies.
 /// #4705 increment 1 wired six of them (`libraryBrowser`, `documentPreview`,
 /// `documentReader`, `documentInspector`, `chatScope`, `workflowInspector`);
-/// increment 2 wires `workflowCanvas`/`workflowRecipe`. `nodeDetail`
-/// (increment 4) and `entityInspector` (a future entity-inspector program)
-/// stay declared-but-unassigned — see each case's doc comment.
-/// `PaneContentPlanTests` pins that only THOSE two do not appear yet, so a
-/// later increment's diff reads as "this value changed" rather than landing
+/// increment 2 wired `workflowCanvas`/`workflowRecipe`; increment 4a wires
+/// `nodeDetail`. `entityInspector` (a future entity-inspector program)
+/// stays declared-but-unassigned — see its doc comment.
+/// `PaneContentPlanTests` pins that it does not appear yet, so a later
+/// increment's diff reads as "this value changed" rather than landing
 /// silently.
 enum PaneSurface: String, CaseIterable, Equatable {
     /// The Library pane's one rendition: the navigator (tree/table). The
@@ -109,8 +109,13 @@ enum PaneSurface: String, CaseIterable, Equatable {
     /// increment 2). At most ONE `WorkflowEditor` may be mounted per
     /// workflow — see `allowsSplit` below.
     case workflowCanvas
-    /// A schedule/trigger/chain/batch/activity run's detail in
-    /// Source/Preview. UNASSIGNED until increment 4.
+    /// A schedule/trigger/chain/batches/activity node's detail in
+    /// Source/Preview (#4705 increment 4a) — `ScheduleDetailView`/
+    /// `TriggerDetailView`/`ChainEditorView`/`BatchRunView`/`ActivityDetailView`,
+    /// reused as-is. None of them holds a shared window-level binding the way
+    /// `WorkflowEditor`'s `$editingWorkflow` did (each takes a plain value
+    /// param + its own `@State`), so `allowsSplit` stays `true` — no
+    /// per-surface split gate needed here.
     case nodeDetail
     /// A selected document, rendered in the Reader.
     case documentReader
@@ -208,7 +213,11 @@ extension AppViewMode {
         case .chain:
             return PaneContentPlan.Plan(
                 library: .surface(.libraryBrowser),
-                preview: .surface(.documentPreview),
+                // #4705 increment 4a: renders in Source/Preview now (the
+                // "Create Chain" empty state moved there too, for a nil
+                // chain — it's still an honest empty state, just relocated,
+                // not deleted).
+                preview: .surface(.nodeDetail),
                 reader: .empty("A chain has no reader view."),
                 // The old chain inspector showed WorkflowInspector bound to
                 // whatever workflow was last edited — a stale surface, which
@@ -218,17 +227,11 @@ extension AppViewMode {
         case .batches:
             return PaneContentPlan.Plan(
                 library: .surface(.libraryBrowser),
-                preview: .surface(.documentPreview),
+                preview: .surface(.nodeDetail),
                 reader: .empty("Batch runs have no reader view."),
                 inspector: .empty("Select a batch run to see its details in Activity.")
             )
-        case .batch:
-            return PaneContentPlan.Plan(
-                library: .surface(.libraryBrowser),
-                preview: .empty("Batch monitoring is unified under Activity."),
-                reader: .empty("Batch monitoring is unified under Activity."),
-                inspector: .empty("Batch monitoring is unified under Activity.")
-            )
+        // `.batch` DELETED (#4705 increment 4a) — see SidebarViewTypes.swift.
         case .automation:
             return PaneContentPlan.Plan(
                 library: .surface(.libraryBrowser),
@@ -239,21 +242,29 @@ extension AppViewMode {
         case .schedule:
             return PaneContentPlan.Plan(
                 library: .surface(.libraryBrowser),
-                preview: .surface(.documentPreview),
+                preview: .surface(.nodeDetail),
+                // #4705 increment 4b (NOT this increment): run history moves
+                // to a Reader rendition (`automation.run-history.rendition`,
+                // #4741) — for now it stays inside the Preview detail view.
                 reader: .empty("A schedule has no reader view."),
                 inspector: .empty("A schedule is edited in its detail view.")
             )
         case .trigger:
             return PaneContentPlan.Plan(
                 library: .surface(.libraryBrowser),
-                preview: .surface(.documentPreview),
+                preview: .surface(.nodeDetail),
+                // #4705 increment 4b (NOT this increment) — see `.schedule`.
                 reader: .empty("A trigger has no reader view."),
                 inspector: .empty("A trigger is edited in its detail view.")
             )
         case .activity:
             return PaneContentPlan.Plan(
                 library: .surface(.libraryBrowser),
-                preview: .surface(.documentPreview),
+                // #4705 increment 4a: `ActivityDetailView` (already used by
+                // the compact flow and its own window) renders here instead
+                // of launching a separate window via the now-deleted
+                // `ActivityWindowLauncherView`.
+                preview: .surface(.nodeDetail),
                 reader: .empty("A workflow run has no reader view."),
                 inspector: .empty("Run details live in the Activity window (Window menu, ⌥⌘A).")
             )

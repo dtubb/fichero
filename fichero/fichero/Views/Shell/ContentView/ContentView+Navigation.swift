@@ -288,48 +288,23 @@ extension ContentView {
                 }
             }
 
-        case .chain(let chain):
-            if let selectedChain = chain {
-                ChainEditorView(chain: selectedChain)
-            } else {
-                ContentUnavailableView(
-                    "Create Chain",
-                    systemImage: "link.badge.plus",
-                    description: Text("Chain creation view")
-                )
-            }
-
-        case .batches:
-            // Batch-mode GUI (#3536): run a workflow across many folders
-            // separately — one run per folder, each tracked in Activity.
-            BatchRunView()
-
-        case .batch:
-            ContentUnavailableView(
-                "Activity",
-                systemImage: "clock",
-                description: Text("Batch monitoring is now unified under Activity")
-            )
-
-        case .automation:
-            ContentUnavailableView(
-                "Automation",
-                systemImage: "timer",
-                description: Text("Select a schedule or trigger in the sidebar")
-            )
-
-        case .schedule(let schedule):
-            if let schedule = schedule {
-                ScheduleDetailView(schedule: schedule)
-            } else {
-                ScheduleEditorView(existingSchedule: nil)
-            }
-
-        case .trigger(let trigger):
-            if let trigger = trigger {
-                TriggerDetailView(trigger: trigger)
-            } else {
-                TriggerEditorView(existingTrigger: nil)
+        // #4705 increment 4a: `.chain`/`.batches`/`.schedule`/`.trigger` never
+        // had a compact-specific push-stack (only `.workflow`/`.research`/
+        // `.activity` did) — the Library pane is ALWAYS the navigator for
+        // them now, same `LibrarySplitPaneHost` pattern as `.chat`/
+        // `.workflow`. Their real content (`ChainEditorView`/`BatchRunView`/
+        // `ScheduleDetailView`/`TriggerDetailView`, unchanged) moved to the
+        // Preview pane (`widescreenCanvasPaneContent`,
+        // `ContentView+DetailLayout.swift`) — including the "Create Chain"
+        // empty state for a nil chain, relocated not deleted.
+        // `.batch` and the `.automation` placeholder DELETED (#4705
+        // increment 4a): `.batch` always redirected to Activity anyway
+        // (SidebarViewTypes.swift); automation with nothing selected now
+        // just leaves the Library showing, matching `.workflow(nil)`'s
+        // no-collapse rule — there is no automation NODE to placeholder for.
+        case .chain, .batches, .automation, .schedule, .trigger:
+            LibrarySplitPaneHost(clearToken: libraryPinClearToken) { pinnedLibrary in
+                libraryContentColumn(pinnedLibrary: pinnedLibrary)
             }
 
         case .activity(let selectedRun):
@@ -351,7 +326,15 @@ extension ContentView {
                     ActivityDetailView(selectedRun: run)
                 }
             } else {
-                ActivityWindowLauncherView(selectedRun: selectedRun)
+                // #4705 increment 4a: Library stays the navigator; the
+                // Preview pane mounts `ActivityDetailView` directly (the
+                // SAME component the compact flow above and
+                // `ActivityDetailWindow.swift` already trust) instead of
+                // launching a separate window via the now-deleted
+                // `ActivityWindowLauncherView`.
+                LibrarySplitPaneHost(clearToken: libraryPinClearToken) { pinnedLibrary in
+                    libraryContentColumn(pinnedLibrary: pinnedLibrary)
+                }
             }
 
         }

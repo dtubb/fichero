@@ -10,7 +10,12 @@ enum AppViewMode: Equatable {
     case workflow(WorkflowSidebarItem?)  // Workflow editor - selected workflow
     case chain(WorkflowChain?)           // Chain editor - workflow chain
     case batches                         // Batch jobs list and management
-    case batch(BatchInfo?)               // Batch detail view
+    // `.batch(BatchInfo?)` DELETED (#4705 increment 4a): a placeholder case
+    // that always rendered "Batch monitoring is unified under Activity" —
+    // restore already redirected the persisted string to `.activity(nil)`
+    // (`ContentView+Persistence.swift`), and the one construction site
+    // (`SidebarView+SelectionHandling.swift`) now constructs `.activity(nil)`
+    // directly instead.
     case automation                      // Schedules and file triggers
     case schedule(ScheduleInfo?)         // Schedule detail/creation view
     case trigger(TriggerInfo?)           // Trigger detail/creation view
@@ -21,7 +26,7 @@ enum AppViewMode: Equatable {
         case .library: return .folder
         case .chat, .comparison: return .chat
         case .workflow, .chain: return .workflow
-        case .batches, .batch, .automation, .schedule, .trigger: return .workflow
+        case .batches, .automation, .schedule, .trigger: return .workflow
         case .activity: return .workflow
         }
     }
@@ -41,7 +46,6 @@ enum AppViewMode: Equatable {
         case .workflow(let workflow): return "workflow(\(workflow?.id ?? "nil"))"
         case .chain: return "chain"
         case .batches: return "batches"
-        case .batch: return "batch"
         case .automation: return "automation"
         case .schedule: return "schedule"
         case .trigger: return "trigger"

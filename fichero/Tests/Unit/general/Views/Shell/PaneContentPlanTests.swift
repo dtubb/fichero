@@ -23,7 +23,7 @@ struct PaneContentPlanTests {
         ("workflow", .workflow(nil)),
         ("chain", .chain(nil)),
         ("batches", .batches),
-        ("batch", .batch(nil)),
+        // `.batch` DELETED (#4705 increment 4a) — see SidebarViewTypes.swift.
         ("automation", .automation),
         ("schedule", .schedule(nil)),
         ("trigger", .trigger(nil)),
@@ -105,21 +105,16 @@ struct PaneContentPlanTests {
         }
     }
 
-    /// The mode surfaces that exist render in the PREVIEW slot per the #4525
-    /// target shape — chat, comparison, chain, schedule, trigger, activity
-    /// and batches all have a real surface to show there. Today that
-    /// surface is uniformly `.documentPreview` (the Mac Preview pane does
-    /// not yet branch on `viewMode` for these; increment 4 replaces this
-    /// per-mode with `.nodeDetail`). `.workflow` is EXCLUDED here since
-    /// #4705 increment 2 gave it its own dedicated `.workflowCanvas` surface
-    /// — see `workflowUsesItsOwnPreviewAndReaderSurfaces` below.
-    @Test("modes with a generic surface get a named preview cell")
+    /// The mode surfaces that have no dedicated rendition yet render in the
+    /// PREVIEW slot as `.documentPreview` — chat and comparison are the only
+    /// two left there. `.workflow` is EXCLUDED (its own `.workflowCanvas`,
+    /// see `workflowUsesItsOwnPreviewAndReaderSurfaces`); chain/schedule/
+    /// trigger/activity/batches are EXCLUDED (their own `.nodeDetail`, see
+    /// `nodeDetailModesLandInThePreviewSlot` — #4705 increment 4a).
+    @Test("modes with no dedicated rendition get the generic document-preview cell")
     func modeSurfacesLandInThePreviewSlot() {
         let surfaced: [(String, AppViewMode)] = [
             ("chat", .chat(nil)), ("comparison", .comparison(nil)),
-            ("chain", .chain(nil)),
-            ("schedule", .schedule(nil)), ("trigger", .trigger(nil)),
-            ("activity", .activity(nil)), ("batches", .batches),
         ]
         for (name, mode) in surfaced {
             #expect(
@@ -127,9 +122,30 @@ struct PaneContentPlanTests {
                 "\(name): its surface belongs in the preview slot"
             )
         }
-        // The two that genuinely have nothing to show say so instead.
-        #expect(PaneContentPlan.plan(for: .batch(nil)).preview.emptyReason != nil)
+        // The one that genuinely has nothing to show says so instead.
         #expect(PaneContentPlan.plan(for: .automation).preview.emptyReason != nil)
+    }
+
+    /// #4705 increment 4a: schedule/trigger/chain/batches/activity all
+    /// render their existing detail view directly in Source/Preview
+    /// (`.nodeDetail`) — the Library pane stays the plain navigator beside
+    /// them, matching `.workflow`'s increment-2 shape. `.automation` (nothing
+    /// selected) is EXCLUDED — it stays an honest empty, matching
+    /// `.workflow(nil)`'s regular-width "just leave the Library showing"
+    /// rule; there is no automation NODE to detail with nothing chosen.
+    @Test("schedule/trigger/chain/batches/activity land on the node-detail surface")
+    func nodeDetailModesLandInThePreviewSlot() {
+        let nodeDetailModes: [(String, AppViewMode)] = [
+            ("schedule", .schedule(nil)), ("trigger", .trigger(nil)),
+            ("chain", .chain(nil)), ("batches", .batches),
+            ("activity", .activity(nil)),
+        ]
+        for (name, mode) in nodeDetailModes {
+            #expect(
+                PaneContentPlan.plan(for: mode).preview == .surface(.nodeDetail),
+                "\(name): its surface belongs in the node-detail slot"
+            )
+        }
     }
 
     /// #4705 increment 2 (`m2p.workflow-canvas-in-preview`,
@@ -156,13 +172,15 @@ struct PaneContentPlanTests {
     }
 
     /// #4705 increments only NAME the surfaces the CURRENT increment wires.
-    /// `.nodeDetail` (increment 4) and `.entityInspector` (a future
-    /// entity-inspector program) must not appear in the matrix yet —
-    /// pinning their absence makes each later increment's diff legible as
-    /// "this value changed" instead of landing silently inside this one.
-    @Test("increment 2 does not jump ahead to increment 4's node-detail surface")
+    /// `.entityInspector` (a future entity-inspector program) must not
+    /// appear in the matrix yet — pinning its absence makes that later
+    /// increment's diff legible as "this value changed" instead of landing
+    /// silently inside this one. (`.nodeDetail` was the increment-4a
+    /// version of this pin; it's wired now, so it moved to its own positive
+    /// assertions above instead of staying in this negative one.)
+    @Test("increments do not jump ahead to a future entity-inspector surface")
     func doesNotUseFutureSurfacesYet() {
-        let notYetWired: Set<PaneSurface> = [.nodeDetail, .entityInspector]
+        let notYetWired: Set<PaneSurface> = [.entityInspector]
         for (name, mode) in Self.everyMode {
             let plan = PaneContentPlan.plan(for: mode)
             for (pane, cell) in cells(plan) {

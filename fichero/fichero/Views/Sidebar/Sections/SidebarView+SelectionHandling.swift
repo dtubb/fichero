@@ -278,9 +278,14 @@ extension SidebarView {
             sidebarMode = .automation
             viewMode = .trigger(trigger)
         case .batch(let batch):
+            // `AppViewMode.batch` DELETED (#4705 increment 4a) — batch
+            // monitoring has been unified under Activity for a while
+            // (restore already redirected the persisted string the same
+            // way); this construction site now does directly what it used
+            // to do indirectly via the placeholder.
             sidebarViewLogger.info("Switching to batch view: \(batch.id)")
             sidebarMode = .activity
-            viewMode = .batch(batch)
+            viewMode = .activity(nil)
         default:
             sidebarViewLogger.error("routeAutomationFamilySelection got a non-family item type")
         }

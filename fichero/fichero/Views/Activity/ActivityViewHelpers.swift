@@ -364,23 +364,8 @@ struct ActivityBrowserView: View {
     }
 }
 
-struct ActivityWindowLauncherView: View {
-    let selectedRun: SelectedActivityRun?
-
-    @Environment(\.openWindow) private var openWindow
-    @State private var selectionState = ActivityWindowSelectionState.shared
-
-    var body: some View {
-        ContentUnavailableView(
-            "Activity Lives in Its Own Window",
-            systemImage: "arrow.up.forward.app",
-            description: Text("Use the Activity window for run history, live updates, and details.")
-        )
-        .task(id: selectedRun?.id) {
-            selectionState.select(selectedRun)
-            openWindow(id: ActivityWindowSelectionState.monitorWindowID)
-        }
-    }
-}
-
-// MARK: - Activity Browser Row
+// `ActivityWindowLauncherView` DELETED (#4705 increment 4a): it launched the
+// separate Activity window from the regular-width `.activity` Library
+// takeover. Now the Library stays the navigator and `ActivityDetailView`
+// (already used by the compact flow and `ActivityDetailWindow.swift`) mounts
+// directly in Source/Preview instead (`ContentView+DetailLayout.swift`).

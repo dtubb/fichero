@@ -54,8 +54,6 @@ extension ContentView {
             viewName = chain?.name ?? "Chain"
         case .batches:
             viewName = "Activity"
-        case .batch:
-            viewName = "Activity"
         case .automation:
             viewName = "Automation"
         case .schedule(let schedule):
@@ -131,7 +129,7 @@ extension ContentView {
             return "bolt"
         case .chain:
             return "link"
-        case .batches, .batch, .activity:
+        case .batches, .activity:
             return "clock"
         case .automation:
             return "gearshape.2"

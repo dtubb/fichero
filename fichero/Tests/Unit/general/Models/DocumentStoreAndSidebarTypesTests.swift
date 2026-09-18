@@ -170,7 +170,7 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         XCTAssertEqual(AppViewMode.workflow(nil).category, .workflow)
         XCTAssertEqual(AppViewMode.chain(nil).category, .workflow)
         XCTAssertEqual(AppViewMode.batches.category, .workflow)
-        XCTAssertEqual(AppViewMode.batch(nil).category, .workflow)
+        // `.batch` DELETED (#4705 increment 4a) — see SidebarViewTypes.swift.
         XCTAssertEqual(AppViewMode.automation.category, .workflow)
         XCTAssertEqual(AppViewMode.schedule(nil).category, .workflow)
         XCTAssertEqual(AppViewMode.trigger(nil).category, .workflow)

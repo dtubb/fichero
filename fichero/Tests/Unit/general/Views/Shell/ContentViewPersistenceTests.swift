@@ -15,7 +15,10 @@ final class ContentViewPersistenceTests: XCTestCase {
             (.workflow(nil), "workflow"),
             (.chain(nil), "chain"),
             (.batches, "activity"),
-            (.batch(nil), "activity"),
+            // `.batch` DELETED (#4705 increment 4a) — see
+            // `testRetiredBatchStringStillRestoresToActivity` below for the
+            // decode-side half of this (nothing constructs it anymore, but a
+            // session saved before the deletion must still restore safely).
             (.automation, "automation"),
             (.schedule(nil), "schedule"),
             (.trigger(nil), "trigger"),
@@ -26,6 +29,24 @@ final class ContentViewPersistenceTests: XCTestCase {
             XCTAssertEqual(result.type, expectedType, "\(mode)")
             XCTAssertNil(result.id, "nil-selection \(mode) must serialize a nil id")
         }
+    }
+
+    /// #4705 increment 4a: `AppViewMode.batch` is deleted, so nothing
+    /// constructs the persisted string `"batch"` going forward — but a
+    /// window saved BEFORE the deletion may still hold it, and
+    /// `restoreViewMode` is an instance method (needs a live `ContentView`
+    /// with `documentStore`/`conversationService`/`workflowStore`, no
+    /// harness exists for it yet), so this pins the decode-side source
+    /// directly rather than inventing one. Same tolerant-decode pattern as
+    /// increment 3a's `SidebarModeRestoreTests` — the retired string is
+    /// DATA here, and this test needs no edit if `restoreViewMode` ever
+    /// gains a proper instantiable-harness test later.
+    func testRetiredBatchStringStillRestoresToActivity() throws {
+        let source = try AppSource.code("Views/Shell/ContentView/ContentView+Persistence.swift")
+        XCTAssertTrue(
+            source.contains(#"case "batches", "batch":"#),
+            "restoreViewMode must keep decoding the retired \"batch\" string"
+        )
     }
 
     /// Column-visibility persistence must round-trip so a restored window keeps

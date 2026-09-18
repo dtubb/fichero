@@ -87,7 +87,7 @@ extension ContentView {
         switch viewMode {
         case .library, .chat, .comparison, .workflow, .chain:
             return true
-        case .batches, .batch, .automation, .schedule, .trigger, .activity:
+        case .batches, .automation, .schedule, .trigger, .activity:
             return false
         }
     }

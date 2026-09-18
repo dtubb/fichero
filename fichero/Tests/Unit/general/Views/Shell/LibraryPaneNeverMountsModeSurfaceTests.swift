@@ -7,11 +7,15 @@ import Testing
 /// The regular-width Library leaf's mode router (`ContentView+Navigation.
 /// swift`'s `contentView`) still mounts several bespoke full-width takeover
 /// views today — `allowedTakeovers` below is that full list, MINUS
-/// `WorkflowEditor(` (increment 2, moved to the Preview pane) and
+/// `WorkflowEditor(` (increment 2, moved to the Preview pane),
 /// `OntologyBrowser(` (increment 3, the whole KG sidebar mode + its
-/// intercept deleted). Each later increment drops one more token from this
-/// allowlist; when it is empty (increment 8), the Library pane never mounts
-/// a mode surface at all.
+/// intercept deleted), and `BatchRunView(`/`ChainEditorView(`/
+/// `ScheduleDetailView(`/`TriggerDetailView(`/`ActivityWindowLauncherView(`
+/// (increment 4a — the first four moved to the Preview pane exactly like
+/// `WorkflowEditor`; the last one is a genuine deletion, replaced by
+/// `ActivityDetailView` mounted directly). Each later increment drops one
+/// more token from this allowlist; when it is empty (increment 8), the
+/// Library pane never mounts a mode surface at all.
 ///
 /// This scans ONLY the `.workflow` case's REGULAR-width branch — not the
 /// whole file, and not the compact-flow branch inside the same case, which
@@ -25,20 +29,25 @@ struct LibraryPaneNeverMountsModeSurfaceTests {
 
     /// Tokens still permitted anywhere in `contentView`'s router — every
     /// bespoke takeover view the #4705 review inventoried, minus
-    /// `WorkflowEditor(` (increment 2) and `OntologyBrowser(` (increment 3).
-    /// Shrinks by one more per completed increment (4-5).
+    /// `WorkflowEditor(` (increment 2), `OntologyBrowser(` (increment 3), and
+    /// `BatchRunView(`/`ChainEditorView(`/`ScheduleDetailView(`/
+    /// `TriggerDetailView(`/`ActivityWindowLauncherView(` (increment 4a).
+    /// Shrinks by one more when increment 5 lands.
     private static let allowedTakeovers = [
-        "ResearchWorkspaceView(", "BatchRunView(",
-        "ChainEditorView(", "ScheduleDetailView(", "TriggerDetailView(",
-        "ComparisonDetailView(", "ActivityWindowLauncherView(",
+        "ResearchWorkspaceView(", "ComparisonDetailView(",
     ]
 
     /// The bare identifier — not just a constructor call — must not appear
-    /// anywhere in the app target once increment 3 deletes `OntologyBrowser`
-    /// itself: a lingering type reference (a property type, a static member
-    /// access without `(`, an extension) would compile against nothing and
-    /// is exactly the gap a `(`-only scan misses.
-    private static let deletedBareIdentifiers = ["OntologyBrowser"]
+    /// anywhere in the app target once a file defining it is deleted: a
+    /// lingering type reference (a property type, a static member access
+    /// without `(`, an extension) would compile against nothing and is
+    /// exactly the gap a `(`-only scan misses (the #4705 `GraphSimulation`
+    /// build break — a type was still needed by a SURVIVING file — is the
+    /// opposite failure mode of this same lesson: check what a file DEFINES,
+    /// not just who calls its named type, before deleting it).
+    /// `ActivityWindowLauncherView` (increment 4a) joins `OntologyBrowser`
+    /// (increment 3) here.
+    private static let deletedBareIdentifiers = ["OntologyBrowser", "ActivityWindowLauncherView"]
 
     private static let navigationFile = "Views/Shell/ContentView/ContentView+Navigation.swift"
 
@@ -87,7 +96,7 @@ struct LibraryPaneNeverMountsModeSurfaceTests {
         }
         let bodyStart = caseRange.location + caseRange.length
 
-        let nextCaseMarker = "case .chain(let chain):"
+        let nextCaseMarker = "case .chain"  // prefix: matches the arm alone or leading a grouped arm (#4705 inc. 4a merged it)
         let searchFromNextCase = NSRange(location: bodyStart, length: ns.length - bodyStart)
         let nextCaseRange = ns.range(of: nextCaseMarker, options: [], range: searchFromNextCase)
         guard nextCaseRange.location != NSNotFound else {
