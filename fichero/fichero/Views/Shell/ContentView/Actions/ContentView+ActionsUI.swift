@@ -109,7 +109,7 @@ extension ContentView {
     /// content pane, so no #1696 invariant to guard.
     func setChatPaneVisible(_ isVisible: Bool) {
         showChatPane = isVisible
-        WorkspaceLayoutDefaults.remember(paneVisibility, chat: isVisible)
+        WorkspaceLayoutDefaults.remember(chat: isVisible)
     }
 
     /// Show/hide the library list pane beside the reader (#4288). Unlike the

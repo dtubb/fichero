@@ -31,28 +31,16 @@ final class WorkspaceLayoutDefaultsTests: XCTestCase {
 
     // MARK: - The round trip
 
-    func testAHiddenPaneStaysHiddenAcrossARelaunch() {
-        let left = PaneVisibility(grid: true, canvas: false, reading: true)
-        WorkspaceLayoutDefaults.remember(left, chat: false, in: store)
-
+    /// Chat is the one pane Bool still remembered directly (#4687 retired the three
+    /// content-pane Bools — the `PaneList` itself carries those now, see the #4686 section
+    /// below).
+    func testChatVisibilityStaysRememberedAcrossARelaunch() {
+        WorkspaceLayoutDefaults.remember(chat: false, in: store)
         // A "relaunch" is exactly this: a fresh read of the store.
-        XCTAssertEqual(WorkspaceLayoutDefaults.rememberedVisibility(in: store), left)
         XCTAssertFalse(WorkspaceLayoutDefaults.pane(.chat, default: true, in: store))
-    }
 
-    func testEveryPaneCombinationRoundTrips() {
-        for grid in [true, false] {
-            for canvas in [true, false] {
-                for reading in [true, false] where grid || canvas || reading {
-                    let layout = PaneVisibility(grid: grid, canvas: canvas, reading: reading)
-                    WorkspaceLayoutDefaults.remember(layout, chat: grid, in: store)
-                    XCTAssertEqual(
-                        WorkspaceLayoutDefaults.rememberedVisibility(in: store), layout,
-                        "\(layout) did not survive the round trip"
-                    )
-                }
-            }
-        }
+        WorkspaceLayoutDefaults.remember(chat: true, in: store)
+        XCTAssertTrue(WorkspaceLayoutDefaults.pane(.chat, default: false, in: store))
     }
 
     func testTheLayoutModeRoundTrips() {
@@ -67,16 +55,12 @@ final class WorkspaceLayoutDefaultsTests: XCTestCase {
 
     /// The bug this guards is subtle and would ship looking deliberate:
     /// `UserDefaults.bool(forKey:)` answers `false` for a key never written,
-    /// so a first-run window would open with every pane HIDDEN — which the
-    /// #1696 invariant would then have to rescue.
+    /// so a first-run window would open with the pane HIDDEN — which the
+    /// #1696 invariant would then have to rescue (for the content panes, the
+    /// invariant now lives on `PaneList.settingVisible`, pinned in `PaneListTests`).
     func testNoStoredPreferenceMeansTheDefault() {
-        XCTAssertTrue(WorkspaceLayoutDefaults.pane(.grid, default: true, in: store))
-        XCTAssertFalse(WorkspaceLayoutDefaults.pane(.grid, default: false, in: store))
-        XCTAssertEqual(
-            WorkspaceLayoutDefaults.rememberedVisibility(in: store),
-            PaneVisibility(grid: true, canvas: true, reading: true),
-            "A first run opens with the panes on, as it always did."
-        )
+        XCTAssertTrue(WorkspaceLayoutDefaults.pane(.chat, default: true, in: store))
+        XCTAssertFalse(WorkspaceLayoutDefaults.pane(.chat, default: false, in: store))
     }
 
     func testTheStoredLayoutModeFallsBackWhenAbsent() {
@@ -86,47 +70,20 @@ final class WorkspaceLayoutDefaultsTests: XCTestCase {
         )
     }
 
-    // MARK: - Never a layout no window may open in
-
-    /// A store written before #1696, or edited by hand, could name an
-    /// all-hidden layout. Reading it back must not hand a window an empty
-    /// content area — the invariant is enforced on the way OUT as well as in.
-    func testAnAllHiddenStoredLayoutIsRefusedOnRead() {
-        store.set(false, forKey: WorkspaceLayoutDefaults.Key.grid.rawValue)
-        store.set(false, forKey: WorkspaceLayoutDefaults.Key.canvas.rawValue)
-        store.set(false, forKey: WorkspaceLayoutDefaults.Key.reading.rawValue)
-
-        let restored = WorkspaceLayoutDefaults.rememberedVisibility(in: store)
-        XCTAssertTrue(
-            restored.isAnyVisible,
-            "No window may open with every content pane hidden (#1696)."
-        )
-    }
-
-    /// What `setPaneVisible` stores has already passed the invariant, so the
-    /// pair cannot record a layout it would refuse to apply.
-    func testWhatTheMutationPathStoresIsAlwaysOpenable() {
-        var visibility = PaneVisibility(grid: true, canvas: false, reading: false)
-        // Hiding the last visible pane is refused by the invariant…
-        visibility = visibility.settingVisible(.grid, false)
-        WorkspaceLayoutDefaults.remember(visibility, chat: false, in: store)
-        XCTAssertTrue(WorkspaceLayoutDefaults.rememberedVisibility(in: store).isAnyVisible)
-    }
-
     // MARK: - What is deliberately NOT remembered
 
     /// The sidebar and inspector have a dozen PROGRAMMATIC writers — a
     /// claim-source reveal, an AppleScript `show panel`, a search summoning its
     /// chrome. Mirroring those would record a transient reveal as the user's
     /// chosen workspace, so they are out, and so is `sidebarMode` with its
-    /// twenty writers.
+    /// twenty writers. The three content-pane Bools that used to be here are
+    /// ALSO out (#4687) — `paneVisibility` has no storage of its own left to
+    /// remember; `rememberedPaneList`/`rememberPaneList` (below) carry the
+    /// composition instead, under their own key outside this Bool-only enum.
     func testOnlyTheDeliberatelyChosenSurfacesAreRemembered() {
         XCTAssertEqual(
             Set(WorkspaceLayoutDefaults.Key.allCases.map(\.rawValue)),
             [
-                "workspace.showDocumentGrid",
-                "workspace.showDocumentCanvas",
-                "workspace.showReadingPane",
                 "workspace.showChatPane",
                 "workspace.currentLayoutMode"
             ],
@@ -138,23 +95,25 @@ final class WorkspaceLayoutDefaultsTests: XCTestCase {
         )
     }
 
-    /// The seam that made the bug invisible for so long: the panes are seeded
-    /// from the store, and the ONE mutation path writes back to it.
-    func testTheSeedAndTheWriteBackAreBothWired() throws {
+    /// The seam that made the bug invisible for so long: chat is seeded from the store, and
+    /// its ONE mutation path (`setChatPaneVisible`, `ContentView+ActionsUI.swift`) writes back
+    /// to it. The content panes' seed/write-back pair is pinned separately by
+    /// `testThePaneListSeedIsWired` / `testEveryActivePaneListWriterCallsTheOneFunnel`.
+    func testChatsSeedAndWriteBackAreBothWired() throws {
         let contentView = try String(
             contentsOf: AppSource.root()
                 .appendingPathComponent("Views/Shell/ContentView/ContentView.swift"),
             encoding: .utf8
         )
-        let paneVisibility = try String(
-            contentsOf: AppSource.root().appendingPathComponent("Views/Shell/PaneVisibility.swift"),
+        XCTAssertTrue(contentView.contains("WorkspaceLayoutDefaults.showChatPane"))
+        let actionsUI = try String(
+            contentsOf: AppSource.root()
+                .appendingPathComponent("Views/Shell/ContentView/Actions/ContentView+ActionsUI.swift"),
             encoding: .utf8
         )
-        XCTAssertTrue(contentView.contains("WorkspaceLayoutDefaults.showDocumentGrid"))
-        XCTAssertTrue(contentView.contains("WorkspaceLayoutDefaults.showReadingPane"))
         XCTAssertTrue(
-            paneVisibility.contains("WorkspaceLayoutDefaults.remember(next, chat: showChatPane)"),
-            "Seeding without a write-back remembers the first-run layout forever."
+            actionsUI.contains("WorkspaceLayoutDefaults.remember(chat: isVisible)"),
+            "Seeding without a write-back remembers the first-run chat visibility forever."
         )
     }
 
@@ -181,7 +140,7 @@ final class WorkspaceLayoutDefaultsTests: XCTestCase {
     /// The mount-time seed is wired: `ContentView.activePaneList` seeds from
     /// `rememberedPaneList()`, falling back to the Read default (spec workspaces
     /// non-optionality untouched). The WRITE-BACK side is one funnel
-    /// (`PaneVisibility.syncLegacyPaneVisibilityBools()`, #4686/#4687) — pinned separately below
+    /// (`PaneVisibility.paneListDidChange()`, #4686/#4687) — pinned separately below
     /// by `testEveryActivePaneListWriterCallsTheOneFunnel`, not here.
     func testThePaneListSeedIsWired() throws {
         let contentView = try String(
@@ -205,10 +164,9 @@ final class WorkspaceLayoutDefaultsTests: XCTestCase {
     }
 
     /// Structural guardrail (#4686/#4687): every KNOWN `activePaneList` mutation site must be
-    /// followed, within a few lines, by the ONE funnel (`syncLegacyPaneVisibilityBools()`) that
-    /// syncs the legacy Bools AND remembers the composition for the next launch. A new writer
-    /// that skips it silently reintroduces both the stale-checkmark bug and the
-    /// forgets-on-relaunch bug at once.
+    /// followed, within a few lines, by the ONE funnel (`paneListDidChange()`) that remembers
+    /// the composition for the next launch. A new writer that skips it silently reintroduces
+    /// the forgets-on-relaunch bug.
     func testEveryActivePaneListWriterCallsTheOneFunnel() throws {
         let paneVisibility = try String(
             contentsOf: AppSource.root().appendingPathComponent("Views/Shell/PaneVisibility.swift"),
@@ -234,9 +192,9 @@ final class WorkspaceLayoutDefaultsTests: XCTestCase {
         assertFunnelFollows(paneSpec, after: "activePaneList = activePaneList.changingLeafKind(id, to: kind)")
     }
 
-    /// `source` must contain `marker`, and `"syncLegacyPaneVisibilityBools()"` must appear within
-    /// `window` characters after it — a source-level "the funnel is right here, not forgotten a
-    /// few refactors later" check.
+    /// `source` must contain `marker`, and `"paneListDidChange()"` must appear within `window`
+    /// characters after it — a source-level "the funnel is right here, not forgotten a few
+    /// refactors later" check.
     private func assertFunnelFollows(
         _ source: String, after marker: String, window: Int = 500,
         file: StaticString = #filePath, line: UInt = #line
@@ -247,7 +205,7 @@ final class WorkspaceLayoutDefaultsTests: XCTestCase {
         }
         let snippet = String(source[range.upperBound...].prefix(window))
         XCTAssertTrue(
-            snippet.contains("syncLegacyPaneVisibilityBools()"),
+            snippet.contains("paneListDidChange()"),
             "No funnel call within \(window) characters after: \(marker)",
             file: file, line: line
         )

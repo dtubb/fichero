@@ -5,7 +5,6 @@ import Foundation
 /// "Make sure workspace is saved when we quit — panes reset each time."
 ///
 /// They did, and the reason is structural rather than a missing save.
-/// `showDocumentGrid` / `showDocumentCanvas` / `showReadingPane` /
 /// `showChatPane` / `currentLayoutMode` are `@SceneStorage`: per-WINDOW state
 /// that SwiftUI persists through macOS scene restoration. Scene state does not
 /// survive a quit unless the system restores windows, so on the next launch
@@ -24,6 +23,14 @@ import Foundation
 /// exactly as they are — per-window, so two windows still diverge — and these
 /// defaults only decide what a window STARTS as.
 ///
+/// The three CONTENT-pane Bools this originally mirrored (`showDocumentGrid` /
+/// `showDocumentCanvas` / `showReadingPane`) are GONE (#4687): `paneVisibility`
+/// is now a pure derivation of `activePaneList.kinds`, and the applied
+/// `PaneList` itself is what gets remembered (`rememberedPaneList`/
+/// `rememberPaneList`, below) — there is no separate pane-visibility shape left
+/// to seed or write back. Only `chat` (not part of `PaneList`) still needs this
+/// Bool mirror.
+///
 /// Plain `UserDefaults`, deliberately, rather than `@AppStorage` properties on
 /// `ContentView`: that type is size-capped (`ViewValueSizeTests`, stalls.log
 /// 2026-08-24) because every main-thread graph update copies it, and five more
@@ -33,9 +40,6 @@ enum WorkspaceLayoutDefaults {
     /// One remembered value. Raw strings rather than an enum-with-rawValue so
     /// the key a window reads is greppable from the key a toggle writes.
     enum Key: String, CaseIterable {
-        case grid = "workspace.showDocumentGrid"
-        case canvas = "workspace.showDocumentCanvas"
-        case reading = "workspace.showReadingPane"
         case chat = "workspace.showChatPane"
         case layoutMode = "workspace.currentLayoutMode"
     }
@@ -69,40 +73,20 @@ enum WorkspaceLayoutDefaults {
     /// Both have a dozen PROGRAMMATIC writers — a claim-source reveal, an
     /// AppleScript `show panel`, a search summoning its chrome — and mirroring
     /// those would record a transient reveal as the user's chosen workspace.
-    /// The three content panes and the chat pane each have exactly one
-    /// deliberate mutation path (`setPaneVisible`, `setChatPaneVisible`), which
-    /// is what makes them safe to remember. `sidebarMode` is out for the same
-    /// reason, with twenty writers.
-    static var showDocumentGrid: Bool { pane(.grid, default: true) }
-    static var showDocumentCanvas: Bool { pane(.canvas, default: true) }
-    static var showReadingPane: Bool { pane(.reading, default: true) }
+    /// Chat has exactly one deliberate mutation path (`setChatPaneVisible`),
+    /// which is what makes it safe to remember. `sidebarMode` is out for the
+    /// same reason, with twenty writers. The three content panes used to be
+    /// remembered here too; `rememberedPaneList`/`rememberPaneList` below now
+    /// carry that (#4687 — `paneVisibility` has no storage of its own left to
+    /// seed).
     static var showChatPane: Bool { pane(.chat, default: true) }
 
-    /// Remember what the user left, so the next window opens there.
-    ///
-    /// Takes the whole visibility value rather than one pane at a time: it is
-    /// written from `setPaneVisible`, which has already applied the
-    /// "≥1 pane visible" invariant (#1696), so what is stored is a layout that
-    /// invariant would accept — never a combination a window could not open in.
-    static func remember(_ visibility: PaneVisibility, chat: Bool, in store: UserDefaults = .standard) {
-        setPane(.grid, visibility.grid, in: store)
-        setPane(.canvas, visibility.canvas, in: store)
-        setPane(.reading, visibility.reading, in: store)
+    /// Remember the chat pane's visibility, so the next window opens there
+    /// (Daniel, 2026-09-04: "panes reset each time"). The three content panes
+    /// no longer need a call here — they ride `activePaneList` itself, via
+    /// `rememberPaneList` in the same funnel this is called from.
+    static func remember(chat: Bool, in store: UserDefaults = .standard) {
         setPane(.chat, chat, in: store)
-    }
-
-    /// The remembered layout, as the invariant type — so a caller reads one
-    /// value rather than reassembling three booleans.
-    static func rememberedVisibility(in store: UserDefaults = .standard) -> PaneVisibility {
-        let remembered = PaneVisibility(
-            grid: pane(.grid, default: true, in: store),
-            canvas: pane(.canvas, default: true, in: store),
-            reading: pane(.reading, default: true, in: store)
-        )
-        // A store written before the #1696 invariant existed — or edited by
-        // hand — could name an all-hidden layout, which no window may open in.
-        // Refuse it here rather than opening an empty content area.
-        return remembered.isAnyVisible ? remembered : PaneVisibility(grid: true, canvas: true, reading: true)
     }
 
     // MARK: - The last-applied PaneList (#4686)

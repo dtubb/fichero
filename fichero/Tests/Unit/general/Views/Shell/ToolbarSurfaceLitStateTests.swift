@@ -28,7 +28,9 @@ struct ToolbarSurfaceLitStateTests {
     @Test("every pane toggle lights with its own pane")
     func paneTogglesLight() throws {
         let source = try Self.toolbarSource
-        for flag in ["model.isVisible", "showDocumentCanvas", "showReadingPane", "showChatPane"] {
+        // #4687: the preview/reader toggles read the DERIVED `paneVisibility`, not the retired
+        // `showDocumentCanvas`/`showReadingPane` Bools.
+        for flag in ["model.isVisible", "paneVisibility.canvas", "paneVisibility.reading", "showChatPane"] {
             #expect(source.contains(".toolbarSurfaceLit(\(flag))"),
                     "the toggle governed by \(flag) does not light")
         }

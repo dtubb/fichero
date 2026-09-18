@@ -19,16 +19,11 @@ enum ContentPane: CaseIterable {
 
 /// Visibility of the three middle content panes as ONE value, so the
 /// "at least one pane visible" invariant lives in a single, unit-testable place
-/// (#1696). This does **not** own the state: the per-window storage stays as the
-/// three `@SceneStorage` bools on `ContentView`, so each window keeps its own
-/// pane layout.
-///
-/// It did NOT survive relaunch, though this comment claimed it did until
-/// 2026-09-04 — and a comment asserting the very thing that was not happening
-/// is a good part of why the bug lived so long. Scene state is restored by
-/// macOS window restoration, which a quit does not guarantee; what carries a
-/// layout across launches is `WorkspaceLayoutDefaults`, which seeds these
-/// bools from the last deliberate choice.
+/// (#1696). This owns NO storage of its own (#4687): it is a pure PROJECTION of
+/// `ContentView.activePaneList.kinds` (see the `paneVisibility` computed
+/// property below) — there is no separate Bool per pane to seed, sync, or drift
+/// out of agreement with the applied `PaneList`. `WorkspaceLayoutDefaults`
+/// remembers the `PaneList` itself across launches now, not this shape.
 struct PaneVisibility: Equatable {
     var grid: Bool
     var canvas: Bool
@@ -64,15 +59,14 @@ struct PaneVisibility: Equatable {
     }
 }
 
-// MARK: - ContentView bridge (@SceneStorage ↔ invariant)
+// MARK: - ContentView bridge (activePaneList → the invariant type)
 
 extension ContentView {
     /// The current pane visibility, DERIVED from the applied `PaneList` (#4687, spec
-    /// workspaces.one-system) — the ONE source of truth, not the legacy `@SceneStorage`
-    /// Bools. `applyWorkspaceLayout`, pane close and kind-switch all mutate `activePaneList`
-    /// directly and used to leave the three Bools (and everything reading them — toolbar
-    /// labels, View-menu checkmarks, `WorkspaceLayoutDefaults.remember`) lying about what was
-    /// actually on screen; deriving here instead of reading a mirror makes that impossible.
+    /// workspaces.one-system) — the ONE source of truth. `applyWorkspaceLayout`, pane close and
+    /// kind-switch all mutate `activePaneList` directly; every reader of "is the library/preview/
+    /// reading pane showing" asks THIS (or `activePaneList` itself), so there is no separate
+    /// storage that could disagree with what's actually on screen.
     var paneVisibility: PaneVisibility {
         let kinds = activePaneList.kinds
         return PaneVisibility(
@@ -84,12 +78,9 @@ extension ContentView {
 
     /// The ONE mutation path for content-pane visibility (#1696): mutates the applied
     /// `PaneList` (enforcing the "≥1 pane visible" invariant via `PaneList.settingVisible`,
-    /// which refuses a change that would empty the window), then mirrors the freshly-DERIVED
-    /// visibility onto the legacy `@SceneStorage` Bools so the handful of sites outside this
-    /// change's scope that still read them directly (pane-focus cycling, min-width, the
-    /// forced-widescreen recovery net — tracked as #4687 follow-up) never drift from what
-    /// `paneVisibility` now authoritatively says. Every site — View menu, toolbar, pane close
-    /// buttons — routes through this instead of flipping a bool directly.
+    /// which refuses a change that would empty the window), then calls the funnel that persists
+    /// it. Every site — View menu, toolbar, pane close buttons — routes through this instead of
+    /// flipping a bool directly.
     func setPaneVisible(_ pane: ContentPane, _ visible: Bool) {
         // With a workspace always applied, the applied `PaneList` is what renders — so a
         // show/hide toggle must mutate IT, or it does nothing (the bug the seed would otherwise
@@ -97,11 +88,11 @@ extension ContentView {
         let nextList = activePaneList.settingVisible(pane.paneKind, visible)
         guard nextList != activePaneList else { return }
         activePaneList = nextList
-        syncLegacyPaneVisibilityBools()
-        // …and remember the legacy Bool-visibility SHAPE too (Daniel, 2026-09-04: "panes reset
-        // each time") — `chat` isn't part of `PaneList`, so it needs this separate remember call
-        // alongside the funnel's PaneList one above.
-        WorkspaceLayoutDefaults.remember(paneVisibility, chat: showChatPane)
+        paneListDidChange()
+        // …and remember chat's visibility too (Daniel, 2026-09-04: "panes reset each time") —
+        // chat isn't part of `PaneList`, so it needs this separate remember call alongside the
+        // funnel's PaneList one above.
+        WorkspaceLayoutDefaults.remember(chat: showChatPane)
     }
 
     /// A `Bool` binding for `pane` whose setter routes through the invariant —
@@ -114,20 +105,14 @@ extension ContentView {
         )
     }
 
-    /// Mirror the DERIVED `paneVisibility` onto the legacy `@SceneStorage` Bools (#4687), and
-    /// remember the applied `PaneList` for the next launch (#4686). EVERY writer of
+    /// Remember the applied `PaneList` for the next launch (#4686). EVERY writer of
     /// `activePaneList` — `setPaneVisible`, `applyWorkspaceLayout`, a saved-workspace apply,
     /// `splitFocusedLeaf`, pane-head close/kind-switch — ends by calling this ONE function, so
-    /// there is exactly one place that keeps the Bools and the remembered launch state honest;
-    /// a new writer that skips it is the bug class this funnel exists to close off.
-    func syncLegacyPaneVisibilityBools() {
-        let visibility = paneVisibility
-        if visibility.grid != showDocumentGrid { showDocumentGrid = visibility.grid }
-        if visibility.canvas != showDocumentCanvas { showDocumentCanvas = visibility.canvas }
-        if visibility.reading != showReadingPane { showReadingPane = visibility.reading }
-        // Every writer of `activePaneList` calls this ONE function, so it's also the ONE place
-        // to remember the composition for the next launch (#4686) — a single write site instead
-        // of one per call site.
+    /// there is exactly one place that keeps the remembered launch state honest; a new writer
+    /// that skips it is the bug class this funnel exists to close off. Named for what it does
+    /// NOW (#4687 deleted the Bool-sync half this used to also do — `paneVisibility` has no
+    /// separate storage left to sync).
+    func paneListDidChange() {
         WorkspaceLayoutDefaults.rememberPaneList(activePaneList)
     }
 }

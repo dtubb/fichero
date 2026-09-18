@@ -348,13 +348,11 @@ struct ContentView: View {
     @AppStorage("pageContentPaneWidth") var pageContentPaneWidth: Double = 200
     @SceneStorage("showSidebar") var showSidebar: Bool = true
     @SceneStorage("showInspectorSidebar") var showInspectorSidebar: Bool = true
-    @SceneStorage("showDocumentGrid") var showDocumentGrid: Bool =
-        WorkspaceLayoutDefaults.showDocumentGrid
-    // Per-window visibility of the three middle panes (#1448). Each window
-    // keeps its own choice via @SceneStorage (same pattern as the
-    // sidebar/inspector toggles), so selection never remounts or hides panes.
-    @SceneStorage("showDocumentCanvas") var showDocumentCanvas: Bool =
-        WorkspaceLayoutDefaults.showDocumentCanvas
+    // The three legacy pane-visibility Bools (`showDocumentGrid`/`showDocumentCanvas`/
+    // `showReadingPane`) are DELETED (#4687): `paneVisibility` is now a pure derivation of
+    // `activePaneList.kinds` (PaneVisibility.swift), so there is no separate storage to seed,
+    // sync, or drift out of agreement with it — every read site now asks `paneVisibility` or
+    // `activePaneList` directly.
     /// Chat pane visibility — DEFAULT ON (Daniel's pane ruling: a fresh
     /// window shows library+preview+reader+chat).
     @SceneStorage("showChatPane") var showChatPane: Bool =
@@ -363,8 +361,6 @@ struct ContentView: View {
     /// Height of the chat region beneath the sidebar folder tree, dragged by its
     /// divider (spec panes.chat.below-sidebar). Per-window, like the pane widths.
     @SceneStorage("sidebar.chat.height") var sidebarChatHeight: Double = 260
-    @SceneStorage("showReadingPane") var showReadingPane: Bool =
-        WorkspaceLayoutDefaults.showReadingPane
     /// The window's ACTIVE pane composition — the ONE source of truth the centre renders from
     /// (spec workspaces.one-system). Seeded to the Mail-style **Read** default so a fresh window
     /// opens in a real workspace and the legacy visibility-Bool path never renders (spec
@@ -376,9 +372,9 @@ struct ContentView: View {
     // nil, and `removingLeaf` returns a non-optional PaneList, so the Optional existed only to
     // keep an unreachable pre-workspace renderer alive in the routing. Making it non-optional
     // deletes that branch by construction — there is one renderer, not one plus a fallback.
-    // Seeded from `WorkspaceLayoutDefaults` (#4686), the SAME mount-time pattern the three Bools
-    // below use (`WorkspaceLayoutDefaults.showDocumentGrid` etc.) — falls back to the Read
-    // default when nothing was ever remembered (first run, or a store predating this).
+    // Seeded from `WorkspaceLayoutDefaults` (#4686) — the same "remember the last deliberate
+    // choice" pattern `showChatPane` above uses — falling back to the Read default when nothing
+    // was ever remembered (first run, or a store predating this).
     @State var activePaneList: PaneList =
         WorkspaceLayoutDefaults.rememberedPaneList() ?? BuiltInWorkspaceLayout.read.panes
     // Summoned search (#4521): the engine-search field in the library's mini

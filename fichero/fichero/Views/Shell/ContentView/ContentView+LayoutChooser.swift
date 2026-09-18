@@ -55,7 +55,7 @@ extension ContentView {
         // A split doesn't change the KIND set, but every `activePaneList` writer still ends in
         // the one funnel (#4686/#4687) — this is what makes a split's composition survive the
         // next launch.
-        syncLegacyPaneVisibilityBools()
+        paneListDidChange()
     }
 
     /// Tabs and splits, as a SECTION of the Workspaces menu (Daniel,
@@ -174,12 +174,9 @@ extension ContentView {
     /// Apply a v2 workspace as the window's STORED pane list (spec §"v2 workspace design").
     func applyWorkspaceLayout(_ layout: BuiltInWorkspaceLayout) {
         activePaneList = layout.panes
-        // Mirror onto the legacy Bools (#4687): this call used to set ONLY `activePaneList`,
-        // leaving `showDocumentGrid`/`showDocumentCanvas`/`showReadingPane` — and everything
-        // outside this file's scope that still reads them directly — reporting the PREVIOUS
-        // workspace's pane set after ⌘⌥N. `paneVisibility` itself is now a pure derivation
-        // (PaneVisibility.swift) and needs no sync, but its Bool mirror does.
-        syncLegacyPaneVisibilityBools()
+        // Remember it for the next launch (#4686/#4687) — the funnel every `activePaneList`
+        // writer ends in.
+        paneListDidChange()
     }
 
     /// The user's own, checkmarked when the window matches what they saved.
@@ -291,12 +288,16 @@ extension ContentView {
     // MARK: Capture / apply
 
     var currentPaneVisibilityPlan: PaneVisibilityPlan {
-        PaneVisibilityPlan(
+        // #4687 cascade: `showDocumentGrid`/`showDocumentCanvas`/`showReadingPane` are deleted —
+        // this file wasn't in that task's allowed list, but leaving these three names unresolved
+        // would not compile, so the same DERIVED substitution used everywhere else lands here too.
+        let visibility = paneVisibility
+        return PaneVisibilityPlan(
             showSidebar: showSidebar,
             showInspector: showInspectorSidebar,
-            showLibraryPane: showDocumentGrid,
-            showPreviewPane: showDocumentCanvas,
-            showReaderPane: showReadingPane,
+            showLibraryPane: visibility.grid,
+            showPreviewPane: visibility.canvas,
+            showReaderPane: visibility.reading,
             showChatPane: showChatPane
         )
     }
@@ -344,7 +345,7 @@ extension ContentView {
             // never touched `activePaneList` at all, so it changed nothing visible.
             if let paneList = snapshot.paneList {
                 activePaneList = paneList
-                syncLegacyPaneVisibilityBools()
+                paneListDidChange()
             } else {
                 // A snapshot saved before #4686 has no stored composition — falling back to
                 // the Read default (rather than leaving `activePaneList` untouched, which would
@@ -352,7 +353,7 @@ extension ContentView {
                 // over silent fallback": this IS a fallback, but a logged, deliberate one.
                 workspaceSnapshotLogger.notice("Saved arrangement predates the pane-list model (#4686) — applying the Read default instead of its recorded composition.")
                 activePaneList = BuiltInWorkspaceLayout.read.panes
-                syncLegacyPaneVisibilityBools()
+                paneListDidChange()
             }
         }
         paneSplitCoordinator.applySplits(snapshot.splits)

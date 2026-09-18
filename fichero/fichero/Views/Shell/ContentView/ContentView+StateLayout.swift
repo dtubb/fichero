@@ -146,11 +146,13 @@ extension ContentView {
             return ContentView.contentMinWidth
         }
 
+        // #4687: the question is now "is a library leaf in the applied PaneList", asked of the
+        // DERIVED `paneVisibility` rather than a legacy Bool.
         switch currentLayoutMode {
         case .none:
-            return showDocumentGrid ? ContentView.contentListMinWidth : max(ContentView.pdfCanvasMinWidth, 300)
+            return paneVisibility.grid ? ContentView.contentListMinWidth : max(ContentView.pdfCanvasMinWidth, 300)
         case .standard:
-            return showDocumentGrid
+            return paneVisibility.grid
                 ? max(ContentView.contentListMinWidth, max(ContentView.pdfCanvasMinWidth, 300))
                 : max(ContentView.pdfCanvasMinWidth, 300)
         case .widescreen:
@@ -174,10 +176,13 @@ extension ContentView {
             inspectorVisible: showInspectorSidebar
         )
 
+        // #4687: fed from the DERIVED `paneVisibility` — `WidescreenPanePlan.make`'s parameter
+        // names are its own (generic) vocabulary, not a reference to the deleted Bools.
+        let visibility = paneVisibility
         return WidescreenPanePlan.make(
-            showDocumentGrid: showDocumentGrid,
-            showDocumentCanvas: showDocumentCanvas,
-            showReadingPane: showReadingPane,
+            showDocumentGrid: visibility.grid,
+            showDocumentCanvas: visibility.canvas,
+            showReadingPane: visibility.reading,
             showChatPane: showChatPane,
             availableWidth: availableDetailWidth
         )

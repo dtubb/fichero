@@ -50,12 +50,14 @@ extension ContentView {
         // the window. Only panes that actually RENDER join the cycle
         // (#1448/#1516: focusing a hidden pane is a no-op).
         var panes: [PaneFocus] = [.sidebar, .content]
+        // #4687: `paneVisibility` is derived from `activePaneList`, not a legacy Bool — the
+        // question is now "is a preview/reading leaf actually in the applied list".
         let previewPaneVisible = currentLayoutMode != .widescreen
-            || showDocumentCanvas
+            || paneVisibility.canvas
         if showsPreviewPane && previewPaneVisible {
             panes.append(.preview)
         }
-        if currentLayoutMode == .widescreen && showReadingPane {
+        if currentLayoutMode == .widescreen && paneVisibility.reading {
             panes.append(.reading)
         }
         if currentLayoutMode == .widescreen && showChatPane {

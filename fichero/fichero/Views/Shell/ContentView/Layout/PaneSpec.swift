@@ -281,11 +281,11 @@ extension ContentView {
                     node, keyPath: "\(index)", secondaryIDs: secondaryIDs, isSole: solePane,
                     closeLeaf: { id in
                         activePaneList = activePaneList.removingLeaf(id)
-                        syncLegacyPaneVisibilityBools()
+                        paneListDidChange()
                     },
                     changeKind: { id, kind in
                         activePaneList = activePaneList.changingLeafKind(id, to: kind)
-                        syncLegacyPaneVisibilityBools()
+                        paneListDidChange()
                     }
                 ),
                 sizing: extents[index]
