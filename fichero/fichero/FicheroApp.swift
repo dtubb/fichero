@@ -572,6 +572,10 @@ struct FicheroApp: App {
         Window("About Fichero", id: "about") {
             AboutView()
                 .environment(appState)
+                // #4703: app-level fallback observer on every scene root — a
+                // non-optional @Environment(WorkflowExecutionObserver.self) read
+                // anywhere under this scene must never trap.
+                .environment(appExecutionObserver)
         }
         .windowResizability(.contentSize)
         .defaultPosition(.center)
@@ -584,6 +588,10 @@ struct FicheroApp: App {
 
         Window("Feature Tier Legend", id: "feature-tier-legend") {
             FeatureTierLegendWindow()
+                // #4703: app-level fallback observer on every scene root — a
+                // non-optional @Environment(WorkflowExecutionObserver.self) read
+                // anywhere under this scene must never trap.
+                .environment(appExecutionObserver)
         }
         .windowResizability(.contentSize)
         .defaultSize(width: 420, height: 520)
@@ -594,6 +602,10 @@ struct FicheroApp: App {
 
         Window("Install Command-Line & MCP Tools", id: "install-tools") {
             InstallToolsWindow()
+                // #4703: app-level fallback observer on every scene root — a
+                // non-optional @Environment(WorkflowExecutionObserver.self) read
+                // anywhere under this scene must never trap.
+                .environment(appExecutionObserver)
         }
         .defaultSize(width: 560, height: 560)
         // App-menu button only — same Windows-menu suppression as the
@@ -788,6 +800,10 @@ extension FicheroApp {
 
         WindowGroup("Document", id: "document-detail") {
             documentDetailSceneRoot()
+                // #4703: app-level fallback observer on every scene root — a
+                // non-optional @Environment(WorkflowExecutionObserver.self) read
+                // anywhere under this scene must never trap.
+                .environment(appExecutionObserver)
         }
         .defaultSize(width: 540, height: 720)
         .commandsRemoved()
@@ -803,6 +819,10 @@ extension FicheroApp {
         // diagnostic windows; it's reached from the menu button and settings.
         Window("Language Coverage", id: "loove-coverage") {
             LooveCoverageView()
+                // #4703: app-level fallback observer on every scene root — a
+                // non-optional @Environment(WorkflowExecutionObserver.self) read
+                // anywhere under this scene must never trap.
+                .environment(appExecutionObserver)
         }
         .defaultSize(width: 1080, height: 640)
         .commandsRemoved()
