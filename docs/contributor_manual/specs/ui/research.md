@@ -228,7 +228,7 @@ Inspector content, not as a rival top-level surface.
   the new tab exist side by side. No dedicated issue found for the `ResearchWorkspaceView`
   retirement specifically — (#4719) (distinct from #4705's Library-pane-mount rule,
   which covers only where it must never mount, not its retirement).
-- `research.chat-single-mount` — **[PARTIAL]** owned by `modes-to-panes.md`'s
+- `research.chat-single-mount` — **[PARTIAL]** (→ #4705 increment 6) owned by `modes-to-panes.md`'s
   `m2p.chat-single-mount`; listed here because it blocks a workspace's chat from being
   freely placeable. Not re-specified.
 - `research.chat-scope-single-mount` — **[BROKEN]** `ChatInspector` mounts from two call
