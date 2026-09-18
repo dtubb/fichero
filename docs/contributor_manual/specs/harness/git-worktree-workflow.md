@@ -50,16 +50,17 @@ always is; only *which branch/worktree* differs.
 
 ## Behaviors
 
-Retagged 2026-09-18: a spec behavior needs a tag the pipeline can hold it to. Two of these
-seven are genuinely source-inspectable (a script's own content proves or disproves the
-claim) and now cite a real test. The other five are **CONVENTION** — a human/agent
-discipline about how git is used, not a code path — nothing in the repo tree can prove or
-disprove them AS STATED, so tagging them `[OK]` and citing a fake test would be dishonest.
-`spec_pipeline.py` now recognizes `CONVENTION` as a real tag (rule h): each one is a tracked
-ledger entry under a shrink-only baseline ceiling, allowed only in `specs/harness/`, and
-must carry a reason clause (enforced — see "Marking a convention" below). Each was
-challenged (2026-09-18, per creative-director instruction): is it REALLY untestable, or
-just currently untested?
+Retagged 2026-09-18: a spec behavior needs a tag the pipeline can hold it to. `spec_pipeline.py`
+now recognizes `CONVENTION` as a real tag (rule h): each one is a tracked ledger entry under
+a shrink-only baseline ceiling, allowed only in `specs/harness/`, and must carry a reason
+clause (enforced — see "Marking a convention" below). Every behavior was challenged (per
+creative-director instruction): is it REALLY untestable, or just currently untested? Four of
+these seven turned out to be source-inspectable or cheaply script-checkable and now cite a
+real test (two were already that way; a second pass moved `git.commit-never-stash` and
+`git.cleanup-merged-worktrees` OFF `CONVENTION` once their proposed guardrails were built —
+running the second one for real even found a genuine violation, not just a theoretical one).
+The other three stay **CONVENTION** — a human/agent discipline about how git is used, not a
+code path — nothing in the repo tree can prove or disprove them.
 
 - `git.one-repo` — **[CONVENTION]** all worktrees share `~/code/fichero/.git`; only `main`
   pushes to origin. True by definition of `git worktree` (there is only one `.git`, ever) —
@@ -74,24 +75,50 @@ just currently untested?
   same way regardless of which branch invokes it. Challenged: no code path decides "2+
   lanes landing together" vs. "one lane gates alone" — genuinely a judgment call, stays
   CONVENTION.
-- `git.commit-never-stash` — **[CONVENTION]** interrupted work is a WIP commit, not a stash.
-  A per-agent discipline (this very worker's standing instructions say the same thing) —
-  no test can observe whether a human/agent chose to stash. Challenged (NOT fully
-  untestable, per creative-director instruction): a cheap script COULD pin the OUTCOME —
-  `git stash list` across the shared stash stack should be empty (or hold only a
-  short-lived, uniquely-tagged entry mid-restore) between sessions; a lingering anonymous
-  stash entry is evidence the discipline was violated. Proposed, not built:
-  `scripts/check_no_orphan_stashes.py` asserting `git stash list` is empty (or every entry
-  matches a known short-lived tag pattern) when run between sessions/in CI. This pins the
-  discipline's observable trace, not the command itself (git has no pre-stash hook to
-  intercept the command directly).
-- `git.cleanup-merged-worktrees` — **[CONVENTION]** merged lanes removed + branch deleted; no
-  rot. Describes a manual cleanup step taken after a merge — there is no code path to pin,
-  only a habit. Challenged: this ONE is close to testable, and the spec's own "open question
-  2" already names it — proposed, not built: a guardrail cross-referencing `git worktree
-  list` against `git branch --merged main`, flagging any worktree whose branch is already
-  merged (rot) as a warning. Stays CONVENTION until that guardrail exists; once it does,
-  this behavior should retag to OK or PARTIAL, citing it.
+- `git.commit-never-stash` — **[PARTIAL]** (#4814, retagged 2026-09-18 from CONVENTION — a
+  cheap script CAN pin the outcome, so calling it untestable was wrong) interrupted work is
+  a WIP commit, not a stash. Built: `scripts/check_no_orphan_stashes.py`, a shrink-only
+  ceiling over the shared stash stack (`scripts/stash_ceiling.json`, seeded at the current
+  count of 19 grandfathered maintainer entries) — a NEW stash beyond the ceiling fails
+  loudly, naming the newest entries; the count going DOWN fails too (lower the ceiling
+  deliberately, never absorb silently). `--update-ceiling` is itself LOWER-ONLY (plus
+  first-time seeding) — it refuses to write a HIGHER count, closing the exact escape hatch
+  where a worker who stashed could otherwise just re-run it and go green; raising it is a
+  maintainer hand-edit of `scripts/stash_ceiling.json` with a reason. Read-only: never runs
+  a mutating stash command. Auto-wired into `verify_all.sh`'s `scripts/check_*.py` sweep by
+  its own filename — no separate wiring step — and it passes today (19==19). Still PARTIAL,
+  not OK: the 19 pre-existing entries are accepted debt, not resolved (#4814). Pinned:
+  `test_check_no_orphan_stashes.py::test_count_equal_to_ceiling_passes`,
+  `::test_count_above_ceiling_fails_and_names_newest`,
+  `::test_count_below_ceiling_fails_asking_to_lower_it`,
+  `::test_update_ceiling_first_time_seeding_is_allowed`,
+  `::test_update_ceiling_refuses_to_raise`,
+  `::test_update_ceiling_lowers_when_count_drops`,
+  `::test_update_ceiling_is_a_noop_when_equal`,
+  `::test_never_calls_a_mutating_git_command`.
+- `git.cleanup-merged-worktrees` — **[BROKEN]** (#4813, retagged 2026-09-18 from CONVENTION —
+  this ONE was closer to testable than it looked, and running the new check found a real
+  violation, not just a theoretical one) merged lanes removed + branch deleted; no rot. Built:
+  `scripts/check_merged_worktrees.py`, cross-referencing `git worktree list --porcelain`
+  against `git merge-base --is-ancestor … main` (branch or detached-HEAD commit), with a
+  shrink-only allowlist for deliberately-kept worktrees; main checkout + the current
+  worktree are always exempt. Read-only: prints `git worktree remove …`, never runs it.
+  Run for real (2026-09-18): 3 lingering worktrees found today
+  (`.gate-snapshots/snap-testready`, `impl-loove-entity`, `release-merge`) — the "no rot"
+  claim is currently FALSE in this repo, not merely unproven, hence BROKEN. Now wired into
+  `verify_all.sh` (it is a `check_*.py`), and all 3 are allowlisted with an honest
+  "awaiting maintainer decision" reason each (`scripts/merged_worktrees_allowlist.json`) so
+  the gate stays green while the maintainer decides — the allowlist has no automated write
+  path, every entry is a hand edit with a reason, same one-way principle as the stash
+  ceiling. This masks the symptom for the gate, not the underlying rot: still BROKEN until
+  the maintainer resolves the 3 (removes them, or turns "awaiting decision" into a permanent
+  reason) (#4813). Pinned:
+  `test_check_merged_worktrees.py::test_merged_lane_is_flagged`,
+  `::test_unmerged_lane_is_not_flagged`,
+  `::test_main_checkout_and_current_worktree_are_never_flagged`,
+  `::test_allowlisted_merged_lane_is_not_flagged`,
+  `::test_stale_allowlist_entry_fails`,
+  `::test_never_calls_a_mutating_git_command`.
 - `git.updated-via-github` — **[CONVENTION]** "what's next" comes from milestones/ROADMAP,
   not a shared branch. Describes where a human/agent looks for work — not a code path.
   Challenged: no artifact in the repo records WHERE an agent looked for its next task, so

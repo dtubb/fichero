@@ -1,0 +1,14 @@
+[
+  {
+    "path": "/Users/danieltubb/code/fichero-worktrees/release-merge",
+    "reason": "release infrastructure per git-worktree-workflow.md's layout table; awaiting maintainer confirmation (2026-09-18)"
+  },
+  {
+    "path": "/Users/danieltubb/code/fichero-worktrees/.gate-snapshots/snap-testready",
+    "reason": "gate snapshot from 2026-09-05, merged and ~2.8 GB; manager recommends removal; awaiting maintainer decision (2026-09-18)"
+  },
+  {
+    "path": "/Users/danieltubb/code/fichero-worktrees/impl-loove-entity",
+    "reason": "merged into main; purpose unknown to the manager; awaiting maintainer decision (2026-09-18)"
+  }
+]

@@ -292,16 +292,6 @@
   {
     "rule": "h",
     "spec": "docs/contributor_manual/specs/harness/git-worktree-workflow.md",
-    "key": "convention:git.cleanup-merged-worktrees"
-  },
-  {
-    "rule": "h",
-    "spec": "docs/contributor_manual/specs/harness/git-worktree-workflow.md",
-    "key": "convention:git.commit-never-stash"
-  },
-  {
-    "rule": "h",
-    "spec": "docs/contributor_manual/specs/harness/git-worktree-workflow.md",
     "key": "convention:git.integration-gate"
   },
   {
