@@ -67,13 +67,17 @@ struct MenuShortcutUniquenessTests {
 
     // MARK: - 2. One table-driven scan: no collisions, nothing system-reserved
 
-    /// A single shortcut mint: which file + line minted it, the normalized key, and the canonical
-    /// (alphabetically-sorted) modifier-set token, e.g. `"command+option"`.
+    /// A single shortcut mint: which file + line minted it, the normalized key, the canonical
+    /// (alphabetically-sorted) modifier-set token (e.g. `"command+option"`), and its conditional-
+    /// compilation `branchPath` — see `branchPathsMutuallyExclusive(_:_:)`.
     private struct Mint: Hashable {
         let file: String
         let line: Int
         let key: String
         let modifiers: String
+        /// Flattened `[group, branch, group, branch, …]` for every `#if`/`#elseif`/`#else` this
+        /// mint's line sits inside, outermost first. Empty at file scope (never inside a directive).
+        let branchPath: [Int]
     }
 
     /// Verbs that DELIBERATELY share one chord because their commands are gated by mutually
@@ -87,16 +91,14 @@ struct MenuShortcutUniquenessTests {
     ///     `charactersIgnoringModifiers`, which un-shifts back to "=" even when Shift IS held, so a
     ///     bare ⌘= item also intercepts ⌘⇧= (⌘+) ahead of "Zoom In"'s own key equivalent. ⌘9 shares no
     ///     physical key with the +/- zoom chords, so it can't repeat that.
-    ///   - `"f-command+option"` — "Find in Page" (`ShowFindBarButton`,
-    ///     ViewMenuPaneSections.swift): ONE command declared twice inside an
-    ///     `#if canImport(AppKit) / #else` platform branch, not two commands.
-    ///     Surfaced by the per-site (not per-file) grouping fix below (#4693)
-    ///     — the scanner reads raw lines and has no `#if`/`#else` awareness, so
-    ///     it cannot tell "same command, two platform bodies" from a genuine
-    ///     duplicate; only one branch ever compiles for a given platform.
+    ///
+    /// `"f-command+option"` ("Find in Page", `ShowFindBarButton` in
+    /// ViewMenuPaneSections.swift — ONE command declared twice inside an `#if
+    /// canImport(AppKit) / #else` platform branch) used to need an entry here too, until the scan
+    /// below learned to track `#if`/`#elseif`/`#else` branches itself (#4693 follow-up) and now
+    /// proves the two mints mutually exclusive without help.
     private static let allowedSharedChords: Set<String> = [
         "9-command",
-        "f-command+option",
     ]
 
     /// macOS chords the app must never claim as its own `NSMenuItem` key equivalent — either because
@@ -154,7 +156,25 @@ struct MenuShortcutUniquenessTests {
             sitesByChord[chord, default: []].append(mint)
         }
 
-        for (chord, sites) in sitesByChord where sites.count > 1 && !Self.allowedSharedChords.contains(chord) {
+        // Two (or more) sites for one chord are a REAL collision only if some pair of them is not
+        // proven mutually exclusive by `#if`/`#elseif`/`#else` branching (#4693 follow-up) — e.g. one
+        // `#if canImport(AppKit)` body and its `#else` twin never both compile, so that pair alone
+        // does not make the chord colliding even though `sites.count > 1`.
+        func hasRealCollision(_ sites: [Mint]) -> Bool {
+            for i in 0..<sites.count {
+                for j in (i + 1)..<sites.count
+                where !Self.branchPathsMutuallyExclusive(sites[i].branchPath, sites[j].branchPath) {
+                    return true
+                }
+            }
+            return false
+        }
+
+        let collidingChords = sitesByChord.filter {
+            $0.value.count > 1 && !Self.allowedSharedChords.contains($0.key) && hasRealCollision($0.value)
+        }
+
+        for (chord, sites) in collidingChords {
             let siteList = sites
                 .map { "\($0.file):\($0.line)" }
                 .sorted()
@@ -163,10 +183,7 @@ struct MenuShortcutUniquenessTests {
                 + "Two commands sharing one chord means the wrong one can fire (the ⌘⌥1→loupe bug class)."
             Issue.record("\(detail)")
         }
-        let collisions = sitesByChord.keys
-            .filter { (sitesByChord[$0]?.count ?? 0) > 1 && !Self.allowedSharedChords.contains($0) }
-            .sorted()
-        #expect(collisions.isEmpty, "colliding shortcuts: \(collisions)")
+        #expect(collidingChords.isEmpty, "colliding shortcuts: \(collidingChords.keys.sorted())")
     }
 
     @Test("no command claims a macOS system-reserved chord")
@@ -202,7 +219,25 @@ struct MenuShortcutUniquenessTests {
         guard let enumerator = FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil) else {
             return []
         }
+        var mints: [Mint] = []
+        for case let url as URL in enumerator where url.pathExtension == "swift" {
+            let relative = AppSource.relativePath(of: url, under: root)
+            guard relative.hasPrefix("App/") || relative.hasPrefix("Views/Shell/") else { continue }
+            let source = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+            mints.append(contentsOf: try Self.mints(inSource: source, file: relative))
+        }
+        return mints
+    }
 
+    /// Pure per-file scan (no disk I/O — directly unit-testable on an inline source string): every
+    /// shortcut mint, each tagged with its conditional-compilation `branchPath`.
+    ///
+    /// The `#if`/`#elseif`/`#else`/`#endif` tracking is a LINE scanner, not a preprocessor: each
+    /// `#if` opens a new numbered "group" on a stack; `#elseif`/`#else` bump that group's branch
+    /// index; `#endif` pops it. A mint's `branchPath` is the stack's `[group, branch, …]` at the
+    /// moment its line is read. This is enough to prove exclusivity (`branchPathsMutuallyExclusive`)
+    /// without understanding what the conditions actually mean.
+    private static func mints(inSource source: String, file: String) throws -> [Mint] {
         let bracketed = try NSRegularExpression(
             pattern: #"\.keyboardShortcut\(\s*"(.)"\s*,\s*modifiers:\s*\[([^\]]+)\]\s*\)"#
         )
@@ -219,49 +254,66 @@ struct MenuShortcutUniquenessTests {
         let previewOrSidebarShortcut = try NSRegularExpression(pattern: #"shortcut:\s*"(.)""#)
 
         var mints: [Mint] = []
-        for case let url as URL in enumerator where url.pathExtension == "swift" {
-            let relative = AppSource.relativePath(of: url, under: root)
-            guard relative.hasPrefix("App/") || relative.hasPrefix("Views/Shell/") else { continue }
-            let source = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
-            let lines = source.components(separatedBy: .newlines)
-            for (index, rawLine) in lines.enumerated() {
-                if rawLine.trimmingCharacters(in: .whitespaces).hasPrefix("//") { continue }
-                let range = NSRange(rawLine.startIndex..<rawLine.endIndex, in: rawLine)
-                let line = index + 1
+        var branchStack: [(group: Int, branch: Int)] = []
+        var nextGroupID = 0
 
-                for match in bracketed.matches(in: rawLine, range: range) {
-                    Self.record(&mints, rawLine, match, keyGroup: 1, modifiersGroup: 2, file: relative, line: line)
-                }
-                for match in bareModifier.matches(in: rawLine, range: range) {
-                    Self.record(&mints, rawLine, match, keyGroup: 1, modifiersGroup: 2, file: relative, line: line)
-                }
-                for match in namedKeyEquivalent.matches(in: rawLine, range: range) {
-                    Self.record(&mints, rawLine, match, keyGroup: 1, modifiersGroup: 2, file: relative, line: line)
-                }
-                for match in constructor.matches(in: rawLine, range: range) {
-                    Self.record(&mints, rawLine, match, keyGroup: 1, modifiersGroup: 2, file: relative, line: line)
-                }
+        let lines = source.components(separatedBy: .newlines)
+        for (index, rawLine) in lines.enumerated() {
+            let trimmed = rawLine.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("//") { continue }
+            if trimmed.hasPrefix("#if") {
+                nextGroupID += 1
+                branchStack.append((group: nextGroupID, branch: 0))
+                continue
+            }
+            // "#elseif" also starts with "#else", so this one check catches both.
+            if trimmed.hasPrefix("#else") {
+                if !branchStack.isEmpty { branchStack[branchStack.count - 1].branch += 1 }
+                continue
+            }
+            if trimmed.hasPrefix("#endif") {
+                if !branchStack.isEmpty { branchStack.removeLast() }
+                continue
+            }
 
-                // The two known key:/shortcut: indirections — matched by declaring file, since both
-                // wrap their key parameter in a HARDCODED modifier set the regex above can't see.
-                if relative == "Views/Shell/PaneHead/PreviewHeadControls.swift",
-                   let match = toolButtonKey.firstMatch(in: rawLine, range: range),
-                   let keyRange = Range(match.range(at: 1), in: rawLine) {
-                    mints.append(Mint(
-                        file: relative, line: line,
-                        key: String(rawLine[keyRange]).lowercased(),
-                        modifiers: Self.canonicalModifiers(".command, .option")
-                    ))
-                }
-                if relative == "App/Menus/ViewMenuLayoutSections.swift" || relative == "App/Menus/ViewMenuCommands.swift",
-                   let match = previewOrSidebarShortcut.firstMatch(in: rawLine, range: range),
-                   let keyRange = Range(match.range(at: 1), in: rawLine) {
-                    mints.append(Mint(
-                        file: relative, line: line,
-                        key: String(rawLine[keyRange]).lowercased(),
-                        modifiers: Self.canonicalModifiers(".command, .control")
-                    ))
-                }
+            let range = NSRange(rawLine.startIndex..<rawLine.endIndex, in: rawLine)
+            let line = index + 1
+            let branchPath = branchStack.flatMap { [$0.group, $0.branch] }
+
+            for match in bracketed.matches(in: rawLine, range: range) {
+                record(&mints, rawLine, match, keyGroup: 1, modifiersGroup: 2, file: file, line: line, branchPath: branchPath)
+            }
+            for match in bareModifier.matches(in: rawLine, range: range) {
+                record(&mints, rawLine, match, keyGroup: 1, modifiersGroup: 2, file: file, line: line, branchPath: branchPath)
+            }
+            for match in namedKeyEquivalent.matches(in: rawLine, range: range) {
+                record(&mints, rawLine, match, keyGroup: 1, modifiersGroup: 2, file: file, line: line, branchPath: branchPath)
+            }
+            for match in constructor.matches(in: rawLine, range: range) {
+                record(&mints, rawLine, match, keyGroup: 1, modifiersGroup: 2, file: file, line: line, branchPath: branchPath)
+            }
+
+            // The two known key:/shortcut: indirections — matched by declaring file, since both
+            // wrap their key parameter in a HARDCODED modifier set the regex above can't see.
+            if file == "Views/Shell/PaneHead/PreviewHeadControls.swift",
+               let match = toolButtonKey.firstMatch(in: rawLine, range: range),
+               let keyRange = Range(match.range(at: 1), in: rawLine) {
+                mints.append(Mint(
+                    file: file, line: line,
+                    key: String(rawLine[keyRange]).lowercased(),
+                    modifiers: canonicalModifiers(".command, .option"),
+                    branchPath: branchPath
+                ))
+            }
+            if file == "App/Menus/ViewMenuLayoutSections.swift" || file == "App/Menus/ViewMenuCommands.swift",
+               let match = previewOrSidebarShortcut.firstMatch(in: rawLine, range: range),
+               let keyRange = Range(match.range(at: 1), in: rawLine) {
+                mints.append(Mint(
+                    file: file, line: line,
+                    key: String(rawLine[keyRange]).lowercased(),
+                    modifiers: canonicalModifiers(".command, .control"),
+                    branchPath: branchPath
+                ))
             }
         }
         return mints
@@ -274,7 +326,8 @@ struct MenuShortcutUniquenessTests {
         keyGroup: Int,
         modifiersGroup: Int,
         file: String,
-        line: Int
+        line: Int,
+        branchPath: [Int]
     ) {
         guard let keyRange = Range(match.range(at: keyGroup), in: rawLine) else { return }
         let modifierText: String
@@ -286,8 +339,33 @@ struct MenuShortcutUniquenessTests {
         mints.append(Mint(
             file: file, line: line,
             key: String(rawLine[keyRange]).lowercased(),
-            modifiers: canonicalModifiers(modifierText)
+            modifiers: canonicalModifiers(modifierText),
+            branchPath: branchPath
         ))
+    }
+
+    /// Whether two mints' `branchPath`s prove they can NEVER both compile: they diverge at the SAME
+    /// `#if` group with different branch indices (an `#if`/`#else` pair, or any two of an
+    /// `#if`/`#elseif`/…/`#else` chain). Two different, UNRELATED `#if` conditions (different group
+    /// ids) are NOT assumed exclusive — both could be true — and one path being a prefix of the
+    /// other (file scope vs. inside a branch, or an outer branch vs. its own nested branch) is not
+    /// exclusive either, since the outer scope always compiles alongside whichever inner branch is
+    /// chosen. This is a conservative line-scanner proof, not a full preprocessor: it only ever
+    /// says "exclusive" when the branching structure guarantees it, and defaults to "not exclusive"
+    /// (i.e. still a candidate collision) whenever it can't tell.
+    private static func branchPathsMutuallyExclusive(_ a: [Int], _ b: [Int]) -> Bool {
+        var i = 0
+        while i + 1 < a.count && i + 1 < b.count {
+            let (groupA, branchA) = (a[i], a[i + 1])
+            let (groupB, branchB) = (b[i], b[i + 1])
+            if groupA == groupB {
+                if branchA != branchB { return true }
+            } else {
+                return false
+            }
+            i += 2
+        }
+        return false
     }
 
     /// Canonical, order-independent modifier token — catches `[.option, .command]` exactly like
@@ -300,5 +378,88 @@ struct MenuShortcutUniquenessTests {
         if raw.contains("shift") { tokens.insert("shift") }
         if tokens.isEmpty { tokens.insert("command") }
         return tokens.sorted().joined(separator: "+")
+    }
+
+    // MARK: - 3. Branch-path exclusivity (pure — inline source strings, no disk I/O)
+
+    @Test("two mints in the two branches of an #if/#else do not collide")
+    func branchPathIfElseIsExclusive() throws {
+        let source = """
+        struct Fake: View {
+            var body: some View {
+                #if canImport(AppKit)
+                Button("A") {}
+                    .keyboardShortcut("f", modifiers: [.command, .option])
+                #else
+                Button("A") {}
+                    .keyboardShortcut("f", modifiers: [.command, .option])
+                #endif
+            }
+        }
+        """
+        let mints = try Self.mints(inSource: source, file: "Fake.swift")
+        #expect(mints.count == 2)
+        #expect(Self.branchPathsMutuallyExclusive(mints[0].branchPath, mints[1].branchPath))
+    }
+
+    @Test("two mints in the SAME branch of an #if collide")
+    func branchPathSameBranchCollides() throws {
+        let source = """
+        struct Fake: View {
+            var body: some View {
+                #if canImport(AppKit)
+                Button("A") {}
+                    .keyboardShortcut("f", modifiers: [.command, .option])
+                Button("B") {}
+                    .keyboardShortcut("f", modifiers: [.command, .option])
+                #endif
+            }
+        }
+        """
+        let mints = try Self.mints(inSource: source, file: "Fake.swift")
+        #expect(mints.count == 2)
+        #expect(!Self.branchPathsMutuallyExclusive(mints[0].branchPath, mints[1].branchPath))
+    }
+
+    @Test("a file-scope mint and a branch-scope mint collide (the outer scope always compiles)")
+    func branchPathRootVersusBranchCollides() throws {
+        let source = """
+        struct Fake: View {
+            var body: some View {
+                Button("A") {}
+                    .keyboardShortcut("f", modifiers: [.command, .option])
+                #if canImport(AppKit)
+                Button("B") {}
+                    .keyboardShortcut("f", modifiers: [.command, .option])
+                #endif
+            }
+        }
+        """
+        let mints = try Self.mints(inSource: source, file: "Fake.swift")
+        #expect(mints.count == 2)
+        #expect(mints[0].branchPath.isEmpty)
+        #expect(!mints[1].branchPath.isEmpty)
+        #expect(!Self.branchPathsMutuallyExclusive(mints[0].branchPath, mints[1].branchPath))
+    }
+
+    @Test("two mints under different, unrelated #if conditions are not assumed exclusive")
+    func branchPathUnrelatedIfsDoNotExclude() throws {
+        let source = """
+        struct Fake: View {
+            var body: some View {
+                #if canImport(AppKit)
+                Button("A") {}
+                    .keyboardShortcut("f", modifiers: [.command, .option])
+                #endif
+                #if os(macOS)
+                Button("B") {}
+                    .keyboardShortcut("f", modifiers: [.command, .option])
+                #endif
+            }
+        }
+        """
+        let mints = try Self.mints(inSource: source, file: "Fake.swift")
+        #expect(mints.count == 2)
+        #expect(!Self.branchPathsMutuallyExclusive(mints[0].branchPath, mints[1].branchPath))
     }
 }
