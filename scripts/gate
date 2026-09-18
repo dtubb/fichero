@@ -194,6 +194,15 @@ PYEOF
 # otherwise burn its full per-phase timeout (up to 3600s) before the gate
 # notices. Refuse in one line instead.
 # GATE_FAKE_SCREEN_LOCKED overrides the real ioreg read (self-test seam).
+#
+# GATE_ALLOW_LOCKED_SCREEN=1 downgrades the refusal to a warning and proceeds
+# — for an unattended/CI machine that legitimately runs with the screen
+# locked, or to deliberately reproduce the hang this preflight exists to
+# avoid. It is NOT a claim that a locked-screen host will actually run: the
+# per-phase GATE_HOST_HANDSHAKE_S watchdog (run_gated, default 300s) is set
+# unconditionally regardless of this override, so a host that parks waiting
+# for its IDE session is still killed and reported HOST NEVER STARTED instead
+# of riding out the full phase timeout.
 preflight_screen_unlocked() {
   local fake="${GATE_FAKE_SCREEN_LOCKED:-}" locked
   if [[ -n "$fake" ]]; then
@@ -202,7 +211,11 @@ preflight_screen_unlocked() {
     locked="$(ioreg -n Root -d1 2>/dev/null | grep -c '"CGSSessionScreenIsLocked" = Yes')"
   fi
   if [[ "$locked" != "0" ]]; then
-    echo "gate: PREFLIGHT REFUSED — screen is locked; a test host launched now would hang waiting for its IDE session instead of running (#4695). Unlock the screen and re-run." >&2
+    if [[ "${GATE_ALLOW_LOCKED_SCREEN:-}" == "1" ]]; then
+      echo "gate: WARNING — screen is locked; proceeding anyway because GATE_ALLOW_LOCKED_SCREEN=1 (#4695). A host that hangs waiting for its IDE session is still caught by the GATE_HOST_HANDSHAKE_S watchdog, not by this preflight." >&2
+      return 0
+    fi
+    echo "gate: PREFLIGHT REFUSED — screen is locked; a test host launched now would hang waiting for its IDE session instead of running (#4695). Unlock the screen and re-run, or set GATE_ALLOW_LOCKED_SCREEN=1 for an unattended run (the handshake watchdog still protects it)." >&2
     return 78  # EX_CONFIG
   fi
   return 0
@@ -1084,6 +1097,9 @@ cmd_self_test() {
   out="$(GATE_FAKE_SCREEN_LOCKED=0 GATE_DRYRUN=1 "$0" unit --area sidebar 2>&1)"; rc=$?
   [[ $rc -eq 0 && "$out" != *"PREFLIGHT REFUSED"* ]]
   check "screen-lock preflight: unit proceeds when unlocked" $?
+  out="$(GATE_FAKE_SCREEN_LOCKED=1 GATE_ALLOW_LOCKED_SCREEN=1 GATE_DRYRUN=1 "$0" unit --area sidebar 2>&1)"; rc=$?
+  [[ $rc -eq 0 && "$out" != *"PREFLIGHT REFUSED"* && "$out" == *"WARNING"* && "$out" == *"GATE_ALLOW_LOCKED_SCREEN"* ]]
+  check "screen-lock preflight: GATE_ALLOW_LOCKED_SCREEN=1 downgrades the refusal to a warning and proceeds (#4695)" $?
 
   # 3. Lock contention: hold the lock with a trivial sleep, then a --no-wait
   #    caller must fail fast with 75, and a waiting caller must queue+succeed.
