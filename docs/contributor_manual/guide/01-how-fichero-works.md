@@ -38,7 +38,7 @@ Why the split is load-bearing, not stylistic: other clients exist and must agree
 
 ### Transport
 
-Clients connect over a **Unix domain socket** locally, or **pinned HTTPS on** `https://127.0.0.1:8765` otherwise. The app pins the engine certificate fail-closed, so a plain-HTTP engine cannot connect. Never run a bare `uvicorn`; use `bash fichero-server/scripts/start_backend.sh`. iPhone and iPad cannot embed the engine — they connect to one running on a Mac (configured through `EngineConfig`).
+Clients connect over a **Unix domain socket** locally, or **pinned HTTPS on** `https://127.0.0.1:8765` otherwise. The app pins the engine certificate fail-closed, so a plain-HTTP engine cannot connect. Never run a bare `uvicorn`; use `bash fichero-server/scripts/start_fichero_server.sh`. iPhone and iPad cannot embed the engine — they connect to one running on a Mac (configured through `EngineConfig`).
 
 ### Frontend shape
 

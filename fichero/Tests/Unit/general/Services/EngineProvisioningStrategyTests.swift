@@ -6,7 +6,7 @@
 //  from explicit inputs — Debug-external / Release-embedded / configured-remote /
 //  iOS-companion / inert — instead of scattered #if DEBUG / usesCustomHost /
 //  preview conditionals. Includes the #3042 regression: Debug never spawns; a
-//  missing external engine fails with the actionable start_backend.sh message,
+//  missing external engine fails with the actionable start_fichero_server.sh message,
 //  the window renders, the app never terminates.
 //
 
@@ -143,14 +143,14 @@ struct EngineProvisioningStrategyTests {
         #expect(Strategy.releaseEmbedded.spawnsBundledEngine == true)
     }
 
-    @Test("#3042: the Debug 'engine not bundled' error carries the actionable start_backend.sh message")
+    @Test("#3042: the Debug 'engine not bundled' error carries the actionable start_fichero_server.sh message")
     func debugErrorIsActionable() {
         // adoptDebugExternalEngine throws backendAppNotFound when nothing is on
-        // :8765; in a Debug build its message points at start_backend.sh so the
+        // :8765; in a Debug build its message points at start_fichero_server.sh so the
         // rendered diagnosis is actionable (not a blank window).
         let message = BackendError.backendAppNotFound.errorDescription ?? ""
         #if DEBUG
-        #expect(message.contains("start_backend.sh"))
+        #expect(message.contains("start_fichero_server.sh"))
         #else
         #expect(message.contains("briefcase"))
         #endif

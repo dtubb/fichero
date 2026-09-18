@@ -142,7 +142,7 @@
 | Script | Purpose | When to use |
 |---|---|---|
 | `sync_openapi_schema.sh` | Export Python schema → Swift client | After any API route/model change |
-| `start_backend.sh` | Dev server with validation | Local development |
+| `start_fichero_server.sh` | Dev server with validation | Local development |
 | `validate_model_sync.py` | Check Python/Swift model alignment | Before API changes |
 | `build_backend_bundle.sh` | Briefcase bundle build | Release packaging |
 | `export_openapi_schema.py` | Raw schema export | Called by sync script |

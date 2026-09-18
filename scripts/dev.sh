@@ -138,10 +138,10 @@ do_build() {
 # ── mode dispatch ───────────────────────────────────────────────────────────
 case "$MODE" in
   debug-mac-uvicorn)
-    echo "[dev] $MODE — backend: EXTERNAL uvicorn (run: scripts/start-backend.sh)"
+    echo "[dev] $MODE — backend: EXTERNAL uvicorn (run: scripts/start-fichero-server.sh)"
     APP_SUFFIX="" do_build Debug "platform=macOS" mac-debug CODE_SIGNING_ALLOWED=NO
     echo
-    echo "Backend mode: EXTERNAL. Start it separately:  scripts/start-backend.sh"
+    echo "Backend mode: EXTERNAL. Start it separately:  scripts/start-fichero-server.sh"
     echo "App: ${APP_PATH:-}"
     if [ "$RUN" = true ]; then open "$APP_PATH"; fi
     ;;
@@ -153,7 +153,7 @@ case "$MODE" in
     echo "        Resources. For a guaranteed embed, use release-mac."
     APP_SUFFIX="" do_build Debug "platform=macOS" mac-debug CODE_SIGNING_ALLOWED=NO
     echo
-    echo "Backend mode: EMBEDDED. Do NOT run scripts/start-backend.sh (would be adopted as external)."
+    echo "Backend mode: EMBEDDED. Do NOT run scripts/start-fichero-server.sh (would be adopted as external)."
     echo "App: ${APP_PATH:-}"
     if [ "$RUN" = true ]; then open "$APP_PATH"; fi
     ;;

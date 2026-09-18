@@ -194,7 +194,7 @@ def _read_token(
     if env:
         return env.strip()
 
-    # Two key files can exist: the plain path (start_backend engines) and the
+    # Two key files can exist: the plain path (start_fichero_server engines) and the
     # app container (the sandboxed embedded engine — its Path.home() maps
     # there). Whichever engine is alive wrote ITS file last, so on loopback
     # the NEWEST file is the live credential; a stale sibling shadowing the
@@ -291,7 +291,7 @@ def _loopback_trust(base_url: str) -> ssl.SSLContext:
     port = parsed.port or 8765
     safe_host = re.sub(r"[^A-Za-z0-9._-]+", "_", host).strip("._-") or "host"
     pattern = f"{safe_host}-{port}-*"
-    # Anchor certs from BOTH the plain user path (start_backend.sh engines)
+    # Anchor certs from BOTH the plain user path (start_fichero_server.sh engines)
     # and the app container (the sandboxed app's embedded engine) — trust
     # anchors only, so anchoring both is safe. A Sharing identity is filed
     # under the PUBLIC hostname (macbook-pro-m1.local-8765-…) but carries
@@ -314,7 +314,7 @@ def _loopback_trust(base_url: str) -> ssl.SSLContext:
         raise FicheroError(
             f"No engine TLS material found for {host}:{port} — looked for "
             f"{DEFAULT_STORAGE_ROOT / pattern}/server.crt. The engine writes "
-            "this the first time it starts with TLS (start_backend.sh, the "
+            "this the first time it starts with TLS (start_fichero_server.sh, the "
             "app, or `fichero engine start`); start it once on this machine. "
             "Refusing to connect unverified."
         )

@@ -320,7 +320,7 @@ non-image batch ids return `404`.
 !!! note
     This is a static render of the committed contract schema. For live,
     interactive docs against a running engine, start it locally with
-    `bash fichero-server/scripts/start_backend.sh` and open
+    `bash fichero-server/scripts/start_fichero_server.sh` and open
     `https://127.0.0.1:8765/docs` (Swagger UI) or `/redoc`.
 
 ## Sandbox (Mac App Store)

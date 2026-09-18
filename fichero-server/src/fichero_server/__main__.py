@@ -360,7 +360,7 @@ def main(argv: list[str] | None = None):
         # Sharing / CLI / MCP (Daniel, 2026-08-27): when the app's Sharing
         # toggle is ON it sets FICHERO_TCP_TLS_ALSO=1, and the engine binds
         # the TCP+TLS listener IN ADDITION to the UDS socket — the same
-        # tcp_transport app, host, and TLS material a start_backend.sh engine
+        # tcp_transport app, host, and TLS material a start_fichero_server.sh engine
         # serves. UDS stays the app's private path; HTTPS serves the CLI, the
         # MCP server, and paired devices. Toggle OFF (no flag) = UDS-only,
         # app-private, exactly as before.

@@ -122,7 +122,7 @@ extension EngineConfig {
         case iosCompanion
         /// macOS Debug: adopt a developer-run engine on :8765. The engine is
         /// deliberately NOT bundled in Debug (#3042), so this never spawns — if
-        /// nothing is up it fails with the actionable start_backend.sh message.
+        /// nothing is up it fails with the actionable start_fichero_server.sh message.
         case debugExternal
         /// macOS Release: spawn the bundled engine, app-authoritative token
         /// (#2862). The only strategy that spawns and manages a lifecycle.

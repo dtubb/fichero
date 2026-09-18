@@ -5,7 +5,7 @@ shell, Python, or Ruby helpers; they are not part of the Python engine package.
 
 ## Development and verification
 
-- `dev.sh`, `start-backend.sh`, and `launch-release.sh` run the local engine or
+- `dev.sh`, `start-fichero-server.sh`, and `launch-release.sh` run the local engine or
   app during development.
 - `verify_all.sh`, `verify_fast.sh`, and `verify_python.sh` run the repository
   verification tiers described in [AGENTS.md](../AGENTS.md).

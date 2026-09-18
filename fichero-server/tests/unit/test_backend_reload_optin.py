@@ -75,14 +75,14 @@ def test_watchdog_with_a_garbage_parent_pid_warns_loudly(monkeypatch, caplog):
 
 
 def test_launch_script_supplies_an_owner_pid():
-    """start_backend.sh must hand the engine an owner ($PPID) so a
+    """start_fichero_server.sh must hand the engine an owner ($PPID) so a
     script-launched engine dies with its terminal instead of becoming
     immortal (#4400). Source-level: the script is bash, but the contract
     is one line and this fails the moment it is dropped."""
     from pathlib import Path
 
     script = (
-        Path(__file__).resolve().parents[2] / "scripts" / "start_backend.sh"
+        Path(__file__).resolve().parents[2] / "scripts" / "start_fichero_server.sh"
     ).read_text()
     assert 'FICHERO_PARENT_PID="${FICHERO_PARENT_PID:-$PPID}"' in script
 

@@ -64,7 +64,7 @@ tiers (Dev, Alpha, Beta, Release) and two flavors:
   bundled engine; nothing to start by hand. The default development path.
 - **Local** (e.g. "Fichero (Dev Local)") — for engine development; the app
   connects to an engine you run yourself:
-  `bash fichero-server/scripts/start_backend.sh`.
+  `bash fichero-server/scripts/start_fichero_server.sh`.
 
 Command-line build (from repo root). `-skipPackagePluginValidation` is required — the
 OpenAPIGenerator SPM plugin fails without it:

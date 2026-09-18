@@ -54,7 +54,7 @@ extension EmbeddedBackendService {
         // Use Process for direct process control - much simpler than NSWorkspace
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executablePath)
-        // Mirror start_backend.sh HTTPS args (#2603/#2604/#2611).
+        // Mirror start_fichero_server.sh HTTPS args (#2603/#2604/#2611).
         process.arguments = [
             "--ssl-certfile", accessMaterial.certificatePath,
             "--ssl-keyfile", accessMaterial.keyPath
@@ -138,7 +138,7 @@ extension EmbeddedBackendService {
             // Debug builds skip the "Embed Fichero Server" phase (it only runs in
             // Release), so in a Debug ⌘R the engine is expected to be running
             // externally on :8765. If it isn't, that's this path.
-            let message = "Debug: start the engine first — fichero-server/scripts/start_backend.sh. "
+            let message = "Debug: start the engine first — fichero-server/scripts/start_fichero_server.sh. "
                 + "Release: briefcase build macOS --app server (in fichero-server/), then rebuild."
             logger.error("\(message, privacy: .public)")
             throw BackendError.backendAppNotFound

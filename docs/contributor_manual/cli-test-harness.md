@@ -82,7 +82,7 @@ That means:
 Example:
 
 ```bash
-bash fichero-server/scripts/start_backend.sh
+bash fichero-server/scripts/start_fichero_server.sh
 PYTHONPATH=fichero-server/src:fichero-cli/src .venv/bin/python -m fichero_cli auth login
 PYTHONPATH=fichero-server/src:fichero-cli/src .venv/bin/python -m fichero_cli import-manifest \
   --manifest /path/to/manifest.jsonl \

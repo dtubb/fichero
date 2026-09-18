@@ -14,12 +14,12 @@ Rule of thumb: if a feature fails in SwiftUI, reproduce the same operation with 
 The CLI module is `fichero_cli`, and the venv is the repo `.venv` (chapter 10). With it activated, the installed `fichero` entry point works directly; the module form is equivalent:
 
     # Start the engine
-    bash fichero-server/scripts/start_backend.sh
+    bash fichero-server/scripts/start_fichero_server.sh
 
     # In another shell — prefer JSON output for bug reports and comparisons
     PYTHONPATH=fichero-server/src:fichero-cli/src .venv/bin/python -m fichero_cli --json health
 
-Remember the feature-tier trap from chapter 3: a hand-started engine at the default `release` tier 404s the workflow/KG surface. `start_backend.sh` defaults to `dev` tier, which is what you want for CLI exploration.
+Remember the feature-tier trap from chapter 3: a hand-started engine at the default `release` tier 404s the workflow/KG surface. `start_fichero_server.sh` defaults to `dev` tier, which is what you want for CLI exploration.
 
 ### Authentication
 
@@ -46,7 +46,7 @@ For library-scoped endpoints, pass the same library the app is using with the `-
 
 `import-manifest` and `import-iiif` are thin HTTP clients over the backend routes — they do not write the library directly. Start the engine first; pass `--api` only when targeting a non-default engine URL; let the importer reuse the CLI auth/session resolution unless you explicitly pass `--token-file`.
 
-    bash fichero-server/scripts/start_backend.sh
+    bash fichero-server/scripts/start_fichero_server.sh
     PYTHONPATH=fichero-server/src:fichero-cli/src .venv/bin/python -m fichero_cli auth login
     PYTHONPATH=fichero-server/src:fichero-cli/src .venv/bin/python -m fichero_cli import-manifest \
       --manifest /path/to/manifest.jsonl \

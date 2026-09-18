@@ -196,7 +196,7 @@ enum BackendError: LocalizedError {
             // so the usual cause in a Debug ⌘R is simply no engine running on :8765.
             #if DEBUG
             return "The Fichero Server isn't running. In a Debug build the engine is "
-                + "not bundled — start it first with fichero-server/scripts/start_backend.sh "
+                + "not bundled — start it first with fichero-server/scripts/start_fichero_server.sh "
                 + "(or briefcase dev), then Retry."
             #else
             return "Backend app not found in bundle. Build the engine with: "

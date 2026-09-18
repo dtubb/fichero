@@ -747,7 +747,7 @@ async def _watch_parent_process() -> None:
         # kept serving hours-old code while the user believed they had
         # restarted. Refusing to run would break every terminal launch, so the
         # honest middle is LOUD: say once, at startup, that nobody is watching.
-        # (start_backend.sh now sets FICHERO_PARENT_PID to its invoking shell,
+        # (start_fichero_server.sh now sets FICHERO_PARENT_PID to its invoking shell,
         # so the ordinary dev launch IS supervised; this fires for bare
         # uvicorn/python launches only.)
         logger.warning(

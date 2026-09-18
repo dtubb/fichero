@@ -19,14 +19,14 @@ The last line is not optional: `pytest` and `ruff` are neither runtime dependenc
 
 Open `fichero/fichero.xcodeproj`, pick a scheme, and run. Schemes come in tiers (Dev, Alpha, Beta, Release) and two flavors:
 
-- **Embedded** (e.g. “Fichero (Dev Embedded)”) — the app spawns the engine itself; nothing to start by hand. This is the default development path and the standing run target. Stop any hand-started engine first: the spawn binds the same Unix socket path a `start_backend.sh` engine uses — two engines, one socket.
-- **Local** (e.g. “Fichero (Dev Local)”, plus “Local iOS” variants) — for engine development; the app connects to an engine you run yourself with `bash fichero-server/scripts/start_backend.sh`. Over the network the engine speaks HTTPS on `127.0.0.1:8765` and the app pins the certificate fail-closed — a plain-HTTP engine cannot connect. Never run a bare `uvicorn`.
+- **Embedded** (e.g. “Fichero (Dev Embedded)”) — the app spawns the engine itself; nothing to start by hand. This is the default development path and the standing run target. Stop any hand-started engine first: the spawn binds the same Unix socket path a `start_fichero_server.sh` engine uses — two engines, one socket.
+- **Local** (e.g. “Fichero (Dev Local)”, plus “Local iOS” variants) — for engine development; the app connects to an engine you run yourself with `bash fichero-server/scripts/start_fichero_server.sh`. Over the network the engine speaks HTTPS on `127.0.0.1:8765` and the app pins the certificate fail-closed — a plain-HTTP engine cannot connect. Never run a bare `uvicorn`.
 
 iPhone and iPad cannot embed the engine; they connect to one running on a Mac. For engine-only work, every Python command needs `PYTHONPATH=fichero-server/src` (with the venv activated):
 
     PYTHONPATH=fichero-server/src python -c "import fichero_server"
 
-`start_backend.sh` defaults to `FICHERO_FEATURE_TIER=dev` so local testing shows staged surfaces; override with `FICHERO_FEATURE_TIER=release` when checking release-tier behavior. Core routes must work in `release` tier.
+`start_fichero_server.sh` defaults to `FICHERO_FEATURE_TIER=dev` so local testing shows staged surfaces; override with `FICHERO_FEATURE_TIER=release` when checking release-tier behavior. Core routes must work in `release` tier.
 
 ### Day-to-day commands
 

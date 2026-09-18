@@ -2,7 +2,7 @@
 set -e
 
 # Start backend with optional OpenAPI sync/validation.
-# Run from repo root: ./fichero-server/scripts/start_backend.sh [--no-sync|--fast|--reload]
+# Run from repo root: ./fichero-server/scripts/start_fichero_server.sh [--no-sync|--fast|--reload]
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 API_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"

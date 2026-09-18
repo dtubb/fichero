@@ -29,7 +29,7 @@ NOTARIZE = SCRIPTS_DIR / "notarize.sh"
 CREATE_RELEASE = SCRIPTS_DIR / "create-github-release.sh"
 NIGHTLY_RELEASE = SCRIPTS_DIR / "nightly-release.sh"
 RELEASE_ALL = SCRIPTS_DIR / "release-all.sh"
-START_BACKEND = REPO_ROOT / "fichero-server" / "scripts" / "start_backend.sh"
+START_BACKEND = REPO_ROOT / "fichero-server" / "scripts" / "start_fichero_server.sh"
 BUILD_BACKEND_BUNDLE = REPO_ROOT / "fichero-server" / "scripts" / "build_backend_bundle.sh"
 BUNDLE_PYTHON_BACKEND = REPO_ROOT / "fichero-server" / "scripts" / "bundle_python_backend.sh"
 BUILD_FM_BRIDGE = REPO_ROOT / "fichero-server" / "scripts" / "build_fm_bridge.sh"
@@ -266,20 +266,20 @@ def test_create_release_updates_appcast() -> None:
     assert "appcast.xml" in text
 
 
-def test_start_backend_defaults_to_dev_feature_tier() -> None:
+def test_start_fichero_server_defaults_to_dev_feature_tier() -> None:
     text = _script_text(START_BACKEND)
 
     assert 'export FICHERO_FEATURE_TIER="${FICHERO_FEATURE_TIER:-dev}"' in text
 
 
-def test_start_backend_makes_multiuser_default_explicit_for_local_and_remote() -> None:
+def test_start_fichero_server_makes_multiuser_default_explicit_for_local_and_remote() -> None:
     text = _script_text(START_BACKEND)
 
     assert 'FICHERO_MULTIUSER="${FICHERO_MULTIUSER:-1}"' in text
     assert 'export FICHERO_MULTIUSER="${FICHERO_MULTIUSER:-0}"' in text
 
 
-def test_start_backend_syncs_bootstrap_token_into_debug_sandbox() -> None:
+def test_start_fichero_server_syncs_bootstrap_token_into_debug_sandbox() -> None:
     text = _script_text(START_BACKEND)
 
     assert 'FICHERO_DEBUG_APP_BUNDLE_ID="${FICHERO_DEBUG_APP_BUNDLE_ID:-app.fichero.fichero}"' in text

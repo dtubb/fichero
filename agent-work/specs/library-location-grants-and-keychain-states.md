@@ -91,7 +91,7 @@ both carriers work. This is the path the design above fixes — change
 engine can actually resolve it.
 
 **Dev Local (`.debugExternal`)**: **EMPIRICAL** — the engine is started by the
-developer from a shell (`start_backend.sh`), so the app never spawns it and
+developer from a shell (`start_fichero_server.sh`), so the app never spawns it and
 the env-var carrier does not exist. The live grant endpoint still does. But
 the deeper point is that this engine is **not sandboxed at all** — it is a
 plain user process that can already read the whole home directory. It does not
@@ -105,7 +105,7 @@ options:
   sandbox to extend. Risk: the engine cannot verify the app's claim that a
   panel happened. Mitigated by loopback+bootstrap being owner-equivalent
   already, but it is a genuine widening of the trust model in Dev only.
-- **(b)** Dev uses `FICHERO_LIBRARY_ALLOWED_ROOTS`, set by `start_backend.sh`.
+- **(b)** Dev uses `FICHERO_LIBRARY_ALLOWED_ROOTS`, set by `start_fichero_server.sh`.
   No code change, no trust change, but it is a developer-machine
   configuration, not a product behaviour — and it means Dev and Release take
   different paths, which is exactly how one of them rots.

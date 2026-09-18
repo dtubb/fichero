@@ -10,7 +10,7 @@ When he wants to test again, Dev Local is `debugExternal` — it dials an extern
 engine and **never spawns one**. Start it with:
 
 ```
-fichero-server/scripts/start_backend.sh --uds=/Users/danieltubb/Library/Containers/app.fichero.fichero/Data/tmp/fichero.sock --fast
+fichero-server/scripts/start_fichero_server.sh --uds=/Users/danieltubb/Library/Containers/app.fichero.fichero/Data/tmp/fichero.sock --fast
 ```
 
 Killing that engine while he is testing is what broke his session this morning.

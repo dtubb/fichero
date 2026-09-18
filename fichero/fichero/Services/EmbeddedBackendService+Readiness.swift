@@ -213,7 +213,7 @@ extension EmbeddedBackendService {
         let who = pid.map { " (PID \($0))" } ?? ""
         return "Another engine is already serving on this socket\(who). It is not the engine Fichero "
             + "just launched — it answered with a different launch id — so Fichero cannot take the "
-            + "socket over. Quit the other engine (a hand-started start_backend.sh, or another copy "
+            + "socket over. Quit the other engine (a hand-started start_fichero_server.sh, or another copy "
             + "of Fichero) and try again."
     }
 

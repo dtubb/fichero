@@ -157,7 +157,7 @@ struct EngineReadinessProbe {
         // rejecting our credentials, NOT missing. Surfacing that as `.authRejected`
         // (instead of the old `.notResponding`) lets the launch path say "engine
         // reachable but rejected our token" rather than the false "engine isn't
-        // running / start it with start_backend.sh". (#dev observability)
+        // running / start it with start_fichero_server.sh". (#dev observability)
         if health.status == 401 || health.status == 403 {
             let healthCode = health.status.map(String.init) ?? "?"
             // A credential rejection is never steady-state noise: it is the one

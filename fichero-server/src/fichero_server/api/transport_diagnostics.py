@@ -1,6 +1,6 @@
 """Say which transport the engine bound, and who dials it (#4222).
 
-`start_backend.sh --uds` and the `Fichero (Dev Local)` scheme can disagree
+`start_fichero_server.sh --uds` and the `Fichero (Dev Local)` scheme can disagree
 about transport, and nothing said so. Only `.releaseEmbedded` resolves to UDS
 (`EngineConfig+Launch.swift`); `Fichero (Dev Local)` is `.debugExternal`, which
 is HTTPS on 127.0.0.1:8765. So the reasonable sequence — start the engine the

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Build Fichero.app in Debug configuration.
-# In debug mode, run the backend separately with: scripts/start-backend.sh
+# In debug mode, run the backend separately with: scripts/start-fichero-server.sh
 # Usage: scripts/build-debug.sh
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -31,4 +31,4 @@ echo
 echo "Fichero.app (Debug): $APP_PATH"
 echo
 echo "For debug, run the backend separately:"
-echo "  scripts/start-backend.sh"
+echo "  scripts/start-fichero-server.sh"

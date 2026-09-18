@@ -7,7 +7,7 @@ import Foundation
 /// `fileExists`, no connect probe against any `.sock` path. A socket file that
 /// exists with nothing behind it looked exactly like a live one, so the client
 /// dialled it and waited out the readiness budget before reporting something
-/// misleading ("no external engine reachable — start it with start_backend.sh",
+/// misleading ("no external engine reachable — start it with start_fichero_server.sh",
 /// when the engine had in fact been started and had died, leaving its file).
 ///
 /// That is the same failure #4400 was about — the client dialling a socket
@@ -92,7 +92,7 @@ enum UDSSocketProbe {
                 Start the engine again.
                 """
         case .absent:
-            return "No engine is listening on \(path). Start it with scripts/start_backend.sh."
+            return "No engine is listening on \(path). Start it with scripts/start_fichero_server.sh."
         case .unusable(let code):
             return "Could not probe the engine socket at \(path) (errno \(code))."
         }

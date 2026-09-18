@@ -110,7 +110,7 @@ exposed both call sites — a one-provider matrix would have shipped either bug.
 
 ## 4. Lessons for the next lanes (harness + CLI recipes)
 
-- Engine from a worktree: `start_backend.sh --fast` + `FICHERO_TLS_CERTFILE/KEYFILE`
+- Engine from a worktree: `start_fichero_server.sh --fast` + `FICHERO_TLS_CERTFILE/KEYFILE`
   pointed at the `127.0.0.1-8765-…` cert dir from `--prepare-local-access`;
   CLI needs `SSL_CERT_FILE=<that server.crt>` AND `FICHERO_UDS=0` (otherwise
   it silently dials the app's UDS socket as `http://fichero-app`).

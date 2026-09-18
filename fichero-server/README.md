@@ -69,11 +69,18 @@ it prepares loopback TLS material, persists the SPKI pin, and runs uvicorn with
 `--ssl-*` (and scopes `--reload` to `fichero-server/src`):
 
 ```bash
-bash fichero-server/scripts/start_backend.sh
+# For the app's Dev Local scheme: UDS on the container socket the scheme dials
+# (the default — no env var). Quit any Dev Embedded app first: it owns its own
+# engine on this same socket (`pgrep -fl "Fichero Server"`).
+./fichero-server/scripts/start_fichero_server.sh --uds
+
+# For the CLI / MCP server (HTTPS :8765 with loopback TLS + pinning):
+./fichero-server/scripts/start_fichero_server.sh
 ```
 
 > Do **not** run a bare `uvicorn fichero_server.api.main:app --port 8765` for the app —
-> it serves HTTP and the pinned client cannot connect.
+> it serves HTTP and the pinned client cannot connect. `--uds=/path` or
+> `FICHERO_UDS_PATH` override the socket; `--fast` skips the OpenAPI client sync.
 
 For remote / off-network access, the engine still binds loopback only and is
 fronted by `tailscale serve` (never funnel) — see
@@ -147,6 +154,21 @@ Briefcase *bundles into the shipped app* — `python_version = "3.12"` in `pypro
 ./fichero-server/scripts/build_backend_bundle.sh
 ```
 
+### Build the engine yourself for a Dev Embedded run
+
+`xcodebuild` embeds whatever `Fichero Server.app` is already staged under
+`fichero-server/build/` — it does **not** restage the engine. After changing
+Python, restage before the Xcode build or the app runs hours-old engine code:
+
+```bash
+cd fichero-server && PYTHONPATH=src:../fichero-cli/src:../fichero-mcp/src \
+  briefcase update macOS --app fichero_server     # copies src + deps into the staged app
+```
+
+then build/run `Fichero (Dev Embedded)` in Xcode. `build_backend_bundle.sh` is the
+full from-scratch bundle; `update` is the fast path. The staged engine's stamps show
+up in the app container's `Library/Logs/Fichero/engine.log` as `engine-launch: …`.
+
 ### macOS only — iOS and iPadOS cannot embed the engine
 
 The bundle is built with [Briefcase](https://briefcase.readthedocs.io/), and
@@ -161,7 +183,7 @@ So the engine ships two ways:
 | Target | How it reaches the engine |
 |---|---|
 | **macOS, Embedded schemes** (the default) | Embedded. The app bundles `Fichero Server.app` and spawns it. |
-| **macOS, Local schemes** (engine development) | External. Run `fichero-server/scripts/start_backend.sh`. |
+| **macOS, Local schemes** (engine development) | External. Run `fichero-server/scripts/start_fichero_server.sh`. |
 | **iOS / iPadOS** | **Remote only.** No local engine, ever. The app connects to an engine on another machine (paired host, or `tailscale serve`). |
 
 `EngineConfig.swift` encodes this: on macOS it probes the local engine first and

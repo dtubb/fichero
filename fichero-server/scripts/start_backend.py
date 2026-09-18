@@ -41,7 +41,7 @@ def _warn_if_app_unreachable(scheme: str, port: int) -> None:
             "Engine is serving PLAIN HTTP on :%d but the Swift app pins "
             "https://127.0.0.1:%d fail-closed (#2538) — the Activity stream "
             "and all loopback calls from the app will silently fail. "
-            "Launch via scripts/start_backend.sh (prepares loopback TLS), or "
+            "Launch via scripts/start_fichero_server.sh (prepares loopback TLS), or "
             "set FICHERO_TLS_CERTFILE/FICHERO_TLS_KEYFILE, to serve HTTPS.",
             port,
             port,

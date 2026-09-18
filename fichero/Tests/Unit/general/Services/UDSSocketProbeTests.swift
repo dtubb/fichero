@@ -10,7 +10,7 @@ import Testing
 /// against any `.sock` path anywhere in `fichero/fichero/**`. So a dead
 /// engine's leftover socket looked exactly like a working one, the client
 /// dialled it, waited out the readiness budget, and then reported "no external
-/// engine reachable — start it with start_backend.sh" — which is wrong twice
+/// engine reachable — start it with start_fichero_server.sh" — which is wrong twice
 /// over: the engine HAD been started, and the socket is right there.
 ///
 /// These bind real sockets in a temp directory rather than faking the kernel,

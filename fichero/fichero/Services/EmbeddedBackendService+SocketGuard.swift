@@ -23,7 +23,7 @@ extension EmbeddedBackendService {
     ///
     /// Call it OUTSIDE the caller's do/catch. The diagnosis here names the
     /// socket, and `adoptDebugExternalEngine`'s catch would overwrite it with
-    /// the generic "start it with start_backend.sh" — which is the misleading
+    /// the generic "start it with start_fichero_server.sh" — which is the misleading
     /// message this exists to replace.
     func requireServedSocket(transportMode: TransportMode) throws {
         guard case let .uds(path) = transportMode else { return }

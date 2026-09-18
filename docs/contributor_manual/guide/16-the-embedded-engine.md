@@ -8,7 +8,7 @@ How the engine ships inside the app, in one page. (This replaces the older bundl
 **Provisioning is scheme-based, not** `#if DEBUG`**.** The decision of who owns the engine is made by `EngineConfig.engineProvisioningStrategy()` (`EngineConfig+Launch.swift`), resolved from the running scheme’s build configuration. Schemes come in tiers (Dev, Alpha, Beta, Release) × flavors (Embedded, Local):
 
 - **Embedded** schemes (including “Fichero (Dev Embedded)”, whose build configuration is `Dev Embedded` and does *not* define `DEBUG`) resolve to the embedded strategy: **the app spawns and owns the bundled engine**, binding it to the app’s Unix-socket path. Stop any hand-started engine first — two engines, one socket.
-- **Local** schemes (e.g. “Fichero (Dev Local)”, configuration `Debug`) resolve to the external strategy: the app never spawns and *requires* a developer-run engine (`start_backend.sh`) to adopt. The engine is deliberately not bundled in Debug builds.
+- **Local** schemes (e.g. “Fichero (Dev Local)”, configuration `Debug`) resolve to the external strategy: the app never spawns and *requires* a developer-run engine (`start_fichero_server.sh`) to adopt. The engine is deliberately not bundled in Debug builds.
 
 The two flavors differ in who owns the engine process, not in speed — Swift optimization is `-Onone` in both Dev variants.
 

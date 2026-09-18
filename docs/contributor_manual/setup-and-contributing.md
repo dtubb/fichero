@@ -17,7 +17,7 @@ The commands below are the current repo-standard ones from `AGENTS.md`.
 ### Backend
 
 ```bash
-bash fichero-server/scripts/start_backend.sh
+bash fichero-server/scripts/start_fichero_server.sh
 PYTHONPATH=fichero-server/src .venv/bin/ruff check fichero-server/src/
 PYTHONPATH=fichero-server/src .venv/bin/pytest fichero-server/tests/unit/ --ignore=fichero-server/tests/unit/_archived
 ```
@@ -43,7 +43,7 @@ The frontend depends on the engine being available. For the default macOS develo
 3. build and run — the app spawns its own engine; nothing to start by hand
 
 The **Local** schemes are for engine development: they connect to an engine you start
-yourself with `bash fichero-server/scripts/start_backend.sh` on port `8765`.
+yourself with `bash fichero-server/scripts/start_fichero_server.sh` on port `8765`.
 iOS/iPadOS do not start a local engine; they connect to an explicit remote host
 configured through `EngineConfig`.
 
@@ -176,7 +176,7 @@ Do not add `ALTER TABLE ADD COLUMN` migration functions for columns that are alr
 
 ### Feature tier
 
-`bash fichero-server/scripts/start_backend.sh` defaults to `FICHERO_FEATURE_TIER=dev` so local testing shows staged surfaces. Override with `FICHERO_FEATURE_TIER=release` when checking release-tier behavior. If your work is only active under `FICHERO_FEATURE_TIER=dev`, say so in your PR description. Core routes must work in `release` tier.
+`bash fichero-server/scripts/start_fichero_server.sh` defaults to `FICHERO_FEATURE_TIER=dev` so local testing shows staged surfaces. Override with `FICHERO_FEATURE_TIER=release` when checking release-tier behavior. If your work is only active under `FICHERO_FEATURE_TIER=dev`, say so in your PR description. Core routes must work in `release` tier.
 
 ## Expanding the Action Registry
 

@@ -1,6 +1,6 @@
 """The engine names its transport, and who can dial it (#4222).
 
-`start_backend.sh --uds` and `Fichero (Dev Local)` can disagree about
+`start_fichero_server.sh --uds` and `Fichero (Dev Local)` can disagree about
 transport. Neither half is wrong — only `.releaseEmbedded` resolves to UDS,
 and `debugExternal -> https` is correct — but the app showed "Failed to
 connect to the engine", the same message as a down engine, a wrong host, or a
@@ -24,7 +24,7 @@ from fichero_server.api.transport_diagnostics import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
-START_BACKEND_SH = REPO_ROOT / "fichero-server" / "scripts" / "start_backend.sh"
+START_BACKEND_SH = REPO_ROOT / "fichero-server" / "scripts" / "start_fichero_server.sh"
 
 
 class TestDescribeTransport:
@@ -130,7 +130,12 @@ class TestTheScriptsSayItToo:
     """A diagnostic only the Python launcher prints misses the --uds branch,
     which execs uvicorn directly and never reaches it."""
 
-    def test_the_uds_help_names_the_scheme_that_cannot_dial_it(self):
+    def test_the_uds_help_names_the_scheme_that_dials_it_and_the_socket(self):
+        """The Dev Local scheme sets FICHERO_FORCE_UDS=1 and points
+        FICHERO_FORCE_UDS_PATH at the app CONTAINER socket; the script's --uds
+        default is that same path (2026-09-18). The help used to claim Dev Local
+        "expects https://127.0.0.1:8765 and will NOT reach a --uds engine" —
+        stale, and this test pinned the stale claim."""
         help_text = subprocess.run(
             ["bash", str(START_BACKEND_SH), "--help"],
             capture_output=True,
@@ -140,7 +145,13 @@ class TestTheScriptsSayItToo:
 
         assert "FICHERO_FORCE_UDS_PATH" in help_text
         assert "Dev Local" in help_text
-        assert "https://127.0.0.1:8765" in help_text
+        assert "tmp/fichero.sock" in help_text
+        assert "will NOT reach" not in help_text
+
+    def test_the_uds_default_socket_is_the_container_path(self):
+        source = START_BACKEND_SH.read_text()
+        assert "Library/Containers/app.fichero.fichero/Data/tmp/fichero.sock" in source
+        assert ":-/tmp/fichero.sock" not in source
 
     def test_the_uds_branch_prints_the_shared_banner(self):
         source = START_BACKEND_SH.read_text()

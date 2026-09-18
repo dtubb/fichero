@@ -33,7 +33,7 @@ Source: `fichero/fichero/Services/EngineConfig+Launch.swift:113-160` (enum + pre
 | `.inert` | Preview / XCTest host / UI-test (`isInertHost`, `:150,192`) | Nobody — adopts an external engine *if one is already up*, else runs inert; never spawns (`:114-116`) | App (adoptive) | `.https` (`:239`) | n/a / whatever the adopted engine is |
 | `.configuredRemote` | Explicit Settings host, macOS or iOS (`:158`, `:154`) | The remote host | App | `.https` | Remote's concern |
 | `.iosCompanion` | iOS with no explicit host (`:154`) — never probes localhost (#2465, `:120-121`) | The paired Mac | App | `.https` | Remote's concern |
-| `.debugExternal` | macOS + `DEBUG` defined → the **`Fichero (Dev Local)`** scheme (`:159`, AGENTS.md:46-48) | **The developer** (terminal, `start_backend.sh`); engine deliberately not bundled in Debug (#3042, `:123-126`); never spawns | App adopts | Nominally `.https` (`:239`) — but the Dev Local scheme overrides to UDS via `FICHERO_FORCE_UDS=1`, dialing the app-computed container socket (`:44-52`) | **No** — a terminal-launched Python process. The *app* is sandboxed; the engine is not |
+| `.debugExternal` | macOS + `DEBUG` defined → the **`Fichero (Dev Local)`** scheme (`:159`, AGENTS.md:46-48) | **The developer** (terminal, `start_fichero_server.sh`); engine deliberately not bundled in Debug (#3042, `:123-126`); never spawns | App adopts | Nominally `.https` (`:239`) — but the Dev Local scheme overrides to UDS via `FICHERO_FORCE_UDS=1`, dialing the app-computed container socket (`:44-52`) | **No** — a terminal-launched Python process. The *app* is sandboxed; the engine is not |
 | `.releaseEmbedded` | macOS without `DEBUG` → **`Fichero (Dev Embedded)`** (config `Dev Embedded`, no `DEBUG` flag) and Release (`:159`, AGENTS.md:33-39) | **The app** — the only strategy with `spawnsBundledEngine == true` (`:133`) | App | `.uds` at `$TMPDIR/fichero.sock` in the container (`:215-229`, `:237-238`) | **Yes** — sandbox-inherited child; gets library access via security-scoped bookmarks in `FICHERO_LIBRARY_BOOKMARKS` (`EmbeddedBackendService+Spawn.swift:237-247`) |
 
 Both Dev schemes compile Swift at `-Onone`; "they differ in who owns the engine, not in
@@ -185,7 +185,7 @@ Re-weighed after the CLI/MCP ruling (§5), which removes one leg of the original
    specific workflow of iterating backend code while watching the result in the live app
    UI**, and "just rebuild" is not a free answer on this machine.
    *Counter-counter:* most backend iteration does not need the app at all — `pytest`,
-   `start_backend.sh` + direct HTTP, and contract tests cover engine logic headlessly,
+   `start_fichero_server.sh` + direct HTTP, and contract tests cover engine logic headlessly,
    and none of that depends on `.debugExternal` (an *app* mode). The cost is confined to
    full-stack, UI-visible backend work. It is not zero and should not be waved away;
    whether it is decisive is Q2 in §7.
@@ -194,7 +194,7 @@ Re-weighed after the CLI/MCP ruling (§5), which removes one leg of the original
    ruling.** Verified path by path in §5.2: every gate exercises the engine directly
    (in-process import or TestClient) or the CLI/MCP against `httpx.MockTransport`; no
    gate connects the CLI to a live engine. Removing `.debugExternal` does not touch
-   `start_backend.sh`, pytest, or the guardrails.
+   `start_fichero_server.sh`, pytest, or the guardrails.
 
 3. **Debuggability.** A terminal engine has live stdout/stderr, independent restart, and
    debugger/profiler attachment. Partially answered: the embedded engine's output is
@@ -244,7 +244,7 @@ testing what ships.
    nothing about mode removal should wait on keychain behavior or vice versa.
 2. **A decision on the iteration loop** (Q2 below). Two candidate answers:
    - *Accept engine-alone iteration:* backend logic loops through pytest / direct HTTP
-     against a `start_backend.sh` engine; the app rebuild happens only when you need to
+     against a `start_fichero_server.sh` engine; the app rebuild happens only when you need to
      see UI. Cheapest; costs the live full-stack loop.
    - *App-spawned dev engine:* a Debug-only variant of `.releaseEmbedded` where the app
      spawns the **venv Python with `--reload`** instead of the bundled binary — the app
@@ -259,7 +259,7 @@ testing what ships.
 3. **The sanctioned CLI/MCP client path exists first** (§5.4) — under embedded-only there
    is no TCP listener and no real-home token file, so shipping the removal before the
    client path bricks the CLI/MCP for everyone including Daniel.
-4. **Keep** `start_backend.sh`, `.inert`, and the pytest in-process path untouched — they
+4. **Keep** `start_fichero_server.sh`, `.inert`, and the pytest in-process path untouched — they
    are the headless/CI story (§5.2) and are not part of this removal.
 
 What to delete when it lands: the `.debugExternal` case and its Debug-no-bundle special
@@ -423,7 +423,7 @@ Places the two decisions could pull against each other — checked, mostly clean
   (which doubles as the "is the app running" check)? Blocks §4 step 3.
 - **Q4 (dev remnant of `fichero engine start/stop`):** The ruling kills it for users
   (§5.1e). Does a dev-flagged remnant survive for server/CI development, or is
-  `start_backend.sh` the only sanctioned way to run a bare engine?
+  `start_fichero_server.sh` the only sanctioned way to run a bare engine?
 - **Q5 (provider keys off-Mac):** With the app owning keys on Mac, what owns them for a
   Linux/remote engine — env vars, a server config file? (Same blind spot as Q1; one
   answer should cover both.) Related: I found the #4531 commit ("C1 library-location

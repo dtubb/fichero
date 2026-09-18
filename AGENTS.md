@@ -31,9 +31,9 @@ PYTHONPATH=fichero-server/src pytest fichero-server/tests/unit/
 # the default socket IS the container path the scheme dials (#4222), so no env
 # var is needed. Check `pgrep -fl "Fichero Server"` first: an engine already on
 # that socket is a Dev Embedded app's own — quit that app.
-./fichero-server/scripts/start_backend.sh --uds
+./fichero-server/scripts/start_fichero_server.sh --uds
 # CLI / MCP need the HTTPS engine instead (app quit, or a scratch library):
-bash fichero-server/scripts/start_backend.sh   # HTTPS :8765; app pins it fail-closed — never bare uvicorn/HTTP, #2538
+bash fichero-server/scripts/start_fichero_server.sh   # HTTPS :8765; app pins it fail-closed — never bare uvicorn/HTTP, #2538
 
 # Swift — lint your diff; the manager runs the build + test (prefer the Xcode MCP)
 swiftlint lint fichero/fichero/
@@ -43,11 +43,11 @@ swiftlint lint fichero/fichero/
 (Dev Local)` is the TEST scheme.** Dev Embedded's config is `Dev Embedded`, not
 `Debug` — `DEBUG` is undefined, so `EngineConfig.engineProvisioningStrategy()`
 resolves to `.releaseEmbedded` and **the app spawns and owns the bundled engine**
-on the same UDS socket a hand-started `start_backend.sh` uses
+on the same UDS socket a hand-started `start_fichero_server.sh` uses
 (`EngineConfig.udsSocketPath`) — stop any hand-started engine first, or you get
 two engines on one socket. The embedded engine is also UDS-only (no TCP, no TLS),
 so **the CLI and MCP server cannot reach it**; to exercise CLI/MCP, run a
-`start_backend.sh` engine (HTTPS `:8765`) instead — app quit, or against a
+`start_fichero_server.sh` engine (HTTPS `:8765`) instead — app quit, or against a
 scratch library (two engines must never open the same DuckDB).
 
 Dev Local's config IS `Debug`, resolving to `.debugExternal`: it never spawns
@@ -76,7 +76,7 @@ your main checkout, but keep `PYTHONPATH=fichero-server/src` **relative to the w
 and test the *other* tree and get a green run that means nothing. Never write an absolute
 path like `~/code/fichero/.venv` into a doc or a script; it is only true on one machine.
 
-- **Backend API changed?** `start_backend.sh` **auto-syncs the OpenAPI client on startup** (default;
+- **Backend API changed?** `start_fichero_server.sh` **auto-syncs the OpenAPI client on startup** (default;
   `--no-sync`/`--fast` skip it), so a normal server restart regenerates the committed client for you
   — then commit the regen. Run `./fichero-server/scripts/sync_openapi_schema.sh` directly only when
   you changed the API but aren't restarting the server. (Skipping the sync → the Swift build breaks
@@ -488,7 +488,7 @@ The ones that cost hours, and that no test catches for you:
 
 - **New `.swift` files just work — never run `add-swift-file.rb` on the app target.** It's a synchronized folder; explicit registration DUPLICATES the build file. Never hand-edit `project.pbxproj`.
 - **`PYTHONPATH=fichero-server/src` on every Python command.** The shared `.venv` is editable-installed against your MAIN checkout, not this worktree — without it, a worktree gates the *stale* tree.
-- **Never bare `uvicorn`.** The app pins `https://127.0.0.1:8765` fail-closed. Use `fichero-server/scripts/start_backend.sh`.
+- **Never bare `uvicorn`.** The app pins `https://127.0.0.1:8765` fail-closed. Use `fichero-server/scripts/start_fichero_server.sh`.
 - **Multi-library requests need the `X-Fichero-Library-Path` header** (app-wide endpoints — health, providers/catalog, settings — skip it).
 - **A `pytest -k` subset skips the architecture guardrails.** Anything touching a persisted DB, a route, or a Swift service needs the full run.
 - **Paths assembled from parts hide from a string sweep.** `ROOT / "docs" / "<page>.md"` has no `docs/<page>.md` substring to grep — moving a file breaks it silently.

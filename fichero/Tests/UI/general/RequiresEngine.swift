@@ -31,7 +31,7 @@ enum RequiresEngine {
     /// to catch. A fast, explicit failure says "you are running this in a scheme
     /// that cannot test it" in under a second, instead of after 120s and 56 GB.
     ///
-    /// Note `start_backend.sh` does not satisfy this: that is an EXTERNAL HTTPS
+    /// Note `start_fichero_server.sh` does not satisfy this: that is an EXTERNAL HTTPS
     /// engine, and `--uitesting-embedded` has already told the app to use the
     /// bundled one. The message says so, because that is the first thing anyone
     /// tries.
@@ -70,7 +70,7 @@ enum RequiresEngine {
                 This scheme does not bundle an engine. Run this suite from an \
                 embedded scheme (Dev Embedded / Beta Embedded).
 
-                Starting fichero-server/scripts/start_backend.sh does NOT help: \
+                Starting fichero-server/scripts/start_fichero_server.sh does NOT help: \
                 that is an external HTTPS engine, and the launch argument \
                 selects the embedded one.
 

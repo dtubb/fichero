@@ -117,7 +117,7 @@ and run. Schemes come in tiers (Dev, Alpha, Beta, Release) and two flavors:
   path.
 - **Local** (e.g. "Fichero (Dev Local)", plus "Local iOS" variants): for
   engine development; the app connects to an engine you run yourself with
-  `bash fichero-server/scripts/start_backend.sh`. When served over the
+  `bash fichero-server/scripts/start_fichero_server.sh`. When served over the
   network the engine speaks HTTPS on `127.0.0.1:8765` and the app pins the
   certificate fail-closed, so a plain-HTTP engine cannot connect. Never run
   a bare `uvicorn`.

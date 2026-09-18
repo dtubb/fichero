@@ -211,7 +211,7 @@ def start(port: int = 8765, workers: int = 1, host: str | None = None) -> None:
             raise ValueError(
                 "The engine must be started with TLS. Set both "
                 "FICHERO_TLS_CERTFILE and FICHERO_TLS_KEYFILE, or use "
-                "start_backend.sh which generates loopback TLS material."
+                "start_fichero_server.sh which generates loopback TLS material."
             )
 
         proc = subprocess.Popen(

@@ -6,7 +6,7 @@ Repository automation scripts for the Fichero Python backend.
 
 | Script | Purpose |
 |---|---|
-| `start_backend.sh` | Start API server for local development |
+| `start_fichero_server.sh` | Start API server for local development |
 | `start_backend.py` | Python entry point for bundled backend (Briefcase) |
 | `sync_openapi_schema.sh` | Export Python OpenAPI schema → Swift client. **Run after any API change.** |
 | `generate_openapi_cli.py` | Regenerate the typed CLI surface (called by `sync_openapi_schema.sh`) |
@@ -16,7 +16,7 @@ Repository automation scripts for the Fichero Python backend.
 
 | Script | Purpose |
 |---|---|
-| `validate_model_sync.py` | Verify Python/Swift model field alignment (called by `start_backend.sh`) |
+| `validate_model_sync.py` | Verify Python/Swift model field alignment (called by `start_fichero_server.sh`) |
 | `export_openapi_schema.py` | Raw schema export (called by `sync_openapi_schema.sh`) |
 
 ## Build and packaging

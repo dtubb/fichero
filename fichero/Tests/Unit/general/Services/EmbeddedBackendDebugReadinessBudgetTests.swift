@@ -4,7 +4,7 @@ import XCTest
 
 /// Regression coverage for #4056: the Debug-external (UDS or HTTPS :8765)
 /// readiness budget is 15s, not the original 5s. Under Debug the engine is
-/// developer-run (`start_backend.sh`, not bundled — #3042) and can take longer
+/// developer-run (`start_fichero_server.sh`, not bundled — #3042) and can take longer
 /// than 5s to bind the UDS socket / HTTPS listener and answer the authenticated
 /// probe on a cold/contended machine, which surfaced a false "not ready" /
 /// recovery prompt. These source-inspection tests pin the budget so a revert

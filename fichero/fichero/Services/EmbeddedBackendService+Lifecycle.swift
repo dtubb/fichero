@@ -9,7 +9,7 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Embedde
 /// Debug-external readiness budget (#4056). The developer-run engine (Debug,
 /// not bundled — #3042) can take longer than 5s to bind the UDS socket / HTTPS
 /// listener and answer the authenticated probe, especially on a cold
-/// `start_backend.sh` under a contended machine. 15s gives headroom without
+/// `start_fichero_server.sh` under a contended machine. 15s gives headroom without
 /// loosening the Release/embedded budgets (see `spawnAndAdoptEmbeddedEngine`).
 /// Pinned by `EmbeddedBackendDebugReadinessBudgetTests`.
 private let debugExternalReadinessTimeout: TimeInterval = 15
@@ -176,7 +176,7 @@ extension EmbeddedBackendService {
     /// `debugExternal`: the engine is deliberately NOT bundled in Debug (the
     /// embed phase is Release-only, #3042), so we NEVER spawn — adopt a
     /// developer-run engine on :8765. If nothing is up, fail with the actionable
-    /// start_backend.sh message; the window renders the diagnosis + Retry and the
+    /// start_fichero_server.sh message; the window renders the diagnosis + Retry and the
     /// app never terminates.
     private func adoptDebugExternalEngine() async throws {
         expectedLaunchNonce = nil
@@ -223,7 +223,7 @@ extension EmbeddedBackendService {
                 throw BackendError.authenticationRequired
             }
             logger.error(
-                "No external engine reachable over \(dialTarget, privacy: .public) in Debug — start it with start_backend.sh"
+                "No external engine reachable over \(dialTarget, privacy: .public) in Debug — start it with start_fichero_server.sh"
             )
             throw BackendError.backendAppNotFound
         }
