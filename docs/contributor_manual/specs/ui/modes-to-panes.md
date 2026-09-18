@@ -107,7 +107,7 @@ the ruling this table exists to make assertable.
 | `.activity` | Library browser — **[OK]** (increment 4a); `ActivityWindowLauncherView` DELETED, replaced by `ActivityDetailView` mounted directly | node detail (run, `ActivityDetailView`) — **[OK]** (increment 4a); nothing selected → new honest empty state ("Select a run in the sidebar to see its details.") | — | honest empty |
 | KG map / timeline | existing Library **view modes** (`.timeline`, `.geoMap`, `ContentView+StatePreview.swift:306-318`) on the Entities collection — **[PROPOSED]** | — | — | entity inspector, when one entity is focused |
 | KG set-level graph | retires with `OntologyBrowser` — **[PROPOSED]**; an entity's ego-network may return later as a Source rendition, not a Library takeover | ego-network graph (future, one entity only) | — | entity inspector |
-| entity / claim row (KG table) | Library table row — **[OK]** already correct | document preview | — | entity inspector (a real inspector surface, ties `kg-entity-inspector`) |
+| entity / claim row (KG table) | Library table row — **[OK]** already correct | the cited page, span highlighted, revealed via `focusKGSourcePreview` without changing the current selection — **[GAP]** (→ #4838; today plain document preview, no span/reveal) | the readable paragraph, drawn from the entry composer's `sentences[]` — **[GAP]** (→ #4838; today honest empty — prerequisite: #4804, since the plan's `entitySelection` is a Bool and cannot say WHICH entity/claim is focused, and the Reader rendition needs that payload) | KG curation (statements list, merge, aliases, history) unchanged — **[OK]** already correct, ties `kg-entity-inspector` |
 
 Schedules and research projects are **sidebar nodes**, exactly like workflows — not Library
 table rows — so they gain a Library-pane rendition, not a special-cased list view.
@@ -917,7 +917,10 @@ Reuse existing pane-head and inspector-tab identifiers where they already exist
   empty) from one entity or claim row focused (its source document is readable — the table sets
   `detailDocument` to it). The arm is unwired today, so nothing regresses; whoever wires it must
   carry a payload, not a Bool, and give the focused row a document-driven Reader cell. Found by
-  the Reader-column audit that 4b-1 made necessary.
+  the Reader-column audit that 4b-1 made necessary. **Now a PREREQUISITE of → #4838** (the KG
+  readable-paragraph Reader rendition, `kg/kg-readable-representation.md` Migration step 6):
+  → #4838 needs to know WHICH entity/claim is focused to draw its paragraph, the same payload
+  #4804 already identified as missing — #4804 should land first, or as the same delivery.
 - `library.pane` — confirms the Library leaf's identity is stable across selections
 - `pane.kindSwitcher` — the per-pane-head kind selector (`m2p.pane-head-parity`)
 - `inspector.surface.<kind>` — which inspector surface is mounted, for the agreement test
