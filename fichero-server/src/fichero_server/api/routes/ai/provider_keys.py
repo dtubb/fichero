@@ -246,6 +246,72 @@ class ConnectionTestResponse(BaseModel):
     message: str
     latency_ms: Optional[float] = None
     model_tested: Optional[str] = None
+    #: Distinguishes a REAL probe from a saved-but-untested key (#4816: a dead
+    #: OpenRouter key reported success on every "Test Connection" click because
+    #: the untested branch treated "non-empty key" as proof). `True` = the
+    #: engine made a real authenticated request and the provider confirmed the
+    #: key. `False` = the provider could not be probed from here even though
+    #: `success=True` (key saved, never verified). `None` (default) covers
+    #: every other path — a failed real probe, a local-provider reachability
+    #: check, "no API key configured" — none of which claim to have verified a
+    #: key either way. The UI must render a green check ONLY when
+    #: `verified is True`; `False`/`None` both render neutral or failed.
+    verified: bool | None = None
+
+
+# provider_type -> (models-list URL, human label for the success message).
+# All seven speak the same OpenAI-compatible wire format for this one call —
+# `Authorization: Bearer`, GET a models list, 200/401/else — so one probe
+# function replaces seven near-identical elif blocks (#4816). URLs match the
+# bases `fichero_server.llm._OPENAI_COMPATIBLE_BASE_URLS` uses for real calls.
+_BEARER_PROBE_TARGETS: dict[str, tuple[str, str]] = {
+    "mistral": ("https://api.mistral.ai/v1/models", "Mistral"),
+    "together": ("https://api.together.xyz/v1/models", "Together"),
+    "deepseek": ("https://api.deepseek.com/v1/models", "DeepSeek"),
+    "xai": ("https://api.x.ai/v1/models", "xAI"),
+    "perplexity": ("https://api.perplexity.ai/models", "Perplexity"),
+    "fireworks": ("https://api.fireworks.ai/inference/v1/models", "Fireworks"),
+    "cohere": ("https://api.cohere.com/v1/models", "Cohere"),
+}
+
+
+async def _probe_bearer_models(
+    client, start_time: float, provider_type: str, url: str, label: str, api_key: str
+) -> ConnectionTestResponse:
+    """Shared shape for the `_BEARER_PROBE_TARGETS` providers (#4816)."""
+    response = await client.get(
+        url, headers={"Authorization": f"Bearer {api_key}"}, timeout=10.0
+    )
+    latency = (time.time() - start_time) * 1000
+    if response.status_code == 200:
+        return ConnectionTestResponse(
+            success=True,
+            provider_type=provider_type,
+            message=f"{label} API connected",
+            latency_ms=latency,
+            verified=True,
+        )
+    elif response.status_code in (401, 403):
+        return ConnectionTestResponse(
+            success=False,
+            provider_type=provider_type,
+            message="Invalid API key",
+            latency_ms=latency,
+        )
+    else:
+        # Only an auth answer (401/403) proves the KEY is bad. A wrong/rate-
+        # limited/unsupported endpoint (404/405/429/5xx) is NOT proof of
+        # that — some of these models-list URLs are unverifiable from here
+        # (Perplexity in particular has no documented one) — so this must
+        # not paint a good key as broken and send the user re-entering it
+        # (#4816 field report, team-lead review).
+        return ConnectionTestResponse(
+            success=True,
+            provider_type=provider_type,
+            message=f"Key saved — could not verify (provider returned status {response.status_code})",
+            latency_ms=latency,
+            verified=False,
+        )
 
 
 @router.post("/{provider_type}/test")
@@ -366,6 +432,7 @@ async def test_provider_connection(
                         provider_type=provider_type,
                         message="OpenAI API connected",
                         latency_ms=latency,
+                        verified=True,
                     )
                 elif response.status_code == 401:
                     return ConnectionTestResponse(
@@ -383,6 +450,10 @@ async def test_provider_connection(
                     )
 
         elif provider_type == "anthropic":
+            # Was format-only (`sk-ant-` prefix check, no request) — the same
+            # class of false positive as the #4816 bug, just narrower. Real
+            # probe now: the models-list endpoint, same headers used by the
+            # live catalog fetch (provider_models.py:_live_anthropic_models).
             api_key = get_api_key("anthropic")
             if not api_key:
                 return ConnectionTestResponse(
@@ -390,20 +461,38 @@ async def test_provider_connection(
                     provider_type=provider_type,
                     message="No API key configured",
                 )
-            if api_key.startswith("sk-ant-"):
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    "https://api.anthropic.com/v1/models",
+                    headers={"x-api-key": api_key, "anthropic-version": "2023-06-01"},
+                    timeout=10.0,
+                )
                 latency = (time.time() - start_time) * 1000
-                return ConnectionTestResponse(
-                    success=True,
-                    provider_type=provider_type,
-                    message="API key configured (format valid)",
-                    latency_ms=latency,
-                )
-            else:
-                return ConnectionTestResponse(
-                    success=False,
-                    provider_type=provider_type,
-                    message="API key format appears invalid",
-                )
+                if response.status_code == 200:
+                    return ConnectionTestResponse(
+                        success=True,
+                        provider_type=provider_type,
+                        message="Anthropic API connected",
+                        latency_ms=latency,
+                        verified=True,
+                    )
+                elif response.status_code in (401, 403):
+                    return ConnectionTestResponse(
+                        success=False,
+                        provider_type=provider_type,
+                        message="Invalid API key",
+                        latency_ms=latency,
+                    )
+                else:
+                    # See `_probe_bearer_models`: only 401/403 proves the key
+                    # is bad. A wrong/rate-limited status is not proof.
+                    return ConnectionTestResponse(
+                        success=True,
+                        provider_type=provider_type,
+                        message=f"Key saved — could not verify (provider returned status {response.status_code})",
+                        latency_ms=latency,
+                        verified=False,
+                    )
 
         elif provider_type == "huggingface":
             api_key = get_api_key("huggingface")
@@ -423,6 +512,7 @@ async def test_provider_connection(
                         provider_type=provider_type,
                         message=f"Connected as {username}",
                         latency_ms=latency,
+                        verified=True,
                     )
                 elif response.status_code == 401:
                     return ConnectionTestResponse(
@@ -461,6 +551,7 @@ async def test_provider_connection(
                         provider_type=provider_type,
                         message=f"Google AI connected ({model_count} models)",
                         latency_ms=latency,
+                        verified=True,
                     )
                 elif response.status_code == 400:
                     return ConnectionTestResponse(
@@ -498,6 +589,7 @@ async def test_provider_connection(
                         provider_type=provider_type,
                         message="Groq API connected",
                         latency_ms=latency,
+                        verified=True,
                     )
                 elif response.status_code == 401:
                     return ConnectionTestResponse(
@@ -550,6 +642,7 @@ async def test_provider_connection(
                         provider_type=provider_type,
                         message=f"DeepL API connected{detail}",
                         latency_ms=latency,
+                        verified=True,
                     )
                 if response.status_code in (401, 403):
                     return ConnectionTestResponse(
@@ -565,14 +658,88 @@ async def test_provider_connection(
                     latency_ms=latency,
                 )
 
-        else:
+        elif provider_type == "openrouter":
+            # The field report (#4816): nine "Test Connection" clicks on a
+            # dead OpenRouter key, nine green checks. `/key` is OpenRouter's
+            # own cheap authenticated GET -- it echoes back the key's status
+            # instead of a models list.
+            api_key = get_api_key("openrouter")
+            if not api_key:
+                return ConnectionTestResponse(
+                    success=False,
+                    provider_type=provider_type,
+                    message="No API key configured",
+                )
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    "https://openrouter.ai/api/v1/key",
+                    headers={"Authorization": f"Bearer {api_key}"},
+                    timeout=10.0,
+                )
+                latency = (time.time() - start_time) * 1000
+                if response.status_code == 200:
+                    return ConnectionTestResponse(
+                        success=True,
+                        provider_type=provider_type,
+                        message="OpenRouter API connected",
+                        latency_ms=latency,
+                        verified=True,
+                    )
+                elif response.status_code in (401, 403):
+                    return ConnectionTestResponse(
+                        success=False,
+                        provider_type=provider_type,
+                        message="Invalid API key",
+                        latency_ms=latency,
+                    )
+                else:
+                    # See `_probe_bearer_models`: only 401/403 proves the key
+                    # is bad. A wrong/rate-limited status is not proof.
+                    return ConnectionTestResponse(
+                        success=True,
+                        provider_type=provider_type,
+                        message=f"Key saved — could not verify (provider returned status {response.status_code})",
+                        latency_ms=latency,
+                        verified=False,
+                    )
+
+        elif provider_type in _BEARER_PROBE_TARGETS:
             api_key = get_api_key(provider_type)
-            if api_key or info.is_local:
+            if not api_key:
+                return ConnectionTestResponse(
+                    success=False,
+                    provider_type=provider_type,
+                    message="No API key configured",
+                )
+            url, label = _BEARER_PROBE_TARGETS[provider_type]
+            async with httpx.AsyncClient() as client:
+                return await _probe_bearer_models(
+                    client, start_time, provider_type, url, label, api_key
+                )
+
+        else:
+            # azure, bedrock, dashscope, and anything else not listed above:
+            # each needs config this endpoint doesn't have (a resource/
+            # deployment name, AWS credentials+region, ...) to make a real
+            # authenticated call, so it is honestly reported as unverified
+            # rather than faked as a pass (#4816 keys.untested-provider-
+            # reports-not-verified) -- a saved key still counts as configured
+            # for a local provider, which needs none.
+            api_key = get_api_key(provider_type)
+            if info.is_local:
                 return ConnectionTestResponse(
                     success=True,
                     provider_type=provider_type,
                     message="Configuration valid (connection not tested)",
                     latency_ms=(time.time() - start_time) * 1000,
+                )
+            elif api_key:
+                return ConnectionTestResponse(
+                    success=True,
+                    provider_type=provider_type,
+                    message="Key saved — this provider cannot be verified from here",
+                    latency_ms=(time.time() - start_time) * 1000,
+                    verified=False,
                 )
             else:
                 return ConnectionTestResponse(
