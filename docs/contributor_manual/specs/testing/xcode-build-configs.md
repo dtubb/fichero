@@ -46,7 +46,7 @@ Cross-cutting invariants (all configs):
 - `config.deployment-floor-26` [OK] — `MACOSX_DEPLOYMENT_TARGET` floor is 26.
 - `config.tests-mainactor-isolation` [OK] — FicheroTests configs set the MainActor default.
 - `config.embedded-testplan-attached` [OK] — the embedded plan is referenced by its scheme.
-- `config.no-stale-sandbox-comments` [MISSING] — a source comment asserting a config's sandbox
+- `config.no-stale-sandbox-comments` [MISSING] (#4778) — a source comment asserting a config's sandbox
   state must match the actual setting (the drift that caused the harness bug).
 
 ## Test matrix

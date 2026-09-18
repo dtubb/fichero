@@ -120,30 +120,33 @@ Each XCUITest cites a spec behavior id; the identifier in the SwiftUI view is th
 
 ## Behaviors
 
-- `ui-testing.preview-render` [PARTIAL] — the key surfaces' `#Preview`s render via `RenderPreview`
+- `ui-testing.preview-render` [PARTIAL] (#4769) — the key surfaces' `#Preview`s render via `RenderPreview`
   per platform/size trait without crashing or blanking (catches the iOS stack-overflow class cheaply,
   no app launch). Grow the `*PreviewCatalog.swift` pattern beyond today's ~11% preview coverage.
 - `ui-testing.preview-coverage-gate` [OK] — **blocker:** `scripts/check_preview_coverage.py` is a
   ratchet (292 backlog seeded in `check_preview_coverage_baseline.json`) that FAILS when a new file
   declaring a SwiftUI `View` ships without a `#Preview`. A surface cannot proceed until it has one, so
   preview coverage can only rise. Runs in `verify_all` with the other `check_*.py`.
-- `ui-testing.a11y-audit` [MISSING] — every XCUITest flow ends with `try app.performAccessibilityAudit()`
+- `ui-testing.a11y-audit` [PARTIAL] (#4770) — every XCUITest flow ends with `try app.performAccessibilityAudit()`
   (Apple-first-party), catching missing labels/identifiers + contrast. Once wired, it **retires**
-  `check_accessibility.py`.
-- `ui-testing.crossplatform-plan` [MISSING] — one `.xctestplan` runs the same identifier-driven flows
+  `check_accessibility.py`. Wired in one suite (`KGInspectorCRUDUITests`) of twelve; `check_accessibility.py`
+  not yet retired.
+- `ui-testing.crossplatform-plan` [PARTIAL] (#4771) — one `.xctestplan` runs the same identifier-driven flows
   on macOS **and** an iOS sim **and** an iPad sim, so the iOS 1 MB-stack crash class is caught (sims
-  auto-consent — no Aqua-session gate).
-- `ui-testing.identifier-contract` [PARTIAL] — every control a UI test drives has a stable,
+  auto-consent — no Aqua-session gate). Per-platform plans + canary smoke exist for all three; the
+  substantive flow (`InspectorFlowsUITests`) only runs on macOS today.
+- `ui-testing.identifier-contract` [PARTIAL] (#4772) — every control a UI test drives has a stable,
   data-ID-anchored `.accessibilityIdentifier` matching this spec (never label/coordinate).
-- `ui-testing.xcuitest-thin` [PARTIAL] — the full-app XCUITest set is capped (~a dozen flows) and
+- `ui-testing.xcuitest-thin` [PARTIAL] (#4773) — the full-app XCUITest set is capped (~a dozen flows) and
   identifier-driven; waits use `waitForExistence`/`wait(for:)`, never poll-until-deadline.
-- `ui-testing.deterministic-launch` [PARTIAL] — UI tests seed all state via `launchArguments`/
+- `ui-testing.deterministic-launch` [PARTIAL] (#4775) — UI tests seed all state via `launchArguments`/
   `launchEnvironment`, disable animations (`-DisableAnimations`), and set `continueAfterFailure=false`.
-- `ui-testing.screenshot-capture` [MISSING] — the `.xctestplan` captures screenshots per destination
+- `ui-testing.screenshot-capture` [MISSING] (#4776) — the `.xctestplan` captures screenshots per destination
   for review-by-eye + the guides (capture, not diff); the hand-rolled `SnapshotSupport.swift`
-  pixel-diff engine is **deleted**.
-- `ui-testing.evidence-on-failure` [MISSING] — the harness persists engine stderr + a screenshot on
-  failure (stop discarding the evidence needed to debug it).
+  pixel-diff engine is **deleted**. The engine deletion is done; the `.xctestplan` capture config is not.
+- `ui-testing.evidence-on-failure` [PARTIAL] (#4777) — the harness persists engine stderr + a screenshot on
+  failure (stop discarding the evidence needed to debug it). Implemented (`FicheroUISession.swift`,
+  `UITestEngineHarness.swift`) but has no pinning test guarding the behavior.
 
 ## Sources
 

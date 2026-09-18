@@ -87,23 +87,42 @@ runner's `tempfile.gettempdir()`), NOT `/var/folders` as the Evidence section fi
   RUNNER's own `NSTemporaryDirectory`, not the app's container (cross-container `bind()` → status 1).
 - `harness.library-allowed` [OK, fixed] — the harness sets `FICHERO_LIBRARY_ALLOWED_ROOTS` to the
   per-run temp so the engine's `path_security` policy permits opening the seeded library.
-- `harness.content-renders` [MISSING] — **the open layer.** The library opens but its seeded
-  content doesn't drive the UI ("a library seems to open… but nothing happens"). App-side: the
-  current-library observation / change-stream doesn't populate from the seeded engine. This is the
-  last thing between here and a green `testDocumentInspectorLoadsSeededEntities`.
-- `harness.persist-engine-stderr` [MISSING] — on any provisioning failure the harness must persist
-  the engine's REAL stderr + spawn command + errno to a stable path (it currently loses them —
-  every layer above had to be inferred, not read).
-- `harness.testing-container` [MISSING] — socket + library + app-home all live in the disposable
-  per-run temp dir; nothing is written to the real app container.
-- `harness.app-connects` [MISSING] — the app reaches `library.content.ready` with the seeded
-  library OPEN within a short bound (target ≤ 15 s), not 120 s.
-- `harness.fail-fast-loud` [PARTIAL] — engine-bind failure is already loud; app-side connect
-  failure aborts the whole run once with a clear signal.
-- `harness.ios-sim-same-socket` [MISSING] — a simulator build dials the same temp-dir socket;
-  verify a sim can `connect()` it (sim shares the Mac filesystem).
-- `empty-library-screen.removed` [MISSING] — the empty new/open-library screen is gone; no-library
-  renders the main interface.
+- `harness.content-renders` [OK] — **the open layer.** The EntityService transport fix
+  (commit c6f8a589c, "route EntityService off raw URLSession onto the centralized transport")
+  plus the shared-session harness wiring landed the flow this spec was blocked on:
+  `InspectorFlowsUITests.testDocumentInspectorLoadsSeededEntities` (added in ae938e8b0) drives the
+  seeded document's inspector Knowledge ▸ Entities facet end-to-end and asserts the seeded rows
+  render. Issue #4661 tracked this and is closed with the same evidence.
+- `harness.persist-engine-stderr` [PARTIAL] (#4662) — the Python harness (`test_engine_harness.py`
+  `_stderr_tail`) persists stdout+stderr to a stable path (`FICHERO_UITEST_LOG` or
+  `/tmp/fichero-uitest-engine.log`) for pre-ready failures, pinned by
+  `test_spawn_per_run_harness.py::test_unready_engine_fails_loudly_not_green`. But the Swift-side
+  post-ready path (`UITestEngineHarness.stop()`) only prints its stderr tail to
+  `FileHandle.standardError` — no stable file, no spawn command, no errno — and nothing pins it.
+  See #4662 (same behavior also tracked under `ui-testing.evidence-on-failure` as #4777).
+- `harness.testing-container` [OK] — confirmed: `test_engine_harness.py` uses
+  `tempfile.mkdtemp(prefix="fichero-harness-")` / `tempfile.gettempdir()` for socket, library, and
+  app-home, never the real app container; `UITestEngineHarness.shortSocketPath` binds in the
+  RUNNER's own `NSTemporaryDirectory` (commit 497469f15). Pinned by
+  `test_spawn_per_run_harness.py::test_stop_leaves_no_orphan_engine_no_socket` (asserts socket +
+  app-home are gone after teardown).
+- `harness.app-connects` [PARTIAL] (#4780) — the connection itself now works (see
+  `harness.content-renders`), but the ≤15 s target bound from this spec was never enforced:
+  `FicheroUISession.swift`'s `readyTimeout` and `ColdLaunchReachesLibraryUITests`'s
+  `launchDeadline` are both still 120 s, and nothing measures/asserts actual connect time.
+- `harness.fail-fast-loud` [PARTIAL] (#4781) — engine-bind failure is loud and pinned
+  (`test_unready_engine_fails_loudly_not_green`). App-side is not: `FicheroUISessionTests.setUp`
+  turns ANY provisioning error — including a present-but-broken harness — into `XCTSkip`, and
+  `waitForLibraryReady()` has no class-level memoization, so a broken app connection can still cost
+  N × 120 s across a run.
+- `harness.ios-sim-same-socket` [MISSING] (#4782) — no iOS/iPad UI test target constructs a
+  `UITestEngineHarness` or dials `FICHERO_FORCE_UDS_PATH` on a Simulator destination; nothing
+  verifies a Simulator process can `connect()` the Mac runner's socket.
+- `empty-library-screen.removed` [PARTIAL] (#4783) — mitigated but not removed:
+  `LibraryWindow` now seeds the Global library at init so the empty state is rarely hit on a fresh
+  launch, but `libraryWindowContent`'s `else { noLibraryView }` branch and the `noLibraryView`
+  takeover screen itself (`LibraryWindow.swift:288-320`) still exist, unlike the ruling's "remove
+  entirely."
 
 ## Test matrix
 

@@ -20,9 +20,9 @@ shipped app breaks on config no test covered. And because the harness forces
 ## Behaviors
 
 ### A. One config base, explicit overrides
-- `testenv.base-shared` [MISSING] — the engine config the briefcase ships (its `.env`
+- `testenv.base-shared` [MISSING] (#4784) — the engine config the briefcase ships (its `.env`
   base) and the test engine config derive from ONE source, not two hand-maintained lists.
-- `testenv.overrides-allowlisted` [MISSING] — every test-only env override lives in ONE
+- `testenv.overrides-allowlisted` [MISSING] (#4785) — every test-only env override lives in ONE
   reviewed allowlist with a reason, e.g.:
   - `FICHERO_UITEST_HOME` / `_LIBRARY` / `_OPEN_DOCUMENT` — point the engine at the seeded
     disposable library (isolation).
@@ -30,14 +30,14 @@ shipped app breaks on config no test covered. And because the harness forces
   - `FICHERO_SKIP_EMBEDDINGS_PREWARM=1` — skip the model download a fresh-home engine can't
     serve (a UI plan testing embeddings unsets it).
   Anything set in a test but NOT in this allowlist is a drift bug.
-- `testenv.parity-guardrail` [MISSING] — a `check_*.py` that fails when the test engine
+- `testenv.parity-guardrail` [MISSING] (#4786) — a `check_*.py` that fails when the test engine
   sets an env var the briefcase doesn't know, unless it's in the allowlist; and warns when
   the briefcase relies on a var no test ever sets.
 
 ### B. Per feature-gate coverage
 - `testenv.gate-source` [OK] — `features.yaml` is the tier source (dev/alpha/beta/release),
   with `check_features_freshness`.
-- `testenv.test-each-gate` [MISSING] — the suite runs under the REAL tiers, not only
+- `testenv.test-each-gate` [MISSING] (#4787) — the suite runs under the REAL tiers, not only
   `ALL_FEATURES=1`: at minimum a **release**-gate run (what users get) plus the
   all-features dev run. A feature that works dev-on but is broken/hidden at release is a
   bug the current setup can't see.
@@ -45,7 +45,7 @@ shipped app breaks on config no test covered. And because the harness forces
   surfaces that tier SHOULD expose are reachable, and the ones it shouldn't are absent.
 
 ### C. Model / data locations
-- `testenv.model-cache` [PARTIAL] — `MODELS_BASE = server_state_dir()/models`. A fresh test
+- `testenv.model-cache` [PARTIAL] (#4788) — `MODELS_BASE = server_state_dir()/models`. A fresh test
   home has none, so an embeddings test must point at a shared cached model (offline) or
   seed it — otherwise it downloads/hangs (the prewarm bug). Define one cached location the
   briefcase and an embeddings-testing engine both use.
