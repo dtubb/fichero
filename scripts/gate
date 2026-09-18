@@ -358,7 +358,7 @@ run_gated() {
     case "$fp" in ''|*[!0-9]*) fp=0 ;; esac
     if (( fp > ceiling )); then
       reason="process footprint ${fp}MB exceeded ceiling ${ceiling}MB"
-      GATE_LAST_VERDICT="KILLED (footprint)"
+      GATE_LAST_VERDICT="FOOTPRINT"
       kill_tree "$pid"
       wait "$pid" 2>/dev/null
       echo "gate: [$label] KILLED ($GATE_LAST_VERDICT) — $reason" >&2
@@ -373,7 +373,7 @@ run_gated() {
     esac
     if (( level >= 4 )); then
       reason="memory pressure level $level (hard critical) — instant kill"
-      GATE_LAST_VERDICT="KILLED (memory pressure)"
+      GATE_LAST_VERDICT="MEMORY PRESSURE"
       kill_tree "$pid"
       wait "$pid" 2>/dev/null
       echo "gate: [$label] KILLED ($GATE_LAST_VERDICT) — $reason" >&2
@@ -385,7 +385,7 @@ run_gated() {
       echo "gate: [$label] memory pressure level 3 — strike $strikes/2" >&2
       if (( strikes >= 2 )); then
         reason="memory pressure level 3 twice in a row"
-        GATE_LAST_VERDICT="KILLED (memory pressure)"
+        GATE_LAST_VERDICT="MEMORY PRESSURE"
         kill_tree "$pid"
         wait "$pid" 2>/dev/null
         echo "gate: [$label] KILLED ($GATE_LAST_VERDICT) — $reason" >&2

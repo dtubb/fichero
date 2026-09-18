@@ -107,6 +107,48 @@ Area-scoped runs are live: `scripts/gate part <area>` runs one area's leg
 (see `scripts/gate --help`); scope pytest by file/folder and Swift tests by
 test-plan selection when you need something finer.
 
+## Gate reliability (#4695)
+
+`scripts/gate unit` always adds `-skip-testing:FicheroUITests`: the shared
+`fichero` test plan lists both `FicheroTests` and `FicheroUITests`, so an
+unfiltered "unit" run was also launching the XCUITest runner. UI tests are
+`scripts/gate ui <testplan>`, never `gate unit`.
+
+A test HOST (XCTest or XCUITest) launched while the screen is LOCKED never
+gets its IDE session — caught with a stack (#4695): the main thread parks
+forever in `-[XCTestDriver _prepareTestConfigurationAndIDESession]`, 0 test
+cases, 0% CPU, indefinitely. Two mitigations in `scripts/gate`:
+
+- **Screen-lock preflight.** `gate unit` and `gate ui` check
+  `ioreg -n Root -d1` for `CGSSessionScreenIsLocked" = Yes` before doing
+  anything, and refuse in one line with exit code 78 instead of hanging for
+  the full per-phase timeout. `GATE_FAKE_SCREEN_LOCKED` overrides the real
+  check (the self-test seam).
+- **Handshake watchdog.** `unit` and `ui` phases set `GATE_HOST_HANDSHAKE_S`
+  (default 300s) on the shared `run_gated` watchdog — a healthy pre-lock run
+  measured ~46s from xcodebuild start to `Running tests…`, so 300s carries a
+  real margin on a machine that sheds load under swap. If the host process
+  is up but never prints its first `Running tests…`/`Test Case` line within
+  that window, the watchdog kills it and reports `handshake-timeout` with
+  the host pid, instead of waiting out the full per-phase timeout (up to
+  3600s).
+
+Every `run_gated` invocation now ends in one of a fixed set of verdicts, so a
+reader never has to guess WHY a leg was nonzero from a bare `rc`. One example
+line per verdict, taken verbatim from `scripts/gate --self-test`:
+
+```
+gate: [wrap:sleep] finished rc=0 (PASS)
+gate: [wrap:bash] finished rc=3 (TESTS FAILED)
+gate: [wrap:sleep] KILLED (HOST NEVER STARTED) — handshake-timeout — host pid 73978 produced no 'Running tests…'/'Test Case' line within 1s (#4695)
+gate: [wrap:sleep] KILLED (PHASE TIMEOUT) — timeout after 1s
+gate: [wrap:sleep] KILLED (FOOTPRINT) — process footprint 9999MB exceeded ceiling 4096MB
+gate: [wrap:sleep] KILLED (MEMORY PRESSURE) — memory pressure level 4 (hard critical) — instant kill
+```
+
+`gate part`/`gate verify-all` summary tables carry the same verdict into a
+failing leg's row: `FAIL(rc=N: VERDICT)`.
+
 ## Fixtures
 
 One shared, versioned fixture library at the repo root:
