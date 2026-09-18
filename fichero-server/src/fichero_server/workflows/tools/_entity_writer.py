@@ -1512,6 +1512,21 @@ def _find_cross_source_canonical_claim(
     return None
 
 
+#: Every scalar (single) entity-id-carrying field a claim has, besides
+#: `entity_ids` itself -- shared with `entity_curation.py::merge_entities_impl`
+#: (#4859) so the two repointing sites can never drift apart on which fields
+#: exist. There is no `object_entity_id`: the object is free text
+#: (`object_phrase`/`svo_object`), never a resolved entity id (checked
+#: against the model, not assumed).
+CLAIM_ENTITY_ID_FIELDS: tuple[str, ...] = (
+    "subject_entity_id",
+    "speaker_entity_id",
+    "subject_of_inquiry_entity_id",
+    "scribe_entity_id",
+    "editor_entity_id",
+)
+
+
 def _repoint_claim_entity_references(
     db: Database,
     *,
@@ -1522,13 +1537,6 @@ def _repoint_claim_entity_references(
     if not duplicate_ids:
         return []
 
-    scalar_fields = (
-        "subject_entity_id",
-        "speaker_entity_id",
-        "subject_of_inquiry_entity_id",
-        "scribe_entity_id",
-        "editor_entity_id",
-    )
     repointed_claim_ids: list[str] = []
 
     for claim in db.query(KnowledgeClaim):
@@ -1548,7 +1556,7 @@ def _repoint_claim_entity_references(
             ]
             changed = True
 
-        for field_name in scalar_fields:
+        for field_name in CLAIM_ENTITY_ID_FIELDS:
             if getattr(claim, field_name, None) in duplicate_ids:
                 setattr(claim, field_name, survivor_id)
                 changed = True

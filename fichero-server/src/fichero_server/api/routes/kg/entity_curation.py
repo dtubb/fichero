@@ -337,28 +337,35 @@ def merge_entities_impl(
     Emission to the observable layer stays with the caller. Raises
     ``HTTPException`` on bad ids exactly as before.
 
-    #4859: a merge also repoints a claim's ``subject_entity_id`` when it
-    names an absorbed entity — without this, a claim keeps asserting that a
-    now-soft-deleted entity is its subject after the merge, even though
-    ``entity_ids`` was corrected. Checked against the model
-    (``KnowledgeClaim``, models/knowledge.py): the only OTHER role-carrying
-    entity-id field a claim has is ``subject_entity_id`` itself; there is no
-    ``object_entity_id`` field to repoint (the object is free-text
-    ``object_phrase``/``svo_object``, never a resolved entity id) — nothing
-    invented here that the model doesn't already declare.
+    #4859: a merge also repoints every SCALAR entity-id field a claim carries
+    when it names an absorbed entity — `subject_entity_id`, plus the sibling
+    attribution ids `speaker_entity_id`, `subject_of_inquiry_entity_id`,
+    `scribe_entity_id`, `editor_entity_id` (the full list checked against the
+    model, `KnowledgeClaim` in models/knowledge.py, and shared as
+    ``CLAIM_ENTITY_ID_FIELDS`` with `_entity_writer.py`'s own
+    `_repoint_claim_entity_references`, so the two repointing sites can't
+    drift on which fields exist). Without this, a claim keeps naming a
+    now-soft-deleted entity in one of these fields after the merge, even
+    though `entity_ids` was corrected. There is no `object_entity_id` field
+    to repoint (the object is free-text `object_phrase`/`svo_object`, never
+    a resolved entity id) — nothing invented here that the model doesn't
+    already declare.
 
     Deliberately UNCHANGED by a merge (creative-director ruling, #4859): a
     claim's ``subject_canonical`` and ``text``. A merge says two records are
     the same entity; it does not rewrite what the source said, so the
     claim's own sentence stays exactly as extracted/composed. Only the
-    resolved id changes, never the display text.
+    resolved id fields change, never the display text.
 
-    Per-claim subject repoints are recorded on the audit
-    (``alias_changes["claim_subject_repoints"] = {claim_id: old_subject_entity_id}``)
-    so ``entity.unmerge`` (`undo_entity_operation_impl`) can restore EXACTLY
-    those claims' ``subject_entity_id`` and leave every other claim's subject
-    untouched, even one whose ``entity_ids`` were also repointed by this same
-    merge.
+    Per-claim, per-field repoints are recorded on the audit as
+    ``alias_changes["claim_field_repoints"] = [{"claim_id", "field",
+    "old_entity_id"}, ...]`` so ``entity.unmerge`` (`undo_entity_operation_impl`)
+    can restore EXACTLY those (claim, field) pairs and leave everything else
+    untouched, even a claim whose `entity_ids` were ALSO repointed by this
+    same merge. `undo_entity_operation_impl` also still reads the OLDER
+    ``alias_changes["claim_subject_repoints"] = {claim_id: old_id}`` shape
+    this function wrote before this change (d5e00d094) — audits written
+    since then must still undo correctly.
     """
     absorber = db.get(KnowledgeEntity, request.absorbing_entity_id)
     if absorber is None:
@@ -409,14 +416,16 @@ def merge_entities_impl(
 
     # Re-point claims: replace absorbed entity IDs with the absorber ID so
     # claim queries on the absorber surface all previously-absorbed evidence.
-    # #4859: also repoint `subject_entity_id` the same way — a claim whose
-    # SUBJECT is an absorbed entity must name the survivor as its subject
-    # too, not just carry the survivor in its `entity_ids` list. Recorded
-    # per-claim (`claim_subject_repoints`) so undo restores exactly these
-    # claims' subjects and nothing else.
+    # #4859: also repoint every scalar entity-id field (subject + the sibling
+    # attribution ids) the same way — a claim naming an absorbed entity in
+    # ANY of these fields must name the survivor there too, not just carry
+    # the survivor in its `entity_ids` list. Recorded per (claim, field) so
+    # undo restores exactly these and nothing else.
+    from fichero_server.workflows.tools._entity_writer import CLAIM_ENTITY_ID_FIELDS
+
     absorbed_ids = {e.id for e in absorbed}
     repointed_claim_ids: list[str] = []
-    claim_subject_repoints: dict[str, str] = {}
+    claim_field_repoints: list[dict[str, str]] = []
     for claim in db.query(KnowledgeClaim):
         changed = False
         old_ids = claim.entity_ids or []
@@ -428,17 +437,21 @@ def merge_entities_impl(
             ]  # type: ignore[func-returns-value]
             changed = True
 
-        if claim.subject_entity_id in absorbed_ids:
-            claim_subject_repoints[claim.id] = claim.subject_entity_id
-            claim.subject_entity_id = absorber.id
-            changed = True
+        for field in CLAIM_ENTITY_ID_FIELDS:
+            current = getattr(claim, field, None)
+            if current in absorbed_ids:
+                claim_field_repoints.append(
+                    {"claim_id": claim.id, "field": field, "old_entity_id": current}
+                )
+                setattr(claim, field, absorber.id)
+                changed = True
 
         if changed:
             claim.updated_at = now
             db.save(claim)
             repointed_claim_ids.append(claim.id)
 
-    alias_changes["claim_subject_repoints"] = claim_subject_repoints
+    alias_changes["claim_field_repoints"] = claim_field_repoints
 
     audit = EntityMergeAudit(
         # #4415: the merge audit names who merged. It used to hardcode
@@ -674,24 +687,44 @@ def undo_entity_operation_impl(db: Database, audit_id: str) -> EntityMergeAudit:
         absorber.updated_at = now
         db.save(absorber)
 
-        # #4859: restore EXACTLY the claims this merge repointed the
-        # SUBJECT of — never touched by `entity_ids` restoration (there is
-        # none today; out of this fix's scope), and never a claim whose
-        # subject was never an absorbed entity in the first place. Guarded
-        # by `subject_entity_id == absorber.id`: if a curator re-pointed the
-        # claim's subject again SINCE the merge (e.g. via claim.patch), this
-        # undo must not clobber that later, real edit.
-        restored_claim_subjects: list[str] = []
+        # #4859: restore EXACTLY the (claim, field) pairs this merge
+        # repointed — never `entity_ids` (there is no restoration for that
+        # today; out of this fix's scope), and never a claim/field that
+        # never named an absorbed entity in the first place. Each restore is
+        # guarded by "does the field still hold the absorber's id right
+        # now?": if a curator re-pointed it again SINCE the merge (e.g. via
+        # claim.patch), this undo must not clobber that later, real edit.
+        #
+        # Reads BOTH audit shapes: the current
+        # ``claim_field_repoints`` list (``{"claim_id", "field",
+        # "old_entity_id"}``), and the OLDER ``claim_subject_repoints``
+        # dict (``{claim_id: old_subject_entity_id}``) this function wrote
+        # before this change (d5e00d094, subject-only) — an audit written
+        # in that shape must still undo correctly.
+        repoint_records: list[dict[str, str]] = list(
+            audit.alias_changes.get("claim_field_repoints") or []
+        )
         for claim_id, old_subject_id in (
             audit.alias_changes.get("claim_subject_repoints") or {}
         ).items():
-            claim = db.get(KnowledgeClaim, claim_id)
-            if claim is None or claim.subject_entity_id != absorber.id:
+            repoint_records.append(
+                {
+                    "claim_id": claim_id,
+                    "field": "subject_entity_id",
+                    "old_entity_id": old_subject_id,
+                }
+            )
+
+        restored_claim_fields: list[dict[str, str]] = []
+        for record in repoint_records:
+            claim = db.get(KnowledgeClaim, record["claim_id"])
+            field = record["field"]
+            if claim is None or getattr(claim, field, None) != absorber.id:
                 continue
-            claim.subject_entity_id = old_subject_id
+            setattr(claim, field, record["old_entity_id"])
             claim.updated_at = now
             db.save(claim)
-            restored_claim_subjects.append(claim_id)
+            restored_claim_fields.append({"claim_id": claim.id, "field": field})
 
         undo = EntityMergeAudit(
             operation_type=EntityMergeOperationType.undo_merge,
@@ -702,7 +735,7 @@ def undo_entity_operation_impl(db: Database, audit_id: str) -> EntityMergeAudit:
                 "removed": [],
                 "moved_to": {},
                 "restored_from": restored,
-                "restored_claim_subjects": restored_claim_subjects,
+                "restored_claim_fields": restored_claim_fields,
             },
             reversal_id=audit_id,
             created_by="human",

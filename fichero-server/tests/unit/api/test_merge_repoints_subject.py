@@ -131,8 +131,12 @@ class TestMergeRepointsSubjectViaEntityMergeAction:
         )
         merge_audit_id = result.result["id"]
         merge_audit = db.get(EntityMergeAudit, merge_audit_id)
-        repoints = merge_audit.alias_changes.get("claim_subject_repoints")
-        assert repoints == {claim.id: absorbed.id}
+        # Generalized (#4859 sibling sweep): the shape is now a list of
+        # {claim_id, field, old_entity_id} records, one per repointed field.
+        repoints = merge_audit.alias_changes.get("claim_field_repoints")
+        assert repoints == [
+            {"claim_id": claim.id, "field": "subject_entity_id", "old_entity_id": absorbed.id}
+        ]
 
     def test_unmerge_restores_subject_entity_id_exactly(self, db):
         survivor = _entity(db, "Alice")
