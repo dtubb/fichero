@@ -316,7 +316,12 @@ extension ContentView {
                 // panes a workspace mounts (spec §Accessibility; WorkspaceAccessibilityUITests):
                 // "pane.library" / "pane.preview" / "pane.reading" / "pane.inspector" / "pane.chat".
                 .accessibilityIdentifier("pane.\(kind.rawValue)")
-                // An applied pane is a HOSTING BOUNDARY: the window/app objects injected upstream
+                // NOT a hosting boundary — corrected 2026-09-17. AnyView does not re-root the
+                // environment, so this modifier is a no-op here (see
+                // ContentView+WindowEnvironment for the evidence and the real cause). Kept
+                // because re-injecting what is already in scope costs nothing.
+                // Historical note, left because it explains the comment below: the window/app
+                // objects injected upstream
                 // (ContentView+Navigation, ContentView+RootLayout) do not reliably cross it, so a
                 // pane's subtree can die on a non-optional @Environment read. Exactly the 2026-08-11
                 // failure — "the horizontal library split's second pane died on

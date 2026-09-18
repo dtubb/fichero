@@ -105,7 +105,11 @@ final class WorkspaceSystemBoundaryTests: XCTestCase {
         // the split-collapse / legacy onClose (the `if let paneCloseAction { paneCloseAction.run() }`
         // branch is first in the button action).
         XCTAssertTrue(
-            paneHead.contains("if paneCloseAction != nil || onClose != nil || isInSplit"),
+            // The ladder moved into `showsClose` when it was reordered (dfa937946) so a
+            // SOLE pane hides its X. This assertion kept naming the OLD inline literal and
+            // was therefore red at HEAD — `gate build` only COMPILES tests, so nothing
+            // surfaced it. Assert the real shape.
+            paneHead.contains("private var showsClose: Bool"),
             "The head's X must appear when an applied close action is present.")
         XCTAssertTrue(
             paneHead.contains("paneCloseAction.run()"),

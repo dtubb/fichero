@@ -2,10 +2,25 @@ import SwiftUI
 
 // MARK: - The ONE window-environment list (2026-09-17)
 
-/// Re-injects every window/app object at a HOSTING BOUNDARY — a point where
-/// SwiftUI starts a fresh environment root and the objects injected upstream do
-/// not reliably cross it (an applied pane, the navigation split, the root
-/// layout, an inspector container).
+/// Re-injects every window/app object where a subtree may not inherit them.
+///
+/// CORRECTION (2026-09-17, second review): this file was first written claiming
+/// an applied pane is a "hosting boundary" where SwiftUI starts a fresh
+/// environment root. That is FALSE. `AnyView` does not re-root the environment,
+/// and there is no `NSHostingView`/`NSHostingController` in app code; every
+/// `NSViewRepresentable` we have wraps an AppKit view rather than hosting
+/// SwiftUI children. The proof is in the app itself: pane surfaces read
+/// `AnnotationStore`, `DocumentService`, `NoteStore` and `ActionStore`
+/// NON-optionally, this modifier carries none of them, and they do not trap —
+/// which they would if a pane were a fresh root.
+///
+/// So applying this at the pane/navigation sites is a NO-OP kept for safety, not
+/// the fix for anything. The `WorkflowExecutionObserver` crash was NOT a pane
+/// boundary: it was a surface mounted OUTSIDE `LibraryWorkspaceRoot` (the
+/// LibraryWindow-level sheets/alerts and the no-library prompt), and the
+/// app-level fallback observer in `FicheroApp.libraryWindowRoot` is what
+/// actually stopped it. Verified by build sequence: with this modifier alone the
+/// app still died on the fatal error; with the fallback added it survived.
 ///
 /// Why this is one type instead of a list at each boundary: there were THREE
 /// boundaries with three DIFFERENT hand-picked lists (7, 11 and 13 objects),

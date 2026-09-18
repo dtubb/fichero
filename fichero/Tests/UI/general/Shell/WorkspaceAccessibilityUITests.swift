@@ -39,25 +39,30 @@ import XCTest
 @MainActor
 final class WorkspaceAccessibilityUITests: FicheroUISessionTests {
 
-    /// The six built-ins in ⌘⌥1–6 slot order (literals — the UI-test target does
+    /// The FIVE built-ins in ⌘⌥1–5 slot order (literals — the UI-test target does
     /// not link the app module; assert the visible title + pressed shortcut, not
     /// the code symbol).
+    ///
+    /// Was six, including Catalogue and Claims, until the creative director cut
+    /// them (2026-09-16: "we still have catalogue and claims" — they were meant
+    /// to be gone). This table kept asserting them afterwards, so the test was
+    /// pinning a workspace set the app no longer has. Keep it in sync with
+    /// `BuiltInWorkspaceLayout.allCases`; ⌘⌥6–9 are free for user workspaces.
     private static let workspaces: [(slot: Int, key: String, title: String)] = [
         (1, "1", "Read"),
         (2, "2", "Browse"),
         (3, "3", "Transcribe"),
-        (4, "4", "Compare"),
-        (5, "5", "Catalogue"),
-        (6, "6", "Claims")
+        (4, "4", "Transcribe · Tall"),
+        (5, "5", "Compare")
     ]
 
     // MARK: - 1. The workspaces are keyboard-reachable and labelled
 
-    /// View ▸ Workspaces lists exactly the six built-ins, each an enabled,
+    /// View ▸ Workspaces lists exactly the five built-ins, each an enabled,
     /// hittable, labelled menu item. A menu item that exists + is enabled is
     /// reachable by full keyboard navigation and exposes its title to VoiceOver;
     /// its ⌘⌥N key equivalent is minted alongside it in the same menu section.
-    /// Pins `workspaces.one-system` (ONE built-in list) + the ⌘⌥1–6 reachability.
+    /// Pins `workspaces.one-system` (ONE built-in list) + the ⌘⌥1–5 reachability.
     func testWorkspacesMenuExposesTheSixBuiltInsLabelledAndEnabled() throws {
         waitForLibraryReady()
         app.typeKey(.escape, modifierFlags: [])

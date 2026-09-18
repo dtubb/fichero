@@ -41,19 +41,23 @@ import XCTest
 @MainActor
 final class WorkspaceApplyResponsivenessUITests: FicheroUISessionTests {
 
-    /// The six built-in workspaces in ⌘⌥1–6 slot order (spec §"v2 workspace
+    /// The FIVE built-in workspaces in ⌘⌥1–5 slot order (spec §"v2 workspace
     /// design" / `BuiltInWorkspaceLayout` declaration order). Kept as literals —
     /// the UI-test target does not link the app module, so it cannot reference
     /// `BuiltInWorkspaceLayout`; and the spec's ruling is that these tests assert
     /// the BEHAVIOR (the menu title the user sees, the shortcut they press), never
     /// the code's symbols.
     private static let workspaces: [(slot: Int, key: String, title: String)] = [
+    /// Was six, ending in Catalogue and Claims, until the creative director cut
+    /// them (2026-09-16). Slot 4 is now Transcribe · Tall and Compare moved to 5,
+    /// so the old table also pressed the WRONG shortcut for Compare — the very
+    /// workspace whose beachball this suite exists to catch. Keep in sync with
+    /// `BuiltInWorkspaceLayout.allCases`; ⌘⌥6–9 are free for user workspaces.
         (1, "1", "Read"),
         (2, "2", "Browse"),
         (3, "3", "Transcribe"),
-        (4, "4", "Compare"),      // the beachball workspace (two previews + two readers)
-        (5, "5", "Catalogue"),
-        (6, "6", "Claims")
+        (4, "4", "Transcribe · Tall"),
+        (5, "5", "Compare")       // the beachball workspace (two previews + two readers)
     ]
 
     /// A beachball longer than this fails the test. The observed Compare hang was
@@ -99,7 +103,7 @@ final class WorkspaceApplyResponsivenessUITests: FicheroUISessionTests {
     /// Apply a workspace, preferring its ⌘⌥N key equivalent; if the app does not
     /// respond to a follow-up menu open afterwards we assume the key equivalent
     /// was swallowed and re-apply through the View ▸ Workspaces menu by title
-    /// (spec deliverable: "prefer ⌘⌥1–6 … fall back to the menu items by title").
+    /// (spec deliverable: "prefer ⌘⌥1–5 … fall back to the menu items by title").
     private func applyWorkspace(_ workspace: (slot: Int, key: String, title: String)) {
         // ⌘⌥N — command+option, distinct from the ⌃⌘N sidebar-mode shortcuts the
         // session's resetToKnownState uses.
