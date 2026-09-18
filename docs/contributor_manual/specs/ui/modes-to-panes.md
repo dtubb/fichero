@@ -166,7 +166,7 @@ fourth type.
   `.workflowRecipe`) at the policy level — NOTE: no automated SwiftUI-render test exists yet
   asserting `ReadingPaneView` actually mounts `WorkflowOutputLog` for a `.workflow` selection
   (a coverage gap, flagged for follow-up, not silently claimed as pinned).
-- `m2p.kg-graph-retires-as-library-takeover` — **[OK]** (increment 3) `SidebarMode.knowledgeGraph`
+- `m2p.kg-graph-retires-as-library-takeover` — **[OK]** (increment 3, 617233ec5) `SidebarMode.knowledgeGraph`
   and `OntologyBrowser` no longer mount inside the Library pane, or exist anywhere in the app
   target; timeline/map are (and already were, independent of this increment) ordinary Library
   view modes on the Entities collection. The force-directed graph surviving as a Preview
@@ -178,8 +178,8 @@ fourth type.
   — its own file (`Views/SPARQLConsole/SPARQLConsoleView.swift`) and window
   (`Window("SPARQL Console", id: "sparql-console")`, `FicheroApp.swift`), reached from the
   Knowledge menu. The "predict entities" flow (`HeuristicReviewSheet`) was NOT recovered — it
-  had no caller outside the deleted files and is now unreachable anywhere, confirming #4759;
-  routed to #4791/#4759 for a product decision, not silently dropped. Pinned by
+  had no caller outside the deleted files and is now unreachable anywhere; the dead-code sweep is #4791, and whether the predict
+  affordance returns is the `kg-enrichment` milestone's decision (→ #4759), not silently dropped. Pinned by
   `SidebarModeRestoreTests.allCasesCountIsSix` (no `.knowledgeGraph` case),
   `LibraryPaneNeverMountsModeSurfaceTests.deletedTypesDoNotLingerAnywhere` (bare-identifier
   guardrail), and `KnowledgeGraphInspectorSectionTests.testSparqlConsoleUsesTypedQueryOpsThroughAStore`
