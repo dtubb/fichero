@@ -15,6 +15,7 @@ Environment Variables:
     TOKENIZERS_PARALLELISM: Set to "false" to disable tokenizer parallelism (avoids fork warnings)
 """
 
+import asyncio
 import functools
 import hashlib
 import hmac
@@ -49,7 +50,7 @@ os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 from fichero_server.loaders import kreuzberg_cache  # noqa: F401, E402
 
 import logging
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 from typing import Sequence
 
@@ -518,7 +519,30 @@ def _should_prewarm_embeddings() -> bool:
 
 
 def _prewarm_embeddings() -> None:
-    """Download + initialise the embeddings model so it's ready before first use."""
+    """Download + initialise the embeddings model so it's ready before first use.
+
+    #4690: this used to run immediately after the tool-stack warm-up, on the
+    same post-bind executor thread, racing the app's OWN readiness poll for
+    the GIL. Measured 2026-09-17 (real launch, engine access log): the
+    tool-stack warm-up (langgraph/MCP import) served 20 concurrent requests
+    fine while it ran, but the embeddings load (fastembed/onnxruntime loading
+    a large multilingual model) correlated with a bare 5.2s window in which
+    the access log shows ZERO completed requests of any kind — then an
+    immediate flood of successes the instant the load finished. That is the
+    engine failing to answer its own readiness probe because loading this
+    model holds the GIL long enough to starve the event loop, not a network
+    or auth problem.
+
+    Now gated behind `_first_registry_200_signal` (see below): the call is
+    deferred until AFTER a real authenticated `/api/registry` 200 proves the
+    app's readiness contract is satisfied, so this load can no longer contend
+    with the poll that gates it. Tradeoff: the first embeddings-consuming
+    feature (semantic search, KG) pays some of this cost if the user reaches
+    it before the deferred warm-up finishes in the background — same
+    "load it before clicking, not blocking anything the window needs"
+    design as the tool-stack warm-up above, just triggered by a
+    request-observed signal instead of an executor schedule.
+    """
     try:
         from fastembed import TextEmbedding
 
@@ -569,6 +593,29 @@ def _prewarm_embeddings() -> None:
         logger.info("Embeddings model ready")
     except Exception as exc:
         logger.warning("Embeddings pre-warm failed (will retry on first use): %s", exc)
+
+
+# #4690: the app's readiness contract (`EngineReadinessProbe`) checks health,
+# identity and finally an authenticated `GET /api/registry` 200 — that last
+# leg is the concrete, cheap signal that the app's own readiness poll has
+# actually succeeded, so the embeddings prewarm below waits for it instead of
+# a fixed sleep. A NEW `Event` every lifespan (`_reset_first_registry_200_signal`,
+# called from `lifespan()`'s startup) so a signal set by one test's `lifespan()`
+# call can't leak into the next one sharing this module in-process.
+_first_registry_200_signal = asyncio.Event()
+
+
+def _reset_first_registry_200_signal() -> None:
+    global _first_registry_200_signal
+    _first_registry_200_signal = asyncio.Event()
+
+
+def _mark_first_registry_200() -> None:
+    """Set once traffic proves readiness. A function, not inlined in the
+    middleware below, so a test can drive it directly — no live HTTP round
+    trip needed — the same way `test_provider_seed_after_yield.py` drives its
+    blocking event directly rather than timing a real launch (#4690)."""
+    _first_registry_200_signal.set()
 
 
 def prefetch_library_caches(package_path: Path) -> dict:
@@ -769,10 +816,10 @@ def _log_fm_bridge_presence() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown events."""
-    import asyncio
     from fichero_server.api.change_stream import reset_sse_shutdown, signal_sse_shutdown
 
     reset_sse_shutdown()
+    _reset_first_registry_200_signal()
 
     # Write/rotate the bootstrap auth token NOW that the server is actually
     # starting, so the Swift app can read ~/Library/Application Support/Fichero/
@@ -918,32 +965,10 @@ async def lifespan(app: FastAPI):
 
             _api_stamp("workflow tool stack warm-up complete")
             logger.info("Workflow tool stack warmed")
-
-            # Warm the embedding model too — OFF the bind path, in a thread.
-            #
-            # `_prewarm_embeddings` has existed all along and was never called,
-            # so the ~19s model load landed on whoever imported first. Measured
-            # 2026-08-05: a docx import took 26s, and an unrelated
-            # `get_children` that runs in 2-3ms elsewhere took 24,799ms at the
-            # same moment — not a slow query, a thread starved by the load.
-            #
-            # DIRECT CALL (2026-08-09): this function already runs on an
-            # executor thread (run_in_executor below), where there is NO
-            # running event loop — the previous
-            # `asyncio.create_task(asyncio.to_thread(...))` raised
-            # RuntimeError('no running event loop'), the except below ate it,
-            # and the pre-warm NEVER RAN ONCE. Every first import paid the
-            # ~19s model load inside its own transaction — the measured
-            # pathology this comment block describes was caused by the very
-            # line meant to prevent it. We are already off the loop; just
-            # call it — unless a fresh-home engine (UI test) opted out, where the
-            # empty model cache would turn this warm into a blocking download.
-            _api_stamp("embeddings prewarm start")
-            if _should_prewarm_embeddings():
-                _prewarm_embeddings()
-            else:
-                logger.info("Skipping embeddings pre-warm (FICHERO_SKIP_EMBEDDINGS_PREWARM=1)")
-            _api_stamp("embeddings prewarm complete")
+            # Embeddings prewarm moved OUT of this thread (#4690) — it now
+            # waits for `_first_registry_200_signal` instead of running here
+            # unconditionally; see `_prewarm_embeddings_after_ready` below and
+            # the comment on `_prewarm_embeddings` itself for why.
         except Exception as exc:
             # Deliberately not fatal: a failed warm-up must not take down an
             # engine that is already serving. It is logged at WARNING with a
@@ -955,6 +980,36 @@ async def lifespan(app: FastAPI):
     warm_started = asyncio.get_running_loop().run_in_executor(
         None, _warm_workflow_stack
     )
+
+    async def _prewarm_embeddings_after_ready() -> None:
+        """Wait for `_first_registry_200_signal`, then run the embeddings load
+        on its own executor submission (#4690) — deferred, not skipped: #1918's
+        "load it before clicking" intent is unchanged, only the trigger moved
+        from "as soon as the socket is bound" to "once the app has actually
+        proven it's ready", so this load can no longer contend with the app's
+        own readiness poll for the GIL (see `_prewarm_embeddings`'s docstring
+        for the measured 5.2s window this fixes).
+
+        A short-lived process (a test, a CLI import) may never see a real
+        `/api/registry` 200 — shutdown CANCELS this task rather than awaiting
+        it, so that case can't hang teardown (contrast with `warm_started`
+        above, which shutdown DOES await: that one is unconditional and
+        bounded, this one is conditional on live traffic that may never come).
+        """
+        _api_stamp("embeddings prewarm waiting for readiness signal")
+        await _first_registry_200_signal.wait()
+        _api_stamp("embeddings prewarm start")
+        try:
+            if _should_prewarm_embeddings():
+                await asyncio.get_running_loop().run_in_executor(None, _prewarm_embeddings)
+            else:
+                logger.info("Skipping embeddings pre-warm (FICHERO_SKIP_EMBEDDINGS_PREWARM=1)")
+        except Exception as exc:
+            # Same non-fatal contract as the tool-stack warm-up above.
+            logger.warning("Embeddings warm-up failed: %r", exc)
+        _api_stamp("embeddings prewarm complete")
+
+    embeddings_warm_started = asyncio.create_task(_prewarm_embeddings_after_ready())
 
     _api_stamp("lifespan pre-yield complete")
     yield
@@ -988,6 +1043,13 @@ async def lifespan(app: FastAPI):
     # keeps the import from racing interpreter teardown, and costs nothing once
     # it has already finished.
     await warm_started
+    # #4690: CANCEL rather than await — this task may be parked forever on
+    # `_first_registry_200_signal.wait()` (a short-lived process that never
+    # saw a real `/api/registry` 200), and awaiting an un-cancelled wait here
+    # would hang shutdown on traffic that may never come.
+    embeddings_warm_started.cancel()
+    with suppress(asyncio.CancelledError):
+        await embeddings_warm_started
     await shutdown_managed_local_inference_services()
     # Shutdown: close all database connections
     logger.info("Fichero API shutting down...")
@@ -1082,6 +1144,27 @@ async def add_security_headers(request: Request, call_next):
     """
     response = await call_next(request)
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    return response
+
+
+@app.middleware("http")
+async def _observe_first_registry_200(request: Request, call_next):
+    """Fire `_first_registry_200_signal` on the app's own readiness leg (#4690).
+
+    Cheap: a routed-path string compare plus an already-set `Event` check on
+    every OTHER request (the common case, forever, after the first one).
+    Deliberately watches `/api/registry` specifically rather than any
+    authenticated 200 — that's the exact leg `EngineReadinessProbe.probe()`
+    checks LAST, so seeing it succeed here is the same "the app is ready"
+    fact the app itself is polling for, not an earlier approximation of it.
+    """
+    response = await call_next(request)
+    if (
+        not _first_registry_200_signal.is_set()
+        and request.scope.get("path") == "/api/registry"
+        and response.status_code == 200
+    ):
+        _mark_first_registry_200()
     return response
 
 
