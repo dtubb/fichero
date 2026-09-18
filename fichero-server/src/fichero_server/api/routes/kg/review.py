@@ -16,11 +16,14 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
+from pathlib import Path
 from fichero_server.core.timeutil import utc_now
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel
 
+from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
+from fichero_server.api.auth import request_actor
 from fichero_server.api.main import get_library_database, get_library_database_for_write
 from fichero_server.db import Database
 from fichero_server.models.knowledge import (
@@ -245,24 +248,22 @@ class AcceptResponse(BaseModel):
     audit_id: str
 
 
-@router.post(
-    "/pairs/{pair_id}/accept",
-    response_model=AcceptResponse,
-    summary="Merge candidate into survivor — accept the suggested match",
-    description=(
-        "Reassigns every claim that referenced the candidate to the "
-        "survivor instead, folds candidate.canonical_name + aliases "
-        "into survivor.aliases, soft-deletes the candidate via "
-        "merged_into_id, drops the candidate's LanceDB vector, and "
-        "refreshes the survivor's vector. Writes an EntityMergeAudit "
-        "for reversibility. (#899 Phase D / #377)"
-    ),
-)
-async def accept_pair(
-    pair_id: str,
-    background_tasks: BackgroundTasks,
-    db: Database = Depends(get_library_database_for_write),
-) -> AcceptResponse:
+class AcceptPairParams(BaseModel):
+    pair_id: str
+
+
+def accept_pair_impl(db: Database, pair_id: str, actor: str) -> AcceptResponse:
+    """Merge candidate into survivor and close the review row.
+
+    Extracted verbatim from the former bare route body (#4831), with one
+    real fix: the merge itself now goes through `merge_entities_impl` --
+    the SAME proven algorithm `entity.merge` already uses (reassign claims,
+    fold aliases, write the `EntityMergeAudit`) -- instead of a second,
+    hand-rolled copy of that logic. This also means `review.accept`
+    inherits a REAL actor on the audit row for free, where the old code
+    hardcoded `created_by="human"` regardless of who or what decided the
+    pair (#4843). `pair.decided_by` is `actor` for the same reason.
+    """
     pair = db.get(EntityMatchCandidate, pair_id)
     if pair is None:
         raise HTTPException(status_code=404, detail=f"Pair not found: {pair_id}")
@@ -280,86 +281,207 @@ async def accept_pair(
             detail="One of the entities in this pair has been deleted",
         )
 
-    # 1. Reassign claims: replace candidate id with survivor id everywhere.
-    all_claims = db.query(KnowledgeClaim)
-    claims_touched = 0
-    for claim in all_claims:
-        if candidate.id in (claim.entity_ids or []):
-            claim.entity_ids = [
-                survivor.id if eid == candidate.id else eid
-                for eid in claim.entity_ids
-            ]
-            # Avoid duplicate survivor id when claim referenced both.
-            seen: list[str] = []
-            for eid in claim.entity_ids:
-                if eid not in seen:
-                    seen.append(eid)
-            claim.entity_ids = seen
-            claim.updated_at = utc_now()
-            db.save(claim)
-            claims_touched += 1
+    from fichero_server.api.routes.kg.entity_curation import (
+        EntityMergeRequest,
+        merge_entities_impl,
+    )
 
-    # 2. Fold canonical_name + aliases into survivor.aliases.
-    merged_aliases = set(survivor.aliases or [])
-    merged_aliases.add(candidate.canonical_name)
-    for alias in (candidate.aliases or []):
-        merged_aliases.add(alias)
-    survivor.aliases = sorted(merged_aliases - {survivor.canonical_name})
-    survivor.updated_at = utc_now()
-    db.save(survivor)
+    audit, _entity_ids, repointed_claim_ids = merge_entities_impl(
+        db,
+        EntityMergeRequest(
+            absorbing_entity_id=survivor.id,
+            absorbed_entity_ids=[candidate.id],
+            # The old hand-rolled logic folded the CANDIDATE'S OWN NAME into
+            # survivor.aliases too, not just its existing alias list --
+            # `merge_entities_impl` only folds `ent.aliases` by itself, so
+            # this replicates that one extra behavior explicitly rather than
+            # silently dropping it by switching to the shared algorithm.
+            merged_aliases=[candidate.canonical_name],
+        ),
+        actor,
+    )
 
-    # 3. Soft-delete the candidate by pointing merged_into_id at survivor.
-    #    Keeps the row around for undo + audit.
-    candidate.merged_into_id = survivor.id
-    candidate.updated_at = utc_now()
-    db.save(candidate)
-
-    # 4. Drop the candidate's vector + refresh the survivor's.
+    # Vector cleanup — not part of merge_entities_impl, kept here as before.
     try:
         from fichero_server.knowledge import entity_vectors
         entity_vectors.remove(db=db, entity_id=candidate.id)
+        survivor_reloaded = db.get(KnowledgeEntity, survivor.id)
         entity_vectors.index_entity(
             db=db,
             entity_id=survivor.id,
-            entity_type=survivor.entity_type,
-            canonical_name=survivor.canonical_name,
-            description=survivor.description,
+            entity_type=survivor_reloaded.entity_type,
+            canonical_name=survivor_reloaded.canonical_name,
+            description=survivor_reloaded.description,
         )
     except Exception as exc:
         logger.warning("accept_pair: vector cleanup failed: %s", exc)
 
-    # 5. Audit trail.
-    audit = EntityMergeAudit(
-        operation_type=EntityMergeOperationType.merge,
-        source_entity_ids=[candidate.id],
-        target_entity_id=survivor.id,
-        alias_changes={
-            "added": sorted(merged_aliases - set(survivor.aliases or [])),
-        },
-        created_by="human",
-    )
-    db.save(audit)
-
-    # 6. Close the review row.
+    # Close the review row.
     pair.state = PendingMatchState.accepted
     pair.decided_at = utc_now()
-    pair.decided_by = "human"
+    pair.decided_by = actor
     db.save(pair)
-
-    _maybe_trigger_retrain(db, background_tasks)
 
     return AcceptResponse(
         survivor_entity_id=survivor.id,
         absorbed_entity_id=candidate.id,
-        claims_reassigned=claims_touched,
+        claims_reassigned=len(repointed_claim_ids),
         audit_id=audit.id,
     )
+
+
+def _invert_accept_pair(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    """Reverses the ENTITY merge via the same `entity.unmerge` action
+    `entity.merge`'s own inverse already uses — the review pair itself is
+    deliberately left `accepted` (not reopened to `pending`), the same
+    documented scope limit as "undo-of-split does not re-merge": this
+    action's audit trail is the merge, and unmerging it is the honest
+    inverse of what actually changed the graph."""
+    if not after:
+        return None
+    merge_audit_id = after.get("entity_merge_audit_id")
+    if not merge_audit_id:
+        return None
+    return ("entity.unmerge", {"audit_id": merge_audit_id})
+
+
+@action(
+    "review.accept",
+    AcceptPairParams,
+    domains=["entity", "claim"],
+    undoable=True,
+    invert=_invert_accept_pair,
+)
+def _action_accept_pair(
+    db: Database, params: AcceptPairParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    pair_before = db.get(EntityMatchCandidate, params.pair_id)
+    pair_before_snapshot = (
+        pair_before.model_dump(mode="json") if pair_before is not None else None
+    )
+    result = accept_pair_impl(db, params.pair_id, ctx.actor)
+    spec = ChangeSpec(
+        domains=["entity", "claim"],
+        target_ids=[result.survivor_entity_id, result.absorbed_entity_id],
+        before={"pair": pair_before_snapshot},
+        after={
+            "entity_merge_audit_id": result.audit_id,
+            "pair_id": params.pair_id,
+        },
+        emit_type="entity.merged",
+        entity_ids=[result.survivor_entity_id, result.absorbed_entity_id],
+    )
+    return result.model_dump(mode="json"), spec
+
+
+@router.post(
+    "/pairs/{pair_id}/accept",
+    response_model=AcceptResponse,
+    summary="Merge candidate into survivor — accept the suggested match",
+    description=(
+        "Reassigns every claim that referenced the candidate to the "
+        "survivor instead, folds candidate.canonical_name + aliases "
+        "into survivor.aliases, soft-deletes the candidate via "
+        "merged_into_id, drops the candidate's LanceDB vector, and "
+        "refreshes the survivor's vector. Writes an EntityMergeAudit "
+        "for reversibility. (#899 Phase D / #377)"
+    ),
+)
+async def accept_pair(
+    pair_id: str,
+    background_tasks: BackgroundTasks,
+    db: Database = Depends(get_library_database_for_write),
+    actor: str = Depends(request_actor),
+) -> AcceptResponse:
+    ctx = ActionContext(actor=actor, library_path=str(Path(db.path).parent))
+    result = registry.invoke(db, "review.accept", {"pair_id": pair_id}, ctx)
+    response = AcceptResponse.model_validate(result.result)
+    _maybe_trigger_retrain(db, background_tasks)
+    return response
 
 
 class RejectResponse(BaseModel):
     pair_id: str
     state: str
     labelled_negative_pair: tuple[str, str]
+
+
+class RestorePairParams(BaseModel):
+    """Params for `review.restore_pair` -- a full-row snapshot round-trip,
+    the SAME idiom `claim.restore` uses for `claim.patch`'s undo."""
+
+    snapshot: dict
+
+
+@action("review.restore_pair", RestorePairParams, domains=["entity"], undoable=False)
+def _action_restore_pair(
+    db: Database, params: RestorePairParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    restored = EntityMatchCandidate.model_validate(params.snapshot)
+    db.save(restored)
+    spec = ChangeSpec(
+        domains=["entity"], target_ids=[restored.id], after={"pair_id": restored.id}
+    )
+    return {"pair_id": restored.id}, spec
+
+
+class RejectPairParams(BaseModel):
+    pair_id: str
+
+
+def reject_pair_impl(db: Database, pair_id: str, actor: str) -> RejectResponse:
+    """Extracted verbatim from the former bare route body (#4831); `actor`
+    (`ctx.actor`) replaces the old hardcoded `decided_by="human"` (#4843)."""
+    pair = db.get(EntityMatchCandidate, pair_id)
+    if pair is None:
+        raise HTTPException(status_code=404, detail=f"Pair not found: {pair_id}")
+    if pair.state != PendingMatchState.pending:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Pair already {pair.state.value} — cannot re-decide",
+        )
+    pair.state = PendingMatchState.rejected
+    pair.decided_at = utc_now()
+    pair.decided_by = actor
+    db.save(pair)
+    return RejectResponse(
+        pair_id=pair.id,
+        state=pair.state.value,
+        labelled_negative_pair=(pair.survivor_entity_id, pair.candidate_entity_id),
+    )
+
+
+def _invert_reject_pair(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    if not before:
+        return None
+    return ("review.restore_pair", {"snapshot": before})
+
+
+@action(
+    "review.reject",
+    RejectPairParams,
+    domains=["entity"],
+    undoable=True,
+    invert=_invert_reject_pair,
+)
+def _action_reject_pair(
+    db: Database, params: RejectPairParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    before = db.get(EntityMatchCandidate, params.pair_id)
+    before_snapshot = before.model_dump(mode="json") if before is not None else None
+    result = reject_pair_impl(db, params.pair_id, ctx.actor)
+    after = db.get(EntityMatchCandidate, params.pair_id)
+    spec = ChangeSpec(
+        domains=["entity"],
+        target_ids=[params.pair_id],
+        before=before_snapshot,
+        after=after.model_dump(mode="json") if after is not None else None,
+    )
+    return result.model_dump(mode="json"), spec
 
 
 @router.post(
@@ -376,27 +498,12 @@ async def reject_pair(
     pair_id: str,
     background_tasks: BackgroundTasks,
     db: Database = Depends(get_library_database_for_write),
+    actor: str = Depends(request_actor),
 ) -> RejectResponse:
-    pair = db.get(EntityMatchCandidate, pair_id)
-    if pair is None:
-        raise HTTPException(status_code=404, detail=f"Pair not found: {pair_id}")
-    if pair.state != PendingMatchState.pending:
-        raise HTTPException(
-            status_code=409,
-            detail=f"Pair already {pair.state.value} — cannot re-decide",
-        )
-    pair.state = PendingMatchState.rejected
-    pair.decided_at = utc_now()
-    pair.decided_by = "human"
-    db.save(pair)
-
+    ctx = ActionContext(actor=actor, library_path=str(Path(db.path).parent))
+    result = registry.invoke(db, "review.reject", {"pair_id": pair_id}, ctx)
     _maybe_trigger_retrain(db, background_tasks)
-
-    return RejectResponse(
-        pair_id=pair.id,
-        state=pair.state.value,
-        labelled_negative_pair=(pair.survivor_entity_id, pair.candidate_entity_id),
-    )
+    return RejectResponse.model_validate(result.result)
 
 
 class LabelRow(BaseModel):
@@ -455,15 +562,11 @@ class ManualPairRequest(BaseModel):
     reason: str | None = None
 
 
-@router.post(
-    "/pairs",
-    response_model=ReviewPairResponse,
-    summary="Manually queue an entity pair for review",
-)
-async def queue_pair(
-    request: ManualPairRequest,
-    db: Database = Depends(get_library_database_for_write),
-) -> ReviewPairResponse:
+def queue_pair_impl(db: Database, request: ManualPairRequest) -> ReviewPairResponse:
+    """Extracted verbatim from the former bare route body (#4831). No actor
+    field is written by this operation (`score`/`method` are fixed values,
+    not attributed), so there is no forgery risk here to fix -- only the
+    missing `registry.invoke` call."""
     if request.survivor_entity_id == request.candidate_entity_id:
         raise HTTPException(400, "survivor and candidate must differ")
     survivor = db.get(KnowledgeEntity, request.survivor_entity_id)
@@ -492,3 +595,36 @@ async def queue_pair(
         reason=cand.reason,
         created_at=cand.created_at,
     )
+
+
+@action(
+    "review.queue",
+    ManualPairRequest,
+    domains=["entity"],
+    # A fresh row with no prior state -- true undo is deletion, and no
+    # delete action exists for this model yet (same reasoning `review.queue`'s
+    # sibling `review.restore_pair` is itself non-undoable: a restore is not
+    # meant to be undone into a delete either). Add one if this needs undo.
+    undoable=False,
+)
+def _action_queue_pair(
+    db: Database, params: ManualPairRequest, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    result = queue_pair_impl(db, params)
+    spec = ChangeSpec(domains=["entity"], target_ids=[result.id], after={"pair_id": result.id})
+    return result.model_dump(mode="json"), spec
+
+
+@router.post(
+    "/pairs",
+    response_model=ReviewPairResponse,
+    summary="Manually queue an entity pair for review",
+)
+async def queue_pair(
+    request: ManualPairRequest,
+    db: Database = Depends(get_library_database_for_write),
+    actor: str = Depends(request_actor),
+) -> ReviewPairResponse:
+    ctx = ActionContext(actor=actor, library_path=str(Path(db.path).parent))
+    result = registry.invoke(db, "review.queue", request.model_dump(mode="json"), ctx)
+    return ReviewPairResponse.model_validate(result.result)

@@ -35,13 +35,6 @@
     "issue": 4831
   },
   {
-    "file": "fichero-server/src/fichero_server/api/routes/kg/inclusion.py",
-    "function": "upsert_inclusion",
-    "class": "violation",
-    "reason": "#4831 sweep 2026-09-18 \u2014 bare mutating route, no registry.invoke() call in its own body",
-    "issue": 4831
-  },
-  {
     "file": "fichero-server/src/fichero_server/api/routes/kg/mutations.py",
     "function": "undo_mutation",
     "class": "violation",
@@ -107,34 +100,6 @@
   {
     "file": "fichero-server/src/fichero_server/api/routes/kg/rebuild.py",
     "function": "rebuild_kg",
-    "class": "violation",
-    "reason": "#4831 sweep 2026-09-18 \u2014 bare mutating route, no registry.invoke() call in its own body",
-    "issue": 4831
-  },
-  {
-    "file": "fichero-server/src/fichero_server/api/routes/kg/review.py",
-    "function": "accept_pair",
-    "class": "violation",
-    "reason": "#4831 sweep 2026-09-18 \u2014 bare mutating route, no registry.invoke() call in its own body",
-    "issue": 4831
-  },
-  {
-    "file": "fichero-server/src/fichero_server/api/routes/kg/review.py",
-    "function": "reject_pair",
-    "class": "violation",
-    "reason": "#4831 sweep 2026-09-18 \u2014 bare mutating route, no registry.invoke() call in its own body",
-    "issue": 4831
-  },
-  {
-    "file": "fichero-server/src/fichero_server/api/routes/kg/review.py",
-    "function": "queue_pair",
-    "class": "violation",
-    "reason": "#4831 sweep 2026-09-18 \u2014 bare mutating route, no registry.invoke() call in its own body",
-    "issue": 4831
-  },
-  {
-    "file": "fichero-server/src/fichero_server/api/routes/kg/triangulation.py",
-    "function": "recompute_triangulation",
     "class": "violation",
     "reason": "#4831 sweep 2026-09-18 \u2014 bare mutating route, no registry.invoke() call in its own body",
     "issue": 4831

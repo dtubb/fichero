@@ -8,10 +8,13 @@ Surfaces the cross-source support counts computed by
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
+from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
+from fichero_server.api.auth import request_actor
 from fichero_server.api.main import get_library_database, get_library_database_for_write
 from fichero_server.db import Database
 from fichero_server.models import MutationListResponse
@@ -113,6 +116,31 @@ class RecomputeResponse(BaseModel):
     message: str
 
 
+class RecomputeTriangulationParams(BaseModel):
+    """No inputs -- a corpus-wide recompute has nothing to parametrize."""
+
+
+@action(
+    "triangulation.recompute",
+    RecomputeTriangulationParams,
+    domains=["claim"],
+    # Corpus-wide and idempotent by its own docstring below -- re-running it
+    # IS its own "undo" back to the corpus's true current support counts, the
+    # same reasoning `claim.batch_transition` already gives for staying
+    # non-undoable ("partial batches have no clean inverse"). There is no
+    # existing undoable pattern for a bulk corpus recompute to match.
+    undoable=False,
+)
+def _action_recompute_triangulation(
+    db: Database, params: RecomputeTriangulationParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    from fichero_server.knowledge.triangulation import persist_support_counts
+
+    updated = persist_support_counts(db)
+    spec = ChangeSpec(domains=["claim"], after={"claims_updated": updated})
+    return {"claims_updated": updated}, spec
+
+
 @router.post(
     "/recompute",
     response_model=RecomputeResponse,
@@ -126,11 +154,12 @@ class RecomputeResponse(BaseModel):
 )
 async def recompute_triangulation(
     db: Database = Depends(get_library_database_for_write),
+    actor: str = Depends(request_actor),
 ) -> RecomputeResponse:
     """Persist corpus-wide support counts back onto claim rows."""
-    from fichero_server.knowledge.triangulation import persist_support_counts
-
-    updated = persist_support_counts(db)
+    ctx = ActionContext(actor=actor, library_path=str(Path(db.path).parent))
+    result = registry.invoke(db, "triangulation.recompute", {}, ctx)
+    updated = result.result["claims_updated"]
     return RecomputeResponse(
         claims_updated=updated,
         message=(

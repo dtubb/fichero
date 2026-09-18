@@ -87,7 +87,9 @@ class TestAcceptRejectInProcess:
 
         import asyncio
         from fastapi import BackgroundTasks
-        result = asyncio.run(kg_review.accept_pair(pair.id, BackgroundTasks(), db=db))
+        result = asyncio.run(
+            kg_review.accept_pair(pair.id, BackgroundTasks(), db=db, actor="test-actor")
+        )
 
         # Survivor absorbed the candidate's name as alias.
         reloaded = db.get(KnowledgeEntity, survivor.id)
@@ -122,7 +124,9 @@ class TestAcceptRejectInProcess:
 
         import asyncio
         from fastapi import BackgroundTasks
-        result = asyncio.run(kg_review.reject_pair(pair.id, BackgroundTasks(), db=db))
+        result = asyncio.run(
+            kg_review.reject_pair(pair.id, BackgroundTasks(), db=db, actor="test-actor")
+        )
 
         # No merge happened — both entities intact.
         assert db.get(KnowledgeEntity, survivor.id) is not None
@@ -148,11 +152,15 @@ class TestAcceptRejectInProcess:
         db.save(pair)
         import asyncio
         from fastapi import BackgroundTasks
-        asyncio.run(kg_review.reject_pair(pair.id, BackgroundTasks(), db=db))
+        asyncio.run(
+            kg_review.reject_pair(pair.id, BackgroundTasks(), db=db, actor="test-actor")
+        )
 
         # Second reject on the same pair → 409.
         try:
-            asyncio.run(kg_review.reject_pair(pair.id, BackgroundTasks(), db=db))
+            asyncio.run(
+                kg_review.reject_pair(pair.id, BackgroundTasks(), db=db, actor="test-actor")
+            )
             raise AssertionError("expected HTTPException")
         except HTTPException as exc:
             assert exc.status_code == 409
@@ -183,8 +191,12 @@ class TestAcceptRejectInProcess:
             db.save(p)
 
         from fastapi import BackgroundTasks
-        asyncio.run(kg_review.accept_pair(p_accept.id, BackgroundTasks(), db=db))
-        asyncio.run(kg_review.reject_pair(p_reject.id, BackgroundTasks(), db=db))
+        asyncio.run(
+            kg_review.accept_pair(p_accept.id, BackgroundTasks(), db=db, actor="test-actor")
+        )
+        asyncio.run(
+            kg_review.reject_pair(p_reject.id, BackgroundTasks(), db=db, actor="test-actor")
+        )
 
         labels = asyncio.run(kg_review.list_labels(db=db))
         labels_by_id = {row.pair_id: row.label for row in labels.items}

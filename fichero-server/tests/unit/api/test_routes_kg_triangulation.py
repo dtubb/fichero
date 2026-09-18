@@ -58,10 +58,14 @@ def test_library_triangulation_forwards_threshold(monkeypatch):
     assert calls == [(db, 4.5)]
 
 
-def test_recompute_reports_updated_claim_count(monkeypatch):
+def test_recompute_reports_updated_claim_count(db, monkeypatch):
+    # #4831: the route now goes through `registry.invoke`, which needs a real
+    # Database (transaction + ActionAudit write) -- a bare `object()` sentinel
+    # no longer suffices even though `persist_support_counts` itself is
+    # monkeypatched and never touches `db`.
     monkeypatch.setattr("fichero_server.knowledge.triangulation.persist_support_counts", lambda db: 7)
 
-    response = asyncio.run(routes.recompute_triangulation(db=object()))
+    response = asyncio.run(routes.recompute_triangulation(db=db, actor="test-actor"))
 
     assert response.claims_updated == 7
     assert response.message == "Triangulation recomputed: 7 claim(s) updated."
