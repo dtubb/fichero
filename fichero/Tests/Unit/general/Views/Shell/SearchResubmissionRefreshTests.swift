@@ -73,8 +73,11 @@ final class SearchResubmissionRefreshTests: XCTestCase {
     func testTheShellFeedsSearchHitsThroughThatSameDocumentsParameter() throws {
         let source = try Self.appSource(Self.navigationSource)
 
+        // The substitution moved into `LibraryPanePin.effectiveDocuments(pinned:live:)` as its
+        // `live:` argument (070cd1115, per-instance library pin) — same swap, now behind a pure
+        // seam. The pin follows the shape; the behaviour it guards is unchanged.
         XCTAssertTrue(
-            source.contains("(activeSearchQuery == nil ? selectedDocuments : searchResultDocuments)")
+            source.contains("live: activeSearchQuery == nil ? selectedDocuments : searchResultDocuments")
         )
     }
 

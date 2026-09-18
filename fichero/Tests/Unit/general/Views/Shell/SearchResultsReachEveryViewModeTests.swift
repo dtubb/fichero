@@ -31,8 +31,12 @@ final class SearchResultsReachEveryViewModeTests: XCTestCase {
         let actions = try Self.appSource("Views/Shell/ContentView/Actions/ContentView+ActionsImport.swift")
         let navigation = try Self.appSource("Views/Shell/ContentView/ContentView+Navigation.swift")
 
-        // The substitution this guards against, still spelled the same way.
-        XCTAssertTrue(navigation.contains("pinnedLibrary?.documents"))
+        // The substitution this guards against now flows through the pure seam
+        // `LibraryPanePin.effectiveDocuments(pinned:live:)` (070cd1115) instead of a bare
+        // `pinnedLibrary?.documents` read. Assert the seam is what the shell feeds — a pin that
+        // bypassed it would be exactly the substitution this test exists to catch.
+        XCTAssertTrue(navigation.contains("LibraryPanePin.effectiveDocuments("))
+        XCTAssertTrue(navigation.contains("pinned: pinnedLibrary.wrappedValue"))
 
         let run = try XCTUnwrap(
             actions.components(separatedBy: "func runToolbarSearch(").dropFirst().first
