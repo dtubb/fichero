@@ -1313,7 +1313,7 @@ wheels = [
 
 [[package]]
 name = "fichero-server"
-version = "2026.9.6"
+version = "2026.9.18"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },
@@ -1355,6 +1355,7 @@ dependencies = [
     { name = "pypdfium2" },
     { name = "python-dotenv" },
     { name = "python-multipart" },
+    { name = "pytz" },
     { name = "starlette" },
     { name = "uvicorn", extra = ["standard"] },
     { name = "watchdog" },
@@ -1454,6 +1455,7 @@ requires-dist = [
     { name = "pypdfium2" },
     { name = "python-dotenv" },
     { name = "python-multipart", specifier = ">=0.0.31" },
+    { name = "pytz" },
     { name = "rdflib", marker = "extra == 'dev'" },
     { name = "rdflib", marker = "extra == 'kg'" },
     { name = "requests", marker = "extra == 'dev'" },

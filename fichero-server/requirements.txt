@@ -67,6 +67,7 @@ zeroconf
 pydantic>=2.13
 pydantic-settings>=2.14.2
 duckdb
+pytz
 lancedb
 pylance  # provides the `lance` module — required for LanceDB full-text (FTS) search
 

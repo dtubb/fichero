@@ -88,6 +88,9 @@ requires = [
     # 2.14.2 fixes GHSA-4xgf-cpjx-pc3j.
     "pydantic-settings>=2.14.2",
     "duckdb",
+    # DuckDB imports pytz to return a TIMESTAMPTZ value to Python. It used to
+    # arrive with pandas; pandas 3 dropped it, and every workflow-run read 500ed.
+    "pytz",
     "lancedb",
     "pylance",  # provides the `lance` module — required for LanceDB full-text (FTS) search
     # AI/LLM — Ollama (local) + LiteLLM (provider routing)
@@ -273,6 +276,9 @@ dependencies = [
     "pydantic>=2.13",  # openrouter 0.11.x caps <2.13 and downgrades what we ship
     "pydantic-settings>=2.14.2",  # GHSA-4xgf-cpjx-pc3j
     "duckdb",
+    # DuckDB imports pytz to return a TIMESTAMPTZ value to Python. It used to
+    # arrive with pandas; pandas 3 dropped it, and every workflow-run read 500ed.
+    "pytz",
     "lancedb",
     "pylance",  # provides the `lance` module — required for LanceDB full-text (FTS) search
     "langchain>=1.3.9",  # PYSEC-2026-2192
