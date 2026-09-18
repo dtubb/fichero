@@ -308,7 +308,13 @@ extension ContentView {
                 // as this file's other two `PaneContentPlan.plan(for:)`
                 // call sites (the preview/inspector empty-reason reads
                 // below).
-                readerCell: PaneContentPlan.plan(for: viewMode).reader
+                readerCell: PaneContentPlan.plan(for: viewMode).reader,
+                // #4705 "4b-2" (#4741): WHICH schedule/trigger/run, computed
+                // from the SAME `viewMode` as `readerCell` above so the two
+                // can never disagree — and the kind-specific "nothing
+                // selected" sentence for when there isn't one.
+                readerSubject: PaneContentPlan.ReaderSubject.from(viewMode),
+                readerRunHistoryEmptyReason: viewMode.runHistoryEmptyReason
             ))
         }
         // Native focus rings OFF in this pane: macOS 14+ makes scroll views

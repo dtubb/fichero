@@ -35,7 +35,8 @@ enum PaneContentPlan {
             return nil
         }
 
-        /// #4705 "4b-1" (`m2p.reader-consults-the-plan`, #4803): which of the
+        /// #4705 "4b-1"/"4b-2" (`m2p.reader-consults-the-plan`, #4803;
+        /// `m2p.automation-run-history-in-reader`, #4741): which of the
         /// Reader's branches this cell selects, once the Reader actually asks
         /// the plan instead of routing off a resolved `Document` alone (the
         /// #4803 bug — a schedule/trigger/chain/batches/automation/activity
@@ -43,13 +44,16 @@ enum PaneContentPlan {
         /// PREVIOUSLY open, because nothing cleared it and nothing consulted
         /// this cell). `.documentDriven` is the ONLY two surfaces the
         /// Reader's existing `effectiveDocument`/`doc.isWorkflowNode` chain is
-        /// verified against; a THIRD surface reaching the Reader before its
-        /// own mount exists is `.unmounted`, never silently routed through
-        /// code that was never proven to handle it.
+        /// verified against; `.runHistory` is its own named route (needs
+        /// `ReaderSubject`, not just this cell); a FOURTH surface reaching
+        /// the Reader before its own mount exists is `.unmounted`, never
+        /// silently routed through code that was never proven to handle it.
         var readerPageRoute: ReaderPageRoute {
             switch self {
             case .surface(.documentReader), .surface(.workflowRecipe):
                 return .documentDriven
+            case .surface(.runHistory):
+                return .runHistory
             case .empty(let reason):
                 return .empty(reason)
             case .surface(let other):
@@ -58,14 +62,54 @@ enum PaneContentPlan {
         }
     }
 
-    /// #4705 "4b-1": the three-way split `PaneContentPlan.Cell.readerPageRoute`
-    /// resolves to. `.unmounted` deliberately keeps the surface it didn't
-    /// recognize, so its placeholder can name what is missing instead of
-    /// rendering a blank.
+    /// #4705 "4b-1"/"4b-2": the four-way split `PaneContentPlan.Cell.
+    /// readerPageRoute` resolves to. `.unmounted` deliberately keeps the
+    /// surface it didn't recognize, so its placeholder can name what is
+    /// missing instead of rendering a blank. `.runHistory` carries no
+    /// payload itself — the Reader also reads `readerSubject: ReaderSubject?`
+    /// (computed by the same host, from the same `viewMode`) to know WHICH
+    /// schedule/trigger/run to show.
     enum ReaderPageRoute: Equatable {
         case documentDriven
+        case runHistory
         case empty(String)
         case unmounted(PaneSurface)
+    }
+
+    /// #4705 "4b-2": the entity identity the Reader's `.runHistory` route
+    /// needs, computed by the same host that computes `readerCell`
+    /// (`PaneContentPlan.plan(for: viewMode).reader`) — from the SAME
+    /// `viewMode`, so the two never disagree. Carries the SMALLEST thing
+    /// each extracted component actually needs: `ScheduleRunHistoryView`/
+    /// `TriggerRunHistoryView` only read an id string, so carrying the whole
+    /// `ScheduleInfo`/`TriggerInfo` would make the Reader re-evaluate on
+    /// every unrelated field change (next-run time, run count, …) and couple
+    /// it to the detail model; `ActivityLogView` genuinely needs the whole
+    /// `SelectedActivityRun` (`.isLive`, `.workflowId`, `.threadId` all
+    /// matter to it), so that case carries the struct. `Hashable` so the
+    /// Reader's dispatcher can key a mount on it (`.id(subject)`) — a
+    /// long-lived pane must remount, not silently keep showing the PREVIOUS
+    /// subject's rows under the new title.
+    enum ReaderSubject: Hashable {
+        case schedule(scheduleId: String)
+        case trigger(triggerId: String)
+        case activityRun(SelectedActivityRun)
+
+        /// Exhaustive over every `AppViewMode` case, no `default` — a new
+        /// case fails to compile here until this function's answer for it is
+        /// a considered decision, not a silent `nil`.
+        static func from(_ viewMode: AppViewMode) -> ReaderSubject? {
+            switch viewMode {
+            case .schedule(let info):
+                return info.map { .schedule(scheduleId: $0.scheduleId) }
+            case .trigger(let info):
+                return info.map { .trigger(triggerId: $0.triggerId) }
+            case .activity(let run):
+                return run.map { .activityRun($0) }
+            case .library, .chat, .comparison, .workflow, .chain, .batches, .automation:
+                return nil
+            }
+        }
     }
 
     /// The four #4525 surfaces. Preview, Reader and Inspector remain three
@@ -175,6 +219,14 @@ enum PaneSurface: String, CaseIterable, Equatable {
     /// does have a readable run history), replacing the old "Workflows Have
     /// No Transcript" dead end.
     case workflowRecipe
+    /// A schedule's/trigger's/activity run's history in the Reader (#4705
+    /// "4b-2", #4741) — `ScheduleRunHistoryView`/`TriggerRunHistoryView`/
+    /// `ActivityLogView`, the SAME components the Preview `.nodeDetail` view
+    /// already mounts (extracted so one renderer serves both panes). Needs
+    /// the entity's identity, which `PaneSurface` deliberately does NOT
+    /// carry (it stays a plain `CaseIterable` enum — Swift cannot synthesize
+    /// `allCases` for a case with an associated value) — see `ReaderSubject`.
+    case runHistory
     /// `DocumentInspector` — a document or entity-table selection today
     /// (see `entityInspector` below for the distinction).
     case documentInspector
@@ -209,6 +261,23 @@ enum PaneSurface: String, CaseIterable, Equatable {
 }
 
 extension AppViewMode {
+    /// #4705 "4b-2": the honest, KIND-SPECIFIC "nothing selected" sentence
+    /// for the Reader's `.runHistory` dispatcher — `ReaderSubject.from(_:)`
+    /// collapses `.schedule(nil)`/`.trigger(nil)`/`.activity(nil)` all to a
+    /// bare `nil`, losing which kind it was, so the dispatcher needs this
+    /// SEPARATE, kind-aware string instead of one generic sentence. `nil`
+    /// for every mode whose reader cell isn't `.runHistory` in the first
+    /// place (never read there).
+    var runHistoryEmptyReason: String? {
+        switch self {
+        case .schedule: return "Select a schedule to see its run history."
+        case .trigger: return "Select a trigger to see its run history."
+        case .activity: return "Select a run to see its history."
+        case .library, .chat, .comparison, .workflow, .chain, .batches, .automation:
+            return nil
+        }
+    }
+
     /// The per-mode row of the #4525 matrix. A computed property so the
     /// exhaustive switch lives in the shape the repo already uses for
     /// per-mode routing (`ContentView.contentView`, `CompactShellPolicy`).
@@ -299,18 +368,20 @@ extension AppViewMode {
             return PaneContentPlan.Plan(
                 library: .surface(.libraryBrowser),
                 preview: .surface(.nodeDetail),
-                // #4705 increment 4b (NOT this increment): run history moves
-                // to a Reader rendition (`automation.run-history.rendition`,
-                // #4741) — for now it stays inside the Preview detail view.
-                reader: .empty("A schedule has no reader view."),
+                // #4705 "4b-2" (#4741): run history in the Reader too, the
+                // SAME `ScheduleRunHistoryView` the Preview detail view
+                // mounts — `ReaderSubject.from(viewMode)` carries which
+                // schedule; nil (nothing selected) is an honest empty
+                // handled by the Reader's dispatcher, not this cell.
+                reader: .surface(.runHistory),
                 inspector: .empty("A schedule is edited in its detail view.")
             )
         case .trigger:
             return PaneContentPlan.Plan(
                 library: .surface(.libraryBrowser),
                 preview: .surface(.nodeDetail),
-                // #4705 increment 4b (NOT this increment) — see `.schedule`.
-                reader: .empty("A trigger has no reader view."),
+                // #4705 "4b-2" — see `.schedule`.
+                reader: .surface(.runHistory),
                 inspector: .empty("A trigger is edited in its detail view.")
             )
         case .activity:
@@ -321,7 +392,10 @@ extension AppViewMode {
                 // of launching a separate window via the now-deleted
                 // `ActivityWindowLauncherView`.
                 preview: .surface(.nodeDetail),
-                reader: .empty("A workflow run has no reader view."),
+                // #4705 "4b-2" — the SAME `ActivityLogView` the Preview
+                // detail view's Log tab already mounts; no extraction was
+                // needed, it was already a standalone component.
+                reader: .surface(.runHistory),
                 inspector: .empty("Run details live in the Activity window (Window menu, ⌥⌘A).")
             )
         }

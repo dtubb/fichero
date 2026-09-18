@@ -247,20 +247,25 @@ struct PaneContentPlanTests {
         }
     }
 
-    // MARK: - Reader-page routing (#4705 "4b-1", `m2p.reader-consults-the-plan`, #4803)
+    // MARK: - Reader-page routing (#4705 "4b-1"/"4b-2", `m2p.reader-consults-the-plan`
+    // #4803, `m2p.automation-run-history-in-reader` #4741)
 
     /// Every `PaneSurface` (wrapped in `.surface`) + a representative `.empty`
-    /// case: `.documentReader`/`.workflowRecipe` are the ONLY two surfaces the
-    /// Reader's existing `effectiveDocument`-driven chain is verified
-    /// against — everything else must come back `.unmounted`, never silently
-    /// routed through code that was never proven to handle it.
-    @Test("readerPageRoute recognizes only documentReader/workflowRecipe as document-driven")
-    func readerPageRouteRecognizesOnlyTheTwoDocumentDrivenSurfaces() {
+    /// case: `.documentReader`/`.workflowRecipe` are the ONLY two surfaces
+    /// the Reader's existing `effectiveDocument`-driven chain is verified
+    /// against; `.runHistory` is its own named route (needs `ReaderSubject`,
+    /// pinned separately below); everything else must come back
+    /// `.unmounted`, never silently routed through code that was never
+    /// proven to handle it.
+    @Test("readerPageRoute recognizes documentReader/workflowRecipe as document-driven and runHistory as its own route")
+    func readerPageRouteRecognizesTheNamedSurfacesAndUnmountsEverythingElse() {
         let documentDrivenSurfaces: Set<PaneSurface> = [.documentReader, .workflowRecipe]
         for surface in PaneSurface.allCases {
             let cell = PaneContentPlan.Cell.surface(surface)
             if documentDrivenSurfaces.contains(surface) {
                 #expect(cell.readerPageRoute == .documentDriven, "\(surface)")
+            } else if surface == .runHistory {
+                #expect(cell.readerPageRoute == .runHistory, "\(surface)")
             } else {
                 #expect(cell.readerPageRoute == .unmounted(surface), "\(surface)")
             }
@@ -269,6 +274,68 @@ struct PaneContentPlanTests {
             PaneContentPlan.Cell.empty("A schedule has no reader view.").readerPageRoute
                 == .empty("A schedule has no reader view.")
         )
+    }
+
+    /// `.schedule`/`.trigger`/`.activity` now carry `.surface(.runHistory)`
+    /// in the reader cell (#4705 "4b-2") — the old per-kind `.empty(...)`
+    /// reasons ("A schedule has no reader view.", etc.) are gone from the
+    /// matrix; every other mode is unaffected.
+    @Test("schedule/trigger/activity land on the run-history reader surface")
+    func automationKindsLandOnTheRunHistoryReaderSurface() {
+        let runHistoryModes: [(String, AppViewMode)] = [
+            ("schedule", .schedule(nil)), ("trigger", .trigger(nil)), ("activity", .activity(nil)),
+        ]
+        for (name, mode) in runHistoryModes {
+            #expect(
+                PaneContentPlan.plan(for: mode).reader == .surface(.runHistory),
+                "\(name): its reader cell belongs on the run-history surface"
+            )
+        }
+    }
+
+    /// Every `AppViewMode`, including the nil sub-cases of the three
+    /// `.runHistory` kinds — `ReaderSubject.from(_:)` is exhaustive, no
+    /// `default`, so a new `AppViewMode` case fails to compile here first.
+    @Test("ReaderSubject.from names the right entity, and nil exactly when nothing is selected")
+    func readerSubjectFromNamesTheRightEntity() {
+        #expect(PaneContentPlan.ReaderSubject.from(.library(nil)) == nil)
+        #expect(PaneContentPlan.ReaderSubject.from(.chat(nil)) == nil)
+        #expect(PaneContentPlan.ReaderSubject.from(.comparison(nil)) == nil)
+        #expect(PaneContentPlan.ReaderSubject.from(.workflow(nil)) == nil)
+        #expect(PaneContentPlan.ReaderSubject.from(.chain(nil)) == nil)
+        #expect(PaneContentPlan.ReaderSubject.from(.batches) == nil)
+        #expect(PaneContentPlan.ReaderSubject.from(.automation) == nil)
+
+        #expect(PaneContentPlan.ReaderSubject.from(.schedule(nil)) == nil)
+        #expect(PaneContentPlan.ReaderSubject.from(.trigger(nil)) == nil)
+        #expect(PaneContentPlan.ReaderSubject.from(.activity(nil)) == nil)
+
+        let schedule = ScheduleInfo(
+            scheduleId: "sched-1", name: "Daily", workflowId: "wf-1", scheduleType: "cron",
+            cronExpression: "0 9 * * *", intervalSeconds: nil, runAt: nil, timezone: "UTC",
+            status: "active", inputs: [:], useBatch: false, batchItems: nil, maxConcurrent: 1,
+            createdAt: "", updatedAt: "", lastRunAt: nil, nextRunAt: nil, runCount: 0, errorMessage: nil
+        )
+        #expect(
+            PaneContentPlan.ReaderSubject.from(.schedule(schedule)) == .schedule(scheduleId: "sched-1")
+        )
+
+        let trigger = TriggerInfo(
+            triggerId: "trig-1", name: "Watcher", workflowId: "wf-1", watchPath: "/tmp",
+            recursive: false, events: [], filterMode: "extension", filterPattern: nil,
+            filterExtensions: [], excludePatterns: [], debounceSeconds: 1, batchDelaySeconds: 1,
+            inputsTemplate: [:], status: "active", useBatch: false, maxConcurrent: 1,
+            createdAt: "", updatedAt: "", lastTriggeredAt: nil, triggerCount: 0, errorMessage: nil
+        )
+        #expect(
+            PaneContentPlan.ReaderSubject.from(.trigger(trigger)) == .trigger(triggerId: "trig-1")
+        )
+
+        let run = SelectedActivityRun(
+            id: "run-1", name: "Run", workflowId: "wf-1", threadId: "thread-1",
+            timestamp: Date(), status: .completed, isLive: false, childType: nil
+        )
+        #expect(PaneContentPlan.ReaderSubject.from(.activity(run)) == .activityRun(run))
     }
 
     // MARK: - Split policy (#4705 increment 2)

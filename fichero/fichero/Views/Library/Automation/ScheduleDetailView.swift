@@ -8,10 +8,6 @@ struct ScheduleDetailView: View {
     let schedule: ScheduleInfo
     @Environment(APIClient.self) var apiClient
 
-    @State private var isLoading = false
-    @State private var error: String?
-    @State private var runs: [ScheduleRunInfo] = []
-
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
@@ -25,14 +21,12 @@ struct ScheduleDetailView: View {
 
                 Divider()
 
-                // Run History
-                runHistorySection
+                // Run History — #4705 "4b-2": extracted to `ScheduleRunHistoryView`
+                // so the SAME component also mounts from the Reader's
+                // `.runHistory` surface (`ReadingPaneView+Tabs.swift`).
+                ScheduleRunHistoryView(scheduleId: schedule.scheduleId)
             }
             .padding()
-        }
-        .task {
-            guard !Task.isCancelled else { return }
-            await loadRuns()
         }
     }
 
@@ -173,88 +167,10 @@ struct ScheduleDetailView: View {
         }
     }
 
-    // MARK: - Run History Section
-
-    @ViewBuilder
-    private var runHistorySection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Run History")
-                    .font(.headline)
-
-                Spacer()
-
-                if isLoading {
-                    ProgressView()
-                        .scaleEffect(0.7)
-                }
-            }
-
-            if let error = error {
-                HStack {
-                    Image(systemName: "exclamationmark.triangle")
-                        .foregroundStyle(.orange)
-                    Text(error)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            } else if runs.isEmpty {
-                Text("No runs yet")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .italic()
-            } else {
-                ForEach(runs, id: \.runId) { run in
-                    runRow(run)
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func runRow(_ run: ScheduleRunInfo) -> some View {
-        HStack(spacing: 12) {
-            Circle()
-                .fill(runStatusColor(run.status))
-                .frame(width: 8, height: 8)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(run.startedAt)
-                    .font(.subheadline)
-
-                HStack(spacing: 8) {
-                    Text(run.status)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    if let batchId = run.batchId {
-                        Text("Batch: \(batchId.prefix(8))...")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                if let error = run.error {
-                    Text(error)
-                        .font(.caption2)
-                        .foregroundStyle(.red)
-                        .lineLimit(2)
-                }
-            }
-
-            Spacer()
-
-            if let completed = run.completedAt {
-                Text(completed)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding(8)
-        .background(Color(platformColor: .controlBackgroundColor))
-        .cornerRadius(8)
-    }
-
+    // Run History section MOVED to `ScheduleRunHistoryView.swift` (#4705
+    // "4b-2") — `runHistorySection`/`runRow`/`runStatusColor` and their
+    // `isLoading`/`error`/`runs` state all live there now; `body` above
+    // mounts it directly.
 }
 
 // MARK: - Helpers & Actions
@@ -278,14 +194,7 @@ extension ScheduleDetailView {
         }
     }
 
-    private func runStatusColor(_ status: String) -> Color {
-        switch status {
-        case "completed": return .green
-        case "running": return .blue
-        case "failed": return .red
-        default: return .secondary
-        }
-    }
+    // `runStatusColor` MOVED to `ScheduleRunHistoryView.swift` (#4705 "4b-2").
 
     private func formatInterval(_ seconds: Int) -> String {
         if seconds < 60 {
@@ -301,19 +210,7 @@ extension ScheduleDetailView {
 
     // MARK: - Actions
 
-    private func loadRuns() async {
-        isLoading = true
-        error = nil
-
-        do {
-            let service = AutomationService(apiClient: apiClient)
-            runs = try await service.getScheduleRuns(scheduleId: schedule.scheduleId, limit: 20)
-        } catch {
-            self.error = error.localizedDescription
-        }
-
-        isLoading = false
-    }
+    // `loadRuns` MOVED to `ScheduleRunHistoryView.swift` (#4705 "4b-2").
 
     private func pauseSchedule() async {
         do {

@@ -8,9 +8,14 @@ struct TriggerDetailView: View {
     let trigger: TriggerInfo
     @Environment(APIClient.self) var apiClient
 
-    @State var isLoading = false
-    @State var error: String?
-    @State var executions: [TriggerExecutionInfo] = []
+    // #4705 "4b-2": the ONE piece of state this view still owns for the
+    // (now-extracted) run history — a manual "Refresh" tap bumps this,
+    // and `.id(runHistoryRefreshToken)` below forces `TriggerRunHistoryView`
+    // to remount, which re-triggers its own `.task(id: triggerId)` load.
+    // Reuses the same `.id()`-forces-a-fresh-mount mechanism the Reader's
+    // dispatcher uses for identity changes (`ReadingPaneView+Tabs.swift`)
+    // rather than inventing a second refresh API on the shared component.
+    @State private var runHistoryRefreshToken = UUID()
 
     var body: some View {
         ScrollView {
@@ -25,14 +30,14 @@ struct TriggerDetailView: View {
 
                 Divider()
 
-                // Execution History
-                executionHistorySection
+                // Execution History — #4705 "4b-2": extracted to
+                // `TriggerRunHistoryView` so the SAME component also mounts
+                // from the Reader's `.runHistory` surface
+                // (`ReadingPaneView+Tabs.swift`).
+                TriggerRunHistoryView(triggerId: trigger.triggerId)
+                    .id(runHistoryRefreshToken)
             }
             .padding()
-        }
-        .task {
-            guard !Task.isCancelled else { return }
-            await loadExecutions()
         }
     }
 
@@ -103,7 +108,10 @@ struct TriggerDetailView: View {
             }
 
             Button {
-                Task { await loadExecutions() }
+                // #4705 "4b-2": `loadExecutions()` moved to
+                // `TriggerRunHistoryView` with its state — bump the token
+                // that forces it to remount instead of calling it directly.
+                runHistoryRefreshToken = UUID()
             } label: {
                 Label("Refresh", systemImage: "arrow.clockwise")
             }

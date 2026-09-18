@@ -23,30 +23,10 @@ extension TriggerDetailView {
         }
     }
 
-    func executionStatusColor(_ status: String) -> Color {
-        switch status {
-        case "completed": return .green
-        case "running": return .blue
-        case "failed": return .red
-        default: return .secondary
-        }
-    }
+    // `executionStatusColor`/`loadExecutions` MOVED to
+    // `TriggerRunHistoryView.swift` (#4705 "4b-2").
 
     // MARK: - Actions
-
-    func loadExecutions() async {
-        isLoading = true
-        error = nil
-
-        do {
-            let service = AutomationService(apiClient: apiClient)
-            executions = try await service.getTriggerExecutions(triggerId: trigger.triggerId, limit: 20)
-        } catch {
-            self.error = error.localizedDescription
-        }
-
-        isLoading = false
-    }
 
     func pauseTrigger() async {
         do {

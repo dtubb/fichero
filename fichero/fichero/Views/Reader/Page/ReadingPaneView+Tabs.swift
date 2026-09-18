@@ -32,13 +32,44 @@ extension ReadingPaneView {
             case .notes:
                 notesTabContent
             }
+        case .runHistory:
+            // #4705 "4b-2" (#4741): `readerSubject` (nil for a nothing-
+            // selected schedule/trigger/activity, per 4a's own answer to the
+            // same question for Preview) picks WHICH entity; the dispatcher
+            // below picks WHICH component. `.id(subject)` forces a fresh
+            // mount on identity change — this is a LONG-LIVED pane, so
+            // selecting schedule A then B must reload, never keep showing
+            // A's rows under B's title.
+            if let subject = readerSubject {
+                runHistoryContent(for: subject)
+                    .id(subject)
+            } else {
+                PaneEmptyStateView(
+                    reason: readerRunHistoryEmptyReason ?? "Select an item to see its run history."
+                )
+            }
         case .empty(let reason):
             PaneEmptyStateView(reason: reason)
         case .unmounted(let surface):
-            // 4b-1: nothing produces this yet — 4b-2's `.runHistory` will be
-            // the first. An honest placeholder that NAMES the surface,
-            // never a blank, per the same rule `.empty` follows above.
+            // 4b-1: nothing produces this yet beyond `.runHistory` above. An
+            // honest placeholder that NAMES the surface, never a blank, per
+            // the same rule `.empty` follows above.
             PaneEmptyStateView(reason: "The Reader has no \(surface.rawValue) rendition yet.")
+        }
+    }
+
+    /// #4705 "4b-2": dispatches to the SAME component the Preview
+    /// `.nodeDetail` detail view already mounts for this kind — one
+    /// renderer, two mounts, zero duplication (iterate, never replace).
+    @ViewBuilder
+    private func runHistoryContent(for subject: PaneContentPlan.ReaderSubject) -> some View {
+        switch subject {
+        case .schedule(let scheduleId):
+            ScheduleRunHistoryView(scheduleId: scheduleId)
+        case .trigger(let triggerId):
+            TriggerRunHistoryView(triggerId: triggerId)
+        case .activityRun(let run):
+            ActivityLogView(selectedRun: run)
         }
     }
 

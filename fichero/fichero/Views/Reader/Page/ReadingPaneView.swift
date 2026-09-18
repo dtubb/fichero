@@ -44,6 +44,19 @@ struct ReadingPaneView: View {
     /// call site this property does not name explicitly keeps compiling
     /// unchanged.
     var readerCell: PaneContentPlan.Cell = .surface(.documentReader)
+    /// #4705 "4b-2" (#4741): WHICH schedule/trigger/run the `.runHistory`
+    /// route (above) shows — computed by the same host, from the same
+    /// `viewMode`, as `readerCell`. `nil` for every other route, and for the
+    /// nothing-selected sub-case of `.schedule`/`.trigger`/`.activity` (the
+    /// dispatcher shows `readerRunHistoryEmptyReason` then, not a blank).
+    var readerSubject: PaneContentPlan.ReaderSubject? = nil
+    /// #4705 "4b-2": the kind-specific "nothing selected" sentence for the
+    /// `.runHistory` route when `readerSubject` is nil — `AppViewMode.
+    /// runHistoryEmptyReason`, computed by the host. Kept separate from
+    /// `readerSubject` because collapsing `.schedule(nil)`/`.trigger(nil)`/
+    /// `.activity(nil)` to one bare `nil` loses which kind it was, and the
+    /// three kinds' empty sentences must stay distinct, not one generic one.
+    var readerRunHistoryEmptyReason: String? = nil
 
     @Environment(APIClient.self) var apiClient
     /// THIS window's artifact service (2026-09-02): the lens loader used to
