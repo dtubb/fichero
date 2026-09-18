@@ -32,23 +32,23 @@ from the dependency manifests, kept distinct from the scholarly entries.
 
 ## Behaviors
 
-- `cite.bibtex-canonical` [MISSING] — `docs/references.bib` is the one BibTeX store; every
+- `cite.bibtex-canonical` [MISSING] (#4654) — `docs/references.bib` is the one BibTeX store; every
   scholarly/tool reference is an entry with a stable key (e.g. `six-degrees-francis-bacon`).
-- `cite.docs-resolve` [MISSING, hard] — every citation key used in `docs/user_manual/**` and
+- `cite.docs-resolve` [MISSING, hard] (#4655) — every citation key used in `docs/user_manual/**` and
   `docs/contributor_manual/**` resolves to a `.bib` entry; an orphan citation fails the gate
   (`scripts/check_doc_citations.py`). Mirrors how `check_specs_have_tests` binds specs to tests.
-- `cite.human-readable` [MISSING] — a doc renders its References as author/title/year/URL a person
+- `cite.human-readable` [MISSING] (#4656) — a doc renders its References as author/title/year/URL a person
   can read, generated from the `.bib` — the key is the source, the rendering is derived.
-- `cite.code-deps` [MISSING] — code/library dependencies (from `pyproject.toml` / SwiftPM) are
+- `cite.code-deps` [MISSING] (#4658) — code/library dependencies (from `pyproject.toml` / SwiftPM) are
   credited in a generated "Dependencies & credits" doc, distinct from the scholarly entries.
-- `cite.categorized` [MISSING] — each entry is tagged with what it informs (spec/feature slug), so
+- `cite.categorized` [MISSING] (#4658) — each entry is tagged with what it informs (spec/feature slug), so
   a spec's "Related work" list is generated, not hand-maintained.
-- `cite.exportable` [MISSING] — the bibliography exports as BibTeX (and later CSL-JSON) for papers
+- `cite.exportable` [MISSING] (#4658) — the bibliography exports as BibTeX (and later CSL-JSON) for papers
   and for the app's future "sources / where this comes from" surface.
-- `cite.surfaces` [MISSING] — the credits render in THREE places from the one `.bib`: the app's
+- `cite.surfaces` [MISSING] (#4657) — the credits render in THREE places from the one `.bib`: the app's
   **About box**, the **user guide** (`docs/user_manual/`), and the **website** — generated, never
   hand-copied, so they never drift.
-- `cite.people-first` [MISSING] — ordering puts **specific people / articles first** (the
+- `cite.people-first` [MISSING] (#4654) — ordering puts **specific people / articles first** (the
   scholarship and the humans behind it), then projects, then code libraries — credit the thinking
   before the tooling.
 

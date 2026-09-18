@@ -36,11 +36,11 @@ remote host can't redirect a hermetic test).
 - `transport.uds-computed` [OK] — `FICHERO_FORCE_UDS=1` → app-computed container socket.
 - `transport.inmemory-wins` [OK] — both flags set → `.inMemory`.
 - `transport.uitest-owns` [OK] — `--uitesting` transport beats a saved remote host.
-- `transport.same-result` [PARTIAL] — engine gives identical read/write results across transports.
+- `transport.same-result` [PARTIAL] (#4789) — engine gives identical read/write results across transports.
   Verified 2026-09-09: the gated suite's **equivalence sweep only parametrizes `uds_engine` +
   `https_engine`** (`test_transport_round_trips.py:179-200`); **in-memory is NOT in the sweep**. So
   the cross-transport invariant is proven for UDS+HTTPS but NOT extended to in-memory.
-- `transport.inmemory-contract` [MISSING] — the `.inMemory` transport the app actually uses is
+- `transport.inmemory-contract` [MISSING] (#4790) — the `.inMemory` transport the app actually uses is
   **PythonKit in-process**, and it has **no contract test**. `test_in_memory_asgi_round_trip()`
   (:209) exercises an ASGI in-memory app and its own comment admits it does NOT cover the
   Swift/PythonKit in-process claim. This is the gap the creative director flagged: bind a test that

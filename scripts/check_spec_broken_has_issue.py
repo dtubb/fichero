@@ -32,10 +32,9 @@ SPECS_DIR = pathlib.Path("docs/contributor_manual/specs")
 # the moment its last untracked behavior gets an issue — a file that is already clean MUST
 # NOT stay in this set (this guardrail enforces that itself: see `_check_grandfather_is_live`),
 # so the list can only shrink. Do NOT add new files here — new debt must ship with an issue.
-GRANDFATHERED_FILES = {
-    "docs/docs-citations-bibliography.md",
-    "transport/transport-http-uds.md",
-}
+#
+# Burned down to empty 2026-09-18 (kg/* → testing/* → docs/* → transport/*, in that order).
+GRANDFATHERED_FILES: set[str] = set()
 
 # A behavior id is a dotted lowercase token: e.g. `panes.split.asymmetric`,
 # `nodeconfig.fields.entities.prompt`, `m2p.library-is-always-navigator`. This excludes a
