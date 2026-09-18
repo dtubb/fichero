@@ -32,10 +32,15 @@ remote host can't redirect a hermetic test).
 ## Behaviors
 
 - `transport.default-https` [OK] — no override → `.https`, cert-pinned where configured.
+  Pinned: `EngineTransportModeTests.noOverrideReturnsNil`.
 - `transport.uds-path` [OK] — `FICHERO_FORCE_UDS_PATH` → `.uds(path:)`; owner-trusted, no token.
+  Pinned: `EngineTransportModeTests.forceUDSPathDialsUDSLocally`.
 - `transport.uds-computed` [OK] — `FICHERO_FORCE_UDS=1` → app-computed container socket.
+  Pinned: `EngineTransportModeTests.forceUDSFlagUsesComputedPath`.
 - `transport.inmemory-wins` [OK] — both flags set → `.inMemory`.
+  Pinned: `EngineTransportModeTests.inMemoryWinsOverUDS`.
 - `transport.uitest-owns` [OK] — `--uitesting` transport beats a saved remote host.
+  Pinned: `EngineTransportModeTests.uiTestUDSOverrideWinsOverRemoteHost`.
 - `transport.same-result` [PARTIAL] (#4789) — engine gives identical read/write results across transports.
   Verified 2026-09-09: the gated suite's **equivalence sweep only parametrizes `uds_engine` +
   `https_engine`** (`test_transport_round_trips.py:179-200`); **in-memory is NOT in the sweep**. So
@@ -57,7 +62,7 @@ remote host can't redirect a hermetic test).
 
 | Leg | This surface? | Pins | File |
 |-----|---------------|------|------|
-| Pure rule (Swift) | y | `localDebugTransportOverride` precedence table | `fichero/Tests/Unit/**/TransportSelectionTests.swift` |
+| Pure rule (Swift) | y | `localDebugTransportOverride` precedence table | `fichero/Tests/Unit/general/Transport/EngineTransportModeTests.swift` (corrected 2026-09-18 — the file was renamed since this row was written) |
 | Backend (pytest) | y | same read/write result across UDS/HTTPS/in-memory | `fichero-server/tests/integration/test_transport_round_trips.py` (exists, 7 passed) |
 | Swift event-delivery | y | change-stream event arrives at the Swift client per transport | `fichero/Tests/Unit/**/…StreamTests.swift` (#4511) |
 

@@ -43,7 +43,7 @@ transform); this pins WHAT a mark is and how it behaves. Grounded in the ruling 
   "Check" and displays `"✓" * rating`, never a star (views.py:352,403). Pinned: `test_routes_views.py`.
 - `markup.review.grouped-by-page` **[OK]** — `?representation=annotations` returns entries grouped per
   page, in page order with a document-level group last, each cited "p. N" (views.py:361). Pinned:
-  `test_routes_views.py:1038`.
+  `TestAnnotationsRepresentation.test_entries_group_by_page_and_cite_it`.
 - `markup.list.min-rating-filter` **[OK]** — `GET …/annotations?min_rating=k` returns only annotations
   with `rating >= k` (annotations.py:212,232). Pinned: `test_annotations.py`.
 - `markup.delete.soft-reversible` **[OK]** — deleting an annotation is soft and undoable via restore,
@@ -59,7 +59,7 @@ transform); this pins WHAT a mark is and how it behaves. Grounded in the ruling 
   carry tags; the design ruling's "code and query by tag" is built:
   `api/routes/document/annotations.py:~211` (`tag: str | None = Query(...)` param) and `:~230`
   (`if tag is not None: rows = [r for r in rows if tag in (r.tags or [])]`). Pinned:
-  `tests/unit/api/test_annotations.py:~179` (`test_list_filter_by_tag`).
+  `TestAnnotationList.test_list_filter_by_tag`.
 - `markup.review.library-wide` **[GAP]** (#4718) — the per-document `annotations` representation exists, but a
   LIBRARY-WIDE review surface (all checked/rated lines across sources) is still queued (a
   ruling from the design doc's numbered list, not a GitHub issue number).
@@ -72,12 +72,12 @@ transform); this pins WHAT a mark is and how it behaves. Grounded in the ruling 
 | rating.bounded-1-5 | test_annotations.py, test_routes_annotations_actions.py | ✅ |
 | check.cycle | AnnotationCheckCycleTests (new, Swift) | ✅ |
 | rating.renders-as-check | test_routes_views.py | ✅ |
-| review.grouped-by-page | test_routes_views.py:1038 | ✅ |
+| review.grouped-by-page | test_routes_views.py::TestAnnotationsRepresentation::test_entries_group_by_page_and_cite_it | ✅ |
 | list.min-rating-filter | test_annotations.py | ✅ |
 | delete.soft-reversible | test_routes_annotations_actions.py | ✅ |
 | promote-to-claim | test_routes_annotations_actions.py | ✅ |
 | export.w3c-annotationpage | test_routes_iiif.py (`test_manifest_is_presentation3_and_points_at_annotation_page`) | ✅ |
-| tags.coding | test_annotations.py (`test_list_filter_by_tag`) | ✅ |
+| tags.coding | test_annotations.py::TestAnnotationList::test_list_filter_by_tag | ✅ |
 | review.library-wide | — | ❌ [GAP] |
 
 ## Open questions

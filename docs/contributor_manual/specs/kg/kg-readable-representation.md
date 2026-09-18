@@ -95,7 +95,10 @@ per claim, not a fixed language pair.
   inferred edges must show their confidence. Never render a single-source low-confidence claim as
   flat fact.
 - `kg.read.provenance-linked` [OK, extend] — every statement keeps its citation marker → source
-  anchor (paragraph.py already does markers; ensure biography-scale keeps them 1:1).
+  anchor (paragraph.py already does markers; ensure biography-scale keeps them 1:1). Pinned:
+  `test_paragraph_rendering_helpers.py::test_render_narrative_merges_and_offsets_align` (asserts
+  each marker's index maps 1:1 to its claim id, and every marker's recorded offset slices back to
+  its own token in the rendered text — including multibyte superscript markers).
 - `kg.read.cite-to-segment` [MISSING] (#4652) — a citation resolves not just to a document/page but to the
   **page SEGMENT** (the bbox/region the claim was extracted from), so a click lands the reader on
   the exact spot in the source. The `SourceAnchor` already carries region data — the marker must

@@ -57,11 +57,19 @@ One line per behavior, each with a stable id and a tag. The id is what a test ci
   so one release never shows as two different-looking versions. `AboutInfoTests.testEngineVersionLineUsesVersion`,
   `testDateStyleVersion*`.
 - `about.server.omitted-when-unknown` [OK] — the Server row is omitted entirely (not `Server —`)
-  before the first health response and while disconnected. `AboutInfoTests.testEngineVersionLineIsOmitted*`.
+  before the first health response and while disconnected. Pinned:
+  `AboutInfoTests.testEngineVersionLineIsOmittedWhenMissing`,
+  `AboutInfoTests.testEngineVersionLineIsOmittedWhenEmpty`,
+  `AboutInfoTests.testEngineVersionLineIsOmittedAfterConnectionFailure`.
 - `about.copyright.bundle-then-fallback` [OK] — copyright uses the bundle's
-  `NSHumanReadableCopyright` when present, else the AGPL-3.0 fallback. `AboutInfoTests.testCopyrightLine*`.
+  `NSHumanReadableCopyright` when present, else the AGPL-3.0 fallback. Pinned:
+  `AboutInfoTests.testCopyrightLineUsesBundleValue`,
+  `AboutInfoTests.testCopyrightLineFallsBackWhenBundleValueMissing`.
 - `about.icon.real-running-icon` [OK] — the icon is the running app's icon (macOS) / highest-res
-  bundled icon (iOS), never an asset-name coupling. `AboutViewIconTests.*`.
+  bundled icon (iOS), never an asset-name coupling. Pinned:
+  `AboutViewIconTests.testReturnsLastIconFile`, `AboutViewIconTests.testSingleIconFile`
+  (the iOS bundled-icon-picking half; no separate test found for the macOS
+  running-app-icon half — both live behind the same view-level API today).
 - `about.links.canonical` [OK] — GitHub + license links point at the canonical repo URLs.
   `AboutInfoTests.testAboutLinksUseCanonicalRepositoryURLs`.
 - `about.acknowledgements.rows` [OK] — every credited project has a non-empty name + license and a
@@ -71,7 +79,8 @@ One line per behavior, each with a stable id and a tag. The id is what a test ci
   layer non-empty. `AboutAcknowledgementsTests.testEveryLayerIsPopulated`, `testLayerDisplayOrder`.
 - `about.acknowledgements.live-version` [OK] — a row shows `v<version> · <license>` when the engine
   reports that dependency's version, license-only otherwise (never a stale number). *(view-level;
-  `versionKey` mapping pinned by `AboutAcknowledgementsTests.testDistributionOverride…`)*
+  `versionKey` mapping pinned by
+  `AboutAcknowledgementsTests.testDistributionOverrideDrivesLowercasedVersionKey`)*
 - `about.settings.touch-tab` [OK] — on touch platforms About is a Settings tab, not a window.
   `AboutSettingsSurfaceTests.testSettingsViewHostsAboutTabOnTouchPlatforms`.
 - `about.window.single-instance` [OK] — the Mac About window is single-instance, content-sized,

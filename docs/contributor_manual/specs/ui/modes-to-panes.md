@@ -98,7 +98,7 @@ the ruling this table exists to make assertable.
 | `.library` (entities/claims/folder rows) | Library browser | honest empty / doc preview | honest empty | Document Inspector — **[OK]** already correct (`ContentView+StateLayout.swift:102-108`, `LibraryView+ContentBranches.swift:176-241`) |
 | `.workflow(x)` | Library browser — **[PROPOSED]** | Workflow canvas (`WorkflowEditor`) — **[PROPOSED]**, today full-width in Library (`Nav:286-294`) | Last/current run log — **[PROPOSED]**, today an honest empty state (`ReadingPaneView+Tabs.swift:155-169`) | Palette · node · runs (`WorkflowInspector`, 3 tabs) — **[OK]** already correct (`Detail:384-390`) |
 | `.chat` | Library browser — **[OK]** already correct (`Nav:237-244`) | document preview | `.surface(.documentReader)` — **[OK]** (4b-1 audit, 2026-09-18): the row previously said `.empty("A conversation has no reader view.")`, which was WRONG but harmless while nothing read this cell — a conversation keeps Library + Source + Reader all showing real documents (the modes-to-panes ruling), so once 4b-1 made the Reader obey the cell, the old value would have blanked it for every chat user. Corrected before the regression shipped. | Sources · Plan · Knowledge · Compare (`ChatInspector`/`ChatSurfaceTab`) — **[PARTIAL]**, correct kind but duplicated (§Inspector policy) |
-| research (project selection) | Library browser — **[PROPOSED]**, today a bespoke `HStack{ResearchProjectListView\|ResearchWorkspaceView}` (`Nav:201-221`) | document preview | thread/document (via chat's Plan tab) | Sources · Plan · Knowledge · Compare — **[PROPOSED]** |
+| research (project selection) | Library browser — **[PROPOSED]** (5b), today a bespoke `HStack{ResearchProjectListView\|ResearchWorkspaceView}` (`Nav:201-221`) | `PaneSurface.webBrowser` (`ResearchBrowserPane`) when no document is also selected, else document preview — **[PROPOSED]** (5c, DECIDED design per CD ruling 2026-09-18: scratch browsing persists nothing, only an explicit save makes a node) | thread/document (via chat's Plan tab, 5b) | Sources · Plan · Knowledge · Compare — **[PROPOSED]** (5b) |
 | `.comparison` | — **RETIRING** (CD 2026-09-18 ruling; scope clarified 2026-09-18: split OUT of increment 4a into increment 4c below): the comparison VIEW/mode/window (`AppViewMode.comparison`/`ComparisonDetailView`) retires, but the PRODUCING "run with A and B" action survives — it leaves two sibling artifacts shown as two Reader panes with a diff lens, not a mode/node/view of its own — see `m2p.comparison-is-panes-and-diff-lens`. Three sites still construct `.comparison` today | | | |
 | `.chain` | Library browser — **[OK]** (increment 4a, 9128ecdee) | node detail (chain, `ChainEditorView`) — **[OK]** (increment 4a); "Create Chain" empty state MOVED here, not deleted | — | honest empty |
 | `.batches` | Library browser — **[OK]** (increment 4a) | node detail (`BatchRunView`) — **[OK]** (increment 4a) | — | honest empty; `AppViewMode.batch` DELETED (increment 4a) — a persisted `"batch"` still restores to `.activity` (`ContentView+Persistence.swift`'s `case "batches", "batch":`) |
@@ -199,11 +199,30 @@ fourth type.
   its `deletedBareIdentifiers` check for `ActivityWindowLauncherView`, and
   `ContentViewPersistenceTests.testRetiredBatchStringStillRestoresToActivity` for the
   persisted-`"batch"`-string tolerant decode.
-- `m2p.research-is-sidebar-node` — **[PROPOSED]** research projects are sidebar nodes like
-  workflows, not a bespoke `HStack` container; a project's workspace content is reached via
-  chat's Plan tab or a Preview rendition, and the Library pane never shows
-  `ResearchProjectListView`. Pinned by the matrix row + the guardrail dropping
-  `ResearchWorkspaceView(`.
+- `m2p.research-is-sidebar-node` — **[PROPOSED]**, split into increments 5a/5b/5c above
+  (2026-09-18 design pass): research projects are sidebar nodes like workflows, not a bespoke
+  `HStack` container; a project's workspace content is reached via chat's Plan tab (5b — the
+  chat dock is scoped to the project via `ChatView(researchProject:)`, the same adapter
+  `ResearchChatPane` already uses) or a Preview rendition (5c, the embedded browser as
+  `PaneSurface.webBrowser` — DECIDED design per creative-director ruling 2026-09-18, see 5c
+  above). Agent workspaces (folder Documents) get their own, simpler path (5a) — they need no
+  new `AppViewMode` case, just sidebar visibility over Documents that already exist. The
+  Library pane never shows `ResearchProjectListView`/`ResearchWorkspaceView` once all three
+  land. Pinned by the matrix row + the guardrail dropping `ResearchWorkspaceView(`.
+- `m2p.browser-is-a-source-rendition` — **[GAP]** (#4809): the embedded browser lives
+  INSIDE the Source/Preview pane as `PaneSurface.webBrowser` — no browser pane kind, no tab
+  strip of its own (creative-director ruling, 2026-09-18). Design decided, not yet built —
+  see 5c above for the mechanism.
+- `m2p.scratch-browsing-persists-nothing` — **[GAP]** (#4810): navigating to find a
+  source (a search engine, a catalogue, any page visited while looking) persists NOTHING
+  beyond a session-only back/forward trail — never a node (creative-director ruling,
+  2026-09-18). The ruling is about PAGES; whether cookies and logins are also scratch is NOT decided —
+  see 5c's note and #4810.
+- `m2p.saving-a-source-makes-a-node` — **[GAP]** (#4811): only an explicit save makes
+  a node — either the page as a native `.webarchive` (URL + capture time), or the page's
+  EXTRACTED output saved as the artifact with the page as its provenance, preferred where it
+  applies (creative-director ruling, 2026-09-18) — through the one audited action layer, same
+  as every other save. Constrains research.md's Open Question 2 (the save action's design).
 - `m2p.chat-single-mount` — **[PROPOSED]** `ChatView(` appears in exactly one builder at a
   time — dock OR pane, never both — because conversation state (`currentConversation`,
   `backendConversationId`, `ChatView.swift:61-66`) is lifted out of `@State` into the
@@ -273,10 +292,24 @@ fourth type.
   document, never the matrix's own honest `.empty` reason. Fixed by a new
   `PaneContentPlan.Cell.readerPageRoute` gate ahead of the tab switch — see increment 4b-1
   above for the full mechanism. Pinned by
-  `PaneContentPlanTests.readerPageRouteRecognizesOnlyTheTwoDocumentDrivenSurfaces` (pure, every
+  `PaneContentPlanTests.readerPageRouteRecognizesTheNamedSurfacesAndUnmountsEverythingElse` (pure, every
   `PaneSurface` + `.empty`) — no automated SwiftUI-render test yet asserting the Reader actually
   mounts `PaneEmptyStateView` for a live schedule selection (a coverage gap, flagged, same
   honesty precedent as `m2p.workflow-reader-is-run-log`).
+- `m2p.automation-run-history-in-reader` — **[GAP]** (→ #4741, the `automation` spec's own issue; sha pending gate — flips to
+  **[OK]** once green): a schedule/trigger/activity selection must show its run history in the
+  Reader, not the honest-but-now-obsolete `.empty("A schedule has no reader view.")` (etc.) the
+  matrix stated before this landed. Fixed by extracting `ScheduleDetailView`'s/
+  `TriggerDetailView`'s run-history sections into `ScheduleRunHistoryView`/
+  `TriggerRunHistoryView` (Activity needed no extraction — `ActivityLogView` already existed
+  standalone) and mounting the SAME components from the Reader's new `.runHistory` route via
+  `PaneContentPlan.ReaderSubject` — see increment 4b-2 above for the full mechanism, including
+  the reload-on-identity-change fix and the environment-inheritance proof. Pinned by
+  `PaneContentPlanTests.automationKindsLandOnTheRunHistoryReaderSurface` and
+  `PaneContentPlanTests.readerSubjectFromNamesTheRightEntity` (pure, every `AppViewMode`
+  including the nil sub-cases) — no automated SwiftUI-render test yet asserting the extracted
+  components actually mount live (a coverage gap, flagged, same honesty precedent as
+  `m2p.reader-consults-the-plan`).
 
 ## Migration — nine increments (0–8), each shippable, each with its pinning test
 
@@ -382,7 +415,7 @@ increments 2, 4, and 5.
   first, rendered as `"The Reader has no <surface> rendition yet."`). Files: `Plan` (the routing
   type + function), `ReadingPaneView.swift` (the new property), `ReadingPaneView+Tabs.swift` (the
   gate), `Detail` (the one call site). Test: `m2p.reader-consults-the-plan`,
-  `PaneContentPlanTests.readerPageRouteRecognizesOnlyTheTwoDocumentDrivenSurfaces` (every
+  `PaneContentPlanTests.readerPageRouteRecognizesTheNamedSurfacesAndUnmountsEverythingElse` (every
   `PaneSurface` + a representative `.empty`, pure).
   **Lesson (added post-gate, 2026-09-18):** making code start OBEYING a table that was
   previously decoration turns every WRONG row into an immediate regression — the `.chat` row
@@ -400,24 +433,69 @@ increments 2, 4, and 5.
   default it), so this is a `[GAP]`, flagged for whoever eventually wires it, not a live
   regression from 4b-1. `.comparison`'s `.empty("A comparison has no reader view.")` was
   checked and confirmed accurate — no `.comparison` selection site writes `detailDocument`.
-- **4b-2. `.runHistory` (not started).** Extract `ScheduleDetailView.runHistorySection`,
-  `TriggerDetailView.executionHistorySection` and Activity's log rendering
-  (`ActivityDetailView`'s `ActivityService`-backed list, plus its live
-  `WorkflowExecutionObserver`/`WorkflowExecutionStore` layer for in-progress runs) into
-  Reader-mountable, read-only components, each owning its own load — the `WorkflowOutputLog`
-  pattern (increment 2, `m2p.workflow-reader-is-run-log`) — and mount the SAME component from
-  the Preview `.nodeDetail` view and the Reader's new `.runHistory` branch: one renderer, two
-  mounts, zero duplication (iterate, never replace — move the code, do not rewrite it). The
-  component needs the entity id, so `.runHistory` needs a payload (an associated value, or the
-  `Cell` gains one) — the smallest shape that keeps `PaneSurface` `Equatable`/testable, exact
-  shape TBD at implementation. Activity's live layer reads `WorkflowExecutionObserver` from the
-  environment — that read MUST be optional
-  (`@Environment(WorkflowExecutionObserver.self) private var observer: WorkflowExecutionObserver?`),
-  the #4703 crash class the `EnvironmentOptionalObservableGuardrailTests` guardrail enforces.
-  Tracked on #4741. Files: `Plan`, `ReadingPaneView+Tabs.swift`, `ScheduleDetailView.swift`,
-  `TriggerDetailView.swift`/`TriggerDetailView+Helpers.swift`, `ActivityDetailView.swift`, new
-  shared Reader-mountable components. Test: TBD once the extraction lands —
-  `EnvironmentOptionalObservableGuardrailTests` must stay green for the new mount.
+- **4b-2. `.runHistory` — DONE (2026-09-18, sha pending gate), #4741.** Extracted
+  `ScheduleDetailView.runHistorySection`/`runRow`/`runStatusColor`/`loadRuns` verbatim into a
+  new `ScheduleRunHistoryView(scheduleId: String)`, and `TriggerDetailView.
+  executionHistorySection`/`executionRow`/`executionStatusColor`/`loadExecutions` (formerly
+  split across `TriggerDetailView+ExecutionHistory.swift`, now deleted — its only two members
+  moved wholesale — and `TriggerDetailView+Helpers.swift`) verbatim into a new
+  `TriggerRunHistoryView(triggerId: String)` — no logic rewrite, no restyle, only
+  `schedule.scheduleId`/`trigger.triggerId` became plain `String` params. Activity needed NO
+  extraction: `ActivityDetailView`'s `.log` tab already mounted a standalone
+  `ActivityLogView(selectedRun: SelectedActivityRun)` (`Views/Activity/ActivityLogView.swift`)
+  with its own load, its own live/completed branching, and correctly-optional environment reads
+  already — the Reader's `.runHistory` branch mounts the SAME component a second time. One
+  renderer per kind, two mounts (Preview's detail view unchanged; the Reader is the new mount),
+  zero duplication. Payload: `.runHistory` stays a plain `PaneSurface` case (Swift cannot
+  synthesize `CaseIterable.allCases` for a case with an associated value); a second, separately
+  computed value carries the identity — `PaneContentPlan.ReaderSubject` (`.schedule(scheduleId:
+  String)`, `.trigger(triggerId: String)`, `.activityRun(SelectedActivityRun)` — the SMALLEST
+  thing each component needs; Schedule/Trigger only read an id, so carrying the whole
+  `ScheduleInfo`/`TriggerInfo` would make the Reader re-evaluate on every unrelated field change
+  and couple it to the detail model; Activity's component genuinely needs the whole struct).
+  `ReaderSubject.from(_ viewMode: AppViewMode) -> ReaderSubject?` is exhaustive (no `default`) on
+  `ReadingPaneView`'s new `readerSubject` property, computed by the same host as `readerCell`,
+  from the same `viewMode`. Nothing-selected (`.schedule(nil)`/`.trigger(nil)`/`.activity(nil)`):
+  reuses 4a's own answer to the identical question for Preview — the reader CELL stays the
+  constant `.surface(.runHistory)` regardless of nil; the nil/non-nil distinction is handled by
+  `readerSubject` being nil, at the Reader's dispatcher, not the matrix. The per-kind honest
+  reason for that nil case stays SPECIFIC ("Select a schedule/trigger/run to see its ... run
+  history.") via a second small property, `AppViewMode.runHistoryEmptyReason`, since collapsing
+  to a bare `ReaderSubject?` loses which kind it was. Reload-on-identity-change (the classic
+  extraction-into-a-long-lived-host bug — the Reader pane persists across selections, unlike the
+  Preview detail view SwiftUI rebuilds per selection): `ScheduleRunHistoryView`/
+  `TriggerRunHistoryView` key their load on `.task(id: scheduleId)`/`.task(id: triggerId)` and
+  clear their rows before each fetch; the Reader's dispatcher ALSO mounts every kind with
+  `.id(subject)`, forcing a fresh identity on any change. Checked `ActivityLogView`'s own
+  `.task(id: selectedRun.threadId...)` for the same defect — it already keys correctly and its
+  `isLoading` branch is checked BEFORE its `workflowRun` branch, so a stale run's content is
+  never shown mid-fetch; no fix needed there. One wrinkle NOT a pure verbatim move: extracting
+  `loadExecutions()` out from under `TriggerDetailView`'s existing "Refresh" button (Schedule has
+  no equivalent button) broke its direct call; fixed with a `runHistoryRefreshToken: UUID`
+  `@State` that the button bumps and `TriggerRunHistoryView` is `.id()`-mounted on, reusing the
+  same forced-remount mechanism rather than adding a second refresh API to the shared component.
+  Environment safety: `WorkflowExecutionObserver` is part of `WindowEnvironmentModifier`,
+  re-injected at every pane leaf (`PaneSpec.swift:313`, the PROVEN-inheriting boundary, distinct
+  from Toolbar/Inspector which are not); `WorkflowExecutionStore` is injected at
+  `LibraryWorkspaceRoot.swift:103`, the app-wide root every pane nests under — both reliably
+  reach a Reader-mounted view. `ActivityLogView` already declared them correctly
+  (`WorkflowExecutionObserver` non-optional, matching `WorkflowOutputLog`'s proven-safe
+  precedent; `WorkflowExecutionStore` already optional) and neither line was touched.
+  `EnvironmentOptionalObservableGuardrailTests.scannedDirectories` is `["Views/Shell/Toolbar",
+  "Views/Inspector", "Views/Workflow/Inspector"]` ONLY — it does NOT cover `Views/Activity/` or
+  `Views/Library/Automation/`, so it would not have caught a violation here either way; noted for
+  #4774, not widened in this delivery. **Open question for the creative director** (not decided
+  here): a schedule/trigger/run now shows its history in BOTH the Preview detail view and the
+  Reader — kept both for this delivery (the Reader pane may be closed), whether the Preview
+  detail view should drop its own history section once the Reader has it is undecided. Files:
+  `Plan`, `ReadingPaneView.swift`, `ReadingPaneView+Tabs.swift`, `Detail`, `ScheduleDetailView.
+  swift`, `ScheduleRunHistoryView.swift` (new), `TriggerDetailView.swift`,
+  `TriggerDetailView+Helpers.swift`, `TriggerRunHistoryView.swift` (new; deleted
+  `TriggerDetailView+ExecutionHistory.swift`). Test: `m2p.automation-run-history-in-reader`,
+  `PaneContentPlanTests.automationKindsLandOnTheRunHistoryReaderSurface`,
+  `PaneContentPlanTests.readerSubjectFromNamesTheRightEntity` — no automated SwiftUI-render test
+  yet asserting the Reader actually mounts these components live (coverage gap, flagged, same
+  honesty precedent as `m2p.workflow-reader-is-run-log`/`m2p.reader-consults-the-plan`).
 - **4c. Comparison + diff lens (not started).** `AppViewMode.comparison` and
   `ComparisonDetailView` are DELETED; comparison becomes two sibling artifacts shown as two
   Reader panes with a diff lens (not a mode, not chat's Compare tab; see
@@ -428,12 +506,78 @@ increments 2, 4, and 5.
   `Models/SidebarViewTypes.swift`. **Persistence:** `restoreViewMode` keeps accepting the
   retired `"comparison"` string exactly as it already does for `"search"`. Test:
   `m2p.comparison-is-panes-and-diff-lens` + a restore-table test.
-- **5. Research stops being a centre takeover.** Delete the `HStack` container +
-  `ResearchProjectListView` mount (`Nav:176-222` regular arm); projects become sidebar
-  selections; workspace content reached via chat's Plan tab or a Preview rendition. Files:
-  `Nav`, `Views/Chat/Research/*`, sidebar section files. Highest product ambiguity — do not
-  start before the Q1-equivalent design confirmation the epic's rulings already settled
-  (research projects are sidebar nodes). Test: `m2p.research-is-sidebar-node`.
+- **5a. Workspaces are library folders (not started).** Agent workspaces
+  (`workspace_kind=agent` folder Documents, already ordinary library `Document`s —
+  `DocumentStore.createWorkspace(name:)` + `documentService.markAsWorkspace(folderId:)`)
+  appear as ordinary library nodes (a sidebar section/filter over existing Documents),
+  not a bespoke second list. Deletes `ResearchProjectListView`'s `workspacesSection`/
+  `workspaceRow(_:)`/`newWorkspaceForm` — its ONLY other create path for a workspace is
+  `newWorkspaceForm` itself, so this needs an equivalent create affordance somewhere in the
+  ordinary library UI (a "New Workspace" folder-creation variant) before the form can go;
+  exact placement TBD at implementation. Files: `ResearchProjectListView.swift`, sidebar
+  section files. Test: TBD once the create-path replacement is designed.
+- **5b. A research project is a sidebar node (not started).** New `SidebarItem.ItemType`
+  case + selection handler (mirrors how `.workflows`/`.schedule` already route); new
+  `AppViewMode.research(ResearchProject?)` with tolerant restore (the established pattern —
+  see §Persistence); matrix row = `.chat`'s row (Library browser | Preview | document-driven
+  Reader | chat-scope Inspector) since `ResearchChatPane` is already a thin `ChatView(
+  researchProject:)` adapter, not a duplicate chat implementation (verified: `ResearchChatPane
+  .swift`'s body is exactly `ChatView(conversation: nil, conversationFolderPath: "/research/
+  {project.id}", researchProject: project, ...)`). Selecting a project scopes the EXISTING
+  chat dock (`PaneSpec.swift`'s `chatSurface`) to it via the same adapter pattern — the Tasks
+  column needs no new home, it is already chat's own Plan tab (`ChatView.swift:221-222`
+  mounts `ResearchTasksPane(project:)` when `researchProject` is set). `ResearchTasksPane`'s
+  THIRD-column mount in `ResearchWorkspaceView` dies with that container (5c). Deletes
+  `ResearchProjectListView`'s `projectList`/`projectRow(_:)`/`newProjectForm` and their
+  `@State`; `researchService.projects` (`ResearchService.swift:13`, already `@Observable`,
+  populated by `loadProjects()` → `GET /api/research/projects`) is the sidebar's data source
+  directly — no private per-view fetch, no wholesale-rerender risk. Files: `Nav`,
+  `ResearchProjectListView.swift`, `Models/SidebarViewTypes.swift`, `SelH`,
+  `ContentView+Persistence.swift`, `Plan`, sidebar section files. Test:
+  `m2p.research-is-sidebar-node`.
+- **5c. The browser is a Source rendition — DECIDED (creative-director ruling,
+  2026-09-18), design not yet built.** The embedded browser lives INSIDE the Source/Preview
+  pane — no browser pane kind, no tab strip of its own — as `PaneSurface.webBrowser` when a
+  research project is selected and no document is. `ResearchBrowserPane(project:)` mounts in
+  the Preview leaf AS-IS (verified: it needs only `project: ResearchProject` +
+  `@Environment(ResearchService.self)`, is fully self-contained — its own toolbar, its own
+  `FicheroWebView`, its own save action — and fills `.frame(maxWidth: .infinity, maxHeight:
+  .infinity)` internally, the same shape every other 4a node-detail view already gets wrapped
+  in). `ResearchService` is already part of `WindowEnvironmentModifier`'s re-injected set, so
+  it reliably reaches the Preview pane leaf the same way `WorkflowExecutionObserver`/
+  `WorkflowExecutionStore` do (§4b-2's inheritance proof).
+  **The ruling draws a hard line this bullet's design must keep, not blur:** SCRATCH
+  browsing (finding a source — a search engine, a catalogue, any page visited while looking)
+  is navigation, never a node, nothing persisted beyond a session-only back/forward trail —
+  `m2p.scratch-browsing-persists-nothing`. A SAVED source is the only thing that becomes a
+  node, and only via an explicit save through the one audited action layer: either the page
+  captured as a native `.webarchive` (URL + capture time), or — preferred where the page
+  supports it — the EXTRACTED output saved as the artifact, with the page recorded as its
+  provenance, not the page itself — `m2p.saving-a-source-makes-a-node`. The agent's tools
+  reach for catalogue/repository APIs first; the browser is the fallback for API-less sites
+  and the surface the human watches the agent work on. **Grounded gap found while planning:**
+  `FicheroWebView` (`Views/Components/FicheroWebView.swift:25-30`) configures its `WKWebView`
+  with a bare `WKWebViewConfiguration()` — it never sets `.websiteDataStore = .nonPersistent()`,
+  so cookies/cache/localStorage persist to WebKit's default on-disk store across launches
+  today. Whether that is wrong is an OPEN question for the creative director (#4810): pages
+  being scratch is not the same as logins being scratch — a fully ephemeral store logs the
+  researcher out of every library proxy, archive and catalogue on each launch. Options recorded
+  on the issue: persistent cookies only; fully ephemeral; one data store per research project;
+  possibly stricter for agent-driven browsing than for human browsing. No back/forward trail exists in the UI at all today —
+  `ResearchBrowserPane`'s `toolbar` (`ResearchBrowserPane.swift:37-56`) has a URL field and a
+  Save button only, no history list, no back/forward buttons — `urlString` is a single
+  current-URL `@State`, not a trail. The trail needs building, not just re-routing.
+  `ResearchWorkspaceView` and `ResearchProjectListView` finish deleting here (nothing left
+  mounting either); `allowedTakeovers` drops `ResearchWorkspaceView(`; `showsPaneToggles`
+  (`ContentView+StateLayout.swift`) returns true for `.research` (its exhaustive switch
+  already needs updating — see 4a-follow's `m2p.pane-toggles-everywhere`). Files: `Nav`,
+  `Detail`, `Plan`, `ContentView+StateLayout.swift`, `LibraryPaneNeverMountsModeSurfaceTests`,
+  `FicheroWebView.swift` (data-store policy, once #4810 is ruled),
+  `ResearchBrowserPane.swift` (back/forward trail + the save-action split), deletes
+  `ResearchWorkspaceView.swift`, `ResearchProjectListView.swift`. Test:
+  `m2p.research-is-sidebar-node` (extended), `m2p.browser-is-a-source-rendition`,
+  `m2p.scratch-browsing-persists-nothing`, `m2p.saving-a-source-makes-a-node`, a guardrail
+  dropping `ResearchWorkspaceView(`.
 - **6. Chat movable as a pane.** Lift `ChatView`'s `@State currentConversation` /
   `backendConversationId` (`ChatView.swift:61-66`) into the per-window model; add
   `ChatPlacement.resolve(paneListHasChatLeaf:showChatPane:) -> .dock | .pane(leafID) |
@@ -545,6 +689,23 @@ the implementation status (see the Behaviors list above and the Migration increm
    for now, and the `.inspector` pane kind stays hidden from the kind-switcher menu
    (`PaneSpec.Kind.selectableKinds`) until increment 7 makes it a real leaf.
 
+## Rulings, third round (creative director, 2026-09-18) — increment 5c's browser
+
+6. **The research project's embedded browser lives INSIDE the Source/Preview pane — no
+   browser pane kind, no tab strip of its own.** `PaneSurface.webBrowser` as a Source
+   rendition stands, decided, not merely proposed — see increment 5c above. Two things the
+   design must keep apart: SCRATCH browsing (finding a source — a search engine, a
+   catalogue, any page visited while looking) is navigation, never a node, nothing persisted
+   beyond a session-only back/forward trail; a SAVED source is the only thing that becomes a
+   node, and only via an explicit save — either the page captured as a native `.webarchive`
+   (URL + capture time), or, preferred where the page supports it, the page's EXTRACTED
+   output saved as the artifact with the page recorded as its provenance rather than the page
+   itself. The agent's tools reach for catalogue/repository APIs first; the browser is the
+   fallback for API-less sites and the surface a human watches the agent work on. Every open
+   and every save goes through the one audited action layer — the agent is a user, here as
+   everywhere else. Retitled/added `m2p.browser-is-a-source-rendition`,
+   `m2p.scratch-browsing-persists-nothing`, `m2p.saving-a-source-makes-a-node` below.
+
 ## Test matrix
 
 | Leg | This surface? | Pins | File |
@@ -575,7 +736,11 @@ Reuse existing pane-head and inspector-tab identifiers where they already exist
 
 ## Open questions (per-file: what was not grounded in the review)
 
-Nothing in this spec's Behaviors/Migration/Risks/Persistence sections goes beyond a claim
-the review verified with a file:line citation. The five Open Questions above are the
-review's own recommendations where the epic asked the creative director to decide; nothing
-was invented outside that set.
+Where a research project's embedded browser renders was asked here (2026-09-18, planning
+increment 5c) and is now ANSWERED by the third round of Rulings above (item 6, 2026-09-18):
+the Source/Preview pane, `PaneSurface.webBrowser`, no new pane kind.
+
+Nothing else in this spec's Behaviors/Migration/Risks/Persistence sections goes beyond a claim
+the review verified with a file:line citation. The five Open Questions the Rulings section
+above closed were the review's own recommendations where the epic asked the creative director
+to decide; nothing was invented outside that set.

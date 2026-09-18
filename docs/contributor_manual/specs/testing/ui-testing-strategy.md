@@ -126,7 +126,10 @@ Each XCUITest cites a spec behavior id; the identifier in the SwiftUI view is th
 - `ui-testing.preview-coverage-gate` [OK] — **blocker:** `scripts/check_preview_coverage.py` is a
   ratchet (292 backlog seeded in `check_preview_coverage_baseline.json`) that FAILS when a new file
   declaring a SwiftUI `View` ships without a `#Preview`. A surface cannot proceed until it has one, so
-  preview coverage can only rise. Runs in `verify_all` with the other `check_*.py`.
+  preview coverage can only rise. Runs in `verify_all` with the other `check_*.py`. Pinned:
+  `test_check_preview_coverage.py::test_view_without_preview_is_flagged`,
+  `::test_view_with_preview_is_not_flagged`,
+  `::test_non_view_struct_is_never_required_to_have_a_preview`.
 - `ui-testing.a11y-audit` [PARTIAL] (#4770) — every XCUITest flow ends with `try app.performAccessibilityAudit()`
   (Apple-first-party), catching missing labels/identifiers + contrast. Once wired, it **retires**
   `check_accessibility.py`. Wired in one suite (`KGInspectorCRUDUITests`) of twelve; `check_accessibility.py`

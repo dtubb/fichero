@@ -37,7 +37,11 @@ shipped app breaks on config no test covered. And because the harness forces
 
 ### B. Per feature-gate coverage
 - `testenv.gate-source` [OK] — `features.yaml` is the tier source (dev/alpha/beta/release),
-  with `check_features_freshness`.
+  with `check_features_freshness`. Pinned:
+  `test_check_features_freshness.py::test_repo_is_currently_fresh` (the real repo's generated
+  tier artifacts match `features.yaml` today),
+  `::test_self_check_catches_injected_drift` (the guardrail actually detects drift, not a
+  vacuous pass).
 - `testenv.test-each-gate` [MISSING] (#4787) — the suite runs under the REAL tiers, not only
   `ALL_FEATURES=1`: at minimum a **release**-gate run (what users get) plus the
   all-features dev run. A feature that works dev-on but is broken/hidden at release is a

@@ -45,8 +45,8 @@ only as correct as the answer to "did this rendition re-frame?" — carried by `
   `media/image_ops.py:253-254`, produced by `workflows/tools/deskew_images.py`.) Pinned by
   `RenditionEditStatesTests.frameHonesty` + `.frameChangingOpsCoversEngineReframingSet`.
 - `frame.same-frame-ops-draw` **[OK]** — enhance-family ops (`enhance`, `grayscale`, `denoise`,
-  `remove_background`, `adaptive_binarize`, `sharpen`) keep the frame, so overlays keep drawing. Same
-  tests.
+  `remove_background`, `adaptive_binarize`, `sharpen`) keep the frame, so overlays keep drawing.
+  Pinned: `RenditionEditStatesTests.frameHonesty`.
 - `frame.engine-authoritative` **[GAP]** (#4681) — the client list is a hand-maintained MIRROR of the
   engine's op vocabulary (`api/routes/ingest/image_editing.py` for the op registry/validation,
   `media/image_ops.py` for the actual pixel dispatch — not `ingest/image_editing.py`, which doesn't

@@ -22,24 +22,24 @@ pane (`panes.magnifier.per-pane-open-state`, `panes.zoom.sync-across-panes`).
 
 ## Behaviors
 
-- `magnifier.parks-where-left` **[OK]** — the loupe stays where you put it and does not ride the
+- `magnifier.parks-where-left` **[PARTIAL]** (implemented, unpinned; #4806) — the loupe stays where you put it and does not ride the
   cursor; ⌥-click parks it at the click. (Daniel, 2026-09-01: "it should live where you leave it".)
   `TrackingImageView.swift`.
-- `magnifier.option-summons-transient` **[OK]** — holding ⌥ alone summons a transient loupe while
+- `magnifier.option-summons-transient` **[PARTIAL]** (implemented, unpinned; #4806) — holding ⌥ alone summons a transient loupe while
   the toggled loupe is off; releasing dismisses it. ⌥ must be the SOLE modifier — a ⌘⌥ chord is a
   keyboard shortcut, not a loupe request (fixed 2026-09-16: ⌘⌥1 was popping the loupe).
   `ZoomableImagePreviewMac.installOptionLoupeMonitor`.
-- `magnifier.follows-only-while-option` **[OK]** — a parked loupe follows the pointer only while
+- `magnifier.follows-only-while-option` **[PARTIAL]** (implemented, unpinned; #4806) — a parked loupe follows the pointer only while
   ⌥ is held and it is unlocked; otherwise it holds position. `TrackingImageView.mouseMoved`.
-- `magnifier.lockable` **[OK]** — the loupe can be locked so it ignores follow entirely, with a
+- `magnifier.lockable` **[PARTIAL]** (implemented, unpinned; #4806) — the loupe can be locked so it ignores follow entirely, with a
   lock badge drawn on it. ⌘⌥M toggles the lock.
-- `magnifier.scroll-adjusts-magnification` **[OK]** — scrolling OVER a parked loupe changes its
+- `magnifier.scroll-adjusts-magnification` **[PARTIAL]** (implemented, unpinned; #4806) — scrolling OVER a parked loupe changes its
   magnification; scrolling anywhere else pans the page. Bounded by `MagnifierLimits`.
-- `magnifier.edge-resize` **[OK]** — dragging the loupe's edge resizes it; dragging its middle
+- `magnifier.edge-resize` **[PARTIAL]** (implemented, unpinned; #4806) — dragging the loupe's edge resizes it; dragging its middle
   moves what it looks at along with it.
-- `magnifier.states-its-power` **[OK]** — the loupe shows a `N.Nx · NNNpx` badge so magnification
+- `magnifier.states-its-power` **[PARTIAL]** (implemented, unpinned; #4806) — the loupe shows a `N.Nx · NNNpx` badge so magnification
   is never guessed.
-- `magnifier.right-click-dismiss` **[OK]** — right-clicking a placed loupe removes it.
+- `magnifier.right-click-dismiss` **[PARTIAL]** (implemented, unpinned; #4806) — right-clicking a placed loupe removes it.
 - `magnifier.follow-mouse-bar` **[GAP]** (#4716) — a bottom magnifier BAR that tracks the pointer and
   magnifies the strip under it (distinct from the round loupe), for scanning a line of text.
 - `magnifier.per-source-memory` **[GAP]** (#4717) — a source remembers its loupe size/magnification, so

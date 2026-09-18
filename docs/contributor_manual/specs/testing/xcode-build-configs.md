@@ -41,11 +41,23 @@ Cross-cutting invariants (all configs):
 ## Behaviors
 
 - `config.dev-local-unsandboxed` [OK] — `Fichero (Dev Local)` → `Debug` → `ENABLE_APP_SANDBOX=NO`.
+  Pinned: `test_check_xcode_config_invariants.py::test_real_project_is_clean`,
+  `::test_debug_sandbox_flip_is_caught`.
 - `config.release-sandboxed` [OK] — Release + App Store + Dev Embedded → sandbox ON.
-- `config.arm64-only` [OK] — every project config excludes `x86_64`.
-- `config.deployment-floor-26` [OK] — `MACOSX_DEPLOYMENT_TARGET` floor is 26.
+  Pinned: `test_check_xcode_config_invariants.py::test_real_project_is_clean`,
+  `::test_debug_sandbox_flip_is_caught`.
+- `config.arm64-only` [OK] — every project config excludes `x86_64`. Pinned:
+  `test_check_xcode_config_invariants.py::test_missing_excluded_archs_is_caught`.
+- `config.deployment-floor-26` [OK] — `MACOSX_DEPLOYMENT_TARGET` floor is 26. Pinned:
+  `test_check_xcode_config_invariants.py::test_wrong_deployment_floor_is_caught`.
 - `config.tests-mainactor-isolation` [OK] — FicheroTests configs set the MainActor default.
-- `config.embedded-testplan-attached` [OK] — the embedded plan is referenced by its scheme.
+  Pinned: `test_check_xcode_config_invariants.py::test_missing_mainactor_isolation_is_caught`,
+  `::test_mainactor_dropped_from_ficherotests_only_is_caught`.
+- `config.embedded-testplan-attached` — **[PARTIAL]** (#4807) the embedded plan is referenced
+  by its scheme, but re-checked 2026-09-18: `check_xcode_config_invariants.py` never actually
+  asserts this — neither the guardrail's source nor its test file mentions "testplan" or
+  "embedded" plan attachment at all. The other five invariants in this spec really are
+  checked and tested; this one just isn't yet.
 - `config.no-stale-sandbox-comments` [MISSING] (#4778) — a source comment asserting a config's sandbox
   state must match the actual setting (the drift that caused the harness bug).
 

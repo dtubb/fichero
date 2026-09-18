@@ -83,10 +83,18 @@ runner's `tempfile.gettempdir()`), NOT `/var/folders` as the Evidence section fi
 
 - `harness.runner-gui` [ENV] — XCUITest needs an UNLOCKED GUI session; "Timed out enabling
   automation mode" = locked screen, not a test failure. The runner/report must distinguish it.
-- `harness.engine-binds` [OK, fixed] — the engine (a CHILD of the runner) binds its socket in the
-  RUNNER's own `NSTemporaryDirectory`, not the app's container (cross-container `bind()` → status 1).
-- `harness.library-allowed` [OK, fixed] — the harness sets `FICHERO_LIBRARY_ALLOWED_ROOTS` to the
-  per-run temp so the engine's `path_security` policy permits opening the seeded library.
+- `harness.engine-binds` — **[PARTIAL]** (#4808) fixed in code — `UITestEngineHarness.shortSocketPath`
+  (`fichero/Tests/UI/general/UITestEngineHarness.swift:279`) binds the socket under
+  `NSTemporaryDirectory()`, the RUNNER's own container, not the app's — but no Swift test exercises
+  `shortSocketPath` directly; it's a helper in a UI-test support file, not itself under test. Retagged
+  2026-09-18 (re-check, no test read that pins it).
+- `harness.library-allowed` [OK] — the harness sets `FICHERO_LIBRARY_ALLOWED_ROOTS` to the
+  per-run temp so the engine's `path_security` policy permits opening the seeded library. Pinned:
+  `test_configured_library_allowed_roots.py::test_harness_script_sets_library_allowed_roots_to_the_per_run_temp_dir`
+  (the harness sets the env var to `self.temp_dir`),
+  `::test_configured_library_allowed_roots_permits_a_library_under_it` (the engine's
+  `configured_library_allowed_roots()` + `path_within_any_root()` then actually permit a library
+  under that dir while rejecting one under the disposable app-home).
 - `harness.content-renders` [OK] — **the open layer.** The EntityService transport fix
   (commit c6f8a589c, "route EntityService off raw URLSession onto the centralized transport")
   plus the shared-session harness wiring landed the flow this spec was blocked on:
@@ -99,13 +107,17 @@ runner's `tempfile.gettempdir()`), NOT `/var/folders` as the Evidence section fi
   `test_spawn_per_run_harness.py::test_unready_engine_fails_loudly_not_green`. But the Swift-side
   post-ready path (`UITestEngineHarness.stop()`) only prints its stderr tail to
   `FileHandle.standardError` — no stable file, no spawn command, no errno — and nothing pins it.
-  See #4662 (same behavior also tracked under `ui-testing.evidence-on-failure` as #4777).
-- `harness.testing-container` [OK] — confirmed: `test_engine_harness.py` uses
-  `tempfile.mkdtemp(prefix="fichero-harness-")` / `tempfile.gettempdir()` for socket, library, and
-  app-home, never the real app container; `UITestEngineHarness.shortSocketPath` binds in the
-  RUNNER's own `NSTemporaryDirectory` (commit 497469f15). Pinned by
-  `test_spawn_per_run_harness.py::test_stop_leaves_no_orphan_engine_no_socket` (asserts socket +
-  app-home are gone after teardown).
+  See #4662 (same behavior also tracked under `ui-testing.evidence-on-failure` as → #4777 —
+  cross-milestone pointer, not this spec's own tracking issue).
+- `harness.testing-container` [OK] — confirmed by reading the source: the harness script
+  fichero-server/scripts/test_engine_harness.py uses tempfile.mkdtemp(prefix="fichero-harness-")
+  / tempfile.gettempdir() for socket, library, and app-home, never the real app container; the
+  Swift-side `UITestEngineHarness.shortSocketPath` binds in the RUNNER's own NSTemporaryDirectory
+  (commit 497469f15). Pinned: `test_spawn_per_run_harness.py::test_stop_leaves_no_orphan_engine_no_socket`
+  (asserts socket + app-home are gone after teardown). Corrected citation, 2026-09-18 — this spec
+  previously cited a Swift test file that never existed for this claim; that mistake is what
+  the "Test matrix" section's own gap row now tracks (see below), separately from this behavior's
+  already-real Python pin.
 - `harness.app-connects` [PARTIAL] (#4780) — the connection itself now works (see
   `harness.content-renders`), but the ≤15 s target bound from this spec was never enforced:
   `FicheroUISession.swift`'s `readyTimeout` and `ColdLaunchReachesLibraryUITests`'s
@@ -131,9 +143,9 @@ runner's `tempfile.gettempdir()`), NOT `/var/folders` as the Evidence section fi
 
 | Leg | This surface? | Pins | File |
 |-----|---------------|------|------|
-| Pure rule (Swift) | y | fail-fast classifier (absent-vs-broken); testing-container path builder | `fichero/Tests/UI/general/UITestHarnessTests.swift` |
+| Pure rule (Swift) | y | fail-fast classifier (absent-vs-broken); `shortSocketPath`'s path builder | **none — #4701, #4808: `UITestHarnessTests.swift` never existed; no Swift test covers this today** |
 | Snapshot/Preview (Swift) | y | the main interface renders with no library current | `fichero/Tests/Unit/**/…SnapshotTests.swift` |
-| Backend (pytest) | y | harness seeds + binds + ready-line into a passed-in dir | `fichero-server/tests/test_engine_harness_*.py` |
+| Backend (pytest) | y | harness seeds + binds + ready-line into a passed-in dir | `fichero-server/tests/integration/test_spawn_per_run_harness.py` |
 | Click-around (XCUITest) | y | app connects → seeded rows drive (InspectorFlows goes GREEN) | `fichero/Tests/UI/**` |
 | iPad/iOS | y | sim dials the temp-dir socket | `fichero/Tests/UI/ios`, `…/ipad` |
 

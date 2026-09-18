@@ -73,7 +73,13 @@ it token-efficiently with fabel/opus?
 - `orch.flat-default` [PROPOSED] — routine work is design lead → manager → default worker, no middle layer.
 - `orch.area-lead-on-demand` [PROPOSED] — an opus area-lead only for a large milestone; ≤2 at once.
 - `orch.model-routing` [PROPOSED] — the routing table above; route down.
-- `orch.verify-gate` [OK, keep] — I own the cross-cutting verify; unverified worker output blocks.
+- `orch.verify-gate` — **[CONVENTION]** (retagged 2026-09-18 — previously tagged OK-and-keep) I
+  own the cross-cutting verify; unverified worker output blocks. This is a manager discipline about
+  WHO runs the gate and WHEN a merge is allowed — the same `verify_all.sh` runs identically no
+  matter who invokes it, so there is no code path that could regress independently of a human/
+  agent choosing to skip this step. See `git-worktree-workflow.md`'s "Marking a convention"
+  section for the same class of tag and the proposal to add real `CONVENTION` support to
+  `spec_pipeline.py`.
 - `orch.subagent-vs-tmux` [PROPOSED] — subagents for bounded tasks, tmux only for cross-turn lanes.
 
 ## Open questions for the design lead
