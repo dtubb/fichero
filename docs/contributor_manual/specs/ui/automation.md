@@ -76,8 +76,9 @@ takeover regression shared with every other sidebar mode.
   (`TestScheduleRuns`), `test_routes_triggers.py` (`TestTriggerExecutions`).
 - `automation.creation-affordance` [PARTIAL] (implemented, unpinned; #4799) — "New
   Schedule"/"New Trigger" reachable from `AddItemMenu.swift:92,96`.
-- `automation.feature-gated` [OK] — dev-tier flag, off by default; promote-to-beta is
-  #255 (OPEN), not a defect. Pinned: `FeatureManagerTests`.
+- `automation.feature-gated` [OK] — dev-tier flag, off by default; promoting it to beta is
+  separately tracked future work, not a defect in this behavior. Pinned:
+  `FeatureManagerTests`.
 - `automation.sidebar-node.dead-end` [BROKEN] — with the flag on and zero schedules/
   triggers created, selecting Automation from the View menu replaces the Library pane's
   content with a "Select a schedule or trigger in the sidebar" placeholder instead of
@@ -86,16 +87,18 @@ takeover regression shared with every other sidebar mode.
   `modes-to-panes.md`; automation is one instance of it, not a separate bug.
 - `automation.run-history.rendition` [GAP] — a schedule/trigger's run history currently
   lives inside its detail view (`TriggerDetailView+ExecutionHistory.swift`), not the
-  Reader pane `modes-to-panes.md` calls for. Related: #1474 (Workflow-Run History
-  inspector tab, OPEN) proposes the analogous split for workflow runs generally — no
-  automation-specific issue exists yet. **(#4739).**
+  Reader pane `modes-to-panes.md` calls for. A related (not this behavior's own) issue
+  proposes the analogous split for workflow runs generally, on the workflows surface.
+  **(#4741)** — corrected 2026-09-18: was mis-cited to #4739 (that issue is
+  `automation.audit-trail`'s, below), #4741 is this behavior's own issue by title.
 - `automation.audit-trail` [GAP] — a schedule/trigger create/edit/pause/run is not routed
   through `actions/registry.py`'s typed audited-action layer, so an automation run is not
   an actor in the audit log. **(#4739).**
 - `automation.unattended-throttle` [GAP] — a schedule/trigger-initiated workflow run does
   not drop to background QoS via `background_compute.py`; it can compete for CPU with the
   foreground app the same as an interactive run, which the "user machine always useful"
-  rule requires it not to. **(#4739).**
+  rule requires it not to. **(#4740)** — corrected 2026-09-18: was mis-cited to #4739,
+  #4740 is this behavior's own issue by title.
 - `automation.timezone-correctness` [OK] — #2134 (CLOSED), pinned by `test_scheduler_tz.py`.
 
 ## Test matrix
@@ -180,3 +183,25 @@ takeover regression shared with every other sidebar mode.
 - Cross-references: `docs/contributor_manual/specs/ui/modes-to-panes.md` (node rendition,
   Library-always-navigator), `docs/contributor_manual/specs/ui/panes-workspaces.md`
   (panes never collapse by selection).
+
+## Issue map (milestone `automation` #295, redone 2026-09-18 after the truncated-fetch bug was
+fixed — first pass under-counted at 4 issues; the real count is 10)
+
+| Issue | Title | Behavior | Note |
+|-------|-------|----------|------|
+| #4739 | `automation.audit-trail` — a scheduled/triggered run is not an audited actor | `automation.audit-trail` | cited |
+| #4740 | `automation.unattended-throttle` — scheduled/triggered runs never call the background throttle | `automation.unattended-throttle` | cited (fixed last pass — was mis-cited to #4739) |
+| #4741 | `automation.run-history.rendition` — run history renders in the Reader, not only its detail view | `automation.run-history.rendition` | cited (fixed last pass — was mis-cited to #4739) |
+| #4799 | ui/automation.md: 1 behavior implemented but unpinned | `automation.creation-affordance` | cited (this pass's own bucket issue) |
+| #255 | Promote minimal Automation slice from off to beta | `automation.feature-gated` (discussed, not machine-cited) | **deliberately not cited** — `automation.feature-gated` is `[OK]`; citing an OPEN #255 there would be a false rule-e finding (the behavior text explicitly says promoting to beta is separately tracked, "not a defect") |
+| #494 | Wire: Automation (Triggers + Schedules) | `automation.schedule.crud` / `.trigger.crud` (superseded by, not cited) | **UNCOVERED, recommend closing** — schedule/trigger CRUD is now `[OK]` with real pinning tests (`test_routes_schedules.py`/`test_routes_triggers.py`); citing this OPEN issue on an OK behavior would be a false rule-e finding the same way #255 would be |
+| #1742 | [Automation] Wire AutomationService end-to-end before enabling the feature | (superseded by shipped work, see #494) | **UNCOVERED, recommend closing** — same reasoning as #494; the feature is enabled and gated (`automation.feature-gated`), not blocked on end-to-end wiring anymore |
+| #1429 | Wire 37 Activity & Automation endpoints into SwiftUI | — | **UNCOVERED** — spans Activity too, broader than this milestone's surface; recommend re-scoping to just its automation-specific endpoints or re-homing |
+| #1430 | Wire 19 Tasks & Migrations endpoints into SwiftUI | — | **UNCOVERED, likely misfiled** — Tasks & Migrations is not automation; recommend re-homing |
+| #1832 | [EPIC] Workflow-run provenance + reversible output (delete-by-run + undo) | — | **UNCOVERED, likely misfiled** — this is workflow-run provenance, the same theme as `workflows.md`'s #4312 EPIC; recommend moving to milestone `workflows` |
+
+**Coverage: 4 of 10 cited, 2 deliberately-uncited (avoiding false rule-e), 4 UNCOVERED.** No
+cluster/sub-spec proposal — the 4 uncovered-and-not-recommended-for-closing issues (#1429,
+#1430, #1832, plus #494/#1742 recommended for closing) are heterogeneous wiring/scope issues
+that mostly read as either superseded by already-shipped work or misfiled on this milestone,
+not a coherent new surface needing its own spec.

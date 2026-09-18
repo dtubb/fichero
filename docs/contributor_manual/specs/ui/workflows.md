@@ -176,10 +176,11 @@ refs), `run_comparison.py`/`model_comparison.py` (the Compare Models feature).
   (`enrich_node_with_ports`), but the canvas fabricates a fallback `files`
   input port when a node has no port data (`WorkflowPortView.swift`,
   `NodePopover.swift` per the 2026-08-02 review) — a second, client-owned copy
-  of the tool contract that can silently disagree with the served one. ISSUE
-  NEEDED (no open issue found matching this specific fallback-port claim;
-  #2443 "Audit workflow node editor for parity with backend workflow
-  capabilities" is the closest umbrella).
+  of the tool contract that can silently disagree with the served one.
+  **(#4736)** — filed 2026-09-18 with the exact behavior id as its title,
+  found while mapping this milestone's issues; #2443 "Audit workflow node
+  editor for parity with backend workflow capabilities" remains the closest
+  umbrella, superseded here → #4736 is the precise tracking issue.
 - `workflows.canvas.hidden-tools-in-palette` — **[GAP]** not every tool the
   engine can run appears in the canvas's node palette. ISSUE: #2440 ("Show the
   hidden tools").
@@ -258,10 +259,16 @@ refs), `run_comparison.py`/`model_comparison.py` (the Compare Models feature).
   scoreboard tracking quality/cost over time. ISSUE: #4344.
 - `workflows.run.cost-tracking-per-node` — **[GAP]** no per-node/per-workflow
   spend visibility. ISSUE: #4343.
-- `workflows.run.comparison-node` — **[GAP]** Compare Models exists as a node
-  popover action (`node-config.md` F13) but a document-aware, persisted
-  comparison NODE with current-model defaults is still design-level. ISSUE:
-  #4328; sidebar-level (not workflow-buried) comparison is #2526.
+- `workflows.run.comparison-node` — **RESHAPED (creative-director ruling, 2026-09-18, same as
+  `research.md`'s `research.compare-folds-into-chat`):** the RESULT side of this design is
+  retired — there is no persisted comparison node, view or window; a comparison's result is two
+  sibling artifacts shown in two Reader panes with a diff lens. The PRODUCING side survives: a
+  "run with A and B" action (today's Compare Models node-popover action, `node-config.md` F13)
+  over two prompts or two workflows. How much of #4328 (node design), #2526 (comparison as a
+  sidebar-level capability) and #1339 (loove integration — loove itself stays a window, a
+  diagnostic matrix) survives that reshaping is a creative-director triage, not decided here;
+  the three issues stay open. → #4705 owns the pane-side replacement (its own not-yet-numbered
+  increment).
 
 ### D. The workflow bar
 
@@ -439,3 +446,122 @@ Not folded (per the inventory's own "not reviewed line-by-line" budget note):
 `agent-work/design/view-unification-notes.md` — these came up in the original
 broad grep as cross-cutting UI surveys, not Workflows-specific; worth a second
 pass in a future revision of this spec, not read this session.
+
+## Issue map (milestone `workflows` #293, redone 2026-09-18 after the truncated-fetch bug
+was fixed — see `scripts/spec_pipeline.py`'s `GH_ISSUE_FETCH_LIMIT`)
+
+Every OPEN issue on this milestone (56, the real count — the first pass under-counted at 29
+because the fetch silently truncated at 1000 issues), mapped to the behavior it covers or
+marked UNCOVERED. `nodeconfig.*` issues (milestone `workflow-node-config` #298, its own spec)
+are out of scope for this table — see that spec's own behaviors, all already cited.
+
+| Issue | Title | Behavior | Note |
+|-------|-------|----------|------|
+| #4186 | Default Workflows: legacy preset folders stuck at root, no locks, folder click opens custom view | `workflows.defaults.folder-click-opens-custom-view` | cited |
+| #4312 | EPIC: Every run tells you what it did — provenance, trace, honest controls | `workflows.run.provenance-run-id-on-artifacts`, `.pause-is-dead-end`, `.stuck-processing-on-cancel-fail`, `.controls-are-fire-and-forget`, `.trace-view` | cited (5 behaviors) |
+| #4340 | Canvas follow-ons: resize handles, trackpad pan, arrange commands | `workflows.canvas.arrange-and-resize` | cited |
+| #4342 | Workflow version history: snapshots + visual diff | `workflows.canvas.version-history` | cited |
+| #4343 | Cost tracking: per-node and per-workflow spend | `workflows.run.cost-tracking-per-node` | cited |
+| #4344 | Per-workflow scoreboard: quality and cost tracked over time | `workflows.run.scoreboard-quality-and-cost` | cited |
+| #4370 | Test / Dry Run button on a workflow | `workflows.canvas.dry-run` | cited |
+| #4387 | Empty states should offer the workflow that fills them | `workflows.folders.empty-states-suggest-a-workflow` | cited |
+| #4397 | Workflows need a declared scope contract | `workflows.defaults.scope-contract-undeclared` | cited |
+| #4478 | Decide the six port conversions the old editor permitted | `workflows.canvas.edge-legality-matches-engine` | cited |
+| #4736 | `workflows.canvas.ports-come-from-registry` — client fabricates fallback ports | `workflows.canvas.ports-come-from-registry` | cited |
+| #4738 | `workflows.defaults.duplication-regrown` — near-duplicate default presets regrown | `workflows.defaults.duplication-regrown` | cited |
+| #4746 | `workflows.canvas.16-palette-tools-cannot-execute` | `workflows.canvas.16-palette-tools-cannot-execute` | cited |
+| #4797 | ui/workflows.md: 9 behaviors implemented but unpinned | `workflows.canvas.renders-nodes-edges-ports`, `.canvas.duplicate-to-edit`, `.run.output-log-live`, `.run.source-tools-excluded-from-file-columns`, `.bar.click-appends-not-runs`, `.bar.folder-order-and-icons-served`, `.bar.labels-toggle-persists`, `.folders.route-ordered-not-alphabetical`, `.folders.unknown-folder-still-visible` | cited (this pass's own bucket issue, 9 behaviors) |
+| #1818 | Show workflow cost estimate up front | `workflows.canvas.cost-estimate-up-front` | cited |
+| #2440 | Show the hidden tools (tool/node palette not showing all available tools) | `workflows.canvas.hidden-tools-in-palette` | cited |
+| #2441 | Every workflow node must be an editable tool | `workflows.canvas.every-node-editable-tool` | cited |
+| #2442 | Make workflow fan-out editable + understandable | `workflows.canvas.fan-out-editable` | cited |
+| #2443 | Audit workflow node editor for parity with backend workflow capabilities | `workflows.canvas.ports-come-from-registry` | cited (umbrella; #4736 above is the precise fallback-port claim) |
+| #3181 | Chains are in-memory only — lost on restart, leak across libraries/users | `workflows.defaults.chains-not-persisted` | cited |
+| #4328 | Comparison node: document-aware ports, persisted results, current model defaults | `workflows.run.comparison-node` | **RESHAPED this pass — needs CD triage** — the result is panes + a diff lens now (CD ruling, 2026-09-18), never a node; the behavior line is retired, pointing at → #4705 |
+| #2526 | Comparison is a sidebar-level capability, not buried in the workflow tool | (reshaped, see #4328) | **NEEDS CD TRIAGE** — the ruling itself compares two prompts OR two workflows, which is this issue's claim |
+| #1339 | Comparison framework: integrate loove | (reshaped, see #4328) | **NEEDS CD TRIAGE** — same ruling; loove itself stays a window (diagnostic matrix), per the ruling |
+| #3907 | Translation workflows: cross-check default; consolidate Translate/DeepL/Double-Check | — | **UNCOVERED** — cluster: transcription/translation presets |
+| #3909 | Extraction / Catalogue workflows: verify / consistency pass | — | **UNCOVERED** — cluster: transcription/translation presets |
+| #4306 | Translate from artifact context menu fails with an error | — | **UNCOVERED** — cluster: transcription/translation presets |
+| #4633 | Transcribe fan-out: cloud provider 401 after several images | — | **UNCOVERED** — cluster: transcription/translation presets |
+| #970 | OCR bounding boxes: persist per-text-region bbox, tie KG claims to them | — | **UNCOVERED** — cluster: bounding-box capture |
+| #1659 | Align clean transcript ↔ Apple Vision bboxes → highlight entities on the page | — | **UNCOVERED** — cluster: bounding-box capture |
+| #1834 | Capture line-level bounding boxes during transcription | — | **UNCOVERED** — cluster: bounding-box capture (near-duplicate of #970/#2104 — worth a triage pass on its own) |
+| #2104 | Transcription (VLM / Apple Intelligence) must capture per-region bounding boxes | — | **UNCOVERED** — cluster: bounding-box capture (near-duplicate of #970/#1834) |
+| #4309 | Capture text bounding boxes on first pass in all vision workflows | — | **UNCOVERED** — cluster: bounding-box capture |
+| #754 | Analysis tool: Sentiment classifier | — | **UNCOVERED** — cluster: tool capabilities & registry |
+| #1648 | Export a workflow as a portable LangGraph project | — | **UNCOVERED** — cluster: tool capabilities & registry |
+| #1836 | [Apple] Upgrade fm-bridge to Foundation Models 2026 | — | **UNCOVERED** — cluster: tool capabilities & registry |
+| #4310 | Audit unused langchain/langgraph capabilities | — | **UNCOVERED** — cluster: tool capabilities & registry |
+| #4329 | Conversion workflows: export to HTML, SVG, Markdown | — | **UNCOVERED** — cluster: tool capabilities & registry |
+| #4368 | Native Apple image ops via the bridge (replace OpenCV/model paths) | — | **UNCOVERED** — cluster: tool capabilities & registry |
+| #4399 | EPIC: multi-level cataloguing — describe box/archive/folder/item | — | **UNCOVERED** — cluster: tool capabilities & registry |
+| #1665 | Catalogue pauses after transcribe on imported pages, skips KG writer | — | **UNCOVERED** — cluster: Catalogue pipeline / KG-writer staging |
+| #1668 | Workflow checkpoint reports artifacts/KG but fresh library persists zero rows | — | **UNCOVERED** — cluster: Catalogue pipeline / KG-writer staging |
+| #1669 | Separate Catalogue workflow into artifact→entity extraction→merge→SVO/KG stages | — | **UNCOVERED** — cluster: Catalogue pipeline / KG-writer staging |
+| #1676 | Split SVO/KVO claim generation into a persisted post-entity workflow stage | — | **UNCOVERED** — cluster: Catalogue pipeline / KG-writer staging |
+| #3387 | Catalogue menu item does nothing and prior steps do not update document content | — | **UNCOVERED** — cluster: Catalogue pipeline / KG-writer staging |
+| #115 | [QA] Workflow Editor Surface Audit | — | **UNCOVERED** — cluster: workflow data-model & verification |
+| #3949 | Routed workflows fail validation after a DB round-trip | — | **UNCOVERED** — cluster: workflow data-model & verification |
+| #4277 | Design: workflow recipes are user-level, runs are library-pinned | — | **UNCOVERED** — cluster: workflow data-model & verification |
+| #4369 | Workflow verification program: every preset proven on both axes | — | **UNCOVERED** — cluster: workflow data-model & verification |
+| #1660 | Workflow node editor: make each node clear about what it consumes + produces | — | **UNCOVERED**, below-threshold pair with #2524 — node-editor structural clarity (2 issues, not clustered) |
+| #2524 | Workflow node editor: clickable/editable edges, editable fan-out, graph = actual execution | — | **UNCOVERED**, below-threshold pair with #1660 |
+| #257 | Resolve remaining blockers on the coherent AI layer | — | **UNCOVERED** — too vague/broad to be workflows-specific; recommend the manager re-scope or re-home |
+| #1594 | Real-data processing: Jesuit Mapping + Marshall Diaries — local CLI pipeline | — | **UNCOVERED** — a specific research project's data pipeline, not a general workflows behavior; recommend re-homing off this milestone |
+| #2094 | EPIC: All models managed in Settings → Models | — | **UNCOVERED** — a Settings/Models surface epic, not workflows; recommend re-homing |
+| #2591 | node-model: fold workspaces/tasks/issues/aliases/bookmarks/saved-searches into node types | — | **UNCOVERED** — the cross-cutting node-model EPIC (modes-to-panes/node-model territory); recommend re-homing, not a workflows sub-spec |
+| #4330 | Rendition model and two-axis navigation in Preview | — | **UNCOVERED** — reads as `panes-workspaces`/Preview rendition work; recommend re-homing |
+| #4339 | Library: Finder-style grouping (group-by in the sort menu) | — | **UNCOVERED** — a Library browsing feature; recommend re-homing |
+
+**Coverage: 20 of 56 cited, 3 RESHAPED and awaiting CD triage (Comparison — the result side retired by the CD ruling), 33
+UNCOVERED** (36 total orphan issues by `check`'s rule-f count, since the 3 reshaped issues
+are now also uncited and correctly show up as orphans too — 20+3+33=56, 33+3=36 rule-f
+lines). Clustered by theme (creative-director instruction: propose a sub-spec only for a
+cluster with ≥4 issues; PROPOSAL ONLY, not written, no milestone created):
+
+- **Transcription/translation presets** (#3907, #3909, #4306, #4633 — 4 issues): quality and
+  reliability of the shipped preset workflows themselves (cross-check defaults, verify/
+  consistency passes, fan-out key propagation, context-menu translate). **Proposed sub-spec:
+  `workflows-transcription-presets`** — intent: "each shipped preset workflow (Transcribe,
+  Translate, Extract, Catalogue) behaves correctly and consistently under its own declared
+  contract, including parallel/fan-out execution." Issue list: #3907, #3909, #4306, #4633.
+- **Bounding-box capture** (#970, #1659, #1834, #2104, #4309 — 5 issues, at least two of
+  which read as duplicates of each other): per-region/line-level bounding boxes captured
+  during transcription and tied to KG claims. **Proposed sub-spec:
+  `workflows-bounding-box-capture`** — intent: "every vision workflow persists the bounding
+  box it read a value from, at the granularity (region/line/word) the tool actually reports,
+  and KG claims carry that anchor." First step before writing it: triage #970/#1834/#2104
+  for exact duplication. Issue list: #970, #1659, #1834, #2104, #4309.
+- **Tool capabilities & registry** (#754, #1648, #1836, #4310, #4329, #4368, #4399 — 7
+  issues): what tools exist and where their capabilities come from (native Apple ops
+  replacing OpenCV, conversion formats, cataloguing, a sentiment-classifier tool, exporting a
+  workflow as a portable LangGraph project, an fm-bridge upgrade, an audit of unused
+  langchain/langgraph capacity). **Proposed sub-spec: `workflows-tool-capabilities`** —
+  intent: "the tool catalogue's capabilities are declared, audited, and exploited (no unused
+  engine capacity, no missing conversions), independent of the canvas/run/bar UI this spec
+  already covers." Issue list: #754, #1648, #1836, #4310, #4329, #4368, #4399.
+- **Catalogue pipeline / KG-writer staging** (#1665, #1668, #1669, #1676, #3387 — 5 issues):
+  the Catalogue workflow's multi-stage pipeline (artifact → entity extraction → merge →
+  SVO/KG) drops rows, pauses, and doesn't persist a checkpoint's claimed writes. **Proposed
+  sub-spec: `workflows-catalogue-pipeline`** — intent: "Catalogue's stages are separated,
+  each stage's output is verified persisted before the next runs, and a stall/failure is
+  visible rather than silent." Issue list: #1665, #1668, #1669, #1676, #3387.
+- **Workflow data model & verification** (#115, #3949, #4277, #4369 — 4 issues): a
+  recipe/run ownership design doc, a DB round-trip validation bug, a QA surface audit, and a
+  cross-preset verification program — all about whether the workflow OBJECT MODEL has a
+  declared, verified contract. **Proposed sub-spec: `workflows-data-model-verification`** —
+  intent: "a workflow's recipe/run/scope contract is declared once and verified end-to-end
+  (DB round-trip, QA audit, cross-preset check), not assumed." Issue list: #115, #3949,
+  #4277, #4369.
+- **Below threshold, not proposed** (#1660, #2524 — 2 issues): workflow node-editor
+  structural clarity (what a node consumes/produces, editable edges/fan-out). Recommend
+  folding into whichever of the clusters above ends up owning canvas/node-editor scope, once
+  one exists.
+- **Recommend re-homing off this milestone entirely** (#257, #1594, #2094, #2591, #4330,
+  #4339 — 6 issues): too vague to be workflows-specific (#257), a specific research project's
+  data pipeline rather than a general behavior (#1594), a Settings/Models epic (#2094), the
+  cross-cutting node-model EPIC that belongs to modes-to-panes/node-model territory (#2591),
+  Preview rendition work that reads as `panes-workspaces`' surface (#4330), and a Library
+  browsing feature (#4339). None of these six are workflows-canvas/run/bar/defaults/folders
+  behaviors as this spec defines them.
