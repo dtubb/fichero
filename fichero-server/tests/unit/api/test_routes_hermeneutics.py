@@ -219,6 +219,130 @@ class TestListInterpretations:
 
 
 # ---------------------------------------------------------------------------
+# Deterministic list ordering (team-lead review): `db.all(Model)` is storage
+# order, not a contract, and the app splices new interpretations in place
+# assuming oldest-first. Every list route in hermeneutics.py shares the
+# same fix (`_ordered`): created_at ascending, id as a stable tiebreak.
+# ---------------------------------------------------------------------------
+
+
+from datetime import datetime, timedelta, timezone  # noqa: E402
+
+from fichero_server.models.hermeneutics import (  # noqa: E402
+    CircleNavigationDirection,
+    HermeneuticCircleState,
+    PatternInstance,
+    PatternStatus,
+)
+
+
+def _make_pattern(pattern_id: str, created_at: datetime) -> PatternInstance:
+    return PatternInstance(
+        id=pattern_id,
+        name="A pattern",
+        description="A recurring structure.",
+        pattern_type="thematic",
+        created_at=created_at,
+        updated_at=created_at,
+    )
+
+
+def _make_circle_state(state_id: str, created_at: datetime) -> HermeneuticCircleState:
+    return HermeneuticCircleState(
+        id=state_id,
+        claim_id="claim-1",
+        current_focus="part",
+        focus_id="focus-1",
+        focus_label="A focus",
+        direction=CircleNavigationDirection.part_to_whole,
+        created_at=created_at,
+        updated_at=created_at,
+    )
+
+
+class TestListOrderingIsDeterministic:
+    """Rows inserted out of order come back created_at-ascending; equal
+    timestamps (or a legacy row with none) are broken by id, stably."""
+
+    def test_interpretations_come_back_oldest_first_regardless_of_insert_order(
+        self, client, db
+    ):
+        db.save(_make_framework("fwk-order"))
+        t0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        newest = _make_interpretation("interp-newest", "fwk-order")
+        newest.created_at = t0 + timedelta(days=2)
+        oldest = _make_interpretation("interp-oldest", "fwk-order")
+        oldest.created_at = t0
+        middle = _make_interpretation("interp-middle", "fwk-order")
+        middle.created_at = t0 + timedelta(days=1)
+        # Saved newest -> oldest -> middle: storage order is NOT the
+        # expected response order, which is the whole point of the test.
+        db.save(newest)
+        db.save(oldest)
+        db.save(middle)
+
+        r = client.get(f"{BASE}/interpretations")
+
+        assert r.status_code == 200
+        ids = [item["id"] for item in r.json()["items"]]
+        assert ids == ["interp-oldest", "interp-middle", "interp-newest"]
+
+    def test_interpretations_with_equal_timestamps_break_ties_by_id_stably(
+        self, client, db
+    ):
+        db.save(_make_framework("fwk-tie"))
+        tied_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        b = _make_interpretation("interp-b", "fwk-tie")
+        b.created_at = tied_at
+        a = _make_interpretation("interp-a", "fwk-tie")
+        a.created_at = tied_at
+        db.save(b)
+        db.save(a)
+
+        r1 = client.get(f"{BASE}/interpretations")
+        r2 = client.get(f"{BASE}/interpretations")
+
+        ids1 = [item["id"] for item in r1.json()["items"]]
+        ids2 = [item["id"] for item in r2.json()["items"]]
+        assert ids1 == ["interp-a", "interp-b"]  # id-order tiebreak
+        assert ids1 == ids2  # stable across repeated calls
+
+    def test_frameworks_come_back_oldest_first(self, client, db):
+        t0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        newer = _make_framework("fwk-newer", "Newer")
+        newer.created_at = t0 + timedelta(days=1)
+        older = _make_framework("fwk-older", "Older")
+        older.created_at = t0
+        db.save(newer)
+        db.save(older)
+
+        r = client.get(f"{BASE}/frameworks")
+
+        ids = [item["id"] for item in r.json()["items"]]
+        assert ids == ["fwk-older", "fwk-newer"]
+
+    def test_patterns_come_back_oldest_first(self, client, db):
+        t0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        db.save(_make_pattern("pattern-newer", t0 + timedelta(days=1)))
+        db.save(_make_pattern("pattern-older", t0))
+
+        r = client.get(f"{BASE}/patterns")
+
+        ids = [item["id"] for item in r.json()["items"]]
+        assert ids == ["pattern-older", "pattern-newer"]
+
+    def test_circle_states_come_back_oldest_first(self, client, db):
+        t0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        db.save(_make_circle_state("state-newer", t0 + timedelta(days=1)))
+        db.save(_make_circle_state("state-older", t0))
+
+        r = client.get(f"{BASE}/circle-state")
+
+        ids = [item["id"] for item in r.json()["items"]]
+        assert ids == ["state-older", "state-newer"]
+
+
+# ---------------------------------------------------------------------------
 # GET /api/hermeneutics/taxonomy/methods  (#1126 — merged from kg_interpretations)
 # ---------------------------------------------------------------------------
 

@@ -1,7 +1,8 @@
 """Hermeneutics API routes (dev tier, backend-first 0.0.2 slice)."""
 
 from fichero_server.core.timeutil import utc_now
-from typing import Any
+from datetime import datetime, timezone
+from typing import Any, TypeVar
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -25,6 +26,41 @@ from fichero_server.models.knowledge import KnowledgeClaim
 
 
 router = APIRouter()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Deterministic list ordering (team-lead review): `db.all(Model)` returns
+# STORAGE order, which is an implementation detail, not a contract -- and
+# the app now splices newly-created interpretations into a list it assumes
+# is oldest-first. Every list route in this file (`/interpretations`,
+# `/frameworks`, `/patterns`, `/circle-state`) shares the identical shape
+# (`id: str`, `created_at: datetime`, both always defaulted -- see
+# `models/hermeneutics.py`), so one sort key serves all four -- extracted
+# because it is real, identical duplication across 4+ call sites, not a
+# single-caller abstraction.
+#
+# `created_at` is typed non-Optional with `default_factory=utc_now` on
+# every one of these models, so a row CREATED through this codebase always
+# has one. The defensive `is None` branch below is for a row that reached
+# the database some other way (a hand-edited/pre-field export, direct SQL)
+# and would otherwise crash `datetime` comparison outright -- "nulls
+# first" per the review's instruction, not a case verified to occur today.
+_T = TypeVar("_T")
+
+
+def _sort_key(row: Any) -> tuple[bool, datetime, str]:
+    created_at = getattr(row, "created_at", None)
+    return (
+        created_at is None,
+        created_at if created_at is not None else datetime.min.replace(tzinfo=timezone.utc),
+        row.id,
+    )
+
+
+def _ordered(rows: list[_T]) -> list[_T]:
+    """`created_at` ascending (oldest first, matching what `POST` already
+    appends), `id` as a stable tiebreak for equal/absent timestamps."""
+    return sorted(rows, key=_sort_key)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -226,6 +262,7 @@ async def list_frameworks(
         rows = [r for r in rows if r.framework_type == framework_type]
     if is_active is not None:
         rows = [r for r in rows if r.is_active == is_active]
+    rows = _ordered(rows)
     return FrameworkListResponse(items=rows, count=len(rows))
 
 
@@ -392,6 +429,7 @@ async def list_interpretations(
         rows = [r for r in rows if r.document_id == document_id]
     if act is not None:
         rows = [r for r in rows if r.act == act]
+    rows = _ordered(rows)
     return InterpretationListResponse(items=rows, count=len(rows))
 
 
@@ -510,6 +548,7 @@ async def list_patterns(
         rows = [r for r in rows if r.status == status]
     if framework_id is not None:
         rows = [r for r in rows if r.framework_id == framework_id]
+    rows = _ordered(rows)
     return PatternListResponse(items=rows, count=len(rows))
 
 
@@ -640,6 +679,7 @@ async def list_circle_states(
     rows = db.all(HermeneuticCircleState)
     if claim_id is not None:
         rows = [r for r in rows if r.claim_id == claim_id]
+    rows = _ordered(rows)
     return CircleStateListResponse(items=rows, count=len(rows))
 
 
