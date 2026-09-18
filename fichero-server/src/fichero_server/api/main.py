@@ -872,14 +872,30 @@ async def lifespan(app: FastAPI):
     # the way through packaging. A missing capability announces itself now.
     _log_fm_bridge_presence()
 
-    # #4690: provider seed/collapse moved off the pre-yield path, onto the
-    # existing warm-up executor below (`_warm_workflow_stack`), which already
-    # runs AFTER bind (#3950's rule: nothing blocking runs before the socket
-    # can answer). Both are blocking DuckDB I/O and both are already
-    # exception-safe internally (never block or fail startup), so moving them
-    # is a pure reordering — same DB writes, same idempotent effect, just no
-    # longer gating `yield` (and therefore no longer gating when uvicorn
-    # finishes startup and health can answer).
+    # #4690 (reverted, SF9 2026-09-18): provider seed/collapse briefly moved
+    # off the pre-yield path onto the post-bind warm-up executor, to get them
+    # off the critical path to "health can answer". Real cost measured
+    # ~147ms — negligible — and moving them created a genuine cross-commit
+    # race: `loadProviders()` at `markReady()` (AppState+Readiness.swift) is
+    # fire-and-forget and can call `GET /api/providers` before this seed
+    # completes on a fresh install (empty app.duckdb, no rows yet), reading
+    # `[]` and latching `isFirstLaunchProviderSetup = true`
+    # (AppState+Providers.swift) — permanently for the session, nothing
+    # re-reads it once providers actually exist a moment later. Back to
+    # pre-yield: the negligible cost is worth removing the race structurally
+    # rather than adding a second signal (the embeddings-prewarm fix's
+    # `_first_registry_200_signal`) for a ~147ms saving.
+    #
+    # `_seed_builtin_providers()` makes the first `get_app_db()` call of the
+    # process, which is also where app.duckdb actually opens (module import
+    # only constructs the empty DatabaseManager, no connection) — bracket it,
+    # since a slow first DB open was one of #4690's original suspects for
+    # where the ~23s figure could be hiding. Both are already exception-safe
+    # internally (never raise), so this cannot fail startup.
+    _api_stamp("app db open + provider seed/collapse start")
+    _seed_builtin_providers()
+    _collapse_duplicate_providers()
+    _api_stamp("app db open + provider seed/collapse complete")
 
     # Pairing codes are process-local; warn if a non-standard launcher exposes
     # a detectable multi-worker configuration.
@@ -919,21 +935,9 @@ async def lifespan(app: FastAPI):
     # and would starve the event loop it ran on — the same mistake, and the
     # same fix, as Bonjour above (#3920).
     def _warm_workflow_stack() -> None:
-        # #4690: seed built-in providers (Apple Vision/Transcribe) and collapse
-        # any #704 duplicate provider rows here, off the pre-yield path — both
-        # are blocking DuckDB I/O with their own internal exception handling
-        # (never raise), so running them first on this executor thread keeps
-        # them off the bind path without changing their effect.
-        #
-        # `_seed_builtin_providers()` makes the first `get_app_db()` call of
-        # the process, which is also where app.duckdb actually opens (module
-        # import only constructs the empty DatabaseManager, no connection) —
-        # bracket it, since a slow first DB open was one of #4690's suspects
-        # for where the ~23s figure could be hiding.
-        _api_stamp("app db open + provider seed/collapse start")
-        _seed_builtin_providers()
-        _collapse_duplicate_providers()
-        _api_stamp("app db open + provider seed/collapse complete")
+        # #4690/SF9: provider seed/collapse moved back to pre-yield (see the
+        # comment above `_seed_builtin_providers()`'s call site) — this
+        # function now only warms the tool stack.
         try:
             # #4690: bracket the tool-stack warm-up. GIL contention with this
             # (CPU-heavy import work on a non-loop thread can still starve the
