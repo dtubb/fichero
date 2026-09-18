@@ -50,6 +50,7 @@ def _isolate(tmp_path, monkeypatch):
     monkeypatch.setattr(_mod, "TEST_ROOTS", [tmp_path / "fichero" / "Tests", tmp_path / "fichero-server" / "tests"])
     monkeypatch.setattr(_mod, "AGENT_WORK_DIR", tmp_path / "agent-work")
     monkeypatch.setattr(_mod, "BASELINE_PATH", tmp_path / "spec_pipeline_baseline.json")
+    monkeypatch.setattr(_mod, "NON_SPEC_MILESTONES_PATH", tmp_path / "does_not_exist_allowlist.json")
     monkeypatch.delenv("SPEC_PIPELINE_FAKE_ISSUES", raising=False)
     monkeypatch.delenv("SPEC_PIPELINE_FAKE_MILESTONES", raising=False)
     return tmp_path
@@ -388,6 +389,109 @@ def test_rule_g_workstream_bucket_milestone_is_exempt(tmp_path, monkeypatch):
         {"title": "Bugs"},
     ])
     assert _check() == 0
+
+
+# --- Rule (g) scope (creative-director cross-check, 2026-09-18): a milestone's state and
+# open-issue count decide whether it's a finding at all, and which message it gets. Four
+# combinations, all against a milestone with no spec and not a workstream bucket.
+
+def _check_with_milestones(tmp_path, monkeypatch, extra_milestones):
+    _seed(tmp_path, CLEAN_SPEC)
+    _seed_test_file(tmp_path, "fichero/Tests/ThingWorksTests.swift", "struct ThingWorksTests {}")
+    _fake_issues(monkeypatch, ISSUES_CLEAN)
+    monkeypatch.setattr(_mod, "get_milestones", lambda offline: [{"title": "modes-to-panes"}] + extra_milestones)
+
+
+def test_rule_g_closed_milestone_with_zero_open_issues_is_not_a_finding(tmp_path, monkeypatch):
+    # Dead — GitHub already keeps it out of the way. Not process debt.
+    _check_with_milestones(tmp_path, monkeypatch, [
+        {"number": 900, "title": "some-dead-surface", "state": "closed", "open_issues": 0},
+    ])
+    assert _check() == 0
+
+
+def test_rule_g_closed_milestone_with_open_issues_still_fails(tmp_path, monkeypatch, capsys):
+    _check_with_milestones(tmp_path, monkeypatch, [
+        {"number": 901, "title": "some-closed-but-not-dead", "state": "closed", "open_issues": 3},
+    ])
+    rc = _check()
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "CLOSED but holds 3 open issue" in out
+
+
+def test_rule_g_open_milestone_with_zero_open_issues_fails_suggesting_close(tmp_path, monkeypatch, capsys):
+    _check_with_milestones(tmp_path, monkeypatch, [
+        {"number": 902, "title": "some-empty-open-surface", "state": "open", "open_issues": 0},
+    ])
+    rc = _check()
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "zero open issues and no spec — consider closing it" in out
+
+
+def test_rule_g_open_milestone_with_open_issues_fails_asking_for_a_spec(tmp_path, monkeypatch, capsys):
+    _check_with_milestones(tmp_path, monkeypatch, [
+        {"number": 903, "title": "some-live-surface", "state": "open", "open_issues": 5},
+    ])
+    rc = _check()
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "has no spec declaring" in out
+
+
+# --- The non-spec-milestone allowlist: shrink-only, same contract as
+# check_spec_broken_has_issue.py's GRANDFATHERED_FILES.
+
+def test_rule_g_allowlisted_milestone_is_exempt(tmp_path, monkeypatch):
+    monkeypatch.setattr(_mod, "NON_SPEC_MILESTONES_PATH", tmp_path / "allowlist.json")
+    _mod.NON_SPEC_MILESTONES_PATH.write_text(json.dumps([
+        {"number": 904, "title": "a-real-program-bucket", "reason": "release/hygiene bucket, not a surface"},
+    ]), encoding="utf-8")
+    _check_with_milestones(tmp_path, monkeypatch, [
+        {"number": 904, "title": "a-real-program-bucket", "state": "open", "open_issues": 7},
+    ])
+    assert _check() == 0
+
+
+def test_rule_g_allowlist_stale_entry_fails_when_milestone_gone(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(_mod, "NON_SPEC_MILESTONES_PATH", tmp_path / "allowlist.json")
+    _mod.NON_SPEC_MILESTONES_PATH.write_text(json.dumps([
+        {"number": 905, "title": "a-milestone-that-no-longer-exists", "reason": "was a bucket"},
+    ]), encoding="utf-8")
+    _check_with_milestones(tmp_path, monkeypatch, [])  # #905 is not among the live milestones
+    rc = _check()
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "no longer exists on GitHub" in out
+
+
+def test_rule_g_allowlist_entry_now_specced_fails(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(_mod, "NON_SPEC_MILESTONES_PATH", tmp_path / "allowlist.json")
+    _mod.NON_SPEC_MILESTONES_PATH.write_text(json.dumps([
+        {"number": 906, "title": "modes-to-panes", "reason": "stale — this now has a spec"},
+    ]), encoding="utf-8")
+    _check_with_milestones(tmp_path, monkeypatch, [
+        {"number": 906, "title": "modes-to-panes", "state": "open", "open_issues": 2},
+    ])
+    rc = _check()
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "now has a spec declaring it" in out
+
+
+def test_rule_g_allowlist_entry_without_reason_fails(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(_mod, "NON_SPEC_MILESTONES_PATH", tmp_path / "allowlist.json")
+    _mod.NON_SPEC_MILESTONES_PATH.write_text(json.dumps([
+        {"number": 907, "title": "a-bucket-with-no-reason", "reason": ""},
+    ]), encoding="utf-8")
+    _check_with_milestones(tmp_path, monkeypatch, [
+        {"number": 907, "title": "a-bucket-with-no-reason", "state": "open", "open_issues": 1},
+    ])
+    rc = _check()
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "has no `reason`" in out
 
 
 # --offline: never green-by-absence.

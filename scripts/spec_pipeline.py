@@ -54,6 +54,13 @@ SPECS_DIR = pathlib.Path("docs/contributor_manual/specs")
 TEST_ROOTS = [pathlib.Path("fichero/Tests"), pathlib.Path("fichero-server/tests")]
 AGENT_WORK_DIR = pathlib.Path("agent-work")
 BASELINE_PATH = pathlib.Path("scripts/spec_pipeline_baseline.json")
+# Legacy milestones that are real non-spec program/workstream buckets (release, hygiene,
+# lint sweeps, platform-craft) rather than a surface waiting on a spec — see
+# agent-work/spec-pipeline/legacy-milestones-triage.md for how this was populated. Same
+# shrink-only contract as check_spec_broken_has_issue.py's GRANDFATHERED_FILES: an entry
+# whose milestone is gone, or now has a real spec, or carries no reason, is itself a rule-g
+# finding rather than being silently trusted.
+NON_SPEC_MILESTONES_PATH = pathlib.Path("scripts/spec_pipeline_non_spec_milestones.json")
 GH_REPO = "dtubb/fichero"
 # `gh issue list --limit N` silently returns at most N issues — no truncation signal of its
 # own. With ~4100 issues in this repo, a low limit was invisible data loss: rules c/e/f/g
@@ -568,20 +575,92 @@ def _orphan_issue_findings(behaviors: list[Behavior], issues: list[dict]) -> lis
     return out
 
 
+def _load_non_spec_milestones() -> list[dict]:
+    if not NON_SPEC_MILESTONES_PATH.exists():
+        return []
+    return json.loads(NON_SPEC_MILESTONES_PATH.read_text(encoding="utf-8"))
+
+
 def _milestone_orphan_findings(behaviors: list[Behavior], milestones: list[dict]) -> list[Finding]:
     """Rule (g): a GH milestone shaped like a spec anchor with no spec; a spec milestone
     that never shows up on GitHub. Mirrors check_spec_milestones.py's existence check,
     but from the milestone side too (this script's whole point). Uses the dedicated
     milestone listing (not just milestones seen on issues), so an empty milestone is
-    visible too."""
+    visible too.
+
+    Scope (creative-director cross-check, 2026-09-18): a milestone that is CLOSED with zero
+    open issues is dead, not debt — GitHub already keeps it out of everyone's way, so it is
+    NOT a finding. A closed milestone that still holds open issues, or an open milestone
+    with zero open issues, both ARE findings (the first needs its issues moved/reopened, the
+    second is a candidate to just close). `scripts/spec_pipeline_non_spec_milestones.json`
+    is a shrink-only allowlist (same contract as `check_spec_broken_has_issue.py`'s
+    `GRANDFATHERED_FILES`) for real non-spec program/workstream buckets — an allowlisted
+    milestone is exempt, but a STALE entry (the milestone is gone, or now has a real spec,
+    or carries no `reason`) is itself a rule-(g) finding, so the allowlist can't quietly rot.
+    """
     known_milestones = {b.spec_milestone for b in behaviors if b.spec_milestone}
     spec_stems = {pathlib.Path(b.spec_path).stem for b in behaviors}
+    live_by_number = {m["number"]: m for m in milestones if "number" in m}
     live_titles = {m.get("title") for m in milestones if m.get("title")}
-    out = []
-    for title in sorted(live_titles):
+    out: list[Finding] = []
+
+    allowlist = _load_non_spec_milestones()
+    allowlisted_numbers: set[int] = set()
+    for entry in allowlist:
+        number = entry.get("number")
+        title = entry.get("title", "?")
+        reason = (entry.get("reason") or "").strip()
+        if not reason:
+            out.append(Finding(
+                "g", f"allowlist-no-reason:{number}", "-",
+                f"{NON_SPEC_MILESTONES_PATH}: entry for milestone #{number} '{title}' has "
+                f"no `reason` — every allowlist entry needs one (rule g)."
+            ))
+            continue
+        live = live_by_number.get(number)
+        if live is None:
+            out.append(Finding(
+                "g", f"allowlist-stale:{number}", "-",
+                f"{NON_SPEC_MILESTONES_PATH}: milestone #{number} '{title}' no longer exists "
+                f"on GitHub — remove it from the allowlist (rule g)."
+            ))
+            continue
+        if live.get("title") in known_milestones or live.get("title") in spec_stems:
+            out.append(Finding(
+                "g", f"allowlist-now-specced:{number}", "-",
+                f"{NON_SPEC_MILESTONES_PATH}: milestone #{number} '{title}' now has a spec "
+                f"declaring it — remove it from the allowlist (rule g)."
+            ))
+            continue
+        allowlisted_numbers.add(number)
+
+    for m in milestones:
+        title = m.get("title")
+        if not title:
+            continue
         if title.lower() in WORKSTREAM_BUCKETS:
             continue
         if title in known_milestones or title in spec_stems:
+            continue
+        if m.get("number") in allowlisted_numbers:
+            continue
+        state = m.get("state")
+        open_count = m.get("open_issues", 0)
+        if state == "closed" and open_count == 0:
+            continue  # dead — GitHub already keeps it out of the way, not a finding
+        if state == "closed" and open_count > 0:
+            out.append(Finding(
+                "g", title, "-",
+                f"GitHub milestone '{title}' is CLOSED but holds {open_count} open issue(s) "
+                f"and has no spec — reopen it or move its issues off (rule g)."
+            ))
+            continue
+        if open_count == 0:
+            out.append(Finding(
+                "g", title, "-",
+                f"GitHub milestone '{title}' is OPEN with zero open issues and no spec — "
+                f"consider closing it (rule g)."
+            ))
             continue
         out.append(Finding(
             "g", title, "-",

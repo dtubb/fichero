@@ -1,0 +1,172 @@
+[
+  {
+    "number": 64,
+    "title": "Developer - Dev Experience",
+    "reason": "program/workstream/craft bucket, not a single-surface spec"
+  },
+  {
+    "number": 66,
+    "title": "Docs - Site",
+    "reason": "program/workstream/craft bucket, not a single-surface spec"
+  },
+  {
+    "number": 67,
+    "title": "Docs - Dev",
+    "reason": "program/workstream/craft bucket, not a single-surface spec"
+  },
+  {
+    "number": 70,
+    "title": "Bugs - Tests - API Surface & Test Harness",
+    "reason": "program/workstream/craft bucket, not a single-surface spec"
+  },
+  {
+    "number": 78,
+    "title": "UX - Native SwiftUI Controls",
+    "reason": "program/workstream/craft bucket, not a single-surface spec"
+  },
+  {
+    "number": 82,
+    "title": "Bugs - Tests - Engine",
+    "reason": "program/workstream/craft bucket, not a single-surface spec"
+  },
+  {
+    "number": 95,
+    "title": "UX - visionOS",
+    "reason": "program/workstream/craft bucket, not a single-surface spec"
+  },
+  {
+    "number": 106,
+    "title": "App - Release & Distribution",
+    "reason": "program/workstream/craft bucket, not a single-surface spec"
+  },
+  {
+    "number": 109,
+    "title": "Developer - Dev & Build Harness",
+    "reason": "program/workstream/craft bucket, not a single-surface spec"
+  },
+  {
+    "number": 114,
+    "title": "UX - tvOS",
+    "reason": "program/workstream/craft bucket, not a single-surface spec"
+  },
+  {
+    "number": 142,
+    "title": "UX - App Localization \u2014 Interface Translation",
+    "reason": "program/workstream/craft bucket, not a single-surface spec"
+  },
+  {
+    "number": 145,
+    "title": "App - Feature Gating \u2014 4-Tier (dev/alpha/beta/release)",
+    "reason": "program/workstream/craft bucket, not a single-surface spec"
+  },
+  {
+    "number": 146,
+    "title": "Bugs - Crashes",
+    "reason": "program/workstream/craft bucket, not a single-surface spec"
+  },
+  {
+    "number": 147,
+    "title": "Bugs - Log Errors",
+    "reason": "program/workstream/craft bucket, not a single-surface spec"
+  },
+  {
+    "number": 177,
+    "title": "Hygiene & Structure - Engine and Python",
+    "reason": "program/workstream/craft bucket, not a single-surface spec"
+  },
+  {
+    "number": 179,
+    "title": "UX - Cross Platform",
+    "reason": "program/workstream/craft bucket, not a single-surface spec"
+  },
+  {
+    "number": 180,
+    "title": "UX - Mac",
+    "reason": "too broad \u2014 awaiting creative-director split"
+  },
+  {
+    "number": 182,
+    "title": "UX - iPad",
+    "reason": "program/workstream/craft bucket, not a single-surface spec"
+  },
+  {
+    "number": 207,
+    "title": "SwiftUI/Engine - OpenAPI",
+    "reason": "program/workstream/craft bucket, not a single-surface spec"
+  },
+  {
+    "number": 216,
+    "title": "Engine - Embed - iOS/iPad",
+    "reason": "engine-embedding infra bucket, cross-platform build concern not a single UI surface"
+  },
+  {
+    "number": 217,
+    "title": "Engine - Embed - Mac",
+    "reason": "engine-embedding infra bucket"
+  },
+  {
+    "number": 234,
+    "title": "Bugs - Testing - Lint - SwiftUI",
+    "reason": "program/workstream/craft bucket, not a single-surface spec"
+  },
+  {
+    "number": 235,
+    "title": "Bugs - Testing - Lint - Engine",
+    "reason": "program/workstream/craft bucket, not a single-surface spec"
+  },
+  {
+    "number": 238,
+    "title": "Performance - SwiftUI",
+    "reason": "program/workstream/craft bucket, not a single-surface spec"
+  },
+  {
+    "number": 239,
+    "title": "Performance - Engine",
+    "reason": "program/workstream/craft bucket, not a single-surface spec"
+  },
+  {
+    "number": 258,
+    "title": "Keyboard Navigation",
+    "reason": "program/workstream/craft bucket, not a single-surface spec"
+  },
+  {
+    "number": 259,
+    "title": "Accessibility & VoiceOver",
+    "reason": "program/workstream/craft bucket, not a single-surface spec"
+  },
+  {
+    "number": 261,
+    "title": "Drag & Drop (app-wide)",
+    "reason": "program/workstream/craft bucket, not a single-surface spec"
+  },
+  {
+    "number": 262,
+    "title": "Mac App Store \u2014 Sandbox & Distribution",
+    "reason": "program/workstream/craft bucket, not a single-surface spec"
+  },
+  {
+    "number": 266,
+    "title": "Platform Craft & Coverage (fabel notes 2026-07-27)",
+    "reason": "fabel-review tracking bucket, cross-cutting craft/coverage findings, not a single surface"
+  },
+  {
+    "number": 267,
+    "title": "Testing Overhaul \u2014 Never Again",
+    "reason": "program/workstream/craft bucket, not a single-surface spec"
+  },
+  {
+    "number": 268,
+    "title": "Ratchets \u2014 it may not get slower, bigger, or heavier",
+    "reason": "program/workstream/craft bucket, not a single-surface spec"
+  },
+  {
+    "number": 269,
+    "title": "Sidebar & Launch Performance",
+    "reason": "program/workstream/craft bucket, not a single-surface spec"
+  },
+  {
+    "number": 286,
+    "title": "Lint - Structural Debt - SwiftUI",
+    "reason": "program/workstream/craft bucket, not a single-surface spec"
+  }
+]

@@ -89,6 +89,29 @@ second markdown-bullet parser — one parser, one bug surface.
   script that only calls `gh issue list`. Pinned by
   `test_spec_pipeline.py::test_rule_g_empty_milestone_with_no_spec_fails`,
   `test_spec_pipeline.py::test_rule_g_workstream_bucket_milestone_is_exempt`.
+- `pipeline.check.rule-g-scope` — **[OK]** rule (g) reads a milestone's `state`/
+  `open_issues` before deciding whether it's a finding at all, so a genuinely dead milestone
+  never shows up as debt (creative-director cross-check, 2026-09-18 — 48 of 51 "CLOSE"
+  candidates in the first triage pass were already closed with zero open issues, and rule
+  (g) was baselining them as noise). Four combinations: CLOSED + 0 open → not a finding
+  (dead, GitHub already keeps it out of the way); CLOSED + N>0 open → a finding ("holds N
+  open issues"); OPEN + 0 open → a finding suggesting closing it; OPEN + N>0 open → the
+  original "write the spec" finding. Pinned by
+  `test_spec_pipeline.py::test_rule_g_closed_milestone_with_zero_open_issues_is_not_a_finding`,
+  `test_spec_pipeline.py::test_rule_g_closed_milestone_with_open_issues_still_fails`,
+  `test_spec_pipeline.py::test_rule_g_open_milestone_with_zero_open_issues_fails_suggesting_close`,
+  `test_spec_pipeline.py::test_rule_g_open_milestone_with_open_issues_fails_asking_for_a_spec`.
+- `pipeline.check.rule-g-non-spec-allowlist` — **[OK]**
+  `scripts/spec_pipeline_non_spec_milestones.json` exempts a real non-spec program/
+  workstream milestone (release, hygiene, lint sweeps, platform-craft — populated from
+  `agent-work/spec-pipeline/legacy-milestones-triage.md`'s 34 KEEP rows) from rule (g),
+  same shrink-only contract as `check_spec_broken_has_issue.py`'s `GRANDFATHERED_FILES`: an
+  entry whose milestone no longer exists, or now has a real spec, or carries no `reason`, is
+  itself a rule-(g) finding rather than being silently trusted. Pinned by
+  `test_spec_pipeline.py::test_rule_g_allowlisted_milestone_is_exempt`,
+  `test_spec_pipeline.py::test_rule_g_allowlist_stale_entry_fails_when_milestone_gone`,
+  `test_spec_pipeline.py::test_rule_g_allowlist_entry_now_specced_fails`,
+  `test_spec_pipeline.py::test_rule_g_allowlist_entry_without_reason_fails`.
 - `pipeline.check.offline-blind-not-green` — **[OK]** `--offline` skips every
   GitHub-dependent rule (b, c, e, f, g) and prints `OFFLINE: blind to rules …` rather than
   reporting success by omission; offline-only rules (a, d) still run and can still fail.
@@ -159,7 +182,8 @@ second markdown-bullet parser — one parser, one bug surface.
 | OK is proven | `[OK]` cites a test that exists | `check` rule (d) |
 | OK is landed | `[OK]`'s cited issue is CLOSED | `check` rule (e) |
 | Milestone fully cited | every OPEN issue on a spec's milestone is cited by some behavior | `check` rule (f), INFO / `--strict` |
-| Milestone ↔ spec mirrored | GH milestone (from the dedicated milestone listing) has a spec; spec's milestone exists on GH | `check` rule (g) |
+| Milestone ↔ spec mirrored | a live (not dead-closed), non-allowlisted GH milestone has a spec; spec's milestone exists on GH | `check` rule (g) |
+| Non-spec milestone allowlist is honest | an allowlisted milestone still exists, has no spec, and carries a reason | `check` rule (g), `scripts/spec_pipeline_non_spec_milestones.json` |
 | No new debt | today's illegal-state set == baseline, modulo a shrink | `check` baseline ratchet |
 | Ready to dispatch | broken-family, OPEN, unclaimed issue | `queue` (default `--kind code`) |
 | Worker briefed | queue item rendered with rules + retag instruction | `brief` |

@@ -222,47 +222,12 @@
   {
     "rule": "g",
     "spec": "-",
-    "key": "About View"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Accessibility & VoiceOver"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
     "key": "Activity View"
   },
   {
     "rule": "g",
     "spec": "-",
-    "key": "Activity View - Engine"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Agent View - Chat"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Agent View - Chat - Engine"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
     "key": "Agent View - Researcher"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Agent View - Researcher - Engine"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Agent View - Researcher - Inspector"
   },
   {
     "rule": "g",
@@ -277,92 +242,7 @@
   {
     "rule": "g",
     "spec": "-",
-    "key": "Agent View - Researcher - Tasks, Milestones, Issues & Projects - Engine"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
     "key": "Agent View - Researcher - UX"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Agent View - Researcher - Workflow Editor"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "App - Feature Gating \u2014 4-Tier (dev/alpha/beta/release)"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "App - Release & Distribution"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Automation View"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Automation View - Engine"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Backend Hygiene & Python Structure"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Bugs - Crashes"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Bugs - Log Errors"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Bugs - Testing - Lint - Engine"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Bugs - Testing - Lint - SwiftUI"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Bugs - Tests - API Surface & Test Harness"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Bugs - Tests - Engine"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Bugs - Tests - SwiftUI"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Bugs - Tests - SwiftUI UX"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Chat / Agent View"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Client - CLI"
   },
   {
     "rule": "g",
@@ -377,42 +257,7 @@
   {
     "rule": "g",
     "spec": "-",
-    "key": "Developer - Dev & Build Harness"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Developer - Dev Experience"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Docs - Dev"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Docs - Site"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
     "key": "Docs - User"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Drag & Drop (app-wide)"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "EVERY FRAME PERFECT \u2605"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Engine"
   },
   {
     "rule": "g",
@@ -432,27 +277,7 @@
   {
     "rule": "g",
     "spec": "-",
-    "key": "Engine - Embed - Mac"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Engine - Embed - iOS/iPad"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
     "key": "Engine - Onboarding, Connection & Pairing"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Engine - OpenAPI URL Routing"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Engine - Security"
   },
   {
     "rule": "g",
@@ -467,22 +292,12 @@
   {
     "rule": "g",
     "spec": "-",
-    "key": "Engine - Sharing - Discovery"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
     "key": "Engine - Sharing - Multi-Library"
   },
   {
     "rule": "g",
     "spec": "-",
     "key": "Engine - Sharing - Remote & Self-Hosting"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Engine - Sharing - Settings"
   },
   {
     "rule": "g",
@@ -502,27 +317,7 @@
   {
     "rule": "g",
     "spec": "-",
-    "key": "Hygiene & Structure - Engine and Python"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Hygiene & Structure - Frontend and SwiftUI"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
     "key": "Importer"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Importer - IIIF"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Importer - JSONL Sidecar"
   },
   {
     "rule": "g",
@@ -532,17 +327,7 @@
   {
     "rule": "g",
     "spec": "-",
-    "key": "Importer - Web Capture & Archiving"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
     "key": "Inspector View"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Inspector View - Artifacts"
   },
   {
     "rule": "g",
@@ -563,26 +348,6 @@
     "rule": "g",
     "spec": "-",
     "key": "Inspector View - Notes"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Inspector View - Notes - Engine"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Inspector View - Source"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Inspector View - Source - Engine"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Keyboard Navigation"
   },
   {
     "rule": "g",
@@ -612,11 +377,6 @@
   {
     "rule": "g",
     "spec": "-",
-    "key": "Library View \u2014 Columns"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
     "key": "Library View \u2014 Icons"
   },
   {
@@ -627,72 +387,12 @@
   {
     "rule": "g",
     "spec": "-",
-    "key": "Lint - Structural Debt - SwiftUI"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Mac App Store \u2014 Sandbox & Distribution"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Navigation System"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Needs Milestone Triage"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
     "key": "Notifications & Watchlist View"
   },
   {
     "rule": "g",
     "spec": "-",
-    "key": "Notifications & Watchlist View - Engine"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Performance - Engine"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Performance - SwiftUI"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Platform Craft & Coverage (fabel notes 2026-07-27)"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Preview View"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
     "key": "Preview View - Image Editing"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Ratchets \u2014 it may not get slower, bigger, or heavier"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Reader View"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Reader View - Knowledge"
   },
   {
     "rule": "g",
@@ -703,11 +403,6 @@
     "rule": "g",
     "spec": "-",
     "key": "Reader View - Page"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Research View"
   },
   {
     "rule": "g",
@@ -737,17 +432,7 @@
   {
     "rule": "g",
     "spec": "-",
-    "key": "Settings - Models & Providers - Engine"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
     "key": "Settings - Models & Providers - HPC"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Settings - Sharing"
   },
   {
     "rule": "g",
@@ -762,27 +447,7 @@
   {
     "rule": "g",
     "spec": "-",
-    "key": "Sidebar & Launch Performance"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
     "key": "Sidebar View"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Sidebar View - Folders"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Sidebar View - Nodes"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Sidebar View - Workspace"
   },
   {
     "rule": "g",
@@ -792,32 +457,7 @@
   {
     "rule": "g",
     "spec": "-",
-    "key": "SwiftUI/Engine - No Hand Rolled URLs"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
     "key": "SwiftUI/Engine - Observable Data Layer"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "SwiftUI/Engine - OpenAPI"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Testing Overhaul \u2014 Never Again"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "UX - App Localization \u2014 Interface Translation"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "UX - Cross Platform"
   },
   {
     "rule": "g",
@@ -827,17 +467,7 @@
   {
     "rule": "g",
     "spec": "-",
-    "key": "UX - Mac"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
     "key": "UX - Mac - Menus, Commands & Shortcuts"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "UX - Native SwiftUI Controls"
   },
   {
     "rule": "g",
@@ -847,52 +477,12 @@
   {
     "rule": "g",
     "spec": "-",
-    "key": "UX - SwiftUI - EPIC: Per-Window Document-Scope Store Lifecycle"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
     "key": "UX - Toolbars & Mini Toolbars"
   },
   {
     "rule": "g",
     "spec": "-",
-    "key": "UX - iPad"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
     "key": "UX - iPhone"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "UX - tvOS"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "UX - visionOS"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Workflow View"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Workflows"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Workflows - Chains"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Workflows - Tools"
   },
   {
     "rule": "g",
@@ -903,10 +493,5 @@
     "rule": "g",
     "spec": "-",
     "key": "sidebar-crud"
-  },
-  {
-    "rule": "g",
-    "spec": "docs/contributor_manual/specs/ui/about.md",
-    "key": "about"
   }
 ]
