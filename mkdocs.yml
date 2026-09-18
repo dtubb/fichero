@@ -338,6 +338,10 @@ nav:
       - Testing Constitution: contributor_manual/TESTING-CONSTITUTION.md
       - Test Template: contributor_manual/TEST-TEMPLATE.md
       - Writing the Guides: contributor_manual/writing-the-guides.md
+      - Doc Template: contributor_manual/DOC-TEMPLATE.md
+      - CLI Test Harness (legacy): contributor_manual/cli-test-harness.md
+      - Feature Tiers (legacy): contributor_manual/feature-tiers.md
+      - About Window: contributor_manual/ui-about.md
       # BEGIN contributor-guide chapters (committed pages; the .docx round-trip
       # that once generated them was retired 2026-09-12 with sync_manuscript.py)
       - How Fichero Works (Guide): contributor_manual/guide/01-how-fichero-works.md
@@ -371,6 +375,40 @@ nav:
           - Frontend Standards: contributor_manual/swiftui-development-standards.md
           - Backend Standards: contributor_manual/backend-development-standards.md
           - Extensibility Guarantee: contributor_manual/extensibility-guarantee.md
+      - Specs:
+          - Open Questions Digest: contributor_manual/specs/OPEN-QUESTIONS.md
+          - Spec Template: contributor_manual/specs/_TEMPLATE.md
+          - Docs:
+              - Docs Citations & Bibliography: contributor_manual/specs/docs/docs-citations-bibliography.md
+          - Harness:
+              - Dev Orchestration Harness: contributor_manual/specs/harness/dev-orchestration-harness.md
+              - Git / Worktree / GitHub Workflow: contributor_manual/specs/harness/git-worktree-workflow.md
+              - Release & Versioning: contributor_manual/specs/harness/release-and-versioning.md
+          - KG:
+              - Archival Data Model: contributor_manual/specs/kg/archival-data-model-plan.md
+              - KG Enrichment, RDF & Linked Data: contributor_manual/specs/kg/kg-enrichment.md
+              - KG Entity Inspector: contributor_manual/specs/kg/kg-entity-inspector.md
+              - KG Interactions & Standards: contributor_manual/specs/kg/kg-interactions.md
+              - KG Readable Representation: contributor_manual/specs/kg/kg-readable-representation.md
+              - KG Tables: contributor_manual/specs/kg/kg-tables.md
+              - Segment Representations: contributor_manual/specs/kg/segment-representations.md
+          - Testing:
+              - Test Environment Contract: contributor_manual/specs/testing/test-environment-contract.md
+              - UI-Test Harness: contributor_manual/specs/testing/ui-test-harness.md
+              - UI Testing Strategy: contributor_manual/specs/testing/ui-testing-strategy.md
+              - Xcode Build/Test/Run Configs: contributor_manual/specs/testing/xcode-build-configs.md
+          - Transport:
+              - "Engine Transport: HTTPS / UDS / In-Memory": contributor_manual/specs/transport/transport-http-uds.md
+          - UI:
+              - About: contributor_manual/specs/ui/about.md
+              - Menus & Commands: contributor_manual/specs/ui/menus-and-commands.md
+              - Model / Provider Selector Consistency: contributor_manual/specs/ui/model-selector-consistency.md
+              - Panes & Workspaces: contributor_manual/specs/ui/panes-workspaces.md
+              - Preview Magnifier (Loupe): contributor_manual/specs/ui/preview-magnifier.md
+              - Reader Overlay Frame Identity: contributor_manual/specs/ui/reader-overlay-frame-identity.md
+              - Reading Markup & Annotations: contributor_manual/specs/ui/reading-markup-annotations.md
+              - Sidebar CRUD: contributor_manual/specs/ui/sidebar-crud.md
+              - Workflow Node Config: contributor_manual/specs/ui/workflow-node-config.md
       - Architecture Notes:
           - System Overview: contributor_manual/architecture/overview.md
           - Shared Vocabulary: contributor_manual/architecture/vocabulary.md
@@ -379,14 +417,57 @@ nav:
           - Library Selection Across View Modes: contributor_manual/architecture/fichero/library_selection_inventory.md
           - Engine Provisioning Modes (Review): contributor_manual/architecture/engine-provisioning-modes-review.md
           - Profile Review 2026-08-04: contributor_manual/architecture/profile-review-2026-08-04.md
+          - Action Layer: contributor_manual/architecture/action_layer.md
+          - Agent Chat As User: contributor_manual/architecture/agent_chat_as_user.md
+          - "AI Infrastructure (EPIC #2056)": contributor_manual/architecture/ai_infrastructure.md
+          - Apple Skills vs AI Skills: contributor_manual/architecture/apple_vs_ai_skills.md
+          - Image Editing Backend Strategy: contributor_manual/architecture/image_editing_backend_strategy.md
+          - iPhone and iPad Interaction Model: contributor_manual/architecture/ios_ipad_interaction_model.md
+          - MLX On-Device Agent Architecture: contributor_manual/architecture/mlx_on_device_agent.md
+          - Node-Model Subsystem Fold (Staging): contributor_manual/architecture/node_model_fold_staging.md
+          - Pi Agent Harness Architecture: contributor_manual/architecture/pi_agent_harness.md
+          - Portable Workflows + Archival Format: contributor_manual/architecture/portable-workflows-and-archival-format.md
+          - The Thinking Layer: contributor_manual/architecture/thinking-layer.md
+          - Word-Level Geometry in Transcription: contributor_manual/architecture/word-level-geometry-in-transcription.md
+          - Workflow Multi-Pass Engine Primitives: contributor_manual/architecture/workflow_multi_pass_engine.md
+          - KG Endpoints Reference: contributor_manual/architecture/fichero-server/KG_ENDPOINTS.md
+          - Capture Sessions & Resumable Upload Contract: contributor_manual/architecture/fichero-server/capture_sessions_resumable_upload_contract.md
+          - Backend Key Files: contributor_manual/architecture/fichero-server/key_files.md
+          - Simplified MCP Interface: contributor_manual/architecture/fichero-server/mcp_simple_interface.md
+          - Backend Dev Workflow Checklist: contributor_manual/architecture/fichero-server/workflow_checklist.md
+          - Startup, Transport & UX — Fabel Review (2026-07-20): contributor_manual/architecture/fichero/2026-07-20-startup-transport-ux-fabel-review.md
+          - HANDOFF 2026-07-21 (Transport → Engine Hygiene → Login): contributor_manual/architecture/fichero/HANDOFF-2026-07-21-transport-hygiene-login.md
+          - Swift API Client — OpenAPI Generator: contributor_manual/architecture/fichero/api_client.md
+          - Document Canvas: contributor_manual/architecture/fichero/document_canvas.md
+          - Frontend Key Files: contributor_manual/architecture/fichero/key_files.md
+          - KG Renderer Decision: contributor_manual/architecture/fichero/kg_renderer_decision.md
+          - "Mac UI Shape — Design Proposal (EPIC #2030)": contributor_manual/architecture/fichero/mac_shell_design_proposal.md
+          - Observable Data Layer + Backend Change-Stream: contributor_manual/architecture/fichero/observable_data_layer.md
+          - Fichero UI Reform — Master Plan (2026-06-15): contributor_manual/architecture/fichero/reform_masterplan_2026-06.md
+          - Frontend Dev Workflow Checklist: contributor_manual/architecture/fichero/workflow_checklist.md
+      - Design:
+          - Embedded Local Models Plan: contributor_manual/design/embedded-local-models-plan.md
+          - iOS / iPad Engine Embedding Feasibility: contributor_manual/design/ios-ipad-embedding-plan.md
+          - SwiftUI App Structure & Naming (Reorg Plan): contributor_manual/design/swiftui-app-reorg.md
       - Release:
           - Release Lane Runbook: contributor_manual/release/release-lane.md
           - Sparkle Release Setup: contributor_manual/release/sparkle-release.md
           - Release Process: contributor_manual/architecture/release-process.md
           - 0.1.0 QA Sign-Off: contributor_manual/release/qa-signoff-0.1.0.md
+          - Backend Python Dependencies: contributor_manual/release/backend-python-dependencies.md
+          - Fichero 0.0.2 Release Notes: contributor_manual/release/release-notes-0.0.2.md
+          - Release Readiness Checklist: contributor_manual/release/release-readiness.md
       - Packaging:
           - Bundling the Backend: contributor_manual/bundling-backend.md
           - Bundled Backend Setup: contributor_manual/setup-bundled-backend.md
+      - QA:
+          - Capture Smoke Matrix: contributor_manual/qa/capture-smoke-matrix.md
+          - Device Pairing Smoke: contributor_manual/qa/device-pairing-smoke.md
+          - Full-Book Catalogue + KG E2E: contributor_manual/qa/full-book-catalogue-e2e.md
+          - Known Launch Log Noise: contributor_manual/qa/known-launch-log-noise.md
+          - Remote Pairing Smoke Checklist: contributor_manual/qa/remote-pairing-smoke-checklist.md
+          - UI-Test Harness Findings (2026-09-12): contributor_manual/reports/ui-test-harness-findings-2026-09-12.md
+          - Sidebar/UX Verify-and-Close Checklist: contributor_manual/verify-checklists/sidebar-ux-verify.md
       - UI Map: contributor_manual/ui-map.md
       - API Reference: contributor_manual/api-reference/index.md
   - Contributors: contributors.md
