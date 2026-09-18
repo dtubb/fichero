@@ -67,6 +67,37 @@ def render_statement(
     return separator.join(order_statement_parts(subject, verb, obj))
 
 
+def compose_claim_sentence(
+    subject: str | None, verb: str | None, obj: str | None
+) -> str:
+    """THE composer for a stored ``KnowledgeClaim.text`` sentence from its
+    subject/verb/object roles -- "Subject verb object.", a period added
+    only when the predicate doesn't already end in terminal punctuation
+    (avoids a double period when the object already ends in one).
+
+    Extracted from ``workflows/tools/extractors.py::_write_kg_rows``'s own
+    inline formula (the "create path": what a freshly-extracted claim's
+    text has always looked like) so there is exactly ONE place that
+    decides this shape -- ``claim.patch`` (Task 7d, subject-change sync)
+    calls the SAME function when it regenerates ``text``, rather than a
+    second, driftable copy of the formula.
+
+    Falls back to just the subject when there is no predicate at all (no
+    verb AND no object) -- matches the extraction path's own fallback for
+    a bare-name claim. Does NOT reproduce the extraction pipeline's
+    separate "allow_null_subject" `"[unattributed] ..."` shape -- that is
+    a narrower, section-specific format for a claim with no subject at
+    all, not a general subject/verb/object composer's concern.
+    """
+    predicate = render_statement(None, verb, obj)
+    subject_text = (subject or "").strip()
+    if not predicate:
+        return subject_text
+    pred = predicate.rstrip()
+    suffix = "" if pred.endswith((".", "!", "?")) else "."
+    return f"{subject_text} {pred}{suffix}".strip()
+
+
 def enum_value(x: Any) -> str:
     """Return ``x.value`` when ``x`` is an enum, else ``str(x)``.
 

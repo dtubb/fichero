@@ -2933,13 +2933,14 @@ def _write_kg_rows(
         # Claim text reads as a real sentence: "{name} {verb} {object}.".
         # When verb+object are missing (legacy path), fall back to the
         # older "{name}: {context}" shape rather than producing a noun
-        # fragment.
+        # fragment. `compose_claim_sentence` is THE shared composer (Task
+        # 7d) -- `claim.patch`'s subject-change sync calls the SAME
+        # function so a patched claim's text never drifts from what a
+        # freshly-extracted one looks like.
         if verb or obj:
-            # Avoid double-period when the LLM-emitted object already
-            # ends in terminal punctuation (#1113 polish).
-            _pred = predicate.rstrip()
-            _suffix = "" if _pred.endswith((".", "!", "?")) else "."
-            claim_text = f"{canonical} {_pred}{_suffix}".strip()
+            from fichero_server.knowledge._common import compose_claim_sentence
+
+            claim_text = compose_claim_sentence(canonical, verb, obj)
         elif legacy_context:
             claim_text = f"{canonical}: {legacy_context}"
         else:

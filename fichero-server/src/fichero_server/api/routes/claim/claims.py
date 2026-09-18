@@ -344,8 +344,35 @@ def _apply_claim_patch(
     data: dict[str, Any],
     typed: dict[str, Any] | None = None,
 ) -> None:
-    """Apply patch fields and keep canonical SVO fields consistent."""
-    from fichero_server.knowledge._common import canonical_verb
+    """Apply patch fields and keep canonical SVO fields consistent.
+
+    Task 7d: a `subject_entity_id` CHANGE also keeps two other fields
+    honest, since `entity_ids` carries no role tagging of its own and
+    `subject_entity_id` is the only record of which entry WAS the subject:
+
+    (a) `entity_ids` -- the OLD subject entity is removed, the NEW one is
+        added, and every OTHER entry (the object entity, or any other
+        linked entity) is left exactly as it is. An explicit `entity_ids`
+        patch in the SAME request still wins verbatim -- the caller asked
+        for a specific list, this only fills in when they did not.
+    (b) `text` -- regenerated from the PATCHED subject_canonical /
+        predicate_verb / object_phrase (whichever of the three the SAME
+        request also changed; the claim's current value otherwise) through
+        `compose_claim_sentence` -- THE ONE composer the extraction/
+        "create" path (`_write_kg_rows`) already uses, so a patched
+        claim's sentence never drifts into a second, different-looking
+        format. An explicit `text` patch in the SAME request still wins.
+
+    A patch that does not touch `subject_entity_id` at all -- absent from
+    `data`, or present but equal to the claim's current value -- leaves
+    both `entity_ids` and `text` exactly as they are today (unless the
+    caller patches them directly, which always wins regardless).
+
+    The new subject's NAME is the caller's job to have in `data` by now:
+    `patch_claim_impl` fills `subject_canonical` from the new entity when
+    the request did not send one, because this function has no database.
+    """
+    from fichero_server.knowledge._common import canonical_verb, compose_claim_sentence
 
     if "text" in data and isinstance(data["text"], str):
         data["text"] = data["text"].strip()
@@ -359,12 +386,31 @@ def _apply_claim_patch(
     if "object_phrase" in data and "svo_object" not in data:
         data["svo_object"] = data.get("object_phrase")
 
+    if "subject_entity_id" in data and data["subject_entity_id"] != claim.subject_entity_id:
+        old_subject_id = claim.subject_entity_id
+        new_subject_id = data["subject_entity_id"]
+
+        if "entity_ids" not in data:
+            entity_ids = list(claim.entity_ids or [])
+            if old_subject_id is not None and old_subject_id in entity_ids:
+                entity_ids = [eid for eid in entity_ids if eid != old_subject_id]
+            if new_subject_id is not None and new_subject_id not in entity_ids:
+                entity_ids.append(new_subject_id)
+            data["entity_ids"] = entity_ids
+
+        if "text" not in data:
+            subject_text = data.get("subject_canonical", claim.subject_canonical)
+            verb_text = data.get("predicate_verb", claim.predicate_verb)
+            object_text = data.get("object_phrase", claim.object_phrase)
+            data["text"] = compose_claim_sentence(subject_text, verb_text, object_text)
+
     # `data` comes from `model_dump()`, which flattens nested models to
     # dicts. Assigning those back would leave the claim holding a dict
     # where a model belongs, so `claim.source_anchor.rect` raises
     # AttributeError until the row is reloaded. `typed` carries the
     # request's validated attributes; keys DERIVED above (svo_verb,
-    # predicate_canonical) are not on the request and fall back to `data`.
+    # predicate_canonical, and this method's own entity_ids/text when it
+    # computed them) are not on the request and fall back to `data`.
     for key, value in data.items():
         if typed is not None and key in typed:
             value = typed[key]
@@ -521,7 +567,20 @@ def patch_claim_impl(
     prior_identity = claim_identity_snapshot(claim)
     data = request.model_dump(exclude_unset=True)
     _validate_claim_references(db, data)
-    _apply_claim_patch(claim, data, typed={k: getattr(request, k) for k in data})
+    # Built BEFORE the derivation below: a derived key is not on the request,
+    # and must fall back to `data` rather than the request's unset None.
+    typed = {k: getattr(request, k) for k in data}
+    # A subject change with no name sent takes the NEW entity's canonical
+    # name. Otherwise the claim points at one person while its sentence still
+    # names another -- the wrong-subject defect, written by an edit.
+    new_subject_id = data.get("subject_entity_id")
+    if (
+        new_subject_id
+        and new_subject_id != claim.subject_entity_id
+        and "subject_canonical" not in data
+    ):
+        data["subject_canonical"] = db.get(KnowledgeEntity, new_subject_id).canonical_name
+    _apply_claim_patch(claim, data, typed=typed)
 
     # A patch that only touches, say, curation_state has not corrected any
     # reading, so it leaves no superseded entry — the guard must fire on

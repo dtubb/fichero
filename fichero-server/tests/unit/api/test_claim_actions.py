@@ -274,6 +274,168 @@ class TestClaimCrudActions:
         assert kwargs["claim_ids"] == [claim.id]
 
 
+class TestPatchSubjectEntityIdSync:
+    """Task 7d: patching ``subject_entity_id`` keeps ``entity_ids`` and ``text``
+    honest, using the SAME ``compose_claim_sentence`` composer the extraction
+    ("create") path uses -- see ``_apply_claim_patch``."""
+
+    def _entities(self, db):
+        old_subj = KnowledgeEntity(canonical_name="Old Subject")
+        new_subj = KnowledgeEntity(canonical_name="New Subject")
+        obj_ent = KnowledgeEntity(canonical_name="The Object")
+        db.save(old_subj)
+        db.save(new_subj)
+        db.save(obj_ent)
+        return old_subj, new_subj, obj_ent
+
+    def test_subject_change_syncs_entity_ids_and_text(self, db):
+        old_subj, new_subj, obj_ent = self._entities(db)
+        claim = _save_claim(
+            db,
+            text="Old Subject sold the house.",
+            subject_entity_id=old_subj.id,
+            subject_canonical="Old Subject",
+            predicate_verb="sold",
+            object_phrase="the house",
+            entity_ids=[old_subj.id, obj_ent.id],
+        )
+
+        result = registry.invoke(
+            db,
+            "claim.patch",
+            {
+                "claim_id": claim.id,
+                "patch": {
+                    "subject_entity_id": new_subj.id,
+                    "subject_canonical": "New Subject",
+                },
+            },
+            _ctx(),
+        )
+        reloaded = db.get(KnowledgeClaim, claim.id)
+        assert reloaded.subject_entity_id == new_subj.id
+        # old subject removed, new subject added, the object entity untouched
+        assert set(reloaded.entity_ids) == {new_subj.id, obj_ent.id}
+        # text regenerated through the shared composer, using the patched
+        # subject_canonical plus the claim's UNCHANGED verb/object
+        assert reloaded.text == "New Subject sold the house."
+
+        audit = db.get(ActionAudit, result.audit_id)
+        assert audit.before["entity_ids"] == [old_subj.id, obj_ent.id]
+        assert audit.before["text"] == "Old Subject sold the house."
+
+        # (b) undo restores subject, entity_ids AND text together
+        inv = _invoke_inverse(db, result.audit_id, _ctx())
+        assert inv == "claim.restore"
+        restored = db.get(KnowledgeClaim, claim.id)
+        assert restored.subject_entity_id == old_subj.id
+        assert set(restored.entity_ids) == {old_subj.id, obj_ent.id}
+        assert restored.text == "Old Subject sold the house."
+
+    def test_no_subject_change_leaves_entity_ids_and_text_untouched(self, db):
+        old_subj, _new_subj, obj_ent = self._entities(db)
+        claim = _save_claim(
+            db,
+            text="Old Subject sold the house.",
+            subject_entity_id=old_subj.id,
+            subject_canonical="Old Subject",
+            predicate_verb="sold",
+            object_phrase="the house",
+            entity_ids=[old_subj.id, obj_ent.id],
+        )
+
+        registry.invoke(
+            db,
+            "claim.patch",
+            {"claim_id": claim.id, "patch": {"confidence": 0.5}},
+            _ctx(),
+        )
+        reloaded = db.get(KnowledgeClaim, claim.id)
+        assert reloaded.subject_entity_id == old_subj.id
+        assert reloaded.entity_ids == [old_subj.id, obj_ent.id]
+        assert reloaded.text == "Old Subject sold the house."
+        assert reloaded.confidence == 0.5
+
+    def test_subject_change_with_explicit_entity_ids_and_text_wins(self, db):
+        """An explicit `entity_ids`/`text` in the SAME patch is the caller's own
+        say-so and is never overridden by the derived sync."""
+        old_subj, new_subj, obj_ent = self._entities(db)
+        claim = _save_claim(
+            db,
+            text="Old Subject sold the house.",
+            subject_entity_id=old_subj.id,
+            subject_canonical="Old Subject",
+            predicate_verb="sold",
+            object_phrase="the house",
+            entity_ids=[old_subj.id, obj_ent.id],
+        )
+
+        registry.invoke(
+            db,
+            "claim.patch",
+            {
+                "claim_id": claim.id,
+                "patch": {
+                    "subject_entity_id": new_subj.id,
+                    "entity_ids": [new_subj.id],
+                    "text": "Custom text wins.",
+                },
+            },
+            _ctx(),
+        )
+        reloaded = db.get(KnowledgeClaim, claim.id)
+        assert reloaded.entity_ids == [new_subj.id]
+        assert reloaded.text == "Custom text wins."
+
+    def test_subject_change_without_a_name_takes_the_new_entitys_name(self, db):
+        """The claim never points at one person while naming another."""
+        old_subj, new_subj, obj_ent = self._entities(db)
+        claim = _save_claim(
+            db,
+            text="Old Subject sold the house.",
+            subject_entity_id=old_subj.id,
+            subject_canonical="Old Subject",
+            predicate_verb="sold",
+            object_phrase="the house",
+            entity_ids=[old_subj.id, obj_ent.id],
+        )
+        registry.invoke(
+            db,
+            "claim.patch",
+            {"claim_id": claim.id, "patch": {"subject_entity_id": new_subj.id}},
+            _ctx(),
+        )
+        patched = db.get(KnowledgeClaim, claim.id)
+        assert patched.subject_canonical == "New Subject"
+        assert patched.text == "New Subject sold the house."
+        assert set(patched.entity_ids) == {new_subj.id, obj_ent.id}
+
+    def test_subject_change_unknown_id_refused(self, db):
+        old_subj, _new_subj, obj_ent = self._entities(db)
+        claim = _save_claim(
+            db,
+            text="Old Subject sold the house.",
+            subject_entity_id=old_subj.id,
+            subject_canonical="Old Subject",
+            predicate_verb="sold",
+            object_phrase="the house",
+            entity_ids=[old_subj.id, obj_ent.id],
+        )
+        with pytest.raises(HTTPException) as exc:
+            registry.invoke(
+                db,
+                "claim.patch",
+                {"claim_id": claim.id, "patch": {"subject_entity_id": "ghost"}},
+                _ctx(),
+            )
+        assert exc.value.status_code == 404
+        # refused before any mutation lands
+        untouched = db.get(KnowledgeClaim, claim.id)
+        assert untouched.subject_entity_id == old_subj.id
+        assert untouched.entity_ids == [old_subj.id, obj_ent.id]
+        assert untouched.text == "Old Subject sold the house."
+
+
 # ===========================================================================
 # claim.assign_time_period
 # ===========================================================================
