@@ -211,7 +211,15 @@ struct ReaderHeadShowsWhatItDisplaysTests {
             """
         )
         let head = try source(paneHeadPath)
-        #expect(head.contains("PaneChromeMenu(splitActions: splitAxisActions)"))
+        #expect(head.contains("PaneChromeMenu(splitActions: canSplit ? splitAxisActions : nil)"))
+        // #4705 increment 2: `canSplit` is the new invariant here — a
+        // Preview pane showing the workflow canvas must not offer to split
+        // into a second `WorkflowEditor` (two editors bound to the same
+        // `editingWorkflow` would race their autosave tasks), so the split
+        // menu is now gated rather than unconditionally wired to
+        // `splitAxisActions`. Pin that the gate is a real, declared
+        // property — not just a string coincidence in the call site above.
+        #expect(head.contains("var canSplit: Bool = true"))
     }
 
     @Test("pin state stays per-PANE, so two split readers pin independently")

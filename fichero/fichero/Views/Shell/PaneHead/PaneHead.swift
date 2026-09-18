@@ -69,6 +69,14 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
     /// Help/accessibility wording for the disclosure toggle when it is more
     /// specific than "tools" (e.g. "markup").
     var toolsHelp: String = "tools row"
+    /// Whether this pane may be split into a second pane of the same kind
+    /// (#4705 increment 2, `PaneSurface.allowsSplit`). `true` for every pane
+    /// except a Preview showing a workflow canvas — two `WorkflowEditor`s
+    /// bound to one `editingWorkflow` would race their autosave tasks.
+    /// Reusing `PaneChromeMenu`'s existing "nothing renders without split
+    /// actions" behaviour: passing `nil` instead of the real actions hides
+    /// the "+" entirely rather than adding a second disabled-state path.
+    var canSplit: Bool = true
 
     @State private var showsTools = false
     /// Split actions arrive from the pane's own environment, so EVERY
@@ -418,7 +426,7 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
                 // supplies its state) and the split "+" (from the
                 // environment).
                 pinToggle
-                PaneChromeMenu(splitActions: splitAxisActions)
+                PaneChromeMenu(splitActions: canSplit ? splitAxisActions : nil)
                 if Tools.self != EmptyView.self {
                     Divider().frame(height: PaneHeadMetrics.dividerHeight)
                     Button {

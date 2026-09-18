@@ -157,6 +157,14 @@ struct ContentView: View {
     @Environment(EntityStore.self) var entityStore
     @Environment(ClaimStore.self) var claimStore
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
+    /// True when THIS leaf is a duplicate same-kind pane in the applied
+    /// `PaneList` (`PaneList.secondaryLeafIDs()`, injected per-leaf by
+    /// `PaneSpec.paneNodeView`). `widescreenCanvasPaneContent` reads this to
+    /// refuse a second `WorkflowEditor` mount (#4705 increment 2: two editors
+    /// bound to the same `editingWorkflow` would race their autosave tasks)
+    /// even if a duplicate Preview leaf exists some way other than the split
+    /// affordance (which `PaneSurface.allowsSplit` already gates).
+    @Environment(\.isSecondarySplitPane) var isSecondarySplitPane
     /// iOS has no `willTerminate`; backgrounding is the save signal (#3016).
     @Environment(\.scenePhase) var scenePhase
     @Environment(\.openWindow) var openWindow

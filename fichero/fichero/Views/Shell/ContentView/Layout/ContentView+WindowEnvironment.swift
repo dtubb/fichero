@@ -15,12 +15,19 @@ import SwiftUI
 /// which they would if a pane were a fresh root.
 ///
 /// So applying this at the pane/navigation sites is a NO-OP kept for safety, not
-/// the fix for anything. The `WorkflowExecutionObserver` crash was NOT a pane
-/// boundary: it was a surface mounted OUTSIDE `LibraryWorkspaceRoot` (the
-/// LibraryWindow-level sheets/alerts and the no-library prompt), and the
-/// app-level fallback observer in `FicheroApp.libraryWindowRoot` is what
-/// actually stopped it. Verified by build sequence: with this modifier alone the
-/// app still died on the fatal error; with the fallback added it survived.
+/// the fix for anything THERE — panes rendered under `paneListRow` DO reliably
+/// inherit the environment, per the proof above. CORRECTION (2026-09-18,
+/// #4703/#4774): the previous version of this paragraph claimed the
+/// `FicheroApp.libraryWindowRoot` fallback observer was proven, by build
+/// sequence, to be what stopped the `WorkflowExecutionObserver` crash. #4703
+/// falsified that claim. What is actually known: TOOLBAR and INSPECTOR hosts
+/// do NOT reliably inherit this environment — they sit outside
+/// `LibraryWorkspaceRoot`'s subtree (the LibraryWindow-level sheets/alerts,
+/// the no-library prompt, and toolbar items), which is a real, different
+/// boundary from the pane path this file's proof covers. Do not cite a
+/// "verified by build sequence" story for this modifier again without a
+/// fresh, reproducible repro — see #4703/#4774 for the current state of the
+/// investigation.
 ///
 /// Why this is one type instead of a list at each boundary: there were THREE
 /// boundaries with three DIFFERENT hand-picked lists (7, 11 and 13 objects),

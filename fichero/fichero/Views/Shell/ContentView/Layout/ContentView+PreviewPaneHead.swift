@@ -154,7 +154,19 @@ extension ContentView {
                 )
             },
             controls: { PreviewHeadLensControls(chrome: self.previewChrome) },
-            tools: { EmptyView() }
+            tools: { EmptyView() },
+            canSplit: previewPaneCanSplit
         )
+    }
+
+    /// #4705 increment 2: routes through `PaneSurface.allowsSplit`, the ONE
+    /// pure split policy — `.workflow` is the only mode today whose Preview
+    /// rendition (`.workflowCanvas`) refuses a split (two `WorkflowEditor`s
+    /// on one `editingWorkflow` would race their autosave tasks).
+    private var previewPaneCanSplit: Bool {
+        if case .workflow = viewMode {
+            return PaneSurface.workflowCanvas.allowsSplit
+        }
+        return true
     }
 }

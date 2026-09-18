@@ -89,6 +89,33 @@ extension ContentView {
             )
             .frame(maxWidth: .infinity)
             .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview })
+        // #4705 increment 2: a selected workflow's canvas renders HERE, in
+        // Source/Preview — the Library pane stays the navigator (`Nav`'s
+        // `.workflow` case no longer takes it over). A pin still wins first
+        // (checked above) — pinning freezes a pane on whatever it showed, and
+        // a workflow selection must not steal that. `isSecondarySplitPane`
+        // (`PaneList.secondaryLeafIDs()`) refuses a SECOND `WorkflowEditor`
+        // mount: two editors bound to the same `editingWorkflow` would run
+        // independent autosave tasks against one binding (a real write
+        // race) — the split affordance already declines to offer a second
+        // one (`PaneSurface.allowsSplit`), this is the belt-and-suspenders
+        // render-time guarantee for however else a duplicate Preview leaf
+        // might exist (a saved multi-pane workspace, for instance).
+        } else if case .workflow(let selectedWorkflow) = viewMode, let selectedWorkflow {
+            if isSecondarySplitPane {
+                PaneEmptyStateView(
+                    reason: "\"\(selectedWorkflow.name)\" is already open in the other pane."
+                )
+            } else {
+                WorkflowEditor(
+                    workflow: selectedWorkflow,
+                    editingWorkflow: $editingWorkflow,
+                    displayMode: .icon,
+                    selectedDocumentIds: effectiveWorkflowRunSelection
+                )
+                .frame(maxWidth: .infinity)
+                .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview })
+            }
         // Finder's stacked multi-selection preview (#95) — same gate as the
         // standard-layout preview pane.
         } else if stackDocuments.count > 1 {

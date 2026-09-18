@@ -206,4 +206,29 @@ extension ReadingPaneView {
         else { return }
         readerMarkdownText = text
     }
+
+    /// Load the full `Workflow` for a workflow-mirror document (#4705
+    /// increment 2) so the Reader's run log (`WorkflowOutputLog`) has the
+    /// `.nodes` it needs for its column headers — `WorkflowStore.workflows`
+    /// only carries the lightweight `WorkflowSidebarItem` list. Mirrors
+    /// `loadReaderCSVTable`/`loadReaderMarkdown`'s shape: reset first, bail
+    /// quietly on anything that isn't a workflow node, guard against a
+    /// document change racing a slow fetch.
+    ///
+    /// Assumes the workflow-mirror `Document`'s `id` IS the workflow's id —
+    /// the same assumption the OLD "Open in Workflow Editor" button made
+    /// (`sidebarRevealDocument` posts `doc.id` to reveal/select the
+    /// workflow). If that assumption is ever wrong for some mirror, the
+    /// fetch just never resolves and `workflowRunLogContent` falls back to
+    /// the honest empty state — never a crash, never a blank pane.
+    func loadReaderWorkflow() async {
+        readerWorkflow = nil
+        guard let doc = effectiveDocument, doc.isWorkflowNode, let workflowStore else { return }
+        isLoadingReaderWorkflow = true
+        defer { isLoadingReaderWorkflow = false }
+        guard let definition = try? await workflowStore.getWorkflow(doc.id),
+              doc.id == effectiveDocument?.id
+        else { return }
+        readerWorkflow = Workflow(from: definition)
+    }
 }

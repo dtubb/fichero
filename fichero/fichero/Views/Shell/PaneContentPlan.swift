@@ -84,39 +84,40 @@ enum PaneContentPlan {
     }
 }
 
-/// One named rendition a pane can show. Ten cases (#4705 increment 1),
-/// naming every rendition the migration's Rulings inventory (spec
-/// `modes-to-panes.md`) identifies — but only SIX are wired to a matrix cell
-/// below yet (`libraryBrowser`, `documentPreview`, `documentReader`,
-/// `documentInspector`, `chatScope`, `workflowInspector`): the other four
-/// (`workflowCanvas`, `nodeDetail`, `workflowRecipe`, `entityInspector`) stay
-/// declared-but-unassigned until the increment that gives them a real
-/// rendition (2, 4, 2, and a future entity-inspector program respectively) —
-/// see each case's doc comment. `PaneContentPlanTests` pins that these four
-/// do not appear yet, so a later increment's diff reads as "this value
-/// changed" rather than landing silently.
+/// One named rendition a pane can show. Ten cases, naming every rendition the
+/// migration's Rulings inventory (spec `modes-to-panes.md`) identifies.
+/// #4705 increment 1 wired six of them (`libraryBrowser`, `documentPreview`,
+/// `documentReader`, `documentInspector`, `chatScope`, `workflowInspector`);
+/// increment 2 wires `workflowCanvas`/`workflowRecipe`. `nodeDetail`
+/// (increment 4) and `entityInspector` (a future entity-inspector program)
+/// stay declared-but-unassigned — see each case's doc comment.
+/// `PaneContentPlanTests` pins that only THOSE two do not appear yet, so a
+/// later increment's diff reads as "this value changed" rather than landing
+/// silently.
 enum PaneSurface: String, CaseIterable, Equatable {
     /// The Library pane's one rendition: the navigator (tree/table). The
     /// matrix's `library` column is this constant for EVERY row (below) —
     /// the ruling this migration exists to make real, not today's literal
-    /// truth for the takeover rows (see `stablePanePlan`'s comment).
+    /// truth for the remaining takeover rows (see `stablePanePlan`'s comment).
     case libraryBrowser
     /// A selected document, rendered in Source/Preview via `EditorView` —
-    /// today's fallback for every mode whose Preview cell has *something*
-    /// to show, since the Mac Preview pane does not yet branch on
-    /// `viewMode` (increments 2/4 replace this per-mode).
+    /// the fallback for every mode whose Preview cell has *something* to
+    /// show but no rendition of its own yet (increment 4 replaces this for
+    /// the remaining node-detail rows).
     case documentPreview
-    /// A workflow's canvas (`WorkflowEditor`) in Source/Preview. UNASSIGNED
-    /// until increment 2 moves it out of the Library-pane takeover.
+    /// A workflow's canvas (`WorkflowEditor`) in Source/Preview (#4705
+    /// increment 2). At most ONE `WorkflowEditor` may be mounted per
+    /// workflow — see `allowsSplit` below.
     case workflowCanvas
     /// A schedule/trigger/chain/batch/activity run's detail in
     /// Source/Preview. UNASSIGNED until increment 4.
     case nodeDetail
     /// A selected document, rendered in the Reader.
     case documentReader
-    /// A workflow's readable recipe/run-log in the Reader (spec's Q2 —
-    /// "what does the Reader show for a workflow"). UNASSIGNED until
-    /// increment 2.
+    /// A workflow's run log (`WorkflowOutputLog`) in the Reader (#4705
+    /// increment 2, spec Q2's answer — a workflow has no transcript but it
+    /// does have a readable run history), replacing the old "Workflows Have
+    /// No Transcript" dead end.
     case workflowRecipe
     /// `DocumentInspector` — a document or entity-table selection today
     /// (see `entityInspector` below for the distinction).
@@ -132,6 +133,23 @@ enum PaneSurface: String, CaseIterable, Equatable {
     /// once that surface actually exists; `plan(for:entitySelection:)`
     /// deliberately ships `.documentInspector` now rather than guessing.
     case entityInspector
+
+    /// Whether a pane showing this surface may be SPLIT into a second pane
+    /// of the same kind. `false` only for `.workflowCanvas` (#4705
+    /// increment 2): two `WorkflowEditor`s bound to the SAME
+    /// `editingWorkflow` would run independent per-instance autosave tasks
+    /// against one shared binding — a real write race
+    /// (`WorkflowEditor.swift`'s `@State private var autosaveTask` vs. its
+    /// `@Binding var editingWorkflow: Workflow`), not a hypothetical one.
+    /// This only gates the split AFFORDANCE (the pane head's "+" menu); the
+    /// render-time defense — never mounting a second editor even if a
+    /// duplicate Preview leaf exists some other way — is
+    /// `\.isSecondarySplitPane`, already computed per-leaf by
+    /// `PaneList.secondaryLeafIDs()` and consumed in
+    /// `widescreenCanvasPaneContent`.
+    var allowsSplit: Bool {
+        self != .workflowCanvas
+    }
 }
 
 extension AppViewMode {
@@ -142,16 +160,17 @@ extension AppViewMode {
     /// The `library` cell is the constant `.surface(.libraryBrowser)` for
     /// EVERY row (#4705 increment 1) — this states the RULING ("the Library
     /// pane is always the navigator"), not always today's runtime truth: for
-    /// the takeover rows (`.workflow`, `.comparison`, `.chain`, `.batches`,
-    /// `.batch`, `.automation`, `.schedule`, `.trigger`, `.activity`) the
-    /// Library pane today actually shows a bespoke full-width view
-    /// (`WorkflowEditor`, `OntologyBrowser`, etc. — see `Nav`'s mode router).
-    /// That is safe to state now because nothing productive reads this cell
-    /// yet (only `Detail:319,398` read `.preview`/`.inspector`, both only for
-    /// `.emptyReason`) — increments 2-5 delete the router branches to make it
-    /// true at runtime too. Do not "fix" this constant back to matching
-    /// today's takeover; that would re-encode the bug the migration exists
-    /// to remove.
+    /// the remaining takeover rows (`.comparison`, `.chain`, `.batches`,
+    /// `.batch`, `.automation`, `.schedule`, `.trigger`, `.activity` —
+    /// `.workflow` was fixed by increment 2, no longer a takeover) the
+    /// Library pane today still shows a bespoke full-width view
+    /// (`OntologyBrowser`, etc. — see `Nav`'s mode router). That was safe to
+    /// state ahead of the code because nothing productive reads this cell
+    /// (only `Detail:319,398` read `.preview`/`.inspector`, both only for
+    /// `.emptyReason`) — increments 3-5 delete the remaining router branches
+    /// to make it true at runtime too. Do not "fix" this constant back to
+    /// matching a takeover; that would re-encode the bug the migration
+    /// exists to remove.
     var stablePanePlan: PaneContentPlan.Plan {
         switch self {
         case .library:
@@ -178,8 +197,12 @@ extension AppViewMode {
         case .workflow:
             return PaneContentPlan.Plan(
                 library: .surface(.libraryBrowser),
-                preview: .surface(.documentPreview),
-                reader: .empty("A workflow has no reader view."),
+                preview: .surface(.workflowCanvas),
+                // #4705 increment 2: the Reader shows the workflow's run log
+                // (`WorkflowOutputLog`) instead of the old "Workflows Have No
+                // Transcript" dead end — Q2's answer, a workflow has no
+                // transcript but it does have a readable run history.
+                reader: .surface(.workflowRecipe),
                 inspector: .surface(.workflowInspector)
             )
         case .chain:

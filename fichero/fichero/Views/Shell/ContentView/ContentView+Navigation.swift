@@ -273,37 +273,18 @@ extension ContentView {
                     )
                 }
             } else {
-                // NO legacy WorkflowListView column (Daniel, twice on
-                // 2026-08-10: "when you click on a workflow node, it should
-                // take you to that editor, not the generic thing you then
-                // have to click around in"). The SIDEBAR is the workflow
-                // list (#4186); the content column is the node editor, full
-                // width.
-                //
-                // AnyView is LOAD-BEARING on BOTH branches (#4331 / views
-                // audit fix #2): the first attempt at this reshape shipped
-                // WITHOUT caps and crashed at launch — this case sits inside
-                // the same contentView getter whose .library sibling already
-                // needed erasure to stop the value-copy recursion.
-                if let selectedWorkflow = workflow {
-                    AnyView(
-                        WorkflowEditor(
-                            workflow: selectedWorkflow,
-                            editingWorkflow: $editingWorkflow,
-                            displayMode: .icon,
-                            selectedDocumentIds: effectiveWorkflowRunSelection
-                        )
-                        .frame(maxWidth: .infinity)
-                    )
-                } else {
-                    AnyView(
-                        ContentUnavailableView(
-                            "Select a Workflow",
-                            systemImage: "flowchart",
-                            description: Text("Choose a workflow in the sidebar to edit it")
-                        )
-                        .frame(maxWidth: .infinity)
-                    )
+                // #4705 increment 2: the Library pane is ALWAYS the
+                // navigator now, matching `.library`/`.chat` above —
+                // `WorkflowEditor` moved to the Preview pane
+                // (`widescreenCanvasPaneContent`, `ContentView+DetailLayout.
+                // swift`) and the Reader shows the run log
+                // (`WorkflowOutputLog`). No more "Select a Workflow"
+                // placeholder here: the sidebar IS the workflow list
+                // (#4186), and an empty selection just leaves the Library
+                // showing whatever it already showed — the no-collapse
+                // ruling applied at its sharpest edge.
+                LibrarySplitPaneHost(clearToken: libraryPinClearToken) { pinnedLibrary in
+                    libraryContentColumn(pinnedLibrary: pinnedLibrary)
                 }
             }
 

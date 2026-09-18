@@ -128,30 +128,44 @@ fourth type.
 
 ## Behaviors (one id per rule, each tagged with its pinning test)
 
-- `m2p.library-is-always-navigator` — **[PROPOSED]** the Library leaf's regular-width source
-  never mounts `WorkflowEditor(` / `OntologyBrowser(` / `ResearchWorkspaceView(` /
-  `BatchRunView(` / `ChainEditorView(` / `ScheduleDetailView(` / `TriggerDetailView(` /
-  `ComparisonDetailView(` / `ActivityWindowLauncherView(`. Pinned by a **shrinking-allowlist
-  source guardrail** (`LibraryPaneNeverMountsModeSurfaceTests`) that starts with today's full
-  list and drops one token per completed increment, with a fixture proving the rule actually
-  fires (per the guardrails-must-match-granularity ruling) — never a rule that could pass
-  vacuously.
-- `m2p.inspector-follows-selection` — **[PROPOSED]** the Inspector's surface is a pure
-  function of the current selection kind and agrees with `PaneContentPlan`'s `.inspector`
-  cell for every `SidebarMode` × `AppViewMode` combination — no stale kind survives a
-  sidebar-mode change that leaves `viewMode` untouched. Pinned by the SidebarMode ×
-  AppViewMode table test (`SidebarModeViewModeAgreementTests` — every `SidebarMode` × every
-  `AppViewMode`, asserting the two axes agree after normalization).
-- `m2p.workflow-canvas-in-preview` — **[PROPOSED]** selecting a workflow renders its canvas
-  in the Source/Preview pane, not the Library pane; the Library stays the navigator beside
-  it. Pinned by a `PaneContentPlan` matrix-row test (library `.libraryBrowser`, preview
-  `.workflowCanvas`) plus `m2p.library-is-always-navigator`'s guardrail dropping
-  `WorkflowEditor(` from its allowlist.
-- `m2p.workflow-reader-is-run-log` — **[PROPOSED]** the Reader shows the workflow's
-  last/current run log, replacing today's honest "Workflows Have No Transcript" empty state
-  and dropping its "Open in Workflow Editor" button (redundant once the canvas is beside it).
-  Pinned by a Reader-content test asserting a `.workflow` selection renders run-log content,
-  not the empty state.
+- `m2p.library-is-always-navigator` — **[PARTIAL]**, #4705: the matrix's `library` column has
+  stated the constant `.surface(.libraryBrowser)` for every row since increment 1
+  (4132ca589), and increment 2 (this commit) made it TRUE at runtime for `.workflow`
+  (`WorkflowEditor` dropped from the regular-width arm's allowlist) — but `.comparison`,
+  `.chain`, `.batches`/`.batch`, `.automation`, `.schedule`/`.trigger`, `.activity` still
+  literally take over the Library pane pending increments 3-5, so the rule is not yet true
+  everywhere. Pinned by the **shrinking-allowlist source guardrail**
+  (`LibraryPaneNeverMountsModeSurfaceTests`, currently 8 tokens remaining, `WorkflowEditor(`
+  dropped this increment) with a fixture proving the rule actually fires (per the
+  guardrails-must-match-granularity ruling — never a rule that could pass vacuously), plus
+  `PaneContentPlanTests.theLibraryColumnIsAlwaysTheBrowser` for the stated-constant half.
+- `m2p.inspector-follows-selection` — **[OK]** (increment 0, a5528a977) the Inspector's
+  surface is a pure function of the current selection kind and agrees with
+  `PaneContentPlan`'s `.inspector` cell for every `SidebarMode` × `AppViewMode`
+  combination — no stale kind survives a sidebar-mode change (the "Chat Scope" leak this
+  closed: switching to Research/Knowledge Graph while a chat was selected used to leave
+  `ChatInspector` on screen). Pinned by `ViewModeNormalizationTests` — the exhaustive
+  `SidebarMode` × representative-`AppViewMode` table (`normalizedResultBelongsToNewMode`)
+  plus the two regression pins (`chatToResearchDropsChatViewMode`,
+  `chatToKnowledgeGraphDropsChatViewMode`).
+- `m2p.workflow-canvas-in-preview` — **[OK]** (increment 2) selecting a workflow renders its
+  canvas in the Source/Preview pane, not the Library pane; the Library stays the navigator
+  beside it. A pin still wins first; at most one `WorkflowEditor` mount per workflow
+  (`PaneSurface.allowsSplit` declines the split affordance, `\.isSecondarySplitPane` refuses
+  a second render-time mount regardless of how a duplicate Preview leaf came to exist — two
+  editors on one `editingWorkflow` binding would race their autosave tasks). Pinned by
+  `PaneContentPlanTests.workflowUsesItsOwnPreviewAndReaderSurfaces` (library `.libraryBrowser`,
+  preview `.workflowCanvas`), `PaneContentPlanTests.onlyWorkflowCanvasRefusesSplit`, and
+  `LibraryPaneNeverMountsModeSurfaceTests.regularWidthWorkflowArmNeverMountsEditor` (the
+  shrinking-allowlist guardrail, `WorkflowEditor(` dropped).
+- `m2p.workflow-reader-is-run-log` — **[OK]** (increment 2) the Reader shows the workflow's
+  run log (`WorkflowOutputLog`, an existing component with its own honest "no run yet" empty
+  state, previously unused in production), replacing the old "Workflows Have No Transcript"
+  dead end; a loading spinner covers the async fetch gap so the pane never goes blank. Pinned
+  by `PaneContentPlanTests.workflowUsesItsOwnPreviewAndReaderSurfaces` (reader
+  `.workflowRecipe`) at the policy level — NOTE: no automated SwiftUI-render test exists yet
+  asserting `ReadingPaneView` actually mounts `WorkflowOutputLog` for a `.workflow` selection
+  (a coverage gap, flagged for follow-up, not silently claimed as pinned).
 - `m2p.kg-graph-retires-as-library-takeover` — **[PROPOSED]** `SidebarMode.knowledgeGraph`
   and `OntologyBrowser` no longer mount inside the Library pane; timeline/map become
   ordinary Library view modes on the Entities collection, and the force-directed graph
@@ -187,10 +201,25 @@ fourth type.
   Inspector shows the CONTAINER's info (the current folder/library), never a "Nothing to
   Show" placeholder; the `.inspector` pane kind stays hidden from the kind-switcher menu
   until it is a real leaf (increment 7). Pinned by an Inspector-empty-state test.
-- `m2p.pane-head-parity` — **[PROPOSED]** every pane head mounts the kind selector: the
-  Reader does today; Chat gains one when it becomes a pane (increment 6). Pinned by a
-  pane-head structural test asserting the kind-switcher control is present on every pane
-  head, not just some.
+- `m2p.pane-head-parity` — **[PARTIAL]**, #4705 increment 6: every REAL-leaf pane head mounts
+  the kind selector — Library, Preview and the Reader do (d8621ecc3: the Reader's
+  `collapsesKindIntoLens` merged rung folded the real kind-switch options into its existing
+  lens menu, restoring parity without a second icon); the kind-switcher's own menu offers
+  only `PaneSpec.Kind.selectableKinds` (`.inspector`/`.chat` filtered out — both still
+  placeholder leaves). Chat still has no pane head to mount one on — it gains one only when
+  it becomes a movable pane (increment 6). Pinned by
+  `PaneHeadKindSwitcherParityTests.everyRealLeafPaneHeadMountsPaneKindSelector` (source
+  guardrail over the three real-leaf head files) and
+  `PaneHeadKindSwitcherParityTests.selectableKinds*` (the filtered-kinds pins).
+- `m2p.pane-toggles-everywhere` — **[GAP]**, ISSUE #4779: the toolbar's pane-visibility
+  toggles (`ContentView+StateLayout.swift`'s `showsPaneToggles`) are gated on
+  `sidebarMode == .library`, so they stay hidden for `.chat` and, since increment 2, for
+  `.workflows` too — even though both now have a real Library + Preview + Reader shape with
+  genuine content to toggle. Not fixed by increment 2 (Workflows lands in the same
+  already-accepted state Chat has been in since before this migration; the gap predates and
+  is not caused by this program). Recommendation: widen `supportsReadingWorkspace`/
+  `showsPaneToggles` past library-only once a mode's panes carry real content, tracked
+  separately on #4779.
 
 ## Migration — nine increments (0–8), each shippable, each with its pinning test
 

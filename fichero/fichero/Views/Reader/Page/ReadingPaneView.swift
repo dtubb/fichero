@@ -136,6 +136,17 @@ struct ReadingPaneView: View {
     /// Non-nil only while a table representation is on screen and loaded.
     @State var readerTableExport: ReaderTableCSVExport?
     @State var isExportingTableCSV = false
+    /// The full `Workflow` for a selected workflow-mirror document (#4705
+    /// increment 2), fetched because `WorkflowStore.workflows` only carries
+    /// the lightweight `WorkflowSidebarItem` list (no `.nodes`), which
+    /// `WorkflowOutputLog` needs for its column headers. nil while loading or
+    /// when `effectiveDocument` is not a workflow node. See
+    /// `loadReaderWorkflow()`.
+    @State var readerWorkflow: Workflow?
+    /// True only during the fetch — distinguishes "still loading" (show a
+    /// spinner) from "loaded, no run yet" (`WorkflowOutputLog`'s own honest
+    /// empty state) so the Reader never shows a blank pane while waiting.
+    @State var isLoadingReaderWorkflow = false
     @State var isPinned = false
     @State private var pinnedDocument: Document?
     @State private var pinnedActivePageNumber: Int?
@@ -290,6 +301,7 @@ struct ReadingPaneView: View {
         .task(id: artifactCompareIds) { await loadArtifactComparison() }
         .task(id: effectiveDocument?.id) { await loadReaderCSVTable() }
         .task(id: effectiveDocument?.id) { await loadReaderMarkdown() }
+        .task(id: effectiveDocument?.id) { await loadReaderWorkflow() }
         // A comparison is about ONE document's artifacts; carrying it to the
         // next document would diff two texts that were never on screen together.
         .onChange(of: effectiveDocument?.id) { _, _ in stopComparingArtifacts() }

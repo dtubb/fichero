@@ -73,10 +73,10 @@ extension ReadingPaneView {
         } else if let doc = effectiveDocument, doc.isWorkflowNode {
             // A workflow node cannot HAVE a transcript (Daniel, 2026-08-29):
             // the engine view's generic empty says one isn't available "yet",
-            // which promises what cannot arrive. State the impossibility
-            // natively, before any WebKit load, and offer the surface that
-            // does show the node — the workflow editor.
-            workflowNodeEmptyState(doc)
+            // which promises what cannot arrive. #4705 increment 2 (spec
+            // Q2): the Reader shows the workflow's RUN LOG instead — it has
+            // no transcript, but it does have a readable run history.
+            workflowRunLogContent(doc)
         } else if multiDocuments.count > 1 {
             // N pages of ONE parent ride the SAME WebKit transcript the
             // single-document reader uses — the surface's `?pages=` filter
@@ -148,23 +148,40 @@ extension ReadingPaneView {
         }
     }
 
-    /// A workflow node's honest empty state (Daniel, 2026-08-29): "not
-    /// possible", never "not yet". The button routes through the same reveal
-    /// seam a sidebar click uses, which lands workflow mirrors in the editor
-    /// (`routeWorkflowMirrorSelection`).
+    /// A workflow node's run log — Reader content for `.workflow` (#4705
+    /// increment 2, spec Q2). Three states, panes never collapse or go
+    /// blank: still fetching the full `Workflow` (`loadReaderWorkflow()`,
+    /// needed because `WorkflowStore.workflows` is the lightweight
+    /// `WorkflowSidebarItem` list only) shows a spinner; loaded shows
+    /// `WorkflowOutputLog`, which has its OWN honest "No output yet" state
+    /// when nothing has run; a failed/not-yet-loaded fetch falls back to the
+    /// old honest empty state rather than a silent blank.
+    @ViewBuilder
+    private func workflowRunLogContent(_ doc: Document) -> some View {
+        if let workflow = readerWorkflow, workflow.id == doc.id {
+            WorkflowOutputLog(workflow: workflow)
+        } else if isLoadingReaderWorkflow {
+            ProgressView("Loading workflow…")
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(.textBackgroundColor))
+        } else {
+            workflowNodeEmptyState(doc)
+        }
+    }
+
+    /// A workflow node's honest FALLBACK empty state (Daniel, 2026-08-29,
+    /// repurposed #4705 increment 2): reached only when the run-log fetch
+    /// has not produced a workflow (never mid-load — that's the spinner
+    /// above). No longer offers "Open in Workflow Editor" (dropped, spec
+    /// `m2p.workflow-reader-is-run-log`): the editor is ALREADY beside this
+    /// pane in Source/Preview for the exact same selection — the button
+    /// pointed at a surface that is already on screen, independent of
+    /// whether THIS pane's own fetch happened to succeed.
     private func workflowNodeEmptyState(_ doc: Document) -> some View {
         ContentUnavailableView {
             Label("Workflows Have No Transcript", systemImage: "arrow.triangle.branch")
         } description: {
             Text("\(DocumentTitle.displayName(for: doc)) is a workflow, not a document — there is no page text to read.")
-        } actions: {
-            Button("Open in Workflow Editor") {
-                NotificationCenter.default.post(
-                    name: .sidebarRevealDocument,
-                    object: nil,
-                    userInfo: ["documentId": doc.id]
-                )
-            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(.textBackgroundColor))
