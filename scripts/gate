@@ -415,20 +415,38 @@ run_gated() {
   # Classify a host that exited on its own (never killed by the watchdog
   # above) instead of leaving the reader a bare rc to guess at (#4695's
   # original ask): rc=0 is PASS; a nonzero rc from a test-host phase
-  # (GATE_HOST_HANDSHAKE_S set) is TESTS FAILED, UNLESS xcodebuild's own log
-  # shows it never actually ran anything — "TEST EXECUTE FAILED" / "hung
-  # before establishing connection" — in which case it's the same
-  # HOST NEVER STARTED bucket our own handshake watchdog reports, just caught
-  # after the fact instead of by our own timer. Non-test legs (lint/build/
-  # pytest/etc., no handshake log) get the generic FAILED.
+  # (GATE_HOST_HANDSHAKE_S set, so handshake_log exists) is TESTS FAILED,
+  # UNLESS the log proves the host never actually ran anything. "TEST EXECUTE
+  # FAILED" is NOT that proof — xcodebuild prints it for any failing
+  # `test-without-building` run, tests included, so it used to mislabel
+  # thousands of real failures as HOST NEVER STARTED (#4695 regression, found
+  # by the first real run). Genuine never-started evidence is either
+  # xcodebuild's own "hung before establishing connection" line, or the
+  # absence of ANY test-progress line at all — no handshake ("Running
+  # tests…"), no per-test XCTest line ("Test Case '"), and no Swift Testing /
+  # XCTest summary ("Test run with N tests" / "Executed N tests", N>0). Non-
+  # test legs (lint/build/pytest/etc., no handshake log) get the generic
+  # FAILED.
   if (( rc == 0 )); then
     GATE_LAST_VERDICT="PASS"
-  elif [[ -n "$handshake_log" ]] && grep -qE 'TEST EXECUTE FAILED|hung before establishing connection' "$handshake_log" 2>/dev/null; then
-    GATE_LAST_VERDICT="HOST NEVER STARTED"
-  elif [[ -n "$handshake_s" ]]; then
-    GATE_LAST_VERDICT="TESTS FAILED"
-  else
+  elif [[ -z "$handshake_log" ]]; then
     GATE_LAST_VERDICT="FAILED"
+  elif grep -qE 'hung before establishing connection' "$handshake_log" 2>/dev/null \
+       || ! grep -qE "Running tests…|Running tests\.\.\.|Test Case '|Test run with [0-9]+ tests|Executed [1-9][0-9]* tests?" "$handshake_log" 2>/dev/null; then
+    GATE_LAST_VERDICT="HOST NEVER STARTED"
+  else
+    # Cheap counts for the phase line — best-effort, never fails the gate if
+    # the grep comes up empty (xcodebuild's phrasing can shift).
+    local xc_fail swt_issues
+    xc_fail="$(grep -oE '[0-9]+ failures? \([0-9]+ unexpected\)' "$handshake_log" 2>/dev/null | tail -1 | grep -oE '^[0-9]+')"
+    swt_issues="$(grep -oE 'with [0-9]+ issues?\.' "$handshake_log" 2>/dev/null | tail -1 | grep -oE '[0-9]+')"
+    if [[ -n "$xc_fail" && "$xc_fail" != "0" ]]; then
+      GATE_LAST_VERDICT="TESTS FAILED: ${xc_fail} XCTest failures"
+    elif [[ -n "$swt_issues" ]]; then
+      GATE_LAST_VERDICT="TESTS FAILED: ${swt_issues} Swift Testing issues"
+    else
+      GATE_LAST_VERDICT="TESTS FAILED"
+    fi
   fi
   [[ -n "$handshake_log" ]] && rm -f "$handshake_log"
   trap - INT TERM
@@ -1183,13 +1201,27 @@ cmd_self_test() {
     GATE_WATCH_INTERVAL=0.3 GATE_TIMEOUT=1 "$0" wrap -- sleep 30 2>&1)"; rc=$?
   [[ $rc -eq 124 && "$out" == *"(PHASE TIMEOUT)"* ]]
   check "verdict: a host that ran but did not finish reports PHASE TIMEOUT (#4695)" $?
-  # Same HOST NEVER STARTED bucket, caught by the log grep instead of our own
-  # timer — xcodebuild exited on its own having never actually run anything.
+  # xcodebuild prints "** TEST EXECUTE FAILED **" for ANY failing
+  # test-without-building run — tests included — so that phrase alone must
+  # NOT read as HOST NEVER STARTED (the bug the first real run found: 3,253
+  # XCTest cases with 3 failures and a 2,547-test Swift Testing run with 45
+  # issues both got mislabelled HOST NEVER STARTED because both logs
+  # naturally contain "TEST EXECUTE FAILED"). Three cases pin the corrected
+  # classification.
   out="$(env -u GATE_LOCK_HELD GATE_LOCK_FILE="$tmp/v4.lock" GATE_HOST_HANDSHAKE_S=30 \
+    GATE_WATCH_INTERVAL=0.3 GATE_TIMEOUT=30 "$0" wrap -- bash -c \
+    'echo "Test Case '"'"'-[X y]'"'"' failed"; echo "** TEST EXECUTE FAILED **"; exit 65' 2>&1)"; rc=$?
+  [[ $rc -eq 65 && "$out" == *"(TESTS FAILED"* ]]
+  check "verdict: TEST EXECUTE FAILED alongside real test-case evidence is TESTS FAILED, not HOST NEVER STARTED (#4695)" $?
+  out="$(env -u GATE_LOCK_HELD GATE_LOCK_FILE="$tmp/v5.lock" GATE_HOST_HANDSHAKE_S=30 \
     GATE_WATCH_INTERVAL=0.3 GATE_TIMEOUT=30 "$0" wrap -- bash -c \
     'echo "** TEST EXECUTE FAILED **"; echo "hung before establishing connection."; exit 65' 2>&1)"; rc=$?
   [[ $rc -eq 65 && "$out" == *"(HOST NEVER STARTED)"* ]]
-  check "verdict: xcodebuild's own TEST EXECUTE FAILED log line also reads as HOST NEVER STARTED (#4695)" $?
+  check "verdict: xcodebuild's own hung-before-establishing-connection line is HOST NEVER STARTED (#4695)" $?
+  out="$(env -u GATE_LOCK_HELD GATE_LOCK_FILE="$tmp/v6.lock" GATE_HOST_HANDSHAKE_S=30 \
+    GATE_WATCH_INTERVAL=0.3 GATE_TIMEOUT=30 "$0" wrap -- bash -c 'exit 65' 2>&1)"; rc=$?
+  [[ $rc -eq 65 && "$out" == *"(HOST NEVER STARTED)"* ]]
+  check "verdict: a host that prints no test evidence at all is HOST NEVER STARTED (#4695)" $?
 
   # 7d. run_leg propagates that verdict into LEG_VERDICTS (in-process; run_leg
   #     and run_gated are plain functions, no lock or subprocess needed), which

@@ -149,6 +149,17 @@ gate: [wrap:sleep] KILLED (MEMORY PRESSURE) — memory pressure level 4 (hard cr
 `gate part`/`gate verify-all` summary tables carry the same verdict into a
 failing leg's row: `FAIL(rc=N: VERDICT)`.
 
+A host that ran and produced test evidence — a `Test Case '` line (XCTest) or
+a `Test run with N tests` / `Executed N tests` summary (N>0, either
+framework) — is always `TESTS FAILED` on a nonzero exit, with a cheap count
+appended when the grep finds one (`TESTS FAILED: 3 XCTest failures`,
+`TESTS FAILED: 45 Swift Testing issues`); xcodebuild's own
+`** TEST EXECUTE FAILED **` line proves nothing by itself, since it prints
+for any failing `test-without-building` run, tests included, and is never
+treated as never-started evidence. `HOST NEVER STARTED` is reserved for a
+log with no such evidence at all, or one containing xcodebuild's
+`hung before establishing connection`.
+
 ## Fixtures
 
 One shared, versioned fixture library at the repo root:
