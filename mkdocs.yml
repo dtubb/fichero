@@ -382,6 +382,7 @@ nav:
               - Docs Citations & Bibliography: contributor_manual/specs/docs/docs-citations-bibliography.md
           - Harness:
               - Dev Orchestration Harness: contributor_manual/specs/harness/dev-orchestration-harness.md
+              - Spec Pipeline: contributor_manual/specs/harness/spec-pipeline.md
               - Git / Worktree / GitHub Workflow: contributor_manual/specs/harness/git-worktree-workflow.md
               - Release & Versioning: contributor_manual/specs/harness/release-and-versioning.md
           - KG:
