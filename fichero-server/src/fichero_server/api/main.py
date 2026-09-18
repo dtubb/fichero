@@ -542,6 +542,24 @@ def _prewarm_embeddings() -> None:
     "load it before clicking, not blocking anything the window needs"
     design as the tool-stack warm-up above, just triggered by a
     request-observed signal instead of an executor schedule.
+
+    Run 4 (2026-09-18): the readiness signal alone still fired too EARLY —
+    `markReady()`'s own post-ready authenticated follow-up calls (session
+    refresh, identity load, library restore) run for several more seconds
+    after "ready", and this load starting right then meant THOSE calls'
+    responses landed inside the same GIL hold instead. Added a second gate:
+    the load also waits for the request stream to go idle
+    (`_EMBEDDINGS_PREWARM_IDLE_SECONDS`, `_last_request_at`) before it starts.
+
+    If idle-gating still isn't enough — the GIL hold itself is 5-8s measured
+    so far, WHEREVER it lands, and idle-gating only controls *when* it lands,
+    not its duration or the fact that it still holds the GIL for that whole
+    stretch — the structural fix is a SUBPROCESS for this specific load (a
+    small worker process that loads the model and either serves embedding
+    requests over IPC or exits after warming the on-disk cache so the next
+    real load is fast), which cannot contend for this process's GIL at all.
+    Not done here: bigger surface (IPC, lifecycle, a second process to manage)
+    for a problem idle-gating may already fully solve.
     """
     try:
         from fastembed import TextEmbedding
@@ -604,10 +622,34 @@ def _prewarm_embeddings() -> None:
 # call can't leak into the next one sharing this module in-process.
 _first_registry_200_signal = asyncio.Event()
 
+# #4690/run-4: the readiness signal alone fires too EARLY — `markReady()`'s
+# own authenticated follow-up calls (session refresh, identity load, then
+# library restore) run for several more seconds AFTER "ready", and starting
+# the embeddings load right at "ready" means those calls' responses land
+# inside the SAME GIL hold the prewarm just started (measured run 4: bound
+# @18523ms → markReady @27132ms, an 8.6s gap, vs. 3.3s in run 3 with no
+# prewarm running concurrently). So the prewarm additionally waits for the
+# request stream to go QUIET: no non-`/api/health` request completed for
+# `FICHERO_EMBEDDINGS_PREWARM_IDLE_S` seconds (default 3.0). `_last_request_at`
+# is a monotonic timestamp (not wall-clock — only elapsed-time math is ever
+# done with it), updated by the same middleware that sets the readiness
+# signal, and re-armed on every qualifying request — the waiter loop below
+# just keeps sleeping for however much of the idle window is left.
+_last_request_at = time.monotonic()
+
+_EMBEDDINGS_PREWARM_IDLE_SECONDS = float(
+    os.environ.get("FICHERO_EMBEDDINGS_PREWARM_IDLE_S", "3.0")
+)
+
 
 def _reset_first_registry_200_signal() -> None:
-    global _first_registry_200_signal
+    """Resets both lifespan-scoped readiness/idle-tracking globals above —
+    name kept for continuity (it was here first); a fresh `Event` AND a fresh
+    `_last_request_at` every lifespan, for the same in-process-test-leak
+    reason."""
+    global _first_registry_200_signal, _last_request_at
     _first_registry_200_signal = asyncio.Event()
+    _last_request_at = time.monotonic()
 
 
 def _mark_first_registry_200() -> None:
@@ -616,6 +658,14 @@ def _mark_first_registry_200() -> None:
     trip needed — the same way `test_provider_seed_after_yield.py` drives its
     blocking event directly rather than timing a real launch (#4690)."""
     _first_registry_200_signal.set()
+
+
+def _mark_request_activity() -> None:
+    """Re-arm the idle window. Called by the same middleware, for every
+    request whose path is not `/api/health` (health polling is not activity —
+    it never stops, so counting it would mean the idle window never closes)."""
+    global _last_request_at
+    _last_request_at = time.monotonic()
 
 
 def prefetch_library_caches(package_path: Path) -> dict:
@@ -986,22 +1036,42 @@ async def lifespan(app: FastAPI):
     )
 
     async def _prewarm_embeddings_after_ready() -> None:
-        """Wait for `_first_registry_200_signal`, then run the embeddings load
-        on its own executor submission (#4690) — deferred, not skipped: #1918's
-        "load it before clicking" intent is unchanged, only the trigger moved
-        from "as soon as the socket is bound" to "once the app has actually
-        proven it's ready", so this load can no longer contend with the app's
-        own readiness poll for the GIL (see `_prewarm_embeddings`'s docstring
-        for the measured 5.2s window this fixes).
+        """Wait for `_first_registry_200_signal`, THEN for the request stream
+        to go quiet, then run the embeddings load on its own executor
+        submission (#4690) — deferred, not skipped: #1918's "load it before
+        clicking" intent is unchanged, only the trigger moved from "as soon as
+        the socket is bound" to "once the app has actually gone quiet", so
+        this load can no longer contend with the app's own readiness poll —
+        or its post-ready follow-up calls — for the GIL (see
+        `_prewarm_embeddings`'s docstring for the measured windows this
+        fixes).
+
+        Run 4 (2026-09-18): the readiness signal ALONE fired too early —
+        `markReady()`'s own authenticated follow-up (session refresh, identity
+        load, then library restore) runs for several more seconds AFTER
+        "ready", and starting the load right at "ready" meant those calls'
+        responses landed inside the SAME GIL hold the prewarm had just
+        started (bound→markReady stretched from 3.3s with no prewarm running
+        to 8.6s with the prewarm racing it). So this waits for BOTH: the
+        readiness signal, then quiet — no non-`/api/health` request completed
+        for `_EMBEDDINGS_PREWARM_IDLE_SECONDS` — before it actually loads.
 
         A short-lived process (a test, a CLI import) may never see a real
-        `/api/registry` 200 — shutdown CANCELS this task rather than awaiting
-        it, so that case can't hang teardown (contrast with `warm_started`
-        above, which shutdown DOES await: that one is unconditional and
-        bounded, this one is conditional on live traffic that may never come).
+        `/api/registry` 200 or ever go quiet — shutdown CANCELS this task
+        rather than awaiting it, so that case can't hang teardown (contrast
+        with `warm_started` above, which shutdown DOES await: that one is
+        unconditional and bounded, this one is conditional on live traffic
+        that may never come).
         """
         _api_stamp("embeddings prewarm waiting for readiness signal")
         await _first_registry_200_signal.wait()
+        _api_stamp("embeddings prewarm waiting for idle")
+        while True:
+            elapsed = time.monotonic() - _last_request_at
+            remaining = _EMBEDDINGS_PREWARM_IDLE_SECONDS - elapsed
+            if remaining <= 0:
+                break
+            await asyncio.sleep(remaining)
         _api_stamp("embeddings prewarm start")
         try:
             if _should_prewarm_embeddings():
@@ -1153,22 +1223,28 @@ async def add_security_headers(request: Request, call_next):
 
 @app.middleware("http")
 async def _observe_first_registry_200(request: Request, call_next):
-    """Fire `_first_registry_200_signal` on the app's own readiness leg (#4690).
+    """Fire `_first_registry_200_signal` on the app's own readiness leg, and
+    track request activity for the embeddings-prewarm idle gate (#4690).
 
-    Cheap: a routed-path string compare plus an already-set `Event` check on
-    every OTHER request (the common case, forever, after the first one).
-    Deliberately watches `/api/registry` specifically rather than any
-    authenticated 200 — that's the exact leg `EngineReadinessProbe.probe()`
+    Cheap: a routed-path string compare, an already-set `Event` check, and a
+    monotonic-clock read on every request (the common case, forever). Watches
+    `/api/registry` specifically rather than any authenticated 200 for the
+    readiness signal — that's the exact leg `EngineReadinessProbe.probe()`
     checks LAST, so seeing it succeed here is the same "the app is ready"
     fact the app itself is polling for, not an earlier approximation of it.
     """
     response = await call_next(request)
+    routed_path = request.scope.get("path")
     if (
         not _first_registry_200_signal.is_set()
-        and request.scope.get("path") == "/api/registry"
+        and routed_path == "/api/registry"
         and response.status_code == 200
     ):
         _mark_first_registry_200()
+    # Health polling never stops, so it must not count as "activity" — only
+    # non-health traffic re-arms the idle window the prewarm waits for.
+    if routed_path != "/api/health":
+        _mark_request_activity()
     return response
 
 
