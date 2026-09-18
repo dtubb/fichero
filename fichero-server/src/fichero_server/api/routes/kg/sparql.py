@@ -28,9 +28,11 @@ from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel, Field
+from rdflib import Graph
 
 from fichero_server.api.main import get_library_database
 from fichero_server.db import Database
+from fichero_server.knowledge.jsonld_context import JSONLD_CONTEXTS
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/kg")
@@ -116,6 +118,12 @@ _SPARQL_EXAMPLES: list[SparqlExampleQuery] = [
 
 
 RdfExportFormat = Literal["nt", "turtle", "json-ld", "xml"]
+
+# Selectable @context profiles for json-ld output (#4753, kg-enrichment
+# ruling "@context: selectable too"). Typed against JSONLD_CONTEXTS's keys
+# so FastAPI rejects an unknown profile before the route body runs, and a
+# second profile is a one-line Literal edit + one dict in jsonld_context.py.
+JsonLdContextProfile = Literal["schema-org"]
 
 _RDF_MEDIA_TYPES: dict[RdfExportFormat, str] = {
     "nt": "application/n-triples; charset=utf-8",
@@ -245,7 +253,17 @@ async def sparql_query_legacy(
     description=(
         "Materializes the entity + claim store as RDF and serializes it for "
         "external linked-data tooling. Supports N-Triples, Turtle, JSON-LD, "
-        "and RDF/XML."
+        "and RDF/XML. `context` selects a named JSON-LD @context profile "
+        "(json-ld only, ignored otherwise) -- only 'schema-org' ships today; "
+        "see knowledge.jsonld_context for why Linked Art / CIDOC-CRM are "
+        "deferred. The graph is built once per library and cached in memory "
+        "(`_cached_rdf_graph`) -- by design, not a streaming path: a "
+        "Fichero library's KG is documented (knowledge.triples) as a few "
+        "thousand entities / low-five-digit claims, well under a second to "
+        "build and small enough to hold entirely in memory. This is NOT the "
+        "same streaming contract as the bulk document exporter "
+        "(export_service.iter_export_records) and should not be made to "
+        "match it."
     ),
     response_class=Response,
 )
@@ -254,10 +272,20 @@ async def export_rdf(
         default="turtle",
         description="RDF serialization format.",
     ),
+    context: JsonLdContextProfile = Query(
+        default="schema-org",
+        description="Named @context profile for json-ld output. Ignored for other formats.",
+    ),
     db: Database = Depends(get_library_database),
 ) -> Response:
     graph = _cached_rdf_graph(db)
-    payload = graph.serialize(format=format, encoding="utf-8")
+    if format == "json-ld":
+        payload = graph.serialize(
+            format="json-ld", context=JSONLD_CONTEXTS[context], encoding="utf-8"
+        )
+        _validate_jsonld_export(payload, context)
+    else:
+        payload = graph.serialize(format=format, encoding="utf-8")
     headers = {
         "Content-Disposition": f'attachment; filename="{_RDF_FILENAMES[format]}"',
     }
@@ -266,6 +294,24 @@ async def export_rdf(
         media_type=_RDF_MEDIA_TYPES[format],
         headers=headers,
     )
+
+
+def _validate_jsonld_export(payload: bytes, context_name: str) -> None:
+    """(#4754) A malformed export must never ship — raise, never a silent
+    half-file. Parsing the JSON-LD we just produced back into a graph is
+    the cheap expand/compact check the spec calls for. No SHACL shape is
+    declared for the KG yet (spec's own open question recommends "SHACL
+    where a shape is declared"), so shape validation is deferred, not
+    attempted here.
+    """
+    try:
+        Graph().parse(data=payload, format="json-ld")
+    except Exception as e:
+        logger.error(f"KG JSON-LD export failed validation (context={context_name}): {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="KG JSON-LD export failed validation and was not returned.",
+        ) from e
 
 
 def _row_to_bindings(row: Any) -> dict[str, Any]:
