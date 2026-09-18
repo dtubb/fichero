@@ -154,6 +154,18 @@ else
   PYTHON_BIN="$(scripts/find_project_python.sh .)" || exit 2
 fi
 
+# #4699: any scripts/check_*.py guardrail that imports fichero_server (nine of
+# them do) resolves whatever checkout its editable install points at unless
+# PYTHONPATH says otherwise — in a worktree that can silently be the ORIGINAL
+# checkout, not this one. ci.yml sets this on every backend step
+# (ci.yml:51/67/99); release-all.sh sets it per invocation. Exporting it once
+# here, right after PYTHON_BIN, covers every check_*.py call below (the
+# guardrail loop previously set nothing) as well as the ruff/pytest/OpenAPI
+# calls that already prefixed it per-line — same three src paths, now
+# guaranteed rather than repeated. We already `cd`'d to the repo root above,
+# so `$(pwd)` is this checkout, not whichever one the venv was built against.
+export PYTHONPATH="$(pwd)/fichero-server/src:$(pwd)/fichero-cli/src:$(pwd)/fichero-mcp/src${PYTHONPATH:+:$PYTHONPATH}"
+
 PYTEST_CMD=("${PYTHON_BIN}" -m pytest)
 if [[ -x ".venv/bin/pytest" ]]; then
   PYTEST_CMD=(".venv/bin/pytest")

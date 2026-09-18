@@ -542,8 +542,11 @@ run_unit_phase() {
     xcodebuild -project "$XCODE_PROJECT" -scheme "$UNIT_SCHEME" \
       -testPlan "$UNIT_PLAN" -configuration "$UNIT_CONFIG" \
       -destination 'platform=macOS' -derivedDataPath "$GATE_DERIVED" \
-      -skipPackagePluginValidation "$@" test-without-building
+      -skipPackagePluginValidation -skip-testing:FicheroUITests "$@" test-without-building
 }
+# `unit` skips FicheroUITests always: the shared `fichero` test plan lists both
+# targets, and an XCUITest runner on a locked screen waits forever for its
+# session (#4695 — caught with a stack 2026-09-17). UI tests are `gate ui`.
 
 cmd_unit() {
   local area="" filter="" phase="all"
