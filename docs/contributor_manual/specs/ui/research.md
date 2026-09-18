@@ -131,9 +131,9 @@ Inspector content, not as a rival top-level surface.
     Comparison is now panes + a diff lens, not a chat surface: a "run with A and B" action
     leaves two sibling artifacts, and the Compare workspace shows them in two Reader panes
     with a diff lens — no Comparison view, node, or window, and chat's Compare tab is not
-    its home either. See `research.compare-folds-into-chat` below. → #4705 (modes-to-panes
-    epic owns the pane-side implementation and the `ComparisonDetailView`/
-    `AppViewMode.comparison` deletion).
+    its home either. See `research.compare-folds-into-chat` below. → #4705 (the pane-side
+    design + `ComparisonDetailView`/`AppViewMode.comparison` deletion is its own increment,
+    not yet numbered — three live sidebar sites still construct `.comparison`).
   - **Knowledge tab** surfaces entity/claim reference COUNTS from
     `ConversationKnowledgeSummary`, honestly labeled as not yet a browsable list
     (`ChatView.swift:255-259`) — the engine does not return entity/claim identities on a
@@ -267,8 +267,9 @@ Inspector content, not as a rival top-level surface.
   this behavior described chat's Compare tab reusing `ModelComparisonView()` as Comparison's
   home. That design is retired: Comparison is now panes + a diff lens (a "run with A and B"
   action leaves two sibling artifacts shown in two Reader panes), never a chat tab, node, or
-  window. Superseded by → #4705 increment 4 (modes-to-panes owns the pane-side design and
-  the `ComparisonDetailView`/`AppViewMode.comparison` deletion). Not re-specified here.
+  window. Superseded by → #4705 (modes-to-panes owns the pane-side design and the
+  `ComparisonDetailView`/`AppViewMode.comparison` deletion — its own increment, not yet
+  numbered; three live sidebar sites still construct `.comparison`). Not re-specified here.
 - `research.knowledge-tab-not-browsable` — **[PARTIAL]** shows honest reference counts, not
   a browsable entity/claim list, because the engine does not return identities on a chat
   reply yet (`ChatView.swift:246-260`). No dedicated issue found — (#4723).
