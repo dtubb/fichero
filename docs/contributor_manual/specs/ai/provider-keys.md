@@ -56,23 +56,36 @@ the value from the original migration, unaffected by anything Settings has done 
 
 ### Persistence (#4815)
 
-- `keys.one-store-of-truth` — **[BROKEN]** (#4815) a local engine's key should live in
-  exactly one place the app treats as authoritative (the app Keychain). Today there are two:
-  the app-owned Keychain item (written once, at migration) and the engine's own legacy
-  Keychain item + in-memory supply (written by every Settings save/remove and re-supplied on
-  every connect). `grep ProviderKeyStore fichero/fichero` finds only the three launch-push
-  call sites and the migration itself — `store`/`remove` have no production caller from
-  Settings.
-- `keys.settings-save-survives-relaunch` — **[BROKEN]** (#4815) saving a new key in Settings
-  must still be in effect after the next launch. It is not:
-  `ProviderDetailView.saveAPIKey()` (`ProvidersView+ProviderDetailView.swift:442-459`) calls
-  only `providerService.setAPIKey` — never `ProviderKeyStore.store` — so the app-owned
-  Keychain item (what gets pushed at the NEXT connect) is untouched by a save.
-- `keys.remove-survives-relaunch` — **[BROKEN]** (#4815) removing a key in Settings must stay
-  removed after the next launch. It does not: `removeAPIKey()`
-  (`ProvidersView+ProviderDetailView.swift:461-472`) calls only `providerService.deleteAPIKey`
-  — never `ProviderKeyStore.remove` — so the app-owned Keychain item survives a Settings
-  remove and gets re-pushed at the next connect, resurrecting the "removed" key.
+- `keys.one-store-of-truth` — **[OK]** (101a67cde, #4815 closed) a local engine's key lives in
+  exactly one place the app treats as authoritative (the app Keychain). Before the fix there
+  were two: the app-owned Keychain item (written once, at migration) and the engine's own
+  legacy Keychain item + in-memory supply (written by every Settings save/remove and
+  re-supplied on every connect) — `grep ProviderKeyStore fichero/fichero` found only the three
+  launch-push call sites and the migration itself; `store`/`remove` had no production caller
+  from Settings. Pinned:
+  `ProviderAPIServiceKeyPersistenceTests.testSetAPIKeySuccessStoresTheTrimmedKey`,
+  `::testSetAndDeleteAPIKeySkipTheKeychainForARemoteEngine`,
+  `::testSupplyAPIKeyToEngineBodyNeverReferencesTheKeychainClosures`,
+  `::testSupplyAPIKeyToEngineHasExactlyOneCaller` (all 4 read in full and confirmed to assert
+  exactly this — `fichero/Tests/Unit/general/Services/ProviderAPIServiceKeyPersistenceTests.swift`).
+- `keys.settings-save-survives-relaunch` — **[OK]** (101a67cde, #4815 closed) saving a new key
+  in Settings stays in effect after the next launch. Pinned:
+  `ProviderAPIServiceKeyPersistenceTests.testSetAPIKeySuccessStoresTheTrimmedKey`,
+  `::testStaleKeyRegression_settingsSaveIsReflectedByTheNextEngineSupply` (the regression test
+  named in the issue itself: a stale key seeded, a new one saved, the launch push's own
+  read-then-supply shape reads back the NEW value, never the stale one),
+  `::testSetAPIKeySuccessButKeychainFailureThrowsDistinctErrorWithNoKeyMaterial`. Honest gap:
+  the suite cannot re-read the WIRE body to independently confirm the engine received the
+  trimmed value byte-for-byte — the generated client sends this POST as an upload task, whose
+  body a `URLProtocol` stub cannot see (the same limitation the batch-service transport tests
+  documents, a closed issue already tracking that limitation). What IS proven: `setAPIKey`
+  computes ONE `trimmed` local and passes that SAME value to both the engine call and the
+  Keychain closure (a source contract, `testSetAPIKeyTrimsOnceForBothTheEngineAndTheKeychain`)
+  plus the closure receiving the expected trimmed string dynamically — the closest honest
+  proof available without the wire-body seam.
+- `keys.remove-survives-relaunch` — **[OK]** (101a67cde, #4815 closed) removing a key in
+  Settings stays removed after the next launch. Pinned:
+  `ProviderAPIServiceKeyPersistenceTests.testDeleteAPIKeySuccessRemovesTheKeyAndLeavesNothingForTheNextLaunchPush`.
 - `keys.launch-supplies-to-engine` — **[PARTIAL]** (#4819, implemented, unpinned) the app supplies
   every candidate provider's app-owned key to the engine on every connect
   (`EngineLifecycleController+ProviderKeys.swift:27-66`,

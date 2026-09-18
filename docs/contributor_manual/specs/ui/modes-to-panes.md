@@ -238,6 +238,24 @@ fourth type.
   `backendConversationId`, `ChatView.swift:61-66`) is lifted out of `@State` into the
   per-window model before chat becomes movable. Pinned by `ChatPlacementTests` (never two
   mounts) + a guardrail "`ChatView(` appears in exactly one builder".
+- `m2p.chat-dock-switches-conversation` — **[OK]** (101a67cde, #4817 closed): the ONE dock mount is a computed view re-rendered with a
+  new `conversation` param on every sidebar selection, never remounted (no `.id(…)`) —
+  `currentConversation`/`backendConversationId` are `@State`, seeded ONLY at first mount, so
+  a sidebar-driven switch used to leave the PREVIOUS conversation showing (and sending into).
+  Bridge fix, found while planning increment 5b: `.onChange(of: conversation?.id)` calls the
+  EXISTING `switchConversation` (the same reset/reload the title menu's own switch already
+  does, same `isConversationPinned` guard); `ResearchChatPane` needed a PARALLEL
+  `.onChange(of: researchProject?.id)` (it always passes `conversation: nil`, so the first
+  bridge never fires for it) calling a new `resetToFreshConversation()`, sharing one
+  `resetComposerState()` helper with `switchConversation` so the two can never drift on what
+  "looking at something else" resets. This is a BRIDGE, not the structural fix —
+  `m2p.chat-single-mount` above (lifting the state out of `@State` entirely) remains
+  increment 6's job. Pinned by
+  `ChatViewBoundaryTests.testChatViewObservesConversationChangesAndBridgesToSwitchConversation`,
+  `.testChatViewObservesResearchProjectChangesAndResetsToAFreshConversation`,
+  `.testSwitchConversationAndResetToFreshConversationShareOneResetHelper` (source-scan — a
+  live `@State`-mutation assertion needs a hosting harness this suite does not have, the same
+  limitation this file's other `ChatView` tests already accept).
 - `m2p.chat-scope-lives-in-both` — **[PROPOSED]**, renamed from `m2p.chat-scope-inspector-only`
   (creative director, 2026-09-18, supersedes it): chat scope lives in BOTH the Inspector's
   Sources tab (`ChatInspector`) AND the chat dock's own Sources view — the dock's Sources tab
