@@ -1700,6 +1700,7 @@ from fichero_server.api.routes import (  # noqa: E402
     kg_graph,
     kg_inclusion,
     kg_mutations,
+    kg_nlp_draft_purge,
     kg_render,
     kg_predictions,
     kg_pykeen,
@@ -1933,6 +1934,11 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (kg_claim_analysis.router, "/api", ["knowledge-graph"]),
     (kg_curation_rules.router, "/api", ["knowledge-graph"]),
     (kg_entity_curation.router, "/api", ["knowledge-graph"]),
+    # No endpoints of its own (#4823 S3) -- included only so importing it
+    # here registers its `@action("provider.purge_nlp_draft")` at startup,
+    # the same way every other kg action module's import doubles as its
+    # registration.
+    (kg_nlp_draft_purge.router, "/api", ["knowledge-graph"]),
     (kg_sparql.router, "/api", ["knowledge-graph"]),
     (kg_inclusion.router, "/api", ["knowledge-graph"]),
     # Hermeneutics is the interpretation-reading layer on top of KG —

@@ -233,6 +233,26 @@ def _installed_models(spacy_module) -> set[str]:
         return set()
 
 
+def is_pipeline_available(language: str) -> bool:
+    """True when a spaCy model for ``language`` is installed, WITHOUT loading
+    it. For a caller (#4823's import-time NLP draft) that needs to tell "the
+    model is genuinely missing" apart from "it loaded fine but found
+    nothing" — the difference between a visible, honest not-installed state
+    and a silently empty result. Cheap: reuses `_load_pipeline`'s own cache
+    when a language was already loaded this process, otherwise a bare
+    installed-package check (no load).
+    """
+    if language in _pipelines:
+        return True
+    try:
+        import spacy
+    except ImportError:
+        return False
+    candidates = _MODEL_PREFERENCE.get(language) or _MODEL_PREFERENCE["en"]
+    installed = _installed_models(spacy)
+    return any(model_name in installed for model_name in candidates)
+
+
 def _load_pipeline(language: str):
     """Lazy-load and cache the best installed spaCy pipeline for ``language``.
 

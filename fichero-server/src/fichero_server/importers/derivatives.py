@@ -43,6 +43,12 @@ MAX_CONCURRENT_DERIVATIVES = 2
 # produce an image anyway.
 DERIVATIVE_FILE_TYPES = frozenset({FileType.image, FileType.pdf})
 
+# #4823: the Settings ▸ General ▸ Ingestion toggle for the free NLP draft
+# stage. Imported at module scope (not lazily inside queue_derivatives) so a
+# test can monkeypatch this module's own name the same way other derivatives
+# tests already monkeypatch this module's other seams.
+from fichero_server.importers.nlp_draft import auto_nlp_enabled  # noqa: E402
+
 _executor: ThreadPoolExecutor | None = None
 _executor_lock = threading.Lock()
 
@@ -78,6 +84,14 @@ def needs_derivative(doc: Document) -> bool:
     return doc.file_type in DERIVATIVE_FILE_TYPES
 
 
+def needs_nlp(doc: Document) -> bool:
+    """True when this document should get a free NLP draft pass (#4823).
+    Delegates to ``importers.nlp_draft`` — same population as embedding."""
+    from fichero_server.importers.nlp_draft import needs_nlp as _needs_nlp
+
+    return _needs_nlp(doc)
+
+
 def needs_embedding(doc: Document) -> bool:
     """True when this document (or its PDF page children) carries text to
     embed. Embedding moved here from the inline ingest path (2026-08-09) —
@@ -109,18 +123,26 @@ def queue_derivatives(
         logger.warning("Not queueing derivatives: no library path given")
         return []
 
+    docs = list(docs)
     queued = [
         doc.id for doc in docs if needs_derivative(doc) or needs_embedding(doc)
     ]
+    # #4823: gated separately from thumbnails/embeds by the Settings ▸
+    # General ▸ Ingestion toggle (default ON) -- OFF means not queued at
+    # all, never a stage that runs and no-ops.
+    nlp_queued = (
+        [doc.id for doc in docs if needs_nlp(doc)] if auto_nlp_enabled() else []
+    )
     futures: list[Future] = []
-    if not queued:
+    if not queued and not nlp_queued:
         return futures
 
     def submit() -> None:
         executor = _get_executor()
-        _progress_add(
-            library, len(queued), db_path=str(db.path) if db is not None else None
-        )
+        if queued:
+            _progress_add(
+                library, len(queued), db_path=str(db.path) if db is not None else None
+            )
         # Thumbnails FIRST, embeds after (user, live 2026-08-19): on one shared
         # FIFO pool, interleaving them made every later page's thumbnail wait
         # behind ~1.3s embeds of earlier pages. Submitting the whole thumbnail
@@ -130,6 +152,15 @@ def queue_derivatives(
             futures.append(executor.submit(_thumbnail_stage, doc_id, library))
         for doc_id in queued:
             futures.append(executor.submit(_embed_stage, doc_id, library))
+        # NLP last: same reasoning as thumbnails-before-embeds -- the
+        # cheaper, more visible stages (image on screen, text searchable)
+        # should not queue behind the KG draft pass. Not counted in
+        # `_progress_add`'s total (matches the thumbnail stage's own
+        # precedent: only the embed stage ticks the document-progress
+        # counter today) -- per-document visibility for NLP is the
+        # `nlp_error` metadata field, not the progress bar.
+        for doc_id in nlp_queued:
+            futures.append(executor.submit(_nlp_stage, doc_id, library))
 
     if db is not None:
         db.add_after_commit_hook(submit)
@@ -736,6 +767,71 @@ def _embed_stage(doc_id: str, library: str) -> None:
         # flood re-fired heavy content loads and made the UI unusable.
     finally:
         _progress_tick(library)
+
+
+def _nlp_stage(doc_id: str, library: str) -> None:
+    """Free NLP draft pass for one document (#4823): NER + SVO, written
+    through the same KG writer the LLM extraction tools use, so curation
+    rules apply automatically. See ``importers/nlp_draft.py`` for the design
+    rationale — this function is the derivatives-queue plumbing around it,
+    mirroring ``_thumbnail_stage``'s pattern (open, stage-specific work,
+    re-read-before-write, error recorded in metadata, no progress-counter
+    tick — only the embed stage ticks the document-progress counter today).
+
+    Never raises. A stranded ``Status.pending`` document is re-queued
+    through the SAME ``queue_derivatives`` call on library open
+    (``db/manager.py``), which re-submits this stage too — no separate
+    recovery path needed. Skips a document already marked
+    ``nlp_processed_at`` (re-run on corrected text is a deliberate v1
+    non-goal, not an oversight — see #4823's plan).
+    """
+    from fichero_server.core.timeutil import utc_now
+    from fichero_server.importers.nlp_draft import run_nlp_draft
+
+    opened = _open_stage_db(library, doc_id)
+    if opened is None:
+        return
+    db, doc = opened
+
+    if (doc.metadata or {}).get("nlp_processed_at"):
+        return
+
+    try:
+        result = run_nlp_draft(db, doc)
+    except Exception as exc:  # pragma: no cover - defensive, run_nlp_draft
+        # already catches its own extraction errors; this is the outer
+        # belt-and-suspenders floor so a bug here never fails the import.
+        logger.warning("nlp_draft stage crashed for %s: %s", doc_id, exc)
+        result = None
+
+    # RE-READ before writing — same guard every other stage in this module
+    # uses: a document deleted while this stage ran must not be resurrected
+    # by saving a stage-start copy over it.
+    doc = db.get(Document, doc_id)
+    if doc is None or getattr(doc, "deleted_at", None) is not None:
+        return
+
+    metadata = dict(doc.metadata or {})
+    if result is None:
+        metadata["nlp_error"] = "NLP draft stage failed unexpectedly"
+    elif result.error:
+        metadata["nlp_error"] = result.error
+    else:
+        metadata.pop("nlp_error", None)
+        metadata["nlp_processed_at"] = utc_now().isoformat()
+        # S2 (team-lead review): visible, never silent, when the per-
+        # document entity cap dropped surviving draft entities.
+        if result.truncated:
+            metadata["nlp_truncated"] = True
+        else:
+            metadata.pop("nlp_truncated", None)
+
+    if metadata != (doc.metadata or {}):
+        doc.metadata = metadata
+        try:
+            db.save(doc)
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.error("Could not persist NLP draft outcome for %s: %s", doc_id, exc)
 
 
 def generate_derivative(doc_id: str, library_path: str | Path) -> Path | None:

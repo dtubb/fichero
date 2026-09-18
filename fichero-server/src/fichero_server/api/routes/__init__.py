@@ -42,6 +42,7 @@ __all__ = [
     "hermeneutics",
     "ingest",
     "kg_curation_rules",
+    "kg_nlp_draft_purge",
     "library_links",
     "library_items",
     "local_models",
