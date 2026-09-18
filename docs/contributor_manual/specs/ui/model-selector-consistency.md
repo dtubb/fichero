@@ -8,6 +8,8 @@ related: [ai-settings-redesign-proposal, menus-and-commands]
 
 # Model / Provider Selector — Consistency Spec
 
+> Milestone: model-selector-consistency
+
 > Manual: TBD — the user manual's AI section needs "Choosing a model": that the picker is the same
 > control everywhere it appears (island, workflow bar, Settings), what local vs remote means for
 > privacy and cost, and how to add a provider key.
