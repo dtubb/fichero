@@ -4,11 +4,11 @@ import Testing
 
 /// #4525: the pane matrix, asserted over EVERY `AppViewMode` × 4 panes.
 ///
-/// The policy under test: a pane is `.content` or `.empty(reason)` — there is
-/// no cell that unmounts, and every empty reason is a real sentence about the
-/// actual situation. The switch in `stablePanePlan` is exhaustive, so a new
-/// `AppViewMode` case fails to COMPILE until its row is decided; this suite
-/// makes the decided row honest.
+/// The policy under test: a pane is `.surface(_)` or `.empty(reason)` — there
+/// is no cell that unmounts, and every empty reason is a real sentence about
+/// the actual situation. The switch in `stablePanePlan` is exhaustive, so a
+/// new `AppViewMode` case fails to COMPILE until its row is decided; this
+/// suite makes the decided row honest.
 @MainActor
 struct PaneContentPlanTests {
 
@@ -39,13 +39,13 @@ struct PaneContentPlanTests {
         ]
     }
 
-    @Test("every mode decides all four panes: content, or an honest non-empty reason")
-    func everyCellIsContentOrAReason() {
+    @Test("every mode decides all four panes: a named surface, or an honest non-empty reason")
+    func everyCellIsASurfaceOrAReason() {
         for (name, mode) in Self.everyMode {
             let plan = PaneContentPlan.plan(for: mode)
             for (pane, cell) in cells(plan) {
                 switch cell {
-                case .content:
+                case .surface:
                     break
                 case .empty(let reason):
                     #expect(
@@ -57,31 +57,34 @@ struct PaneContentPlanTests {
         }
     }
 
-    @Test("the library COLUMN never goes empty for a node type — it is the spine")
-    func theLibraryColumnIsAlwaysContent() {
+    @Test("the library COLUMN is always the .libraryBrowser surface — it is the spine")
+    func theLibraryColumnIsAlwaysTheBrowser() {
         for (name, mode) in Self.everyMode {
             #expect(
-                PaneContentPlan.plan(for: mode).library == .content,
-                "\(name): the library column must stay mounted with content"
+                PaneContentPlan.plan(for: mode).library == .surface(.libraryBrowser),
+                "\(name): the library column must stay the navigator surface"
             )
         }
     }
 
-    @Test("a plain library selection fills all four panes")
-    func librarySelectionIsAllContent() {
+    @Test("a plain library selection names every pane's real surface")
+    func librarySelectionNamesEverySurface() {
         let plan = PaneContentPlan.plan(for: .library(nil))
         #expect(plan == PaneContentPlan.Plan(
-            library: .content, preview: .content, reader: .content, inspector: .content
+            library: .surface(.libraryBrowser),
+            preview: .surface(.documentPreview),
+            reader: .surface(.documentReader),
+            inspector: .surface(.documentInspector)
         ))
     }
 
     @Test("the entities browser keeps the panes mounted with honest empties")
     func entitySelectionKeepsPanesMounted() {
         let plan = PaneContentPlan.plan(for: .library(nil), entitySelection: true)
-        #expect(plan.library == .content)
+        #expect(plan.library == .surface(.libraryBrowser))
         #expect(plan.preview.emptyReason != nil, "entities have no preview, said honestly")
         #expect(plan.reader.emptyReason != nil)
-        #expect(plan.inspector == .content, "the KG inspector is real content")
+        #expect(plan.inspector == .surface(.documentInspector), "the KG inspector is real content")
     }
 
     /// #4518 rides the same plan: with no library at all, every pane says so —
@@ -104,8 +107,11 @@ struct PaneContentPlanTests {
 
     /// The mode surfaces that exist render in the PREVIEW slot per the #4525
     /// target shape — chat, comparison, workflow, chain, schedule, trigger,
-    /// activity and batches all have a real surface to show there.
-    @Test("modes with a real surface get a content preview cell")
+    /// activity and batches all have a real surface to show there. Today
+    /// that surface is uniformly `.documentPreview` (the Mac Preview pane
+    /// does not yet branch on `viewMode`; increments 2/4 replace this
+    /// per-mode with `.workflowCanvas`/`.nodeDetail`).
+    @Test("modes with a real surface get a named preview cell")
     func modeSurfacesLandInThePreviewSlot() {
         let surfaced: [(String, AppViewMode)] = [
             ("chat", .chat(nil)), ("comparison", .comparison(nil)),
@@ -115,7 +121,7 @@ struct PaneContentPlanTests {
         ]
         for (name, mode) in surfaced {
             #expect(
-                PaneContentPlan.plan(for: mode).preview == .content,
+                PaneContentPlan.plan(for: mode).preview == .surface(.documentPreview),
                 "\(name): its surface belongs in the preview slot"
             )
         }
@@ -129,5 +135,37 @@ struct PaneContentPlanTests {
     @Test("a chain's inspector is an honest absence, not a stale workflow")
     func chainInspectorIsHonest() {
         #expect(PaneContentPlan.plan(for: .chain(nil)).inspector.emptyReason != nil)
+    }
+
+    /// #4705 increment 1 only NAMES today's surfaces; it does not move any of
+    /// them. `.workflowCanvas` (increment 2), `.nodeDetail` (increment 4) and
+    /// `.workflowRecipe` (increment 2) must not appear in the matrix yet —
+    /// pinning their absence makes each later increment's diff legible as
+    /// "this value changed" instead of landing silently inside this
+    /// increment.
+    @Test("increment 1 does not jump ahead to increment 2/4's surfaces")
+    func doesNotUseFutureSurfacesYet() {
+        let notYetWired: Set<PaneSurface> = [.workflowCanvas, .nodeDetail, .workflowRecipe]
+        for (name, mode) in Self.everyMode {
+            let plan = PaneContentPlan.plan(for: mode)
+            for (pane, cell) in cells(plan) {
+                if case .surface(let surface) = cell {
+                    #expect(
+                        !notYetWired.contains(surface),
+                        "\(name).\(pane) uses \(surface), which increment 1 must not wire yet"
+                    )
+                }
+            }
+        }
+        // Also true of the entity-selection branch.
+        let entityPlan = PaneContentPlan.plan(for: .library(nil), entitySelection: true)
+        for (pane, cell) in cells(entityPlan) {
+            if case .surface(let surface) = cell {
+                #expect(
+                    !notYetWired.contains(surface),
+                    "entitySelection.\(pane) uses \(surface), which increment 1 must not wire yet"
+                )
+            }
+        }
     }
 }
