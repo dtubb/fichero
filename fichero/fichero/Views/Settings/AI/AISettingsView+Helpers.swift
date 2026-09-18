@@ -197,6 +197,17 @@ extension AISettingsView {
                 let list = Self.configuredModelInfos(from: configured, providerType: providerType)
                 models.wrappedValue = list
                 loadError.wrappedValue = nil
+                // This writes through `selection` unconditionally, and `selectionAfterModelLoad`
+                // always returns `current` back — so on every load this is a SELF-write of the
+                // value already there. Reviewed (nit, #4694 follow-up): `selection` ultimately
+                // binds into `store.defaults` (an `Equatable` struct, AIDefaults.swift), and
+                // `AISettingsView`'s `.onChange(of: store.defaults) { Task { await store.save() } }`
+                // gates on inequality — SwiftUI only invokes an `onChange` action when the new
+                // value differs from the old one, so writing back the SAME string does not
+                // re-trigger the persistence Task. Kept (not deleted) because it's what makes
+                // `selectionAfterModelLoad` the SOLE assignment path for `selection` here — the
+                // shape `AISettingsSelectionTests.productionCallSiteRoutesOnlyThroughThePureFunction`
+                // asserts — rather than an unused pure function nothing actually applies.
                 selection.wrappedValue = Self.selectionAfterModelLoad(
                     current: selection.wrappedValue, loadedModels: list
                 )
