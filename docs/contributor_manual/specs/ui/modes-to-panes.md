@@ -97,7 +97,7 @@ the ruling this table exists to make assertable.
 |---|---|---|---|---|
 | `.library` (entities/claims/folder rows) | Library browser | honest empty / doc preview | honest empty | Document Inspector — **[OK]** already correct (`ContentView+StateLayout.swift:102-108`, `LibraryView+ContentBranches.swift:176-241`) |
 | `.workflow(x)` | Library browser — **[PROPOSED]** | Workflow canvas (`WorkflowEditor`) — **[PROPOSED]**, today full-width in Library (`Nav:286-294`) | Last/current run log — **[PROPOSED]**, today an honest empty state (`ReadingPaneView+Tabs.swift:155-169`) | Palette · node · runs (`WorkflowInspector`, 3 tabs) — **[OK]** already correct (`Detail:384-390`) |
-| `.chat` | Library browser — **[OK]** already correct (`Nav:237-244`) | document preview | thread/document | Sources · Plan · Knowledge · Compare (`ChatInspector`/`ChatSurfaceTab`) — **[PARTIAL]**, correct kind but duplicated (§Inspector policy) |
+| `.chat` | Library browser — **[OK]** already correct (`Nav:237-244`) | document preview | `.surface(.documentReader)` — **[OK]** (4b-1 audit, 2026-09-18): the row previously said `.empty("A conversation has no reader view.")`, which was WRONG but harmless while nothing read this cell — a conversation keeps Library + Source + Reader all showing real documents (the modes-to-panes ruling), so once 4b-1 made the Reader obey the cell, the old value would have blanked it for every chat user. Corrected before the regression shipped. | Sources · Plan · Knowledge · Compare (`ChatInspector`/`ChatSurfaceTab`) — **[PARTIAL]**, correct kind but duplicated (§Inspector policy) |
 | research (project selection) | Library browser — **[PROPOSED]**, today a bespoke `HStack{ResearchProjectListView\|ResearchWorkspaceView}` (`Nav:201-221`) | document preview | thread/document (via chat's Plan tab) | Sources · Plan · Knowledge · Compare — **[PROPOSED]** |
 | `.comparison` | — **RETIRING** (CD 2026-09-18 ruling; scope clarified 2026-09-18: split OUT of increment 4a into increment 4c below): the comparison VIEW/mode/window (`AppViewMode.comparison`/`ComparisonDetailView`) retires, but the PRODUCING "run with A and B" action survives — it leaves two sibling artifacts shown as two Reader panes with a diff lens, not a mode/node/view of its own — see `m2p.comparison-is-panes-and-diff-lens`. Three sites still construct `.comparison` today | | | |
 | `.chain` | Library browser — **[OK]** (increment 4a, 9128ecdee) | node detail (chain, `ChainEditorView`) — **[OK]** (increment 4a); "Create Chain" empty state MOVED here, not deleted | — | honest empty |
@@ -265,6 +265,18 @@ fourth type.
   pure predicate, every `AppViewMode` × `hasPreviewLeaf`) — no automated SwiftUI-render test
   yet asserting the banner actually mounts (a coverage gap, flagged, not silently claimed as
   pinned, same honesty precedent as `m2p.workflow-reader-is-run-log`).
+- `m2p.reader-consults-the-plan` — **[OK]** (fb2829fd7, #4803 closed): the Reader pane must render `PaneContentPlan.plan(for: viewMode).reader`'s cell,
+  not whatever `Document` happens to still be resolved from a previous selection.
+  `ReadingPaneView` had no reference to `viewMode`/`AppViewMode` at all, so a
+  schedule/trigger/chain/batches/automation/activity selection left every Reader tab (Page,
+  Notes, Knowledge — none of them cleared or checked anything) showing the PREVIOUSLY selected
+  document, never the matrix's own honest `.empty` reason. Fixed by a new
+  `PaneContentPlan.Cell.readerPageRoute` gate ahead of the tab switch — see increment 4b-1
+  above for the full mechanism. Pinned by
+  `PaneContentPlanTests.readerPageRouteRecognizesOnlyTheTwoDocumentDrivenSurfaces` (pure, every
+  `PaneSurface` + `.empty`) — no automated SwiftUI-render test yet asserting the Reader actually
+  mounts `PaneEmptyStateView` for a live schedule selection (a coverage gap, flagged, same
+  honesty precedent as `m2p.workflow-reader-is-run-log`).
 
 ## Migration — nine increments (0–8), each shippable, each with its pinning test
 
@@ -332,20 +344,25 @@ increments 2, 4, and 5.
   `LibraryPaneNeverMountsModeSurfaceTests` (allowlist shrunk to `ResearchWorkspaceView(`/
   `ComparisonDetailView(`; `deletedBareIdentifiers` gained `ActivityWindowLauncherView`),
   `ContentViewPersistenceTests.testRetiredBatchStringStillRestoresToActivity`.
-- **4b-1. The Reader consults the plan (not started; fixes the live stale-document bug #4803).** Discovered planning 4b: `ReadingPaneView`
-  has NO reference to `viewMode`/`AppViewMode` anywhere — the whole Reader routes off a resolved
-  `Document` (`effectiveDocument`/`liveDocument`/`pinnedDocument`), not the selection's plan
-  cell. `.workflow` only reaches its run-log rendition because workflow DEFINITIONS are
-  themselves library Documents (`Document.isWorkflowNode`, `prototypeKey == "workflow"`) that
-  ordinary document-selection machinery resolves — the matrix's `reader` column has been
-  decorative since increment 1, never actually consulted at runtime. Confirmed LIVE BUG: none
-  of the automation-family selection handlers (`.chain`/`.batches`/`.automation`/`.schedule`/
-  `.trigger`/`.activity`) clear `detailDocument`
-  (`handleViewModeChange`/`MainContentModifiers+ViewMode.swift` only branches on `.workflow`/
-  `.library`), so `readerDocument` (`ContentView+DetailLayout.swift:249-253`) keeps returning
-  whatever document was last open — selecting a schedule leaves the Reader showing the
-  PREVIOUSLY selected document's transcript, not an honest empty state. This increment fixes it
-  as a side effect. Mechanism: `ReadingPaneView` gains one new defaulted property,
+- **4b-1. The Reader consults the plan — DONE (2026-09-18, fb2829fd7), fixes the live
+  stale-document bug #4803.** Discovered planning 4b: `ReadingPaneView` had NO reference to
+  `viewMode`/`AppViewMode` anywhere — the whole Reader routed off a resolved `Document`
+  (`effectiveDocument`/`liveDocument`/`pinnedDocument`), not the selection's plan cell.
+  `.workflow` only reached its run-log rendition because workflow DEFINITIONS are themselves
+  library Documents (`Document.isWorkflowNode`, `prototypeKey == "workflow"`) that ordinary
+  document-selection machinery resolves — the matrix's `reader` column had been decorative since
+  increment 1, never actually consulted at runtime. Confirmed LIVE BUG (#4803): none of the
+  automation-family selection handlers (`.chain`/`.batches`/`.automation`/`.schedule`/
+  `.trigger`/`.activity`) clear `detailDocument` (`handleViewModeChange`/
+  `MainContentModifiers+ViewMode.swift` only branches on `.workflow`/`.library`), so
+  `readerDocument` (`ContentView+DetailLayout.swift:249-253`) kept returning whatever document
+  was last open — selecting a schedule left the Reader showing the PREVIOUSLY selected
+  document's transcript AND notes AND knowledge tab, not an honest empty state, on every tab
+  (fix-then-sweep-for-siblings: the Page tab was the reported symptom, but Notes/Knowledge share
+  the identical `effectiveDocument`-driven fallback and the same stale risk). This increment
+  fixes it as a direct side effect, and deliberately does NOT add a second mechanism that clears
+  `detailDocument` — the plan is the one authority, and clearing it would break "Back to the
+  document" navigation. Mechanism: `ReadingPaneView` gains one new defaulted property,
   `var readerCell: PaneContentPlan.Cell = .surface(.documentReader)` (default keeps every
   existing call site — there is exactly one production one,
   `ContentView+DetailLayout.swift:286`, inside `widescreenReadingPaneBody`, which already has
@@ -353,18 +370,36 @@ increments 2, 4, and 5.
   `PaneContentPlan.plan(for: viewMode).reader`. A new pure routing function,
   `PaneContentPlan.Cell.readerPageRoute -> ReaderPageRoute` (`.documentDriven` for
   `.surface(.documentReader)`/`.surface(.workflowRecipe)`, `.empty(String)` passthrough,
-  `.future(PaneSurface)` for anything else — an honest "not wired yet" rather than silently
-  falling into the document-driven chain), gates `ReadingPaneView+Tabs.swift`'s `pageTabContent`
-  — `.documentDriven` renders the EXISTING if/else chain byte-for-byte unchanged (never touches
-  `doc.isWorkflowNode`/`loadReaderWorkflow()`), `.empty(reason)` renders `PaneEmptyStateView`
-  with the matrix's own reason string (today's `.empty` reasons are computed but never shown to
-  anyone — this makes them real), `.future` is 4b-1's safety net (nothing produces it yet;
-  4b-2's `.runHistory` will be the first). Scoped to the Page tab only — the Notes/Knowledge
-  tabs have their own `effectiveDocument`-driven fallbacks and may share the same stale-document
-  risk, flagged but NOT included here to avoid scope creep past what was asked. Files: `Plan`
-  (the routing function), `ReadingPaneView.swift` (the new property),
-  `ReadingPaneView+Tabs.swift` (the gate), `Detail` (the one call site). Test: a pure test over
-  every `PaneSurface` + `.empty` asserting `readerPageRoute`'s three-way split.
+  `.unmounted(PaneSurface)` for anything else — an honest state that NAMES the surface, never a
+  blank, rather than silently falling into the document-driven chain), gates
+  `ReadingPaneView+Tabs.swift`'s `readerTabContent` — ONE gate ahead of the existing
+  Page/Knowledge/Notes switch, the smaller and more honest change versus filtering the tab
+  switcher's lens menu itself: `.documentDriven` reaches the EXISTING Page/Knowledge/Notes split
+  byte-for-byte unchanged (never touches `doc.isWorkflowNode`/`loadReaderWorkflow()`),
+  `.empty(reason)` renders `PaneEmptyStateView` with the matrix's own reason string on EVERY tab
+  (today's `.empty` reasons are computed but were never shown to anyone — this makes them real),
+  `.unmounted` is 4b-1's safety net (nothing produces it yet; 4b-2's `.runHistory` will be the
+  first, rendered as `"The Reader has no <surface> rendition yet."`). Files: `Plan` (the routing
+  type + function), `ReadingPaneView.swift` (the new property), `ReadingPaneView+Tabs.swift` (the
+  gate), `Detail` (the one call site). Test: `m2p.reader-consults-the-plan`,
+  `PaneContentPlanTests.readerPageRouteRecognizesOnlyTheTwoDocumentDrivenSurfaces` (every
+  `PaneSurface` + a representative `.empty`, pure).
+  **Lesson (added post-gate, 2026-09-18):** making code start OBEYING a table that was
+  previously decoration turns every WRONG row into an immediate regression — the `.chat` row
+  said `reader: .empty("A conversation has no reader view.")`, which was false but harmless
+  while nothing read it; 4b-1 would have blanked the Reader for every chat user the moment it
+  shipped. Caught and fixed before landing, pinned by `PaneContentPlanTests.
+  chatKeepsADocumentDrivenReader`; the matrix row above corrected to match. The checklist now
+  requires: before a change makes any table/matrix cell load-bearing for the first time, audit
+  every row against today's REAL behavior, not just the row being directly touched. A parallel
+  audit found `entitySelection`'s reader cell (`Plan:123`, `"An entity list has no reader
+  view."`) is similarly inaccurate once a SPECIFIC entity/claim row is focused
+  (`LibraryView+TableView.swift:288-293` sets `detailDocument` to that row's real source
+  document) — currently harmless because NO production call site ever passes
+  `entitySelection: true` to `PaneContentPlan.plan(for:)` (only three call sites exist, all
+  default it), so this is a `[GAP]`, flagged for whoever eventually wires it, not a live
+  regression from 4b-1. `.comparison`'s `.empty("A comparison has no reader view.")` was
+  checked and confirmed accurate — no `.comparison` selection site writes `detailDocument`.
 - **4b-2. `.runHistory` (not started).** Extract `ScheduleDetailView.runHistorySection`,
   `TriggerDetailView.executionHistorySection` and Activity's log rendering
   (`ActivityDetailView`'s `ActivityService`-backed list, plus its live
@@ -528,6 +563,12 @@ the implementation status (see the Behaviors list above and the Migration increm
 
 Reuse existing pane-head and inspector-tab identifiers where they already exist
 (`WorkflowInspectorTab`, `ChatSurfaceTab`); the click-around leg needs, at minimum:
+- `m2p.entity-row-reader` — **[GAP]** (#4804): the plan's `entitySelection` input is a Bool, so it
+  cannot tell the Entities/Claims table with nothing focused (no Reader content, honestly
+  empty) from one entity or claim row focused (its source document is readable — the table sets
+  `detailDocument` to it). The arm is unwired today, so nothing regresses; whoever wires it must
+  carry a payload, not a Bool, and give the focused row a document-driven Reader cell. Found by
+  the Reader-column audit that 4b-1 made necessary.
 - `library.pane` — confirms the Library leaf's identity is stable across selections
 - `pane.kindSwitcher` — the per-pane-head kind selector (`m2p.pane-head-parity`)
 - `inspector.surface.<kind>` — which inspector surface is mounted, for the agreement test
