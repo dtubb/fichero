@@ -401,6 +401,7 @@ nav:
               - "Engine Transport: HTTPS / UDS / In-Memory": contributor_manual/specs/transport/transport-http-uds.md
           - UI:
               - About: contributor_manual/specs/ui/about.md
+              - Automation: contributor_manual/specs/ui/automation.md
               - Menus & Commands: contributor_manual/specs/ui/menus-and-commands.md
               - Model / Provider Selector Consistency: contributor_manual/specs/ui/model-selector-consistency.md
               - Modes → Panes: contributor_manual/specs/ui/modes-to-panes.md
@@ -408,8 +409,10 @@ nav:
               - Preview Magnifier (Loupe): contributor_manual/specs/ui/preview-magnifier.md
               - Reader Overlay Frame Identity: contributor_manual/specs/ui/reader-overlay-frame-identity.md
               - Reading Markup & Annotations: contributor_manual/specs/ui/reading-markup-annotations.md
+              - Research: contributor_manual/specs/ui/research.md
               - Sidebar CRUD: contributor_manual/specs/ui/sidebar-crud.md
               - Workflow Node Config: contributor_manual/specs/ui/workflow-node-config.md
+              - Workflows: contributor_manual/specs/ui/workflows.md
       - Architecture Notes:
           - System Overview: contributor_manual/architecture/overview.md
           - Shared Vocabulary: contributor_manual/architecture/vocabulary.md
