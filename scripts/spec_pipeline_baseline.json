@@ -488,10 +488,5 @@
     "rule": "g",
     "spec": "-",
     "key": "Workflows - Transcribe"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "sidebar-crud"
   }
 ]
