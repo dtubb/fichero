@@ -339,6 +339,23 @@ pane chrome — no existing spec's surface is the row itself (the library-view-m
 proposed in the milestone ledger would be the right home once it exists). Left in #125 for
 now rather than forced into this spec.
 
+### Legacy milestone fold — window/pane redirects from "Library View" (#117)
+
+Two more issues, redirected from the legacy "Library View" milestone while folding
+`library-view-modes.md`'s pass 2 (neither is a view-MODE question; both are window/pane
+behavior this spec already owns):
+
+- `panes.double-click-focuses-current-window` — **[GAP]** (#3364) double-clicking a
+  sidebar/library item should focus/navigate in the CURRENT window by default; opening in a
+  new window or tab stays reachable only from an explicit contextual command. Not verified
+  as built.
+- `panes.split.each-pane-its-own-document` — **[GAP]** (#2422) a split reader pane should be
+  independently targetable to a different document (drag a doc into a pane, or a per-pane
+  picker), with a clear control choosing "different doc per split" versus the existing
+  same-doc/compare mode. Not verified as built; ties this spec's existing split-independence
+  behaviors (`panes.split.independent-mode-per-pane`) to CONTENT independence, which those
+  behaviors do not yet cover.
+
 ### Post-F7 design refinements (CD, 2026-09-14) — capture, revisit after F7
 
 - `panes.kg.select-shows-item-inspector` — **[GAP, post-F7]** (→ #4705 increment 7) clicking a claim or entity row

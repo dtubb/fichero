@@ -330,6 +330,15 @@ Inspector content, not as a rival top-level surface.
   built — today's chat-tools loop is a single-agent tool-call loop, not manager-with-workers.
   Also tracked here: #247 (promote Chat to release once its acceptance gate is satisfied) — a
   release-readiness tracker for the surface this whole spec describes, not a design question.
+- `research.canvas-actions-are-agent-tools` — **[GAP]** (#3093, redirected from the legacy
+  "Library View - Spatial" milestone while folding `library-view-modes.md`'s pass 2) the five
+  `canvas.*` audited registry actions (`canvas.layout.save`, `canvas.arrange`,
+  `canvas.item.create/update/delete`) should be exposed through the chat-tools/MCP surface the
+  same way `entity.create`/`claim.create` already are, with read tools so an agent can see a
+  canvas before arranging it. Verified at HEAD: `CHAT_WRITE_ALLOWLIST`
+  (`chat_tools.py:70-77`) does not include any `canvas.*` action — not built. This is the
+  Library's Canvas/Space view modes becoming agent-operable, not a Research-surface behavior
+  in its own right; it lives here because the audited-tool-exposure pattern is this spec's.
 
 ## Test matrix
 

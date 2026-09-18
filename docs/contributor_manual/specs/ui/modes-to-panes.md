@@ -385,6 +385,18 @@ fourth type.
   components actually mount live (a coverage gap, flagged, same honesty precedent as
   `m2p.reader-consults-the-plan`).
 
+### Legacy milestone fold — node reversibility across Library view modes
+
+- `m2p.grouped-nodes-drill-consistently-across-view-modes` — **[GAP]** (#3699, redirected
+  from the legacy "Library View - Column Browser & Columns" milestone while folding
+  `library-view-modes.md`'s pass 2) a GROUP/STACK node (an already-closed earlier feature)
+  should show as one item that expands/drills into its members, and a SPLIT child (also an
+  already-closed earlier feature) should be reachable under its source, consistently across
+  Icon, List, and Columns — with ungroup/unsplit staying
+  reversible in every one of them. This is the node model's own reversibility guarantee
+  applying across view modes, not a per-mode display question, which is why it lives here
+  rather than in `library-view-modes.md`. Not verified as built.
+
 ## Migration — nine increments (0–8), each shippable, each with its pinning test
 
 Serial in one lane for `Nav`/`Detail`/`Plan` — they are touched repeatedly across
