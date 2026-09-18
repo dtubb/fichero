@@ -147,18 +147,22 @@ refs), `run_comparison.py`/`model_comparison.py` (the Compare Models feature).
 
 ### A. The canvas editor
 
-- `workflows.canvas.renders-nodes-edges-ports` — **[OK]** the canvas draws
-  every node, edge, and port for the workflow's graph
-  (`Views/Workflow/Canvas/WorkflowCanvasView+NodesLayer.swift`,
+- `workflows.canvas.renders-nodes-edges-ports` — **[PARTIAL]** (implemented,
+  unpinned; #4797) the canvas draws every node, edge, and port for the
+  workflow's graph (`Views/Workflow/Canvas/WorkflowCanvasView+NodesLayer.swift`,
   `+EdgesLayer.swift`, `WorkflowPortView.swift`).
 - `workflows.canvas.locked-preset-is-read-only` — **[OK]** a locked default
   workflow cannot be saved from the canvas: `WorkflowSavePolicy.canAutoSave`
   refuses when either the editor's or the canonical copy's system flag is set
   (`WorkflowSavePolicy.swift:8-10`); the server also 403s the write
-  independently (#4514).
-- `workflows.canvas.duplicate-to-edit` — **[OK]** duplicating a locked preset
-  makes an editable copy in a personal folder and opens it for editing
-  (`WorkflowToolbar.swift:27-52`, `WorkflowEditor.swift:217-224`).
+  independently. (The GitHub issue this originally shipped against has since
+  been repurposed on GitHub for an unrelated, still-open "default workflow
+  folders not visually protected" bug, so this line no longer cites a number.)
+  Pinned: `WorkflowReadOnlySavePolicyTests`.
+- `workflows.canvas.duplicate-to-edit` — **[PARTIAL]** (implemented, unpinned;
+  #4797) duplicating a locked preset makes an editable copy in a personal
+  folder and opens it for editing (`WorkflowToolbar.swift:27-52`,
+  `WorkflowEditor.swift:217-224`).
 - `workflows.canvas.edge-legality-matches-engine` — **[BROKEN]** the canvas's
   `canConnect` allows five conversions the engine's `validate_port_connection`
   rejects (`json→text`, `array→json`, `array→text`, `image→file`,
@@ -210,20 +214,25 @@ refs), `run_comparison.py`/`model_comparison.py` (the Compare Models feature).
 
 ### C. Running and the run log
 
-- `workflows.run.output-log-live` — **[OK]** `WorkflowOutputLog` shows live
-  per-node execution progress, reading persisted `WorkflowExecutionObserver`
-  state first so it survives a view switch (`WorkflowOutputLog.swift:16-27`).
-- `workflows.run.source-tools-excluded-from-file-columns` — **[OK]** source
-  tools (`files`, `collection`, `folder`, `search`) are excluded from the
-  output log's per-file columns because they emit no file-level events
-  (`WorkflowOutputLog.swift:29-35`).
+- `workflows.run.output-log-live` — **[PARTIAL]** (implemented, unpinned;
+  #4797) `WorkflowOutputLog` shows live per-node execution progress, reading
+  persisted `WorkflowExecutionObserver` state first so it survives a view
+  switch (`WorkflowOutputLog.swift:16-27`).
+- `workflows.run.source-tools-excluded-from-file-columns` — **[PARTIAL]**
+  (implemented, unpinned; #4797) source tools (`files`, `collection`,
+  `folder`, `search`) are excluded from the output log's per-file columns
+  because they emit no file-level events (`WorkflowOutputLog.swift:29-35`).
 - `workflows.run.scope-widening-confirmed` — **[OK]** a resolved run scope that
   would widen beyond the user's selection is parked for confirm/cancel rather
-  than run silently (`WorkflowEditor.swift:33-36`, #4396/#4523).
-- `workflows.run.wrong-scope-runs-whole-folder` — **[BROKEN]** running a
-  workflow on one selected file can still run it over the whole containing
-  folder (open bug, unclear if fully closed by the #4396/#4523 fix above —
-  needs live re-check). ISSUE: #4396.
+  than run silently (`Views/Workflow/Editor/WorkflowEditor.swift:33-40`,
+  `+Actions.swift`). Fixed #4396/#4523 (closed 2026-09-18 — verified against
+  code, not just the tag). Pinned: `WorkflowEditorRunGateTests`.
+- `workflows.run.wrong-scope-runs-whole-folder` — **[OK]** (was BROKEN,
+  re-verified 2026-09-18) running a workflow on one selected file no longer
+  runs it over the whole containing folder: the confirm gate specifically
+  covers the "empty selection on a `.collection`-input workflow" case this
+  behavior named, and the dispatched run uses the CONFIRMED scope rather than
+  re-resolving it. Pinned: `WorkflowEditorRunGateTests`.
 - `workflows.run.provenance-run-id-on-artifacts` — **[GAP]** artifacts carry
   `run_id`/`step_name` fields but the live execution path never populates them
   (2026-07-29 review F1 — carried as design evidence; the "Runs on N documents"
@@ -259,26 +268,29 @@ refs), `run_comparison.py`/`model_comparison.py` (the Compare Models feature).
 - `workflows.bar.selection-projected-through-accepted-inputs` — **[OK]** which
   verbs the bar shows is a pure function of the current selection against each
   workflow's server-declared `accepted_inputs`, computed in `WorkflowBarPolicy`
-  with no SwiftUI (`WorkflowBar.swift:8-12`).
-- `workflows.bar.click-appends-not-runs` — **[OK]** clicking a verb appends it
-  to an in-progress chain; running is a separate, deliberate action
-  (`WorkflowBar.swift:39-41`).
-- `workflows.bar.folder-order-and-icons-served` — **[OK]** the bar's verb-group
-  order and glyphs come from the server
+  with no SwiftUI (`WorkflowBar.swift:8-12`). Pinned: `WorkflowBarPolicyTests`.
+- `workflows.bar.click-appends-not-runs` — **[PARTIAL]** (implemented,
+  unpinned; #4797) clicking a verb appends it to an in-progress chain; running
+  is a separate, deliberate action (`WorkflowBar.swift:39-41`).
+- `workflows.bar.folder-order-and-icons-served` — **[PARTIAL]** (implemented,
+  unpinned; #4797) the bar's verb-group order and glyphs come from the server
   (`resources/workflow_folders.json`), not a client-side hard-coded list, so a
   server-added folder is orderable/iconable without an app release.
-- `workflows.bar.labels-toggle-persists` — **[OK]** the bar's Show/Hide Labels
-  choice writes back through `onSetLabels` rather than being a session-only
-  UI toggle (`WorkflowBar.swift:33-36`).
+- `workflows.bar.labels-toggle-persists` — **[PARTIAL]** (implemented,
+  unpinned; #4797) the bar's Show/Hide Labels choice writes back through
+  `onSetLabels` rather than being a session-only UI toggle
+  (`WorkflowBar.swift:33-36`).
 - `workflows.bar.model-pin-per-step` — [OK] a step in the assembled chain can
   be pinned to a specific configured model (`modelChoices:
-  [WorkflowBarModelChoice]`, `WorkflowBar.swift:26-27`).
+  [WorkflowBarModelChoice]`, `WorkflowBar.swift:26-27`). Pinned:
+  `WorkflowBarModelPinTests`.
 
 ### E. Default/locked workflows and folders
 
 - `workflows.defaults.locked-container-refuses-drops` — **[OK]** the Default
   Workflows container and its subfolders render locked/purple and refuse drops
   (`Models/SidebarItem.swift:215-258`, `Models/Document.swift:597-606`).
+  Pinned: `DefaultWorkflowLockTests`.
 - `workflows.defaults.folder-click-opens-custom-view` — **[BROKEN]** clicking a
   legacy preset folder can open the custom workflow view instead of the
   expected folder browse, and legacy preset folders can be stuck at the tree
@@ -292,18 +304,19 @@ refs), `run_comparison.py`/`model_comparison.py` (the Compare Models feature).
   across libraries/users. ISSUE: #3181.
 - `workflows.defaults.scope-contract-undeclared` — **[GAP]** a workflow has no
   declared contract for its source kind, fan-out, or where its output attaches
-  — needed before scope bugs like #4396 can be closed structurally rather than
-  patched. ISSUE: #4397.
+  — needed so scope-widening bugs (the class the confirm/cancel gate patched
+  point-fashion, `workflows.run.scope-widening-confirmed`) get closed
+  structurally rather than one at a time. ISSUE: #4397.
 
 ### F. Folders of workflows (library/organization)
 
-- `workflows.folders.route-ordered-not-alphabetical` — **[OK]** the
-  server-declared folder order follows the actual processing route (image
-  editing → … → export), not alphabetical or client-invented order
-  (`workflow_folders.json:2`).
-- `workflows.folders.unknown-folder-still-visible` — **[OK]** a folder absent
-  from the served list sorts after the known route with a fallback glyph
-  rather than being hidden (`workflow_folders.json:2`).
+- `workflows.folders.route-ordered-not-alphabetical` — **[PARTIAL]**
+  (implemented, unpinned; #4797) the server-declared folder order follows the
+  actual processing route (image editing → … → export), not alphabetical or
+  client-invented order (`workflow_folders.json:2`).
+- `workflows.folders.unknown-folder-still-visible` — **[PARTIAL]** (implemented,
+  unpinned; #4797) a folder absent from the served list sorts after the known
+  route with a fallback glyph rather than being hidden (`workflow_folders.json:2`).
 - `workflows.folders.empty-states-suggest-a-workflow` — **[GAP]** an empty
   state (e.g. a folder with nothing transcribed) does not yet offer the
   workflow that would fill it. ISSUE: #4387.

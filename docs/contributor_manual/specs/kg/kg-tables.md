@@ -137,7 +137,10 @@ entities/claims), not a small demo table. What's missing:
 - `kg.view.contiguous-selection` [OK] — Set-based selection gives shift-click range +
   ⌘-click; keep it.
 - `kg.view.keyboard-delete` [MISSING] — ⌘⌫ deletes the selection; ⌘A selects all — same
-  selection grammar as every other library mode (`check_selection_grammar`, #4436).
+  selection grammar as every other library mode, enforced by `check_selection_grammar.py`.
+  Was mis-cited to the four-selection-implementations root-cause issue (long since closed —
+  that unified only the CLICK grammar, not keyboard delete/select-all); the actual remainder
+  is filed as #4794.
 - `kg.view.type-icons` [MISSING] (#4643) — rows use the per-type icons that ALREADY exist
   (`KnowledgeGraphSupport`: person/place/org/event/concept/date), not one flat glyph.
 - `kg.view.pagination` [MISSING at 10k] (#4643) — the table loads up to 25 000 client-side; at

@@ -47,9 +47,11 @@ remote host can't redirect a hermetic test).
   puts in-memory into the same equivalence sweep (ASGI level, gated) and, separately, a Swift-side
   test for the real PythonKit path.
 - `transport.event-delivery` [MISSING] — a `claim.updated` change-stream event reaches the **Swift**
-  client over each transport. This is the open #4486 hop; the engine round-trip proves the engine,
-  not the Swift client's stream (was blocked by the Swift unit-test host issue, #4511 — now that
-  the MainActor isolation fix landed, re-evaluate).
+  client over each transport; the engine round-trip proves the engine, not the Swift client's
+  stream. **Corrected citation (2026-09-18): the tracking issue is #4511** ("no Swift test executes
+  here: the FicheroTests host dials a live engine at launch"), replacing a previous mis-citation to
+  an unrelated, already-closed ClaimStore-write-path survey (caught by `spec_pipeline.py`'s rule
+  b). #4511 is still OPEN, so this remains blocked until it lands.
 
 ## Test matrix
 
@@ -57,7 +59,7 @@ remote host can't redirect a hermetic test).
 |-----|---------------|------|------|
 | Pure rule (Swift) | y | `localDebugTransportOverride` precedence table | `fichero/Tests/Unit/**/TransportSelectionTests.swift` |
 | Backend (pytest) | y | same read/write result across UDS/HTTPS/in-memory | `fichero-server/tests/integration/test_transport_round_trips.py` (exists, 7 passed) |
-| Swift event-delivery | y | change-stream event arrives at the Swift client per transport | `fichero/Tests/Unit/**/…StreamTests.swift` (#4486) |
+| Swift event-delivery | y | change-stream event arrives at the Swift client per transport | `fichero/Tests/Unit/**/…StreamTests.swift` (#4511) |
 
 Hard-gate: `transport.same-result` (the cross-transport invariant) + `transport.uitest-owns`
 (the harness depends on it).
@@ -70,5 +72,7 @@ Hard-gate: `transport.same-result` (the cross-transport invariant) + `transport.
 
 ## Open questions
 
-1. `transport.event-delivery` (#4486): write the Swift change-stream test now that the MainActor
-   isolation fix (#4511 class) has landed? (Tracked; not this pass.)
+1. `transport.event-delivery` (#4511): write the Swift change-stream test — is the MainActor
+   default-isolation fix (landed for `FicheroTests`, MEMORY
+   `test-target-needs-mainactor-default-isolation`) enough to unblock #4511, or does #4511 need
+   its own re-verification first? (Tracked; not this pass.)

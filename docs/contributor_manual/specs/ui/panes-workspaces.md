@@ -271,9 +271,9 @@ defects (the toggle half of the CD's "can't turn preview/library/reader on or of
   buttons (`ContentView+Toolbar.swift:186,195,207,256`) read/write `paneVisibility`/
   `activePaneList` directly — derived from the pane list, not gated by `LayoutMode`. A repo-wide
   search for `currentLayoutMode = .widescreen` (the force-reflow this line complained about)
-  found zero remaining call sites. Pinned: `ToolbarSurfaceLitStateTests.paneTogglesLight` (the
-  toolbar reads `paneVisibility`, not a layoutMode-gated Bool) — same fix cluster as
-  `panes.visibility.derived-from-list` above.
+  found zero remaining call sites. Pinned: `ToolbarSurfaceLitStateTests`
+  (`paneTogglesLight` — the toolbar reads `paneVisibility`, not a layoutMode-gated Bool) —
+  same fix cluster as `panes.visibility.derived-from-list` above.
 - `panes.dead-toggle-policy` — **[BROKEN, cleanup]** (#4747) `ReadingWorkspacePaneTogglePolicy`
   (`Models/LayoutMode.swift:237-253`) documents the exact intended behavior for the above
   ("a toggle from None/Standard enters the widescreen workspace and shows that pane") but has
@@ -376,10 +376,10 @@ the browse→read flow down the centre.
   33cbcdf92): `PaneList.splittingLeaf(id:axis:)` splits only the targeted leaf, and
   `PaneSpec.slot` makes each pane's split key per-instance (was per-kind), so same-kind panes
   no longer share one split cell. **2026-09-18:** the toolbar Workspaces menu's Split Right/Below
-  and its menu-bar twin now ACTUALLY route through the stored `PaneList` (#4685) — resolving
-  `focusedPane ?? paneFocusHint` to a kind, then `activePaneList.leafIDs(of: kind).first`, then
-  `activePaneList.splittingLeaf(id, axis:)`. REMAINING: instance-precise focus — with two
-  same-kind panes (Compare) this still targets the FIRST leaf of the focused kind, not
+  and its menu-bar twin now ACTUALLY route through the stored `PaneList` (fixed, closed) —
+  resolving `focusedPane ?? paneFocusHint` to a kind, then `activePaneList.leafIDs(of: kind).first`, then
+  `activePaneList.splittingLeaf(id, axis:)`. REMAINING (#4795): instance-precise focus — with
+  two same-kind panes (Compare) this still targets the FIRST leaf of the focused kind, not
   necessarily the instance under the pointer; every built-in today has at most one leaf per
   kind, so it's exact for all of them, but full per-instance precision (the "increment 4" this
   spec's Migration order names) is still open. Pinned: `PaneListTests` ("splitting a pane splits
@@ -395,7 +395,7 @@ the browse→read flow down the centre.
   `Tests/Unit/general/Models/PaneListTests.swift` ("closing a pane removes ONLY that pane…",
   "…collapses to the survivor — the row does not disappear") + `PaneInstanceIndependenceTests`.
 - `panes.head.kind-switcher-everywhere` — **[PARTIAL]** (#4706; Reader fixed d8621ecc3, pinned by
-  `PaneHeadKindSwitcherParityTests`; Chat follows #4705 increment 6) every pane head
+  `PaneHeadKindSwitcherParityTests`; Chat follows → #4705 increment 6) every pane head
   that renders a leaf kind mounts the kind selector, so ANY pane can become a Library, Source or
   Reader. Cause (verified): the Reader head mounts `PaneKindSelector` with `collapsesKindIntoLens: true`
   (the one-icon ruling), whose merged-lens path never consulted `\.paneKindSwitcher`; Library /
@@ -420,9 +420,10 @@ the browse→read flow down the centre.
   pane. The three legacy `@SceneStorage` Bools this used to read are DELETED from
   `ContentView.swift`, so there is nothing left for toolbar labels, View-menu checkmarks, or
   `cyclePaneFocus`'s pane-cycle order to drift out of sync with what the window actually
-  renders. Pinned: `WorkspaceLayoutDefaultsTests.testOnlyTheDeliberatelyChosenSurfacesAreRemembered`
-  (the remembered-Bool inventory is chat + layoutMode only, not the three panes) +
-  `ToolbarSurfaceLitStateTests.paneTogglesLight` (the toolbar reads `paneVisibility`, not a Bool).
+  renders. Pinned: `WorkspaceLayoutDefaultsTests`
+  (`testOnlyTheDeliberatelyChosenSurfacesAreRemembered` — the remembered-Bool inventory is
+  chat + layoutMode only, not the three panes) + `ToolbarSurfaceLitStateTests`
+  (`paneTogglesLight` — the toolbar reads `paneVisibility`, not a Bool).
 - `panes.builtin.stable-ids` — **[OK, 2026-09-18]** a built-in workspace's leaf ids are STABLE
   across every access (same `PaneList` value every time `BuiltInWorkspaceLayout.read.panes` is
   read), not freshly random each time. `PaneNode.stableLeaf`/`.stableSplit` (`PaneList.swift`,
@@ -477,8 +478,8 @@ the browse→read flow down the centre.
 - `panes.kg.library-change-resets` — **[OK]** (fixed 5b709aca0) switching the active library
   resets the claims AND entities tables to the new library's data — Claims key `.task` on a
   composite `library|folder` key and rebuild the cached model on a library switch; Entities
-  key on `ObjectIdentifier(store)`. Pinned:
-  `Tests/Unit/general/Views/Library/ClaimsLibraryReloadKeyTests.swift`.
+  key on `ObjectIdentifier(store)`. Pinned: `ClaimsLibraryReloadKeyTests`
+  (`fichero/Tests/Unit/general/Views/Library/ClaimsLibraryReloadKeyTests.swift`).
 - `panes.entity.sources-pane` — **[GAP]** (#4729) an entity pane can show **all source pages** the
   entity appears on — scroll through them, see the same name across four documents, judge
   whether it is one person. (An entity is a name; its statements/sources are where it
@@ -488,14 +489,16 @@ the browse→read flow down the centre.
 
 ### D. Workspaces
 
-- `panes.workspace.save` — **[OK, composition; GAP, live selection/sync]** (#4731 for the GAP half) "Save Current as
+- `panes.workspace.save` — **[PARTIAL]** "Save Current as
   Workspace…" captures the REAL pane composition, not a lie: `WindowLayoutSnapshot.paneList:
   PaneList?` (`WindowWorkspace.swift`) is set to `activePaneList` (`captureLayoutSnapshot`,
   `ContentView+LayoutChooser.swift`) — this was the field that was missing (§"Existing
-  machinery"'s "model split" debt). Sync-toggle state and a live selection-scope snapshot beyond
-  `PaneScope.documentId` pins remain **[GAP]** (spec §"Resolved 2026-09-15": save = layout only,
-  by design). Pinned: `WindowWorkspaceTests.testSnapshotCarriesTheAppliedPaneListThroughJSON`
-  (round-trip incl. leaf ids).
+  machinery"'s "model split" debt); pinned by
+  `WindowWorkspaceTests.testSnapshotCarriesTheAppliedPaneListThroughJSON` (round-trip incl.
+  leaf ids). REMAINING (#4731): sync-toggle state and a live selection-scope snapshot beyond
+  `PaneScope.documentId` are not captured — deliberately out of scope for this increment
+  (spec §"Resolved 2026-09-15": save = layout only, by design), tracked as a real backlog
+  item rather than closed as won't-fix.
 - `panes.workspace.reopen` — **[OK]** applying a saved workspace assigns its `paneList` to
   `activePaneList` (`applyLayoutSnapshot`) — before this fix it never touched `activePaneList`
   at all, so applying a saved workspace changed nothing visible. An OLD snapshot (saved before
@@ -505,10 +508,10 @@ the browse→read flow down the centre.
   `try?` around the one field's decode inside `WindowLayoutSnapshot.init(from:)` — rather than
   throwing out of decode and voiding the ENTIRE saved-workspace catalog
   (`WindowWorkspaceCatalog.decoded(from:)` swallows any throw from a member's decode to `nil`
-  for the whole catalog). Pinned: `WindowWorkspaceTests.
-  testAnOldShapeSnapshotDecodesWithPaneListNil`,
+  for the whole catalog). Pinned: `WindowWorkspaceTests`
+  (`testAnOldShapeSnapshotDecodesWithPaneListNil`,
   `testASnapshotWithMalformedPaneListDataStillDecodesWithPaneListNil`,
-  `testOneWorkspaceWithMalformedPaneListDoesNotDeleteTheRestOfTheCatalog`.
+  `testOneWorkspaceWithMalformedPaneListDoesNotDeleteTheRestOfTheCatalog`).
 - `workspaces.persist-applied-list` — **[OK, 2026-09-18]** the applied `PaneList` survives a
   relaunch: EVERY writer of `activePaneList` (`setPaneVisible`, `applyWorkspaceLayout`, a
   saved-workspace apply, `splitFocusedLeaf`, pane-head close/kind-switch) ends by calling
@@ -517,10 +520,11 @@ the browse→read flow down the centre.
   Bool-only `WorkspaceLayoutDefaults.Key` enum since it's a different shape). `ContentView.
   activePaneList`'s seed reads it back — `WorkspaceLayoutDefaults.rememberedPaneList() ??
   BuiltInWorkspaceLayout.read.panes` — falling back to Read when nothing was ever remembered.
-  Pinned: `WorkspaceLayoutDefaultsTests.testRememberedPaneListRoundTripsThroughUserDefaults`,
+  Pinned: `WorkspaceLayoutDefaultsTests`
+  (`testRememberedPaneListRoundTripsThroughUserDefaults`,
   `testNoRememberedPaneListReturnsNilSoTheCallerCanFallBackToRead`,
   `testThePaneListSeedIsWired`, and the structural guardrail
-  `testEveryActivePaneListWriterCallsTheOneFunnel` (every known mutation site is followed by
+  `testEveryActivePaneListWriterCallsTheOneFunnel` — every known mutation site is followed by
   `paneListDidChange()` within a few lines — a new writer that skips it fails this test by name).
 
 ### E. Default layout & chat placement
@@ -963,11 +967,13 @@ Creative director, running the app (the one-renderer + old split/close wiring st
   close-both is also fixed (the PaneHead close-ladder now collapses an active in-slot split by one
   before removing the whole leaf). **UPDATE 2026-09-18: the split side is now symmetric with close**
   (see `panes.split.focused-only` above) — both act on the stored `PaneList` by leaf id.
-- `panes.head.consistent-minimal` — **[OK]** (fixed 2026-09-16, dfa937946) every pane head is now the
-  same consistent liquid-glass style with no per-kind chrome: `PaneFilterBar.showsSeparator` defaults
-  OFF (no Library/Reader hairline), and the ChatView standalone `Divider` was removed. `\.isSolePane`
-  additionally collapses the head's close control when a pane is the only one. (The preview's minimal,
-  line-less, tight style is now the shared one — Golden-Gate restraint.)
+- `panes.head.consistent-minimal` — **[PARTIAL]** (implemented, unpinned; #4796) (fixed
+  2026-09-16, dfa937946) every pane head is now the same consistent liquid-glass style with
+  no per-kind chrome: `PaneFilterBar.showsSeparator` defaults OFF (no Library/Reader
+  hairline), and the ChatView standalone `Divider` was removed. `\.isSolePane` additionally
+  collapses the head's close control when a pane is the only one. (The preview's minimal,
+  line-less, tight style is now the shared one — Golden-Gate restraint.) No test found
+  pinning `showsSeparator`'s default or `isSolePane`'s effect — tracked in #4796.
 - `panes.head.drag-to-rearrange` — **[GAP, requested]** (#4748) Dragging a pane by the icon at the LEFT of
   its head (the kind/preview icon) should let the user move that pane elsewhere in the composition
   (reorder / re-nest). A direct-manipulation complement to the pane list. New.

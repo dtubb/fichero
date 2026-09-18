@@ -201,54 +201,58 @@ Inspector content, not as a rival top-level surface.
 
 ## Behaviors
 
-- `research.one-surface-named-research` — **[OK]** the surface is named Research; there is
-  no separate "Researcher"/"Agent"/"Assistant" persona anywhere in the shipped UI (the
-  `ChatSurfaceTab` doc comment states `chat = agent = workspace`, `ChatView.swift:5-6`).
-- `research.chat-is-lightweight-end` — **[OK]** a plain `ChatView` with no `researchProject`
-  works standalone; the Plan tab's invitation is the only place the workspace concept
-  surfaces (`ChatView.swift:210-231`).
-- `research.plan-promotes-to-workspace` — **[OK]** `saveAsWorkspace()` persists the current
-  conversation as a workspace on demand (`ChatView.swift:239-245`), the one continuum seam.
+- `research.one-surface-named-research` — **[PARTIAL]** (implemented, unpinned; #4798) the
+  surface is named Research; there is no separate "Researcher"/"Agent"/"Assistant" persona
+  anywhere in the shipped UI (the `ChatSurfaceTab` doc comment states `chat = agent =
+  workspace`, `ChatView.swift:5-6`).
+- `research.chat-is-lightweight-end` — **[PARTIAL]** (implemented, unpinned; #4798) a plain
+  `ChatView` with no `researchProject` works standalone; the Plan tab's invitation is the
+  only place the workspace concept surfaces (`ChatView.swift:210-231`).
+- `research.plan-promotes-to-workspace` — **[PARTIAL]** (implemented, unpinned; #4798)
+  `saveAsWorkspace()` persists the current conversation as a workspace on demand
+  (`ChatView.swift:239-245`), the one continuum seam.
 - `research.workspace-is-folder-node` — **[OK]** `createWorkspace` marks an ordinary folder
   (`DocumentStore+CRUD.swift:43-48`); library items enter by alias
-  (`Document.aliasTargetId`), never moved.
-- `research.chat-context-aware` — **[OK]** the toolbar's implicit-scope indicator
-  (`ChatViewToolbar.swift:70-83`) shows what the chat is grounded on by default; the
-  composer's pin menu (`ChatView.swift:296-330`) layers explicit pinned documents on top.
-- `research.sources-tab-is-chat-scope` — **[OK]** the Sources tab is `ChatInspector` plus
-  the cited ledger (`ChatView.swift:186-207`); there is no separate "Chat Scope" concept
-  outside this tab.
+  (`Document.aliasTargetId`), never moved. Pinned: `SidebarWorkspaceNodeTests`.
+- `research.chat-context-aware` — **[PARTIAL]** (implemented, unpinned; #4798) the toolbar's
+  implicit-scope indicator (`ChatViewToolbar.swift:70-83`) shows what the chat is grounded on
+  by default; the composer's pin menu (`ChatView.swift:296-330`) layers explicit pinned
+  documents on top.
+- `research.sources-tab-is-chat-scope` — **[PARTIAL]** (implemented, unpinned; #4798) the
+  Sources tab is `ChatInspector` plus the cited ledger (`ChatView.swift:186-207`); there is
+  no separate "Chat Scope" concept outside this tab.
 - `research.project-is-sidebar-node` — **[GAP]** research projects should be sidebar nodes
   like workflows (`modes-to-panes.md`'s `m2p.research-is-sidebar-node`), not the bespoke
-  `ResearchProjectListView` sidebar-mode list that exists today. Tracked by #4705 (the
+  `ResearchProjectListView` sidebar-mode list that exists today. Tracked by → #4705 (the
   modes→panes EPIC) and #2446/#1738 (retire the Research sidebar mode into node kinds).
 - `research.plan-tab-is-only-plan-surface` — **[GAP]** `ResearchWorkspaceView`'s standalone
   3-pane container should retire once the Plan tab (`ResearchTasksPane`) and a Compare-tab
   browser rendition (open question below) cover its panes; today both the old container and
   the new tab exist side by side. No dedicated issue found for the `ResearchWorkspaceView`
-  retirement specifically — (#4719) (distinct from #4705's Library-pane-mount rule,
+  retirement specifically — (#4719) (distinct from → #4705's Library-pane-mount rule,
   which covers only where it must never mount, not its retirement).
 - `research.chat-single-mount` — **[PARTIAL]** (→ #4705 increment 6) owned by `modes-to-panes.md`'s
   `m2p.chat-single-mount`; listed here because it blocks a workspace's chat from being
   freely placeable. Not re-specified.
 - `research.chat-scope-single-mount` — **[BROKEN]** `ChatInspector` mounts from two call
   sites (`ChatView.swift:196` tab content and `ChatView.swift:340` attach sheet); owned by
-  `modes-to-panes.md`'s `m2p.chat-scope-inspector-only`. Tracked by #4705.
-- `research.agent-audited-tools` — **[OK]** the chat-tools loop is default-on, read-parity +
-  allowlisted-write, every call routed through `ActionRegistry.invoke`
-  (`chat.py:561-588`, `chat_tools.py:70-93`, `registry.py:156-210`).
+  `modes-to-panes.md`'s `m2p.chat-scope-inspector-only`. Tracked by → #4705.
+- `research.agent-audited-tools` — **[PARTIAL]** (implemented, unpinned; #4798) the
+  chat-tools loop is default-on, read-parity + allowlisted-write, every call routed through
+  `ActionRegistry.invoke` (`chat.py:561-588`, `chat_tools.py:70-93`, `registry.py:156-210`).
 - `research.per-model-tool-grants` — **[GAP]** no settings pane exists for an owner to grant
   or deny individual tools per model identity; role is the only boundary. Tracked by #2887
   (pluggable agent harness, scoped tools) — no issue found specifically for a per-model
   grant/deny UI — (#4721).
-- `research.browser-pane-trust-boundary` — **[OK]** `ResearchBrowserPane`'s only library
-  crossing is the audited `browser-save` action; no library/KG read tool is exposed to the
-  embedded WebView (`ResearchBrowserPane.swift:6-13`).
+- `research.browser-pane-trust-boundary` — **[PARTIAL]** (implemented, unpinned; #4798)
+  `ResearchBrowserPane`'s only library crossing is the audited `browser-save` action; no
+  library/KG read tool is exposed to the embedded WebView (`ResearchBrowserPane.swift:6-13`).
 - `research.embedded-browser-home-surface` — **[GAP]** where the embedded browser renders
   once `ResearchWorkspaceView` retires (a Preview rendition? a Compare-tab-style facet?) is
   undecided — see Open Questions. Tracked by #2886 (embedded WebKit browser + Safari MCP,
   needs-design) and #4043 (agent-driven visible browser renders in the Reader, needs-design).
-- `research.compare-folds-into-chat` — **[OK]** `ModelComparisonView` is already mounted
+- `research.compare-folds-into-chat` — **[PARTIAL]** (implemented, unpinned; #4798)
+  `ModelComparisonView` is already mounted
   from the Compare tab (`ChatView.swift:241`); `modes-to-panes.md`'s
   `m2p.comparison-folds-into-chat-compare` covers retiring the standalone
   `AppViewMode.comparison`/`ComparisonDetailView` mount (**[PROPOSED]** there, not restated
