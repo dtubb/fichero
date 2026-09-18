@@ -495,6 +495,15 @@ the browse→read flow down the centre.
   exclusively from `ResizableDivider`'s own drag handler. Pinned:
   `WorkspaceSplitStackSeedingTests` (an unseeded fraction re-resolves proportionally across two
   different totals; a real stored override still wins regardless of total).
+- `panes.split.minimap` — **[GAP]** (#1932) a split pane can act as a minimap of another pane's
+  content — especially the WebKit/KG graph view, where a small secondary pane shows an overview
+  of the whole document/graph while the main pane is zoomed in. Splitting and side-by-side
+  comparison themselves are already covered above (`panes.split.focused-only`,
+  `.independent-mode-per-pane`, `.fraction-not-seeded`) — this behavior is specifically the
+  MINIMAP relationship between two panes, not plain splitting. Distinct from
+  `NavigatorMiniMap.swift` (`Views/Preview/ImageViewer/`), which is an image-viewer zoom
+  navigator inside a single pane (`preview-magnifier.md`'s territory) — not a second PANE
+  showing an overview of a first one. Not built.
 
 ### B. Cross-pane zoom & magnifier state
 
@@ -610,10 +619,13 @@ the browse→read flow down the centre.
   image/reader, rather than under the chat text.
 - `panes.chat.collapsible-split` — **[GAP]** (→ #4705 increment 6) the sidebar↔chat divider drags to resize and
   collapses the chat region when only navigating.
-- `panes.library.horizontal-icon-strip` — **[BROKEN/GAP]** (#4732, → #1856 — a duplicate request
-  on a different milestone, not folded in) the library browser renders as a
+- `panes.library.horizontal-icon-strip` — **[BROKEN/GAP]** (#4732, #1856 — now folded onto this
+  milestone, same duplicate request) the library browser renders as a
   horizontal thumbnail strip (icon/list, Mail message-list style) at the top of the centre
-  column ("I want the icon view back — horizontal, like in Mail").
+  column ("I want the icon view back — horizontal, like in Mail"). #1856 additionally frames
+  this as a display-mode alongside grid/list/table/map (`LibraryView+DisplayModes.swift`,
+  `LibraryView+TableMapViews.swift`) with its own toolbar/View-menu toggle and per-window
+  `@SceneStorage` — the same capability #4732 already tracks here, not a second one.
 - `panes.reader.one-or-two-below-browser` — **[GAP]** (#4733) below the browser strip sit one or two
   readers (transcription / summary / metadata), driven by the browser selection.
 - `panes.source.full-height-right` — **[GAP]** (#4734) the source image occupies the full-height
@@ -1043,9 +1055,30 @@ Creative director, running the app (the one-renderer + old split/close wiring st
   collapses the head's close control when a pane is the only one. (The preview's minimal,
   line-less, tight style is now the shared one — Golden-Gate restraint.) No test found
   pinning `showsSeparator`'s default or `isSolePane`'s effect — tracked in #4796.
+- `panes.inspector.icon-tabs-and-empty-state` — **[GAP]** (#1854) the right-inspector's own tab
+  bar should be compact SF-Symbol icon tabs (Xcode-style), and an inspector with nothing
+  selected should show a centered "No Selection" placeholder rather than blank or stale
+  content. Verified NOT built: `DocumentInspector+TabBar.swift:70` renders
+  `Text(facet.rawValue)` — text tabs, not icon tabs — and no "No Selection"/empty-state view
+  was found anywhere under `Views/Inspector/`. Distinct from `panes.head.consistent-minimal`
+  above, which covers chrome CONSISTENCY (no per-kind hairlines/dividers) — this behavior is
+  about the tab bar's own presentation and the empty state specifically, neither touched by
+  that fix.
 - `panes.head.drag-to-rearrange` — **[GAP, requested]** (#4748) Dragging a pane by the icon at the LEFT of
   its head (the kind/preview icon) should let the user move that pane elsewhere in the composition
   (reorder / re-nest). A direct-manipulation complement to the pane list. New.
+- `panes.head.inspector-always-visible` — **[GAP]** (#1199) an inspector column should be a
+  stable, always-present rightmost pane across every view (library, reading, KG graph,
+  workflow), never disappearing so a user loses their place. Verified NOT true today:
+  `ShellLayoutPolicy.swift` takes an `inspectorVisible: Bool` and a `collapseInspector` policy
+  that together hide the inspector below a width threshold (`:80-127`) — the inspector is
+  conditionally hidden by design, not a bug that slipped through. **Open design tension, not
+  decided here:** under the current "one system, every pane is a `PaneList` leaf" architecture
+  (`workspaces.one-system` above), the inspector is itself just one pane kind among many — a
+  user can already close or rearrange it like any other pane. Whether "always visible, never
+  hidden" survives that architecture, or whether the issue's 2026-06-08 framing predates it and
+  needs re-scoping to "never auto-collapsed below a size threshold" specifically, is a real
+  open question — reshaped, needs maintainer triage, not decided by this pass.
 
 - `panes.instance-safe` — **[FIXED 2026-09-15]** a workspace may mount more than one pane of the
   same kind in one window (Compare: two previews, two readers, two libraries). Applying it used to

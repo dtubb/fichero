@@ -225,6 +225,17 @@ Inspector content, not as a rival top-level surface.
 - `research.workspace-is-folder-node` — **[OK]** `createWorkspace` marks an ordinary folder
   (`DocumentStore+CRUD.swift:43-48`); library items enter by alias
   (`Document.aliasTargetId`), never moved. Pinned: `SidebarWorkspaceNodeTests`.
+- `research.workspace-curated-items-crud` — **[GAP]** (#1490) a typed CRUD contract for a
+  workspace's `curated_items` — add/remove/reorder aliased items atomically
+  (`PATCH /api/documents/{id}/workspace`), a documented item schema (`{id, target_type,
+  target_id, role, added_at, x, y, notes}`), and a resolve-to-full-objects read
+  (`GET /api/documents/{id}/workspace/items`). Filed under a legacy milestone whose own name
+  ("Workspace CRUD") collided with `panes-workspaces.md`'s unrelated "saved pane-layout"
+  workspace concept — corrected here: `Document.is_workspace`/`curated_items` are THIS spec's
+  workspace (the research folder node above), not a pane layout, so this belongs here, not
+  there. Backend-only ask; not independently re-traced against `fichero-server/` this pass (a
+  concurrent engine lane is mid-task there) — cited at face value from the issue's own claim
+  that the fields already exist (`models.py:209`) and only the CRUD surface is missing.
 - `research.sources-tab-is-chat-scope` — **[PARTIAL]** (implemented, unpinned; #4798)
   **updated for creative-director ruling 2026-09-18, point 3:** chat scope lives in BOTH the
   Inspector's Sources tab AND the chat dock's own Sources view — this supersedes an earlier
