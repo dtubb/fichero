@@ -486,6 +486,44 @@ class TestSplitEntityAction:
         # Split-off status is untouched by undo (verified real behavior).
         assert db.get(KnowledgeEntity, absorbed.id).merged_into_id is None
 
+    def test_undo_split_audit_names_the_real_undo_actor(self, db):
+        """#4843: `undo_entity_operation_impl`'s `undo_split` EntityMergeAudit
+        used to hardcode `created_by="human"` regardless of who undid it."""
+        from fichero_server.actions.registry import ActionContext, registry
+        from fichero_server.models.knowledge import EntityMergeAudit, EntityMergeOperationType
+
+        absorber = _make_entity(db, "Alice")
+        absorber.aliases = ["alice", "moved-alias"]
+        db.save(absorber)
+        absorbed = _make_entity(db, "Alicia")
+        merge_ctx = ActionContext(actor="alice", library_path="/lib/test.fichero")
+        registry.invoke(
+            db, "entity.merge",
+            {"absorbing_entity_id": absorber.id, "absorbed_entity_ids": [absorbed.id]},
+            merge_ctx,
+        )
+        split = registry.invoke(
+            db, "entity.split",
+            {
+                "primary_entity_id": absorber.id,
+                "split_off_entity_ids": [absorbed.id],
+                "aliases_to_move": ["moved-alias"],
+            },
+            merge_ctx,
+        )
+
+        undo_ctx = ActionContext(actor="mcp-agent", library_path="/lib/test.fichero")
+        registry.invoke(
+            db, "entity.unmerge", {"audit_id": split.result["id"]}, undo_ctx,
+        )
+
+        undo_split_audits = [
+            row for row in db.all(EntityMergeAudit)
+            if row.operation_type == EntityMergeOperationType.undo_split
+        ]
+        assert len(undo_split_audits) == 1
+        assert undo_split_audits[0].created_by == "mcp-agent"
+
     def test_a_split_entity_survives_the_nlp_draft_purge(self, db):
         """Closing the loop with entity.purge_nlp_draft, same shape as the
         entity.link_authority test (#4829)."""
@@ -814,6 +852,30 @@ class TestLinkAuthorityAction:
         assert result.ok is True
         audits = [row for row in db.all(ActionAudit) if row.action_name == "entity.link_authority"]
         assert len(audits) == 1
+
+    def test_created_by_is_the_real_actor_not_a_hardcoded_human(self, db):
+        """#4843: `link_authority_impl` used to hardcode `created_by="human"`
+        regardless of who confirmed the match. An agent-driven confirmation
+        must record the agent, not a false "human" claim."""
+        from fichero_server.actions.registry import ActionContext, registry
+        from fichero_server.models.knowledge import EntityMergeAudit, EntityMergeOperationType
+
+        entity = _make_entity(db, "Alice")
+        _make_authority_snapshot(db)
+        ctx = ActionContext(actor="mcp-agent", library_path="/lib/test.fichero")
+
+        registry.invoke(
+            db, "entity.link_authority",
+            {"entity_id": entity.id, "authority": "wikidata", "authority_id": "Q1"},
+            ctx,
+        )
+
+        merge_audits = [
+            row for row in db.all(EntityMergeAudit)
+            if row.operation_type == EntityMergeOperationType.authority_link
+        ]
+        assert len(merge_audits) == 1
+        assert merge_audits[0].created_by == "mcp-agent"
 
     def test_not_undoable_no_regression_from_bare_route(self, db):
         """No undo-* machinery exists for authority_link -- confirmed at

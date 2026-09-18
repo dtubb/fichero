@@ -9,10 +9,13 @@ in OpenAPI codegen.
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
+from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
+from fichero_server.api.auth import request_actor
 from fichero_server.api.main import get_library_database, get_library_database_for_write
 from fichero_server.db import Database
 from fichero_server.db.embeddings import KG_CLAIM_EMBEDDINGS_TABLE
@@ -87,27 +90,63 @@ def search_claims_semantic_impl(
     return KGGraphListResponse(items=items, count=len(items))
 
 
+@action(
+    "claim.embed",
+    _EmbedClaimRequest,
+    domains=["claim"],
+    # A derived-index refresh, not user data -- re-running it recomputes the
+    # SAME vectors from the SAME claim text, the same reasoning
+    # `triangulation.recompute` (#4831 batch 2) already gives for staying
+    # non-undoable. Nothing here is a correction a person could "take back".
+    undoable=False,
+)
+def _action_embed_claims(
+    db: Database, params: "_EmbedClaimRequest", ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    if params.claim_ids:
+        claims = [db.get(KnowledgeClaim, cid) for cid in params.claim_ids]
+        claims = [c for c in claims if c is not None]
+    else:
+        claims = db.all(KnowledgeClaim)
+
+    if not claims:
+        result = {"embedded": 0, "table": KG_CLAIM_EMBEDDINGS_TABLE}
+    else:
+        embedded = _embed_claims_sync(db, claims)
+        result = {"embedded": embedded, "table": KG_CLAIM_EMBEDDINGS_TABLE}
+    spec = ChangeSpec(domains=["claim"], after=result)
+    return result, spec
+
+
 @router.post("/embed", response_model=EmbedClaimsResponse)
 async def embed_claims(
     request: _EmbedClaimRequest | None = None,
     db: Database = Depends(get_library_database_for_write),
+    actor: str = Depends(request_actor),
 ) -> EmbedClaimsResponse:
     """Embed claims into LanceDB for semantic search.
 
     Runs the synchronous FastEmbed batch in a worker thread so the FastAPI
     event loop stays responsive — same fix as the entity-curation peer (#1004).
     """
-    if request and request.claim_ids:
-        claims = [db.get(KnowledgeClaim, cid) for cid in request.claim_ids]
-        claims = [c for c in claims if c is not None]
-    else:
-        claims = db.all(KnowledgeClaim)
+    # #4831 batch 3: the actual embedding call moved into `claim.embed`'s
+    # action body, so the WHOLE `registry.invoke` (audit write included)
+    # runs off the event loop, not just the embedding call by itself. A `#`
+    # comment, not a docstring addition -- extending the docstring here
+    # would change this route's OpenAPI `description` (verified: it did,
+    # caught via the in-memory schema diff before landing this).
+    ctx = ActionContext(actor=actor, library_path=str(Path(db.path).parent))
 
-    if not claims:
-        return EmbedClaimsResponse(embedded=0, table=KG_CLAIM_EMBEDDINGS_TABLE)
+    def _invoke():
+        return registry.invoke(
+            db,
+            "claim.embed",
+            (request or _EmbedClaimRequest()).model_dump(mode="json"),
+            ctx,
+        )
 
-    embedded = await asyncio.to_thread(_embed_claims_sync, db, claims)
-    return EmbedClaimsResponse(embedded=embedded, table=KG_CLAIM_EMBEDDINGS_TABLE)
+    result = await asyncio.to_thread(_invoke)
+    return EmbedClaimsResponse(**result.result)
 
 
 @router.get("", response_model=KGGraphListResponse)

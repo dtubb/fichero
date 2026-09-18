@@ -645,11 +645,20 @@ async def split_entity(
     return EntityAuditResponse.model_validate(result.result)
 
 
-def undo_entity_operation_impl(db: Database, audit_id: str) -> EntityMergeAudit:
+def undo_entity_operation_impl(
+    db: Database, audit_id: str, actor: str = "human"
+) -> EntityMergeAudit:
     """Reverse a previous merge/split from its audit record (returns the undo
     audit). Extracted from the ``/audit/{id}/undo`` route so the ``entity.merge``
     action's ``invert`` reuses the exact same proven reversal (iterate-not-
-    replace). Raises ``HTTPException`` on missing/already-undone records."""
+    replace). Raises ``HTTPException`` on missing/already-undone records.
+
+    #4843: ``actor`` (``ctx.actor`` from the caller) names who performed the
+    UNDO on the resulting ``undo_merge``/``undo_split`` ``EntityMergeAudit``
+    row -- it used to hardcode ``created_by="human"`` regardless of whether a
+    person, a workflow, or an agent triggered the undo (the ``entity.merge``
+    forward operation's own audit was fixed the same way earlier, #4415).
+    """
     audit = db.get(EntityMergeAudit, audit_id)
     if audit is None:
         raise HTTPException(
@@ -738,7 +747,7 @@ def undo_entity_operation_impl(db: Database, audit_id: str) -> EntityMergeAudit:
                 "restored_claim_fields": restored_claim_fields,
             },
             reversal_id=audit_id,
-            created_by="human",
+            created_by=actor,
             created_at=now,
         )
     elif audit.operation_type == EntityMergeOperationType.split:
@@ -758,7 +767,7 @@ def undo_entity_operation_impl(db: Database, audit_id: str) -> EntityMergeAudit:
             target_entity_id=audit.target_entity_id,
             alias_changes={"restored_from": [], "moved_to": {}},
             reversal_id=audit_id,
-            created_by="human",
+            created_by=actor,
             created_at=now,
         )
     else:
@@ -814,6 +823,7 @@ def _embed_entities_sync(
 async def embed_entities(
     request: _EmbedEntityRequest | None = None,
     db: Database = Depends(get_library_database_for_write),
+    actor: str = Depends(request_actor),
 ) -> EmbedEntitiesResponse:
     """Embed entities into LanceDB for semantic search.
 
@@ -822,17 +832,25 @@ async def embed_entities(
     event loop can keep serving other endpoints (e.g. /api/health) while
     embedding is in flight (#1004).
     """
-    if request and request.entity_ids:
-        entities = [db.get(KnowledgeEntity, eid) for eid in request.entity_ids]
-        if missing := [eid for eid, entity in zip(request.entity_ids, entities) if entity is None]:
-            raise HTTPException(status_code=404, detail=f"Entity not found: {missing[0]}")
-    else:
-        entities = db.all(KnowledgeEntity)
-    if not entities:
-        return EmbedEntitiesResponse(embedded=0, table=KG_ENTITY_EMBEDDINGS_TABLE)
+    # #4831 batch 3: the actual embedding call moved into `entity.embed`'s
+    # action body (registered below), so the WHOLE `registry.invoke` (audit
+    # write included) runs off the event loop. A `#` comment, not a
+    # docstring addition -- verified via the in-memory schema diff that
+    # extending the docstring changes this route's OpenAPI `description`.
+    from pathlib import Path
 
-    embedded = await asyncio.to_thread(_embed_entities_sync, db, entities)
-    return EmbedEntitiesResponse(embedded=embedded, table=KG_ENTITY_EMBEDDINGS_TABLE)
+    ctx = ActionContext(actor=actor, library_path=str(Path(db.path).parent))
+
+    def _invoke():
+        return registry.invoke(
+            db,
+            "entity.embed",
+            (request or _EmbedEntityRequest()).model_dump(mode="json"),
+            ctx,
+        )
+
+    result = await asyncio.to_thread(_invoke)
+    return EmbedEntitiesResponse(**result.result)
 
 
 @router.get("/semantic", response_model=KGGraphListResponse)
@@ -1226,12 +1244,13 @@ async def put_external_authority_settings(
     body: ExternalAuthoritySettings,
     _owner: None = Depends(_require_owner_or_bootstrap),
     db: Database = Depends(get_library_database_for_write),
+    actor: str = Depends(request_actor),
 ) -> ExternalAuthoritySettings:
-    db.save(
-        LibrarySetting(
-            id=_EXTERNAL_AUTHORITY_SETTING_ID,
-            value="true" if body.external_authority_enabled else "false",
-        )
+    from pathlib import Path
+
+    ctx = ActionContext(actor=actor, library_path=str(Path(db.path).parent))
+    registry.invoke(
+        db, "kg.set_external_authority_enabled", body.model_dump(mode="json"), ctx
     )
     return body
 
@@ -1268,17 +1287,26 @@ class LinkAuthorityParams(BaseModel):
     authority_id: str = Field(min_length=1)
 
 
-def link_authority_impl(db: Database, params: LinkAuthorityParams) -> EntityMergeAudit:
+def link_authority_impl(
+    db: Database, params: LinkAuthorityParams, actor: str = "human"
+) -> EntityMergeAudit:
     """Confirm + persist one entity-to-authority link. Extracted verbatim
     from the former bare route body (#4829) -- same lookups, same metadata
     write, same `EntityMergeAudit` row (the inspector's curation history
     reads this table, so it must keep existing regardless of the action
-    wrapper). `created_by` stays the literal `"human"` this route always
-    recorded -- this operation's own meaning is "a human confirmed this
-    external match," not "whoever's credential made the HTTP call," so it
-    is not parameterized on `ctx.actor` the way `entity.merge` is; keeping
-    it a literal also guarantees the route's response is byte-identical to
-    before, not just shaped the same.
+    wrapper).
+
+    #4843: `created_by` is now `actor` (`ctx.actor`), not the literal
+    `"human"` this route used to always record. The earlier reasoning here
+    -- "this operation's own meaning is 'a human confirmed this', not
+    'whoever's credential made the call'" -- no longer holds now that
+    `entity.link_authority` is reachable by agents through
+    `POST /api/actions/invoke` (7523bcf95): an agent-confirmed match is a
+    real, common case the hardcoded string actively misrepresented. See
+    `docs/contributor_manual/specs/harness/audited-action-layer.md`'s
+    `audit.actor-attribution-is-real-not-hardcoded` for the full reasoning,
+    recorded there so this is not re-litigated the next time someone reads
+    this docstring.
     """
     entity = db.get(KnowledgeEntity, params.entity_id)
     if entity is None:
@@ -1302,7 +1330,7 @@ def link_authority_impl(db: Database, params: LinkAuthorityParams) -> EntityMerg
         source_entity_ids=[],
         target_entity_id=entity.id,
         alias_changes={"authority_link": link},
-        created_by="human",
+        created_by=actor,
     )
     db.save(audit)
     return audit
@@ -1620,7 +1648,7 @@ def _action_merge_entities(
 def _action_unmerge_entities(
     db: Database, params: UnmergeEntitiesParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
-    undo_audit = undo_entity_operation_impl(db, params.audit_id)
+    undo_audit = undo_entity_operation_impl(db, params.audit_id, ctx.actor)
     entity_ids = [undo_audit.target_entity_id, *undo_audit.source_entity_ids]
     spec = ChangeSpec(
         domains=["entity", "claim"],
@@ -1679,7 +1707,7 @@ def _action_split_entity(
 def _action_link_authority(
     db: Database, params: LinkAuthorityParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
-    audit = link_authority_impl(db, params)
+    audit = link_authority_impl(db, params, ctx.actor)
     spec = ChangeSpec(
         domains=["entity"],
         target_ids=[params.entity_id],
@@ -1711,6 +1739,77 @@ def _action_batch_entity_curation(
         entity_ids=response.entity_ids,
     )
     return response.model_dump(mode="json"), spec
+
+
+@action(
+    "entity.embed",
+    _EmbedEntityRequest,
+    domains=["entity"],
+    # A derived-index refresh, not user data -- re-running it recomputes the
+    # SAME vectors from the SAME entity fields, same reasoning
+    # `triangulation.recompute`/`claim.embed` (#4831 batches 2/3) already
+    # give for staying non-undoable.
+    undoable=False,
+)
+def _action_embed_entities(
+    db: Database, params: "_EmbedEntityRequest", ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    if params.entity_ids:
+        entities = [db.get(KnowledgeEntity, eid) for eid in params.entity_ids]
+        if missing := [
+            eid for eid, entity in zip(params.entity_ids, entities) if entity is None
+        ]:
+            raise HTTPException(status_code=404, detail=f"Entity not found: {missing[0]}")
+    else:
+        entities = db.all(KnowledgeEntity)
+
+    if not entities:
+        result = {"embedded": 0, "table": KG_ENTITY_EMBEDDINGS_TABLE}
+    else:
+        embedded = _embed_entities_sync(db, entities)
+        result = {"embedded": embedded, "table": KG_ENTITY_EMBEDDINGS_TABLE}
+    spec = ChangeSpec(domains=["entity"], after=result)
+    return result, spec
+
+
+class SetExternalAuthorityEnabledParams(BaseModel):
+    external_authority_enabled: bool = False
+
+
+def _invert_set_external_authority_enabled(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    if before is None:
+        return None
+    return ("kg.set_external_authority_enabled", before)
+
+
+@action(
+    "kg.set_external_authority_enabled",
+    SetExternalAuthorityEnabledParams,
+    domains=["kg"],
+    undoable=True,
+    invert=_invert_set_external_authority_enabled,
+)
+def _action_set_external_authority_enabled(
+    db: Database, params: SetExternalAuthorityEnabledParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    existing = db.get(LibrarySetting, _EXTERNAL_AUTHORITY_SETTING_ID)
+    before = {"external_authority_enabled": existing.value == "true"} if existing else None
+    db.save(
+        LibrarySetting(
+            id=_EXTERNAL_AUTHORITY_SETTING_ID,
+            value="true" if params.external_authority_enabled else "false",
+        )
+    )
+    after = {"external_authority_enabled": params.external_authority_enabled}
+    spec = ChangeSpec(
+        domains=["kg"],
+        target_ids=[_EXTERNAL_AUTHORITY_SETTING_ID],
+        before=before,
+        after=after,
+    )
+    return after, spec
 
 
 # Resolve forward refs in EntityAuditListResponse (declared in models.py with

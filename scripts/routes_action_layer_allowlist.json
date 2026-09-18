@@ -1,26 +1,5 @@
 [
   {
-    "file": "fichero-server/src/fichero_server/api/routes/kg/claim_search.py",
-    "function": "embed_claims",
-    "class": "violation",
-    "reason": "#4831 sweep 2026-09-18 \u2014 bare mutating route, no registry.invoke() call in its own body",
-    "issue": 4831
-  },
-  {
-    "file": "fichero-server/src/fichero_server/api/routes/kg/entity_curation.py",
-    "function": "embed_entities",
-    "class": "violation",
-    "reason": "#4831 sweep 2026-09-18 \u2014 bare mutating route, no registry.invoke() call in its own body",
-    "issue": 4831
-  },
-  {
-    "file": "fichero-server/src/fichero_server/api/routes/kg/entity_curation.py",
-    "function": "put_external_authority_settings",
-    "class": "violation",
-    "reason": "#4831 sweep 2026-09-18 \u2014 bare mutating route, no registry.invoke() call in its own body",
-    "issue": 4831
-  },
-  {
     "file": "fichero-server/src/fichero_server/api/routes/kg/entity_curation.py",
     "function": "refresh_external_authority",
     "class": "violation",
@@ -44,9 +23,8 @@
   {
     "file": "fichero-server/src/fichero_server/api/routes/kg/predictions.py",
     "function": "generate_heuristic_predictions",
-    "class": "violation",
-    "reason": "#4831 sweep 2026-09-18 \u2014 bare mutating route, no registry.invoke() call in its own body",
-    "issue": 4831
+    "class": "by-design",
+    "reason": "read-only: scores candidate links from existing rows and returns them, no db.save/delete/transaction anywhere in the body \u2014 POST is used because the request body carries top_k and entity_id, not because it mutates. Reclassified 2026-09-18 after reading the whole function."
   },
   {
     "file": "fichero-server/src/fichero_server/api/routes/kg/predictions.py",
@@ -58,20 +36,6 @@
   {
     "file": "fichero-server/src/fichero_server/api/routes/kg/pykeen.py",
     "function": "train",
-    "class": "violation",
-    "reason": "#4831 sweep 2026-09-18 \u2014 bare mutating route, no registry.invoke() call in its own body",
-    "issue": 4831
-  },
-  {
-    "file": "fichero-server/src/fichero_server/api/routes/kg/pykeen.py",
-    "function": "create_prediction_review",
-    "class": "violation",
-    "reason": "#4831 sweep 2026-09-18 \u2014 bare mutating route, no registry.invoke() call in its own body",
-    "issue": 4831
-  },
-  {
-    "file": "fichero-server/src/fichero_server/api/routes/kg/pykeen.py",
-    "function": "decide_prediction_review",
     "class": "violation",
     "reason": "#4831 sweep 2026-09-18 \u2014 bare mutating route, no registry.invoke() call in its own body",
     "issue": 4831

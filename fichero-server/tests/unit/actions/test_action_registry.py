@@ -200,6 +200,35 @@ class TestEntityMergeAction:
         # merge reversed: merged_into_id cleared
         assert db.get(KnowledgeEntity, absorbed.id).merged_into_id is None
 
+    def test_undo_merge_audit_names_the_real_undo_actor(self, db):
+        """#4843: `undo_entity_operation_impl`'s `undo_merge` EntityMergeAudit
+        used to hardcode `created_by="human"` regardless of who performed the
+        undo. Merging as one actor, then undoing as ANOTHER, must record the
+        SECOND actor on the undo row -- not the first, and not a literal."""
+        from fichero_server.models.knowledge import EntityMergeAudit, EntityMergeOperationType
+
+        absorber, absorbed = self._two_entities(db)
+        merge_ctx = ActionContext(actor="alice", library_path="/lib/test.fichero")
+        undo_ctx = ActionContext(actor="mcp-agent", library_path="/lib/test.fichero")
+
+        merge_result = registry.invoke(
+            db,
+            "entity.merge",
+            {"absorbing_entity_id": absorber.id, "absorbed_entity_ids": [absorbed.id]},
+            merge_ctx,
+        )
+        audit = db.get(ActionAudit, merge_result.audit_id)
+        reg = registry.get(audit.action_name)
+        inverse = reg.invert(audit.before, audit.after, merge_ctx)
+        registry.invoke(db, inverse[0], inverse[1], undo_ctx)
+
+        undo_merge_audits = [
+            row for row in db.all(EntityMergeAudit)
+            if row.operation_type == EntityMergeOperationType.undo_merge
+        ]
+        assert len(undo_merge_audits) == 1
+        assert undo_merge_audits[0].created_by == "mcp-agent"
+
     def test_unmerge_undo_remerges_same_entities(self, db):
         absorber, absorbed = self._two_entities(db)
         ctx = ActionContext(actor="ui", library_path="/lib/test.fichero")

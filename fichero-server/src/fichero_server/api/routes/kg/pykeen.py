@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from fichero_server.core.timeutil import utc_now
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 
+from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
+from fichero_server.api.auth import request_actor
 from fichero_server.api.main import get_library_database, get_library_database_for_write
 from fichero_server.db import Database
 from fichero_server.knowledge.pykeen_inference import (
@@ -144,13 +147,34 @@ class PredictionReviewDecision(BaseModel):
     resulting_claim_id: str | None = None
 
 
+@action(
+    "pykeen.create_review",
+    KnowledgePredictionReview,
+    domains=["claim"],
+    # No delete/restore action exists for this row kind yet -- a fresh
+    # create has nothing to invert to. Add one if this needs undo.
+    undoable=False,
+)
+def _action_create_prediction_review(
+    db: Database, params: KnowledgePredictionReview, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    db.save(params)
+    after = params.model_dump(mode="json")
+    spec = ChangeSpec(domains=["claim"], target_ids=[params.id], before=None, after=after)
+    return after, spec
+
+
 @router.post("/reviews", response_model=KnowledgePredictionReview)
 async def create_prediction_review(
     review: KnowledgePredictionReview,
     db: Database = Depends(get_library_database_for_write),
+    actor: str = Depends(request_actor),
 ) -> KnowledgePredictionReview:
-    db.save(review)
-    return review
+    ctx = ActionContext(actor=actor, library_path=str(Path(db.path).parent))
+    result = registry.invoke(
+        db, "pykeen.create_review", review.model_dump(mode="json"), ctx
+    )
+    return KnowledgePredictionReview.model_validate(result.result)
 
 
 @router.get("/reviews", response_model=PykeenListResponse)
@@ -165,21 +189,85 @@ async def list_prediction_reviews(
     return PykeenListResponse(items=rows, count=len(rows))
 
 
+class RestoreReviewParams(BaseModel):
+    """Params for `pykeen.restore_review` -- a full-row snapshot round-trip,
+    the SAME idiom `claim.restore`/`review.restore_pair` use for their own
+    update-action undo."""
+
+    snapshot: dict
+
+
+@action("pykeen.restore_review", RestoreReviewParams, domains=["claim"], undoable=False)
+def _action_restore_review(
+    db: Database, params: RestoreReviewParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    restored = KnowledgePredictionReview.model_validate(params.snapshot)
+    db.save(restored)
+    spec = ChangeSpec(
+        domains=["claim"], target_ids=[restored.id], after={"id": restored.id}
+    )
+    return {"id": restored.id}, spec
+
+
+class DecidePredictionReviewParams(BaseModel):
+    review_id: str
+    state: PredictionReviewState
+    note: str | None = None
+    resulting_claim_id: str | None = None
+
+
+def _invert_decide_review(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    if not before:
+        return None
+    return ("pykeen.restore_review", {"snapshot": before})
+
+
+@action(
+    "pykeen.decide_review",
+    DecidePredictionReviewParams,
+    domains=["claim"],
+    undoable=True,
+    invert=_invert_decide_review,
+)
+def _action_decide_prediction_review(
+    db: Database, params: DecidePredictionReviewParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    review = db.get(KnowledgePredictionReview, params.review_id)
+    if review is None:
+        raise HTTPException(status_code=404, detail=f"Prediction review {params.review_id} not found")
+    before = review.model_dump(mode="json")
+    review.state = params.state
+    review.decision_note = params.note
+    review.resulting_claim_id = params.resulting_claim_id
+    review.reviewed_at = utc_now()
+    db.save(review)
+    after = review.model_dump(mode="json")
+    spec = ChangeSpec(domains=["claim"], target_ids=[review.id], before=before, after=after)
+    return after, spec
+
+
 @router.patch("/reviews/{review_id}", response_model=KnowledgePredictionReview)
 async def decide_prediction_review(
     review_id: str,
     decision: PredictionReviewDecision,
     db: Database = Depends(get_library_database_for_write),
+    actor: str = Depends(request_actor),
 ) -> KnowledgePredictionReview:
-    review = db.get(KnowledgePredictionReview, review_id)
-    if review is None:
-        raise HTTPException(status_code=404, detail=f"Prediction review {review_id} not found")
-    review.state = decision.state
-    review.decision_note = decision.note
-    review.resulting_claim_id = decision.resulting_claim_id
-    review.reviewed_at = utc_now()
-    db.save(review)
-    return review
+    ctx = ActionContext(actor=actor, library_path=str(Path(db.path).parent))
+    result = registry.invoke(
+        db,
+        "pykeen.decide_review",
+        {
+            "review_id": review_id,
+            "state": decision.state.value,
+            "note": decision.note,
+            "resulting_claim_id": decision.resulting_claim_id,
+        },
+        ctx,
+    )
+    return KnowledgePredictionReview.model_validate(result.result)
 
 
 @router.get(
