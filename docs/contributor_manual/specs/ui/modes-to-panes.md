@@ -239,15 +239,32 @@ fourth type.
   `PaneHeadKindSwitcherParityTests.everyRealLeafPaneHeadMountsPaneKindSelector` (source
   guardrail over the three real-leaf head files) and
   `PaneHeadKindSwitcherParityTests.selectableKinds*` (the filtered-kinds pins).
-- `m2p.pane-toggles-everywhere` — **[GAP]**, ISSUE #4779: the toolbar's pane-visibility
-  toggles (`ContentView+StateLayout.swift`'s `showsPaneToggles`) are gated on
-  `sidebarMode == .library`, so they stay hidden for `.chat` and, since increment 2, for
-  `.workflows` too — even though both now have a real Library + Preview + Reader shape with
-  genuine content to toggle. Not fixed by increment 2 (Workflows lands in the same
-  already-accepted state Chat has been in since before this migration; the gap predates and
-  is not caused by this program). Recommendation: widen `supportsReadingWorkspace`/
-  `showsPaneToggles` past library-only once a mode's panes carry real content, tracked
-  separately on #4779.
+- `m2p.pane-toggles-everywhere` — **[OK]** (e59ba3d07, #4779 closed; Research still hides
+  them until increment 5 stops it being a takeover): the toolbar's pane-visibility toggles
+  (`ContentView+StateLayout.swift`'s `showsPaneToggles`) used to gate on `sidebarMode ==
+  .library` alone, so they stayed hidden for `.chat` and, since increment 2, for `.workflows`
+  too — even though both had a real Library + Preview + Reader shape with genuine content to
+  toggle. Fixed as part of "4a-follow" (same delivery as
+  `m2p.open-affordance-adds-missing-preview-pane` below, since the missing-Preview-pane
+  affordance's toolbar counterpart was the same underlying gap): `showsPaneToggles` is now an
+  EXHAUSTIVE per-`SidebarMode` switch (the `CompactShellPolicy.route` pattern) — `.library`,
+  `.chat`, `.workflows`, `.automation`, `.activity` all show the toggles; only `.research`
+  (still a bespoke takeover) hides them, retiring with increment 5. Pinned by
+  `ToolbarTogglePolicyTests.testPaneTogglesShowForEveryPaneHostedModeHideOnlyForResearch` and
+  `testPaneTogglesHiddenInCompactFlowForEveryMode` (every `SidebarMode` × `compactFlow`).
+- `m2p.open-affordance-adds-missing-preview-pane` — **[OK]** (e59ba3d07): generalizes
+  the creative director's workflow ruling ("an explicit Open affordance adds the pane; nothing
+  moves automatically") to the five kinds increment 4a moved into Preview alongside the
+  workflow canvas from increment 2. When a selection's Preview cell is `.workflowCanvas` or
+  `.nodeDetail` and no Preview leaf is currently applied, the Library pane's content column
+  shows an inline banner naming what is not shown, with one button that adds the pane through
+  the existing `setPaneVisible(.canvas, true)` funnel — never an automatic layout change.
+  Scoped to those two surfaces only; a plain document/chat/comparison selection with Preview
+  hidden is the user's own layout choice, not a takeover this migration retires. Pinned by
+  `PaneContentPlanTests.missingPreviewSurfaceFiresOnlyForNodeKindsWithoutAPreviewLeaf` (the
+  pure predicate, every `AppViewMode` × `hasPreviewLeaf`) — no automated SwiftUI-render test
+  yet asserting the banner actually mounts (a coverage gap, flagged, not silently claimed as
+  pinned, same honesty precedent as `m2p.workflow-reader-is-run-log`).
 
 ## Migration — nine increments (0–8), each shippable, each with its pinning test
 
@@ -271,12 +288,13 @@ increments 2, 4, and 5.
 - **2. Workflow canvas → Preview pane; Library stays Library.** `Nav`'s `.workflow`
   regular-width arm becomes the same `LibrarySplitPaneHost` pattern as `.chat` (`Nav:237-244`);
   `Detail:71` gains a first branch for `.workflow` → `WorkflowEditor`; matrix row updates.
-  Also: `showsPaneToggles` stops gating on `sidebarMode == .library`
-  (`ContentView+StateLayout.swift:25-27`). Files: `Nav`, `Detail`, `Plan`,
-  `ContentView+StateLayout.swift`, `ContentView+StatePreview.swift`. Deletes: the "Select a
+  Files: `Nav`, `Detail`, `Plan`, `ContentView+StatePreview.swift`. Deletes: the "Select a
   Workflow" placeholder (`Nav:296-304`). Needs the no-collapse ruling below (open question 2)
   or selecting a workflow in a Browse workspace with no Preview leaf shows nothing. Test:
   `m2p.workflow-canvas-in-preview`, `m2p.library-is-always-navigator` (drop `WorkflowEditor(`).
+  (`showsPaneToggles` did NOT stop gating on `sidebarMode == .library` here as originally
+  planned — that gap became #4779 and was fixed later, in "4a-follow," alongside
+  `m2p.open-affordance-adds-missing-preview-pane`; see that behavior's entry.)
 - **3. Delete Knowledge Graph MODE — DONE (2026-09-18).** Removed `SidebarMode.knowledgeGraph`,
   `Nav:173-175`, the menu item (`ViewMenuCommands.swift`), the Ontology view-mode menu
   (`ViewMenuLayoutSections.swift`, `KnowledgeGraphViewModeSection` + its
@@ -314,11 +332,57 @@ increments 2, 4, and 5.
   `LibraryPaneNeverMountsModeSurfaceTests` (allowlist shrunk to `ResearchWorkspaceView(`/
   `ComparisonDetailView(`; `deletedBareIdentifiers` gained `ActivityWindowLauncherView`),
   `ContentViewPersistenceTests.testRetiredBatchStringStillRestoresToActivity`.
-- **4b. Run history → Reader (not started).** A new Reader surface, `.runHistory`, following
-  the `WorkflowOutputLog` pattern (increment 2, `m2p.workflow-reader-is-run-log`) — an
-  activity/schedule/trigger selection's run history moves to a dedicated Reader rendition
-  instead of wherever it lands provisionally after 4a. Tracked on #4741. Files: `Plan`,
-  `Detail`, a new Reader component. Test: TBD once scoped.
+- **4b-1. The Reader consults the plan (not started; fixes the live stale-document bug #4803).** Discovered planning 4b: `ReadingPaneView`
+  has NO reference to `viewMode`/`AppViewMode` anywhere — the whole Reader routes off a resolved
+  `Document` (`effectiveDocument`/`liveDocument`/`pinnedDocument`), not the selection's plan
+  cell. `.workflow` only reaches its run-log rendition because workflow DEFINITIONS are
+  themselves library Documents (`Document.isWorkflowNode`, `prototypeKey == "workflow"`) that
+  ordinary document-selection machinery resolves — the matrix's `reader` column has been
+  decorative since increment 1, never actually consulted at runtime. Confirmed LIVE BUG: none
+  of the automation-family selection handlers (`.chain`/`.batches`/`.automation`/`.schedule`/
+  `.trigger`/`.activity`) clear `detailDocument`
+  (`handleViewModeChange`/`MainContentModifiers+ViewMode.swift` only branches on `.workflow`/
+  `.library`), so `readerDocument` (`ContentView+DetailLayout.swift:249-253`) keeps returning
+  whatever document was last open — selecting a schedule leaves the Reader showing the
+  PREVIOUSLY selected document's transcript, not an honest empty state. This increment fixes it
+  as a side effect. Mechanism: `ReadingPaneView` gains one new defaulted property,
+  `var readerCell: PaneContentPlan.Cell = .surface(.documentReader)` (default keeps every
+  existing call site — there is exactly one production one,
+  `ContentView+DetailLayout.swift:286`, inside `widescreenReadingPaneBody`, which already has
+  `viewMode` in scope — and every preview compiling unchanged), set there to
+  `PaneContentPlan.plan(for: viewMode).reader`. A new pure routing function,
+  `PaneContentPlan.Cell.readerPageRoute -> ReaderPageRoute` (`.documentDriven` for
+  `.surface(.documentReader)`/`.surface(.workflowRecipe)`, `.empty(String)` passthrough,
+  `.future(PaneSurface)` for anything else — an honest "not wired yet" rather than silently
+  falling into the document-driven chain), gates `ReadingPaneView+Tabs.swift`'s `pageTabContent`
+  — `.documentDriven` renders the EXISTING if/else chain byte-for-byte unchanged (never touches
+  `doc.isWorkflowNode`/`loadReaderWorkflow()`), `.empty(reason)` renders `PaneEmptyStateView`
+  with the matrix's own reason string (today's `.empty` reasons are computed but never shown to
+  anyone — this makes them real), `.future` is 4b-1's safety net (nothing produces it yet;
+  4b-2's `.runHistory` will be the first). Scoped to the Page tab only — the Notes/Knowledge
+  tabs have their own `effectiveDocument`-driven fallbacks and may share the same stale-document
+  risk, flagged but NOT included here to avoid scope creep past what was asked. Files: `Plan`
+  (the routing function), `ReadingPaneView.swift` (the new property),
+  `ReadingPaneView+Tabs.swift` (the gate), `Detail` (the one call site). Test: a pure test over
+  every `PaneSurface` + `.empty` asserting `readerPageRoute`'s three-way split.
+- **4b-2. `.runHistory` (not started).** Extract `ScheduleDetailView.runHistorySection`,
+  `TriggerDetailView.executionHistorySection` and Activity's log rendering
+  (`ActivityDetailView`'s `ActivityService`-backed list, plus its live
+  `WorkflowExecutionObserver`/`WorkflowExecutionStore` layer for in-progress runs) into
+  Reader-mountable, read-only components, each owning its own load — the `WorkflowOutputLog`
+  pattern (increment 2, `m2p.workflow-reader-is-run-log`) — and mount the SAME component from
+  the Preview `.nodeDetail` view and the Reader's new `.runHistory` branch: one renderer, two
+  mounts, zero duplication (iterate, never replace — move the code, do not rewrite it). The
+  component needs the entity id, so `.runHistory` needs a payload (an associated value, or the
+  `Cell` gains one) — the smallest shape that keeps `PaneSurface` `Equatable`/testable, exact
+  shape TBD at implementation. Activity's live layer reads `WorkflowExecutionObserver` from the
+  environment — that read MUST be optional
+  (`@Environment(WorkflowExecutionObserver.self) private var observer: WorkflowExecutionObserver?`),
+  the #4703 crash class the `EnvironmentOptionalObservableGuardrailTests` guardrail enforces.
+  Tracked on #4741. Files: `Plan`, `ReadingPaneView+Tabs.swift`, `ScheduleDetailView.swift`,
+  `TriggerDetailView.swift`/`TriggerDetailView+Helpers.swift`, `ActivityDetailView.swift`, new
+  shared Reader-mountable components. Test: TBD once the extraction lands —
+  `EnvironmentOptionalObservableGuardrailTests` must stay green for the new mount.
 - **4c. Comparison + diff lens (not started).** `AppViewMode.comparison` and
   `ComparisonDetailView` are DELETED; comparison becomes two sibling artifacts shown as two
   Reader panes with a diff lens (not a mode, not chat's Compare tab; see
