@@ -91,13 +91,24 @@ parallel pattern to keep.
   `test_action_registry.py::TestRegistryInvoke::test_invoke_returns_result_writes_audit_and_emits`,
   `::test_invoke_validates_params`, `::test_invoke_unknown_action_raises`,
   `TestActionsRegistryRoute::test_invoke_via_route_writes_audit`.
-- `audit.actor-cannot-be-forged` — **[PARTIAL]** (#4844) `POST /api/actions/invoke` rejects a
-  request body that sets `actor`/`origin_window` directly
+- `audit.actor-cannot-be-forged` — **[BROKEN]** (#4844, #4843) `POST /api/actions/invoke`
+  rejects a request body that sets `actor`/`origin_window` directly
   (`InvokeActionRequest.reject_deprecated_fields`, → #3285); the real actor is derived
   exclusively from authenticated request state (`action_context()` →
   `actor_from_request(request)`). A `client` header (e.g. `X-Fichero-Client: fichero-mcp`) is
-  attribution metadata only, never an authorization input (a fix landed under a separate closed issue). Verified by reading the
-  code, not by a test — no test drives the route with a forged `actor` and asserts the
+  attribution metadata only, never an authorization input (a fix landed under a separate closed
+  issue). **This guard is narrow, not general — verified by reading the code, not guessed**:
+  `reject_deprecated_fields` is defined ONLY on `InvokeActionRequest`, the request model for
+  `POST /api/actions/invoke` specifically. A route that bypasses the action layer entirely has
+  no such guard at all — `kg/inclusion.py::upsert_inclusion` (already a tracked
+  `audit.every-mutating-route-uses-the-registry` violation, #4831) accepts a plain
+  client-supplied `updated_by: str = "human"` field on its OWN request model
+  (`InclusionUpsertRequest`, `inclusion.py:30`) and stores it verbatim (`:47`) — no validation,
+  no derivation from the real actor, at all. Retagged from [PARTIAL] to [BROKEN]: this isn't
+  just "untested," a real forgeable path exists today. Fixed once the route is wired through the
+  registry (`updated_by` then comes from `ctx.actor`, never the request body, same as every
+  other action) — tracked on #4831, not a separate fix. The `POST /api/actions/invoke` guard
+  itself remains untested — no test drives the route with a forged `actor` and asserts the
   rejection; filed as #4844.
 - `audit.undo-redo-is-generic` — **[OK]** one endpoint (`POST
   /api/actions/audit/{audit_id}/undo`) reverses any undoable action via its own declared
@@ -186,17 +197,27 @@ parallel pattern to keep.
 
 - `audit.actor-attribution-is-real-not-hardcoded` — **[BROKEN]** (#4843) an
   action's audit row must record the ACTUAL actor (`ctx.actor`), never a hardcoded string —
-  `merge_entities_impl` was fixed to thread the real actor under a separate, already-closed issue, but three sibling spots
-  in the same file still hardcode `created_by="human"` regardless of who or what triggered the
-  operation: `EntityMergeAudit` rows for undo-of-merge (`entity_curation.py:647`),
-  undo-of-split (`entity_curation.py:667`), and the authority-link audit
-  (`entity_curation.py:1211`). A workflow- or agent-driven undo or authority-link is logged as
-  if a person did it. Distinct from `audit.every-mutating-route-uses-the-registry` above —
-  these three ARE reachable through the action layer's own audit-adjacent bookkeeping
-  (`EntityMergeAudit`, a domain-specific curation-history table, not `ActionAudit` itself); the
-  registry's own `ActionAudit.actor` for these operations is correct (it threads `ctx.actor`)
-  — this is a SECOND, domain-local audit trail with its own actor field that wasn't updated to
-  match.
+  `merge_entities_impl` was fixed to thread the real actor under a separate, already-closed
+  issue, and the entity-split forward operation was fixed the same way (46132827f, "first of
+  four"). Three sibling spots in the same file still hardcode `created_by="human"` regardless
+  of who or what triggered the operation, verified still at these exact lines after that fix:
+  `EntityMergeAudit` rows for undo-of-merge (`entity_curation.py:647`), undo-of-split
+  (`entity_curation.py:667`), and the authority-link audit (`entity_curation.py:1211`). A
+  workflow- or agent-driven undo or authority-link is logged as if a person did it. Distinct
+  from `audit.every-mutating-route-uses-the-registry` above — these three ARE reachable through
+  the action layer's own audit-adjacent bookkeeping (`EntityMergeAudit`, a domain-specific
+  curation-history table, not `ActionAudit` itself); the registry's own `ActionAudit.actor` for
+  these operations is correct (it threads `ctx.actor`) — this is a SECOND, domain-local audit
+  trail with its own actor field that wasn't updated to match. **The authority-link spot in
+  particular was earlier argued domain-fixed** ("a person confirmed this authority match, so
+  `created_by="human"` is a true statement of the domain, not a bug") — **that argument no
+  longer holds**: once `entity.link_authority` became reachable by agents through `POST
+  /api/actions/invoke` (7523bcf95), an agent-confirmed match is a real, common case the
+  hardcoded string actively misrepresents. Recording this reasoning here so the fix is not
+  re-litigated the next time someone reads this line and reaches for the old justification.
+  Also found on `kg/inclusion.py::upsert_inclusion` (see `audit.actor-cannot-be-forged` above):
+  a related but distinct failure mode — not a hardcoded wrong value, a caller-CHOSEN one, with
+  no forgery protection at all.
 
 ### D. Undo/redo is honestly declared
 

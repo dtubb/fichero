@@ -137,7 +137,18 @@ often the wrong subject; not multilingual.
   entity picker; (c) **the editor has no date field**
   (`EditClaimSheet.swift:158-163`), so a claim's date cannot be corrected from the surface this
   ruling makes the unit of editing. `ClaimSummaryCardView`/`EntityDetailView`, the other reachable
-  editors, are themselves marked retired (→ #4828, → #4791).
+  editors, are themselves marked retired (→ #4828, → #4791). Scoped into slices by the code lane
+  (2026-09-18, design only, nothing built): 7c is the date field (the wire fields already exist
+  on the model, only the editor UI is missing); 7d is the subject-as-entity-picker, BLOCKED on
+  the engine until `_apply_claim_patch` learns to update `entity_ids` and regenerate
+  `claim.text` when `subject_entity_id` changes.
+- `kg.read.editor-saves-through-the-audited-action` — **[GAP]** (#4833) the per-sentence editor's
+  save path (`InlineClaimEditor`) is `ClaimStore.patch` → the audited `claim.patch` action
+  (`harness/audited-action-layer.md`) — the SAME typed `PATCH /api/claims/{id}` endpoint IS the
+  registered action, not a second bespoke save call — and returns the freshly-patched claim so
+  the caller never re-fetches or guesses at the server's normalized result. Design/planning only
+  (code lane, 2026-09-18) — nothing built; this is the 7b slice of
+  `kg.read.edit-unit-is-the-claim` above.
 - `kg.read.sentence-opens-source-highlighted` — **[GAP]** (#4834) editing and source-reveal are two
   SEPARATE gestures today (edit → `EditClaimSheet`; navigate → `ClaimSourceNavigationState`
   → `handleOpenClaimSource`, `ContentView+StateEvents.swift:397-446`). The ruling wants ONE
@@ -146,6 +157,25 @@ often the wrong subject; not multilingual.
   WITHOUT changing the current selection — that is the existing seam to build this on, not a new
   mechanism. The span/region/page-only precision rules `ClaimSourceRequest` already computes
   (`ClaimSourceRequest.swift:53-68`) are correct and reusable as-is.
+- `kg.read.source-request-declares-intent` — **[GAP]** (#4834) `ClaimSourceNavigationRequest
+  .destination` silently defaults to `.reader` at every one of its five construction sites
+  feeding one shared request bus — the fix drops that default and makes `destination` a
+  REQUIRED argument. KNOWLEDGE surfaces (the biography, claim cards, entity/claim rows, KG
+  graph surfaces) must request `.preview`: Source resolves and highlights the passage, the
+  Reader's own content stays UNCHANGED, no sidebar-mode write, no selection change. NAVIGATIONAL
+  surfaces (the source outline, the annotation list/inspector, the artifacts inspector) keep
+  `.reader` and today's selection-changing behavior — they are legitimately asking to GO there,
+  not merely preview it. The current silent `.reader` default is what makes today's "click loses
+  your place" bug possible at all — this is the concrete mechanism behind
+  `kg.read.lives-in-reader`'s "reveal without losing your place" property. Design/planning only
+  (code lane, 2026-09-18) — nothing built; app source is frozen while the maintainer tests.
+- `kg.read.span-reuses-existing-location-resolver` — **[GAP]** (#4834) the sentence-click-to-
+  highlight path needs NO new engine call: `revealResolvedSource` already calls the existing
+  location resolver (`POST /api/locations/resolve`); its `ResolvedLocation` already carries
+  page/bbox/char-range, today only `resolvedDocumentId` is read from it. The fix is reading more
+  of what's already returned, not adding a second resolver — one resolver, one highlight channel
+  (the existing NotificationCenter page/highlight consumer), never a parallel path to keep in
+  sync. Design/planning only (code lane, 2026-09-18) — nothing built.
 
 ### C. Ruling 2 — re-centred on the page's entity, honestly
 
@@ -543,15 +573,57 @@ visible payoff.
    (drawn from the entry composer's `sentences[]`); Source = the cited page, span highlighted,
    revealed via `focusKGSourcePreview` without changing the current selection; Inspector = KG
    curation (statements list, merge, aliases, history) unchanged."*
+
+   **Sub-slices, as scoped by the code lane (2026-09-18) — design/planning only, nothing built,
+   app source is frozen while the maintainer tests:**
+   - **7a — the source reveal goes through the pane-aware seam.** Same shape as
+     `kg.read.sentence-opens-source-highlighted` below.
+   - **7a refinement — the request must DECLARE its intent, not default to one.**
+     `ClaimSourceNavigationRequest.destination` today silently defaults to `.reader` at every
+     one of its five construction sites feeding one shared request bus — the refinement drops
+     that default and makes `destination` a REQUIRED argument every request factory must state.
+     KNOWLEDGE surfaces (the biography, claim cards, entity/claim rows, KG graph surfaces) must
+     request `.preview`: Source resolves and highlights the passage, the Reader's own content is
+     UNCHANGED, no sidebar-mode write, no selection change — exactly the "reveal without losing
+     your place" property `kg.read.lives-in-reader` already names as missing. NAVIGATIONAL
+     surfaces (the source outline, the annotation list/inspector, the artifacts inspector) keep
+     `.reader` and today's selection-changing behavior — they are legitimately asking to GO
+     there, not merely preview it. New behavior:
+     `kg.read.source-request-declares-intent` — **[GAP]** (→ #4834) a source-navigation request
+     must state whether it wants a PREVIEW (knowledge surfaces: resolve + highlight, no
+     selection/mode change) or a NAVIGATE (surfaces whose whole job is going to the source);
+     the current silent `.reader` default is what makes today's click "lose your place" bug
+     possible in the first place. Not built.
+   - **Span → page-region needs no new engine call.** `revealResolvedSource` already calls the
+     existing location resolver (`POST /api/locations/resolve`); its `ResolvedLocation` already
+     carries page/bbox/char-range, today only `resolvedDocumentId` is read from it. New
+     behavior: `kg.read.span-reuses-existing-location-resolver` — **[GAP]** (→ #4834) the
+     sentence-click-to-highlight path reuses the SAME resolver and the SAME highlight channel
+     (the existing NotificationCenter page/highlight consumer) everything else already uses —
+     one resolver, one highlight channel, no second path to keep in sync. Not built.
+   - **7c — the claim editor's date field** (wire fields already exist on the model; only the
+     editor UI is missing). Folds into `kg.read.edit-unit-is-the-claim` below.
+   - **7b — a per-sentence edit affordance, saving through the audited action.**
+     `InlineClaimEditor` saves through `ClaimStore.patch` — the typed `PATCH /api/claims/{id}`
+     endpoint IS the audited `claim.patch` action (`harness/audited-action-layer.md`) — and
+     returns the freshly-patched claim so the caller never has to re-fetch or guess at the
+     server's normalized result. New behavior: `kg.read.editor-saves-through-the-audited-action`
+     — **[GAP]** (→ #4833) the per-sentence editor's save path is `ClaimStore.patch` → the
+     audited `claim.patch` action, returning the updated claim — not a bespoke save call. Not
+     built.
+   - **7d — the subject-as-entity-picker** is BLOCKED on the engine: `_apply_claim_patch` must
+     first learn to update `entity_ids` and regenerate `claim.text` when `subject_entity_id`
+     changes (already named as a gap in `kg.read.edit-unit-is-the-claim` below) before the app
+     side has anything real to call.
 7. **Edit from the sentence (app + engine).** Acting on a sentence opens the claim editor AND
-   reveals the highlighted source in one gesture. Add the date field to the editor; the subject
-   field becomes an entity picker that patches `subject_entity_id` + `entity_ids` (never just
-   `svo_*` text), and the patch regenerates `claim.text`. When a claim renders on more than one
-   entity's page (e.g. a sale — direct on the seller's, inverse on the buyer's), the editor says
-   so before saving ("also appears on Pedro Mosquera's page") — mechanically this already works,
-   since `claimStore.changeToken` triggers a re-read on every page showing that claim
-   (`EntityDigestView.swift:286`). → `kg.read.edit-unit-is-the-claim`,
-   `kg.read.sentence-opens-source-highlighted`.
+   reveals the highlighted source in one gesture (7a/7b above). Add the date field to the editor
+   (7c); the subject field becomes an entity picker that patches `subject_entity_id` +
+   `entity_ids` (never just `svo_*` text), and the patch regenerates `claim.text` (7d, blocked
+   on the engine). When a claim renders on more than one entity's page (e.g. a sale — direct on
+   the seller's, inverse on the buyer's), the editor says so before saving ("also appears on
+   Pedro Mosquera's page") — mechanically this already works, since `claimStore.changeToken`
+   triggers a re-read on every page showing that claim (`EntityDigestView.swift:286`). →
+   `kg.read.edit-unit-is-the-claim`, `kg.read.sentence-opens-source-highlighted`.
 8. **Guard and honesty (engine).** A no-LLM test that patches `llm.chat` to raise and asserts
    purity (not an import check — `paragraph`/`readable` transitively import `fichero_server.llm`
    via the models package, so an import-based guard fails as written); retire `/bio` (pending the
