@@ -1,5 +1,7 @@
 # Sidebar CRUD — Design Spec
 
+> Milestone: sidebar-crud
+
 > Design-led spec (Testing Constitution). The design lead owns this intent; tests
 > enforce it; code makes the tests pass. One line per behavior; each maps to a
 > pinning test cited by name in the test's docstring.
