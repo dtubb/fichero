@@ -394,7 +394,8 @@ the browse→read flow down the centre.
   split collapses by one before the leaf is removed. Pinned:
   `Tests/Unit/general/Models/PaneListTests.swift` ("closing a pane removes ONLY that pane…",
   "…collapses to the survivor — the row does not disappear") + `PaneInstanceIndependenceTests`.
-- `panes.head.kind-switcher-everywhere` — **[BROKEN]** (#4706, reported 2026-09-18) every pane head
+- `panes.head.kind-switcher-everywhere` — **[PARTIAL]** (#4706; Reader fixed d8621ecc3, pinned by
+  `PaneHeadKindSwitcherParityTests`; Chat follows #4705 increment 6) every pane head
   that renders a leaf kind mounts the kind selector, so ANY pane can become a Library, Source or
   Reader. Cause (verified): the Reader head mounts `PaneKindSelector` with `collapsesKindIntoLens: true`
   (the one-icon ruling), whose merged-lens path never consulted `\.paneKindSwitcher`; Library /
