@@ -13,15 +13,24 @@ Subcommands: status, check, queue, brief <behavior-id>, agent-work. See each `cm
 docstring below, or `docs/contributor_manual/specs/harness/spec-pipeline.md` for the full
 state table.
 
-Deliberately NOT wired into scripts/verify_all.sh: `check` is network-dependent (one `gh`
-call) and verify_all's discovery loop auto-runs anything named `check_*.py`, which must
+Deliberately NOT wired into scripts/verify_all.sh: `check` is network-dependent (two `gh`
+calls) and verify_all's discovery loop auto-runs anything named `check_*.py`, which must
 stay offline-safe. The manager runs this by hand as a dispatch step, not as a gate.
+
+Baseline ratchet: `check` fails only on illegal states NOT YET in
+scripts/spec_pipeline_baseline.json (today's known debt), and also fails when a baselined
+entry no longer occurs (fixed but not removed) — same shrink-only contract as
+check_spec_broken_has_issue.py's grandfather list. Run `check --update-baseline` to accept
+the current state as the new baseline (only do this right after fixing something, never to
+paper over new debt).
 
 Run examples:
     python scripts/spec_pipeline.py status
     python scripts/spec_pipeline.py check
     python scripts/spec_pipeline.py check --offline
+    python scripts/spec_pipeline.py check --update-baseline
     python scripts/spec_pipeline.py queue --limit 15
+    python scripts/spec_pipeline.py queue --kind retag
     python scripts/spec_pipeline.py brief panes.split.asymmetric
     python scripts/spec_pipeline.py agent-work
 """
@@ -44,6 +53,7 @@ REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 SPECS_DIR = pathlib.Path("docs/contributor_manual/specs")
 TEST_ROOTS = [pathlib.Path("fichero/Tests"), pathlib.Path("fichero-server/tests")]
 AGENT_WORK_DIR = pathlib.Path("agent-work")
+BASELINE_PATH = pathlib.Path("scripts/spec_pipeline_baseline.json")
 GH_REPO = "dtubb/fichero"
 
 # Seed order (creative director, 2026-09-18): surfaces before workstream buckets, in this
@@ -71,6 +81,10 @@ WORKSTREAM_BUCKETS = {
 
 BROKEN_LIKE_TAGS = {"BROKEN", "GAP/BROKEN", "GAP", "PARTIAL", "MISSING"}
 
+# Rules whose findings are the kind a docs lane clears in bulk (find/cite a test, or
+# reopen/close an issue) rather than code work — `queue --kind retag` filters to these.
+RETAG_RULES = {"b", "d", "e"}
+
 # --- Reuse check_spec_broken_has_issue.py's behavior-line parser (creative-director
 # instruction, 2026-09-18: import it rather than copying since it's importable). Loaded by
 # file path, same pattern its own test suite uses
@@ -88,12 +102,15 @@ _iter_behavior_blocks = _broken._iter_behavior_blocks
 BEHAVIOR_ID_RE = _broken.BEHAVIOR_ID_RE
 
 # Everything below is NOT in check_spec_broken_has_issue.py (it only needs BROKEN-family
-# tags), so these small regexes are our own, commented rather than imported:
+# tags and doesn't care whether a citation is an arrow-superseded one), so these small
+# regexes are our own, commented rather than imported:
 # - TAG_RE_ALL also matches [OK] and [PROPOSED] (that script never needs to see those).
 # - MILESTONE_RE / STATUS_RE mirror check_spec_milestones.py's one-liners; not worth an
 #   import for two regexes.
 TAG_RE_ALL = re.compile(r"\*{0,2}\[(OK|BROKEN|GAP(?:/BROKEN)?|PARTIAL|MISSING|PROPOSED)[^\]]*\]\*{0,2}")
-ISSUE_RE = re.compile(r"#(\d+)")
+# An issue citation, with an optional leading arrow: "#1234" or "→ #1234" (a superseding
+# pointer to another tracked epic increment — legitimately cross-milestone, see rule c).
+ISSUE_CITATION_RE = re.compile(r"(→\s*)?#(\d+)")
 MILESTONE_RE = re.compile(r"Milestone:\s*(\S+)")
 STATUS_RE = re.compile(r"Status:\s*(DRAFT|APPROVED)")
 # Backticked identifiers ending in "Tests" (a Swift/pytest suite name) or a "test_*.py" file.
@@ -111,10 +128,21 @@ class Behavior:
     tag: str
     spec_status: str | None
     spec_milestone: str | None
-    issues: list[int] = field(default_factory=list)
+    issues: list[int] = field(default_factory=list)  # every cited issue, arrow or plain
+    plain_issues: list[int] = field(default_factory=list)  # cited WITHOUT a "→" prefix
     tests: list[str] = field(default_factory=list)
     shas: list[str] = field(default_factory=list)
     text: str = ""
+
+
+@dataclass(frozen=True)
+class Finding:
+    """One illegal state. `(rule, spec, key)` is the baseline identity — stable across
+    reruns even though `message` may reword or pick up a fresher issue title."""
+    rule: str
+    key: str
+    spec: str
+    message: str
 
 
 def _is_scaffold(p: pathlib.Path) -> bool:
@@ -146,16 +174,30 @@ def load_behaviors() -> list[Behavior]:
             if not tag_m:
                 continue  # untagged bullet — not a behavior the pipeline tracks
             tag = tag_m.group(1)
-            issues = sorted({int(n) for n in ISSUE_RE.findall(block)})
+            citations = ISSUE_CITATION_RE.findall(block)  # [(arrow_or_empty, digits), ...]
+            issues = sorted({int(n) for _, n in citations})
+            plain_issues = sorted({int(n) for arrow, n in citations if not arrow})
             tests = sorted({t for pair in TEST_RE.findall(block) for t in pair if t})
             shas = sorted({s for s in SHA_RE.findall(block) if any(c in "abcdef" for c in s)})
             behaviors.append(
-                Behavior(behavior_id, rel, start_line, tag, status, milestone, issues, tests, shas, block)
+                Behavior(behavior_id, rel, start_line, tag, status, milestone,
+                         issues, plain_issues, tests, shas, block)
             )
     return behaviors
 
 
-# --- GitHub data: one batched fetch per run ---------------------------------------------
+# --- GitHub data: batched fetches, cached to a temp file per run ------------------------
+
+def _cache_tempfile(data: object, prefix: str) -> None:
+    """Debugging aid only — each subcommand invocation is its own process and fetches
+    once, so nothing reads this back within the same run."""
+    try:
+        fd, _path = tempfile.mkstemp(prefix=prefix, suffix=".json")
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            json.dump(data, fh)
+    except OSError:
+        pass
+
 
 def get_issues(offline: bool) -> list[dict] | None:
     """All issues (state=all) for GH_REPO, or None when running --offline.
@@ -191,14 +233,55 @@ def get_issues(offline: bool) -> list[dict] | None:
     except json.JSONDecodeError as exc:
         print(f"FAIL spec_pipeline: `gh issue list` returned invalid JSON: {exc}")
         raise SystemExit(2)
-    # Cached to a temp file for the run (debugging aid — each subcommand invocation is its
-    # own process and fetches once, so this is not read back within the same run).
+    _cache_tempfile(data, "spec_pipeline_issues_")
+    return data
+
+
+def get_milestones(offline: bool) -> list[dict] | None:
+    """Every milestone (open + closed) for GH_REPO, or None when --offline.
+
+    A second, small batched call — `gh issue list` alone is blind to a milestone with zero
+    issues, which is exactly the empty-milestone case rule (g) needs to see. Same
+    never-green-by-absence contract as `get_issues`: exits 2 rather than reporting success
+    on a failed/missing `gh`. Tests inject via SPEC_PIPELINE_FAKE_MILESTONES or by
+    monkeypatching this function directly.
+    """
+    if offline:
+        return None
+    fake = os.environ.get("SPEC_PIPELINE_FAKE_MILESTONES")
+    if fake:
+        return json.loads(pathlib.Path(fake).read_text(encoding="utf-8"))
+    if shutil.which("gh") is None:
+        print("FAIL spec_pipeline: `gh` not found and --offline not passed (blind, not green).")
+        raise SystemExit(2)
     try:
-        fd, path = tempfile.mkstemp(prefix="spec_pipeline_issues_", suffix=".json")
-        with os.fdopen(fd, "w", encoding="utf-8") as fh:
-            json.dump(data, fh)
-    except OSError:
-        pass
+        proc = subprocess.run(
+            ["gh", "api", f"repos/{GH_REPO}/milestones?state=all&per_page=100", "--paginate"],
+            capture_output=True, text=True, timeout=30,
+        )
+    except (subprocess.SubprocessError, OSError) as exc:
+        print(f"FAIL spec_pipeline: `gh api .../milestones` failed: {exc}")
+        raise SystemExit(2)
+    if proc.returncode != 0:
+        print(f"FAIL spec_pipeline: `gh api .../milestones` exited {proc.returncode}: {proc.stderr.strip()}")
+        raise SystemExit(2)
+    # --paginate on a raw `gh api` call concatenates one JSON array per page, back to back
+    # (not comma-joined) — decode them one at a time rather than assuming a single array.
+    data: list[dict] = []
+    text = proc.stdout.strip()
+    try:
+        decoder = json.JSONDecoder()
+        idx = 0
+        while idx < len(text):
+            obj, end = decoder.raw_decode(text, idx)
+            data.extend(obj)
+            idx = end
+            while idx < len(text) and text[idx].isspace():
+                idx += 1
+    except json.JSONDecodeError as exc:
+        print(f"FAIL spec_pipeline: `gh api .../milestones` returned invalid JSON: {exc}")
+        raise SystemExit(2)
+    _cache_tempfile(data, "spec_pipeline_milestones_")
     return data
 
 
@@ -245,7 +328,7 @@ def _build_test_index() -> set[str]:
 
 # --- check: the state machine -------------------------------------------------------------
 
-def _orphan_issue_findings(behaviors: list[Behavior], issues: list[dict]) -> list[str]:
+def _orphan_issue_findings(behaviors: list[Behavior], issues: list[dict]) -> list[Finding]:
     """Rule (f): an OPEN issue on a spec's milestone that no behavior cites."""
     milestone_to_spec: dict[str, str] = {}
     for b in behaviors:
@@ -261,62 +344,67 @@ def _orphan_issue_findings(behaviors: list[Behavior], issues: list[dict]) -> lis
             continue
         if issue["number"] in cited:
             continue
-        out.append(
-            f"{milestone_to_spec[mtitle]}: OPEN issue #{issue['number']} "
-            f"\"{issue.get('title', '')}\" on milestone '{mtitle}' is cited by no behavior — "
-            f"orphan issue. Cite it from a behavior or move it off the milestone (rule f)."
-        )
+        spec = milestone_to_spec[mtitle]
+        out.append(Finding(
+            "f", f"{mtitle}:{issue['number']}", spec,
+            f"{spec}: OPEN issue #{issue['number']} \"{issue.get('title', '')}\" on "
+            f"milestone '{mtitle}' is cited by no behavior — orphan issue. Cite it from a "
+            f"behavior or move it off the milestone (rule f)."
+        ))
     return out
 
 
-def _milestone_orphan_findings(behaviors: list[Behavior], issues: list[dict]) -> list[str]:
+def _milestone_orphan_findings(behaviors: list[Behavior], milestones: list[dict]) -> list[Finding]:
     """Rule (g): a GH milestone shaped like a spec anchor with no spec; a spec milestone
     that never shows up on GitHub. Mirrors check_spec_milestones.py's existence check,
-    but from the milestone side too (this script's whole point)."""
+    but from the milestone side too (this script's whole point). Uses the dedicated
+    milestone listing (not just milestones seen on issues), so an empty milestone is
+    visible too."""
     known_milestones = {b.spec_milestone for b in behaviors if b.spec_milestone}
     spec_stems = {pathlib.Path(b.spec_path).stem for b in behaviors}
+    live_titles = {m.get("title") for m in milestones if m.get("title")}
     out = []
-    seen_titles: set[str] = set()
-    for issue in issues:
-        mtitle = _issue_milestone_title(issue)
-        if not mtitle or mtitle in seen_titles:
+    for title in sorted(live_titles):
+        if title.lower() in WORKSTREAM_BUCKETS:
             continue
-        seen_titles.add(mtitle)
-        if mtitle.lower() in WORKSTREAM_BUCKETS:
+        if title in known_milestones or title in spec_stems:
             continue
-        if mtitle in known_milestones or mtitle in spec_stems:
-            continue
-        out.append(
-            f"GitHub milestone '{mtitle}' has issues but no spec declares "
-            f"`Milestone: {mtitle}` — write the spec, or rename/close the milestone if it's "
-            f"a workstream bucket (rule g)."
-        )
+        out.append(Finding(
+            "g", title, "-",
+            f"GitHub milestone '{title}' has no spec declaring `Milestone: {title}` — "
+            f"write the spec, or rename/close the milestone if it's a workstream bucket "
+            f"(rule g)."
+        ))
     for spec_path in sorted({b.spec_path for b in behaviors}):
         m = next((b.spec_milestone for b in behaviors if b.spec_path == spec_path and b.spec_milestone), None)
-        if m and m not in seen_titles:
-            out.append(
-                f"{spec_path}: declares `Milestone: {m}` but no GitHub issue carries that "
-                f"milestone yet — create the milestone and file its issues (rule g)."
-            )
+        if m and m not in live_titles:
+            out.append(Finding(
+                "g", m, spec_path,
+                f"{spec_path}: declares `Milestone: {m}` but no GitHub milestone of that "
+                f"name exists yet — create it (rule g)."
+            ))
     return out
 
 
-def cmd_check(offline: bool, strict: bool) -> int:
-    """The state machine: prints every illegal state (a)-(g) as file:line + id + fix."""
+def _collect_findings(offline: bool, strict: bool) -> tuple[list[Finding], list[str], int, int]:
+    """Every illegal state (a)-(g), plus INFO lines. Returns (failures, infos,
+    behavior_count, spec_count)."""
     behaviors = load_behaviors()
-    failures: list[str] = []
+    failures: list[Finding] = []
     infos: list[str] = []
 
     # Rule (a): broken/gap/partial/missing with no cited issue — offline-safe, delegates to
     # check_spec_broken_has_issue.py's rule via the shared parser.
     for b in behaviors:
         if b.tag in BROKEN_LIKE_TAGS and not b.issues:
-            failures.append(
+            failures.append(Finding(
+                "a", b.id, b.spec_path,
                 f"{b.spec_path}:{b.line}: `{b.id}` [{b.tag}] cites no issue — file one and "
                 f"cite `#N` (or `→ #N increment K`) (rule a)."
-            )
+            ))
 
     issues = get_issues(offline)
+    milestones = get_milestones(offline) if issues is not None else None
     if issues is None:
         infos.append(
             "OFFLINE: blind to rules (b) closed-issue-still-broken, (c) milestone mismatch, "
@@ -329,39 +417,45 @@ def cmd_check(offline: bool, strict: bool) -> int:
                 for n in b.issues:
                     issue = idx.get(n)
                     if issue and issue.get("state") == "CLOSED":
-                        failures.append(
+                        failures.append(Finding(
+                            "b", f"{b.id}:{n}", b.spec_path,
                             f"{b.spec_path}:{b.line}: `{b.id}` [{b.tag}] cites #{n} which is "
                             f"CLOSED — retag `[OK]` with a pinning test, or reopen the issue "
                             f"if the tag is right (rule b)."
-                        )
+                        ))
             if b.spec_milestone:
-                for n in b.issues:
+                # Rule (c) only binds a PLAIN "#N" citation to the spec's own milestone. An
+                # arrow citation ("→ #4705 increment 6") is a deliberate pointer to another
+                # tracked epic and is legitimately cross-milestone.
+                for n in b.plain_issues:
                     issue = idx.get(n)
                     if not issue:
                         continue
                     mtitle = _issue_milestone_title(issue)
                     if mtitle and mtitle != b.spec_milestone:
-                        failures.append(
+                        failures.append(Finding(
+                            "c", f"{b.id}:{n}", b.spec_path,
                             f"{b.spec_path}:{b.line}: `{b.id}` cites #{n} on milestone "
                             f"'{mtitle}' but the spec declares `Milestone: {b.spec_milestone}` "
                             f"— move the issue to '{b.spec_milestone}' or fix the citation "
                             f"(rule c)."
-                        )
+                        ))
             if b.tag == "OK":
                 for n in b.issues:
                     issue = idx.get(n)
                     if issue and issue.get("state") == "OPEN":
-                        failures.append(
+                        failures.append(Finding(
+                            "e", f"{b.id}:{n}", b.spec_path,
                             f"{b.spec_path}:{b.line}: `{b.id}` [OK] cites #{n} which is still "
                             f"OPEN — retag `[PARTIAL]`/`[GAP]` until it lands, or close the "
                             f"issue (rule e)."
-                        )
-        orphan_issue_msgs = _orphan_issue_findings(behaviors, issues)
+                        ))
+        orphan_findings = _orphan_issue_findings(behaviors, issues)
         if strict:
-            failures.extend(orphan_issue_msgs)
+            failures.extend(orphan_findings)
         else:
-            infos.extend(orphan_issue_msgs)
-        failures.extend(_milestone_orphan_findings(behaviors, issues))
+            infos.extend(f.message for f in orphan_findings)
+        failures.extend(_milestone_orphan_findings(behaviors, milestones or []))
 
     # Rule (d): [OK] with no test, or a cited test that doesn't exist.
     test_index = _build_test_index()
@@ -369,31 +463,91 @@ def cmd_check(offline: bool, strict: bool) -> int:
         if b.tag != "OK":
             continue
         if not b.tests:
-            failures.append(
+            failures.append(Finding(
+                "d", b.id, b.spec_path,
                 f"{b.spec_path}:{b.line}: `{b.id}` [OK] cites no test — add a pinning test "
                 f"and cite its name (rule d)."
-            )
+            ))
             continue
         for t in b.tests:
             if t not in test_index:
-                failures.append(
+                failures.append(Finding(
+                    "d", f"{b.id}:{t}", b.spec_path,
                     f"{b.spec_path}:{b.line}: `{b.id}` [OK] cites test `{t}` which does not "
                     f"exist anywhere under {TEST_ROOTS[0]} or {TEST_ROOTS[1]} — fix the "
                     f"citation or ship the test (rule d)."
-                )
+                ))
 
-    for f in failures:
-        print(f"FAIL {f}")
+    return failures, infos, len(behaviors), len({b.spec_path for b in behaviors})
+
+
+def _load_baseline() -> list[dict]:
+    if not BASELINE_PATH.exists():
+        return []
+    return json.loads(BASELINE_PATH.read_text(encoding="utf-8"))
+
+
+def _write_baseline(failures: list[Finding]) -> None:
+    # Deterministic ordering -> stable diffs: sorted by (rule, spec, key), never insertion
+    # order. Re-running --update-baseline with no code/tree change is a no-op diff.
+    entries = sorted({(f.rule, f.spec, f.key) for f in failures})
+    data = [{"rule": r, "spec": s, "key": k} for r, s, k in entries]
+    BASELINE_PATH.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+
+
+def cmd_check(offline: bool, strict: bool, update_baseline: bool) -> int:
+    """The state machine: fails only on illegal states not yet in the baseline (today's
+    known debt), and on a baselined entry that no longer occurs (fixed but not removed —
+    the baseline can only shrink, same contract as check_spec_broken_has_issue.py's
+    grandfather list)."""
+    failures, infos, n_behaviors, n_specs = _collect_findings(offline, strict)
+
+    if update_baseline:
+        _write_baseline(failures)
+        for i in infos:
+            print(f"INFO {i}")
+        print(
+            f"OK spec_pipeline check --update-baseline: wrote {len(failures)} illegal "
+            f"state(s) to {BASELINE_PATH}."
+        )
+        return 0
+
+    baseline = _load_baseline()
+    baseline_set = {(e["rule"], e["spec"], e["key"]) for e in baseline}
+    current_set = {(f.rule, f.spec, f.key) for f in failures}
+
+    new_findings = [f for f in failures if (f.rule, f.spec, f.key) not in baseline_set]
+    fixed_but_listed = sorted(baseline_set - current_set)
+
+    for f in new_findings:
+        print(f"FAIL NEW {f.message}")
+    for rule, spec, key in fixed_but_listed:
+        print(
+            f"FAIL {spec}: baselined illegal state rule ({rule}) `{key}` no longer occurs "
+            f"— fixed but not removed from {BASELINE_PATH}."
+        )
     for i in infos:
         print(f"INFO {i}")
 
-    verdict = "FAIL" if failures else "OK"
+    if new_findings or fixed_but_listed:
+        print(
+            f"FAIL spec_pipeline check: {n_behaviors} tagged behaviors across {n_specs} "
+            f"specs, {len(new_findings)} NEW illegal state(s), {len(fixed_but_listed)} "
+            f"stale baseline entrie(s), {len(baseline_set & current_set)} pre-existing "
+            f"baselined, {len(infos)} info line(s)."
+        )
+        return 1
+
+    by_rule: dict[str, int] = {}
+    for f in failures:
+        by_rule[f.rule] = by_rule.get(f.rule, 0) + 1
+    by_rule_str = ", ".join(f"{r}={c}" for r, c in sorted(by_rule.items())) or "none"
     print(
-        f"{verdict} spec_pipeline check: {len(behaviors)} tagged behaviors across "
-        f"{len({b.spec_path for b in behaviors})} specs, {len(failures)} illegal state(s), "
+        f"OK spec_pipeline check: {n_behaviors} tagged behaviors across {n_specs} specs, "
+        f"{len(failures)} baselined illegal state(s) remain (by rule: {by_rule_str}), "
         f"{len(infos)} info line(s)."
     )
-    return 1 if failures else 0
+    return 0
 
 
 # --- status ---------------------------------------------------------------------------
@@ -442,7 +596,7 @@ def _tag_rank(tag: str) -> int:
 _FILE_MENTION_RE = re.compile(r"`([\w./+-]+\.\w+)`")
 
 
-def cmd_queue(milestone_filter: str | None, limit: int | None, as_json: bool, offline: bool) -> int:
+def _cmd_queue_code(milestone_filter: str | None, limit: int | None, as_json: bool, offline: bool) -> int:
     """Every dispatchable behavior: broken/gap/partial/missing, with an OPEN, UNCLAIMED
     cited issue, in deterministic (milestone priority, tag severity, spec order) order."""
     behaviors = load_behaviors()
@@ -512,6 +666,36 @@ def cmd_queue(milestone_filter: str | None, limit: int | None, as_json: bool, of
         print(f"    {it['text'].splitlines()[0]}")
     print(f"OK spec_pipeline queue: {len(items)} dispatchable behavior(s).")
     return 0
+
+
+def _cmd_queue_retag(limit: int | None, as_json: bool, offline: bool) -> int:
+    """The DOC-fixable queue: rule (b)/(d)/(e) findings, grouped by spec — a docs lane finds
+    the pinning test to cite, or reopens/closes the mistagged issue, in bulk. Distinct from
+    the code-work queue (`--kind code`, the default)."""
+    failures, _infos, _n_behaviors, _n_specs = _collect_findings(offline, strict=False)
+    debt = sorted((f for f in failures if f.rule in RETAG_RULES), key=lambda f: (f.spec, f.rule, f.key))
+    if limit is not None:
+        debt = debt[:limit]
+
+    if as_json:
+        print(json.dumps([{"rule": f.rule, "spec": f.spec, "key": f.key, "message": f.message} for f in debt], indent=2))
+        return 0
+
+    grouped: dict[str, list[Finding]] = {}
+    for f in debt:
+        grouped.setdefault(f.spec, []).append(f)
+    for spec in sorted(grouped):
+        print(f"{spec}:")
+        for f in grouped[spec]:
+            print(f"  [{f.rule}] {f.message}")
+    print(f"OK spec_pipeline queue --kind retag: {len(debt)} doc-fixable item(s) across {len(grouped)} spec(s).")
+    return 0
+
+
+def cmd_queue(milestone_filter: str | None, limit: int | None, as_json: bool, offline: bool, kind: str = "code") -> int:
+    if kind == "retag":
+        return _cmd_queue_retag(limit, as_json, offline)
+    return _cmd_queue_code(milestone_filter, limit, as_json, offline)
 
 
 # --- brief ------------------------------------------------------------------------------
@@ -615,12 +799,15 @@ def main(argv: list[str] | None = None) -> int:
     p_check = sub.add_parser("check")
     p_check.add_argument("--offline", action="store_true")
     p_check.add_argument("--strict", action="store_true", help="promote orphan-issue INFO to a failure")
+    p_check.add_argument("--update-baseline", action="store_true", help="accept the current state as the new baseline")
 
     p_queue = sub.add_parser("queue")
     p_queue.add_argument("--milestone")
     p_queue.add_argument("--limit", type=int, default=None)
     p_queue.add_argument("--json", action="store_true")
     p_queue.add_argument("--offline", action="store_true")
+    p_queue.add_argument("--kind", choices=["code", "retag"], default="code",
+                          help="code = dispatchable code work (default); retag = doc-fixable rule b/d/e items, grouped by spec")
 
     p_brief = sub.add_parser("brief")
     p_brief.add_argument("behavior_id")
@@ -641,9 +828,9 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     if args.command == "check":
-        return cmd_check(args.offline, args.strict)
+        return cmd_check(args.offline, args.strict, args.update_baseline)
     if args.command == "queue":
-        return cmd_queue(args.milestone, args.limit, args.json, args.offline)
+        return cmd_queue(args.milestone, args.limit, args.json, args.offline, args.kind)
     if args.command == "brief":
         return cmd_brief(args.behavior_id, args.offline)
     return 2

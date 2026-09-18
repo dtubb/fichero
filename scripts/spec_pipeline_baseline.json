@@ -1,0 +1,1772 @@
+[
+  {
+    "rule": "b",
+    "spec": "docs/contributor_manual/specs/kg/kg-tables.md",
+    "key": "kg.view.keyboard-delete:4436"
+  },
+  {
+    "rule": "b",
+    "spec": "docs/contributor_manual/specs/transport/transport-http-uds.md",
+    "key": "transport.event-delivery:4486"
+  },
+  {
+    "rule": "b",
+    "spec": "docs/contributor_manual/specs/ui/panes-workspaces.md",
+    "key": "panes.split.focused-only:4685"
+  },
+  {
+    "rule": "b",
+    "spec": "docs/contributor_manual/specs/ui/workflow-node-config.md",
+    "key": "nodeconfig.model.vision-requirement-from-server:4477"
+  },
+  {
+    "rule": "c",
+    "spec": "docs/contributor_manual/specs/kg/kg-tables.md",
+    "key": "kg.scale.batch-delete:4643"
+  },
+  {
+    "rule": "c",
+    "spec": "docs/contributor_manual/specs/kg/kg-tables.md",
+    "key": "kg.scale.normalize-names:4643"
+  },
+  {
+    "rule": "c",
+    "spec": "docs/contributor_manual/specs/kg/kg-tables.md",
+    "key": "kg.tables.claim.delete:4643"
+  },
+  {
+    "rule": "c",
+    "spec": "docs/contributor_manual/specs/kg/kg-tables.md",
+    "key": "kg.tables.claim.edit:4624"
+  },
+  {
+    "rule": "c",
+    "spec": "docs/contributor_manual/specs/kg/kg-tables.md",
+    "key": "kg.view.pagination:4643"
+  },
+  {
+    "rule": "c",
+    "spec": "docs/contributor_manual/specs/kg/kg-tables.md",
+    "key": "kg.view.type-icons:4643"
+  },
+  {
+    "rule": "c",
+    "spec": "docs/contributor_manual/specs/testing/ui-test-harness.md",
+    "key": "harness.persist-engine-stderr:4777"
+  },
+  {
+    "rule": "c",
+    "spec": "docs/contributor_manual/specs/ui/automation.md",
+    "key": "automation.sidebar-node.dead-end:4705"
+  },
+  {
+    "rule": "c",
+    "spec": "docs/contributor_manual/specs/ui/panes-workspaces.md",
+    "key": "panes.head.kind-switcher-everywhere:4705"
+  },
+  {
+    "rule": "c",
+    "spec": "docs/contributor_manual/specs/ui/research.md",
+    "key": "research.chat-scope-single-mount:4705"
+  },
+  {
+    "rule": "c",
+    "spec": "docs/contributor_manual/specs/ui/research.md",
+    "key": "research.embedded-browser-home-surface:4043"
+  },
+  {
+    "rule": "c",
+    "spec": "docs/contributor_manual/specs/ui/research.md",
+    "key": "research.plan-tab-is-only-plan-surface:4705"
+  },
+  {
+    "rule": "c",
+    "spec": "docs/contributor_manual/specs/ui/research.md",
+    "key": "research.project-is-sidebar-node:4705"
+  },
+  {
+    "rule": "c",
+    "spec": "docs/contributor_manual/specs/ui/workflows.md",
+    "key": "workflows.canvas.16-palette-tools-cannot-execute:4746"
+  },
+  {
+    "rule": "c",
+    "spec": "docs/contributor_manual/specs/ui/workflows.md",
+    "key": "workflows.canvas.arrange-and-resize:4340"
+  },
+  {
+    "rule": "c",
+    "spec": "docs/contributor_manual/specs/ui/workflows.md",
+    "key": "workflows.canvas.dry-run:4370"
+  },
+  {
+    "rule": "c",
+    "spec": "docs/contributor_manual/specs/ui/workflows.md",
+    "key": "workflows.canvas.edge-legality-matches-engine:4478"
+  },
+  {
+    "rule": "c",
+    "spec": "docs/contributor_manual/specs/ui/workflows.md",
+    "key": "workflows.canvas.version-history:4342"
+  },
+  {
+    "rule": "c",
+    "spec": "docs/contributor_manual/specs/ui/workflows.md",
+    "key": "workflows.defaults.duplication-regrown:4738"
+  },
+  {
+    "rule": "c",
+    "spec": "docs/contributor_manual/specs/ui/workflows.md",
+    "key": "workflows.defaults.folder-click-opens-custom-view:4186"
+  },
+  {
+    "rule": "c",
+    "spec": "docs/contributor_manual/specs/ui/workflows.md",
+    "key": "workflows.defaults.scope-contract-undeclared:4396"
+  },
+  {
+    "rule": "c",
+    "spec": "docs/contributor_manual/specs/ui/workflows.md",
+    "key": "workflows.defaults.scope-contract-undeclared:4397"
+  },
+  {
+    "rule": "c",
+    "spec": "docs/contributor_manual/specs/ui/workflows.md",
+    "key": "workflows.folders.empty-states-suggest-a-workflow:4387"
+  },
+  {
+    "rule": "c",
+    "spec": "docs/contributor_manual/specs/ui/workflows.md",
+    "key": "workflows.run.comparison-node:4328"
+  },
+  {
+    "rule": "c",
+    "spec": "docs/contributor_manual/specs/ui/workflows.md",
+    "key": "workflows.run.controls-are-fire-and-forget:4312"
+  },
+  {
+    "rule": "c",
+    "spec": "docs/contributor_manual/specs/ui/workflows.md",
+    "key": "workflows.run.cost-tracking-per-node:4343"
+  },
+  {
+    "rule": "c",
+    "spec": "docs/contributor_manual/specs/ui/workflows.md",
+    "key": "workflows.run.pause-is-dead-end:4312"
+  },
+  {
+    "rule": "c",
+    "spec": "docs/contributor_manual/specs/ui/workflows.md",
+    "key": "workflows.run.provenance-run-id-on-artifacts:4312"
+  },
+  {
+    "rule": "c",
+    "spec": "docs/contributor_manual/specs/ui/workflows.md",
+    "key": "workflows.run.scope-widening-confirmed:4396"
+  },
+  {
+    "rule": "c",
+    "spec": "docs/contributor_manual/specs/ui/workflows.md",
+    "key": "workflows.run.scoreboard-quality-and-cost:4344"
+  },
+  {
+    "rule": "c",
+    "spec": "docs/contributor_manual/specs/ui/workflows.md",
+    "key": "workflows.run.stuck-processing-on-cancel-fail:4312"
+  },
+  {
+    "rule": "c",
+    "spec": "docs/contributor_manual/specs/ui/workflows.md",
+    "key": "workflows.run.trace-view:4312"
+  },
+  {
+    "rule": "c",
+    "spec": "docs/contributor_manual/specs/ui/workflows.md",
+    "key": "workflows.run.wrong-scope-runs-whole-folder:4396"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/harness/dev-orchestration-harness.md",
+    "key": "orch.verify-gate"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/harness/git-worktree-workflow.md",
+    "key": "git.branch-off-origin-main"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/harness/git-worktree-workflow.md",
+    "key": "git.cleanup-merged-worktrees"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/harness/git-worktree-workflow.md",
+    "key": "git.commit-never-stash"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/harness/git-worktree-workflow.md",
+    "key": "git.integration-gate"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/harness/git-worktree-workflow.md",
+    "key": "git.one-repo"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/harness/git-worktree-workflow.md",
+    "key": "git.shared-venv"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/harness/git-worktree-workflow.md",
+    "key": "git.updated-via-github"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/harness/spec-pipeline.md",
+    "key": "pipeline.agent-work.triage"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/harness/spec-pipeline.md",
+    "key": "pipeline.brief.renders-full-context"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/harness/spec-pipeline.md",
+    "key": "pipeline.brief.unknown-id-fails"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/harness/spec-pipeline.md",
+    "key": "pipeline.check.baseline-ratchet"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/harness/spec-pipeline.md",
+    "key": "pipeline.check.gh-failure-exits-2"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/harness/spec-pipeline.md",
+    "key": "pipeline.check.missing-specs-dir-exits-2"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/harness/spec-pipeline.md",
+    "key": "pipeline.check.offline-blind-not-green"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/harness/spec-pipeline.md",
+    "key": "pipeline.check.rule-a-broken-needs-issue"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/harness/spec-pipeline.md",
+    "key": "pipeline.check.rule-b-stale-tag-closed-issue"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/harness/spec-pipeline.md",
+    "key": "pipeline.check.rule-c-milestone-mismatch"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/harness/spec-pipeline.md",
+    "key": "pipeline.check.rule-d-ok-needs-real-test"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/harness/spec-pipeline.md",
+    "key": "pipeline.check.rule-e-ok-needs-closed-issue"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/harness/spec-pipeline.md",
+    "key": "pipeline.check.rule-f-orphan-open-issue"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/harness/spec-pipeline.md",
+    "key": "pipeline.check.rule-g-milestone-spec-mirror"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/harness/spec-pipeline.md",
+    "key": "pipeline.check.update-baseline"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/harness/spec-pipeline.md",
+    "key": "pipeline.not-in-gate"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/harness/spec-pipeline.md",
+    "key": "pipeline.queue.deterministic-order"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/harness/spec-pipeline.md",
+    "key": "pipeline.queue.json-and-limit"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/harness/spec-pipeline.md",
+    "key": "pipeline.queue.kind-retag"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/harness/spec-pipeline.md",
+    "key": "pipeline.queue.only-open-unclaimed"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/harness/spec-pipeline.md",
+    "key": "pipeline.status"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/kg/kg-entity-inspector.md",
+    "key": "kg.entity.empty.no-claims"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/kg/kg-entity-inspector.md",
+    "key": "kg.entity.select.focuses"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/kg/kg-entity-inspector.md",
+    "key": "kg.entity.select.inspector-shows-entity"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/kg/kg-entity-inspector.md",
+    "key": "kg.entity.select.routes-to-entities-tab"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/kg/kg-entity-inspector.md",
+    "key": "kg.entity.source.highlights-region"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/kg/kg-entity-inspector.md",
+    "key": "kg.entity.source.highlights-span"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/kg/kg-entity-inspector.md",
+    "key": "kg.entity.source.no-document-no-navigation"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/kg/kg-entity-inspector.md",
+    "key": "kg.entity.source.one-anchor-builder"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/kg/kg-entity-inspector.md",
+    "key": "kg.entity.source.open-entity-is-search"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/kg/kg-entity-inspector.md",
+    "key": "kg.entity.source.page-only-no-highlight"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/kg/kg-entity-inspector.md",
+    "key": "kg.entity.source.row-click-navigates"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/kg/kg-entity-inspector.md",
+    "key": "kg.entity.statements.loads-via-store"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/kg/kg-entity-inspector.md",
+    "key": "kg.entity.statements.row-shows-svo"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/kg/kg-entity-inspector.md",
+    "key": "kg.entity.statements.sorted-newest-first"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/kg/kg-entity-inspector.md",
+    "key": "kg.entity.statements.subject-or-object"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/kg/kg-entity-inspector.md",
+    "key": "kg.entity.xsurface.same-anchor"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/kg/kg-readable-representation.md",
+    "key": "kg.read.provenance-linked"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/kg/kg-tables.md",
+    "key": "kg.tables.claim.create"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/kg/kg-tables.md",
+    "key": "kg.tables.claim.edit"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/kg/kg-tables.md",
+    "key": "kg.tables.entity.create"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/kg/kg-tables.md",
+    "key": "kg.tables.entity.curate"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/kg/kg-tables.md",
+    "key": "kg.tables.entity.delete"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/kg/kg-tables.md",
+    "key": "kg.tables.entity.rename-inline"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/kg/kg-tables.md",
+    "key": "kg.tables.entity.retype"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/kg/kg-tables.md",
+    "key": "kg.tables.filter.combines-with-search"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/kg/kg-tables.md",
+    "key": "kg.tables.filter.empty-state"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/kg/kg-tables.md",
+    "key": "kg.tables.filter.entity-type"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/kg/kg-tables.md",
+    "key": "kg.tables.filter.text"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/kg/kg-tables.md",
+    "key": "kg.view.contiguous-selection"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/testing/test-environment-contract.md",
+    "key": "testenv.gate-source"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/testing/ui-test-harness.md",
+    "key": "empty-library-screen.removed"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/testing/ui-test-harness.md",
+    "key": "harness.content-renders"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/testing/ui-test-harness.md",
+    "key": "harness.engine-binds"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/testing/ui-test-harness.md",
+    "key": "harness.library-allowed"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/testing/ui-test-harness.md",
+    "key": "harness.testing-container:test_engine_harness.py"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/testing/ui-testing-strategy.md",
+    "key": "ui-testing.preview-coverage-gate"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/testing/xcode-build-configs.md",
+    "key": "config.arm64-only"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/testing/xcode-build-configs.md",
+    "key": "config.deployment-floor-26"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/testing/xcode-build-configs.md",
+    "key": "config.dev-local-unsandboxed"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/testing/xcode-build-configs.md",
+    "key": "config.embedded-testplan-attached"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/testing/xcode-build-configs.md",
+    "key": "config.release-sandboxed"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/testing/xcode-build-configs.md",
+    "key": "config.tests-mainactor-isolation"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/transport/transport-http-uds.md",
+    "key": "transport.default-https"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/transport/transport-http-uds.md",
+    "key": "transport.inmemory-wins"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/transport/transport-http-uds.md",
+    "key": "transport.uds-computed"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/transport/transport-http-uds.md",
+    "key": "transport.uds-path"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/transport/transport-http-uds.md",
+    "key": "transport.uitest-owns"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/about.md",
+    "key": "about.acknowledgements.grouped"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/about.md",
+    "key": "about.acknowledgements.live-version"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/about.md",
+    "key": "about.acknowledgements.rows"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/about.md",
+    "key": "about.copyright.bundle-then-fallback"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/about.md",
+    "key": "about.icon.real-running-icon"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/about.md",
+    "key": "about.links.canonical"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/about.md",
+    "key": "about.server.omitted-when-unknown"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/about.md",
+    "key": "about.server.repadded"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/about.md",
+    "key": "about.settings.touch-tab"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/about.md",
+    "key": "about.version.formats"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/about.md",
+    "key": "about.window.single-instance"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/automation.md",
+    "key": "automation.creation-affordance"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/automation.md",
+    "key": "automation.feature-gated"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/automation.md",
+    "key": "automation.run-history.backend"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/automation.md",
+    "key": "automation.run-now"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/automation.md",
+    "key": "automation.schedule.crud"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/automation.md",
+    "key": "automation.schedule.pause-resume"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/automation.md",
+    "key": "automation.trigger.crud"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/modes-to-panes.md",
+    "key": "m2p.workflow-canvas-in-preview"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/modes-to-panes.md",
+    "key": "m2p.workflow-reader-is-run-log"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/panes-workspaces.md",
+    "key": "panes.head.consistent-minimal"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/panes-workspaces.md",
+    "key": "panes.kg.library-change-resets"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/panes-workspaces.md",
+    "key": "panes.toggles.inert-outside-widescreen"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/panes-workspaces.md",
+    "key": "panes.visibility.derived-from-list"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/panes-workspaces.md",
+    "key": "panes.workspace.reopen"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/panes-workspaces.md",
+    "key": "panes.workspace.save"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/panes-workspaces.md",
+    "key": "workspaces.persist-applied-list"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/preview-magnifier.md",
+    "key": "magnifier.edge-resize"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/preview-magnifier.md",
+    "key": "magnifier.follows-only-while-option"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/preview-magnifier.md",
+    "key": "magnifier.lockable"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/preview-magnifier.md",
+    "key": "magnifier.option-summons-transient"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/preview-magnifier.md",
+    "key": "magnifier.parks-where-left"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/preview-magnifier.md",
+    "key": "magnifier.right-click-dismiss"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/preview-magnifier.md",
+    "key": "magnifier.scroll-adjusts-magnification"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/preview-magnifier.md",
+    "key": "magnifier.states-its-power"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/reader-overlay-frame-identity.md",
+    "key": "frame.reframing-ops-gated"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/reader-overlay-frame-identity.md",
+    "key": "frame.same-frame-ops-draw"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/reading-markup-annotations.md",
+    "key": "markup.export.w3c-annotationpage"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/reading-markup-annotations.md",
+    "key": "markup.review.grouped-by-page"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/reading-markup-annotations.md",
+    "key": "markup.tags.coding"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/research.md",
+    "key": "research.agent-audited-tools"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/research.md",
+    "key": "research.browser-pane-trust-boundary"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/research.md",
+    "key": "research.chat-context-aware"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/research.md",
+    "key": "research.chat-is-lightweight-end"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/research.md",
+    "key": "research.compare-folds-into-chat"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/research.md",
+    "key": "research.one-surface-named-research"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/research.md",
+    "key": "research.plan-promotes-to-workspace"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/research.md",
+    "key": "research.sources-tab-is-chat-scope"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/research.md",
+    "key": "research.workspace-is-folder-node"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/workflow-node-config.md",
+    "key": "nodeconfig.fields.collection.folder-picker"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/workflow-node-config.md",
+    "key": "nodeconfig.fields.describe.detail-level"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/workflow-node-config.md",
+    "key": "nodeconfig.fields.describe.focus"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/workflow-node-config.md",
+    "key": "nodeconfig.fields.describe.prompt"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/workflow-node-config.md",
+    "key": "nodeconfig.fields.describe.thinking-mode"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/workflow-node-config.md",
+    "key": "nodeconfig.fields.enabled.toggle"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/workflow-node-config.md",
+    "key": "nodeconfig.fields.entities.add-custom"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/workflow-node-config.md",
+    "key": "nodeconfig.fields.entities.include-context"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/workflow-node-config.md",
+    "key": "nodeconfig.fields.entities.prompt"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/workflow-node-config.md",
+    "key": "nodeconfig.fields.entities.remove-custom"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/workflow-node-config.md",
+    "key": "nodeconfig.fields.entities.targets"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/workflow-node-config.md",
+    "key": "nodeconfig.fields.files.pin-picker"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/workflow-node-config.md",
+    "key": "nodeconfig.fields.files.selection-default"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/workflow-node-config.md",
+    "key": "nodeconfig.fields.label.editable"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/workflow-node-config.md",
+    "key": "nodeconfig.fields.schema-driven.fallback"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/workflow-node-config.md",
+    "key": "nodeconfig.fields.search.saved-search"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/workflow-node-config.md",
+    "key": "nodeconfig.fields.summarize-collection.include-statistics"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/workflow-node-config.md",
+    "key": "nodeconfig.fields.summarize-folder.include-themes"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/workflow-node-config.md",
+    "key": "nodeconfig.fields.summarize.max-length"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/workflow-node-config.md",
+    "key": "nodeconfig.fields.summarize.style"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/workflow-node-config.md",
+    "key": "nodeconfig.fields.summarize.thinking-mode"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/workflow-node-config.md",
+    "key": "nodeconfig.fields.tool-name.advanced"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/workflow-node-config.md",
+    "key": "nodeconfig.model.apple-vision-entry"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/workflow-node-config.md",
+    "key": "nodeconfig.model.compare-apply-updates-picker"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/workflow-node-config.md",
+    "key": "nodeconfig.model.default-entry"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/workflow-node-config.md",
+    "key": "nodeconfig.model.one-picker"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/workflow-node-config.md",
+    "key": "nodeconfig.model.provider-switch-picks-first-model"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/workflow-node-config.md",
+    "key": "nodeconfig.model.reload"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/workflow-node-config.md",
+    "key": "nodeconfig.model.vision-only-filter"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/workflow-node-config.md",
+    "key": "nodeconfig.prompt.edit-writes-override"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/workflow-node-config.md",
+    "key": "nodeconfig.prompt.preview.assembled"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/workflow-node-config.md",
+    "key": "nodeconfig.roundtrip.alias-survives"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/workflow-node-config.md",
+    "key": "nodeconfig.roundtrip.autosave"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/workflow-node-config.md",
+    "key": "nodeconfig.roundtrip.duplicate-copies-config"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/workflow-node-config.md",
+    "key": "nodeconfig.roundtrip.legacy-values"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/workflow-node-config.md",
+    "key": "nodeconfig.roundtrip.remove-means-absent"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/workflows.md",
+    "key": "workflows.bar.click-appends-not-runs"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/workflows.md",
+    "key": "workflows.bar.folder-order-and-icons-served"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/workflows.md",
+    "key": "workflows.bar.labels-toggle-persists"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/workflows.md",
+    "key": "workflows.bar.model-pin-per-step"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/workflows.md",
+    "key": "workflows.bar.selection-projected-through-accepted-inputs"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/workflows.md",
+    "key": "workflows.canvas.duplicate-to-edit"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/workflows.md",
+    "key": "workflows.canvas.locked-preset-is-read-only"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/workflows.md",
+    "key": "workflows.canvas.renders-nodes-edges-ports"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/workflows.md",
+    "key": "workflows.defaults.locked-container-refuses-drops"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/workflows.md",
+    "key": "workflows.folders.route-ordered-not-alphabetical"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/workflows.md",
+    "key": "workflows.folders.unknown-folder-still-visible"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/workflows.md",
+    "key": "workflows.run.output-log-live"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/workflows.md",
+    "key": "workflows.run.scope-widening-confirmed"
+  },
+  {
+    "rule": "d",
+    "spec": "docs/contributor_manual/specs/ui/workflows.md",
+    "key": "workflows.run.source-tools-excluded-from-file-columns"
+  },
+  {
+    "rule": "e",
+    "spec": "docs/contributor_manual/specs/ui/panes-workspaces.md",
+    "key": "panes.workspace.save:4731"
+  },
+  {
+    "rule": "e",
+    "spec": "docs/contributor_manual/specs/ui/workflows.md",
+    "key": "workflows.canvas.locked-preset-is-read-only:4514"
+  },
+  {
+    "rule": "e",
+    "spec": "docs/contributor_manual/specs/ui/workflows.md",
+    "key": "workflows.run.scope-widening-confirmed:4396"
+  },
+  {
+    "rule": "e",
+    "spec": "docs/contributor_manual/specs/ui/workflows.md",
+    "key": "workflows.run.scope-widening-confirmed:4523"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "About View"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Accessibility & VoiceOver"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Activity View"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Activity View - Engine"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Agent View - Chat"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Agent View - Chat - Engine"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Agent View - Researcher"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Agent View - Researcher - Engine"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Agent View - Researcher - Inspector"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Agent View - Researcher - Search Query Editor"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Agent View - Researcher - Tasks, Milestones, Issues & Projects"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Agent View - Researcher - Tasks, Milestones, Issues & Projects - Engine"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Agent View - Researcher - UX"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Agent View - Researcher - Workflow Editor"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "App - Feature Gating \u2014 4-Tier (dev/alpha/beta/release)"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "App - Release & Distribution"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Automation View"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Automation View - Engine"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Backend Hygiene & Python Structure"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Bugs - Crashes"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Bugs - Log Errors"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Bugs - Testing - Lint - Engine"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Bugs - Testing - Lint - SwiftUI"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Bugs - Tests - API Surface & Test Harness"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Bugs - Tests - Engine"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Bugs - Tests - SwiftUI"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Bugs - Tests - SwiftUI UX"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Chat / Agent View"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Client - CLI"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Client - MCP"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Client - Web"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Developer - Dev & Build Harness"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Developer - Dev Experience"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Docs - Dev"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Docs - Site"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Docs - User"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Drag & Drop (app-wide)"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "EVERY FRAME PERFECT \u2605"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Engine"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Engine - AI"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Engine - Connection & Startup Bulletproofing"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Engine - Curation"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Engine - Embed - Mac"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Engine - Embed - iOS/iPad"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Engine - Onboarding, Connection & Pairing"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Engine - OpenAPI URL Routing"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Engine - Security"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Engine - Sharing - Accounts, Multi-user & Libraries"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Engine - Sharing - Device Pairing"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Engine - Sharing - Discovery"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Engine - Sharing - Multi-Library"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Engine - Sharing - Remote & Self-Hosting"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Engine - Sharing - Settings"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Exporter"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Exporter - Static Site"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Historical Text"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Hygiene & Structure - Engine and Python"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Hygiene & Structure - Frontend and SwiftUI"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Importer"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Importer - IIIF"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Importer - JSONL Sidecar"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Importer - Source Archives"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Importer - Web Capture & Archiving"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Inspector View"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Inspector View - Artifacts"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Inspector View - Artifacts - Engine"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Inspector View - Knowledge"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Inspector View - Knowledge - Engine"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Inspector View - Notes"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Inspector View - Notes - Engine"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Inspector View - Source"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Inspector View - Source - Engine"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Keyboard Navigation"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Library - Engine"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Library View"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Library View - Canvas"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Library View - Spatial"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Library View \u2014 Column Browser & Columns"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Library View \u2014 Columns"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Library View \u2014 Icons"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Library View \u2014 List"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Lint - Structural Debt - SwiftUI"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Mac App Store \u2014 Sandbox & Distribution"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Navigation System"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Needs Milestone Triage"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Notifications & Watchlist View"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Notifications & Watchlist View - Engine"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Performance - Engine"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Performance - SwiftUI"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Platform Craft & Coverage (fabel notes 2026-07-27)"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Preview View"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Preview View - Image Editing"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Ratchets \u2014 it may not get slower, bigger, or heavier"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Reader View"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Reader View - Knowledge"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Reader View - Notes"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Reader View - Page"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Research View"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Search View"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Search View - Engine"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Search View - Saved Searches"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Settings"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Settings - Models & Providers"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Settings - Models & Providers - Engine"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Settings - Models & Providers - HPC"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Settings - Sharing"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Settings IA v2 + Reader/Editor Typography"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Sharing & Pairing \u2014 Dead-Simple UX"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Sidebar & Launch Performance"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Sidebar View"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Sidebar View - Folders"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Sidebar View - Nodes"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Sidebar View - Workspace"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Surface Chrome - Shared Components"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "SwiftUI/Engine - No Hand Rolled URLs"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "SwiftUI/Engine - Observable Data Layer"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "SwiftUI/Engine - OpenAPI"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Testing Overhaul \u2014 Never Again"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "UX - App Localization \u2014 Interface Translation"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "UX - Cross Platform"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "UX - Library & Reading Surface"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "UX - Mac"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "UX - Mac - Menus, Commands & Shortcuts"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "UX - Native SwiftUI Controls"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "UX - Representations"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "UX - SwiftUI - EPIC: Per-Window Document-Scope Store Lifecycle"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "UX - Toolbars & Mini Toolbars"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "UX - iPad"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "UX - iPhone"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "UX - tvOS"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "UX - visionOS"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Workflow View"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Workflows"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Workflows - Chains"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Workflows - Tools"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "Workflows - Transcribe"
+  },
+  {
+    "rule": "g",
+    "spec": "-",
+    "key": "sidebar-crud"
+  },
+  {
+    "rule": "g",
+    "spec": "docs/contributor_manual/specs/ui/about.md",
+    "key": "about"
+  }
+]

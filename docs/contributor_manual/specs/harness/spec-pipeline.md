@@ -7,9 +7,10 @@
 > Design-led (Testing Constitution). Creative director owns intent; tests enforce it; code
 > makes them pass. **Status: DRAFT — awaiting approval before code is treated as final.**
 > The state machine itself already exists (`scripts/spec_pipeline.py` +
-> `fichero-server/tests/unit/scripts/test_spec_pipeline.py`); this spec stays DRAFT until the
-> creative director rules on the milestone-priority seed and the orphan-issue strictness
-> default, both called out in Open questions below.
+> `fichero-server/tests/unit/scripts/test_spec_pipeline.py` +
+> `scripts/spec_pipeline_baseline.json`); this spec stays DRAFT until the creative director
+> rules on the milestone-priority seed and the orphan-issue strictness default, both called
+> out in Open questions below.
 >
 > Tags: **[OK]** built and tested by name below · **[MISSING]** not built.
 
@@ -26,8 +27,18 @@ the loop without re-deriving "what's next" by hand each time.
 This is deliberately a companion to, not a replacement for, the three existing guardrails
 (`check_spec_milestones.py`, `check_specs_have_tests.py`, `check_spec_manual_refs.py`,
 `check_spec_broken_has_issue.py`). Those stay in the gate — offline, deterministic, run on
-every commit. `spec_pipeline.py check` is broader (it needs one live GitHub call) and is run
-by hand as a dispatch step, not wired into `verify_all.sh`.
+every commit. `spec_pipeline.py check` is broader (it needs two live GitHub calls — issues
+and milestones) and is run by hand as a dispatch step, not wired into `verify_all.sh`.
+
+`check` is a **baseline ratchet**, not a green/red gate on the whole backlog: today's tree
+has hundreds of pre-existing illegal states (mostly legacy `[OK]` behaviors written before
+this script's "cite the test name in backticks" convention existed, and dozens of GitHub
+milestones that predate spec-per-milestone discipline). `check --update-baseline` accepts
+that debt into `scripts/spec_pipeline_baseline.json` once; from then on, plain `check` fails
+only on a NEW illegal state, or on a baselined one that quietly stopped occurring (fixed but
+not removed — the list can only shrink, so a shrink has to be deliberate). This is the same
+contract `check_spec_broken_has_issue.py`'s `GRANDFATHERED_FILES` and the coverage ratchet
+already use for exactly this kind of "we know about this, don't let it grow" debt.
 
 ## Prior art / best practices
 
@@ -52,8 +63,11 @@ second markdown-bullet parser — one parser, one bug surface.
   a CLOSED issue is an illegal state (stale tag or wrongly-closed issue). Pinned by
   `test_rule_b_closed_issue_still_broken_fails`.
 - `pipeline.check.rule-c-milestone-mismatch` — **[OK]** a behavior citing an issue whose
-  GitHub milestone differs from the spec's declared `Milestone:` is an illegal state. Pinned
-  by `test_rule_c_milestone_mismatch_fails`.
+  GitHub milestone differs from the spec's declared `Milestone:` is an illegal state — but
+  ONLY for a plain `#N` citation. An arrow citation (e.g. `→ #NNNN increment K`, a
+  deliberate pointer to another tracked epic increment) is legitimately cross-milestone and
+  exempt.
+  Pinned by `test_rule_c_milestone_mismatch_fails`, `test_rule_c_arrow_citation_is_exempt`.
 - `pipeline.check.rule-d-ok-needs-real-test` — **[OK]** a behavior tagged OK with no cited
   test, or citing a test name that resolves to no file/function anywhere under
   `fichero/Tests` or `fichero-server/tests`, is an illegal state. Pinned by
@@ -68,10 +82,13 @@ second markdown-bullet parser — one parser, one bug surface.
   `--strict`. Pinned by `test_queue_excludes_claimed_and_closed_issues` (queue side) — the
   INFO/strict split itself is exercised structurally in `cmd_check`; see Open questions.
 - `pipeline.check.rule-g-milestone-spec-mirror` — **[OK]** a GitHub milestone shaped like a
-  spec anchor with no spec, or a spec-declared milestone with no matching GitHub issues, is
-  an illegal state (mirrors `check_spec_milestones.py` from the milestone side). Exercised by
-  the real-tree run below; not yet pinned by an isolated fixture test — follow-up debt, file
-  an issue before the next worker touches this rule.
+  spec anchor with no spec, or a spec-declared milestone with no matching GitHub milestone,
+  is an illegal state (mirrors `check_spec_milestones.py` from the milestone side). Uses a
+  DEDICATED milestone listing (`get_milestones`, `gh api .../milestones?state=all`), not just
+  milestones seen on issues — an empty milestone (zero issues) is otherwise invisible to a
+  script that only calls `gh issue list`. Pinned by
+  `test_rule_g_empty_milestone_with_no_spec_fails`,
+  `test_rule_g_workstream_bucket_milestone_is_exempt`.
 - `pipeline.check.offline-blind-not-green` — **[OK]** `--offline` skips every
   GitHub-dependent rule (b, c, e, f, g) and prints `OFFLINE: blind to rules …` rather than
   reporting success by omission; offline-only rules (a, d) still run and can still fail.
@@ -85,6 +102,18 @@ second markdown-bullet parser — one parser, one bug surface.
 - `pipeline.check.missing-specs-dir-exits-2` — **[OK]** every subcommand except `status` and
   `agent-work` exits 2 when the specs directory does not exist. Pinned by
   `test_missing_specs_dir_exits_2`.
+- `pipeline.check.baseline-ratchet` — **[OK]** `check` fails ONLY on an illegal state not yet
+  in `scripts/spec_pipeline_baseline.json`, and ALSO fails when a baselined entry no longer
+  occurs (fixed but not removed — shrink-only, same contract as
+  `check_spec_broken_has_issue.py`'s `GRANDFATHERED_FILES`). The OK summary line reports "N
+  baselined illegal state(s) remain (by rule: …)". Pinned by
+  `test_check_passes_against_its_own_baseline`,
+  `test_check_fails_on_new_illegal_state_not_in_baseline`,
+  `test_check_fails_when_baselined_entry_no_longer_occurs`.
+- `pipeline.check.update-baseline` — **[OK]** `check --update-baseline` writes the current
+  illegal-state set to the baseline file, sorted by `(rule, spec, key)` for stable diffs;
+  re-running it with nothing changed produces a byte-for-byte identical file. Pinned by
+  `test_update_baseline_writes_sorted_and_idempotent`.
 - `pipeline.queue.deterministic-order` — **[OK]** the queue orders by
   (milestone priority from the `MILESTONE_PRIORITY` seed list, then alphabetical), then tag
   severity (BROKEN before PARTIAL before GAP/MISSING), then spec path/line — same inputs,
@@ -94,9 +123,13 @@ second markdown-bullet parser — one parser, one bug surface.
   Pinned by `test_queue_excludes_claimed_and_closed_issues`.
 - `pipeline.queue.json-and-limit` — **[OK]** `--json` emits the same items as structured
   data; `--limit N` truncates after sorting. Pinned by
-  `test_queue_orders_by_milestone_priority_then_tag_severity` (uses `--json`); `--limit` is
-  exercised in the real-tree run below, not yet in an isolated fixture — mechanical
-  follow-up, add alongside the next queue change.
+  `test_queue_orders_by_milestone_priority_then_tag_severity` (uses `--json`),
+  `test_queue_limit_truncates_after_sorting`.
+- `pipeline.queue.kind-retag` — **[OK]** `queue --kind retag` lists rule (b)/(d)/(e) findings
+  — DOC-fixable debt (find/cite a pinning test, or reopen/close a mistagged issue) — grouped
+  by spec, distinct from the default `--kind code` dispatch queue. A docs lane clears these
+  in bulk without touching the code-work queue's ordering. Pinned by
+  `test_queue_retag_lists_rule_b_and_d_grouped_by_spec`, `test_queue_default_kind_is_code`.
 - `pipeline.brief.renders-full-context` — **[OK]** `brief <id>` prints the behavior text, its
   spec path:line, its cited issue + title, the standing worker rules (no xcodebuild/gate/
   commit, never bare git stash, `swiftc -parse` + `-typecheck`, one-literal test messages,
@@ -122,22 +155,28 @@ second markdown-bullet parser — one parser, one bug surface.
 |-------|--------------------|--------------------------|
 | Behavior filed | broken/gap/partial/missing behavior cites `#N` | `check` rule (a) |
 | Tag matches issue | broken-family tag ⇒ issue still OPEN | `check` rule (b) |
-| Issue on right milestone | cited issue's milestone == spec's `Milestone:` | `check` rule (c) |
+| Issue on right milestone | a PLAIN `#N` citation's milestone == spec's `Milestone:` (arrow citations exempt) | `check` rule (c) |
 | OK is proven | `[OK]` cites a test that exists | `check` rule (d) |
 | OK is landed | `[OK]`'s cited issue is CLOSED | `check` rule (e) |
 | Milestone fully cited | every OPEN issue on a spec's milestone is cited by some behavior | `check` rule (f), INFO / `--strict` |
-| Milestone ↔ spec mirrored | GH milestone has a spec; spec's milestone has GH issues | `check` rule (g) |
-| Ready to dispatch | broken-family, OPEN, unclaimed issue | `queue` |
+| Milestone ↔ spec mirrored | GH milestone (from the dedicated milestone listing) has a spec; spec's milestone exists on GH | `check` rule (g) |
+| No new debt | today's illegal-state set == baseline, modulo a shrink | `check` baseline ratchet |
+| Ready to dispatch | broken-family, OPEN, unclaimed issue | `queue` (default `--kind code`) |
 | Worker briefed | queue item rendered with rules + retag instruction | `brief` |
+| Doc debt clearable in bulk | rule (b)/(d)/(e) findings, grouped by spec | `queue --kind retag` |
 | Retagged | worker flips `[OK]`, cites the test; manager adds the sha | manual step, not automated (see below) |
+| Baseline is current | `check` is green against `scripts/spec_pipeline_baseline.json` | `check must be green against the baseline before dispatch` (loop step 1) |
 
 ## The manager loop (numbered steps)
 
-1. **check** — `python scripts/spec_pipeline.py check` (add `--strict` to also fail on
-   orphan issues). Fix every illegal state it prints before dispatching new work from a
-   dirty state.
-2. **queue** — `python scripts/spec_pipeline.py queue --limit N` for the next batch, or
-   `--milestone <name>` to stay inside one surface.
+1. **check must be green against the baseline before dispatch** —
+   `python scripts/spec_pipeline.py check` (add `--strict` to also fail on orphan issues).
+   Green here means "no NEW debt, nothing baselined silently fixed" — it does NOT mean the
+   backlog in `scripts/spec_pipeline_baseline.json` is empty. Fix every NEW illegal state it
+   prints, or remove a stale baseline entry it flags, before dispatching from a dirty state.
+2. **queue** — `python scripts/spec_pipeline.py queue --limit N` for the next batch of CODE
+   work, or `--milestone <name>` to stay inside one surface; `queue --kind retag` for the
+   DOC-fixable (b/d/e) batch a docs lane can clear separately.
 3. **brief** — `python scripts/spec_pipeline.py brief <behavior-id>` for each item; send the
    printed brief to a worker.
 4. **dispatch** — the worker claims the issue (`gh issue edit N --add-label
@@ -150,7 +189,9 @@ second markdown-bullet parser — one parser, one bug surface.
 8. **retag** — the spec line flips to `[OK]`, cites the test name; the manager adds the
    landing commit sha.
 9. **check again** — confirms the retag didn't introduce a new illegal state (e.g. rule e:
-   an `[OK]` citing a still-OPEN issue because the issue wasn't closed yet).
+   an `[OK]` citing a still-OPEN issue because the issue wasn't closed yet), and run
+   `check --update-baseline` to shrink the baseline by the entries just fixed (never to
+   absorb new debt — only right after fixing something).
 
 ## What is deliberately NOT automated
 
@@ -165,6 +206,9 @@ second markdown-bullet parser — one parser, one bug surface.
 - **Milestone/issue creation** — `check` rule (g) reports a missing milestone or an
   uncited issue; it never creates or closes anything. All mutation (`gh issue edit
   --add-label`) happens explicitly, printed for a human/worker to run, never auto-executed.
+- **Baseline shrinking** — `--update-baseline` is a deliberate command a human/manager runs
+  right after fixing something; the script never shrinks the baseline on its own, and never
+  runs `--update-baseline` implicitly from plain `check`.
 
 ## Open questions for the creative director
 
@@ -174,11 +218,18 @@ second markdown-bullet parser — one parser, one bug surface.
 2. Rule (f) (orphan open issues) defaults to INFO, `--strict` promotes to failure. Should the
    manager's daily `check` run with `--strict` by default once the real-tree backlog (see the
    first real run below) is worked down, or stay INFO indefinitely?
-3. Two behaviors above are `[MISSING]` (a rule-g fixture test, a `--limit` fixture test) —
-   both mechanical; fine to leave as follow-up debt, or should they block approving this spec?
+3. Every rule-c/d/f/g fixture test now exists; no `[MISSING]` behaviors remain in this spec.
+4. The baseline seeded from the real tree (2026-09-18) carries 354 illegal states, 138 of
+   them rule (g) — GitHub milestones (of 156 total) that predate spec-per-milestone
+   discipline and legitimately have no spec (`audit_spec_milestone_manual.py` already
+   surfaces this same backlog as an audit). Is baselining all 138 at once acceptable, or
+   should rule (g) start `--strict`-only (INFO by default, like rule f) until that backlog is
+   triaged down?
 
 ## First real run against the tree (2026-09-18, not fixed — reported as found)
 
-The two commands below were run from the repo root against the real specs/issues; illegal
-states found are pipeline debt to work down via `queue`/`brief`, not bugs in this script.
-See the worker's report for the full pasted output.
+`check --update-baseline` seeded `scripts/spec_pipeline_baseline.json` with 354 illegal
+states (b=4, c=33, d=175, e=4, g=138) across 372 tagged behaviors in 26 specs; plain `check`
+is green against that baseline. `queue --limit 15` and `queue --kind retag` were also run
+against the real tree; illegal states and debt found are pipeline backlog to work down via
+`queue`/`brief`, not bugs in this script. See the worker's report for the full pasted output.
