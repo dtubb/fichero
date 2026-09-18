@@ -132,6 +132,18 @@ Surfaces: `DocumentInspector` (+`Sections`), `DocumentInspectorEntitiesTab`
   search, not a jump to one arbitrary claim's page (ruled 2026-09-05, option A). An
   entity has no page; its statements do. This is why no `EntitySourceRequest` type
   is proposed — see Findings F6.
+- `kg.entity.source.crop-shown-for-any-bbox-item` — **[GAP]** (#2105, fold from legacy
+  milestone "Inspector View") the same "show me the source" affordance the entity-statement
+  rows already have (`kg.entity.source.highlights-span`/`.highlights-region`) should extend to
+  ANY bbox-anchored item — a face, an annotation, a transcribed line — not only a claim, and
+  should show the actual CROPPED source image inline, not only highlight the region on the
+  full page. Verified at HEAD: the component this needs already exists —
+  `Views/Inspector/SourceSnippet.swift` renders a cropped `SourceCropRequest`, consumed by
+  `Views/Inspector/SourceProvenancePopover.swift` — but that popover has ZERO call sites
+  anywhere in `fichero/fichero/`. Built, never mounted: the same defect class as the dead
+  `EntitySourceGroupsView` this spec already tracks in section F below. Re-mounting it against
+  the entity-statement rows (and, per #2105, faces/annotations once they have their own
+  inspector presence) is the gap, not writing the component again.
 
 ### D. Empty state and re-keying
 
@@ -142,53 +154,47 @@ Surfaces: `DocumentInspector` (+`Sections`), `DocumentInspectorEntitiesTab`
   `EntityDigestContent.statementsState(...)`).
 - `kg.entity.empty.load-error` — a failed load shows the error inline with a way to
   retry; it does not fall back to a stale list.
-- `kg.entity.load-failure-names-its-reason` — **[BROKEN]** (#4850) when the ENTITY itself
-  fails to load (distinct from `kg.entity.empty.load-error` above, which is about the
-  statements list failing once an entity is already showing), the inspector must name WHY —
-  not found, could not decode, engine unreachable — with a Retry, and a cancelled load (the
-  user's selection changed mid-fetch) must never be shown as a failure at all. Verified BROKEN
-  at HEAD: `DocumentInspector.EntityInspectorArm`'s `.task(id:)` (`DocumentInspector.swift:
-  218-226`) does `catch { loadFailed = true }` — the typed error is neither logged nor
-  inspected, so a 404, a decode failure, a cancelled task, and a timeout are all
-  indistinguishable, all rendering the same generic "Entity Unavailable / Could not load this
-  entity." **Root cause corrected after further testing (see #4850's own comment thread — not
-  a cancelled-task race after all): the entity id reaching the inspector was sometimes the
-  composite outline-row id, not the entity's own id** — see
-  `kg.entity.focus-uses-the-bare-id` below, the real cause. **A fix is in flight, uncommitted
-  in this tree**: the catch now checks `Task.isCancelled` first (never shows a superseded
-  fetch as a failure), logs the typed error with the entity id and library path, and shows that
-  reason to the user instead of the generic message. Not yet landed — retag once committed and
-  tested. Still open, not decided here: what Preview and Reader should show for a selected
-  entity — today both say "No selection" regardless.
-- `kg.entity.focus-uses-the-bare-id` — **[BROKEN]** (#4850) the id that reaches
-  `KGFocusState.focusEntity(entityId:)` and the id the inspector requests must be the entity's
-  own bare id — never the composite outline-row id a table's `Item.id` happens to be minted as.
-  Verified BROKEN at HEAD: `EntitiesTableView`'s row identity is
-  `<documentId>:entity:<entityId>` (`LibraryOutlineNode.swift:100`), and that composite lands
-  in the shared selection set. TWO handlers fire on one selection change: the table's own
-  `.onChange` opens the entity with the real, bare `entity.id`; `ContentView
-  .handleBrowserSelectionChange` separately sees an entity-library selection and calls
-  `kgFocusState.focusEntity(entityId:)` with the COMPOSITE id. Whichever handler runs last
-  wins the race, so the inspector sometimes requests `/api/entities/<doc>:entity:<id>`, gets a
-  404, and shows "Entity Unavailable" — intermittent because it is a race between two writers
-  of one focus, not a load-time failure at all. No fix for this specific bug was found in the
-  working tree as of this pass (the composite-id minting and the two-writer race are both
-  still present at HEAD and uncommitted alike) — the other #4850 fixes in flight (error
-  reporting, per-window focus) land around this cause without yet closing it.
-- `kg.entity.focus-is-per-window` — **[BROKEN]** (#4850) each window owns its own entity
-  focus — a click in one window's Entities table must never drive a DIFFERENT window's
-  Inspector. Verified BROKEN at HEAD: `ContentView.kgFocusState` is
-  `@Environment(KGFocusState.self)`, resolving to one process-wide `KGFocusState.shared` every
-  window injects, so a focus change in one window is visible to all of them, each resolving it
-  against ITS OWN library. **A fix is in flight, uncommitted in this tree**: `ContentView`
-  switches to `@State var kgFocusState = KGFocusState()`, one instance per window. The one
-  deliberate exception, also part of the fix and stated so it is not re-litigated as a
-  regression: "Open in New Window" (a separate, already-closed feature) still needs a ONE-SHOT handoff of the initial focus,
-  since the new window's own `KGFocusState` doesn't exist until the window finishes opening —
-  `KGFocusState.shared` is repurposed as exactly that, a single-value mailbox written once by
-  the opener and consumed once by the new window's first appearance, cleared on consumption so
-  a third window opened later never inherits a stale handoff. Not yet landed — retag once
-  committed and tested.
+- `kg.entity.load-failure-names-its-reason` — **[PARTIAL]** (implemented and tested,
+  f47f4b60d; #4850 still open pending close) when the ENTITY itself fails to load (distinct from `kg.entity.empty.load-error` above, which is about the
+  statements list failing once an entity is already showing), the inspector names WHY — not
+  found, could not decode, engine unreachable — with a Retry, and a cancelled load (the user's
+  selection changed mid-fetch) is never shown as a failure. `DocumentInspector
+  .EntityInspectorArm`'s `.task(id:)` now checks `Task.isCancelled` first, logs the typed
+  error with the entity id and library path, and shows that reason instead of the old generic
+  "Entity Unavailable." Pinned: `DocumentInspectorArmTests.testEntityInspectorArmGuardsCancellationBeforeMarkingFailure`.
+  Still open, not decided here: what Preview and Reader should show for a selected entity —
+  today both say "No selection" regardless.
+- `kg.entity.focus-uses-the-bare-id` — **[PARTIAL]** (implemented and tested, f47f4b60d;
+  #4850 still open pending close) the id that reaches
+  `KGFocusState.focusEntity(entityId:)` and the id the inspector requests is the entity's own
+  bare id — never the composite outline-row id a table's `Item.id` is minted as. Was BROKEN:
+  `EntitiesTableView`'s row identity is `<documentId>:entity:<entityId>`
+  (`LibraryOutlineNode.swift:100`), and two handlers fired on one selection change — the
+  table's own `.onChange` opened the entity with the real, bare id, while `ContentView
+  .handleBrowserSelectionChange` separately called `kgFocusState.focusEntity(entityId:)` with
+  the COMPOSITE id, racing to decide which one won. Fixed:
+  `LibraryOutlineNode.parse(nodeId:)` splits the composite id from the RIGHT (a document id
+  may itself contain colons) and `handleBrowserSelectionChange` classifies the row FIRST — an
+  entity row extracts and focuses the bare item id, a claim row returns early and never
+  reaches the document-promotion path at all. Pinned:
+  `EntityClaimSelectionClassifyTests` (`"an entity row focuses the BARE item id, never the
+  composite outline id (#4850)"`, `"a claim row never reaches the document-promotion path
+  (#4850)"`).
+- `kg.entity.focus-is-per-window` — **[PARTIAL]** (implemented and tested, f47f4b60d;
+  #4850 still open pending close) each window owns its own
+  entity focus — a click in one window's Entities table never drives a DIFFERENT window's
+  Inspector. Was BROKEN: `ContentView.kgFocusState` was `@Environment(KGFocusState.self)`,
+  resolving to one process-wide `KGFocusState.shared` every window injected. Fixed:
+  `ContentView` now holds `@State var kgFocusState = KGFocusState()`, one instance per window.
+  The one deliberate exception: "Open in New Window" (a separate, already-closed feature)
+  still needs a ONE-SHOT handoff of the initial focus, since the new window's own
+  `KGFocusState` doesn't exist until the window finishes opening — `KGFocusState.shared` is
+  repurposed as exactly that, a single-value mailbox written once by the opener and consumed
+  once by the new window's first appearance, cleared on consumption so a third window opened
+  later never inherits a stale handoff. Pinned: `KGFocusStateTests.testContentViewOwnsItsOwnPerWindowKGFocusState`,
+  `KGFocusStateTests.testHandOffToNewWindowIsConsumedByTheReceivingWindowOnly`,
+  `KGFocusStateTests.testHandOffIsClearedAfterConsumingSoAThirdWindowGetsNothing`,
+  `KGFocusStateTests.testConsumePendingHandoffIsANoOpWhenNothingIsPending`.
 - `kg.entity.rekey.on-focus-change` — the statements view is keyed on
   `focusedEntityId` (`.task(id:)`), so changing focus re-fetches and the list
   belongs to the new entity; the old list is dropped, not appended. Pinned:
@@ -265,6 +271,38 @@ until re-mounted and tested against the new location.
   headline in `.system(size: 32, weight: ...)` (a hard-coded serif size), violating the
   semantic-system-fonts rule (`.title`/`.body`, never `.system(size:)`) — a straightforward
   fix once someone is in this file, not a design question.
+
+### Legacy milestone fold — redirects (#151 Inspector View - Knowledge, #166 Inspector View)
+
+Of the seven open issues in these two legacy milestones, only `kg.entity.source.crop-shown-
+for-any-bbox-item` above (#2105) is actually this spec's subject — the entity focus/statements/
+source pane. The rest were re-read against this spec's real intent and moved elsewhere rather
+than forced in:
+
+- **#3254** (bibliography/citations hand-rolled URLSession transport) → `docs-citations-
+  bibliography.md`; this spec has no bibliography surface.
+- **#3094** (merge mojibake libraries — union notes/annotations/entities after a document+files
+  merge) → `kg-tables.md`; entity/library merge mechanics live there (see
+  `kg.merge.repoints-subject`), not in the inspector's display of an already-focused entity.
+- **#972** (Core ML on-device personalization for merge/curation decisions) → `kg-enrichment.md`;
+  it is a learned-ranking proposal for the curation/review-queue loop, not an inspector
+  display behavior, and its own text defers it pending a corpus.
+- **#379** (0.1.0-era "advanced graph exploration and interpretation views") → `hermeneutic-
+  layer.md`; "argument clusters, interpretation pivots, evidence trails" is that spec's model
+  (`Interpretation`/`PatternInstance`), not the entity pane's. This is an old, broad EPIC
+  issue — not called superseded, but its acceptance criteria substantially overlap behaviors
+  already tracked elsewhere (this spec's own `kg.entity.source.*` already covers "evidence
+  drill-down always reaches source").
+- **#1474** (Workflow-Run History inspector tab) → `workflows.md`; a per-document run-history
+  tab is a workflow-run-history behavior wearing an inspector-tab costume, not an entity/claim
+  concern.
+- **#4422** (Attributes strip: show none by default, entities as lozenges, prototype-driven
+  visibility) — **left in its legacy milestone (#166), flagged for maintainer triage.** This is
+  the Document Inspector's general Attributes tab, not the entity-focus pane this spec covers,
+  and no existing spec owns "what attributes does a document show and who decides" (the
+  Tinderbox-style prototype-inheritance model it asks for is the same territory as the
+  `cascading-attribute-resolution` idea noted as FUTURE work, not yet a spec). Needs a home
+  decided before it can be tagged from any spec's real subject.
 
 ## First wave to pin (proposed — awaiting the creative director)
 

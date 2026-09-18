@@ -238,6 +238,107 @@ itself works (committed c4a22c2b5). The rest are the workspace/pane defects to p
   (the existing `ClaimSourceRequest.request(for:)` cursor entity statements use). Pinned:
   `ClaimSourceLabelTests`.
 
+### Legacy milestone fold — toolbar and shared chrome (#125 UX - Toolbars & Mini Toolbars,
+### #251 Surface Chrome - Shared Components; both milestones had no spec of their own)
+
+The window toolbar (pane toggles, the breadcrumb/principal lozenge, the status island, the
+Workspaces menu icon) and the shared pane-head/footer chrome (`MiniToolbar`, `PaneFilterBar`)
+are already this spec's surface — folding the two legacy toolbar milestones in here rather than
+starting a new one.
+
+- `panes.filter-bar.shares-minitoolbar-height` — **[PARTIAL]** (implemented and tested;
+  #3370 still open pending close) every mini-toolbar-like pane
+  strip — the sidebar bottom toolbar, the document-inspector annotation filter strip, the
+  reader/library/preview mini-toolbars — shares ONE height and Liquid-Glass-compatible chrome
+  across macOS/iPad/iOS, instead of `PaneFilterBar` hard-coding its own 24pt. Verified at HEAD:
+  `PaneFilterBar.height` (`Views/Components/PaneFilterBar.swift:32`) reads
+  `MiniToolbar<EmptyView, EmptyView>.standardHeight` directly — there is no separate constant
+  left to drift — and both surfaces the issue named, `SidebarBottomToolbar.swift` and
+  `DocumentInspectorAnnotationsTab.swift`, both build on `PaneFilterBar`. Pinned:
+  `MiniToolbarMetricPolicyTests.testPaneFilterBarUsesMiniToolbarHeight`.
+- `panes.status-island.separates-connection-and-activity` — **[PARTIAL]** (#4536) the status
+  island should present backend connection, remote connections, WHO else is connected as a
+  user, and activity as four SEPARATE indications, not one folded glyph+spinner. Verified at
+  HEAD: two of the four already split out as their own toolbar items —
+  `EngineStatusToolbarItem` and `ActivityStatusToolbarItem` — each with its own Liquid Glass
+  section and popover, leaving `StatusIslandToolbarItem` for the message/selection line only
+  (`StatusIslandToolbarItem.swift:1-13`, its own doc comment records the 2026-08-23 split).
+  Still missing: a distinct "remote connections" indicator and a "who else is connected"
+  indicator — multi-user/agent-session presence has no toolbar surface yet.
+- `panes.status-island.message-budget` — **[PARTIAL]** (implemented and tested; #4366 still
+  open pending close) every island message reads
+  completely at the island's real width; nothing the app authors truncates mid-word. Verified
+  at HEAD: `StatusIslandMessage.budget`/`.declaredMaxWidth`, `.authoredMessages` (the
+  app-authored strings held to budget by test) and `.shortForm(_:)` (a named, tested seam
+  that clips an OS/backend string on a word boundary, never a silent SwiftUI clip) all exist
+  exactly as asked (`StatusIslandToolbarItem.swift:156-215`). Pinned:
+  `StatusIslandMessageBudgetTests`.
+- `panes.status-island.errors-are-short-and-typed` — **[PARTIAL]** (#4269) the content area
+  never shows raw error text (NSError descriptions, domains, codes, URLs); the island shows a
+  short human sentence, and clicking it reveals the full technical text plus a one-click
+  "Report to GitHub." Verified at HEAD: `StatusIslandMessage.resolve` already routes every
+  engine/import failure through `shortForm(_:)` before it reaches the island
+  (`StatusIslandToolbarItem.swift:244-266`), so the SHORT-message half is built. Not verified
+  on disk: a details-on-click popover showing the full text, and the "Report to GitHub" filing
+  pipeline — no such view or endpoint call was found under `Views/Shell/Toolbar/`.
+- `panes.status-island.selection-noun-matches-type` — **[PARTIAL]** (#4586) the selection
+  noun ("N images/pages/folders selected") should pick off the SELECTION's own file/doc
+  types, matching PDFs-have-pages / folders-have-documents-or-images / images-are-images.
+  Verified at HEAD: the noun-derivation closure (`ContentView+Toolbar.swift:349-357`) already
+  checks `fileType == .image` before `docType == .page`, so an all-image selection should
+  already read "images." No test pins this derivation (`StatusIslandToolbarTests` only
+  exercises `resolve` given an already-decided noun string), so whether the live repro the maintainer
+  filed is actually fixed cannot be confirmed from source alone — flagged for a live re-check
+  before this is retagged OK or closed.
+- `panes.toolbar.owns-identity-namespace` — **[GAP]** (#3203) every item contributing to a
+  window toolbar should carry an explicit `ToolbarItem(id:)` from one shared namespace, so a
+  prior duplicate-identifier class of launch crash (two earlier, already-closed P0 incidents)
+  cannot recur, with a guardrail failing CI on a new id-less toolbar item. Verified at HEAD:
+  only 2 of the 46
+  `.toolbar {` contribution sites in the tree declare any `ToolbarItem(id:)`
+  (`ContentView+Toolbar.swift`, `ContentView+InspectorContainer.swift`) — the other 44 still
+  rely on SwiftUI's auto-derived identifiers. No guardrail script exists yet for this class.
+- `panes.toolbar.ia-groups-by-what-it-acts-on` — **[GAP]** (#4374) a toolbar control's
+  position should say what it acts on: the pane-visibility toggles (sidebar/reader/reading/
+  inspector) form one cluster at the window's edge, and controls that act on the library
+  (sort, filter, view-mode) sit over the library's own mini-toolbar, not at the window's far
+  edge. Not verified as built; the View-menu-duplicating toolbar button this issue also flags
+  is a `menus-and-commands.md` question, not repeated here.
+- `panes.toolbar.breadcrumb-is-a-real-path` — **[GAP]** (#4378) the breadcrumb should read as
+  a drillable PATH (`Library > Folder > PDF > 1`) with a page SELECTION at the end, not a
+  count prefix, and every element should be a real, draggable macOS proxy icon (file
+  promises, so it still works when the server is remote). The existing breadcrumb/principal-
+  lozenge behavior above this spec already owns is the format's home; this issue is the
+  richer interaction on top of it, not built.
+- `panes.toolbar.declutters-per-item-actions` — **[GAP]** (#2433) a main-toolbar button that
+  only acts on the current selection (e.g. "open this attribute in a text window") belongs in
+  a contextual menu and/or a mini-toolbar icon on the thing itself, not the main window
+  toolbar; "open in a new window" should be one general capability reachable for any node
+  (doc/page/artifact/attribute), consistent with the reader/inspector mini-toolbars. Not
+  verified as built.
+- `panes.chrome.shared-surfacechrome-component` — **[GAP]** (#3530) the Reader/Inspector tab
+  bar + bottom mini-toolbar + sub-tab pattern should be extracted into one reusable
+  `SurfaceChrome` component set so Workflow/Chat/Agent/Research/Search can adopt the same
+  chrome without re-deriving it. Verified at HEAD: no `SurfaceChrome`-named type exists
+  anywhere under `fichero/fichero/` — `MiniToolbar`/`PaneFilterBar` are shared, but the tab-bar
+  half of the pattern is not yet extracted.
+
+Needs maintainer triage, not folded as a behavior here: **#3540** ("DECISIONS NEEDED —
+surface-consistency, fourteen open questions for the maintainer") asks which surfaces adopt `SurfaceChrome` and
+how (Workflow tabs, Chat/Agent tabs, Research's 3-pane layout, Search's tab strategy, the KG
+view-mode switcher's location) — filed 2026-07-12, before the modes-to-panes and panes-
+workspaces rulings that have since answered several of its 14 questions on their own terms
+(the KG switcher question in particular looks pre-empted by `panes.kg.select-shows-item-
+inspector` and the modes-to-panes "KG graph/map = Library view modes" ruling). Re-reading it
+question-by-question against what has shipped since, rather than assuming it is still live in
+full, is a maintainer call, not one to make while folding a milestone.
+
+Left in its legacy milestone, not folded here: **#2501** (swipe-to-delete / row swipe actions
+on library and inspector list rows) is a Library/Inspector ROW-gesture ask, not window or
+pane chrome — no existing spec's surface is the row itself (the library-view-modes spec
+proposed in the milestone ledger would be the right home once it exists). Left in #125 for
+now rather than forced into this spec.
+
 ### Post-F7 design refinements (CD, 2026-09-14) — capture, revisit after F7
 
 - `panes.kg.select-shows-item-inspector` — **[GAP, post-F7]** (→ #4705 increment 7) clicking a claim or entity row
