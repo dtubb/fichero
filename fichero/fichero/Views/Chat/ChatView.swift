@@ -158,6 +158,31 @@ struct ChatView: View {
             await loadProviders()
             await loadConversations()
         }
+        // #4817: the dock mount (`PaneSpec.swift`'s `chatSurface`) is ONE
+        // long-lived `ChatView` re-rendered with a new `conversation` param
+        // on every sidebar selection, never remounted (no `.id(…)`) —
+        // `currentConversation`/`backendConversationId` are `@State`, seeded
+        // ONLY at first mount, so without this bridge a sidebar-driven
+        // switch left the PREVIOUS conversation's content showing (and
+        // sending into). Reuses the EXISTING `switchConversation` — the
+        // same reset/reload the title menu's own switch already does — and
+        // the SAME pin guard that switch honors (`isConversationPinned`:
+        // "stay on THIS conversation", the same UX rule either switch path
+        // must respect).
+        .onChange(of: conversation?.id) { _, _ in
+            guard !isConversationPinned, let conversation else { return }
+            switchConversation(conversation)
+        }
+        // #4705 "5b" seam (planned, not yet wired by a caller — `researchProject`
+        // has no setter that changes it today) / #4817: `ResearchChatPane`
+        // always passes `conversation: nil`, so the bridge above never fires
+        // for it — its re-scoping signal is `researchProject` changing, and
+        // there is no EXISTING `Conversation` to switch to, only a fresh
+        // scope. Same pin guard.
+        .onChange(of: researchProject?.id) { _, _ in
+            guard !isConversationPinned else { return }
+            resetToFreshConversation()
+        }
     }
 
     var visibleConversations: [Conversation] {

@@ -25,6 +25,14 @@ class ProviderAPIService {
         self.client = ficheroClient
     }
 
+    /// #4815: local Keychain persistence, injected so a test can fake it —
+    /// `ProviderKeyStore` is a plain `enum` of `static func`s hitting the
+    /// REAL Keychain directly, so a test must override these rather than
+    /// call `setAPIKey`/`deleteAPIKey` unmodified. Defaulted to the real
+    /// store for every production caller.
+    var storeProviderKey: (String, String) -> Bool = ProviderKeyStore.store
+    var removeProviderKey: (String) -> Bool = ProviderKeyStore.remove
+
     /// Current library path from the client (used only for refs endpoints)
     private var libraryPath: String {
         client.currentLibraryPath ?? ""
@@ -183,8 +191,11 @@ class ProviderAPIService {
 
     // MARK: - API Key Management - Global
 
-    /// Store API key for a provider type in Keychain
-    func setAPIKey(providerType: String, apiKey: String) async throws {
+    /// The shared HTTP transport both `setAPIKey` (user-facing) and
+    /// `supplyAPIKeyToEngine` (engine-only, launch-time) call — #4815's "one
+    /// path, not a copy": the difference between the two callers is whether
+    /// the app's OWN Keychain is also touched, never the request itself.
+    private func postAPIKey(providerType: String, apiKey: String) async throws {
         let request = Components.Schemas.APIKeyRequest(apiKey: apiKey)
 
         let response = try await client.api.setProviderApiKeyApiProvidersProviderTypeApiKeyPost(
@@ -204,7 +215,36 @@ class ProviderAPIService {
         }
     }
 
-    /// Delete API key for a provider type from Keychain
+    /// Store API key for a provider type — the USER-FACING path (Settings).
+    /// #4815: ALWAYS pushes to the engine AND persists to the app's own
+    /// Keychain, trimmed identically for both — the two stores drifting
+    /// apart (Settings never updating the Keychain the launch-time push
+    /// reads from) was the whole bug. Never add a flag to skip the Keychain
+    /// half here: `supplyAPIKeyToEngine` below is the ONE engine-only path,
+    /// kept as a distinct method on purpose — a Bool anyone could pass
+    /// `false` to is a standing invitation for this exact regression.
+    func setAPIKey(providerType: String, apiKey: String) async throws {
+        let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        try await postAPIKey(providerType: providerType, apiKey: trimmed)
+
+        // #4815: the app Keychain is not authoritative for a REMOTE engine —
+        // it holds its own keys server-side. Same guard
+        // `supplyProviderKeysToEngine` already uses at launch
+        // (`EngineLifecycleController+ProviderKeys.swift`).
+        guard !EngineConfig.engineProvisioningStrategy().connectsToRemoteHost else { return }
+        // The engine already accepted the key — surface a Keychain failure
+        // distinctly rather than as a save failure (prefer raise over
+        // silent fallback): the key IS live now, it just will not survive
+        // the next launch until this is resolved.
+        guard storeProviderKey(trimmed, providerType) else {
+            throw ProviderAPIServiceError.keyNotPersistedLocally
+        }
+    }
+
+    /// Delete API key for a provider type — the USER-FACING path (Settings).
+    /// #4815: same shape as `setAPIKey` — always engine, then the app's own
+    /// Keychain, skipped for a remote engine, a Keychain failure surfaced
+    /// distinctly rather than silently.
     func deleteAPIKey(providerType: String) async throws {
         let response = try await client.api.deleteProviderApiKeyApiProvidersProviderTypeApiKeyDelete(
             path: .init(providerType: providerType)
@@ -213,13 +253,28 @@ class ProviderAPIService {
         switch response {
         case .ok:
             invalidateRunWorkflowProviderMenus()
-            return
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw ProviderAPIServiceError.validationError(detail?.detail?.description ?? "Validation error")
         case .undocumented(let statusCode, _):
             throw ProviderAPIServiceError.unexpectedResponse(statusCode)
         }
+
+        guard !EngineConfig.engineProvisioningStrategy().connectsToRemoteHost else { return }
+        guard removeProviderKey(providerType) else {
+            throw ProviderAPIServiceError.keyNotClearedLocally
+        }
+    }
+
+    /// #4815/#4534: the ENGINE-ONLY push for the launch-time key supply
+    /// (`EngineLifecycleController+ProviderKeys.swift`'s
+    /// `supplyProviderKeysToEngine` — its ONLY caller, pinned by a
+    /// source-scan guard). It reads a key the app's Keychain ALREADY holds
+    /// and hands it to the engine that just (re)started. It must NEVER
+    /// write the store it just read — that is the whole reason this is a
+    /// separate, distinctly-named method rather than a flag on `setAPIKey`.
+    func supplyAPIKeyToEngine(providerType: String, apiKey: String) async throws {
+        try await postAPIKey(providerType: providerType, apiKey: apiKey)
     }
 
     /// Check if API key exists for a provider type
@@ -502,6 +557,14 @@ extension ProviderAPIService {
 enum ProviderAPIServiceError: LocalizedError {
     case validationError(String)
     case unexpectedResponse(Int)
+    /// #4815: the engine accepted the key, but the app's own Keychain write
+    /// failed. Never silently swallowed — the caller must know the key will
+    /// not survive the next launch until this is resolved.
+    case keyNotPersistedLocally
+    /// #4815: the engine removed the key, but the app's own Keychain item
+    /// could not be cleared — it may return at the next launch until this
+    /// is resolved.
+    case keyNotClearedLocally
 
     var errorDescription: String? {
         switch self {
@@ -509,6 +572,10 @@ enum ProviderAPIServiceError: LocalizedError {
             return "Validation error: \(message)"
         case .unexpectedResponse(let statusCode):
             return "Unexpected response: HTTP \(statusCode)"
+        case .keyNotPersistedLocally:
+            return "Key saved, but it won't survive the next launch — Keychain error: check Keychain Access or try again."
+        case .keyNotClearedLocally:
+            return "Key removed, but the saved copy could not be cleared — it may return at the next launch."
         }
     }
 }

@@ -228,11 +228,28 @@ extension ChatView {
         guard conversation.id != currentConversation.id else { return }
         currentConversation = conversation
         backendConversationId = conversation.id
+        resetComposerState()
+        logger.info("Switched to conversation \(conversation.id)")
+        Task { await loadConversation(conversation.id) }
+    }
+
+    /// #4705 "5b" / #4817: the fresh-scope twin of `switchConversation` —
+    /// used when there is no EXISTING `Conversation` to switch to, only a
+    /// new context to start one in (e.g. a different research project).
+    func resetToFreshConversation() {
+        currentConversation = Conversation()
+        backendConversationId = nil
+        resetComposerState()
+        logger.info("Reset chat to a fresh conversation for a new scope")
+    }
+
+    /// The composer/error state BOTH `switchConversation` and
+    /// `resetToFreshConversation` clear — factored out (#4817) so the two
+    /// can never drift on what "starting to look at something else" resets.
+    private func resetComposerState() {
         selectedDocuments.removeAll()
         inputText = ""
         errorMessage = nil
-        logger.info("Switched to conversation \(conversation.id)")
-        Task { await loadConversation(conversation.id) }
     }
 
     func sendMessage() {

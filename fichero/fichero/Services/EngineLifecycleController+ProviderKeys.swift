@@ -51,7 +51,10 @@ extension EngineLifecycleController {
 
             guard let key = ProviderKeyStore.key(for: provider) else { continue }
             do {
-                try await appState.providerService.setAPIKey(providerType: provider, apiKey: key)
+                // #4815: ENGINE-ONLY — never `setAPIKey` here, which would
+                // also re-write the Keychain item this loop just read from
+                // (harmless today, but the wrong seam to use going forward).
+                try await appState.providerService.supplyAPIKeyToEngine(providerType: provider, apiKey: key)
                 supplied += 1
             } catch {
                 logger.error(
