@@ -33,6 +33,77 @@
 > summons it). Pinned by `BuiltInWorkspaceLayoutTests`, `MenuShortcutUniquenessTests`,
 > `PaneInstanceIndependenceTests`. The spec Status stays DRAFT.
 >
+> **Changelog 2026-09-18 (#4685/#4686/#4687 completion + adversarial-review fixes).** The
+> "one renderer, not yet one model" gap the 2026-09-17 residue note tracked is CLOSED: there is now
+> exactly one pane-visibility model, one persistence funnel, and the dead widescreen-era code around
+> both is deleted, not left dormant.
+> - **`activePaneList` is the ONLY source of pane visibility.** The three legacy `@SceneStorage`
+>   Bools (`showDocumentGrid`/`showDocumentCanvas`/`showReadingPane`) are DELETED from
+>   `ContentView.swift`; `paneVisibility` (`PaneVisibility.swift`) is now a pure derivation of
+>   `activePaneList.kinds` — there is no separate storage that could disagree with what's on
+>   screen. Every site that used to read a Bool directly (toolbar lit-state, `cyclePaneFocus`,
+>   `paneAwareDetailMinWidth`, `currentPaneVisibilityPlan`) now asks `paneVisibility`/
+>   `activePaneList`. See `panes.visibility.derived-from-list` below.
+> - **One funnel, `paneListDidChange()`, both syncs and persists.** Every writer of
+>   `activePaneList` (`setPaneVisible`, `applyWorkspaceLayout`, a saved-workspace apply,
+>   `splitFocusedLeaf`, pane-head close/kind-switch) ends by calling this ONE function
+>   (`PaneVisibility.swift`), which remembers the applied composition in
+>   `WorkspaceLayoutDefaults` (`rememberPaneList`) for the next launch. The seed
+>   (`ContentView.activePaneList`'s default) restores it —
+>   `WorkspaceLayoutDefaults.rememberedPaneList() ?? BuiltInWorkspaceLayout.read.panes` — falling
+>   back to Read when nothing was ever remembered. See `workspaces.persist-applied-list` below.
+> - **Saved workspaces carry the real composition.** `WindowLayoutSnapshot.paneList: PaneList?`
+>   is the field that was missing (§"Existing machinery"'s "model split" debt, closed): capture =
+>   `activePaneList`, apply = assign it. An old snapshot without the field decodes with
+>   `paneList == nil` and applies as the Read default (logged, not crashed); a PRESENT but
+>   malformed value ALSO degrades to `nil` rather than throwing out of decode and voiding the
+>   whole saved-workspace catalog (the SF10 adversarial-review finding). See
+>   `panes.workspace.save`/`panes.workspace.reopen` below.
+> - **Built-in layouts have STABLE leaf ids.** `BuiltInWorkspaceLayout.panes` used to call the
+>   plain `.leaf`/`.split` factories (`PaneList.swift`), which mint a fresh random `UUID()` on
+>   EVERY access — so re-deriving the same built-in (navigating Read → Browse → Read, or a
+>   relaunch re-seeding against it) silently lost a dragged divider's stored width and orphaned
+>   `@SceneStorage` keys, because `WorkspaceSplitStack`/`PaneSpec` key that per-instance state off
+>   a leaf's id (the SF6 finding). Fixed at the source with `PaneNode.stableLeaf`/`.stableSplit` +
+>   `UUID(stableName:)` (deterministic, MD5-based) — every built-in composition now uses these,
+>   named `"\(rawValue).<role>"`. Runtime mutations (`toggling`, `splittingLeaf`'s duplicate,
+>   `settingVisible`'s appended leaf) are UNCHANGED — they still mint fresh random ids, or two
+>   toggled-on panes of the same kind would collide instead of coexisting. See
+>   `panes.builtin.stable-ids` below.
+> - **A proportional split stays proportional until a real drag.** `WorkspaceSplitStack`'s
+>   `.fraction` sizing used to convert to absolute points on first appear and write that into
+>   `@SceneStorage` (SF3 finding) — so a 0.4-fraction column seeded once at a 1000pt window stayed
+>   pinned to 400pt forever, even after the window (or the whole Mac) moved to a very different
+>   size. The eager seed is deleted; the divider's binding is now a computed one whose getter is
+>   the freshly-resolved display value and whose setter (the only thing that writes stored state)
+>   fires exclusively from an actual drag. See `panes.split.fraction-not-seeded` below.
+> - **Menu Split routes through the model.** `SplitCommandRouting` (the dead `"<slot>-<kind>"`
+>   key space the applied renderer never matched, #4685) is DELETED. The toolbar Workspaces menu's
+>   Split Right/Below and the menu-bar Workspaces submenu's twin now resolve the focused KIND
+>   (`focusedPane ?? paneFocusHint`) to `activePaneList.leafIDs(of: kind).first` and mutate via
+>   `activePaneList.splittingLeaf(id, axis:)` — symmetric with how close already worked via
+>   `removingLeaf`. **Known limitation, not yet fixed:** with two same-kind panes (Compare) this
+>   always resolves to the FIRST leaf of that kind, not necessarily the instance under the
+>   pointer — full per-instance precision is still the deferred "increment 4" this spec's
+>   Migration order names. Every built-in today has at most one leaf per kind, so it's exact for
+>   all of them. See `panes.split.focused-only` below (updated).
+> - **Deleted, confirmed callerless before removal:** `widescreenPaneSpecs` (PaneSpec.swift),
+>   `PaneList.fromVisibility` (its only caller was `widescreenPaneSpecs`), the `paneKindOverrides`
+>   WRITE side (`captureLayoutSnapshot`/`applyLayoutSnapshot` — the live `ContentView.
+>   paneKindOverrides` dict has had zero readers since `SplitCommandRouting` went; the
+>   `WindowLayoutSnapshot` field itself stays, decode-only, so an old snapshot with the key still
+>   decodes), `SplitCommandRouting`, `WindowLayoutPreset` and `WindowLayoutCommands.applyPreset`
+>   (a second built-in-arrangement system parallel to `BuiltInWorkspaceLayout`, the exact
+>   `workspaces.one-system` violation below). Pinned by `WorkspaceSystemBoundaryTests.
+>   testAppliedWorkspaceSplitIsWiredThroughThePaneListModel` (un-skipped — it now finds a real
+>   caller of `splittingLeaf(`), `WorkspaceLayoutDefaultsTests.
+>   testEveryActivePaneListWriterCallsTheOneFunnel` (a source guardrail: every known
+>   `activePaneList` mutation site is followed by `paneListDidChange()`), `WindowWorkspaceTests`
+>   (paneList round-trip, malformed-decode leniency, dead-field cleanup),
+>   `BuiltInWorkspaceLayoutTests` (stable-id stability/uniqueness, `splittingLeaf`/`removingLeaf`
+>   still mint/preserve ids correctly), `WorkspaceSplitStackSeedingTests` (fraction re-resolves
+>   proportionally, not seeded).
+>
 > This is an AREA spec for how a window is *composed* — the pane system that hosts every
 > view mode (source/preview, transcription/words, entities, claims, graph/canvas,
 > inspector). It sits above the per-mode specs (`kg-tables`, `kg-entity-inspector`,
@@ -306,9 +377,17 @@ the browse→read flow down the centre.
   the **focused** pane, not every column at once. Model + routing fixed (2026-09-15,
   33cbcdf92): `PaneList.splittingLeaf(id:axis:)` splits only the targeted leaf, and
   `PaneSpec.slot` makes each pane's split key per-instance (was per-kind), so same-kind panes
-  no longer share one split cell. REMAINING: instance-precise focus (routing still targets the
-  first pane of the focused kind) needs the stored pane list + per-instance focus. Pinned:
-  `Tests/Unit/general/Models/PaneListTests.swift` ("splitting a pane splits ONLY that pane…").
+  no longer share one split cell. **2026-09-18:** the toolbar Workspaces menu's Split Right/Below
+  and its menu-bar twin now ACTUALLY route through the stored `PaneList` (#4685) — resolving
+  `focusedPane ?? paneFocusHint` to a kind, then `activePaneList.leafIDs(of: kind).first`, then
+  `activePaneList.splittingLeaf(id, axis:)`. REMAINING: instance-precise focus — with two
+  same-kind panes (Compare) this still targets the FIRST leaf of the focused kind, not
+  necessarily the instance under the pointer; every built-in today has at most one leaf per
+  kind, so it's exact for all of them, but full per-instance precision (the "increment 4" this
+  spec's Migration order names) is still open. Pinned: `PaneListTests` ("splitting a pane splits
+  ONLY that pane…") + `WorkspaceSystemBoundaryTests.
+  testAppliedWorkspaceSplitIsWiredThroughThePaneListModel` (un-skipped 2026-09-18 — it now finds
+  a real caller of `splittingLeaf(` outside the model's own file).
 - `panes.close.this-pane-only` — **[OK]** (applied path always live 2026-09-16, dfa937946) closing a
   pane removes only that pane; its siblings survive and a split that loses a child collapses to the
   survivor, not the whole row. The VIEW now always renders the stored `PaneList` (seed = Read), so the
@@ -327,6 +406,40 @@ the browse→read flow down the centre.
   a window.
 - `panes.compose-three-plus` — **[GAP]** a window supports three or more panes, and any
   pane may hide its image while another shows it.
+- `panes.visibility.derived-from-list` — **[OK, 2026-09-18]** which content panes show
+  (library/preview/reading) is a PURE derivation of `activePaneList.kinds`
+  (`PaneVisibility.paneVisibility`, `PaneVisibility.swift`) — not a separate stored Bool per
+  pane. The three legacy `@SceneStorage` Bools this used to read are DELETED from
+  `ContentView.swift`, so there is nothing left for toolbar labels, View-menu checkmarks, or
+  `cyclePaneFocus`'s pane-cycle order to drift out of sync with what the window actually
+  renders. Pinned: `WorkspaceLayoutDefaultsTests.testOnlyTheDeliberatelyChosenSurfacesAreRemembered`
+  (the remembered-Bool inventory is chat + layoutMode only, not the three panes) +
+  `ToolbarSurfaceLitStateTests.paneTogglesLight` (the toolbar reads `paneVisibility`, not a Bool).
+- `panes.builtin.stable-ids` — **[OK, 2026-09-18]** a built-in workspace's leaf ids are STABLE
+  across every access (same `PaneList` value every time `BuiltInWorkspaceLayout.read.panes` is
+  read), not freshly random each time. `PaneNode.stableLeaf`/`.stableSplit` (`PaneList.swift`,
+  `UUID(stableName:)`, MD5-based) replace the plain `.leaf`/`.split` factories in every built-in
+  composition (`BuiltInWorkspaceLayout.swift`); a leaf's name is `"\(rawValue).<role>"`, unique
+  within a case and across cases. Without this, navigating away from and back to a built-in (or
+  a relaunch reseeding against it) silently lost a dragged divider's stored width and orphaned
+  `@SceneStorage` keys, because `WorkspaceSplitStack`/`PaneSpec` key that per-instance state off
+  a leaf's id. Runtime mutation (`toggling`, `splittingLeaf`'s duplicate, `settingVisible`'s
+  appended leaf) still mints fresh random ids — a stable id there would make two toggled-on
+  panes of the same kind collide instead of coexisting. Pinned: `BuiltInWorkspaceLayoutTests`
+  (stability across two accesses, no id shared between built-ins, `splittingLeaf` still mints a
+  fresh id for the new duplicate, `removingLeaf` leaves survivors' ids untouched).
+- `panes.split.fraction-not-seeded` — **[OK, 2026-09-18]** a `.fraction`-sized split column
+  (`WorkspaceSplitStack`) stays proportional to the CURRENT window size until the user actually
+  drags its divider — it is never converted to an absolute-points value just because the window
+  happened to render once. Before this, `seedIfNeeded` wrote `fraction × total` into
+  `@SceneStorage` on the first `.onAppear`, so a 0.4-fraction column seeded at a 1000pt window
+  stayed pinned to 400pt forever, even after the window (or the whole Mac) moved to a very
+  different size. Fixed by deleting the eager seed and making the divider's binding computed:
+  its getter is the freshly-resolved display value (`WorkspaceSplitStack.resolvedExtents`,
+  already unset-aware); its setter — the only thing that ever writes stored state — fires
+  exclusively from `ResizableDivider`'s own drag handler. Pinned:
+  `WorkspaceSplitStackSeedingTests` (an unseeded fraction re-resolves proportionally across two
+  different totals; a real stored override still wins regardless of total).
 
 ### B. Cross-pane zoom & magnifier state
 
@@ -367,10 +480,40 @@ the browse→read flow down the centre.
 
 ### D. Workspaces
 
-- `panes.workspace.save` — **[GAP]** a pane composition (which panes, their modes, split,
-  sync, and current selection scope) is saveable as a named workspace.
-- `panes.workspace.reopen` — **[GAP]** reopening a workspace restores its panes, modes, and
-  layout. (Ties the related-entities → sources → inspector composition in the Intent.)
+- `panes.workspace.save` — **[OK, composition; GAP, live selection/sync]** "Save Current as
+  Workspace…" captures the REAL pane composition, not a lie: `WindowLayoutSnapshot.paneList:
+  PaneList?` (`WindowWorkspace.swift`) is set to `activePaneList` (`captureLayoutSnapshot`,
+  `ContentView+LayoutChooser.swift`) — this was the field that was missing (§"Existing
+  machinery"'s "model split" debt). Sync-toggle state and a live selection-scope snapshot beyond
+  `PaneScope.documentId` pins remain **[GAP]** (spec §"Resolved 2026-09-15": save = layout only,
+  by design). Pinned: `WindowWorkspaceTests.testSnapshotCarriesTheAppliedPaneListThroughJSON`
+  (round-trip incl. leaf ids).
+- `panes.workspace.reopen` — **[OK]** applying a saved workspace assigns its `paneList` to
+  `activePaneList` (`applyLayoutSnapshot`) — before this fix it never touched `activePaneList`
+  at all, so applying a saved workspace changed nothing visible. An OLD snapshot (saved before
+  this field existed — a brand-new coding key, so old JSON simply lacks it) decodes with
+  `paneList == nil` and applies as the Read default, logged rather than crashed. A PRESENT but
+  MALFORMED value (the SF10 adversarial-review finding) also degrades to `nil` — via a local
+  `try?` around the one field's decode inside `WindowLayoutSnapshot.init(from:)` — rather than
+  throwing out of decode and voiding the ENTIRE saved-workspace catalog
+  (`WindowWorkspaceCatalog.decoded(from:)` swallows any throw from a member's decode to `nil`
+  for the whole catalog). Pinned: `WindowWorkspaceTests.
+  testAnOldShapeSnapshotDecodesWithPaneListNil`,
+  `testASnapshotWithMalformedPaneListDataStillDecodesWithPaneListNil`,
+  `testOneWorkspaceWithMalformedPaneListDoesNotDeleteTheRestOfTheCatalog`.
+- `workspaces.persist-applied-list` — **[OK, 2026-09-18]** the applied `PaneList` survives a
+  relaunch: EVERY writer of `activePaneList` (`setPaneVisible`, `applyWorkspaceLayout`, a
+  saved-workspace apply, `splitFocusedLeaf`, pane-head close/kind-switch) ends by calling
+  `PaneVisibility.paneListDidChange()`, the ONE funnel, which remembers the composition via
+  `WorkspaceLayoutDefaults.rememberPaneList` (a JSON-encoded `UserDefaults` key, kept OUTSIDE the
+  Bool-only `WorkspaceLayoutDefaults.Key` enum since it's a different shape). `ContentView.
+  activePaneList`'s seed reads it back — `WorkspaceLayoutDefaults.rememberedPaneList() ??
+  BuiltInWorkspaceLayout.read.panes` — falling back to Read when nothing was ever remembered.
+  Pinned: `WorkspaceLayoutDefaultsTests.testRememberedPaneListRoundTripsThroughUserDefaults`,
+  `testNoRememberedPaneListReturnsNilSoTheCallerCanFallBackToRead`,
+  `testThePaneListSeedIsWired`, and the structural guardrail
+  `testEveryActivePaneListWriterCallsTheOneFunnel` (every known mutation site is followed by
+  `paneListDidChange()` within a few lines — a new writer that skips it fails this test by name).
 
 ### E. Default layout & chat placement
 
@@ -566,16 +709,21 @@ A read-only code map found the workspace feature is **already LIVE**, not a stub
   (`ContentView+LayoutChooser.swift:90`), SF Symbol **`rectangle.grid.1x2`**, a populated
   dropdown (Layouts · Split · Built-ins · Saved · Save Current… · Delete · Toolbar Buttons). A
   menu-bar twin exists (`WindowLayoutCommands` → `WorkspaceCommandsSection`).
-- **TWO redundant built-in sets — RETIRE the overlap.** `BuiltInWorkspace`
-  (`.reading/.cataloguing/.everything`, with bars+toolbar) and `WindowLayoutPreset`
-  (`.libraryOnly/.reading/.everything`, visibility-only) overlap by name and intent. This is the
-  "old system" to remove: collapse both into ONE built-in catalog (the nine below).
-- **The model split is the core debt.** Saved workspaces persist a `WindowLayoutSnapshot` (six
-  `showXPane` Bools + `splits:[String:PaneSplitCounts]` + `paneKindOverrides`), while the F7
-  model is `PaneList` (Models/PaneList.swift). **They are not connected.** F7 = a saved
-  workspace becomes a `PaneList` (already `Codable`), applied by *setting the window's pane list*,
-  which the one renderer draws — so workspaces, claims, entities, reader and preview all render
-  through the single path.
+- **TWO redundant built-in sets — RETIRED 2026-09-15/2026-09-18.** `BuiltInWorkspace`
+  (`.reading/.cataloguing/.everything`, with bars+toolbar) was deleted first; `WindowLayoutPreset`
+  (`.libraryOnly/.reading/.everything`, visibility-only) and its `WindowLayoutCommands.applyPreset`
+  verb were deleted 2026-09-18, confirmed callerless first — there is now ONE built-in catalog,
+  `BuiltInWorkspaceLayout` (the five below). Enforced by `WorkspaceSystemBoundaryTests.
+  testNoParallelLayoutPresetSystemBesideWorkspaces`.
+- **The model split was the core debt — CLOSED 2026-09-18.** Saved workspaces used to persist only
+  a `WindowLayoutSnapshot` (six `showXPane` Bools + `splits:[String:PaneSplitCounts]` +
+  `paneKindOverrides`) while the F7 model was `PaneList` (Models/PaneList.swift), NOT connected.
+  `WindowLayoutSnapshot.paneList: PaneList?` connects them: capture = `activePaneList`, apply =
+  assign it, so workspaces, claims, entities, reader and preview all render through the single
+  path via the one field a saved arrangement was missing. See `panes.workspace.save`/`.reopen` and
+  `workspaces.persist-applied-list` in §Behaviors D. The legacy `paneKindOverrides` WRITE side is
+  now dead too (its live consumer, `SplitCommandRouting`, is deleted) — the `Codable` field stays,
+  decode-only, for an old snapshot that has it.
 - **Dead flags:** `ToolbarVisibilityPlan.showSplitMenu/showLayoutsMenu` (decode-only) and
   `LayoutMode.keyboardShortcut` (unbound metadata) — delete on the way through.
 
@@ -721,9 +869,11 @@ and a **guardrail test** keeps the second from growing back.
   contains `paneListRow(activePaneList)` and contains neither `paneComposition(` nor
   `PaneList.forLayout(`, and asserts `activePaneList` is declared non-optional — so reintroducing
   either the second renderer or the Optional that kept it alive fails a test by name.
-  *Known residue, tracked:* menu Split still routes through the retired `widescreenPaneSpecs`
-  slot ids and posts to nothing (#4685); the three legacy visibility Bools still drive toolbar and
-  menu state without driving rendering (#4687). One renderer is true; one *model* is not yet.
+  *Residue RESOLVED 2026-09-18:* menu Split now routes through `activePaneList.splittingLeaf`
+  (#4685; `widescreenPaneSpecs`/`SplitCommandRouting` deleted, confirmed callerless first) and the
+  three legacy visibility Bools are DELETED, not merely bypassed (#4687; `paneVisibility` derives
+  from `activePaneList.kinds`, so there is nothing left for toolbar/menu state to drift from).
+  One renderer, one model — see the 2026-09-18 changelog entry above for the full list.
 - `panes.instance-safe` stays enforced by `everyBuiltInIsInstanceSafe` (below) — one system does not
   mean one pane; two same-kind panes are fine, and the structural guard keeps them loop-free.
 
@@ -751,8 +901,12 @@ workspaces store a `PaneList`, the window is *always* a `PaneList`, the Bool-vis
 - Consequence: `PaneNode` may need equal-flex weights (or explicit ratios) so "one long below" reads
   as a greedy row under three short columns — the height policy `verticallyFramedPane` fakes today
   becomes per-node data on the `PaneList`. Split/close then act on the focused leaf uniformly
-  (close already does, via `\.paneCloseAction` → `removingLeaf`; split gains the twin
-  `\.paneSplitAction` → `splittingLeaf`).
+  (close already does, via `\.paneCloseAction` → `removingLeaf`; **2026-09-18: the window Split
+  commands now do too**, via `activePaneList.leafIDs(of: kind).first` → `splittingLeaf` — a
+  plain function call resolving `focusedPane ?? paneFocusHint`, not a per-leaf environment seam
+  like `\.paneCloseAction`'s, since the menu commands aren't inside a specific leaf's own view
+  subtree the way the pane head's close button is. See `panes.split.focused-only` for the
+  Compare instance-precision caveat this leaves open).
 
 ### Pane-linkage color coding — IDEA 2026-09-15 (CD), for design
 
@@ -785,14 +939,12 @@ Creative director, running the app (the one-renderer + old split/close wiring st
 
 - `panes.split.focused-only` — **[FIXED, model + isolation]** Splitting one pane splits ONLY that
   pane (pinned by PaneListTests "splitting a pane splits ONLY that pane"; the live per-slot
-  `@SceneStorage` isolation landed 2026-08-24). **Open (increment 3 design question):** in an applied
-  workspace the head "+" still splits via the leaf's own `SplittablePane` (which supports up to 3
-  panes per axis + a 2×2 grid within one slot), NOT `PaneList.splittingLeaf` (a binary split node).
-  So a split made inside an applied workspace is not stored in the `PaneList` and won't save with the
-  workspace. Wiring split symmetrically with close (`\.paneCloseAction`'s twin) needs the `PaneList`
-  model to represent SplittablePane's 3-per-axis / grid splits, or a CD ruling that applied
-  workspaces use the simpler binary split. Deferred to the always-a-PaneList increment; the current
-  behaviour is not broken (splits work per-pane), only un-stored.
+  `@SceneStorage` isolation landed 2026-08-24). **RESOLVED 2026-09-18** (was "Open — increment 3
+  design question" below): the toolbar/menu-bar Split commands now route through
+  `activePaneList.splittingLeaf(id, axis:)`, not the leaf's own `SplittablePane` mechanism — a split
+  made this way IS stored in the `PaneList` and DOES save with the workspace. See the canonical
+  entry in §Behaviors A (above) for the exact routing and the Compare instance-precision caveat
+  that remains open.
 - `panes.close.this-pane-only` — **[FIXED 2026-09-15, applied path]** Closing a pane in an applied
   workspace now removes THAT leaf from the stored `PaneList` (`removingLeaf(id)`, which collapses a
   singleton split to its survivor and removes a top-level pane in one operation) — never the whole
@@ -801,9 +953,8 @@ Creative director, running the app (the one-renderer + old split/close wiring st
   (dfa937946): the always-a-`PaneList` step landed — `activePaneList` seeds to Read, so the window is
   always the stored `PaneList` and the legacy visibility-Bool path no longer renders.** Split-then-
   close-both is also fixed (the PaneHead close-ladder now collapses an active in-slot split by one
-  before removing the whole leaf). The **split** button in an applied workspace still routes through
-  the SplittablePane mechanism, not `PaneList.splittingLeaf` — wiring that symmetrically is the next
-  close/split increment.
+  before removing the whole leaf). **UPDATE 2026-09-18: the split side is now symmetric with close**
+  (see `panes.split.focused-only` above) — both act on the stored `PaneList` by leaf id.
 - `panes.head.consistent-minimal` — **[OK]** (fixed 2026-09-16, dfa937946) every pane head is now the
   same consistent liquid-glass style with no per-kind chrome: `PaneFilterBar.showsSeparator` defaults
   OFF (no Library/Reader hairline), and the ChatView standalone `Divider` was removed. `\.isSolePane`
