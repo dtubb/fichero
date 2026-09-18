@@ -456,3 +456,184 @@ class TestUndoEntityOperation:
         assert audits[0].target_ids == [absorber.id, absorbed.id]
         assert calls[-1][1]["type"] == "entity.split"
         assert calls[-1][1]["entity_ids"] == [absorber.id, absorbed.id]
+
+
+# ---------------------------------------------------------------------------
+# entity.link_authority (#4829) -- was a bare route, writes an ActionAudit
+# now. Mirrors TestMergeEntities/TestUndoEntityOperation's own shape.
+# ---------------------------------------------------------------------------
+
+
+def _make_authority_snapshot(db, authority: str = "wikidata", authority_id: str = "Q1") -> "AuthoritySnapshot":
+    from fichero_server.models.knowledge import AuthoritySnapshot
+
+    snapshot = AuthoritySnapshot(
+        authority=authority,
+        authority_id=authority_id,
+        label="Test Authority Record",
+        source_url="https://example.org/Q1",
+    )
+    db.save(snapshot)
+    return snapshot
+
+
+class TestLinkAuthorityAction:
+    def test_route_still_returns_the_same_shape(self, client, db):
+        """Same URL, same request/response as the bare route (#4829)."""
+        entity = _make_entity(db, "Alice")
+        _make_authority_snapshot(db)
+
+        r = client.post(
+            "/api/kg/entity-curation/authority/link",
+            json={"entity_id": entity.id, "authority": "wikidata", "authority_id": "Q1"},
+        )
+
+        assert r.status_code == 200
+        body = r.json()
+        operation_type = body.get("operationType") or body.get("operation_type")
+        target_entity_id = body.get("targetEntityId") or body.get("target_entity_id")
+        assert operation_type == "authority_link"
+        assert target_entity_id == entity.id
+
+    def test_route_now_writes_an_action_audit(self, client, db):
+        """This is THE gap #4829 exists to close -- before, this route
+        produced zero ActionAudit rows."""
+        entity = _make_entity(db, "Alice")
+        _make_authority_snapshot(db)
+
+        client.post(
+            "/api/kg/entity-curation/authority/link",
+            json={"entity_id": entity.id, "authority": "wikidata", "authority_id": "Q1"},
+        )
+
+        audits = [row for row in db.all(ActionAudit) if row.action_name == "entity.link_authority"]
+        assert len(audits) == 1
+        assert audits[0].target_ids == [entity.id]
+
+    def test_route_still_writes_the_entity_merge_audit(self, client, db):
+        """The inspector's curation history reads EntityMergeAudit -- must
+        keep existing, unchanged in shape, regardless of the action wrapper."""
+        from fichero_server.models.knowledge import EntityMergeAudit, EntityMergeOperationType
+
+        entity = _make_entity(db, "Alice")
+        _make_authority_snapshot(db)
+
+        client.post(
+            "/api/kg/entity-curation/authority/link",
+            json={"entity_id": entity.id, "authority": "wikidata", "authority_id": "Q1"},
+        )
+
+        merge_audits = [
+            row for row in db.all(EntityMergeAudit)
+            if row.operation_type == EntityMergeOperationType.authority_link
+        ]
+        assert len(merge_audits) == 1
+        assert merge_audits[0].target_entity_id == entity.id
+        assert merge_audits[0].created_by == "human"
+
+    def test_route_still_writes_entity_metadata(self, client, db):
+        entity = _make_entity(db, "Alice")
+        _make_authority_snapshot(db)
+
+        client.post(
+            "/api/kg/entity-curation/authority/link",
+            json={"entity_id": entity.id, "authority": "wikidata", "authority_id": "Q1"},
+        )
+
+        refreshed = db.get(KnowledgeEntity, entity.id)
+        assert refreshed.metadata.get("authority_links") == [
+            {"authority": "wikidata", "authority_id": "Q1"}
+        ]
+
+    def test_route_404s_on_missing_snapshot_unchanged(self, client, db):
+        entity = _make_entity(db, "Alice")
+
+        r = client.post(
+            "/api/kg/entity-curation/authority/link",
+            json={"entity_id": entity.id, "authority": "wikidata", "authority_id": "Q999"},
+        )
+
+        assert r.status_code == 404
+
+    def test_route_404s_on_missing_entity_unchanged(self, client, db):
+        _make_authority_snapshot(db)
+
+        r = client.post(
+            "/api/kg/entity-curation/authority/link",
+            json={"entity_id": "nonexistent", "authority": "wikidata", "authority_id": "Q1"},
+        )
+
+        assert r.status_code == 404
+
+    def test_action_is_invokable_directly_not_only_through_the_route(self, db):
+        """Reachable via /api/actions/invoke (agent/CLI/MCP) -- the whole
+        point of #4829."""
+        from fichero_server.actions.registry import ActionContext, registry
+
+        entity = _make_entity(db, "Alice")
+        _make_authority_snapshot(db)
+        ctx = ActionContext(actor="mcp-agent", library_path="/lib/test.fichero")
+
+        result = registry.invoke(
+            db, "entity.link_authority",
+            {"entity_id": entity.id, "authority": "wikidata", "authority_id": "Q1"},
+            ctx,
+        )
+
+        assert result.ok is True
+        audits = [row for row in db.all(ActionAudit) if row.action_name == "entity.link_authority"]
+        assert len(audits) == 1
+
+    def test_not_undoable_no_regression_from_bare_route(self, db):
+        """No undo-* machinery exists for authority_link -- confirmed at
+        `undo_entity_operation_impl`, which 409s on anything but merge/
+        split. Registering the action must not silently promise an undo
+        the endpoint cannot deliver."""
+        from fichero_server.actions.registry import registry
+
+        entry = registry._actions["entity.link_authority"]
+        assert entry.undoable is False
+
+    def test_a_linked_entity_survives_the_nlp_draft_purge(self, db):
+        """Closing the loop with #4823's purge: an entity linked through
+        the ACTION now shows up via the ActionAudit protection check, not
+        just the EntityMergeAudit/metadata fallbacks."""
+        import fichero_server.api.routes.kg.nlp_draft_purge  # noqa: F401
+        from fichero_server.actions.registry import ActionContext, registry
+        from fichero_server.importers.nlp_draft import run_nlp_draft
+        from fichero_server.knowledge.spacy_ner import EntitySpan
+        from fichero_server.knowledge.spacy_svo import ProposedTriple
+        from fichero_server.models import Document, DocType, FileType, Status
+
+        doc = Document(
+            name="a.md", doc_type=DocType.file, file_type=FileType.text,
+            status=Status.pending, page_content="Alice firmó la escritura.",
+        )
+        db.save(doc)
+
+        def _stub_ner(text, language=None):
+            return [EntitySpan(text="Alice", fichero_type="person", start=0, end=5, label="PERSON")]
+
+        def _stub_svo(text, language=None):
+            return [ProposedTriple(subject="Alice", verb="firmó", object="la escritura", sentence=text, char_start=0, char_end=len(text))]
+
+        run_nlp_draft(db, doc, ner_fn=_stub_ner, svo_fn=_stub_svo, filter_fn=lambda p, t: (p, []))
+        entity = db.query(KnowledgeEntity, canonical_name="Alice")[0]
+        _make_authority_snapshot(db)
+
+        ctx = ActionContext(actor="human", library_path="/lib/test.fichero")
+        registry.invoke(
+            db, "entity.link_authority",
+            {"entity_id": entity.id, "authority": "wikidata", "authority_id": "Q1"},
+            ctx,
+        )
+
+        result = registry.invoke(
+            db, "entity.purge_nlp_draft", {"document_id": doc.id, "dry_run": False}, ctx,
+        )
+
+        assert db.get(KnowledgeEntity, entity.id) is not None
+        assert any(
+            "entity.link_authority" in reason
+            for reason in result.result["protected_reasons"]
+        )

@@ -1111,21 +1111,36 @@ async def refresh_external_authority(
     )
 
 
-@router.post(
-    "/authority/link",
-    response_model=EntityAuditResponse,
-    summary="Confirm and persist an entity-to-authority link",
-)
-async def link_external_authority(
-    body: AuthorityLinkRequest,
-    db: Database = Depends(get_library_database_for_write),
-) -> EntityAuditResponse:
-    entity = db.get(KnowledgeEntity, body.entity_id)
+class LinkAuthorityParams(BaseModel):
+    """``entity.link_authority`` params (#4829). Same fields as
+    ``AuthorityLinkRequest`` -- kept as a separate model (not a reuse of the
+    request type) the same way every other action here pairs its own Params
+    class with the route's own Request model, even when the fields match.
+    """
+
+    entity_id: str = Field(min_length=1)
+    authority: Literal["wikidata", "viaf", "loc"]
+    authority_id: str = Field(min_length=1)
+
+
+def link_authority_impl(db: Database, params: LinkAuthorityParams) -> EntityMergeAudit:
+    """Confirm + persist one entity-to-authority link. Extracted verbatim
+    from the former bare route body (#4829) -- same lookups, same metadata
+    write, same `EntityMergeAudit` row (the inspector's curation history
+    reads this table, so it must keep existing regardless of the action
+    wrapper). `created_by` stays the literal `"human"` this route always
+    recorded -- this operation's own meaning is "a human confirmed this
+    external match," not "whoever's credential made the HTTP call," so it
+    is not parameterized on `ctx.actor` the way `entity.merge` is; keeping
+    it a literal also guarantees the route's response is byte-identical to
+    before, not just shaped the same.
+    """
+    entity = db.get(KnowledgeEntity, params.entity_id)
     if entity is None:
-        raise HTTPException(status_code=404, detail=f"Entity not found: {body.entity_id}")
+        raise HTTPException(status_code=404, detail=f"Entity not found: {params.entity_id}")
     snapshot = next(
         (row for row in db.query(AuthoritySnapshot)
-         if row.authority == body.authority and row.authority_id == body.authority_id),
+         if row.authority == params.authority and row.authority_id == params.authority_id),
         None,
     )
     if snapshot is None:
@@ -1145,7 +1160,51 @@ async def link_external_authority(
         created_by="human",
     )
     db.save(audit)
-    return _audit_response(audit)
+    return audit
+
+
+@router.post(
+    "/authority/link",
+    response_model=EntityAuditResponse,
+    summary="Confirm and persist an entity-to-authority link",
+)
+async def link_external_authority(
+    body: AuthorityLinkRequest,
+    db: Database = Depends(get_library_database_for_write),
+) -> EntityAuditResponse:
+    # Thin caller of `entity.link_authority` (#4829) -- same URL, same
+    # request/response shape as before this went through the audited action
+    # layer. Registering it there is what makes it reachable via
+    # `/api/actions/invoke` (agent/CLI/MCP), produce an `ActionAudit` row,
+    # and be visible to `entity.purge_nlp_draft`'s independent-touch check.
+    #
+    # A plain comment, not a docstring: FastAPI copies a route function's
+    # `__doc__` verbatim into the OpenAPI `description` field, and the
+    # "same request/response, Swift must not notice" requirement for this
+    # change rules that out too (confirmed via `build_openapi_schema()`).
+    #
+    # `ActionContext` is built directly here, NOT via `Depends(action_context)`
+    # -- that dependency adds two new optional request headers
+    # (`X-Fichero-Origin-Window`/`X-Fichero-Client`) to this route's OpenAPI
+    # operation (also confirmed: adding it produced a real, if harmless,
+    # diff; removing it produced none). `actor` stays the literal `"human"`
+    # this route always recorded (see `link_authority_impl`'s docstring);
+    # `library_path` comes from the already-open `db` handle, the same
+    # derivation `emit_workflow_kg_changes_for_db` uses, needing no header.
+    from pathlib import Path
+
+    ctx = ActionContext(actor="human", library_path=str(Path(db.path).parent))
+    result = registry.invoke(
+        db,
+        "entity.link_authority",
+        {
+            "entity_id": body.entity_id,
+            "authority": body.authority,
+            "authority_id": body.authority_id,
+        },
+        ctx,
+    )
+    return EntityAuditResponse.model_validate(result.result)
 
 
 # ---------------------------------------------------------------------------
@@ -1430,6 +1489,31 @@ def _action_unmerge_entities(
         entity_ids=entity_ids,
     )
     return undo_audit.model_dump(mode="json"), spec
+
+
+@action(
+    "entity.link_authority",
+    LinkAuthorityParams,
+    domains=["entity"],
+    # No undo-* machinery exists for this operation type today:
+    # `undo_entity_operation_impl` (backing `entity.unmerge`) only handles
+    # `merge`/`split` and explicitly 409s on anything else -- authority_link
+    # included. Marking this `undoable=True` without real inverse logic
+    # would be a false promise the undo endpoint could not keep (#4829).
+    undoable=False,
+)
+def _action_link_authority(
+    db: Database, params: LinkAuthorityParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    audit = link_authority_impl(db, params)
+    spec = ChangeSpec(
+        domains=["entity"],
+        target_ids=[params.entity_id],
+        after={"entity_merge_audit_id": audit.id},
+        emit_type="entity.updated",
+        entity_ids=[params.entity_id],
+    )
+    return audit.model_dump(mode="json"), spec
 
 
 # Resolve forward refs in EntityAuditListResponse (declared in models.py with
