@@ -27,22 +27,12 @@
   {
     "rule": "g",
     "spec": "-",
-    "key": "Agent View - Researcher - Search Query Editor"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
     "key": "Client - MCP"
   },
   {
     "rule": "g",
     "spec": "-",
     "key": "Client - Web"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Docs - User"
   },
   {
     "rule": "g",
@@ -263,11 +253,6 @@
     "rule": "g",
     "spec": "-",
     "key": "UX - Toolbars & Mini Toolbars"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "UX - iPhone"
   },
   {
     "rule": "h",
