@@ -248,21 +248,41 @@ itself works (committed c4a22c2b5). The rest are the workspace/pane defects to p
 - `panes.kg.clickable-lists-and-sidebar` — **[GAP, post-F7]** (#4742) richer click-through
   interactions in the claims/entities lists AND the sidebar (click things to act/navigate).
   Deferred by the CD until F7 lands.
-- `panes.content-column-under-sidebar` — **[BROKEN, F7]** (#4743) (screenshots confirm) the content
+- `panes.content-column-under-sidebar` — **[BROKEN, F7]** (#4743, re-diagnosed 2026-09-18: CANNOT
+  CONFIRM from source, not retagged) (screenshots confirm as of 2026-09-14) the content
   column starts at the window's LEFT EDGE (x=0) and runs UNDER the sidebar: with the sidebar
   shown, the leftmost columns are covered; hide the sidebar and the full content appears. CD
   2026-09-14: this is NOT KG-specific — **Claims, Entities, workflows, and images all do it**,
-  so it's the general content-column placement in the renderer, not a per-view bug. The column
-  isn't reserving the sidebar's width. An F7 issue (one renderer that lays the content column
-  out consistently for every view).
-- `panes.vertical-no-breadcrumb` — **[BROKEN, F7]** (#4744) the vertical split/pane has no breadcrumb
-  bar (the horizontal one does). Another renderer-consistency gap → F7.
-- `panes.kg.filter-targets-active-view` — **[BROKEN]** (#4745) two disconnected entity-filter controls:
+  so it's the general content-column placement in the renderer, not a per-view bug. Re-checked:
+  the shell is a native `NavigationSplitView` (`ContentView+RootLayout.swift`) whose detail
+  column (`detailColumn`) is a proper split-view slot with safe-area insets, not an
+  absolutely-positioned overlay — structurally unlikely to bleed under the sidebar, and the F7
+  one-renderer migration this was filed against has since landed (`activePaneList` now always
+  seeds to Read). But this is a rendered-pixel claim ("screenshots confirm"); source reading
+  cannot prove a layout bug is gone. **Manual check (ten seconds): open the app, select a
+  Library/Claims/Entities/workflow item with the sidebar visible, and look at whether the
+  content area's left edge sits flush against the sidebar's trailing edge or extends under
+  it.**
+- `panes.vertical-no-breadcrumb` — **[BROKEN, F7]** (#4744, re-diagnosed 2026-09-18: looks
+  FIXED, by a different mechanism than the issue assumed — not retagged pending verify-close)
+  the vertical split/pane has no breadcrumb bar (the horizontal one does). Re-checked: the
+  per-pane clickable breadcrumb strip this issue describes was RETIRED entirely, not extended
+  to the vertical case — `ContentView+SidebarLayout.swift:194-199`'s own comment: the pane-level
+  strip was one of FOUR in-window copies of the same path and is retired (a dedupe);
+  the location breadcrumb now lives ONLY in the window toolbar's principal lozenge, which does
+  not depend on split orientation at all. There is no longer a per-pane copy that could be
+  present on one orientation and missing on another. Recommend verify-close.
+- `panes.kg.filter-targets-active-view` — **[BROKEN]** (#4745, re-diagnosed 2026-09-18: STILL
+  BROKEN, confirmed unfixed) two disconnected entity-filter controls:
   the main view (`EntitiesLibraryContent`/`ClaimsLibraryContent`) uses a LOCAL `@State filterText`,
   while the inspector + ontology surfaces read the shared `EntitySearchState` bus (a `@State` on
   ContentView). So the bottom-toolbar "Filter Entities" (which drives the bus) filters the
   INSPECTOR's entity digest, not the clicked main list. One filter must target the active view.
-  (Another KG-vs-inspector divergence → F7 one-view-system.)
+  Re-checked directly: `EntitiesLibraryContent.swift:32` and `ClaimsLibraryContent.swift:42`
+  both still declare their own local `filterText`; neither file references `EntitySearchState` —
+  the divergence is exactly as originally described, unchanged by any later work. (Ties
+  `panes.kg.one-view-system` above, → #4705 increment 3, itself still [BROKEN] — the
+  entities/claims unification that would resolve both hasn't landed.)
 
 ### Reliability sweep (same-class latent bugs, 2026-09-13 overnight) — F7/NEEDS-CD
 
