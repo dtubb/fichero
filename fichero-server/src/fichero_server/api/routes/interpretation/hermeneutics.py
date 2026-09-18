@@ -112,6 +112,11 @@ class InterpretationCreateRequest(BaseModel):
     tensions: list[str] = Field(default_factory=list)
     connections: list[str] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
+    # #4857 (hermeneutic.actor-not-forged): kept on the wire for backwards
+    # compatibility with any existing caller that still sends it, but its
+    # VALUE is never trusted -- `create_interpretation_impl` (below) always
+    # records the REAL actor (`ctx.actor`) instead. Same forgery class as
+    # `kg/inclusion.py::InclusionUpsertRequest.updated_by`.
     created_by: str = "human"
 
 
@@ -347,12 +352,17 @@ async def delete_framework(
 
 
 def create_interpretation_impl(
-    db: Database, request: InterpretationCreateRequest
+    db: Database, request: InterpretationCreateRequest, actor: str
 ) -> Interpretation:
     """Validate + persist an interpretation (no emit — caller emits).
 
     Preserves the route's guards exactly: framework must exist and be active,
     ``claim_id`` is required and must resolve. Shared route/action path.
+
+    #4857 (hermeneutic.actor-not-forged): ``created_by`` is ``actor``
+    (``ctx.actor``, the real, authenticated actor), never
+    ``request.created_by`` -- that field is a plain client-settable string
+    on the wire and any caller could claim to be anyone.
     """
     framework = db.get(InterpretiveFramework, request.framework_id)
     if not framework:
@@ -389,7 +399,7 @@ def create_interpretation_impl(
         tensions=list(request.tensions),
         connections=list(request.connections),
         metadata=dict(request.metadata),
-        created_by=request.created_by,
+        created_by=actor,
         created_at=now,
         updated_at=now,
     )
@@ -1022,7 +1032,7 @@ def _action_delete_framework(
 def _action_create_interpretation(
     db: Database, params: InterpretationCreateRequest, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
-    interpretation = create_interpretation_impl(db, params)
+    interpretation = create_interpretation_impl(db, params, ctx.actor)
     after = interpretation.model_dump(mode="json")
     spec = ChangeSpec(
         domains=["interpretation"],
