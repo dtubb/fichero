@@ -66,10 +66,19 @@ enum LaunchProfile {
     }
 
     /// Also print the milestone to stderr when `FICHERO_LAUNCH_PROFILE_STDOUT=1`.
-    /// The os_log timeline is invisible to a headless launcher (a shell can't read
-    /// another process's unified log without TCC), so this makes the launch
-    /// timeline capturable by `nohup app 2>timeline.log` for CI/headless startup
-    /// measurement. Off by default; zero cost in normal runs.
+    /// (#4690, corrected 2026-09-17: this used to blame TCC — a shell lacking
+    /// permission to read another process's unified log. That isn't it: a real
+    /// `log show` query the same night surfaced this subsystem's `.error` and
+    /// `.notice` lines fine, only the `.info`-level milestones were missing.
+    /// The actual mechanism is retention — info/debug messages are not
+    /// persisted to the on-disk log store by default; they're only visible
+    /// live, via `log stream` while attached, or if a persistence profile is
+    /// installed. `log show --info`/`--debug` only replay what a live session
+    /// already captured, so querying after the fact with no `log stream`
+    /// running returns nothing for these, TCC or not.) That makes the launch
+    /// timeline capturable by `nohup app 2>timeline.log` for CI/headless
+    /// startup measurement, or for any retrospective read after the fact. Off
+    /// by default; zero cost in normal runs.
     private static let profileToStderr =
         ProcessInfo.processInfo.environment["FICHERO_LAUNCH_PROFILE_STDOUT"] == "1"
     private static func emitToStderrIfProfiling(_ label: String) {

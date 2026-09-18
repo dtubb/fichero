@@ -888,6 +888,14 @@ async def lifespan(app: FastAPI):
         _collapse_duplicate_providers()
         _api_stamp("app db open + provider seed/collapse complete")
         try:
+            # #4690: bracket the tool-stack warm-up. GIL contention with this
+            # (CPU-heavy import work on a non-loop thread can still starve the
+            # event loop answering /api/health — the exact pathology the
+            # embeddings comment below already documents once) is a suspect
+            # for the gap between "engine serving" and the app's readiness
+            # probe reporting ready; this stamp plus the embeddings one below
+            # let that gap be measured instead of guessed.
+            _api_stamp("workflow tool stack warm-up start")
             # One call: _ensure_tools_loaded() imports the tools package, which
             # is what pulls langgraph, MCP and Quartz behind it. Going through
             # the registry (rather than importing the modules directly) means
@@ -908,6 +916,7 @@ async def lifespan(app: FastAPI):
             # fast instead of paying langgraph's import cost with a spinner.
             import fichero_server.workflows.runtime  # noqa: F401, PLC0415
 
+            _api_stamp("workflow tool stack warm-up complete")
             logger.info("Workflow tool stack warmed")
 
             # Warm the embedding model too — OFF the bind path, in a thread.
@@ -929,10 +938,12 @@ async def lifespan(app: FastAPI):
             # line meant to prevent it. We are already off the loop; just
             # call it — unless a fresh-home engine (UI test) opted out, where the
             # empty model cache would turn this warm into a blocking download.
+            _api_stamp("embeddings prewarm start")
             if _should_prewarm_embeddings():
                 _prewarm_embeddings()
             else:
                 logger.info("Skipping embeddings pre-warm (FICHERO_SKIP_EMBEDDINGS_PREWARM=1)")
+            _api_stamp("embeddings prewarm complete")
         except Exception as exc:
             # Deliberately not fatal: a failed warm-up must not take down an
             # engine that is already serving. It is logged at WARNING with a
