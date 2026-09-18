@@ -184,8 +184,11 @@ often the wrong subject; not multilingual.
   .destination` silently defaults to `.reader` at every one of its five construction sites
   feeding one shared request bus — the fix drops that default and makes `destination` a
   REQUIRED argument. KNOWLEDGE surfaces (the biography, claim cards, entity/claim rows, KG
-  graph surfaces) must request `.preview`: Source resolves and highlights the passage, the
-  Reader's own content stays UNCHANGED, no sidebar-mode write, no selection change. NAVIGATIONAL
+  graph surfaces) request BOTH panes from one click: the source image highlights the region
+  and the Reader transcript highlights the passage, from one resolved location, with no
+  sidebar-mode write and no selection change. The Inspector keeps the entity it is showing:
+  the revealed source is transient window state that Preview and Reader follow and the
+  Inspector ignores, cleared by any real selection change. NAVIGATIONAL
   surfaces (the source outline, the annotation list/inspector, the artifacts inspector) keep
   `.reader` and today's selection-changing behavior — they are legitimately asking to GO there,
   not merely preview it. The current silent `.reader` default is what makes today's "click loses
@@ -674,8 +677,9 @@ visible payoff.
      `.reader` and today's selection-changing behavior — they are legitimately asking to GO
      there, not merely preview it. New behavior:
      `kg.read.source-request-declares-intent` — **[GAP]** (→ #4834) a source-navigation request
-     must state whether it wants a PREVIEW (knowledge surfaces: resolve + highlight, no
-     selection/mode change) or a NAVIGATE (surfaces whose whole job is going to the source);
+     must state whether it wants a REVEAL (knowledge surfaces: resolve once, highlight both
+     the source region and the Reader passage, no selection/mode change, Inspector unchanged)
+     or a NAVIGATE (surfaces whose whole job is going to the source);
      the current silent `.reader` default is what makes today's click "lose your place" bug
      possible in the first place. Not built.
    - **Span → page-region needs no new engine call.** `revealResolvedSource` already calls the
