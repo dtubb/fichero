@@ -112,6 +112,16 @@ final class InterpretationStore: ObservableDomainStore {
         }
     }
 
+    /// Appends the created interpretation in place (#4824) — the server's own
+    /// list route (`GET /interpretations`, `hermeneutics.py:378-394`) issues
+    /// no `ORDER BY`, so a fresh `reload()` would return storage/insertion
+    /// order, oldest first; `DocumentInspectorNotes`' `DocumentInterpretations
+    /// Section` renders `store.items` unsorted, so array position IS display
+    /// position. `append` matches what a real reload would have produced;
+    /// `insert(at: 0)` would not. Gated on `documentId` matching the current
+    /// scope — the one real caller passes its own section's document id,
+    /// which should always match, but this is defensive parity with
+    /// `NoteStore.belongs`, not a proven-reachable bug.
     @discardableResult
     func create(
         frameworkId: String,
@@ -127,10 +137,16 @@ final class InterpretationStore: ObservableDomainStore {
             interpretationText: text,
             confidence: confidence
         )
-        await reload()
+        if created.documentId == currentDocumentId {
+            items.append(created)
+        }
         return created
     }
 
+    /// Splices the updated interpretation by index (#4824), mirroring
+    /// `ClaimStore.patch`'s exact shape including its fallback: when the id
+    /// is genuinely absent from the current list, fall back to a reload
+    /// rather than silently dropping the result.
     @discardableResult
     func update(
         interpretationId: String,
@@ -142,7 +158,11 @@ final class InterpretationStore: ObservableDomainStore {
             interpretationText: text,
             confidence: confidence
         )
-        await reload()
+        if let id = updated.id, let index = items.firstIndex(where: { $0.id == id }) {
+            items[index] = updated
+        } else {
+            await reload()
+        }
         return updated
     }
 

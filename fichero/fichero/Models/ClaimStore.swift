@@ -153,22 +153,44 @@ final class ClaimStore: ObservableDomainStore {
     // MARK: - Named actions (map 1:1 to the audited action layer, #1848)
 
     /// Set the curation state of `claimIds` and optionally write library-wide
-    /// suppress rules, then refresh.
+    /// suppress rules. Splices `curationState` onto the rows the SERVER
+    /// confirms it actually touched (#4824) — `BatchClaimCurationResponse`
+    /// carries an optional `claim_ids` list of exactly which ids succeeded
+    /// (not merely an echo of the request; some could be rejected). When
+    /// `claim_ids` is nil (an older/partial server) the response's `updated`
+    /// count still lets us trust the FULL request ONLY IF it exactly matches
+    /// — a partial count with no id list is genuinely ambiguous, and painting
+    /// a state the server never confirmed is worse than a reload, so that
+    /// case falls back to one.
     func setCuration(
         claimIds: [String],
         to state: Components.Schemas.ClaimCurationState,
         suppressRules: [Components.Schemas.ClaimRuleCreateRequest] = []
     ) async throws {
         if !claimIds.isEmpty {
-            _ = try await kgCurationService.batchSetClaimCurationState(
+            let response = try await kgCurationService.batchSetClaimCurationState(
                 claimIds: claimIds,
                 curationState: state
             )
+            let confirmedIds: Set<String>
+            if let serverIds = response.claimIds {
+                confirmedIds = Set(serverIds)
+            } else if response.updated == claimIds.count {
+                confirmedIds = Set(claimIds)
+            } else {
+                confirmedIds = []
+                await reload()
+            }
+            if !confirmedIds.isEmpty {
+                for index in claims.indices {
+                    guard let id = claims[index].id, confirmedIds.contains(id) else { continue }
+                    claims[index].curationState = state
+                }
+            }
         }
         if !suppressRules.isEmpty {
             _ = try await kgCurationService.batchCreateClaimRules(suppressRules)
         }
-        await reload()
     }
 
     // `transition` / `batchTransition` / `unmerge` were removed here: three write
@@ -242,7 +264,16 @@ final class ClaimStore: ObservableDomainStore {
         return updated
     }
 
-    /// Merge `absorbedIds` into `survivorId`, then refresh.
+    /// Merge `absorbedIds` into `survivorId` — NOT a one-item change (#4824):
+    /// two-plus rows become one. `ClaimAuditResponse` carries no updated claim
+    /// body, only which ids were absorbed (`sourceClaimIds`) and which id
+    /// survived (`targetClaimId`), so this removes the absorbed rows
+    /// outright, then — only if the survivor is still present in the CURRENT
+    /// scope — fetches its fresh copy (aggregate fields like corroboration/
+    /// mention counts plausibly changed) and splices it in by index. If that
+    /// follow-up fetch fails, the merge itself already succeeded: the
+    /// absorbed rows stay removed and the survivor's row is left as it was
+    /// pre-merge — nothing is resurrected, nothing is thrown.
     ///
     /// Returns the audit response, which carries the audit id an unmerge needs.
     /// The one caller discards it today — the unmerge UI is #1689, unbuilt — so this
@@ -257,11 +288,29 @@ final class ClaimStore: ObservableDomainStore {
             survivorId: survivorId,
             absorbedIds: absorbedIds
         )
-        await reload()
+        let absorbed = Set(response.sourceClaimIds)
+        claims.removeAll { claim in
+            guard let id = claim.id else { return false }
+            return absorbed.contains(id)
+        }
+        if let index = claims.firstIndex(where: { $0.id == response.targetClaimId }),
+           let fresh = try? await entityService.getClaim(response.targetClaimId) {
+            claims[index] = fresh
+        }
         return response
     }
 
-    /// Link two claims (contradicts / supports / …), then refresh.
+    /// Link two claims (contradicts / supports / …). `KnowledgeClaim` carries
+    /// no link-count/link-list field at all (checked the full generated
+    /// schema, #4824) — creating a link changes neither claim's OWN visible
+    /// fields, so there is nothing in `claims` to splice or reload. The
+    /// cross-surface notification `HeuristicReviewSheet.accept`'s doc comment
+    /// relies on ("shows up wherever claims are displayed") is `changeToken`,
+    /// not the `claims` array — `EntityDigestView`/`KnowledgeGraphInspectorSection`
+    /// both observe `changeToken` and re-run their OWN bespoke claim loads on
+    /// change, independent of this store's `claims`. Bumping it here keeps
+    /// that promise immediate instead of waiting ~300ms for the change-stream
+    /// echo's own `apply(_:)` bump.
     @discardableResult
     func link(
         claimId: String,
@@ -277,16 +326,23 @@ final class ClaimStore: ObservableDomainStore {
             linkQuality: linkQuality,
             evidence: evidence
         )
-        await reload()
+        changeToken &+= 1
         return linkResult
     }
 
-    /// Delete the given claims, then refresh.
+    /// Delete the given claims. Removes each id from `claims` INSIDE the
+    /// loop, immediately after its own successful delete (#4824) — not just
+    /// a wholesale-reload fix: the OLD code threw on the first failure
+    /// without catching, so `await reload()` at the end was never reached,
+    /// and any claims already deleted before that failure stayed visibly
+    /// present until some unrelated later reload. Splicing per-success fixes
+    /// that latent bug too — a failed id further down the list still throws
+    /// (unchanged contract), but everything deleted before it is gone.
     func delete(claimIds: [String]) async throws {
         for claimId in claimIds {
             try await entityService.deleteClaim(claimId)
+            claims.removeAll { $0.id == claimId }
         }
-        await reload()
     }
 
     // MARK: - ChangeEventConsumer (called by LibraryChangeStream, NOT by views)
