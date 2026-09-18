@@ -378,6 +378,8 @@ nav:
       - Specs:
           - Open Questions Digest: contributor_manual/specs/OPEN-QUESTIONS.md
           - Spec Template: contributor_manual/specs/_TEMPLATE.md
+          - AI:
+              - Provider API Keys: contributor_manual/specs/ai/provider-keys.md
           - Docs:
               - Docs Citations & Bibliography: contributor_manual/specs/docs/docs-citations-bibliography.md
           - Harness:
