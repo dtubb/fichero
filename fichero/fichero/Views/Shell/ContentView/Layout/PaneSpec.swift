@@ -52,6 +52,18 @@ struct PaneSpec: Identifiable, Equatable {
             case .chat: "bubble.left.and.bubble.right"
             }
         }
+
+        /// The kinds a pane can actually be switched TO. `.inspector` and
+        /// `.chat` stay in `Kind`/`allCases` so the switcher's model type is
+        /// total (`PaneKindSwitcher`, `kindContent(kind:...)`), but both are
+        /// placeholder leaves today (`kindContent`'s `.inspector`/`.chat`
+        /// arms render `PaneEmptyStateView`, not real content) — offering
+        /// them in the kind-switch menu would let a click "switch" a pane to
+        /// a dead end. Ship them here only when #4705 increments 6 (chat as
+        /// a movable pane) / 7 (inspector as a real leaf) give them content.
+        static var selectableKinds: [Kind] {
+            allCases.filter { $0 != .inspector && $0 != .chat }
+        }
     }
 
     let kind: Kind

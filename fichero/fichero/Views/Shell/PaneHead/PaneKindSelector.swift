@@ -88,9 +88,12 @@ struct PaneKindSelector<Lens: Hashable & Identifiable>: View {
     }
 
     private func mergedRung(namesWhatIsShown: Bool) -> some View {
-        // ponytail: the merged rung keeps the LENS menu; kind switching at
-        // the narrowest width goes through the pane's right-click/full head.
-        lensMenuContent {
+        // The merged rung still opens ONE menu (the 2026-09-01 "one icon"
+        // ruling), but that menu now ALSO offers the real pane-kind switch
+        // (#4705: Reader was the one pane head with no kind-switch parity
+        // with Library/Preview) — folded into the lens menu rather than a
+        // second control, so the icon count is unchanged.
+        lensMenuContent(includeKindSwitcher: true) {
             HStack(spacing: 4) {
                 Label(kindTitle, systemImage: kindIcon)
                     .font(.callout.weight(.medium))
@@ -131,7 +134,9 @@ struct PaneKindSelector<Lens: Hashable & Identifiable>: View {
             .labelStyle(.iconOnly)
         if let paneKindSwitcher {
             Menu {
-                ForEach(PaneSpec.Kind.allCases, id: \.rawValue) { kind in
+                // Real kinds only (#4705): `.inspector`/`.chat` are
+                // placeholder leaves until increments 6/7 give them content.
+                ForEach(PaneSpec.Kind.selectableKinds, id: \.rawValue) { kind in
                     Button {
                         paneKindSwitcher.switchKind(kind)
                     } label: {
@@ -173,8 +178,27 @@ struct PaneKindSelector<Lens: Hashable & Identifiable>: View {
         .help("Choose what this pane shows")
     }
 
-    private func lensMenuContent<L: View>(@ViewBuilder label: () -> L) -> some View {
+    private func lensMenuContent<L: View>(
+        includeKindSwitcher: Bool = false,
+        @ViewBuilder label: () -> L
+    ) -> some View {
         Menu {
+                // Folded in only by the merged rung (`collapsesKindIntoLens`):
+                // the adaptive layout already has its own separate
+                // `kindControl` menu, so adding this here too would duplicate
+                // the switch rather than restore parity (#4705).
+                if includeKindSwitcher, let paneKindSwitcher {
+                    Section(kindTitle) {
+                        ForEach(PaneSpec.Kind.selectableKinds, id: \.rawValue) { kind in
+                            Button {
+                                paneKindSwitcher.switchKind(kind)
+                            } label: {
+                                Label(kind.title, systemImage: kind.icon)
+                            }
+                        }
+                    }
+                    Divider()
+                }
                 if lensSections.isEmpty {
                     Picker("View", selection: $lens) {
                         ForEach(lenses) { option in
