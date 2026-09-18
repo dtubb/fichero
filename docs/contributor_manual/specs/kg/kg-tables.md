@@ -63,6 +63,9 @@ Surfaces: `EntitiesLibraryContent` / `EntitiesTableView`, `ClaimsLibraryContent`
   only [PARTIAL]. → #1765 is the broader origin ask (approve/reject/edit entities AND claims,
   `curation_state` end-to-end) — its "also in WebKit" clause is moot now the KG browser has
   retired (#4828); what remains open is the inspector-only half this behavior tracks.
+  Cross-ref: `kg-readable-representation.md`'s `kg.read.edit-unit-is-the-claim` covers a
+  DIFFERENT surface reaching the same `claim.patch` action — editing FROM a rendered sentence
+  rather than from this table — the two should stay in sync as both land.
 
 ### Unreachable since the KG browser retired (#4828) — awaiting a re-mount-or-retire decision
 

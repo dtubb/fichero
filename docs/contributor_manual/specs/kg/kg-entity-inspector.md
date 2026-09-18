@@ -83,7 +83,10 @@ Surfaces: `DocumentInspector` (+`Sections`), `DocumentInspectorEntitiesTab`
 - `kg.entity.statements.row-shows-svo` — [OK] each row renders the typed triple via
   `ClaimLine.text(...)` with the focused entity as `groupSubject`, so its own name is
   omitted when redundant and kept when the claim is about someone else; a claim with
-  no triple falls back to its text. Pinned: `ClaimLineTests`.
+  no triple falls back to its text. Pinned: `ClaimLineTests`. Cross-ref: this is the ONE
+  live renderer that already gets the subject right — `kg-readable-representation.md`'s
+  `kg.read.render-uses-claim-subject` names it as the proof that the biography renderer's
+  literal "they" (a different renderer, same screen) is fixable with the same pattern.
 - `kg.entity.statements.row-shows-source-label` — each row names where it was said:
   the source document's display name and page label when known; "Source <id>…" only
   when the document cannot be resolved; never an empty badge.
