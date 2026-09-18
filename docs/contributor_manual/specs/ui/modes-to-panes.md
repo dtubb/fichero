@@ -223,6 +223,16 @@ fourth type.
   EXTRACTED output saved as the artifact with the page as its provenance, preferred where it
   applies (creative-director ruling, 2026-09-18) — through the one audited action layer, same
   as every other save. Constrains research.md's Open Question 2 (the save action's design).
+- `m2p.research-workspaces-are-library-folders` — **[OK]** (11368be12, #4812 closed): agent workspaces (`workspace_kind=agent` folder
+  Documents) are already ordinary `Document`s and must behave as ordinary folders
+  everywhere — sidebar visibility (already true, no new bucket or section needed), selection
+  (fixed — the `isWorkspace` special case that diverted to the Research takeover is deleted),
+  and creation placement (fixed — `createWorkspace` reuses `createFolder`'s own
+  context-aware placement via a `parentId` parameter, the same code path, not a copy). See
+  increment 5a above for the full mechanism. Pinned by
+  `SidebarWorkspaceNodeTests.testWorkspaceSelectionNoLongerDivertsToResearch`,
+  `.testCreateNewWorkspaceReusesFolderPlacementAndSelects`, `.testRegistryWiringIncludesWorkspace`,
+  `.testResearchProjectListViewHasNoWorkspaceUI`.
 - `m2p.chat-single-mount` — **[PROPOSED]** `ChatView(` appears in exactly one builder at a
   time — dock OR pane, never both — because conversation state (`currentConversation`,
   `backendConversationId`, `ChatView.swift:61-66`) is lifted out of `@State` into the
@@ -506,35 +516,195 @@ increments 2, 4, and 5.
   `Models/SidebarViewTypes.swift`. **Persistence:** `restoreViewMode` keeps accepting the
   retired `"comparison"` string exactly as it already does for `"search"`. Test:
   `m2p.comparison-is-panes-and-diff-lens` + a restore-table test.
-- **5a. Workspaces are library folders (not started).** Agent workspaces
-  (`workspace_kind=agent` folder Documents, already ordinary library `Document`s —
-  `DocumentStore.createWorkspace(name:)` + `documentService.markAsWorkspace(folderId:)`)
-  appear as ordinary library nodes (a sidebar section/filter over existing Documents),
-  not a bespoke second list. Deletes `ResearchProjectListView`'s `workspacesSection`/
-  `workspaceRow(_:)`/`newWorkspaceForm` — its ONLY other create path for a workspace is
-  `newWorkspaceForm` itself, so this needs an equivalent create affordance somewhere in the
-  ordinary library UI (a "New Workspace" folder-creation variant) before the form can go;
-  exact placement TBD at implementation. Files: `ResearchProjectListView.swift`, sidebar
-  section files. Test: TBD once the create-path replacement is designed.
-- **5b. A research project is a sidebar node (not started).** New `SidebarItem.ItemType`
-  case + selection handler (mirrors how `.workflows`/`.schedule` already route); new
-  `AppViewMode.research(ResearchProject?)` with tolerant restore (the established pattern —
-  see §Persistence); matrix row = `.chat`'s row (Library browser | Preview | document-driven
-  Reader | chat-scope Inspector) since `ResearchChatPane` is already a thin `ChatView(
-  researchProject:)` adapter, not a duplicate chat implementation (verified: `ResearchChatPane
-  .swift`'s body is exactly `ChatView(conversation: nil, conversationFolderPath: "/research/
-  {project.id}", researchProject: project, ...)`). Selecting a project scopes the EXISTING
-  chat dock (`PaneSpec.swift`'s `chatSurface`) to it via the same adapter pattern — the Tasks
-  column needs no new home, it is already chat's own Plan tab (`ChatView.swift:221-222`
-  mounts `ResearchTasksPane(project:)` when `researchProject` is set). `ResearchTasksPane`'s
-  THIRD-column mount in `ResearchWorkspaceView` dies with that container (5c). Deletes
-  `ResearchProjectListView`'s `projectList`/`projectRow(_:)`/`newProjectForm` and their
-  `@State`; `researchService.projects` (`ResearchService.swift:13`, already `@Observable`,
-  populated by `loadProjects()` → `GET /api/research/projects`) is the sidebar's data source
-  directly — no private per-view fetch, no wholesale-rerender risk. Files: `Nav`,
-  `ResearchProjectListView.swift`, `Models/SidebarViewTypes.swift`, `SelH`,
-  `ContentView+Persistence.swift`, `Plan`, sidebar section files. Test:
-  `m2p.research-is-sidebar-node`.
+- **5a. Workspaces are library folders — DONE (11368be12), #4812 closed.**
+  Agent workspaces (`workspace_kind=agent` folder Documents) are already ordinary library
+  `Document`s (`isWorkspace: Bool`) — the design decided NEITHER a new sidebar bucket NOR a
+  labeled section: a workspace already appears in the ordinary tree wherever its parent
+  folder is visible, so a second, flat "all my workspaces" list (bucket or section) would
+  show the same folder TWICE with the SAME id — duplicate identity in a SwiftUI `ForEach`
+  (undefined selection/diffing, the row-resurrection class of bug this sidebar has already
+  fought). A first attempt at the bucket approach was built, then reverted for exactly this
+  reason before landing.
+  **Deletion:** removed the redundant SECOND create path — `ResearchProjectListView`'s
+  `workspacesSection`, `workspaceRow(_:)`, `newWorkspaceForm`, the "New Workspace" toolbar
+  button, and their `@State` (`showingNewWorkspace`, `newWorkspaceName`), plus the now-unused
+  `@Environment(DocumentStore.self)` and its `.task`'s `loadWorkspaces()` call.
+  `SidebarCreationHandlers.createNewWorkspace()` was ALREADY wired (`itemRegistry.
+  createWorkspace = createNewWorkspace`, `SidebarObservers.swift:202`) into the real creation
+  menu (`ItemTypeRegistry.swift`, id `"workspace"`) — the form was dead weight, confirmed by
+  caller-evidence grep before deleting. `ResearchProjectListView`'s project list is
+  UNTOUCHED — no replacement until 5b.
+  **Selection fixed:** `routeDocumentSelection`'s `if doc.isWorkspace` branch
+  (`SidebarView+SelectionHandling.swift`) is DELETED — `git log -S'isWorkspace'` traced it to
+  229f76368 ("selecting a workspace routes to the Research surface"); that need is 5b/5c's (a
+  research PROJECT's own chat/tasks/browser rendition — `ResearchProject`, a separate model
+  with no folder/Document link at all), not this document row's. A workspace document now
+  falls through to the SAME generic library branch every other folder gets
+  (`sidebarMode = .library`, `viewMode = .library(doc)`). The function mixes async alias
+  resolution with sync branches — not a pure function today — so this is pinned by a
+  source-scan guard, not an extracted pure routing function.
+  **Placement fixed, reusing the folder path, not a copy:** `DocumentStore.createWorkspace`
+  gained a `parentId: String? = nil` (`DocumentStore+CRUD.swift`), threaded straight into the
+  SAME `createFolder(name:parentId:)` every folder already uses — no separate server-side
+  wiring needed, the workspace marker PATCH is keyed on the created folder's own id regardless
+  of where it landed. `createNewWorkspace()` computes `parentId` with the EXACT SAME
+  selected-folder check `handleCreateNewFolder()` uses (nest into the selected folder; library
+  root as the fallback — → sidebar-crud's `create.folder.lands-under-context`, itself
+  `[PARTIAL]` today per that spec: the naming dialog and parent-reveal gaps it already has are
+  INHERITED here, not re-litigated), then selects the result WITHOUT forcing `sidebarMode`
+  (matching `createFolder(_:)`'s own select-only completion) — it browses like any folder now.
+  **Not fixed, reported per instruction, do not delete without confirming:**
+  `DocumentStore.workspaces`/`loadWorkspaces()` have zero PRODUCTION callers after this
+  delivery, but TWO tests pin `workspaces` as one of several arrays the store's granular
+  `apply(document.deleted)`/`liveDocument(id:)` mechanisms must keep in sync —
+  `DocumentStoreLiveResolutionTests.liveDocumentReadsAllContainers` and
+  `ObservableDomainStoreTests.testApplyDeletedRemovesRowsInPlaceAcrossListsAndCache` — neither
+  is about the deleted Research UI; both exercise `workspaces` generically alongside
+  `collections`/`currentDocuments`/`childrenCache`. Deleting the property would need editing
+  both tests too; left in place pending a decision. Files: `SidebarView+SelectionHandling.
+  swift`, `DocumentStore+CRUD.swift`, `SidebarCreationHandlers.swift`,
+  `ResearchProjectListView.swift`. Test: `m2p.research-workspaces-are-library-folders`,
+  `SidebarWorkspaceNodeTests.testWorkspaceSelectionNoLongerDivertsToResearch`,
+  `.testCreateNewWorkspaceReusesFolderPlacementAndSelects`, `.testRegistryWiringIncludesWorkspace`,
+  `.testResearchProjectListViewHasNoWorkspaceUI` (all source-scan — the dedicated,
+  pre-existing workspace-node test file this delivery updated rather than orphaned).
+- **5b. A research project is a sidebar node (planned, not started).**
+
+  **(1) `SidebarItem.ItemType` + id namespace, checked for disjointness first.** A new
+  `case researchProject(ResearchProject)`. Id prefix `"research:\(project.id)"` — grepped
+  every existing prefix (`SidebarItem.swift`/`+MoreFactories.swift`): `doc:`, `search:`,
+  `workflow:`, `chat:`, `folder:`, `library:`, `chain:`, `comparison:`, `schedule:`,
+  `trigger:`, `batch:`, `activity:`, `structure:` — none is `research:` or a prefix of it, so
+  no collision. Disjointness from `documentItems` holds structurally, not just by
+  convention: a `ResearchProject` has NO `Document`/folder id at all (`id, name, description,
+  status, libraryDestinationFolderId, createdAt, updatedAt` — `libraryDestinationFolderId` is
+  a DIFFERENT id, the folder a project's outputs save into, not the project's own identity),
+  so a `researchProjectItems` bucket can never contain a row `documentItems` also contains —
+  unlike 5a's workspace bucket, which failed disjointness for exactly this reason. Joins the
+  ONE flat list (`flattenedLibraryItems`) as a new bucket, gated on `isResearchEnabled`,
+  sourced from `researchService.projects` (already `@Observable`) the same way
+  chain/schedule/trigger read their own live `@State` sources — this is the bucket shape 5a's
+  reversion ruled out for workspaces, but IS correct here because there is no duplicate-id
+  risk to trigger the same `ForEach` bug.
+
+  **(2) `AppViewMode.research(ResearchProject?)` — every switch it breaks, verified by
+  reading each file, not assumed:**
+  EXHAUSTIVE `switch` over `AppViewMode` (compiler forces a decision, cannot be missed):
+  `SidebarViewTypes.swift:24` (`category`), `:41` (`logDescription`); `ShellLayoutPolicy.
+  swift:163` (`CompactShellPolicy.route`); `PaneContentPlan.swift` (`stablePanePlan`,
+  `ReaderSubject.from(_:)`, `runHistoryEmptyReason`); `ContentView+Persistence.swift:125`
+  (`serializeViewMode`); `Nav`'s `contentView` (the main router); `ContentView+StateDisplay.
+  swift:20`/`:117` (`toolbarTitle`/`toolbarIcon`); `ContentView+StateSelection.swift:87`
+  (`showNavigationToolbar`); `Detail`'s `inspectorView` and the compact-only `previewView`
+  grouped switches.
+  NOT exhaustive — will NOT fail to compile, so a manual pass is the only thing that catches
+  these, and missing one is a SILENT gap, the more dangerous class:
+  `ContentView+Persistence.swift:268` (`viewModeLostItsItem`) has a `default: return false` —
+  a lost research-project selection would silently never register as "lost its item" unless
+  a `.research` case is added deliberately. `ViewModeNormalization.swift`'s
+  `defaultViewMode`/`preservesExistingSelection` switch on `SidebarMode` (which ALREADY has a
+  `.research` case, unaffected by adding `AppViewMode.research`) — their EXISTING `.research`
+  arms (lines 38, 81) currently return `.library(nil)` / `false`, a pre-5b workaround
+  ("No dedicated AppViewMode case for this takeover mode" — that comment becomes false once
+  5b lands) that must be rewritten to the `.workflows`-style pattern
+  (`.research → .research(nil)` default, `.research(let selected) → selected != nil`
+  preservation) — nothing forces this edit, it must be done deliberately or the Chat-Scope-
+  leak class of bug this file exists to prevent reopens for Research specifically.
+  `Detail`'s `widescreenCanvasPaneContent` is an `if case` CHAIN, not a switch — also not
+  exhaustive-enforced, needs its own new branch. `ContentView+StateLayout.swift`'s
+  `showsPaneToggles` switches `SidebarMode` (already has `.research`, currently `false`) —
+  flip to `true` once Research is pane-hosted, matching 4a-follow's fix for the other modes.
+  `SidebarItem.ItemType` gains its OWN exhaustive-switch fan-out from (1)'s new case —
+  confirmed `SidebarActions.swift`'s `performDeleteAction` (exhaustive, will not compile
+  without a `.researchProject` arm); context-menu and row-icon switches almost certainly
+  also exhaustive over `ItemType` (`SidebarItemContextMenu.swift`,
+  `SidebarItemRow+Presentation(+Body).swift`) but not individually verified here — inventory
+  precisely at implementation time, the same GraphSimulation-lesson discipline.
+  **Matrix row, audited against real wanted behavior first (the chat-row lesson from
+  4b-1), not assumed:** Library browser | Preview = document preview (or `PaneSurface.
+  webBrowser` once 5c lands and no document is ALSO selected — the SAME `.chat`-shaped cell,
+  branching only on whether a document is present, matching `.chat`'s own `document preview`
+  cell today) | Reader = document-driven (`.surface(.documentReader)`, matching `.chat`'s
+  audited fix in 4b-1 — a research project keeps its documents readable beside it, same
+  reasoning) | Inspector = `.surface(.chatScope)`, matching `.chat`'s row exactly (Sources ·
+  Plan · Knowledge · Compare — Plan renders `ResearchTasksPane(project:)` since
+  `ChatView.swift:221-222` already does this whenever `researchProject` is set).
+
+  **(3) Selection + the chat dock's seam.** Selecting a `.researchProject` row sets
+  `sidebarMode = .library` (matching 5a's fix — a research project is browsed like a
+  library node, not a takeover) and `viewMode = .research(project)`. The chat dock
+  (`PaneSpec.swift`'s `chatSurface`) learns WHICH project via a value computed from
+  `viewMode` at the SAME host that computes `ReaderSubject`/`readerCell`
+  (`ContentView+DetailLayout.swift`) — the smallest seam, one more small pure function
+  alongside `ReaderSubject.from(_:)`, not a new mechanism. **Verified, file:line, a REAL
+  PRE-EXISTING bug independent of 5b, must be filed regardless:** the chat dock does NOT
+  safely re-scope across selections today. `chatSurface` (`PaneSpec.swift:412-422`) is a
+  computed `@ViewBuilder var`, re-evaluated every render with `ChatMount.conversation(for:
+  viewMode)` — but `ChatView`'s `currentConversation`/`backendConversationId` are `@State`,
+  seeded ONLY once at first mount (`ChatView.swift:114`:
+  `self._currentConversation = State(initialValue: conversation ?? Conversation())`), and
+  grepped `ChatView.swift` for `onChange(of:`/`.id(` — ZERO hits, confirmed. The mount site
+  (`ContentView+SidebarLayout.swift:57`) has no `.id()` either. So selecting conversation B
+  while conversation A is the dock's current mount does NOT reset `@State` — the SAME
+  identity persists, only the `conversation` init param changes, which `@State`'s
+  `initialValue` ignores after first mount. `ResearchChatPane.swift`'s own
+  `ChatView(conversation: nil, ...)` construction has the identical gap. 5b's fix for
+  RESEARCH selection specifically is `.id(project?.id)` on the dock mount (the same
+  forced-remount technique 4b-2 used); the GENERAL conversation-to-conversation case is
+  filed as its own bug regardless of 5b's fate.
+
+  **(4) Create / rename / delete — reuse the sidebar's existing machinery, not rebuilt.**
+  Today, `ResearchProjectListView` has `newProjectForm` (`researchService.createProject(
+  name:)`) and delete (`confirmDelete`/`deleteProjects` → `researchService.deleteProject(
+  id:)`), both bespoke, both in that one view. Maps to: creation → a new `ItemTypeRegistry`
+  entry (`"research"` id, AI category, matching `"workspace"`'s shape) wired via
+  `SidebarObservers.swift` to a new `SidebarCreationHandlers.createNewResearchProject()`
+  (immediate creation, no dialog, same shape as `createNewWorkspace()` post-5a — no name
+  dialog to reuse, since `ResearchProject` has no folder-creation-style Finder-semantics
+  placement question at all, it is not a Document); delete → `SidebarActions.
+  performDeleteAction`'s new `.researchProject` arm calling `researchService.
+  deleteProject(id:)`, replacing the bespoke `confirmDelete`/`deleteProjects`/
+  `projectsToDelete`/`showingDeleteConfirm` machinery in `ResearchProjectListView` with the
+  sidebar's existing confirm-delete flow (the same seam every other node kind's delete
+  already uses) — no rename affordance exists today for a `ResearchProject` (no `renameXxx`
+  found for any kind in `SidebarActions.swift`, so this is not a regression, just not adding
+  one).
+
+  **(5) What 5b deletes vs. what waits for 5c.** Deletes: `ResearchProjectListView`'s
+  `projectList`/`projectRow(_:)`/`newProjectForm`/delete machinery and their `@State`.
+  Survives into 5c: the FILE `ResearchProjectListView.swift` itself (5c's job, once nothing
+  mounts it — the `sidebarMode == .research` intercept in `Nav` dies with 5c, not 5b,
+  since 5b only changes what a PROJECT ROW selection does, not the whole intercept — needs
+  confirming at implementation time whether anything else still reaches that intercept once
+  5b lands, or whether 5b can retire it early). `ResearchWorkspaceView.swift` — untouched by
+  5b, 5c's delete.
+
+  **(6) Tests + behavior ids.** `m2p.research-is-sidebar-node` — [PROPOSED], flips once
+  built. Pure: id-namespace disjointness (a table of every existing prefix + `research:`,
+  asserting no collision — mirrors 5a's namespace check but as an actual test); the new
+  `ReaderSubject`-sibling function mapping `viewMode` → `ResearchProject?` for the chat dock,
+  every `AppViewMode` including nil sub-cases (mirrors `ReaderSubjectFromNamesTheRightEntity`
+  form); matrix row assertions in `PaneContentPlanTests`. Source-scan: the retitled
+  `ViewModeNormalization` `.research` arms no longer return `.library(nil)`/`false`
+  unconditionally; `SidebarActions.performDeleteAction` has a `.researchProject` arm; the
+  chat dock mount carries `.id(`. A NEW, separate bug report (not this spec, not gated on
+  5b): the chat-dock conversation-switching staleness — needs its own issue, its own test
+  once filed.
+
+  **(7) Open questions for you.** (a) Confirm `.id(project?.id)` is the right immediate fix
+  for the dock's research-scoping, vs. holding it for increment 6's proper state-lifting (a
+  temporary patch on code increment 6 will later rewrite). (b) Whether `researchProject`
+  selection should ALSO clear the dock back to no-project when navigating away (today
+  nothing resets `researchProject` back to nil on deselect — same `@State`-seeded-once class
+  of gap). (c) Whether the general chat-dock staleness bug (found in (3)) should block 5b or
+  ship as a parallel, separately-filed fix — I lean parallel, since 5b's own `.id()` fix
+  sidesteps it FOR RESEARCH specifically without needing the general fix first, but flagging
+  since you may want them landed together. Files: `Nav`, `ResearchProjectListView.swift`,
+  `Models/SidebarViewTypes.swift`, `SelH`, `ContentView+Persistence.swift`,
+  `ViewModeNormalization.swift`, `ContentView+StateLayout.swift`, `ContentView+StateDisplay.
+  swift`, `ContentView+StateSelection.swift`, `Detail`, `Plan`, `ShellLayoutPolicy.swift`,
+  `SidebarActions.swift`, `SidebarCreationHandlers.swift`, `SidebarObservers.swift`,
+  `Models/ItemTypeRegistry.swift`, sidebar section files. Test: `m2p.research-is-sidebar-node`.
 - **5c. The browser is a Source rendition — DECIDED (creative-director ruling,
   2026-09-18), design not yet built.** The embedded browser lives INSIDE the Source/Preview
   pane — no browser pane kind, no tab strip of its own — as `PaneSurface.webBrowser` when a
