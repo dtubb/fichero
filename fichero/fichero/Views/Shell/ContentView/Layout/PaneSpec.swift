@@ -279,8 +279,14 @@ extension ContentView {
             WorkspaceSplitStack.Child(
                 paneNodeView(
                     node, keyPath: "\(index)", secondaryIDs: secondaryIDs, isSole: solePane,
-                    closeLeaf: { id in activePaneList = activePaneList.removingLeaf(id) },
-                    changeKind: { id, kind in activePaneList = activePaneList.changingLeafKind(id, to: kind) }
+                    closeLeaf: { id in
+                        activePaneList = activePaneList.removingLeaf(id)
+                        syncLegacyPaneVisibilityBools()
+                    },
+                    changeKind: { id, kind in
+                        activePaneList = activePaneList.changingLeafKind(id, to: kind)
+                        syncLegacyPaneVisibilityBools()
+                    }
                 ),
                 sizing: extents[index]
             )

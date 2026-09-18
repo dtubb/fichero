@@ -174,23 +174,28 @@ extension ContentView {
                     // Icon Only mode there are no words, and six identical
                     // buttons said nothing about what was already up. Lit glyph,
                     // not filled control — see `toolbarSurfaceLit`.
+                    // Read from `paneVisibility` — DERIVED from `activePaneList` (spec
+                    // workspaces.one-system, #4687) — not the legacy `showDocumentCanvas`/
+                    // `showReadingPane` Bools, which `applyWorkspaceLayout`, pane close and
+                    // kind-switch all bypass and which could therefore lie about what a
+                    // workspace actually put on screen.
                     Button {
-                        setCanvasPaneVisible(!showDocumentCanvas)
+                        setCanvasPaneVisible(!paneVisibility.canvas)
                     } label: {
-                        Label(showDocumentCanvas ? "Hide Preview" : "Show Preview",
+                        Label(paneVisibility.canvas ? "Hide Preview" : "Show Preview",
                               systemImage: ToolbarSymbols.previewPane)
-                            .toolbarSurfaceLit(showDocumentCanvas)
+                            .toolbarSurfaceLit(paneVisibility.canvas)
                     }
-                    .help(showDocumentCanvas ? "Hide the Preview" : "Show the Preview")
+                    .help(paneVisibility.canvas ? "Hide the Preview" : "Show the Preview")
 
                     Button {
-                        setReadingPaneVisible(!showReadingPane)
+                        setReadingPaneVisible(!paneVisibility.reading)
                     } label: {
-                        Label(showReadingPane ? "Hide Reader" : "Show Reader",
+                        Label(paneVisibility.reading ? "Hide Reader" : "Show Reader",
                               systemImage: ToolbarSymbols.readingPane)
-                            .toolbarSurfaceLit(showReadingPane)
+                            .toolbarSurfaceLit(paneVisibility.reading)
                     }
-                    .help(showReadingPane ? "Hide the Reader" : "Show the Reader — transcripts, translations, and the knowledge graph")
+                    .help(paneVisibility.reading ? "Hide the Reader" : "Show the Reader — transcripts, translations, and the knowledge graph")
 
                     // Chat is a ROW pane (Daniel 2026-08-12: "there is no button
                     // to turn it on and off") — fourth member of the pane group,

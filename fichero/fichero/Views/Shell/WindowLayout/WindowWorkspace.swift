@@ -125,6 +125,13 @@ struct WindowLayoutSnapshot: Codable, Equatable, Sendable {
     /// restore that silently drops something is exactly what makes the whole
     /// feature feel inert.
     var showAnnotationBar: Bool = false
+    /// The applied window composition (#4686, spec workspaces.one-system: "user workspaces are
+    /// saved PaneLists"). This is the field that was MISSING — `panes`/`paneKindOverrides`/`splits`
+    /// above are the legacy Bool-visibility shape, so "Save Current as Workspace…" captured a lie
+    /// and applying a saved workspace never touched `activePaneList`. `nil` for any snapshot saved
+    /// before this field existed (it's a brand-new coding key, so old JSON simply lacks it) —
+    /// `applyLayoutSnapshot` falls back to the Read default and logs rather than crashing.
+    var paneList: PaneList?
 }
 
 extension WindowLayoutSnapshot {
@@ -151,6 +158,9 @@ extension WindowLayoutSnapshot {
         showWorkflowBar = try container.decodeIfPresent(Bool.self, forKey: .showWorkflowBar) ?? false
         showAnnotationBar = try container.decodeIfPresent(
             Bool.self, forKey: .showAnnotationBar) ?? false
+        // A brand-new key (#4686): absent from every snapshot saved before this change, so
+        // `decodeIfPresent` alone already returns nil for them — no shape migration needed.
+        paneList = try container.decodeIfPresent(PaneList.self, forKey: .paneList)
     }
 }
 
@@ -273,101 +283,19 @@ struct WindowWorkspaceCatalog: Codable, Equatable, Sendable {
     }
 }
 
-// MARK: - Layout presets (the Views chooser)
+// MARK: - Layout presets (the Views chooser) — DELETED (#4685)
+//
+// `WindowLayoutPreset` ("Library Only / Reading / Everything") was a SECOND built-in
+// arrangement system parallel to `BuiltInWorkspaceLayout` — the exact "two systems for one
+// job" the spec's workspaces.one-system ruling closes. Zero callers remained once
+// `applyLayoutPreset`/`WindowLayoutCommands.applyPreset` were removed from
+// ContentView+LayoutChooser.swift; deleted rather than kept dead.
 
-/// The compound layouts the Views-chooser button offers (Xcode's
-/// "Editor Only / Canvas / Assistant" idiom): sensible named pane sets, with
-/// the user's saved workspaces listed beneath a divider.
-enum WindowLayoutPreset: String, CaseIterable, Identifiable, Sendable {
-    case libraryOnly
-    case reading
-    case everything
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .libraryOnly: "Library Only"
-        case .reading: "Reading"
-        case .everything: "Everything"
-        }
-    }
-
-    var systemImage: String {
-        switch self {
-        case .libraryOnly: "sidebar.left"
-        case .reading: "book"
-        case .everything: "rectangle.split.3x1"
-        }
-    }
-
-    /// The pane set the preset applies. Only visibility — widths, kind
-    /// overrides and splits are left exactly as the user has them.
-    var plan: PaneVisibilityPlan {
-        switch self {
-        case .libraryOnly:
-            PaneVisibilityPlan(
-                showSidebar: true, showInspector: false,
-                showLibraryPane: true, showPreviewPane: false,
-                showReaderPane: false, showChatPane: false
-            )
-        case .reading:
-            PaneVisibilityPlan(
-                showSidebar: true, showInspector: false,
-                showLibraryPane: true, showPreviewPane: true,
-                showReaderPane: true, showChatPane: false
-            )
-        case .everything:
-            PaneVisibilityPlan(
-                showSidebar: true, showInspector: true,
-                showLibraryPane: true, showPreviewPane: true,
-                showReaderPane: true, showChatPane: true
-            )
-        }
-    }
-
-    /// Whether the window currently shows exactly this preset's pane set —
-    /// drives the chooser's checkmark.
-    func matches(_ current: PaneVisibilityPlan) -> Bool {
-        plan == current
-    }
-}
-
-// MARK: - Split command routing (the Split/Tab toolbar button)
-
-/// Resolves WHICH SplittablePane a window-level "Split Right/Below" command
-/// addresses: the pane that has focus, named by the same
-/// `"<slot>-<effectiveKind>"` storage key the live layout mints in
-/// `ContentView.kindContent` (slot survives a kind override — 2026-08-24).
-/// Pure so the routing is unit-testable without a window.
-enum SplitCommandRouting {
-    /// - Parameters:
-    ///   - focus: the focused pane (`focusedPane ?? paneFocusHint`).
-    ///   - slots: the visible centre-row slots in order — (slot id, planned
-    ///     kind rawValue), from `widescreenPaneSpecs`.
-    ///   - overrides: slot id → overriding kind rawValue (`paneKindOverrides`).
-    /// - Returns: the storage key of the focused pane's SplittablePane, or
-    ///   nil when focus is on a surface that does not split (sidebar,
-    ///   inspector) or the focused kind is not in the row.
-    static func storageKey(
-        focus: PaneFocus?,
-        slots: [(id: String, kind: String)],
-        overrides: [String: String]
-    ) -> String? {
-        guard let targetKind = splitTargetKind(for: focus) else { return nil }
-        guard let slot = slots.first(where: { (overrides[$0.id] ?? $0.kind) == targetKind }) else {
-            return nil
-        }
-        return "\(slot.id)-\(targetKind)"
-    }
-
-    private static func splitTargetKind(for focus: PaneFocus?) -> String? {
-        switch focus {
-        case .content: "library"
-        case .preview: "preview"
-        case .reading: "reading"
-        case .chat: "chat"
-        case .sidebar, .inspector, nil: nil
-        }
-    }
-}
+// MARK: - Split command routing (the Split/Tab toolbar button) — DELETED (#4685)
+//
+// `SplitCommandRouting.storageKey` minted a `"<slot>-<kind>"` key from `widescreenPaneSpecs`,
+// but the applied renderer's slot ids are `"pane-<keyPath>-<kind>"` (paneNodeView) — they never
+// matched, so menu Split posted to nothing. Split is now routed through the `PaneList` model
+// itself (`activePaneList.splittingLeaf(id, axis:)`, ContentView+LayoutChooser.swift's
+// `focusedLeafID`/`splitFocusedLeaf`) — symmetric with how close already worked via
+// `removingLeaf`. There is nothing left for this type to route to.

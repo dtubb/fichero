@@ -119,72 +119,45 @@ final class WindowWorkspaceTests: XCTestCase {
         XCTAssertTrue(PaneSplitCounts(vertical: 2, horizontal: 1).isSplit)
     }
 
-    // MARK: - Presets
+    // MARK: - Layout presets & split command routing — DELETED (#4685)
+    //
+    // `WindowLayoutPreset` ("Library Only / Reading / Everything") and `SplitCommandRouting`
+    // (the dead `"<slot>-<kind>"` split-key routing) were removed with #4685 — a SECOND
+    // built-in arrangement system and a routing table that addressed slot ids the applied
+    // renderer never minted. Split now routes through `PaneList.splittingLeaf` directly
+    // (`WorkspaceSystemBoundaryTests.testAppliedWorkspaceSplitIsWiredThroughThePaneListModel`);
+    // the pure per-leaf split behaviour is covered by `PaneListTests`.
 
-    func testPresetMatchingIsExactOnTheSixFlags() {
-        let reading = PaneVisibilityPlan(
-            showSidebar: true, showInspector: false,
-            showLibraryPane: true, showPreviewPane: true,
-            showReaderPane: true, showChatPane: false
-        )
-        XCTAssertTrue(WindowLayoutPreset.reading.matches(reading))
-        XCTAssertFalse(WindowLayoutPreset.everything.matches(reading))
-        XCTAssertFalse(WindowLayoutPreset.libraryOnly.matches(reading))
+    // MARK: - The applied composition is now part of the snapshot (#4686)
+
+    /// `WindowLayoutSnapshot` used to carry only the legacy `PaneVisibilityPlan` shape — no
+    /// `PaneList` — so "Save Current as Workspace…" captured a lie and applying a saved
+    /// workspace never touched `activePaneList`. `paneList` is the real composition now.
+    func testSnapshotCarriesTheAppliedPaneListThroughJSON() throws {
+        let list = PaneList([.leaf(.library), .leaf(.preview), .leaf(.reading)])
+        var original = snapshot()
+        original.paneList = list
+        var catalog = WindowWorkspaceCatalog()
+        catalog.save(name: "Reading Desk", layout: original)
+
+        let restored = try XCTUnwrap(WindowWorkspaceCatalog.decoded(from: catalog.encoded()))
+        XCTAssertEqual(restored.workspaces.first?.layout.paneList, list)
+        // Ids round-trip too — identity matters (a saved workspace re-applies the SAME leaves).
+        XCTAssertEqual(restored.workspaces.first?.layout.paneList?.nodes.map(\.id), list.nodes.map(\.id))
     }
 
-    func testEveryPresetPlanKeepsAContentPaneVisible() {
-        // The #1696 invariant in preset form: a preset that hid every content
-        // pane could never be applied.
-        for preset in WindowLayoutPreset.allCases {
-            XCTAssertTrue(preset.plan.isValid, "\(preset) hides every content pane")
-        }
-    }
-
-    // MARK: - Split command routing
-
-    private let fourSlots: [(id: String, kind: String)] = [
-        ("library", "library"), ("preview", "preview"),
-        ("reading", "reading"), ("chat", "chat")
-    ]
-
-    func testFocusedPaneResolvesToItsSlotScopedStorageKey() {
-        XCTAssertEqual(
-            SplitCommandRouting.storageKey(focus: .content, slots: fourSlots, overrides: [:]),
-            "library-library"
-        )
-        XCTAssertEqual(
-            SplitCommandRouting.storageKey(focus: .chat, slots: fourSlots, overrides: [:]),
-            "chat-chat"
-        )
-    }
-
-    func testKindOverrideRedirectsTheCommandToTheHostingSlot() {
-        // The preview SLOT hosts a chat (Daniel 2026-08-23 slot switching):
-        // a focused chat must address "preview-chat" — the key the live
-        // layout mints — not the absent "chat-chat".
-        let slots: [(id: String, kind: String)] = [("library", "library"), ("preview", "preview")]
-        XCTAssertEqual(
-            SplitCommandRouting.storageKey(
-                focus: .chat, slots: slots, overrides: ["preview": "chat"]
-            ),
-            "preview-chat"
-        )
-        // …and the slot's PLANNED kind no longer answers for preview focus.
-        XCTAssertNil(
-            SplitCommandRouting.storageKey(
-                focus: .preview, slots: slots, overrides: ["preview": "chat"]
-            )
-        )
-    }
-
-    func testNonSplittableFocusAndAbsentPanesResolveToNil() {
-        XCTAssertNil(SplitCommandRouting.storageKey(focus: .sidebar, slots: fourSlots, overrides: [:]))
-        XCTAssertNil(SplitCommandRouting.storageKey(focus: .inspector, slots: fourSlots, overrides: [:]))
-        XCTAssertNil(SplitCommandRouting.storageKey(focus: nil, slots: fourSlots, overrides: [:]))
-        // Chat hidden → no slot hosts chat → nothing to split.
-        XCTAssertNil(SplitCommandRouting.storageKey(
-            focus: .chat, slots: [("library", "library")], overrides: [:]
-        ))
+    /// A snapshot saved BEFORE #4686 has no `paneList` key at all — it must still decode, with
+    /// `paneList == nil`, rather than throwing away the user's whole catalog (the same lenient
+    /// contract every field added since `WindowLayoutSnapshot` shipped has honoured).
+    func testAnOldShapeSnapshotDecodesWithPaneListNil() throws {
+        let json = """
+        {"panes":{"showSidebar":true,"showInspector":false,"showLibraryPane":true,
+        "showPreviewPane":true,"showReaderPane":true,"showChatPane":false},
+        "libraryPaneWidth":320,"readerPaneWidth":200,"chatPaneWidth":300,
+        "viewDisplayMode":"Icon","layoutMode":"Widescreen"}
+        """
+        let decoded = try JSONDecoder().decode(WindowLayoutSnapshot.self, from: Data(json.utf8))
+        XCTAssertNil(decoded.paneList)
     }
 
     // MARK: - Toolbar visibility (Daniel, 2026-08-31)

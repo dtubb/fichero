@@ -67,28 +67,37 @@ struct PaneVisibility: Equatable {
 // MARK: - ContentView bridge (@SceneStorage ↔ invariant)
 
 extension ContentView {
-    /// The current pane visibility, read from the per-window `@SceneStorage`.
+    /// The current pane visibility, DERIVED from the applied `PaneList` (#4687, spec
+    /// workspaces.one-system) — the ONE source of truth, not the legacy `@SceneStorage`
+    /// Bools. `applyWorkspaceLayout`, pane close and kind-switch all mutate `activePaneList`
+    /// directly and used to leave the three Bools (and everything reading them — toolbar
+    /// labels, View-menu checkmarks, `WorkspaceLayoutDefaults.remember`) lying about what was
+    /// actually on screen; deriving here instead of reading a mirror makes that impossible.
     var paneVisibility: PaneVisibility {
-        PaneVisibility(
-            grid: showDocumentGrid,
-            canvas: showDocumentCanvas,
-            reading: showReadingPane
+        let kinds = activePaneList.kinds
+        return PaneVisibility(
+            grid: kinds.contains(.library),
+            canvas: kinds.contains(.preview),
+            reading: kinds.contains(.reading)
         )
     }
 
-    /// The ONE mutation path for content-pane visibility (#1696): enforces the
-    /// "≥1 pane visible" invariant, then writes the result back to the per-window
-    /// `@SceneStorage`. Every site — View menu, toolbar, pane close buttons —
-    /// routes through this instead of flipping a bool directly, so the invariant
-    /// holds everywhere. Writes only the bools that actually change (no
-    /// wholesale re-render).
+    /// The ONE mutation path for content-pane visibility (#1696): mutates the applied
+    /// `PaneList` (enforcing the "≥1 pane visible" invariant via `PaneList.settingVisible`,
+    /// which refuses a change that would empty the window), then mirrors the freshly-DERIVED
+    /// visibility onto the legacy `@SceneStorage` Bools so the handful of sites outside this
+    /// change's scope that still read them directly (pane-focus cycling, min-width, the
+    /// forced-widescreen recovery net — tracked as #4687 follow-up) never drift from what
+    /// `paneVisibility` now authoritatively says. Every site — View menu, toolbar, pane close
+    /// buttons — routes through this instead of flipping a bool directly.
     func setPaneVisible(_ pane: ContentPane, _ visible: Bool) {
         // With a workspace always applied, the applied `PaneList` is what renders — so a
         // show/hide toggle must mutate IT, or it does nothing (the bug the seed would otherwise
         // introduce). One choke point covers every toggle site (spec workspaces.one-system).
         let nextList = activePaneList.settingVisible(pane.paneKind, visible)
-        if nextList != activePaneList { activePaneList = nextList }
-        let next = paneVisibility.settingVisible(pane, visible)
+        guard nextList != activePaneList else { return }
+        activePaneList = nextList
+        let next = paneVisibility  // re-derives from the just-updated activePaneList
         if next.grid != showDocumentGrid { showDocumentGrid = next.grid }
         if next.canvas != showDocumentCanvas { showDocumentCanvas = next.canvas }
         if next.reading != showReadingPane { showReadingPane = next.reading }
@@ -108,5 +117,18 @@ extension ContentView {
             get: { paneVisibility.visible(pane) },
             set: { setPaneVisible(pane, $0) }
         )
+    }
+
+    /// Mirror the DERIVED `paneVisibility` onto the legacy `@SceneStorage` Bools, for every
+    /// `activePaneList` writer that isn't `setPaneVisible` itself (pane-head close/kind-switch,
+    /// `applyWorkspaceLayout`, a saved-workspace apply — #4687). Keeps the handful of sites
+    /// outside this change's file scope that still read the Bools directly (pane-focus cycling,
+    /// min-width, the forced-widescreen recovery net) from drifting away from what actually
+    /// mounted.
+    func syncLegacyPaneVisibilityBools() {
+        let visibility = paneVisibility
+        if visibility.grid != showDocumentGrid { showDocumentGrid = visibility.grid }
+        if visibility.canvas != showDocumentCanvas { showDocumentCanvas = visibility.canvas }
+        if visibility.reading != showReadingPane { showReadingPane = visibility.reading }
     }
 }

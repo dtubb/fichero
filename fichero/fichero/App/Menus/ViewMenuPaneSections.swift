@@ -152,6 +152,32 @@ struct WorkspaceCommandsSection: View {
         // The legacy "Layouts" preset section (WindowLayoutPreset) is gone (CD 2026-09-16): a
         // workspace IS the layout, so showing pane-visibility presets beside the workspaces was the
         // "why are layouts different from workspaces" duplication (spec workspaces.one-system).
+
+        // Split / New Tab (#4685 addendum): previously reachable ONLY from the toolbar's
+        // Workspaces menu, not the menu bar — given a home here now that Split routes through
+        // the `PaneList` model instead of the dead slot-id space.
+        Section("Split") {
+            Button {
+                commands?.newTab()
+            } label: {
+                Label("New Tab", systemImage: "plus.rectangle.on.rectangle")
+            }
+            .disabled(commands == nil)
+
+            Button {
+                commands?.splitFocusedLeaf(.vertical)
+            } label: {
+                Label("Split Right", systemImage: "square.split.2x1")
+            }
+            .disabled(commands?.canSplitFocusedLeaf != true)
+
+            Button {
+                commands?.splitFocusedLeaf(.horizontal)
+            } label: {
+                Label("Split Below", systemImage: "square.split.1x2")
+            }
+            .disabled(commands?.canSplitFocusedLeaf != true)
+        }
     }
 }
 

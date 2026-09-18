@@ -1,4 +1,7 @@
+import OSLog
 import SwiftUI
+
+private let workspaceSnapshotLogger = Logger(subsystem: "app.fichero.fichero", category: "WindowWorkspace")
 
 // MARK: - The Workspaces menu (Daniel, 2026-09-01)
 //
@@ -16,24 +19,48 @@ extension ContentView {
 
     // MARK: Split / New Tab (⊞+)
 
-    /// The focused pane's SplittablePane storage key, or nil when focus is on
-    /// a surface that does not split (sidebar/inspector) or outside the row.
-    var focusedSplitStorageKey: String? {
-        SplitCommandRouting.storageKey(
-            focus: focusedPane ?? paneFocusHint,
-            slots: widescreenPaneSpecs.map { ($0.id, $0.kind.rawValue) },
-            overrides: paneKindOverrides.mapValues(\.rawValue)
-        )
+    /// The focused pane's KIND, from real focus falling back to the last hint — the same signal
+    /// the retired `SplitCommandRouting` used, minus the dead slot-id translation (#4685).
+    private var focusedPaneKindForSplit: PaneKind? {
+        switch focusedPane ?? paneFocusHint {
+        case .content: .library
+        case .preview: .preview
+        case .reading: .reading
+        case .chat: .chat
+        case .sidebar, .inspector, nil: nil
+        }
+    }
+
+    /// The id of the FOCUSED leaf in the applied `PaneList` — the first top-level leaf of the
+    /// focused kind (spec panes.split.focused-only route target, #4685). Menu Split routes
+    /// through THIS id, mutating the model the way close already does via `removingLeaf`. `nil`
+    /// when focus is on a surface that isn't in the list (sidebar/inspector) or the focused
+    /// kind isn't currently mounted.
+    ///
+    /// Known residue (tracked, not this change): with two same-kind panes (Compare) this always
+    /// resolves to the FIRST one, not necessarily the specific instance under the pointer —
+    /// full per-instance precision is spec §"Migration order" increment 4. Every built-in
+    /// workspace today has at most one leaf per kind, so this is exact for all of them.
+    var focusedLeafID: UUID? {
+        guard let kind = focusedPaneKindForSplit else { return nil }
+        return activePaneList.leafIDs(of: kind).first
+    }
+
+    /// Split the focused leaf along `axis` through the `PaneList` model (spec
+    /// panes.split.focused-only) — the symmetric twin of `closeLeaf`/`removingLeaf`. A no-op
+    /// when nothing eligible has focus.
+    func splitFocusedLeaf(_ axis: SplitAxis) {
+        guard let id = focusedLeafID else { return }
+        activePaneList = activePaneList.splittingLeaf(id, axis: axis)
     }
 
     /// Tabs and splits, as a SECTION of the Workspaces menu (Daniel,
-    /// 2026-09-01 — it was its own toolbar item). "Split Right"/"Split Below"
-    /// CYCLE the axis the way the pane-head buttons always have (1 → 2 → 3 →
-    /// 1), and they split whichever pane has focus, chat included, through the
-    /// existing SplittablePane machinery.
+    /// 2026-09-01 — it was its own toolbar item). Split now mutates the applied `PaneList`
+    /// directly (#4685) rather than posting to the retired `SplittablePane`
+    /// slot-id space, which never matched the applied renderer's own ids.
     @ViewBuilder
     var splitSection: some View {
-        let splitKey = focusedSplitStorageKey
+        let leafID = focusedLeafID
         Section("Split") {
             Button {
                 // The existing new-tab path — the same WindowOpener the
@@ -49,30 +76,25 @@ extension ContentView {
             .help("Open this library in a new tab of this window")
 
             Button {
-                requestFocusedPaneSplit(.vertical)
+                splitFocusedLeaf(.vertical)
             } label: {
                 Label("Split Right", systemImage: "square.split.2x1")
             }
-            .disabled(splitKey == nil)
-            .help(splitKey == nil
+            .disabled(leafID == nil)
+            .help(leafID == nil
                   ? "Focus a pane that can split first"
-                  : "Split the focused pane side by side — click again to cycle 1 → 2 → 3 panes")
+                  : "Split the focused pane side by side")
 
             Button {
-                requestFocusedPaneSplit(.horizontal)
+                splitFocusedLeaf(.horizontal)
             } label: {
                 Label("Split Below", systemImage: "square.split.1x2")
             }
-            .disabled(splitKey == nil)
-            .help(splitKey == nil
+            .disabled(leafID == nil)
+            .help(leafID == nil
                   ? "Focus a pane that can split first"
-                  : "Split the focused pane top and bottom — click again to cycle 1 → 2 → 3 panes")
+                  : "Split the focused pane top and bottom")
         }
-    }
-
-    private func requestFocusedPaneSplit(_ axis: SplitPaneAxis) {
-        guard let key = focusedSplitStorageKey else { return }
-        paneSplitCoordinator.requestSplit(storageKey: key, axis: axis)
     }
 
     // MARK: Workspaces (ONE button — Daniel, 2026-08-31)
@@ -148,6 +170,12 @@ extension ContentView {
     /// Apply a v2 workspace as the window's STORED pane list (spec §"v2 workspace design").
     func applyWorkspaceLayout(_ layout: BuiltInWorkspaceLayout) {
         activePaneList = layout.panes
+        // Mirror onto the legacy Bools (#4687): this call used to set ONLY `activePaneList`,
+        // leaving `showDocumentGrid`/`showDocumentCanvas`/`showReadingPane` — and everything
+        // outside this file's scope that still reads them directly — reporting the PREVIOUS
+        // workspace's pane set after ⌘⌥N. `paneVisibility` itself is now a pure derivation
+        // (PaneVisibility.swift) and needs no sync, but its Bool mirror does.
+        syncLegacyPaneVisibilityBools()
     }
 
     /// The user's own, checkmarked when the window matches what they saved.
@@ -281,7 +309,11 @@ extension ContentView {
             layoutMode: currentLayoutMode.rawValue,
             toolbar: WindowWorkspaceStore.shared.toolbarVisibility,
             showWorkflowBar: showWorkflowBar,
-            showAnnotationBar: showAnnotationBar
+            showAnnotationBar: showAnnotationBar,
+            // #4686: the ACTUAL composition, not a re-derivation of the legacy Bools above —
+            // this is what makes "Save Current as Workspace…" capture what is really on screen,
+            // including a workspace's own splits (`activePaneList` already carries them).
+            paneList: activePaneList
         )
     }
 
@@ -304,6 +336,20 @@ extension ContentView {
             }
             showWorkflowBar = snapshot.showWorkflowBar
             showAnnotationBar = snapshot.showAnnotationBar
+            // #4686: apply the REAL composition — before this, applying a saved workspace
+            // never touched `activePaneList` at all, so it changed nothing visible.
+            if let paneList = snapshot.paneList {
+                activePaneList = paneList
+                syncLegacyPaneVisibilityBools()
+            } else {
+                // A snapshot saved before #4686 has no stored composition — falling back to
+                // the Read default (rather than leaving `activePaneList` untouched, which would
+                // silently keep showing whatever the window had) and saying so, per "prefer raise
+                // over silent fallback": this IS a fallback, but a logged, deliberate one.
+                workspaceSnapshotLogger.notice("Saved arrangement predates the pane-list model (#4686) — applying the Read default instead of its recorded composition.")
+                activePaneList = BuiltInWorkspaceLayout.read.panes
+                syncLegacyPaneVisibilityBools()
+            }
         }
         paneSplitCoordinator.applySplits(snapshot.splits)
         // Toolbar last, and outside the animation: it is app-wide chrome, not
@@ -311,14 +357,6 @@ extension ContentView {
         // exactly the kind of churn #3163 taught us to keep off the critical
         // path.
         WindowWorkspaceStore.shared.setToolbarVisibility(snapshot.toolbar)
-    }
-
-    /// A preset touches ONLY pane visibility — widths, kind overrides and
-    /// splits stay as the user has them.
-    func applyLayoutPreset(_ preset: WindowLayoutPreset) {
-        withAnimation(FrameAnimation.snappy) {
-            applyPaneVisibilityPlan(preset.plan)
-        }
     }
 
     private func applyPaneVisibilityPlan(_ plan: PaneVisibilityPlan) {
@@ -349,7 +387,13 @@ extension ContentView {
             },
             applyWorkspace: { applyLayoutSnapshot($0.layout) },
             applyWorkspaceLayout: { applyWorkspaceLayout($0) },
-            applyPreset: { applyLayoutPreset($0) }
+            // Split/New Tab (#4685): given a menu-bar home here alongside the toolbar's, both
+            // routing through the same `PaneList` verbs — `splitFocusedLeaf` on THIS window.
+            splitFocusedLeaf: { splitFocusedLeaf($0) },
+            newTab: {
+                WindowOpener.open(libraryId: windowState.libraryId, asTab: true, using: openWindow)
+            },
+            canSplitFocusedLeaf: focusedLeafID != nil
         )
     }
 }
@@ -360,7 +404,8 @@ extension ContentView {
 /// non-Equatable focused value is byte-compared per body pass, always reads
 /// as changed, and cascades focus invalidations. These verbs carry no state
 /// of their own — any instance from the same window is interchangeable — so
-/// equality is constant.
+/// equality is constant (`canSplitFocusedLeaf` is a snapshot read fresh every
+/// time `windowLayoutCommands` is recomputed, same as every other field here).
 struct WindowLayoutCommands: Equatable {
     static func == (lhs: Self, rhs: Self) -> Bool { true }
 
@@ -369,5 +414,12 @@ struct WindowLayoutCommands: Equatable {
     /// Apply a v2 built-in workspace (the one built-in system) to the focused window — sets its
     /// `activePaneList` (spec workspaces.one-system). This is what ⌘⌥1–5 drives from the menu bar.
     let applyWorkspaceLayout: @MainActor (BuiltInWorkspaceLayout) -> Void
-    let applyPreset: @MainActor (WindowLayoutPreset) -> Void
+    /// Split the focused window's focused leaf through the `PaneList` model (spec
+    /// panes.split.focused-only, #4685) — the menu-bar twin of the toolbar's Split Right/Below.
+    let splitFocusedLeaf: @MainActor (SplitAxis) -> Void
+    /// Open this library in a new tab of the focused window (#4685: given a menu-bar home
+    /// alongside the toolbar's, per the addendum on #4685).
+    let newTab: @MainActor () -> Void
+    /// Whether the focused window currently has an eligible focused leaf to split.
+    let canSplitFocusedLeaf: Bool
 }
