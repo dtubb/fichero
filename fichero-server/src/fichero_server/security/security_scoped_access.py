@@ -111,10 +111,21 @@ def parse_bookmarks(raw: str | None) -> dict[str, bytes]:
     return out
 
 
-def start_access(path: str, bookmark: bytes, foundation: Any) -> bool:
+def start_access(path: str, bookmark: bytes, foundation: Any, *, log_failure_as_error: bool = True) -> bool:
     """Resolve one bookmark and start security-scoped access to it.
 
     Returns True when this process may now read/write ``path``.
+
+    ``log_failure_as_error`` (#4700): in the embedded engine
+    (``com.apple.security.inherit``), resolution here fails with NSCocoaError
+    259 for EVERY library, every launch — that is the expected shape (see
+    ``_readable_via_inherited_scope``'s docstring), not a per-library
+    anomaly, and ``start_access_or_inherited`` below always has a fallback
+    ready. Logging that at ERROR was 70-odd false alarms per launch (#4700:
+    72 ERROR lines observed, 70 of which resolved via the fallback one line
+    later). Direct callers (tests, and any future caller with no fallback)
+    keep the ERROR default; the funnel passes ``False`` and logs the real
+    outcome itself once it knows it.
     """
     url, stale, error = foundation.NSURL.URLByResolvingBookmarkData_options_relativeToURL_bookmarkDataIsStale_error_(
         bookmark,
@@ -124,7 +135,10 @@ def start_access(path: str, bookmark: bytes, foundation: Any) -> bool:
         None,
     )
     if error is not None or url is None:
-        logger.error("Could not resolve security-scoped bookmark for %s: %s", path, error)
+        if log_failure_as_error:
+            logger.error("Could not resolve security-scoped bookmark for %s: %s", path, error)
+        else:
+            logger.debug("Could not resolve security-scoped bookmark for %s: %s (trying inherited scope)", path, error)
         return False
     if stale:
         # Still usable; the APP must re-mint it (only the app holds the Powerbox
@@ -194,8 +208,22 @@ def start_access_or_inherited(path: str, bookmark: bytes, foundation: Any) -> bo
     token promote ANY readable directory to an allowed root — the allowlist
     would stop being a control. There, resolution failure stays fatal, as
     before 6d60cbf65.
+
+    Memoized per path for the process lifetime (#4700): ``_GRANTED`` already
+    tracks every path this process has ever actually resolved access to —
+    checking it here, in the shared funnel, means BOTH callers (the spawn-time
+    loop below and the runtime ``grant_access`` route) skip a redundant
+    resolution attempt AND its logging for a path already settled, not just
+    ``grant_access``'s own idempotency check.
     """
-    if start_access(path, bookmark, foundation):
+    if path in _GRANTED:
+        logger.debug("Security-scoped access already held for %s — not re-resolving", path)
+        return True
+    # log_failure_as_error=False (#4700): a resolution failure here is not an
+    # anomaly, it is how EVERY library reaches the fallback below in the
+    # embedded (inherit) engine — the real outcome is logged just below,
+    # once, at the right level for what actually happened.
+    if start_access(path, bookmark, foundation, log_failure_as_error=False):
         return True
     if _engine_is_sandboxed() and _readable_via_inherited_scope(path):
         _GRANTED.add(path)
@@ -204,6 +232,12 @@ def start_access_or_inherited(path: str, bookmark: bytes, foundation: Any) -> bo
             "(bookmark unresolvable in this process): %s", path
         )
         return True
+    # No log here: this is the shared funnel, and its two callers already
+    # cover visibility for a genuine failure at the level each one owns —
+    # grant_access() raises BookmarkGrantError, which its route logs at ERROR
+    # with the caller's own context; activate_library_bookmarks() below logs
+    # its own per-path WARNING (fail-soft, no exception to hang a log off
+    # of). A log HERE too would be a second ERROR line for the same failure.
     return False
 
 
@@ -281,6 +315,18 @@ def activate_library_bookmarks(raw: str | None = None) -> list[str]:
         )
         return []
 
-    granted = [path for path, data in bookmarks.items() if start_access_or_inherited(path, data, foundation)]
+    granted: list[str] = []
+    for path, data in bookmarks.items():
+        if start_access_or_inherited(path, data, foundation):
+            granted.append(path)
+        else:
+            # #4700: the shared funnel stays silent on a genuine failure (it
+            # has no exception to hang a log off of at spawn — this path
+            # fail-softs, never raises), so THIS is the one place a spawn-time
+            # failure becomes visible. WARNING, not ERROR: expected-and-fine
+            # for a library the user removed or that lives outside the
+            # sandbox's reach; the app surfaces it as "that library is
+            # unreadable" per this module's own docstring.
+            logger.warning("Security-scoped access not available for %s (unreadable at spawn)", path)
     logger.info("Security-scoped access: %d of %d librar(ies) granted", len(granted), len(bookmarks))
     return granted

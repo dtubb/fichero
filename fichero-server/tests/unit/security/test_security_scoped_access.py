@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
 
 import pytest
 
@@ -165,7 +166,9 @@ def test_activate_partial_grant_reports_only_the_successes(monkeypatch):
     f = FakeFoundation()
     granted_paths = []
 
-    def fake_start(path, data, foundation):
+    def fake_start(path, data, foundation, **kwargs):
+        # **kwargs: start_access_or_inherited calls start_access with
+        # log_failure_as_error=False (#4700) — accept and ignore it here.
         ok = data != b"deny"
         if ok:
             granted_paths.append(path)
@@ -356,3 +359,72 @@ def test_probe_is_a_real_listdir_not_os_access(tmp_path):
     file_path.write_text("x")
     assert ssa._readable_via_inherited_scope(str(file_path)) is False
     assert ssa._readable_via_inherited_scope(str(tmp_path)) is True
+
+
+# --- #4700: 72 ERROR-level "unresolvable bookmark" lines per launch, one per
+# distinct library, even though 70/71 resolve via the inherited-scope fallback
+# one line later — that fallback IS the expected shape for this engine, not
+# an error. Two asks: log level, and memoize the per-path outcome so a SECOND
+# call for an already-settled path neither re-resolves nor re-logs. ---
+
+
+def test_start_access_or_inherited_memoizes_and_does_not_relog(monkeypatch, caplog, tmp_path):
+    """A second call for the same already-granted path must not re-resolve or re-log."""
+    monkeypatch.setenv("APP_SANDBOX_CONTAINER_ID", "app.fichero.fichero")
+    lib = tmp_path / "Marshall.fichero"
+    lib.mkdir()
+    f = FakeFoundation(error="NSError 259: isn't in the correct format")
+    caplog.set_level(logging.DEBUG, logger="fichero_server.security.security_scoped_access")
+
+    assert ssa.start_access_or_inherited(str(lib), b"stale", f) is True
+    calls_after_first = len(f.calls)
+    caplog.clear()
+
+    assert ssa.start_access_or_inherited(str(lib), b"stale", f) is True
+    assert len(f.calls) == calls_after_first, "second call must not re-resolve the bookmark"
+    assert not any(r.levelno >= logging.INFO for r in caplog.records), \
+        "second call must not re-log at INFO/WARNING/ERROR"
+    assert any("not re-resolving" in r.message for r in caplog.records)
+
+
+def test_funnel_does_not_log_error_for_the_expected_resolution_failure(monkeypatch, caplog, tmp_path):
+    """Resolution failing before the inherited-scope fallback succeeds is the
+    NORMAL shape for this engine, not an error — the funnel must log it below
+    ERROR. A direct start_access() call (no fallback to fall back on) keeps
+    logging ERROR, unchanged."""
+    monkeypatch.setenv("APP_SANDBOX_CONTAINER_ID", "app.fichero.fichero")
+    lib = tmp_path / "Diaries.fichero"
+    lib.mkdir()
+    f = FakeFoundation(error="NSError 259: isn't in the correct format")
+    caplog.set_level(logging.DEBUG, logger="fichero_server.security.security_scoped_access")
+
+    assert ssa.start_access_or_inherited(str(lib), b"stale", f) is True
+    assert not any(r.levelno == logging.ERROR for r in caplog.records), \
+        "the expected resolve-then-fall-back-successfully path must not log ERROR"
+    assert any(
+        r.levelno == logging.INFO and "inherited sandbox scope" in r.message for r in caplog.records
+    ), "the successful outcome is still reported, once, at INFO"
+
+    caplog.clear()
+    f2 = FakeFoundation(error="NSError 259: isn't in the correct format")
+    assert ssa.start_access("/other/lib", b"data", f2) is False
+    assert any(r.levelno == logging.ERROR for r in caplog.records), \
+        "a direct start_access() call (its own contract, no fallback) still logs ERROR"
+
+
+def test_activate_logs_warning_not_error_for_a_genuinely_unreadable_library(monkeypatch, caplog, tmp_path):
+    """A library that fails BOTH resolution and the inherited-scope probe is a
+    real problem — but activate_library_bookmarks() fail-softs (never raises),
+    so it must surface at WARNING, not the ERROR the old code emitted from
+    inside start_access() on every attempt."""
+    monkeypatch.setenv("APP_SANDBOX_CONTAINER_ID", "app.fichero.fichero")
+    f = FakeFoundation(error="NSError 259: isn't in the correct format")
+    monkeypatch.setattr(ssa, "_load_foundation", lambda: f)
+    caplog.set_level(logging.DEBUG, logger="fichero_server.security.security_scoped_access")
+
+    missing = str(tmp_path / "gone.fichero")
+    granted = ssa.activate_library_bookmarks(_payload({missing: b"stale"}))
+    assert granted == []
+    assert not any(r.levelno == logging.ERROR for r in caplog.records), \
+        "activate_library_bookmarks() fail-softs; a genuine failure is WARNING, not ERROR"
+    assert any(r.levelno == logging.WARNING and missing in r.message for r in caplog.records)
