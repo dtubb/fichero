@@ -161,7 +161,39 @@ extension ContentView {
         // mounted only while a toolbar query is active.
         .safeAreaInset(edge: .top, spacing: 0) {
             AnyView(transientSearchResultsBar)
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            AnyView(openPreviewAffordanceBar(for: viewMode))
         })
+    }
+
+    /// #4705 "4a-follow": names what is not shown and offers the ONE explicit
+    /// action that adds it back — `m2p.open-affordance-adds-missing-preview-pane`.
+    /// Mirrors `transientSearchResultsBar`'s structural invariant (crash,
+    /// 2026-07-27): the conditional lives INSIDE a constant outer `VStack` so
+    /// mounting/dismissing the banner only inserts/removes a child of a
+    /// stable root under the `AnyView` erasure at the `.safeAreaInset`
+    /// boundary above, rather than alternating the erased view's own type.
+    @ViewBuilder
+    private func openPreviewAffordanceBar(for viewMode: AppViewMode) -> some View {
+        VStack(spacing: 0) {
+            if PaneContentPlan.missingPreviewSurface(for: viewMode, hasPreviewLeaf: paneVisibility.canvas) != nil {
+                HStack(spacing: 12) {
+                    Text("This opens in the \(PaneSpec.Kind.preview.title) pane, which is closed.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Open in \(PaneSpec.Kind.preview.title)") {
+                        setPaneVisible(.canvas, true)
+                    }
+                    .font(.body)
+                    .accessibilityIdentifier("library.openPreviewAffordance")
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(.bar)
+            }
+        }
     }
 
     @ViewBuilder

@@ -24,9 +24,31 @@ final class ToolbarTogglePolicyTests: XCTestCase {
         XCTAssertFalse(ContentView.showsPaneToggles(sidebarMode: .library, compactFlow: true))
     }
 
-    func testPaneTogglesHiddenForNonLibraryModes() {
-        XCTAssertFalse(ContentView.showsPaneToggles(sidebarMode: .chat, compactFlow: false))
-        XCTAssertFalse(ContentView.showsPaneToggles(sidebarMode: .research, compactFlow: false))
+    /// #4705 "4a-follow" (#4779): exhaustive per-`SidebarMode`, every mode
+    /// whose centre content is now pane-hosted (`.library`, `.chat`,
+    /// `.workflows`, `.automation`, `.activity`) shows the toggles; only
+    /// `.research` — still a bespoke takeover — hides them. Superseded
+    /// `testPaneTogglesHiddenForNonLibraryModes`, which asserted `.chat`
+    /// hides the toggles — true before 2026-08-12's "chat no longer takes
+    /// over" fix made that assertion stale (the toggles just weren't wired
+    /// to say so until now).
+    func testPaneTogglesShowForEveryPaneHostedModeHideOnlyForResearch() {
+        for mode in SidebarMode.allCases {
+            let expected = mode != .research
+            XCTAssertEqual(
+                ContentView.showsPaneToggles(sidebarMode: mode, compactFlow: false),
+                expected,
+                "\(mode)"
+            )
+        }
+    }
+
+    /// Every mode hides the toggles in the compact nav-stack flow, regardless
+    /// of whether it is pane-hosted at regular width.
+    func testPaneTogglesHiddenInCompactFlowForEveryMode() {
+        for mode in SidebarMode.allCases {
+            XCTAssertFalse(ContentView.showsPaneToggles(sidebarMode: mode, compactFlow: true), "\(mode)")
+        }
     }
 
     /// The Workspaces menu (recovery path for every other button) is present in

@@ -204,6 +204,39 @@ struct PaneContentPlanTests {
         }
     }
 
+    // MARK: - Missing-preview-pane affordance (#4705 "4a-follow", `m2p.open-affordance-adds-missing-preview-pane`)
+
+    /// Every `AppViewMode` × `hasPreviewLeaf`: the affordance fires only for
+    /// the six node kinds whose Preview cell is `.workflowCanvas` or
+    /// `.nodeDetail` AND no Preview leaf is already showing. A plain
+    /// document/chat/comparison selection (`.documentPreview`/`.chatScope`)
+    /// never triggers it — hiding Preview there is the user's own layout
+    /// choice, not a takeover this migration retires.
+    @Test("the missing-preview affordance fires only for the six node kinds, only when Preview is absent")
+    func missingPreviewSurfaceFiresOnlyForNodeKindsWithoutAPreviewLeaf() {
+        let nodeKindSurfaces: [String: PaneSurface] = [
+            "workflow": .workflowCanvas,
+            "chain": .nodeDetail, "batches": .nodeDetail, "schedule": .nodeDetail,
+            "trigger": .nodeDetail, "activity": .nodeDetail,
+        ]
+        for (name, mode) in Self.everyMode {
+            for hasPreviewLeaf in [true, false] {
+                let result = PaneContentPlan.missingPreviewSurface(for: mode, hasPreviewLeaf: hasPreviewLeaf)
+                if let expectedSurface = nodeKindSurfaces[name], !hasPreviewLeaf {
+                    #expect(
+                        result == expectedSurface,
+                        "\(name), hasPreviewLeaf=false: expected \(expectedSurface)"
+                    )
+                } else {
+                    #expect(
+                        result == nil,
+                        "\(name), hasPreviewLeaf=\(hasPreviewLeaf): expected no affordance"
+                    )
+                }
+            }
+        }
+    }
+
     // MARK: - Split policy (#4705 increment 2)
 
     /// The pure split-affordance gate `PaneHead`/`ContentView+PreviewPaneHead`

@@ -45,6 +45,25 @@ enum PaneContentPlan {
         let inspector: Cell
     }
 
+    /// The Preview surface `mode` wants but the applied pane list does not
+    /// currently show — nil when there is nothing to add. #4705 "4a-follow":
+    /// the workflow ruling generalized ("an explicit Open affordance adds the
+    /// pane; nothing moves automatically") to the five kinds 4a moved into
+    /// Preview alongside the workflow canvas from increment 2.
+    ///
+    /// Scoped to `.workflowCanvas` and `.nodeDetail` ONLY — never
+    /// `.documentPreview`/`.chatScope` — deliberately: a plain document or
+    /// chat selection with Preview hidden is the user's own layout choice
+    /// (a Reader-only workspace is legitimate), not a takeover this
+    /// migration is retiring. Only the six node kinds whose Preview
+    /// rendition has no OTHER home get the affordance.
+    static func missingPreviewSurface(for mode: AppViewMode, hasPreviewLeaf: Bool) -> PaneSurface? {
+        guard !hasPreviewLeaf else { return nil }
+        guard case .surface(let surface) = mode.stablePanePlan.preview else { return nil }
+        guard surface == .workflowCanvas || surface == .nodeDetail else { return nil }
+        return surface
+    }
+
     /// The matrix entry point.
     ///
     /// - Parameters:

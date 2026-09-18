@@ -22,8 +22,29 @@ extension ContentView {
     /// excludes `isKGLibrarySelection`) made the whole group AND the Workspaces menu
     /// vanish when Entities/Claims was selected, leaving no toolbar affordance to
     /// bring panes back (CD 2026-09-13). Selection kind does not belong here.
+    ///
+    /// #4705 "4a-follow" (#4779): EXHAUSTIVE per-mode, the same pattern
+    /// `CompactShellPolicy.route` already uses (`ShellLayoutPolicy.swift`) —
+    /// a new `SidebarMode` case fails to compile here until its toggle
+    /// visibility is decided, rather than silently defaulting. `.library`,
+    /// `.chat` (no-takeover since 2026-08-12), `.workflows` (increment 2
+    /// moved the canvas to Preview; `.chain`/`.batches` share this sidebar
+    /// mode), `.automation` (schedule/trigger, increment 4a) and `.activity`
+    /// (increment 4a) all route through `LibrarySplitPaneHost` in
+    /// `contentView` today — real Library+Preview+Reader panes exist to
+    /// toggle. Gating on `== .library` alone (the old rule) left every
+    /// migrated mode toolbar-toggle-unreachable even after its panes became
+    /// real. Only `.research` is still a bespoke takeover (`contentView`'s
+    /// own `if sidebarMode == .research` intercept, ahead of the `viewMode`
+    /// switch) with no panes to toggle yet — retires with increment 5.
     nonisolated static func showsPaneToggles(sidebarMode: SidebarMode, compactFlow: Bool) -> Bool {
-        sidebarMode == .library && !compactFlow
+        guard !compactFlow else { return false }
+        switch sidebarMode {
+        case .library, .chat, .workflows, .automation, .activity:
+            return true
+        case .research:
+            return false
+        }
     }
 
     /// Whether the Workspaces menu is offered. It hosts the Toolbar-Buttons submenu
