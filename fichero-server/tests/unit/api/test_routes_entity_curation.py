@@ -411,6 +411,28 @@ class TestSplitEntityAction:
         assert len(audits) == 1
         assert set(audits[0].target_ids) == {absorber.id, absorbed.id}
 
+    def test_a_non_human_actor_is_recorded_not_a_hardcoded_human(self, db):
+        """Task 6 Part A: was hardcoded `created_by="human"` unconditionally
+        -- the #4415-class lie #4831 found and this fixes. A workflow-
+        driven split must record the REAL actor."""
+        from fichero_server.actions.registry import ActionContext, registry
+        from fichero_server.models.knowledge import EntityMergeAudit
+
+        absorber = _make_entity(db, "Alice")
+        absorbed = _make_entity(db, "Alicia")
+        absorbed.merged_into_id = absorber.id
+        db.save(absorbed)
+        ctx = ActionContext(actor="workflow", library_path="/lib/test.fichero")
+
+        result = registry.invoke(
+            db, "entity.split",
+            {"primary_entity_id": absorber.id, "split_off_entity_ids": [absorbed.id]},
+            ctx,
+        )
+
+        audit = db.get(EntityMergeAudit, result.result["id"])
+        assert audit.created_by == "workflow"
+
     def test_action_is_invokable_directly(self, db):
         from fichero_server.actions.registry import ActionContext, registry
 

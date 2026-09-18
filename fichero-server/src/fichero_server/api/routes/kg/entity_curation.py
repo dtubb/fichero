@@ -500,23 +500,26 @@ async def batch_set_entity_curation_state(
     return BatchEntityCurationResponse.model_validate(result.result)
 
 
-def split_entity_impl(db: Database, request: "EntitySplitRequest") -> EntityMergeAudit:
+def split_entity_impl(
+    db: Database, request: "EntitySplitRequest", actor: str = "human"
+) -> EntityMergeAudit:
     """Split one entity into a primary + new split-off entities. Extracted
-    verbatim from the former bare `/split` route (#4831) -- same
-    reconciliation, same `EntityMergeAudit` shape `merge_entities_impl`
-    writes (its sibling), just the inverse operation type.
+    from the former bare `/split` route (#4831) -- same reconciliation,
+    same `EntityMergeAudit` shape `merge_entities_impl` writes (its
+    sibling), just the inverse operation type.
 
-    TWO PRE-EXISTING BEHAVIORS CARRIED FORWARD UNCHANGED, NOT FIXED HERE
-    (reported, not silently patched, per the #4831 review instruction):
-    1. `created_by="human"` is a LITERAL, never the real actor -- the exact
-       #4415-class lie that comment already fixed for `merge_entities_impl`
-       (which threads a real `actor` param into `created_by`) but evidently
-       missed for split. A workflow-driven split would record "human" too.
-    2. `audit.reversal_id = audit.id` (self-referencing) immediately after
-       creation -- copied verbatim from `merge_entities_impl`, which has
-       the identical line. Whatever this means (or doesn't), it is
-       consistent between merge and split, so this extraction preserves
-       parity rather than silently diverging from its sibling.
+    Task 6 Part A: `created_by` now threads the real `actor`, the SAME
+    #4415 fix `merge_entities_impl` already has (its own comment: hardcoding
+    "human" was a lie whenever a workflow tool drove the operation, and
+    anything asking "did a person curate this row?" read that lie as yes).
+    Was hardcoded `"human"` unconditionally until now -- reported in #4831,
+    fixed here per that review's own instruction.
+
+    ONE PRE-EXISTING BEHAVIOR STILL CARRIED FORWARD UNCHANGED (per Task 6's
+    explicit "do not touch reversal_id"): `audit.reversal_id = audit.id`
+    (self-referencing) immediately after creation -- copied verbatim from
+    `merge_entities_impl`, which has the identical line. Whatever it means,
+    it stays parity with its sibling, not silently diverging.
     """
     primary = db.get(KnowledgeEntity, request.primary_entity_id)
     if primary is None:
@@ -552,7 +555,7 @@ def split_entity_impl(db: Database, request: "EntitySplitRequest") -> EntityMerg
         source_entity_ids=split_ids,
         target_entity_id=primary.id,
         alias_changes=alias_changes,
-        created_by="human",
+        created_by=actor,
         created_at=now,
     )
     db.save(audit)
@@ -1556,7 +1559,7 @@ def _action_unmerge_entities(
 def _action_split_entity(
     db: Database, params: "EntitySplitRequest", ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
-    audit = split_entity_impl(db, params)
+    audit = split_entity_impl(db, params, ctx.actor)
     entity_ids = [audit.target_entity_id, *audit.source_entity_ids]
     spec = ChangeSpec(
         domains=["entity"],
