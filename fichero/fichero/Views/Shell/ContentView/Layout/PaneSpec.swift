@@ -109,55 +109,6 @@ extension EnvironmentValues {
 }
 
 extension ContentView {
-    /// The centre row's panes. Which panes exist + their order now come from the
-    /// F7 `PaneList` model (`PaneList.fromVisibility`) — the single, mode-independent
-    /// source of truth — and this maps each pane KIND to its PaneSpec width. Behaviour
-    /// is identical to the old plan-branched build (same panes, same order, same
-    /// widths); this just routes "which panes" through the pane-list model so the
-    /// renderer and the model agree, ahead of the full one-renderer step (spec §F7).
-    ///
-    /// Reading's presence matches the plan's own rule: it rides after the preview
-    /// (`showsCanvasReadingDivider`) when a preview is up, else it stands alone
-    /// (`showsReadingPane`). Chat is NOT a centre pane (panes.chat.below-sidebar) —
-    /// it lives beneath the sidebar — so it is never in this list.
-    var widescreenPaneSpecs: [PaneSpec] {
-        let plan = adaptiveWidescreenPanePlan
-        let readingPresent = plan.showsCanvasPane ? plan.showsCanvasReadingDivider : plan.showsReadingPane
-        let list = PaneList.fromVisibility(
-            library: plan.showsLibraryPane,
-            preview: plan.showsCanvasPane,
-            reading: readingPresent,
-            chat: false
-        )
-        let kinds = list.nodes.compactMap { node -> PaneKind? in
-            if case let .leaf(_, kind, _, _) = node { return kind }
-            return nil
-        }
-        let hasPreview = kinds.contains(.preview)
-        let hasReading = kinds.contains(.reading)
-        return kinds.enumerated().map { index, kind in
-            // `slot: index` gives each pane a position-unique id, so its split state and the
-            // split-command routing key are per-instance, not shared across same-kind panes.
-            switch kind {
-            case .library:
-                // list-only is full width; a fixed column only when a reading
-                // surface shares the row (#1516 / #2006).
-                let fixed: CGFloat? = (hasPreview || hasReading) ? clampedWidescreenContentPaneWidth : nil
-                return PaneSpec(kind: .library, fixedWidth: fixed, slot: index)
-            case .preview:
-                return PaneSpec(kind: .preview, fixedWidth: nil, slot: index)
-            case .reading:
-                // A width only when it rides after a preview; standalone = full.
-                return PaneSpec(kind: .reading, fixedWidth: hasPreview ? CGFloat(pageContentPaneWidth) : nil, slot: index)
-            case .inspector:
-                // Docks right, full height, flexible — no fixed column.
-                return PaneSpec(kind: .inspector, fixedWidth: nil, slot: index)
-            case .chat:
-                return PaneSpec(kind: .chat, fixedWidth: nil, slot: index)  // not reached — chat is not in the list
-            }
-        }
-    }
-
     /// `slotId` survives a kind override (2026-08-24): the split state is
     /// keyed "<slot>-<kind>", so two slots hosting the SAME kind split
     /// independently — the per-window "canvas" key made splitting one

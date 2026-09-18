@@ -352,20 +352,10 @@ struct PaneList: Codable, Sendable, Hashable {
         return secondary
     }
 
-    /// The visible top-level panes derived from the window's visibility flags, in
-    /// leading→trailing order (library · preview · reading · chat). This is the ONE
-    /// derivation every layout mode uses — so a flag (a toggle) controls its pane
-    /// in EVERY mode, not only widescreen (spec §F7, the inert-toggle fix; today
-    /// `.standard`/`.none` read only the library flag). Mode-independent BY
-    /// CONSTRUCTION: "modes" differ only in their default flags and width/collapse
-    /// behaviour, never in WHICH flags they honour. Each leaf follows the current
-    /// selection (`.current`); scope-pinning is a later composition on top.
-    static func fromVisibility(library: Bool, preview: Bool, reading: Bool, chat: Bool) -> PaneList {
-        var nodes: [PaneNode] = []
-        if library { nodes.append(.leaf(.library)) }
-        if preview { nodes.append(.leaf(.preview)) }
-        if reading { nodes.append(.leaf(.reading)) }
-        if chat { nodes.append(.leaf(.chat)) }
-        return PaneList(nodes)
-    }
+    // `fromVisibility` was DELETED (#4685 leftover cleanup, 2026-09-18): it derived a PaneList
+    // from four Bool flags for the pre-workspace renderer (`widescreenPaneSpecs`, PaneSpec.swift),
+    // which #4685 also deleted as callerless — this was its only production caller. The
+    // reliability invariant it partly demonstrated ("flipping a flag always changes the visible
+    // set") is independently pinned against the LIVE mechanism by
+    // `PaneListTests.toggleAlwaysChangesKinds` (`.toggling(_:)`), so nothing was lost.
 }

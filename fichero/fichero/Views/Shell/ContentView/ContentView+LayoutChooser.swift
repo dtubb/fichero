@@ -303,12 +303,17 @@ extension ContentView {
     }
 
     func captureLayoutSnapshot() -> WindowLayoutSnapshot {
+        // `paneKindOverrides` is NOT populated here (#4685 leftover cleanup): nothing reads the
+        // live `ContentView.paneKindOverrides` dict any more (the last reader,
+        // `focusedSplitStorageKey`'s `SplitCommandRouting.storageKey(overrides:)`, was deleted
+        // with #4685's split-routing fix), so a NEW snapshot leaves the field at its `[String:
+        // String] = [:]` default. The field itself stays on `WindowLayoutSnapshot` — decode-only
+        // now — purely so a snapshot saved BEFORE this change still decodes leniently.
         WindowLayoutSnapshot(
             panes: currentPaneVisibilityPlan,
             libraryPaneWidth: widescreenContentPaneWidth,
             readerPaneWidth: pageContentPaneWidth,
             chatPaneWidth: chatPaneWidth,
-            paneKindOverrides: paneKindOverrides.mapValues(\.rawValue),
             splits: paneSplitCoordinator.splitCounts,
             viewDisplayMode: viewDisplayMode.rawValue,
             layoutMode: currentLayoutMode.rawValue,
@@ -331,8 +336,10 @@ extension ContentView {
             widescreenContentPaneWidth = snapshot.libraryPaneWidth
             pageContentPaneWidth = snapshot.readerPaneWidth
             chatPaneWidth = snapshot.chatPaneWidth
-            paneKindOverrides = snapshot.paneKindOverrides
-                .compactMapValues(PaneSpec.Kind.init(rawValue:))
+            // `snapshot.paneKindOverrides` is NOT applied here (#4685 leftover cleanup, same
+            // reasoning as `captureLayoutSnapshot`): nothing reads the live dict this would have
+            // populated, so restoring it accomplishes nothing. Only relevant to an old snapshot
+            // that HAS the field — which now just goes unused rather than round-tripped.
             if let mode = LayoutMode(rawValue: snapshot.layoutMode) {
                 updateLayoutMode(mode)
             }

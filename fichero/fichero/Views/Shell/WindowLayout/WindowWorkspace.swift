@@ -104,14 +104,19 @@ extension ToolbarVisibilityPlan {
 }
 
 /// Everything a saved workspace restores about a window's arrangement.
-/// Widths are points; `paneKindOverrides` and `splits` are keyed by the
-/// pane-slot ids the live layout already uses (`PaneSpec.id` and the
-/// `"<slot>-<kind>"` split keys respectively).
+/// Widths are points; `splits` is keyed by the pane-slot ids the live layout
+/// already uses (the `"<slot>-<kind>"` split keys).
 struct WindowLayoutSnapshot: Codable, Equatable, Sendable {
     var panes: PaneVisibilityPlan
     var libraryPaneWidth: Double
     var readerPaneWidth: Double
     var chatPaneWidth: Double
+    /// LEGACY, decode-only (#4685 leftover cleanup, 2026-09-18): kept `Codable` purely so a
+    /// snapshot saved before this cleanup still decodes leniently. Nothing WRITES it any more —
+    /// `captureLayoutSnapshot` leaves it at its default — and nothing reads a decoded value back
+    /// either: its only consumer, the live `ContentView.paneKindOverrides` dict, lost its own last
+    /// reader when #4685 deleted `focusedSplitStorageKey`'s `SplitCommandRouting.storageKey(
+    /// overrides:)` call. A round-tripped old snapshot simply carries a value nothing acts on.
     var paneKindOverrides: [String: String] = [:]
     var splits: [String: PaneSplitCounts] = [:]
     var viewDisplayMode: String

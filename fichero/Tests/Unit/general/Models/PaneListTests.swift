@@ -7,12 +7,6 @@ import Testing
 /// reliability + composability rely on, off-view.
 struct PaneListTests {
 
-    /// The leaf kinds of a node list, in order (splits are skipped — these helpers
-    /// assert top-level composition). Keeps the pattern-match in one place.
-    private func leafKinds(_ nodes: [PaneNode]) -> [PaneKind] {
-        nodes.compactMap { if case let .leaf(_, kind, _, _) = $0 { return kind }; return nil }
-    }
-
     // MARK: - toggling (the reliability contract: a toggle ALWAYS changes the list)
 
     @Test("toggling a kind that's absent appends it")
@@ -49,35 +43,18 @@ struct PaneListTests {
         }
     }
 
-    // MARK: - fromVisibility (the one mode-independent derivation)
-
-    @Test("each visibility flag independently controls its pane, in order")
-    func visibilityFlagsControlPanesInOrder() {
-        #expect(PaneList.fromVisibility(library: true, preview: true, reading: true, chat: true).kinds
-                == [.library, .preview, .reading, .chat])
-        #expect(PaneList.fromVisibility(library: false, preview: false, reading: false, chat: false).nodes.isEmpty)
-        // Order is leading→trailing regardless of which are on.
-        let libraryPreview = PaneList.fromVisibility(library: true, preview: true, reading: false, chat: false)
-        #expect(leafKinds(libraryPreview.nodes) == [.library, .preview])
-    }
-
-    @Test("flipping ANY single flag changes the visible pane set (fixes inert toggles in every mode)")
-    func flippingAnyFlagChangesTheSet() {
-        // The reliability contract: because this ONE derivation is what every mode
-        // uses, flipping a flag can never be a no-op (as it was in .standard/.none,
-        // which read only the library flag).
-        let previewOff = PaneList.fromVisibility(library: true, preview: false, reading: false, chat: false).kinds
-        let previewOn = PaneList.fromVisibility(library: true, preview: true, reading: false, chat: false).kinds
-        #expect(previewOn != previewOff)
-
-        let readingOff = PaneList.fromVisibility(library: true, preview: false, reading: false, chat: false).kinds
-        let readingOn = PaneList.fromVisibility(library: true, preview: false, reading: true, chat: false).kinds
-        #expect(readingOn != readingOff)
-
-        let chatOff = PaneList.fromVisibility(library: true, preview: false, reading: false, chat: false).kinds
-        let chatOn = PaneList.fromVisibility(library: true, preview: false, reading: false, chat: true).kinds
-        #expect(chatOn != chatOff)
-    }
+    // `fromVisibility` and its two tests here (`visibilityFlagsControlPanesInOrder`,
+    // `flippingAnyFlagChangesTheSet`) were DELETED (#4685 leftover cleanup, 2026-09-18): the
+    // function's only production caller, `widescreenPaneSpecs`, was itself deleted as callerless
+    // by the same cleanup. Coverage check before removing: `flippingAnyFlagChangesTheSet` pinned
+    // "flipping any single flag always changes the visible set" — that invariant is INDEPENDENTLY
+    // covered against the LIVE mechanism by `toggleAlwaysChangesKinds` above (`.toggling(_:)`, not
+    // `fromVisibility`), so it isn't lost. `visibilityFlagsControlPanesInOrder`'s other two
+    // assertions (leading→trailing construction order; all-flags-false yields an EMPTY list) were
+    // properties of `fromVisibility`'s own one-shot constructor, not of the live model:
+    // `settingVisible` — the mechanism every current toggle path actually uses — does the
+    // opposite of that second one on purpose (it REFUSES a change that would empty the list, the
+    // #1696 invariant), so there is no live equivalent to re-express; nothing here needed porting.
 
     // MARK: - scope (different libraries / previews side by side)
 
@@ -110,7 +87,8 @@ struct PaneListTests {
     // The `forLayout` suite was deleted with the API it described (#4683): the pre-workspace
     // renderer derived a PaneList from the legacy visibility plan, and that path became
     // unreachable once a workspace is always applied. The behaviour those tests pinned now lives
-    // in the BuiltInWorkspaceLayout compositions and `fromVisibility`, which are covered above.
+    // in the BuiltInWorkspaceLayout compositions; `fromVisibility` (its own would-be coverage)
+    // was deleted too, as callerless, #4685 leftover cleanup, 2026-09-18 — see the note above.
 
     // MARK: - per-instance split / close (the isolation fix, spec CD 2026-09-15)
 

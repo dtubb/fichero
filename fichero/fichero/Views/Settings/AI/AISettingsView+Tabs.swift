@@ -195,11 +195,13 @@ extension AISettingsView {
             }
         }
         .formStyle(.grouped)
-        // Provider-change handlers reset the model AND reload the list
-        // for the new provider, then pick its first model as the new
-        // default. Pre-fix, switching provider left the stale model
-        // selected (which would 404 at runtime) and required
-        // tab-away-and-back to refresh the picker. (#936)
+        // Provider-change handlers reload the model list for the new provider. They do NOT pick
+        // a new default any more — that auto-pick was the ship blocker fixed by
+        // `selectionAfterModelLoad` (AISettingsView+Helpers.swift): the prior selection is kept
+        // as-is when still valid, and left untouched (never substituted, never blanked) when it
+        // isn't, rather than silently jumping to `list.first`. Pre-#936-fix, switching provider
+        // left the stale model selected (which would 404 at runtime) and required
+        // tab-away-and-back to refresh the picker; that part of the fix stands.
         .onChange(of: store.defaults.textProvider) { _, newValue in
             loadModelsResettingSelection(
                 for: newValue, into: $textModels, selecting: $store.defaults.textModel,
