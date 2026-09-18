@@ -144,6 +144,10 @@ class EntityDeleteActionParams(BaseModel):
 class EntityRestoreActionParams(BaseModel):
     snapshot: dict[str, Any]
     claim_snapshots: list[dict[str, Any]] = Field(default_factory=list)
+    # #4863: {"claim_id", "field", "old_entity_id"} records from a
+    # non-cascade `entity.delete` -- restored under a guard (only where the
+    # field is STILL empty), never a blind overwrite like `claim_snapshots`.
+    claim_field_clears: list[dict[str, str]] = Field(default_factory=list)
 
 
 def _invert_create_entity(
@@ -188,6 +192,9 @@ def _invert_delete_entity(
         {
             "snapshot": before.get("entity", {}),
             "claim_snapshots": before.get("claims", []),
+            # #4863: guarded per-(claim, field) restore for the non-cascade
+            # delete's cleared links -- see `_action_restore_entity`.
+            "claim_field_clears": before.get("claim_field_clears", []),
         },
     )
 
@@ -687,7 +694,26 @@ def _action_update_entity(
 
 def delete_entity_impl(
     db: Database, entity_id: str, *, cascade_claims: bool = False, actor: str
-) -> dict:
+) -> tuple[dict, list[dict[str, str]]]:
+    """Delete an entity, either cascading its claims or repointing them.
+
+    #4863 (kg.delete.clears-entity-links): a DELETED entity is not merely
+    absorbed the way a merge's target is — it no longer exists at all — so
+    the non-cascade path must CLEAR every scalar entity-id field
+    (``CLAIM_ENTITY_ID_FIELDS``: ``subject_entity_id`` and its three
+    siblings) that still names the deleted entity, not only strip it from
+    ``entity_ids``. Without this, a claim keeps a dangling reference to a
+    row that is gone. Display fields (``subject_canonical``, ``text``) are
+    never touched — the source still said what it said; only the resolved
+    LINK is cleared. Returns ``(result, claim_field_clears)`` where
+    ``claim_field_clears`` is ``[{"claim_id", "field", "old_entity_id"}, ...]``
+    for the caller (`_action_delete_entity`) to carry on the audit so undo
+    can restore each one under a guard (never over a later real edit).
+
+    The CASCADE path has no equivalent problem: those claim ROWS are
+    deleted outright, so there is nothing left to dangle — every field on
+    a deleted row goes with it, not just the ones this fix targets.
+    """
     entity = db.get(KnowledgeEntity, entity_id)
     if entity is None:
         raise HTTPException(status_code=404, detail=f"Entity not found: {entity_id}")
@@ -695,15 +721,30 @@ def delete_entity_impl(
     before_state = entity.model_dump(mode="json")
 
     dependent = _claims_referencing_entity_ids(db, [entity_id])
+    claim_field_clears: list[dict[str, str]] = []
 
     if cascade_claims:
         for claim in dependent:
             db.delete(claim)
     else:
+        from fichero_server.workflows.tools._entity_writer import (
+            CLAIM_ENTITY_ID_FIELDS,
+        )
+
         for claim in dependent:
             claim.entity_ids = [
                 eid for eid in (claim.entity_ids or []) if eid != entity_id
             ]
+            for field in CLAIM_ENTITY_ID_FIELDS:
+                if getattr(claim, field, None) == entity_id:
+                    claim_field_clears.append(
+                        {
+                            "claim_id": claim.id,
+                            "field": field,
+                            "old_entity_id": entity_id,
+                        }
+                    )
+                    setattr(claim, field, None)
             claim.updated_at = utc_now()
             db.save(claim)
 
@@ -737,7 +778,7 @@ def delete_entity_impl(
             "delete_entity: mutation log write failed: %s", exc
         )
 
-    return {"entity_id": entity_id}
+    return {"entity_id": entity_id}, claim_field_clears
 
 
 def _claims_referencing_entity_ids(
@@ -780,7 +821,7 @@ def _action_delete_entity(
         claim.model_dump(mode="json")
         for claim in _claims_referencing_entity_ids(db, [params.entity_id])
     ]
-    result = delete_entity_impl(
+    result, claim_field_clears = delete_entity_impl(
         db,
         params.entity_id,
         cascade_claims=params.cascade_claims,
@@ -791,7 +832,18 @@ def _action_delete_entity(
         target_ids=[params.entity_id],
         before={
             "entity": entity.model_dump(mode="json"),
+            # Pinned pre-existing behavior (test_action_undo.py's
+            # TestEntityDeleteUndoRedo): undo of a delete ALWAYS restores
+            # every touched claim from its full pre-delete snapshot,
+            # cascade or not -- including overwriting a later edit, by
+            # design (a blind, whole-row restore). Unchanged by #4863.
             "claims": claim_snapshots,
+            # #4863: ADDITIONALLY recorded so `entity.restore` can also
+            # perform a guarded, minimal per-field restore -- a no-op today
+            # given the full snapshot above already restores these same
+            # fields first, but a real, independent safety net should this
+            # action ever be invoked with `claim_field_clears` alone.
+            "claim_field_clears": claim_field_clears,
         },
         after=result,
         emit_type="entity.deleted",
@@ -817,6 +869,20 @@ def _action_restore_entity(
     db.save(entity)
     for claim_snapshot in params.claim_snapshots:
         db.save(KnowledgeClaim.model_validate(claim_snapshot))
+
+    # #4863: guarded per-(claim, field) restore for a non-cascade delete's
+    # cleared links. Guard: only restore where the field is STILL empty --
+    # if a curator set it to something else since the delete, this must not
+    # clobber that later, real edit (same discipline as merge's undo).
+    for record in params.claim_field_clears:
+        claim = db.get(KnowledgeClaim, record["claim_id"])
+        field = record["field"]
+        if claim is None or getattr(claim, field, None) is not None:
+            continue
+        setattr(claim, field, record["old_entity_id"])
+        claim.updated_at = utc_now()
+        db.save(claim)
+
     spec = ChangeSpec(
         domains=["entity"],
         target_ids=[entity.id],
