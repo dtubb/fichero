@@ -64,12 +64,19 @@ final class AnnotationStoreTests: XCTestCase {
             Self.lock.unlock()
 
             let resolved = stub ?? Stub(pathContains: "", method: "", status: 200, body: Data("{}".utf8))
-            let response = HTTPURLResponse(
-                url: request.url!,
-                statusCode: resolved.status,
-                httpVersion: "HTTP/1.1",
-                headerFields: ["Content-Type": "application/json"]
-            )!
+            // Runtime values — a force-unwrap here would crash the whole test
+            // host on a malformed fixture, not just fail one test. Fail the
+            // individual load instead.
+            guard let url = request.url,
+                  let response = HTTPURLResponse(
+                      url: url,
+                      statusCode: resolved.status,
+                      httpVersion: "HTTP/1.1",
+                      headerFields: ["Content-Type": "application/json"]
+                  ) else {
+                client?.urlProtocol(self, didFailWithError: URLError(.badURL))
+                return
+            }
             client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
             client?.urlProtocol(self, didLoad: resolved.body)
             client?.urlProtocolDidFinishLoading(self)
@@ -102,7 +109,7 @@ final class AnnotationStoreTests: XCTestCase {
     /// document-scoped view.
     private static func storeScopedToDocument(_ documentId: String) async -> AnnotationStore {
         MockTransportURLProtocol.reset([
-            Stub(pathContains: "/api/annotations", method: "GET", status: 200, body: Data(#"{"items":[]}"#.utf8))
+            Stub(pathContains: "/api/annotations", method: "GET", status: 200, body: Data(#"{"items":[],"count":0}"#.utf8))
         ])
         let store = Self.storeWithMockTransport()
         await store.loadAnnotations(for: .document(documentId))

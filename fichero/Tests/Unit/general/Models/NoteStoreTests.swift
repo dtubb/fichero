@@ -66,12 +66,19 @@ final class NoteStoreTests: XCTestCase {
             Self.lock.unlock()
 
             let resolved = stub ?? Stub(pathContains: "", method: "", status: 200, body: Data("{}".utf8))
-            let response = HTTPURLResponse(
-                url: request.url!,
-                statusCode: resolved.status,
-                httpVersion: "HTTP/1.1",
-                headerFields: ["Content-Type": "application/json"]
-            )!
+            // Runtime values — a force-unwrap here would crash the whole test
+            // host on a malformed fixture, not just fail one test. Fail the
+            // individual load instead.
+            guard let url = request.url,
+                  let response = HTTPURLResponse(
+                      url: url,
+                      statusCode: resolved.status,
+                      httpVersion: "HTTP/1.1",
+                      headerFields: ["Content-Type": "application/json"]
+                  ) else {
+                client?.urlProtocol(self, didFailWithError: URLError(.badURL))
+                return
+            }
             client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
             client?.urlProtocol(self, didLoad: resolved.body)
             client?.urlProtocolDidFinishLoading(self)
@@ -105,7 +112,7 @@ final class NoteStoreTests: XCTestCase {
     /// `store.scope`, so every mutator test needs this established first.
     private static func storeScopedToDocument(_ documentId: String) async -> NoteStore {
         MockTransportURLProtocol.reset([
-            Stub(pathContains: "/api/notes", method: "GET", status: 200, body: Data(#"{"items":[]}"#.utf8))
+            Stub(pathContains: "/api/notes", method: "GET", status: 200, body: Data(#"{"items":[],"count":0}"#.utf8))
         ])
         let store = Self.storeWithMockTransport()
         await store.loadNotes(forDocument: documentId)
@@ -121,55 +128,55 @@ final class NoteStoreTests: XCTestCase {
 
     // MARK: - Scope.belongs(_:to:) — pure, exhaustive
 
-    func testBelongsToDocumentScope() {
-        let note = try! JSONDecoder().decode(NoteItem.self, from: Self.noteJSON(id: "n1", documentId: "doc-1"))
+    func testBelongsToDocumentScope() throws {
+        let note = try JSONDecoder().decode(NoteItem.self, from: Self.noteJSON(id: "n1", documentId: "doc-1"))
         XCTAssertTrue(NoteStore.belongs(note, to: .document("doc-1")))
         XCTAssertFalse(NoteStore.belongs(note, to: .document("doc-2")))
     }
 
-    func testBelongsToPageScope() {
-        let data = try! JSONSerialization.data(withJSONObject: [
+    func testBelongsToPageScope() throws {
+        let data = try JSONSerialization.data(withJSONObject: [
             "id": "n1", "body": "hello", "kind": "reference", "tags": [], "page_id": "page-1"
         ])
-        let note = try! JSONDecoder().decode(NoteItem.self, from: data)
+        let note = try JSONDecoder().decode(NoteItem.self, from: data)
         XCTAssertTrue(NoteStore.belongs(note, to: .page("page-1")))
         XCTAssertFalse(NoteStore.belongs(note, to: .page("page-2")))
     }
 
-    func testBelongsToFolderScope() {
-        let data = try! JSONSerialization.data(withJSONObject: [
+    func testBelongsToFolderScope() throws {
+        let data = try JSONSerialization.data(withJSONObject: [
             "id": "n1", "body": "hello", "kind": "reference", "tags": [], "folder_id": "folder-1"
         ])
-        let note = try! JSONDecoder().decode(NoteItem.self, from: data)
+        let note = try JSONDecoder().decode(NoteItem.self, from: data)
         XCTAssertTrue(NoteStore.belongs(note, to: .folder("folder-1")))
         XCTAssertFalse(NoteStore.belongs(note, to: .folder("folder-2")))
     }
 
-    func testBelongsToEntityScope() {
-        let data = try! JSONSerialization.data(withJSONObject: [
+    func testBelongsToEntityScope() throws {
+        let data = try JSONSerialization.data(withJSONObject: [
             "id": "n1", "body": "hello", "kind": "reference", "tags": [], "linked_entity_ids": ["entity-1"]
         ])
-        let note = try! JSONDecoder().decode(NoteItem.self, from: data)
+        let note = try JSONDecoder().decode(NoteItem.self, from: data)
         XCTAssertTrue(NoteStore.belongs(note, to: .entity("entity-1")))
         XCTAssertFalse(NoteStore.belongs(note, to: .entity("entity-2")))
     }
 
-    func testBelongsToAllScopeMatchesOnKindWhenTagAndQueryAreEmpty() {
-        let note = try! JSONDecoder().decode(NoteItem.self, from: Self.noteJSON(id: "n1", kind: "reference"))
+    func testBelongsToAllScopeMatchesOnKindWhenTagAndQueryAreEmpty() throws {
+        let note = try JSONDecoder().decode(NoteItem.self, from: Self.noteJSON(id: "n1", kind: "reference"))
         XCTAssertTrue(NoteStore.belongs(note, to: .all(kind: "reference", tag: "", query: "")))
         XCTAssertFalse(NoteStore.belongs(note, to: .all(kind: "highlight", tag: "", query: "")))
     }
 
-    func testBelongsToAllScopeSkipsSpliceWhenQueryOrTagIsPresent() {
+    func testBelongsToAllScopeSkipsSpliceWhenQueryOrTagIsPresent() throws {
         // A full-text query can't be re-evaluated client-side from the
         // returned item alone — the predicate must refuse to guess.
-        let note = try! JSONDecoder().decode(NoteItem.self, from: Self.noteJSON(id: "n1", kind: "reference"))
+        let note = try JSONDecoder().decode(NoteItem.self, from: Self.noteJSON(id: "n1", kind: "reference"))
         XCTAssertFalse(NoteStore.belongs(note, to: .all(kind: "", tag: "", query: "search term")))
         XCTAssertFalse(NoteStore.belongs(note, to: .all(kind: "", tag: "urgent", query: "")))
     }
 
-    func testBelongsToNoneScopeIsAlwaysFalse() {
-        let note = try! JSONDecoder().decode(NoteItem.self, from: Self.noteJSON(id: "n1"))
+    func testBelongsToNoneScopeIsAlwaysFalse() throws {
+        let note = try JSONDecoder().decode(NoteItem.self, from: Self.noteJSON(id: "n1"))
         XCTAssertFalse(NoteStore.belongs(note, to: .none))
     }
 

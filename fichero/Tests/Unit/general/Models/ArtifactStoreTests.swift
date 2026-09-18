@@ -64,12 +64,20 @@ final class ArtifactStoreTests: XCTestCase {
             Self.lock.unlock()
 
             let resolved = stub ?? Stub(pathContains: "", method: "", status: 200, body: Data("{}".utf8))
-            let response = HTTPURLResponse(
-                url: request.url!,
-                statusCode: resolved.status,
-                httpVersion: "HTTP/1.1",
-                headerFields: ["Content-Type": "application/json"]
-            )!
+            // Runtime values (the loaded request's own URL, the constructed
+            // response) — a force-unwrap here would crash the whole test
+            // host on a malformed fixture, not just fail one test. Fail the
+            // individual load instead.
+            guard let url = request.url,
+                  let response = HTTPURLResponse(
+                      url: url,
+                      statusCode: resolved.status,
+                      httpVersion: "HTTP/1.1",
+                      headerFields: ["Content-Type": "application/json"]
+                  ) else {
+                client?.urlProtocol(self, didFailWithError: URLError(.badURL))
+                return
+            }
             client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
             client?.urlProtocol(self, didLoad: resolved.body)
             client?.urlProtocolDidFinishLoading(self)
@@ -129,8 +137,8 @@ final class ArtifactStoreTests: XCTestCase {
 
     func testDeleteMixedSuccessAndFailureOnlyRemovesTheSucceededId() async throws {
         let store = await Self.storeWithTwoArtifacts()
-        let art1 = store.items.first { $0.id == "art-1" }!
-        let art2 = store.items.first { $0.id == "art-2" }!
+        let art1 = try XCTUnwrap(store.items.first { $0.id == "art-1" })
+        let art2 = try XCTUnwrap(store.items.first { $0.id == "art-2" })
 
         // art-1 deletes fine; art-2's DELETE fails.
         MockTransportURLProtocol.reset([
@@ -150,8 +158,8 @@ final class ArtifactStoreTests: XCTestCase {
 
     func testDeleteAllFailuresLeavesTheListCompletelyUntouched() async throws {
         let store = await Self.storeWithTwoArtifacts()
-        let art1 = store.items.first { $0.id == "art-1" }!
-        let art2 = store.items.first { $0.id == "art-2" }!
+        let art1 = try XCTUnwrap(store.items.first { $0.id == "art-1" })
+        let art2 = try XCTUnwrap(store.items.first { $0.id == "art-2" })
 
         MockTransportURLProtocol.reset([
             Stub(pathContains: "/api/artifacts/art-1", method: "DELETE", status: 422, body: Data(#"{"detail":"nope"}"#.utf8)),
