@@ -20,6 +20,7 @@ from fichero_server.knowledge.paragraph import (
     ParagraphRenderResponse,
     render_paragraph_claims,
 )
+from fichero_server.knowledge.readable import render_entry
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +78,61 @@ async def render_paragraph(
         claims.append(claim)
 
     return render_paragraph_claims(claims, style=request.style)
+
+
+# =============================================================================
+# GET /api/kg/entities/{entity_id}/readable — the entry composer (#4832, #4838)
+# =============================================================================
+
+
+class ReadableSentence(BaseModel):
+    """One clickable sentence of an entity's readable entry."""
+
+    text: str
+    start: int
+    end: int
+    language: str | None = None
+    claim_ids: list[str]
+    role: str
+    revoiced: bool
+
+
+class EntityReadableResponse(BaseModel):
+    """One entity's readable entry: a paragraph plus its sentence breakdown."""
+
+    entity_id: str
+    paragraph: str
+    sentences: list[ReadableSentence]
+
+
+@bio_router.get(
+    "/{entity_id}/readable",
+    response_model=EntityReadableResponse,
+    summary="Get the deterministic readable paragraph for a knowledge entity",
+    description=(
+        "Composes the entity's claims into one readable paragraph, sentence "
+        "by sentence, straight from each claim's own stored subject, verb "
+        "and object — never an LLM, never a translation. Each sentence "
+        "carries the claim id(s) behind it and its character offsets into "
+        "the paragraph, so a reader can click a sentence and jump to the "
+        "claim (and, later, its highlighted source)."
+    ),
+)
+async def get_entity_readable(
+    entity_id: str,
+    db: Database = Depends(get_library_database),
+) -> EntityReadableResponse:
+    """Read-only: the deterministic readable paragraph for one entity."""
+    if db.get(KnowledgeEntity, entity_id) is None:
+        raise HTTPException(status_code=404, detail=f"Entity not found: {entity_id}")
+
+    sentences = render_entry(db, entity_id)
+    paragraph = " ".join(s["text"] for s in sentences)
+    return EntityReadableResponse(
+        entity_id=entity_id,
+        paragraph=paragraph,
+        sentences=[ReadableSentence(**s) for s in sentences],
+    )
 
 
 # =============================================================================

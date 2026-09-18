@@ -352,3 +352,14 @@ def test_render_entry_no_claims_returns_empty_list(db):
     from fichero_server.knowledge.readable import render_entry
     ana = _entity(db, "Ana")
     assert render_entry(db, ana.id) == []
+
+
+def test_render_entry_includes_a_subject_claim_missing_from_its_own_entity_ids(db):
+    """The two fields drift in real libraries; a subject's claim is never dropped."""
+    from fichero_server.knowledge.readable import render_entry
+    ana = _entity(db, "Ana")
+    drifted = _svo("Ana", "nació en", "Quibdó", subject_entity_id=ana.id, entity_ids=[])
+    db.save(drifted)
+    sentences = render_entry(db, ana.id)
+    assert [s["claim_ids"] for s in sentences] == [[drifted.id]]
+    assert sentences[0]["role"] == "subject"

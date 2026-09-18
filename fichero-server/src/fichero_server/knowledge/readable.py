@@ -273,8 +273,21 @@ def render_entry(db, entity_id: str) -> list[dict]:
     entity = db.get(KnowledgeEntity, entity_id)
     entity_names = [entity.canonical_name, *entity.aliases] if entity else []
 
-    # ponytail: scans every claim; filter in the query before a route calls this.
-    claims = select_entry_claims(db.all(KnowledgeClaim), entity_id)
+    # Narrow at the query, same primitive `_claims_referencing_entity_ids`
+    # (entity/entities.py) uses for "this entity's claims" elsewhere, then
+    # apply the exact same subject-or-mention test as before -- no scan.
+    # BOTH ways a claim belongs to an entity, matching `select_entry_claims`: it
+    # is linked in `entity_ids`, OR it is the claim's subject. The two fields
+    # drift in real libraries, so fetching by one alone silently drops claims.
+    by_id = {
+        c.id: c
+        for c in (
+            *db.query_json_list_intersects(KnowledgeClaim, "entity_ids", [entity_id]),
+            *db.query(KnowledgeClaim, subject_entity_id=entity_id),
+        )
+    }
+    candidates = list(by_id.values())
+    claims = select_entry_claims(candidates, entity_id)
     claims = sorted(claims, key=_entry_sort_key)
 
     sentences: list[dict] = []
