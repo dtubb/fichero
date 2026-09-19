@@ -391,14 +391,26 @@ async def mcp_knowledge_claim_get(
 async def mcp_knowledge_entity_delete(
     entity_id: str,
     db: Database = Depends(get_library_database_for_write),
+    actor: str = Depends(request_actor),
 ) -> MCPEntityDeletedResponse:
-    """MCP tool endpoint: Soft-delete knowledge entity."""
-    entity = db.get(KnowledgeEntity, entity_id)
-    if not entity:
-        raise HTTPException(status_code=404, detail=f"Entity not found: {entity_id}")
+    """MCP tool endpoint: delete a knowledge entity.
 
-    db.delete(entity)
-    logger.info(f"MCP: Deleted entity {entity_id}")
+    #4866 (part 2): a thin caller of the SAME `entity.delete` action the
+    typed `DELETE /api/entities/{id}` route uses -- non-cascade by default
+    (`cascade_claims=False`, the action's own default and the safer
+    choice: never silently delete claims an agent didn't ask to delete).
+    Dependent claims are now REPOINTED/CLEARED, not left dangling: #4863
+    made a non-cascade `entity.delete` clear every scalar entity-id link a
+    claim carries that named this entity (`subject_entity_id` and its
+    siblings), not only strip it from `entity_ids` -- the bare
+    `db.delete()` this replaces did NEITHER, leaving every dependent claim
+    pointing at a row that no longer exists at all.
+    """
+    from pathlib import Path
+
+    ctx = ActionContext(actor=actor, library_path=str(Path(db.path).parent))
+    registry.invoke(db, "entity.delete", {"entity_id": entity_id}, ctx)
+    logger.info("MCP: Deleted entity %s by %s", entity_id, actor)
     return MCPEntityDeletedResponse(success=True, entity_id=entity_id, operation="deleted")
 
 
@@ -410,14 +422,21 @@ async def mcp_knowledge_entity_delete(
 async def mcp_knowledge_claim_delete(
     claim_id: str,
     db: Database = Depends(get_library_database_for_write),
+    actor: str = Depends(request_actor),
 ) -> MCPClaimDeletedResponse:
-    """MCP tool endpoint: Soft-delete knowledge claim."""
-    claim = db.get(KnowledgeClaim, claim_id)
-    if not claim:
-        raise HTTPException(status_code=404, detail=f"Claim not found: {claim_id}")
+    """MCP tool endpoint: delete a knowledge claim.
 
-    db.delete(claim)
-    logger.info(f"MCP: Deleted claim {claim_id}")
+    #4866 (part 2): a thin caller of the SAME `claim.delete` action the
+    typed `DELETE /api/claims/{id}` route uses -- also removes the claim's
+    own orphaning links (the bare `db.delete()` this replaces did not), and
+    is undoable via `POST /api/actions/audit/{id}/undo` like every other
+    audited claim write.
+    """
+    from pathlib import Path
+
+    ctx = ActionContext(actor=actor, library_path=str(Path(db.path).parent))
+    registry.invoke(db, "claim.delete", {"claim_id": claim_id}, ctx)
+    logger.info("MCP: Deleted claim %s by %s", claim_id, actor)
     return MCPClaimDeletedResponse(success=True, claim_id=claim_id, operation="deleted")
 
 

@@ -27,10 +27,12 @@ from fichero_server.api.routes.mcp.tools import (
     KnowledgeClaimCreateRequest,
     KnowledgeEntityUpsertRequest,
     mcp_knowledge_claim_create,
+    mcp_knowledge_claim_delete,
+    mcp_knowledge_entity_delete,
     mcp_knowledge_entity_upsert,
 )
 from fichero_server.models import ActionAudit, Document, DocType
-from fichero_server.models.knowledge import KnowledgeEntity
+from fichero_server.models.knowledge import KnowledgeClaim, KnowledgeEntity
 
 
 def _doc(db) -> Document:
@@ -158,4 +160,109 @@ class TestEntityCreateIsAccountable:
         )
         with pytest.raises(HTTPException) as exc:
             asyncio.run(mcp_knowledge_entity_upsert(request, db=db, actor="agent"))
+        assert exc.value.status_code == 404
+
+
+class TestEntityDeleteIsAccountable:
+    """#4866 part 2: mcp_knowledge_entity_delete, thin caller of entity.delete."""
+
+    def test_delete_writes_an_action_audit_naming_the_agent(self, db):
+        entity = KnowledgeEntity(canonical_name="Choco")
+        db.save(entity)
+
+        result = asyncio.run(mcp_knowledge_entity_delete(entity.id, db=db, actor="agent"))
+        assert result.success is True
+        assert db.get(KnowledgeEntity, entity.id) is None
+
+        audits = [row for row in db.all(ActionAudit) if row.action_name == "entity.delete"]
+        assert len(audits) == 1
+        assert audits[0].actor == "agent"
+        assert audits[0].target_ids == [entity.id]
+
+    def test_delete_clears_dependent_claim_links_not_leaves_them_dangling(self, db):
+        """#4863: non-cascade delete clears every scalar entity-id link a
+        claim carries, not only entity_ids -- the bare db.delete() this
+        replaces did neither."""
+        entity = KnowledgeEntity(canonical_name="Choco")
+        db.save(entity)
+        claim = KnowledgeClaim(
+            text="Choco is a region.",
+            source_document_id="doc-1",
+            subject_entity_id=entity.id,
+            entity_ids=[entity.id],
+        )
+        db.save(claim)
+
+        asyncio.run(mcp_knowledge_entity_delete(entity.id, db=db, actor="agent"))
+
+        reloaded = db.get(KnowledgeClaim, claim.id)
+        assert reloaded is not None
+        assert reloaded.subject_entity_id is None
+        assert entity.id not in (reloaded.entity_ids or [])
+
+    def test_delete_undo_restores_the_entity(self, db):
+        entity = KnowledgeEntity(canonical_name="Choco")
+        db.save(entity)
+
+        asyncio.run(mcp_knowledge_entity_delete(entity.id, db=db, actor="agent"))
+        audits = [row for row in db.all(ActionAudit) if row.action_name == "entity.delete"]
+        audit = audits[0]
+        reg = registry.get("entity.delete")
+        ctx = ActionContext(actor="agent", library_path=str(db.path.parent))
+        inverse = reg.invert(audit.before, audit.after, ctx)
+        assert inverse is not None
+        registry.invoke(db, inverse[0], inverse[1], ctx)
+
+        restored = db.get(KnowledgeEntity, entity.id)
+        assert restored is not None
+        assert restored.canonical_name == "Choco"
+
+    def test_delete_unknown_entity_404s(self, db):
+        from fastapi import HTTPException
+        import pytest
+
+        with pytest.raises(HTTPException) as exc:
+            asyncio.run(mcp_knowledge_entity_delete("ghost", db=db, actor="agent"))
+        assert exc.value.status_code == 404
+
+
+class TestClaimDeleteIsAccountable:
+    """#4866 part 2: mcp_knowledge_claim_delete, thin caller of claim.delete."""
+
+    def test_delete_writes_an_action_audit_naming_the_agent(self, db):
+        claim = KnowledgeClaim(text="A claim.", source_document_id="doc-1")
+        db.save(claim)
+
+        result = asyncio.run(mcp_knowledge_claim_delete(claim.id, db=db, actor="agent"))
+        assert result.success is True
+        assert db.get(KnowledgeClaim, claim.id) is None
+
+        audits = [row for row in db.all(ActionAudit) if row.action_name == "claim.delete"]
+        assert len(audits) == 1
+        assert audits[0].actor == "agent"
+        assert audits[0].target_ids == [claim.id]
+
+    def test_delete_undo_restores_the_claim(self, db):
+        claim = KnowledgeClaim(text="A claim.", source_document_id="doc-1")
+        db.save(claim)
+
+        asyncio.run(mcp_knowledge_claim_delete(claim.id, db=db, actor="agent"))
+        audits = [row for row in db.all(ActionAudit) if row.action_name == "claim.delete"]
+        audit = audits[0]
+        reg = registry.get("claim.delete")
+        ctx = ActionContext(actor="agent", library_path=str(db.path.parent))
+        inverse = reg.invert(audit.before, audit.after, ctx)
+        assert inverse is not None
+        registry.invoke(db, inverse[0], inverse[1], ctx)
+
+        restored = db.get(KnowledgeClaim, claim.id)
+        assert restored is not None
+        assert restored.text == "A claim."
+
+    def test_delete_unknown_claim_404s(self, db):
+        from fastapi import HTTPException
+        import pytest
+
+        with pytest.raises(HTTPException) as exc:
+            asyncio.run(mcp_knowledge_claim_delete("ghost", db=db, actor="agent"))
         assert exc.value.status_code == 404
