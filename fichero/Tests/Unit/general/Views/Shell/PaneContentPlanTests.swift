@@ -87,6 +87,46 @@ struct PaneContentPlanTests {
         #expect(plan.inspector == .surface(.documentInspector), "the KG inspector is real content")
     }
 
+    /// #4882 (spec: workflows.selection.library-row-opens-editor): a Library
+    /// row's workflow-node selection gets the SAME three cells the sidebar's
+    /// `.workflow` mode gets — canvas, run log, `WorkflowInspector` (ruling:
+    /// "inspector tabs only for the selected kind") — WITHOUT `mode` itself
+    /// flipping to `.workflow`.
+    @Test("a Library-mode workflow-node selection gets canvas, run log, and the workflow inspector")
+    func libraryModeWorkflowNodeSelectionGetsWorkflowSurfaces() {
+        let plan = PaneContentPlan.plan(for: .library(nil), workflowNodeSelected: true)
+        #expect(plan.library == .surface(.libraryBrowser))
+        #expect(plan.preview == .surface(.workflowCanvas))
+        #expect(plan.reader == .surface(.workflowRecipe))
+        #expect(plan.inspector == .surface(.workflowInspector))
+    }
+
+    /// Without a workflow-node selection, `.library` mode answers exactly as
+    /// it always has — the new parameter defaults to `false` and changes
+    /// nothing else.
+    @Test("a Library-mode selection with no workflow node gives today's plain library answer")
+    func libraryModeWithoutWorkflowNodeIsUnchanged() {
+        let plan = PaneContentPlan.plan(for: .library(nil), workflowNodeSelected: false)
+        #expect(plan == PaneContentPlan.Plan(
+            library: .surface(.libraryBrowser),
+            preview: .surface(.documentPreview),
+            reader: .surface(.documentReader),
+            inspector: .surface(.documentInspector)
+        ))
+    }
+
+    /// The sidebar's `.workflow` mode already reaches the same three cells
+    /// via `stablePanePlan` — `workflowNodeSelected` only matters for
+    /// `.library`, and must not perturb any other mode's answer.
+    @Test("workflowNodeSelected does nothing outside .library mode")
+    func workflowNodeSelectedOnlyAppliesToLibraryMode() {
+        for (name, mode) in Self.everyMode where name != "library" {
+            let withFlag = PaneContentPlan.plan(for: mode, workflowNodeSelected: true)
+            let withoutFlag = PaneContentPlan.plan(for: mode, workflowNodeSelected: false)
+            #expect(withFlag == withoutFlag, "\(name) must not change with workflowNodeSelected")
+        }
+    }
+
     /// #4518 rides the same plan: with no library at all, every pane says so —
     /// the reason names the situation, not a per-pane guess like "Preview
     /// unavailable" + Retry against a closed library.
