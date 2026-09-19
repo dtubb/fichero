@@ -61,14 +61,69 @@ At every level, a segment can carry:
   the order of reading. A page may have more than one reading order (the main text; the
   commentary around it).
 - **Language and script** — per segment, inherited from above unless overridden. One page can
-  hold several languages and several scripts.
+  hold several languages and several scripts. Language, script and encoding are three separate
+  facts (see "Language, script, encoding and fonts" below).
 - **Readings** — many transcriptions of the same ink (a model's, another model's, a person's
   correction), each kept, none overwritten. One of them counts as the transcription.
 - **Translations** — many, each tied to the reading it translates.
+- **Statements** — knowledge-graph claims and entities attach to a segment at any level, and it
+  is easy to go both ways: from a segment to what is said about it, from a statement to its ink.
+- **A description** — a segment that is a picture, a diagram, a seal or a stamp carries a
+  description of what it shows (alt text), with the same provenance as any reading.
 - **Links** — to other segments (this gloss comments on that word; this marginal note answers
   that marginal note), to entities and claims, and to outside authorities.
 - **Versions and provenance** — who or what made it, when, from what, and why. Append-only.
 - **Its image** — the crop of just this segment, easy to get at any level.
+
+### Language, script, encoding and fonts
+
+Three separate facts, never collapsed into one "language" field:
+
+- **Language** — identified from a proper registry that covers under-resourced and Indigenous
+  languages, not only the major ones. (The staged plan already names the candidates:
+  Glottolog, CLDR, and the loove coverage tiers. Which registry is the authority is an open
+  question below.)
+- **Script** — the writing system (ISO 15924). One language may be written in several scripts;
+  one script serves many languages. A Japanese page holds Chinese-origin characters and two
+  syllabaries at once.
+- **Encoding** — which Unicode characters, if any. Some scripts have only part of what they need
+  in Unicode. Some have none. Some languages have no settled script at all. The model must not
+  assume a code point exists.
+
+And one practical need: **fonts**. A script may need a special font to display at all. The font
+a reading needs is recorded with it, so the Reader and an export can show it properly.
+
+Because all of this is on the segment, two sources can be put **side by side and compared by
+character**: a Japanese page beside a Chinese one, the same sign in two hands.
+
+### Layers
+
+A page holds several **layers** of segments at once: the layout a model proposed, the layout a
+person corrected, a layer of glosses, a layer of illustrations. Layers can be shown, hidden and
+compared. They do not overwrite each other.
+
+### Edited on the page
+
+Segments are edited directly on the image, in the Preview (the source pane), and nowhere else.
+Full editing, not a viewer with a few handles:
+
+- draw a new segment (box or polygon); move it; reshape it point by point;
+- **merge** segments, **split** one, **combine** lines into a region, **delete**;
+- change a segment's level, layer, reading order, direction, language or script;
+- work on many regions and several layers at once.
+
+Every edit is one audited, reversible action. Nothing is rewritten by batch.
+
+### One store, many uses
+
+The same stored segments serve every use. There is no second copy for any of them:
+
+- the **Preview** draws and edits them;
+- the **Reader** shows their readings, in the right direction and font;
+- the **Inspector** shows one segment's readings, versions and statements;
+- an **agent** (MCP) and the **command line** read and write them;
+- **training** takes them out as crops plus readings;
+- **export** writes them as standard files.
 
 ### Hard cases the model must handle without special pleading
 
@@ -83,6 +138,8 @@ These are the test of the design. If one of them needs a special case, the model
 - A script with **no Unicode encoding**: the segment is anchored to the image and still
   transcribable, searchable by shape, and exportable.
 - A knowledge-graph **claim tied to a single character or word**, not just to a page.
+- A page with **pictures** on it: each picture is a segment, with a description, and can be
+  pulled out on its own.
 - **Music** on a page (staves, neumes), and **maps** (a region of a map is a segment).
 
 ### Easy to move around in
@@ -102,6 +159,8 @@ failed export, reported as such):
 - **MEI** — music encoding.
 - **Object-detection training formats** (the YOLO family) — regions and classes for training a
   layout detector.
+- **SVG** and **PDF** — a page you can look at: the image with its segments and readings laid
+  over it (SVG), or a searchable PDF with the text in place. Export only.
 - Others as needed. A new format is a new mapping, not a new model.
 
 ### A columnar format for training
@@ -111,8 +170,9 @@ Segments, their images and their readings also export to, and import from, a col
 
 The loop this enables: read a few pages with a large model (a vision-language model), correct
 them by hand, export the word- or character-level segments with their crops and readings, and
-use that to fine-tune a small recogniser (Kraken) for that hand or script. Then run the small
-model on the rest, locally.
+use that to fine-tune a small recogniser (Kraken) for that hand or script, and a small layout
+detector (the YOLO family) for that kind of page. Then run the small models on the rest,
+locally.
 
 ## What exists today (checked on disk, 2026-09-19)
 
@@ -180,5 +240,10 @@ milestone exists.
 6. **First format.** Which standard is imported and exported first: PageXML, ALTO or TEI?
 7. **The columnar format.** Parquet written through the existing export path, or Arrow files
    directly? (The exporter spec already rules Parquet through DuckDB for library export.)
-8. **The first slice.** What should a researcher be able to do first with this, in the next
+8. **The language authority.** Which registry names a language: Glottolog, ISO 639-3, the
+   Indigenous-language source the maintainer has in mind (name it here), or several with one
+   as the authority?
+9. **Fonts.** Does Fichero ship fonts for some scripts, let a researcher add their own to a
+   library, or both?
+10. **The first slice.** What should a researcher be able to do first with this, in the next
    release?
