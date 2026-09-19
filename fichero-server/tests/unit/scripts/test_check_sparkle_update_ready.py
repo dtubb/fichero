@@ -51,19 +51,32 @@ _FEED_HEADER = (
 _FEED_FOOTER = "  </channel>\n</rss>\n"
 
 
-def _item_xml(version: str, short_version: str = "2026.09.07", length: str = "1000") -> str:
+def _item_xml(
+    version: str, short_version: str = "2026.09.07", length: str = "1000",
+    channel: str | None = None,
+) -> str:
+    channel_line = f"      <sparkle:channel>{channel}</sparkle:channel>\n" if channel else ""
     return f"""    <item>
       <sparkle:version>{version}</sparkle:version>
       <sparkle:shortVersionString>{short_version}</sparkle:shortVersionString>
-      <enclosure url="https://example.com/Fichero.dmg" length="{length}"
+{channel_line}      <enclosure url="https://example.com/Fichero.dmg" length="{length}"
                  type="application/octet-stream" sparkle:edSignature="sig" />
     </item>
 """
 
 
 def _feed(*items: tuple[str, str]) -> str:
-    """items: (version, short_version) pairs."""
+    """items: (version, short_version) pairs -- no channel (public only)."""
     return _FEED_HEADER + "".join(_item_xml(v, sv) for v, sv in items) + _FEED_FOOTER
+
+
+def _feed_with_channels(*items: tuple[str, str, str | None]) -> str:
+    """items: (version, short_version, channel) triples."""
+    return (
+        _FEED_HEADER
+        + "".join(_item_xml(v, sv, channel=ch) for v, sv, ch in items)
+        + _FEED_FOOTER
+    )
 
 
 def _standalone_item(version: str, short_version: str, length: str) -> str:
@@ -128,29 +141,55 @@ def test_non_numeric_feed_item_build_is_a_warning_not_a_failure():
     assert any("not a plain integer" in w for w in warnings)
 
 
-def test_duplicate_listing_of_one_release_is_not_a_collision():
-    """Every release in the live feed appears twice (verified by team-lead
-    against the real feed): same sparkle:version AND same
-    shortVersionString repeated. That is a duplicate LISTING, not a
-    build-number collision between two different releases, and must not be
-    reported as one."""
+def test_a_public_dev_pair_is_not_reported_as_a_duplicate_or_a_collision():
+    """CORRECTED (#4901): every release in the live feed appears exactly
+    twice, but that is a public item + a dev item (same sparkle:version,
+    same shortVersionString, DIFFERENT sparkle:channel) BY DESIGN
+    (`fichero/fichero/App/SparkleUpdater.swift`'s `SparkleChannelDelegate`)
+    -- not a re-run duplicate and not a build-number collision. This is
+    the exact case an earlier, wrong version of this function got wrong."""
     items = parse_appcast(
-        _feed(("3", "2026.09.07"), ("3", "2026.09.07"), ("2", "2026.09.05"), ("2", "2026.09.05"))
+        _feed_with_channels(("3", "2026.09.07", None), ("3", "2026.09.07", "dev"))
     )
     problems, warnings = check_build_number_increases(items, "4")
     assert problems == []
-    assert any("listed 2 times" in w and "not a build-number collision" in w for w in warnings)
-    assert not any("collision" in w and "shared by different releases" in w for w in warnings)
+    assert warnings == []
+
+
+def test_genuine_duplicate_listing_within_one_channel_is_reported():
+    """A TRUE duplicate: the same (version, short_version, channel) twice
+    -- e.g. a genuine re-run artifact -- must still be caught, but only
+    when the channel also matches (that is what distinguishes it from the
+    normal public+dev pairing above)."""
+    items = parse_appcast(
+        _feed_with_channels(("3", "2026.09.07", None), ("3", "2026.09.07", None))
+    )
+    problems, warnings = check_build_number_increases(items, "4")
+    assert problems == []
+    assert any(
+        "listed 2 times" in w and "genuine duplicate/re-run artifact" in w for w in warnings
+    )
 
 
 def test_real_collision_between_two_releases_warns_and_does_not_fail():
     """Two DIFFERENT releases sharing one sparkle:version -- the actual
     2026.09.04/2026.09.05 incident shape -- warns but does not fail when
-    the new build itself is fine."""
-    items = parse_appcast(_feed(("2", "2026.09.04"), ("2", "2026.09.05")))
+    the new build itself is fine. Reproduced with BOTH channels, matching
+    the live feed's real shape (the collision independently recurs in
+    both public and dev): reported as ONE finding, naming both channels --
+    the same underlying mistake, not two separate ones."""
+    items = parse_appcast(
+        _feed_with_channels(
+            ("2", "2026.09.04", None), ("2", "2026.09.05", None),
+            ("2", "2026.09.04", "dev"), ("2", "2026.09.05", "dev"),
+        )
+    )
     problems, warnings = check_build_number_increases(items, "3")
     assert problems == []
-    assert any("shared by different releases" in w for w in warnings)
+    collision_warnings = [w for w in warnings if "shared by different releases" in w]
+    assert len(collision_warnings) == 1
+    assert "'public'" in collision_warnings[0]
+    assert "'dev'" in collision_warnings[0]
 
 
 def test_new_build_equal_to_an_existing_item_fails_even_amid_warnings():
@@ -160,6 +199,44 @@ def test_new_build_equal_to_an_existing_item_fails_even_amid_warnings():
     problems, warnings = check_build_number_increases(items, "2")
     assert any("already present in the live feed" in p for p in problems)
     assert any("shared by different releases" in w for w in warnings)
+
+
+def test_live_feed_shaped_fixture_reports_no_duplicates_and_exactly_one_collision():
+    """Mirrors the REAL live feed's structure (4 releases, each shipped as a
+    public+dev pair -- 8 items total; team-lead saved the actual file and
+    confirmed this exact shape), not its actual content. Must report ZERO
+    "listed twice" duplicate warnings (there are none -- every pair differs
+    by channel) and EXACTLY ONE collision finding (2026.09.04/2026.09.05
+    both sparkle:version=2, occurring in both channels but named once)."""
+    items = parse_appcast(
+        _feed_with_channels(
+            ("3", "2026.09.07", None), ("3", "2026.09.07", "dev"),
+            ("2", "2026.09.05", None), ("2", "2026.09.05", "dev"),
+            ("2", "2026.09.04", None), ("2", "2026.09.04", "dev"),
+            ("1", "2026.09.03", None), ("1", "2026.09.03", "dev"),
+        )
+    )
+    problems, warnings = check_build_number_increases(items, "4")
+    assert problems == []
+    assert not any("listed" in w and "times" in w for w in warnings)
+    collision_warnings = [w for w in warnings if "shared by different releases" in w]
+    assert len(collision_warnings) == 1
+    assert "2026.09.04" in collision_warnings[0] and "2026.09.05" in collision_warnings[0]
+
+
+def test_fail_gate_uses_the_global_maximum_across_every_channel():
+    """A dev-channel item at a HIGHER build than any public item must still
+    block a new public-channel publish at or below it -- a dev client's
+    comparison pool is public UNION dev (SparkleUpdater.swift's
+    allowedChannels={"dev"} adds the dev channel on top of the always-
+    visible default channel), so the counter must be globally monotonic,
+    not just monotonic within the channel about to publish."""
+    items = parse_appcast(_feed_with_channels(("5", "2026.09.10", "dev")))
+    problems, _warnings = check_build_number_increases(items, "5")
+    assert any("already present in the live feed" in p for p in problems)
+
+    problems, _warnings = check_build_number_increases(items, "4")
+    assert any("not strictly greater" in p for p in problems)
 
 
 def test_feed_url_mismatch_fails():

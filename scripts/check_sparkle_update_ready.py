@@ -84,6 +84,7 @@ DEFAULT_FEED_URL = "https://tubb.ca/apps/fichero/appcast.xml"
 SPARKLE_NS = "http://www.andymatuschak.org/xml-namespaces/sparkle"
 _SPARKLE_VERSION_TAG = f"{{{SPARKLE_NS}}}version"
 _SPARKLE_SHORT_VERSION_TAG = f"{{{SPARKLE_NS}}}shortVersionString"
+_SPARKLE_CHANNEL_TAG = f"{{{SPARKLE_NS}}}channel"
 
 
 @dataclass
@@ -94,6 +95,7 @@ class AppcastItem:
     short_version: str | None
     length: str | None  # enclosure length, raw text
     url: str | None  # enclosure url
+    channel: str | None  # sparkle:channel text, e.g. "dev"; None for the public/default item
 
 
 def parse_appcast(xml_text: str) -> list[AppcastItem]:
@@ -104,12 +106,20 @@ def parse_appcast(xml_text: str) -> list[AppcastItem]:
     so one function covers both shapes. A standalone <item> fragment must
     declare `xmlns:sparkle` on itself to parse (XML has no notion of an
     "ambient" namespace from a document it isn't part of).
+
+    This project publishes ONE release as TWO items sharing the same
+    sparkle:version AND shortVersionString -- a public (channel-less) item
+    and a dev item (`<sparkle:channel>dev</sparkle:channel>`), confirmed
+    against the real live feed (every release listed exactly twice, always
+    one of each). `channel` is what actually distinguishes them; a caller
+    comparing items for identity/collision purposes must include it.
     """
     root = ET.fromstring(xml_text)
     items: list[AppcastItem] = []
     for item_el in root.iter("item"):
         version_el = item_el.find(_SPARKLE_VERSION_TAG)
         short_el = item_el.find(_SPARKLE_SHORT_VERSION_TAG)
+        channel_el = item_el.find(_SPARKLE_CHANNEL_TAG)
         enclosure_el = item_el.find("enclosure")
         items.append(
             AppcastItem(
@@ -117,6 +127,7 @@ def parse_appcast(xml_text: str) -> list[AppcastItem]:
                 short_version=(short_el.text or "").strip() if short_el is not None else None,
                 length=enclosure_el.get("length") if enclosure_el is not None else None,
                 url=enclosure_el.get("url") if enclosure_el is not None else None,
+                channel=(channel_el.text or "").strip() if channel_el is not None else None,
             )
         )
     return items
@@ -139,28 +150,57 @@ def check_build_number_increases(
     """release.update.feed-is-current + release.update.build-number-strictly-increases (#4901).
 
     Returns (problems, warnings). Only what can stop THIS update installing
-    is a problem (fails the check): the new build already present in the
-    feed, or not strictly greater than the feed's current maximum. A
-    historical fact already living in the feed can never be fixed by this
-    release, so it is a WARNING, reported but never failing:
+    is a problem (fails the check). A historical fact already living in the
+    feed can never be fixed by this release, so it is a WARNING, reported
+    but never failing.
 
+    CORRECTED 2026-09-19: an earlier version of this function treated every
+    release appearing twice in the live feed as a "duplicate listing" and
+    (in a report, not code) attributed it to a non-idempotent release
+    script. Both were wrong. Read from the real live feed (every release
+    has EXACTLY two items, always one of each kind, never more): this
+    project publishes one release as a public (channel-less) item AND a
+    dev item (`<sparkle:channel>dev</sparkle:channel>`) BY DESIGN --
+    confirmed against `fichero/fichero/App/SparkleUpdater.swift`'s
+    `SparkleChannelDelegate`. There are no re-run duplicates in the live
+    feed at all. `AppcastItem.channel` now participates in every identity
+    check below so a normal public+dev pair is never mistaken for one.
+
+    - The SAME (sparkle:version, shortVersionString, channel) listed more
+      than once -- a GENUINE duplicate/re-run artifact (this is what the
+      corrected code actually detects now; it does not fire on a normal
+      public+dev pair, which differ by channel).
     - Two DIFFERENT releases (different shortVersionString) sharing one
       sparkle:version -- a real collision, e.g. the live feed's own
-      2026.09.04/2026.09.05 both `sparkle:version=2`.
-    - The SAME release listed more than once under the same
-      (sparkle:version, shortVersionString) pair -- not a build-number
-      collision at all, just a duplicate <item>. Root cause (read, not
-      guessed): `create-github-release.sh`'s appcast-item insertion
-      (its "[3/5] Update appcast.xml" step, lines ~364-412) always builds
-      and inserts a new `<item>` unconditionally -- unlike its own GitHub
-      release step just above (line 296, `gh release view` first, "update
-      notes" if it already exists), there is no check for an existing item
-      matching this VERSION/BUILD before inserting. A retried or re-run
-      `create-github-release.sh` for the same release appends a second
-      copy rather than being a no-op.
+      2026.09.04/2026.09.05, both `sparkle:version=2` -- confirmed to occur
+      independently in BOTH the public and dev channel. Reported ONCE per
+      colliding build number, naming every distinct release AND every
+      channel it was seen in, rather than once per channel: the same two
+      releases stepping on each other is one underlying mistake, not two.
     - A live item whose sparkle:version isn't a plain integer -- cannot be
       compared, but it is still someone else's past mistake, not something
       this release's own readiness should be blocked on.
+
+    The FAIL gate compares the new build against the MAXIMUM sparkle:version
+    across EVERY channel combined, not just the channel about to be
+    published to. Why global, not per-channel (read, not guessed --
+    `fichero/fichero/App/SparkleUpdater.swift`): the public build's
+    `allowedChannels` is empty (sees ONLY channel-less/public items); the
+    dev build's is `{"dev"}`, which per Sparkle's own semantics ADDS the
+    dev channel on top of the always-visible default channel -- so a dev
+    client's comparison pool is public-union-dev, a strict superset of a
+    public client's. A channel-less item is therefore visible to every
+    client regardless of channel, and this pipeline always mints ONE build
+    number per release and publishes it to every channel that release
+    ships to (confirmed: `create-github-release.sh` passes the same
+    `$BUILD` to both the public and dev `appcast_upsert.py` calls) -- so
+    the build counter is meant to be globally, not per-channel, monotonic.
+    Requiring strictly-greater-than-the-GLOBAL maximum is at least as
+    strict as a same-channel-only check (global max >= same-channel max
+    always, so this implies it for free) and additionally protects a
+    future asymmetric case a same-channel check would miss entirely: a
+    dev-only or public-only release that leaves the two channels' own
+    histories at different build numbers.
     """
     problems: list[str] = []
     warnings: list[str] = []
@@ -169,44 +209,59 @@ def check_build_number_increases(
     except ValueError as exc:
         return [str(exc)], []
 
-    parsed_builds: dict[int, set[str | None]] = {}
-    listing_counts: dict[tuple[int, str | None], int] = {}
+    # (build, short_version, channel) per item -- channel is part of
+    # identity everywhere below, per the correction above.
+    parsed: list[tuple[int, str | None, str | None]] = []
     for item in items:
         try:
             build_int = _numeric_build(item.version, label="a live feed item's")
         except ValueError as exc:
             warnings.append(str(exc))
             continue
-        parsed_builds.setdefault(build_int, set()).add(item.short_version)
-        key = (build_int, item.short_version)
-        listing_counts[key] = listing_counts.get(key, 0) + 1
+        parsed.append((build_int, item.short_version, item.channel))
 
-    for (build_int, short_version), count in listing_counts.items():
+    listing_counts: dict[tuple[int, str | None, str | None], int] = {}
+    for key in parsed:
+        listing_counts[key] = listing_counts.get(key, 0) + 1
+    for (build_int, short_version, channel), count in listing_counts.items():
         if count > 1:
             warnings.append(
-                f"release {short_version!r} (sparkle:version={build_int}) is listed "
-                f"{count} times in the live feed -- the same release repeated, not a "
-                "build-number collision (see create-github-release.sh's non-idempotent "
-                "appcast-item insertion)"
-            )
-    for build_int, short_versions in parsed_builds.items():
-        if len(short_versions) > 1:
-            warnings.append(
-                f"live feed has a real build-number collision: sparkle:version={build_int} "
-                f"is shared by different releases {sorted(v for v in short_versions if v)!r}"
+                f"release {short_version!r} on channel {channel or 'public'!r} "
+                f"(sparkle:version={build_int}) is listed {count} times in the live "
+                "feed -- a genuine duplicate/re-run artifact (a public+dev pair is "
+                "NOT this: they differ by channel, so they are different keys here)"
             )
 
-    if new_build_int in parsed_builds:
+    by_build: dict[int, set[str | None]] = {}
+    channels_by_build: dict[int, set[str | None]] = {}
+    for build_int, short_version, channel in parsed:
+        by_build.setdefault(build_int, set()).add(short_version)
+        channels_by_build.setdefault(build_int, set()).add(channel)
+    for build_int, short_versions in by_build.items():
+        if len(short_versions) > 1:
+            channel_names = sorted(c or "public" for c in channels_by_build[build_int])
+            warnings.append(
+                f"live feed has a real build-number collision: sparkle:version={build_int} "
+                f"is shared by different releases {sorted(v for v in short_versions if v)!r} "
+                f"(seen on channel(s) {channel_names!r})"
+            )
+
+    all_builds = {build_int for build_int, _short_version, _channel in parsed}
+    if new_build_int in all_builds:
         problems.append(
             f"the new build {new_build} is already present in the live feed "
-            f"({sorted(v for v in parsed_builds[new_build_int] if v)!r})"
+            "(checked across every channel)"
         )
-    elif parsed_builds:
-        feed_max = max(parsed_builds)
+    elif all_builds:
+        feed_max = max(all_builds)
         if new_build_int <= feed_max:
             problems.append(
                 f"the new build {new_build} is not strictly greater than the live "
-                f"feed's current maximum sparkle:version={feed_max}"
+                f"feed's current maximum sparkle:version={feed_max} across every "
+                "channel (a channel-less item is visible to every client "
+                "regardless of channel, and this release's build number is shared "
+                "by every channel it publishes to, so the counter must be globally "
+                "monotonic -- see this function's own docstring)"
             )
     return problems, warnings
 
