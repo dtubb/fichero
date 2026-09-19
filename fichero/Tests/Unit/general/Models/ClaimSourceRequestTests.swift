@@ -193,8 +193,10 @@ struct ClaimSourceRequestTests {
     /// addressing scheme is the failure this codebase keeps producing.
     @Test("claims drive the shared cursor, not a new one")
     func claimsDriveTheSharedCursor() throws {
+        // #4896: the biography (and its OpenURLAction cursor write) moved to
+        // EntityDigestContent+Biography.swift — a MOVE, not a behavior change.
         let digest = try Self.codeOnly(
-            Self.appSource("Views/Inspector/Knowledge/EntityDigestView.swift"))
+            Self.appSource("Views/Inspector/Knowledge/EntityDigestContent+Biography.swift"))
 
         #expect(digest.contains("ClaimSourceRequest.request(for: claim, destination: .both)"))
         #expect(digest.contains("claimSourceNavigationState?.request(request)"))
@@ -209,8 +211,10 @@ struct ClaimSourceRequestTests {
     /// loaded — a citation that changes with unrelated state.
     @Test("the biography no longer appends an internal filename")
     func biographyDropsTheInternalCitation() throws {
+        // #4896: same move as above — this must scan the file that now holds
+        // the biography composer, or the negative assertions pass vacuously.
         let digest = try Self.codeOnly(
-            Self.appSource("Views/Inspector/Knowledge/EntityDigestView.swift"))
+            Self.appSource("Views/Inspector/Knowledge/EntityDigestContent+Biography.swift"))
         #expect(!digest.contains("let citation"))
         #expect(!digest.contains("currentDocuments.first("))
     }
