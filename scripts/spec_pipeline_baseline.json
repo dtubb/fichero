@@ -172,16 +172,6 @@
   {
     "rule": "g",
     "spec": "-",
-    "key": "Search View"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Search View - Engine"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
     "key": "Search View - Saved Searches"
   },
   {
