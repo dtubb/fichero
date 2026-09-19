@@ -162,18 +162,100 @@ writer; an inferred fact is the output of a derivation activity (`prov:wasDerive
 second named context to carry either, since schema.org itself has no native attribution-vs-
 derivation vocabulary.
 
-## PASS 2 fold plan (not executed — no issues moved)
+## PASS 2 — the fold (legacy milestones #14 and #212, 25 issues, selected by NUMBER)
 
-Legacy milestones **#14 "Exporter"** (14 open) and **#212 "Exporter - Static Site"** (11 open)
-— 25 open issues total, selected by milestone NUMBER (not title, per the ledger's own method
-note) — not yet read issue-by-issue against the behaviors above; that reading is Pass 2's job.
-A first read while researching this spec's own grounding suggests several clusters: a
-Hugging-Face-dataset-export ask repeated across at least three issues (some predating the
-DuckDB-not-PyArrow ruling and still framed around PyArrow); a large "Export → GitHub" publish
-sub-system (9 issues on #212 — device-flow auth, a static-site scaffold, 3-way reimport merge,
-grouped undo) that reads as its own spec's territory, built ON TOP OF the Eleventy emitter
-rather than being this spec's own behavior; two `fichero-web` architecture issues that are not
-about export at all; and at least three issues (`#470` shared export infrastructure, `#1645`
-KG RDF export endpoints, `#2180` one-source-two-emitters) that describe exactly what Section A
-and D above already confirm is built — verify-close candidates, not fresh GAPs. Not decided
-here — Pass 1 was the ask.
+Every body read fresh. None redirect to a DIFFERENT existing spec; the shapes below are fits,
+verify-close, and two distinct kinds of waiting.
+
+### E. New behaviors (fits, cited from HEAD, moved onto #316)
+
+- `export.exporter-manager-continuous-sync` — **[GAP]** (#4640, the founding DESIGN issue)
+  claims/entities/segments should stay synced to RDF/SPARQL/JSON-LD and other formats over
+  time, not only produced once on request. Today every emitter in Section A/B is a one-shot
+  POST action — nothing watches the library and re-syncs an export as the source data
+  changes. Not built.
+- `export.huggingface-dataset-ready-bundle` — **[GAP]** (#4069, #2181, #1806 — one goal, filed
+  three times) a Parquet/JSONL bundle should be directly consumable by `datasets.load_dataset()`
+  — a dataset-card README with YAML front-matter, a `data/` layout the `datasets` library
+  resolves without a loader script — verified round-tripped by loading it back. **#2181 and
+  #1806 both frame the mechanism as PyArrow; that premise is superseded by the ratified
+  DuckDB-Parquet ruling Section A cites, not the goal itself** — the HF-dataset-ready OUTPUT
+  they ask for is unbuilt regardless of which library would produce it, and the existing
+  Parquet emitter (`export.duckdb-parquet-not-pyarrow`) is the correct foundation to build
+  this on, not a rewrite. Not built.
+- `export.epic-tracks-already-built-and-remaining-pieces` — **[GAP]** (#2178, the founding EPIC:
+  "11ty static site + PyArrow/JSONL→HuggingFace, one canonical source → two emitters") — same
+  PyArrow-premise correction as above for its HF half; its 11ty half and its "one canonical
+  source, two emitters" architecture claim are both already true (`export.eleventy-site-is-
+  buildable-and-portable`, `export.one-stream-feeds-every-record-emitter`) — cited there, not
+  duplicated. Kept as one line naming the whole, per the same discipline
+  `preview-image-editing.md`'s own EPIC-tracking behavior uses.
+- `export.preview-before-committing-to-a-file` — **[GAP]** (#2267) a WebKit preview of what an
+  export will produce, Tinderbox-style, before writing anything to disk. No such preview
+  surface was found anywhere under `Views/`. Not built.
+- `export.excel-is-wired-in-app` — **[GAP]** (#507) Excel export has no app call site at all —
+  confirmed by the same reading that grounds `export.app-wires-word-and-per-document-
+  markdown-only` above; the wiring gate's own allowlist reason for `/api/export/excel`
+  ("binary download via a direct authenticated URL, not the typed generated client") describes
+  a mechanism that isn't actually reachable from any Swift file this pass found. Not built.
+- `export.json-and-markdown-folder-are-wired-in-app` — **[GAP]** (#505) neither the JSONL
+  route nor the engine's structured `markdown-folder` emitter (assets + aggregated page text)
+  is reachable from the app — the app's own "Export as Markdown" is a DIFFERENT, client-side,
+  engine-independent quick-export of text the Reader already has loaded, not this route; see
+  `export.app-wires-word-and-per-document-markdown-only`'s own distinction. Not built.
+- `export.pdf-document-export` — **[GAP]** (#506, the PDF half — the Word half is
+  verify-close, below) no PDF export route exists anywhere in `export_service.py` or
+  `api/routes/ingest/export.py` — not merely unwired, genuinely not built at the engine level.
+
+### F. Verify-close — evidence posted, left OPEN, not closed here
+
+- **#470** ("Export: shared export infrastructure and router") — this is precisely
+  `export_service.py` + `api/routes/ingest/export.py` as they exist at HEAD: one shared record
+  stream, one router, seven typed emitters. Built.
+- **#1645** ("KG export endpoints: RDF ttl/jsonld/ntriples + W3C Web Annotations") — built:
+  `export.rdf-multi-format-with-named-jsonld-context` above is exactly this endpoint.
+- **#2180** ("Export (a): 11ty static-site emitter + shared export-serialization layer") —
+  built: `export_eleventy_site` consuming `iter_export_records` IS the shared serialization
+  layer this issue asks for.
+- **#506** (the WORD half only — see `export.pdf-document-export` above for the PDF half,
+  genuinely unbuilt) — Word export is built AND wired in the app, confirmed by
+  `scripts/check_ui_wiring.py`'s live run.
+
+### G. Waiting on a spec that does not exist: "Export → GitHub" publish
+
+Nine issues on #212 are one coherent sub-system this spec does NOT own: **#3184, #3182,
+#3180, #3179, #3178, #3177, #3176, #508, #476**. A three-line description of the spec they'd
+seed: **publishing an already-exported static site to a live, hosted destination (GitHub
+Pages or Netlify) as a managed, ongoing relationship** — connecting the repo/site via audited,
+device-flow OAuth actions; a round-trip-ready markdown export format with a front-matter
+contract and export manifest that a THREE-WAY REIMPORT merge can read back, applying edits
+through the same user-edit registry actions (grouped undo, provenance, ACL-audited); and the
+11ty scaffold plus a GitHub Pages Actions workflow generator that turns the static export into
+a buildable, deployable site. This is built ON TOP of `export.eleventy-site-is-buildable-and-
+portable` above, not a variant of it — publishing, reimporting, and keeping a live site in
+sync are a different, larger surface than producing an export file once.
+
+### H. Waiting on the maintainer's web-client decision
+
+Two issues are `fichero-web` architecture questions, not export behaviors at all: **#3123**
+(HttpOnly cookie session for iframe/media auth) and **#2899** (all engine access under a
+per-user token, writes via the audited action registry). Left in place per your framing —
+these wait on the maintainer's own web-client decision, not on a spec this fold would write.
+
+### I. Maintainer triage — no home found
+
+- **#1441** ("Wire 2 Export endpoints into SwiftUI") — doesn't name which two; #4873 (filed in
+  Pass 1) already tracks the concrete reachability-matrix gap this issue gestures at in
+  general terms. Left for the maintainer to decide whether this generic tracker still earns
+  its own line once #4873 lands.
+- **#2163** ("Bring in JSON + static-HTML export from ms/kg-hermeneutics — evaluate vs current
+  export_service") — asks for a comparison against a specific legacy prototype
+  (`ms/kg-hermeneutics`) that wasn't read this pass; not verifiable from the current tree
+  alone.
+
+**Milestones**: neither #14 (14 open) nor #212 (11 open) reaches zero. From #14: 9 issues fit
+and move onto #316 (#4640, #4069, #2181, #1806, #2267, #2178, #507, #506, #505 — eight
+behaviors, since #4069/#2181/#1806 share one); 2 stay as verify-close (#470, #1645); 2 stay
+waiting on the maintainer's web-client decision (#3123, #2899); 1 stays in triage (#1441).
+#14 retains 5. From #212: nothing moves — 1 stays verify-close (#2180), 9 stay waiting on the
+not-yet-written publish spec, 1 stays in triage (#2163). #212 retains all 11. Neither closed.

@@ -383,9 +383,12 @@ nav:
               - Provider API Keys: contributor_manual/specs/ai/provider-keys.md
           - Docs:
               - Docs Citations & Bibliography: contributor_manual/specs/docs/docs-citations-bibliography.md
+          - Export:
+              - Exporter: contributor_manual/specs/export/exporter.md
           - Importer:
               - Importer: contributor_manual/specs/importer/importer.md
           - Harness:
+              - Audited Action Layer: contributor_manual/specs/harness/audited-action-layer.md
               - Dev Orchestration Harness: contributor_manual/specs/harness/dev-orchestration-harness.md
               - Observable Data Layer: contributor_manual/specs/harness/observable-data-layer.md
               - Spec Pipeline: contributor_manual/specs/harness/spec-pipeline.md
@@ -393,6 +396,7 @@ nav:
               - Release & Versioning: contributor_manual/specs/harness/release-and-versioning.md
           - KG:
               - Archival Data Model: contributor_manual/specs/kg/archival-data-model-plan.md
+              - Hermeneutic Layer: contributor_manual/specs/kg/hermeneutic-layer.md
               - KG Enrichment, RDF & Linked Data: contributor_manual/specs/kg/kg-enrichment.md
               - KG Entity Inspector: contributor_manual/specs/kg/kg-entity-inspector.md
               - KG Interactions & Standards: contributor_manual/specs/kg/kg-interactions.md
@@ -409,17 +413,22 @@ nav:
           - UI:
               - About: contributor_manual/specs/ui/about.md
               - Automation: contributor_manual/specs/ui/automation.md
+              - Library View Modes: contributor_manual/specs/ui/library-view-modes.md
               - Menus & Commands: contributor_manual/specs/ui/menus-and-commands.md
               - Model / Provider Selector Consistency: contributor_manual/specs/ui/model-selector-consistency.md
               - Modes → Panes: contributor_manual/specs/ui/modes-to-panes.md
               - Panes & Workspaces: contributor_manual/specs/ui/panes-workspaces.md
+              - Preview Image Editing: contributor_manual/specs/ui/preview-image-editing.md
               - Preview Magnifier (Loupe): contributor_manual/specs/ui/preview-magnifier.md
+              - Preview Surface: contributor_manual/specs/ui/preview-surface.md
               - Reader Overlay Frame Identity: contributor_manual/specs/ui/reader-overlay-frame-identity.md
+              - Reader View: contributor_manual/specs/ui/reader-view.md
               - Reading Markup & Annotations: contributor_manual/specs/ui/reading-markup-annotations.md
               - Research: contributor_manual/specs/ui/research.md
               - Sidebar CRUD: contributor_manual/specs/ui/sidebar-crud.md
               - Workflow Node Config: contributor_manual/specs/ui/workflow-node-config.md
               - Workflows: contributor_manual/specs/ui/workflows.md
+              - Write Layer: contributor_manual/specs/ui/write-layer.md
       - Architecture Notes:
           - System Overview: contributor_manual/architecture/overview.md
           - Shared Vocabulary: contributor_manual/architecture/vocabulary.md
