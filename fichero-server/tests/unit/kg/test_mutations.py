@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import asyncio
 
+import pytest
+
 from fichero_server.models.knowledge import (
     EntityType,
     KnowledgeClaim,
@@ -155,3 +157,131 @@ class TestUndo:
         restored = db.get(KnowledgeClaim, claim.id)
         assert restored is not None
         assert restored.text == "Original text."
+
+
+class TestOneOperationHasOneUndo:
+    """audit.one-operation-has-one-undo (#4864): `undo_mutation` never
+    performs a PARTIAL restore of an operation the action layer owns and
+    can invert in full. Temp `db` fixture only (test_package), never a
+    real library."""
+
+    def test_refused_undo_changes_no_row_when_the_action_layer_owns_it(self, db):
+        """`entity.delete`'s inverse (`entity.restore`) would restore the
+        entity AND its claim's cleared entity link -- the OLD MutationLog
+        row `delete_entity_impl` also wrote can only ever restore the
+        entity row. The old route must refuse rather than do that half."""
+        from fastapi import HTTPException
+        from fichero_server.actions.registry import ActionContext, registry
+        from fichero_server.api.routes import kg_mutations
+
+        entity = KnowledgeEntity(canonical_name="Owned", entity_type=EntityType.person)
+        db.save(entity)
+        claim = KnowledgeClaim(
+            text="Owned witnessed a will.",
+            source_document_id="doc-1",
+            subject_entity_id=entity.id,
+            entity_ids=[entity.id],
+        )
+        db.save(claim)
+
+        ctx = ActionContext(actor="ui", library_path="/lib/test.fichero")
+        registry.invoke(
+            db, "entity.delete", {"entity_id": entity.id, "cascade_claims": False}, ctx
+        )
+        assert db.get(KnowledgeEntity, entity.id) is None
+
+        # The MutationLog row delete_entity_impl ALSO wrote, independent of
+        # the action layer's own ActionAudit.
+        log = next(
+            m
+            for m in db.all(MutationLog)
+            if m.entity_id == entity.id and m.operation == MutationOperationType.delete
+        )
+
+        with pytest.raises(HTTPException) as excinfo:
+            asyncio.run(kg_mutations.undo_mutation(log.id, db=db, actor="someone"))
+        assert excinfo.value.status_code == 409
+        assert "audited action" in excinfo.value.detail
+        assert "entity.delete" in excinfo.value.detail
+        assert "/api/actions/audit/" in excinfo.value.detail
+
+        # Refused -- changes NO row. The entity stays deleted (not
+        # half-restored), and the original MutationLog is untouched.
+        assert db.get(KnowledgeEntity, entity.id) is None
+        assert db.get(MutationLog, log.id).reversal_id is None
+        # The claim's cleared link stays cleared -- a partial restore would
+        # have left this claim in exactly the drift #4863 removed.
+        untouched_claim = db.get(KnowledgeClaim, claim.id)
+        assert untouched_claim.subject_entity_id is None
+        assert entity.id not in (untouched_claim.entity_ids or [])
+
+    def test_owned_operation_still_undoes_fully_through_the_action_layer_path(self, db):
+        """The narrowing changes nothing about the REAL undo: the action
+        layer's own inverse still restores the entity AND the claim's
+        cleared link, in one operation."""
+        from fichero_server.actions.registry import ActionContext, registry
+        from fichero_server.models import ActionAudit
+
+        entity = KnowledgeEntity(canonical_name="Owned2", entity_type=EntityType.person)
+        db.save(entity)
+        claim = KnowledgeClaim(
+            text="Owned2 witnessed a sale.",
+            source_document_id="doc-1",
+            subject_entity_id=entity.id,
+            entity_ids=[entity.id],
+        )
+        db.save(claim)
+
+        ctx = ActionContext(actor="ui", library_path="/lib/test.fichero")
+        delete_result = registry.invoke(
+            db, "entity.delete", {"entity_id": entity.id, "cascade_claims": False}, ctx
+        )
+        assert db.get(KnowledgeEntity, entity.id) is None
+        assert db.get(KnowledgeClaim, claim.id).subject_entity_id is None
+
+        # Drive undo the way the generic undo endpoint does (matches
+        # test_action_registry.py::TestEntityMergeAction::test_undo_reverses_merge):
+        # read the audit, ask the action for its inverse, invoke it.
+        audit = db.get(ActionAudit, delete_result.audit_id)
+        reg = registry.get(audit.action_name)
+        assert reg.undoable and reg.invert is not None
+        inverse = reg.invert(audit.before, audit.after, ctx)
+        assert inverse is not None
+        inv_name, inv_params = inverse
+        assert inv_name == "entity.restore"
+        registry.invoke(db, inv_name, inv_params, ctx)
+
+        restored_entity = db.get(KnowledgeEntity, entity.id)
+        assert restored_entity is not None
+        assert restored_entity.canonical_name == "Owned2"
+        restored_claim = db.get(KnowledgeClaim, claim.id)
+        assert restored_claim.subject_entity_id == entity.id
+        assert entity.id in (restored_claim.entity_ids or [])
+
+    def test_unowned_mutation_still_undoes_via_the_old_route(self, db):
+        """A MutationLog row with no matching, undoable ActionAudit (the
+        `_cascade_delete_kg_rows` shape: a claim deleted as a side effect
+        of deleting its DOCUMENT, never through `claim.delete`) keeps
+        today's behavior -- the old route is its only undo, and must still
+        work."""
+        from fichero_server.api.routes import kg_mutations
+
+        claim = KnowledgeClaim(text="Orphaned by a document delete.", source_document_id="doc-1")
+        db.save(claim)
+        log = MutationLog(
+            entity_type="KnowledgeClaim",
+            entity_id=claim.id,
+            operation=MutationOperationType.delete,
+            before_state=claim.model_dump(mode="json"),
+            after_state=None,
+            created_by="cascade_delete_document",
+        )
+        db.save(log)
+        db.delete(claim)
+        assert db.get(KnowledgeClaim, claim.id) is None
+
+        asyncio.run(kg_mutations.undo_mutation(log.id, db=db, actor="test-undo-actor"))
+
+        restored = db.get(KnowledgeClaim, claim.id)
+        assert restored is not None
+        assert restored.text == "Orphaned by a document delete."

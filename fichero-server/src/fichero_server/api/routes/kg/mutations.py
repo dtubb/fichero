@@ -72,6 +72,57 @@ class UndoResponse(BaseModel):
     restored_entity_id: str | None
 
 
+def _find_owning_action_audit(db: Database, log: "MutationLog"):
+    """The action layer OWNS a MutationLog row when a registered, undoable
+    action's own audit ALSO covered this exact entity (audit.one-operation-
+    has-one-undo, #4864): `undo_mutation` must never perform a PARTIAL
+    restore of state an owning action's real inverse would restore in
+    full — e.g. `entity.delete`'s inverse (`entity.restore`) restores the
+    entity AND its claims' snapshot; this route only ever restores the one
+    row named on the MutationLog entry.
+
+    Matched by entity id in ``ActionAudit.target_ids`` — the id space both
+    ``MutationLog.entity_id`` and ``ActionAudit.target_ids`` draw from —
+    never by ``entity_type``/``operation``, which COLLIDE: a cascade delete
+    from deleting a DOCUMENT (``documents.py::_cascade_delete_kg_rows``)
+    writes the exact same ``entity_type="KnowledgeClaim"``/
+    ``operation="delete"`` shape as a genuine ``claim.delete``, but never
+    goes through the registry at all, so it must keep today's behavior.
+
+    ``registry.invoke`` always runs the action's ``execute()`` (which is
+    where an impl function like ``delete_entity_impl`` writes ITS
+    MutationLog row) BEFORE it saves the ActionAudit (`registry.py`'s
+    ``invoke``: ``result, spec = reg.execute(...)`` then ``audit =
+    ActionAudit(...)``), so the matching audit for a given MutationLog row
+    is always created at or slightly AFTER it, in the same request. Bounded
+    to a generous 30s window so an unrelated, much older audit on the same
+    entity (e.g. a prior ``entity.patch``) can never be mistaken for the
+    audit that wrote THIS row.
+    """
+    from datetime import timedelta
+
+    from fichero_server.actions.registry import ActionNotFoundError, registry
+    from fichero_server.models import ActionAudit
+
+    candidates = db.query_json_list_intersects(
+        ActionAudit, "target_ids", [log.entity_id]
+    )
+    window = [
+        audit
+        for audit in candidates
+        if audit.created_at >= log.created_at
+        and audit.created_at - log.created_at <= timedelta(seconds=30)
+    ]
+    window.sort(key=lambda audit: audit.created_at)
+    for audit in window:
+        try:
+            if registry.get(audit.action_name).undoable:
+                return audit
+        except ActionNotFoundError:
+            continue
+    return None
+
+
 @router.post(
     "/{mutation_id}/undo",
     response_model=UndoResponse,
@@ -104,6 +155,26 @@ async def undo_mutation(
         raise HTTPException(
             status_code=400,
             detail="Cannot undo a create — call DELETE instead",
+        )
+
+    # audit.one-operation-has-one-undo (#4864): never a partial restore of
+    # an operation the action layer owns and can invert in full. Refuse
+    # loud (409, already a response code on this route), restore nothing,
+    # name the real undo endpoint.
+    # ponytail: ownership is matched by entity id plus a 30s window after the
+    # log row; store the audit id on MutationLog if that ever proves loose.
+    owning_audit = _find_owning_action_audit(db, log)
+    if owning_audit is not None:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"This change was made through the audited action "
+                f"'{owning_audit.action_name}', which has its own undo "
+                f"that restores everything the action changed. This route "
+                f"would restore only the {log.entity_type} row and silently "
+                f"leave the rest — undo it instead via "
+                f"POST /api/actions/audit/{owning_audit.id}/undo."
+            ),
         )
 
     # Materialise the before-state as the appropriate model and save.
