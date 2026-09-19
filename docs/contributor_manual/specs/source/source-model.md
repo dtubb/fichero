@@ -93,6 +93,27 @@ are the test.
   Pencil. SVG is an export format, and a web editor is not the plan. The field's web tools are
   surveyed for their ideas, not their code.
 
+- **It reaches the rest of Fichero.** Embeddings, the knowledge graph, content, the Reader and
+  workflows all work on segments (see "What stands on segments"). The Reader must be able to
+  show any script, language and reading direction.
+- **Models are described one way.** Every model Fichero can use (vision-language models, Apple
+  Vision, Kraken's baseline and reading models, layout detectors, spaCy pipelines, embedding
+  models) is described in one consistent way, the same in the app, over MCP and on the command
+  line: what it does, what it takes in, what it gives out, which languages, scripts and
+  periods it suits. Fichero can also look for good models where the field keeps them.
+- **Steps chain, and the chain is visible.** One model's output feeds the next (Kraken finds
+  the baselines; Apple Vision or a local model reads each line; another corrects it). How any
+  reading or pass came to be, step by step, can always be seen, and the chain is offered
+  through workflows and the workflow bar.
+- **A project sets itself up.** Language is no longer one setting for a whole library, and
+  neither are models. A project (palaeography here, twenty-first-century notes there) has its
+  own settings, reached through a short onboarding, with a default chain and best practice
+  chosen from its languages, scripts and period.
+- **A synced folder.** A project can be tied to a folder. Its outputs (the XML and the rest)
+  are written there and kept up to date as the work goes on.
+
+(The last four are specified in `models-chains-and-projects.md`, in preparation.)
+
 ### Open to what we do not know yet
 
 How the "open to what we do not know yet" ruling is met:
