@@ -170,7 +170,23 @@ often the wrong subject; not multilingual.
   showed until a later change-stream echo); the digest, the biography, and the row editor each
   splice that one returned claim in place, none reloads. Pinned: same four suites as
   `kg.read.edit-unit-is-the-claim` above.
-- `kg.read.sentence-opens-source-highlighted` — **[PARTIAL]** (#4834) BUILT in e71bb070b for the claim excerpt, the biography sentence, the digest sentences and the statement row (double-click and Open Source); NOT yet for claim cards, the Entities and Claims table rows or the graph tab, which still open the Reader. Pinned: `fichero/Tests/Unit/general/Views/Library/ClaimSourceLandingTests.swift` (suite `ClaimSourceLandingTests`). editing and source-reveal are two
+- `kg.read.sentence-opens-source-highlighted` — **[PARTIAL]** (#4834) BUILT in e71bb070b for
+  the claim excerpt, the biography sentence, the digest sentences and the statement row
+  (double-click and Open Source). **Extended in 82ae96b9b** to claim cards (the quote button,
+  the quick-look Reveal, and the card tap — all three share one path — plus the attestation
+  and corroboration rows) and the graph tab (the document's knowledge surface, the
+  force-directed graph's edge click, both web-pane coordinators) — all now reveal in both
+  panes without changing the selection. A "related document" row deliberately stays a plain
+  navigation (it picks a document, not a statement), and one display-only request on the
+  quick-look chip was deliberately left alone since changing it would do nothing. **Still NOT
+  built for table ROWS, and this is a design decision recorded, not an oversight**: a single
+  click on an Entities/Claims table row IS a selection and drives the open — unchanged,
+  because that's what a table row click means. The Claims table instead gained a "Reveal
+  Source" context-menu item that shows the evidence WITHOUT selecting; the Entities table gets
+  no equivalent, because an entity has many claims and many documents, so "its source" is not
+  one thing to reveal. Pinned: `ClaimSourceLandingTests` (file
+  `fichero/Tests/Unit/general/Views/Library/ClaimSourceLandingTests.swift`, suite
+  `ClaimSourceLandingTests`). editing and source-reveal are two
   SEPARATE gestures today (edit → `EditClaimSheet`; navigate → `ClaimSourceNavigationState`
   → `handleOpenClaimSource`, `ContentView+StateEvents.swift:397-446`). The ruling wants ONE
   gesture: open the claim editor AND reveal the highlighted source together.

@@ -164,21 +164,22 @@ Surfaces: `ViewDisplayMode` (`App/ViewDisplayMode.swift`), `LibraryView
   decision recorded because the library data wasn't yet in production use when the
   vocabulary settled. Pinned: `ViewDisplayModeTests.testLegacyRawValuesNoLongerDecode`,
   `ViewDisplayModeTests.testCanonicalRawValuesDecode`.
-- `library.modes.persists-until-changed` — **[BROKEN]** (#4575) the view mode is ONE choice
-  per window and must never change itself — ordinary folder navigation only RE-NORMALIZES the
-  current mode for availability (falls back only when the mode genuinely can't render the new
-  context), per the explicit 2026-08-09 ruling recorded at
-  `ContentView+StateEvents.swift:34-41` ("it changes views depending on the folder open... we
-  don't want that"), which itself superseded an earlier attempted fix for this same issue.
-  **Still a live, verified defect at HEAD**, independent of that ruling: selecting a sidebar
-  KG collection (Entities or Claims) unconditionally sets `viewDisplayMode = .list`
-  (`ContentView+StateEvents.swift:27`) — regardless of what the user had chosen (Icon, Table,
-  Canvas, anything) — with no way to opt out and no relationship to the per-folder-restore
-  case the 2026-08-09 ruling fixed. A user who was in Icon view and clicks into the sidebar's
-  Entities/Claims section, then back to an ordinary folder, finds their mode already changed
-  out from under them — reported as "reverted to column" (Table's older UI name), matching
-  the symptom exactly. No test pins this; flagged first in this pass's report because it may
-  be reproducible right now.
+- `library.modes.persists-until-changed` — **[PARTIAL]** (fixed ed67ec111; #4575 stays open
+  for the maintainer to confirm on screen) the view mode is ONE choice per window and must
+  never change itself — ordinary folder navigation only RE-NORMALIZES the current mode for
+  availability (falls back only when the mode genuinely can't render the new context), per the
+  explicit 2026-08-09 ruling recorded at `ContentView+StateEvents.swift:34-41`. **The
+  additional, verified live defect this pass found** — selecting a sidebar KG collection
+  (Entities or Claims) unconditionally set `viewDisplayMode = .list`, overriding whatever the
+  user had chosen, with no relationship to the per-folder-restore case the 2026-08-09 ruling
+  already fixed — is now fixed too: the line dated from when the Entities table was drawn
+  INSIDE `LibraryView` and only rendered in list mode; Entities and Claims are their own
+  content kind now and never read the mode, so the forcing line is gone and the mode is one
+  choice per window again, for BOTH triggers this behavior named. PARTIAL rather than OK: not
+  independently confirmed live by the maintainer yet. Pinned:
+  `DocumentStoreAndSidebarTypesTests.testEntityLibrarySelectionDoesNotForceDisplayMode` (file
+  `fichero/Tests/Unit/general/Models/DocumentStoreAndSidebarTypesTests.swift`, suite
+  `DocumentStoreAndSidebarTypesTests`).
 
 ### E. Icon mode (legacy milestone "Library View — Icons")
 

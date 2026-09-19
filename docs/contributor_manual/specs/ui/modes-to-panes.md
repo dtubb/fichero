@@ -397,6 +397,29 @@ fourth type.
   applying across view modes, not a per-mode display question, which is why it lives here
   rather than in `library-view-modes.md`. Not verified as built.
 
+### Node-row identity — a child row promotes ITS OWN node, not a composite id
+
+- `m2p.page-artifact-note-rows-promote-their-own-node` — **[PARTIAL]** (fixed 82ae96b9b; #4862
+  stays open for the maintainer to confirm on screen) a page, artifact, or note child row in
+  the browser selection promotes to ITS OWN node — never falls through to the generic
+  document-promotion path carrying a composite outline id, the same defect class
+  `kg.entity.focus-uses-the-bare-id` (`kg-entity-inspector.md`) fixed for entity/claim rows.
+  Fixed: a page row now resolves and promotes its own page Document by its bare item id
+  (pages ARE real Documents, nested only for disclosure); artifact and note rows are a safe
+  NO-OP at this handler — they already have a correct, richer resolution elsewhere
+  (`LibraryView+TableView.swift`'s own `.onChange(of: selection)`, which ContentView has no
+  access to reconstruct), so the fix is to stop them reaching the generic promotion path with
+  a composite id, not to re-derive their real handling here. **Found in the same audit, not
+  fixed here**: the identical composite-id class still reaches the workflow editor's crumbs,
+  the Reader's crumb drag payload and new-window paths, three artifact-lens sites, a few claim
+  card and PDF-toolbar sites, and a table helper that splits a node id on its FIRST colon
+  (rather than the last, right-to-left split `LibraryOutlineNode.parse(nodeId:)` uses
+  elsewhere) — named honestly as remaining, not implied closed. Pinned:
+  `EntityClaimSelectionClassifyTests.pageRowPromotesItsOwnPageViaBareId`,
+  `.artifactAndNoteRowsAreASafeNoOp` (file
+  `fichero/Tests/Unit/general/Views/Shell/EntityClaimSelectionClassifyTests.swift`, suite
+  `EntityClaimSelectionClassifyTests`).
+
 ## Migration — nine increments (0–8), each shippable, each with its pinning test
 
 Serial in one lane for `Nav`/`Detail`/`Plan` — they are touched repeatedly across

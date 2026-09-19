@@ -278,14 +278,29 @@ entities/claims), not a small demo table. What's missing:
 - `kg.view.pagination` [MISSING at 10k] (#4643) — the table loads up to 25 000 client-side; at
   10k+ push filter/scope to the list endpoint (`filter.pushdown`) and page, so memory and
   first-paint stay bounded.
-- `kg.view.filter-bar-at-bottom` — **[BROKEN]** (#4856) both tables' filter bar sits at the
-  BOTTOM, matching the Library pane's own filter placement, so all three agree. Verified
-  BROKEN at HEAD: `EntitiesLibraryContent.swift`'s `body` puts `filterBar` BEFORE
-  `EntitiesTableView` in its `VStack` (top of the stack); `ClaimsLibraryContent.swift` mirrors
-  it, `filterBar` before the claims table. **A fix is in flight, uncommitted in this tree**:
-  both files reorder to table-then-`filterBar`, using the existing `PaneFilterBar(placement:
-  .bottom)` mechanism the Library pane already uses — no new placement API, just the existing
-  one applied consistently. Not yet landed — retag once committed and tested.
+- `kg.view.filter-bar-at-bottom` — **[PARTIAL]** (implemented and tested, f47f4b60d; #4856
+  still open pending close) both tables' filter bar sits at the BOTTOM, matching the Library
+  pane's own filter placement, so all three agree. Verified at HEAD: both
+  `EntitiesLibraryContent.swift` and `ClaimsLibraryContent.swift` put their table BEFORE
+  `filterBar` in their `VStack`, using the existing `PaneFilterBar(placement: .bottom)`
+  mechanism the Library pane already uses — no new placement API. Pinned:
+  `KGTableFilterBarPlacementTests.testEntitiesTableFilterBarIsAfterTheTableNotBeforeIt`,
+  `.testClaimsTableFilterBarIsAfterTheTableNotBeforeIt`,
+  `.testBothTablesReuseThePaneFilterBarComponentAtBottomPlacement` (file
+  `fichero/Tests/Unit/general/Views/Library/KGTableFilterBarPlacementTests.swift`, suite
+  `KGTableFilterBarPlacementTests`).
+- `kg.tables.select-all-answers-from-the-visible-rows` — **[PARTIAL]** (fixed ed67ec111; #4851
+  stays open for the maintainer to confirm on screen) ⌘A in the Entities or Claims table
+  selects what the table actually SHOWS, from ONE owner of the command. Was BROKEN: the
+  Entities branch answered from a second, `LibraryView`-owned entity pipeline that had
+  drifted from what the table itself rendered (its own filter text and type, intersected with
+  the shared search); Claims had no branch at all. Fixed: both tables now report their visible
+  ids through `onVisibleIds` — the same shape the dataset modes already use — and
+  `selectAllIds` answers from those published ids, not a second computation. Pinned:
+  `SelectAllVisibleSurfaceTests.entitiesTablePublishesVisibleIds`,
+  `.claimsTablePublishesVisibleIds`, `.selectAllIdsUsesThePublishedTableIds` (file
+  `fichero/Tests/Unit/general/Views/Library/SelectAllVisibleSurfaceTests.swift`, suite
+  `SelectAllVisibleSurfaceTests`).
 
 ### Test coverage for scale — Swift + UX + backend + LOAD (all required)
 | Behavior | Backend (pytest) | Swift (unit) | UX (XCUITest) | Load/background (#4634) |

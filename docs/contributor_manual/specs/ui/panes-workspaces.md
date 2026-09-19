@@ -632,32 +632,44 @@ the browse→read flow down the centre.
   exclusively from `ResizableDivider`'s own drag handler. Pinned:
   `WorkspaceSplitStackSeedingTests` (an unseeded fraction re-resolves proportionally across two
   different totals; a real stored override still wins regardless of total).
-- `panes.split.peers-open-even` — **[BROKEN]** (#4849) the rule stated precisely: when a
-  horizontal split has 2, 3, or 4 SIBLING peer panes and the user has not yet dragged a
-  divider, the columns open EQUAL — each is 1/n of the row. A user's drag still wins
-  afterwards, same as `panes.split.fraction-not-seeded` above. A deliberately UNEQUAL built-in
-  layout (for example a narrow Library navigator beside wider content) is not a peer split and
-  keeps its own specified weights — the even rule is the default for PEERS, not a blanket
-  override of every split. Verified BROKEN: `PaneSpec.childExtents` (`PaneSpec.swift:382-404`)
-  seeds every non-last sibling from its own `paneFraction` (or a `0.4` fallback) and always
-  flexes only the LAST child — with three or four siblings the seeded fractions do not divide
-  the row evenly, so the flexing pane ends up a different width from the rest. Compounding it:
-  `WorkspaceSplitStack` persists at most TWO resizable/proportional child slots via
-  `@SceneStorage` (`WorkspaceSplitStack.swift:55-58`) — a third or fourth resizable sibling has
-  no slot and re-resolves fresh from its fraction every render rather than sharing the
-  persisted-drag benefit the first two get. Reported from maintainer testing: a four-pane row
-  opened as two narrow previews, one wider preview, and a wide reader — exactly this shape.
-- `panes.strip.fixed-extent-is-content-not-whole-pane` — **[BROKEN]** (#4848) a HARD-pinned
-  pane extent (`PaneConfig(paneExtent:)`) describes the visible CONTENT the user is meant to
-  see — a strip of page icons, say — not the whole pane including its own head and footer
-  chrome. Verified BROKEN: every built-in bottom Library strip is pinned at
-  `PaneConfig(libraryLayout: "icons", paneExtent: 72)` (`BuiltInWorkspaceLayout.swift:115, 137,
-  155`), and `PaneSpec.childExtents` (`PaneSpec.swift:382-404`) treats that `72` as the pane's
-  TOTAL extent — the pane head and footer bar together already use roughly that much, leaving
-  the icon strip itself almost no room. Fix direction: the fixed extent should describe the
-  icon strip's own content height, with the pane's actual extent computed as that content
-  height plus its head/footer chrome — not the reverse. Reported from maintainer testing: a
-  bottom-strip workspace showed only the pane head and footer bar, no page icons at all.
+- `panes.split.peers-open-even` — **[PARTIAL]** (fixed 0dc9adefa; #4849 stays open for the
+  maintainer to confirm on screen) the rule stated precisely: when a horizontal split has 2,
+  3, or 4 SIBLING peer panes and the user has not yet dragged a divider, the columns open
+  EQUAL — each is 1/n of the row. A user's drag still wins afterwards, same as
+  `panes.split.fraction-not-seeded` above. A deliberately UNEQUAL built-in layout (for example
+  a narrow Library navigator beside wider content) is not a peer split and keeps its own
+  specified weights — the even rule is the default for PEERS, not a blanket override of every
+  split. Fixed: siblings with no explicit fraction or extent are now identified as PEERS and
+  share what the explicit ones leave, evenly, for 2/3/4 peers alike, in a pure function tested
+  at each count; a deliberately weighted pane keeps its weight, and a stored drag still wins.
+  `WorkspaceSplitStack` gained a third stored divider slot so four peers have the three
+  resizable columns they need — additive, existing stored layouts read exactly as before. **Two
+  things recorded, not treated as follow-on bugs:** the Read workspace's top-level split had no
+  weight on either side and came out 40/60 under the old fallback; under the peer rule it is
+  now an even 50/50 (Read's own inner 0.4 split, and every other built-in, resolve unchanged).
+  And **a pin with MORE THAN ONE peer in the same split does NOT divide evenly** — a known,
+  tested limitation, not an oversight: the pin's own points aren't known at this position-only
+  sizing step, so its non-flexing peers divide the WHOLE total, not total-minus-pin. No
+  built-in layout hits this shape today. PARTIAL rather than OK for the same reason as the
+  strip-extent behavior above: verified against the sizing math, not a rendered pane. Pinned:
+  `WorkspaceSplitStackSizingTests.peersOfEveryCountOpenEqual`,
+  `.mixedSplitKeepsExplicitWeightAndSharesTheRest`,
+  `.pinnedSplitKeepsItsPointsAndItsOnePeerFlexesExactly`,
+  `.pinnedSplitWithMultiplePeersIsAKnownLimitation`, `.storedDragWinsOverPeerDefault`,
+  `.noPeersKeepsEveryExplicitPreference` (same file/suite as above).
+- `panes.strip.fixed-extent-is-content-not-whole-pane` — **[PARTIAL]** (fixed 0dc9adefa; #4848
+  stays open for the maintainer to confirm on screen) a HARD-pinned pane extent
+  (`PaneConfig(paneExtent:)`) describes the visible CONTENT the user is meant to see — a strip
+  of page icons, say — not the whole pane including its own head and footer chrome. Fixed:
+  `72` still means the visible icon strip, unchanged in the built-in layouts; the sizing layer
+  now adds the pane's own chrome on top, summed from the SAME metrics the pane head and mini
+  toolbar render at (no second magic number), scoped to Library leaves only. Stored drag state
+  is still ignored by this addition, as before. PARTIAL rather than OK: the commit's own note
+  says "not yet seen on screen: no preview render was possible" — the fix is verified against
+  the sizing math, not against a rendered pane. Pinned:
+  `WorkspaceSplitStackSizingTests.libraryStripExtentAddsChrome` (file
+  `fichero/Tests/Unit/general/Models/WorkspaceSplitStackSizingTests.swift`, suite
+  `WorkspaceSplitStackSizingTests`).
 - `panes.split.minimap` — **[GAP]** (#1932) a split pane can act as a minimap of another pane's
   content — especially the WebKit/KG graph view, where a small secondary pane shows an overview
   of the whole document/graph while the main pane is zoomed in. Splitting and side-by-side
@@ -1242,19 +1254,23 @@ Creative director, running the app (the one-renderer + old split/close wiring st
   hidden" survives that architecture, or whether the issue's 2026-06-08 framing predates it and
   needs re-scoping to "never auto-collapsed below a size threshold" specifically, is a real
   open question — reshaped, needs maintainer triage, not decided by this pass.
-- `panes.head.names-its-own-window` — **[BROKEN]** (#4860) a pane head names the library ITS
-  OWN window (or, once panes carry their own scope, its own pane) is showing — never an
-  app-wide pointer that any window could have last written. Verified at HEAD
-  (`git show HEAD:.../LibraryView+PaneHead.swift`): the root crumb is built from
-  `LibraryManager.shared.currentLibraryId` (`:63`, `:77`), a property on the app-wide manager
-  written by app-level events (initial window open, the File menu, AppleScript, one window
-  action) — never by a sidebar selection in a specific window. With two window tabs on
-  different libraries, the crumb shows whichever window wrote last, not the library that
-  window is actually displaying — the same singleton-pointer mistake
-  `kg.entity.focus-is-per-window` (`kg-entity-inspector.md`) fixes for entity focus, found the
-  same day. No fix in flight for this file as of this pass. A deliberate app-level use of
-  `currentLibraryId` (which library File > New targets) is out of scope for this behavior and
-  should stay explicit, not folded into the same fix.
+- `panes.head.names-its-own-window` — **[PARTIAL]** (fixed 82ae96b9b; #4860 stays open for the
+  maintainer to confirm on screen) a pane head names the library ITS OWN window (or, once
+  panes carry their own scope, its own pane) is showing — never an app-wide pointer that any
+  window could have last written. Was BROKEN: the root crumb and drag payload were built from
+  `LibraryManager.shared.currentLibraryId`, the app-wide manager's own property, so with two
+  window tabs on different libraries the crumb showed whichever window wrote last — the same
+  singleton-pointer mistake `kg.entity.focus-is-per-window` (`kg-entity-inspector.md`) fixed
+  for entity focus. Fixed: `LibraryView+PaneHead.swift`'s root crumb and drag payload now read
+  the WINDOW's own library. **Found in the same audit, not fixed here, named honestly as
+  remaining rather than implied closed**: the identical app-wide-pointer mistake still sits in
+  the workflow editor's crumbs, the Reader's crumb drag payload and new-window paths, three
+  artifact-lens sites, a few claim-card and PDF-toolbar sites, and an unused helper that
+  prefers the app-wide pointer. A deliberate app-level use of `currentLibraryId` (which
+  library File > New targets) stays explicit and out of scope, as before. Pinned:
+  `LibraryPaneHeadOwnWindowTests` (file
+  `fichero/Tests/Unit/general/Views/Library/LibraryPaneHeadOwnWindowTests.swift`, suite
+  `LibraryPaneHeadOwnWindowTests`; both cases, the breadcrumb root and the drag payload).
 
 - `panes.instance-safe` — **[FIXED 2026-09-15]** a workspace may mount more than one pane of the
   same kind in one window (Compare: two previews, two readers, two libraries). Applying it used to
