@@ -222,6 +222,22 @@ very engine spawn those tests exist to exercise.
   drive the real function with an injected slow sweep and assert it had finished when the
   decision was returned; a test of an extracted "await a, then b" helper would still pass
   with the await dropped at the call site.
+
+  **Tested, 2026-09-19 (cc3c977db).** `resolvePortConflict` now takes the sweep and the
+  transport mode as parameters defaulting to today's production values, so the REAL function
+  can be driven with no port or process calls; the default sweep is a named function,
+  `awaitedOrphanSweep`, because the original bug lived inside it (a detached task whose value
+  went unawaited). Three tests, exactly the shape this behavior called for: `PortConflictDecisionTests`'s
+  "does not return until the detached terminate() call has finished" (the regression itself —
+  drop the `.value` await and this fails), "a slow sweep has already finished by the time
+  resolvePortConflict returns .spawnOurs", and "the sweep runs exactly once per call." All three
+  executed through Xcode, passing. **Retag rule, since #4896 is still open**: this moves to OK
+  only when the maintainer (or whoever owns issue triage) closes #4896 — the same rule this
+  session applied everywhere a fix landed and was tested but its own tracking issue stayed open
+  (e.g. `search.zero-results-for-visible-text`/#4236,
+  `kg.tables.folder-scope-misses-subfolders`/#4885): PARTIAL names "built and tested, issue
+  still open," not "something is still broken in the code." Nothing further needs to change in
+  this behavior's own text for that retag — it is a triage action, not a code or test gap.
 - `engine.launch-path-never-blocks-main` — **[PARTIAL]** (implemented and tested, the fix
   commit's own tracking issue is closed; #3928 still open pending close) the port-clear poll,
   orphan-engine sweep, and
@@ -320,6 +336,14 @@ very engine spawn those tests exist to exercise.
   the source) has not been adopted. This is the one item in this milestone that most overlaps
   `transport-http-uds.md`'s territory — cited there, not duplicated as a competing claim; that
   spec's own maintainers should decide which spec's milestone eventually owns the fix.
+- `engine.embed-filelist-stays-current` — **[BROKEN]** (#4909) the manifest that tells Xcode's
+  Embed phase which engine sources to copy into the app must stay current with the real engine
+  tree — a source missing from it means edits to that file are silently never picked up by the
+  built app. A guardrail enforces this, `scripts/check_engine_embed_filelist.py`, and it is
+  currently RED: 19 engine sources are not listed (e.g. `wikidata_enrich.py`,
+  `local_model_catalog.py`), both dated 2026-09-06/07 — pre-existing staleness, not from this
+  week. *Test:* the guardrail itself; fix is `scripts/regen_engine_embed_filelist.py`, then
+  commit the result.
 
 ## Fold record for the 13 issues (Pass 2 — executed 2026-09-19)
 

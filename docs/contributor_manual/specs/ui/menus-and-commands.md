@@ -447,9 +447,14 @@ either way (shared components), but scope of the cross-platform tests depends on
   (`Focused*Button` / `*MenuItems`) is never re-authored as a raw `Button` on another surface.
   *Test:* extend `MenuTerminologyBoundaryTests` (source guardrail) to fail if e.g. `AddItemMenu`
   contains `Button("New Folder")` while `FocusedNewFolderButton` exists.
-- `menus.data-and-plus-agree` — **[PROPOSED]** the menu-bar "Data" menu and the toolbar "+" render
-  the same creation verbs from the same components. *Test:* assert both source sites reference the
-  identical `Focused*Button` set (source guardrail), the `ReaderExportFocusedValueTests` shape.
+- `menus.data-and-plus-agree` — **[BROKEN]** (#4903) the menu-bar "Data"/Knowledge menu and the
+  toolbar "+" should render the same creation verbs from the same components — and a guardrail
+  now actually enforces this, not just proposes it: `scripts/check_action_surface_matrix.py`
+  scans the real action surface and reports 14 live gaps today, including New Comparison, New
+  Folder, New Schedule, New Workflow (missing BOTH a menu item and a keyboard shortcut), and Run
+  Workflow on Selection (missing a menu item). Not traced to a specific commit — pre-existing.
+  *Test:* the guardrail itself; extend `MenuTerminologyBoundaryTests` (source guardrail) if a
+  finer-grained assertion is wanted, the `ReaderExportFocusedValueTests` shape.
 - `menus.natural-home` — **[PROPOSED]** appearance/layout only under View; Sort and Workspaces are
   NOT in the View dump. *Test:* a source/policy assertion on which sections `ViewMenuCommands`
   composes (it must not compose `SortSection`/`WorkspaceCommandsSection` once re-homed).

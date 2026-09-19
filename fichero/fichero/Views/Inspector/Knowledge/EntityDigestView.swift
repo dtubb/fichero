@@ -223,6 +223,16 @@ struct EntityDigestView: View {
 }
 
 /// The detailed digest for a single entity.
+///
+/// Split across four files (#4896: `type_body_length` 365/250, `file_length`
+/// 784/400) — this file keeps stored state, `body`, `headerSection`, and the
+/// shared `docName`/`sourceLabel` resolvers; `+Biography.swift`,
+/// `+AppearsIn.swift`, `+Provenance.swift` hold the rest `body` composes. A
+/// MOVE only, no behaviour change. `private` is file-scoped, not type-scoped,
+/// so every member ANY other file reaches had to drop it — rather than track
+/// that member by member, every stored/environment property here is internal
+/// as one rule (ContentView's/LibraryView's own convention); `entitySearchState`
+/// is the one exception, read only by `headerSection`, which stays here.
 struct EntityDigestContent: View {
     let entity: Components.Schemas.KnowledgeEntity
     let entityService: EntityService
@@ -231,38 +241,47 @@ struct EntityDigestContent: View {
     /// list, the artifacts pane, the source outline and the KG web pane write
     /// to. Claims were the only inspector surface that could not get back to
     /// the page; this makes them a producer on the existing seam rather than a
-    /// second addressing scheme.
+    /// second addressing scheme. Internal: read from Biography/AppearsIn/Provenance.
     @Environment(ClaimSourceNavigationState.self)
-    private var claimSourceNavigationState: ClaimSourceNavigationState?
+    var claimSourceNavigationState: ClaimSourceNavigationState?
 
     /// Per-window entity-search bus (#3437) — the digest's name, like the
     /// detail panel's (#882), leads to every source that mentions the entity
     /// (Daniel, 2026-09-04: "see all sources related to a particular
-    /// person"). Optional → safe no-op without a host.
+    /// person"). Optional → safe no-op without a host. Only `headerSection`
+    /// (this file) reads it — stays `private`.
     @Environment(EntitySearchState.self)
     private var entitySearchState: EntitySearchState?
 
     /// Optional on purpose: the digest renders in panes that may not carry
     /// the service (missing @Environment of a non-optional traps, #4513).
-    @Environment(DocumentService.self) private var documentService: DocumentService?
+    /// Internal: read from AppearsIn.
+    @Environment(DocumentService.self) var documentService: DocumentService?
 
     /// The observable data layer for claims (#3300). Optional for the same
     /// reason as `documentService`. The digest's statements load THROUGH this so
     /// an edit/merge/delete/curation change anywhere resyncs here without
     /// reselecting. (spec: kg-entity-inspector, kg.entity.statements.loads-via-store
-    /// + resyncs-on-change — F3)
-    @Environment(ClaimStore.self) private var claimStore: ClaimStore?
+    /// + resyncs-on-change — F3) Internal: read from `body` and Provenance.
+    @Environment(ClaimStore.self) var claimStore: ClaimStore?
 
-    @State private var claims: [Components.Schemas.KnowledgeClaim] = []
+    /// Internal: read/written from `body` plus Biography/Provenance.
+    @State var claims: [Components.Schemas.KnowledgeClaim] = []
     /// The DOCUMENTS this entity appears in (user, 2026-08-20: "tell me in
     /// the inspector at the bottom where I can find this person — the actual
     /// files"). Resolved from source_document_ids in ONE batched fetch.
-    @State private var appearsIn: [Document] = []
-    @State private var selectedAppearsRowId: String?
-    @State private var selectedClaimRowId: String?
-    @State private var isLoading = false
+    /// Internal: read/written from AppearsIn, read from this file's `docName`.
+    @State var appearsIn: [Document] = []
+    /// Internal: confined to AppearsIn (file-scoped `private` can't reach there).
+    @State var selectedAppearsRowId: String?
+    /// Internal: confined to Provenance.
+    @State var selectedClaimRowId: String?
+    /// Internal: read from `body`/Biography/AppearsIn/Provenance, written from
+    /// `body` and Provenance's `loadClaims`.
+    @State var isLoading = false
     /// The claim being edited from a biography sentence's "[Edit]" run (#4833).
-    @State private var editingBiographyClaimId: String?
+    /// Read/written only from the Biography extension file — internal.
+    @State var editingBiographyClaimId: String?
 
     var body: some View {
         ScrollView {
@@ -333,300 +352,14 @@ struct EntityDigestContent: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private var biographySection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Biography")
-                .font(.headline)
-                .padding(.bottom, 4)
-
-            if isLoading && claims.isEmpty {
-                ProgressView()
-            } else if claims.isEmpty {
-                Text("No claims available to reconstruct a biography.")
-                    .foregroundStyle(.secondary)
-                    .italic()
-            } else {
-                // Each sentence IS a claim, and a claim knows its page — so
-                // each sentence is a door (Daniel, 2026-09-04: "click on an
-                // SVO statement in the biography and be taken to the source
-                // … with the relevant passage highlighted"). Rendered as one
-                // prose run with per-sentence links so the paragraph still
-                // reads as a biography, not a list.
-                Text(biographyAttributed)
-                    .font(.body)
-                    .lineSpacing(6)
-                    .textSelection(.enabled)
-                    .environment(\.openURL, OpenURLAction { url in
-                        guard let claimId = url.host ?? url.pathComponents.dropFirst().first
-                        else { return .discarded }
-                        // #4833: the "[Edit]" run opens the same
-                        // InlineClaimEditor the row's context menu does — a
-                        // separate, explicit affordance from the sentence's
-                        // own reveal link.
-                        if url.scheme == Self.claimEditLinkScheme {
-                            guard claims.contains(where: { $0.id == claimId }) else { return .discarded }
-                            editingBiographyClaimId = claimId
-                            return .handled
-                        }
-                        guard url.scheme == Self.claimLinkScheme,
-                              let claim = claims.first(where: { $0.id == claimId }),
-                              // #4834 priority-2 surface: the biography
-                              // sentence IS the statement; both highlight
-                              // channels, selection unchanged.
-                              let request = ClaimSourceRequest.request(for: claim, destination: .both)
-                        else { return .discarded }
-                        claimSourceNavigationState?.request(request)
-                        return .handled
-                    })
-                    .popover(isPresented: Binding(
-                        get: { editingBiographyClaimId != nil },
-                        set: { if !$0 { editingBiographyClaimId = nil } }
-                    )) {
-                        if let claimId = editingBiographyClaimId,
-                           let claim = claims.first(where: { $0.id == claimId }) {
-                            InlineClaimEditor(
-                                claim: claim,
-                                onCancel: { editingBiographyClaimId = nil },
-                                onSave: { updated in
-                                    spliceUpdatedClaim(updated)
-                                    editingBiographyClaimId = nil
-                                }
-                            )
-                            .padding(8)
-                        }
-                    }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    /// Splice a `ClaimStore.patch`-returned claim into this view's own
-    /// `claims` — never a reload (#4833). `ClaimStore.patch` does not bump
-    /// `changeToken` (it already spliced the STORE'S copy), so the
-    /// `.onChange(of: claimStore?.changeToken)` resync above would not pick
-    /// this up on its own; this is the local half of the same splice.
-    private func spliceUpdatedClaim(_ updated: Components.Schemas.KnowledgeClaim) {
-        guard let id = updated.id, let index = claims.firstIndex(where: { $0.id == id }) else { return }
-        claims[index] = updated
-    }
-
-    /// Custom scheme for in-prose claim links; never leaves the view.
-    static let claimLinkScheme = "fichero-claim"
-
-    /// Custom scheme for the biography's per-sentence EDIT affordance
-    /// (#4833) — same shape as `KnowledgeGraphInspectorSection`'s digest:
-    /// a second, explicit link right after the sentence link, reachable by
-    /// the same native link-in-text keyboard/VoiceOver focus.
-    static let claimEditLinkScheme = "fichero-claim-edit"
-
-    /// The biography prose with each sentence carrying a link to its claim.
-    /// A claim with no id stays plain text — a link that goes nowhere is
-    /// worse than no link.
-    private var biographyAttributed: AttributedString {
-        let pairs = Self.biographySentences(claims: claims)
-        guard !pairs.isEmpty else {
-            return AttributedString("No biography data available.")
-        }
-        var prose = AttributedString()
-        var first = true
-        for (sentence, claim) in pairs {
-            if !first { prose += AttributedString(" ") }
-            first = false
-            var run = AttributedString(sentence)
-            // URLComponents, not a string-built URL: this is an INTERNAL link
-            // scheme for tappable prose, and the raw-networking guards ban
-            // string URL construction outright rather than guessing intent.
-            var linkParts = URLComponents()
-            linkParts.scheme = Self.claimLinkScheme
-            linkParts.host = claim.id
-            if claim.id != nil, let url = linkParts.url {
-                run.link = url
-                // Prose, not a wall of hyperlink-blue: keep body color and
-                // mark tappability with a subtle underline.
-                run.foregroundColor = .primary
-                run.underlineStyle = .single
-            }
-            prose += run
-            // A sentence more than one extraction agrees on says so, in the
-            // prose, quietly — corroboration is stored on the claim and was
-            // shown nowhere the biography reader could see it (#4672).
-            if let count = Self.corroborationCount(of: claim), count > 0 {
-                // Same number the provenance badge shows ("\(count)x
-                // corroborated") — two surfaces, one figure.
-                var marker = AttributedString(" ×\(count)")
-                marker.foregroundColor = .secondary
-                prose += marker
-            }
-            // #4833: the edit affordance, one per sentence — plain text
-            // ("[Edit]"), not a bare glyph, so VoiceOver reads it as "Edit"
-            // rather than the character's own name.
-            if let claimId = claim.id {
-                var editLinkParts = URLComponents()
-                editLinkParts.scheme = Self.claimEditLinkScheme
-                editLinkParts.host = claimId
-                if let editURL = editLinkParts.url {
-                    var editRun = AttributedString(" [Edit]")
-                    editRun.link = editURL
-                    editRun.foregroundColor = .secondary
-                    editRun.underlineStyle = .single
-                    prose += editRun
-                }
-            }
-        }
-        return prose
-    }
-
-    /// How many OTHER extractions corroborate this claim (`also_extracted_by`
-    /// rows counted at write time). Mirrors the provenance badge's read so
-    /// the two surfaces cannot disagree about the same number.
-    static func corroborationCount(
-        of claim: Components.Schemas.KnowledgeClaim
-    ) -> Int? {
-        guard let metadata = claim.metadata?.additionalProperties.value else { return nil }
-        return metadata["corroboration_count"] as? Int
-            ?? Int(metadata["corroboration_count"] as? String ?? "")
-            ?? metadata["corroborationCount"] as? Int
-            ?? Int(metadata["corroborationCount"] as? String ?? "")
-    }
-
-    private var appearsInSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(appearsIn.isEmpty ? "Appears In" : "Appears In (\(appearsIn.count))")
-                .font(.headline)
-                .padding(.bottom, 4)
-
-            if appearsIn.isEmpty {
-                Text(isLoading ? " " : "No source documents recorded.")
-                    .foregroundStyle(.secondary)
-                    .italic()
-            } else {
-                // Real rows: select to reveal in the reading surface via the
-                // SAME source cursor claims use; drag out as plain text ids
-                // for now (full library-drag payload is queued).
-                List(selection: $selectedAppearsRowId) {
-                    ForEach(appearsIn) { doc in
-                        HStack(spacing: 8) {
-                            Image(systemName: doc.docType == .folder ? "folder" : "doc.text.image")
-                                .foregroundStyle(.secondary)
-                            // Not `doc.name` (#4416): a page child's name is
-                            // the engine's upload temp file — compose the
-                            // display title like every other surface.
-                            Text(docName(for: doc.id))
-                                .lineLimit(1)
-                            Spacer()
-                        }
-                        .tag(doc.id)
-                        .draggable(doc.id)
-                    }
-                }
-                .listStyle(.inset)
-                .scrollContentBackground(.hidden)
-                .frame(minHeight: 80, maxHeight: 280)
-                .onChange(of: selectedAppearsRowId) { _, newSelection in
-                    guard let newSelection else { return }
-                    // #4834: a document pick, not a statement click — `.reader` stated explicitly.
-                    claimSourceNavigationState?.request(
-                        ClaimSourceNavigationRequest(documentId: newSelection, destination: .reader)
-                    )
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private func loadAppearsIn() async {
-        let ids = entity.sourceDocumentIds ?? []
-        guard !ids.isEmpty, let documentService else {
-            appearsIn = []
-            return
-        }
-        appearsIn = (try? await documentService.getDocuments(ids: ids)) ?? []
-    }
-
-    private var provenanceSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Source Annotations")
-                .font(.headline)
-                .padding(.bottom, 4)
-
-            let state = Self.statementsState(isLoading: isLoading, isEmpty: claims.isEmpty)
-            if state == .loading {
-                ProgressView()
-            } else if state == .empty {
-                Text("No statements about \(entity.canonicalName) yet.")
-                    .foregroundStyle(.secondary)
-            } else {
-                let grouped = Dictionary(grouping: claims, by: { $0.sourceDocumentId ?? "" })
-                let sortedDocIds = grouped.keys.sorted()
-
-                // Single-selection List with STABLE, non-optional tags. The old
-                // `.tag(claim.id)` was `String?` while the selection was
-                // `Set<String>` — the type mismatch collapsed identity so
-                // clicking one row highlighted them all. A `String?` selection
-                // matched by non-optional `String` tags fixes it, and
-                // `inspectorListRowTarget()` makes the whole row the hit target.
-                List(selection: $selectedClaimRowId) {
-                    ForEach(sortedDocIds, id: \.self) { docId in
-                        Section(header: Label(docName(for: docId), systemImage: "doc.text")) {
-                            ForEach(Array((grouped[docId] ?? []).enumerated()), id: \.offset) { index, claim in
-                                provenanceRow(claim)
-                                    .inspectorListRowTarget()
-                                    .tag(claim.id ?? "\(docId)#\(index)")
-                                    .listRowSeparator(.hidden)
-                            }
-                        }
-                    }
-                }
-                .listStyle(.inset)
-                .scrollContentBackground(.hidden)
-                .frame(minHeight: 160, maxHeight: 520)
-                // Selecting a claim reveals its source (#4393 part 2), through
-                // the SAME cursor the outline, annotations and artifacts use —
-                // mirroring `SourceOutlineView`'s shape exactly. A claim with
-                // no recorded span still navigates to its page; it just does
-                // not draw a highlight, because a confidently wrong one over a
-                // manuscript is worse than none.
-                .onChange(of: selectedClaimRowId) { _, newSelection in
-                    guard let newSelection,
-                          let claim = claims.first(where: { $0.id == newSelection }),
-                          // #4834: this list mirrors SourceOutlineView's
-                          // shape (its own comment above) — a provenance ROW
-                          // selection, not the biography sentence named as
-                          // priority-2; `.reader` stated explicitly.
-                          let request = ClaimSourceRequest.request(for: claim, destination: .reader) else { return }
-                    claimSourceNavigationState?.request(request)
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private func provenanceRow(_ claim: Components.Schemas.KnowledgeClaim) -> some View {
-        let summary = provenanceSummary(for: claim)
-        let badge = provenanceBadgeLabel(for: claim)
-
-        return HStack(alignment: .firstTextBaseline, spacing: 10) {
-            Text(summary)
-                .font(.body)
-                .textSelection(.enabled)
-                .lineLimit(2)
-
-            Spacer(minLength: 8)
-
-            Text(badge)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-        }
-        .padding(.vertical, 2)
-    }
-
     /// Human-readable name for a source document id, for the "Appears In" and
     /// "Source Annotations" sections. The window's stores come from the library
     /// that owns this digest's `entityService` (#4461), not `globalLibrary` —
     /// reaching for global was the #4306 shape: a non-global document is absent
     /// from the global store, so a source name degraded to a raw hash id.
-    private func docName(for docId: String) -> String {
+    /// Internal, not private — called from both the AppearsIn and Provenance
+    /// extension files (see type doc above).
+    func docName(for docId: String) -> String {
         let storeDocs: [Document] = LibraryManager.shared
             .library(owningService: entityService)
             .map { $0.documentStore.currentDocuments
@@ -663,122 +396,5 @@ struct EntityDigestContent: View {
         // The source document isn't loaded anywhere — a short, honest placeholder,
         // never the raw hash.
         return "Source \(docId.prefix(8))…"
-    }
-
-    /// The entity this digest is showing, which every claim below is grouped
-    /// under — so its name is redundant on each row (#4393).
-    ///
-    /// Read from `entity`, this view's own input. The first attempt reached for
-    /// `selectedEntityId` / `entities`, which are `@State` on
-    /// `EntityDigestView` — a DIFFERENT type in the same file. One file, two
-    /// views, and the properties looked ambient because they were a few
-    /// hundred lines up.
-    private var groupSubject: String? { entity.canonicalName }
-
-    private func provenanceSummary(for claim: Components.Schemas.KnowledgeClaim) -> String {
-        let svo = ClaimSummaryCard.svoTriple(for: claim)
-        return ClaimLine.text(
-            subject: svo?.subject,
-            verb: svo?.verb,
-            object: svo?.object,
-            fallback: claim.text,
-            groupSubject: groupSubject
-        )
-    }
-
-    private func provenanceBadgeLabel(for claim: Components.Schemas.KnowledgeClaim) -> String {
-        let metadata = claim.metadata?.additionalProperties.value ?? [:]
-        let raw = (
-            claim.confidenceSource
-            ?? metadata["confidence_source"] as? String
-            ?? metadata["confidenceSource"] as? String
-        )?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-
-        switch raw {
-        case "human_review", "human", "manual", "user", "curator", "editor", "researcher":
-            return "Human"
-        case "llm_logprob", "llm", "ai", "agent":
-            return "Llm"
-        case "heuristic", "default", "corroboration":
-            return "Heuristic"
-        case let value? where !value.isEmpty:
-            return value.replacingOccurrences(of: "_", with: " ").capitalized
-        default:
-            return "Heuristic"
-        }
-    }
-
-    /// The per-sentence pairing behind the prose — static so the mapping is
-    /// testable without mounting the view. One sentence per claim with a
-    /// COMPLETE SVO triple; claims without one are skipped, not padded and
-    /// never given a guessed subject (#4835).
-    static func biographySentences(
-        claims: [Components.Schemas.KnowledgeClaim]
-    ) -> [(sentence: String, claim: Components.Schemas.KnowledgeClaim)] {
-        var pairs: [(String, Components.Schemas.KnowledgeClaim)] = []
-        for claim in claims {
-            // #4835: the claim's OWN subject, never the page entity's name —
-            // `ClaimSummaryCard.svoTriple(for:)` is the SAME resolver
-            // `provenanceSummary` (this file, a few hundred lines up) already
-            // uses for this exact screen; one source of truth, not a second
-            // resolver. It requires a COMPLETE triple (subject/verb/object
-            // all present, neither subject nor object an opaque id) — a claim
-            // missing any of the three is skipped rather than rendered with a
-            // guessed subject (a pronoun, or the page entity's name). Re-centring
-            // (the page entity becomes the subject via a verb's inverse-table
-            // entry) is a later, engine-side plan step, not this one.
-            guard let svo = ClaimSummaryCard.svoTriple(for: claim) else { continue }
-
-            // No bracketed citation (#4393). It was built from the STORAGE
-            // filename and looked up only in `currentDocuments`, so it printed
-            // an internal identifier AND vanished non-deterministically when
-            // that document was not loaded — a citation that changes depending
-            // on what else is on screen is worse than none. Provenance belongs
-            // on the row, where it can be navigated to.
-            pairs.append(("\(svo.subject) \(svo.verb) \(svo.object).", claim))
-        }
-        return pairs
-    }
-
-    private var composedBiography: String {
-        let sentences = Self.biographySentences(claims: claims).map(\.sentence)
-        return sentences.isEmpty ? "No biography data available." : sentences.joined(separator: " ")
-    }
-
-    /// The statements list's state — pure so the empty/loading/list rule is
-    /// testable without a rendered view. An empty result while loading shows the
-    /// spinner (never the previous entity's rows); an empty result once loaded
-    /// shows the entity-named "no statements" line. (A load error currently reads
-    /// as `empty` — ClaimStore surfaces no error yet; `empty.load-error` is a
-    /// bounded follow-up.) (spec: kg-entity-inspector, kg.entity.empty.no-claims)
-    enum StatementsState: Equatable { case loading, empty, list }
-
-    static func statementsState(isLoading: Bool, isEmpty: Bool) -> StatementsState {
-        if isEmpty { return isLoading ? .loading : .empty }
-        return .list
-    }
-
-    private func loadClaims() async {
-        isLoading = true
-        defer { isLoading = false }
-        guard let entityId = entity.id else {
-            claims = []
-            selectedClaimRowId = nil
-            return
-        }
-        // Route through the observable data layer (#3300) so a mutation anywhere
-        // resyncs here; fall back to a direct fetch only when no store is in the
-        // environment (the digest also renders in panes that don't carry it).
-        if let claimStore {
-            await claimStore.loadClaims(forEntity: entityId, force: true)
-            claims = claimStore.claims
-        } else {
-            do {
-                claims = try await entityService.listClaims(entityId: entityId, limit: 500)
-            } catch {
-                claims = []
-            }
-        }
-        selectedClaimRowId = nil
     }
 }

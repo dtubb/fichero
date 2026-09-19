@@ -59,6 +59,27 @@ class TestClaimEmbedAction:
     def test_non_undoable_declared_honestly(self, db):
         assert registry.get("claim.embed").undoable is False
 
+    def test_empty_short_circuits_without_calling_the_embedder(self, db, monkeypatch):
+        """#4831 batch 3 (8e06dc31d): the "nothing to embed -> embedded=0"
+        short-circuit moved from the route into THIS action body. Prove it
+        lives here now: no claims in the library, the sync embedder is
+        never called, and the action still returns embedded=0 with a real
+        audit row (not a route-level early return that skips the registry
+        entirely)."""
+        monkeypatch.setattr(
+            "fichero_server.api.routes.kg.claim_search._embed_claims_sync",
+            lambda db, claims: (_ for _ in ()).throw(
+                AssertionError("the embedder must not be called with nothing to embed")
+            ),
+        )
+
+        result = registry.invoke(db, "claim.embed", {}, _ctx(actor="alice"))
+
+        assert result.result["embedded"] == 0
+        audit = db.get(ActionAudit, result.audit_id)
+        assert audit.action_name == "claim.embed"
+        assert audit.actor == "alice"
+
 
 class TestEntityEmbedAction:
     def test_effect_and_audit_with_real_actor(self, db, monkeypatch):
@@ -83,6 +104,23 @@ class TestEntityEmbedAction:
 
     def test_non_undoable_declared_honestly(self, db):
         assert registry.get("entity.embed").undoable is False
+
+    def test_empty_short_circuits_without_calling_the_embedder(self, db, monkeypatch):
+        """See TestClaimEmbedAction's sibling test -- same correction,
+        entity.embed side."""
+        monkeypatch.setattr(
+            "fichero_server.api.routes.kg.entity_curation._embed_entities_sync",
+            lambda db, entities: (_ for _ in ()).throw(
+                AssertionError("the embedder must not be called with nothing to embed")
+            ),
+        )
+
+        result = registry.invoke(db, "entity.embed", {}, _ctx(actor="bob"))
+
+        assert result.result["embedded"] == 0
+        audit = db.get(ActionAudit, result.audit_id)
+        assert audit.action_name == "entity.embed"
+        assert audit.actor == "bob"
 
 
 class TestSetExternalAuthorityEnabledAction:

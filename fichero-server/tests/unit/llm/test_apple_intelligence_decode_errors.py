@@ -270,8 +270,32 @@ def test_system_model_missing_is_typed_and_routes_to_the_fallback():
     )
 
 
-def test_an_ordinary_generation_error_is_still_generic():
-    """The new kind must not swallow real generation failures."""
+def test_an_ordinary_generation_error_promotes_to_apple_unavailable():
+    """CORRECTED: this test was added 2026-09-05 already asserting the
+    opposite of intentional, already-4-months-old behavior -- "generation"
+    has been in `_raise_from_bridge_stderr`'s promoted-kinds set since the
+    mechanism's own origin commit (3441b24ae, 2026-05-12, #949/#962); it was
+    never a "new kind" this test needed to guard against.
+
+    Verified this is not a silent cross-provider substitution before
+    flipping the assertion (the maintainer's "prefer raise over silent
+    fallback" concern): `AppleUnavailableError` is caught in exactly ONE
+    place in the whole codebase, `chat_structured_with_fallback`
+    (fichero_server/llm/__init__.py). Its own docstring states the
+    $medium->$large tier ladder was REMOVED on Daniel's 2026-09-07 ruling
+    ("get rid of fallback ladders, fail loudly"); what remains for
+    `kind="generation"` (in `StructuredDecodeError.RETRYABLE_KINDS`) is ONE
+    same-model on-device retry, logged via `logger.warning`, and a loud
+    `raise` of the SAME exception if that retry also fails -- never a
+    different provider or model. Promoting "generation" here does not
+    substitute anything silently; it only makes a transient decode miss
+    worth one same-model retry, which is the documented intent.
+
+    (The `StructuredDecodeError` class's own docstring is now stale in one
+    respect -- it still describes the pre-2026-09-07 "escape to $large"
+    ladder that no longer exists -- but that is a comment fix under
+    fichero-server/src/, out of scope for this test-files-only delivery.)
+    """
     import json as _json
 
     from fichero_server.llm import AppleUnavailableError, _raise_from_bridge_stderr
@@ -279,4 +303,4 @@ def test_an_ordinary_generation_error_is_still_generic():
     stderr = _json.dumps({"kind": "generation", "error": "boom"}).encode()
     with pytest.raises(RuntimeError) as caught:
         _raise_from_bridge_stderr(stderr, 1)
-    assert not isinstance(caught.value, AppleUnavailableError)
+    assert isinstance(caught.value, AppleUnavailableError)

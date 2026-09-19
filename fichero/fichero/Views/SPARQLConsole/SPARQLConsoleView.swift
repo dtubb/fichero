@@ -163,3 +163,10 @@ struct SPARQLConsoleView: View {
         }
     }
 }
+
+#Preview("SPARQL Console (no store — the degrade path)") {
+    // `store` is optional by design (#4703 house rule), so the cheap
+    // RenderPreview layer renders correctly with NO KGQueryStore injected —
+    // the same "unavailable" state a scene that failed to inject one shows.
+    SPARQLConsoleView()
+}

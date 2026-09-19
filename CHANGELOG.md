@@ -23,7 +23,11 @@ obvious list; merging two entities now moves a claim's speaker, subject-of-inqui
 editor to the survivor too, and unmerging moves each back (#4859, #4863). An interpretation's
 recorded author is the real actor now, not a name the client happened to send (#4857, #4858).
 Visiting the Entities or Claims table no longer forces the window into list view, and Select All
-now selects what the table actually shows (#4575, #4851, #4794).
+now selects what the table actually shows (#4575, #4851, #4794). A folder that holds only
+subfolders now shows its whole subtree of entities in the Entities table, the same as the
+Inspector already did for that folder — the table now scopes through the same route the
+Inspector uses instead of collecting only direct child documents (#4885). Built and tested;
+not yet seen on screen.
 
 **Workflows.** Selecting a workflow by clicking its row in the Library now opens its editor in
 place — canvas and run log, no mode flip, no double-click — through one "effective workflow"
@@ -47,6 +51,15 @@ so a later change to your defaults is picked up automatically (#4883). Not yet s
 Still open: what a row shows, how the document island offers role defaults, and what Settings'
 own row should look like.
 
+**Search.** A page that isn't indexed yet no longer vanishes from search results just because
+another, already-indexed page happens to match the same word — the raw-text fallback used to run
+only when the WHOLE result set came back empty, so one unrelated hit anywhere would hide a
+freshly-imported, not-yet-embedded page even though the Inspector was showing its text at that
+exact moment. The fallback now covers exactly the documents the index doesn't cover, at a
+measured, bounded cost (a per-library cache of which documents are embedded, invalidated at every
+embedding write) (#4236). Built and tested; needs an engine restart to take effect, and not yet
+confirmed against a real library.
+
 **Segmentation and Kraken.** Kraken can now segment a single page of a PDF — it used to refuse
 every PDF page outright, while Apple Vision handled the same page fine (#4892). A finished
 workflow run now announces the artifacts it saved, so a segmentation overlay can refresh itself
@@ -68,7 +81,12 @@ crashing the whole test host. Several data stores (claims, interpretations, note
 artifacts) now update the one changed item in place instead of reloading their whole list on
 every save — a guardrail scans every store's mutating methods for this and tracks what is left
 to fix as a shrinking, named debt list, not a vague someday. `start_backend.sh --uds` now
-defaults to the same container socket path the Dev Local scheme dials.
+defaults to the same container socket path the Dev Local scheme dials. The launch-time fix that
+makes the orphan-engine sweep finish before the app decides to spawn its own now has real tests
+driving the actual function with an injected slow sweep, closing the one case in this whole batch
+that shipped completely untested; a spec-led audit found seven more fixes, across launch
+stability and the model pickers, that still ship with no automated test at all, and wrote up, for
+each one, exactly what a test would need to do to catch a regression.
 
 **Specs and milestones.** A months-long backlog of legacy GitHub milestones with no owning spec
 is being worked down one at a time: each one's open issues are read fresh against today's code,

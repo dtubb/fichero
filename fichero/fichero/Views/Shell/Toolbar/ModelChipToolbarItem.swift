@@ -200,6 +200,12 @@ struct ModelChipToolbarItem: View {
     // expression's metadata trivial.
     private var modelPicker: some View {
         VStack(alignment: .leading, spacing: 0) {
+            // #4902 native-controls guardrail considered List here and did NOT
+            // convert: this is exactly the case the existing KNOWN_VIOLATIONS
+            // entry documents — "List chrome misbehaves in popovers and the
+            // concrete-row perf fix (333ms stall) depends on this structure."
+            // Re-baselined below (SharedModelRow's 2026-09-17 swap moved the
+            // hash; the reason is unchanged).
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     if pickableModels.isEmpty {

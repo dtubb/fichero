@@ -172,6 +172,23 @@ extension EmbeddedBackendService {
         }
     }
 
+    /// The orphan sweep as ITS OWN named, awaited seam (#4896, spec:
+    /// `engine.orphan-sweep-precedes-spawn-decision`). f9a737d5f's regression
+    /// (ed436c69a) was not "the call site forgot to await" in the abstract —
+    /// it was this exact `.value` dropped from this exact detached-task await.
+    /// Naming the seam means a future edit has to touch a function whose only
+    /// job is "await the kill enumeration", not an inline expression buried in
+    /// `resolvePortConflict`'s default argument. `terminate` is injectable so a
+    /// test can prove the AWAIT itself — not just that some sweep was called —
+    /// without a real pgrep/ps/kill enumeration.
+    nonisolated static func awaitedOrphanSweep(
+        terminate: @escaping @Sendable () -> Void = { EmbeddedBackendService.terminateOrphanEngines() }
+    ) async {
+        await Task.detached(priority: .userInitiated) {
+            terminate()
+        }.value
+    }
+
     /// Read the `FICHERO_PARENT_PID` recorded in a candidate engine's
     /// environment (set by `launchEmbeddedBackend` on spawn). `ps -E` appends a
     /// process's environment to its command-line output, so we can recover the
@@ -327,7 +344,21 @@ extension EmbeddedBackendService {
     // this consumes it exactly once. Never silently adopts or silently kills.
     // Promoted from `private` to internal: called by spawnAndAdoptEmbeddedEngine
     // in the Lifecycle extension file.
-    func resolvePortConflict() async throws -> PortResolution {
+    /// - Parameters:
+    ///   - sweep: The orphan-engine sweep, injectable so a test can prove the
+    ///     ORDER (sweep completes before a spawn decision is returned) without
+    ///     a real pgrep/ps/kill enumeration. Defaults to the production sweep,
+    ///     unchanged for every real caller (#4896, spec:
+    ///     `engine.orphan-sweep-precedes-spawn-decision`).
+    ///   - transportMode: The transport the port pre-flight checks against.
+    ///     Defaults to the real ambient `EngineConfig.transportMode`; injectable
+    ///     so a test can pick a mode where the pre-flight doesn't apply (`.uds`,
+    ///     `.inMemory`) and so exercise the sweep-ordering guarantee with no
+    ///     port/pid syscalls at all.
+    func resolvePortConflict(
+        sweep: () async -> Void = { await EmbeddedBackendService.awaitedOrphanSweep() },
+        transportMode: TransportMode = EngineConfig.transportMode
+    ) async throws -> PortResolution {
         #if FICHERO_APP_STORE
         // App Sandbox (#3749): we manage ONLY our own child. There is no orphan
         // sweep, no holder PID and no kill, for two independent reasons:
@@ -344,7 +375,7 @@ extension EmbeddedBackendService {
         // #4400, and MAS is where the dead end was worst: no holder PID means
         // no "Stop it", so Quit was the only way out of the adopt-then-time-out
         // loop. No sweep to preserve here, so this guard is the whole pre-flight.
-        guard Self.portPreflightApplies(transportMode: EngineConfig.transportMode) else {
+        guard Self.portPreflightApplies(transportMode: transportMode) else {
             return .spawnOurs
         }
         guard Self.portIsAcceptingConnections(8765) else { return .spawnOurs }
@@ -370,11 +401,9 @@ extension EmbeddedBackendService {
         // while none of ours exists yet. Briefly made fire-and-forget, it
         // could land after our own spawn and SIGTERM the engine we just
         // started. The pgrep+ps round trip is not in the measured launch cost.
-        await Task.detached(priority: .userInitiated) {
-            Self.terminateOrphanEngines()
-        }.value
+        await sweep()
         // Below here is all about 8765, which a UDS engine never binds.
-        guard Self.portPreflightApplies(transportMode: EngineConfig.transportMode) else {
+        guard Self.portPreflightApplies(transportMode: transportMode) else {
             return .spawnOurs
         }
         await Self.waitForPortToClear(8765, timeout: 3.0)

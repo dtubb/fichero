@@ -154,6 +154,20 @@ else
 fi
 TAG="v${VERSION}"
 
+# ── Sparkle update pre-publish readiness (#4901) ─────────────────────────────
+# Fails the release (set -e) before signing/publishing anything if the new
+# build can't actually reach a user: not strictly greater than the live
+# feed's current maximum, already present in the feed, or a feed-URL
+# mismatch. Historical facts already in the feed (duplicate listings, past
+# collisions) are printed as warnings and do not fail this step.
+if [ "$DRY_RUN" = false ]; then
+  echo "Sparkle update pre-publish readiness check (#4901)"
+  "$ROOT_DIR/scripts/check_sparkle_update_ready.py" \
+    --app "$VERSION_APP_PATH" \
+    --dmg "$DMG_PATH" \
+    --feed-url "$APPCAST_URL"
+fi
+
 # ── Release notes for this version (Sparkle "What's New") ───────────────────
 # One source of truth: the `## <VERSION>` section of RELEASE_NOTES.md, rendered
 # to HTML and inlined into the appcast <description>. Inline rather than
@@ -361,56 +375,38 @@ if [ "$DRY_RUN" = false ]; then
 APPCAST
   fi
 
-  python3 - <<PY
-import os, re
-from pathlib import Path
-
-p = Path("$APPCAST_PATH")
-xml = p.read_text()
-
-# NOTES_HTML arrives via the environment, not shell interpolation: it is
-# multi-line HTML and would otherwise have to survive a triple-quoted literal.
-notes_html = os.environ["NOTES_HTML"]
-
-
-def item(title_suffix, channel_line, url, length, signature):
-    return ("""        <item>
-            <title>Fichero $VERSION""" + title_suffix + """</title>
-            <pubDate>$PUB_DATE</pubDate>
-""" + channel_line + """            <sparkle:version>$BUILD</sparkle:version>
-            <sparkle:shortVersionString>$VERSION</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-            <description><![CDATA[
-""" + notes_html + """
-]]></description>
-            <enclosure
-                url=\"""" + url + """\"
-                length=\"""" + length + """\"
-                type="application/octet-stream"
-                sparkle:edSignature=\"""" + signature + """\"
-            />
-        </item>
-""")
-
-
-new_items = item("", "", "$RELEASE_URL", "$DMG_SIZE", "$ED_SIGNATURE")
-if "$HAVE_DEV_DMG" == "true":
-    new_items += item(
-        " (dev)",
-        "            <sparkle:channel>dev</sparkle:channel>\n",
-        "$DEV_RELEASE_URL", "$DEV_DMG_SIZE", "$DEV_ED_SIGNATURE",
-    )
-
-# Insert immediately after the first occurrence of <language>...</language>,
-# or failing that, immediately after <channel>.
-m = re.search(r"(<language>[^<]*</language>\s*\n)", xml)
-if m:
-    xml = xml[:m.end()] + new_items + xml[m.end():]
-else:
-    xml = re.sub(r"(<channel>\s*\n)", r"\\1" + new_items, xml, count=1)
-
-p.write_text(xml)
-PY
+  # Idempotent upsert (#4901, release.update.appcast-item-insert-is-idempotent):
+  # an item matching sparkle:version, shortVersionString, AND channel with
+  # this release is REPLACED in place, so a retried/re-run of ONE of these
+  # two calls converges instead of appending a duplicate <item>. Channel is
+  # part of that identity on purpose: the public and dev calls below share
+  # the SAME $BUILD/$VERSION by design (one release, two channels) and
+  # differ only by --channel — matching on version+short-version alone
+  # would make the second (dev) call replace the item the first (public)
+  # call just wrote. Extracted to a pure, unit-tested function in
+  # appcast_upsert.py — see fichero-server/tests/unit/scripts/
+  # test_appcast_upsert.py — since this script itself is never run in CI.
+  # NOTES_HTML is read from the environment inside appcast_upsert.py (already
+  # exported above): multi-line HTML has no clean CLI-arg form.
+  "$ROOT_DIR/scripts/appcast_upsert.py" "$APPCAST_PATH" \
+    --title "Fichero $VERSION" \
+    --pub-date "$PUB_DATE" \
+    --version "$BUILD" \
+    --short-version "$VERSION" \
+    --enclosure-url "$RELEASE_URL" \
+    --enclosure-length "$DMG_SIZE" \
+    --ed-signature "$ED_SIGNATURE"
+  if [ "$HAVE_DEV_DMG" = true ]; then
+    "$ROOT_DIR/scripts/appcast_upsert.py" "$APPCAST_PATH" \
+      --title "Fichero $VERSION (dev)" \
+      --pub-date "$PUB_DATE" \
+      --channel dev \
+      --version "$BUILD" \
+      --short-version "$VERSION" \
+      --enclosure-url "$DEV_RELEASE_URL" \
+      --enclosure-length "$DEV_DMG_SIZE" \
+      --ed-signature "$DEV_ED_SIGNATURE"
+  fi
 
   echo "  Updated: $APPCAST_PATH"
 

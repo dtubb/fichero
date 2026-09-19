@@ -105,7 +105,10 @@ struct WorkspaceCommandsSection: View {
     /// ⌘⌥N for the v2 workspace at slot N (1–5), else nil. The pure position lives on
     /// `BuiltInWorkspaceLayout.defaultSlot`; the SwiftUI shortcut is minted here. ⌘⌥7–9 stay free
     /// for user workspaces (spec §"v2 workspace design", the slot→workspace map).
-    static func shortcut(for layout: BuiltInWorkspaceLayout) -> KeyboardShortcut? {
+    // #4902: `nonisolated` is load-bearing — MenuShortcutUniquenessTests is a
+    // non-@MainActor Swift Testing suite calling this directly; pure over its
+    // own parameter, no actor-isolated state read.
+    nonisolated static func shortcut(for layout: BuiltInWorkspaceLayout) -> KeyboardShortcut? {
         let number = layout.defaultSlot
         guard (1...9).contains(number) else { return nil }
         return KeyboardShortcut(KeyEquivalent(Character(String(number))), modifiers: [.command, .option])

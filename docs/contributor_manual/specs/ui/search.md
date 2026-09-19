@@ -156,7 +156,7 @@ read of the calling loop before it can be called fully resolved.
 
 ### B. Retrieval, ranking, and honesty
 
-- `search.zero-results-for-visible-text` — **[BROKEN]** (#4236) a search can return 0 results
+- `search.zero-results-for-visible-text` — **[PARTIAL]** (#4236 still open pending close) a search can return 0 results
   for a term the Inspector is displaying, on screen at the same moment, for the SAME document —
   a confident, wrong, empty answer, not a stale-index absence. The issue itself named three
   candidates needing different fixes: (1) search silently scopes to an empty/no-selection
@@ -197,9 +197,23 @@ read of the calling loop before it can be called fully resolved.
   no-op for a single owner on loopback). A stale comment above the folder filter still
   describes a one-hop walk.
 
-  Not the same defect as #4885's three recursion switches. **Fix in progress**: the fallback
-  must cover documents the index does not cover, per document, not only when the whole result
-  set is empty. Tag stays BROKEN until the fix lands.
+  Not the same defect as #4885's three recursion switches.
+
+  **FIXED, 2026-09-19 (0ca50eb55).** The fallback now covers exactly the documents the index does
+  not cover, unioned with the index hits — an embedded document is never a fallback candidate, so
+  no duplicates, and the fallback's own scoring and the shared filter loop are unchanged. The
+  folder filter's stale "one hop" comment is corrected in the same commit: the walk is a full
+  subtree BFS, as the earlier ruled-out evidence above already found. Cost is bounded and
+  measured, not assumed: which documents are embedded is cached per library for the process and
+  invalidated at the three embedding write sites, so a hit is a dict lookup — cold, at 200k
+  embedding rows, 0.27s once after a write; a fully embedded library scans nothing. A
+  table-version-check alternative was measured and rejected (opening the table costs most of the
+  scan, and a held handle doesn't see another handle's writes). Tests executed: the 14 new cases
+  in `test_search_without_embeddings.py` (subfolder nesting, an unrelated embedded document, and
+  rows embedded after an earlier keyword query all ruled out and kept as regression tests) plus
+  the pre-existing 71 route tests, all passing. **PARTIAL, not OK, because #4236 stays open**:
+  needs an engine restart to pick up the fix, and the maintainer has not yet confirmed it against
+  his own library — built and tested, not yet seen working.
 - `search.four-leg-response` — **[OK]** `SearchResponse` carries documents, entities, claims,
   and artifacts as four peer legs (`entity_hits`, `claim_hits: list[SearchClaimHit]`,
   `artifact_hits`), not a document search with metadata bolted on — the exact shape the unified-

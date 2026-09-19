@@ -33,6 +33,7 @@ fichero/Tests/Unit/general/Models/DocumentKGPaneRouteTests.swift
 fichero/Tests/Unit/general/Models/DocumentStoreAndSidebarTypesTests.swift
 fichero/Tests/Unit/general/Models/DocumentTitleTests.swift
 fichero/Tests/Unit/general/Models/FeatureManagerTests.swift
+fichero/Tests/Unit/general/Models/KGFocusStateTests.swift
 fichero/Tests/Unit/general/Models/LLMProviderVisionFilterTests.swift
 fichero/Tests/Unit/general/Models/LibraryAccessPromptWiringTests.swift
 fichero/Tests/Unit/general/Models/OCRGeometrySelectionTests.swift
@@ -73,6 +74,7 @@ fichero/Tests/Unit/general/Services/ImportServiceTests.swift
 fichero/Tests/Unit/general/Services/LibraryDenialSurfacingTests.swift
 fichero/Tests/Unit/general/Services/MainThreadStallSamplerTests.swift
 fichero/Tests/Unit/general/Services/NoteServiceTests.swift
+fichero/Tests/Unit/general/Services/ProviderAPIServiceKeyPersistenceTests.swift
 fichero/Tests/Unit/general/Services/RenditionServiceTests.swift
 fichero/Tests/Unit/general/Services/RuntimeLibraryGrantOrderingTests.swift
 fichero/Tests/Unit/general/Services/StartupWorkGateTests.swift

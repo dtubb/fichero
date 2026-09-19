@@ -147,3 +147,106 @@ struct PortConflictDecisionTests {
         }
     }
 }
+
+// MARK: - #4896 orphan-sweep-precedes-spawn-decision
+
+/// spec: engine-startup-lifecycle `engine.orphan-sweep-precedes-spawn-decision`
+/// (#4896, tracing f9a737d5f/#4690): `resolvePortConflict` must not return a
+/// spawn decision until the orphan-engine sweep has fully completed — the
+/// bug ed436c69a introduced was a detached, un-awaited sweep that could land
+/// AFTER the app's own fresh engine had already spawned and kill it. These
+/// tests drive the REAL `resolvePortConflict`, injecting the sweep and the
+/// transport mode so the assertion is on the real function's actual ordering,
+/// not a stand-in helper that would still pass if the call site dropped the
+/// await (a `sweepBeforeSpawnDecision`-shaped helper was rejected for exactly
+/// this reason). `.uds` is chosen so the port pre-flight does not apply
+/// (`portPreflightApplies(transportMode:)` is false for it) — no port/pid
+/// syscalls run, so the ONLY thing between "sweep starts" and "the function
+/// returns" is the sweep itself.
+@Suite("Orphan sweep precedes the spawn decision (#4896)")
+@MainActor
+struct OrphanSweepPrecedesSpawnDecisionTests {
+
+    @Test("a slow sweep has already finished by the time resolvePortConflict returns .spawnOurs")
+    func sweepCompletesBeforeSpawnDecisionReturns() async throws {
+        let service = EmbeddedBackendService()
+        var sweepFinished = false
+
+        let resolution = try await service.resolvePortConflict(
+            sweep: {
+                try? await Task.sleep(nanoseconds: 50_000_000)  // 50ms — slow on purpose
+                sweepFinished = true
+            },
+            transportMode: .uds(path: "/tmp/fichero-orphan-sweep-test.sock")
+        )
+
+        #expect(resolution == .spawnOurs)
+        // This proves resolvePortConflict awaits WHATEVER it is handed — it
+        // does not, by itself, prove the PRODUCTION default (awaitedOrphanSweep)
+        // still awaits `terminate()`. That's pinned directly below by
+        // `awaitedOrphanSweepWaitsForTerminate`, against the real default.
+        #expect(sweepFinished == true)
+    }
+
+    @Test("the sweep runs exactly once per call")
+    func sweepInvokedExactlyOnce() async throws {
+        let service = EmbeddedBackendService()
+        var sweepCallCount = 0
+
+        _ = try await service.resolvePortConflict(
+            sweep: { sweepCallCount += 1 },
+            transportMode: .uds(path: "/tmp/fichero-orphan-sweep-test.sock")
+        )
+
+        #expect(sweepCallCount == 1)
+    }
+}
+
+/// Thread-safe flag box for a test that sets its result from INSIDE a
+/// `Task.detached` closure (which must be `@Sendable`) while the test method
+/// itself runs `@MainActor` — a bare `var` there would be a data race.
+///
+/// Every member is `nonisolated`: this test target defaults to MainActor
+/// isolation, and `set()` is called from a detached, off-main task.
+private final class LockedFlag: @unchecked Sendable {
+    private nonisolated(unsafe) let lock = NSLock()
+    private nonisolated(unsafe) var value = false
+
+    nonisolated init() {}
+
+    nonisolated func set() {
+        lock.lock()
+        value = true
+        lock.unlock()
+    }
+
+    nonisolated func get() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return value
+    }
+}
+
+/// spec: engine-startup-lifecycle `engine.orphan-sweep-precedes-spawn-decision`
+/// (#4896) — this is the test pinned directly against WHERE f9a737d5f's
+/// regression actually lived: the production DEFAULT `terminate:` closure's
+/// `.value` inside `awaitedOrphanSweep` itself, not the `resolvePortConflict`
+/// call site (which the tests above already cover, and which would still
+/// pass even if this default regressed — they inject their own sweep).
+/// Drop the `.value` in `awaitedOrphanSweep` and this test fails.
+@Suite("awaitedOrphanSweep awaits its detached terminate() (#4896)")
+@MainActor
+struct AwaitedOrphanSweepTests {
+
+    @Test("does not return until the detached terminate() call has finished")
+    func awaitedOrphanSweepWaitsForTerminate() async {
+        let flag = LockedFlag()
+
+        await EmbeddedBackendService.awaitedOrphanSweep(terminate: {
+            Thread.sleep(forTimeInterval: 0.05)  // blocks the detached task ~50ms
+            flag.set()
+        })
+
+        #expect(flag.get() == true)
+    }
+}

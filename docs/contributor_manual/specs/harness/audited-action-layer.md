@@ -240,6 +240,19 @@ parallel pattern to keep.
   `undoable=False` — the generic undo endpoint 409s on anything but merge/split, and the action
   registration honestly does not claim an undo capability the endpoint cannot deliver. Pinned:
   `test_routes_entity_curation.py::TestLinkAuthorityAction::test_not_undoable_no_regression_from_bare_route`.
+- `audit.every-mutating-op-has-an-undo-surface-or-says-why-not` — **[BROKEN]** (#4907) every
+  mutating operation should either be reachable through the generic undo endpoint or have a
+  recorded reason it deliberately is not — an unlabeled gap is indistinguishable from an
+  oversight. A guardrail enforces this, `scripts/check_undo_coverage.py`, and it is currently
+  RED: 5 new mutating operations with no undo surface —
+  `POST /api/hpc/clusters/{cluster_id}/test`, `POST /api/kg/entity-curation/enrich/import`,
+  `POST /api/kg/entity-curation/enrich/preview`, `POST /api/local-models/kraken/install`,
+  `PUT /api/settings/sparql-endpoints`. Not traced to a commit this week — an older, separate
+  feature area (HPC/local-model settings), not the KG action-layer sweep this spec otherwise
+  tracks. Distinct from `audit.non-undoable-actions-say-so` above, which is about ONE verified-
+  correct example (an action that DOES honestly declare itself non-undoable) — this behavior is
+  the general rule the guardrail checks across every route, currently failing on five of them.
+  *Test:* the guardrail itself.
 
 ### E. Only the action surface reaches a capability
 

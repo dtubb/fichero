@@ -91,6 +91,29 @@ _VALID_IDENTIFIER = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 _DUCKDB_WRITE_CONFLICT_RETRIES = 3
 _DUCKDB_WRITE_CONFLICT_BACKOFF_SECONDS = 0.01
 
+# Process-wide cache of the embedded-document-id set search()'s
+# coverage-scoped content-scan fallback needs (#4236 perf follow-up,
+# 2026-09-19), keyed by library path (str(Database.path)) so every
+# `Database` instance for the same library — this app opens one per
+# thread — shares one cache rather than each paying its own cost.
+#
+# Explicit invalidation at the write sites (`save_vectors` when writing to
+# EMBEDDINGS_TABLE, `_delete_embedding_rows`, `delete_embedding`), NOT a
+# Lance-table-version check: measured this session on a 200k-row synthetic
+# embeddings table, `self.lance.open_table(EMBEDDINGS_TABLE).version` is
+# only reachable by actually calling `open_table()` first, and THAT call
+# alone cost ~0.17s at this size — nearly as much as the ~0.27s full
+# `.select(["document_id"]).to_arrow()` scan it would be gating. There is
+# no cheap version marker in the installed LanceDB (0.38.0) reachable
+# without paying that cost, so a version check would not make a cache-hit
+# meaningfully cheaper than a cache-miss. A cached TABLE HANDLE was also
+# tried and rejected: a handle opened before another handle's write does
+# NOT see that write on its own `.version` (measured directly), so reusing
+# one handle across calls is not just slow to invalidate — it is silently
+# wrong.
+_EMBEDDED_DOC_IDS_CACHE: dict[str, set[str]] = {}
+_EMBEDDED_DOC_IDS_CACHE_LOCK = threading.Lock()
+
 # Models get() folds onto Document rows with special-case handling; the
 # gate-free read path (get_committed) routes these to plain get() rather
 # than reimplementing the fold.
@@ -4432,6 +4455,8 @@ class Database(DatabaseEmbeddingMixin):
             # don't rot read performance (#2542). Compacting on every write
             # would be strictly worse, so it's gated on the interval.
             self._note_vector_append(table_name)
+        if table_name == EMBEDDINGS_TABLE:
+            self._invalidate_embedded_doc_ids_cache()
 
     def _note_vector_append(self, table_name: str) -> None:
         """Increment the per-table append counter and compact at the interval."""
@@ -4503,6 +4528,7 @@ class Database(DatabaseEmbeddingMixin):
             safe_value = value.replace("'", "''") if value else ""
             table = self.lance.open_table(EMBEDDINGS_TABLE)
             table.delete(f"{field} = '{safe_value}'")
+        self._invalidate_embedded_doc_ids_cache()
 
     def save_embedding(
         self, doc: BaseModel, vector: list[float], text: str | None = None
@@ -4659,6 +4685,7 @@ class Database(DatabaseEmbeddingMixin):
 
             table = self.lance.open_table(EMBEDDINGS_TABLE)
             table.delete(f"id = '{safe_id}' OR document_id = '{safe_id}'")
+            self._invalidate_embedded_doc_ids_cache()
             return True
         except Exception as e:
             error = handle_error(
@@ -4791,6 +4818,71 @@ class Database(DatabaseEmbeddingMixin):
     def _collect_folder_descendants(self, folder_id: str) -> set[str]:
         """Wrap the free helper so callers don't reach into module level."""
         return _collect_folder_descendants_helper(self.conn, folder_id)
+
+    def _embedded_doc_ids_cache_key(self) -> str:
+        return str(self.path)
+
+    def _get_embedded_doc_ids(self) -> set[str]:
+        """The set of document ids that have an embedding — process-wide
+        cached, keyed by library path (#4236 perf follow-up, 2026-09-19).
+
+        Measured this session on a 200k-row synthetic embeddings table:
+        the underlying `.select(["document_id"]).to_arrow()` scan costs
+        ~0.27s COLD. That is a real, per-search cost on a busy library and
+        is exactly what this cache exists to avoid paying more than once.
+
+        NOT keyed on the Lance table's `.version`, on measured evidence:
+        reaching `.version` requires calling `self.lance.open_table(...)`
+        first, and on the SAME 200k-row table that call alone cost ~0.17s
+        — most of the scan it would be gating, which would make a
+        version-checked "cache hit" barely cheaper than a miss. A cached
+        TABLE HANDLE was tried too and rejected on correctness, not just
+        cost: a handle opened before another handle's write does NOT see
+        that write reflected in its own `.version` (measured directly),
+        so reusing one handle across calls is not merely slow to
+        invalidate, it is silently wrong.
+
+        Invalidated explicitly instead, at every write site that touches
+        `EMBEDDINGS_TABLE`: `save_vectors` (the single choke point every
+        addition — `embed()`, `save_passage_embeddings()`, batch
+        reindex — goes through), `_delete_embedding_rows`, and
+        `delete_embedding`. A cache hit costs one dict lookup under a
+        lock: no Lance call at all.
+        """
+        if EMBEDDINGS_TABLE not in self._lance_tables():
+            with _EMBEDDED_DOC_IDS_CACHE_LOCK:
+                _EMBEDDED_DOC_IDS_CACHE.pop(self._embedded_doc_ids_cache_key(), None)
+            return set()
+
+        key = self._embedded_doc_ids_cache_key()
+        with _EMBEDDED_DOC_IDS_CACHE_LOCK:
+            cached = _EMBEDDED_DOC_IDS_CACHE.get(key)
+        if cached is not None:
+            return cached
+
+        try:
+            table = self.lance.open_table(EMBEDDINGS_TABLE)
+            id_rows = (
+                table.search()
+                .select(["document_id"])
+                .limit(10_000_000)
+                .to_arrow()
+            )
+            embedded_doc_ids = set(id_rows["document_id"].to_pylist())
+        except Exception:
+            # Coverage unknown is NOT "assume covered" — that would
+            # silently reopen #4236. Do not cache a failure; try fresh
+            # again next search rather than pinning a bad/empty result.
+            return set()
+
+        with _EMBEDDED_DOC_IDS_CACHE_LOCK:
+            _EMBEDDED_DOC_IDS_CACHE[key] = embedded_doc_ids
+        return embedded_doc_ids
+
+    def _invalidate_embedded_doc_ids_cache(self) -> None:
+        """Call at every write site that touches EMBEDDINGS_TABLE (#4236)."""
+        with _EMBEDDED_DOC_IDS_CACHE_LOCK:
+            _EMBEDDED_DOC_IDS_CACHE.pop(self._embedded_doc_ids_cache_key(), None)
 
     def _has_indexed_page_children(self, document_id: str | None) -> bool:
         """True when a file-level document has page children in the vector index.
@@ -5437,41 +5529,87 @@ class Database(DatabaseEmbeddingMixin):
                                 if max_bm25 > 0
                                 else 1.0
                             )
-                    if not fulltext_results:
-                        # NO-EMBEDDINGS FALLBACK (2026-08-10, Daniel: "search
-                        # doesn't seem to work"): the whole full-text leg above
-                        # runs over the LanceDB EMBEDDINGS table, so a corpus
-                        # that has never been embedded — every fresh import —
-                        # was invisible to keyword search too, and hybrid
-                        # returned ZERO for text sitting verbatim in
-                        # page_content (probe-proven). Full text must not
-                        # depend on embeddings: scan the documents table's
-                        # page_content directly. A folded contains + BM25 over
-                        # the matching rows is honest and bounded for local
-                        # libraries.
-                        #
-                        # It runs whenever the vector-backed leg produced NO
-                        # hits, not only when the table is missing (#4245
-                        # transport matrix flake, 2026-08-31): a table that
-                        # exists but whose newest rows the FTS leg cannot see
-                        # yet — the row is written, the index is not caught up
-                        # — made a document that had just been ingested
-                        # unfindable by a term sitting verbatim in its
-                        # page_content, and the miss was indistinguishable
-                        # from an honest "no match". A vector-leg hit still
-                        # wins: this only fills an empty result set, so the
-                        # ranked FTS/BM25 ordering above is untouched whenever
-                        # it produced anything at all.
-                        rows = self._execute(
-                            """
-                            SELECT d.id, d.name, d.doc_type, d.file_type,
-                                   d.created_at, d.updated_at, d.page_content
-                            FROM documents d
-                            WHERE d.deleted_at IS NULL
-                              AND d.page_content IS NOT NULL
-                              AND length(d.page_content) > 0
-                            """
-                        ).fetchall()
+                    # COVERAGE-SCOPED CONTENT-SCAN FALLBACK (2026-08-10,
+                    # Daniel: "search doesn't seem to work"; narrowed to
+                    # per-document coverage #4236, 2026-09-19). The
+                    # vector-backed leg above can only ever surface a
+                    # document that HAS AN EMBEDDING. Until #4236 this ran
+                    # gated on `if not fulltext_results:` — the WHOLE result
+                    # set being empty — which was wrong the moment a library
+                    # is PARTIALLY embedded (the ordinary, ongoing-import
+                    # case, not an edge case): once ANY OTHER embedded
+                    # document's passage genuinely matched the query term,
+                    # the gate never opened again for the rest of the query,
+                    # and a different, never-embedded document holding the
+                    # SAME term verbatim in its own page_content silently
+                    # disappeared. Proven live against a real maintainer
+                    # complaint (#4236), not assumed.
+                    #
+                    # Fixed by making coverage PER-DOCUMENT and UNIONING the
+                    # scan into fulltext_results, never gating it on
+                    # emptiness: scan the raw page_content of exactly the
+                    # documents that have NO embedding at all, and trust an
+                    # embedded document to its own FTS leg above — which is
+                    # also what guarantees no duplicate hit between the two
+                    # legs (a document is scanned by at most one of them).
+                    #
+                    # The hard constraint (never scan every document's text
+                    # on every search): coverage is resolved in TWO cheap,
+                    # id-only queries before any text is touched — one Lance
+                    # query for the SET of embedded document ids (same
+                    # `.select(["document_id"])` pattern `embedding_stats()`
+                    # already uses, not a per-document `has_embedding()` call
+                    # per document), and one DuckDB query for the SET of
+                    # content-bearing document ids (no `page_content` in the
+                    # SELECT list). Only their SET DIFFERENCE — documents
+                    # with content and no embedding — ever has its actual
+                    # text fetched, folded, and BM25-scored. On a fully
+                    # embedded library that difference is empty and the
+                    # expensive per-row work (fold + BM25) never runs at
+                    # all; on a library with nothing embedded it is exactly
+                    # today's fallback, scoped to every content-bearing
+                    # document, because none of them has coverage.
+                    # Process-wide cache keyed by library path, invalidated
+                    # explicitly at every embeddings write site (see
+                    # `_get_embedded_doc_ids`'s own docstring for the
+                    # measured cost this cache avoids paying per search).
+                    embedded_doc_ids = self._get_embedded_doc_ids()
+
+                    candidate_id_rows = self._execute(
+                        """
+                        SELECT d.id
+                        FROM documents d
+                        WHERE d.deleted_at IS NULL
+                          AND d.page_content IS NOT NULL
+                          AND length(d.page_content) > 0
+                        """
+                    ).fetchall()
+                    uncovered_ids = [
+                        row[0] for row in candidate_id_rows
+                        if row[0] not in embedded_doc_ids
+                    ]
+
+                    if uncovered_ids:
+                        rows: list[Any] = []
+                        for chunk_start in range(0, len(uncovered_ids), 500):
+                            chunk = uncovered_ids[chunk_start: chunk_start + 500]
+                            chunk_placeholders = ",".join(
+                                f"$u{i}" for i in range(len(chunk))
+                            )
+                            chunk_params = {
+                                f"u{i}": doc_id for i, doc_id in enumerate(chunk)
+                            }
+                            rows.extend(
+                                self._execute(
+                                    f"""
+                                    SELECT d.id, d.name, d.doc_type, d.file_type,
+                                           d.created_at, d.updated_at, d.page_content
+                                    FROM documents d
+                                    WHERE d.id IN ({chunk_placeholders})
+                                    """,
+                                    chunk_params,
+                                ).fetchall()
+                            )
                         matched = []
                         for row in rows:
                             document_id = row[0]
@@ -5488,6 +5626,13 @@ class Database(DatabaseEmbeddingMixin):
                                 [folded for _, folded in matched],
                                 [t for t in folded_terms if t],
                             )
+                            # Normalized within this group only, exactly as
+                            # before #4236 — the fallback's own best match
+                            # scores 1.0 among fallback hits, independent of
+                            # (never compared against) the index leg's own
+                            # normalization just above. Both groups reach the
+                            # RRF combiner below on the same terms an index
+                            # hit and a fallback hit always have: unchanged.
                             max_bm25 = max(bm25_scores, default=0.0)
                             for (row, _), raw_score in zip(matched, bm25_scores):
                                 score = (
@@ -5500,9 +5645,10 @@ class Database(DatabaseEmbeddingMixin):
                                         "document_id": row[0],
                                         "score": score,
                                         # The content-scan fallback only ever
-                                        # fills an EMPTY result set (#4245), so
-                                        # its hits are the only evidence there
-                                        # is — never floor them away.
+                                        # covers documents the index leg
+                                        # cannot see at all (#4245/#4236), so
+                                        # its hits are the only evidence
+                                        # there is — never floor them away.
                                         "lexical_strength": 1.0,
                                         "content": str(row[6] or ""),
                                         "metadata": {
@@ -5674,10 +5820,14 @@ class Database(DatabaseEmbeddingMixin):
             # Apply filters
             if filters:
                 # Per-folder scope: when filters['folder_id'] is set, drop
-                # results that aren't descendants of that folder. Walks
-                # parent_id one hop at a time to keep the query simple;
-                # for deeply nested trees the recursive variant could be
-                # added later. Resolved once before the per-result loop.
+                # results that aren't descendants of that folder. Fully
+                # recursive (#4236 comment fix, 2026-09-19: this used to say
+                # "one hop at a time... the recursive variant could be added
+                # later" — stale since _collect_folder_descendants_helper
+                # already walks parent_id level by level with no depth
+                # limit, confirmed correct for a folder holding subfolders
+                # by direct reproduction). Resolved once before the
+                # per-result loop.
                 folder_descendants: set[str] | None = None
                 if "folder_id" in filters and filters["folder_id"]:
                     folder_descendants = self._collect_folder_descendants(

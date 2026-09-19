@@ -17,8 +17,10 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 import pytest
 from fastapi import HTTPException
 
+from fichero_server.actions.registry import ActionResult
 from fichero_server.api.routes import kg_claim_search, kg_entity_curation
 from fichero_server.knowledge import rebuild
+from fichero_server.models import ActionAudit
 from fichero_server.models.knowledge import (
     ClaimType,
     EntityType,
@@ -45,16 +47,29 @@ def _claim(text: str = "X causes Y") -> KnowledgeClaim:
 
 @pytest.mark.asyncio
 async def test_embed_entities_offloads_to_thread():
-    """The route must call asyncio.to_thread, not _embed_texts directly."""
+    """The route must call asyncio.to_thread, not _embed_texts directly.
+
+    #4831 batch 3 (8e06dc31d) moved the WHOLE `registry.invoke` call (audit
+    write included) into the thread closure, so `to_thread`'s mocked return
+    value must now be shaped like the `ActionResult` `registry.invoke`
+    actually returns (`.result` is the dict `EmbedEntitiesResponse` is built
+    from), not a bare embedded-count int as it was before that commit.
+    """
     db = MagicMock()
     db.all.return_value = [_entity()]
+    fake_result = ActionResult(
+        ok=True,
+        result={"embedded": 1, "table": "kg_entity_embeddings"},
+        audit_id="fake-audit-id",
+        changed_domains=["entity"],
+    )
 
     with patch.object(
         kg_entity_curation.asyncio,
         "to_thread",
-        new=AsyncMock(return_value=1),
+        new=AsyncMock(return_value=fake_result),
     ) as mocked:
-        result = await kg_entity_curation.embed_entities(request=None, db=db)
+        result = await kg_entity_curation.embed_entities(request=None, db=db, actor="test-actor")
 
     mocked.assert_awaited_once()
     # First positional arg is the sync helper; we should never have called
@@ -67,13 +82,19 @@ async def test_embed_entities_offloads_to_thread():
 async def test_embed_claims_offloads_to_thread():
     db = MagicMock()
     db.all.return_value = [_claim()]
+    fake_result = ActionResult(
+        ok=True,
+        result={"embedded": 1, "table": "kg_claim_embeddings"},
+        audit_id="fake-audit-id",
+        changed_domains=["claim"],
+    )
 
     with patch.object(
         kg_claim_search.asyncio,
         "to_thread",
-        new=AsyncMock(return_value=1),
+        new=AsyncMock(return_value=fake_result),
     ) as mocked:
-        result = await kg_claim_search.embed_claims(request=None, db=db)
+        result = await kg_claim_search.embed_claims(request=None, db=db, actor="test-actor")
 
     mocked.assert_awaited_once()
     db._embed_texts.assert_not_called()
@@ -81,19 +102,56 @@ async def test_embed_claims_offloads_to_thread():
 
 
 @pytest.mark.asyncio
-async def test_embed_entities_empty_short_circuits():
-    """No entities → no thread offload, no embed call, response says 0."""
+async def test_embed_entities_still_offloads_to_thread_with_nothing_to_embed():
+    """CORRECTED (#4831 batch 3, 8e06dc31d): the "no entities -> skip the
+    thread" short-circuit used to live in THIS route, before the offload;
+    it now lives inside `entity.embed`'s own action body (see
+    `TestEntityEmbedAction::test_empty_short_circuits_without_calling_the_embedder`
+    in test_action_layer_batch3.py for that half). The route itself now
+    ALWAYS offloads to a thread, even with nothing to embed -- there is no
+    more route-level short-circuit to assert.
+    """
     db = MagicMock()
     db.all.return_value = []
+    fake_result = ActionResult(
+        ok=True,
+        result={"embedded": 0, "table": "kg_entity_embeddings"},
+        audit_id="fake-audit-id",
+        changed_domains=["entity"],
+    )
 
     with patch.object(
         kg_entity_curation.asyncio,
         "to_thread",
-        new=AsyncMock(),
+        new=AsyncMock(return_value=fake_result),
     ) as mocked:
-        result = await kg_entity_curation.embed_entities(request=None, db=db)
+        result = await kg_entity_curation.embed_entities(request=None, db=db, actor="test-actor")
 
-    mocked.assert_not_awaited()
+    mocked.assert_awaited_once()
+    assert result.embedded == 0
+
+
+@pytest.mark.asyncio
+async def test_embed_claims_still_offloads_to_thread_with_nothing_to_embed():
+    """See test_embed_entities_still_offloads_to_thread_with_nothing_to_embed
+    -- same correction, claim.embed side."""
+    db = MagicMock()
+    db.all.return_value = []
+    fake_result = ActionResult(
+        ok=True,
+        result={"embedded": 0, "table": "kg_claim_embeddings"},
+        audit_id="fake-audit-id",
+        changed_domains=["claim"],
+    )
+
+    with patch.object(
+        kg_claim_search.asyncio,
+        "to_thread",
+        new=AsyncMock(return_value=fake_result),
+    ) as mocked:
+        result = await kg_claim_search.embed_claims(request=None, db=db, actor="test-actor")
+
+    mocked.assert_awaited_once()
     assert result.embedded == 0
 
 
@@ -106,6 +164,7 @@ async def test_embed_entities_rejects_unknown_entity_id():
         await kg_entity_curation.embed_entities(
             request=kg_entity_curation._EmbedEntityRequest(entity_ids=["missing"]),
             db=db,
+            actor="test-actor",
         )
 
     assert exc.value.status_code == 404
@@ -145,32 +204,21 @@ async def test_search_entities_semantic_canonicalizes_legacy_table(db):
 
 
 @pytest.mark.asyncio
-async def test_embed_claims_empty_short_circuits():
-    db = MagicMock()
-    db.all.return_value = []
-
-    with patch.object(
-        kg_claim_search.asyncio,
-        "to_thread",
-        new=AsyncMock(),
-    ) as mocked:
-        result = await kg_claim_search.embed_claims(request=None, db=db)
-
-    mocked.assert_not_awaited()
-    assert result.embedded == 0
-
-
-@pytest.mark.asyncio
 async def test_embed_entities_writes_canonical_table_and_searches(db):
     entity = _entity("Asprilla")
     db.schedule_entity_embedding = Mock()
     db.save(entity)
 
     with patch.object(db, "_embed_texts", return_value=[[1.0, 0.0]]):
-        result = await kg_entity_curation.embed_entities(request=None, db=db)
+        result = await kg_entity_curation.embed_entities(request=None, db=db, actor="asprilla-tester")
 
     assert result.embedded == 1
     assert "kg_entity_embeddings" in db._lance_tables()
+    # #4831 batch 3 (8e06dc31d): the whole point of routing this through
+    # registry.invoke was a REAL actor on the audit row, not just "stop
+    # crashing" -- prove it landed, not merely that the call succeeded.
+    audits = [a for a in db.all(ActionAudit) if a.action_name == "entity.embed"]
+    assert audits and audits[-1].actor == "asprilla-tester"
 
     with patch.object(db, "_embed_text", return_value=[1.0, 0.0]):
         search = await kg_entity_curation.search_entities_semantic(
@@ -199,10 +247,12 @@ async def test_embed_claims_writes_canonical_table_and_searches(db):
     db.save(claim)
 
     with patch.object(db, "_embed_texts", return_value=[[1.0, 0.0]]):
-        result = await kg_claim_search.embed_claims(request=None, db=db)
+        result = await kg_claim_search.embed_claims(request=None, db=db, actor="asprilla-tester")
 
     assert result.embedded == 1
     assert "kg_claim_embeddings" in db._lance_tables()
+    audits = [a for a in db.all(ActionAudit) if a.action_name == "claim.embed"]
+    assert audits and audits[-1].actor == "asprilla-tester"
 
     with patch.object(db, "_embed_text", return_value=[1.0, 0.0]):
         search = await kg_claim_search.search_claims_semantic(

@@ -10,6 +10,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+from fastapi import HTTPException
+
 from fichero_server.api.routes.ingest.core import (
     IngestFolderRequest,
     _import_manifest_folder,
@@ -131,10 +134,20 @@ def test_drop_stamps_engine_recorded_source_paths(client, db, test_package, tmp_
 
 def test_drop_declines_paths_outside_the_ingest_authority(client, db, test_package, tmp_path, monkeypatch):
     """No image in the dropped folder AND the external source refused by the
-    ingest authority → the page stays pathless: recorded in metadata only,
-    never a guessed grant. (An image INSIDE the dropped folder is stamped
-    regardless — the drop grant IS the authority for its own contents,
-    which is what survived the 2026-08-18 broken-bookmark live failure.)"""
+    ingest authority → the page would stay pathless -- and a pathless page
+    is now a LOUD failure, on purpose (d55c6e31a, 2026-09-04): "Import left
+    N of M pages with no file path, so they would render blank... Fail
+    loudly, naming the cause, rather than handing back a library of blank
+    pages." CORRECTED: this test used to assert the page stayed silently
+    pathless (`page.path is None`) -- that was the behavior BEFORE the
+    2026-09-04 hardening and was never updated after it shipped. The
+    ingest-authority refusal itself is still exactly what it always was
+    (never a guessed grant); what changed is that the resulting pathless
+    page now aborts the whole import loudly instead of completing quietly.
+    (An image INSIDE the dropped folder is stamped regardless — the drop
+    grant IS the authority for its own contents, which is what survived
+    the 2026-08-18 broken-bookmark live failure — see the sibling test
+    below.)"""
     import fichero_server.security.path_security as ps
 
     manifest = _fixture_manifest(tmp_path)
@@ -143,15 +156,14 @@ def test_drop_declines_paths_outside_the_ingest_authority(client, db, test_packa
     (tmp_path / "page_001_enhanced.jpg").unlink()
     monkeypatch.setattr(ps, "is_allowed_ingest_path", lambda p: False)
 
-    docs = _import_manifest_folder(
-        db,
-        manifest,
-        IngestFolderRequest(path=str(tmp_path)),
-        Path(test_package),
-        manifest_client=_TestClientAdapter(client),
-    )
-    page = next(d for d in docs if d.name == "page_001")
-    assert page.path is None
+    with pytest.raises(HTTPException, match="no file path"):
+        _import_manifest_folder(
+            db,
+            manifest,
+            IngestFolderRequest(path=str(tmp_path)),
+            Path(test_package),
+            manifest_client=_TestClientAdapter(client),
+        )
 
 
 def test_drop_root_image_is_stamped_even_when_bookmarks_are_broken(client, db, test_package, tmp_path, monkeypatch):

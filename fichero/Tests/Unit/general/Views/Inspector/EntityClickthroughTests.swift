@@ -104,7 +104,8 @@ struct EntityClickthroughTests {
     /// string is gone from the function body, not merely unreachable.
     @Test("biographySentences' body contains no hard-coded pronoun literal")
     func biographySentencesSourceHasNoHardCodedPronoun() throws {
-        let digest = try AppSource.code("Views/Inspector/Knowledge/EntityDigestView.swift")
+        // #4896: biographySentences moved to EntityDigestContent+Biography.swift.
+        let digest = try AppSource.code("Views/Inspector/Knowledge/EntityDigestContent+Biography.swift")
         let start = try #require(digest.range(of: "static func biographySentences"))
         let bodyEnd = try #require(digest.range(of: "\n    }", range: start.upperBound..<digest.endIndex))
         let body = digest[start.upperBound..<bodyEnd.lowerBound]
@@ -115,7 +116,8 @@ struct EntityClickthroughTests {
 
     @Test("the biography renders per-sentence claim links, not one dead blob")
     func biographyIsClickable() throws {
-        let digest = try AppSource.code("Views/Inspector/Knowledge/EntityDigestView.swift")
+        // #4896: biographySection moved to EntityDigestContent+Biography.swift.
+        let digest = try AppSource.code("Views/Inspector/Knowledge/EntityDigestContent+Biography.swift")
         #expect(digest.contains("biographyAttributed"))
         #expect(digest.contains("OpenURLAction"))
         // The handler must land on the shared cursor — the same bus the
@@ -378,7 +380,8 @@ struct EntityClickthroughTests {
     /// the sentence's own reveal link.
     @Test("a biography sentence's edit link opens InlineClaimEditor")
     func biographySentenceEditOpensInlineEditor() throws {
-        let source = try AppSource.text("Views/Inspector/Knowledge/EntityDigestView.swift")
+        // #4896: biographySection moved to EntityDigestContent+Biography.swift.
+        let source = try AppSource.text("Views/Inspector/Knowledge/EntityDigestContent+Biography.swift")
         #expect(source.contains("claimEditLinkScheme"))
         #expect(source.contains("editingBiographyClaimId = claimId"))
         #expect(source.contains("InlineClaimEditor("))
@@ -390,7 +393,8 @@ struct EntityClickthroughTests {
     /// would not otherwise pick this up.
     @Test("a biography edit splices the returned claim, not a reload")
     func biographyEditSplicesRatherThanReloads() throws {
-        let source = try AppSource.text("Views/Inspector/Knowledge/EntityDigestView.swift")
+        // #4896: spliceUpdatedClaim moved to EntityDigestContent+Biography.swift.
+        let source = try AppSource.text("Views/Inspector/Knowledge/EntityDigestContent+Biography.swift")
         #expect(source.contains("spliceUpdatedClaim(updated)"))
         let body = try #require(
             source.components(separatedBy: "func spliceUpdatedClaim(").dropFirst().first

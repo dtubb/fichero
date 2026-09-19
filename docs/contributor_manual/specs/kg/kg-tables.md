@@ -226,7 +226,7 @@ Enrichment's two unreachable views (`WikidataEnrichmentSheet`, `HeuristicReviewS
   pane's own content kind; `PaneConfig.libraryContentKind` is never read by the live view.
   Cross-reference the pane lane's own design-root behavior in `panes-workspaces.md` once it
   exists — not restated here, that spec owns the pane-config model this defect lives in.
-- `kg.tables.folder-scope-misses-subfolders` — **[BROKEN]** (#4885) seen live: with a FOLDER selected, the Entities (and Claims) pane reports "No entities
+- `kg.tables.folder-scope-misses-subfolders` — **[PARTIAL]** (#4885 still open pending close) seen live: with a FOLDER selected, the Entities (and Claims) pane reports "No entities
   in this folder yet" while the Inspector, looking at the same folder, lists 22 people.
   **Cause, VERIFIED by reading on both sides (not a hypothesis)**: the app scopes to a
   folder's DIRECT child documents only; the engine already HAS recursion, but it is
@@ -235,7 +235,18 @@ Enrichment's two unreachable views (`WikidataEnrichmentSheet`, `HeuristicReviewS
   on the document knowledge-graph route. No new endpoint is needed; the fix is choosing one
   consistent default (or one consistent flag) across the three, not building a fourth. The
   three inconsistent knobs are recorded as their own gap below, distinct from this specific
-  symptom.
+  symptom. **App half FIXED, 2026-09-19 (6fd114270)**: the Entities table now scopes by the
+  folder's own id through `EntityStore.loadAggregatedEntities` — the Inspector's own seam,
+  whose route already recurses the whole subtree server-side — instead of collecting direct
+  child documents client-side and filtering against that set; the client-side direct-children
+  filter is deleted outright, one definition of "this folder's knowledge." Claims needed no
+  change (its load already asked for descendants); a new test asserts `include_descendants=true`
+  is actually sent. Tests executed: `EntityStoreTests`, `EntityServiceTransportTests`,
+  `SelectAllVisibleSurfaceTests`, `EntitiesTableCreateTests`, `KGTableFilterBarPlacementTests` —
+  56 of 56 passing. Not seen working on screen, per the fixing commit's own words. **PARTIAL, not
+  OK: the engine's three inconsistent recursion switches this behavior originally named are
+  still open**, tracked as their own gap immediately below — this fix routes the CLIENT through
+  the one already-recursing seam, it does not unify the engine's own three knobs.
 - `kg.tables.folder-recursion-inconsistent-across-routes` — **[GAP]** (#4885, same evidence as
   above) three separate engine routes disagree on whether folder scoping recurses into
   subfolders: `include_descendants` on `/api/claims` is opt-in, the entities `document_id` filter

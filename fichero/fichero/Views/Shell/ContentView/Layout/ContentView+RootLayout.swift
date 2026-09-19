@@ -558,7 +558,7 @@ extension ContentView {
                             await autoSaveWorkflow(workflowId: workflowId, workflow: workflow)
                         }
                     },
-                    lastSyncedWorkflow: $lastSyncedWorkflow,
+                    lastSyncedWorkflowBox: lastSyncedWorkflowBox,
                     handleDocumentChange: handleDocumentChange,
                     isSidebarMultiSelect: { sidebarSelectionState.selectedDestinations.count > 1 }
                 )

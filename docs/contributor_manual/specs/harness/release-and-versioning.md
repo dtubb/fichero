@@ -60,9 +60,12 @@ Guardrails that enforce this (run in `verify_all`):
 
 Detail lives in [`../../release/release-lane.md`](../../release/release-lane.md) (the runbook) and
 [`../../architecture/release-process.md`](../../architecture/release-process.md) (the feature→ship
-sequence); [`../../release/sparkle-release.md`](../../release/sparkle-release.md) covers Sparkle, and
-[`../../release/release-readiness.md`](../../release/release-readiness.md) is a point-in-time
-readiness snapshot. Shape:
+sequence); [`../../release/sparkle-release.md`](../../release/sparkle-release.md) covers Sparkle
+— **found 2026-09-19 marked, in its own header, "(AI generated. Not reviewed.)" and "HISTORICAL
+SETUP NOTE... do not use it as the current release procedure" (it still names a retired feed
+URL)** — recorded as found, not rewritten here; `release-lane.md`'s own Sparkle section is the
+current procedure. [`../../release/release-readiness.md`](../../release/release-readiness.md) is
+a point-in-time readiness snapshot. Shape:
 
 1. **Integrate + gate.** Multi-lane work lands on `integration` and is gated there (`verify_all`,
    0 failed) — see [`git-worktree-workflow.md`](git-worktree-workflow.md).
@@ -106,6 +109,121 @@ release headings there are leakage from `RELEASE_NOTES.md` (or merge debris) and
 
 The GitHub release body holds each version's own notes independently of these files, so a version's
 notes survive even if a later re-date reshuffles the local files.
+
+## Updates reach the user and install
+
+Grounded in a read-only Sparkle update review, 2026-09-19 (`agent-work/spec-pipeline/
+sparkle-update-review-2026-09-19.md`), requested after the maintainer reported Sparkle SAW an
+update and FAILED to install it. Every behavior below cites #4901, the one issue this review's
+evidence backs.
+
+- `release.update.feed-is-current` — **[BROKEN]** (#4901) the public appcast
+  (`https://tubb.ca/apps/fichero/appcast.xml`) should carry the release just made. Verified live
+  (2026-09-19, a genuinely fresh fetch — `age: 0`, `cache-status: fwd=miss` — not a stale edge
+  cache): the feed's newest item is `2026.09.07` build 3, while the tree is stamped `2026.09.18`
+  with dozens of commits since. What publishes the feed: `create-github-release.sh` writes and
+  COMMITS `appcast.xml` into the separate `tubb.ca` site repo checkout
+  (`$FICHERO_SITE_DIR/apps/fichero/appcast.xml`), explicitly NOT deploying it — the script's own
+  comment says so ("Committed in site repo — DEPLOY tubb.ca to publish the feed"). A second,
+  fully separate step, `deploy-site.sh`, is what actually pushes the site live. Nothing forces
+  that second step to run, nothing warns if it's skipped, and nothing after the fact re-checks
+  that the live feed actually reflects what was just released — so this can, and evidently did,
+  silently not happen for however many releases separate `2026.09.07` from today's stamp.
+- `release.update.build-number-strictly-increases` — **[BROKEN, historical]** (#4901) Sparkle
+  compares `sparkle:version` (the integer build number), not the marketing string; two different
+  releases must never share one. Verified live: the feed's own `2026.09.04` and `2026.09.05`
+  items BOTH carry `sparkle:version=2` — a real collision, not a hypothetical risk. What assigns
+  the build number today: `set-release-version.sh`'s `next_build_int`, a plain local increment
+  read from `CURRENT_PROJECT_VERSION` in `fichero/Configs/Version.xcconfig` (or an explicit
+  `FICHERO_BUILD_NUMBER` override) — purely a function of the LOCAL checkout's current stamp, not
+  of what the live feed actually already has. Nothing enforces monotonicity against the feed
+  itself, so two releases stamped from two different local states (a stale checkout, a manual
+  override, a partial re-run) can independently compute the same "next" number with nothing to
+  catch the collision before it ships. Any check built against this must compare PER CHANNEL,
+  not globally: the live feed legitimately carries a public item and a dev-channel item for the
+  same version and the same build number by design (see `release.update.appcast-item-insert-is-
+  idempotent` below) — comparing the new build number against the feed's newest item regardless
+  of channel would false-positive on that intentional pair.
+- `release.update.signature-made-after-stapling` — **[PARTIAL]** (#4901) an EdDSA signature must
+  be computed AFTER `xcrun stapler staple`, since stapling modifies the file and a
+  pre-staple signature would no longer verify. Verified BY READING, not by a test or script
+  check: `release-all.sh` runs `build-release-dmg.sh` → `notarize.sh "$DMG_PATH"` (which staples
+  the DMG itself) → only then `create-github-release.sh` (which calls `sign_update` on that same,
+  already-stapled `$DMG_PATH`) — the correct order, today, in the scripts as checked in. PARTIAL,
+  not OK, because no automated check pins this order; a future edit could reorder these steps (or
+  a manual/partial release run could skip `notarize.sh`) with nothing to catch it before a
+  broken signature ships.
+- `release.update.appcast-item-insert-is-idempotent` — **[GAP]** (#4901) re-running the appcast
+  step for the SAME release must not append a duplicate item. Verified by reading:
+  `create-github-release.sh`'s appcast-update step inserts unconditionally — it always writes a
+  new `<item>` immediately after `<language>`, with no check for an existing item it should
+  replace instead. An item's true identity is the triple (`sparkle:version`,
+  `sparkle:shortVersionString`, channel) — NOT version+build alone, because every release
+  legitimately produces TWO items sharing the same version and build number: a channel-less
+  public item and a `<sparkle:channel>dev</sparkle:channel>` item (`SparkleChannelDelegate`
+  scopes the dev item to dev builds only). A first fix attempt keyed on version+build only was
+  considered and REJECTED before it was ever committed, because a re-run would have matched
+  and replaced the WRONG item — overwriting the public item with the dev item's enclosure/
+  signature, or vice versa, silently pointing one channel's users at the other channel's DMG.
+  Expected: a re-run replaces the matching item within its own channel and never touches the
+  other channel's item. A fix is IN PROGRESS — not built, not tested, no script or test yet
+  proves this either way.
+  download and cryptographically verify an update and still fail to install it if the running app
+  is translocated (Gatekeeper's randomized, read-only path for an app launched without first
+  being moved to `/Applications`) or otherwise sitting on a read-only volume. Verified: no
+  `AppTranslocation`/`/Applications`-path check exists anywhere in the Swift source. Expected:
+  the app detects this condition (e.g. `Bundle.main.bundlePath` containing `AppTranslocation`, or
+  the volume not being writable) and tells the user to move it to Applications BEFORE offering to
+  update, rather than letting Sparkle fail with a generic error.
+- `release.update.sandboxed-installer-can-launch` — **[PARTIAL]** (#4901) the app is sandboxed on
+  the DMG/Developer-ID channel too, not only the Mac App Store build (`FicheroRelease
+  .entitlements` declares `com.apple.security.app-sandbox`, corrected 2026-08-27 per that file's
+  own comment — a stale "only App Store builds are sandboxed" assumption is retired by this
+  finding). Verified: `FicheroRelease.entitlements` carries
+  `com.apple.security.temporary-exception.mach-lookup.global-name` for
+  `app.fichero.fichero-spks`/`app.fichero.fichero-spki` — Sparkle 2's sandboxed installer/status
+  XPC lookups — added specifically because this exact failure shape ("downloads fine, dies at
+  'An error occurred while launching the installer'") already happened once, build 1 → 2. The
+  exception strings are the LITERAL bundle id (not a build variable, since the DMG lane re-signs
+  with this raw file and codesign substitutes nothing) and match the real
+  `PRODUCT_BUNDLE_IDENTIFIER` (`app.fichero.fichero`) today. PARTIAL, not OK: correct today, but
+  nothing would catch it silently going stale if the bundle id ever changes for any channel or
+  variant — no guardrail compares the two.
+- `release.update.an-update-is-proven-to-install-before-publishing` — **[GAP]** (#4901) no
+  end-to-end check exists anywhere that an older installed build can actually update itself to
+  the new DMG before that DMG is published. A real machine running an old build, attempting the
+  live update, and confirming the new version launches is the genuine end-to-end proof and is
+  not proposed here as automatable pre-publish (it needs a real, disposable macOS install).
+  **Nearest automatable proxy**, not yet built: the four cheap, fully scriptable checks in
+  `scripts/check_sparkle_update_ready.py` below — they cannot prove the install SUCCEEDS, but
+  together they rule out every cause this review found evidence for or against, which is most of
+  the realistic failure surface short of an actual translocated-app or Gatekeeper reproduction.
+
+**Pre-publish checks that would have caught this — proposed, not yet written,
+`scripts/check_sparkle_update_ready.py`:**
+- The live feed's newest `sparkle:version`, fetched live (not from a local copy), is strictly
+  less than the build about to publish — catches `release.update.feed-is-current` going stale
+  AND `release.update.build-number-strictly-increases` colliding, in one comparison.
+- The enclosure `length` in the appcast entry about to be written equals the actual built DMG's
+  byte size on disk.
+- The EdDSA signature verifies against the baked-in public key, computed on the DMG AFTER
+  stapling (run `xcrun stapler validate` first; refuse to sign if it fails) — catches
+  `release.update.signature-made-after-stapling` if the order is ever reordered.
+- The feed URL baked into the built app's `Info.plist` (`SUFeedURL`) equals the appcast URL the
+  release is about to publish to — `create-github-release.sh` already does this one; folding it
+  into the same script keeps every update-readiness check in one place.
+
+## Open questions
+
+1. Which build was "the last release" the maintainer means — the one that shipped and then
+   failed to update, on which machine? `~/Library/Logs/Autoupdate.log` on THAT machine names the
+   actual cause; nothing in this repository can substitute for it.
+2. **For the maintainer (#4912):** `check_mac_app_store_target` fails — the `Fichero (App
+   Store)` target is missing from `project.pbxproj` entirely, verified long-standing, not a
+   this-week regression. Is Mac App Store distribution still a near-term goal (in which case the
+   target needs re-adding and #3340's HOLD on engine sandboxing needs revisiting), or has the
+   DMG/Sparkle + TestFlight path superseded it for now? This spec currently describes three
+   distribution outputs and doesn't mention MAS at all; not decided here.
 
 ## Rulings (design lead)
 

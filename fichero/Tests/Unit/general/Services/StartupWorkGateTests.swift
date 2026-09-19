@@ -211,15 +211,47 @@ struct StartupWorkGateTests {
             "releaseEmbedded launch must await async port preflight instead of blocking @MainActor (#3928)"
         )
 
+        // #4902: `resolvePortConflict` gained two defaulted params (#4896's
+        // testability seam) — match by name, not the old no-args signature.
         #expect(
-            source.contains("func resolvePortConflict() async throws"),
+            source.contains("func resolvePortConflict("),
             "resolvePortConflict is reached from the main-actor launch path and must remain async (#3928)"
         )
-        let preflightBody = try Self.functionBody(
-            containing: "func resolvePortConflict() async throws", in: source
-        )
         #expect(
-            preflightBody.contains("Task.detached") && preflightBody.contains("terminateOrphanEngines()"),
+            source.contains(") async throws -> PortResolution {"),
+            "resolvePortConflict is reached from the main-actor launch path and must remain async (#3928)"
+        )
+        // The declaration's own default-parameter closures contain `{` (the
+        // production `sweep` default), so bounding on "func resolvePortConflict("
+        // would hand functionBody a closure's brace instead of the function's
+        // own — anchor on the signature's END instead, right before its real
+        // opening brace.
+        let preflightBody = try Self.functionBody(
+            containing: ") async throws -> PortResolution", in: source
+        )
+        // #4896/#4902: the sweep itself moved to its own named seam
+        // (`awaitedOrphanSweep`), called from here via the injected `sweep`
+        // parameter — so THIS body no longer shells out directly. Check the
+        // off-main claim against where the detached task actually lives now.
+        #expect(
+            preflightBody.contains("await sweep()"),
+            "resolvePortConflict must await the orphan sweep before deciding, not shell out directly (#3928/#4896)"
+        )
+        // `awaitedOrphanSweep`'s OWN default parameter is `terminate: ... = {
+        // EmbeddedBackendService.terminateOrphanEngines() }` — another `{`
+        // ahead of the real body, the identical trap `functionBody` hit above.
+        // Bound on the function's own closing brace instead (the "\n    }"
+        // body-boundary pattern, as elsewhere this delivery).
+        let declStart = try #require(source.range(of: "func awaitedOrphanSweep("))
+        let signatureEnd = try #require(
+            source.range(of: ") async {", range: declStart.upperBound..<source.endIndex)
+        )
+        let sweepBodyEnd = try #require(
+            source.range(of: "\n    }", range: signatureEnd.upperBound..<source.endIndex)
+        )
+        let sweepBody = source[signatureEnd.upperBound..<sweepBodyEnd.lowerBound]
+        #expect(
+            sweepBody.contains("Task.detached") && sweepBody.contains("terminate()"),
             "the orphan sweep shells out and must run off the main actor (#3928)"
         )
         #expect(

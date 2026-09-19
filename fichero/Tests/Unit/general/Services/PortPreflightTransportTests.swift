@@ -90,17 +90,24 @@ struct PortPreflightTransportTests {
     func theOrphanSweepIsNotGated() throws {
         let source = try AppSource.text("Services/EmbeddedBackendService+Ports.swift")
 
+        // #4902: `resolvePortConflict` gained two defaulted params (#4896's
+        // testability seam), so match it by NAME, not the old no-args
+        // signature. And the sweep call itself moved behind its own named
+        // seam (`awaitedOrphanSweep`, called via the injected `sweep`
+        // parameter) — so the literal call inside `resolvePortConflict` is
+        // now `await sweep()`, not `Self.terminateOrphanEngines()` directly.
+        //
         // Scope to the non-App-Store half of `resolvePortConflict`, because the
         // sandboxed half legitimately guards FIRST — it has no sweep to protect.
         // Comparing raw offsets across the whole file would compare the sweep
         // against the MAS branch's guard and read as ordered when it is not.
-        let body = try #require(source.range(of: "func resolvePortConflict()"))
+        let body = try #require(source.range(of: "func resolvePortConflict("))
         let nonAppStore = try #require(
             source.range(of: "#else", range: body.upperBound..<source.endIndex)
         )
         let branch = source[nonAppStore.upperBound...]
 
-        let sweep = try #require(branch.range(of: "Self.terminateOrphanEngines()"))
+        let sweep = try #require(branch.range(of: "await sweep()"))
         let guardClause = try #require(branch.range(of: "guard Self.portPreflightApplies"))
 
         // The sweep has to come FIRST. Behind the guard it would stop reaping

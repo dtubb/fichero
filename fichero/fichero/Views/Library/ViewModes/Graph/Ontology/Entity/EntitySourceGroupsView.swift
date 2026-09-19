@@ -165,14 +165,18 @@ struct EntitySourceGroupsView: View {
     }
 
     /// Custom scheme for the in-prose clause links; never leaves the view.
-    static let claimLinkScheme = "fichero-claim"
+    // #4902: `nonisolated` is load-bearing on this AND `buildClauseAttributedString`
+    // below (same-type isolation is transitive) — EntitySourceGroupsLinkTests is a
+    // non-@MainActor Swift Testing suite reaching both; both are pure (a constant,
+    // and a function reading only its own parameter plus this constant).
+    nonisolated static let claimLinkScheme = "fichero-claim"
 
     /// Build the dense semicolon-separated prose for a source group, each clause
     /// carrying a link to its claim's source page. A clause with no honest
     /// destination (no id, or no recorded document) stays plain text — a link
     /// that goes nowhere is worse than no link (the #4393 precision rule). Static
     /// so the clause/link mapping is testable without mounting the view.
-    static func buildClauseAttributedString(
+    nonisolated static func buildClauseAttributedString(
         _ claims: [Components.Schemas.KnowledgeClaim]
     ) -> AttributedString? {
         let parts: [AttributedString] = claims.compactMap { claim in

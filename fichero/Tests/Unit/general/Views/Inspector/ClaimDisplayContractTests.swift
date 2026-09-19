@@ -16,7 +16,12 @@ import XCTest
 /// already settled.
 final class ClaimDisplayContractTests: XCTestCase {
 
+    // #4896: EntityDigestContent split across four files (a MOVE, not a
+    // behaviour change) — `digest` still names the file that owns whichever
+    // check reads it, just no longer always the same one.
     private static let digest = "Views/Inspector/Knowledge/EntityDigestView.swift"
+    private static let digestBiography = "Views/Inspector/Knowledge/EntityDigestContent+Biography.swift"
+    private static let digestProvenance = "Views/Inspector/Knowledge/EntityDigestContent+Provenance.swift"
 
     // MARK: - Claims group by subject, without repeating it
 
@@ -28,7 +33,7 @@ final class ClaimDisplayContractTests: XCTestCase {
     /// any list — keeps it. Both answers are correct, and a test that only
     /// pinned "the subject is omitted" would have made the second one a bug.
     func testTheDigestComposesEveryClaimAgainstItsGroupSubject() throws {
-        let source = try AppSource.text(Self.digest)
+        let source = try AppSource.text(Self.digestProvenance)
 
         XCTAssertTrue(source.contains("ClaimLine.text("))
         XCTAssertTrue(
@@ -85,7 +90,7 @@ final class ClaimDisplayContractTests: XCTestCase {
     /// Selecting a claim navigates, through the SAME cursor the outline,
     /// annotations and artifacts use. Not a second navigation path (#4373).
     func testSelectingAClaimRequestsItsSourceOnTheSharedCursor() throws {
-        let source = try AppSource.text(Self.digest)
+        let source = try AppSource.text(Self.digestBiography)
 
         XCTAssertTrue(source.contains("ClaimSourceRequest.request(for: claim, destination: .both)"))
         XCTAssertTrue(source.contains("claimSourceNavigationState?.request(request)"))
@@ -106,7 +111,7 @@ final class ClaimDisplayContractTests: XCTestCase {
     /// identifier AND vanished when that document was not loaded. A citation
     /// that changes depending on what else is on screen is worse than none.
     func testTheComposedBiographyCarriesNoBracketedFilename() throws {
-        let source = try AppSource.text(Self.digest)
+        let source = try AppSource.text(Self.digestBiography)
 
         XCTAssertFalse(source.contains("[\\(fileName)]"))
         XCTAssertFalse(source.contains("lastPathComponent"))

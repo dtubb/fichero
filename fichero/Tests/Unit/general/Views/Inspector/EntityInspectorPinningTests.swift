@@ -103,7 +103,8 @@ struct EntityInspectorPinningTests {
     /// nearest prior test scraped a different file (`OntologyBrowser+Detail.swift`).
     @Test("the digest loads statements through ClaimStore, not a bespoke fetch")
     func digestLoadsViaClaimStore() throws {
-        let digest = try AppSource.code("Views/Inspector/Knowledge/EntityDigestView.swift")
+        // #4896: loadClaims moved to EntityDigestContent+Provenance.swift.
+        let digest = try AppSource.code("Views/Inspector/Knowledge/EntityDigestContent+Provenance.swift")
 
         #expect(digest.contains("if let claimStore {"))
         #expect(digest.contains("await claimStore.loadClaims(forEntity: entityId, force: true)"))
@@ -187,10 +188,16 @@ struct EntityInspectorPinningTests {
     func entityArmRekeysAndClearsOnFocusChange() throws {
         let inspector = try AppSource.code("Views/Inspector/Document/DocumentInspector.swift")
 
-        let arm = try #require(
-            inspector.components(separatedBy: ".task(id: entityId)").dropFirst().first
+        // #4902: f47f4b60d added loadFailed/loadFailureReason resets ahead of
+        // `entity = nil`, pushing both checked strings past a fixed-length
+        // `.prefix(160)` window. Bound by the task's own closing brace instead
+        // (the "\n            }" body-boundary pattern, as for the font test),
+        // which survives however much the block grows.
+        let start = try #require(inspector.range(of: ".task(id: entityId) {"))
+        let bodyEnd = try #require(
+            inspector.range(of: "\n            }", range: start.upperBound..<inspector.endIndex)
         )
-        let body = String(arm.prefix(160))
+        let body = inspector[start.upperBound..<bodyEnd.lowerBound]
         // Reset FIRST so the stale entity never renders under the new id.
         #expect(body.contains("entity = nil"))
         #expect(body.contains("entityService.getEntity(entityId)"))
@@ -204,12 +211,16 @@ struct EntityInspectorPinningTests {
     /// entity's list, never the old one appended.
     @Test("the digest re-keys its statements on the entity id and replaces the list")
     func digestStatementsRekeyOnEntity() throws {
+        // #4896: `.task(id:)` stays on `body` (main file); `loadClaims` moved to
+        // +Provenance.swift and dropped `private` (an extension file calls it) —
+        // both checked here so the split can't quietly break either half.
         let digest = try AppSource.code("Views/Inspector/Knowledge/EntityDigestView.swift")
-
         #expect(digest.contains(".task(id: entity.id)"))
+
+        let provenance = try AppSource.code("Views/Inspector/Knowledge/EntityDigestContent+Provenance.swift")
         // loadClaims resets the selection so a stale row can't survive the swap.
         let load = try #require(
-            digest.components(separatedBy: "private func loadClaims()").dropFirst().first
+            provenance.components(separatedBy: "func loadClaims()").dropFirst().first
         )
         #expect(String(load).contains("selectedClaimRowId = nil"))
     }
@@ -256,7 +267,9 @@ struct EntityInspectorPinningTests {
     @Test("every entity-statement surface routes through the one composer")
     func surfacesRouteThroughOneComposer() throws {
         for path in [
-            "Views/Inspector/Knowledge/EntityDigestView.swift",
+            // #4896: provenanceSummary (the digest's composer call) moved to
+            // +Provenance.swift.
+            "Views/Inspector/Knowledge/EntityDigestContent+Provenance.swift",
             "Views/Library/ViewModes/Graph/Ontology/Entity/EntityDetailView+Claims.swift"
         ] {
             let source = try AppSource.code(path)

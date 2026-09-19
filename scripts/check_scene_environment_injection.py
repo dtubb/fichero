@@ -87,6 +87,14 @@ KNOWN_GAPS: dict[str, str] = {}
 # ActivityDetailWindow reader was reached through an `AnyView`/erased edge no
 # static walk sees, which is exactly why the tripwire exists.
 DETACHED_SCENES: dict[str, str] = {
+    "sparql-console (Window)":
+        "SPARQLConsoleView reads KGQueryStore (optional, #4703 house rule — "
+        "degrades to an unavailable state, never traps) and is self-contained "
+        "like loove-coverage: KGQueryStore is an app-level store "
+        "(AppState.kgQueryStore, built from the API client, not library-scoped), "
+        "so no .libraryServiceEnvironment(library) is needed. The scene injects "
+        "appState.kgQueryStore and appExecutionObserver directly (#3298, "
+        "#4705 increment 3, 2026-09-19).",
     "install-tools (Window)":
         "InstallToolsWindow writes the fichero CLI and MCP shim into "
         "~/.local/bin and reports where they landed. It reads no library "
