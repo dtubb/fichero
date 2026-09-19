@@ -62,6 +62,11 @@ def _child_env(base_path: Path, token: str) -> dict[str, str]:
         # Pin the secret instead of scraping the user's 0600 .api-key, which
         # lives in ~/Library/Application Support and not under BASE_PATH.
         FICHERO_BOOTSTRAP_TOKEN=token,
+        # The engine PERSISTS an app-supplied token to `.api-key`. Without a
+        # relocated token dir that is the USER's real file: every run of this
+        # module replaced it and left the live engine answering
+        # `stale_bootstrap_token` to the CLI and MCP (found 2026-09-19).
+        FICHERO_TOKEN_DIR=str(base_path / "token"),
         FICHERO_MULTIUSER="0",
         FICHERO_FEATURE_TIER="dev",
         FICHERO_SKIP_DEFAULT_WORKFLOWS="1",
