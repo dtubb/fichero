@@ -7,13 +7,6 @@
     "issue": 4831
   },
   {
-    "file": "fichero-server/src/fichero_server/api/routes/kg/entity_curation.py",
-    "function": "enrich_import",
-    "class": "violation",
-    "reason": "#4831 sweep 2026-09-18 \u2014 bare mutating route, no registry.invoke() call in its own body",
-    "issue": 4831
-  },
-  {
     "file": "fichero-server/src/fichero_server/api/routes/kg/mutations.py",
     "function": "undo_mutation",
     "class": "violation",
@@ -90,6 +83,6 @@
     "file": "fichero-server/src/fichero_server/api/routes/kg/entity_curation.py",
     "function": "enrich_preview",
     "class": "by-design",
-    "reason": "read-only: fetches candidate Wikidata statements via SPARQL and returns them for the user to review before import \u2014 no db.save/delete anywhere in the body. The mutating sibling, enrich_import, is a real violation, allowlisted separately."
+    "reason": "read-only: fetches candidate Wikidata statements via SPARQL and returns them for the user to review before import \u2014 no db.save/delete anywhere in the body. The mutating sibling, enrich_import, now calls registry.invoke() (entity.enrich_import, #4831 batch 4) and is no longer allowlisted here."
   }
 ]

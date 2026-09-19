@@ -1493,16 +1493,14 @@ async def enrich_preview(
     )
 
 
-@router.post(
-    "/enrich/import",
-    response_model=EnrichImportResponse,
-    summary="Import selected Wikidata statements as WIKIDATA-SOURCED claims",
-)
-async def enrich_import(
-    body: EnrichImportRequest,
-    db: Database = Depends(get_library_database_for_write),
-    actor: str = Depends(request_actor),
-) -> EnrichImportResponse:
+def enrich_import_impl(db: Database, body: "EnrichImportRequest") -> EnrichImportResponse:
+    """Import selected (already-fetched) Wikidata statements as WIKIDATA-
+    SOURCED claims (#4831, batch 4). Extracted verbatim from the former bare
+    route body -- no network call here: `body.statements` were already
+    fetched by the separate, by-design `enrich_preview` route (its own
+    outbound network is the opt-in gate this pipeline is built around); this
+    function only writes claims from data the caller already has.
+    """
     from fichero_server.api.routes.claim.claims import ClaimCreateRequest, create_claim_impl
     from fichero_server.knowledge.wikidata_enrich import (
         WikidataStatement,
@@ -1551,6 +1549,28 @@ async def enrich_import(
     )
 
 
+@router.post(
+    "/enrich/import",
+    response_model=EnrichImportResponse,
+    summary="Import selected Wikidata statements as WIKIDATA-SOURCED claims",
+)
+async def enrich_import(
+    body: EnrichImportRequest,
+    db: Database = Depends(get_library_database_for_write),
+    actor: str = Depends(request_actor),
+) -> EnrichImportResponse:
+    # Built directly from this route's OWN already-declared params, not
+    # `Depends(action_context)` -- that dependency adds two NEW header
+    # parameters (X-Fichero-Origin-Window, X-Fichero-Client) to this
+    # operation's OpenAPI schema, one of the three traps
+    # `audit.wrapping-a-route-preserves-its-openapi-surface` names.
+    from pathlib import Path
+
+    ctx = ActionContext(actor=actor, library_path=str(Path(db.path).parent))
+    result = registry.invoke(db, "entity.enrich_import", body.model_dump(mode="json"), ctx)
+    return EnrichImportResponse.model_validate(result.result)
+
+
 # ---------------------------------------------------------------------------
 # Action layer registration (EPIC #1848 keystone #2013) — entity.merge pilot
 # ---------------------------------------------------------------------------
@@ -1565,6 +1585,40 @@ async def enrich_import(
 # POST /api/actions/invoke.
 
 from fichero_server.actions.registry import action, ActionContext, ChangeSpec, registry  # noqa: E402
+
+
+@action(
+    "entity.enrich_import",
+    EnrichImportRequest,
+    domains=["entity", "claim"],
+    # No true inverse exists to register: a real undo would need to delete
+    # every one of `response.claim_ids` in one operation, and no batch
+    # "delete N claims" action exists today (`claim.delete` inverts exactly
+    # one claim). Building that batch-delete/inverse pair is new capability,
+    # not this route's minimal registry-wrapping -- so this stays
+    # undoable=False, same honest gap `entity.batch_curation`/
+    # `claim.batch_curation` already have for the same reason. The
+    # already-existing `POST /api/kg/mutations/{id}/undo` per-claim path
+    # still restores nothing here either, correctly: `enrich_import_impl`
+    # writes NO MutationLog row at all (`create_claim_impl` doesn't), so
+    # there's nothing left over for that older route to even find.
+    undoable=False,
+)
+def _action_enrich_import(
+    db: Database, params: EnrichImportRequest, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    response = enrich_import_impl(db, params)
+    spec = ChangeSpec(
+        domains=["claim"],
+        target_ids=response.claim_ids,
+        # No `before`: this only CREATES claims, nothing existing is
+        # touched (mirrors claim.create's own after-only ChangeSpec shape).
+        after={"claim_ids": response.claim_ids, "entity_id": response.entity_id},
+        emit_type="claim.updated" if response.claim_ids else None,
+        claim_ids=response.claim_ids,
+        entity_ids=[response.entity_id],
+    )
+    return response.model_dump(mode="json"), spec
 
 
 class UnmergeEntitiesParams(BaseModel):

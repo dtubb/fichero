@@ -134,6 +134,66 @@ async def test_import_marks_claims_wikidata_sourced(tmp_path):
         db.conn.close()
 
 
+# --- audit.every-mutating-route-uses-the-registry (#4831, batch 4) --------
+
+
+@pytest.mark.asyncio
+async def test_enrich_import_calls_registry_invoke_and_records_the_real_actor(tmp_path):
+    """The route is now a thin `registry.invoke` caller (`entity.enrich_import`)
+    -- a real call the AST guardrail (`check_routes_use_action_layer.py`) can
+    see, not wrapped in `asyncio.to_thread` or any other indirection that
+    would hide it. The ActionAudit it writes must name the REAL caller, never
+    a hardcoded "human" (this route's `actor` param was already real before
+    this conversion -- the registry wrap must not regress that)."""
+    from fichero_server.actions.registry import registry
+    from fichero_server.models import ActionAudit
+
+    db = Database(path=tmp_path / "lib" / "fichero.duckdb")
+    try:
+        entity = _linked_entity(db, "Q42")
+        result = await curation.enrich_import(
+            curation.EnrichImportRequest(
+                entity_id=entity.id,
+                qid="Q42",
+                statements=[
+                    curation.EnrichImportStatement(
+                        property_id="P19",
+                        property_label="place of birth",
+                        value_label="Cambridge",
+                    )
+                ],
+            ),
+            db,
+            actor="alice",
+        )
+        audits = [
+            a for a in db.all(ActionAudit) if a.action_name == "entity.enrich_import"
+        ]
+        assert len(audits) == 1, "enrich_import did not go through registry.invoke"
+        audit = audits[0]
+        assert audit.actor == "alice", (
+            f"ActionAudit recorded actor={audit.actor!r} -- never a hardcoded "
+            "'human', the real caller."
+        )
+        assert audit.target_ids == result.claim_ids
+    finally:
+        db.conn.close()
+
+
+def test_enrich_import_action_has_no_registered_inverse():
+    """No true inverse exists: a real undo would need to delete every claim
+    `entity.enrich_import` created in ONE operation, and no batch
+    "delete N claims" action exists (`claim.delete` inverts exactly one).
+    Stays `undoable=False`, same honest gap `entity.batch_curation` /
+    `claim.batch_curation` already have for the identical reason -- never
+    silently claim an undo capability that isn't really there."""
+    from fichero_server.actions.registry import registry
+
+    reg = registry.get("entity.enrich_import")
+    assert reg.undoable is False
+    assert reg.invert is None
+
+
 # --- SPARQL-endpoints settings ---------------------------------------------
 
 
