@@ -247,9 +247,23 @@ refs), `run_comparison.py`/`model_comparison.py` (the Compare Models feature).
   cancelled/failed run can leave its documents at `processing` forever, never
   calling the completion path that flips status back (2026-07-29 review F2).
   Folded into #4312.
-- `workflows.run.controls-are-fire-and-forget` — **[GAP]** pause/resume/stop
+- `workflows.run.controls-are-fire-and-forget` — **[GAP]** (#4402) pause/resume/stop
   buttons fire the endpoint and apply no local state update, so Resume can
-  appear to do nothing (2026-07-29 review F7). Folded into #4312.
+  appear to do nothing (2026-07-29 review F7). Folded into #4312. **Partial
+  progress, verified at HEAD 2026-09-19 (moved here from the `activity` legacy
+  milestone fold, #4402):** the underlying cancellation check is no longer
+  scoped to the parallel fan-out branch alone — `builder.py` now checks
+  `cancellation_requested(run_id)` at a second, shared per-item
+  progress-reporting callback reached by every per-item tool loop, with a code
+  comment citing #4402 by number and explaining the generalization ("checking
+  here reaches all of them without editing thirty loops, and cannot drift out
+  of sync with them the way thirty separate checks would"). `pause_requested`
+  shares the identical boundary, checked after cancel ("a run that was both
+  paused and stopped is stopped"). This narrows the GAP but does not close it:
+  the local-state-update half of this behavior (Resume appearing to do
+  nothing) is untouched, and coverage of a single long call with no per-item
+  loop, or a purely serial non-looping node boundary, was not independently
+  re-verified.
 - `workflows.run.trace-view` — **[GAP]** no read-only "what actually happened"
   per-run trace view exists yet, though the review found most of the needed
   data (checkpoints, `progress_timeline`, Mermaid diagrams) already persisted
@@ -513,6 +527,7 @@ are out of scope for this table — see that spec's own behaviors, all already c
 | #4370 | Test / Dry Run button on a workflow | `workflows.canvas.dry-run` | cited |
 | #4387 | Empty states should offer the workflow that fills them | `workflows.folders.empty-states-suggest-a-workflow` | cited |
 | #4397 | Workflows need a declared scope contract | `workflows.defaults.scope-contract-undeclared` | cited |
+| #4402 | Cancellation check is scoped to the parallel fan-out branch only, not every boundary | `workflows.run.controls-are-fire-and-forget` | cited — moved here 2026-09-19 from the `activity` legacy milestone fold, per the ruling that an issue lives on the milestone of the spec that owns its behaviour |
 | #4478 | Decide the six port conversions the old editor permitted | `workflows.canvas.edge-legality-matches-engine` | cited |
 | #4736 | `workflows.canvas.ports-come-from-registry` — client fabricates fallback ports | `workflows.canvas.ports-come-from-registry` | cited |
 | #4738 | `workflows.defaults.duplication-regrown` — near-duplicate default presets regrown | `workflows.defaults.duplication-regrown` | cited |
@@ -561,10 +576,11 @@ are out of scope for this table — see that spec's own behaviors, all already c
 | #4330 | Rendition model and two-axis navigation in Preview | — | **UNCOVERED** — reads as `panes-workspaces`/Preview rendition work; recommend re-homing |
 | #4339 | Library: Finder-style grouping (group-by in the sort menu) | — | **UNCOVERED** — a Library browsing feature; recommend re-homing |
 
-**Coverage: 20 of 56 cited, 3 RESHAPED and awaiting CD triage (Comparison — the result side retired by the CD ruling), 33
-UNCOVERED** (36 total orphan issues by `check`'s rule-f count, since the 3 reshaped issues
-are now also uncited and correctly show up as orphans too — 20+3+33=56, 33+3=36 rule-f
-lines). Clustered by theme (creative-director instruction: propose a sub-spec only for a
+**Coverage: 21 of 57 cited (#4402 added 2026-09-19, moved here from the `activity` legacy
+milestone fold), 3 RESHAPED and awaiting CD triage (Comparison — the result side retired by
+the CD ruling), 33 UNCOVERED** (36 total orphan issues by `check`'s rule-f count, since the 3
+reshaped issues are now also uncited and correctly show up as orphans too —
+21+3+33=57, 33+3=36 rule-f lines). Clustered by theme (creative-director instruction: propose a sub-spec only for a
 cluster with ≥4 issues; PROPOSAL ONLY, not written, no milestone created):
 
 - **Transcription/translation presets** (#3907, #3909, #4306, #4633 — 4 issues): quality and

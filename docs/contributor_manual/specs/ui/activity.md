@@ -80,12 +80,12 @@ style window; neither is built.
 
 ### A. The run list — assembly, honesty, and live updates
 
-- `activity.store-owns-run-assembly` — **[PARTIAL]** (→ #3231, → #493) `ActivityStore.rebuildRuns` merges live
+- `activity.store-owns-run-assembly` — **[PARTIAL]** (#3231, #493) `ActivityStore.rebuildRuns` merges live
   and historical runs, sorts, and dedupes — the view only renders `runs`/`runLoadFailures`,
   never assembles them itself. Verified at HEAD by direct code read; no dedicated pinning test
   name found this pass for `rebuildRuns` specifically — PARTIAL rather than OK for that reason
   alone, not because the mechanism is unproven.
-- `activity.load-failures-are-honest` — **[PARTIAL]** (→ #3231) a per-library historical-query failure
+- `activity.load-failures-are-honest` — **[PARTIAL]** (#3231) a per-library historical-query failure
   is collected into `runLoadFailures` and rendered as a warning row, never silently dropped —
   the exact "no-silent-fallback" honesty rule a legacy issue on this milestone asked for.
   Verified at HEAD: `ActivityStore.swift`'s own comment states the intent;
@@ -97,13 +97,13 @@ style window; neither is built.
   `applyActivityEvent`'s own inline comments state this discipline directly (no-wholesale
   re-render). Pinned: `ActivityStoreTests.swift`'s "folded change frame does NOT bump
   refreshToken (no wholesale run reload)".
-- `activity.spinner-reflects-process-liveness` — **[BROKEN]** (→ #4346) seen live in maintainer/
+- `activity.spinner-reflects-process-liveness` — **[BROKEN]** (#4346) seen live in maintainer/
   field testing: after a workflow run stops, its activity row keeps showing an active spinner
   — reproduced on the current integration tree, after the terminal-path finalization and
   per-row busy-state fixes the issue itself names as already landed. Not diagnosed further
   this pass; the issue's own triage notes (observer/store merge, SSE stream ending without a
   terminal frame) are the live leads, not re-verified here.
-- `activity.stale-runs-settle-across-restarts` — **[BROKEN]** (→ #4384) runs from days ago show
+- `activity.stale-runs-settle-across-restarts` — **[BROKEN]** (#4384) runs from days ago show
   a "running" indicator across app and engine restarts — a process cannot genuinely run that
   long, so these are dead runs never settled. The issue's own two open questions (does the
   stale-run sweep run on every startup or only when a prior run is detected; does it settle
@@ -125,7 +125,7 @@ style window; neither is built.
 
 ### C. Standalone window and view reorganization (not built)
 
-- `activity.standalone-window` — **[GAP]** (→ #1264, → #1559 — the same ask, filed twice roughly a
+- `activity.standalone-window` — **[GAP]** (#1264, #1559 — the same ask, filed twice roughly a
   week apart) a standalone, Mail-Connection-Doctor-style Activity window (live job list, a
   status dot/spinner per row, fan-out sub-items as disclosure rows, opened via the Window menu
   + a toolbar button + a keyboard shortcut, independent of the library window's focus) does not
@@ -134,16 +134,16 @@ style window; neither is built.
   decided here**: minimal "Checking…" bar vs. full table by default (auto-collapse when only
   one job is active?); keep a finished row briefly before fading, or clear immediately; does
   clicking a row jump to the full Activity mode or open the document directly.
-- `activity.delete-by-workflow-run` — **[GAP]** (→ #1830) no capability exists to delete a
+- `activity.delete-by-workflow-run` — **[GAP]** (#1830) no capability exists to delete a
   specific workflow run's output (or all runs of a workflow type) while leaving source
   documents and other runs' derived data untouched — today the only path is deleting the
   whole library and redoing the work. Needs a CLI + endpoint + a UI affordance in the
   Activity/run view, gated on provenance stamps already existing on derived data.
-- `activity.columns-move-into-activity-view` — **[GAP]** (→ #2277, half of this issue's own ask)
+- `activity.columns-move-into-activity-view` — **[GAP]** (#2277, half of this issue's own ask)
   workflow activity columns (progress, status detail) live in the workflow node editor today;
   the issue asks for them to move into the Activity view itself, where a researcher already
   looks for run state. Not built.
-- `activity.step-click-jumps-to-comparison` — **[GAP, design has moved on]** (→ #2277, the
+- `activity.step-click-jumps-to-comparison` — **[GAP, design has moved on]** (#2277, the
   other half) this issue's own ask — clicking a workflow step jumps to "the comparison of that
   step" — was written against a 2026-06 reform master-plan design (a chat-tab/node Comparison
   surface) the maintainer has since superseded: Comparison is now panes plus a diff
@@ -154,14 +154,14 @@ style window; neither is built.
 
 ## Redirect, not folded here
 
-- **→ #3231** ("ActivityBrowserView swallows per-library history failures... store-boundary
+- **#3231** ("ActivityBrowserView swallows per-library history failures... store-boundary
   violation") — **verify-close, not a live gap.** The store-boundary violation this issue
   named (the VIEW assembling its own run list, at `ActivityBrowserView.loadHistoricalRuns`)
   no longer exists at that location; `ActivityStore.rebuildRuns` now owns exactly this
   assembly, and `runLoadFailures` surfaces load errors honestly. See
   `activity.store-owns-run-assembly` and `activity.load-failures-are-honest` above. Evidence
   posted, left open, not closed here.
-- **→ #493** ("Wire: Activity Monitor") — **verify-close, not a live gap.** Every item on this
+- **#493** ("Wire: Activity Monitor") — **verify-close, not a live gap.** Every item on this
   issue's own test checklist has a real file behind it: live progress (`ActivityStore`/
   `ActivityProgressView+LiveProgress.swift`), a log stream (`ActivityLogView.swift`), code
   output (`ActivityConsoleView.swift`), an execution diagram home
@@ -173,24 +173,26 @@ style window; neither is built.
   `ui/workflows.md`'s own subject, cross-referenced here so the milestone fold doesn't lose
   it, not folded as this spec's own claim.
 
-## Fold plan for the 9 issues (Pass 2 — plan only, NOT executed this pass)
+## Fold plan for the 9 issues — Pass 2 EXECUTED 2026-09-19
 
-**Move onto #320 (activity), each now backing a named behavior above:**
-- → #1264, → #1559 → `activity.standalone-window` (one behavior, two issues — the same ask)
-- → #1830 → `activity.delete-by-workflow-run`
-- → #2277 → `activity.columns-move-into-activity-view` + `activity.step-click-jumps-to-comparison`
-- → #4346 → `activity.spinner-reflects-process-liveness`
-- → #4384 → `activity.stale-runs-settle-across-restarts`
+**Moved onto #320 (activity), each now backing a named behavior above:**
+- #1264, #1559 → `activity.standalone-window` (one behavior, two issues — the same ask; both
+  left OPEN, note posted on each pointing at the other, closing neither)
+- #1830 → `activity.delete-by-workflow-run`
+- #2277 → `activity.columns-move-into-activity-view` + `activity.step-click-jumps-to-comparison`
+- #4346 → `activity.spinner-reflects-process-liveness`
+- #4384 → `activity.stale-runs-settle-across-restarts`
 
-**Verify-close, evidence to post, none closed:**
-- → #493 → `activity.store-owns-run-assembly`/general Activity-monitor build evidence
-- → #3231 → `activity.store-owns-run-assembly`, `activity.load-failures-are-honest`
+**Verify-close, evidence posted, none closed:**
+- #493 → `activity.store-owns-run-assembly`/general Activity-monitor build evidence
+- #3231 → `activity.store-owns-run-assembly`, `activity.load-failures-are-honest`
 
-**Redirect, cross-referenced not moved:**
-- → #4402 → stays cited from `ui/workflows.md`'s own `workflows.run.controls-are-fire-and-
-  forget`; this issue itself may still need moving onto the `workflows` milestone rather than
-  `activity`, a call for whoever executes Pass 2 to make explicitly (not decided here).
+**Redirect, cross-referenced not moved onto this milestone** (ruling: an issue lives on the
+milestone of the spec that OWNS its behaviour):
+- #4402 → moved onto milestone `workflows` (#293) instead, cited from `ui/workflows.md`'s own
+  `workflows.run.controls-are-fire-and-forget`; `activity.cancellation-boundary-generalized`
+  above keeps only the arrow-prefixed cross-reference, not ownership.
 
-**Net effect if Pass 2 executes as planned:** #122 would drop from 9 open to 0 if → #4402 also
-moves to `workflows` rather than staying on `activity` or `#122` — a Pass 2 executor should
-decide and state that placement explicitly, since this Pass 1 spec does not move any issue.
+**Net effect: #122 ("Activity View") reached 0 open issues and was closed** — #4402 was the
+one issue this milestone would otherwise have kept, and it now lives on `workflows` (#293)
+instead, per the ownership ruling above.
