@@ -9,8 +9,10 @@
 > code makes them pass. **Status: DRAFT — raised by review, 2026-09-19. Not yet discussed with
 > the maintainer; every part of it is PROPOSED.** A slice of the source model: read
 > `source-model.md` first. Behaviour ids below have **no tags yet**. Nothing here is built.
-> What accounts, sharing and roles exist today has NOT been read for this slice; it must be
-> before approval (see `multi-user` and sharing specs).
+> What exists today (VERIFIED on disk, `fichero_server/security/authz.py`): a person has one of
+> three roles in a project: **owner**, **editor** or **viewer**. Nothing restricts anything
+> below the level of a whole project. The sharing and accounts specs have not been read in
+> full for this slice, and must be before approval.
 
 ## Intent
 
@@ -33,44 +35,65 @@ against their sources before approval.)
 
 - **A rights record** can be attached to a project, a source, or any segment. It says: who
   holds rights or authority; what was consented to, by whom, when; any conditions; any
-  **labels** from an open list (Traditional Knowledge and Biocultural labels among them; a
-  project can add its own community's); who recorded this, and when. It is inherited
-  downward like language is, and can be tightened at any level.
-- **Restricted** means some people may not see a segment's picture, readings, marks or
-  statements. For them the segment is **absent, and said to be absent** ("one passage on this
-  page is restricted"). It is never silently dropped, and its existence is not hidden from
-  the record.
-- **Exports and training sets leave restricted material out by default** and say how many
-  segments they left out, in the loss report. Including it takes a deliberate, recorded act
-  by someone allowed to.
+  **labels** from an open list; who recorded this, and when. Traditional Knowledge and
+  Biocultural labels belong to the communities that apply them and are administered by Local
+  Contexts; Fichero carries them faithfully and does not invent them. A project can also keep
+  labels of its own.
+- **It passes downward, and only tightens.** A rights record on a project covers everything in
+  it; a record lower down may restrict further, never loosen what is above it.
+- **Who may do what.** The project's **owner** sets and changes rights records, redacts and
+  purges. An **editor** sees restricted material only if the record says editors may. A
+  **viewer** never does. (Whether a record can name particular people is an open question.)
+- **Restricted** means those not allowed do not see a segment's picture, readings, marks or
+  statements. For them it is **hidden, and the fact that something is hidden is shown** ("one
+  passage on this page is restricted"). It is never silently dropped.
+- **A reference does not leak.** A citable reference to a restricted segment opens to
+  "restricted" for someone not allowed, never to its content.
+- **Exports, training sets and the synced folder leave restricted material out by default**
+  and say how many segments they left out. Including it takes a deliberate, recorded act by
+  the owner.
 - **Sent to a model?** Whether a segment may be sent to a cloud model, to a local model only,
   or to none, is part of its rights record. The engine refuses, and says why, when a workflow
   would break it.
 - **Redaction** is a verb of its own, different from delete: the segment stays, its content is
-  covered for everyone without the right, and the covering is visible as a covering (in the
-  Source view, the Reader, exports and pictures of the page).
+  covered for everyone not allowed, and the covering is visible as a covering (in the Source
+  view, the Reader, exports and pictures of the page).
 - **Removal on request.** "Nothing is ever destroyed" cannot be the whole story when consent
-  is withdrawn. A **purge** truly removes a segment's content (its readings, pictures, marks
-  and statements, and copies in search and vectors). It is rarer and louder than delete; it
-  cannot be undone; and it leaves a note that something was purged, by whom, when and why,
-  without saying what it was.
+  is withdrawn. A **purge** truly removes a segment's content. Its reach is stated: the
+  readings, pictures, marks and rights-holder's words; everything worked out from them
+  (search entries, vectors, word-level analysis); the files in the synced folder; and the
+  quoted words inside any claim that rested on it. A claim itself is kept, with a plain note
+  that its evidence was removed, so nothing points at nothing. A purge cannot reach what has
+  already left the machine, so Fichero keeps a plain **list of what was exported, when and to
+  where**, for the owner to follow up. A purge is rarer and louder than delete; it cannot be
+  undone; and it leaves a note that something was purged, by whom, when and why, without
+  saying what it was.
 - All of these are audited actions, and work the same from the app, MCP and the command
   line.
 
 ## Behaviors (ids proposed; untagged until approval)
 
 - `source.rights.record` — a rights and consent record can be attached to a project, a source
-  or any segment, with labels from an open list, and is inherited downward.
-- `source.rights.restricted-is-said` — a restricted segment is absent for those without the
-  right, and the absence is stated.
-- `source.rights.exports-leave-out` — exports and training sets leave restricted material out
-  by default and report how much.
+  or any segment, with labels from an open list.
+- `source.rights.tighten-only` — a record passes downward; a lower level may restrict further
+  and never loosen.
+- `source.rights.owner-sets` — only a project's owner sets rights records, redacts and purges.
+- `source.rights.restricted-is-said` — for a viewer (and an editor the record does not admit) a
+  restricted segment's content is hidden, and the page says that something is hidden.
+- `source.rights.citation-does-not-leak` — a reference to a restricted segment opens to
+  "restricted" for someone not allowed.
+- `source.rights.exports-leave-out` — exports, training sets and the synced folder leave
+  restricted material out by default and report how much.
 - `source.rights.model-use` — a segment's record says whether it may go to a cloud model, a
   local model, or none; the engine refuses a workflow that would break it, and says why.
 - `source.rights.redact` — redaction covers a segment's content visibly, everywhere it would
   appear, without deleting it.
-- `source.rights.purge` — a purge truly removes a segment's content and what was worked out
-  from it, cannot be undone, and leaves a note that says who, when and why.
+- `source.rights.purge` — a purge removes a segment's content, cannot be undone, and leaves a
+  note that says who, when and why.
+- `source.rights.purge-reaches-derivatives` — a purge also removes search entries, vectors,
+  pictures, synced-folder files and quoted evidence; a claim that rested on it is kept with a
+  stated absence.
+- `source.rights.export-list` — Fichero keeps a list of what was exported, when and to where.
 
 ## Test matrix
 
@@ -78,8 +101,6 @@ To be filled at approval.
 
 ## Open questions
 
-1. Is this the right place for rights and access, or does it belong with accounts and sharing?
-2. Who in a project may restrict, redact and purge?
-3. Which label sets ship with Fichero?
-4. Does a purge also reach backups and exports already made (it cannot reach what has left
-   the machine; should Fichero keep a list of what was exported, so the owner can follow up)?
+See the one list in `source-model.md`. The ones that belong here: whether this slice is wanted
+in this set; who may restrict, redact and purge; whether a record can name particular people;
+which label sets ship.

@@ -47,7 +47,7 @@ a model trainer, and always knows what a format could not carry.
 
 | Format | In | Out | Carries | Loses (reported) |
 |---|---|---|---|---|
-| **PageXML** | yes | yes | regions, lines, words, glyphs; polygons; baselines; kinds; one order; direction (four); language and script; ranked readings; simple links; z-layers | extra reading orders; typed links; hands; campaigns; editorial facts; declared signs |
+| **PageXML** | yes | yes | regions, lines, words, glyphs; polygons; baselines; kinds; one order; direction (four); language and script; ranked readings; simple links; the format's own z-layers | extra reading orders; typed links; hands; campaigns; editorial facts; declared signs |
 | **ALTO** | yes | yes | blocks, lines, strings, glyphs; polygons; baselines; language; direction and order; alternatives and confidence; tags; processing history | as PageXML, and more of the link and kind detail |
 | **TEI** | yes | yes | zones linked to text; glosses and additions with place; reorder marks; hands; editorial facts; written and read pairs; apparatus for rival readings; declared signs; free links; page furniture | fine geometry below the zone in some encodings; direction beyond a style hint |
 | **MEI** | yes | yes | music zones, and the notes or neumes where a music reading exists (otherwise zones only, and the loss report says so) | polygons (its zones are boxes) |
@@ -112,9 +112,9 @@ Rules for every format
 - `source.format.export-validated` — an export is validated against its schema; an invalid
   one is a reported failure.
 - `source.format.loss-report` — every export states what it could not carry.
-- `source.format.round-trip` — for each format that goes both ways, export then import returns
-  the same segments, shapes, orders and readings, less what the loss report named (one test
-  for each format).
+- `source.format.round-trip-<format>` — one behaviour beside each in-and-out pair below: export
+  then import returns the same segments, shapes, orders and readings, less what the loss
+  report named.
 - `source.format.export-choices` — an export names the pass, reading order and reading kind
   it writes, with defaults.
 - `source.format.everywhere` — import and export work from the app, MCP and the command line,
@@ -127,7 +127,7 @@ Each format (one import and one export behaviour each)
 - `source.format.mei-in` · `source.format.mei-out`
 - `source.format.w3c-in` · `source.format.w3c-out`
 - `source.format.hocr-in` · `source.format.hocr-out`
-- `source.format.project-package-in` · `source.format.project-package-out` — a Transkribus or
+- `source.format.foreign-package-in` · `source.format.foreign-package-out` — a Transkribus or
   eScriptorium project as a whole.
 - `source.format.yolo-in` · `source.format.yolo-out`
 - `source.format.kraken-in` · `source.format.kraken-out`

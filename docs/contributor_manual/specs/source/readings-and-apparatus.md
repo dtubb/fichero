@@ -26,7 +26,7 @@ design keeps that record and lets it hang on any segment, not only on a whole do
 
 A segment has any number of **readings**. A reading has:
 
-- its **text** (which may include declared glyphs: see `languages-scripts-glyphs.md`);
+- its **text** (which may include declared signs: see `languages-scripts-signs.md`);
 - its **kind**: *as written* (letter for letter), *expanded* (abbreviations opened),
   *normalised* (spelling regularised), *as read aloud* (the qere; the Japanese reading of a
   Chinese text), *transliteration*, *translation*, *description* (what a picture shows),
@@ -38,9 +38,8 @@ A segment has any number of **readings**. A reading has:
 - **what it was read from**: which image of the page, and, for a reading made from another
   reading (a translation, a normalisation), which one;
 - its **author**: a person, or a model and run;
-- **how sure the machine was**, if a machine made it (for the whole reading and, where the
-  recogniser gives it, for each character, with the character positions along the line, kept
-  on the reading without making character segments);
+- **how sure the machine was**, if a machine made it. If it gave a confidence for each
+  character, that is kept on the line's reading; no character segments are made for it;
 - **the guideline it follows**, if any (a transcription convention);
 - when it was made.
 
@@ -61,7 +60,8 @@ and **labels it plainly as a machine's and unchosen**; search still finds it; an
 it as machine-made in its loss report. A machine's output never becomes the record by
 default. Whether a reading was made by a person or a machine is set by the engine from how it
 arrived, never claimed by the sender. The choice is itself recorded, with who and when, and
-changing it rewrites nothing. (Proposed; open question 3 in the foundation.)
+changing it rewrites nothing. (Proposed; see "Which reading counts" among the foundation's
+open questions.)
 
 ### Written and read
 
@@ -132,7 +132,8 @@ A date on a page is ink like anything else: a segment with a reading ("the third
 King Darius"; "12 Baktun 4 Katun…"; "era 1014"; "the feast of Saint John"). What it *means*
 is an interpretation, and there can be more than one.
 
-What exists (in `historical-text-normalization.md`, section B; partly built and tested): a
+What exists (`histnorm.dates.jdn-core` in `historical-text-normalization.md`; partly built and
+tested): a
 date is stored as a **range of days on one common count** (the Julian Day Number), never
 collapsed to one guessed day, with conversion from the Gregorian, Julian, French Republican,
 Hebrew and Islamic calendars, regnal years and Chinese era names, and "explicitly undated"
@@ -167,8 +168,8 @@ What this design adds:
 - **The field's formats in and out**: the extended date format (EDTF) for uncertain and
   approximate dates; TEI's dating attributes (calendar, custom dates, dating method); PeriodO
   for named periods ("the Umayyad period") as ranges with an authority. (Named from general
-  knowledge; to be checked. The open question of adopting a standard project for dates,
-  #4364, stays with the normalization spec.)
+  knowledge; to be checked. The open question of adopting an off-the-shelf date library, #4364
+  (`histnorm.dates.adopt-standards-format`), stays with the normalization spec.)
 - The timeline, sorting and search use the common count, so sources dated in different
   calendars can be set in one order.
 

@@ -118,13 +118,14 @@ project; and a project can be tied to a synced folder.
   each cut-out line against reading the whole page: Fichero should measure that on its own
   sources.
 - **Licences.** The YOLO family (Ultralytics, DocLayout-YOLO, and YALTAi which puts YOLO
-  inside Kraken) is under the AGPL, which covers the trained weights too. **Fichero is itself
-  AGPL, so these are compatible with it**: using them obliges nothing Fichero does not already
-  do. Two cautions remain, neither yet checked with anyone qualified: the Mac App Store build
-  (Apple's terms and copyleft code from *other* authors do not sit easily together, so such
-  models are better **downloaded on request than bundled**); and models whose terms are not
-  open at all. Surya's weights
-  carry a revenue cap. One popular embedding model is non-commercial. Apple's own document
+  inside Kraken) is under the AGPL, and its publisher holds that this covers the trained
+  weights too. **Fichero is itself AGPL, so these are compatible with it**, with one caution
+  not yet checked with anyone qualified: the Mac App Store build, where Apple's terms and
+  copyleft code from *other* authors do not sit easily together. So such models are better
+  **downloaded on request than bundled**. Models whose terms are not open at all are a
+  separate matter (below). Surya's weights
+  carry a revenue cap. One well-known embedding model (jina-embeddings-v3) is non-commercial;
+  the two Fichero uses or offers (multilingual-e5, BGE-M3) are permissive. Apple's own document
   reader (macOS 26), Detectron2 / LayoutParser and the RT-DETR family have no such problem.
 - **Apple's frameworks cover none of the hard cases** (early-modern hands, Syriac, woodblock
   Chinese, Indigenous orthographies). Their language lists must be asked for at run time, not
@@ -253,16 +254,18 @@ to download them), the right transcription guideline, and only the tools that ma
   for a project. Profiles inherit ("Spanish palaeography, notarial hands" from "Spanish
   palaeography" from "Handwritten, Latin script"), and a project can override anything.
 - A profile is **a plain file that can be shared** (one JSON document, or lines of JSON for a
-  set of them): languages and scripts; period; material; the default chain, as jobs or with
-  models named; which workflows and tools to show in the workflow bar and which to hide;
-  the guideline and level of normalisation; model suggestions with their citations; rights
+  set of them): languages and scripts; period; material; **which default workflow is its
+  chain** (by name; a profile does not carry a second copy of the graph) and which model does
+  each job; the guideline and level of normalisation; model suggestions with their citations; rights
   defaults; what the synced folder should hold. It holds no sources and no secrets.
 - Profiles can be **exported, imported, and published** by a community of practice, so best
   practice for a language or a script travels as a file, not as folklore. Fichero ships a
   starter set, kept as data.
-- **It can be automatic.** With a profile chosen, new sources in the project go through its
-  chain by themselves (as import already does for the basics). Nothing automatic ever writes
-  over a person's work, and cloud models are used only if the project allows it.
+- **It can be automatic, and automatic work is never the record.** With a profile chosen, new
+  sources go through the project's chain by themselves (as import already does for the
+  basics). What that makes is a pass and readings **to look at**: never the working pass,
+  never a chosen reading, until a person says so. Cloud models are used only if the project
+  allows it.
 
 Project settings sit **inside the cascade already ruled** for language and other attributes:
 
@@ -281,14 +284,14 @@ A project's settings:
 - **What it is**: languages, scripts, period, print or hand, how complex the pages are. These
   become the defaults that cascade down to its pages and segments.
 - **Its chain**: the default workflow for new sources, and which model does each job here (a
-  card, or a role default). Two projects in one project can use quite different models: a
+  card, or a role default). Two projects can use quite different models: a
   palaeographic one, and one of twenty-first-century notes.
 - **Its rules**: whether pages may leave this machine (which shuts out cloud models for
   everything in it); the transcription guideline and level of normalisation; the rights
   defaults (see `rights-and-access.md`).
 - **Its folder**, if it has one (below).
 
-### Onboarding: a profile, or a few questions
+### Onboarding: a profile, or five questions
 
 Onboarding is a window (the app's first-run window, which already has a step for making a
 library, is the thing to grow), shown when a **new project** is made. The same settings are
@@ -296,7 +299,7 @@ reached afterwards from **Project Settings…**, in the File menu and on the pro
 menu. One window, reached two ways; no second settings surface. An existing project can run
 the onboarding at any time.
 
-It offers the profiles first. If none fits, making a project asks **at most six things**, each of which changes what Fichero does.
+It offers the profiles first. If none fits, making a project asks **at most five things**, each of which changes what Fichero does.
 Anything that can be worked out is worked out and shown for correction, not asked.
 
 1. **Which scripts?**
@@ -304,15 +307,17 @@ Anything that can be worked out is worked out and shown for correction, not aske
 3. **Print, handwriting or typescript, and roughly when?**
 4. **How complex are the pages?** (one column; columns or tables; margins and glosses)
 5. **May pages leave this machine?**
-6. **What is it for, and how much is there?** (a searchable archive; a faithful edition; a few
-   pages or fifty thousand)
+
+(How faithful the transcription must be is set by the guideline a profile carries, not asked
+as a sixth question.)
 
 Reading direction and where the line sits follow from the script, and can be corrected. The
 Mac's abilities are detected. Better still: **give Fichero a few sample pages first** and it
 proposes answers to 1 to 4, which the researcher corrects.
 
-From the answers Fichero proposes a **default chain**, picked from a set of **best-practice
-recipes** kept as data (so they improve without a new version of the app), and says plainly:
+From the answers Fichero proposes a **default chain**. A best-practice chain (a "recipe") **is
+one of the locked default workflows** the workflows spec already ships: one mechanism, not a
+second store. Profiles and onboarding point at them by name. Fichero says plainly:
 
 - which models it will use, and why;
 - which it needs to download, how big they are, and their licences;
@@ -352,7 +357,7 @@ shows results **as cards**, with licence class, size and whether this Mac can ru
 
 The Reader lays out any script in its direction (right-to-left, vertical, mixed), uses the font
 a reading needs, shows declared signs as their pictures, and keeps glosses and notes in their
-places (detail in `languages-scripts-glyphs.md`). There is **one** Reader renderer that does
+places (detail in `languages-scripts-signs.md`). There is **one** Reader renderer that does
 this; today there are two, and neither does.
 
 ### Language tools are honest
@@ -365,12 +370,16 @@ language.
 ### A synced folder (which is also a new way to import)
 
 A project can be tied to a folder on the machine where the engine runs. This is more than
-export: it is a **second import mechanism** beside the importer, and needs engine and app work
-of its own (watching the folder; matching files to sources; bringing outside edits in as
-passes; showing conflicts). `importer/importer.md` owns import; this slice states what the
-source model needs from it, and the two must share one import path, not grow a second.
+export: the folder is a **new way to start an import**, and it needs real engine and app work
+(watching the folder; matching files to sources; bringing outside edits in as passes; showing
+conflicts). It is a new *trigger* for the one import path that `importer/importer.md` owns,
+not a second importer. Taking files **in** from the folder is switched on for each project,
+and the first time it shows what it is about to bring in and waits for a yes (a folder of
+fifty thousand images must not start work by surprise).
 
-- **Out, as you go.** For each source, Fichero keeps chosen outputs up to date in the folder:
+- **Out, as you go.** For each source, Fichero keeps chosen outputs up to date in the folder.
+  It writes the **working pass and the chosen readings**. Where a reading nobody has chosen
+  is written, the file and its loss report say it is machine-made. Outputs:
   the page's PageXML or ALTO, a TEI file for the source, plain text, the training set, and the
   rest of `formats-and-training.md`. When a segment or reading changes, the affected files are
   rewritten soon after, not at some later export. Each file says which pass, reading order and
@@ -394,8 +403,6 @@ Model cards and jobs
 - `source.model.one-card` — every usable model has one card in one shape, whatever kind it is.
 - `source.model.card-is-the-catalogue` — cards are the contents of the single catalogue; the
   shared picker and role defaults read them; no second catalogue exists.
-- `source.model.same-everywhere` — the app, MCP and the command line return the same card for
-  the same model.
 - `source.model.jobs-typed` — a card names its jobs from a fixed list, each with what it takes
   and gives in source-model terms.
 - `source.model.suits` — a card states scripts, languages, period, material, direction and line
@@ -439,10 +446,13 @@ Projects and onboarding
   or secrets.
 - `source.profile.sets-up-the-project` — choosing a profile sets languages, scripts, chain,
   guideline and the tools shown, and offers to download the models it names.
-- `source.profile.tools-shown` — a project's workflow bar shows the workflows and tools its
-  profile names, and the rest stay reachable but out of the way.
+- `source.chain.bar-offers-what-fits` — beside the project's chain, the workflow bar offers the
+  workflows the current selection can feed; there is no list of tools to hide.
+- `source.chain.recipe-is-a-default-workflow` — a best-practice chain is a locked default
+  workflow; profiles and onboarding name it and keep no second copy.
 - `source.profile.automatic` — with a profile chosen, new sources run the project's chain
-  without being asked; nothing automatic overwrites a person's work.
+  without being asked; what it makes is never the working pass or a chosen reading until a
+  person says so.
 - `source.project.one-settings-window` — making a new project and Project Settings… (File menu
   and the project's context menu) open the same window; there is no second surface.
 - `source.project.in-the-cascade` — project settings sit between the app and a folder in the
@@ -450,7 +460,7 @@ Projects and onboarding
 - `source.project.own-models` — two projects can use different models for the same job.
 - `source.project.stays-local` — a project marked "pages may not leave this machine" refuses
   cloud models for everything in it, and says why.
-- `source.onboard.six-questions` — making a project asks at most six questions.
+- `source.onboard.five-questions` — making a project asks at most five questions.
 - `source.onboard.proposes-from-samples` — given sample pages, Fichero proposes script,
   language, material and layout answers for correction.
 - `source.onboard.derives-not-asks` — direction, line position and hardware are worked out,
@@ -477,6 +487,11 @@ Reader and language tools
   otherwise Fichero says none exists and offers what does work.
 
 The synced folder
+- `source.sync.writes-the-record-or-says-so` — the folder holds the working pass and chosen
+  readings; an unchosen machine reading written there is marked machine-made in the file and
+  its loss report.
+- `source.sync.intake-is-opt-in` — taking files in from the folder is switched on for each
+  project and shows what it will bring in before its first run.
 - `source.sync.outputs-follow-edits` — chosen outputs in the project's folder are rewritten
   soon after the segments or readings they hold change.
 - `source.sync.files-say-what-they-hold` — each file names its pass, reading order and reading
@@ -499,6 +514,8 @@ The synced folder
 
 - `ai/ai-settings.md`: the single catalogue's entries should take the card shape above,
   including embedding models (today chosen by an environment variable) and licence class.
+  Also: its local-runtime "profile" (`llm/model_profiles.py`) should take another name (a
+  runtime configuration), because **profile** now means a project's set-up.
 - `ui/model-selector-consistency.md`: a picker row could show what a card knows (suits,
   local or cloud, licence class); that spec's open question on what a row shows.
 - `ui/workflows.md` / `ui/workflow-node-config.md`: steps declare a job; a chain is checked
@@ -515,22 +532,12 @@ To be filled at approval.
 
 ## Open questions
 
-1. *(Answered 2026-09-19: a project is today's library, renamed; it has a settings window and
-   an onboarding. "Project" has that one meaning only.)* Two follow-ups: does the Library pane
-   keep its name when a library becomes a project? And may a **folder inside a project** carry
-   its own settings (proposed: yes, through the cascade, set in the Inspector, with no second
-   settings window and no second kind of project)?
-2. Are the six onboarding questions the right six? Should sample pages come first?
-3. Fichero is AGPL, so AGPL layout models are compatible. Should they be **downloaded on
-   request** rather than bundled (proposed, because of the Mac App Store build), with Apple's
-   document reader as the layout finder that needs no download?
-4. Which sources of models are searched at first: Kraken's repository and Hugging Face only?
-5. The synced folder: one folder for a project, with a fixed layout Fichero chooses, or a
-   layout the researcher can change?
-6. Should outside edits in the folder ever be taken in **automatically** as the working pass,
-   or always wait for a person?
-7. Where do best-practice recipes live and who keeps them: shipped with Fichero and updated
-   as data; shared by the community; both?
+See the one list in `source-model.md`. The ones that belong here: automatic work; onboarding's
+five questions; where models are looked for and whether copyleft ones are downloaded on
+request; the home of recipes; whether the Library pane keeps its name; whether a folder
+inside a project carries its own settings (proposed: yes, through the cascade, set in the
+Inspector, with no second settings window and no second kind of project); whether the synced
+folder has a fixed layout.
 
 ## Sources
 

@@ -16,7 +16,7 @@
 A source is a page and the group of pages it belongs to. A segment is anything on it. This
 slice says what a segment *is*: its identity, its shape, its place in the ladder, in a reading
 order, in a pass, and its links to other segments. Readings, hands and certainty are in
-`readings-and-apparatus.md`; language and signs in `languages-scripts-glyphs.md`.
+`readings-and-apparatus.md`; language and signs in `languages-scripts-signs.md`.
 
 ## The design
 
@@ -112,7 +112,8 @@ collection  >  codex unit  >  quire  >  leaf  >  page (recto, verso)  >  region
             >  line or column  >  word  >  character  >  stroke
 ```
 
-An **opening** (the two facing pages seen at once) is a group of two pages. A shape drawn
+A **group of pages** is any set of pages taken together: a codex unit, a quire, a letter, a
+case file. An **opening** (the two facing pages seen at once) is a group of two pages. A shape drawn
 across an opening belongs to the opening and is resolved onto each page it touches.
 
 - Every level is a segment with a **kind**. Kinds come from a standard list (SegmOnto's zones
@@ -150,7 +151,9 @@ shown, hidden and compared. They never overwrite each other. Two people disagree
 where a line ends is two passes, both kept: disagreement is data.
 
 One pass is the **working pass** for a source: the one the Reader, search and export use
-unless told otherwise.
+unless told otherwise. **Only a person makes a pass the working pass.** A pass a machine made
+(by a chain run automatically, by an import, by the synced folder) is there to look at and
+compare; it is never the record until someone says so.
 
 ### Reading orders
 
@@ -285,12 +288,13 @@ Passes, orders, links
 - `source.pass.named-authored` — segments live in named passes, each with an author; passes
   can be shown, hidden and compared.
 - `source.pass.never-overwrites` — two layouts of one page are two passes, both kept.
+- `source.pass.working-is-a-persons-choice` — a pass made by a machine, an import or the synced
+  folder never becomes the working pass until a person makes it so.
 - `source.pass.working` — one pass is the working pass the Reader, search and export use by
   default.
 - `source.order.named-multiple` — a source can have several named reading orders, each with an
   author and certainty.
-- `source.order.next-previous` — next and previous are asked of a named order, and work the
-  same in the app, over MCP and on the command line.
+- `source.order.next-previous` — next and previous are always asked of a named order.
 - `source.link.typed` — a link between segments has a type, direction, author and certainty;
   types come from an extendable list.
 - `source.link.any-depth` — links chain (a comment on a comment), and can cross sources.

@@ -94,7 +94,7 @@ long s) are recorded the same way: the character, plus which variant.
 Everything that can be done with characters: transcribe (pick from the list, or draw a box on
 the page and say "this one again"); search (by sign, by catalogue number); compare (all
 instances of one sign, side by side, across hands and sources); show (the sign's picture in
-line in the Reader where no font has it); export (TEI's declared glyphs; elsewhere a
+line in the Reader where no font has it); export (as TEI's declared glyph elements; elsewhere a
 placeholder plus a report of what was substituted); train (a recogniser can learn declared
 signs as classes).
 
@@ -123,7 +123,7 @@ Language and script
 - `source.lang.registries` — language holds a BCP 47 tag and, separately, a Glottolog code;
   script is ISO 15924 including unwritten, undetermined and private-use; encoding (full, part,
   none) is recorded by Fichero.
-- `source.lang.library-declared` — a project can declare a language or script no registry has.
+- `source.lang.project-declared` — a project can declare a language or script no registry has.
 - `source.lang.unknown-is-not-unexamined` — "unknown" and "not yet looked at" are different.
 - `source.lang.cascade` — language and script inherit downward from app to character and can
   be overridden at any level (direction inherits the same way: see `source.dir.per-segment`).
@@ -144,13 +144,13 @@ Signs
   cut from a real page.
 - `source.sign.list-authority` — a sign can be identified by an authority and a number in its
   list, with no code point.
-- `source.sign.library-list` — declared signs live in a project's sign list, which can be
+- `source.sign.project-list` — declared signs live in a project's sign list, which can be
   exported and shared.
 - `source.sign.in-readings` — a reading's text can mix characters and declared signs.
 - `source.sign.variants` — a variant form of an encoded character is recorded as the character
   plus the variant.
-- `source.sign.search-compare` — declared signs can be searched, and all instances of one
-  gathered and compared.
+- `source.sign.gather-instances` — every instance of one sign in a project can be listed, with
+  its picture, from one search.
 - `source.sign.shown-as-picture` — where no font has a sign, its picture is shown in line.
 - `source.sign.export-honest` — exports carry declared signs where the format can (TEI) and
   report substitutions where it cannot.
@@ -162,8 +162,8 @@ Fonts and input
   signs inserts into a reading.
 
 Comparison
-- `source.compare.by-character` — two sources can be set side by side and compared by
-  character, sign or letterform.
+- `source.compare.side-by-side` — two sources can be shown side by side with matching
+  characters or signs aligned.
 
 ## Test matrix
 

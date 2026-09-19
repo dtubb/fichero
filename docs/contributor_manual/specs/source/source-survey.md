@@ -119,7 +119,7 @@ take their ideas, not their code (the editor is native: see `segment-editor.md`)
 | **Arkindex / Callico** (open source) | any hierarchy of elements over a corpus; image beside text for checking | not verified in detail | the element tree as the closest published match to our ladder |
 | **Aletheia**, **LAREX** | ground truth down to glyph outlines (Aletheia); fast semi-automatic region work (LAREX) | closed, or single-purpose | proof that glyph-level ground truth is normal practice |
 | **Annotorious + OpenSeadragon** | polygons over deep-zoom images, saved as W3C annotations | maintenance is uncertain (one sister project was archived in 2025) | the W3C annotation as an interchange shape |
-| **Archetype** (was DigiPal) | the one published model of letterforms: character > allograph > a scribe's own form > the mark on the page, described by component and feature ("ascender: wedged") | no longer maintained | the letterform model, whole (see `languages-scripts-glyphs.md`) |
+| **Archetype** (was DigiPal) | the one published model of letterforms: character > allograph > a scribe's own form > the mark on the page, described by component and feature ("ascender: wedged") | no longer maintained | the letterform model, whole (see `languages-scripts-signs.md`) |
 | **VisColl** | quires and collation: one model, several views | — | structure above the page |
 | **EVT** | text and image highlight each other; notes as hotspots on the image | read-only | proof the Reader and the editor want the same geometry |
 | **CATMA** | annotation sets owned by an author; sets can overlap and disagree; one annotation can cover several separate stretches | text only | named, authored annotation sets; an annotation over several segments |

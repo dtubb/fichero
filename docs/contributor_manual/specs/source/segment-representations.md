@@ -16,7 +16,7 @@
 
 ## Intent (the design)
 
-A **segment** is one anchor — a region/line/word/polygon on a page. It does not hold a
+A **segment** is one anchor (now: a record with a lasting id whose place is an anchor; see the note above) — a region/line/word/polygon on a page. It does not hold a
 single thing; it holds **versioned collections**: many transcriptions and many
 representations, each with its own provenance and version. This spec covers the
 **read model** — how a segment and its representations are produced, stored, served, and

@@ -194,7 +194,7 @@ what changed. Words: a "layer" of segments is now a **pass**; a "transcription" 
 | P4 provenance, versions, rationale | `segments-and-geometry.md`, `readings-and-apparatus.md` | versions per segment; hand kept apart from provenance; three kinds of "sure" |
 | P5 zones + relationships | `segments-and-geometry.md` | physical and logical structure; named reading orders; typed links; flows |
 | P6 linguistic annotation + tags | `source-model.md` (worked-out things), `readings-and-apparatus.md` (marks) | word-level analysis hangs on a reading; marks on any segment, in authored sets |
-| P7 language/script coverage, no-Unicode | `languages-scripts-glyphs.md` | moved from late to foundational: three facts, cascade, direction, declared signs, sign lists, fonts |
+| P7 language/script coverage, no-Unicode | `languages-scripts-signs.md` | moved from late to foundational: three facts, cascade, direction, declared signs, sign lists, fonts |
 | P8 authority linking | `kg-enrichment.md` | unchanged; a segment gains a citable reference |
 | P9 exporter, contribute | `formats-and-training.md`, `export/exporter.md` | every format both ways; validation; loss reports; imports arrive as passes |
 | P10 distilled VLM | `formats-and-training.md` | the training loop, human-checked by default, split by manuscript, measured against ground truth |
