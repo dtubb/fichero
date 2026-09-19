@@ -112,6 +112,41 @@ transform); this pins WHAT a mark is and how it behaves. Grounded in the ruling 
   the Source Annotations list should fill its column's full width/height (matching how the
   entities list renders in the same inspector), and single-click select should reliably work
   — reported broken. Not verified as built.
+- `markup.paragraph-anchored-checkmark` — **[GAP]** (#2255, legacy milestone fold, 2026-09-19)
+  a robust, cross-platform checkmark anchored to a whole PARAGRAPH (`anchor_kind=paragraph`,
+  `paragraph_index`) rather than a character span, so the check gesture works on iOS/iPadOS,
+  which cannot reliably produce a sub-range text selection the way macOS can. Verified at HEAD:
+  `Annotation`'s anchoring fields have no `paragraph_index`/paragraph-shaped `anchor_kind` —
+  every anchor today is a document/page/region/rendition span. Not built. The same issue's
+  third ask — an LLM driving a highlight the OTHER direction, via a generic `FocusedRegion`
+  driver — has a reusable component to build on now that didn't exist when this issue was
+  filed: this session's own claim-source-reveal work (`kg.read.sentence-opens-source-highlighted`
+  in `kg-readable-representation.md`) built exactly a user-driven region/passage highlighter;
+  whether it generalizes to an LLM-initiated highlight (the opposite direction) is not
+  investigated here.
+- `markup.pencilkit-handwriting-to-ocr` — **[GAP]** (#2255) iPad Pencil ink converted to text via
+  Apple Vision (local) or a remote VLM, with provenance recording which method produced it.
+  Verified at HEAD: no `PencilKit`/`PKCanvasView` reference exists anywhere in
+  `fichero/fichero/`. Not built, not started.
+- `markup.face-to-entity-linking` — **[GAP]** (#2103) detecting faces in an image and tying each
+  one to a KG entity (caption-derived, recognition-derived, or manually assigned), stored the
+  same source-anchored way a text claim is (bbox/region + provenance: who/why/when/method).
+  Verified at HEAD: no face-detection code (`VNDetectFace` or equivalent) exists anywhere in the
+  server or the app. Not built, not started — this is a new capability, not an extension of an
+  existing one.
+- `markup.immersive-full-screen-reading` — **[PARTIAL]** (#3548) a distraction-free full-screen
+  reading mode with chrome that auto-reveals/fades, plus the ability to mark a paragraph while
+  reading. Verified at HEAD: `ImmersiveReaderView` (`Views/Reader/Page/Immersive/`) IS built —
+  black-background full-screen presentation, auto-hiding controls, page-turn animation, prev/
+  next navigation, translations and renditions all fold onto the existing `DocumentCanvas`
+  rather than a parallel viewer, exactly as the issue asked ("do NOT rebuild the reader"). But
+  the mark it adds is PAGE-scoped, not paragraph-scoped:
+  `markCurrentPage(kind:label:)` (`ImmersiveReaderView+Interactions.swift`) calls
+  `AnnotationStore.addNote(scope: .page(document.id), text: "", kind:)` — always an empty
+  `text`, so there is no actual note-TAKING while immersive, only a page-level star/bookmark
+  stamp. No test file exists for `ImmersiveReaderView` or its interactions. PARTIAL, not OK: the
+  full-screen half is built; the paragraph-anchored mark and real note-taking the issue's own
+  title asks for are not.
 
 ## Test matrix
 
