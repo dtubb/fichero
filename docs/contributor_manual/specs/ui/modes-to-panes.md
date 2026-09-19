@@ -233,6 +233,16 @@ fourth type.
   first node of this kind" and "a kind filter on the Library" are the two candidates the issue
   itself names, and which kinds (citations, chains, triggers, schedules) deserve a top-level
   presence at all is undecided.
+- `m2p.every-view-mode-routes-somewhere` — **[BROKEN]** (#4904) every `AppViewMode` case the
+  sidebar/router can select must actually route to a real destination — a case that exists with
+  no router arm is a silent dead end, the same class of defect as a mode that never got wired at
+  all. A guardrail enforces this: `scripts/check_sidebar_items.py` scans `SidebarItem` factories/
+  builders against `ContentView`'s router and is currently RED — 3 unwired item types: `batch`
+  (the `AppViewMode.batch` case is missing entirely, not merely unrouted) and `schedule`/
+  `trigger` (the `AppViewMode` cases exist; `ContentView`'s router has no matching case for
+  either). Not traced to a specific commit — reads as part of the still-in-progress modes-to-
+  panes increment 4a/4b work this spec already tracks elsewhere (schedules/triggers/batches
+  opening as node detail). *Test:* the guardrail itself.
 - `m2p.browser-is-a-source-rendition` — **[GAP]** (#4809): the embedded browser lives
   INSIDE the Source/Preview pane as `PaneSurface.webBrowser` — no browser pane kind, no tab
   strip of its own (creative-director ruling, 2026-09-18). Design decided, not yet built —

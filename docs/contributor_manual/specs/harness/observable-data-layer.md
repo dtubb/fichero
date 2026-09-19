@@ -45,6 +45,12 @@ that "flashes," and clicks that "land on the wrong row" all trace back to.
   `evaluateJavaScript` on `updateNSView` today rather than OBSERVING entity/claim mutations
   through a store and reactively re-injecting — a reactivity gap on the WebKit-embed side of
   this same rule, not caught by `check_view_endpoint_access.py`'s Swift-only source scan).
+  A sibling guardrail catches the same defect class a different way:
+  `scripts/check_swift_hand_rolled_urls.py` scans for a literal `"/api/..."` engine path built
+  by hand instead of routed through the generated client or a store — currently RED too, two
+  new sites in `KnowledgeSettingsView.swift` (lines 132, 179), pre-existing (2026-09-07, not
+  this week). Filed #4906 for that pair, cited here rather than restated as a second behavior,
+  since it is the same rule caught by a second scan shape.
 - `observable.store-mutator-updates-in-place` — **[BROKEN]** (#4824) inside a mutating method
   that changes ONE item — whatever the method is named; a lexical add/create/update/delete/
   remove/rename/move/promote/apply verb-list was tried first and missed `AnnotationStore

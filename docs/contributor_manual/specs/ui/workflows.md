@@ -335,6 +335,15 @@ refs), `run_comparison.py`/`model_comparison.py` (the Compare Models feature).
   `:189-205`) — so re-revealing the same already-selected workflow routes nothing. Unverified,
   flagged rather than guessed: whether the `.sidebarRevealDocument` observer stays mounted
   with the sidebar collapsed.
+- `workflows.bar.scope-uses-the-real-primary-selection` — **[BROKEN]** (#4905) a workflow-scope
+  decision must read the SAME primary selection the row the user actually acted on — never an
+  arbitrary element of a `Set` (the 2026-08-09 rule this spec's own `panes-workspaces.md`
+  cousin behaviors also depend on: a wrong candidate here is the same defect class as a wrong
+  primary row anywhere else in the app). A guardrail enforces this, `scripts/
+  check_selection_grammar.py`, and it is currently RED: `ContentView+WorkflowScope.swift:63`
+  draws `candidateId = selection.first` — an arbitrary-element draw from a `Set`, not the
+  published primary (`shellPrimarySelectionId`). Verified NOT from recent work: this file's
+  last real change predates this week by two weeks. *Test:* the guardrail itself.
 
 ### D. The workflow bar
 

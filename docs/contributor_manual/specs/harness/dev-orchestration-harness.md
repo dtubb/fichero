@@ -86,6 +86,25 @@ it token-efficiently with fabel/opus?
   See `git-worktree-workflow.md`'s "Marking a convention" section for the tag's real,
   rule-h-guarded semantics in `spec_pipeline.py`.
 - `orch.subagent-vs-tmux` [PROPOSED] — subagents for bounded tasks, tmux only for cross-turn lanes.
+- `orch.small-guardrails-stay-green-after-landing` — **[BROKEN]** (#4902) a commit that lands
+  should not leave a small, mechanical guardrail red — a missing tooltip, a missing `#Preview`,
+  an un-declared scene environment contract, and the like are cheap to catch and cheap to fix at
+  landing time, and expensive to notice later once nine of them have accumulated. Verified live,
+  2026-09-19: nine `scripts/check_*.py` guardrails are red from this week's own commits, each
+  traced to the specific commit that introduced it (`check_capability_scrapes`,
+  `check_comment_hygiene`, `check_dead_files`, `check_mainactor_view_statics`,
+  `check_native_controls`, `check_preview_coverage`, `check_scene_environment_injection`,
+  `check_tooltips`, `check_test_assertions`) — filed as one issue, #4902, since the pattern (not
+  the specific rule) is the shared root cause: `gate unit`/targeted pytest runs don't include
+  the full `--fast` guardrail sweep, so a small violation ships unnoticed until a release-
+  readiness pass finds it. *Test:* the guardrails themselves; the real fix is including the
+  full `--fast` sweep (or the specific guardrails a change's file paths touch) in whatever gate
+  actually runs before a commit lands, not only at release time.
+- `orch.docs-paths-stay-accurate` — **[BROKEN]** (#4908) a doc that names a file path should
+  name one that exists. `scripts/check_docs_paths.py` is currently RED: 5 of 14 named absent
+  paths are unaccounted (9 already allowlisted). This class has been repeatedly flagged this
+  session as pre-existing, unrelated baseline noise, never independently root-caused before now
+  — filed so it has a real owner. *Test:* the guardrail itself.
 
 ## Open questions for the design lead
 
@@ -95,6 +114,11 @@ it token-efficiently with fabel/opus?
 3. **Agents/skills audit:** there are ~31 agents and ~138 skills loaded. Many overlap
    (multiple code-reviewers, multiple session-start variants, several planning skills). Worth a
    pass to cut the ones we never invoke — separate short task, listed as a follow-up below.
+4. **For the maintainer (#4911):** `check_docs_publication` finds new pages under
+   `docs/user_manual/` (a "Getting Started"/"About this Manual"/"About this Book" cluster) not
+   linked from the nav and not allowlisted — his own in-progress writing, not a defect. Should
+   these be linked into the nav now even in draft form, moved out of the published `docs/` tree
+   while still being drafted, or explicitly allowlisted as in-progress? Not decided here.
 
 ## Follow-ups (do when the token budget resets — not now)
 

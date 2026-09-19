@@ -218,6 +218,12 @@ evidence backs.
 1. Which build was "the last release" the maintainer means — the one that shipped and then
    failed to update, on which machine? `~/Library/Logs/Autoupdate.log` on THAT machine names the
    actual cause; nothing in this repository can substitute for it.
+2. **For the maintainer (#4912):** `check_mac_app_store_target` fails — the `Fichero (App
+   Store)` target is missing from `project.pbxproj` entirely, verified long-standing, not a
+   this-week regression. Is Mac App Store distribution still a near-term goal (in which case the
+   target needs re-adding and #3340's HOLD on engine sandboxing needs revisiting), or has the
+   DMG/Sparkle + TestFlight path superseded it for now? This spec currently describes three
+   distribution outputs and doesn't mention MAS at all; not decided here.
 
 ## Rulings (design lead)
 

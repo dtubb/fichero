@@ -336,6 +336,14 @@ very engine spawn those tests exist to exercise.
   the source) has not been adopted. This is the one item in this milestone that most overlaps
   `transport-http-uds.md`'s territory — cited there, not duplicated as a competing claim; that
   spec's own maintainers should decide which spec's milestone eventually owns the fix.
+- `engine.embed-filelist-stays-current` — **[BROKEN]** (#4909) the manifest that tells Xcode's
+  Embed phase which engine sources to copy into the app must stay current with the real engine
+  tree — a source missing from it means edits to that file are silently never picked up by the
+  built app. A guardrail enforces this, `scripts/check_engine_embed_filelist.py`, and it is
+  currently RED: 19 engine sources are not listed (e.g. `wikidata_enrich.py`,
+  `local_model_catalog.py`), both dated 2026-09-06/07 — pre-existing staleness, not from this
+  week. *Test:* the guardrail itself; fix is `scripts/regen_engine_embed_filelist.py`, then
+  commit the result.
 
 ## Fold record for the 13 issues (Pass 2 — executed 2026-09-19)
 
