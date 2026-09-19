@@ -462,23 +462,35 @@ extension ContentView {
             // #4834: a knowledge-surface reveal belongs to ONE entity/claim
             // focus — when the focus itself changes (a different statement
             // row, a different claim card), the OLD reveal is stale and
-            // must not outlive it. A new click on the SAME entity/claim
-            // overwrites `sourceRevealDocument` directly and does not fire
-            // this (the id does not change), so an in-place statement
-            // click is not clobbered by its own reveal.
+            // must not outlive it. Corrected 2026-09-19 (maintainer test
+            // A1): SwiftUI's `onChange` fires only on an ACTUAL value
+            // change, so this is deterministic, not a race — the reveal's
+            // OWN `focusClaim` call, whenever it changes (or, before #4834's
+            // fix, unconditionally cleared) the focused entity, reliably
+            // fired this handler and cleared the `sourceRevealDocument` the
+            // SAME reveal was about to set. `ContentView
+            // .shouldClearSourceReveal` (see its doc comment) is the one
+            // pure rule both this and the claim handler below now call, so
+            // a reveal in flight never clears its own result.
             .onChange(of: kgFocusState.focusedEntityId) { _, _ in
-                sourceRevealDocument = nil
+                if ContentView.shouldClearSourceReveal(
+                    newClaimId: kgFocusState.focusedClaimId,
+                    revealingClaimId: revealingClaimId,
+                    entityChanged: true
+                ) {
+                    sourceRevealDocument = nil
+                }
             }
-            // Guarded by `revealingClaimId` (see its declaration on
-            // ContentView): the in-flight reveal's OWN `focusClaim` call
-            // fires this same onChange, and a fast (e.g. cached) resolve
-            // could otherwise race its `sourceRevealDocument` set against
-            // this clear. Skip only when the new focus IS the claim the
-            // reveal itself just set; a change to any other claim still
-            // clears normally.
+            // Same rule, the claim side: see `ContentView
+            // .shouldClearSourceReveal`'s doc comment.
             .onChange(of: kgFocusState.focusedClaimId) { _, newValue in
-                guard newValue != revealingClaimId else { return }
-                sourceRevealDocument = nil
+                if ContentView.shouldClearSourceReveal(
+                    newClaimId: newValue,
+                    revealingClaimId: revealingClaimId,
+                    entityChanged: false
+                ) {
+                    sourceRevealDocument = nil
+                }
             }
             // #4373: a reader page click routes through the SAME selection path
             // a sidebar click uses, so the sidebar, preview and inspector all

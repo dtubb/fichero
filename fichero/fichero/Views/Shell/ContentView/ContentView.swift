@@ -216,17 +216,46 @@ struct ContentView: View {
     @State var sourceRevealDocument: Document?
     /// The claim id a knowledge-surface reveal is CURRENTLY resolving, set
     /// synchronously before the reveal's own `kgFocusState.focusClaim(...)`
-    /// call and cleared when the reveal finishes (#4834). Exists for one
-    /// race: `kgFocusState.focusClaim` fires the `.onChange` that clears
-    /// `sourceRevealDocument` (below), and that onChange's exact timing
-    /// relative to the reveal's own async resolve is not something SwiftUI
-    /// or Swift Concurrency promises — a resolve fast enough to finish
-    /// (e.g. a cached location) before the onChange is flushed could have
-    /// its freshly-set `sourceRevealDocument` wiped by a clear meant for a
-    /// DIFFERENT, later focus change. The onChange handlers skip the clear
-    /// when the new focused id is the one the in-flight reveal itself just
-    /// set — a real focus change to a DIFFERENT claim still clears normally.
+    /// call and cleared when the reveal finishes (#4834).
+    ///
+    /// Exists because `kgFocusState.focusClaim` fires the `.onChange`
+    /// handlers below that clear `sourceRevealDocument`, and — corrected
+    /// 2026-09-19, maintainer test A1 — that firing is DETERMINISTIC, not a
+    /// race: SwiftUI's `onChange` fires only when the `Equatable` value
+    /// actually changes, so the reveal's own `focusClaim` call, if it
+    /// CHANGES the focused claim or entity (which every real reveal does —
+    /// that IS the reveal), reliably fires the matching onChange and would
+    /// clear the `sourceRevealDocument` the SAME reveal is about to set,
+    /// every time, not occasionally. `revealingClaimId` is the guard against
+    /// exactly that: `ContentView.shouldClearSourceReveal(newClaimId:
+    /// revealingClaimId:entityChanged:)` (below) is the one pure decision
+    /// both `onChange` handlers call, so a reveal never clears its own
+    /// result — see that function's doc comment for the rule.
     @State var revealingClaimId: String?
+
+    /// The ONE decision both `sourceRevealDocument`-clearing `onChange`
+    /// handlers (`ContentView+RootLayout.swift`) call — pure, so it is
+    /// testable with real inputs, not a source scan (spec:
+    /// kg.read.sentence-opens-source-highlighted, #4834).
+    ///
+    /// Rule: while a reveal is in flight (`revealingClaimId != nil`), an
+    /// entity change is that SAME reveal's own `focusClaim` call setting the
+    /// entity it is revealing (or preserving the one already focused) — it
+    /// must never clear the reveal it is in the middle of. A claim change
+    /// while a reveal is in flight clears UNLESS the new claim is the one
+    /// the in-flight reveal itself just set (the exact same-reveal case).
+    /// With no reveal in flight, either kind of change clears, as before
+    /// `revealingClaimId` existed — a focus change with nothing revealed has
+    /// nothing to protect.
+    static func shouldClearSourceReveal(
+        newClaimId: String?,
+        revealingClaimId: String?,
+        entityChanged: Bool
+    ) -> Bool {
+        guard let revealingClaimId else { return true }
+        if entityChanged { return false }
+        return newClaimId != revealingClaimId
+    }
     // Per-window instances (NOT `.shared`) so a search / source reveal in one
     // window never drives another (#3437). Injected into the subtree below.
     @State var entitySearchState = EntitySearchState()
