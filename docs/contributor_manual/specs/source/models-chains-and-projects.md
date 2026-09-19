@@ -70,6 +70,11 @@ library; and a project can be tied to a synced folder.
   though every piece it needs does (Apple Vision accepts any image; the cropping exists).
 - **How a result was made** is partly recorded: an artifact names its provider, model, run,
   step and the artifact it came from. It is not shown as a chain anywhere.
+- **A prototype system exists** (VERIFIED on disk: `models/node_prototypes.py`,
+  `models/prototype_schema.py`): a node can name a prototype; prototypes inherit from a parent
+  and carry attributes that a node of that prototype takes on, in the manner of Tinderbox. It
+  is used for kinds of document today. It is the natural base for project profiles.
+- **Fichero's own licence is the GNU Affero GPL, version 3** (VERIFIED: `LICENSE` at the root).
 - **No project.** Nothing between a library and a document carries settings. The one
   library-level setting mechanism has a single use. First-run onboarding asks about the
   library, permissions and AI providers; it asks nothing about languages, scripts or period.
@@ -112,9 +117,13 @@ library; and a project can be tied to a synced folder.
   a faithful transcription must not do. No study was found that compares, fairly, reading
   each cut-out line against reading the whole page: Fichero should measure that on its own
   sources.
-- **Licence traps.** The YOLO family (Ultralytics, DocLayout-YOLO, and YALTAi which puts YOLO
-  inside Kraken) is under the AGPL, which covers the trained weights too: shipping it inside
-  Fichero would oblige releasing Fichero's whole source, or buying a licence. Surya's weights
+- **Licences.** The YOLO family (Ultralytics, DocLayout-YOLO, and YALTAi which puts YOLO
+  inside Kraken) is under the AGPL, which covers the trained weights too. **Fichero is itself
+  AGPL, so these are compatible with it**: using them obliges nothing Fichero does not already
+  do. Two cautions remain, neither yet checked with anyone qualified: the Mac App Store build
+  (Apple's terms and copyleft code from *other* authors do not sit easily together, so such
+  models are better **downloaded on request than bundled**); and models whose terms are not
+  open at all. Surya's weights
   carry a revenue cap. One popular embedding model is non-commercial. Apple's own document
   reader (macOS 26), Detectron2 / LayoutParser and the RT-DETR family have no such problem.
 - **Apple's frameworks cover none of the hard cases** (early-modern hands, Syriac, woodblock
@@ -222,9 +231,33 @@ it was made from, the whole chain can be walked back.
 
 ### A project
 
-A **project** is a folder in the library that has been given settings. It is not a new kind of
-container and not a mode: the library stays a tree of nodes, and any folder can be made a
-project.
+A **project** is a folder in the library that has been given a **project profile**. It is not
+a new kind of container and not a mode: the library stays a tree of nodes, and any folder can
+be made a project. A group of pages can be a project too (one notebook inside a larger
+collection), because a group is a folder like any other.
+
+### Project profiles: "Spanish palaeography", and it sets itself up
+
+A **profile** is a named, shareable description of a kind of project: "Spanish palaeography,
+16th to 18th century"; "Medieval Latin with glosses"; "Modern typed notes"; "Syriac
+manuscripts". Choosing one is often the *whole* of onboarding: say "Spanish palaeography" and
+Fichero brings the right languages and scripts, the right chain, the right models (offering
+to download them), the right transcription guideline, and only the tools that matter.
+
+- A profile is built on the **prototype system that already exists**: a profile is a prototype
+  for a project folder. Profiles inherit ("Spanish palaeography, notarial hands" from "Spanish
+  palaeography" from "Handwritten, Latin script"), and a project can override anything.
+- A profile is **a plain file that can be shared** (one JSON document, or lines of JSON for a
+  set of them): languages and scripts; period; material; the default chain, as jobs or with
+  models named; which workflows and tools to show in the workflow bar and which to hide;
+  the guideline and level of normalisation; model suggestions with their citations; rights
+  defaults; what the synced folder should hold. It holds no sources and no secrets.
+- Profiles can be **exported, imported, and published** by a community of practice, so best
+  practice for a language or a script travels as a file, not as folklore. Fichero ships a
+  starter set, kept as data.
+- **It can be automatic.** With a profile chosen, new sources in the project go through its
+  chain by themselves (as import already does for the basics). Nothing automatic ever writes
+  over a person's work, and cloud models are used only if the project allows it.
 
 Project settings sit **inside the cascade already ruled** for language and other attributes:
 
@@ -249,9 +282,14 @@ A project's settings:
   defaults (see `rights-and-access.md`).
 - **Its folder**, if it has one (below).
 
-### Onboarding: a few questions, then it sets itself up
+### Onboarding: a profile, or a few questions
 
-Making a project asks **at most six things**, each of which changes what Fichero does.
+Onboarding is a window (the app's first-run window is the pattern to reuse), opened from
+**File > New Project…** and from a folder's context menu (**Make Project…**). The same
+settings are reached afterwards from **Project Settings…**, on the project's context menu and
+in the File menu. One window, two doors; no second settings surface.
+
+It offers the profiles first. If none fits, making a project asks **at most six things**, each of which changes what Fichero does.
 Anything that can be worked out is worked out and shown for correction, not asked.
 
 1. **Which scripts?**
@@ -294,9 +332,10 @@ job, script, language, period and whether it must run locally. Fichero searches 
 field keeps them (Kraken's repository on Zenodo; Hugging Face; an open list that can grow) and
 shows results **as cards**, with licence class, size and whether this Mac can run them.
 
-- Only **permissively licensed** models download without a further step. Others (copyleft that
-  reaches the app; non-commercial; gated; special terms) say so plainly and need a deliberate
-  choice; some cannot be bundled at all and the card says why.
+- **Open** models (permissive, or copyleft compatible with Fichero's own AGPL) download
+  without a further step. Others (non-commercial; gated; special terms; a revenue cap) say so
+  plainly and need a deliberate choice; some cannot be redistributed at all and the card says
+  why.
 - A model's **citation is shown** wherever its work is shown, and goes into exports.
 - A downloaded model becomes a row under its provider in the AI settings, like any other.
 - A model can be **tried on a few pages** and measured against ground truth before it is made
@@ -316,9 +355,13 @@ Fichero says so, and offers what does work for any language (search, vectors, a 
 model if the project allows one). It never quietly runs the English pipeline over another
 language.
 
-### A synced folder
+### A synced folder (which is also a new way to import)
 
-A project can be tied to a folder on the machine where the engine runs.
+A project can be tied to a folder on the machine where the engine runs. This is more than
+export: it is a **second import mechanism** beside the importer, and needs engine and app work
+of its own (watching the folder; matching files to sources; bringing outside edits in as
+passes; showing conflicts). `importer/importer.md` owns import; this slice states what the
+source model needs from it, and the two must share one import path, not grow a second.
 
 - **Out, as you go.** For each source, Fichero keeps chosen outputs up to date in the folder:
   the page's PageXML or ALTO, a TEI file for the source, plain text, the training set, and the
@@ -350,8 +393,8 @@ Model cards and jobs
   and gives in source-model terms.
 - `source.model.suits` — a card states scripts, languages, period, material, direction and line
   position.
-- `source.model.licence-class` — a card carries a licence and a licence class; only permissive
-  models download without a further deliberate step.
+- `source.model.licence-class` — a card carries a licence and a licence class; only open
+  models (permissive, or compatible copyleft) download without a further deliberate step.
 - `source.model.citation-shown` — a model's citation appears wherever its work is shown and in
   exports.
 - `source.model.measured-here` — a card shows this library's own measurements of the model.
@@ -379,8 +422,21 @@ Chains and making
 - `source.making.compare-chains` — two chains' results on one page can be compared and scored.
 
 Projects and onboarding
-- `source.project.folder-with-settings` — any folder can be made a project; a library without
-  projects behaves as before.
+- `source.project.folder-with-settings` — any folder or group of pages can be made a project; a
+  library without projects behaves as before.
+- `source.profile.is-a-prototype` — a project profile is a prototype for a project folder;
+  profiles inherit from one another, and a project can override any value.
+- `source.profile.shareable-file` — a profile can be exported to and imported from a plain file
+  that holds settings, chain, tools to show, guideline and model suggestions, and no sources
+  or secrets.
+- `source.profile.sets-up-the-project` — choosing a profile sets languages, scripts, chain,
+  guideline and the tools shown, and offers to download the models it names.
+- `source.profile.tools-shown` — a project's workflow bar shows the workflows and tools its
+  profile names, and the rest stay reachable but out of the way.
+- `source.profile.automatic` — with a profile chosen, new sources run the project's chain
+  without being asked; nothing automatic overwrites a person's work.
+- `source.project.one-settings-window` — File > New Project…, Make Project… and Project
+  Settings… open the same window; there is no second project-settings surface.
 - `source.project.in-the-cascade` — project settings sit between library and folder in the one
   cascade; a shown value says which level it came from.
 - `source.project.own-models` — two projects in one library can use different models for the
@@ -427,6 +483,8 @@ The synced folder
 - `source.sync.restricted-stays-out` — restricted material is left out of the folder unless
   deliberately included.
 - `source.sync.folder-is-a-projection` — the folder can be deleted and remade from the library.
+- `source.sync.one-import-path` — files arriving through the synced folder go through the same
+  import path as any other import.
 - `source.sync.engine-side-and-throttled` — the folder is named where the engine runs, and
   syncing is throttled background work.
 
@@ -452,8 +510,9 @@ To be filled at approval.
 
 1. Is a project **a folder with settings** (proposed), or a new kind of thing in the library?
 2. Are the six onboarding questions the right six? Should sample pages come first?
-3. Should Fichero ever **bundle** a copyleft layout model (and meet its terms), or only
-   permissively licensed ones, with Apple's document reader as the default layout finder?
+3. Fichero is AGPL, so AGPL layout models are compatible. Should they be **downloaded on
+   request** rather than bundled (proposed, because of the Mac App Store build), with Apple's
+   document reader as the layout finder that needs no download?
 4. Which sources of models are searched at first: Kraken's repository and Hugging Face only?
 5. The synced folder: one folder for a project, with a fixed layout Fichero chooses, or a
    layout the researcher can change?

@@ -176,6 +176,17 @@ its place in the world, the sheet can be laid over a modern map, and a place nam
 be linked to the place in the knowledge graph. Control points have authors, certainty and
 versions like any other segment.
 
+### On the canvas
+
+The Library's canvas and spatial views (owned by `ui/library-view-modes.md`) lay nodes out in
+space. The source model adds what can be laid out: a source, a group of pages, a page, or
+**any segment** can be put on a canvas as a card showing its picture and chosen reading. A
+gloss can sit beside the word it glosses; twenty instances of one sign can be spread out and
+sorted by hand; the pages of a dispersed codex can be put back in order. Links drawn between
+cards on the canvas **are** the typed links of this model, not a separate kind of line, and a
+group made on the canvas can be kept as a logical unit. It is the same segments in another
+view: nothing is copied.
+
 ### Two ways to point
 
 Something can point at a segment **by its id** (the normal way), or at **a stretch of a
@@ -291,6 +302,12 @@ Maps
 - `source.geo.segment-to-world` — on a georeferenced image, any segment can give its place in
   the world.
 - `source.geo.names-a-place` — a label on a map can be linked to the place entity it names.
+
+Canvas
+- `source.canvas.segment-as-card` — any source, page or segment can be placed on a canvas as a
+  card with its picture and chosen reading, without being copied.
+- `source.canvas.links-are-links` — a link drawn between cards on a canvas is a typed link of
+  the source model.
 
 Pointing and statements
 - `source.point.by-id-or-span` — a thing points at a segment by id, or at a stretch of one of
