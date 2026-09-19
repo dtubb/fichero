@@ -253,7 +253,7 @@ parallel pattern to keep.
   `::test_the_scan_itself_would_catch_a_real_bypass`,
   `test_mcp_kg_write_attribution.py::TestEntityCreateIsAccountable`,
   `::TestEntityDeleteIsAccountable`, `::TestClaimDeleteIsAccountable`.
-- `audit.app-intents-use-typed-entities-not-raw-ids` — **[PARTIAL]** (→ #3304, legacy milestone
+- `audit.app-intents-use-typed-entities-not-raw-ids` — **[PARTIAL]** (#3304, legacy milestone
   "UX - Mac - Menus, Commands & Shortcuts" fold, 2026-09-19) every App Intent already routes
   through `invokeAuditedAction` → the registry (`FicheroActionIntents.swift`, verified at
   HEAD) — the one-audited-action-layer contract this behavior's siblings above establish holds
@@ -279,7 +279,7 @@ parallel pattern to keep.
 > here as one family rather than three unrelated gaps, since all three read from the SAME
 > `ActionAudit` table this spec's mechanism already writes.
 
-- `audit.run-scoped-undo` — **[GAP]** (→ #2074, → #1831 — the workflow-run half of this issue;
+- `audit.run-scoped-undo` — **[GAP]** (#2074, #1831 — the workflow-run half of this issue;
   its curation-undo half is already covered by the `entity.merge`/`entity.split` OK behaviors
   above, not a second gap) no capability exists to reverse every action of one agent/workflow
   run (`ActionContext.run_id`, already stamped on every `ActionAudit` row) as a single "Undo
@@ -289,7 +289,7 @@ parallel pattern to keep.
   are missing. `ui/activity.md` is the natural home for the UI half of this once it's built
   (a run's own undo control) — cross-referenced, not restated, since that spec's own territory
   note already excludes execution mechanics.
-- `audit.blame-and-rollback-view` — **[GAP]** (→ #1691) no "who changed what, when" view exists
+- `audit.blame-and-rollback-view` — **[GAP]** (#1691) no "who changed what, when" view exists
   spanning documents/pages/entities/claims/notes with author+timestamp, wired to undo/rollback —
   verified at HEAD: no `blame`-named route, view, or model was found anywhere in
   `fichero-server/` or `fichero/fichero/`. The `ActionAudit` table this spec's mechanism already

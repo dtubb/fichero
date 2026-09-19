@@ -489,7 +489,7 @@ either way (shared components), but scope of the cross-platform tests depends on
   `audit.every-mutating-route-uses-the-registry` still finds outside the registry (canvas
   layout persistence among the untouched territory) are outside this behavior's reach too;
   cross-referenced there, not restated.
-- `menus.ipad-full-parity` — **[GAP]** (→ #3307) iPad must expose the SAME menu-bar command set and
+- `menus.ipad-full-parity` — **[GAP]** (#3307) iPad must expose the SAME menu-bar command set and
   the SAME contextual-menu items as macOS — no iPad-reduced subset (the maintainer's 2026-07-06 directive;
   iPhone scope is explicitly left open, undecided). Not audited this pass: no source scan was run
   against every `CommandGroup`/`.commands` definition and every `.contextMenu` for an

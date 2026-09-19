@@ -115,7 +115,7 @@ app's own Export menu), `Services/DocumentService.swift`.
   because two routes genuinely are wired and tested from the app; filed #4873 for a dispatch
   test asserting exactly this reachability matrix, since it was verified by reading
   `ReaderExportCommands.swift`/`ReaderExportRunner.swift` directly, not by a test.
-- `export.error-title-and-success-feedback-accurate` — **[PARTIAL]** (→ #3305) File ▸ Export's two
+- `export.error-title-and-success-feedback-accurate` — **[PARTIAL]** (#3305) File ▸ Export's two
   App/Menus exports (BibTeX, Markdown static site) each report their OWN failure and success
   honestly, not a shared misleading state. **Two of the three problems this legacy-milestone
   issue named are fixed, verified at HEAD 2026-09-19**: `presentExportError` now takes a `title`
