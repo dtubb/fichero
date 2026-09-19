@@ -3107,6 +3107,45 @@ async def file_to_data_uri_async(file_path: str, max_dimension: int = 2048) -> s
     )
 
 
+def _cgimage_to_pil_image(cg_image):
+    """Decode a Quartz CGImage into a PIL Image (RGBA, un-flattened).
+
+    Extracted from `_cgimage_to_data_uri` (#4892) so Kraken's PDF-page
+    segmentation can reuse the SAME decode that already backs the LLM
+    vision data-URI path, instead of a second CGImage→pixels routine.
+    """
+    from Quartz import CGImageGetWidth, CGImageGetHeight
+    from PIL import Image
+
+    width = CGImageGetWidth(cg_image)
+    height = CGImageGetHeight(cg_image)
+
+    try:
+        # PyObjC ≥ 9: CGImage exposes a bytes buffer directly.
+        from Quartz import CGDataProviderCopyData, CGImageGetDataProvider
+        provider = CGImageGetDataProvider(cg_image)
+        raw_bytes = bytes(CGDataProviderCopyData(provider))
+        return Image.frombytes("RGBA", (width, height), raw_bytes)
+    except Exception:
+        # Fallback: write to a temp PNG via ImageIO and re-open.
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+            tmp_path = tmp.name
+        from Quartz import (
+            CGImageDestinationCreateWithURL,
+            CGImageDestinationAddImage,
+            CGImageDestinationFinalize,
+            kUTTypePNG,
+        )
+        from Foundation import NSURL
+        url = NSURL.fileURLWithPath_(tmp_path)
+        dest = CGImageDestinationCreateWithURL(url, kUTTypePNG, 1, None)
+        CGImageDestinationAddImage(dest, cg_image, None)
+        CGImageDestinationFinalize(dest)
+        img = Image.open(tmp_path).copy()
+        Path(tmp_path).unlink(missing_ok=True)
+        return img
+
+
 def _cgimage_to_data_uri(cg_image, max_dimension: int = 2048) -> str:
     """Convert a Quartz CGImage into a JPEG data URI.
 
@@ -3128,35 +3167,9 @@ def _cgimage_to_data_uri(cg_image, max_dimension: int = 2048) -> str:
     without compositing puts the page on a BLACK ground. The renderer fills
     white before drawing the page, so flattening is faithful to what was drawn.
     """
-    from Quartz import CGImageGetWidth, CGImageGetHeight
     from PIL import Image
 
-    width = CGImageGetWidth(cg_image)
-    height = CGImageGetHeight(cg_image)
-
-    try:
-        # PyObjC ≥ 9: CGImage exposes a bytes buffer directly.
-        from Quartz import CGDataProviderCopyData, CGImageGetDataProvider
-        provider = CGImageGetDataProvider(cg_image)
-        raw_bytes = bytes(CGDataProviderCopyData(provider))
-        img = Image.frombytes("RGBA", (width, height), raw_bytes)
-    except Exception:
-        # Fallback: write to a temp PNG via ImageIO and re-open.
-        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
-            tmp_path = tmp.name
-        from Quartz import (
-            CGImageDestinationCreateWithURL,
-            CGImageDestinationAddImage,
-            CGImageDestinationFinalize,
-            kUTTypePNG,
-        )
-        from Foundation import NSURL
-        url = NSURL.fileURLWithPath_(tmp_path)
-        dest = CGImageDestinationCreateWithURL(url, kUTTypePNG, 1, None)
-        CGImageDestinationAddImage(dest, cg_image, None)
-        CGImageDestinationFinalize(dest)
-        img = Image.open(tmp_path).copy()
-        Path(tmp_path).unlink(missing_ok=True)
+    img = _cgimage_to_pil_image(cg_image)
 
     if max_dimension > 0 and (img.width > max_dimension or img.height > max_dimension):
         img.thumbnail((max_dimension, max_dimension), Image.Resampling.LANCZOS)
@@ -3166,6 +3179,45 @@ def _cgimage_to_data_uri(cg_image, max_dimension: int = 2048) -> str:
     img.save(buf, format="JPEG", quality=95)
     data = base64.b64encode(buf.getvalue()).decode("utf-8")
     return f"data:image/jpeg;base64,{data}"
+
+
+# Kraken's default render resolution for a PDF page (#4892): matches Apple
+# Vision's own PDF-page render DPI (`_render_pdf_page_to_cgimage`,
+# `_batch_render_pdf_pages_to_cgimages`, both default 300) so segmenting a
+# PDF page through Kraken is not a lower-fidelity render than segmenting the
+# same page through Apple/an LLM.
+_KRAKEN_PDF_RENDER_DPI = 300
+
+
+def _render_pdf_page_to_temp_png(pdf_path: str, page_index: int, dpi: int = _KRAKEN_PDF_RENDER_DPI) -> str:
+    """Render one PDF page to a temp PNG file for Kraken (#4892).
+
+    Kraken's segmenter is a subprocess (`kraken_runtime.segment_lines`) that
+    reads an image FILE, unlike Apple Vision / an LLM which can take the
+    in-memory render directly — so this is the one new step, not a second
+    renderer: it calls the SAME shared, cached, lock-guarded batch render
+    every other vision mode already uses for a PDF page
+    (`_batch_render_pdf_pages_to_cgimages`, also used by
+    `_apple_ocr_pdf_page_geometry` and `_pdf_page_to_data_uri`), then writes
+    that decoded image to disk. Kraken's own `segment_to_geometry` already
+    normalizes its boxes to the fraction of WHATEVER image file it is
+    handed (`bbox=[x0/width, y0/height, ...]`) — the same normalized,
+    top-left-origin frame `OCRGeometryBox.bbox` documents for every other
+    engine — so rendering through this same seam is what makes the two
+    frames match; no separate coordinate transform is needed.
+
+    Caller owns cleanup of the returned path.
+    """
+    with _PDF_RENDER_LOCK:
+        cg_images, _ = _batch_render_pdf_pages_to_cgimages(pdf_path, dpi=dpi)
+    if page_index >= len(cg_images) or cg_images[page_index] is None:
+        raise ValueError(f"PDF page {page_index + 1} not found in: {pdf_path}")
+    img = _cgimage_to_pil_image(cg_images[page_index])
+    img = flatten_for_opaque_format(img)
+    fd, tmp_path = tempfile.mkstemp(suffix=".png")
+    os.close(fd)
+    img.save(tmp_path, format="PNG")
+    return tmp_path
 
 
 # =============================================================================
@@ -4238,47 +4290,128 @@ async def process_vision(
                 # Kraken's neural segmenter finds LINES — a polygon and a
                 # baseline per written line — and reads NOTHING, so the geometry
                 # IS the whole output and the text stays empty (#4671). It works
-                # on a page IMAGE, so a PDF must be split into page images first.
+                # on a page IMAGE; a PDF page is rendered through the SAME
+                # shared batch-render seam Apple Vision and the LLM branch
+                # already use for a PDF page (#4892) — see
+                # `_render_pdf_page_to_temp_png`.
                 logger.info(f"Kraken segmenter: {Path(file_path).name}")
+
+                async def _kraken_process_image(
+                    image_path: str, *, page_index: int | None
+                ) -> OCRGeometryResult:
+                    """Segment/recognize one already-resolved image path.
+                    `page_index` is set only when `image_path` is a rendered
+                    PDF page — stamped onto the result (and each box) as
+                    provenance naming which render produced it (#4892)."""
+                    if kraken_recognition_model:
+                        # A recognition model is configured: Kraken READS
+                        # each line and the transcript is tied to its
+                        # baseline (#4671 follow-up).
+                        from fichero_server.llm.kraken_runtime import (
+                            recognize_to_geometry,
+                            resolve_recognition_model,
+                        )
+                        _model_path, _model_id = resolve_recognition_model(
+                            kraken_recognition_model
+                        )
+                        result = await asyncio.to_thread(
+                            recognize_to_geometry,
+                            image_path,
+                            _model_path,
+                            model_id=_model_id,
+                            rendition_id=None,
+                        )
+                    else:
+                        # No recognition model: segment-only, exactly as
+                        # before — baselines/polygons, and an empty
+                        # transcript is the truthful value (the geometry
+                        # rides on the result).
+                        from fichero_server.llm.kraken_runtime import segment_to_geometry
+                        result = await asyncio.to_thread(
+                            segment_to_geometry, image_path, rendition_id=None
+                        )
+                    if page_index is not None:
+                        result = result.model_copy(
+                            update={
+                                "metadata": {
+                                    **result.metadata,
+                                    "pdf_page_render": {
+                                        "page_index": page_index,
+                                        "dpi": _KRAKEN_PDF_RENDER_DPI,
+                                    },
+                                },
+                                "boxes": [
+                                    box.model_copy(update={"page_index": page_index})
+                                    for box in result.boxes
+                                ],
+                            }
+                        )
+                    return result
+
                 if file_path.lower().endswith(".pdf"):
-                    raise ValueError(
-                        "Kraken segments page images — split the PDF into page "
-                        "images first (run Prepare Images or a split step)."
-                    )
-                _ocr_path = _frame_true_background_removed_path(
-                    library_path, doc_id_for_file
-                ) or file_path
-                if kraken_recognition_model:
-                    # A recognition model is configured: Kraken READS each line
-                    # and the transcript is tied to its baseline. text becomes
-                    # the page's content; page_geometry carries per-line
-                    # text+baseline+char spans (#4671 follow-up).
-                    from fichero_server.llm.kraken_runtime import (
-                        recognize_to_geometry,
-                        resolve_recognition_model,
-                    )
-                    _model_path, _model_id = resolve_recognition_model(
-                        kraken_recognition_model
-                    )
-                    page_geometry = await asyncio.to_thread(
-                        recognize_to_geometry,
-                        _ocr_path,
-                        _model_path,
-                        model_id=_model_id,
-                        rendition_id=None,
+                    if requested_page_index is not None:
+                        # Per-page fan-out: render THIS page through the
+                        # shared seam, segment it, clean up the temp render.
+                        _kraken_tmp_path = await asyncio.to_thread(
+                            _render_pdf_page_to_temp_png,
+                            file_path,
+                            requested_page_index,
+                        )
+                        try:
+                            page_geometry = await _kraken_process_image(
+                                _kraken_tmp_path, page_index=requested_page_index
+                            )
+                        finally:
+                            Path(_kraken_tmp_path).unlink(missing_ok=True)
+                        text = page_geometry.text
+                        parsed = text
+                    else:
+                        # Whole multi-page PDF selected as one document, no
+                        # page fan-out yet: follow the Apple/LLM branches'
+                        # own answer to this (#2215/#4892) — process every
+                        # page and populate per_page_texts/per_page_geometries
+                        # so the SAME generic _propagate_to_page_children
+                        # path below fans them out to page child documents,
+                        # rather than writing one combined blob onto the
+                        # parent PDF.
+                        with _PDF_RENDER_LOCK:
+                            _kraken_cg_images, _kraken_num_pages = (
+                                _batch_render_pdf_pages_to_cgimages(
+                                    file_path, dpi=_KRAKEN_PDF_RENDER_DPI
+                                )
+                            )
+                        per_page_texts = []
+                        per_page_geometries = []
+                        for _kp_idx in range(_kraken_num_pages):
+                            if _kraken_cg_images[_kp_idx] is None:
+                                per_page_texts.append("")
+                                per_page_geometries.append(None)
+                                continue
+                            _kp_img = flatten_for_opaque_format(
+                                _cgimage_to_pil_image(_kraken_cg_images[_kp_idx])
+                            )
+                            _kp_fd, _kp_tmp_path = tempfile.mkstemp(suffix=".png")
+                            os.close(_kp_fd)
+                            _kp_img.save(_kp_tmp_path, format="PNG")
+                            try:
+                                _kp_geometry = await _kraken_process_image(
+                                    _kp_tmp_path, page_index=_kp_idx
+                                )
+                            finally:
+                                Path(_kp_tmp_path).unlink(missing_ok=True)
+                            per_page_texts.append(_kp_geometry.text)
+                            per_page_geometries.append(_kp_geometry)
+                        text = "\n\n".join(t for t in per_page_texts if t)
+                        parsed = text
+                else:
+                    _ocr_path = _frame_true_background_removed_path(
+                        library_path, doc_id_for_file
+                    ) or file_path
+                    page_geometry = await _kraken_process_image(
+                        _ocr_path, page_index=None
                     )
                     text = page_geometry.text
                     parsed = text
-                else:
-                    # No recognition model: segment-only, exactly as before —
-                    # baselines/polygons, and an empty transcript is the truthful
-                    # value (the geometry rides on page_geometry).
-                    from fichero_server.llm.kraken_runtime import segment_to_geometry
-                    page_geometry = await asyncio.to_thread(
-                        segment_to_geometry, _ocr_path, rendition_id=None
-                    )
-                    text = ""
-                    parsed = ""
             else:
                 logger.info(f"LLM Vision: {Path(file_path).name}")
                 # Check if we should use HF Inference API for thinking models
