@@ -427,6 +427,7 @@ nav:
               - Reader View: contributor_manual/specs/ui/reader-view.md
               - Reading Markup & Annotations: contributor_manual/specs/ui/reading-markup-annotations.md
               - Research: contributor_manual/specs/ui/research.md
+              - Search: contributor_manual/specs/ui/search.md
               - Sidebar CRUD: contributor_manual/specs/ui/sidebar-crud.md
               - Workflow Node Config: contributor_manual/specs/ui/workflow-node-config.md
               - Workflows: contributor_manual/specs/ui/workflows.md
