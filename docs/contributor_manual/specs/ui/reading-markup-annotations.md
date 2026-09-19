@@ -107,6 +107,11 @@ transform); this pins WHAT a mark is and how it behaves. Grounded in the ruling 
   (`models/knowledge.py:1352-1391`) anchors to a document/page/region/rendition — there is no
   `citation_id`-shaped field anywhere on it, so a comment cannot be linked to a specific
   citation today, only to the source region it happens to sit on. Not built.
+- `markup.annotations-list-fills-its-column` — **[GAP]** (#1970, redirected from the legacy
+  "UX - Library & Reading Surface" milestone while folding `library-view-modes.md`'s pass 2)
+  the Source Annotations list should fill its column's full width/height (matching how the
+  entities list renders in the same inspector), and single-click select should reliably work
+  — reported broken. Not verified as built.
 
 ## Test matrix
 
@@ -127,6 +132,7 @@ transform); this pins WHAT a mark is and how it behaves. Grounded in the ruling 
 | inspector-bottom-tool-placement | — | ❌ [GAP] |
 | promote-to-artifact | — | ❌ [GAP] |
 | comment-tied-to-citation | — | ❌ [GAP] |
+| annotations-list-fills-its-column | — | ❌ [GAP] |
 
 ## Open questions
 

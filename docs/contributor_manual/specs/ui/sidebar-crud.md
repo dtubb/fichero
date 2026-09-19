@@ -122,6 +122,22 @@ Both issues are already on this milestone (#291); no new issues were needed.
   remainder `delete.subtree-only`/`.selection-safe`/`.multi` above don't cover — those pin the
   Document-delete MECHANICS; this pins whether a deleted item can be found and undone again.
 
+### Legacy milestone fold — three issues redirected from "UX - Library & Reading Surface"
+
+While folding `library-view-modes.md`'s pass 2, three sidebar-structure issues from that
+legacy milestone were re-read against this spec instead — sidebar row mechanics and the
+sidebar's own code health, not a Library view-mode question:
+
+- `sidebar.drag-session-consistent-across-row` — **[GAP]** (#713) dragging a row's icon/name
+  versus dragging elsewhere on the row body should produce the SAME drag session inside a
+  `DisclosureGroup` — today they diverge. Not verified as built.
+- `sidebar.code-structure-consolidated` — **[GAP]** (#585) `SidebarItemRow` should split and
+  the sidebar's several state managers should consolidate — a code-health ask, not a
+  user-facing behavior, kept here as a GAP so it stays tracked rather than lost when its
+  milestone folds.
+- `sidebar.accessibility-pass` — **[GAP]** (#584) the sidebar has zero VoiceOver/accessibility
+  coverage today (issue's own claim, not independently re-verified this pass).
+
 ## First worked example (this PR — the delete behaviors)
 
 Root cause (scoped): `SidebarView.droppedRowIsMomentarilyMissing` (the function this section

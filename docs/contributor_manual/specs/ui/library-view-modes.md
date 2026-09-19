@@ -246,10 +246,40 @@ and drag-out-to-Finder) has no clean home among this spec, `panes-workspaces.md`
 question, a pane/window question, a sidebar-tree CRUD question, or an agent-tool question.
 Left for maintainer triage.
 
-- `library.modes.quality-pass-tracked-here` — **[GAP]** (#4160, the umbrella EPIC "every view
-  mode as good as the sidebar") this spec's own growing behavior set (List/Icon/Table/Columns/
-  Canvas/Space quality lines above and below) is now where this EPIC's per-mode asks are
-  tracked; it is not itself a separate behavior to build.
+- `library.modes.quality-pass-tracked-here` — **[GAP]** (#4160, #1971, #114 — three umbrella
+  audit/quality-pass EPICs over the years, none superseding the others, filed from "every view
+  mode as good as the sidebar" through "audit icon/list/table use standard SwiftUI controls"
+  to a bare "[QA] Library View Surface Audit") this spec's own growing behavior set (List/
+  Icon/Table/Columns/Canvas/Space quality lines above and below) is now where these EPICs'
+  per-mode asks are tracked; none is itself a separate behavior to build.
+- `library.icon.zoom-scale` — **[PARTIAL]** (#1930) per-view zoom via +/- and pinch-to-zoom,
+  with larger thumbnails available. Verified at HEAD: `@AppStorage("library.iconViewScale")`
+  (`LibraryView.swift:336`) persists the scale; a live pinch gesture drives `liveIconScale`
+  with a clamp so a single thumbnail never exceeds the visible area
+  (`LibraryView+IconMode.swift:19-34`) — built. No test found exercising the pinch gesture or
+  the persisted scale, so PARTIAL rather than OK. The "grid sidebar view" half of the issue
+  (a Finder-style icon-grid sidebar, distinct from the Library pane's own icon mode) was not
+  found and may be a separate, still-open ask.
+- `library.list.selection-and-save-reliability` — **[GAP]** (#1961, an older, broader
+  complaint than the specific anchor bug `library.list.shift-click-anchor-established-first`
+  above pins) list click/selection/save described as "overloaded" and unreliable. Not
+  verified as built or fixed; kept as its own line rather than folded into the anchor bug
+  since the issue names selection AND save, not only range-selection.
+- `library.chrome.excluded-from-processing-treatment` — **[GAP]** (#1791) a document excluded
+  from processing should read as such wherever it appears — a visual treatment in the
+  library, and it should not surface in ordinary search or the knowledge graph. Not verified
+  as built.
+- `library.chrome.batch-operations-beyond-workflows` — **[GAP]** (#1695) selection-scoped
+  batch operations beyond running a workflow — delete/archive/tag/exclude on a multi-selection
+  — from the shared bottom action bar (`library.chrome.one-bottom-bar-every-mode` above). Not
+  verified as built.
+
+Verify-close candidate, left OPEN for the maintainer (evidence posted as a GitHub comment),
+not closed here: **#1931** ("Column view (Miller columns, horizontal), DEVONthink/Mail
+style") — an OLDER filing of the same ask `library.modes.eleven-selectable`/`library.modes
+.one-dispatch-switch` above already confirm is built (`.columns`, `columnsView`), and the
+same caveat as #3697 above applies: `library.columns.seeds-from-the-browsed-folder` (#4594)
+may be why it still reads as broken to whoever tests it next.
 
 ### G. Columns mode (legacy milestone "Library View — Column Browser & Columns")
 
@@ -339,12 +369,14 @@ to the not-yet-written `historical-text-normalization` spec than to a Library vi
   handle) were not found: `canvasContextMenu()` (`LibraryView+CanvasModes.swift:52-65`) offers
   only "Zoom to Card" and the shared document context menu, nothing that calls
   `createItem`/`updateItem`. Store exists, no caller.
-- `library.canvas.universal-container-scope` — **[GAP]** (#3091) Canvas and Space should be
-  offered as view modes on ANY container — search results, an entity-library selection, a
-  workspace — not only folders; today search gets `.map` only behind an advanced flag and
-  entity selection is list-only. Extends `library.modes.canvas-and-space-are-gated-renderer-
-  pairs` and `library.search.spatial-modes-share-one-projection` above, which currently cover
-  only the folder-browsing case. Not verified as built.
+- `library.canvas.universal-container-scope` — **[GAP]** (#3091, #1773 — the same ask, #1773
+  the older filing, naming icon/column/map/spatial specifically for an entity-library
+  selection whose list mode already shipped) Canvas and Space should be offered as view modes
+  on ANY container — search results, an entity-library selection, a workspace — not only
+  folders; today search gets `.map` only behind an advanced flag and entity selection is
+  list-only. Extends `library.modes.canvas-and-space-are-gated-renderer-pairs` and
+  `library.search.spatial-modes-share-one-projection` above, which currently cover only the
+  folder-browsing case. Not verified as built.
 - `library.canvas.nested-container-navigation` — **[GAP]** (#3092) entering a canvas item that
   is itself a container (a folder, a PDF, an image/page) should switch the canvas to THAT
   item's own scope — its pages, its own notes/annotations/entities as the placeables — using

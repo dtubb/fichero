@@ -356,6 +356,14 @@ behavior this spec already owns):
   behaviors (`panes.split.independent-mode-per-pane`) to CONTENT independence, which those
   behaviors do not yet cover.
 
+One more, redirected from the legacy "UX - Library & Reading Surface" milestone while folding
+`library-view-modes.md`'s pass 2 (a toolbar-chrome question, this spec's territory, not a
+Library view-mode question):
+
+- `panes.toolbar.reader-filter-button-is-explained-or-removed` — **[GAP]** (#1473) the
+  reading-surface top toolbar has a "filter" button whose purpose is unexplained — either
+  give it a clear function and label, or remove it. Not verified either way.
+
 ### Post-F7 design refinements (CD, 2026-09-14) — capture, revisit after F7
 
 - `panes.kg.select-shows-item-inspector` — **[GAP, post-F7]** (→ #4705 increment 7) clicking a claim or entity row

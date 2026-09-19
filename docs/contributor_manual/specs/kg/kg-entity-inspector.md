@@ -133,7 +133,10 @@ Surfaces: `DocumentInspector` (+`Sections`), `DocumentInspectorEntitiesTab`
   entity has no page; its statements do. This is why no `EntitySourceRequest` type
   is proposed — see Findings F6.
 - `kg.entity.source.crop-shown-for-any-bbox-item` — **[GAP]** (#2105, fold from legacy
-  milestone "Inspector View") the same "show me the source" affordance the entity-statement
+  milestone "Inspector View"; #1643, redirected from the legacy "UX - Library & Reading
+  Surface" milestone while folding `library-view-modes.md`'s pass 2 — the same ask, "reveal
+  entity/claim region on the source image," spanning canvas, WebKit reader, and inspector)
+  the same "show me the source" affordance the entity-statement
   rows already have (`kg.entity.source.highlights-span`/`.highlights-region`) should extend to
   ANY bbox-anchored item — a face, an annotation, a transcribed line — not only a claim, and
   should show the actual CROPPED source image inline, not only highlight the region on the
