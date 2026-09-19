@@ -171,7 +171,7 @@ extension MainContentModifiers {
                 // silently dropped by refusing the save. Loud on purpose —
                 // Daniel wants to SEE this.
                 logger.error(
-                    "Refusing autosave for \(old.id): no baseline (never successfully loaded), but the editor holds a non-empty graph (\(self.editingWorkflow.nodes.count) nodes) — POSSIBLE UNSAVED WORK IS BEING DROPPED"
+                    "Refusing autosave for \(old.id): never loaded, yet the editor holds \(self.editingWorkflow.nodes.count) nodes. UNSAVED WORK MAY BE DROPPED"
                 )
             }
         }
