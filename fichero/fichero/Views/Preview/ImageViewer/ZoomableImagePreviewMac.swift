@@ -117,9 +117,10 @@ struct ZoomableImagePreview: View {
     @Environment(DocumentStore.self) var documentStore: DocumentStore?
     /// Optional: geometry reloads when a run finishes (2026-08-25 — a fresh
     /// Detect Regions run wrote 52 good boxes and the overlay kept showing
-    /// the stale ones until the document was switched). Artifact change
-    /// events don't reach the client stream yet; run completion is the
-    /// signal the app already observes.
+    /// the stale ones until the document was switched). This is the
+    /// CLIENT-TRACKED-execution signal; `artifactEntityRevision` below
+    /// (#4890) is the OTHER signal, for runs this observer never sees, e.g.
+    /// Kraken's auto-run-at-import.
     @Environment(WorkflowExecutionObserver.self) var executionObserver: WorkflowExecutionObserver?
     /// Optional: per-window ephemeral marquee seam (2026-08-29). Previews and
     /// hosts without a WindowState simply have no marquee surface.
@@ -316,6 +317,13 @@ struct ZoomableImagePreview: View {
                 + "|\(executionObserver?.fileCompletedCount ?? 0)"
                 + "|\(executionObserver?.workflowCompletedCount ?? 0)"
                 + "|\(FocusedArtifact.shared.id ?? "")"
+                // #4890 (spec: segment.overlay.refreshes-when-segmentation-
+                // finishes): `ArtifactEntityStore`'s per-document generation
+                // counter, bumped by the engine's "artifact.updated" event on
+                // EVERY finished workflow run — including Kraken's
+                // auto-run-at-import, which `executionObserver` above never
+                // sees (it only tracks CLIENT-initiated executions).
+                + "|\(artifactEntityRevision)"
         ) {
             await loadOCRGeometry()
             // The geometry is what the search hit's passage was waiting for.

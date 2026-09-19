@@ -221,6 +221,18 @@ private struct HoverPositionReader: NSViewRepresentable {
 
 #if os(macOS)
 extension ZoomableImagePreview {
+    /// `ArtifactEntityStore`'s per-document generation counter for
+    /// `documentId` (#4890, spec
+    /// `segment.overlay.refreshes-when-segmentation-finishes`). `0` (no
+    /// `documentId`/`artifactService` in scope, or no event yet) is a
+    /// stable, harmless default. An image page IS its own document (unlike
+    /// a PDF page child), so no parent/page-child mismatch applies here —
+    /// this key always matches what the engine reports.
+    var artifactEntityRevision: Int {
+        guard let documentId, let artifactService else { return 0 }
+        return ArtifactEntityStore.shared(for: artifactService).revision(for: documentId)
+    }
+
     /// Fetch this page's typed geometry (#4309, repaired by #4418).
     ///
     /// List first (lean payload), then the single GET which carries geometry.

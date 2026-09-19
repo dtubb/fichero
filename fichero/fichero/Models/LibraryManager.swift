@@ -256,6 +256,11 @@ class LibraryManager {
             stream.register(self.searchStore)
             stream.register(self.workflowStore)
             stream.register(self.artifactStore)
+            // Same key the PDF/image OCR-geometry loaders resolve via
+            // `ArtifactEntityStore.shared(for: artifactService)` from their
+            // own `@Environment(ArtifactService.self)` — this IS that
+            // instance, so no new plumbing reaches the loaders (#4890).
+            stream.register(ArtifactEntityStore.shared(for: self.artifactService))
             stream.register(self.citationStore)
             stream.register(self.referenceStore)
             stream.register(self.interpretationStore)

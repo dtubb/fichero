@@ -128,6 +128,81 @@ final class ArtifactEntityStoreTests: XCTestCase {
         XCTAssertFalse(store.loadFailed(for: "d2"))
     }
 
+    // MARK: - ChangeEventConsumer: artifact.updated revision + invalidation (#4890)
+    //
+    // spec: segment.overlay.refreshes-when-segmentation-finishes. Through the
+    // REAL `apply(_ event: ChangeEvent)`, not a source scan — same construction
+    // idiom as ObservableDomainStoreTests.makeEvent.
+
+    private func makeChangeEvent(type: String, documentIds: [String], extra: [String: Any] = [:]) throws -> ChangeEvent {
+        var payload: [String: Any] = ["type": type, "document_ids": documentIds, "actor": "workflow"]
+        payload.merge(extra) { _, new in new }
+        let data = try JSONSerialization.data(withJSONObject: payload)
+        return try JSONDecoder().decode(ChangeEvent.self, from: data)
+    }
+
+    /// CHANGE 1 (team-lead ruling, 2026-09-19): the revision bump is NOT
+    /// gated on a held bundle — a Preview pane can show doc-1 with no
+    /// Inspector bundle held for it, and the overlay still needs to know.
+    func testArtifactUpdatedBumpsRevisionForNamedDocumentOnlyRegardlessOfHeldBundle() throws {
+        let store = makeStore()
+        // Neither doc-1 nor doc-2 has a bundle or a failed read — nothing held.
+        XCTAssertNil(store.bundle(for: "doc-1"))
+        XCTAssertEqual(store.revision(for: "doc-1"), 0)
+
+        store.apply(try makeChangeEvent(type: "artifact.updated", documentIds: ["doc-1"]))
+
+        XCTAssertEqual(store.revision(for: "doc-1"), 1, "the named document's revision bumps even though nothing was held")
+        XCTAssertEqual(store.revision(for: "doc-2"), 0, "an unrelated document's revision must not move")
+    }
+
+    /// The SEPARATE half of CHANGE 1: a held bundle for the named document IS
+    /// invalidated; a held bundle for an unrelated document is not.
+    /// `invalidate(_:)`'s synchronous half — clearing `failedDocumentIds` — is
+    /// the same observable precedent `testInvalidateClearsTheFailedMarkSoTheRetryDecides`
+    /// above uses; the async refetch itself is left to the integration build.
+    func testArtifactUpdatedInvalidatesOnlyHeldDocumentsNamedByTheEvent() throws {
+        let store = makeStore()
+        store.apply(fetchOutcome: .failure(TestTransportError()), for: "doc-1")
+        store.apply(fetchOutcome: .failure(TestTransportError()), for: "doc-2")
+        XCTAssertTrue(store.loadFailed(for: "doc-1"))
+        XCTAssertTrue(store.loadFailed(for: "doc-2"))
+
+        store.apply(try makeChangeEvent(type: "artifact.updated", documentIds: ["doc-1"]))
+
+        XCTAssertFalse(store.loadFailed(for: "doc-1"), "doc-1 is named by the event and held (failed) — invalidated")
+        XCTAssertTrue(store.loadFailed(for: "doc-2"), "doc-2 is held but NOT named by the event — untouched")
+    }
+
+    /// A non-"artifact" domain event must not move anything — defensive, since
+    /// `apply` is also reachable directly (as here), not only through
+    /// `LibraryChangeStream.route(_:)`'s upstream domain filter.
+    func testNonArtifactEventBumpsNothing() throws {
+        let store = makeStore()
+
+        store.apply(try makeChangeEvent(type: "document.updated", documentIds: ["doc-1"]))
+
+        XCTAssertEqual(store.revision(for: "doc-1"), 0)
+    }
+
+    /// Proves the extra `artifact_ids` key (the engine's actual payload shape,
+    /// `completion.py`'s `emit_change(..., artifact_ids=..., document_ids=...)`)
+    /// is harmless — `ChangeEvent` has no field for it, `Decodable` ignores an
+    /// unmapped key, and the event still decodes and carries `document_ids`.
+    func testArtifactIdsExtraKeyDecodesHarmlessly() throws {
+        let event = try makeChangeEvent(
+            type: "artifact.updated",
+            documentIds: ["doc-1"],
+            extra: ["artifact_ids": ["art-1", "art-2"], "run_id": "run-9"]
+        )
+        XCTAssertEqual(event.documentIds, ["doc-1"])
+        XCTAssertEqual(event.runId, "run-9")
+
+        let store = makeStore()
+        store.apply(event)
+        XCTAssertEqual(store.revision(for: "doc-1"), 1)
+    }
+
     func testNamesForEntityTypeMatchesTheParsedField() {
         let bundle = ArtifactEntityStore.parse([
             artifact("people", data: ["items": AnyCodable([["name": "Alice"]])]),

@@ -157,6 +157,29 @@ struct PDFPageWithToolbar: View {
         paneGeometryDocumentId ?? effectiveDocumentId
     }
 
+    /// `ArtifactEntityStore`'s per-document generation counter for
+    /// `effectiveGeometryDocumentId` (#4890). `0` (no `artifactService` in
+    /// scope, or no event yet) is a stable, harmless default — see
+    /// `ArtifactEntityStore.revision(for:)`.
+    ///
+    /// KNOWN GAP, not papered over: this key tracks
+    /// `effectiveGeometryDocumentId`, which is the page-child id in the
+    /// common (host-page) case — matching what the engine puts in the
+    /// event's `document_ids` for a page-scoped artifact. In the fallback
+    /// case (`paneGeometryDocumentId` is `nil` — a secondary/pinned pane
+    /// that has flipped away from the host's page), this key is
+    /// `effectiveDocumentId`, the PANE'S RENDERED document, which can be the
+    /// PARENT PDF while the artifact's own `document_id` the engine reports
+    /// is the specific page child — the two ids differ, and a revision bump
+    /// for that page child will not re-key this fallback pane's task. That
+    /// pane's overlay still refreshes on its OWN next page flip (which
+    /// already changes this id), just not automatically the instant the
+    /// segmentation run finishes.
+    private var artifactEntityRevision: Int {
+        guard let artifactService else { return 0 }
+        return ArtifactEntityStore.shared(for: artifactService).revision(for: effectiveGeometryDocumentId)
+    }
+
     /// Which page to display: parent-driven for the primary unpinned pane,
     /// locally tracked for every secondary pane or any pinned pane.
     private var effectivePageIndex: Int {
@@ -407,7 +430,16 @@ struct PDFPageWithToolbar: View {
         // falls back to the whole PDF and the reload must follow ITS page.
         // For the primary pane the page document already changes on a flip, so
         // this adds no extra fetch there.
-        .task(id: "\(effectiveGeometryDocumentId)|\(effectivePageIndex)|\(ocrBoxesEnabled)") {
+        //
+        // #4890 (spec: segment.overlay.refreshes-when-segmentation-finishes):
+        // `artifactEntityRevision` folds in `ArtifactEntityStore`'s per-document
+        // generation counter for `effectiveGeometryDocumentId` — bumped by the
+        // engine's "artifact.updated" change-stream event on EVERY finished
+        // workflow run, including Kraken's auto-run-at-import, which no
+        // client-tracked execution counter sees. A bump re-fires this task for
+        // exactly this document, the same idiom the image preview already uses
+        // for `WorkflowExecutionObserver`'s counters.
+        .task(id: "\(effectiveGeometryDocumentId)|\(effectivePageIndex)|\(ocrBoxesEnabled)|\(artifactEntityRevision)") {
             // AppKit only: the PDF box renderer draws PDFAnnotations through
             // PDFPageView+OCRBoxes, which is itself #if canImport(AppKit). iOS
             // has no PDF overlay yet (#4418 shipped the Mac half), so there is

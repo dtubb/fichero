@@ -54,11 +54,22 @@ struct ArtifactEntityBundle: Equatable {
 /// dedupe; the service still owns *how* (and its own `artifactsByDocument` cache).
 @MainActor
 @Observable
-final class ArtifactEntityStore {
+final class ArtifactEntityStore: ChangeEventConsumer {
     /// Parsed previews keyed by documentId. `nil` for an id means "not loaded
     /// yet" (show the silent placeholder); a present-but-empty bundle means
     /// "loaded, no entity artifacts" (show "—").
     private(set) var bundles: [String: ArtifactEntityBundle] = [:]
+
+    /// Per-document generation counter, bumped by every `artifact.*` change
+    /// event naming that document — independent of `bundles` (spec
+    /// `segment.overlay.refreshes-when-segmentation-finishes`, #4890). A
+    /// Preview or Reader pane can show a document with no Inspector bundle
+    /// held for it at all; its OCR/segmentation overlay still needs to know
+    /// the artifacts changed. Not itself a cache of anything — a loader folds
+    /// `revision(for:)` into its own `.task(id:)` key, the same idiom already
+    /// used for `WorkflowExecutionObserver`'s completion counters, so the
+    /// task re-fires for exactly that ONE document when its revision bumps.
+    private(set) var revisions: [String: Int] = [:]
 
     /// Documents with a fetch in flight — a second consumer for the same id is a
     /// no-op, so seven views for one document trigger exactly one request.
@@ -112,6 +123,14 @@ final class ArtifactEntityStore {
 
     func bundle(for documentId: String) -> ArtifactEntityBundle? {
         bundles[documentId]
+    }
+
+    /// This document's current artifact-change generation, for a geometry
+    /// loader's `.task(id:)` key. `0` for a document that has never received
+    /// an `artifact.*` event this session — a stable, harmless default (no
+    /// event means no reason to re-fetch).
+    func revision(for documentId: String) -> Int {
+        revisions[documentId] ?? 0
     }
 
     /// True when the last read for `documentId` failed (#4507). Views render
@@ -191,6 +210,58 @@ final class ArtifactEntityStore {
         guard !held.isEmpty else { return }
         log.debug("Reconciling \(held.count, privacy: .public) affected docs after workflow completion")
         invalidate(held)
+    }
+
+    // MARK: - ChangeEventConsumer (called by LibraryChangeStream, NOT by views)
+    //
+    // spec: segment.overlay.refreshes-when-segmentation-finishes, #4890. The
+    // engine emits ONE "artifact.updated" event per finished workflow run —
+    // including Kraken's auto-run-at-import, which `WorkflowExecutionObserver`
+    // (the existing `reconcileCompletions` mechanism above) never sees,
+    // because that observer only tracks executions the CLIENT itself
+    // initiated. `document_ids` on the event are looked up from each
+    // artifact's OWN `document_id` server-side (`completion.py`), so a
+    // page-child artifact's event correctly names the page child, not the
+    // run's parent.
+
+    nonisolated var changeDomains: Set<String> { ["artifact"] }
+
+    /// CHANGE 1 (team-lead ruling, 2026-09-19): the revision bump is NOT
+    /// gated on `bundles` — a Preview pane can show document X with no
+    /// Inspector bundle held for X, and gating the bump there would mean
+    /// that pane's overlay never refreshes. Every id in `event.documentIds`
+    /// gets a bump, unconditionally; `invalidate(_:)` (the existing,
+    /// unrelated `bundles` cache) is called SEPARATELY, only for ids
+    /// actually held, exactly as `reconcileCompletions` above already does.
+    func apply(_ event: ChangeEvent) {
+        // Defensive, not just relying on `LibraryChangeStream.route(_:)`'s
+        // upstream domain filter (`ChangeEventConsumer`'s own contract says
+        // `apply` only ever receives an already-domain-filtered event) —
+        // this store is also called directly in tests.
+        guard event.domain == "artifact" else { return }
+        let ids = event.documentIds
+        guard !ids.isEmpty else { return }
+        for id in ids { revisions[id, default: 0] += 1 }
+
+        let held = ids.filter { bundles[$0] != nil || failedDocumentIds.contains($0) }
+        guard !held.isEmpty else { return }
+        invalidate(Set(held))
+    }
+
+    /// Reconnect recovery (spec §5.5): events may have been missed while the
+    /// SSE connection was down. Bumps every document this store has EVER
+    /// tracked (currently held, or previously revisioned) — a Preview pane
+    /// showing a document that has never once appeared here (no bundle, no
+    /// prior event) will not get a forced bump on reconnect; it picks up the
+    /// next REAL event normally. A narrower gap than the live path, and a
+    /// known one — flagging it rather than papering over it.
+    func resync() async {
+        let ids = Set(bundles.keys).union(revisions.keys)
+        guard !ids.isEmpty else { return }
+        for id in ids { revisions[id, default: 0] += 1 }
+        let held = ids.filter { bundles[$0] != nil }
+        guard !held.isEmpty else { return }
+        invalidate(Set(held))
     }
 
     // MARK: - Private
