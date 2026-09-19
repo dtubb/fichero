@@ -139,9 +139,20 @@ the part of a codex made at one time — mean the ladder must reach above the pa
   able to hold it and the app must be able to show it, without waiting for a new version of
   Fichero.
 
+- **Build on what is there, and go deep.** The existing anchor, readings, images-per-page and
+  region editing are the base; this design develops and expands them. It does not start again.
+  The purpose of this spec is to describe the whole thing properly first. The order of
+  building is decided afterwards, from the finished spec.
+- **Two known shortfalls the design must close.** The Preview's editor cannot yet handle what
+  this model describes. And Fichero cannot yet hand out, or take in, the picture of one
+  segment (a glyph, a word, a line) the way Kraken training needs.
+- **A researcher's own marks go on any segment.** Notes, highlights, stars and tags, and a
+  segment's place in a reading order, work at every level of the ladder, the same way they
+  work on a whole document.
+
 ### Open to what we do not know yet
 
-How the last ruling is met:
+How the "open to what we do not know yet" ruling is met:
 
 - **Every vocabulary is open.** Segment kinds, link types, reading kinds, directions, ink
   layers, damage reasons: each ships with a standard default list and a library can add its
@@ -199,6 +210,8 @@ collection / codex unit  >  group of pages  >  page  >  region  >  line or colum
   reorders, comments on, answers, quotes, continues, same as.
 - **Statements** — knowledge-graph claims and entities attach to the segment's id, and it is
   easy to go both ways.
+- **The researcher's marks** — notes, highlights, stars and tags, on any segment at any level.
+  One set of marks for the whole app: the same note, star and tag a document can carry.
 - **A description** — for a picture, seal, stamp or diagram: what it shows (alt text), with the
   same provenance as any reading.
 - **Its image** — the crop of just this segment, cut to its polygon, available at every level.
@@ -249,6 +262,26 @@ Segments are edited directly on the image, in the Preview, and nowhere else. Ful
 - work on many segments and several layers at once.
 
 Every edit is one audited, reversible action. Nothing is rewritten by batch.
+
+**A possible editing layer: SVG (the maintainer's idea, 2026-09-19; not ruled).** A page's
+segments are, in effect, a drawing over an image: polygons, curved baselines, text that runs
+in a direction or along a path, links between shapes, descriptions. SVG describes exactly
+that, and it is also one of the export formats. So the editor could be a web editor working
+on an SVG view of the page, inside the Preview.
+
+- *For:* web editors for this already exist and are mature (the field's own tools,
+  eScriptorium and Transkribus, are web editors; Annotorious and OpenSeadragon draw and edit
+  polygons over deep-zoom images using W3C annotations). SVG lays out right-to-left, vertical
+  and text-on-a-path natively. One editor would serve the Mac, iPad and iPhone. What is edited
+  is what is exported. The Preview already has a web canvas that shows SVG and HTML
+  (`Views/Preview/WebContentCanvas.swift`, VERIFIED present; what it can do is not yet read).
+- *Against, or to settle:* today's overlay and region editing are native drawing
+  (`OCRGeometryOverlay.swift`, `RegionInteractionLayer.swift`). Two overlay renderers side by
+  side would break the one-code-path rule, so an SVG editor would have to **replace** the
+  native overlay, not join it. A page with thousands of word and character polygons must stay
+  smooth. Every edit must still go through the one audited action layer, not be saved as a
+  file. SVG is the **view being edited, never the store**: the store is the segment records.
+- The named editors and their licences are from general knowledge, not yet checked.
 
 ### One store, many uses
 
@@ -396,8 +429,12 @@ milestone exists.
 10. **Existing libraries.** Real research libraries already hold geometry as lists without
     ids. They are never rewritten by batch. Do their segments get identities lazily (the first
     time a page is opened or edited), or only when the researcher asks?
-11. **The first slice.** What should a researcher be able to do first with this, in the next
-    release?
+11. **The editing layer.** Should the Preview's segment editor become a web editor working on
+    an SVG view of the page, replacing the native overlay? (See "A possible editing layer".)
+    A survey of the existing web editors, and a small trial on a dense page, would inform
+    this.
+12. **The order of building.** Decided after the spec is whole (ruled). Recorded here so it is
+    not forgotten: every other piece depends on a segment having a lasting identity.
 
 ## Sources for the survey
 
