@@ -139,7 +139,11 @@ evidence backs.
   of what the live feed actually already has. Nothing enforces monotonicity against the feed
   itself, so two releases stamped from two different local states (a stale checkout, a manual
   override, a partial re-run) can independently compute the same "next" number with nothing to
-  catch the collision before it ships.
+  catch the collision before it ships. Any check built against this must compare PER CHANNEL,
+  not globally: the live feed legitimately carries a public item and a dev-channel item for the
+  same version and the same build number by design (see `release.update.appcast-item-insert-is-
+  idempotent` below) — comparing the new build number against the feed's newest item regardless
+  of channel would false-positive on that intentional pair.
 - `release.update.signature-made-after-stapling` — **[PARTIAL]** (#4901) an EdDSA signature must
   be computed AFTER `xcrun stapler staple`, since stapling modifies the file and a
   pre-staple signature would no longer verify. Verified BY READING, not by a test or script
@@ -149,7 +153,21 @@ evidence backs.
   not OK, because no automated check pins this order; a future edit could reorder these steps (or
   a manual/partial release run could skip `notarize.sh`) with nothing to catch it before a
   broken signature ships.
-- `release.update.installs-from-applications-not-translocated` — **[GAP]** (#4901) Sparkle can
+- `release.update.appcast-item-insert-is-idempotent` — **[GAP]** (#4901) re-running the appcast
+  step for the SAME release must not append a duplicate item. Verified by reading:
+  `create-github-release.sh`'s appcast-update step inserts unconditionally — it always writes a
+  new `<item>` immediately after `<language>`, with no check for an existing item it should
+  replace instead. An item's true identity is the triple (`sparkle:version`,
+  `sparkle:shortVersionString`, channel) — NOT version+build alone, because every release
+  legitimately produces TWO items sharing the same version and build number: a channel-less
+  public item and a `<sparkle:channel>dev</sparkle:channel>` item (`SparkleChannelDelegate`
+  scopes the dev item to dev builds only). A first fix attempt keyed on version+build only was
+  considered and REJECTED before it was ever committed, because a re-run would have matched
+  and replaced the WRONG item — overwriting the public item with the dev item's enclosure/
+  signature, or vice versa, silently pointing one channel's users at the other channel's DMG.
+  Expected: a re-run replaces the matching item within its own channel and never touches the
+  other channel's item. A fix is IN PROGRESS — not built, not tested, no script or test yet
+  proves this either way.
   download and cryptographically verify an update and still fail to install it if the running app
   is translocated (Gatekeeper's randomized, read-only path for an app launched without first
   being moved to `/Applications`) or otherwise sitting on a read-only volume. Verified: no

@@ -426,8 +426,8 @@ is one or two HTTP calls through `FicheroClient`, and **no backend logic lives i
 either**. If a client needs logic, the logic belongs in the engine.
 
 - **Route tiers.** `FICHERO_FEATURE_TIER` (`release` | `beta` | `alpha` | `dev`, default
-  `release`) in `api/main.py`, table in `api/feature_tiers_generated.py`. **21 route
-  groups are tier-gated** (`scripts/check_agents_route_tier_claim.py` checks it); a
+  `release`) in `api/main.py`, table in `api/feature_tiers_generated.py`.
+  **21 route groups are tier-gated** (`scripts/check_agents_route_tier_claim.py` checks it); a
   default (release) engine registers only `/api/ingest` and `/api/search` — `workflows`,
   `kg`, `claims`, `chat`, `mcp` and the rest need `beta`+. The app spawns its engine at
   its own build tier so it never notices, but a hand-started engine at the default tier
