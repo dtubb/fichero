@@ -112,9 +112,15 @@ These are the test of the design. If one of them needs a special case, the model
 6. **Writing that is not in lines.** Lines that alternate direction; text round a seal or coin;
    names following a coastline on a map; tables read across or down. *Needs:* direction per
    segment, including "follows the baseline".
-7. **Pictures, seals, stamps, diagrams, maps on a page.** *Needs:* a segment that is not text,
+7. **The ordinary furniture of a page.** Footnotes and their markers in the text; marginal
+   notes; running heads; page numbers; catchwords; quire signatures; rubrics and decorated
+   initials; captions under pictures; tables. *Needs:* a type for each (they exist already in
+   PageXML, SegmOnto and TEI); **a link from the marker to the note, from the caption to the
+   picture**; and a way to say "this is page furniture, not the text", so a reading can leave
+   it out.
+8. **Pictures, seals, stamps, diagrams, maps on a page.** *Needs:* a segment that is not text,
    with a description of what it shows, that can be pulled out on its own.
-8. **A claim about one word.** A knowledge-graph claim that rests on a single word, or a single
+9. **A claim about one word.** A knowledge-graph claim that rests on a single word, or a single
    character. *Needs:* the claim points at a segment, and survives the page being
    re-segmented or re-transcribed.
 
@@ -149,6 +155,14 @@ the part of a codex made at one time — mean the ladder must reach above the pa
 - **A researcher's own marks go on any segment.** Notes, highlights, stars and tags, and a
   segment's place in a reading order, work at every level of the ladder, the same way they
   work on a whole document.
+
+- **The words.** The **source** is the page (and the group of pages it belongs to). A
+  **segment** is everything on it: every region, line, word, character, stroke, picture, note
+  and gloss. Things in Fichero point at segments; segments belong to a source.
+- **The editor is native.** Segments are edited in a SwiftUI editor in the Preview, so that one
+  editor works on the Mac, the iPad and the iPhone, feels like a Mac app, and takes the Apple
+  Pencil. SVG is an export format, and a web editor is not the plan. The field's web tools are
+  surveyed for their ideas, not their code.
 
 ### Open to what we do not know yet
 
@@ -263,25 +277,14 @@ Segments are edited directly on the image, in the Preview, and nowhere else. Ful
 
 Every edit is one audited, reversible action. Nothing is rewritten by batch.
 
-**A possible editing layer: SVG (the maintainer's idea, 2026-09-19; not ruled).** A page's
-segments are, in effect, a drawing over an image: polygons, curved baselines, text that runs
-in a direction or along a path, links between shapes, descriptions. SVG describes exactly
-that, and it is also one of the export formats. So the editor could be a web editor working
-on an SVG view of the page, inside the Preview.
-
-- *For:* web editors for this already exist and are mature (the field's own tools,
-  eScriptorium and Transkribus, are web editors; Annotorious and OpenSeadragon draw and edit
-  polygons over deep-zoom images using W3C annotations). SVG lays out right-to-left, vertical
-  and text-on-a-path natively. One editor would serve the Mac, iPad and iPhone. What is edited
-  is what is exported. The Preview already has a web canvas that shows SVG and HTML
-  (`Views/Preview/WebContentCanvas.swift`, VERIFIED present; what it can do is not yet read).
-- *Against, or to settle:* today's overlay and region editing are native drawing
-  (`OCRGeometryOverlay.swift`, `RegionInteractionLayer.swift`). Two overlay renderers side by
-  side would break the one-code-path rule, so an SVG editor would have to **replace** the
-  native overlay, not join it. A page with thousands of word and character polygons must stay
-  smooth. Every edit must still go through the one audited action layer, not be saved as a
-  file. SVG is the **view being edited, never the store**: the store is the segment records.
-- The named editors and their licences are from general knowledge, not yet checked.
+**The editor is native (ruled 2026-09-19).** It grows from today's region editing
+(`RegionInteractionLayer.swift`) and replaces today's display-only overlay
+(`OCRGeometryOverlay.swift`), so there is one overlay and one editor, not two. It must stay
+smooth on a page with thousands of word and character polygons. On the iPad, the Apple Pencil
+draws and corrects polygons and baselines; pencil strokes are also a natural source for the
+**stroke** level of the ladder. Every edit still goes through the one audited action layer.
+An SVG web editor was considered and set aside; what SVG offers (direction, text on a path,
+descriptions) is kept on the export side.
 
 ### One store, many uses
 
@@ -429,10 +432,8 @@ milestone exists.
 10. **Existing libraries.** Real research libraries already hold geometry as lists without
     ids. They are never rewritten by batch. Do their segments get identities lazily (the first
     time a page is opened or edited), or only when the researcher asks?
-11. **The editing layer.** Should the Preview's segment editor become a web editor working on
-    an SVG view of the page, replacing the native overlay? (See "A possible editing layer".)
-    A survey of the existing web editors, and a small trial on a dense page, would inform
-    this.
+11. *(Ruled 2026-09-19: the editor is native SwiftUI.)* A survey of the field's editors is
+    under way, for interaction ideas to borrow.
 12. **The order of building.** Decided after the spec is whole (ruled). Recorded here so it is
     not forgotten: every other piece depends on a segment having a lasting identity.
 
