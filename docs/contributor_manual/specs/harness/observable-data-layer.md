@@ -77,7 +77,14 @@ that "flashes," and clicks that "land on the wrong row" all trace back to.
   `::test_does_not_fire_on_a_non_store_class`, `::test_zero_stores_found_fails`,
   `::test_allowlisted_finding_passes`, `::test_stale_violation_entry_fails`,
   `::test_missing_class_field_fails`, `::test_violation_entry_without_issue_fails`,
-  `::test_allowlist_entry_without_reason_fails`.
+  `::test_allowlist_entry_without_reason_fails`. **Also tracked here (legacy milestone fold,
+  2026-09-19): #1973** — the beachball/spinning-cursor report is this behavior's user-visible
+  SYMPTOM, not a separate defect: `LibraryChangeStream.route()` calls each consumer's `apply(_:)`
+  synchronously on `@MainActor`, so any store still on the 34-violation allowlist above that
+  calls a full `reload()`/`scheduleReload()` from inside `apply` stalls the main thread on every
+  matching change event. Not independently re-verified against a live beachball this pass — the
+  allowlist's own count (34 remaining violations) is the honest measure of how much of this
+  symptom's cause is still live, not a guess.
 - `observable.wholesale-replacement-only-on-identity-change` — **[OK]** this piece of the
   broader wholesale-reload work is fully built and tested even while the parent tracking issue
   stays open for the remaining violations: a store
@@ -126,6 +133,42 @@ that "flashes," and clicks that "land on the wrong row" all trace back to.
   design (see its own module docstring). Building a second guardrail for "a loop body containing
   a `store.refresh()`/`.reload()` call" was considered and NOT built this pass — proposed, not
   decided.
+
+- `observable.failed-refresh-keeps-stale-rows` — **[OK]** (legacy milestone fold, 2026-09-19) a
+  re-fetch that fails must never clear rows the store already loaded successfully — an artifact
+  saved and visible must never vanish because a LATER refresh (a reconnect, a change-event
+  resync) failed. `StaleDataPolicy.onFailure(isCancellation:loadedScope:requestedScope:)` is the
+  one shared decision every affected store now routes through: `.ignore` when a newer selection
+  superseded the request, `.keepStale` when the rows on screen belong to the scope that just
+  failed to refresh (shown under an error banner — an honest report, not a silent fabrication),
+  `.clear` only when the rows belong to a DIFFERENT scope than the one requested. Verified at
+  HEAD: `ArtifactStore.reload()`, `InterpretationStore`, and `ObservableDomainStore` all call
+  this same policy rather than each hand-rolling its own clear-on-failure logic.
+  `ArtifactStore.setScope`'s own guard was fixed alongside it — it used to gate on
+  `!items.isEmpty`, which a failed-but-kept-stale scope would satisfy forever and never retry;
+  it now gates on `loadedScope == scope`, set only after a genuinely successful fetch. Pinned:
+  `StaleDataPolicyTests` (9 cases covering ignore/keepStale/clear/cancellation/first-load/
+  scope-identity), `ArtifactRunGroupingTests::testTheTotalityCheckWouldNoticeADroppedArtifact`.
+- `observable.server-is-authoritative-not-client-computed` — **[GAP]** (#4427) a client renders
+  server state and sends intents; it does not compute outcomes a second time locally, because
+  the moment it does, every other client (another window, another device, a future non-Mac
+  client) is wrong until it recomputes the identical logic — two clients with the same logic
+  drift, two clients rendering the same server state cannot. This issue names two already-shipped
+  defects of exactly this shape (a client-decided workflow scope, since fixed elsewhere in this
+  session's own work) as evidence that the failure MODE is real, not hypothetical, even though
+  the architectural principle itself has no single implementation to point at — it is a design
+  direction for future real-time-sync work (drag an item in one client, see it move live in
+  another), not a bounded, buildable behavior today. Cross-references this spec's own
+  `observable.change-stream-applies-granularly` (change events carry only `document_ids`, not
+  item-level state, which is a smaller instance of the same "server must say enough for a client
+  to stay correct without recomputing" problem) rather than restating it.
+
+## Redirect, not folded here
+
+- **#4348** ("Artifact vanishes when the server connection drops mid-run") — **verify-close, not
+  a live gap.** See `observable.failed-refresh-keeps-stale-rows` above: `StaleDataPolicy` now
+  covers exactly this failure shape, pinned by 9 real tests plus a totality check. Evidence
+  posted, left open, not closed here.
 
 ## Test matrix
 

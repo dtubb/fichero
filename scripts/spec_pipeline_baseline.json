@@ -87,11 +87,6 @@
   {
     "rule": "g",
     "spec": "-",
-    "key": "Inspector View - Artifacts - Engine"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
     "key": "Inspector View - Knowledge - Engine"
   },
   {
@@ -183,11 +178,6 @@
     "rule": "g",
     "spec": "-",
     "key": "Surface Chrome - Shared Components"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "SwiftUI/Engine - Observable Data Layer"
   },
   {
     "rule": "g",
