@@ -12,6 +12,12 @@ extension NodePopover {
         defer { isLoadingProviders = false }
 
         do {
+            // #4883: fetched alongside providers so the role-default rows can
+            // say what each alias resolves to today; a failure here is
+            // non-fatal to the picker (rows just fall back to "not set" via
+            // AIDefaults()'s own empty-string defaults) — the outer `catch`
+            // below is for `listProviders`/`listProviderModels`, not this.
+            aiDefaults = (try? await appState.fetchAIDefaults()) ?? aiDefaults
             let configured = try await providerService.listProviders()
             var loaded: [NodeProviderModelSelector.ProviderOption] = []
             for provider in configured where provider.enabled {

@@ -199,4 +199,79 @@ struct SharedModelListBuilderTests {
         #expect(choices.first?.model == "openrouter/anthropic/claude-sonnet-5",
                 "the full id survives for the family mark and the pin")
     }
+
+    // MARK: - #4883 role-default aliases (models.role-defaults-always-offered)
+
+    private func defaults(
+        small: String = "", large: String = "",
+        visionSmall: String = "", visionMedium: String = "", visionLarge: String = ""
+    ) -> AIDefaults {
+        var d = AIDefaults()
+        d.smallModel = small
+        d.largeModel = large
+        d.visionSmallModel = visionSmall
+        d.visionMediumModel = visionMedium
+        d.visionLargeModel = visionLarge
+        return d
+    }
+
+    @Test("$small and $large are always offered; the three vision aliases only when requested")
+    func roleDefaultsAppearWhenRequestedAndNotOtherwise() {
+        let withoutVision = SharedModelListBuilder.roleDefaultAliases(
+            from: defaults(), includeVision: false
+        )
+        #expect(withoutVision.map(\.provider) == [smallAliasProviderId, largeAliasProviderId])
+
+        let withVision = SharedModelListBuilder.roleDefaultAliases(
+            from: defaults(), includeVision: true
+        )
+        #expect(withVision.map(\.provider) == [
+            smallAliasProviderId, largeAliasProviderId,
+            visionSmallAliasProviderId, visionMediumAliasProviderId, visionLargeAliasProviderId
+        ])
+    }
+
+    @Test("each role-default row names the concrete model it resolves to today")
+    func roleDefaultsCarryTheirResolvedLabel() {
+        let aliases = SharedModelListBuilder.roleDefaultAliases(
+            from: defaults(small: "claude-haiku-5", large: "claude-opus-5"),
+            includeVision: false
+        )
+        #expect(aliases[0].displayName == "$small — claude-haiku-5")
+        #expect(aliases[1].displayName == "$large — claude-opus-5")
+    }
+
+    @Test("an unset tier resolves to an honest \"not set\", never a guess")
+    func unsetTierSaysNotSet() {
+        let aliases = SharedModelListBuilder.roleDefaultAliases(from: defaults(), includeVision: false)
+        #expect(aliases[0].displayName == "$small — not set")
+    }
+
+    @Test("build(roleDefaults:) prepends the alias rows ahead of tiers and models")
+    func buildPrependsRoleDefaults() {
+        let aliases = SharedModelListBuilder.roleDefaultAliases(
+            from: defaults(small: "claude-haiku-5"), includeVision: false
+        )
+        let choices = SharedModelListBuilder.build(
+            providers: [provider("anthropic", models: ["claude-opus-5"], vision: true)],
+            tierDefaults: [textTier],
+            roleDefaults: aliases
+        )
+        // The tier IS the one catalog row (anthropic/claude-opus-5), so the two
+        // dedupe to ONE row (pinned by tierDoesNotDuplicateItsCatalogRow): the
+        // aliases plus that single row.
+        #expect(choices.count == aliases.count + 1, "the aliases plus the tier, which dedupes with its own catalog row")
+        #expect(choices.first?.provider == smallAliasProviderId)
+        #expect(choices[1].provider == largeAliasProviderId)
+    }
+
+    @Test("build with no roleDefaults argument is unchanged — existing callers keep today's list")
+    func buildWithoutRoleDefaultsIsUnchanged() {
+        let choices = SharedModelListBuilder.build(
+            providers: [provider("anthropic", models: ["claude-opus-5"], vision: true)],
+            tierDefaults: [textTier]
+        )
+        #expect(choices.count == 1)
+        #expect(!choices.contains { isModelAliasProviderId($0.provider) })
+    }
 }

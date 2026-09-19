@@ -19,6 +19,11 @@ struct NodePopover: View {
     @State var isLoadingProviders: Bool = false
     @State var selectedProviderId: String = ""
     @State var selectedModelId: String = ""
+    /// #4883 (`models.role-defaults-always-offered`): fetched once, alongside
+    /// providers, so the role-default rows (`SharedModelListBuilder
+    /// .roleDefaultAliases`) can say which concrete model each currently
+    /// resolves to — the same `AIDefaults` the island/workflow bar read.
+    @State var aiDefaults = AIDefaults()
 
     // Vision mode is now managed by the provider selector (Apple Vision = a provider)
 
@@ -27,6 +32,7 @@ struct NodePopover: View {
     @Environment(SavedSearchService.self) var savedSearchService
     @Environment(WorkflowService.self) var workflowService
     @Environment(FeatureManager.self) private var featureManager
+    @Environment(AppState.self) var appState
 
     /// The server-assembled DEFAULT prompt for this node's current inputs
     /// (language, style, detail…), shown as the ghost behind the prompt editor
@@ -258,6 +264,12 @@ struct NodePopover: View {
             selectedModelId: $selectedModelId,
             isLoadingProviders: $isLoadingProviders,
             providers: providers,
+            // #4883: the shared builder's role-default rows, not the old
+            // local `aliasOptions` — ONE resolution, reused here and by the
+            // workflow bar.
+            roleDefaults: SharedModelListBuilder.roleDefaultAliases(
+                from: aiDefaults, includeVision: toolRequiresVision
+            ),
             toolRequiresVision: toolRequiresVision,
             toolSupportsAppleVision: toolSupportsAppleVision,
             onLoadProviders: loadProviders

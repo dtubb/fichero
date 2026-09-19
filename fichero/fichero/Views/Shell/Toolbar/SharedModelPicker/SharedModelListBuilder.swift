@@ -88,21 +88,85 @@ enum SharedModelListBuilder {
         }
     }
 
-    /// Every model a surface can offer: the configured tiers first — the
+    /// #4883 (`models.role-defaults-always-offered`): a role-default alias
+    /// ($small/$large/$vision_small/$vision_medium/$vision_large) as a
+    /// pickable row, resolved to whichever concrete model it currently
+    /// names. Represented as an ordinary `SharedModelChoice` — `provider`
+    /// IS the alias id (`"$small"`, …), `model` is always empty — so it
+    /// rides the SAME row/list machinery as a concrete model; a caller
+    /// tells the two apart with `isModelAliasProviderId(choice.provider)`
+    /// (`ModelPicker.swift`), the SAME sentinel check the node popover's
+    /// persistence already used.
+    ///
+    /// This resolution had NO existing home to reuse: the node popover's
+    /// old `aliasOptions` never resolved a concrete model at all (a static
+    /// label only); the workflow bar's `resolvedDefaultModelLabel(for:)` is
+    /// STEP-scoped (the ONE tier a specific step needs — `.vision`/`.text`,
+    /// not five aliases). This is genuinely net-new, not a move.
+    private static func aliasChoice(
+        aliasId: String, label: String, resolvedModel: String
+    ) -> SharedModelChoice {
+        let resolvedName = resolvedModel.trimmingCharacters(in: .whitespaces).isEmpty
+            ? "not set"
+            : ModelChipToolbarItem.shorten(resolvedModel)
+        return SharedModelChoice(
+            provider: aliasId,
+            model: "",
+            displayName: "\(label) — \(resolvedName)",
+            tier: nil,
+            supportsVision: nil,
+            pricing: nil
+        )
+    }
+
+    /// The five capability-tier aliases, resolved against `defaults`
+    /// (`AIDefaults`' own small/large/visionSmall/visionMedium/visionLarge
+    /// fields) — `$small`/`$large` always; the three vision aliases only
+    /// when `includeVision` (mirrors the node popover's own
+    /// `toolRequiresVision` gate, kept as ONE rule here).
+    static func roleDefaultAliases(from defaults: AIDefaults, includeVision: Bool) -> [SharedModelChoice] {
+        var aliases = [
+            aliasChoice(aliasId: smallAliasProviderId, label: "$small", resolvedModel: defaults.smallModel),
+            aliasChoice(aliasId: largeAliasProviderId, label: "$large", resolvedModel: defaults.largeModel)
+        ]
+        if includeVision {
+            aliases += [
+                aliasChoice(
+                    aliasId: visionSmallAliasProviderId, label: "$vision_small",
+                    resolvedModel: defaults.visionSmallModel
+                ),
+                aliasChoice(
+                    aliasId: visionMediumAliasProviderId, label: "$vision_medium",
+                    resolvedModel: defaults.visionMediumModel
+                ),
+                aliasChoice(
+                    aliasId: visionLargeAliasProviderId, label: "$vision_large",
+                    resolvedModel: defaults.visionLargeModel
+                )
+            ]
+        }
+        return aliases
+    }
+
+    /// Every model a surface can offer: role-default aliases first (when the
+    /// caller passes any — #4883), then the configured tiers — the
     /// shortlist a user reaches for — then everything else the engine reports,
     /// alphabetically within its provider.
     ///
     /// Deduped on provider+model, never on model alone: the same model id
     /// served directly and through a router is two different calls at two
-    /// different prices.
+    /// different prices. Role-default rows key on their `$`-prefixed alias
+    /// id, which can never collide with a real provider id.
     ///
     /// `providers` empty (the cache has not answered yet) falls back to the
     /// tiers alone, so the list is never emptier than it was before the fetch.
     static func build(
         providers: [LLMProvider],
-        tierDefaults: [TierDefault]
+        tierDefaults: [TierDefault],
+        roleDefaults: [SharedModelChoice] = []
     ) -> [SharedModelChoice] {
         var seen = Set<String>()
+        for alias in roleDefaults { seen.insert(alias.id) }
         var choices: [SharedModelChoice] = []
 
         func visionFlag(provider: String, model: String) -> Bool? {
@@ -141,6 +205,6 @@ enum SharedModelListBuilder {
                 append(provider: provider.id, model: model, tier: nil)
             }
         }
-        return choices
+        return roleDefaults + choices
     }
 }

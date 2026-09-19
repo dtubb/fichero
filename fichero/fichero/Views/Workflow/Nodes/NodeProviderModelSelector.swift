@@ -41,6 +41,12 @@ struct NodeProviderModelSelector: View {
     @Binding var isLoadingProviders: Bool
 
     let providers: [ProviderOption]
+    /// #4883 (`models.role-defaults-always-offered`): the role-default alias
+    /// rows, resolved and built by the caller (`NodePopover`, via
+    /// `SharedModelListBuilder.roleDefaultAliases`) — this view only renders
+    /// them, it does not resolve them (that fetch/logic has ONE home now,
+    /// not a second copy here).
+    let roleDefaults: [SharedModelChoice]
     let toolRequiresVision: Bool
     /// Whether this tool supports Apple Vision as a provider option
     let toolSupportsAppleVision: Bool
@@ -115,9 +121,12 @@ struct NodeProviderModelSelector: View {
                         select(provider: appleVisionProviderId, model: "")
                     }
                 }
-                ForEach(aliasOptions) { alias in
-                    specialRow(displayName: alias.label, isCurrent: selectedProviderId == alias.id) {
-                        select(provider: alias.id, model: "")
+                // #4883: `roleDefaults` — the shared builder's alias rows,
+                // resolved to what each currently names — not the old local
+                // `aliasOptions` (deleted; see the type's own doc comment).
+                ForEach(roleDefaults) { alias in
+                    specialRow(displayName: alias.displayName, isCurrent: selectedProviderId == alias.provider) {
+                        select(provider: alias.provider, model: "")
                     }
                 }
             }
@@ -195,28 +204,11 @@ struct NodeProviderModelSelector: View {
     }
 
     // MARK: - Derived lists
-
-    /// Capability-tier aliases, always offered (the node picker always showed
-    /// them); the vision aliases join only for a vision-requiring tool.
-    private struct AliasOption: Identifiable {
-        let id: String
-        let label: String
-    }
-
-    private var aliasOptions: [AliasOption] {
-        var options = [
-            AliasOption(id: smallAliasProviderId, label: "$small (default small model)"),
-            AliasOption(id: largeAliasProviderId, label: "$large (default large model)")
-        ]
-        if toolRequiresVision {
-            options += [
-                AliasOption(id: visionSmallAliasProviderId, label: "$vision_small (default small vision model)"),
-                AliasOption(id: visionMediumAliasProviderId, label: "$vision_medium (default vision model)"),
-                AliasOption(id: visionLargeAliasProviderId, label: "$vision_large (default large vision model)")
-            ]
-        }
-        return options
-    }
+    //
+    // #4883: the old `AliasOption`/`aliasOptions` (a static label, no
+    // resolved model) is DELETED — role-default rows now come from the
+    // `roleDefaults` param, built once by the caller via the shared
+    // `SharedModelListBuilder.roleDefaultAliases`.
 
     /// Providers offered as concrete rows — the same filter the drill-down used:
     /// enabled only, the catalog Apple row hidden when the tool offers explicit

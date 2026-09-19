@@ -213,6 +213,15 @@ struct WorkflowBar: View {
     /// 2026-09-06: click a workflow in the bar to see what it does). A single
     /// click on an assembling step sets this; double-click still opens the editor.
     @State var inspectingStepId: UUID?
+    /// #4883 (`models.four-pickers-four-sources`): the staged step whose
+    /// model-pick popover is open — the token's `Menu` container is
+    /// replaced with this (same idiom as `inspectingStepId` above), because
+    /// a `Menu`'s content is AppKit-re-hosted the same way its LABEL is
+    /// (the trap `modelToken`'s own comment already names for images) —
+    /// `SharedModelRow`'s custom HStack/Spacer layout is the kind of content
+    /// that trap breaks, so the picker moved to the SAME popover container
+    /// the island/node popover already use for it.
+    @State var modelPickerStepId: UUID?
     /// Where a dragged chip would land.
     @State var dropTargetIndex: Int?
     /// The context (framing) popover, opened from the sentence's own token —
@@ -374,60 +383,69 @@ struct WorkflowBar: View {
         return match?.provider ?? ""
     }
 
-    /// Pin a model to ONE step. Offered per chip because a chain's steps do
-    /// not deserve the same model: read a hard hand with the best available,
-    /// then count entities in its output with something cheap.
+    /// #4883 (`models.four-pickers-four-sources`): the model-picker
+    /// popover's content, `SharedModelRow` per choice — the SAME rows the
+    /// island/node popover draw. This is now the ONE model-picking surface
+    /// for a staged step: the old hand-drawn `modelMenu`/`modelPinMenu`
+    /// `Button` rows, which used to ALSO back the right-click context menu,
+    /// are deleted (see `chainChip`'s `.contextMenu`, now one item that
+    /// opens this same popover) — one row, one door, not two. This half of
+    /// the delivery has not been seen on screen.
     @ViewBuilder
-    func modelMenu(forStepAt index: Int) -> some View {
-        // A step that calls no model has nothing to pin, and a menu full of
-        // models implies otherwise (Daniel, 2026-09-03). Say so instead.
+    func modelPickerPopoverContent(forStepAt index: Int) -> some View {
         if staged.indices.contains(index), !stepTakesModel(staged[index]) {
             Text("\(staged[index].displayName) runs no model")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .padding(12)
         } else {
-            modelPinMenu(forStepAt: index)
-        }
-    }
-
-    @ViewBuilder
-    private func modelPinMenu(forStepAt index: Int) -> some View {
-        // The default this STEP would take, named — which is not the same
-        // model for every step of a chain (2026-09-01).
-        let stepDefault = staged.indices.contains(index)
-            ? resolvedDefaultModelLabel(for: staged[index])
-            : resolvedDefaultModelLabel
-        Button("Use the default (\(stepDefault))") {
-            guard staged.indices.contains(index) else { return }
-            staged[index].providerOverride = nil
-            staged[index].modelOverride = nil
-            resetOutcome(at: index)
-        }
-        if !modelChoices.isEmpty {
-            Divider()
-            // EVERY configured model, marked rather than filtered (Daniel,
-            // 2026-09-04: "workflow not letting us see all models, just
-            // showing 2 — is it filtering by vision when it should use
-            // text?"). A model that cannot serve this step is disabled and
-            // says why in its tooltip; it is never absent, because an absent
-            // row cannot be argued with — the ruling the chip's picker
-            // settled on 2026-09-01, applied to the per-step menu too.
-            ForEach(modelChoices, id: \.label) { choice in
-                let reason = staged.indices.contains(index)
-                    ? WorkflowBarPolicy.modelUnsuitableReason(
-                        choice,
-                        for: staged[index],
-                        tools: tools,
-                        selectionPrefersVision: prefersVisionModel
-                    )
-                    : nil
-                Button(choice.label) {
+            let stepDefault = staged.indices.contains(index)
+                ? resolvedDefaultModelLabel(for: staged[index])
+                : resolvedDefaultModelLabel
+            List {
+                SharedModelRow(
+                    choice: SharedModelChoice(
+                        provider: "", model: "",
+                        displayName: "Use the default (\(stepDefault))",
+                        tier: nil, supportsVision: nil, pricing: nil
+                    ),
+                    isCurrent: staged.indices.contains(index) && !staged[index].hasModelOverride
+                ) {
                     guard staged.indices.contains(index) else { return }
-                    staged[index].providerOverride = choice.provider
-                    staged[index].modelOverride = choice.model
+                    staged[index].providerOverride = nil
+                    staged[index].modelOverride = nil
                     resetOutcome(at: index)
+                    modelPickerStepId = nil
                 }
-                .disabled(reason != nil)
-                .help(reason ?? "\(choice.model) — \(choice.provider)")
+                .listRowInsets(EdgeInsets(top: 2, leading: 8, bottom: 2, trailing: 8))
+                ForEach(modelChoices, id: \.label) { choice in
+                    let reason = staged.indices.contains(index)
+                        ? WorkflowBarPolicy.modelUnsuitableReason(
+                            choice, for: staged[index], tools: tools,
+                            selectionPrefersVision: prefersVisionModel
+                        )
+                        : nil
+                    SharedModelRow(
+                        choice: SharedModelChoice(
+                            provider: choice.provider, model: choice.model,
+                            displayName: choice.label,
+                            tier: choice.tier, supportsVision: choice.supportsVision, pricing: nil
+                        ),
+                        isCurrent: staged.indices.contains(index)
+                            && staged[index].providerOverride == choice.provider
+                            && staged[index].modelOverride == choice.model,
+                        disabledReason: reason
+                    ) {
+                        guard staged.indices.contains(index) else { return }
+                        staged[index].providerOverride = choice.provider
+                        staged[index].modelOverride = choice.model
+                        resetOutcome(at: index)
+                        modelPickerStepId = nil
+                    }
+                    .listRowInsets(EdgeInsets(top: 2, leading: 8, bottom: 2, trailing: 8))
+                }
             }
+            .frame(minWidth: 280, minHeight: 200, maxHeight: 420)
         }
     }
 

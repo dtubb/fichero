@@ -156,8 +156,12 @@ extension WorkflowBar {
             + "click to pin a different model"
     }
 
-    /// The step's model as a clickable token in the sentence. The same menu
-    /// the chip's right-click offers — one wiring, two doors.
+    /// The step's model as a clickable token in the sentence. The chip's
+    /// right-click ("Choose Model…" in its context menu) opens the SAME
+    /// popover this token's own click does — one wiring, one row
+    /// (`WorkflowBar.modelPickerPopoverContent`), two doors to reach it
+    /// (#4883 — the old second wiring, `modelMenu`/`modelPinMenu`'s own
+    /// hand-drawn rows, is deleted).
     @ViewBuilder
     private func modelToken(for step: StagedWorkflowStep, at index: Int) -> some View {
         // A real LOZENGE, not a whisper of one (Daniel, 2026-08-29:
@@ -174,26 +178,42 @@ extension WorkflowBar {
         // logo is what lets the eye find "the Claude step" in an
         // eight-step sentence without reading every lozenge.
         //
-        // The mark sits BESIDE the menu, not inside its label (Daniel,
-        // 2026-09-03, third "still giant" round): a Menu label is re-hosted
-        // by AppKit, which drops SwiftUI frame modifiers on images — so the
+        // The mark sits BESIDE the trigger, not inside its label (Daniel,
+        // 2026-09-03, third "still giant" round): AppKit re-hosts a Menu's
+        // label, which drops SwiftUI frame modifiers on images — so the
         // logo asset rendered at NATIVE size no matter what frame the mark
         // asked for. Outside the label it is ordinary SwiftUI layout and the
         // 12pt side finally holds. The text stays the click target.
+        //
+        // #4883: the trigger is a plain Button + popover now, not a Menu —
+        // the SAME AppKit re-hosting this comment already named for the
+        // label ALSO applies to a Menu's CONTENT, and `SharedModelRow`'s
+        // custom HStack/Spacer/icon layout is exactly the shape that trap
+        // breaks. Moved to the SAME popover container the island/node
+        // popover use, via `modelPickerStepId` (the `inspectingStepId`
+        // idiom this file already has, just above). This part needs an
+        // on-screen check — I have not built/run it.
         HStack(spacing: 3) {
             ModelFamilyMark(
                 model: effectiveModelId(for: step),
                 provider: effectiveModelProvider(for: step),
                 side: 12
             )
-            Menu {
-                modelMenu(forStepAt: index)
+            Button {
+                modelPickerStepId = step.id
             } label: {
                 Text(effectiveModelLabel(for: step))
             }
-            .menuStyle(.borderlessButton)
-            .menuIndicator(.hidden)
-            .fixedSize()
+            .buttonStyle(.plain)
+            .popover(
+                isPresented: Binding(
+                    get: { modelPickerStepId == step.id },
+                    set: { if !$0 { modelPickerStepId = nil } }
+                ),
+                arrowEdge: .bottom
+            ) {
+                modelPickerPopoverContent(forStepAt: index)
+            }
         }
         .foregroundStyle(pinIsHonored(step) ? Color.primary : Color.secondary)
         .chainTokenLozenge(tint: Color.accentColor.opacity(0.10))
@@ -217,7 +237,13 @@ extension WorkflowBar {
             .foregroundStyle(chipForeground(for: step))
             .overlay(alignment: .leading) { chipLeadingAccessory(step, at: index) }
             .help(chipHelp(for: step, index: index))
-            .contextMenu { modelMenu(forStepAt: index) }
+            // #4883: one item, opening the SAME popover the primary click
+            // uses — the hand-drawn `modelMenu`/`modelPinMenu` rows this
+            // used to build (a second rendering of the same list) are
+            // deleted, not left beside the new one.
+            .contextMenu {
+                Button("Choose Model…") { modelPickerStepId = step.id }
+            }
             // A RUNNING step opens on a single click — you are watching it, and
             // asking for a double-click to see live output is a toll on the one
             // moment it matters. A finished step keeps the double-click, so a

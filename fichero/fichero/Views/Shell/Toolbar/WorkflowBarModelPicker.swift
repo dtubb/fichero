@@ -46,18 +46,38 @@ extension WorkflowBarPolicy {
     /// RATIFIED 2026-09-15). This wrapper only re-dresses each shared choice in
     /// the workflow bar's `WorkflowBarModelChoice`, whose `label` the bar's
     /// menu, tier-suffix matching and pin persistence still read.
+    /// - Parameter roleDefaults: the role-default alias rows (#4883,
+    ///   `models.role-defaults-always-offered`) — built once by the caller
+    ///   via `SharedModelListBuilder.roleDefaultAliases`, the SAME rows the
+    ///   node popover offers, so the bar can choose "$small"/"$large"/etc,
+    ///   not only a named model.
     static func pinnableModels(
         providers: [LLMProvider],
-        tierDefaults: [TierDefault]
+        tierDefaults: [TierDefault],
+        roleDefaults: [SharedModelChoice] = []
     ) -> [WorkflowBarModelChoice] {
         let shared = SharedModelListBuilder.build(
             providers: providers,
             tierDefaults: tierDefaults.map {
                 SharedModelListBuilder.TierDefault(
                     tier: $0.tier, provider: $0.provider, model: $0.model)
-            }
+            },
+            roleDefaults: roleDefaults
         )
         return shared.map { choice in
+            // A role-default row's `displayName` already carries its own
+            // "$small — resolved model" annotation — appending a suffix
+            // would repeat it. Only a concrete model gets the
+            // `"<short>  ·  <suffix>"` label the bar has always shown.
+            if isModelAliasProviderId(choice.provider) {
+                return WorkflowBarModelChoice(
+                    label: choice.displayName,
+                    provider: choice.provider,
+                    model: choice.model,
+                    supportsVision: choice.supportsVision,
+                    tier: choice.tier
+                )
+            }
             // The tier is the more useful annotation when there is one — it
             // says WHY this model is at the top of the list; otherwise the
             // provider names it. Same `"<short>  ·  <suffix>"` label the bar

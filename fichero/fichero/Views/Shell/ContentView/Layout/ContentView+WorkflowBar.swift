@@ -501,7 +501,21 @@ extension ContentView {
                 WorkflowBarPolicy.TierDefault(
                     tier: "Small", provider: defaults.smallProvider,
                     model: defaults.smallModel)
-            ]
+            ],
+            // #4883: the bar offers all six role defaults, unconditionally —
+            // `includeVision: true` always. This list is SHARED across every
+            // staged step's pin menu (not step-specific), and its own
+            // existing rule for concrete models is "never filter by
+            // capability, only MARK what a step cannot use" (see the doc
+            // comment above) — the node popover's `toolRequiresVision` gate
+            // is a DIFFERENT, stricter rule that fits its single-tool scope,
+            // not this multi-step list; showing all five aliases here and
+            // letting per-step suitability marking do its job keeps ONE
+            // philosophy (mark, don't filter) rather than force-matching a
+            // gate that does not fit this list's shape.
+            roleDefaults: SharedModelListBuilder.roleDefaultAliases(
+                from: defaults, includeVision: true
+            )
         )
     }
 
