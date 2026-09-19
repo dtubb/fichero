@@ -147,6 +147,54 @@ struct PaneListTests {
         #expect(list.splittingLeaf(UUID(), axis: .vertical).kinds == list.kinds)
     }
 
+    // MARK: - Per-pane content kind (#4884: kg.tables.pane-kind-mismatch)
+
+    /// finding C7's neighbour — the "one leaf only" contract `changingLeafKind`
+    /// already gives pane-KIND switches must hold for CONTENT-kind switches too,
+    /// nested inside a split, not just at the top level.
+    @Test("changing one leaf's content kind touches ONLY that leaf, even nested in a split")
+    func changingContentKindLeavesOthersUntouched() {
+        let libA = UUID(); let libB = UUID()
+        let list = PaneList([
+            .split(.vertical, [
+                .leaf(id: libA, kind: .library, scope: .current, config: PaneConfig(libraryContentKind: "claims")),
+                .leaf(id: libB, kind: .library, scope: .current, config: .none)
+            ])
+        ])
+        let after = list.changingLeafContentKind(libA, to: "entities")
+        guard case let .split(_, _, children) = after.nodes[0] else {
+            Issue.record("expected the split to survive"); return
+        }
+        guard case let .leaf(_, _, _, configA) = children[0] else {
+            Issue.record("expected leaf A"); return
+        }
+        guard case let .leaf(_, _, _, configB) = children[1] else {
+            Issue.record("expected leaf B"); return
+        }
+        #expect(configA.libraryContentKind == "entities")  // changed
+        #expect(configB.libraryContentKind == nil)         // the OTHER library pane untouched
+    }
+
+    @Test("clearing a leaf's content kind (nil) goes back to following the window")
+    func changingContentKindToNilClears() {
+        let leaf = UUID()
+        let list = PaneList([
+            .leaf(id: leaf, kind: .library, scope: .current, config: PaneConfig(libraryContentKind: "claims"))
+        ])
+        let after = list.changingLeafContentKind(leaf, to: nil)
+        guard case let .leaf(_, _, _, config) = after.nodes[0] else {
+            Issue.record("expected a leaf"); return
+        }
+        #expect(config.libraryContentKind == nil)
+    }
+
+    @Test("changing a content kind that isn't present is a no-op")
+    func changingContentKindMissingIdIsNoOp() {
+        let list = PaneList([.leaf(.library, config: PaneConfig(libraryContentKind: "claims"))])
+        let after = list.changingLeafContentKind(UUID(), to: "entities")
+        #expect(after == list)
+    }
+
     // MARK: - Codable (a saved workspace IS a PaneList)
 
     @Test("a pane list round-trips through JSON identically (workspace persistence)")
@@ -189,5 +237,32 @@ struct PaneListTests {
         } else {
             Issue.record("first node should be a configured library leaf")
         }
+    }
+
+    /// #4884 ruling (5): an OLD saved workspace, written before `libraryContentKind`
+    /// existed as a written field, must decode to `nil` for it — never fail to
+    /// decode, never default to some non-nil kind that would silently override
+    /// the window for every pane in an old save. Simulated the honest way: a
+    /// config that never SET `libraryContentKind` encodes with no key for it at
+    /// all (synthesized `Codable` on an `Optional` property omits a `nil` value
+    /// entirely, via `encodeIfPresent`) — first assert that, proving the JSON
+    /// this test decodes really is what a pre-#4884 save looks like, not a
+    /// guessed shape.
+    @Test("an old saved workspace with no libraryContentKind key decodes to nil, not a crash or a default")
+    func oldWorkspaceWithoutContentKindDecodesToNil() throws {
+        let preExisting = PaneList([.leaf(.library, config: PaneConfig(libraryLayout: "table"))])
+        let data = try JSONEncoder().encode(preExisting)
+        let json = try #require(String(data: data, encoding: .utf8))
+        #expect(
+            !json.contains("libraryContentKind"),
+            "this JSON is meant to simulate a pre-#4884 save — it must not already carry the key"
+        )
+
+        let decoded = try JSONDecoder().decode(PaneList.self, from: data)
+        guard case let .leaf(_, _, _, config) = decoded.nodes[0] else {
+            Issue.record("expected a leaf"); return
+        }
+        #expect(config.libraryContentKind == nil)
+        #expect(config.libraryLayout == "table")  // the field that WAS there still decodes
     }
 }

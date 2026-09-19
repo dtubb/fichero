@@ -169,15 +169,47 @@ extension LibraryView {
         }
     }
 
-    /// The content kind actually shown. A sidebar-driven KG collection
-    /// (`contentCollection`) WINS over the in-pane picker, so the sidebar's Claims
-    /// / Entities section shows that collection regardless of the pane's picker;
-    /// `.documents` leaves the folder-scoped in-pane `libraryContentKind` in charge.
+    /// The content kind actually shown. #4884: an EXPLICIT per-pane kind (set
+    /// via the chip — `paneContentKind` for a slotted pane, else the local
+    /// `libraryContentKind` fallback) now WINS over the sidebar's collection
+    /// unconditionally, including when the explicit choice is `.documents` —
+    /// the maintainer's "Library panes are not linked" ruling: a pane the
+    /// user has explicitly set stays what they set it to, even while the
+    /// window's sidebar selects a different KG collection. A pane that has
+    /// never had its chip touched keeps following the window exactly as
+    /// before. One call to the pure decision function, directly testable.
     var effectiveContentKind: LibraryContentKind {
+        Self.effectiveKind(
+            paneKind: paneContentKind,
+            localOverride: libraryContentKind,
+            contentCollection: contentCollection,
+            searchAutoSurfaceKind: searchAutoSurfaceKind
+        )
+    }
+
+    /// The pure decision (#4884, spec panes.model.per-pane-scope-and-kind-unread):
+    /// an explicit per-pane kind (from either source — `paneKind` for a slotted
+    /// pane, `localOverride` for the compact-iPhone leaf that has no slot) wins
+    /// outright; otherwise the window's sidebar collection decides, falling back
+    /// to `.documents` (or a search auto-surface) when the sidebar shows plain
+    /// documents. `nil`/`nil` (never touched) reproduces the exact pre-#4884
+    /// behavior — this is what makes `BuiltInWorkspaceLayout.read` provably
+    /// unchanged: its library leaf sets neither.
+    // #4902-class trap avoided up front: `LibraryView` is a View, so its
+    // static members are @MainActor by default — `nonisolated` here is
+    // load-bearing for `LibraryEffectiveContentKindTests` (a non-@MainActor
+    // Swift Testing suite) to call this directly. Pure over its parameters.
+    nonisolated static func effectiveKind(
+        paneKind: LibraryContentKind?,
+        localOverride: LibraryContentKind?,
+        contentCollection: LibraryContentCollection,
+        searchAutoSurfaceKind: LibraryContentKind?
+    ) -> LibraryContentKind {
+        if let explicit = paneKind ?? localOverride { return explicit }
         switch contentCollection {
         case .entities: return .entities
         case .claims: return .claims
-        case .documents: return searchAutoSurfaceKind ?? libraryContentKind
+        case .documents: return searchAutoSurfaceKind ?? .documents
         }
     }
 

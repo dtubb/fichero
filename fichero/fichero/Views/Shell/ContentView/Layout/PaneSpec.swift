@@ -106,6 +106,49 @@ extension EnvironmentValues {
     }
 }
 
+/// Injected per pane SLOT (library leaves only) so the pane-head content-kind
+/// chip (Documents/Claims/Entities) can set an EXPLICIT, SAVED kind for THIS
+/// pane (#4884) — `PaneList.changingLeafContentKind`, not `LibraryView`'s
+/// local `@State`. nil = this Library pane is not hosted in a switchable slot
+/// (the compact iPhone reader stack's leaf, which sits outside the pane tree
+/// entirely — `LibraryView.libraryContentKind` is that leaf's own fallback).
+///
+/// EQUATABLE BY SLOT ID ONLY — same reason as `PaneKindSwitcher` above (a bare
+/// closure is never `==` itself, which re-walks the whole pane subtree on
+/// every parent render).
+struct PaneContentKindSwitcher: Equatable {
+    let slotId: String
+    let switchContentKind: @MainActor (LibraryContentKind?) -> Void
+
+    static func == (lhs: Self, rhs: Self) -> Bool { lhs.slotId == rhs.slotId }
+}
+
+private struct PaneContentKindSwitcherKey: EnvironmentKey {
+    static let defaultValue: PaneContentKindSwitcher? = nil
+}
+
+private struct PaneContentKindKey: EnvironmentKey {
+    static let defaultValue: LibraryContentKind? = nil
+}
+
+extension EnvironmentValues {
+    var paneContentKindSwitcher: PaneContentKindSwitcher? {
+        get { self[PaneContentKindSwitcherKey.self] }
+        set { self[PaneContentKindSwitcherKey.self] = newValue }
+    }
+
+    /// The EXPLICIT content kind a workspace/user set for THIS library pane
+    /// (`PaneConfig.libraryContentKind`, decoded), published by
+    /// `ContentView.paneNodeView` — mirrors `\.paneLibraryLayout`'s shape
+    /// exactly (`ViewDisplayMode.swift`), the same mechanism for the sibling
+    /// per-pane-config field. nil everywhere outside a library leaf's own
+    /// slot, or when that leaf has never had an explicit kind set.
+    var paneContentKind: LibraryContentKind? {
+        get { self[PaneContentKindKey.self] }
+        set { self[PaneContentKindKey.self] = newValue }
+    }
+}
+
 private struct IsSolePaneKey: EnvironmentKey {
     static let defaultValue = false
 }
@@ -249,6 +292,10 @@ extension ContentView {
                     changeKind: { id, kind in
                         activePaneList = activePaneList.changingLeafKind(id, to: kind)
                         paneListDidChange()
+                    },
+                    changeContentKind: { id, contentKind in
+                        activePaneList = activePaneList.changingLeafContentKind(id, to: contentKind?.rawValue)
+                        paneListDidChange()
                     }
                 ),
                 sizing: extents[index]
@@ -268,7 +315,8 @@ extension ContentView {
     private func paneNodeView(
         _ node: PaneNode, keyPath: String, secondaryIDs: Set<UUID> = [], isSole: Bool = false,
         closeLeaf: ((UUID) -> Void)? = nil,
-        changeKind: ((UUID, PaneKind) -> Void)? = nil
+        changeKind: ((UUID, PaneKind) -> Void)? = nil,
+        changeContentKind: ((UUID, LibraryContentKind?) -> Void)? = nil
     ) -> AnyView {
         switch node {
         case let .leaf(id, kind, _, config):
@@ -320,6 +368,13 @@ extension ContentView {
                let mode = ViewDisplayMode(paneLibraryLayout: raw) {
                 leaf = AnyView(leaf.environment(\.paneLibraryLayout, mode))
             }
+            // The workspace/chip-set EXPLICIT content kind for THIS library pane
+            // (#4884) — mirrors the libraryLayout block immediately above,
+            // same seam shape for the sibling PaneConfig field.
+            if kind == .library, let raw = config.libraryContentKind,
+               let contentKind = LibraryContentKind(rawValue: raw) {
+                leaf = AnyView(leaf.environment(\.paneContentKind, contentKind))
+            }
             if let closeLeaf {
                 leaf = AnyView(leaf.environment(\.paneCloseAction, PaneCloseAction { closeLeaf(id) }))
             }
@@ -332,11 +387,23 @@ extension ContentView {
                 }
                 leaf = AnyView(leaf.environment(\.paneKindSwitcher, switcher))
             }
+            // The pane-head content-kind chip (#4884) is inert until a
+            // `\.paneContentKindSwitcher` is present — same shape as the kind
+            // switcher above, scoped to `.library` leaves only.
+            if kind == .library, let changeContentKind {
+                let contentSwitcher = PaneContentKindSwitcher(
+                    slotId: "pane-\(keyPath)-\(kind.rawValue)"
+                ) { newContentKind in
+                    changeContentKind(id, newContentKind)
+                }
+                leaf = AnyView(leaf.environment(\.paneContentKindSwitcher, contentSwitcher))
+            }
             return leaf
         case let .split(_, axis, children):
             return paneSplitView(
                 axis: axis, children: children, keyPath: keyPath,
-                secondaryIDs: secondaryIDs, closeLeaf: closeLeaf, changeKind: changeKind
+                secondaryIDs: secondaryIDs, closeLeaf: closeLeaf, changeKind: changeKind,
+                changeContentKind: changeContentKind
             )
         }
     }
@@ -347,14 +414,16 @@ extension ContentView {
     private func paneSplitView(
         axis: SplitAxis, children: [PaneNode], keyPath: String,
         secondaryIDs: Set<UUID> = [], closeLeaf: ((UUID) -> Void)? = nil,
-        changeKind: ((UUID, PaneKind) -> Void)? = nil
+        changeKind: ((UUID, PaneKind) -> Void)? = nil,
+        changeContentKind: ((UUID, LibraryContentKind?) -> Void)? = nil
     ) -> AnyView {
         let extents = childExtents(children, axis: axis)
         let views = children.enumerated().map { idx, child in
             WorkspaceSplitStack.Child(
                 paneNodeView(
                     child, keyPath: "\(keyPath).\(idx)",
-                    secondaryIDs: secondaryIDs, closeLeaf: closeLeaf, changeKind: changeKind
+                    secondaryIDs: secondaryIDs, closeLeaf: closeLeaf, changeKind: changeKind,
+                    changeContentKind: changeContentKind
                 ),
                 sizing: extents[idx]
             )

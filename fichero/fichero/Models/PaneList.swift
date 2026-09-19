@@ -243,6 +243,24 @@ indirect enum PaneNode: Codable, Sendable, Hashable, Identifiable {
             return .split(id: id, axis: axis, children: children.map { $0.changingKind(target, to: newKind) })
         }
     }
+
+    /// This node with the leaf `id`'s `config.libraryContentKind` changed to `newContentKind`,
+    /// preserving everything else (#4884: the pane-head content-kind chip — Documents/Claims/
+    /// Entities — writes here, not `LibraryView`'s local `@State`, so the choice is a real,
+    /// SAVED per-pane setting rather than a session-only picker). `nil` clears the pane's
+    /// explicit choice (goes back to following the window). Every other pane is untouched — the
+    /// same "one leaf only" contract `changingKind` above already gives pane-KIND switches.
+    func changingContentKind(_ target: UUID, to newContentKind: String?) -> PaneNode {
+        switch self {
+        case let .leaf(id, kind, scope, config):
+            guard id == target else { return self }
+            var updated = config
+            updated.libraryContentKind = newContentKind
+            return .leaf(id: id, kind: kind, scope: scope, config: updated)
+        case let .split(id, axis, children):
+            return .split(id: id, axis: axis, children: children.map { $0.changingContentKind(target, to: newContentKind) })
+        }
+    }
 }
 
 /// A window's centre composition: an ordered list of top-level pane nodes
@@ -304,6 +322,13 @@ struct PaneList: Codable, Sendable, Hashable {
     /// untouched.
     func changingLeafKind(_ id: UUID, to kind: PaneKind) -> PaneList {
         PaneList(nodes.map { $0.changingKind(id, to: kind) })
+    }
+
+    /// Change the leaf `id`'s explicit CONTENT kind (#4884, spec panes.model.per-pane-scope-and-
+    /// kind-unread) — Documents/Claims/Entities for a library pane. `nil` clears it (follow the
+    /// window again). Every other pane is untouched.
+    func changingLeafContentKind(_ id: UUID, to contentKind: String?) -> PaneList {
+        PaneList(nodes.map { $0.changingContentKind(id, to: contentKind) })
     }
 
     /// Every leaf id of `kind`, nested splits included (leading→trailing order).
