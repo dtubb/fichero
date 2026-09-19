@@ -173,30 +173,162 @@ data) instead of overlapping in "statement" language. This spec's own `helpText`
 to add here beyond confirming, from this spec's own reading of the same file, that the
 overlap is real and unresolved.
 
-## PASS 2 fold plan (not executed — no issues moved)
+## PASS 2 — the fold (25 issues read fresh: the 14 waiting + #248's 11)
 
-Two sources feed pass 2, once approved: the legacy milestone "Reader View - Page" (#248, 11
-open issues, not yet individually read this pass — the ledger's row 4 sampled its titles
-only) and the 14 issues from `library-view-modes.md`'s pass 2 that were left WAITING on this
-spec not existing yet:
+Reading every body fresh surfaced a correction the titles alone didn't show: several of the
+14 "waiting on reader-view" issues turn out to be about the **Preview** pane, not the
+Reader's WebKit surface — `PDFPageWithToolbar` (`Views/Preview/PDFViewer/`), `DocumentCanvas`
+(`Views/Preview/`), and the sibling-swipe image-viewer code (`Views/Preview/ImageViewer/`)
+are all Preview components. They were mis-scoped as reader-view candidates by title
+resemblance ("reading surface," "document canvas") to actual Reader vocabulary. Corrected
+below rather than folded in on a title match.
 
-- **From `library-view-modes.md`'s pass 2 (fold list #158/#209/#210/#183/#159/#260/#165/
-  #117):** #2257 (PDFPageMapView, a page grid), #2093 (translation view), #2090 (multi-page
-  1-up/2-up/N-up layouts), #2040 (multi-select continuous-scroll preview), #1817 (continuous-
-  scroll multi-image viewer), #1749 (WebKit selectable scope), #1747 (unify page/image
-  navigation), #1567 (Catalogue/Content pane split + scroll-to-source), #1552 (swipe page-
-  change works on PDFs not images), #1483 (WebKit scope selector), #1253 (bidirectional
-  scroll sync WebKit ↔ PDF), #1194 (book reading view with inline claim highlights), #973
-  (book-aware page numbering), #1491 (source outline endpoint — backend, Reader-adjacent).
-- **From #184's disposition table, also waiting on this spec (not yet in the ledger's fold
-  list, flagging now):** the same 14 above are the ones the ledger already named; #248's own
-  11 issues are additional and have not been individually read yet.
+### E. New Page-tab behaviors (fits, cited from HEAD, moved onto #313)
 
-Recommend reading #248's 11 issues and re-checking the 14 above against what `reader-view.md`
-now actually documents (several — #1749, #1483 scope selection; #1253 scroll sync — may
-already be substantially covered by the lens/tab architecture above, verify-close candidates
-rather than fresh GAPs) before proposing behaviors, the same way library-view-modes.md's pass
-2 treated its own list. Not done in this pass — Pass 1 was the ask.
+- `reader.page.scope-selector` — **[GAP]** (#1749, #1483 — the same ask filed twice) the
+  WebKit/text reading view should offer a scope selector — current page / folder / parent /
+  grandparent — reusing the existing at-page/at-folder scoping concept (an already-closed
+  earlier feature) rather than
+  inventing new scope levels. Not verified as built.
+- `reader.page.catalogue-pane-and-transcript-always-shows` — **[GAP]** (#1567) a separate
+  Catalogue/Content pane (left of the reading surface) showing the structured extraction
+  output, distinct from the transcript stream; and the WebKit transcript should always render
+  SOME transcript for the selection, including the aggregated transcripts of a parent's
+  children (a chapter PDF's per-page transcripts), not "No transcript available" when
+  children have them. The issue's OWN separate ask — transcript click-to-source — is now
+  substantially built: `reader.reveal.transient-state-preferred-over-shown-document` and
+  `reader.passage-channel.has-a-second-producer` above are exactly that mechanism, landed
+  since this 2026-06 issue was filed. Not verified as built for the catalogue-pane and
+  parent-aggregation halves.
+- `reader.lens.translation-not-yet-built` — **[GAP]** (#2093, #3544 — the same gap, #3544
+  additionally proposing Transcription+Translation as sub-tabs under Page once shared
+  sub-tab support lands) a first-class translation lens — view a document/page WITH its
+  translation side-by-side or toggled, at doc/page/passage granularity, persisted as a
+  reusable artifact — does not exist. `ReaderLens.swift`'s own doc comment already states
+  this precisely: "Translation is absent because it does not exist… a lens that goes nowhere
+  is the menu lying." This behavior gives that absence its own line with the issues that ask
+  for it, rather than leaving it only as a code comment. Not built.
+- `reader.lens.book-view-not-yet-built` — **[GAP]** (#1194) a full-document "Book" reading
+  mode — the complete transcription typeset as continuous prose (not page-by-page), with
+  claim passages and entity names highlighted inline and a claim popover on click — is a
+  lens this spec's inventory does not have. This is a NEW lens proposal, not an extension of
+  an existing one (Page shows source page-by-page, Statements is per-entity SVO prose, Notes
+  is markup) — a genuinely new reading mode. Not built.
+- `reader.page.selection-scope` — **[GAP]** (#4597) with multiple items selected, the Reader
+  should show the SELECTED items, not the whole folder — the same "selection scope, not
+  ambient scope" principle `library.chrome.select-all-follows-the-visible-surface` and
+  `library.canvas.trackpad-scroll-pans`'s neighbors already apply elsewhere in this codebase.
+  Not verified as built.
+- `reader.page.word-level-source-and-find` — **[GAP]** (#4405) two behaviors the issue argues
+  are one feature (both are "given a position in the text, show me where that is on the
+  page"): clicking a word or line reaches its source region (page-level ships first, honestly,
+  before per-word bounding-box geometry exists; never approximating a location it can't
+  prove); and an in-reader Find with match count and next/previous, native-Find-equivalent.
+  Builds directly on `reader.reveal.transient-state-preferred-over-shown-document` and
+  `reader.passage-channel.has-a-second-producer` above — the "one cursor" constraint the issue
+  states (a click, a search step, and a scroll all move the SAME focus) is exactly what those
+  two behaviors already guarantee for the claim-following case; this issue extends the same
+  mechanism to word-level clicks and to search. Not built.
+- `reader.page.inline-transcription-editing` — **[GAP]** (#4375) editing a page's transcription
+  directly in the WebKit reader, in place, rather than requiring a trip to the inspector.
+  The issue's own scoping is the honest one: the mechanic (`contenteditable` + the existing
+  script bridge) is easy; the integrity work is real (offset remapping for dependent KG/bbox
+  spans, the audited save path, concurrent-write watermarking, diplomatic-vs-normalized
+  ambiguity). Not built.
+- `reader.page.highlight-layer-precedence` — **[GAP]** (#4355) with several highlight kinds
+  now live in the Reader (find-in-page matches, recognized-text bounding boxes, knowledge
+  highlights, selection/annotations), which one is visually "in front" should be a function of
+  the visible split/pane, not every layer drawing independently and turning the page to
+  visual noise. Not built.
+- `reader.page.transcript-wraps-not-clips` — **[BROKEN]** (#3805) the transcript should WRAP
+  at a narrow pane width; it currently CLIPS, cutting off the left edge of every line.
+  Verified BROKEN at HEAD: `document_view.html`'s `.transcript` rule
+  (`fichero-server/src/fichero_server/api/templates/document_view.html:147-154`) is a CSS
+  grid with no `grid-template-columns` declared — a grid item's default `min-width: auto`
+  resolves to min-content (the longest line) for a `white-space: pre-wrap` block, so the
+  track refuses to shrink below the longest line and overflows instead of wrapping. The
+  issue's own proposed fix (`grid-template-columns: minmax(0, 1fr)`) is not present in the
+  file today.
+- `reader.page.sepia-paper-themes` — **[GAP]** (#3721) Sepia/Paper reading themes on top of
+  the existing Match App/System choice, driving the same CSS custom properties the Reader
+  already var-drives (`systemThemeCSS()`/`themeInjectionScript()` in
+  `DocumentKGWebPane.swift`) — no new injection path needed, just new theme values. Not built.
+
+### F. Redirected to an existing spec
+
+- **#2515** (reader toolbar overlaps the library/filmstrip; overflow doesn't collapse to "…"
+  before it does) → `panes-workspaces.md`, which already owns toolbar/mini-toolbar overflow
+  chrome (see this spec's own earlier fold of #125/#251). New behavior there:
+  `panes.toolbar.reader-overflow-collapses-before-overlapping` [GAP].
+- **#2419** (PDF viewer needs the magnifier/loupe control at the bottom, matching the image
+  viewer) → `preview-magnifier.md`, whose entire scope is the magnifier control. New behavior
+  there: `magnifier.pdf-viewer-has-the-loupe-too` [GAP].
+
+### G. Verify-close — evidence posted, left OPEN, not closed here
+
+- **#4605** ("Restore the reader graph view: subject-verb-object statements laid out") — the
+  complaint this issue describes (a graph surface that "used to exist" and became reachable
+  only through the menu bar) is verified FIXED by the R3 lens reform this spec's section A
+  documents: `KGSurfaceTab.graph` → `ForceDirectedGraphView` is a live `ReaderLens` case,
+  reachable from the pane head, not menu-bar-only. NOT independently verified: whether the
+  graph specifically renders "subject-verb-object statements... laid out" (an SVO-statement
+  layout) versus the entity-co-occurrence network `ForceDirectedGraphView`'s own doc comments
+  describe — those may be the same thing described two ways, or two different asks. Left
+  OPEN for the maintainer to confirm which.
+
+### H. Waiting on a spec that doesn't exist (left on the legacy milestone, not moved)
+
+Reclassified from "waiting on reader-view" (already resolved by Pass 1) to "waiting on a
+Preview-surface spec" (still doesn't exist) after reading the bodies fresh — all six are
+Preview-pane components, not Reader ones:
+
+- **#2257** (PDFPageMapView, a 2D page grid) — `PDFPageWithToolbar` is `Views/Preview/
+  PDFViewer/`.
+- **#2090** (multi-page 1-up/2-up/N-up layouts) — names `DocumentCanvas.swift`/
+  `PDFPageView.swift`, both `Views/Preview/`.
+- **#2040** (multi-select continuous-scroll preview) — its own title says "preview"; body:
+  "the image preview becomes a continuous scroll."
+- **#1817** (continuous-scroll multi-image viewer) — "the image viewer," `Views/Preview/
+  ImageViewer/`.
+- **#1747** (unify page/image navigation, "document canvas") — same `DocumentCanvas.swift`
+  as #2090.
+- **#1552** (swipe changes pages on PDF, not images, in a folder) — `PDFPageController`,
+  the image-viewer sibling-swipe gesture — both `Views/Preview/`.
+
+Also waiting on the same not-yet-existing spec, from #248:
+- **#4587** (Preview zoom-out has no sensible floor at 1%) — Preview's own zoom control.
+
+### I. Maintainer triage — no home found
+
+- **#1253** (bidirectional scroll sync, Reader's WebKit transcript ↔ Preview's native PDF
+  viewer) — genuinely cross-surface: the Reader half already has the mechanism this spec
+  documents (`ReaderPassageFocus`), but syncing INTO Preview needs the Preview-surface spec
+  that doesn't exist yet, and "keep two different panes in scroll sync" isn't obviously
+  either surface's spec to own alone.
+- **#973** (book-aware page numbering + chapter markers via Apple Intelligence detection) —
+  fundamentally a backend detection + citation-label feature (`Document.metadata
+  ['book_structure']`, rendered in `ClaimSummaryCard`/`EntityKindRow`), not a Reader-tab
+  question; no spec read this pass owns citation-label formatting.
+- **#1491** (TL-3: source outline endpoint, hierarchical drill-down API) — backend-only
+  ("Thinking Layer" program, `docs/architecture/thinking-layer.md`), no UI surface of its own
+  to fold into.
+
+### Fold table (issue → spec → behavior id → tag)
+
+| Issue | Spec | Behavior id | Tag |
+|---|---|---|---|
+| #1749, #1483 | reader-view | `reader.page.scope-selector` | GAP |
+| #1567 | reader-view | `reader.page.catalogue-pane-and-transcript-always-shows` | GAP |
+| #2093, #3544 | reader-view | `reader.lens.translation-not-yet-built` | GAP |
+| #1194 | reader-view | `reader.lens.book-view-not-yet-built` | GAP |
+| #4597 | reader-view | `reader.page.selection-scope` | GAP |
+| #4405 | reader-view | `reader.page.word-level-source-and-find` | GAP |
+| #4375 | reader-view | `reader.page.inline-transcription-editing` | GAP |
+| #4355 | reader-view | `reader.page.highlight-layer-precedence` | GAP |
+| #3805 | reader-view | `reader.page.transcript-wraps-not-clips` | BROKEN |
+| #3721 | reader-view | `reader.page.sepia-paper-themes` | GAP |
+| #2515 | panes-workspaces | `panes.toolbar.reader-overflow-collapses-before-overlapping` | GAP |
+| #2419 | preview-magnifier | `magnifier.pdf-viewer-has-the-loupe-too` | GAP |
 
 ## Node-model/prototype-system EPIC family — for the maintainer, comparison only
 

@@ -44,6 +44,12 @@ pane (`panes.magnifier.per-pane-open-state`, `panes.zoom.sync-across-panes`).
   magnifies the strip under it (distinct from the round loupe), for scanning a line of text.
 - `magnifier.per-source-memory` **[GAP]** (#4717) — a source remembers its loupe size/magnification, so
   returning to a hand you were working resumes where you were.
+- `magnifier.pdf-viewer-has-the-loupe-too` **[GAP]** (#2419, redirected from the legacy
+  "Reader View - Page" milestone while folding `reader-view.md`'s pass 2) the PDF viewer
+  should offer the same loupe the image viewer already has, with its summoning control at the
+  BOTTOM of the PDF view — this spec's behaviors above are all read against the image-viewer
+  loupe; not verified whether any apply to the PDF viewer already, or whether it has none at
+  all.
 
 ## Test matrix
 

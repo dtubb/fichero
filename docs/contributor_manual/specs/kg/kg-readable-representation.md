@@ -141,30 +141,34 @@ often the wrong subject; not multilingual.
 
 ### B. Ruling 1 — the claim is the unit of editing
 
-- `kg.read.edit-unit-is-the-claim` — **[PARTIAL]** (#4833) the underlying edit mechanism is SOUND:
-  `InlineClaimEditor`/`EditClaimSheet` → `claim.patch` (`EditClaimSheet.swift:226-236` →
-  `claims.py:498`) is undoable and audited
-  (`@action("claim.patch", undoable=True, invert=_invert_patch_claim)`, `claims.py:1229-1234`)
-  and survives re-extraction (`stamp`/`record_superseded`, `claims.py:531-536`, matched on re-run
-  by `_corrected_claim_for_incoming`, `_entity_writer.py:1413`) — real training data. Three gaps
-  keep this from being the ruling: (a) **a rendered sentence has no edit affordance at all** — a
-  click only navigates (`EntityDigestView.swift:357-365`); (b) **a subject edit does not
-  round-trip** — `_apply_claim_patch` (`claims.py:341-371`) syncs `svo_*` fields only, never
-  `subject_entity_id`/`entity_ids`/`claim.text`, and the subject field is free text, not an
-  entity picker; (c) **the editor has no date field**
-  (`EditClaimSheet.swift:158-163`), so a claim's date cannot be corrected from the surface this
-  ruling makes the unit of editing. `ClaimSummaryCardView`/`EntityDetailView`, the other reachable
-  editors, are themselves marked retired (→ #4828, → #4791). Scoped into slices by the code lane
-  (2026-09-18, design only, nothing built): 7c is the date field (the wire fields already exist
-  on the model, only the editor UI is missing); 7d is the subject-as-entity-picker, BLOCKED on
-  the engine until `_apply_claim_patch` learns to update `entity_ids` and regenerate
-  `claim.text` when `subject_entity_id` changes.
-- `kg.read.editor-saves-through-the-audited-action` — **[GAP]** (#4833) the per-sentence editor's
-  save path (`InlineClaimEditor`) is `ClaimStore.patch` → the audited `claim.patch` action
-  (`harness/audited-action-layer.md`) — the SAME typed `PATCH /api/claims/{id}` endpoint IS the
-  registered action, not a second bespoke save call — and returns the freshly-patched claim so
-  the caller never re-fetches or guesses at the server's normalized result. Design/planning only
-  (code lane, 2026-09-18) — nothing built; this is the 7b slice of
+- `kg.read.edit-unit-is-the-claim` — **[PARTIAL]** (#4833, BUILT in f58345950/69fba6090; stays
+  open until the maintainer has used it) each sentence in the Inspector's digest AND the
+  biography now carries an explicit "[Edit]" run beside it (`EntityDigestView.swift:264-468`,
+  `"[Edit]"` a real accessible link, not a bare glyph, reachable the same way by keyboard/
+  VoiceOver as the reveal link) that opens the one `InlineClaimEditor` in a popover — the
+  three gaps this line previously named are now closed: (a) the missing edit affordance is
+  built (the "[Edit]" run itself); (b) the subject round-trip is fixed — the subject is now an
+  entity picker sending `subject_entity_id` only when it changed, and the engine
+  (69fba6090) updates `entity_ids`, takes the new entity's canonical name, and regenerates the
+  sentence through `compose_claim_sentence` (the one composer, extracted from the extraction
+  path so both call it); (c) the editor gained `time_start`/`time_end`/`time_precision`,
+  threaded through `ClaimStore.patch` and `EntityService.patchClaim`. Not covered: the claim
+  card's and `EntityKindBlock`'s editor mounts still pass no update callback (save correctly,
+  refresh only on the stream's echo), and the full `EditClaimSheet` still calls the action
+  directly rather than through this same path. Pinned: `InlineClaimEditorTests`
+  (`fichero/Tests/Unit/general/Views/Library/InlineClaimEditorTests.swift`), `ClaimStoreTests`
+  (`fichero/Tests/Unit/general/Models/ClaimStoreTests.swift`),
+  `KnowledgeGraphInspectorSectionTests`
+  (`fichero/Tests/Unit/general/Views/Inspector/KnowledgeGraphInspectorSectionTests.swift`),
+  `EntityClickthroughTests`
+  (`fichero/Tests/Unit/general/Views/Inspector/EntityClickthroughTests.swift`).
+- `kg.read.editor-saves-through-the-audited-action` — **[PARTIAL]** (#4833, BUILT in
+  f58345950; stays open until the maintainer has used it) the per-sentence editor's save path
+  (`InlineClaimEditor`) goes through `ClaimStore.patch` — the SAME audited `claim.patch`
+  action (`harness/audited-action-layer.md`), not a second bespoke save call — and `onSave`
+  now receives the claim the SERVER returned (previously the stale pre-edit claim, so nothing
+  showed until a later change-stream echo); the digest, the biography, and the row editor each
+  splice that one returned claim in place, none reloads. Pinned: same four suites as
   `kg.read.edit-unit-is-the-claim` above.
 - `kg.read.sentence-opens-source-highlighted` — **[PARTIAL]** (#4834) BUILT in e71bb070b for the claim excerpt, the biography sentence, the digest sentences and the statement row (double-click and Open Source); NOT yet for claim cards, the Entities and Claims table rows or the graph tab, which still open the Reader. Pinned: `fichero/Tests/Unit/general/Views/Library/ClaimSourceLandingTests.swift` (suite `ClaimSourceLandingTests`). editing and source-reveal are two
   SEPARATE gestures today (edit → `EditClaimSheet`; navigate → `ClaimSourceNavigationState`

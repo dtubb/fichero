@@ -364,6 +364,17 @@ Library view-mode question):
   reading-surface top toolbar has a "filter" button whose purpose is unexplained — either
   give it a clear function and label, or remove it. Not verified either way.
 
+One more, redirected from the legacy "Reader View - Page" milestone while folding
+`reader-view.md`'s pass 2 (the same toolbar-overflow territory `panes.toolbar.*` above
+already owns):
+
+- `panes.toolbar.reader-overflow-collapses-before-overlapping` — **[GAP]** (#2515) the
+  Reader's own toolbar (top and/or bottom strip) must stay within the reading column — never
+  overlap the library sidebar/filmstrip or the inspector — and secondary tools should
+  collapse into the trailing "…" overflow menu BEFORE anything overlaps, not after. Not
+  verified as built; the issue's own diagnosis (a `ViewThatFits` likely measuring the whole
+  window rather than the content column) was not re-checked this pass.
+
 ### Post-F7 design refinements (CD, 2026-09-14) — capture, revisit after F7
 
 - `panes.kg.select-shows-item-inspector` — **[GAP, post-F7]** (→ #4705 increment 7) clicking a claim or entity row
