@@ -7,14 +7,14 @@
 > thing can leave as standard XML and come back.
 >
 > Design-led (Testing Constitution). The creative director owns this intent; tests enforce it;
-> code makes them pass. **Status: DRAFT — second pass, 2026-09-19: the maintainer's intent,
-> plus a survey of the standards and of what working philologists record, plus a read of the
-> code on disk. Nothing here is approved. No behaviour ids yet: they are written once the
-> intent is ruled and the milestone exists.**
+> code makes them pass. **Status: DRAFT — third pass, 2026-09-19. This is the FOUNDATION of the
+> source model: the intent, the rulings, the words, and the map of the other files. Nothing is
+> approved. Behaviour ids are in the slices, untagged until approval.**
 > Tags (when behaviours arrive): **[OK]** built and tested · **[PARTIAL]** built, partly proven
 > · **[GAP]** intended, never built · **[BROKEN]** code contradicts the rule.
 >
-> The folder name `source/` and the name "source model" are PROVISIONAL (see Open questions).
+> The name "source model" follows the maintainer's wording (the source is the page; a segment
+> is everything on it) and is confirmed at approval.
 > Under "The design", what the maintainer has ruled is listed first ("Ruled"); the rest is
 > PROPOSED until ruled.
 
@@ -40,101 +40,20 @@ The goal is to represent a page properly, once, so that Fichero is truly useful 
 
 The maintainer does not want to decide, case by case, what a palaeographer of tenth-century
 Spain needs versus one of early Arabic or of Aramaic. The model must be general enough that
-each of them finds what they need already there. The worked examples below are the test.
+each of them finds what they need already there. The worked examples in `source-survey.md`
+are the test.
 
-## What the field already does (survey, 2026-09-19)
+## The files
 
-We adopt; we do not invent. This is what each standard can and cannot hold. It sets what our
-model must carry, and tells us honestly what each export will lose. Sources are listed at the
-end.
-
-| | Holds well | Cannot hold |
-|---|---|---|
-| **PageXML** (2019 schema) | region > line > word > glyph; polygons; baselines; one reading order (nested groups); direction in four values (left-right, right-left, top-bottom, bottom-top); language and script at every level; several ranked readings per segment; region types (marginalia, footnote, catch-word…); picture, music, map, table regions | scribal hands; editorial marks (damage, restoration); more than one reading order; links richer than "link" or "join"; signs with no Unicode |
-| **ALTO** (4.4, 2023) | block > line > string > glyph; polygons; baselines; language; direction and reading order (since 4.3); alternatives and confidence per word and character; tags; processing history | hands; editorial marks; typed links; several reading orders; signs with no Unicode |
-| **TEI** (P5) | page surfaces and polygon zones linked to the text both ways; glosses and additions with their place (above, margin, interlinear); marks that reorder reading; scribal hands and changes of hand; editorial layers (abbreviation and expansion, original and regularised, error and correction); unclear, gap, supplied, damaged, deleted; critical apparatus; signs with no Unicode (a declared glyph with a picture); free links between anything | direction is only a style hint; geometry and reading order are weaker than PageXML |
-| **MEI** (music) | page surfaces and zones linked to notes; neumes | polygons: its zones are rectangles |
-| **W3C Web Annotation** + **IIIF** | pointing at anything: a rectangle, a polygon, a text span, a time span, one inside another; a note that replies to a note; granularity levels page, block, paragraph, line, word, glyph | it is a pointer, not a transcription model. IIIF image crops are rectangles only |
-| **YOLO** (layout training) | plain text, not XML: one class and one box or polygon per object | everything else: no text, no hierarchy, no order |
-| **Kraken** training | trains from ALTO, PageXML, or line image plus text; also a compiled Arrow dataset. Learns lines (baseline plus polygon) and typed regions; handles right-to-left and vertical | works at the **line**; it does not train on cut-out characters. It has no YOLO segmenter |
-
-Three conclusions:
-
-1. **No one format holds everything.** PageXML and ALTO are the geometry formats. TEI is the
-   scholarly format. Our model must be richer than any of them, and each export is a
-   projection that says plainly what it left out.
-2. **The vocabulary for region and line types already exists**: SegmOnto (main zone, margin
-   text zone, graphic zone, music zone, seal zone, stamp zone, damage zone, numbering zone…;
-   default line, interlinear line, heading line, music line…). It is what Kraken and
-   eScriptorium train on. We adopt it as the default, extensible.
-3. **Language, script and encoding have registries**: BCP 47 tags for language, ISO 15924 for
-   script — including codes for "unwritten", "undetermined", "not in Unicode", and
-   private-use scripts — and Glottolog (open licence, covers dialects and under-resourced
-   languages). Medievalists already share private-use characters through MUFI.
-
-## What working philologists record (the worked examples)
-
-These are the test of the design. If one of them needs a special case, the model is wrong.
-
-1. **Tenth-century Spain — the San Millán glosses.** A Latin codex in Visigothic script. Later
-   readers added glosses between the lines and in the margins, in Latin, in early Romance and
-   in Basque. Some glosses are single letters written above the words to tell the reader what
-   order to read the Latin in. There are abbreviations to expand, and music signs (neumes)
-   nobody can now turn into pitches. *Needs:* glosses in another language than the text they
-   gloss; a gloss tied to the word it glosses; **a second reading order** laid over the first;
-   written form versus expanded form; a music segment with no transcription; several hands.
-2. **Early Arabic.** The scribe wrote the bare letter shapes. Dots that tell letters apart, and
-   vowel marks, were often added later, in another ink, by another hand. One undotted word can
-   honestly be read several ways. Margins carry collation notes, reading certificates,
-   ownership and endowment notes. Right-to-left text with left-to-right numerals inside it.
-   *Needs:* **ink layers** over the same characters, each with its own hand and date; **several
-   equally valid readings**, not one best guess; mixed direction inside a line; typed marginal
-   notes.
-3. **Aramaic, Syriac, Hebrew.** Papyri and potsherds with damage and gaps. Syriac in three
-   scripts with two competing vowel systems. Incantation bowls with the text in a **spiral**.
-   Palimpsests, where the under-text only shows under special light, so one page has
-   **several images**. The Masoretic margin notes. And *ketiv / qere*: the word as written and
-   the word as it is to be read, both correct. *Needs:* direction that follows a curved
-   baseline; a reading tied to the image it was read from; damage and restoration recorded as
-   facts (so the editor's brackets are drawn from the data, not typed into the text);
-   **written versus read** as a pair.
-4. **Japan and Korea reading Chinese.** A Chinese text with small marks added so it can be read
-   aloud in Japanese: marks that reorder the words, marks that add endings, sometimes pressed
-   in with a stylus, not inked. Korean has the same practice. Small pronunciation glosses
-   beside characters. Vertical columns read right to left. Variant forms of one character.
-   Seals. *Needs:* the second reading order again; a gloss subordinate to one character;
-   vertical direction; **the identity of a character form** apart from its code point; a seal
-   as a picture segment with text inside it.
-5. **The Talmud page, the glossed Bible, glossed law.** A central text, with commentaries
-   wrapped around it, each quoting the words it comments on, and later commentaries commenting
-   on the commentaries. *Needs:* **typed links from segment to segment, to any depth** ("this
-   comments on that", "this answers that").
-6. **Writing that is not in lines.** Lines that alternate direction; text round a seal or coin;
-   names following a coastline on a map; tables read across or down. *Needs:* direction per
-   segment, including "follows the baseline".
-7. **The ordinary furniture of a page.** Footnotes and their markers in the text; marginal
-   notes; running heads; page numbers; catchwords; quire signatures; rubrics and decorated
-   initials; captions under pictures; tables. *Needs:* a type for each (they exist already in
-   PageXML, SegmOnto and TEI); **a link from the marker to the note, from the caption to the
-   picture**; and a way to say "this is page furniture, not the text", so a reading can leave
-   it out.
-8. **Pictures, seals, stamps, diagrams, maps on a page.** *Needs:* a segment that is not text,
-   with a description of what it shows, that can be pulled out on its own.
-9. **A map.** An old map is a source like any other. Its place names are text segments, often
-   written along a river or a coast. A town symbol is a **point**; a road or a border is a
-   **line**; a parish is an area. Tie a few points on the map to their real coordinates and the
-   whole sheet is georeferenced: every segment on it then has a place in the world, and the map
-   can be laid over a modern one. *Needs:* segments that are points and lines, not only areas;
-   **control points** (this spot on the image is this latitude and longitude), with their own
-   provenance and certainty; a place name on the map linked to the place it names in the
-   knowledge graph; text that follows a path. The same holds for a plan, a survey, a
-   sea chart, a sketch map in a diary margin.
-10. **A claim about one word.** A knowledge-graph claim that rests on a single word, or a single
-   character. *Needs:* the claim points at a segment, and survives the page being
-   re-segmented or re-transcribed.
-
-Things a palaeographer records that sit **above** the page — the quire, the ruling pattern,
-the part of a codex made at one time — mean the ladder must reach above the page too.
+| File | What it holds |
+|---|---|
+| `source-model.md` | this file: intent, rulings, the words, what exists today, open questions |
+| `source-survey.md` | the evidence: standards, worked examples from philology, the field's tools, other document models, sources |
+| `segments-and-geometry.md` | identity, shape, images, the ladder, layers, reading orders, links, maps, versions, storage |
+| `readings-and-apparatus.md` | readings, written and read, hands, ink layers, the three kinds of "sure", letterforms, the researcher's marks |
+| `languages-scripts-glyphs.md` | language, script, encoding, the cascade, direction, declared signs, fonts, input |
+| `segment-editor.md` | the native editor in the Preview, the Pencil, the performance trial, accessibility |
+| `formats-and-training.md` | every format in and out, validation, loss reports, the training loop |
 
 ## The design
 
@@ -189,128 +108,32 @@ How the "open to what we do not know yet" ruling is met:
 - **What can be stored can be shown.** A reading made of declared glyphs shows their pictures
   in line. A direction the Reader cannot lay out as text is shown on the image, in place.
 
-### The model (proposed until ruled)
-
-### One ladder, every level a segment
+### The model in one page (proposed until ruled; detail in the slices)
 
 ```
 collection / codex unit  >  group of pages  >  page  >  region  >  line or column
                                                      >  word  >  character  >  stroke
 ```
 
-- Every level is the same kind of thing: a **segment**, with a **kind**. One primitive.
-- A segment that is not text is a peer of one that is: picture, music, seal, stamp, table,
-  diagram, map, damage, blank.
-- Any level can be skipped. Finer levels are added later without disturbing coarser ones.
-- Kinds and types come from SegmOnto by default, and a project can add its own.
-- **A segment has a lasting identity.** It keeps the same id when it is moved, reshaped,
-  re-read or re-transcribed. This is the one capability everything else depends on, and it
-  does not exist today (see "What exists today").
+Every level, and every picture, seal, table, mark and map symbol, is a **segment**: one
+primitive with a kind. A segment has:
 
-### What a segment carries
-
-- **Where** — a shape on the image: usually a polygon (a box is the simplest polygon), but also
-  a **point** or a **line** where that is the truth (a town symbol, a road, a stroke); for a
-  line of writing, its baseline, which may curve; and **which image of the page** it was
-  measured on. A page can have several images
-  (original, enhanced, split, ultraviolet). Coordinates are fractions of that image, never raw
-  pixels.
-- **Direction** — left-to-right, right-to-left, top-to-bottom, bottom-to-top, alternating, or
-  follows-the-baseline. Set per segment, inherited from above unless overridden.
-- **Language, script, encoding** — three separate facts (below), inherited unless overridden.
-- **Readings** — a set, not a string. Each reading has a kind (as written, expanded,
-  normalised, as read aloud, translation, machine guess), a language and script, a certainty,
-  who or what made it, and when. Several readings can be equally valid. One is marked as
-  *the* transcription.
-- **Written versus read** — a first-class pair, not a correction: the abbreviation and its
-  expansion, the ketiv and the qere, the Chinese text and its Japanese reading.
-- **Hand** — who wrote the ink: a named scribe or "hand B", with date and notes. This is
-  separate from provenance, which is who made the *record* (a model, a person, a workflow).
-- **Ink layer** — main ink, rubric, later vowel marks, stylus marks, under-text. Several layers
-  can sit over the same characters, each with its own hand.
-- **Certainty and damage** — recorded as facts (unclear, lost, restored by the editor, supplied,
-  deleted by the scribe), with a reason and who judged it. Editorial brackets are drawn from
-  these facts, never typed into the text.
-- **Links** — typed, directional, from segment to segment, to any depth: glosses, expands,
-  reorders, comments on, answers, quotes, continues, same as.
-- **Statements** — knowledge-graph claims and entities attach to the segment's id, and it is
-  easy to go both ways.
-- **The researcher's marks** — notes, highlights, stars and tags, on any segment at any level.
-  One set of marks for the whole app: the same note, star and tag a document can carry.
-- **A description** — for a picture, seal, stamp or diagram: what it shows (alt text), with the
-  same provenance as any reading.
-- **Its image** — the crop of just this segment, cut to its polygon, available at every level.
-- **Versions** — every change to any of the above is a new version of *that segment*. Nothing
-  is overwritten. A segment's history can be read and restored on its own, without touching
-  the rest of the page.
-
-### Where in the world (maps and plans)
-
-An image of a map can carry **control points**: pairs of "this spot on the image" and "this
-coordinate on the earth". A few of them georeference the sheet. From then on any segment on
-it can be asked for its place in the world, the sheet can be laid over a modern map, and a
-place named on it can be tied to the same place in the knowledge graph. Control points are
-segments too (points, with a coordinate as their reading), so they have provenance, certainty
-and versions like everything else, and a person can correct a machine's guess.
-
-Prior art to build on (from general knowledge, to be checked): the IIIF Georeference
-extension, which stores control points as W3C annotations, and Allmaps, which uses it;
-GeoJSON; world files and GeoTIFF. The staged plan already lists georeferencing (#1755) as a
-later phase; this design makes room for it from the start, because it changes what a
-segment's shape can be.
-
-### Reading orders: more than one, and named
-
-A page has one or more **named reading orders**, each a sequence of segments: the order as
-written; the order the reading-marks impose; the order of a commentary. Each has its own
-provenance and certainty. Reading orders answer "what comes next". Links answer "what is this
-about". Examples 1 and 4 need the first; example 5 needs the second; a real page needs both.
-
-### Language, script, encoding and fonts
-
-Three separate facts, never collapsed into one "language" field:
-
-- **Language** — a BCP 47 tag, with Glottolog behind it for under-resourced and Indigenous
-  languages and for dialects. Private-use tags where no registry has the language.
-- **Script** — ISO 15924, including its honest codes: unwritten, undetermined, not in Unicode,
-  private use. One language can have several scripts; one page can have several of each.
-- **Encoding** — which Unicode characters, if any. The model never assumes a code point exists.
-  A sign with no code point is a **declared glyph**: a name, a picture cut from a real page,
-  notes, and an optional private-use code (MUFI where it has one). Characters point at the
-  declared glyph. Variant forms of one character are recorded the same way.
-
-And **fonts**: the font a reading needs is recorded with it, so the Reader and an export can
-show it.
-
-Because all of this sits on the segment, two sources can be set **side by side and compared
-by character**: a Japanese page beside a Chinese one; the same sign in two hands.
-
-### Layers
-
-A page holds several named **layers** of segments: the layout a model proposed, the layout a
-person corrected, the glosses, the illustrations, each ink layer. Layers can be shown, hidden
-and compared. They never overwrite each other.
-
-### Edited on the page
-
-Segments are edited directly on the image, in the Preview, and nowhere else. Full editing:
-
-- draw a new segment (box or polygon); move it; reshape it point by point; redraw a baseline;
-- **merge** segments, **split** one, **group** lines into a region, **delete**;
-- change a segment's kind, layer, direction, language, script, hand, place in a reading order;
-- draw a link from one segment to another;
-- work on many segments and several layers at once.
-
-Every edit is one audited, reversible action. Nothing is rewritten by batch.
-
-**The editor is native (ruled 2026-09-19).** It grows from today's region editing
-(`RegionInteractionLayer.swift`) and replaces today's display-only overlay
-(`OCRGeometryOverlay.swift`), so there is one overlay and one editor, not two. It must stay
-smooth on a page with thousands of word and character polygons. On the iPad, the Apple Pencil
-draws and corrects polygons and baselines; pencil strokes are also a natural source for the
-**stroke** level of the ladder. Every edit still goes through the one audited action layer.
-An SVG web editor was considered and set aside; what SVG offers (direction, text on a path,
-descriptions) is kept on the export side.
+- a **lasting id**: the one thing Fichero lacks today, and what everything else hangs from;
+- a **shape** (point, line or area; a curved baseline for writing) on a **named image** of the
+  page;
+- a place in the **ladder**, in a **logical unit** (a letter, an entry), in a **layer**, and in
+  one or more **named reading orders**;
+- **typed links** to other segments, to any depth;
+- **language, script and direction**, inherited from above unless set;
+- a set of **readings** (as written, expanded, normalised, as read aloud, translation,
+  description), each with its author; one chosen;
+- a **hand** and an **ink layer**; the **state of the page** there; the scholar's
+  **certainty**; the machine's **confidence**: three separate things;
+- **signs** that need not be characters;
+- the researcher's **notes, highlights, stars and tags**;
+- the **statements** of the knowledge graph that rest on it;
+- its own **versions**;
+- its **picture**, cut to its shape, on request.
 
 ### One store, many uses
 
@@ -325,38 +148,6 @@ The same stored segments serve every use. No use gets its own copy:
 
 Moving around is the same everywhere: up to the parent, down to the children, next and
 previous in a reading order, across a link.
-
-### Standards in and out, validated, honest about loss
-
-- **In and out** (ruled): PageXML, ALTO, TEI, MEI; the columnar format (Arrow / Parquet);
-  Kraken's training formats; YOLO-style labels. Every export is **validated against the
-  format's schema** where it has one; one that does not validate is a failed export and says
-  so.
-- **Out, as a page to look at:** SVG (the image with polygons and text laid over it, in the
-  right direction, with descriptions) and searchable PDF (text in place, descriptions as alt
-  text). A PDF is already something Fichero imports as a source.
-- **Every export reports what it could not carry** (for example: "PageXML: 2 reading orders
-  reduced to 1; 14 hands dropped"). Nothing is lost silently.
-- **Every import arrives as a new layer with its own provenance.** It never overwrites what is
-  in the library.
-- A new format is a new mapping, not a new model.
-
-### Training: from a few corrected pages to a local model
-
-Segments, crops and readings export to a columnar dataset (Arrow / Parquet, the Hugging Face
-convention) and to the formats Kraken trains from.
-
-The loop: a large vision model reads a few pages; a person corrects them on the page; Fichero
-exports the corrected lines (crop, polygon, baseline, reading) and regions (polygon, type);
-these fine-tune a small line recogniser (Kraken) for that hand or script, and a small layout
-detector for that kind of page; the small models read the rest, locally.
-
-Two facts from the survey shape this. Kraken learns from **lines**, not from cut-out
-characters, so the unit of training is the corrected line. And a training set is a
-**projection**: it keeps shape, type and text, and drops hands, links, order and certainty. It
-is regenerated from the library whenever needed; it is never the record. A training set that
-is *imported* (someone else's corrected lines, a public dataset) comes in like any import: as
-a new layer with its own provenance.
 
 ## What exists today (read on disk, 2026-09-19; VERIFIED unless marked)
 
@@ -431,56 +222,59 @@ line → tested → exportable.** Anything less is not done.
 
 ## Behaviors
 
-None yet. They are written, with ids, tags and issues, once the intent above is ruled and the
-milestone exists.
+The foundation's own:
+
+- `source.done-across-the-spine` — a capability of the source model counts as done only when
+  it works in the engine, is visible and editable in the app, is reachable over MCP and the
+  command line, is tested, and can be exported.
+- `source.one-store` — the Preview, Reader, Inspector, agents, training and export all read
+  the same stored segments; no use keeps its own copy.
+- `source.open-vocabularies` — every list (kinds, link types, reading kinds, directions, ink
+  layers, damage reasons, components and features) ships with a standard set and can be
+  extended by a library as data.
+- `source.builds-on-the-anchor` — segments are addressed through the one shared anchor type;
+  no second addressing scheme is introduced.
+
+All other behaviours are in the slices. None is tagged yet: tags need issues, issues need the
+milestone, and the milestone is made at approval.
 
 ## Open questions for the creative director
 
-1. **The name.** What is this area called: the source model, the page model, the archival
-   model, or another word? (The folder is provisionally `source/`.)
+Ruled so far (recorded under "Ruled"): all of the apparatus from the start; engine and app
+together; Fichero's own model; every format both ways; open to the unknown; build on what is
+there; the spec first and the order of building after; marks on any segment; the source is
+the page and a segment is everything on it; the editor is native SwiftUI.
+
+Still open:
+
+1. **The name.** Is "source model" the name of this area? (It follows the maintainer's own
+   wording. The milestone takes the same name.)
 2. **Reading orders and links.** The survey says a page needs both: several named reading
    orders, and typed links between segments. Is that the ruling?
-3. **Which reading counts.** When a segment has several readings, which one is the
-   transcription: an explicit choice by a person, falling back to the newest human reading,
-   then the newest machine reading? Or something else?
-4. *(Ruled 2026-09-19: all of the scholar's apparatus is in the model from the start. See
-   "Ruled".)* What remains open is the **order of building**: see the last question.
-5. **No-Unicode signs.** Is the declared glyph (a name, a picture, optional private-use code)
-   the right answer for what a researcher "types" when there is no character to type?
+3. **Which reading counts** when nobody has chosen: the newest human reading, then the newest
+   machine reading? Or must a person always choose?
+4. **Levels of normalisation.** How many, and what are they called? (The field uses three:
+   most faithful, middle, most normalised.)
+5. **Signs with no character.** Is the declared sign (a name and a picture, optionally a
+   number in a sign list, a private-use code, a font) the right answer?
 6. **The language authority.** BCP 47 tags backed by Glottolog are proposed. Is there a
-   particular Indigenous-language source the maintainer wants used as well? (Name it here.)
-7. **Fonts.** Does Fichero ship fonts for some scripts, let a researcher add their own to a
-   library, or both?
-8. **First format.** Which standard is imported and exported first? PageXML is the closest fit
-   to the geometry and is what Kraken trains from; TEI is what editors publish.
-9. **The columnar format.** Parquet through the existing export path (the exporter spec rules
-   Parquet through DuckDB for library export), or Arrow files directly?
-10. **Existing libraries.** Real research libraries already hold geometry as lists without
-    ids. They are never rewritten by batch. Do their segments get identities lazily (the first
-    time a page is opened or edited), or only when the researcher asks?
-11. *(Ruled 2026-09-19: the editor is native SwiftUI.)* A survey of the field's editors is
-    under way, for interaction ideas to borrow.
-12. **The order of building.** Decided after the spec is whole (ruled). Recorded here so it is
-    not forgotten: every other piece depends on a segment having a lasting identity.
-
-## Sources for the survey
-
-- PageXML schema 2019-07-15: https://www.primaresearch.org/schema/PAGE/gts/pagecontent/2019-07-15/pagecontent.xsd
-- ALTO 4.4: https://github.com/altoxml/schema
-- TEI P5, manuscripts and facsimiles: https://tei-c.org/release/doc/tei-p5-doc/en/html/PH.html
-- TEI P5, non-standard characters and glyphs: https://tei-c.org/release/doc/tei-p5-doc/en/html/WD.html
-- MEI facsimiles: https://music-encoding.org/guidelines/dev/content/facsimilesrecordings.html
-- W3C Web Annotation Data Model: https://www.w3.org/TR/annotation-model/
-- IIIF Image API 3.0: https://iiif.io/api/image/3.0/ · Text Granularity: https://iiif.io/api/extension/text-granularity/
-- YOLO segment labels: https://docs.ultralytics.com/datasets/segment/
-- Kraken training (ketos): https://kraken.re/4.2.0/ketos.html
-- SegmOnto: https://segmonto.github.io/
-- ISO 15924 script codes: https://www.unicode.org/iso15924/iso15924-codes.html
-- Glottolog: https://glottolog.org/meta/downloads
-- SVG 2 text: https://www.w3.org/TR/SVG2/text.html
-- San Millán glosses: https://en.wikipedia.org/wiki/Glosas_Emilianenses
-- Leiden conventions: https://en.wikipedia.org/wiki/Leiden_Conventions
-
-Not verified in this pass, and marked so: the details of tagged-PDF alt text against the PDF
-standard; the current MUFI recommendation version; eScriptorium's internal data model; the
-licences of Indigenous-language catalogues other than Glottolog.
+   particular Indigenous-language source to use as well? (Name it here.)
+7. **Fonts.** Does Fichero ship fonts for some scripts, let a library add its own, or both?
+8. **Rival layouts.** When two scholars' layers disagree, which is the working layer: the
+   library owner's choice, per source?
+9. **First format.** Which is built first? PageXML is the closest fit to the geometry and is
+   what Kraken and eScriptorium use; TEI is what editors publish.
+10. **The columnar format.** Parquet through the existing export path (the exporter spec rules
+    Parquet through DuckDB for library export), or Arrow files directly?
+11. **Existing libraries.** Real research libraries hold geometry as lists without ids, and are
+    never rewritten by batch. Do their segments get ids the first time a page is opened or
+    edited, or only when the researcher asks?
+12. **Claims.** Does a claim keep a copy of its anchor as well as the segment id (safer if a
+    segment is ever lost), or the id alone (one source of truth)?
+13. **Training inside Fichero.** This area guarantees the data in and out. Is running the
+    fine-tuning itself (Kraken, a layout detector) inside Fichero wanted, as its own spec?
+14. **The editor trial.** What counts as smooth, and on which oldest device?
+15. **One milestone or several.** One `source-model` milestone for all six files, or one per
+    slice?
+16. **The order of building.** Decided after the spec is whole (ruled). Every other piece
+    depends on a segment having a lasting id.
