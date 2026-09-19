@@ -120,7 +120,16 @@ These are the test of the design. If one of them needs a special case, the model
    it out.
 8. **Pictures, seals, stamps, diagrams, maps on a page.** *Needs:* a segment that is not text,
    with a description of what it shows, that can be pulled out on its own.
-9. **A claim about one word.** A knowledge-graph claim that rests on a single word, or a single
+9. **A map.** An old map is a source like any other. Its place names are text segments, often
+   written along a river or a coast. A town symbol is a **point**; a road or a border is a
+   **line**; a parish is an area. Tie a few points on the map to their real coordinates and the
+   whole sheet is georeferenced: every segment on it then has a place in the world, and the map
+   can be laid over a modern one. *Needs:* segments that are points and lines, not only areas;
+   **control points** (this spot on the image is this latitude and longitude), with their own
+   provenance and certainty; a place name on the map linked to the place it names in the
+   knowledge graph; text that follows a path. The same holds for a plan, a survey, a
+   sea chart, a sketch map in a diary margin.
+10. **A claim about one word.** A knowledge-graph claim that rests on a single word, or a single
    character. *Needs:* the claim points at a segment, and survives the page being
    re-segmented or re-transcribed.
 
@@ -200,8 +209,10 @@ collection / codex unit  >  group of pages  >  page  >  region  >  line or colum
 
 ### What a segment carries
 
-- **Where** — a polygon (a box is the simplest polygon); for a line, its baseline, which may
-  curve; and **which image of the page** it was measured on. A page can have several images
+- **Where** — a shape on the image: usually a polygon (a box is the simplest polygon), but also
+  a **point** or a **line** where that is the truth (a town symbol, a road, a stroke); for a
+  line of writing, its baseline, which may curve; and **which image of the page** it was
+  measured on. A page can have several images
   (original, enhanced, split, ultraviolet). Coordinates are fractions of that image, never raw
   pixels.
 - **Direction** — left-to-right, right-to-left, top-to-bottom, bottom-to-top, alternating, or
@@ -232,6 +243,21 @@ collection / codex unit  >  group of pages  >  page  >  region  >  line or colum
 - **Versions** — every change to any of the above is a new version of *that segment*. Nothing
   is overwritten. A segment's history can be read and restored on its own, without touching
   the rest of the page.
+
+### Where in the world (maps and plans)
+
+An image of a map can carry **control points**: pairs of "this spot on the image" and "this
+coordinate on the earth". A few of them georeference the sheet. From then on any segment on
+it can be asked for its place in the world, the sheet can be laid over a modern map, and a
+place named on it can be tied to the same place in the knowledge graph. Control points are
+segments too (points, with a coordinate as their reading), so they have provenance, certainty
+and versions like everything else, and a person can correct a machine's guess.
+
+Prior art to build on (from general knowledge, to be checked): the IIIF Georeference
+extension, which stores control points as W3C annotations, and Allmaps, which uses it;
+GeoJSON; world files and GeoTIFF. The staged plan already lists georeferencing (#1755) as a
+later phase; this design makes room for it from the start, because it changes what a
+segment's shape can be.
 
 ### Reading orders: more than one, and named
 
