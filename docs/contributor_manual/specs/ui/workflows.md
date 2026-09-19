@@ -469,6 +469,21 @@ the highest-leverage, cheapest tests to land first, ahead of any XCUITest.
    `WorkflowEditor.swift:33-36`, or still reproducible?** This spec could not
    confirm live behavior this session (no running engine); needs a quick
    manual re-check before the behavior tag is trusted either way.
+7. **Recorded request, not decided here** (from the source-model spec work, branch
+   `spec/page-model`, `specs/source/models-chains-and-projects.md` — not in this tree): that
+   workflow steps declare a job with a TYPED input and output, that a chain is checked before
+   it runs (not only at each node's own runtime), and that ONE general "cut each segment's
+   picture and hand it to any reader" step replace what the request describes as three or four
+   duplicate paths (`economy_htr`, `align_transcript`'s own special case, and Kraken's own
+   segment-then-read pair). **The "duplicate paths" claim itself is UNVERIFIED by this spec** —
+   not independently traced to confirm those specific tools actually duplicate one another's
+   segment-cutting logic; recorded as asked, not investigated. Separately, VERIFIED: a real
+   parameter-name drift exists between `kraken_model` and `kraken_recognition_model` —
+   `transcribe.py`'s own tool input schema and its default-workflow JSON both name the field
+   `kraken_model`, but it's passed through as `kraken_recognition_model=inputs.get
+   ("kraken_model")` into `vision_base.py`'s own parameter of that (different) name — both
+   names genuinely exist in the codebase today, confirmed by grep, not a hypothetical. See also
+   `workflow-node-config.md`, which owns the node-popover half of this surface.
 
 ## Sources folded in
 

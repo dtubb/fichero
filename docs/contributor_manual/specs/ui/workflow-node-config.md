@@ -170,6 +170,16 @@ Zoom (`zoom`)
 
 Everything else is the larger design, pinned in later waves.
 
+## Open questions
+
+1. **Recorded request, not decided here** (from the source-model spec work, branch
+   `spec/page-model`, `specs/source/models-chains-and-projects.md` — not in this tree): that
+   workflow steps declare a job with a TYPED input and output, that a chain is checked before
+   it runs, and that ONE general segment-cut-and-hand-off step replace what the request
+   describes as three or four duplicate paths — see `workflows.md`'s own Open Question 7 for
+   the full request and the verified `kraken_model`/`kraken_recognition_model` parameter-name
+   drift; not restated here since that spec owns the cross-cutting record.
+
 ## Findings (code evidence)
 
 Paths are relative to `fichero/fichero/` unless noted; server paths under

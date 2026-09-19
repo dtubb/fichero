@@ -234,7 +234,12 @@ a ruling.
 2. **Settings' scope** — Settings manages keys/catalog (a superset job). Confirm it reuses the shared
    ROW only, keeping its filter/sort/add chrome — not that it collapses into the picker.
 3. **Cost everywhere?** — should the island show per-million cost too (it shows tier/family today), or
-   is cost a workflow-bar/settings concern where budget matters most?
+   is cost a workflow-bar/settings concern where budget matters most? **Candidate answer recorded,
+   not decided here** (from the source-model spec work, branch `spec/page-model`, `specs/source/
+   models-chains-and-projects.md` — not in this tree): a row could show what a "model card" knows
+   — what it suits (languages/scripts/periods), whether it's local or cloud, and a licence class —
+   alongside or instead of price/capability/provider. See `ai-settings.md`'s own Open Question 5
+   for the model-card shape this candidate answer depends on.
 4. **Node vs step pickers** — the workflow NODE pickers (`ModelPicker`, `NodeProviderModelSelector`)
    and the workflow BAR picker — one component for both, or do nodes need more (provider+model+params)?
 5. **How does the island offer role defaults?** (`models.role-defaults-always-offered`) The island is

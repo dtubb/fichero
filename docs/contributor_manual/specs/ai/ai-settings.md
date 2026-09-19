@@ -386,5 +386,14 @@ issue superseded, never close it myself); posted as verify-close above.
    months — do they get closed once `settings.one-catalog-unification` supersedes them, or
    do they carry distinct scope (e.g. #1200's OpenRouter-specific filters) that survives the
    unification?
+5. **Recorded request, not decided here** (from the source-model spec work, branch
+   `spec/page-model`, `specs/source/models-chains-and-projects.md` — not in this tree): every
+   catalogue entry should take one "model card" shape — what a model takes in and gives out,
+   the languages/scripts/periods it suits, local-or-cloud, and a licence class — INCLUDING
+   embedding models, which today are chosen only by an environment variable. Verified: `db/
+   embeddings.py` defines `EMBED_MODEL_ENV = "FICHERO_EMBED_MODEL"` and reads it directly
+   (`:37,42,283`) — there is no catalogue row, model card, or UI surface for choosing an
+   embedding model today, exactly as the request describes. Whether/how this folds into
+   `settings.one-catalog-unification` above is not decided here.
 5. Is the three-tab target (Defaults · Providers · Advanced) still right, or does Embeddings
    getting a provider row change what "Downloads retiring" even means?
