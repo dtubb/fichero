@@ -55,6 +55,7 @@ extension EntityService {
         _ claimId: String,
         text: String? = nil,
         subjectCanonical: String? = nil,
+        subjectEntityId: String? = nil,
         predicateVerb: String? = nil,
         objectPhrase: String? = nil,
         sourcePageLabel: String? = nil,
@@ -63,11 +64,15 @@ extension EntityService {
         epistemicStatus: Components.Schemas.EpistemicStatus? = nil,
         confidence: Double? = nil,
         speakerName: String? = nil,
-        speakerEntityId: String? = nil
+        speakerEntityId: String? = nil,
+        timeStart: String? = nil,
+        timeEnd: String? = nil,
+        timePrecision: String? = nil
     ) async throws -> Components.Schemas.KnowledgeClaim {
         var body = Components.Schemas.ClaimPatchRequest()
         body.text = text
         body.subjectCanonical = subjectCanonical
+        body.subjectEntityId = subjectEntityId
         body.predicateVerb = predicateVerb
         body.objectPhrase = objectPhrase
         body.sourcePageLabel = sourcePageLabel
@@ -77,6 +82,9 @@ extension EntityService {
         body.confidence = confidence
         body.speakerName = speakerName
         body.speakerEntityId = speakerEntityId
+        body.timeStart = timeStart
+        body.timeEnd = timeEnd
+        body.timePrecision = timePrecision
         let response = try await client.api.patchClaimApiClaimsClaimIdPatch(
             path: .init(claimId: claimId),
             body: .json(body)

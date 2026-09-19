@@ -378,7 +378,10 @@ extension EntityKindRow {
             InlineClaimEditor(
                 claim: claim,
                 onCancel: { inlineEditingClaimId = nil },
-                onSave: { _ in inlineEditingClaimId = nil }
+                onSave: { updated in
+                    onClaimUpdated?(updated)
+                    inlineEditingClaimId = nil
+                }
             )
             .padding(.top, 4)
         }

@@ -66,6 +66,9 @@ struct KnowledgeGraphInspectorSection: View {
     @State var claimSelectionAnchor: String?
     /// The claim whose source is shown in the Space-key quick-look popover.
     @State var spaceQuickLookClaimId: String?
+    /// The claim being edited from a digest sentence's "[Edit]" run (#4833).
+    /// Promoted `private` → internal: textDigestView lives in +Views.
+    @State var editingDigestClaimId: String?
     @State var isApplyingBulkAction = false
     @State var isPruningTrivialClaims = false
     @State var pendingMergePlan: InspectorClaimBulkSelection.MergePlan?

@@ -370,4 +370,33 @@ struct EntityClickthroughTests {
         #expect(injectionBlock.contains(".environment(entitySearchState)"))
         #expect(injectionBlock.contains(".environment(claimSourceNavigationState)"))
     }
+
+    // MARK: - #4833: the biography's own per-sentence edit affordance
+
+    /// A biography sentence reaches the SAME inline editor a KG digest
+    /// sentence does, via a second, explicit "[Edit]" link — separate from
+    /// the sentence's own reveal link.
+    @Test("a biography sentence's edit link opens InlineClaimEditor")
+    func biographySentenceEditOpensInlineEditor() throws {
+        let source = try AppSource.text("Views/Inspector/Knowledge/EntityDigestView.swift")
+        #expect(source.contains("claimEditLinkScheme"))
+        #expect(source.contains("editingBiographyClaimId = claimId"))
+        #expect(source.contains("InlineClaimEditor("))
+    }
+
+    /// `onSave` splices the returned claim into this view's own `claims` —
+    /// never a reload; `ClaimStore.patch` does not bump `changeToken` on its
+    /// own, so the existing `.onChange(of: claimStore?.changeToken)` resync
+    /// would not otherwise pick this up.
+    @Test("a biography edit splices the returned claim, not a reload")
+    func biographyEditSplicesRatherThanReloads() throws {
+        let source = try AppSource.text("Views/Inspector/Knowledge/EntityDigestView.swift")
+        #expect(source.contains("spliceUpdatedClaim(updated)"))
+        let body = try #require(
+            source.components(separatedBy: "func spliceUpdatedClaim(").dropFirst().first
+        )
+        let scope = String(body.prefix(300))
+        #expect(scope.contains("claims[index] = updated"))
+        #expect(!scope.contains("await loadClaims()"), "a patched claim splices — it never re-triggers the network load")
+    }
 }

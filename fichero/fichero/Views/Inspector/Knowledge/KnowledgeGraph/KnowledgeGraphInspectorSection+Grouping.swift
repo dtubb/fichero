@@ -13,6 +13,22 @@ extension KnowledgeGraphInspectorSection {
         hiddenKindsCSV = set.map(\.rawValue).sorted().joined(separator: ",")
     }
 
+    // Promoted `private` → internal: textDigestView (+Views) calls this from
+    // InlineClaimEditor's `onSave`.
+    /// Splice a `ClaimStore.patch`-returned claim into THIS section's own
+    /// `claims` — never a reload (#4833). This section keeps its own scoped
+    /// copy (`loadState.claims`, resynced wholesale only on `changeToken`,
+    /// see the core file's `.onChange`), so a store-level splice alone does
+    /// not reach it; setting `claims[index]` here is what re-triggers the
+    /// EXISTING `.onChange(of: claims) { recomputeGrouped() }` pipeline —
+    /// itself a pure, local, no-network recomputation, not a fetch — so the
+    /// row, the digest sentence and (via `claimsById`) every other reader of
+    /// this section's claim lookup update from the ONE returned claim.
+    func spliceUpdatedClaim(_ updated: Components.Schemas.KnowledgeClaim) {
+        guard let id = updated.id, let index = claims.firstIndex(where: { $0.id == id }) else { return }
+        claims[index] = updated
+    }
+
     // Promoted `private` → internal: called from `body` in the core file.
     /// The single grouping pass (#3863). Builds the claim lookup, the grouped +
     /// sorted sections, the flat ordered-claim-id list, and the text digest (with
@@ -62,6 +78,16 @@ extension KnowledgeGraphInspectorSection {
     /// and `openURL` handler rather than sharing one across files.
     static let digestClaimLinkScheme = "fichero-claim"
 
+    /// Custom scheme for the digest's per-sentence EDIT affordance (#4833).
+    /// A sentence click still reveals the source — editing is a second,
+    /// explicit link right after it, not a hidden gesture on the same text.
+    /// A pencil glyph as its own tappable run is the reachable equivalent of
+    /// a hover pencil for prose built from `AttributedString` runs inside
+    /// ONE `Text`: it gets the same native link-in-text keyboard/VoiceOver
+    /// focus as the sentence link beside it, without a per-sentence overlay
+    /// view (`Text` cannot host arbitrary child views inline).
+    static let digestClaimEditLinkScheme = "fichero-claim-edit"
+
     /// The digest line: the entity name bolded, then ONE sentence per claim,
     /// each its own clickable run linking to that claim's id (#4834/#4852 —
     /// the maintainer clicked a sentence in this exact text and nothing
@@ -110,6 +136,22 @@ extension KnowledgeGraphInspectorSection {
                 // biography and source-groups links already rely on).
             }
             result += sentence
+
+            // #4833: the edit affordance, one per sentence, reachable
+            // without a right-click. Plain text ("[Edit]"), not a bare glyph
+            // — VoiceOver reads a link's label from its own run text by
+            // default (same as the sentence link above), and a pencil
+            // character alone reads as "pencil", not "edit".
+            var editLink = AttributedString(" [Edit]")
+            var editLinkParts = URLComponents()
+            editLinkParts.scheme = digestClaimEditLinkScheme
+            editLinkParts.host = claimId
+            if let editURL = editLinkParts.url {
+                editLink.link = editURL
+                editLink.foregroundColor = .secondary
+                editLink.underlineStyle = .single
+            }
+            result += editLink
         }
         return result
     }

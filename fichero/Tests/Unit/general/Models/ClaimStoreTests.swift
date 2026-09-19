@@ -318,4 +318,48 @@ final class ClaimStoreTests: XCTestCase {
         let requests = MockTransportURLProtocol.recorded()
         XCTAssertEqual(requests.count, 1, "only the link's own POST — no list re-fetch")
     }
+
+    // MARK: - patch: the new #4833 fields splice like every other patched field
+
+    /// `subjectEntityId`/`timeStart`/`timeEnd`/`timePrecision` are new
+    /// `patch()` parameters (#4833 — the entity picker and the date fields
+    /// the inline editor never had). This pins that a claim patched with
+    /// them still splices one row in place, no reload — the SAME contract
+    /// `patch()` already had for its older fields (Aug 3, doc comment
+    /// above), now proven for the new ones specifically rather than assumed
+    /// to still hold.
+    func testPatchSplicesTheNewSubjectAndDateFields() async throws {
+        let store = await Self.storeWithThreeClaims()
+        MockTransportURLProtocol.reset([
+            Stub(
+                pathContains: "/api/claims/c1", method: "PATCH", status: 200,
+                body: try! JSONSerialization.data(withJSONObject: [
+                    "id": "c1",
+                    "text": "Ada Lovelace wrote the notes.",
+                    "subject_canonical": "Ada Lovelace",
+                    "subject_entity_id": "entity-ada",
+                    "time_start": "1843-01-01",
+                    "time_end": "1843-12-31",
+                    "time_precision": "year"
+                ] as [String: Any])
+            )
+        ])
+
+        let updated = try await store.patch(
+            claimId: "c1",
+            subjectEntityId: "entity-ada",
+            timeStart: "1843-01-01",
+            timeEnd: "1843-12-31",
+            timePrecision: "year"
+        )
+
+        XCTAssertEqual(updated.subjectEntityId, "entity-ada")
+        XCTAssertEqual(updated.timeStart, "1843-01-01")
+        let splicedClaim = try XCTUnwrap(store.claims.first { $0.id == "c1" })
+        XCTAssertEqual(splicedClaim.subjectEntityId, "entity-ada")
+        XCTAssertEqual(splicedClaim.timePrecision, "year")
+        XCTAssertEqual(store.claims.count, 3, "a patch splices one row, never adds or removes")
+        let requests = MockTransportURLProtocol.recorded()
+        XCTAssertEqual(requests.count, 1, "only the PATCH — no list re-fetch")
+    }
 }

@@ -41,6 +41,11 @@ struct EntityKindRow: View {
     var requestPruneTrivialAction: ((InspectorEntityBulkActionScope) -> Void)?
     var onNavigateToSource: ((String) -> Void)?
     var onClaimSelect: ((String, String?, String?, String?, Int?, Int?) -> Void)?
+    /// #4833: the inline editor (`claimInlineEditor` in +ClaimBlock) calls
+    /// this with the server's freshly-patched claim so the HOST's own claim
+    /// lookup splices it in place — this row only holds `claimById` BY
+    /// VALUE, so it cannot update the host's `@State` itself.
+    var onClaimUpdated: ((Components.Schemas.KnowledgeClaim) -> Void)?
 
     @Environment(ClaimFocusState.self) var claimFocusState
     @Environment(KGFocusState.self) var kgFocusState

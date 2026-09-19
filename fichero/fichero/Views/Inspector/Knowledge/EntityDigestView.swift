@@ -261,6 +261,8 @@ struct EntityDigestContent: View {
     @State private var selectedAppearsRowId: String?
     @State private var selectedClaimRowId: String?
     @State private var isLoading = false
+    /// The claim being edited from a biography sentence's "[Edit]" run (#4833).
+    @State private var editingBiographyClaimId: String?
 
     var body: some View {
         ScrollView {
@@ -355,8 +357,18 @@ struct EntityDigestContent: View {
                     .lineSpacing(6)
                     .textSelection(.enabled)
                     .environment(\.openURL, OpenURLAction { url in
+                        guard let claimId = url.host ?? url.pathComponents.dropFirst().first
+                        else { return .discarded }
+                        // #4833: the "[Edit]" run opens the same
+                        // InlineClaimEditor the row's context menu does — a
+                        // separate, explicit affordance from the sentence's
+                        // own reveal link.
+                        if url.scheme == Self.claimEditLinkScheme {
+                            guard claims.contains(where: { $0.id == claimId }) else { return .discarded }
+                            editingBiographyClaimId = claimId
+                            return .handled
+                        }
                         guard url.scheme == Self.claimLinkScheme,
-                              let claimId = url.host ?? url.pathComponents.dropFirst().first,
                               let claim = claims.first(where: { $0.id == claimId }),
                               // #4834 priority-2 surface: the biography
                               // sentence IS the statement; both highlight
@@ -366,13 +378,46 @@ struct EntityDigestContent: View {
                         claimSourceNavigationState?.request(request)
                         return .handled
                     })
+                    .popover(isPresented: Binding(
+                        get: { editingBiographyClaimId != nil },
+                        set: { if !$0 { editingBiographyClaimId = nil } }
+                    )) {
+                        if let claimId = editingBiographyClaimId,
+                           let claim = claims.first(where: { $0.id == claimId }) {
+                            InlineClaimEditor(
+                                claim: claim,
+                                onCancel: { editingBiographyClaimId = nil },
+                                onSave: { updated in
+                                    spliceUpdatedClaim(updated)
+                                    editingBiographyClaimId = nil
+                                }
+                            )
+                            .padding(8)
+                        }
+                    }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    /// Splice a `ClaimStore.patch`-returned claim into this view's own
+    /// `claims` — never a reload (#4833). `ClaimStore.patch` does not bump
+    /// `changeToken` (it already spliced the STORE'S copy), so the
+    /// `.onChange(of: claimStore?.changeToken)` resync above would not pick
+    /// this up on its own; this is the local half of the same splice.
+    private func spliceUpdatedClaim(_ updated: Components.Schemas.KnowledgeClaim) {
+        guard let id = updated.id, let index = claims.firstIndex(where: { $0.id == id }) else { return }
+        claims[index] = updated
+    }
+
     /// Custom scheme for in-prose claim links; never leaves the view.
     static let claimLinkScheme = "fichero-claim"
+
+    /// Custom scheme for the biography's per-sentence EDIT affordance
+    /// (#4833) — same shape as `KnowledgeGraphInspectorSection`'s digest:
+    /// a second, explicit link right after the sentence link, reachable by
+    /// the same native link-in-text keyboard/VoiceOver focus.
+    static let claimEditLinkScheme = "fichero-claim-edit"
 
     /// The biography prose with each sentence carrying a link to its claim.
     /// A claim with no id stays plain text — a link that goes nowhere is
@@ -411,6 +456,21 @@ struct EntityDigestContent: View {
                 var marker = AttributedString(" ×\(count)")
                 marker.foregroundColor = .secondary
                 prose += marker
+            }
+            // #4833: the edit affordance, one per sentence — plain text
+            // ("[Edit]"), not a bare glyph, so VoiceOver reads it as "Edit"
+            // rather than the character's own name.
+            if let claimId = claim.id {
+                var editLinkParts = URLComponents()
+                editLinkParts.scheme = Self.claimEditLinkScheme
+                editLinkParts.host = claimId
+                if let editURL = editLinkParts.url {
+                    var editRun = AttributedString(" [Edit]")
+                    editRun.link = editURL
+                    editRun.foregroundColor = .secondary
+                    editRun.underlineStyle = .single
+                    prose += editRun
+                }
             }
         }
         return prose

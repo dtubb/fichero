@@ -232,6 +232,11 @@ final class ClaimStore: ObservableDomainStore {
         claimId: String,
         text: String? = nil,
         subjectCanonical: String? = nil,
+        // #4833: subject_entity_id — the engine (commit 69fba6090) updates
+        // entity_ids and regenerates the sentence's subject text from the
+        // entity this resolves to; pair with a nil subjectCanonical so the
+        // client never overrides that with a name it made up.
+        subjectEntityId: String? = nil,
         predicateVerb: String? = nil,
         objectPhrase: String? = nil,
         sourcePageLabel: String? = nil,
@@ -240,12 +245,19 @@ final class ClaimStore: ObservableDomainStore {
         epistemicStatus: Components.Schemas.EpistemicStatus? = nil,
         confidence: Double? = nil,
         speakerName: String? = nil,
-        speakerEntityId: String? = nil
+        speakerEntityId: String? = nil,
+        // #4833: time_start / time_end / time_precision — wire fields that
+        // already existed on both KnowledgeClaim and ClaimPatchRequest; no
+        // editor ever read or wrote them until now.
+        timeStart: String? = nil,
+        timeEnd: String? = nil,
+        timePrecision: String? = nil
     ) async throws -> Components.Schemas.KnowledgeClaim {
         let updated = try await entityService.patchClaim(
             claimId,
             text: text,
             subjectCanonical: subjectCanonical,
+            subjectEntityId: subjectEntityId,
             predicateVerb: predicateVerb,
             objectPhrase: objectPhrase,
             sourcePageLabel: sourcePageLabel,
@@ -254,7 +266,10 @@ final class ClaimStore: ObservableDomainStore {
             epistemicStatus: epistemicStatus,
             confidence: confidence,
             speakerName: speakerName,
-            speakerEntityId: speakerEntityId
+            speakerEntityId: speakerEntityId,
+            timeStart: timeStart,
+            timeEnd: timeEnd,
+            timePrecision: timePrecision
         )
         if let index = claims.firstIndex(where: { $0.id == claimId }) {
             claims[index] = updated

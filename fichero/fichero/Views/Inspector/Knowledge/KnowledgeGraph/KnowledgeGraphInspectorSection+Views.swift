@@ -35,8 +35,18 @@ extension KnowledgeGraphInspectorSection {
                                 .font(bodyTextFont)
                                 .fixedSize(horizontal: false, vertical: true)
                                 .environment(\.openURL, OpenURLAction { url in
+                                    guard let claimId = url.host else { return .discarded }
+                                    // #4833: the "[Edit]" run opens the same
+                                    // InlineClaimEditor the context menu's
+                                    // "Edit S/V/O…" opens — a separate,
+                                    // explicit affordance from the sentence's
+                                    // own reveal link.
+                                    if url.scheme == KnowledgeGraphInspectorSection.digestClaimEditLinkScheme {
+                                        guard claimsById[claimId] != nil else { return .discarded }
+                                        editingDigestClaimId = claimId
+                                        return .handled
+                                    }
                                     guard url.scheme == KnowledgeGraphInspectorSection.digestClaimLinkScheme,
-                                          let claimId = url.host,
                                           let claim = claimsById[claimId],
                                           let request = ClaimSourceRequest.request(for: claim, destination: .both)
                                     else { return .discarded }
@@ -49,6 +59,26 @@ extension KnowledgeGraphInspectorSection {
             }
         }
         .textSelection(.enabled)
+        // #4833: the digest's own inline editor, opened by a sentence's
+        // "[Edit]" run. Same `InlineClaimEditor` the row-mode context menu's
+        // "Edit S/V/O…" opens (`claimInlineEditor` in +ClaimBlock) — one
+        // editor, two entry points.
+        .popover(isPresented: Binding(
+            get: { editingDigestClaimId != nil },
+            set: { if !$0 { editingDigestClaimId = nil } }
+        )) {
+            if let claimId = editingDigestClaimId, let claim = claimsById[claimId] {
+                InlineClaimEditor(
+                    claim: claim,
+                    onCancel: { editingDigestClaimId = nil },
+                    onSave: { updated in
+                        spliceUpdatedClaim(updated)
+                        editingDigestClaimId = nil
+                    }
+                )
+                .padding(8)
+            }
+        }
     }
 
     // Promoted `private` → internal: rendered by `body` in the core file.
@@ -184,7 +214,8 @@ extension KnowledgeGraphInspectorSection {
             requestClaimDeleteAction: requestDeleteAction(for:),
             requestPruneTrivialAction: requestPruneTrivialAction,
             onNavigateToSource: onNavigateToSource,
-            onClaimSelect: onClaimSelect
+            onClaimSelect: onClaimSelect,
+            onClaimUpdated: spliceUpdatedClaim
         )
     }
 

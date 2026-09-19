@@ -145,7 +145,11 @@ struct KGSectionGroupingTests {
         let body = try #require(
             source.components(separatedBy: "Text(entry.attributed)").dropFirst().first
         )
-        let scope = AppSource.codeOnly(String(body.prefix(800)))
+        // Scoped to the END of the link handler, not a character count: the
+        // handler grew an edit-link branch (#4833) and a fixed 800-character
+        // window then missed the reveal that is still there.
+        let handler = try #require(body.components(separatedBy: ".textSelection(.enabled)").first)
+        let scope = AppSource.codeOnly(handler)
         #expect(scope.contains("ClaimSourceRequest.request(for: claim, destination: .both)"))
         #expect(scope.contains("claimSourceNavigationState?.request(request)"))
     }

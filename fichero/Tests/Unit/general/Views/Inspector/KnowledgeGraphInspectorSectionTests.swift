@@ -1104,6 +1104,41 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         XCTAssertFalse(source.contains("EditClaimSheet("))
     }
 
+    // MARK: - #4833: the digest's own per-sentence edit affordance
+
+    /// The maintainer's literal click target — a digest sentence — reaches
+    /// the SAME inline editor as the row's right-click menu, via a second,
+    /// explicit "[Edit]" link.
+    func testDigestSentenceEditOpensTheSameInlineEditor() throws {
+        let source = try Self.appSource(
+            "Views/Inspector/Knowledge/KnowledgeGraph/KnowledgeGraphInspectorSection+Views.swift"
+        )
+        XCTAssertTrue(source.contains("digestClaimEditLinkScheme"))
+        XCTAssertTrue(source.contains("editingDigestClaimId = claimId"))
+        XCTAssertTrue(source.contains("InlineClaimEditor("))
+    }
+
+    /// `onSave` splices the returned claim into THIS section's own `claims`
+    /// — never a reload — via `spliceUpdatedClaim`, wired to both the
+    /// digest's popover and the list-mode row's `onClaimUpdated` callback.
+    func testDigestAndRowEditsSpliceRatherThanReload() throws {
+        let viewsSource = try Self.appSource(
+            "Views/Inspector/Knowledge/KnowledgeGraph/KnowledgeGraphInspectorSection+Views.swift"
+        )
+        XCTAssertTrue(viewsSource.contains("spliceUpdatedClaim(updated)"))
+        XCTAssertTrue(viewsSource.contains("onClaimUpdated: spliceUpdatedClaim"))
+
+        let groupingSource = try Self.appSource(
+            "Views/Inspector/Knowledge/KnowledgeGraph/KnowledgeGraphInspectorSection+Grouping.swift"
+        )
+        let body = try XCTUnwrap(
+            groupingSource.components(separatedBy: "func spliceUpdatedClaim(").dropFirst().first
+        )
+        let scope = String(body.prefix(300))
+        XCTAssertTrue(scope.contains("claims[index] = updated"))
+        XCTAssertFalse(scope.contains("await reload()"), "a patched claim splices — it never triggers a network reload")
+    }
+
     // MARK: - Cross-target drag payload (#3425)
 
     func testInspectorEntityDragPayloadRoundTripsAcrossTargets() throws {
