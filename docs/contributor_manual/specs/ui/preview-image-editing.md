@@ -145,17 +145,129 @@ Surfaces: `ImageEditorView` (+`+Canvas`/`+Clipboard`/`+Popovers`/`+Toolbar`/`+Ty
   would fight with its own. Grounded in reading the enum and its call sites directly; no test
   found exercising any of the three modes.
 
-## PASS 2 fold plan (not executed — no issues moved)
+## PASS 2 — the fold (legacy milestone #168, 16 issues, every body read fresh)
 
-Legacy milestone **#168 "Preview - Image Editing"** (16 open issues) is this spec's own
-milestone's predecessor, not yet read issue-by-issue against the behaviors above — that
-reading is Pass 2's job. Recommend the same discipline the last three folds used: read every
-BODY fresh (not just titles), verify "looks already built" claims against the substantial
-test coverage found in this pass (`ImageEditStepEditingTests`, `ImageEditChainSyncTests`,
-`ImageEditRenditionRefreshTests`, `ImageEditClipboardTests`, `TestReversibleImageCrop`/
-`TestReversibleImageSplit`, `TestQuarterTurnsAreLossless` already cover a wide slice of the
-step-chain/caching/clipboard mechanics — several of #168's older issues may be verify-close
-candidates rather than fresh GAPs), and watch for issues that are actually about
-`preview-surface.md`'s territory (mounting/dispatch) or `preview-magnifier.md`'s (the loupe
-inside the editor canvas) rather than the editing operations themselves. Not done in this
-pass — Pass 1 was the ask.
+### E. New behaviors (fits, cited from HEAD, moved onto #315)
+
+- `preview.edit.pdf-edit-toggle-is-dead` — **[BROKEN]** (#2261) the edit toggle should work on
+  a top-level PDF document, not only on one of its child pages. Verified BROKEN at HEAD:
+  `EditorView.previewRoute` (`EditorView.swift:190-198`) checks `doc.docType == .page` and
+  routes THAT to `pagePreviewRoute`, which does check `isEditing` — but a plain PDF file
+  (`doc.fileType == .pdf`, not a page) returns `.storageDisplay` unconditionally, with no
+  `isEditing` check at all. The per-page raster edit chain (`ImageEditorView`) already works;
+  a PDF parent simply never routes to it.
+- `preview.edit.continuous-scroll-through-pages` — **[GAP]** (#1933) the image editor should
+  scroll continuously through a document's pages/images, the way the PDF viewer's continuous
+  mode does, rather than one page at a time. Not verified as built — the editor's canvas
+  (`ImageEditorView+Canvas.swift`) shows the single active document, stepped via prev/next,
+  with no continuous-scroll mode found.
+- `preview.edit.toolbar-icon-alignment` — **[GAP]** (#1556) the edit button in the image
+  mini-toolbar should share the same baseline/vertical centering and sizing as its
+  neighbouring controls (zoom, fit). Not verified either way — a small, cosmetic claim not
+  worth a source-scan proof either way.
+- `preview.edit.native-vision-remove-background` — **[GAP]** (#1540) Remove Background should
+  offer a macOS-native option (Vision's subject-lift, the same engine Preview/Quick Look use)
+  alongside the existing methods, since the current default's output quality is poor.
+  Verified at HEAD: the server's `_remove_background` (`media/image_ops.py:162-178`) supports
+  exactly three methods — `rembg`, `opencv`, `threshold` — no Vision-based method exists; the
+  client's `removeBackground(method:)` defaults to `"opencv"` and offers no alternative in its
+  UI. Not built.
+- `preview.edit.segments-panel-and-recombine` — **[GAP]** (#504) splitting a document should
+  surface a segments panel (browse the resulting pages/segments as separate items, run a
+  workflow on one independently) and a recombine action restoring the parent — with no
+  duplicate files created on disk. Verified PARTIALLY at HEAD: the underlying reversible
+  split/uncrop chain operation is built and tested (see `preview.edit.crop-and-split-are-
+  reversible` above), but no segments-BROWSING panel or recombine UI was found anywhere under
+  `Views/Preview/ImageEditor/`. The chain mechanism exists; the panel this issue actually asks
+  for does not.
+- `preview.edit.epic-tracks-already-built-and-remaining-pieces` — **[GAP]** (#1385, the
+  founding EPIC: "AI-enhanced, non-destructive image editing — port legacy ML tools; apply to
+  images AND PDF pages") — its five stated principles are a mix of DONE and open, stated
+  plainly rather than left as one undifferentiated ask: non-destructive storage is built (see
+  section A above); an A/B compare UI is built (`CompareMode`: single/wipe/side-by-side,
+  `preview.edit.compare-modes-single-side-by-side-wipe`); a macOS-native option for at least
+  one tool (Remove Background) is NOT built (`preview.edit.native-vision-remove-background`
+  above); "apply to any image OR to a page/range of pages of a PDF" is contradicted by
+  `preview.edit.pdf-edit-toggle-is-dead` above — a PDF parent's edit toggle doesn't even
+  route to the editor; EXIF-awareness across transforms was not independently checked this
+  pass. Kept as one line naming the whole, with each concrete piece cited to its own specific
+  behavior rather than duplicated here.
+
+### F. Redirected to an existing spec
+
+- **#4418** ("show recognised text regions on images AND PDFs") → `segment-representations.md`
+  as `segment.overlay.recognized-text-regions` — a region/anchor with its own provenance
+  (PDF text layer, model, or human correction) is that spec's own subject, not an editing
+  operation. The bidirectional region↔text cursor it asks for is explicitly the SAME seam
+  `reader-overlay-frame-identity.md` already owns, cited there rather than re-specified here.
+
+### G. Verify-close — evidence posted, left OPEN, not closed here
+
+Given the test coverage Pass 1 found, several older issues describe symptoms already fixed by
+a DIFFERENT mechanism than the one they proposed — evidence stated as what it is (the code
+read, not a rendered screen):
+
+- **#502** ("Wire: Image Editing v1 — Crop + Rotate") — every item in its own test checklist
+  is built and tested: crop/rotate live-update, Original toggle confirms the source is
+  unchanged, undo reverts, the chain persists across relaunch. Section A's behaviors above
+  (`preview.edit.chain-is-a-separate-row-never-the-source`,
+  `.crop-and-split-are-reversible`, `.quarter-turns-are-lossless`) are this issue's own
+  acceptance criteria, verified from the code.
+- **#503** ("Wire: Image Editing v2 — Enhance + Remove BG") — enhance sliders
+  (brightness/contrast/sharpen state in `ImageEditorView`) and a Remove Background action
+  (`ImageEditorModel.removeBackground(method:)`) both exist and are reachable from the
+  toolbar and the step panel. Not independently checked this pass: the specific "Auto-enhance"
+  one-click button and whether export specifically re-applies the chain.
+- **#1161** ("Document editing tools: deskew, color-correct, split, crop, rotate") — every
+  named operation exists server-side: `detect_deskew_angle`/`auto_deskew`,
+  `brightness`/`contrast` (`media/image_ops.py`), crop, rotate, and split (Section A above);
+  batch-apply across a multi-selection is built and tested
+  (`preview.edit.clipboard-copies-and-pastes-a-chain`'s "pasting across a selection" case).
+- **#1558** ("side-by-side / wipe compare forces images to square") — verified FIXED at HEAD:
+  `ImageEditorView+Canvas.swift`'s wipe mode computes `ImageFit.fittedRect(imagePixelSize:
+  in:)` for its frame — a real aspect-ratio-preserving fit, not a hardcoded square — and both
+  wipe layers carry `.aspectRatio(contentMode: .fit)`.
+- **#1590** ("edited image doesn't update the image viewer / library thumbnail") — the exact
+  complaint this issue names ("rotate an image and the library row and preview strip kept
+  showing the old one") is fixed, but by a DIFFERENT, later mechanism than the issue's own
+  proposed notification: `ImageEditorView`'s `onEditApplied` and `finishEditing()` both call
+  `storageService.invalidateImageCache(for:)` AND `renditionService?.invalidate(documentId:)`
+  — the exact two caches `ImageEditRenditionRefreshTests`'s own doc comment names as the ones
+  that have to drop together. **Still an explicitly open question, not fixed and not
+  reopened as broken** — this issue's own body flags it, not this pass: workflows
+  (Catalogue/Transcribe/OCR) resolve input via `storage.resolve_source(doc)`, which returns
+  the ORIGINAL file with no knowledge of the edit chain, so a workflow run after an edit still
+  processes the unedited original. Not independently re-checked this pass; the issue itself
+  called this "flagged for decision," not fixed.
+- **#3213** ("Quartz evaluation — recommend hybrid, not a rewrite") — its core recommendation
+  is built: `LiveEditPreview.swift` maps the pending op to `CIFilter.colorControls()`,
+  `.sharpenLuminance()`, and `.straighten()` for live, local preview while dragging, exactly
+  the "client-side live preview with Core Image for the pending op only" the issue
+  recommends — the server-authoritative chain remains the committed source of truth,
+  unchanged. Not independently checked: the issue's own proposed drift test (server render
+  and CI preview agree within tolerance on a fixture set) and latency budget test.
+- **#3756** ("wire reversible image editing into SwiftUI") — crop, split, batch-apply, and
+  undo are all wired and tested (Section A and C above); "uncrop"/"unsplit" specifically were
+  not found as separately named operations — they read as the same generic
+  delete-a-step/revert-to-original mechanism `preview.edit.delete-step-and-revert-are-
+  reachable-and-confirmed` already covers, not a gap of their own.
+
+### H. Maintainer triage — no home found
+
+- **#1174** ("Lightroom-style non-destructive Document Inspector for stage variants") — a
+  stage/variant NAVIGATOR inside the Document Inspector, not this spec's editing-operations
+  surface — no spec read this session owns the Document Inspector's general tab/facet
+  structure (`kg-entity-inspector.md` is scoped to the entity focus pane specifically).
+- **#1176** ("Non-destructive parametric image pipeline + transient cache") — a BACKEND
+  workflow-tools pipeline for paleography preprocessing (`prepare_images`/`rotate`/`split`/
+  `segment`/`enhance`/`convert_to_svg` as workflow tools, with recipe caching/eviction), its
+  own text says "backend-first... designed for SwiftUI inspector integration LATER" — a
+  different pipeline from this spec's interactive `ImageEditChain`, not this surface's
+  question to answer.
+
+## Milestone
+
+Legacy milestone #168 does not reach zero this pass: of 16 open issues, 6 fit and move onto
+#315, 1 redirects to `segment-representations.md`, 7 are verify-close (evidence posted,
+left OPEN for the maintainer, none closed here), and 2 go to maintainer triage — 9 remain on
+#168. Not closed.

@@ -73,6 +73,18 @@ exportable = not done. Every behavior below names which spine segment it lands o
   source is a map, not running text, still anchors to a region of the original scan).
 - `segment.inspector.version-visible` — when a representation has multiple versions, the
   inspector shows which version is current and that older ones exist.
+- `segment.overlay.recognized-text-regions` — **[GAP]** (#4418, redirected from the legacy
+  "Preview - Image Editing" milestone while folding `preview-image-editing.md`'s pass 2) the
+  Preview should overlay recognized text regions on BOTH images and PDFs, toggleable and off
+  by default. A PDF with a text layer needs no recognition model at all — PyMuPDF's
+  `get_text()` already returns per-word/block bounding rectangles "for free," and the loader
+  today discards them, keeping only the flat string. Every region must be stored NORMALIZED
+  and page-relative (never in one rendition's raw pixels, since a page has several
+  renditions — original, enhanced, deskewed, split) and must record its OWN provenance (PDF
+  text layer, a model, or a human correction) — this spec's own segment/representation model,
+  not a new one. Selecting a region selects its text and vice versa, through the SAME cursor
+  `reader-overlay-frame-identity.md` and `kg-entity-inspector.md`'s `ClaimSourceRequest` seam
+  already use — explicitly not a third addressing scheme. Not verified as built.
 
 ### C. AI / MCP / CLI — made available to an agent
 - `segment.mcp.get` [MISSING] (#4766) — an MCP tool returns a segment with requested
