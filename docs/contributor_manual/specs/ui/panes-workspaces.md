@@ -256,7 +256,9 @@ starting a new one.
   left to drift — and both surfaces the issue named, `SidebarBottomToolbar.swift` and
   `DocumentInspectorAnnotationsTab.swift`, both build on `PaneFilterBar`. Pinned:
   `MiniToolbarMetricPolicyTests.testPaneFilterBarUsesMiniToolbarHeight`.
-- `panes.status-island.separates-connection-and-activity` — **[PARTIAL]** (#4536) the status
+- `panes.status-island.separates-connection-and-activity` — **[PARTIAL]** (#4536, #2450 —
+  redirected from the legacy "Settings - Models & Providers" milestone while folding
+  `ai-settings.md`'s pass 2, the same "Xcode-style activity status widget" ask) the status
   island should present backend connection, remote connections, WHO else is connected as a
   user, and activity as four SEPARATE indications, not one folded glyph+spinner. Verified at
   HEAD: two of the four already split out as their own toolbar items —

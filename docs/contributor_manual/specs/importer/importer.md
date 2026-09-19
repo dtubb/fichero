@@ -124,6 +124,12 @@ in the file's own status), never a silent nothing.
   `::test_the_stage_embeds_the_document_and_its_pdf_pages`,
   `::test_pending_clears_after_deferred_embedding`,
   `::test_an_embed_failure_is_recorded_and_does_not_strand_pending`.
+
+  Redirected here from the legacy "Settings - Models & Providers" milestone while folding
+  `ai-settings.md`'s pass 2: **#4268** ("Embeddings run automatically after import, visible as
+  activity") asks for exactly this behavior — the automatic-background half is confirmed
+  built above; whether embedding progress specifically surfaces in the status island/activity
+  popover (the issue's own second half) was not independently re-verified this pass.
 - `importer.background-throttled` — **[OK]** embedding and derivative work runs at bounded
   concurrency and background QoS, so a bulk import never pegs the foreground machine — the
   exact fix for the field incident (1,622-image import at 457% CPU) the ruling names.

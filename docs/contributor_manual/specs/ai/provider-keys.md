@@ -149,6 +149,14 @@ the value from the original migration, unaffected by anything Settings has done 
   (verified in code today). That gap belongs to `ai/ai-settings.md`'s local-runtime honest
   status behavior on the ai-settings milestone, a different behavior, unchanged by this fix.
 
+### Redirected from the legacy "Settings - Models & Providers" milestone
+
+- **#484** ("Wire: Providers + API Keys") — redirected while folding `ai-settings.md`'s pass
+  2. Its own acceptance checklist (add a provider, enter an API key, Test Connection, browse
+  the model catalog) is verify-close against `keys.test-connection-real-probe` above and the
+  provider-management surface this spec already documents — not re-litigated as a fresh claim
+  here since #484 itself names no gap beyond what's already built or already tracked.
+
 ### Apple Vision as an OCR/vision capability
 
 - `keys.apple-vision-is-a-capability-not-only-a-key-check` — **[GAP]** (#2060, redirected

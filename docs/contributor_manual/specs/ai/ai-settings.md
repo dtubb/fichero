@@ -146,15 +146,15 @@ left to point at.
   pass did not trace the failure in `local_models.py`'s `download_model` route to a root
   cause, so it stays GAP rather than a code-verified BROKEN — the download route exists
   (`local_models.py:145`) but whether/why it fails was not re-verified here.
-- `settings.one-catalog-unification` — **[GAP]** (#4307, → #1059, → #1200, → #1342, → #1152)
-  cloud and local models must resolve through ONE response shape (a cloud row's local-only
-  fields simply absent), with one shared download-row component and one disk-usage view.
-  Not built: cloud (`ProviderAPIService`) and local (`LocalInferenceStore`/
-  `LocalModelsSettingsView`) models still come from separate response shapes and separate
-  stores. → #4307 is the direct tracker; → #1059 (consolidate ~6 picker UIs), → #1200 (a
-  richer searchable browser), → #1342 (centralize download location), and → #1152 (a
-  deletable models folder) are related, pre-existing, broader trackers — cross-milestone
-  pointers, not folded into this narrower claim.
+- `settings.one-catalog-unification` — **[GAP]** (#4307, #1059, #1200, #1342, #1152 — moved
+  onto this milestone this pass; previously cross-milestone pointers, now folded in since each
+  genuinely backs this same claim) cloud and local models must resolve through ONE response
+  shape (a cloud row's local-only fields simply absent), with one shared download-row
+  component and one disk-usage view. Not built: cloud (`ProviderAPIService`) and local
+  (`LocalInferenceStore`/`LocalModelsSettingsView`) models still come from separate response
+  shapes and separate stores. #4307 is the direct tracker; #1059 (consolidate ~6 picker UIs),
+  #1200 (a richer searchable browser), #1342 (centralize download location), and #1152 (a
+  deletable models folder) are the specific sub-asks this one claim now carries.
 - `settings.embeddings-in-defaults` — **[GAP]** (#4302, → #4307) the Defaults tab needs an
   Embeddings section reading the same rich model list its picker uses elsewhere — the
   setting exists in the data model but has no picker anywhere. Verified absent: no
@@ -199,7 +199,12 @@ looks like a fact rather than a choice.
 Hard-gate: none yet — this is a DRAFT spec; the hard-gate set is chosen once the phases above
 have owners.
 
-## Issue map (all 28 open issues on "Settings - Models & Providers", #20)
+## Issue map (all 28 open issues on "Settings - Models & Providers", #20) — HISTORICAL, first pass
+
+Superseded by "Legacy milestone fold, pass 2" below (2026-09-19), which re-read every
+remaining issue against today's exact fits/redirect/waiting/verify-close/triage rubric,
+executed the moves this table only recommended, and reflects the CURRENT open set (22 on #20,
+not 28 — six already moved by this table). Kept for the reasoning trail.
 
 Disposition key: **cited** = moved onto `ai-settings` (#306), backs a behavior above by plain
 citation · **related** = arrow-cited above, stays on its own milestone (a broader,
@@ -242,6 +247,123 @@ Moved onto `ai-settings` (#306) by number: **#2064, #4302, #4303, #4304, #4307, 
 six behaviors above cite them by plain `#N`. Everything else stays on #20 for the maintainer's
 own triage (recommend-close / recommend-re-home are recommendations, not actions — nothing
 was closed or moved beyond this list).
+
+## Legacy milestone fold, pass 2 (#20, #126, #257 — 24 open issues, selected by NUMBER)
+
+Every body read fresh at HEAD (2026-09-19), including areas that moved this week: provider
+keys are their own spec now (`ai/provider-keys.md`); Kraken's runtime is verified working with
+the gap being import-time wiring (`importer.md`'s `importer.segmentation-automatic-no-toggle`,
+#4822); pytz is declared. **No issue among these 24 mentions Kraken, HPC, or remote compute** —
+a negative result stated plainly, not assumed.
+
+### Fits (moved onto #306, backing `settings.one-catalog-unification`)
+
+**#1059, #1200, #1342, #1152** — see that behavior's own updated citation above; each is a
+specific sub-ask of the one-catalog claim (consolidate ~6 pickers, a richer searchable
+browser, centralize the download location, a deletable models folder) and now shares this
+milestone instead of being an arrow-pointer to elsewhere.
+
+### Redirected to an existing spec
+
+- **#484** ("Wire: Providers + API Keys") → `ai/provider-keys.md`. Its own acceptance
+  checklist (add a provider, enter a key, Test Connection, browse the catalog) is that spec's
+  subject exactly, and largely already built there (`keys.test-connection-real-probe`,
+  the Keychain-and-engine sync fix 101a67cde).
+- **#4268** ("Embeddings run automatically after import, visible as activity") →
+  `importer/importer.md`, which already has `importer.embeddings-auto-at-import` **[OK]** —
+  this is an importer-pipeline behavior, not a Settings-surface one.
+- **#2450** ("Xcode-style activity status widget in toolbar") → `ui/panes-workspaces.md`,
+  which already documents the status island's separated engine/activity/message items
+  (`panes.status-island.separates-connection-and-activity` and siblings) — largely the same
+  ask, already substantially built there, not this spec's territory.
+
+### Verify-close — evidence posted, left OPEN, not closed here
+
+- **#284** ("Re-enable Settings tabs General/Backend/Models") — built: `SettingsTab`
+  (`App/AppState.swift:10-29`) has live `.general`, `.backend`, and `.aiModels` cases, each
+  mounting a real view in `SettingsView.swift`.
+- **#485** ("Wire: Local Models") — built: `LocalModelsSettingsView.swift` exists and mounts.
+- **#752** ("Settings → Local Models tab: enable + download/manage") — built: same view,
+  download/remove controls present.
+- **#1325** ("Settings: clean up the Models window UX") — the whole Settings surface has been
+  rebuilt since this was filed: one `NavigationSplitView` (macOS-sidebar source-list →
+  detail, collapsing natively on iPhone/iPad) replaced the old top-tab `TabView` (#3679),
+  with per-view sections (#3680). The specific "Models window" this issue names no longer
+  exists in that shape.
+- **#1435** ("Wire 27 Providers & Models endpoints into SwiftUI") — re-ran
+  `scripts/check_ui_wiring.py` fresh: ZERO of the 27 endpoints this issue lists appear in the
+  current unwired/unallowlisted findings. All 27 are now either called or properly
+  allowlisted.
+- **#2268** ("Providers/Models belong in the Settings window + defaults + model location") —
+  built: they ARE in Settings (`.aiModels` tab), with a Defaults tab for default model
+  selection.
+- **#3366** ("Settings window should expose feature-gated app menu surfaces — MCP and
+  Integrations") — built: `SettingsTab.mcp` mounts `MCPServersView()`, `.integrations` mounts
+  `IntegrationsSettingsView()`, both live in `SettingsView.swift`'s own switch.
+- **#3678** (#257's own issue — see the full assessment below) — every concrete deliverable
+  it asked for is built.
+
+### Maintainer triage — no home found among the specs read this pass
+
+- **#853, #854** (Apple Intelligence `prewarm()`/`contentTagging`; proactive token budgeting) —
+  an Apple Intelligence RUNTIME capability, not the Settings surface; #854 is additionally
+  blocked on an external SDK version (26.4).
+- **#1146** (embed MLX Swift for Qwen3-VL/Nanonets-OCR-s local models) — a specific
+  model-integration feature request, not a Settings-surface behavior.
+- **#2063** (global local-only/no-cloud privacy guarantee) — a cross-cutting enforcement
+  feature at the LLM/vision dispatch layer, not a Settings-UI question, though it would show a
+  toggle there.
+- **#2116** (model selection that educates/evaluates per-language fit, cost, "test on your
+  material") — a large, separate feature; partial overlap with an existing Language Coverage
+  window not independently re-verified this pass.
+- **#2291** (Projects/Milestones/Tasks as agent-operable objects) — an in-app-agent/chat
+  feature, unrelated to AI Settings.
+- **#2314** (three chat modes with an on-device AI router) — a chat-surface feature;
+  `ui/research.md` was checked and does not cover this specific routing ask, so not redirected
+  there without evidence.
+- **#2444** (expose Translate/DeepL as a workflow tool/node) — a workflow-node-exposure
+  question, not a Settings one; DeepL itself is already a working provider per
+  `ai/provider-keys.md`.
+- **#3411** (Fonts & Colors settings controls for library/reader/labels/inspector/editor) —
+  genuinely mis-filed on this milestone, per the historical map's own read, confirmed again
+  this pass: this is general app typography/appearance, not an AI-provider concern, and no
+  general-settings/typography spec exists to redirect it to.
+
+## #257 assessment ("Settings IA v2 + Reader/Editor Typography", one issue: #3678)
+
+Read in full. #3678 asked for an audit-and-design pass covering seven concrete deliverables.
+**Every one of them has landed, each under its own tracking issue, verified on disk, not
+assumed from the milestone's age:**
+
+1. A macOS-sidebar (source-list → detail) Settings architecture — **built**: one
+   `NavigationSplitView` (`SettingsView.swift:5-33`, its own doc comment names #3679 as the
+   tracker) replaced the old top-tab `TabView`.
+2. Per-view settings sections (Library/Reader/Preview/Inspector) — **built**: `SettingsTab`
+   has `.libraryView`/`.previewView`/`.readerView`/`.inspectorView` cases, each commented
+   "#3680."
+3. iPhone/iPad mapping — **built**: the same `NavigationSplitView` collapses to a list on
+   compact widths natively, per the same file's doc comment — no separate iOS implementation
+   needed.
+4. A typography model (semantic-default + user-override font sizes, stored in `ViewSettings`/
+   `@AppStorage`) — **built**: `ViewSettings.FontScale.readerKey`/`.editorKey` via
+   `@AppStorage` in `SettingsViewPanes.swift` — the exact storage location the issue itself
+   speculated.
+5. A Reader theme/CSS-consistency approach (semantic colors/fonts into the WebKit templates)
+   — **built**: `document_view.html`'s own CSS reads Swift-injected semantic variables
+   (`--bg`, `--reader-text-wrap`), not a hardcoded "paper" look, per its own comment citing
+   #1280.
+6. Paragraph-wrapping with no orphaned last-lines — **built**: `document_view.html`'s
+   `text-wrap: var(--reader-text-wrap, pretty)`, its own comment naming #3684 as the tracker
+   and "pretty" (no-orphan) as the on-target default.
+7. A short design doc — **produced**: `agent-work/superpowers/specs/2026-07-13-settings-
+   typography-ia-design.md` exists (at a different path than the issue's own
+   `docs/superpowers/specs/` suggestion — a location detail, not a substance gap).
+
+**Nothing in #3678 reads as a live blocker today.** Stated as evidence, not as "superseded":
+every deliverable the issue named has a corresponding, verifiable piece of code citing its
+own follow-up issue number (#3679, #3680, #3684, #1280) — the audit this issue asked for
+evidently happened and was acted on. Left OPEN per this fold's own rule (never call an open
+issue superseded, never close it myself); posted as verify-close above.
 
 ## Open questions
 
