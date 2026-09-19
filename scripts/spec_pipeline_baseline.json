@@ -22,11 +22,6 @@
   {
     "rule": "g",
     "spec": "-",
-    "key": "Engine - Curation"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
     "key": "Engine - Onboarding, Connection & Pairing"
   },
   {
@@ -153,11 +148,6 @@
     "rule": "g",
     "spec": "-",
     "key": "Sharing & Pairing \u2014 Dead-Simple UX"
-  },
-  {
-    "rule": "g",
-    "spec": "-",
-    "key": "Sidebar View"
   },
   {
     "rule": "g",

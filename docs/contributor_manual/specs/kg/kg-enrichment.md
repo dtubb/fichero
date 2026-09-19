@@ -139,6 +139,17 @@ Wikidata (hub, on) · VIAF (persons) · GeoNames (modern places) · Pleiades (an
 Getty TGN (historical places) · Getty AAT (concepts) · PeriodO (periods) · Nominatim (geo
 fallback, already on). The rest ship off-by-default, one toggle away.
 
+- `kg.enrich.reconciliation-external-authority-scope` — **[GAP]** (#3528, legacy milestone fold,
+  2026-09-19) an "External" scope in the entity reconciliation picker — reconciling entities
+  against Wikidata/Wikipedia/another configured authority, not only within/across libraries.
+  Verified at HEAD: `EntityReconciliationScope` (`EntityReconciliationSheet.swift`) already
+  reserves the `.external` case in its enum, with a globe icon and the description "External
+  authority (Wikidata / Wikipedia) — coming soon (#3528)" — the UI slot is deliberately held
+  open, not built. Distinct from this spec's own `kg.enrich.ux`/`kg.enrich.per-type` (Wikidata
+  ENRICH-PREVIEW, filling in an existing entity's attributes) — this is a MERGE/DEDUP scope
+  (finding that an entity IS the same real-world thing an authority already describes), a
+  different capability sharing the same authority sources. Needs a product/design pass on
+  authority source config + match confidence before building, per the issue's own account.
 - `kg.enrich.per-type` [MISSING] (#4758) — a source is offered for the entity types it serves
   (places → GeoNames/Pleiades/TGN; persons/orgs → VIAF/LoC/GND/ISNI; concepts → Getty AAT;
   periods → PeriodO), so the UI never suggests a nonsensical lookup.

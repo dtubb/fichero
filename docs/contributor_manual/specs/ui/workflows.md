@@ -572,6 +572,7 @@ are out of scope for this table — see that spec's own behaviors, all already c
 | #2104 | Transcription (VLM / Apple Intelligence) must capture per-region bounding boxes | — | **UNCOVERED** — cluster: bounding-box capture (near-duplicate of #970/#1834) |
 | #4309 | Capture text bounding boxes on first pass in all vision workflows | — | **UNCOVERED** — cluster: bounding-box capture |
 | #754 | Analysis tool: Sentiment classifier | — | **UNCOVERED** — cluster: tool capabilities & registry |
+| #755 | Analysis tool: Plagiarism / near-duplicate detection across library | — | **UNCOVERED** — cluster: tool capabilities & registry; redirected here 2026-09-19 from `kg-enrichment.md`'s legacy milestone fold (a weaker fit there — this is a new ANALYSIS TOOL, a workflow-registry capability, not an entity-attribute enrichment) |
 | #1648 | Export a workflow as a portable LangGraph project | — | **UNCOVERED** — cluster: tool capabilities & registry |
 | #1836 | [Apple] Upgrade fm-bridge to Foundation Models 2026 | — | **UNCOVERED** — cluster: tool capabilities & registry |
 | #4310 | Audit unused langchain/langgraph capabilities | — | **UNCOVERED** — cluster: tool capabilities & registry |
@@ -596,12 +597,14 @@ are out of scope for this table — see that spec's own behaviors, all already c
 | #4330 | Rendition model and two-axis navigation in Preview | — | **UNCOVERED** — reads as `panes-workspaces`/Preview rendition work; recommend re-homing |
 | #4339 | Library: Finder-style grouping (group-by in the sort menu) | — | **UNCOVERED** — a Library browsing feature; recommend re-homing |
 
-**Coverage: 22 of 58 cited (#4402 added 2026-09-19, moved here from the `activity` legacy
-milestone fold; #4893 filed and cited 2026-09-19), 3 RESHAPED and awaiting CD triage (Comparison
-— the result side retired by the CD ruling), 33 UNCOVERED** (36 total orphan issues by `check`'s
+**Coverage: 22 of 59 cited (#4402 added 2026-09-19, moved here from the `activity` legacy
+milestone fold; #4893 filed and cited 2026-09-19; #755 redirected in 2026-09-19 from the
+`kg-enrichment` legacy milestone fold, uncited/UNCOVERED same as its cluster sibling #754), 3
+RESHAPED and awaiting CD triage (Comparison — the result side retired by the CD ruling), 34
+UNCOVERED** (37 total orphan issues by `check`'s
 rule-f count, since the 3
 reshaped issues are now also uncited and correctly show up as orphans too —
-22+3+33=58, 33+3=36 rule-f lines). Clustered by theme (creative-director instruction: propose a sub-spec only for a
+22+3+34=59, 34+3=37 rule-f lines). Clustered by theme (creative-director instruction: propose a sub-spec only for a
 cluster with ≥4 issues; PROPOSAL ONLY, not written, no milestone created):
 
 - **Transcription/translation presets** (#3907, #3909, #4306, #4633 — 4 issues): quality and
@@ -617,14 +620,15 @@ cluster with ≥4 issues; PROPOSAL ONLY, not written, no milestone created):
   box it read a value from, at the granularity (region/line/word) the tool actually reports,
   and KG claims carry that anchor." First step before writing it: triage #970/#1834/#2104
   for exact duplication. Issue list: #970, #1659, #1834, #2104, #4309.
-- **Tool capabilities & registry** (#754, #1648, #1836, #4310, #4329, #4368, #4399 — 7
+- **Tool capabilities & registry** (#754, #755, #1648, #1836, #4310, #4329, #4368, #4399 — 8
   issues): what tools exist and where their capabilities come from (native Apple ops
-  replacing OpenCV, conversion formats, cataloguing, a sentiment-classifier tool, exporting a
+  replacing OpenCV, conversion formats, cataloguing, a sentiment-classifier tool, a
+  plagiarism/near-duplicate-detection tool, exporting a
   workflow as a portable LangGraph project, an fm-bridge upgrade, an audit of unused
   langchain/langgraph capacity). **Proposed sub-spec: `workflows-tool-capabilities`** —
   intent: "the tool catalogue's capabilities are declared, audited, and exploited (no unused
   engine capacity, no missing conversions), independent of the canvas/run/bar UI this spec
-  already covers." Issue list: #754, #1648, #1836, #4310, #4329, #4368, #4399.
+  already covers." Issue list: #754, #755, #1648, #1836, #4310, #4329, #4368, #4399.
 - **Catalogue pipeline / KG-writer staging** (#1665, #1668, #1669, #1676, #3387 — 5 issues):
   the Catalogue workflow's multi-stage pipeline (artifact → entity extraction → merge →
   SVO/KG) drops rows, pauses, and doesn't persist a checkpoint's claimed writes. **Proposed

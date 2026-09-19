@@ -92,6 +92,20 @@ Both issues are already on this milestone (#291); no new issues were needed.
   `TestDocumentMoveAction.test_move_into_descendant_rejected`
   (`fichero-server/tests/unit/api/test_document_actions.py`).
 
+### Library table columns
+- `sidebar.table-columns-not-compiler-limited` — **[PARTIAL]** (#4482, legacy milestone fold,
+  2026-09-19) the Library table's column set should be a product decision, not a side effect of
+  SwiftUI's `TableColumnBuilder` capping at 10 direct children. Verified at HEAD:
+  `LibraryView+TableColumns.swift`'s own comments confirm the cap was real and is now worked
+  around by grouping columns to fit — `modifiedDate` and `size` are both back (restored,
+  `customizationID`s `"modifiedDate"`/`"size"` present). Two of the original four dropped
+  columns stay deliberately excluded, not forgotten: `path` (a local path is a lie on any host
+  but the one that has it — the no-local-paths rule) and `artifacts` (overlaps the six
+  per-type columns already shown; "wants a decision" per the code's own comment, not a bug).
+  PARTIAL, not OK: the arity limit itself is solved and two real columns are back, but the
+  `artifacts` question is still open and no test was found pinning either the restored columns
+  or the arity workaround itself.
+
 ### Delete
 - `delete.subtree-only` — **[PARTIAL]** (#4697) deleting a folder cascades to exactly its
   descendants — proven by `TestDeleteDocument.test_delete_soft_deletes_children`
