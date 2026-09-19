@@ -8,13 +8,12 @@ ensuring no business-logic divergence between MCP and HTTP paths.
 from __future__ import annotations
 
 import logging
-import uuid
-from fichero_server.core.timeutil import utc_now
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
 
+from fichero_server.actions.registry import ActionContext, registry
 from fichero_server.api.main import get_library_database, get_library_database_for_write
 from fichero_server.api.auth import request_actor
 from fichero_server.api.routes.auth.accounts import _require_authenticated_or_bootstrap
@@ -213,97 +212,6 @@ def _validate_source_type(source_type: str) -> SourceType:
 # =============================================================================
 
 
-def _log_mcp_entity_mutation(
-    *,
-    db: Database,
-    entity: KnowledgeEntity,
-    before_state: dict,
-    actor: str,
-) -> None:
-    """Record an agent's entity edit so it is protected like a person's (#4415).
-
-    Best-effort: an audit-write failure must not fail the edit the agent asked
-    for. It IS logged loudly, because a missing record here silently downgrades
-    curated work to disposable.
-    """
-    from fichero_server.models.knowledge import MutationLog, MutationOperationType
-
-    try:
-        db.save(
-            MutationLog(
-                entity_type="KnowledgeEntity",
-                entity_id=entity.id,
-                operation=MutationOperationType.update,
-                before_state=before_state,
-                after_state=entity.model_dump(mode="json"),
-                created_by=actor,
-            )
-        )
-    except Exception as exc:
-        logger.error(
-            "MCP entity %s edited by %s but the mutation log FAILED (%s) — this "
-            "edit is now invisible to the curated-check and may be overwritten "
-            "by a re-run (#4415)",
-            entity.id,
-            actor,
-            exc,
-        )
-
-
-def _log_mcp_claim_creation(*, db: Database, claim: KnowledgeClaim, actor: str) -> None:
-    """MutationLog for an agent's claim CREATE (#4485) — same contract as the
-    entity edit log: best-effort, loud on failure, because an unrecorded KG
-    write is a change to the archive nobody can account for."""
-    from fichero_server.models.knowledge import MutationLog, MutationOperationType
-
-    try:
-        db.save(
-            MutationLog(
-                entity_type="KnowledgeClaim",
-                entity_id=claim.id,
-                operation=MutationOperationType.create,
-                before_state=None,
-                after_state=claim.model_dump(mode="json"),
-                created_by=actor,
-            )
-        )
-    except Exception as exc:
-        logger.error(
-            "MCP claim %s created by %s but the mutation log FAILED (%s) — "
-            "this write is unaccounted for (#4485)",
-            claim.id,
-            actor,
-            exc,
-        )
-
-
-def _emit_mcp_kg_change(
-    db: Database,
-    *,
-    claim_ids: list[str] | None = None,
-    entity_ids: list[str] | None = None,
-    actor: str,
-) -> None:
-    """Broadcast an MCP KG write to the change stream (#4485/#4427).
-
-    Emit at the write, not at each caller: a mutation that does not emit is
-    invisible to every other client. Best-effort by the stream's own contract.
-    """
-    from fichero_server.api.change_stream import emit_change
-
-    try:
-        emit_change(
-            str(db.path.parent),
-            type="claim.updated" if claim_ids else "entity.updated",
-            claim_ids=list(claim_ids or []),
-            entity_ids=list(entity_ids or []),
-            actor=actor,
-            origin_user=actor,
-        )
-    except Exception as exc:  # pragma: no cover - emit is best-effort
-        logger.debug("MCP KG emit failed (ignored): %s", exc)
-
-
 @router.post(
     "/knowledge/entities/upsert",
     response_model=KnowledgeEntityUpsertResponse,
@@ -318,90 +226,60 @@ async def mcp_knowledge_entity_upsert(
 ) -> KnowledgeEntityUpsertResponse:
     """MCP tool endpoint: Upsert knowledge entity.
 
-    This endpoint provides a thin adapter to the canonical Knowledge API,
-    ensuring no business-logic divergence between MCP and HTTP paths.
+    #4866: a thin caller of the SAME `entity.create`/`entity.update` actions
+    the typed `POST /api/entities` route uses (`upsert_entity`,
+    entities.py:895) — no second implementation, so every fix that lives on
+    the action side (garbage-name rejection, alias dedup/sort,
+    `source_document_ids` merge-not-replace, the curation guard) applies to
+    an agent's write exactly the same as a person's. `actor` (the agent's
+    identity) comes from `request_actor` -> `actor_from_request` -- the SAME
+    authenticated-request-state mechanism every other route uses; there is
+    no separate "this caller is an agent" signal, an MCP client is whatever
+    principal its credential resolves to.
+
+    One deliberate behavior change from the old inline implementation:
+    `request.id` set but naming NO existing entity now 404s (matching
+    `entity.update`, and `upsert_entity`'s own established pattern) instead
+    of silently creating a new entity under that caller-chosen id -- no
+    other surface in this codebase supports "create with a specific id",
+    and this tool duplicating that one-off behavior was the second
+    implementation #4866 exists to remove.
     """
     entity_type = _validate_entity_type(request.entity_type)
 
-    # Check if entity exists (update) or create new
+    from pathlib import Path
+
+    ctx = ActionContext(actor=actor, library_path=str(Path(db.path).parent))
+    action_params = {
+        "canonical_name": request.canonical_name,
+        "entity_type": entity_type.value,
+        "aliases": request.aliases,
+        "description": request.description,
+        "language": request.language,
+        "metadata": request.metadata,
+    }
+
     if request.id:
-        existing = db.get(KnowledgeEntity, request.id)
-        if existing:
-            # #4415: capture BEFORE, so the edit is auditable and — critically
-            # — visible to the curated-check that decides whether an
-            # incremental re-run may overwrite this row.
-            #
-            # An agent is a user account making audited edits, and that
-            # principle only holds if the audit record exists. Without this,
-            # an agent renaming an entity or fixing its aliases left NO trace:
-            # the row's `created_by` names the CREATOR, not the editor, so the
-            # edit looked generated and a re-run would regenerate over it.
-            before_state = existing.model_dump(mode="json")
-            existing.canonical_name = request.canonical_name
-            existing.entity_type = entity_type
-            existing.aliases = request.aliases
-            existing.description = request.description
-            if request.language:
-                existing.language = request.language
-            if request.metadata:
-                existing.metadata = request.metadata
-
-            db.save(existing)
-            _log_mcp_entity_mutation(
-                db=db, entity=existing, before_state=before_state, actor=actor
-            )
-            _emit_mcp_kg_change(db, entity_ids=[existing.id], actor=actor)
-            logger.info("MCP: Updated entity %s by %s", request.id, actor)
-            return KnowledgeEntityUpsertResponse(
-                success=True,
-                entity_id=existing.id,
-                operation="updated",
-                entity=existing.model_dump(mode="json"),
-            )
-
-    entity = KnowledgeEntity(
-        id=request.id or str(uuid.uuid4()),
-        canonical_name=request.canonical_name,
-        entity_type=entity_type,
-        aliases=request.aliases,
-        description=request.description,
-        language=request.language,
-        metadata=request.metadata,
-        created_at=utc_now(),
-        updated_at=utc_now(),
-    )
-
-    db.save(entity)
-    # #4485: the CREATE branch saved with no MutationLog and no emit — an
-    # agent-created entity was untraceable while an agent-EDITED one was
-    # logged (#4415). Same contract for both now.
-    from fichero_server.models.knowledge import MutationLog, MutationOperationType
-
-    try:
-        db.save(
-            MutationLog(
-                entity_type="KnowledgeEntity",
-                entity_id=entity.id,
-                operation=MutationOperationType.create,
-                before_state=None,
-                after_state=entity.model_dump(mode="json"),
-                created_by=actor,
-            )
+        result = registry.invoke(
+            db, "entity.update", {"entity_id": request.id, **action_params}, ctx
         )
-    except Exception as exc:
-        logger.error(
-            "MCP entity %s created by %s but the mutation log FAILED (%s) (#4485)",
-            entity.id,
-            actor,
-            exc,
+        entity_dict = result.result
+        logger.info("MCP: Updated entity %s by %s", request.id, actor)
+        return KnowledgeEntityUpsertResponse(
+            success=True,
+            entity_id=entity_dict["id"],
+            operation="updated",
+            entity=entity_dict,
         )
-    _emit_mcp_kg_change(db, entity_ids=[entity.id], actor=actor)
-    logger.info("MCP: Created entity %s by %s", entity.id, actor)
+
+    result = registry.invoke(db, "entity.create", action_params, ctx)
+    entity_dict = result.result
+    logger.info("MCP: Created entity %s by %s", entity_dict["id"], actor)
     return KnowledgeEntityUpsertResponse(
         success=True,
-        entity_id=entity.id,
+        entity_id=entity_dict["id"],
         operation="created",
-        entity=entity.model_dump(mode="json"),
+        entity=entity_dict,
     )
 
 
@@ -419,8 +297,15 @@ async def mcp_knowledge_claim_create(
 ) -> KnowledgeClaimCreateResponse:
     """MCP tool endpoint: Create knowledge claim.
 
-    This endpoint provides a thin adapter to the canonical Knowledge API,
-    ensuring no business-logic divergence between MCP and MCP and HTTP paths.
+    #4866: a thin caller of the SAME `claim.create` action the typed
+    `POST /api/claims` route uses (`create_claim_impl`) -- no second
+    implementation, so an agent's claim gets the SAME heuristic attribution
+    (`predicate_canonical`, `quotation_kind`, `speaker_name`, `audience`)
+    every other writer gets, and the SAME `source_document_id` existence
+    check (previously skipped here entirely). `request.created_by` is
+    IGNORED the same way as before (#4485) -- `_action_create_claim`
+    (claims.py) now enforces this for every caller of `claim.create`, not
+    only this route.
     """
     claim_type = _validate_claim_type(request.claim_type)
     curation_state = _validate_curation_state(request.curation_state)
@@ -437,45 +322,32 @@ async def mcp_knowledge_claim_create(
     else:
         raise HTTPException(status_code=400, detail="At least one source document ID is required")
 
-    for entity_id in request.entity_ids:
-        entity = db.get(KnowledgeEntity, entity_id)
-        if not entity:
-            raise HTTPException(status_code=400, detail=f"Linked entity not found: {entity_id}")
+    from pathlib import Path
 
-    claim = KnowledgeClaim(
-        id=str(uuid.uuid4()),
-        text=request.text.strip(),
-        source_document_id=request.source_document_id or (request.source_ids[0] if request.source_ids else ""),
-        source_ids=source_docs,
-        source_page_labels=request.source_page_labels,
-        source_languages=request.source_languages,
-        source_type=source_type,
-        entity_ids=request.entity_ids,
-        claim_type=claim_type,
-        epistemic_status=epistemic_status,
-        curation_state=curation_state,
-        confidence=request.confidence,
-        language=request.language,
-        metadata=request.metadata,
-        # #4485: the author is the AUTHENTICATED principal, never the body.
-        # request.created_by is deliberately ignored — honouring it would let
-        # a client record that someone asserted a claim they never asserted,
-        # undetectably and irreparably.
-        created_by=actor,
-        created_at=utc_now(),
-        updated_at=utc_now(),
-    )
-
-    db.save(claim)
-    _log_mcp_claim_creation(db=db, claim=claim, actor=actor)
-    _emit_mcp_kg_change(
-        db, claim_ids=[claim.id], entity_ids=list(request.entity_ids), actor=actor
-    )
-    logger.info("MCP: Created claim %s by %s", claim.id, actor)
+    ctx = ActionContext(actor=actor, library_path=str(Path(db.path).parent))
+    action_params = {
+        "text": request.text.strip(),
+        "source_document_id": request.source_document_id
+        or (request.source_ids[0] if request.source_ids else ""),
+        "source_ids": source_docs,
+        "source_page_labels": request.source_page_labels,
+        "source_languages": request.source_languages,
+        "source_type": source_type.value,
+        "entity_ids": request.entity_ids,
+        "claim_type": claim_type.value,
+        "epistemic_status": epistemic_status.value,
+        "curation_state": curation_state.value,
+        "confidence": request.confidence,
+        "language": request.language,
+        "metadata": request.metadata,
+    }
+    result = registry.invoke(db, "claim.create", action_params, ctx)
+    claim_dict = result.result
+    logger.info("MCP: Created claim %s by %s", claim_dict["id"], actor)
     return KnowledgeClaimCreateResponse(
         success=True,
-        claim_id=claim.id,
-        claim=claim.model_dump(mode="json"),
+        claim_id=claim_dict["id"],
+        claim=claim_dict,
     )
 
 

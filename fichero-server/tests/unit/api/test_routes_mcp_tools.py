@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 from fichero_server.security import accounts
 from fichero_server.security import authz
 from fichero_server.api.main import app
+from fichero_server.models import Document, DocType
 from fichero_server.models.knowledge import (
     KnowledgeEntity,
     KnowledgeClaim,
@@ -124,7 +125,13 @@ class TestMcpEntityUpsert:
 
 
 class TestMcpClaimCreate:
-    def test_create_claim(self, client):
+    def _doc(self, db, doc_id: str = "doc-1") -> Document:
+        doc = Document(id=doc_id, name="src", path="/tmp/src.pdf", doc_type=DocType.file)
+        db.save(doc)
+        return doc
+
+    def test_create_claim(self, client, db):
+        self._doc(db)
         r = client.post(f"{BASE}/knowledge/claims/create", json={
             "text": "The Eiffel Tower is in Paris.",
             "source_document_id": "doc-1",
@@ -144,13 +151,28 @@ class TestMcpClaimCreate:
         })
         assert r.status_code == 400
 
-    def test_create_claim_invalid_entity_returns_400(self, client):
+    def test_create_claim_invalid_entity_returns_404(self, client, db):
+        """#4866: now routed through `create_claim_impl`'s own entity
+        validation (the SAME check `POST /api/claims` uses), which 404s --
+        the old inline implementation used its own bespoke 400 here."""
+        self._doc(db)
         r = client.post(f"{BASE}/knowledge/claims/create", json={
             "text": "Links to missing entity.",
             "source_document_id": "doc-1",
             "entity_ids": ["no-such-entity"],
         })
-        assert r.status_code == 400
+        assert r.status_code == 404
+
+    def test_create_claim_unknown_source_document_returns_404(self, client):
+        """#4866: the reconciled route validates `source_document_id`
+        exists through the SAME check `create_claim_impl` always ran for
+        every other caller -- the old inline MCP implementation skipped
+        this entirely."""
+        r = client.post(f"{BASE}/knowledge/claims/create", json={
+            "text": "A claim with a document id that names nothing.",
+            "source_document_id": "ghost-doc",
+        })
+        assert r.status_code == 404
 
     def test_create_claim_invalid_claim_type_returns_400(self, client):
         r = client.post(f"{BASE}/knowledge/claims/create", json={

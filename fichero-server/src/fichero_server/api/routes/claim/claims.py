@@ -1271,6 +1271,17 @@ def _invert_delete_claim(
 def _action_create_claim(
     db: Database, params: ClaimCreateRequest, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
+    # #4866: found while reconciling the MCP claim-create tool onto this
+    # action. `ClaimCreateRequest.created_by` is a plain client-settable
+    # field `create_claim_impl` stores verbatim -- fine for a caller like
+    # `enrich_import` that calls `create_claim_impl` DIRECTLY and
+    # intentionally stamps a domain value ("wikidata"), but this is the
+    # AUDITED path (reachable via `POST /api/claims` and `POST
+    # /api/actions/invoke`, same class of gap as `upsert_inclusion`/
+    # `interpretation.create`) -- it must never trust a body value over the
+    # real `ctx.actor`. `create_claim_impl` itself is left alone so its
+    # other direct (non-action) callers keep their own explicit values.
+    params = params.model_copy(update={"created_by": ctx.actor})
     claim = create_claim_impl(db, params)
     entity_ids = list(claim.entity_ids or [])
     spec = ChangeSpec(

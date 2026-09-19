@@ -127,33 +127,19 @@ class TestTheAgentPathIsAudited:
             "indistinguishable from generated output (#4415)"
         )
 
-    def test_the_mcp_update_branch_writes_a_mutation_log(self):
-        """The in-place update is the dangerous branch: it changes
-        canonical_name, aliases and description — real curation — and used to
-        leave no trace at all."""
+    def test_the_mcp_upsert_calls_registry_invoke_not_a_bespoke_log(self):
+        """#4866: the in-place update used to be the dangerous branch --
+        real curation (canonical_name, aliases, description) via a
+        best-effort `MutationLog` row and nothing else. It is now a thin
+        caller of the SAME audited `entity.create`/`entity.update` actions
+        the typed HTTP route uses, so `ActionAudit` (not a bespoke helper)
+        is the trail -- see `test_mcp_kg_write_attribution.py` for the
+        behavioral proof (audit row, real actor, undo)."""
         from fichero_server.api.routes.mcp import tools
 
         source = inspect.getsource(tools.mcp_knowledge_entity_upsert)
-        assert "_log_mcp_entity_mutation" in source
-        assert "before_state" in source, (
-            "a mutation record with no before-state cannot be undone or "
-            "inspected, which is half the point of having one"
+        assert "registry.invoke(" in source
+        assert "_log_mcp_entity_mutation" not in source, (
+            "the bespoke MutationLog helper was removed -- ActionAudit is "
+            "the one trail now, not two"
         )
-
-    def test_the_agent_mutation_helper_records_the_actor_not_a_default(self):
-        from fichero_server.api.routes.mcp import tools
-
-        source = inspect.getsource(tools._log_mcp_entity_mutation)
-        assert "created_by=actor" in source, (
-            "the agent's edit is recorded as whatever the field defaults to, "
-            "which is the very hole this closes"
-        )
-
-    def test_an_audit_failure_is_loud_not_swallowed(self):
-        """A missing record silently downgrades curated work to disposable, so
-        the failure must be visible even though it cannot fail the edit."""
-        from fichero_server.api.routes.mcp import tools
-
-        source = inspect.getsource(tools._log_mcp_entity_mutation)
-        assert "logger.error" in source
-        assert "may be overwritten" in source

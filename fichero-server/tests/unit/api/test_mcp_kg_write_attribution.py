@@ -1,124 +1,161 @@
-"""#4485: MCP KG writes — authenticated author, audited, emitted.
+"""#4485 / #4866: MCP KG writes — authenticated author, audited, undoable.
 
 Who asserted a claim is the difference between evidence and hearsay. The
-route honoured a client-supplied ``created_by`` — a client could record that
-someone asserted a claim they never asserted, undetectably — and saved with
-no MutationLog and no change emit, so the write was invisible to the audit
-trail and to every other client.
+route used to honour a client-supplied ``created_by`` and save with no
+audit trail at all beyond a best-effort ``MutationLog`` row that knew
+nothing of linked claims, curation provenance, or the actor's identity.
+
+#4866 (`audit.only-the-action-surface-reaches-capabilities`): the three MCP
+write tools are now thin callers of the SAME registered actions
+(`entity.create`, `entity.update`, `claim.create`) the typed HTTP routes
+use — no second implementation, no bespoke `MutationLog` write, no manual
+change-stream emit. Real `ActionAudit` rows (readable by
+`audited_row_ids` in `curation_guard.py` regardless of `MutationLog`) plus
+the registry's own emit cover what the old best-effort helpers did, and
+undo now goes through `POST /api/actions/audit/{id}/undo` like every other
+audited write.
 """
 
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
-from unittest.mock import MagicMock, patch
 
-
+import fichero_server.api.routes.claim.claims  # noqa: F401 -- registers claim.* actions
+import fichero_server.api.routes.entity.entities  # noqa: F401 -- registers entity.* actions
+from fichero_server.actions.registry import ActionContext, registry
 from fichero_server.api.routes.mcp.tools import (
     KnowledgeClaimCreateRequest,
     KnowledgeEntityUpsertRequest,
     mcp_knowledge_claim_create,
     mcp_knowledge_entity_upsert,
 )
-from fichero_server.models.knowledge import MutationLog
+from fichero_server.models import ActionAudit, Document, DocType
+from fichero_server.models.knowledge import KnowledgeEntity
 
 
-def _db() -> MagicMock:
-    db = MagicMock()
-    db.path = Path("/tmp/Lib.fichero/fichero.duckdb")
-    db.saved = []
-    db.save.side_effect = db.saved.append
-    return db
-
-
-def _saved_of(db: MagicMock, kind):
-    return [obj for obj in db.saved if isinstance(obj, kind)]
+def _doc(db) -> Document:
+    doc = Document(name="src", path="/tmp/src.pdf", doc_type=DocType.file)
+    db.save(doc)
+    return doc
 
 
 class TestClaimAuthorCannotBeForged:
     def _create(self, db, *, body_created_by: str, actor: str):
+        doc = _doc(db)
         request = KnowledgeClaimCreateRequest(
             text="Istmina is on the San Juan",
-            source_document_id="doc-1",
+            source_document_id=doc.id,
             created_by=body_created_by,
         )
-        with patch("fichero_server.api.change_stream.emit_change") as emit:
-            result = asyncio.run(
-                mcp_knowledge_claim_create(request, db=db, actor=actor)
-            )
-        return result, emit
+        result = asyncio.run(mcp_knowledge_claim_create(request, db=db, actor=actor))
+        return result
 
-    def test_body_created_by_is_ignored(self):
-        """FAILS without the fix: the route wrote request.created_by."""
-        db = _db()
-        result, _ = self._create(db, body_created_by="Ann", actor="agent")
+    def test_body_created_by_is_ignored(self, db):
+        """A client-supplied created_by must never reach the stored row --
+        authorship derives exclusively from the authenticated actor."""
+        result = self._create(db, body_created_by="Ann", actor="agent")
         assert result.claim["created_by"] == "agent", (
             "a client recorded that Ann asserted a claim she never asserted — "
             "authorship must derive from authenticated request state"
         )
 
-    def test_claim_create_writes_a_mutation_log(self):
-        """FAILS without the fix: the write produced no record at all."""
-        db = _db()
-        result, _ = self._create(db, body_created_by="mcp", actor="agent")
-        logs = _saved_of(db, MutationLog)
-        assert len(logs) == 1
-        log = logs[0]
-        assert log.entity_type == "KnowledgeClaim"
-        assert log.entity_id == result.claim_id
-        assert log.operation.value == "create"
-        assert log.before_state is None
-        assert log.created_by == "agent"
+    def test_claim_create_writes_an_action_audit_naming_the_agent(self, db):
+        result = self._create(db, body_created_by="mcp", actor="agent")
+        audits = [
+            row for row in db.all(ActionAudit) if row.action_name == "claim.create"
+        ]
+        assert len(audits) == 1
+        assert audits[0].actor == "agent"
+        assert audits[0].target_ids == [result.claim_id]
 
-    def test_claim_create_emits_to_the_change_stream(self):
-        db = _db()
-        result, emit = self._create(db, body_created_by="mcp", actor="agent")
-        assert emit.called, "a mutation that does not emit is invisible (#4427)"
-        kwargs = emit.call_args[1]
-        assert kwargs["claim_ids"] == [result.claim_id]
-        assert kwargs["actor"] == "agent"
+    def test_claim_create_undo_removes_it(self, db):
+        result = self._create(db, body_created_by="mcp", actor="agent")
+        audits = [
+            row for row in db.all(ActionAudit) if row.action_name == "claim.create"
+        ]
+        audit = audits[0]
+        reg = registry.get("claim.create")
+        inverse = reg.invert(audit.before, audit.after, None)
+        assert inverse is not None
+        registry.invoke(db, inverse[0], inverse[1], ActionContext(actor="agent", library_path=str(db.path.parent)))
+        from fichero_server.models.knowledge import KnowledgeClaim
+
+        assert db.get(KnowledgeClaim, result.claim_id) is None
+
+    def test_source_document_must_exist(self, db):
+        """#4866: the reconciled route validates `source_document_id`
+        through the SAME action `create_claim_impl` uses -- the old inline
+        implementation never checked this at all."""
+        from fastapi import HTTPException
+        import pytest
+
+        request = KnowledgeClaimCreateRequest(
+            text="t", source_document_id="ghost-doc"
+        )
+        with pytest.raises(HTTPException) as exc:
+            asyncio.run(mcp_knowledge_claim_create(request, db=db, actor="agent"))
+        assert exc.value.status_code == 404
 
 
 class TestEntityCreateIsAccountable:
-    def test_entity_create_writes_log_and_emits(self):
-        """The upsert's CREATE branch saved with no log and no emit while the
-        UPDATE branch logged (#4415) — an agent-created entity was
-        untraceable. Same contract for both now."""
-        db = _db()
-        db.get.return_value = None  # no existing entity: CREATE branch
+    def test_entity_create_writes_an_action_audit_naming_the_agent(self, db):
         request = KnowledgeEntityUpsertRequest(
             canonical_name="Chocó", entity_type="location"
         )
-        with patch("fichero_server.api.change_stream.emit_change") as emit:
-            result = asyncio.run(
-                mcp_knowledge_entity_upsert(request, db=db, actor="agent")
-            )
-        logs = _saved_of(db, MutationLog)
-        assert len(logs) == 1
-        assert logs[0].entity_type == "KnowledgeEntity"
-        assert logs[0].operation.value == "create"
-        assert logs[0].created_by == "agent"
-        assert emit.called
-        assert emit.call_args[1]["entity_ids"] == [result.entity_id]
+        result = asyncio.run(mcp_knowledge_entity_upsert(request, db=db, actor="agent"))
 
-    def test_log_failure_is_loud_but_does_not_fail_the_write(self, caplog):
-        db = _db()
-        real_append = db.saved.append
+        audits = [
+            row for row in db.all(ActionAudit) if row.action_name == "entity.create"
+        ]
+        assert len(audits) == 1
+        assert audits[0].actor == "agent"
+        assert audits[0].target_ids == [result.entity_id]
 
-        def _save(obj):
-            if isinstance(obj, MutationLog):
-                raise RuntimeError("disk full")
-            real_append(obj)
-
-        db.save.side_effect = _save
-        request = KnowledgeClaimCreateRequest(
-            text="t", source_document_id="doc-1"
+    def test_entity_update_writes_an_action_audit_naming_the_agent(self, db):
+        entity = KnowledgeEntity(canonical_name="Choco")
+        db.save(entity)
+        request = KnowledgeEntityUpsertRequest(
+            id=entity.id, canonical_name="Chocó", entity_type="location"
         )
-        with patch("fichero_server.api.change_stream.emit_change"):
-            result = asyncio.run(
-                mcp_knowledge_claim_create(request, db=db, actor="agent")
-            )
-        assert result.success
-        assert any("mutation log FAILED" in r.message for r in caplog.records), (
-            "a silent audit failure is how a guardrail stops existing"
+        result = asyncio.run(mcp_knowledge_entity_upsert(request, db=db, actor="agent"))
+        assert result.operation == "updated"
+
+        audits = [
+            row for row in db.all(ActionAudit) if row.action_name == "entity.update"
+        ]
+        assert len(audits) == 1
+        assert audits[0].actor == "agent"
+
+    def test_entity_update_undo_restores_the_prior_name(self, db):
+        entity = KnowledgeEntity(canonical_name="Choco")
+        db.save(entity)
+        request = KnowledgeEntityUpsertRequest(
+            id=entity.id, canonical_name="Chocó", entity_type="location"
         )
+        asyncio.run(mcp_knowledge_entity_upsert(request, db=db, actor="agent"))
+
+        audits = [
+            row for row in db.all(ActionAudit) if row.action_name == "entity.update"
+        ]
+        audit = audits[0]
+        reg = registry.get("entity.update")
+        inverse = reg.invert(audit.before, audit.after, ActionContext(actor="agent", library_path=str(db.path.parent)))
+        assert inverse is not None
+        registry.invoke(db, inverse[0], inverse[1], ActionContext(actor="agent", library_path=str(db.path.parent)))
+        assert db.get(KnowledgeEntity, entity.id).canonical_name == "Choco"
+
+    def test_update_with_unknown_id_404s_instead_of_silently_creating(self, db):
+        """#4866: a deliberate behavior change. The old inline
+        implementation silently created a NEW entity under a caller-chosen
+        id when `id` named nothing -- no other surface in this codebase
+        supports that, and `entity.update` (like `upsert_entity`'s own
+        established pattern) 404s instead."""
+        from fastapi import HTTPException
+        import pytest
+
+        request = KnowledgeEntityUpsertRequest(
+            id="ghost-entity", canonical_name="Chocó", entity_type="location"
+        )
+        with pytest.raises(HTTPException) as exc:
+            asyncio.run(mcp_knowledge_entity_upsert(request, db=db, actor="agent"))
+        assert exc.value.status_code == 404
