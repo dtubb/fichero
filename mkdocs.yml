@@ -410,6 +410,7 @@ nav:
               - Languages, Scripts & Signs: contributor_manual/specs/source/languages-scripts-glyphs.md
               - Segment Editor: contributor_manual/specs/source/segment-editor.md
               - Formats & Training: contributor_manual/specs/source/formats-and-training.md
+              - Models, Chains & Projects: contributor_manual/specs/source/models-chains-and-projects.md
               - Rights, Consent & Access: contributor_manual/specs/source/rights-and-access.md
               - Segment Representations (first slice): contributor_manual/specs/source/segment-representations.md
               - Historical Text Normalization: contributor_manual/specs/source/historical-text-normalization.md

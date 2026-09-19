@@ -54,6 +54,7 @@ are the test.
 | `languages-scripts-glyphs.md` | language, script, encoding, the cascade, direction, declared signs, fonts, input |
 | `segment-editor.md` | the native editor in the Preview, the Pencil, the performance trial, accessibility |
 | `formats-and-training.md` | every format in and out, validation, loss reports, the training loop, measuring a model |
+| `models-chains-and-projects.md` | one card for every model, jobs with typed inputs and outputs, chains as workflows, how a result was made, projects and onboarding, finding models, the synced folder |
 | `rights-and-access.md` | rights, consent, community labels, restriction, redaction, removal (raised by review; not yet discussed) |
 
 ## The design
@@ -112,7 +113,7 @@ are the test.
 - **A synced folder.** A project can be tied to a folder. Its outputs (the XML and the rest)
   are written there and kept up to date as the work goes on.
 
-(The last four are specified in `models-chains-and-projects.md`, in preparation.)
+(The last four are specified in `models-chains-and-projects.md`.)
 
 ### Open to what we do not know yet
 
