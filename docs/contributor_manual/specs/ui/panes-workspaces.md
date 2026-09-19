@@ -634,8 +634,14 @@ the browse→read flow down the centre.
   exclusively from `ResizableDivider`'s own drag handler. Pinned:
   `WorkspaceSplitStackSeedingTests` (an unseeded fraction re-resolves proportionally across two
   different totals; a real stored override still wins regardless of total).
-- `panes.split.peers-open-even` — **[PARTIAL]** (fixed 0dc9adefa; #4849 stays open for the
-  maintainer to confirm on screen) the rule stated precisely: when a horizontal split has 2,
+- `panes.split.peers-open-even` — **[BROKEN]** (retagged 2026-09-19 from the maintainer's own
+  test session — was **[PARTIAL]**; #4849) confirmed live, not merely unconfirmed: in
+  Transcribe the three columns above the film strip are NOT balanced — the first preview's
+  image overflows into the second column. **The lesson, stated plainly**: the pinning tests
+  below passed and this behavior still failed on screen, because they are pure sizing-math
+  functions — none of them mounted a pane or rendered a real Transcribe workspace. A green test
+  proved the math is right for the inputs it was given; it never proved those are the inputs a
+  real pane produces. The rule stated precisely: when a horizontal split has 2,
   3, or 4 SIBLING peer panes and the user has not yet dragged a divider, the columns open
   EQUAL — each is 1/n of the row. A user's drag still wins afterwards, same as
   `panes.split.fraction-not-seeded` above. A deliberately UNEQUAL built-in layout (for example
@@ -659,8 +665,14 @@ the browse→read flow down the centre.
   `.pinnedSplitKeepsItsPointsAndItsOnePeerFlexesExactly`,
   `.pinnedSplitWithMultiplePeersIsAKnownLimitation`, `.storedDragWinsOverPeerDefault`,
   `.noPeersKeepsEveryExplicitPreference` (same file/suite as above).
-- `panes.strip.fixed-extent-is-content-not-whole-pane` — **[PARTIAL]** (fixed 0dc9adefa; #4848
-  stays open for the maintainer to confirm on screen) a HARD-pinned pane extent
+- `panes.strip.fixed-extent-is-content-not-whole-pane` — **[BROKEN]** (retagged 2026-09-19 from
+  the maintainer's own test session — was **[PARTIAL]**; #4848) confirmed live, not merely
+  unconfirmed: the Transcribe film strip is still too short — no drag bar exists between it and
+  the panes above either (a related, separate finding, C1). **The lesson, stated plainly**: the
+  pinning test below passed and this behavior still failed on screen; the commit's own note
+  already said "not yet seen on screen: no preview render was possible" — that caveat was
+  correct, and the maintainer's test is exactly the render it was waiting on. A HARD-pinned pane
+  extent
   (`PaneConfig(paneExtent:)`) describes the visible CONTENT the user is meant to see — a strip
   of page icons, say — not the whole pane including its own head and footer chrome. Fixed:
   `72` still means the visible icon strip, unchanged in the built-in layouts; the sizing layer
@@ -807,6 +819,101 @@ the browse→read flow down the centre.
   readers (transcription / summary / metadata), driven by the browser selection.
 - `panes.source.full-height-right` — **[GAP]** (#4734) the source image occupies the full-height
   right column by default.
+
+### F. Maintainer test, 2026-09-19 morning
+
+Live-build findings from the maintainer's own test session (ten screenshots), paraphrased —
+paired with the `panes.strip.fixed-extent-is-content-not-whole-pane` /
+`panes.split.peers-open-even` retags below, since both are the same "tested against sizing
+math, not a mounted pane" lesson.
+
+- `panes.model.per-pane-scope-and-kind-unread` — **[BROKEN]** (#4887) the pane MODEL already
+  carries per-pane fields — `PaneScope` (`libraryId`, `documentId`, `folderId`) and
+  `PaneConfig.libraryContentKind` (both `fichero/fichero/Models/PaneList.swift`) — but nothing
+  in the LIVE rendering reads them. Verified on disk: `PaneConfig.libraryContentKind`
+  (`PaneList.swift:79`) is written at `init` and read in exactly one place outside its own
+  struct — `WorkspaceLayoutPreview.swift:95`, a layout-preview thumbnail label, never the live
+  `LibraryView`. `LibraryView` keeps its OWN, separate `@State var libraryContentKind`
+  (`LibraryView.swift:337`), which only takes effect when `effectiveContentKind`
+  (`LibraryView+ContentBranches.swift:176-181`) falls through to it for `.documents`; whenever
+  a KG collection is selected, `effectiveContentKind` switches on `contentCollection` instead.
+  `contentCollection` (`LibraryView.swift:22`) is passed from the ONE production
+  `LibraryView(...)` construction site (`ContentView+Navigation.swift:39-47`), fed by
+  `sidebarContentCollection` (`ContentView+StateLayout.swift:133-138`) — a WINDOW-scoped
+  property driven by `selectedKnowledgeKind`, also window-scoped. `PaneScope.libraryId`
+  (`PaneList.swift:53`) has zero reads anywhere outside its own init — every actual
+  library-scoping read in the app goes through `windowState.libraryId`
+  (`Models/WindowState.swift`), one window-scoped value, grepped across the whole `Views/`
+  tree. **Net effect: every Library pane in a window follows ONE window-wide sidebar
+  selection** (content kind and library alike) — the per-pane fields the model already
+  declares are decorative. This is the DESIGN ROOT behind, at least in part,
+  `panes.split.changing-one-leaf-kind-changes-whole-column` and
+  `library.modes.persists-until-changed` (`library-view-modes.md`) below, and is the
+  prerequisite `panes.library.not-linked-to-each-other` /
+  `panes.library.explicit-link-to-one-preview` / `panes.library.drag-to-connect` depend on —
+  panes cannot be linked or unlinked while their live state is one window-wide value with no
+  per-instance seam wired to the model field that already exists for it. Not built.
+- `panes.transcribe.strip-has-no-drag-bar` — **[GAP]** (#4876) the Transcribe workspace has no
+  draggable divider between the bottom film strip and the panes stacked above it — every other
+  split in the pane system is a real `ResizableDivider`; this boundary is not. Not built.
+- `panes.transcribe.horizontal-two-rows-vertical-strip-left` — **[GAP, RULED]** (#4877) the
+  workspace currently named "Transcribe · Tall" is wrong; the maintainer's ruling renames and
+  reshapes it to **"Transcribe Horizontal"**: TWO ROWS, with a VERTICAL film strip on the
+  LEFT — the layout for working on a scroll (a long, narrow document). Supersedes the
+  "Transcribe · Tall" row in §"The built-in workspaces" table above. Not built as ruled.
+- `panes.browse.library-narrow-left` — **[GAP, RULED]** (#4877) the Browse workspace's Library
+  pane should be narrow, docked to the left edge — not the wider icon-strip composition the
+  table above currently states. Not built as ruled.
+- `panes.compare.two-images-plus-inspector` — **[GAP, RULED]** (#4877) the Compare workspace
+  should be two columns of images side by side, plus the Inspector as the third element —
+  replacing the current composition's reading pane. Not built as ruled.
+- `panes.builtin.read-unchanged` — **[OK]** the Read workspace (`[ library(docs,table) ·
+  reading ] beside preview(image)`, §"The built-in workspaces" table above) is right as built;
+  the maintainer confirmed it on screen and ruled it should not be touched. Pinned:
+  `BuiltInWorkspaceLayoutTests` (Read composes exactly ONE library leaf, per the table above).
+- `panes.split.changing-one-leaf-kind-changes-whole-column` — **[BROKEN]** (#4878) splitting a
+  Preview pane into two and changing the BOTTOM pane's kind to Library changes the ENTIRE
+  column, not only the bottom pane, and the pane footers stack (screenshot 8.30.25). Seen on
+  screen this morning; expected is that changing one split half's kind changes only that pane.
+  Prerequisite: `panes.model.per-pane-scope-and-kind-unread` above — a pane's kind/content
+  cannot be independent of its siblings while the live state one window-wide value drives is
+  the thing changing.
+- `panes.library.narrow-pushes-content-off-edge` — **[BROKEN]** (#4879) narrowing the left
+  Library pane pushes its content off the left edge of the window instead of reflowing/
+  shrinking it to the new width (screenshot 9.11.46). Seen on screen this morning.
+- `panes.chrome.head-and-footer-not-shared` — **[BROKEN]** (#4880) pane head bars and pane
+  footer bars do not share one component: the Library's head/footer are slightly taller than
+  Preview's and Reader's, and the Library's kind chooser has no down arrow while Preview's and
+  Reader's do (screenshot 9.12.08). Seen on screen this morning; expected is one shared
+  component so height and affordances are tuned in one place.
+- `panes.preview.pdf-click-reloads` — **[BROKEN]** (#4558) in a PDF, clicking something reloads
+  the Preview rather than moving within the already-loaded document. Reproduced again this
+  morning (see #4558's existing symptoms 2/3 and root-cause hypothesis).
+- `panes.library.not-linked-to-each-other` — **[GAP, RULED]** (#4881) opening something in one
+  Library pane does not change another Library pane — true today because no cross-library-pane
+  linking mechanism exists at all (every Library pane resolves its own selection
+  independently). The maintainer's ruling (2026-09-19) confirms this is the CORRECT behavior
+  going forward, not a gap to close by adding cross-linking — but no test pins the independence
+  as a deliberate invariant today (untested-true, not untested-broken), so this stays GAP until
+  a pinning test exists; the gap that needs BUILDING is the explicit linking D2/D3 below
+  describe, not removing this independence. Prerequisite:
+  `panes.model.per-pane-scope-and-kind-unread` above.
+- `panes.library.explicit-link-to-one-preview` — **[GAP, RULED]** (#4881) the maintainer needs
+  one Library pane linked to one Preview pane, and a second Library pane linked to a second
+  Preview pane, such that changing the source shown in one linked pair never changes the
+  other. No such linking mechanism exists today — see `panes.model.per-pane-scope-and-kind-
+  unread` above for the verified reason: `PaneScope.libraryId` exists on the model but nothing
+  reads it to establish or display a link between two panes. Related:
+  `panes.split.each-pane-its-own-document` (#2422, content independence within one split) and
+  #4666 (color-coding a linked group, the visual half).
+- `panes.library.drag-to-connect` — **[GAP, DESIGN]** (#4881, #4666) proposed by the
+  maintainer, not decided: drag an item from a Library pane onto a Source pane to open it
+  there AND connect the two panes; the same gesture for an Inspector entity or claim. A light
+  color shows an active connection. Prerequisite: `panes.model.per-pane-scope-and-kind-unread`
+  above. Open questions, listed not decided: how a connection is broken or re-targeted; whether
+  a Library can be linked to more than one Preview at once; whether the connection persists in
+  a saved workspace; how the color assignment avoids clashing across more than a few
+  simultaneous links.
 
 ## Known bugs to fix (already observed by the creative director)
 

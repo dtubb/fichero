@@ -270,6 +270,39 @@ refs), `run_comparison.py`/`model_comparison.py` (the Compare Models feature).
   the three issues stay open. → #4705 owns the pane-side replacement (its own not-yet-numbered
   increment).
 
+### C2. Selection routing — reaching the editor at all
+
+> Placement (which pane renders what) stays `modes-to-panes.md`'s job, per this spec's own
+> scope note above. This one behavior is about whether a workflow SELECTION reaches the editor
+> at all, from two different entry points — a prerequisite to placement, not a placement
+> question itself.
+
+- `workflows.selection.library-row-opens-editor` — **[BROKEN]** (#4882) selecting a workflow in
+  the SIDEBAR opens the node editor correctly. Selecting the SAME workflow as a row inside the
+  LIBRARY view does not — the proper interface does not appear (maintainer test, 2026-09-19
+  morning). Under `modes-to-panes.md`'s "nodes not modes" ruling, a workflow is one node, and
+  the pane plan should give the same surfaces wherever it is selected, regardless of whether
+  the selection came from the sidebar tree or a Library row. **Cause, verified at the tree:**
+  (1) In every Library view mode, the workflow-opening route lives in `openDocument`
+  (`LibraryView+Selection.swift`), reached ONLY from `handleDoubleClick`, wired to
+  `.onTapGesture(count: 2)` (`LibraryView+TableView.swift:39`, `+IconMode.swift:54,125`,
+  `+ListView.swift:98,156`, verified in each file). A single click only calls `handleTap`,
+  which writes the selection binding and nothing else. The sidebar, by contrast, routes on a
+  single click. (2) Design root, same family as `panes.model.per-pane-scope-and-kind-unread`
+  above: `PaneContentPlan.plan` (`Views/Shell/PaneContentPlan.swift:151-165`, verified)
+  special-cases an entity SELECTION under `.library` mode (`if entitySelection, case .library =
+  mode`) but has no equivalent branch for a selected-but-not-yet-mode-switched workflow node —
+  so the ratified rendition (canvas in Source, run log in Reader) appears only once something
+  else flips `AppViewMode` to `.workflow`; a mere Library-row SELECTION never does that.
+  Expected per "nodes not modes": selecting a workflow node should give those surfaces
+  directly, with no mode flip and no double-click required. (3) Secondary, narrower, also
+  verified: `SidebarView+ViewComponents.swift`'s `applySidebarSelectionProposal` skips the
+  reroute when the proposed primary destination equals the current one
+  (`if selectionState.selectedDestination != primary { … } else { // No reroute }`,
+  `:189-205`) — so re-revealing the same already-selected workflow routes nothing. Unverified,
+  flagged rather than guessed: whether the `.sidebarRevealDocument` observer stays mounted
+  with the sidebar collapsed.
+
 ### D. The workflow bar
 
 - `workflows.bar.selection-projected-through-accepted-inputs` — **[OK]** which

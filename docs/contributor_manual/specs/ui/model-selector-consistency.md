@@ -119,6 +119,79 @@ dead empty menu (mirrors `SidebarContextMenuPolicyTests`' never-silently-empty r
 
 ---
 
+## Maintainer test, 2026-09-19 morning
+
+Evidence for the "~7 pickers, 3 list-builders" finding above, plus a fourth captured picker and
+a ruling.
+
+- `models.four-pickers-today` — **[BROKEN]** (#4883) what each of four surfaces shows today, as
+  observed live (workflow bar, centre island, Settings > AI > Defaults, and — newly
+  captured, screenshot 9.40.17 — the workflow node's config popover):
+
+  | Picker | Shows today |
+  |---|---|
+  | Workflow bar | flat text list, "Use the default (model)" first, each row a name + a loose tag mixing capability/size/provider ("Vision", "Text", "Large", "apple", "openrouter", "huggingface", "spacy", "kraken", "whisper"); no icons, no prices; unavailable models greyed |
+  | Centre island | provider icon, name, price per million tokens in/out, an eye icon for vision-capable models, a tick on the current one, provider name at the right, "AI Settings..." link at the bottom |
+  | Settings > AI > Defaults | grouped under provider headings (Apple Intelligence, Hugging Face, ...), full ids ("datalab-to/chandra-ocr-2"), descriptive names ("Apple Vision (OCR)"), a "None" row |
+  | Workflow node config popover | lists ONLY the role defaults, each with a generic "?" icon and no provider icon: Default, $small, $large, $vision_small, $vision_medium, $vision_large; lists NO concrete models at all |
+
+  Four different shapes, confirming Finding S1/S2 above with a fourth data point rather than
+  the three already catalogued. Whether a row shows price, capability, provider, or all three
+  remains an open DESIGN question (see "Open questions," item three, below) — not decided by this finding.
+- `models.four-pickers-four-sources` — **[BROKEN]** (#4883) cause, verified at each file: four
+  pickers, four different data sources, not just four different rows/layouts. Workflow bar:
+  `WorkflowBar.swift`'s `modelPinMenu`, fed by `[WorkflowBarModelChoice]`, builds its own
+  `Button` rows — no `SharedModelRow`/`SharedModelChoice` use anywhere in the file (grepped).
+  Centre island: `ModelChipToolbarItem.swift` reads `providerService`'s LIVE catalog (prices,
+  vision flag) via `SharedModelChoice`/`SharedModelRow`. Settings > AI > Defaults:
+  `AIDefaults.swift`/`AISettingsView+Tabs.swift`, grouped by provider, the configured-provider
+  list. Node popover: `NodeProviderModelSelector.swift`, fed by
+  `NodePopover+Comparison.swift`'s `loadProviders()`, which calls
+  `listProviderModels(providerId:)` per CONFIGURED provider (saved rows) — not the live
+  catalog. `SharedModelRow`/`SharedModelChoice` already exist as the shared spine §"Proposed
+  design" above calls for; the workflow bar's pin menu is the one surface that does not use
+  them at all. **Which source is canonical is NOT an open question** — the node popover's own
+  code already cites the ruling: `docs/contributor_manual/specs/ui/workflow-node-config.md`'s
+  `nodeconfig.model.same-list-as-settings` (ruled 2026-09-08, `[OK]`, pinned
+  `NodeModelListParityTests`) states pickers offer the user-CONFIGURED models, because the live
+  catalog used to let a node pick a model its provider does not actually serve → a 404 at run.
+  The island reading the live catalog is the OUTLIER against this already-ruled invariant, not
+  a second valid option to weigh. Only the row-CONTENT question ("Open questions," item three, below)
+  remains for the maintainer.
+- `models.role-defaults-always-offered` — **[GAP, RULED]** (#4883) every model picker offers the
+  ROLE DEFAULTS (small, large, vision small, and so on) as choices ALONGSIDE concrete models —
+  in the workflow bar and the document island the maintainer must be able to choose "small",
+  "large", "vision small", etc, not only a named model. The one shared picker (§"Proposed
+  design" above) should have two groups: role defaults (resolved to whatever Settings > AI >
+  Defaults currently names, and SAYING which model that is) and concrete models. Today only the
+  workflow node popover offers role defaults, and it offers ONLY those, no concrete models —
+  the opposite gap. Verified: `NodeProviderModelSelector.swift`'s `pickerList` renders all six
+  role-default rows (`Default`, `Apple Vision (On-Device)`, and `aliasOptions`'s
+  `$`-prefixed sentinels, `:96-122`) as one-tap selections; `WorkflowBar.swift` shows only ONE
+  resolved default row (`resolvedDefaultModelLabel`/`defaultChoice(for:)`, `:145-194`), not the
+  full set. Verified: the island stores a CONCRETE (provider, model) pair only
+  (`ModelChipToolbarItem.swift:259`, `select(_:)`, which writes `AIDefaults`' medium or
+  vision-medium fields and saves them). It is where a role default GETS its value, so it
+  cannot hold a role alias today. How the island offers role defaults is therefore a design
+  question for the maintainer, listed under Open questions, not decided here.
+- `models.node-popover-vision-check-diverges` — **[BROKEN]** (#4694) the workflow node config
+  popover says "No vision-capable providers available" in orange on a vision node
+  (screenshot 9.40.17), while the other three pickers on the same machine show vision-capable
+  models as available (apple-vision, claude-opus-5, and others with the eye icon) at the same
+  time. **Cause: UNVERIFIED — two candidates, both consistent with the code, neither confirmed
+  against what the maintainer's machine actually returned.** (a) Stale-capabilities path:
+  `NodePopover+Comparison.swift:28-32` derives `supportsVision` from the SAVED rows'
+  `capabilities`; the id-based heuristic (`idLooksVisionCapable`) runs only when `capabilities`
+  is empty — so a saved row with a non-empty `capabilities` set that happens to lack "vision"
+  is marked not-vision-capable even if the island's live catalog flags the same model as
+  vision-capable. This is a catalog-content divergence, not a load race. (b) Empty-providers
+  path: `loadProviders()` (`:8-23`) only appends a provider when `provider.enabled` is true and
+  `listProviderModels` succeeds — the screenshot shows the popover listing NO concrete models
+  at all, only role defaults, which equally fits zero enabled/configured providers returned, or
+  an unhandled throw into the function's own `catch`. Both are named; neither is the confirmed
+  cause. #4694 already names the same CLASS of bug ("Node picker filters providers on the
+  provider-level vision flag") — evidence added there rather than duplicated as a new issue.
+
 ## RATIFIED 2026-09-15 (evening, CD)
 
 - **Adopt the shared spine.** One shared ROW (the island's `ModelFamilyMark` / `ModelPickerRow`) +
@@ -148,6 +221,13 @@ dead empty menu (mirrors `SidebarContextMenuPolicyTests`' never-silently-empty r
    is cost a workflow-bar/settings concern where budget matters most?
 4. **Node vs step pickers** — the workflow NODE pickers (`ModelPicker`, `NodeProviderModelSelector`)
    and the workflow BAR picker — one component for both, or do nodes need more (provider+model+params)?
+5. **How does the island offer role defaults?** (`models.role-defaults-always-offered`) The island is
+   verified to store only a resolved concrete `(provider, model)` pair — it IS where $medium/
+   $visionMedium get their value, so it cannot itself hold a role-alias sentinel the way the node
+   popover's `aliasOptions` do. Does picking "$medium" from the island mean "show me what $medium
+   currently resolves to, then let me change that value" (the island stays the editor of the
+   default), or does the shared picker need a genuinely separate role-alias affordance the island
+   does not have today?
 
 ---
 

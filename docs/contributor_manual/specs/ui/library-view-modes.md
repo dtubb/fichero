@@ -176,7 +176,18 @@ Surfaces: `ViewDisplayMode` (`App/ViewDisplayMode.swift`), `LibraryView
   INSIDE `LibraryView` and only rendered in list mode; Entities and Claims are their own
   content kind now and never read the mode, so the forcing line is gone and the mode is one
   choice per window again, for BOTH triggers this behavior named. PARTIAL rather than OK: not
-  independently confirmed live by the maintainer yet. Pinned:
+  independently confirmed live by the maintainer yet — and the maintainer's live test this
+  morning (2026-09-19, after ed67ec111 landed) found a BROADER symptom than either trigger this
+  behavior names: in the Library he cannot switch to icon, list, or any view mode but table —
+  everything renders as table. Seen on screen; ed67ec111 was checked and RULED OUT as the cause.
+  Design root, verified: `availableViewDisplayModes`
+  (`ContentView+StateLayout.swift:71-88`) returns `[.list]` whenever `isKGLibrarySelection`
+  (driven by the window-scoped `selectedKnowledgeKind`) is true, gating the AVAILABLE modes for
+  every Library pane in the window from one shared value — the same "one window-wide value, no
+  per-pane seam" root `panes-workspaces.md`'s `panes.model.per-pane-scope-and-kind-unread`
+  documents for content kind and library id. Whether the peer-columns sizing change (0dc9adefa)
+  compounds the symptom is unconfirmed, noted as a possibility to check (comment posted on
+  #4575). Pinned:
   `DocumentStoreAndSidebarTypesTests.testEntityLibrarySelectionDoesNotForceDisplayMode` (file
   `fichero/Tests/Unit/general/Models/DocumentStoreAndSidebarTypesTests.swift`, suite
   `DocumentStoreAndSidebarTypesTests`).
