@@ -45,9 +45,16 @@ final class KGFocusState {
         self.sourcePageLabel = sourcePageLabel
     }
 
+    // `entityId` has NO DEFAULT (#4834): the previous `= nil` was a trap —
+    // omitting it silently CLEARED whatever entity was already focused
+    // (`focusedEntityId = entityId` below is unconditional), which is how
+    // Slice A's reveal call tore the Inspector's biography down mid-click
+    // (spec: kg.read.sentence-opens-source-highlighted, finding A1). Every
+    // caller must now say explicitly whether it keeps the current entity
+    // (`entityId: state.focusedEntityId`) or clears it (`entityId: nil`).
     func focusClaim(
         claimId: String?,
-        entityId: String? = nil,
+        entityId: String?,
         sourceDocumentId: String? = nil,
         sourcePageLabel: String? = nil
     ) {

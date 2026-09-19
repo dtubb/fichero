@@ -125,8 +125,15 @@ extension ForceDirectedGraphView {
             }
         }
         if let hit = bestEdge {
+            // `hit.edge.source` is the SVO subject node of the clicked claim
+            // (`GraphEdge`'s own doc comment: "served as", "founded" — subject
+            // --predicate--> target) — a better entity than merely preserving
+            // whatever was focused before, since the click is specifically ON
+            // this edge's claim (#4834, finding A1's trap: omitting entityId
+            // cleared it unconditionally).
             kgFocusState.focusClaim(
                 claimId: hit.edge.claimId,
+                entityId: hit.edge.source,
                 sourceDocumentId: hit.edge.sourceDocumentId,
                 sourcePageLabel: hit.edge.pageLabel
             )

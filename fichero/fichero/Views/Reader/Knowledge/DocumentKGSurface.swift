@@ -402,8 +402,14 @@ struct DocumentKGSurface: View {
                 artifactService: artifactService,
                 kgCurationService: kgCurationService,
                 onClaimSelect: { claimId, claimText, sourceDocId, pageLabel, charStart, charEnd in
+                    // `onClaimSelect`'s payload carries no entity id of its
+                    // own (see the comment below on the four dropped
+                    // arguments), so the only entity in hand is whatever is
+                    // already focused — preserve it rather than clear it
+                    // (#4834, finding A1's same trap).
                     kgFocusState.focusClaim(
                         claimId: claimId,
+                        entityId: kgFocusState.focusedEntityId,
                         sourceDocumentId: sourceDocId,
                         sourcePageLabel: pageLabel
                     )

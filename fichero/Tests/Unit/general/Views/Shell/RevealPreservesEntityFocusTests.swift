@@ -5,12 +5,18 @@ import XCTest
 /// sentence's reveal must not tear down the Inspector's entity arm mid-click.
 ///
 /// Root cause (maintainer test, 2026-09-19, finding A1): `KGFocusState
-/// .focusClaim(claimId:entityId:sourceDocumentId:sourcePageLabel:)` defaults
-/// `entityId` to `nil` and assigns it UNCONDITIONALLY. The reveal's call at
-/// `ContentView+StateEvents.swift` (`handleOpenClaimSource`) used to omit
-/// `entityId:`, so every claim-source reveal cleared whatever entity was
+/// .focusClaim(claimId:entityId:sourceDocumentId:sourcePageLabel:)` used to
+/// default `entityId` to `nil` and assign it UNCONDITIONALLY. The reveal's
+/// call at `ContentView+StateEvents.swift` (`handleOpenClaimSource`) used to
+/// omit `entityId:`, so every claim-source reveal cleared whatever entity was
 /// currently focused — and `DocumentInspector.inspectorArm` treats "no
 /// document, no focused entity" as `.empty`, tearing the biography down.
+///
+/// The trap is now closed at COMPILE TIME: `entityId` has no default, so
+/// every caller must say explicitly whether it keeps the current entity or
+/// clears it. The only way to clear is an explicit `entityId: nil` — there is
+/// no longer an "omit it and accidentally clear" shape for the compiler to
+/// accept.
 ///
 /// This test goes through the REAL decision functions the source-scan tests
 /// that shipped Slice A did not: it builds a real `KGFocusState`, focuses an
@@ -53,25 +59,27 @@ final class RevealPreservesEntityFocusTests: XCTestCase {
         )
     }
 
-    /// The trap this regression came from, pinned directly: omitting
-    /// `entityId:` (its default) on an ALREADY-focused entity clears it. This
-    /// is the exact call shape Slice A shipped; it must keep failing this way
-    /// until the API itself changes, so a future caller cannot reintroduce it
-    /// unknowingly.
-    func testOmittingEntityIdOnAnAlreadyFocusedEntityClearsIt() {
+    /// The trap this regression came from, pinned directly: an EXPLICIT
+    /// `entityId: nil` on an ALREADY-focused entity clears it. This is now the
+    /// ONLY way to reach this shape — `entityId` has no default, so a caller
+    /// can no longer clear the entity by omission; it must write `nil` on
+    /// purpose. This test documents that the clearing behavior itself is
+    /// unchanged (deliberate `nil` still clears), only the accidental path to
+    /// it is gone.
+    func testExplicitNilEntityIdOnAnAlreadyFocusedEntityClearsIt() {
         let state = KGFocusState()
         state.focusEntity(entityId: "entity-antonio")
 
-        state.focusClaim(claimId: "claim-1", sourceDocumentId: "doc-source-1")
+        state.focusClaim(claimId: "claim-1", entityId: nil, sourceDocumentId: "doc-source-1")
 
         XCTAssertNil(
             state.focusedEntityId,
-            "documents the trap: focusClaim's default entityId: nil overwrites an existing focus unconditionally"
+            "an explicit entityId: nil still clears an existing focus — the API just no longer reaches this by omission"
         )
         XCTAssertEqual(
             DocumentInspector.inspectorArm(hasDocument: false, focusedEntityId: state.focusedEntityId),
             .empty,
-            "documents the symptom: the Inspector arm collapses to .empty once the entity is cleared this way"
+            "documents the symptom a deliberate clear still produces: the Inspector arm collapses to .empty"
         )
     }
 }

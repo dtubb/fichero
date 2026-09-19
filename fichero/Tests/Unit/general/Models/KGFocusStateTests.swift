@@ -12,7 +12,9 @@ final class KGFocusStateTests: XCTestCase {
 
     func testFocusEntitySetsFieldsAndClearsClaim() {
         let state = KGFocusState()
-        state.focusClaim(claimId: "cl-1")
+        // #4834: entityId has no default any more — explicit nil, matching
+        // this fresh state's already-nil entity (no behavior change here).
+        state.focusClaim(claimId: "cl-1", entityId: nil)
         XCTAssertEqual(state.focusedClaimId, "cl-1")
 
         state.focusEntity(entityId: "e-1", sourceDocumentId: "d-1", sourcePageLabel: "p1")
