@@ -59,10 +59,12 @@ extension LibraryView {
                     ?? documentStore.childrenCache[crumb.id]
                     ?? []).map(PaneCrumb.init)
             },
+            // #4860: this window's OWN library, not the app-wide
+            // `LibraryManager.shared.currentLibraryId` — with two window tabs
+            // on different libraries, the app-wide pointer names whichever
+            // tab was activated last, not necessarily THIS pane's library.
             crumbDragPayload: { crumb in
-                LibraryManager.shared.currentLibraryId.flatMap {
-                    paneCrumbDragPayload(crumb, store: documentStore, libraryId: $0)
-                }
+                paneCrumbDragPayload(crumb, store: documentStore, libraryId: windowState.libraryId)
             },
             selector: { self.librarySelector },
             // The node-model axis (Documents / Claims / Entities) sits beside the
@@ -74,8 +76,12 @@ extension LibraryView {
 
     private var libraryHeadCrumbs: [PaneCrumb] {
         var crumbs: [PaneCrumb] = []
-        if let libraryId = LibraryManager.shared.currentLibraryId,
-           let library = LibraryManager.shared.getLibrary(id: libraryId) {
+        // #4860: this pane names ITS OWN window's library
+        // (`windowState.libraryId`) — the app-wide `LibraryManager.shared.
+        // currentLibraryId` names whichever library tab was activated most
+        // recently ANYWHERE, so a second window tab on a different library
+        // could show the wrong breadcrumb root.
+        if let library = LibraryManager.shared.getLibrary(id: windowState.libraryId) {
             crumbs.append(PaneCrumb(
                 id: "library-root",
                 title: library.displayName,

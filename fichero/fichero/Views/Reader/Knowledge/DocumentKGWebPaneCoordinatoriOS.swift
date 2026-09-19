@@ -498,8 +498,8 @@ extension DocumentKGWebPaneCoordinatoriOS {
     func postOpenClaimSource(
         sourceDocumentId: String, pageLabel: String?, entityId: String?, claimId: String?, body: [String: Any]
     ) {
-        // #4834: same class as DocumentKGWebPaneCoordinatorMacOS — `.reader`
-        // unchanged, stated explicitly now that it's required.
+        // #4834 slice E: same class as DocumentKGWebPaneCoordinatorMacOS —
+        // now `.both`, "show me the evidence."
         guard let request = ClaimSummaryCard.openClaimSourceRequest(
             documentId: sourceDocumentId,
             pageLabel: pageLabel,
@@ -507,7 +507,7 @@ extension DocumentKGWebPaneCoordinatoriOS {
             charEnd: body["charEnd"] as? Int,
             claimId: claimId,
             excerpt: body["excerpt"] as? String,
-            destination: .reader
+            destination: .both
         ) else { return }
         _ = entityId
         claimSourceNavigationState?.request(request)

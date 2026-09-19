@@ -415,10 +415,9 @@ struct DocumentKGSurface: View {
                     // resolves the page, fills `ClaimFocusState` with the whole
                     // payload, and posts `.ficheroNavigateToPage` for the
                     // preview — four dropped arguments were the entire bug.
-                    // #4834: unchanged for now — this reveal happens INSIDE
-                    // the Reader's own KG graph tab, not one of this
-                    // delivery's two priority surfaces; stays `.reader`,
-                    // stated explicitly now that the field requires it.
+                    // #4834 slice E: a claim/edge click in the graph tab means
+                    // "show me the evidence" — both highlight channels,
+                    // selection unchanged.
                     if let request = ClaimSourceRequest.request(
                         claimId: claimId,
                         claimText: claimText,
@@ -426,7 +425,7 @@ struct DocumentKGSurface: View {
                         pageLabel: pageLabel,
                         charStart: charStart,
                         charEnd: charEnd,
-                        destination: .reader
+                        destination: .both
                     ) {
                         claimSourceNavigationState?.request(request)
                     }

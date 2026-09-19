@@ -513,9 +513,8 @@ extension DocumentKGWebPaneCoordinatorMacOS {
     func postOpenClaimSource(
         sourceDocumentId: String, pageLabel: String?, entityId: String?, claimId: String?, body: [String: Any]
     ) {
-        // #4834: this reveal is inside the Reader's own KG graph tab web
-        // pane, same class as DocumentKGSurface — `.reader` unchanged,
-        // stated explicitly now that it's required.
+        // #4834 slice E: a claim click in the KG graph tab web pane means
+        // "show me the evidence" — both highlight channels, selection unchanged.
         guard let request = ClaimSummaryCard.openClaimSourceRequest(
             documentId: sourceDocumentId,
             pageLabel: pageLabel,
@@ -523,7 +522,7 @@ extension DocumentKGWebPaneCoordinatorMacOS {
             charEnd: body["charEnd"] as? Int,
             claimId: claimId,
             excerpt: body["excerpt"] as? String,
-            destination: .reader
+            destination: .both
         ) else { return }
         _ = entityId
         claimSourceNavigationState?.request(request)

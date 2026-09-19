@@ -69,7 +69,9 @@ struct EntityClaimSelectionClassifyTests {
     func claimRowNeverReachesDocumentPromotion() throws {
         let body = try functionBody()
         guard let claimCaseRange = body.range(of: "case .claims:"),
-              let nextCaseRange = body.range(of: "case .pages, .artifacts, .notes, nil:", range: claimCaseRange.upperBound..<body.endIndex)
+              // #4862 split the old combined "case .pages, .artifacts, .notes, nil:"
+              // into three cases — "case .pages:" is now the next one after .claims.
+              let nextCaseRange = body.range(of: "case .pages:", range: claimCaseRange.upperBound..<body.endIndex)
         else {
             Issue.record("could not locate the .claims branch")
             return
@@ -78,5 +80,46 @@ struct EntityClaimSelectionClassifyTests {
         #expect(claimBranch.contains("return"))
         #expect(!claimBranch.contains("documentService.getDocument"))
         #expect(!claimBranch.contains("detailDocument ="), "a claim selection must not touch detailDocument — its own onOpenSource path does not")
+    }
+
+    // MARK: - #4862: page/artifact/note rows no longer leak a composite id
+
+    /// A page row promotes ITS OWN page — `parsed.itemId`, the page's own
+    /// bare document id, never the composite `"<doc>:page:<id>"` string.
+    @Test("a page row promotes its own page via the bare item id, never the composite id")
+    func pageRowPromotesItsOwnPageViaBareId() throws {
+        let body = try functionBody()
+        guard let pagesCaseRange = body.range(of: "case .pages:"),
+              let nextCaseRange = body.range(of: "case .artifacts, .notes:", range: pagesCaseRange.upperBound..<body.endIndex)
+        else {
+            Issue.record("could not locate the .pages branch")
+            return
+        }
+        let pagesBranch = body[pagesCaseRange.upperBound..<nextCaseRange.lowerBound]
+        #expect(pagesBranch.contains("documentStore.documentService.getDocument(itemId)"))
+        #expect(pagesBranch.contains("detailDocument = page"))
+        // No composite id may reach the service call — only `itemId`.
+        #expect(!pagesBranch.contains("getDocument(primaryId)"))
+        #expect(!pagesBranch.contains("getDocument(firstId)"))
+    }
+
+    /// Artifact and note rows are a safe no-op here — the Table view's own
+    /// `.onChange(of: selection)` already resolves them correctly via its
+    /// live outline tree; this ContentView-level branch must not guess at a
+    /// parent lookup, and above all must not let the composite id reach the
+    /// generic document-promotion path below.
+    @Test("artifact and note rows are a safe no-op, never reaching document promotion")
+    func artifactAndNoteRowsAreASafeNoOp() throws {
+        let body = try functionBody()
+        guard let caseRange = body.range(of: "case .artifacts, .notes:"),
+              let nextCaseRange = body.range(of: "case nil:", range: caseRange.upperBound..<body.endIndex)
+        else {
+            Issue.record("could not locate the .artifacts, .notes branch")
+            return
+        }
+        let branch = body[caseRange.upperBound..<nextCaseRange.lowerBound]
+        #expect(branch.contains("return"))
+        #expect(!branch.contains("documentService.getDocument"))
+        #expect(!branch.contains("detailDocument ="))
     }
 }

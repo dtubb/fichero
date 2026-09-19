@@ -196,13 +196,40 @@ extension ContentView {
                 // doing so would blank whatever the Preview pane was
                 // legitimately showing for no reason tied to opening a claim.
                 return
-            case .pages, .artifacts, .notes, nil:
-                // Unchanged (#4850 kept to entity/claim; filed separately):
-                // these fall through to the ambient-flag branch and the
-                // document-promotion path below exactly as before — a
-                // page/artifact/note row's composite id still reaches
-                // `documentService.getDocument`/`BrowserSelectionPreviewPolicy`
-                // there, same as it did before this delivery.
+            case .pages:
+                // #4862: a page row promotes ITS OWN page. `itemId` is the
+                // page's own (bare) document id — pages ARE real Documents,
+                // nested under their parent PDF only for disclosure — never
+                // the composite string. `LibraryView+TableView.swift`'s own
+                // `.onChange(of: selection)` already resolves this correctly
+                // via its live `outlineNodes` (which carries the actual page
+                // Document, `pageDocumentForNodeId`); this branch is the
+                // same safety net #4850 built for entities/claims, for any
+                // OTHER browse mode that reaches this handler with the same
+                // composite id.
+                if let itemId = parsed.itemId {
+                    Task { @MainActor in
+                        if let page = try? await documentStore.documentService.getDocument(itemId) {
+                            detailDocument = page
+                        }
+                    }
+                }
+                return
+            case .artifacts, .notes:
+                // #4862: artifact and note rows already have a correct,
+                // richer handler — `LibraryView+TableView.swift`'s own
+                // `.onChange(of: selection)` (`artifactSelectionForNodeId`)
+                // resolves via the SAME live outline tree, sets
+                // `detailDocument` to the PARENT document, and focuses
+                // `FocusedArtifact.shared`. ContentView has no access to
+                // that live tree (it lives in the Table view's own @State),
+                // so reconstructing it here would mean guessing at a parent
+                // lookup rather than reusing what exists. Same shape as the
+                // claims branch above: a safe no-op — the composite id must
+                // not reach the generic document-promotion path below, and
+                // nothing beyond that is invented.
+                return
+            case nil:
                 break
             }
         }

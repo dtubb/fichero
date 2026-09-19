@@ -268,6 +268,97 @@ struct ClaimSourceLandingTests {
         )
         #expect(!AppSource.codeOnly(String(body.prefix(400))).contains("sourceRevealDocument"))
     }
+
+    // MARK: - #4834 slice E: claim cards and the graph tab move to .both
+
+    /// Claim-card reveal (`postOpenClaimSource`, reached from the quote button,
+    /// the quick-look chip's Reveal, and the card's tap gesture) — the actual
+    /// navigating site — is `.both`; the two claim-card ROW builders
+    /// (attestation list, corroboration list) are `.both` too.
+    @Test("claim cards reveal at .both — the main site and both row lists")
+    func claimCardsRevealAtBoth() throws {
+        let source = try String(
+            contentsOf: AppSource.root().appendingPathComponent(
+                "Views/Library/ViewModes/Graph/Ontology/Claim/ClaimSummaryCard+Details.swift"
+            ),
+            encoding: .utf8
+        )
+        let mainSite = try #require(
+            source.components(separatedBy: "func postOpenClaimSource(").dropFirst().first
+        )
+        let mainScope = try #require(mainSite.components(separatedBy: "\n    }").first)
+        #expect(mainScope.contains("destination: .both"))
+
+        let attestationSite = try #require(
+            source.components(separatedBy: "var attestationList: some View {").dropFirst().first
+        )
+        let attestationScope = try #require(attestationSite.components(separatedBy: "} label: {").first)
+        #expect(attestationScope.contains("destination: .both"))
+
+        let corroborationSite = try #require(
+            source.components(separatedBy: "var corroborationSection: some View {").dropFirst().first
+        )
+        let corroborationScope = try #require(corroborationSite.components(separatedBy: "} label: {").first)
+        #expect(corroborationScope.contains("destination: .both"))
+    }
+
+    /// The graph tab surfaces — the KG surface's graph-edge reveal, the force
+    /// graph's edge click, and both web-pane coordinators — all reveal at
+    /// `.both`. The KG surface's "related document" row stays `.reader` — a
+    /// document pick, not a statement.
+    @Test("the graph tab surfaces reveal at .both")
+    func graphTabSurfacesRevealAtBoth() throws {
+        let kgSurface = try AppSource.text("Views/Reader/Knowledge/DocumentKGSurface.swift")
+        let graphSite = try #require(
+            kgSurface.components(separatedBy: "ClaimSourceRequest.request(").dropFirst().first
+        )
+        let graphScope = try #require(graphSite.components(separatedBy: ") {").first)
+        #expect(graphScope.contains("destination: .both"))
+        #expect(kgSurface.contains("ClaimSourceNavigationRequest(documentId: relatedId, destination: .reader)"))
+
+        let forceGraph = try AppSource.text(
+            "Views/Library/ViewModes/Graph/Ontology/ForceDirectedGraphView+Render.swift"
+        )
+        #expect(forceGraph.contains("destination: .both"))
+        #expect(!forceGraph.contains("destination: .reader"))
+
+        let macCoordinator = try AppSource.text("Views/Reader/Knowledge/DocumentKGWebPaneCoordinatorMacOS.swift")
+        #expect(macCoordinator.contains("destination: .both"))
+        let iosCoordinator = try AppSource.text("Views/Reader/Knowledge/DocumentKGWebPaneCoordinatoriOS.swift")
+        #expect(iosCoordinator.contains("destination: .both"))
+    }
+
+    // MARK: - #4834 slice E: the claims table's row selection stays a selection
+
+    /// A single-row selection still opens the source through the SAME
+    /// selection-linked path as before, unchanged — `.reader`, tied to
+    /// `.onChange(of: selection)`.
+    @Test("a claims-table row selection still opens source through .reader, unchanged")
+    func claimsTableSelectionStillOpensAtReader() throws {
+        let source = try AppSource.text("Views/Library/ViewModes/Table/ClaimsLibraryContent.swift")
+        let body = try #require(
+            source.components(separatedBy: "private func openSource(").dropFirst().first
+        )
+        let scope = try #require(body.components(separatedBy: "\n    }").first)
+        #expect(scope.contains("destination: .reader"))
+    }
+
+    /// The smallest addition for "see the evidence without selecting": one
+    /// context-menu item, `.both`, that never touches `selection`.
+    @Test("the claims table's Reveal Source menu item is .both and does not select")
+    func claimsTableRevealSourceMenuItemIsBoth() throws {
+        let tableSource = try AppSource.text("Views/Library/ViewModes/Table/ClaimsTableView.swift")
+        #expect(tableSource.contains("var onRevealSource: ((Components.Schemas.KnowledgeClaim) -> Void)?"))
+        #expect(tableSource.contains(#"Label("Reveal Source", systemImage: "doc.text.magnifyingglass")"#))
+
+        let contentSource = try AppSource.text("Views/Library/ViewModes/Table/ClaimsLibraryContent.swift")
+        let body = try #require(
+            contentSource.components(separatedBy: "private func revealSource(").dropFirst().first
+        )
+        let scope = try #require(body.components(separatedBy: "\n    }").first)
+        #expect(scope.contains("destination: .both"))
+        #expect(!scope.contains("selection ="), "revealing the source must never write the row selection")
+    }
 }
 
 /// A geocoded pin is drawn as a guess, because that is what it is (#4668).

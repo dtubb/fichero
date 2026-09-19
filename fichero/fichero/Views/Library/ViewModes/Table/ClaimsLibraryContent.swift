@@ -84,7 +84,8 @@ struct ClaimsLibraryContent: View {
                 emptyMessage: emptyMessage,
                 onOpenSource: openSource,
                 onDelete: deleteClaims,
-                onEdit: { claimToEdit = $0 }
+                onEdit: { claimToEdit = $0 },
+                onRevealSource: revealSource
             )
             // #4850: bottom, matching the Entities table and the Library
             // pane's own filter — was first in this VStack (top).
@@ -270,9 +271,19 @@ struct ClaimsLibraryContent: View {
     /// cursor — reusing `ClaimSourceRequest` (no new nav path). A claim with no
     /// honest destination simply doesn't navigate.
     private func openSource(_ claim: Components.Schemas.KnowledgeClaim) {
-        // #4834: Entities/Claims table rows are priority-4, out of this
-        // delivery's scope — `.reader` stated explicitly.
+        // #4834: this fires from the row's OWN selection changing
+        // (`.onChange(of: selection)` in ClaimsTableView) — "a table row
+        // click IS a selection," left unchanged; `.reader` stated explicitly.
         guard let request = ClaimSourceRequest.request(for: claim, destination: .reader) else { return }
+        cursor?.request(request)
+    }
+
+    /// #4834 slice E: the context-menu "Reveal Source" item — the smallest
+    /// addition that shows a claim's evidence WITHOUT touching the row
+    /// selection (`.both`), for when the user wants to see the source but
+    /// not navigate away from whatever else they've selected.
+    private func revealSource(_ claim: Components.Schemas.KnowledgeClaim) {
+        guard let request = ClaimSourceRequest.request(for: claim, destination: .both) else { return }
         cursor?.request(request)
     }
 

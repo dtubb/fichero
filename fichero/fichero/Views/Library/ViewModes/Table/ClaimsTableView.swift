@@ -46,6 +46,13 @@ struct ClaimsTableView: View {
     /// Edit one claim — the host presents the existing EditClaimSheet (PATCH). Optional
     /// so a read-only host can render the table without an edit path.
     var onEdit: ((Components.Schemas.KnowledgeClaim) -> Void)?
+    /// #4834 slice E: reveal a claim's source WITHOUT changing the row selection —
+    /// `onOpenSource` above is selection-LINKED (fires from `.onChange(of: selection)`,
+    /// `.reader` destination, unchanged by design: "a table row click IS a selection").
+    /// This is the smallest addition for "show me the evidence" independent of that: one
+    /// context-menu item, wired to the `.both` destination. Optional so a read-only host
+    /// can render the table without it.
+    var onRevealSource: ((Components.Schemas.KnowledgeClaim) -> Void)?
 
     @State private var sortOrder: [KeyPathComparator<Item>] = [
         KeyPathComparator(\Item.values.subject, order: .forward)
@@ -165,6 +172,13 @@ struct ClaimsTableView: View {
     private func claimMenu(for ids: Set<String>) -> some View {
         let targets = items.filter { ids.contains($0.id) }.map(\.claim)
         if !targets.isEmpty {
+            if let onRevealSource, targets.count == 1, let one = targets.first {
+                Button { onRevealSource(one) } label: {
+                    Label("Reveal Source", systemImage: "doc.text.magnifyingglass")
+                }
+                .accessibilityIdentifier("kg.claim.menu.revealSource")
+                if onEdit != nil || onDelete != nil { Divider() }
+            }
             if let onEdit, targets.count == 1, let one = targets.first {
                 Button { onEdit(one) } label: {
                     Label("Edit…", systemImage: "pencil")
