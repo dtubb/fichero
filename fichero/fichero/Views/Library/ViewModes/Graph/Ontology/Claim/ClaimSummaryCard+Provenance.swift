@@ -39,25 +39,45 @@ extension ClaimSummaryCard {
         return ProvenanceBadge(label: "\(count) places", tint: .indigo)
     }
 
+    /// #4868 (`hermeneutic.claim-provenance-badge-reads-the-right-field`,
+    /// `kg.claim.provenance-kind-is-server-stated`): reads `provenanceKind`
+    /// and NOTHING else. The old version guessed from `createdBy` by
+    /// substring — a user literally named "daniel" read as AI (contains
+    /// none of the trigger words, so it actually fell through to no badge;
+    /// the real failure was the OTHER direction: every machine-extracted
+    /// claim was stored with `created_by: "human"` until tonight's engine
+    /// fix, so the substring check could never have told them apart even
+    /// with a name that DID collide). `provenanceKind` is set by the SERVER
+    /// at write time and derived for rows written before the field existed
+    /// — the app never guesses, it only reads. `nil` is treated exactly
+    /// like `.unknown`: never shown as Human or AI.
     private static func createdByBadge(
         for claim: Components.Schemas.KnowledgeClaim
     ) -> ProvenanceBadge? {
-        guard let createdByRaw = claim.createdBy?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased(),
-            !createdByRaw.isEmpty
-        else { return nil }
-        if ["human", "user", "manual", "researcher", "editor", "curator", "cli"]
-            .contains(createdByRaw) {
+        switch claim.provenanceKind {
+        case .human:
             return ProvenanceBadge(label: "Human", tint: .orange)
+        case .workflow:
+            // Machine-made — `provider`/`model` say whether it was a
+            // language model or spaCy, shown beside the badge when present
+            // rather than folded into one ambiguous "AI" label.
+            let detail = [claim.provider, claim.model]
+                .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            let suffix = detail.isEmpty ? "" : " (\(detail.joined(separator: " · ")))"
+            return ProvenanceBadge(label: "Workflow\(suffix)", tint: .purple)
+        case .agent:
+            return ProvenanceBadge(label: "Agent", tint: .purple)
+        case .externalImport:
+            // Names the source — `createdBy` carries it (e.g. "wikidata").
+            let source = claim.createdBy?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let label = (source?.isEmpty == false) ? source! : "External import"
+            return ProvenanceBadge(label: label, tint: .blue)
+        case .unknown, nil:
+            return ProvenanceBadge(label: "Unknown origin", tint: .gray)
+        @unknown default:
+            return ProvenanceBadge(label: "Unknown origin", tint: .gray)
         }
-        if createdByRaw.contains("extract")
-            || createdByRaw.contains("agent")
-            || createdByRaw.contains("llm")
-            || createdByRaw.contains("ai") {
-            return ProvenanceBadge(label: "AI", tint: .purple)
-        }
-        return nil
     }
 
     private static func quotationKindBadge(

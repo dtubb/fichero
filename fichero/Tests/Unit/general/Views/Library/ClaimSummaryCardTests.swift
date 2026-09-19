@@ -243,12 +243,21 @@ final class ClaimSummaryCardTests: XCTestCase {
         XCTAssertFalse(labels.contains(where: { $0.contains("corroborated") }))
     }
 
-    func testProvenanceBadgesIncludesHumanCreatedByBadge() throws {
+    // MARK: - #4868: the badge reads `provenanceKind`, and nothing else
+
+    /// `hermeneutic.claim-provenance-badge-reads-the-right-field` /
+    /// `kg.claim.provenance-kind-is-server-stated`: the badge is the SAME
+    /// regardless of what `created_by` says — it is `provenanceKind` alone
+    /// that decides. Your exact case: `created_by: "daniel"` (a name with
+    /// no trigger word — the OLD substring check would have shown no badge
+    /// at all) with `provenance_kind: "human"` badges Human.
+    func testHumanKindBadgesHumanRegardlessOfCreatedByName() throws {
         let claim = try decodeClaim("""
         {
           "text": "ignored",
           "source_document_id": "doc-1",
-          "created_by": "human"
+          "created_by": "daniel",
+          "provenance_kind": "human"
         }
         """)
 
@@ -260,12 +269,14 @@ final class ClaimSummaryCardTests: XCTestCase {
         XCTAssertTrue(labels.contains("Human"))
     }
 
-    func testProvenanceBadgesIncludesAIBadgeForExtractor() throws {
+    func testWorkflowKindBadgesWorkflowWithProviderAndModel() throws {
         let claim = try decodeClaim("""
         {
           "text": "ignored",
           "source_document_id": "doc-1",
-          "created_by": "extractor"
+          "provenance_kind": "workflow",
+          "provider": "anthropic",
+          "model": "claude-opus"
         }
         """)
 
@@ -273,7 +284,130 @@ final class ClaimSummaryCardTests: XCTestCase {
             .provenanceBadges(for: claim)
             .map(\.label)
 
-        XCTAssertTrue(labels.contains("AI"))
+        XCTAssertTrue(labels.contains("Workflow (anthropic · claude-opus)"))
+    }
+
+    func testWorkflowKindBadgesPlainWorkflowWithNoProviderOrModel() throws {
+        let claim = try decodeClaim("""
+        {
+          "text": "ignored",
+          "source_document_id": "doc-1",
+          "provenance_kind": "workflow"
+        }
+        """)
+
+        let labels = ClaimSummaryCard
+            .provenanceBadges(for: claim)
+            .map(\.label)
+
+        XCTAssertTrue(labels.contains("Workflow"))
+    }
+
+    func testAgentKindBadgesAgent() throws {
+        let claim = try decodeClaim("""
+        {
+          "text": "ignored",
+          "source_document_id": "doc-1",
+          "provenance_kind": "agent"
+        }
+        """)
+
+        let labels = ClaimSummaryCard
+            .provenanceBadges(for: claim)
+            .map(\.label)
+
+        XCTAssertTrue(labels.contains("Agent"))
+    }
+
+    func testExternalImportKindBadgesTheNamedSource() throws {
+        let claim = try decodeClaim("""
+        {
+          "text": "ignored",
+          "source_document_id": "doc-1",
+          "created_by": "wikidata",
+          "provenance_kind": "external_import"
+        }
+        """)
+
+        let labels = ClaimSummaryCard
+            .provenanceBadges(for: claim)
+            .map(\.label)
+
+        XCTAssertTrue(labels.contains("wikidata"))
+    }
+
+    func testExternalImportKindWithNoCreatedByFallsBackToAGenericLabel() throws {
+        let claim = try decodeClaim("""
+        {
+          "text": "ignored",
+          "source_document_id": "doc-1",
+          "provenance_kind": "external_import"
+        }
+        """)
+
+        let labels = ClaimSummaryCard
+            .provenanceBadges(for: claim)
+            .map(\.label)
+
+        XCTAssertTrue(labels.contains("External import"))
+    }
+
+    func testUnknownKindBadgesAsUnknownNeverHumanOrAI() throws {
+        let claim = try decodeClaim("""
+        {
+          "text": "ignored",
+          "source_document_id": "doc-1",
+          "created_by": "extractor",
+          "provenance_kind": "unknown"
+        }
+        """)
+
+        let labels = ClaimSummaryCard
+            .provenanceBadges(for: claim)
+            .map(\.label)
+
+        XCTAssertTrue(labels.contains("Unknown origin"))
+        XCTAssertFalse(labels.contains("Human"))
+        XCTAssertFalse(labels.contains("AI"))
+    }
+
+    /// `nil` (`provenance_kind` absent — the field is nullable, and every
+    /// row written before it existed decodes with no value) is treated
+    /// EXACTLY like `.unknown` — never Human, never AI.
+    func testNilKindBadgesAsUnknownNeverHumanOrAI() throws {
+        let claim = try decodeClaim("""
+        {
+          "text": "ignored",
+          "source_document_id": "doc-1",
+          "created_by": "daniel"
+        }
+        """)
+
+        XCTAssertNil(claim.provenanceKind)
+        let labels = ClaimSummaryCard
+            .provenanceBadges(for: claim)
+            .map(\.label)
+
+        XCTAssertTrue(labels.contains("Unknown origin"))
+        XCTAssertFalse(labels.contains("Human"))
+        XCTAssertFalse(labels.contains("AI"))
+    }
+
+    /// No badge is ever chosen by inspecting `createdBy`'s TEXT — deleted
+    /// the substring match entirely.
+    func testCreatedByBadgeNoLongerSubstringMatchesCreatedBy() throws {
+        let source = try Self.appSource(
+            "Views/Library/ViewModes/Graph/Ontology/Claim/ClaimSummaryCard+Provenance.swift"
+        )
+        let body = try XCTUnwrap(
+            source.components(separatedBy: "private static func createdByBadge(").dropFirst().first
+        )
+        let scope = try XCTUnwrap(body.components(separatedBy: "\n\n    private static func").first)
+        XCTAssertFalse(scope.contains(".contains(\"ai\")"))
+        XCTAssertFalse(scope.contains(".contains(\"agent\")"))
+        XCTAssertFalse(scope.contains(".contains(\"llm\")"))
+        XCTAssertFalse(scope.contains(".contains(\"extract\")"))
+        XCTAssertTrue(scope.contains("switch claim.provenanceKind {"))
     }
 
     func testClaimFocusPreservesEntityInspectionContext() throws {

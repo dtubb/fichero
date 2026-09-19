@@ -87,7 +87,11 @@ struct PDFPageWithToolbar: View {
     /// Open THIS pane's document in a native tab (`asTab`) or a new window,
     /// via the same Safari-style path library rows use.
     private func openThisDocumentInNewWindow(asTab: Bool) {
-        let libraryId = LibraryManager.shared.currentLibraryId ?? LibraryManager.globalLibraryId
+        // #4860: THIS pane's own window's library — `pdfWindowState` is
+        // optional (headless hosts inject none), so the global library is
+        // the fallback for THAT case only, never the app-wide "current"
+        // pointer, which could name a DIFFERENT window's library.
+        let libraryId = pdfWindowState?.libraryId ?? LibraryManager.globalLibraryId
         WindowOpener.open(libraryId: libraryId, documentId: effectiveDocumentId, asTab: asTab, using: openWindow)
     }
 

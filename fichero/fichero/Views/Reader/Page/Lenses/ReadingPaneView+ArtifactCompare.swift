@@ -127,8 +127,9 @@ extension ReadingPaneView {
         artifactCompareError = nil
         artifactCompareColumns = []
         guard artifactCompareIds.count >= 2 else { return }
-        let library = LibraryManager.shared
-            .getLibrary(id: LibraryManager.shared.currentLibraryId ?? LibraryManager.globalLibraryId)
+        // #4860: THIS pane's own window's library, same fallback shape as
+        // `ReadingPaneView+ArtifactLens.swift`.
+        let library = LibraryManager.shared.getLibrary(id: windowState.libraryId)
         guard let service = paneArtifactService ?? library?.artifactService else {
             artifactCompareError = "This window has no library to read artifacts from."
             return

@@ -111,12 +111,15 @@ extension LibraryView {
         openWindow(id: "artifact-detail")
     }
 
-    /// Strip a child-group node's `:type` suffix back to the document id.
+    /// Strip a child-group/item node's `:type[:itemId]` suffix back to the
+    /// document id. Was splitting on the FIRST colon (#4860 audit finding) —
+    /// a document id that itself contains a colon (a "container:<name>"
+    /// default-workflow subfolder, #4850's own example) split wrong.
+    /// `LibraryOutlineNode.parse(nodeId:)` already gets this right, searching
+    /// from the RIGHT for the marker `id` actually mints — reuse it instead
+    /// of a second, differently-broken implementation.
     func documentId(forNodeId nodeId: String) -> String {
-        if let colon = nodeId.firstIndex(of: ":") {
-            return String(nodeId[..<colon])
-        }
-        return nodeId
+        LibraryOutlineNode.parse(nodeId: nodeId).documentId
     }
 
     /// Top-level outline nodes for the currently filtered documents, with

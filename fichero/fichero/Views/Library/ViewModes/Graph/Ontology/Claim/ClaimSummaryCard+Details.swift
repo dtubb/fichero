@@ -609,8 +609,8 @@ extension ClaimSummaryCard {
 
     func deleteClaim() {
         guard let claimId = claim.id else { return }
-        let libraryId = LibraryManager.shared.currentLibraryId ?? LibraryManager.globalLibraryId
-        guard let library = LibraryManager.shared.getLibrary(id: libraryId) else { return }
+        // #4860: THIS window's own library.
+        guard let library = LibraryManager.shared.getLibrary(id: windowState.libraryId) else { return }
         Task {
             do {
                 _ = try await library.actionsService.invokeAction(

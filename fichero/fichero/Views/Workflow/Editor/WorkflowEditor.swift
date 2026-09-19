@@ -14,6 +14,11 @@ struct WorkflowEditor: View {
     /// Document IDs currently selected in the library (plain UUIDs, no prefix)
     let selectedDocumentIds: [String]
 
+    /// #4860: this window's OWN library, for the pane head's breadcrumb —
+    /// never `LibraryManager.shared.currentLibraryId` (the app-wide pointer
+    /// names whichever tab was activated most recently anywhere).
+    @Environment(WindowState.self) var windowState
+
     @State var isRunning: Bool = false
     @State var isSaving: Bool = false
     @State var saveError: String?
@@ -91,8 +96,8 @@ struct WorkflowEditor: View {
     /// what the other panes' heads are.
     private var editorHeadCrumbs: [PaneCrumb] {
         var crumbs: [PaneCrumb] = []
-        if let libraryId = LibraryManager.shared.currentLibraryId,
-           let library = LibraryManager.shared.getLibrary(id: libraryId) {
+        // #4860: this pane names ITS OWN window's library.
+        if let library = LibraryManager.shared.getLibrary(id: windowState.libraryId) {
             crumbs.append(PaneCrumb(
                 id: "library-root",
                 title: library.displayName,

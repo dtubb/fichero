@@ -55,9 +55,7 @@ extension ReadingPaneView {
     /// `Document` carries no library id — the current library IS the reading
     /// context, the same assumption the path bar and the sidebar reveal make.
     var libraryName: String? {
-        guard let libraryId = LibraryManager.shared.currentLibraryId,
-              let library = LibraryManager.shared.getLibrary(id: libraryId)
-        else { return nil }
-        return library.displayName
+        // #4860: THIS pane's own window's library.
+        LibraryManager.shared.getLibrary(id: windowState.libraryId)?.displayName
     }
 }

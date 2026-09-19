@@ -29,6 +29,13 @@ struct ClaimSummaryCard: View {
     /// so whichever comes back does not need this same fix again.
     var onClaimUpdated: ((Components.Schemas.KnowledgeClaim) -> Void)?
 
+    /// #4860: this window's OWN library — for the delete action's target
+    /// library and the "open in new window" paths below. Never
+    /// `LibraryManager.shared.currentLibraryId` (the app-wide pointer). Both
+    /// of this type's real construction sites are currently dead/preview-
+    /// only (see `onClaimUpdated`'s comment above), so this has no visible
+    /// effect today; fixed for correctness whenever either comes back.
+    @Environment(WindowState.self) var windowState
     /// Per-window request buses (#3437); optional → safe no-op when a host
     /// hasn't injected them. The search bus serves the chip rule (nouns
     /// navigate — ratified 2026-09-04); the source bus serves the sentence.

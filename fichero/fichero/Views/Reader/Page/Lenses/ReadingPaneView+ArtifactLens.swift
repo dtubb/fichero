@@ -295,9 +295,8 @@ extension ReadingPaneView {
         guard let representation = readerRepresentation,
               ReaderRepresentation.tableTypes.contains(representation),
               let doc = effectiveDocument,
-              let service = LibraryManager.shared
-                  .getLibrary(id: LibraryManager.shared.currentLibraryId ?? LibraryManager.globalLibraryId)?
-                  .artifactService
+              // #4860: THIS pane's own window's library.
+              let service = LibraryManager.shared.getLibrary(id: windowState.libraryId)?.artifactService
         else { return }
         guard let artifacts = try? await service.getArtifacts(
             forDocumentId: doc.id, includeDescendants: true
@@ -475,14 +474,16 @@ extension ReadingPaneView {
         artifactLensGroups = []
         readerRepresentationChoices = []
         guard let doc = effectiveDocument else { return }
-        // The pane's OWN injected service first (2026-09-02): the
-        // currentLibraryId lookup is the app-global pointer, and in a
+        // The pane's OWN injected service first (2026-09-02): the OLD
+        // currentLibraryId lookup was the app-global pointer, and in a
         // multi-library window it named a different library than this pane —
         // the artifact fetch answered for the wrong scope and the "Showing"
         // submenu rendered empty (Daniel: "reader view has no artefact
-        // submenu"). The lookup stays only as the headless-host fallback.
-        let library = LibraryManager.shared
-            .getLibrary(id: LibraryManager.shared.currentLibraryId ?? LibraryManager.globalLibraryId)
+        // submenu"). The fallback (headless hosts with no injected service)
+        // now reads THIS pane's own window's library too (#4860) — it must
+        // stay a fallback, but it must not go back to being wrong when it
+        // fires.
+        let library = LibraryManager.shared.getLibrary(id: windowState.libraryId)
         guard let service = paneArtifactService ?? library?.artifactService
         else { return }
         // ONE fetch answers both head controls: the whole scope's artifacts

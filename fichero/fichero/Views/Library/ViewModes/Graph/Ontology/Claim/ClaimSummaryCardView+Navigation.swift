@@ -37,8 +37,8 @@ extension ClaimSummaryCard {
     /// Open the claim's SOURCE document in a native tab (`asTab`) or a new
     /// window (#3582) — the browser-tab metaphor applied to a reveal menu.
     func openSourceInNewWindow(_ documentId: String, asTab: Bool) {
-        let libraryId = LibraryManager.shared.currentLibraryId ?? LibraryManager.globalLibraryId
-        WindowOpener.open(libraryId: libraryId, documentId: documentId, asTab: asTab, using: openWindow)
+        // #4860: THIS window's own library.
+        WindowOpener.open(libraryId: windowState.libraryId, documentId: documentId, asTab: asTab, using: openWindow)
     }
 
     func openClaimInNewWindow(asTab: Bool) {
@@ -53,8 +53,8 @@ extension ClaimSummaryCard {
             sourceDocumentId: claim.sourceDocumentId,
             sourcePageLabel: claim.sourcePageLabel
         )
-        let libraryId = LibraryManager.shared.currentLibraryId ?? LibraryManager.globalLibraryId
-        WindowOpener.open(libraryId: libraryId, asTab: asTab, using: openWindow)
+        // #4860: THIS window's own library.
+        WindowOpener.open(libraryId: windowState.libraryId, asTab: asTab, using: openWindow)
     }
 
     // `revealSourceClaimInline()` deleted 2026-09-04 with the chip ruling:

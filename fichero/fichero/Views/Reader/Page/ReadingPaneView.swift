@@ -59,6 +59,12 @@ struct ReadingPaneView: View {
     var readerRunHistoryEmptyReason: String? = nil
 
     @Environment(APIClient.self) var apiClient
+    /// #4860: this window's OWN library — for the pane head's breadcrumb,
+    /// its drag payloads, and its new-window/new-tab opens. Never
+    /// `LibraryManager.shared.currentLibraryId` (the app-wide pointer names
+    /// whichever tab was activated most recently anywhere), same class of
+    /// bug `paneArtifactService` below was already fixed for.
+    @Environment(WindowState.self) var windowState
     /// THIS window's artifact service (2026-09-02): the lens loader used to
     /// resolve `LibraryManager.currentLibraryId` — the app-globally current
     /// library, not this pane's — so in a multi-library window the "Showing"
@@ -358,8 +364,8 @@ struct ReadingPaneView: View {
     /// Open this reader's document in a native tab (`asTab`) or a new window
     /// (#3582), via the same Safari-style path library rows use.
     private func openThisDocumentInNewWindow(_ documentId: String, asTab: Bool) {
-        let libraryId = LibraryManager.shared.currentLibraryId ?? LibraryManager.globalLibraryId
-        WindowOpener.open(libraryId: libraryId, documentId: documentId, asTab: asTab, using: openWindow)
+        // #4860: THIS pane's own window's library, not the app-wide pointer.
+        WindowOpener.open(libraryId: windowState.libraryId, documentId: documentId, asTab: asTab, using: openWindow)
     }
 
     /// Bring the Reader to the Page tab so a revealed claim/entity lands on the
@@ -478,10 +484,9 @@ struct ReadingPaneView: View {
                     ?? documentStore.childrenCache[crumb.id]
                     ?? []).map(PaneCrumb.init)
             },
+            // #4860: THIS pane's own window's library.
             crumbDragPayload: { crumb in
-                LibraryManager.shared.currentLibraryId.flatMap {
-                    paneCrumbDragPayload(crumb, store: documentStore, libraryId: $0)
-                }
+                paneCrumbDragPayload(crumb, store: documentStore, libraryId: windowState.libraryId)
             },
             // The proxy icon drags the TEXT (Daniel, 2026-09-01). Ancestors
             // still drag as library items; only the leaf — the pane's proxy
@@ -576,13 +581,14 @@ struct ReadingPaneView: View {
     /// pointed at). The lens wins over the document, because the pane's head
     /// names the artifact and the drag must promise what the head says.
     private func readerProxyIdentity(for document: Document, text: String) -> LibraryItemDrag {
+        // #4860: THIS pane's own window's library.
         if let lens = artifactLens {
             return LibraryItemDrag(
                 kind: .artifact,
                 id: lens.artifactId,
                 documentId: document.id,
                 text: text,
-                libraryId: LibraryManager.shared.currentLibraryId,
+                libraryId: windowState.libraryId,
                 name: lens.label
             )
         }
@@ -591,7 +597,7 @@ struct ReadingPaneView: View {
             id: document.id,
             documentId: document.id,
             text: text,
-            libraryId: LibraryManager.shared.currentLibraryId,
+            libraryId: windowState.libraryId,
             name: DocumentTitle.displayName(for: document)
         )
     }
